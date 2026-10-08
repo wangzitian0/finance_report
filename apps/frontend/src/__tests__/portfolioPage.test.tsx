@@ -51,40 +51,17 @@ function createWrapper() {
 }
 
 const mockHolding: PortfolioHolding = {
-  id: "h1",
-  user_id: "u1",
-  account_id: "acc1",
-  asset_identifier: "AAPL",
-  quantity: "10",
-  cost_basis: "1500.00",
-  market_value: "1800.00",
-  unrealized_pnl: "300.00",
-  unrealized_pnl_percent: "20.00",
-  currency: "USD",
-  native_cost_basis: "1500.00",
-  native_currency: "USD",
-  reporting_cost_basis: "1500.00",
-  reporting_currency: "USD",
-  acquisition_date: "2025-01-15",
-  status: "active",
-  account_name: "IBKR",
-  asset_type: "Equity",
-  sector: "Technology",
-  geography: "US",
+  id: "h1", user_id: "u1", account_id: "acc1", asset_identifier: "AAPL", quantity: "10",
+  cost_basis: "1500.00", market_value: "1800.00", unrealized_pnl: "300.00", unrealized_pnl_percent: "20.00",
+  currency: "USD", native_cost_basis: "1500.00", native_currency: "USD", reporting_cost_basis: "1500.00",
+  reporting_currency: "USD", acquisition_date: "2025-01-15", status: "active", account_name: "IBKR",
+  asset_type: "Equity", sector: "Technology", geography: "US",
 };
 
 const mockHolding2: PortfolioHolding = {
-  ...mockHolding,
-  id: "h2",
-  asset_identifier: "TSLA",
-  quantity: "5",
-  cost_basis: "1000.00",
-  market_value: "900.00",
-  unrealized_pnl: "-100.00",
-  unrealized_pnl_percent: "-10.00",
-  disposal_date: "2025-11-01",
-  status: "disposed",
-  sector: "Automotive",
+  ...mockHolding, id: "h2", asset_identifier: "TSLA", quantity: "5", cost_basis: "1000.00",
+  market_value: "900.00", unrealized_pnl: "-100.00", unrealized_pnl_percent: "-10.00",
+  disposal_date: "2025-11-01", status: "disposed", sector: "Automotive",
 };
 
 type NetWorthAllocationMode =
@@ -100,188 +77,46 @@ function mockPortfolioApi(
   mockedApiFetch.mockImplementation((path: string) => {
     if (path.startsWith("/api/portfolio/summary")) {
       return Promise.resolve({
-        total_market_value: "1800.00",
-        total_cost_basis: "1500.00",
-        total_unrealized_pnl: "300.00",
-        total_unrealized_pnl_percent: "20.00",
-        total_realized_pnl: "149.00",
-        total_realized_pnl_percent: "9.93",
-        net_pnl: "449.00",
-        net_pnl_percent: "29.93",
-        holdings_count: holdings.length,
-        active_positions_count: holdings.filter((h) => h.status === "active")
-          .length,
-        disposed_positions_count: holdings.filter(
-          (h) => h.status === "disposed",
-        ).length,
-        currency: "SGD",
-        realized_pnl_ytd: "149.00",
-        dividend_income_ytd: "42.50",
+        total_market_value: "1800.00", total_cost_basis: "1500.00", total_unrealized_pnl: "300.00",
+        total_unrealized_pnl_percent: "20.00", total_realized_pnl: "149.00", total_realized_pnl_percent: "9.93",
+        net_pnl: "449.00", net_pnl_percent: "29.93", holdings_count: holdings.length,
+        active_positions_count: holdings.filter((h) => h.status === "active").length,
+        disposed_positions_count: holdings.filter((h) => h.status === "disposed").length,
+        currency: "SGD", realized_pnl_ytd: "149.00", dividend_income_ytd: "42.50",
       });
     }
     if (path.startsWith("/api/portfolio/performance/report-schedule")) {
       return Promise.resolve({
-        period_start: "2026-01-01",
-        period_end: "2026-12-31",
-        as_of_date: "2026-12-31",
-        currency: scheduleCurrency,
-        xirr: "12.50",
-        time_weighted_return: "8.30",
-        money_weighted_return: "10.10",
-        realized_pnl: "149.00",
-        unrealized_pnl: "300.00",
-        dividend_income: "42.50",
-        dividend_yield: "2.36",
-        holdings: [
-          {
-            asset_identifier: "AAPL",
-            quantity: "10.000000",
-            cost_basis: "1500.00",
-            market_value: "1800.00",
-            unrealized_pnl: "300.00",
-            realized_pnl: "149.00",
-            dividend_income: "42.50",
-            currency: "SGD",
-          },
-        ],
+        period_start: "2026-01-01", period_end: "2026-12-31", as_of_date: "2026-12-31",
+        currency: scheduleCurrency, xirr: "12.50", time_weighted_return: "8.30", money_weighted_return: "10.10",
+        realized_pnl: "149.00", unrealized_pnl: "300.00", dividend_income: "42.50", dividend_yield: "2.36",
+        holdings: [{ asset_identifier: "AAPL", quantity: "10.000000", cost_basis: "1500.00", market_value: "1800.00", unrealized_pnl: "300.00", realized_pnl: "149.00", dividend_income: "42.50", currency: "SGD" }],
         allocation: [
-          {
-            dimension: "asset_class",
-            category: "Public Equity",
-            value: "1800.00",
-            percentage: allocationPercentage,
-            count: 1,
-          },
-          {
-            dimension: "sector",
-            category: "Technology",
-            value: "1800.00",
-            percentage: "100.00",
-            count: 1,
-          },
+          { dimension: "asset_class", category: "Public Equity", value: "1800.00", percentage: allocationPercentage, count: 1 },
+          { dimension: "sector", category: "Technology", value: "1800.00", percentage: "100.00", count: 1 },
         ],
-        data_freshness: {
-          latest_price_date: "2026-12-31",
-          market_data_provider: "Test Broker",
-          stale: false,
-          stale_holdings: [],
-          manual_override_basis: null,
-        },
-        source_links: ["brokerage_statement:aapl"],
-        notes: ["Cost basis uses FIFO where available."],
+        data_freshness: { latest_price_date: "2026-12-31", market_data_provider: "Test Broker", stale: false, stale_holdings: [], manual_override_basis: null },
+        source_links: ["brokerage_statement:aapl"], notes: ["Cost basis uses FIFO where available."],
       });
     }
     if (path.startsWith("/api/reports/net-worth/allocation")) {
-      if (netWorthAllocationMode === "pending") {
-        return new Promise(() => undefined);
-      }
-      if (netWorthAllocationMode === "error") {
-        return Promise.reject(new Error("allocation unavailable"));
-      }
+      if (netWorthAllocationMode === "pending") return new Promise(() => undefined);
+      if (netWorthAllocationMode === "error") return Promise.reject(new Error("allocation unavailable"));
       return Promise.resolve({
-        as_of_date: "2026-12-31",
-        currency: "SGD",
-        include_restricted: !path.includes("include_restricted=false"),
-        total_assets: "2100.00",
-        total_liabilities: "100.00",
-        net_worth: "2000.00",
-        rows:
-          netWorthAllocationMode === "empty"
-            ? []
-            : netWorthAllocationMode === "retirement_benefit"
-              ? [
-                  {
-                    asset_class: "retirement_and_benefit_assets",
-                    liquidity_class: "restricted",
-                    source_currency: "SGD",
-                    value: "185000.00",
-                    percentage_of_net_worth: "100.00",
-                    source_line_count: 1,
-                    source_lines: [
-                      {
-                        source_type: "manual_valuation",
-                        source_id: null,
-                        label: "401k statement",
-                        value: "185000.00",
-                        href: "/assets/valuation-components",
-                      },
-                    ],
-                  },
-                ]
-              : [
-                  {
-                    asset_class: "public_equity",
-                    liquidity_class: "liquid",
-                    source_currency: "USD",
-                    value: "1800.00",
-                    percentage_of_net_worth: allocationPercentage,
-                    source_line_count: 2,
-                    source_lines: [
-                      {
-                        source_type: "portfolio_market_adjustment",
-                        source_id: null,
-                        label: "AAPL market value",
-                        value: "1800.00",
-                        href: "/portfolio/holdings",
-                      },
-                      {
-                        source_type: "manual_component",
-                        source_id: null,
-                        label: "Manual adjustment",
-                        value: "0.00",
-                        href: null,
-                      },
-                    ],
-                  },
-                  {
-                    asset_class: "cash",
-                    liquidity_class: "liquid",
-                    source_currency: "SGD",
-                    value: "300.00",
-                    percentage_of_net_worth: "15.00",
-                    source_line_count: 1,
-                    source_lines: [
-                      {
-                        source_type: "ledger_account",
-                        source_id: "acc1",
-                        label: "Main Bank",
-                        value: "300.00",
-                        href: "/reports/account-lineage?account_id=acc1&as_of_date=2026-12-31&currency=SGD",
-                      },
-                    ],
-                  },
-                  {
-                    asset_class: "liability",
-                    liquidity_class: "liability",
-                    source_currency: "SGD",
-                    value: "-100.00",
-                    percentage_of_net_worth: "-5.00",
-                    source_line_count: 1,
-                    source_lines: [
-                      {
-                        source_type: "ledger_account",
-                        source_id: "loan1",
-                        label: "Loan",
-                        value: "-100.00",
-                        href: "/reports/account-lineage?account_id=loan1&as_of_date=2026-12-31&currency=SGD",
-                      },
-                    ],
-                  },
-                ],
+        as_of_date: "2026-12-31", currency: "SGD", include_restricted: !path.includes("include_restricted=false"),
+        total_assets: "2100.00", total_liabilities: "100.00", net_worth: "2000.00",
+        rows: netWorthAllocationMode === "empty" ? [] : netWorthAllocationMode === "retirement_benefit" ? [
+          { asset_class: "retirement_and_benefit_assets", liquidity_class: "restricted", source_currency: "SGD", value: "185000.00", percentage_of_net_worth: "100.00", source_line_count: 1, source_lines: [{ source_type: "manual_valuation", source_id: null, label: "401k statement", value: "185000.00", href: "/assets/valuation-components" }] },
+        ] : [
+          { asset_class: "public_equity", liquidity_class: "liquid", source_currency: "USD", value: "1800.00", percentage_of_net_worth: allocationPercentage, source_line_count: 2, source_lines: [{ source_type: "portfolio_market_adjustment", source_id: null, label: "AAPL market value", value: "1800.00", href: "/portfolio/holdings" }, { source_type: "manual_component", source_id: null, label: "Manual adjustment", value: "0.00", href: null }] },
+          { asset_class: "cash", liquidity_class: "liquid", source_currency: "SGD", value: "300.00", percentage_of_net_worth: "15.00", source_line_count: 1, source_lines: [{ source_type: "ledger_account", source_id: "acc1", label: "Main Bank", value: "300.00", href: "/reports/account-lineage?account_id=acc1&as_of_date=2026-12-31&currency=SGD" }] },
+          { asset_class: "liability", liquidity_class: "liability", source_currency: "SGD", value: "-100.00", percentage_of_net_worth: "-5.00", source_line_count: 1, source_lines: [{ source_type: "ledger_account", source_id: "loan1", label: "Loan", value: "-100.00", href: "/reports/account-lineage?account_id=loan1&as_of_date=2026-12-31&currency=SGD" }] },
+        ],
       });
     }
     if (path.startsWith("/api/portfolio/holdings")) {
-      if (path.includes("include_disposed=true"))
-        return Promise.resolve({
-          items: [mockHolding, mockHolding2],
-          total: 2,
-          warnings: [],
-        });
-      return Promise.resolve({
-        items: holdings,
-        total: holdings.length,
-        warnings: [],
-      });
+      const items = path.includes("include_disposed=true") ? [mockHolding, mockHolding2] : holdings;
+      return Promise.resolve({ items, total: items.length, warnings: [] });
     }
     return Promise.reject(new Error(`unhandled path ${path}`));
   });
