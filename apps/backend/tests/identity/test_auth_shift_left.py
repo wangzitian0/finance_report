@@ -34,11 +34,16 @@ def test_password_hashing_and_verification(monkeypatch: pytest.MonkeyPatch) -> N
     assert verify_password(password, hashed) is True
     assert verify_password("WrongPassword!", hashed) is False
 
-    # Production environment preserves standard 12 rounds
+    # Protected environments (production, staging) preserve standard 12 rounds
     monkeypatch.setattr(src.config.settings, "environment", "production")
     prod_hashed = hash_password(password)
     assert prod_hashed.startswith("$2b$12$")
     assert verify_password(password, prod_hashed) is True
+
+    monkeypatch.setattr(src.config.settings, "environment", "staging")
+    staging_hashed = hash_password(password)
+    assert staging_hashed.startswith("$2b$12$")
+    assert verify_password(password, staging_hashed) is True
 
 
 def test_jwt_session_token_lifecycle() -> None:
