@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from src.identity.base.types import normalize_email
@@ -19,16 +20,25 @@ from src.identity.extension.security import create_access_token, decode_access_t
 from src.main import app
 
 
-def test_password_hashing_and_verification() -> None:
+def test_password_hashing_and_verification(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC-identity.journeys.1, AC-testing.must-have.8:
-    Password hashing produces salted hash and verifies accurately.
+    Password hashing produces salted hash and verifies accurately with optimal rounds.
     """
+    import src.config
+
     password = "SecurePassword123!"
     hashed = hash_password(password)
 
     assert hashed != password
+    assert hashed.startswith("$2b$04$")
     assert verify_password(password, hashed) is True
     assert verify_password("WrongPassword!", hashed) is False
+
+    # Production environment preserves standard 12 rounds
+    monkeypatch.setattr(src.config.settings, "environment", "production")
+    prod_hashed = hash_password(password)
+    assert prod_hashed.startswith("$2b$12$")
+    assert verify_password(password, prod_hashed) is True
 
 
 def test_jwt_session_token_lifecycle() -> None:
