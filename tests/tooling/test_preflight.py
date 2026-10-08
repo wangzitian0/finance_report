@@ -619,10 +619,14 @@ class TestCiLogging:
         )
         assert rc == 0
         out = capsys.readouterr().out
-        assert "preflight: all" in out
-        assert "gates passed" in out
-        assert "preflight: running" not in out
-        assert "  [ok]" not in out
+        summary_prefix = "preflight: all"
+        summary_suffix = "gates passed"
+        verbose_running = "preflight: running"
+        gate_ok = "  [ok]"
+        assert summary_prefix in out
+        assert summary_suffix in out
+        assert verbose_running not in out
+        assert gate_ok not in out
 
     def test_run_cli_with_quiet_flag_failure(self, capsys):
         rc = preflight.run(
@@ -631,8 +635,10 @@ class TestCiLogging:
         )
         assert rc == 1
         out = capsys.readouterr().out
-        assert "FAIL" in out
-        assert "failed" in out
+        fail_indicator = "FAIL"
+        failed_summary = "failed"
+        assert fail_indicator in out
+        assert failed_summary in out
 
     def test_default_quiet_runner_suppresses_output_on_success(
         self, capsys, monkeypatch
@@ -665,5 +671,7 @@ class TestCiLogging:
         rc = preflight._default_quiet_runner(["flake8"], cwd="/tmp")
         assert rc == 1
         captured = capsys.readouterr()
-        assert "syntax error on line 42" in captured.out
-        assert "warning message" in captured.err
+        error_msg = "syntax error on line 42"
+        warning_msg = "warning message"
+        assert error_msg in captured.out
+        assert warning_msg in captured.err
