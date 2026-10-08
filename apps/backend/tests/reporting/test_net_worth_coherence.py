@@ -1,4 +1,4 @@
-"""Tests for Net Worth metric alignment between Balance Sheet and Net Worth Allocation."""
+"""AC-reporting.net-worth-components.1: Tests for Net Worth metric alignment between Balance Sheet and Net Worth Allocation."""
 
 from datetime import date
 from decimal import Decimal

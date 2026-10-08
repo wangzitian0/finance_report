@@ -1,3 +1,4 @@
+// AC-reporting.fe-report-surfaces.1: Liability tone styling for zero vs positive liabilities
 import { describe, expect, it } from "vitest";
 import { liabilityToneClass } from "@/lib/statusLabels";
 

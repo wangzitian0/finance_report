@@ -1,3 +1,4 @@
+// AC-reporting.fe-report-surfaces.2: SmartBackLink dynamic router navigation
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { SmartBackLink } from "@/components/ui/SmartBackLink";

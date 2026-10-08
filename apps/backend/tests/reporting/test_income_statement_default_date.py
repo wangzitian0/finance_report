@@ -1,4 +1,4 @@
-"""Tests for income statement and annualized income default date adaptation."""
+"""AC-reporting.package-annualized.3: Tests for income statement and annualized income default date adaptation."""
 
 from datetime import date
 from decimal import Decimal
