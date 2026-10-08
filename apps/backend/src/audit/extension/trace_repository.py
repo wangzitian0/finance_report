@@ -36,6 +36,7 @@ class SqlTraceRecordRepository(TraceRecordRepository):
     ) -> None:
         self._db = db
         self._policies = policies or TraceDecisionPolicyRegistry()
+        self._cache: dict[tuple[TraceScope, UUID], TraceRecord] = {}
 
     async def append(self, record: TraceRecord) -> TraceRecord:
         try:
@@ -53,16 +54,18 @@ class SqlTraceRecordRepository(TraceRecordRepository):
             await self._validate_links(record)
             self._db.add(_row_from_record(record))
             await self._db.flush()
-            self._db.add_all(
-                TraceRecordParentRow(
-                    scope_kind=record.scope.kind,
-                    scope_id=record.scope.id,
-                    record_id=record.record_id,
-                    parent_id=parent_id,
+            if record.parent_ids:
+                self._db.add_all(
+                    TraceRecordParentRow(
+                        scope_kind=record.scope.kind,
+                        scope_id=record.scope.id,
+                        record_id=record.record_id,
+                        parent_id=parent_id,
+                    )
+                    for parent_id in record.parent_ids
                 )
-                for parent_id in record.parent_ids
-            )
-            await self._db.flush()
+                await self._db.flush()
+            self._cache[(record.scope, record.record_id)] = record
             return record
         except TraceRecordPersistenceError:
             raise
@@ -70,8 +73,14 @@ class SqlTraceRecordRepository(TraceRecordRepository):
             raise TraceRecordPersistenceError(f"TraceRecord append failed: {exc}") from exc
 
     async def get(self, scope: TraceScope, record_id: UUID) -> TraceRecord | None:
+        cached = self._cache.get((scope, record_id))
+        if cached is not None:
+            return cached
         try:
-            return await self._get(scope, record_id, frozenset())
+            record = await self._get(scope, record_id, frozenset())
+            if record is not None:
+                self._cache[(scope, record_id)] = record
+            return record
         except (SQLAlchemyError, TraceRecordValidationError, RuntimeError) as exc:
             raise TraceRecordPersistenceError(f"TraceRecord read failed: {exc}") from exc
 

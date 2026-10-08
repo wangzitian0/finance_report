@@ -654,5 +654,5 @@ async def _submit_anchored_journal_entry(
         decision_anchor=command.decision_anchor,
     )
     if command.post_immediately:
-        return await post_journal_entry(db, entry.id, user_id, base_currency=base_currency)
+        return await post_journal_entry(db, entry, user_id, base_currency=base_currency)
     return entry

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from typing import cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -111,7 +111,9 @@ async def _create_anchored_journal_entry(
                     f"Processing account (code {PROCESSING_ACCOUNT_CODE}) is reserved for internal transfer reconciliation and cannot be used in {normalized_source.value} journal entries"
                 )
 
+    entry_pk = uuid4()
     entry = JournalEntry(
+        id=entry_pk,
         user_id=user_id,
         entry_date=entry_date,
         memo=memo,
@@ -124,9 +126,11 @@ async def _create_anchored_journal_entry(
     lines: list[JournalLine] = []
     default_currency = base_currency
     for line_data in lines_data:
+        account_id = line_data["account_id"]
         line = JournalLine(
-            journal_entry_id=entry.id,
-            account_id=line_data["account_id"],
+            id=uuid4(),
+            journal_entry_id=entry_pk,
+            account_id=account_id,
             direction=line_data["direction"],
             amount=line_data["amount"],
             currency=(line_data.get("currency") or default_currency).upper(),
@@ -134,26 +138,24 @@ async def _create_anchored_journal_entry(
             event_type=line_data.get("event_type"),
             tags=line_data.get("tags"),
         )
+        account_obj = accounts.get(account_id)
+        if account_obj is not None:
+            line.account = account_obj
         lines.append(line)
 
     validate_journal_balance(cast("list[JournalLinePostingProtocol]", lines), base_currency=base_currency)
     validate_fx_rates(cast("list[JournalLinePostingProtocol]", lines), base_currency=base_currency)
 
+    entry.lines = lines
     db.add(entry)
+    db.add_all(lines)
     await db.flush()
-
-    for line in lines:
-        line.journal_entry_id = entry.id
-        db.add(line)
-
-    await db.flush()
-    await db.refresh(entry, ["lines"])
     return entry
 
 
 async def post_journal_entry(
     db: AsyncSession,
-    entry_id: UUID,
+    entry_id: UUID | JournalEntry,
     user_id: UUID,
     *,
     base_currency: str | None = None,
@@ -163,7 +165,7 @@ async def post_journal_entry(
 
     Args:
         db: Database session
-        entry_id: Journal entry UUID
+        entry_id: Journal entry UUID or existing JournalEntry instance
         user_id: User UUID for security check
 
     Returns:
@@ -172,13 +174,23 @@ async def post_journal_entry(
     Raises:
         ValidationError: If entry cannot be posted
     """
-    base_currency = await _set_transaction_base_currency(db, base_currency)
-    result = await db.execute(
-        select(JournalEntry)
-        .where(JournalEntry.id == entry_id)
-        .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
-    )
-    entry = result.scalar_one_or_none()
+    entry: JournalEntry | None
+    if isinstance(entry_id, JournalEntry):
+        entry = entry_id
+        if not entry.lines:
+            result = await db.execute(
+                select(JournalEntry)
+                .where(JournalEntry.id == entry.id)
+                .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+            )
+            entry = result.scalar_one_or_none()
+    else:
+        result = await db.execute(
+            select(JournalEntry)
+            .where(JournalEntry.id == entry_id)
+            .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+        )
+        entry = result.scalar_one_or_none()
 
     if not entry:
         raise ValidationError(f"Journal entry {entry_id} not found")
@@ -186,6 +198,8 @@ async def post_journal_entry(
         raise ValidationError("Journal entry does not belong to user")
     if entry.status != JournalEntryStatus.DRAFT:
         raise ValidationError(f"Can only post draft entries, current status: {entry.status}")
+
+    base_currency = await _set_transaction_base_currency(db, base_currency)
 
     validate_journal_posting_invariants(cast("JournalEntryPostingProtocol", entry), base_currency=base_currency)
 
@@ -196,7 +210,6 @@ async def post_journal_entry(
     entry.status = JournalEntryStatus.POSTED
     entry.updated_at = datetime.now(UTC)
     await db.flush()
-    await db.refresh(entry)
 
     return entry
 
