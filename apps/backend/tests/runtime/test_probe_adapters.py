@@ -15,6 +15,7 @@ import pytest
 
 from src.runtime import (
     AnalyticsCheck,
+    DatabaseCheck,
     DependencyStatus,
     MarketDataCheck,
     RedisCheck,
@@ -135,6 +136,30 @@ class TestMarketDataCheck:
         with patch("httpx.AsyncClient.get", AsyncMock(side_effect=httpx.ConnectError("down"))):
             result = await MarketDataCheck(timeout_seconds=5).probe()
         assert result.status is DependencyStatus.ABSENT
+
+
+class TestDatabaseCheck:
+    async def test_successful_probe_is_present(self):
+        mock_conn = AsyncMock()
+        mock_conn.execute = AsyncMock()
+        mock_engine = MagicMock()
+        mock_engine.connect.return_value.__aenter__.return_value = mock_conn
+        mock_engine.dispose = AsyncMock()
+        with patch("src.runtime.extension.adapters.create_async_engine", return_value=mock_engine):
+            result = await DatabaseCheck("postgresql+asyncpg://postgres:secret123@127.0.0.1:5432/finance").probe()
+        assert result.status is DependencyStatus.PRESENT
+        assert result.name == "database"
+        assert result.detail == "Connection successful"
+
+    async def test_connection_failure_redacts_credentials(self):
+        secret_dsn = "postgresql+asyncpg://postgres:super_secret_password@127.0.0.1:5432/finance"
+        failure_message = f"connection failed with {secret_dsn}"
+        with patch("src.runtime.extension.adapters.create_async_engine", side_effect=Exception(failure_message)):
+            result = await DatabaseCheck(secret_dsn).probe()
+        assert result.status is DependencyStatus.ABSENT
+        assert result.name == "database"
+        assert "super_secret_password" not in result.detail
+        assert "<redacted-postgres-dsn>" in result.detail
 
 
 def test_AC_runtime_4_1_every_declared_dependency_has_a_probe_adapter():
