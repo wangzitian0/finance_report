@@ -2,8 +2,9 @@
 
 from datetime import UTC, datetime, timedelta
 
+from src.database import create_session_maker_from_db
 from src.extraction import BankStatementStatus
-from src.extraction.extension.statement_pipeline import check_and_recover_stalled_parsing_jobs
+from src.extraction.extension.statement_parsing_supervisor import reset_stale_parsing_jobs
 from tests.factories import StatementSummaryFactory
 
 
@@ -23,10 +24,14 @@ async def test_recovers_stalled_parsing_jobs(db, test_user):
     db.add(statement)
     await db.commit()
 
-    recovered_ids = await check_and_recover_stalled_parsing_jobs(db, stall_threshold_seconds=180)
+    session_maker = create_session_maker_from_db(db)
+    recovered_count = await reset_stale_parsing_jobs(
+        sessionmaker=session_maker,
+        stale_threshold=timedelta(seconds=180),
+    )
     await db.refresh(statement)
 
-    assert str(statement.id) in [str(rid) for rid in recovered_ids]
+    assert recovered_count == 1
     assert statement.status == BankStatementStatus.REJECTED
     assert "timed out" in statement.validation_error.lower()
     assert statement.confidence_score == 0
@@ -49,8 +54,12 @@ async def test_does_not_recover_fresh_parsing_jobs(db, test_user):
     db.add(statement)
     await db.commit()
 
-    recovered_ids = await check_and_recover_stalled_parsing_jobs(db, stall_threshold_seconds=180)
+    session_maker = create_session_maker_from_db(db)
+    recovered_count = await reset_stale_parsing_jobs(
+        sessionmaker=session_maker,
+        stale_threshold=timedelta(seconds=180),
+    )
     await db.refresh(statement)
 
-    assert str(statement.id) not in [str(rid) for rid in recovered_ids]
+    assert recovered_count == 0
     assert statement.status == BankStatementStatus.PARSING

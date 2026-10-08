@@ -69,14 +69,15 @@ def _fold_and_deduplicate_lines(
     *,
     filter_zero: bool = True,
 ) -> list[dict[str, Any]]:
-    """Aggregate lines by canonical name, type, and currency to eliminate duplicate rows."""
-    aggregated: dict[tuple[str, str, str], dict[str, Any]] = {}
+    """Aggregate lines by canonical name, type, currency, and economic category to eliminate duplicate rows."""
+    aggregated: dict[tuple[str, str, str, str | None], dict[str, Any]] = {}
     for line in lines:
         amount = Decimal(str(line.get("amount", "0")))
         name = str(line.get("name", "")).strip()
         line_type = str(line.get("type", ""))
         source_curr = str(line.get("source_currency", "")).upper()
-        key = (name, line_type, source_curr)
+        econ_line_id = line.get("economic_report_line_id")
+        key = (name, line_type, source_curr, econ_line_id)
         if key not in aggregated:
             aggregated[key] = {**line, "name": name, "amount": amount}
         else:

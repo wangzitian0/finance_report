@@ -28,9 +28,6 @@ ALLOWED_SERVICE_COMMIT_BOUNDARIES = {
     ("statement_parsing.py", "_execute_statement_ingestion"),
     ("statement_parsing.py", "_execute_statement_ingestion.update_progress"),
     ("statement_parsing_supervisor.py", "reset_stale_parsing_jobs"),
-    # Issue #2261 (BUG-02): statement pipeline watchdog marks stalled parsing jobs
-    # as rejected at the service boundary so they do not block user review.
-    ("statement_pipeline.py", "check_and_recover_stalled_parsing_jobs"),
     # EPIC-025 AC25.2.1 (#1158): the Stage-1 approve/reject workflow owns its
     # transaction boundary at the service layer so the router stays thin.
     ("statement_workflow.py", "approve_statement_workflow"),

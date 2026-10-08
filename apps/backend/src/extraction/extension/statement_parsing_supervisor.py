@@ -15,20 +15,23 @@ from src.observability import get_logger
 
 logger = get_logger(__name__)
 
-PARSING_STALE_THRESHOLD = timedelta(minutes=30)
-PARSING_SUPERVISOR_INTERVAL_SECONDS = 300
+PARSING_STALE_THRESHOLD = timedelta(minutes=5)
+PARSING_SUPERVISOR_INTERVAL_SECONDS = 60
 
 
 async def reset_stale_parsing_jobs(
     sessionmaker: async_sessionmaker[AsyncSession] | None = None,
+    *,
+    stale_threshold: timedelta | None = None,
 ) -> int:
     """Mark stale parsing jobs as rejected so users can retry."""
-    cutoff = datetime.now(UTC) - PARSING_STALE_THRESHOLD
+    threshold = stale_threshold or PARSING_STALE_THRESHOLD
+    cutoff = datetime.now(UTC) - threshold
     session_factory = sessionmaker or async_session_maker
     async with session_factory() as session:
         result = await session.execute(
             select(StatementSummary)
-            .where(StatementSummary.status == BankStatementStatus.PARSING.value)
+            .where(StatementSummary.status.in_([BankStatementStatus.PARSING, BankStatementStatus.PARSING.value]))
             .where(StatementSummary.updated_at < cutoff)
         )
         stale_statements = result.scalars().all()
@@ -38,6 +41,12 @@ async def reset_stale_parsing_jobs(
             statement.validation_error = "Parsing timed out. Please retry."
             statement.confidence_score = 0
             statement.balance_validated = False
+            logger.warning(
+                "statement.parsing.watchdog_timeout",
+                statement_id=str(statement.id),
+                threshold_seconds=int(threshold.total_seconds()),
+                updated_at=str(statement.updated_at),
+            )
 
         if stale_statements:
             await session.commit()
