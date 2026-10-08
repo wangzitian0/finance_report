@@ -29,7 +29,7 @@ const CHART_PALETTE = [
 ];
 
 export default function HomePage() {
-  const [includeRestricted, setIncludeRestricted] = useState(true);
+  const [includeRestricted, setIncludeRestricted] = useState(false);
 
   // Slice 3 of #751: dashboard aggregation + normalization live in the hook
   // layer; the route composes the returned data.

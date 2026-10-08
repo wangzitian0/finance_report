@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { ChevronLeft } from "lucide-react";
 
@@ -31,10 +31,9 @@ export function SmartBackLink({
   children,
   className = "",
 }: SmartBackLinkProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const attentionOrigin = isAttentionOrigin(searchParams);
-  const returnTo = searchParams.get("return_to");
+  const returnTo = searchParams ? searchParams.get("return_to") : null;
 
   const targetHref = attentionOrigin
     ? ATTENTION_RETURN_HREF
@@ -42,7 +41,12 @@ export function SmartBackLink({
 
   const label = attentionOrigin
     ? ATTENTION_RETURN_LABEL
-    : children || (returnTo ? "Back" : fallbackLabel);
+    : children ||
+      (fallbackLabel && fallbackLabel !== "Back to Dashboard"
+        ? fallbackLabel
+        : returnTo
+          ? "Back"
+          : fallbackLabel);
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     // If attention origin or explicit return_to, let Link navigate to target
@@ -51,7 +55,7 @@ export function SmartBackLink({
     // If browser has history within this app, navigate back
     if (typeof window !== "undefined" && window.history.length > 2) {
       e.preventDefault();
-      router.back();
+      window.history.back();
     }
   };
 

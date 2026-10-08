@@ -303,7 +303,9 @@ export default function UnmatchedBoard() {
         <SmartBackLink
           fallbackHref={safeReturnHref ?? "/reconciliation"}
           fallbackLabel={safeReturnHref ? "Return to statement review" : "Back to Reconciliation"}
-        />
+        >
+          {safeReturnHref ? "Return to statement review" : "Back to Reconciliation"}
+        </SmartBackLink>
       </div>
       <div className="page-header flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
