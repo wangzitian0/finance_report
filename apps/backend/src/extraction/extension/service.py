@@ -457,7 +457,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 statement.balance_validated = None
             else:
                 statement.balance_validated = is_valid
-            if per_currency_invalid_note is not None:
+
+            if len(transactions) == 0 and len(brokerage_positions) == 0:
+                statement.validation_error = (
+                    "Document appears to contain no transactions or holdings in recognizable format."
+                )
+            elif per_currency_invalid_note is not None:
                 statement.validation_error = per_currency_invalid_note
             elif not is_valid and balance_evaluable:
                 statement.validation_error = balance_result["notes"]

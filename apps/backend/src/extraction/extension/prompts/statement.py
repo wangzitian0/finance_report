@@ -129,6 +129,7 @@ Important Rules:
 7. asset_type: one of stock, etf, mutual_fund, money_market, bond, crypto, other (lowercase)
 8. If the document ALSO shows cash activity rows (trades, dividends, fees), include them in
    `transactions` using the bank transaction shape; positions remain the primary output.
+   IMPORTANT: If the statement contains a 'Cash Movement' or 'Activity' section alongside 'Holdings/Positions', you MUST extract both. If no cash transactions occurred during the period, return transactions: [] and populated positions: [...] without error.
 9. If NO holdings/positions table is present, return an EMPTY `positions` array (do not invent rows)
 10. Auto-detect the broker name from the document header/logo into the "institution" field
 """

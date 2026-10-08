@@ -24,6 +24,7 @@ import {
 } from "@/components/reports/ReportFilters";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 import { InfoHint } from "@/components/ui/InfoHint";
+import { liabilityToneClass } from "@/lib/statusLabels";
 import { normalizeFxWarningRows, type ReportLine } from "@/lib/types";
 
 interface AccountNode extends ReportLine {
@@ -270,6 +271,23 @@ export default function BalanceSheetPage() {
         warnings={report?.opening_balance_warnings}
       />
 
+      {report && report.is_balanced === false && (
+        <div
+          role="alert"
+          className="p-4 mb-6 bg-[var(--error)]/10 border border-[var(--error)] rounded-lg flex items-center justify-between text-[var(--error)]"
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm">
+              Accounting Equation Imbalance Detected
+            </span>
+            <span className="text-xs">
+              Assets do not match Liabilities + Equity (Delta:{" "}
+              {formatCurrencyLocale(report.equation_delta, report.currency)}).
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-2 mb-6">
         <span className="text-xs text-muted uppercase">Quick filters</span>
         <div className="flex flex-wrap gap-2">
@@ -402,7 +420,11 @@ export default function BalanceSheetPage() {
               <span className="text-muted">—</span>
             )}
           </div>
-          <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold text-[var(--error)]">
+          <div
+            className={`mt-4 pt-3 border-t border-[var(--border)] font-semibold ${
+              report ? liabilityToneClass(report.total_liabilities) : "text-muted"
+            }`}
+          >
             Total:{" "}
             {report
               ? formatCurrencyLocale(report.total_liabilities, report.currency)

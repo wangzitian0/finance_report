@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from http import HTTPStatus
 
 from fastapi import APIRouter, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from src.audit import to_money
 from src.config import settings
@@ -30,7 +30,15 @@ async def get_annualized_income(
     as_of: date | None = Query(default=None),
 ) -> AnnualizedIncomeResponse:
     """Return annualized salary, bonus, dividend, and total income over the trailing 12 months."""
-    report_date = as_of or date.today()
+    if as_of is None:
+        latest_entry_date = await db.scalar(
+            select(func.max(JournalEntry.entry_date))
+            .where(JournalEntry.user_id == user_id)
+            .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        )
+        report_date = latest_entry_date or date.today()
+    else:
+        report_date = as_of
     start_date = report_date - timedelta(days=365)
     result = await db.execute(
         select(JournalLine, Account)

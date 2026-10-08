@@ -46,4 +46,11 @@ describe("ReviewActionBar in-place unblock (EPIC-022 AC22.5.2)", () => {
         fireEvent.click(screen.getByRole("button", { name: /Resolve conflicts/i }));
         expect(onResolveConflicts).toHaveBeenCalledTimes(1);
     });
+
+    it("AC22.5.2 suppresses closing balance mismatch when statement is still parsing", () => {
+        render(<ReviewActionBar {...baseProps} balanceValid={false} statementStatus="parsing" />);
+        expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+        expect(screen.queryByText(/closing balance doesn't match/i)).not.toBeInTheDocument();
+        expect(screen.getByText(/extraction is in progress/i)).toBeInTheDocument();
+    });
 });

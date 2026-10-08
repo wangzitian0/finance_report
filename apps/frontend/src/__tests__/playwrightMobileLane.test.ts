@@ -10,7 +10,19 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@playwright/test", () => ({
+  defineConfig: (config: any) => config,
+  devices: {
+    "Desktop Chrome": { userAgent: "desktop" },
+    "Pixel 7": {
+      isMobile: true,
+      hasTouch: true,
+      viewport: { width: 412, height: 915 },
+    },
+  },
+}));
 
 import playwrightConfig, {
   MOBILE_LANE_SPECS,

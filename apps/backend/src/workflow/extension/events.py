@@ -41,6 +41,7 @@ from src.workflow.extension.builders import (  # noqa: F401
     build_reconciliation_review_event_payload,
     build_report_state_event_payload,
     build_review_completed_event_payload,
+    build_review_rejected_event_payload,
     build_review_required_event_payload,
     build_statement_parsing_failed_event_payload,
     build_uploaded_statement_event_payload,
@@ -344,7 +345,9 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
             derived_payloads.append(build_review_required_event_payload(statement, filename))
         elif statement.stage1_status == _STAGE1_PENDING_REVIEW:
             derived_payloads.append(build_review_required_event_payload(statement, filename))
-        elif statement.stage1_status in {_STAGE1_APPROVED, _STAGE1_REJECTED, _STAGE1_EDITED}:
+        elif statement.stage1_status == _STAGE1_REJECTED:
+            derived_payloads.append(build_review_rejected_event_payload(statement, filename))
+        elif statement.stage1_status in {_STAGE1_APPROVED, _STAGE1_EDITED}:
             derived_payloads.append(build_review_completed_event_payload(statement, filename))
 
     pending_reconciliation_count = await count_pending_review_items(db, user_id=user_id)

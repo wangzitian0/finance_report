@@ -6,7 +6,7 @@ import { OpeningBalanceWarningBanner } from "@/components/reports/OpeningBalance
 import { formatDateDisplay } from "@/lib/date";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { percentNumberFromParts } from "@/lib/audit/ratio/format";
-import { coverageLabel } from "@/lib/statusLabels";
+import { coverageLabel, liabilityToneClass } from "@/lib/statusLabels";
 import type { BalanceSheetResponse, ReconciliationStatsResponse } from "@/lib/types";
 import type Decimal from "decimal.js";
 
@@ -56,7 +56,11 @@ export function HomeNetWorthBanner({
           <p className="text-xs text-muted uppercase tracking-wide">
             Total Liabilities
           </p>
-          <p className="text-2xl font-semibold text-[var(--error)] mt-1">
+          <p
+            className={`text-2xl font-semibold mt-1 ${
+              balanceSheet ? liabilityToneClass(balanceSheet.total_liabilities) : "text-muted"
+            }`}
+          >
             {balanceSheet
               ? formatCurrencyLocale(
                   balanceSheet.total_liabilities,

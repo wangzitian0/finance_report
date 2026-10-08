@@ -14,7 +14,7 @@ interface PdfPreviewPaneProps {
 type PreviewState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "ready"; url: string }
+  | { status: "ready"; url: string; filename: string }
   | { status: "error" };
 
 /**
@@ -47,10 +47,14 @@ export function PdfPreviewPane({
       "get_statement_document_statements__statement_id__document_get",
       { path: { statement_id: statementId } },
     )
-      .then(({ blob }) => {
+      .then(({ blob, filename }) => {
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
-        setState({ status: "ready", url: objectUrl });
+        setState({
+          status: "ready",
+          url: objectUrl,
+          filename: filename || "statement.pdf",
+        });
       })
       .catch(() => {
         if (cancelled) return;
@@ -68,27 +72,37 @@ export function PdfPreviewPane({
       <div className="card-header flex items-center justify-between">
         <h3 className="text-sm font-medium">PDF Preview</h3>
         {state.status === "ready" && (
-          <a
-            href={state.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-[var(--accent)] hover:underline flex items-center gap-1"
-          >
-            <span>Open in new tab</span>
-            <svg
-              className="w-3.5 h-3.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="flex items-center gap-3">
+            <a
+              href={state.url}
+              download={state.filename}
+              data-testid="pdf-download-link"
+              className="text-xs text-[var(--accent)] hover:underline flex items-center gap-1"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-              />
-            </svg>
-          </a>
+              <span>Download PDF</span>
+            </a>
+            <a
+              href={state.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-[var(--accent)] hover:underline flex items-center gap-1"
+            >
+              <span>Open in new tab</span>
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                />
+              </svg>
+            </a>
+          </div>
         )}
       </div>
       <div className="flex-1 p-4 min-h-0">
@@ -109,13 +123,31 @@ export function PdfPreviewPane({
               statement content.
             </p>
           </iframe>
+        ) : state.status === "error" ? (
+          <div
+            data-testid="pdf-fallback-container"
+            className="w-full h-full flex flex-col items-center justify-center gap-3 text-muted text-center p-6"
+          >
+            <p className="text-sm">PDF preview could not be loaded</p>
+            <p className="text-xs text-muted">
+              The preview could not be rendered inline. You can download the original file to view it locally.
+            </p>
+            {statementId && (
+              <a
+                href={`/api/statements/${statementId}/document`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary btn-sm"
+              >
+                Download Original Document
+              </a>
+            )}
+          </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-muted">
             {state.status === "loading"
               ? "Loading PDF preview…"
-              : state.status === "error"
-                ? "PDF preview could not be loaded"
-                : "PDF preview not available"}
+              : "PDF preview not available"}
           </div>
         )}
       </div>
