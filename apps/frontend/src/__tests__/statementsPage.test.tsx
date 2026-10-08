@@ -61,6 +61,10 @@ vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
 }))
 
+const makeStmt = (id: string, name: string, status: BankStatement["status"], extra: Partial<BankStatement> = {}): BankStatement => ({
+  ...({} as BankStatement), id, original_filename: name, institution: "DBS", status, transactions: [], ...extra,
+})
+
 describe("StatementsPage", () => {
   const mockedApiFetch = vi.mocked(apiFetch)
 
@@ -103,27 +107,8 @@ describe("StatementsPage", () => {
 
   it("AC-extraction.fe-stage1-review.16 keeps upload polling single-flight and supersedes stale work", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
-    const parsingResponse = {
-      items: [
-        {
-          ...({} as BankStatement),
-          id: "s-poll",
-          original_filename: "parsing.pdf",
-          institution: "DBS",
-          status: "parsing",
-          transactions: [],
-        },
-      ],
-    }
-    const terminalResponse = {
-      items: [
-        {
-          ...parsingResponse.items[0],
-          status: "parsed",
-          original_filename: "ready.pdf",
-        },
-      ],
-    }
+    const parsingResponse = { items: [makeStmt("s-poll", "parsing.pdf", "parsing")] }
+    const terminalResponse = { items: [makeStmt("s-poll", "ready.pdf", "parsed")] }
     const poll = deferred<typeof parsingResponse>()
     const teardownRefresh = deferred<typeof terminalResponse>()
     let statementReads = 0
@@ -187,23 +172,12 @@ describe("StatementsPage", () => {
         new Error("load failed"),
         { items: [] },
         {
-        items: [
-          {
-            id: "s1",
-            original_filename: "stmt.pdf",
-            institution: "DBS",
-            status: "approved",
-            period_start: "2026-01-01",
-            period_end: "2026-01-31",
-            currency: "SGD",
-            confidence_score: 90,
-            transactions: [],
-            opening_balance: 100,
-            closing_balance: 200,
-            balance_validated: true,
-            validation_error: null,
-          },
-        ],
+          items: [
+            makeStmt("s1", "stmt.pdf", "approved", {
+              period_start: "2026-01-01", period_end: "2026-01-31", currency: "SGD", confidence_score: 90,
+              opening_balance: 100, closing_balance: 200, balance_validated: true, validation_error: null,
+            }),
+          ],
         },
       ],
     })
@@ -262,21 +236,10 @@ describe("StatementsPage", () => {
       statements: [
         {
           items: [
-            {
-              id: "s9",
-              original_filename: "ready.pdf",
-              institution: "DBS",
-              status: "parsed",
-              period_start: "2026-01-01",
-              period_end: "2026-01-31",
-              currency: "SGD",
-              confidence_score: 90,
-              transactions: [],
-              opening_balance: 100,
-              closing_balance: 200,
-              balance_validated: true,
-              validation_error: null,
-            },
+            makeStmt("s9", "ready.pdf", "parsed", {
+              period_start: "2026-01-01", period_end: "2026-01-31", currency: "SGD", confidence_score: 90,
+              opening_balance: 100, closing_balance: 200, balance_validated: true, validation_error: null,
+            }),
           ],
         },
       ],
@@ -296,27 +259,7 @@ describe("StatementsPage", () => {
 
   it("AC22.5.x maps every status to a plain-language label (no raw 'uploaded')", async () => {
     mockStatementsPageApi({
-      statements: [
-        {
-          items: [
-            {
-              id: "s10",
-              original_filename: "fresh.pdf",
-              institution: "DBS",
-              status: "uploaded",
-              period_start: null,
-              period_end: null,
-              currency: "SGD",
-              confidence_score: null,
-              transactions: [],
-              opening_balance: null,
-              closing_balance: null,
-              balance_validated: null,
-              validation_error: null,
-            },
-          ],
-        },
-      ],
+      statements: [{ items: [makeStmt("s10", "fresh.pdf", "uploaded", { currency: "SGD" })] }],
     })
 
     render(<StatementsPage />)
@@ -331,37 +274,14 @@ describe("StatementsPage", () => {
       statements: [
         {
           items: [
-            {
-              id: "s11",
-              original_filename: "rejected.pdf",
-              institution: "DBS",
-              status: "rejected",
-              period_start: "2026-01-01",
-              period_end: "2026-01-31",
-              currency: "SGD",
-              confidence_score: 40,
-              transactions: [],
-              opening_balance: 0,
-              closing_balance: 0,
-              balance_validated: false,
-              validation_error: "Could not read totals",
-            },
-            {
-              id: "s12",
-              original_filename: "weird.pdf",
-              institution: "DBS",
-              // Defensive: a status outside the known union still renders, unstyled.
-              status: "frobnicating" as unknown as BankStatement["status"],
-              period_start: "2026-01-01",
-              period_end: "2026-01-31",
-              currency: "SGD",
-              confidence_score: 50,
-              transactions: [],
-              opening_balance: 0,
-              closing_balance: 0,
-              balance_validated: null,
-              validation_error: null,
-            },
+            makeStmt("s11", "rejected.pdf", "rejected", {
+              period_start: "2026-01-01", period_end: "2026-01-31", currency: "SGD", confidence_score: 40,
+              opening_balance: 0, closing_balance: 0, balance_validated: false, validation_error: "Could not read totals",
+            }),
+            makeStmt("s12", "weird.pdf", "frobnicating" as unknown as BankStatement["status"], {
+              period_start: "2026-01-01", period_end: "2026-01-31", currency: "SGD", confidence_score: 50,
+              opening_balance: 0, closing_balance: 0,
+            }),
           ],
         },
       ],
@@ -421,21 +341,10 @@ describe("StatementsPage", () => {
       statements: [
         {
           items: [
-            {
-              id: "s3",
-              original_filename: "delete.pdf",
-              institution: "DBS",
-              status: "approved",
-              period_start: "2026-01-01",
-              period_end: "2026-01-31",
-              currency: "SGD",
-              confidence_score: 88,
-              transactions: [],
-              opening_balance: 50,
-              closing_balance: 70,
-              balance_validated: true,
-              validation_error: null,
-            },
+            makeStmt("s3", "delete.pdf", "approved", {
+              period_start: "2026-01-01", period_end: "2026-01-31", currency: "SGD", confidence_score: 88,
+              opening_balance: 50, closing_balance: 70, balance_validated: true, validation_error: null,
+            }),
           ],
         },
         { items: [] },
@@ -460,21 +369,10 @@ describe("StatementsPage", () => {
       statements: [
         {
           items: [
-            {
-              id: "s3",
-              original_filename: "delete.pdf",
-              institution: "DBS",
-              status: "approved",
-              period_start: "2026-01-01",
-              period_end: "2026-01-31",
-              currency: "SGD",
-              confidence_score: 88,
-              transactions: [],
-              opening_balance: 50,
-              closing_balance: 70,
-              balance_validated: true,
-              validation_error: null,
-            },
+            makeStmt("s3", "delete.pdf", "approved", {
+              period_start: "2026-01-01", period_end: "2026-01-31", currency: "SGD", confidence_score: 88,
+              opening_balance: 50, closing_balance: 70, balance_validated: true, validation_error: null,
+            }),
           ],
         },
       ],
@@ -491,21 +389,9 @@ describe("StatementsPage", () => {
       statements: [
         {
           items: [
-            {
-              id: "s4",
-              original_filename: "needs-review.pdf",
-              institution: "Unknown",
-              status: "parsed",
-              period_start: null,
-              period_end: null,
-              currency: null,
-              confidence_score: null,
-              transactions: [],
-              opening_balance: null,
-              closing_balance: undefined,
-              balance_validated: false,
-              validation_error: "Balance mismatch",
-            },
+            makeStmt("s4", "needs-review.pdf", "parsed", {
+              institution: "Unknown", balance_validated: false, validation_error: "Balance mismatch",
+            }),
           ],
         },
       ],
@@ -553,36 +439,14 @@ describe("StatementsPage", () => {
       statements: [
         {
           items: [
-            {
-              id: "s-parsed",
-              original_filename: "parsed.pdf",
-              institution: "DBS",
-              status: "parsed",
-              period_start: "2026-01-01",
-              period_end: "2026-01-31",
-              currency: "SGD",
-              confidence_score: 95,
-              transactions: [],
-              opening_balance: 100,
-              closing_balance: 200,
-              balance_validated: true,
-              validation_error: null,
-            },
-            {
-              id: "s-approved",
-              original_filename: "approved.pdf",
-              institution: "OCBC",
-              status: "approved",
-              period_start: "2026-01-01",
-              period_end: "2026-01-31",
-              currency: "SGD",
-              confidence_score: 98,
-              transactions: [],
-              opening_balance: 500,
-              closing_balance: 800,
-              balance_validated: true,
-              validation_error: null,
-            },
+            makeStmt("s-parsed", "parsed.pdf", "parsed", {
+              period_start: "2026-01-01", period_end: "2026-01-31", currency: "SGD", confidence_score: 95,
+              opening_balance: 100, closing_balance: 200, balance_validated: true, validation_error: null,
+            }),
+            makeStmt("s-approved", "approved.pdf", "approved", {
+              institution: "OCBC", period_start: "2026-01-01", period_end: "2026-01-31", currency: "SGD", confidence_score: 98,
+              opening_balance: 500, closing_balance: 800, balance_validated: true, validation_error: null,
+            }),
           ],
         },
       ],
