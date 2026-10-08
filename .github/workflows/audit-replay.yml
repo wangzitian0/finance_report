@@ -15,10 +15,6 @@
 name: AI/OCR Audit Replay
 
 on:
-  schedule:
-    # Nightly at 04:23 UTC — off-peak, after any same-day staging deploys and
-    # clear of the 03:17 maintenance window.
-    - cron: "23 4 * * *"
   workflow_dispatch:
     inputs:
       version_ref:

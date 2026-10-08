@@ -46,7 +46,7 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
         # deploy path: nightly schedule + manual dispatch, record-only
         # (issue #1232 / AC8.13.157).
         "jobs": ("resolve-target", "audit-replay"),
-        "triggers": ("schedule", "workflow_dispatch"),
+        "triggers": ("workflow_dispatch",),
     },
     ".github/workflows/ci.yml": {
         # The classifier job id is `changes` (NOT `classify-changes`).

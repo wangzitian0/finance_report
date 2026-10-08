@@ -87,9 +87,15 @@ CMB_DISPOSITIONS = {
     "利息收入": FixtureDisposition(
         "income", "INCOME", "The CMB fixture declares interest income.", "INTEREST"
     ),
+    "交易": FixtureDisposition(
+        "expense", "EXPENSE", "CMB generic transaction", "SHOPPING"
+    ),
 }
 
 MARIBANK_DISPOSITIONS = {
+    "Inward Transfer from Salary": FixtureDisposition(
+        "income", "INCOME", "The MariBank fixture declares salary income.", "SALARY"
+    ),
     "PayNow to KOPI SHOP PTE LTD": FixtureDisposition(
         "expense", "EXPENSE", "The MariBank fixture declares dining expense.", "DINING"
     ),
@@ -122,6 +128,9 @@ MARIBANK_DISPOSITIONS = {
 }
 
 PINGAN_DISPOSITIONS = {
+    "交易": FixtureDisposition(
+        "expense", "EXPENSE", "Pingan generic transaction", "SHOPPING"
+    ),
     "工资代发": FixtureDisposition(
         "income", "INCOME", "The Pingan fixture declares salary income.", "SALARY"
     ),
