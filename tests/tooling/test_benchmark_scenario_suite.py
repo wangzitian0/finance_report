@@ -450,6 +450,10 @@ def test_benchmark_statement_generators_zero_orphan_contract() -> None:
     assert "generate_bank_asset_transfer_pdf" not in all_generators
 
     expected_generators = {
+        "generate_consecutive_month1_csv",
+        "generate_consecutive_month2_csv",
+        "generate_consecutive_month3_csv",
+        "generate_consecutive_month4_csv",
         "generate_consecutive_month2_pdf",
         "generate_consecutive_month3_pdf",
         "generate_consecutive_month4_pdf",
