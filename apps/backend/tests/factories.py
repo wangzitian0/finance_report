@@ -360,8 +360,7 @@ async def seed_parsed_statement(
             running_balance += row["amount"]
         else:
             running_balance -= row["amount"]
-        txn = await AtomicTransactionFactory.create_async(
-            db,
+        build_kwargs = AtomicTransactionFactory._build_kwargs(
             user_id=user_id,
             source_documents=[doc_marker],
             # A row may carry its own date (corpus rows preserve the source
@@ -375,8 +374,10 @@ async def seed_parsed_statement(
             currency="SGD",
             balance_after=running_balance,
         )
-        seeded_txns.append(txn)
+        seeded_txns.append(AtomicTransactionFactory.build(**build_kwargs))
 
+    db.add_all(seeded_txns)
+    await db.flush()
     await db.commit()
     return SeededParsedStatement(
         user_id=user_id,

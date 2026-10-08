@@ -352,6 +352,13 @@ async def ensure_database(db_url: str):
                 await conn.execute(text(f"CREATE DATABASE {db_name}"))
             else:
                 print(f"Test database {db_name} already exists")
+                # Terminate any lingering ghost connections from interrupted test runs
+                await conn.execute(
+                    text(
+                        f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                        f"WHERE datname = '{db_name}' AND pid <> pg_backend_pid()"
+                    )
+                )
     except (SQLAlchemyError, Exception) as e:
         if isinstance(e, SQLAlchemyError):
             logger.error(
@@ -445,22 +452,17 @@ async def _cleanup_dirty_tables(engine) -> None:
     from src.database import Base
 
     sorted_tables = Base.metadata.sorted_tables
-    if "__ALL__" in _DIRTY_TABLES or len(_DIRTY_TABLES) > 10:
-        all_tables = ", ".join(f'"{table.name}"' for table in sorted_tables)
-        async with engine.begin() as conn:
-            await conn.execute(text(f"TRUNCATE TABLE {all_tables} RESTART IDENTITY CASCADE"))
+    if "__ALL__" in _DIRTY_TABLES:
+        to_delete = [t.name for t in reversed(sorted_tables)]
     else:
         to_delete = [t.name for t in reversed(sorted_tables) if t.name.lower() in _DIRTY_TABLES]
-        try:
-            async with engine.begin() as conn:
-                await conn.execute(text("SET session_replication_role = 'replica'"))
-                for table_name in to_delete:
-                    await conn.execute(text(f'DELETE FROM "{table_name}"'))
-                await conn.execute(text("SET session_replication_role = 'origin'"))
-        except Exception:
-            all_tables = ", ".join(f'"{table.name}"' for table in sorted_tables)
-            async with engine.begin() as conn:
-                await conn.execute(text(f"TRUNCATE TABLE {all_tables} RESTART IDENTITY CASCADE"))
+
+    if to_delete:
+        async with engine.begin() as conn:
+            await conn.execute(text("SET session_replication_role = 'replica'"))
+            for table_name in to_delete:
+                await conn.execute(text(f'DELETE FROM "{table_name}"'))
+            await conn.execute(text("SET session_replication_role = 'origin'"))
     _DIRTY_TABLES.clear()
 
 

@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from common.testing.ac_proof import ac_proof
@@ -212,38 +213,58 @@ async def attach_reviewed_corpus_semantics(
             currency=currency,
         ),
     }
-    reviewed: list[tuple[AtomicTransaction, ClassificationRule, str]] = []
-    for transaction in transactions:
-        category = (
-            "CORPUS_REVIEWED_INCOME" if transaction.direction is TransactionDirection.IN else "CORPUS_REVIEWED_EXPENSE"
-        )
-        rule = ClassificationRule(
+    if not transactions:
+        return
+    base_date = min(t.txn_date for t in transactions)
+    suffix = uuid4()
+    rules = {
+        TransactionDirection.IN: ClassificationRule(
             user_id=user_id,
             created_by=user_id,
             version_number=1,
-            effective_date=transaction.txn_date,
+            effective_date=base_date,
             is_active=False,
-            rule_name=f"corpus-reviewed-{transaction.id}",
+            rule_name=f"corpus-reviewed-in-{suffix}",
             rule_type=RuleType.KEYWORD_MATCH,
             rule_config={"keywords": []},
-            tag_mappings={"category": category, "rationale": "corpus reviewer confirmation"},
-            default_account_id=accounts[transaction.direction].id,
-        )
-        db.add(rule)
-        reviewed.append((transaction, rule, category))
+            tag_mappings={"category": "CORPUS_REVIEWED_INCOME", "rationale": "corpus reviewer confirmation"},
+            default_account_id=accounts[TransactionDirection.IN].id,
+        ),
+        TransactionDirection.OUT: ClassificationRule(
+            user_id=user_id,
+            created_by=user_id,
+            version_number=1,
+            effective_date=base_date,
+            is_active=False,
+            rule_name=f"corpus-reviewed-out-{suffix}",
+            rule_type=RuleType.KEYWORD_MATCH,
+            rule_config={"keywords": []},
+            tag_mappings={"category": "CORPUS_REVIEWED_EXPENSE", "rationale": "corpus reviewer confirmation"},
+            default_account_id=accounts[TransactionDirection.OUT].id,
+        ),
+    }
+    db.add_all(rules.values())
     await db.flush()
 
-    for transaction, rule, category in reviewed:
-        db.add(
-            TransactionClassification(
-                atomic_txn_id=transaction.id,
-                rule_version_id=rule.id,
-                account_id=rule.default_account_id,
-                tags={"category": category, "rationale": "corpus reviewer confirmation"},
-                confidence_score=100,
-                status=ClassificationStatus.APPLIED,
-            )
+    classifications = [
+        TransactionClassification(
+            atomic_txn_id=transaction.id,
+            rule_version_id=rules[transaction.direction].id,
+            account_id=rules[transaction.direction].default_account_id,
+            tags={
+                "category": (
+                    "CORPUS_REVIEWED_INCOME"
+                    if transaction.direction is TransactionDirection.IN
+                    else "CORPUS_REVIEWED_EXPENSE"
+                ),
+                "rationale": "corpus reviewer confirmation",
+            },
+            confidence_score=100,
+            status=ClassificationStatus.APPLIED,
         )
+        for transaction in transactions
+    ]
+    db.add_all(classifications)
     await db.flush()
     # The API client uses a distinct session, so reviewer facts must cross the
     # same commit boundary as a real review before it can approve the statement.

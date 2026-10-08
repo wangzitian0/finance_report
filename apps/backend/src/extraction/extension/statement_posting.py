@@ -189,12 +189,15 @@ async def auto_create_posted_entries_for_statement(
         tuple[AtomicTransaction, IntentProposal | None, DispositionDecision, Account | None, StatementTransaction]
     ] = []
 
-    for txn in txns_to_post:
-        classification_and_rule = (
+    txn_ids = [txn.id for txn in txns_to_post]
+    classification_by_txn_id: dict[UUID, tuple[TransactionClassification, ClassificationRule]] = {}
+    accounts_by_id: dict[UUID, Account] = {}
+    if txn_ids:
+        rows = (
             await db.execute(
                 select(TransactionClassification, ClassificationRule)
                 .join(ClassificationRule, TransactionClassification.rule_version_id == ClassificationRule.id)
-                .where(TransactionClassification.atomic_txn_id == txn.id)
+                .where(TransactionClassification.atomic_txn_id.in_(txn_ids))
                 .where(TransactionClassification.status == ClassificationStatus.APPLIED)
                 .order_by(
                     case(
@@ -207,7 +210,18 @@ async def auto_create_posted_entries_for_statement(
                     TransactionClassification.created_at.desc(),
                 )
             )
-        ).first()
+        ).all()
+        for cl, rule in rows:
+            if cl.atomic_txn_id not in classification_by_txn_id:
+                classification_by_txn_id[cl.atomic_txn_id] = (cl, rule)
+
+        needed_account_ids = {cl.account_id for cl, _ in classification_by_txn_id.values() if cl.account_id is not None}
+        if needed_account_ids:
+            accounts_res = await db.execute(select(Account).where(Account.id.in_(needed_account_ids)))
+            accounts_by_id = {acc.id: acc for acc in accounts_res.scalars().all()}
+
+    for txn in txns_to_post:
+        classification_and_rule = classification_by_txn_id.get(txn.id)
         counter_account = None
         proposal = None
         if classification_and_rule is not None:
@@ -215,8 +229,8 @@ async def auto_create_posted_entries_for_statement(
         else:
             classification = None
             classification_rule = None
-        if classification is not None and classification.account_id is not None:
-            counter_account = await db.get(Account, classification.account_id)
+        if classification is not None and classification.account_id is not None and classification_rule is not None:
+            counter_account = accounts_by_id.get(classification.account_id)
             if counter_account is None:
                 raise ValueError("Applied classification references a missing account")
             intent = _classification_intent(classification, counter_account)
@@ -328,6 +342,7 @@ async def auto_create_posted_entries_for_statement(
             auto_post=True,
             source_type=JournalEntrySourceType.AUTO_PARSED,
             preloaded_bank_account=preloaded_bank_account,
+            preloaded_statement=statement,
             fx_rate_provider=dependencies.fx_rate_provider,
             fx_rate_error=dependencies.fx_rate_error,
             disposition=decision,
