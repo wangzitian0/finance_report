@@ -44,7 +44,7 @@ HALLUCINATED_DISCREPANCY_TOKENS: list[str] = [
 ]
 
 NEGATED_DISCREPANCY_PATTERNS: list[str] = [
-    r"(?:no|zero|without|not create any|does not create any|doesn\x27t create any|not cause any|does not cause any|not an|neither|no balance)\s+(?:balance\s+)?(?:discrepanc(?:y|ies)|imbalance|mismatch|unbalanced)",
+    r"(?:no|zero|without|not\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|does\s*n[\x27\']t\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|does\s+not\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|cannot\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|not\s+a|not\s+an|neither|no\s+balance|no\s+ledger)\s*(?:a|an|any)?\s*(?:balance\s+|ledger\s+)?(?:discrepanc(?:y|ies)|imbalance|mismatch|unbalanced)",
     r"no\s+(?:balance\s+)?discrepanc(?:y|ies)\s+found",
     r"no\s+ledger\s+imbalance",
     r"not\s+unbalanced",

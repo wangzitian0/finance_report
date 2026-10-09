@@ -675,6 +675,17 @@ def test_benchmark_oracle_ai_advisor_semantic_grounding_pass_and_fail() -> None:
         negated_balance_answer, expected_figures=["24,200", "24200"]
     )
 
+    # 5. Passing answer: parenthetical qualification and contracted negation
+    parenthetical_negated_answer = (
+        "**Your Current Net Worth: SGD 24,200.00**\n"
+        "**Balance Consistency Check — No Discrepancies Found ✓**\n"
+        "**A Quick Observation on Data Quality (Not a Discrepancy):**\n"
+        "This doesn't create an imbalance in your net worth calculation."
+    )
+    assert_ai_advisor_semantic_grounding(
+        parenthetical_negated_answer, expected_figures=["24,200", "24200"]
+    )
+
 
 def test_benchmark_oracle_dom_hygiene_scanner() -> None:
     """AC-testing.benchmarks.v2: Validate Pillar 3 DOM Hygiene Scanner."""
