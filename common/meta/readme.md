@@ -256,7 +256,7 @@ That additive discovery has a blind spot: a directory with no discoverable
 `check_package_contract`, not rejected — exactly how `common/ci`,
 `common/shell`, and `common/ssot` accumulated as undeclared junk drawers before
 being dissolved back into real packages (#1564-#1568, #1430).
-`tools/check_package_directory_coverage.py` (logic in
+`python -m common.meta.extension.check_package_directory_coverage` (logic in
 [`extension/check_package_directory_coverage.py`](./extension/check_package_directory_coverage.py))
 closes that gap from the other direction: every directory directly under
 `common/` must ship a `contract.py` with a module-level

@@ -71,6 +71,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
     if "--update" in args:
+        if not BASELINE_PATH.exists() and total == 0:
+            print(
+                "[FE-FETCH-RATCHET] Zero debt achieved: baseline is retired and 0 direct calls found. "
+                "Skipping baseline file creation."
+            )
+            return 0
         if total > baseline:
             print(
                 f"REFUSED: current {total} > baseline {baseline}; the ratchet only goes down.",

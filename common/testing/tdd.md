@@ -126,7 +126,7 @@ the README/EPIC outcome contract — stays hand-maintained in
 never committed-materialized, so a PR anchoring a new AC edits only its own test
 file (adds the decorator), and two such PRs touching different tests never
 collide on a central YAML. Render the matrix on demand with
-`tools/generate_critical_proof_matrix.py` (stdout); consistency is gated by
+`python -m common.testing.generate_critical_proof_matrix` (stdout); consistency is gated by
 `tools/check_ac_index.py`.
 
 ## Proof Semantics
@@ -180,7 +180,7 @@ times. The final model removes that:
   `common/testing/data/critical-proof-outcomes.yaml`.
 - **Derived views, never committed.** The critical-proof matrix, the vision-proof
   matrix, and the EPIC-status table are rendered ON DEMAND from the graph
-  (`tools/generate_critical_proof_matrix.py`,
+  (`python -m common.testing.generate_critical_proof_matrix`,
   `tools/generate_vision_proof_matrix.py`,
   `tools/generate_epic_status.py --stdout`, all to stdout). None is
   committed-materialized, so there is nothing for two unrelated PRs to collide
@@ -248,7 +248,7 @@ is the SINGLE AC-index gate entry point. The CI-stage traceability check
 logic is folded into Gate A INTEGRITY (above) by importing them as LIBRARIES, so
 the SAME code runs and every failure they ever caught still fails the one gate
 with the same message. Those two modules remain importable libraries (their own
-unit tests still exercise them directly, and `tools/generate_critical_proof_matrix.py`
+unit tests still exercise them directly, and `common.testing.generate_critical_proof_matrix`
 still renders the matrix on demand); they are simply not invoked as their own CI
 gates any more. The gate runs ONCE, in the fast `lint` job; the `ac-traceability`
 CI job no longer re-runs it. The L3 behavioral-score ratchet
@@ -373,9 +373,8 @@ Manual verification cleanup is tracked in
 Invalid AC references are reported by
 `python tools/analyze_test_ac_coverage.py --no-write --stdout` and CI
 traceability artifacts.
-AC-to-EPIC mismatch triage is reported by
-`python tools/audit_ac_epic_mismatches.py`, which separates actionable refs
-from fixture-only fake IDs.
+AC integrity and triage are validated by
+`python tools/check_ac_index.py`.
 
 Current coverage enforcement:
 

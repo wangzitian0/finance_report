@@ -95,7 +95,7 @@ AC rates are generated on each CI run from `python tools/analyze_test_ac_coverag
 
 Current test and AC coverage status is generated, not hand-maintained here.
 Use `python tools/analyze_test_ac_coverage.py --no-write --stdout`,
-`python tools/audit_ac_epic_mismatches.py`, and CI artifacts for live proof
+`python tools/check_ac_index.py`, and CI artifacts for live proof
 counts.
 
 ### 2.3.2 E2E EPIC Traceability
@@ -515,7 +515,7 @@ the same contract the API enforces with a 409 ([#988](https://github.com/wangzit
 > `roadmap` (migration closeout wave 3, #1663). Its tests moved to
 > `apps/backend/tests/identity/test_account_purge.py`.
 
-The operator entry point is `tools/purge_test_accounts.py` (dry-run by default;
+The operator entry point is `python -m tools._lib.dev.purge_test_accounts` (dry-run by default;
 `--apply` to delete; runbook in `docs/contributing/staging-test-account-cleanup.md`).
 
 ---
