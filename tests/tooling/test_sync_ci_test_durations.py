@@ -72,17 +72,38 @@ def test_update_duration_seed(tmp_path: Path) -> None:
     seed_file.write_text(json.dumps(initial), encoding="utf-8")
 
     new_durations = {"tests/a.py::test_1": 0.8, "tests/c.py::test_3": 2.0}
-    total, updated = update_duration_seed(seed_file, new_durations, dry_run=False)
+    total, updated = update_duration_seed(
+        seed_file,
+        new_durations,
+        prune_missing=False,
+        dry_run=False,
+    )
 
     assert total == 3
     assert updated == 2
 
-    saved = json.loads(seed_file.read_text(encoding="utf-8"))
+    raw_text = seed_file.read_text(encoding="utf-8")
+    assert raw_text.count("\n") == 1
+    assert "  " not in raw_text
+
+    saved = json.loads(raw_text)
     assert saved == {
         "tests/a.py::test_1": 0.8,
         "tests/b.py::test_2": 1.2,
         "tests/c.py::test_3": 2.0,
     }
+
+
+def test_update_duration_seed_requires_repo_root_when_pruning(tmp_path: Path) -> None:
+    """AC-testing.ci-structure.13: raise ValueError when prune_missing is True without repo_root."""
+    seed_file = tmp_path / "seed.json"
+    seed_file.write_text("{}", encoding="utf-8")
+    with pytest.raises(
+        ValueError, match="repo_root must be provided when prune_missing is True"
+    ):
+        update_duration_seed(
+            seed_file, {"tests/x.py::t": 1.0}, prune_missing=True, repo_root=None
+        )
 
 
 def test_update_duration_seed_prunes_missing_files(tmp_path: Path) -> None:
@@ -110,6 +131,33 @@ def test_update_duration_seed_prunes_missing_files(tmp_path: Path) -> None:
     assert updated == 1
     saved = json.loads(seed_file.read_text(encoding="utf-8"))
     assert saved == {"tests/exists.py::test_1": 0.9}
+
+
+def test_update_duration_seed_prunes_with_path_prefix(tmp_path: Path) -> None:
+    """AC-testing.ci-structure.13: prune obsolete test keys using path_prefix."""
+    repo = tmp_path / "repo"
+    backend_tests = repo / "apps" / "backend" / "tests"
+    backend_tests.mkdir(parents=True)
+    (backend_tests / "active.py").write_text("def test_ok(): pass\n", encoding="utf-8")
+
+    seed_file = tmp_path / "backend-seed.json"
+    initial = {
+        "tests/active.py::test_ok": 0.4,
+        "tests/gone.py::test_stale": 1.1,
+    }
+    seed_file.write_text(json.dumps(initial), encoding="utf-8")
+
+    total, updated = update_duration_seed(
+        seed_file,
+        {"tests/active.py::test_ok": 0.6},
+        repo_root=repo,
+        path_prefix="apps/backend",
+        prune_missing=True,
+    )
+    assert total == 1
+    assert updated == 1
+    saved = json.loads(seed_file.read_text(encoding="utf-8"))
+    assert saved == {"tests/active.py::test_ok": 0.6}
 
 
 def test_report_backend_balance(
@@ -201,6 +249,12 @@ def test_main_run_id_download(tmp_path: Path) -> None:
             ["--run-id", "99999", "--repo-root", str(repo_root), "--dry-run"]
         )
         assert exit_code == 0
+
+
+def test_main_rejects_both_run_id_and_junit_dir(tmp_path: Path) -> None:
+    """AC-testing.ci-structure.13: main rejects mutually exclusive --run-id and --junit-dir."""
+    with pytest.raises(SystemExit):
+        main(["--run-id", "123", "--junit-dir", str(tmp_path)])
 
 
 def test_tool_shim_entrypoint() -> None:
