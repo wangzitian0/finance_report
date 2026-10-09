@@ -1797,6 +1797,7 @@ def test_AC8_13_52_release_image_tool_fails_when_a_digest_is_missing() -> None:
             version_ref="v1.2.3",
             inspect_image=inspect_image,
             sleep=lambda _: None,
+            retry_delay_seconds=0,
         )
 
 
