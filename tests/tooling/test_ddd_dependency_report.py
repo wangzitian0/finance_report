@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import shutil
 import json
@@ -571,6 +572,10 @@ def _seed_repo(tmp_path: Path) -> tuple[Path, str]:
                 template_repo, "consumer", klass="domain", depends_on=["middle"]
             )
             _git(template_repo, "init", "-q")
+            # A commit can start a detached `git maintenance run --auto`. It holds
+            # .git/objects/maintenance.lock while the template is copied below.
+            _git(template_repo, "config", "maintenance.auto", "false")
+            _git(template_repo, "config", "gc.auto", "0")
             _git(
                 template_repo, "config", "user.email", "dependency-test@example.invalid"
             )
@@ -581,8 +586,46 @@ def _seed_repo(tmp_path: Path) -> tuple[Path, str]:
         _SEED_TEMPLATE = (template_repo, head)
 
     template_repo, head = _SEED_TEMPLATE
-    shutil.copytree(template_repo, repo, symlinks=True)
+    # A lock file is process state, never repository content a test needs. A lock
+    # that git removes while the copy runs would stop copytree with shutil.Error.
+    shutil.copytree(
+        template_repo, repo, symlinks=True, ignore=shutil.ignore_patterns("*.lock")
+    )
     return repo, head
+
+
+def test_AC_meta_public_boundary_7_seed_repo_survives_a_lock_file_in_the_template(
+    tmp_path: Path,
+) -> None:
+    """A lock file in the seed template must not stop the copy (CI flake, #2337)."""
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        pytest.skip("root reads an unreadable file, so the lock cannot break the copy")
+    seed, _ = _seed_repo(tmp_path)
+    template = tmp_path.parent / "_ddd_seed_template"
+    lock = template / ".git" / "objects" / "maintenance.lock"
+    lock.write_text("held by a running git process", encoding="utf-8")
+    lock.chmod(0)
+    try:
+        other = tmp_path / "second"
+        other.mkdir()
+        copied, _ = _seed_repo(other)
+        assert not (copied / ".git" / "objects" / "maintenance.lock").exists()
+        assert (copied / "common" / "provider" / "contract.py").exists()
+    finally:
+        lock.chmod(0o600)
+        lock.unlink()
+    assert seed.exists()
+
+
+def test_AC_meta_public_boundary_7_seed_template_disables_background_maintenance(
+    tmp_path: Path,
+) -> None:
+    """The template repo must not start git maintenance after its commit."""
+    _seed_repo(tmp_path)
+    template = tmp_path.parent / "_ddd_seed_template"
+
+    assert _git(template, "config", "--get", "maintenance.auto") == "false"
+    assert _git(template, "config", "--get", "gc.auto") == "0"
 
 
 def _write_public_types(
