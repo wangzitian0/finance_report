@@ -66,6 +66,10 @@ def extract_durations_from_xmls(xml_paths: Sequence[Path]) -> dict[str, float]:
 def update_duration_seed(
     seed_file: Path,
     new_durations: dict[str, float],
+    *,
+    repo_root: Path | None = None,
+    path_prefix: str = "",
+    prune_missing: bool = True,
     dry_run: bool = False,
 ) -> tuple[int, int]:
     """Merge new durations into seed file and save sorted compact JSON."""
@@ -77,6 +81,19 @@ def update_duration_seed(
     for nid, t in new_durations.items():
         data[nid] = t
         updated_count += 1
+
+    if prune_missing and repo_root is not None:
+        pruned: dict[str, float] = {}
+        for nid, dur in data.items():
+            rel_file = nid.split("::")[0]
+            full_path = (
+                (repo_root / path_prefix / rel_file).resolve()
+                if path_prefix
+                else (repo_root / rel_file).resolve()
+            )
+            if full_path.exists():
+                pruned[nid] = dur
+        data = pruned
 
     sorted_data = dict(sorted(data.items()))
     if not dry_run:
@@ -128,7 +145,13 @@ def sync_from_directory(
     if backend_xmls:
         b_durations = extract_durations_from_xmls(backend_xmls)
         b_seed = repo_root / "apps" / "backend" / "ci" / "backend-test-durations.json"
-        total, updated = update_duration_seed(b_seed, b_durations, dry_run=dry_run)
+        total, updated = update_duration_seed(
+            b_seed,
+            b_durations,
+            repo_root=repo_root,
+            path_prefix="apps/backend",
+            dry_run=dry_run,
+        )
         print(
             f"Backend: {len(backend_xmls)} XMLs -> {updated} tests updated, total {total} in seed."
         )
@@ -147,7 +170,12 @@ def sync_from_directory(
     if tooling_xmls:
         t_durations = extract_durations_from_xmls(tooling_xmls)
         t_seed = repo_root / "ci" / "tooling-test-durations.json"
-        total, updated = update_duration_seed(t_seed, t_durations, dry_run=dry_run)
+        total, updated = update_duration_seed(
+            t_seed,
+            t_durations,
+            repo_root=repo_root,
+            dry_run=dry_run,
+        )
         print(
             f"Tooling: {len(tooling_xmls)} XMLs -> {updated} tests updated, total {total} in seed."
         )

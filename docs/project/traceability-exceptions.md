@@ -32,6 +32,8 @@ These files are test infrastructure, not behavior proof.
 | `tests/tooling/_infra2_source.py` | Shared helper (not a test): resilient resolver for infra2 deploy-primitive source; see #1519 |
 | `apps/backend/tests/ai/__init__.py` | Package marker |
 | `apps/backend/tests/ai/conftest.py` | Shared advisor fixtures: pins the env AI-key surface so tests are hermetic to ambient provider keys (#1804) |
+| `apps/backend/tests/api/_statement_router_fixtures.py` | Shared statement router test helpers and storage stubs |
+| `apps/backend/tests/api/conftest.py` | Shared statement router test fixtures |
 | `apps/backend/tests/assets/__init__.py` | Package marker |
 | `apps/backend/tests/identity/__init__.py` | Package marker |
 | `apps/backend/tests/conftest.py` | Shared backend pytest fixtures |

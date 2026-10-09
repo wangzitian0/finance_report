@@ -85,6 +85,33 @@ def test_update_duration_seed(tmp_path: Path) -> None:
     }
 
 
+def test_update_duration_seed_prunes_missing_files(tmp_path: Path) -> None:
+    """AC-testing.ci-structure.13: prune obsolete test keys when file does not exist."""
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True)
+    tests_dir = repo / "tests"
+    tests_dir.mkdir(parents=True)
+    (tests_dir / "exists.py").write_text("def test_1(): pass\n", encoding="utf-8")
+
+    seed_file = tmp_path / "seed.json"
+    initial = {
+        "tests/exists.py::test_1": 0.5,
+        "tests/deleted.py::test_old": 1.2,
+    }
+    seed_file.write_text(json.dumps(initial), encoding="utf-8")
+
+    total, updated = update_duration_seed(
+        seed_file,
+        {"tests/exists.py::test_1": 0.9},
+        repo_root=repo,
+        prune_missing=True,
+    )
+    assert total == 1
+    assert updated == 1
+    saved = json.loads(seed_file.read_text(encoding="utf-8"))
+    assert saved == {"tests/exists.py::test_1": 0.9}
+
+
 def test_report_backend_balance(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
