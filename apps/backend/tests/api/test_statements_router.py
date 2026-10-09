@@ -59,15 +59,30 @@ from src.schemas.review import (
 )
 from tests.api._statement_router_fixtures import (
     _compose_mock_ingestion,
+    add_reviewed_disposition_rule,
     add_txn,
     build_statement,
     create_statement_account,
     make_upload_file,
     persist_mock_result,
+    seed_historical_source_evidence,
     seed_uploaded_document,
 )
 from tests.api.conftest import DummyStorage
 from tests.factories import AccountFactory, UserFactory
+
+__all__ = [
+    "DummyStorage",
+    "_compose_mock_ingestion",
+    "add_reviewed_disposition_rule",
+    "add_txn",
+    "build_statement",
+    "create_statement_account",
+    "make_upload_file",
+    "persist_mock_result",
+    "seed_historical_source_evidence",
+    "seed_uploaded_document",
+]
 
 pytestmark = pytest.mark.asyncio
 
