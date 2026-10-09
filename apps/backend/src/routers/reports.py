@@ -794,6 +794,7 @@ async def export_report(
     user_id: CurrentUserId,
 ) -> StreamingResponse:
     """Export reports in CSV format."""
+    _ = (format, framework_id)
     output = StringIO()
     writer = csv.writer(output)
 

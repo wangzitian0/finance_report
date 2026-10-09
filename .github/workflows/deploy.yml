@@ -350,7 +350,7 @@ jobs:
                   print(f"[WAITING] attempt {attempt}: frontend git_sha={sha or 'unknown'} expected={expected}")
               except Exception as exc:  # noqa: BLE001 - readiness probe is best-effort per attempt
                   print(f"[WAITING] attempt {attempt}: {type(exc).__name__}: {exc}")
-              time.sleep(10)
+              time.sleep(5)
 
           print("::error::Frontend still serving stale git_sha after deadline; "
                 f"expected={expected} last={last or 'unknown'}. "

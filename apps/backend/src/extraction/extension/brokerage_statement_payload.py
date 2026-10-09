@@ -141,6 +141,7 @@ def _brokerage_payload_from_persisted_extraction(
 
 def _brokerage_import_not_ready_reason(statement: StatementSummary, transaction_count: int) -> str:
     """Explain why a brokerage statement cannot be imported yet."""
+    _ = transaction_count
     status_value = statement.status.value if hasattr(statement.status, "value") else str(statement.status)
     validation_error = statement.validation_error
 

@@ -24,10 +24,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import Any, Generic, TypeVar
 from uuid import UUID
 
-from src.ledger.base.validators import JournalEntry, ValidationError
+from src.ledger.base.validators import ValidationError
 from src.ledger.base.vocabulary import AccountType, Direction
 
 # The fixed identity of the Processing virtual account (SSOT P3 in
@@ -89,12 +89,15 @@ class ProcessingAccount:
     is_system: bool = True
 
 
+EntryT = TypeVar("EntryT")
+
+
 @dataclass
-class TransferPair:
+class TransferPair(Generic[EntryT]):  # noqa: UP046
     """Represents a matched pair of transfer transactions."""
 
-    out_entry: JournalEntry
-    in_entry: JournalEntry
+    out_entry: EntryT
+    in_entry: EntryT
     confidence: int
     score_breakdown: dict[str, float]
 

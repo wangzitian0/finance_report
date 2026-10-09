@@ -489,6 +489,7 @@ def calculate_transfer_fx_split(
     base_currency: str = DEFAULT_BASE_CURRENCY,
 ) -> TransferFxSplit:
     """Calculate multi-currency transfer with realized FX gain or loss."""
+    _ = base_currency
     if source_amount <= ZERO or target_amount <= ZERO:
         raise ValueError("source_amount and target_amount must be > 0")
     if source_to_base_rate <= ZERO or target_to_base_rate <= ZERO:

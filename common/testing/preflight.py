@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import os
 import subprocess
 import sys
 from collections.abc import Callable, Iterable, Sequence
@@ -55,6 +56,10 @@ class Check:
 
     ``tier`` classifies the gate's cost (see :data:`TIERS`): ``static`` for the
     seconds-level checks, ``heavy`` for the expensive suite/build gates.
+
+    ``advisory`` classifies whether the gate can be relaxed: under ``--relaxed``
+    or ``PREFLIGHT_RELAXED=1``, advisory checks emit warnings instead of
+    blocking exit with non-zero status.
     """
 
     name: str
@@ -63,6 +68,7 @@ class Check:
     why: str
     cwd: str = "."
     tier: str = "static"
+    advisory: bool = False
 
 
 # Ordered cheapest/most-localizing first. ``fnmatch`` treats ``*`` as matching
@@ -114,6 +120,7 @@ CHECKS: tuple[Check, ...] = (
         globs=("docs/*", "mkdocs.yml", "vision.md", "README.md"),
         commands=((PY, "tools/lint_doc_consistency.py"),),
         why="docs changed: nav coverage + cross-reference consistency",
+        advisory=True,
     ),
     Check(
         name="taxonomy-drift",
@@ -126,6 +133,7 @@ CHECKS: tuple[Check, ...] = (
         ),
         commands=((PY, "tools/check_taxonomy_drift.py"),),
         why="prose/tests changed: retired package-taxonomy vocabulary must not be presented as current (AC-meta.vocab.1)",
+        advisory=True,
     ),
     Check(
         name="schema-validate",
@@ -144,6 +152,7 @@ CHECKS: tuple[Check, ...] = (
         commands=((PY, "../../tools/generate_api_reference.py", "--check"),),
         why="router/schema changed: the generated OpenAPI reference (docs/reference/api.md) must be regenerated — mirrors the CI 'Generated API Reference Check' Lint gate",
         cwd="apps/backend",
+        advisory=True,
     ),
     Check(
         name="router-contract",
@@ -159,6 +168,7 @@ CHECKS: tuple[Check, ...] = (
             ),
         ),
         why="router changed: docs/reference/router-contract-maturity.md must be regenerated (tools/audit_router_contracts.py --output ...) — mirrors the CI Tooling/Common Coverage gate",
+        advisory=True,
     ),
     Check(
         name="migration-risk",
@@ -270,6 +280,7 @@ CHECKS: tuple[Check, ...] = (
         ),
         commands=((PY, "tools/check_workflow_contract.py"),),
         why="CI workflows, deployment/environment docs, or issue templates changed: validate workflow contract and taxonomy",
+        advisory=True,
     ),
     Check(
         name="governance-exceptions",
@@ -280,6 +291,7 @@ CHECKS: tuple[Check, ...] = (
         ),
         commands=((PY, "tools/check_governance_exceptions.py"),),
         why="governance exceptions changed: validate bottom-up proof-exception registry",
+        advisory=True,
     ),
     Check(
         name="context-contract",
@@ -291,6 +303,7 @@ CHECKS: tuple[Check, ...] = (
         ),
         commands=((PY, "tools/check_context_contract.py"),),
         why="package contract or context gate changed: context declarations and dependency semantics only shrink from the audited baseline",
+        advisory=True,
     ),
     Check(
         name="semantic-ownership",
@@ -302,6 +315,7 @@ CHECKS: tuple[Check, ...] = (
         ),
         commands=((PY, "tools/check_semantic_ownership.py"),),
         why="package semantic declarations changed: every governed DDD concept must retain one canonical owner",
+        advisory=True,
     ),
     Check(
         name="tooling",
@@ -316,6 +330,7 @@ CHECKS: tuple[Check, ...] = (
         commands=((PY, "tools/check_app_boundary.py"),),
         why="backend source changed: the L4 backend super-package edge ratchet — no NEW "
         "cross-boundary edge (remainder↔carved package) may appear; the baseline only shrinks",
+        advisory=True,
     ),
     Check(
         name="public-orm-exports",
@@ -329,6 +344,7 @@ CHECKS: tuple[Check, ...] = (
         commands=((PY, "tools/check_public_orm_exports.py"),),
         why="package-root public language or ORM-export ratchet changed: persistence "
         "types must remain an exact shrink-only baseline",
+        advisory=True,
     ),
     Check(
         name="base-purity",
@@ -342,6 +358,7 @@ CHECKS: tuple[Check, ...] = (
         commands=((PY, "tools/check_base_purity.py"),),
         why="package base-layer or base-purity gate changed: ORM, config, observability, "
         "network, and session debt must remain an exact shrink-only baseline",
+        advisory=True,
     ),
     Check(
         name="unit-accountability",
@@ -354,6 +371,7 @@ CHECKS: tuple[Check, ...] = (
         commands=((PY, "tools/check_unit_accountability.py"),),
         why="package unit declarations changed: unbound units and incomplete repository "
         "pairs must remain an exact shrink-only baseline",
+        advisory=True,
     ),
     Check(
         name="toolchain-contract",
@@ -371,6 +389,7 @@ CHECKS: tuple[Check, ...] = (
         ),
         commands=((PY, "tools/check_toolchain_contract.py"),),
         why="toolchain contracts and version declarations must not drift",
+        advisory=True,
     ),
     Check(
         name="workflow-projection",
@@ -384,6 +403,7 @@ CHECKS: tuple[Check, ...] = (
         ),
         commands=((PY, "tools/generate_workflows.py", "--check"),),
         why="projected workflows, actions, and container files must match toolchain SSOT",
+        advisory=True,
     ),
     Check(
         name="ci-metrics-contract",
@@ -395,6 +415,7 @@ CHECKS: tuple[Check, ...] = (
         ),
         commands=((PY, "tools/check_ci_metrics_contract.py"),),
         why="CI workflow metrics contract must not drift",
+        advisory=True,
     ),
     Check(
         name="detached-owner-shortcuts",
@@ -405,6 +426,7 @@ CHECKS: tuple[Check, ...] = (
         ),
         commands=((PY, "tools/check_detached_owner_shortcuts.py"),),
         why="backend tests must not reintroduce un-baselined detached owner uuid4 shortcuts",
+        advisory=True,
     ),
     Check(
         name="epic-status",
@@ -416,6 +438,7 @@ CHECKS: tuple[Check, ...] = (
         ),
         commands=((PY, "tools/generate_epic_status.py", "--check"),),
         why="EPIC status pointer block in README must not drift",
+        advisory=True,
     ),
     Check(
         name="ac-tier-baseline",
@@ -426,6 +449,7 @@ CHECKS: tuple[Check, ...] = (
         ),
         commands=((PY, "tools/check_ac_tier_baseline.py"),),
         why="AC authority tier debt only shrinks",
+        advisory=True,
     ),
     Check(
         name="ac-proof-kind",
@@ -436,6 +460,7 @@ CHECKS: tuple[Check, ...] = (
         ),
         commands=((PY, "tools/check_ac_proof_kind.py"),),
         why="enforce tier -> valid proof kind matrix",
+        advisory=True,
     ),
     Check(
         name="tier-imports",
@@ -502,6 +527,7 @@ CHECKS: tuple[Check, ...] = (
 class CheckResult:
     name: str
     ok: bool
+    advisory: bool = False
 
 
 def _matches(path: str, glob: str) -> bool:
@@ -605,6 +631,7 @@ def run_checks(
     python: str | None = None,
     ci: bool = False,
     quiet: bool = False,
+    relaxed: bool = False,
 ) -> list[CheckResult]:
     """Run each check's commands; a check fails fast on the first non-zero command."""
     python = python or sys.executable
@@ -630,8 +657,13 @@ def run_checks(
             if not quiet:
                 print("::endgroup::", flush=True)
             if not ok:
-                print(f"::error::Gate {check.name} failed: {check.why}", flush=True)
-        results.append(CheckResult(check.name, ok))
+                severity = "warning" if (relaxed and check.advisory) else "error"
+                print(
+                    f"::{severity}::Gate {check.name} "
+                    f"{'warned (relaxed)' if (relaxed and check.advisory) else 'failed'}: {check.why}",
+                    flush=True,
+                )
+        results.append(CheckResult(check.name, ok, advisory=check.advisory))
     return results
 
 
@@ -665,6 +697,25 @@ def run(
             "parity gates, 'heavy' = the expensive suite/build gates, "
             "'full' (default) = both."
         ),
+    )
+    default_relaxed = os.getenv("PREFLIGHT_STRICT", "0").lower() not in (
+        "1",
+        "true",
+        "yes",
+    ) and os.getenv("PREFLIGHT_RELAXED", "1").lower() in ("1", "true", "yes")
+    parser.add_argument(
+        "--relaxed",
+        "--soft",
+        dest="relaxed",
+        action="store_true",
+        default=default_relaxed,
+        help="Run in relaxed mode: non-critical advisory gates emit warnings rather than blocking exit (default).",
+    )
+    parser.add_argument(
+        "--strict",
+        dest="relaxed",
+        action="store_false",
+        help="Run in strict mode: all gates (including advisory) block exit on failure.",
     )
     parser.add_argument(
         "--all",
@@ -708,10 +759,12 @@ def run(
                 f"Registered preflight gate inventory ({args.tier} tier, {len(inventory)} gates):"
             )
             for check in inventory:
-                print(f"  [{check.tier}] {check.name}: {check.why}")
+                status_suffix = " (advisory)" if check.advisory else ""
+                print(f"  [{check.tier}] {check.name}{status_suffix}: {check.why}")
             return 0
         for check in selected:
-            print(f"  [{check.tier}] {check.name}: {check.why}")
+            status_suffix = " (advisory)" if check.advisory else ""
+            print(f"  [{check.tier}] {check.name}{status_suffix}: {check.why}")
         return 0
 
     if not selected:
@@ -731,19 +784,34 @@ def run(
         runner=effective_runner,
         ci=args.ci,
         quiet=args.quiet,
+        relaxed=args.relaxed,
     )
-    if not args.quiet:
-        for result in results:
-            print(f"  [{'ok' if result.ok else 'FAIL'}] {result.name}")
-    else:
-        for result in results:
-            if not result.ok:
-                print(f"  [FAIL] {result.name}")
-    failed = [r.name for r in results if not r.ok]
-    if failed:
-        print(f"preflight: {len(failed)} gate(s) failed: {', '.join(failed)}")
+    failed_strict = [
+        r.name for r in results if not r.ok and not (args.relaxed and r.advisory)
+    ]
+    failed_advisory = [
+        r.name for r in results if not r.ok and (args.relaxed and r.advisory)
+    ]
+
+    for result in results:
+        if result.ok:
+            if not args.quiet:
+                print(f"  [ok] {result.name}")
+        else:
+            status_str = (
+                "WARN (relaxed)" if (args.relaxed and result.advisory) else "FAIL"
+            )
+            print(f"  [{status_str}] {result.name}")
+    if failed_strict:
+        print(
+            f"preflight: {len(failed_strict)} gate(s) failed: {', '.join(failed_strict)}"
+        )
         return 1
-    if args.quiet:
+    if failed_advisory:
+        print(
+            f"preflight: all required gates passed ({len(failed_advisory)} advisory gate(s) warned under --relaxed mode)."
+        )
+    elif args.quiet:
         print(f"preflight: all {len(selected)} gates passed.")
     else:
         print("preflight: all relevant gates passed.")

@@ -532,6 +532,7 @@ FOR EACH ROW EXECUTE FUNCTION fr_guard_journal_line_immutability();
 
 
 def _install_ledger_invariant_ddl(target: Any, connection: Any, **_: Any) -> None:
+    _ = target
     if connection.dialect.name != "postgresql":
         return
 

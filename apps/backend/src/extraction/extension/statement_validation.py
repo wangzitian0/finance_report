@@ -519,6 +519,7 @@ async def edit_and_approve(
     TODO(EPIC-012): introduce an explicit correction / re-parse flow that supersedes
     the original atomic rows rather than mutating them.
     """
+    _ = (db, statement_id, user_id, edits)
     raise ValueError("Editing parsed transactions is unsupported; reject and re-parse the statement instead.")
 
 

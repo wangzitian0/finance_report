@@ -371,6 +371,42 @@ class TestRunAndMain:
         rc = preflight.run([], runner=lambda argv, cwd: 0, git=fake_git)
         assert rc == 0
 
+    def test_main_relaxed_mode_passes_on_advisory_failure(self):
+        rc = preflight.run(
+            ["--changed", "README.md", "--relaxed"],
+            runner=lambda argv, cwd: 1,
+        )
+        assert rc == 0
+
+    def test_main_relaxed_mode_still_fails_on_hard_gate_failure(self):
+        rc = preflight.run(
+            ["--changed", ".env.example", "--relaxed"],
+            runner=lambda argv, cwd: 1,
+        )
+        assert rc == 1
+
+    def test_default_mode_is_relaxed_for_advisory(self):
+        rc = preflight.run(
+            ["--changed", "README.md"],
+            runner=lambda argv, cwd: 1,
+        )
+        assert rc == 0
+
+    def test_main_strict_mode_fails_on_advisory_failure(self):
+        rc = preflight.run(
+            ["--changed", "README.md", "--strict"],
+            runner=lambda argv, cwd: 1,
+        )
+        assert rc == 1
+
+    def test_env_var_strict_mode(self, monkeypatch):
+        monkeypatch.setenv("PREFLIGHT_STRICT", "1")
+        rc = preflight.run(
+            ["--changed", "README.md"],
+            runner=lambda argv, cwd: 1,
+        )
+        assert rc == 1
+
 
 # ── Tier-filtered selection (#1810 G-static-parity) ──
 # The static tier is the seconds-level pre-push parity command; the heavy
