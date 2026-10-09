@@ -1115,6 +1115,8 @@ CONTRACT = PackageContract(
         ac('AC-extraction.source-lifecycle.8', 'Physical purge is absent from ordinary statement lifecycle commands and remains a separately governed cross-package operation.', 'apps/backend/tests/extraction/test_source_lifecycle.py::test_AC_extraction_source_lifecycle_8_ordinary_api_has_no_purge_path', proof_kind='property'),
         ac('AC-extraction.source-lifecycle.9', 'Governance detail derives detector, proof-strength, exact target SHA, issue, progress, and live enforcement state for every source-lifecycle guarantee.', 'apps/backend/tests/extraction/test_source_lifecycle_governance.py::test_AC_extraction_source_lifecycle_9_governance_detail_is_exact', proof_kind='property'),
         ac('AC-extraction.source-lifecycle.10', 'Counterfactual tests exercise cross-currency cancellation, independent-session conflict, failed commit, storage outage, retry, and retained history.', 'apps/backend/tests/extraction/test_source_lifecycle.py::test_AC_extraction_source_lifecycle_10_counterfactual_matrix_is_locked', proof_kind='property'),
+        # ── group parse-robustness: tolerate what the statement prompt allows (#2328) ──
+        ac('AC-extraction.parse-robustness.1', 'A statement transaction whose description is null, empty, blank or absent keeps its row with the description "Unknown". The statement prompt allows null for a field the model cannot read, so one such row no longer rejects the whole statement (#2328).', 'apps/backend/tests/extraction/test_extraction_error_paths.py::test_parse_document_uses_placeholder_for_missing_description', priority='P1'),
     ],
     governance=[
         GovernanceInitiative(
