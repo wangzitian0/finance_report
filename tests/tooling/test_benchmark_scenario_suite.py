@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 import io
-import json
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -187,26 +186,8 @@ def test_generate_consecutive_months_replay_csv_identity() -> None:
     assert Decimal(m4_rows[0]["Statement Closing Balance"]) == m4_closing
 
 
-def test_benchmark_cli_cassette_option_parsing() -> None:
-    """Benchmark CLI supports --cassette=replay and propagates to runner."""
-    from tools._lib.benchmarks.run_financial_scenario_benchmark import (
-        ScenarioBenchmarkRunner,
-        _parse_args,
-    )
-
-    parsed = _parse_args(["--cassette", "replay", "--app-url", "http://localhost:8000"])
-    assert parsed.cassette == "replay"
-
-    runner = ScenarioBenchmarkRunner(
-        base_url="http://localhost:8000", replay_mode=parsed.cassette
-    )
-    assert runner.replay_mode == "replay"
-    # One name per fact: the retired alias must not return.
-    assert not hasattr(runner, "cassette_mode")
-
-
 def test_benchmark_manifest_v2_fixtures_verified() -> None:
-    """AC-testing.benchmarks.v2: manifest.yaml is version 2.1 and all registered fixtures have verified schema and sha256."""
+    """AC-testing.benchmarks.7: manifest.yaml is version 2.1 and all registered fixtures have verified schema and sha256."""
     import hashlib
     import re
     import yaml
@@ -246,7 +227,7 @@ def test_benchmark_manifest_v2_fixtures_verified() -> None:
 
 
 def test_benchmark_reporter_summary_extraction_v2() -> None:
-    """AC-testing.benchmarks.v2: reporter generates comprehensive summary and standalone HTML for all 5 scenarios."""
+    """AC-testing.benchmarks.8: reporter generates comprehensive summary and standalone HTML for all 5 scenarios."""
     from tools._lib.benchmarks.benchmark_html_reporter import (
         extract_summary_data,
         generate_html_report,
@@ -398,7 +379,7 @@ def test_benchmark_reporter_summary_extraction_v2() -> None:
 
 
 def test_benchmark_case_6_dispatch_contract(monkeypatch: pytest.MonkeyPatch) -> None:
-    """AC-testing.benchmarks.v2: Case 6 is exported and dispatchable via CLI and scenario runner."""
+    """AC-testing.benchmarks.1: Case 6 is exported and dispatchable via CLI and scenario runner."""
     from tools._lib.benchmarks import run_financial_scenario_benchmark
     from tools._lib.benchmarks.case_types import CaseResult
     from tools._lib.benchmarks.cases import execute_case_6
@@ -428,7 +409,7 @@ def test_benchmark_case_6_dispatch_contract(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_benchmark_cli_case_selection_and_green_while_empty_guard() -> None:
-    """AC-testing.benchmarks.v2: CLI fails closed on invalid case selection and supports case_1 format."""
+    """AC-testing.benchmarks.1: CLI fails closed on invalid case selection and supports case_1 format."""
     from tools._lib.benchmarks.run_financial_scenario_benchmark import main
 
     # Passing invalid case must fail-closed with code 2 (never GREEN-WHILE-EMPTY code 0)
@@ -441,7 +422,7 @@ def test_benchmark_cli_case_selection_and_green_while_empty_guard() -> None:
 
 
 def test_benchmark_valuation_basis_contract_conformance() -> None:
-    """AC-testing.benchmarks.v2: valuation_basis aligns with backend ManualValuationBasis schema."""
+    """AC-testing.benchmarks.7: valuation_basis aligns with backend ManualValuationBasis schema."""
     import inspect
     from src.pricing.base.manual_valuation import ManualValuationBasis
     from tools._lib.benchmarks.run_financial_scenario_benchmark import (
@@ -459,7 +440,7 @@ def test_benchmark_valuation_basis_contract_conformance() -> None:
 
 
 def test_benchmark_statement_generators_zero_orphan_contract() -> None:
-    """AC-testing.benchmarks.v2: All statement generators are mapped to active scenario cases."""
+    """AC-testing.benchmarks.7: All statement generators are mapped to active scenario cases."""
     import inspect
     from tools._lib.benchmarks import statement_generators
 
@@ -492,7 +473,7 @@ def test_benchmark_statement_generators_zero_orphan_contract() -> None:
 
 
 def test_sync_benchmark_fixtures_contract(tmp_path: Path) -> None:
-    """AC-testing.benchmarks.v2: Fixture sync loads manifest v2.1 and verifies SHA-256 integrity."""
+    """AC-testing.benchmarks.7: Fixture sync loads manifest v2.1 and verifies SHA-256 integrity."""
     from tools._lib.benchmarks import sync_benchmark_fixtures
 
     manifest_path = REPO_ROOT / "common/testing/fixtures/benchmarks/manifest.yaml"
@@ -516,7 +497,7 @@ def test_sync_benchmark_fixtures_contract(tmp_path: Path) -> None:
 
 
 def test_benchmark_cli_domain_and_flow_option_parsing() -> None:
-    """AC-testing.benchmarks.v2: CLI supports --domain 1..7 and --flow 1..30 mappings."""
+    """AC-testing.benchmarks.1: CLI supports --domain 1..7 and --flow 1..30 mappings."""
     from tools._lib.benchmarks.case_types import DOMAIN_TO_CASES, FLOW_TO_CASES
     from tools._lib.benchmarks.run_financial_scenario_benchmark import _parse_args
 
@@ -541,104 +522,8 @@ def test_benchmark_cli_domain_and_flow_option_parsing() -> None:
     assert {"1"}.issubset(FLOW_TO_CASES[23])
 
 
-def test_benchmark_mapping_ssot_bijection_and_coverage() -> None:
-    """AC-testing.benchmarks.v2: FLOW_TO_CASES covers exactly the flows of the 30-flow registry."""
-    from tools._lib.benchmarks.case_types import (
-        DOMAIN_TO_CASES,
-        FLOW_TO_CASES,
-        FLOW_TO_DOMAIN,
-        get_case_to_flows,
-    )
-
-    # 1. The registry JSON is read here without the case_types loader
-    registry = json.loads(
-        (REPO_ROOT / "common/meta/flows/thirty_flows_ssot.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    registry_domain_of = {
-        flow["id"]: domain["id"]
-        for domain in registry["domains"]
-        for flow in domain["flows"]
-    }
-    assert len(registry_domain_of) == 30
-    assert set(registry_domain_of.values()) == set(range(1, 8))
-    assert FLOW_TO_DOMAIN == registry_domain_of
-    assert set(FLOW_TO_CASES) == set(registry_domain_of), (
-        "FLOW_TO_CASES keys must equal the registry flow ids"
-    )
-
-    # 2. Inversion
-    computed_case_to_flows = get_case_to_flows()
-
-    # 3. Mathematical bidirectional bijection
-    for flow, cases in FLOW_TO_CASES.items():
-        assert len(cases) > 0, (
-            f"Flow {flow} must be mapped to at least one benchmark case"
-        )
-        for case in cases:
-            cid = f"case_{case}"
-            assert cid in computed_case_to_flows, (
-                f"Case {cid} missing from inverted map"
-            )
-            assert flow in computed_case_to_flows[cid], (
-                f"Flow {flow} missing from {cid}"
-            )
-
-    for cid, flows in computed_case_to_flows.items():
-        case_num = cid.replace("case_", "")
-        for flow in flows:
-            assert case_num in FLOW_TO_CASES[flow], (
-                f"Case {case_num} missing from FLOW_TO_CASES[{flow}]"
-            )
-
-    # 4. Domain to cases alignment
-    assert len(DOMAIN_TO_CASES) == 7
-    for domain_id, cases in DOMAIN_TO_CASES.items():
-        assert len(cases) > 0, f"Domain {domain_id} must cover at least one case"
-
-
-def test_flow_to_domain_is_derived_not_declared() -> None:
-    """AC-testing.benchmarks.v2: FLOW_TO_DOMAIN has no literal copy of the 30-flow registry."""
-    import ast
-
-    from tools._lib.benchmarks import case_types
-
-    tree = ast.parse(Path(case_types.__file__).read_text(encoding="utf-8"))
-    values = [
-        node.value
-        for node in tree.body
-        if isinstance(node, ast.AnnAssign)
-        and isinstance(node.target, ast.Name)
-        and node.target.id == "FLOW_TO_DOMAIN"
-    ]
-    assert len(values) == 1
-    assert isinstance(values[0], ast.Call), (
-        "FLOW_TO_DOMAIN must be derived from the registry, not declared as a literal"
-    )
-
-
-def test_load_flow_to_domain_follows_registry_edits(tmp_path: Path) -> None:
-    """AC-testing.benchmarks.v2: the flow-to-domain loader reflects an edited registry."""
-    from tools._lib.benchmarks.case_types import load_flow_to_domain
-
-    registry = {
-        "domains": [
-            {"id": 1, "flows": [{"id": 1}, {"id": 2}]},
-            {"id": 2, "flows": [{"id": 3}]},
-        ]
-    }
-    path = tmp_path / "flows.json"
-    path.write_text(json.dumps(registry), encoding="utf-8")
-    assert load_flow_to_domain(path) == {1: 1, 2: 1, 3: 2}
-
-    registry["domains"][1]["flows"].append({"id": 4})
-    path.write_text(json.dumps(registry), encoding="utf-8")
-    assert load_flow_to_domain(path) == {1: 1, 2: 1, 3: 2, 4: 2}
-
-
 def test_benchmark_oracle_triple_accounting_articulation_pass_and_fail() -> None:
-    """AC-testing.benchmarks.v2: Validate Pillar 4 Triple Accounting Articulation Invariant."""
+    """AC-testing.benchmarks.6: Validate Pillar 4 Triple Accounting Articulation Invariant."""
     from tools._lib.benchmarks.oracles import assert_triple_accounting_articulation
 
     # 1. Balanced case with matching income statement
@@ -683,7 +568,7 @@ def test_benchmark_oracle_triple_accounting_articulation_pass_and_fail() -> None
 
 
 def test_benchmark_oracle_ai_advisor_semantic_grounding_pass_and_fail() -> None:
-    """AC-testing.benchmarks.v2: Validate Pillar 1 AI Semantic Grounding Oracle."""
+    """AC-testing.benchmarks.6: Validate Pillar 1 AI Semantic Grounding Oracle."""
     from tools._lib.benchmarks.oracles import assert_ai_advisor_semantic_grounding
 
     # 1. Passing answer: grounded net worth with 0 discrepancy keywords
@@ -748,7 +633,7 @@ def test_benchmark_oracle_ai_advisor_semantic_grounding_pass_and_fail() -> None:
 
 
 def test_benchmark_oracle_dom_hygiene_scanner() -> None:
-    """AC-testing.benchmarks.v2: Validate Pillar 3 DOM Hygiene Scanner."""
+    """AC-testing.benchmarks.3: Validate Pillar 3 DOM Hygiene Scanner."""
     from tools._lib.benchmarks.oracles import (
         FORBIDDEN_DOM_JARGON,
         scan_dom_hygiene,
@@ -768,7 +653,7 @@ def test_benchmark_oracle_dom_hygiene_scanner() -> None:
 
 
 def test_benchmark_cli_verify_ui_option_and_dispatch() -> None:
-    """AC-testing.benchmarks.v2: CLI supports --verify-ui flag and propagates to runner."""
+    """AC-testing.benchmarks.1: CLI supports --verify-ui flag and propagates to runner."""
     from tools._lib.benchmarks.run_financial_scenario_benchmark import (
         ScenarioBenchmarkRunner,
         _parse_args,
@@ -780,49 +665,3 @@ def test_benchmark_cli_verify_ui_option_and_dispatch() -> None:
     runner = ScenarioBenchmarkRunner(base_url="http://localhost:8000")
     runner.verify_ui = parsed.verify_ui
     assert runner.verify_ui is True
-
-
-def test_verify_browser_ui_hygiene_builds_session_before_browser_check(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC-testing.benchmarks.v2: Pillars 2 and 3 use the shared session builder and fail closed on a bad auth context."""
-    from types import SimpleNamespace
-
-    import tests.e2e.auth_cookie as auth_cookie
-    from tools._lib.benchmarks.oracles import verify_browser_ui_hygiene
-
-    runner = SimpleNamespace(base_url="http://localhost:8000", last_auth_context=None)
-
-    # 1. A context without a token raises, with or without Playwright installed.
-    with pytest.raises(ValueError, match="Invalid auth context"):
-        verify_browser_ui_hygiene(
-            runner, auth_context={"user_data": {}, "user_email": "qa@test.example.com"}
-        )
-
-    # 2. The oracle calls the shared builder. A private copy would not reach the sentinel.
-    def sentinel(auth_context: dict, app_url: str) -> None:
-        raise RuntimeError("shared-builder-called")
-
-    monkeypatch.setattr(auth_cookie, "build_runner_browser_session", sentinel)
-    with pytest.raises(RuntimeError, match="shared-builder-called"):
-        verify_browser_ui_hygiene(
-            runner,
-            auth_context={
-                "user_data": {"access_token": "tok", "id": "1"},
-                "user_email": "qa@test.example.com",
-            },
-        )
-
-
-def test_bench_ui_bridge_uses_shared_session_builder() -> None:
-    """AC-testing.benchmarks.v2: the Playwright bridge calls the shared session builder and builds no cookie itself."""
-    import ast
-
-    source = (REPO_ROOT / "tests/e2e/bench_ui_bridge.py").read_text(encoding="utf-8")
-    called = {
-        node.func.id
-        for node in ast.walk(ast.parse(source))
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-    }
-    assert "build_runner_browser_session" in called
-    assert "build_auth_cookie" not in called

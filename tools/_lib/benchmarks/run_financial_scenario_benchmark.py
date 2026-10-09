@@ -523,6 +523,17 @@ def execute_case_ui(runner: ScenarioBenchmarkRunner) -> CaseResult:
 
         hygiene_res = runner.verify_browser_ui_hygiene(allow_skip_if_no_browser=True)
         duration = time.time() - start_time
+        if hygiene_res.get("status") == "SKIPPED":
+            print(
+                f"⚠️ {case_name} SKIPPED in {duration:.2f}s: {hygiene_res.get('reason')}\n"
+            )
+            return CaseResult(
+                case_id="case_ui",
+                case_name=case_name,
+                status="SKIPPED",
+                duration_seconds=duration,
+                details=hygiene_res,
+            )
         print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
         return CaseResult(
             case_id="case_ui",
@@ -559,8 +570,11 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--case",
-        default="all",
-        help="Comma-separated case IDs to run (1, 2, 3, 4, 5, 6, or all)",
+        default=None,
+        help=(
+            "Comma-separated case IDs to run (1 to 6, ui, or all). "
+            "Default: all, unless --domain or --flow is set."
+        ),
     )
     parser.add_argument(
         "--version-ref",
@@ -627,7 +641,25 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=False,
         help="Execute Playwright browser UI hygiene and zero console error invariant verification",
     )
+    parser.add_argument(
+        "--allow-skip",
+        action="store_true",
+        default=False,
+        help=(
+            "Do not fail the run when a case is SKIPPED (for example, no browser). "
+            "A run with no PASS case still fails."
+        ),
+    )
     return parser.parse_args(argv)
+
+
+def _normalize_case_id(token: str) -> str:
+    """Map `case_1`, `case1` and `1` to `1`."""
+    token = token.strip().lower()
+    for prefix in ("case_", "case"):
+        if token.startswith(prefix):
+            return token[len(prefix) :]
+    return token
 
 
 def _dispatch_cases(
@@ -636,50 +668,51 @@ def _dispatch_cases(
     domain_arg: str | None = None,
     flow_arg: str | None = None,
 ) -> list[CaseResult]:
-    requested = set(c.strip().lower() for c in case_arg.split(",") if c.strip())
-
-    if domain_arg:
-        for d in domain_arg.split(","):
-            d = d.strip()
-            if d.lower() == "all":
-                for cases in DOMAIN_TO_CASES.values():
-                    requested.update(cases)
-            elif d.isdigit() and int(d) in DOMAIN_TO_CASES:
-                requested.update(DOMAIN_TO_CASES[int(d)])
-
-    if flow_arg:
-        for f in flow_arg.split(","):
-            f = f.strip()
-            if f.lower() == "all":
-                for cases in FLOW_TO_CASES.values():
-                    requested.update(cases)
-            elif f.isdigit() and int(f) in FLOW_TO_CASES:
-                requested.update(FLOW_TO_CASES[int(f)])
-
-    run_all = "all" in requested
-
-    def _should_run(case_num: str) -> bool:
-        return (
-            run_all
-            or case_num in requested
-            or f"case_{case_num}" in requested
-            or f"case{case_num}" in requested
+    """Run the selected cases. Raise ValueError for an unknown case, domain or flow id."""
+    # Looked up at call time, so a test can replace one executor.
+    executors = {
+        "1": execute_case_1,
+        "2": execute_case_2,
+        "3": execute_case_3,
+        "4": execute_case_4,
+        "5": execute_case_5,
+        "6": execute_case_6,
+    }
+    requested = {_normalize_case_id(c) for c in case_arg.split(",") if c.strip()}
+    unknown_cases = sorted(requested - set(executors) - {"all", "ui"})
+    if unknown_cases:
+        raise ValueError(
+            f"Unknown benchmark case id(s) {unknown_cases}; valid ids are 1 to 6, ui, all"
         )
 
-    results: list[CaseResult] = []
-    if _should_run("1"):
-        results.append(execute_case_1(runner))
-    if _should_run("2"):
-        results.append(execute_case_2(runner))
-    if _should_run("3"):
-        results.append(execute_case_3(runner))
-    if _should_run("4"):
-        results.append(execute_case_4(runner))
-    if _should_run("5"):
-        results.append(execute_case_5(runner))
-    if _should_run("6"):
-        results.append(execute_case_6(runner))
-    if _should_run("ui") or getattr(runner, "verify_ui", False):
+    for ids, label, mapping in (
+        (domain_arg, "domain", DOMAIN_TO_CASES),
+        (flow_arg, "flow", FLOW_TO_CASES),
+    ):
+        if not ids:
+            continue
+        unknown_ids: list[str] = []
+        for raw in ids.split(","):
+            token = raw.strip().lower()
+            if not token:
+                continue
+            if token == "all":
+                for cases in mapping.values():
+                    requested.update(cases)
+            elif token.isdigit() and int(token) in mapping:
+                requested.update(mapping[int(token)])
+            else:
+                unknown_ids.append(raw.strip())
+        if unknown_ids:
+            raise ValueError(f"Unknown {label} id(s) {unknown_ids}")
+
+    run_all = "all" in requested
+    results = [
+        executors[case_id](runner)
+        for case_id in sorted(executors)
+        if run_all or case_id in requested
+    ]
+    if run_all or "ui" in requested or getattr(runner, "verify_ui", False):
         results.append(execute_case_ui(runner))
     return results
 
@@ -695,7 +728,8 @@ def _build_report_data(
         "summary": {
             "total": len(results),
             "passed": sum(1 for r in results if r.status == "PASS"),
-            "failed": sum(1 for r in results if r.status != "PASS"),
+            "skipped": sum(1 for r in results if r.status == "SKIPPED"),
+            "failed": sum(1 for r in results if r.status not in ("PASS", "SKIPPED")),
             "success": all_passed,
         },
         "results": [asdict(r) for r in results],
@@ -743,7 +777,9 @@ def _print_summary(
     print("BENCHMARK EXECUTION SUMMARY")
     print("======================================================================")
     for r in results:
-        status_icon = "✅ PASS" if r.status == "PASS" else "❌ FAIL"
+        status_icon = {"PASS": "✅ PASS", "SKIPPED": "⚠️ SKIPPED"}.get(
+            r.status, "❌ FAIL"
+        )
         print(
             f"{status_icon} | {r.case_id.upper()}: {r.case_name} ({r.duration_seconds:.2f}s)"
         )
@@ -751,21 +787,45 @@ def _print_summary(
             print(f"       Error: {r.error_message}")
     print("----------------------------------------------------------------------")
     print(
-        f"Total: {len(results)} | Passed: {report_data['summary']['passed']} | Failed: {report_data['summary']['failed']}"
+        f"Total: {len(results)} | Passed: {report_data['summary']['passed']} | "
+        f"Skipped: {report_data['summary']['skipped']} | Failed: {report_data['summary']['failed']}"
     )
     if json_report_path:
         print(f"Report saved to: {json_report_path}")
     print("======================================================================")
 
 
+def _run_succeeded(results: list[CaseResult], allow_skip: bool) -> bool:
+    """A run succeeds when no case failed and at least one case passed.
+
+    A SKIPPED case fails the run unless `allow_skip` is set. A run with only
+    SKIPPED cases never succeeds.
+    """
+    if any(r.status not in ("PASS", "SKIPPED") for r in results):
+        return False
+    if not allow_skip and any(r.status == "SKIPPED" for r in results):
+        return False
+    return any(r.status == "PASS" for r in results)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(argv)
+    # --domain and --flow narrow the run. Without them, an unset --case means all.
+    case_arg = (
+        args.case
+        if args.case is not None
+        else ("" if (args.domain or args.flow) else "all")
+    )
 
     print("======================================================================")
     print("FINANCIAL REPORTING TEMPORAL BENCHMARK SUITE")
     print(f"Target Environment: {args.app_url}")
     print(f"Version Ref:        {args.version_ref}")
-    print(f"Cases Selected:     {args.case}")
+    print(f"Cases Selected:     {case_arg or '(none)'}")
+    if args.domain:
+        print(f"Domains Selected:   {args.domain}")
+    if args.flow:
+        print(f"Flows Selected:     {args.flow}")
     print(f"Started At:         {datetime.now(UTC).isoformat()}")
     print("======================================================================")
 
@@ -777,14 +837,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     runner.verify_ui = args.verify_ui
 
-    results = _dispatch_cases(
-        runner, args.case, domain_arg=args.domain, flow_arg=args.flow
-    )
+    try:
+        results = _dispatch_cases(
+            runner, case_arg, domain_arg=args.domain, flow_arg=args.flow
+        )
+    except ValueError as exc:
+        print(f"❌ Error: {exc}", file=sys.stderr)
+        return 2
     if not results:
         print("❌ Error: No valid benchmark cases selected.", file=sys.stderr)
         return 2
 
-    all_passed = bool(results) and all(r.status == "PASS" for r in results)
+    all_passed = _run_succeeded(results, args.allow_skip)
     report_data = _build_report_data(args, results, all_passed)
     _save_reports(args, report_data)
     _print_summary(results, report_data, args.json_report)

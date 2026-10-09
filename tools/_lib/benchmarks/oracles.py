@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse
 
 if TYPE_CHECKING:
     from tools._lib.benchmarks.run_financial_scenario_benchmark import (
@@ -178,6 +179,8 @@ def verify_browser_ui_hygiene(
             "/journal",
             "/accounts",
         ]
+    if not routes:
+        raise ValueError("verify_browser_ui_hygiene requires at least one route")
     if viewport is None:
         viewport = {"width": 1440, "height": 900}
 
@@ -195,6 +198,7 @@ def verify_browser_ui_hygiene(
     page_errors: list[str] = []
     dom_violations: list[str] = []
     visited_routes: list[str] = []
+    route_errors: list[str] = []
 
     try:
         from playwright.sync_api import sync_playwright
@@ -250,14 +254,26 @@ def verify_browser_ui_hygiene(
             for route in routes:
                 target_url = f"{runner.base_url}{route}"
                 try:
-                    page.goto(
+                    response = page.goto(
                         target_url, timeout=timeout_ms, wait_until="domcontentloaded"
                     )
+                    status_code = getattr(response, "status", None)
+                    if status_code is not None and status_code >= 400:
+                        route_errors.append(f"[{route}] HTTP {status_code}")
+                        continue
                     try:
                         page.wait_for_load_state("networkidle", timeout=5000)
                     except Exception:
                         pass
                     page.wait_for_timeout(500)
+                    final_path = urlparse(page.url).path
+                    if final_path.startswith("/login") and not route.startswith(
+                        "/login"
+                    ):
+                        route_errors.append(
+                            f"[{route}] redirected to {final_path}: the session is not authenticated"
+                        )
+                        continue
                     body_text = page.inner_text("body")
                     visited_routes.append(route)
 
@@ -265,21 +281,28 @@ def verify_browser_ui_hygiene(
                     for v in violations:
                         dom_violations.append(f"[{route}] {v}")
                 except Exception as exc:
-                    print(f"  ⚠️ Route navigation error for {route}: {exc}")
+                    route_errors.append(f"[{route}] navigation failed: {exc}")
         finally:
             browser.close()
 
+    if route_errors:
+        raise AssertionError(
+            f"Pillar 2/3 Invariant Failure: {len(route_errors)} of {len(routes)} routes were not verified: {route_errors}"
+        )
     all_console_issues = console_errors + page_errors
-    assert not all_console_issues, (
-        f"Pillar 2 Invariant Failure: Browser console errors detected: {all_console_issues}"
-    )
-    assert not dom_violations, (
-        f"Pillar 3 Invariant Failure: DOM hygiene violations detected: {dom_violations}"
-    )
+    if all_console_issues:
+        raise AssertionError(
+            f"Pillar 2 Invariant Failure: Browser console errors detected: {all_console_issues}"
+        )
+    if dom_violations:
+        raise AssertionError(
+            f"Pillar 3 Invariant Failure: DOM hygiene violations detected: {dom_violations}"
+        )
 
     return {
         "status": "PASS",
         "visited_routes": visited_routes,
+        "route_errors": route_errors,
         "console_errors": all_console_issues,
         "dom_violations": dom_violations,
     }
