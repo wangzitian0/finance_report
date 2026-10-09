@@ -664,6 +664,17 @@ def test_benchmark_oracle_ai_advisor_semantic_grounding_pass_and_fail() -> None:
             vague_answer, expected_figures=["24,200", "24200"]
         )
 
+    # 4. Passing answer: explicit negative assertions confirming balance consistency
+    negated_balance_answer = (
+        "## Your Current Net Worth\n"
+        "**Net Worth: SGD 24,200.00**\n"
+        "No balance discrepancies found. Assets and equity rollforward balance perfectly.\n"
+        "Unmatched transactions do not create any imbalance."
+    )
+    assert_ai_advisor_semantic_grounding(
+        negated_balance_answer, expected_figures=["24,200", "24200"]
+    )
+
 
 def test_benchmark_oracle_dom_hygiene_scanner() -> None:
     """AC-testing.benchmarks.v2: Validate Pillar 3 DOM Hygiene Scanner."""
