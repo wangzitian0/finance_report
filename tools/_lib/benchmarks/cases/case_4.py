@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from tools._lib.benchmarks.case_types import CaseResult
+from tools._lib.benchmarks.oracles import assert_triple_accounting_articulation
 from tools._lib.benchmarks.statement_generators import (
     generate_multicurrency_hkd_csv,
     generate_multicurrency_usd_csv,
@@ -98,6 +99,7 @@ def _verify_multicurrency_balance_sheets(
     assert abs(delta_sgd) < Decimal("0.05"), (
         f"SGD equation delta exceeds tolerance: {delta_sgd}"
     )
+    assert_triple_accounting_articulation(bs_sgd)
 
     # 5. Consolidated Balance Sheet in Target Currency (USD)
     print("  [6/6] Verifying Consolidated Balance Sheet in USD (as of 2025-04-30)...")
@@ -116,6 +118,7 @@ def _verify_multicurrency_balance_sheets(
     assert abs(delta_usd) < Decimal("0.05"), (
         f"USD equation delta exceeds tolerance: {delta_usd}"
     )
+    assert_triple_accounting_articulation(bs_usd)
     return assets_sgd, delta_sgd, balanced_sgd, assets_usd, delta_usd, balanced_usd
 
 

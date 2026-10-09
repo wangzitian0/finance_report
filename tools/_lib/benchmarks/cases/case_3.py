@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from tools._lib.benchmarks.case_types import CaseResult
+from tools._lib.benchmarks.oracles import assert_triple_accounting_articulation
 from tools._lib.benchmarks.statement_generators import (
     generate_credit_card_repayment_bank_pdf,
 )
@@ -155,6 +156,7 @@ def _verify_card_repayment_invariants(
     assert net_income == Decimal("-1200.00"), (
         f"Expected net income -1200.00, got {net_income}"
     )
+    assert_triple_accounting_articulation(bs, inc)
     return (
         total_assets,
         total_equity,

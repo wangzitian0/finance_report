@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from tools._lib.benchmarks.case_types import CaseResult
+from tools._lib.benchmarks.oracles import assert_triple_accounting_articulation
 
 if TYPE_CHECKING:
     from tools._lib.benchmarks.run_financial_scenario_benchmark import (
@@ -217,6 +218,7 @@ def _verify_balance_sheet_multi_asset(
         or "Piekos" in str(item.get("name", ""))
         for item in bs.get("assets", [])
     ), "Expected illiquid real estate appraisal line in balance sheet assets"
+    assert_triple_accounting_articulation(bs)
     return liquid_assets, total_assets, total_equity, equation_delta, is_balanced
 
 

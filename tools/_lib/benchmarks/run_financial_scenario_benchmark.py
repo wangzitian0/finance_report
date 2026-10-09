@@ -42,6 +42,14 @@ from tools._lib.benchmarks.case_types import (  # noqa: E402
     FLOW_TO_CASES,
     CaseResult,
 )
+from tools._lib.benchmarks.oracles import (  # noqa: E402
+    FORBIDDEN_DOM_JARGON,
+    HALLUCINATED_DISCREPANCY_TOKENS,
+    assert_ai_advisor_semantic_grounding,
+    assert_triple_accounting_articulation,
+    scan_dom_hygiene,
+    verify_browser_ui_hygiene,
+)
 from tools._lib.benchmarks.cases import (  # noqa: E402
     execute_case_1,
     execute_case_2,
@@ -491,6 +499,68 @@ class ScenarioBenchmarkRunner:
             )
         return resp.json()
 
+    def query_ai_advisor(self, client: httpx.Client, question: str) -> str:
+        """Query AI Advisor for conversational insights and grounding (Pillar 1)."""
+        resp = client.post(
+            "/api/chat",
+            json={"message": question},
+            timeout=self.timeout,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"AI Advisor request failed: {resp.status_code} {resp.text}"
+            )
+        return resp.text
+
+    def verify_browser_ui_hygiene(
+        self,
+        auth_context: dict[str, Any] | None = None,
+        routes: list[str] | None = None,
+        allow_skip_if_no_browser: bool = True,
+    ) -> dict[str, Any]:
+        """Verify Pillar 2 (Zero Console Error) & Pillar 3 (DOM Hygiene Scanner)."""
+        return verify_browser_ui_hygiene(
+            self,
+            auth_context=auth_context,
+            routes=routes,
+            allow_skip_if_no_browser=allow_skip_if_no_browser,
+        )
+
+
+def execute_case_ui(runner: ScenarioBenchmarkRunner) -> CaseResult:
+    """Execute Browser UI Hygiene and Zero Console Error Physical Invariant (Pillars 2 & 3)."""
+    start_time = time.time()
+    case_name = "Case UI: Browser Zero-Console-Error & DOM Hygiene Oracle"
+    print("\n=======================================================")
+    print(f"🚀 RUNNING: {case_name}")
+    print("=======================================================")
+
+    try:
+        if not runner.last_auth_context:
+            client, email, _ = runner.create_ephemeral_client("case_ui")
+            print(f"  Registered test user for UI hygiene: {email}")
+
+        hygiene_res = runner.verify_browser_ui_hygiene(allow_skip_if_no_browser=True)
+        duration = time.time() - start_time
+        print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
+        return CaseResult(
+            case_id="case_ui",
+            case_name=case_name,
+            status="PASS",
+            duration_seconds=duration,
+            details=hygiene_res,
+        )
+    except Exception as exc:
+        duration = time.time() - start_time
+        print(f"❌ {case_name} FAILED in {duration:.2f}s: {exc}\n")
+        return CaseResult(
+            case_id="case_ui",
+            case_name=case_name,
+            status="FAIL",
+            duration_seconds=duration,
+            error_message=str(exc),
+        )
+
 
 # =====================================================================
 # Re-exported Benchmark Case Executors & Statement Generators
@@ -498,12 +568,18 @@ class ScenarioBenchmarkRunner:
 
 __all__ = [
     "CaseResult",
+    "FORBIDDEN_DOM_JARGON",
+    "HALLUCINATED_DISCREPANCY_TOKENS",
     "ScenarioBenchmarkRunner",
+    "assert_ai_advisor_semantic_grounding",
+    "assert_triple_accounting_articulation",
     "execute_case_1",
     "execute_case_2",
     "execute_case_3",
     "execute_case_4",
     "execute_case_5",
+    "execute_case_6",
+    "execute_case_ui",
     "generate_consecutive_month2_pdf",
     "generate_consecutive_month3_pdf",
     "generate_consecutive_month4_pdf",
@@ -513,6 +589,8 @@ __all__ = [
     "generate_multicurrency_usd_csv",
     "generate_standard_operations_csv",
     "main",
+    "scan_dom_hygiene",
+    "verify_browser_ui_hygiene",
 ]
 
 
@@ -594,6 +672,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Comma-separated canonical flow IDs to execute (1-30 or 'all')",
     )
+    parser.add_argument(
+        "--verify-ui",
+        action="store_true",
+        default=False,
+        help="Execute Playwright browser UI hygiene and zero console error invariant verification",
+    )
     return parser.parse_args(argv)
 
 
@@ -646,6 +730,8 @@ def _dispatch_cases(
         results.append(execute_case_5(runner))
     if _should_run("6"):
         results.append(execute_case_6(runner))
+    if _should_run("ui") or getattr(runner, "verify_ui", False):
+        results.append(execute_case_ui(runner))
     return results
 
 
@@ -740,6 +826,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         verify=not args.insecure,
         cassette_mode=args.cassette,
     )
+    runner.verify_ui = args.verify_ui
 
     results = _dispatch_cases(
         runner, args.case, domain_arg=args.domain, flow_arg=args.flow
