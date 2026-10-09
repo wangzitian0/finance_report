@@ -14,6 +14,33 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from common.testing.coverage import calculate_unified_coverage as cuc  # noqa: E402
 
 
+def _cov_comp(total: int, covered: int, pct: float | None = None) -> dict[str, object]:
+    p = round(covered / max(total, 1) * 100, 2) if pct is None else pct
+    return {"total_lines": total, "covered_lines": covered, "coverage_percent": p}
+
+
+def _cov_report(
+    b: dict, fe: dict, t: dict, pct: float | None = None, covered: int | None = None
+) -> dict[str, object]:
+    tot = b.get("total_lines", 0) + fe.get("total_lines", 0) + t.get("total_lines", 0)
+    cov = (
+        (
+            b.get("covered_lines", 0)
+            + fe.get("covered_lines", 0)
+            + t.get("covered_lines", 0)
+        )
+        if covered is None
+        else covered
+    )
+    p = round(cov / max(tot, 1) * 100, 2) if pct is None else pct
+    return {
+        "coverage_percent": p,
+        "total_lines": tot,
+        "covered_lines": cov,
+        "breakdown": {"backend": b, "frontend": fe, "tools": t},
+    }
+
+
 @pytest.fixture(autouse=True)
 def _disable_artifact_preflight(monkeypatch):
     """Neutralize the #414 artifact preflight for legacy aggregation tests.
@@ -151,21 +178,10 @@ class TestCountCodeLines:
 # parse_lcov_file
 # ---------------------------------------------------------------------------
 
-SAMPLE_LCOV = """\
-SF:apps/backend/src/routers/accounts.py
-DA:1,1
-DA:2,0
-DA:3,5
-LH:2
-LF:3
-end_of_record
-SF:apps/backend/src/ledger/extension/accounting.py
-DA:10,3
-DA:11,3
-LH:2
-LF:2
-end_of_record
-"""
+SAMPLE_LCOV = (
+    "SF:apps/backend/src/routers/accounts.py\nDA:1,1\nDA:2,0\nDA:3,5\nLH:2\nLF:3\nend_of_record\n"
+    "SF:apps/backend/src/ledger/extension/accounting.py\nDA:10,3\nDA:11,3\nLH:2\nLF:2\nend_of_record\n"
+)
 
 
 class TestParseLcovFile:
@@ -236,18 +252,7 @@ class TestLcovFileRecords:
         coverage_dir.mkdir()
         lcov = coverage_dir / "frontend.lcov"
         lcov.write_text(
-            "\n".join(
-                [
-                    "SF:apps/frontend/src/app/page.tsx",
-                    "LH:1",
-                    "LF:4",
-                    "end_of_record",
-                    "SF:src/app/page.tsx",
-                    "LH:2",
-                    "LF:4",
-                    "end_of_record",
-                ]
-            )
+            "SF:apps/frontend/src/app/page.tsx\nLH:1\nLF:4\nend_of_record\nSF:src/app/page.tsx\nLH:2\nLF:4\nend_of_record\n"
         )
         component = self._component("coverage/frontend.lcov")
 
@@ -266,18 +271,7 @@ class TestLcovFileRecords:
         coverage_dir = tmp_path / "coverage"
         coverage_dir.mkdir()
         (coverage_dir / "frontend.lcov").write_text(
-            "\n".join(
-                [
-                    "SF:src/low.tsx",
-                    "LH:1",
-                    "LF:4",
-                    "end_of_record",
-                    "SF:src/high.tsx",
-                    "LH:9",
-                    "LF:10",
-                    "end_of_record",
-                ]
-            )
+            "SF:src/low.tsx\nLH:1\nLF:4\nend_of_record\nSF:src/high.tsx\nLH:9\nLF:10\nend_of_record\n"
         )
         component = self._component("coverage/frontend.lcov")
 
@@ -526,28 +520,13 @@ class TestMain:
 class TestBaselineComparison:
     """AC16.4: Baseline comparison enforces minimum coverage improvement."""
 
-    SAMPLE_BASELINE = {
-        "coverage_percent": 83.15,
-        "total_lines": 10000,
-        "covered_lines": 8315,
-        "breakdown": {
-            "backend": {
-                "total_lines": 5000,
-                "covered_lines": 4700,
-                "coverage_percent": 94.0,
-            },
-            "frontend": {
-                "total_lines": 3000,
-                "covered_lines": 2494,
-                "coverage_percent": 83.13,
-            },
-            "tools": {
-                "total_lines": 2000,
-                "covered_lines": 1662,
-                "coverage_percent": 83.10,
-            },
-        },
-    }
+    SAMPLE_BASELINE = _cov_report(
+        _cov_comp(5000, 4700, 94.0),
+        _cov_comp(3000, 2494, 83.13),
+        _cov_comp(2000, 1662, 83.10),
+        83.15,
+        covered=8315,
+    )
 
     def _setup_baseline(self, tmp_path, monkeypatch, data=None):
         baseline_file = tmp_path / "baseline.json"
@@ -599,22 +578,10 @@ class TestBaselineComparison:
             "coverage_percent": 95.56,
             "total_lines": 50000,
             "covered_lines": 47780,
-            "breakdown": {
-                "tools": {
-                    "total_lines": 3399,
-                    "covered_lines": 3140,
-                    "coverage_percent": 92.37,
-                },
-            },
+            "breakdown": {"tools": _cov_comp(3399, 3140, 92.37)},
         }
         self._setup_baseline(tmp_path, monkeypatch, baseline_data)
-        current = {
-            "tools": {
-                "total_lines": 3399,
-                "covered_lines": 3138,
-                "coverage_percent": 92.32,
-            }
-        }
+        current = {"tools": _cov_comp(3399, 3138, 92.32)}
         monkeypatch.setattr(cuc, "get_tools_coverage", lambda: current["tools"])
         assert cuc.main(["--gate-components", "tools"]) == 0
 
@@ -623,34 +590,12 @@ class TestBaselineComparison:
     ):
         """When unified coverage drops below baseline, expect exit 1 with message."""
         self._setup_baseline(tmp_path, monkeypatch)
-        current_data = {
-            "coverage_percent": 82.0,
-            "total_lines": 10000,
-            "covered_lines": 8200,
-            "breakdown": {
-                "backend": {
-                    "total_lines": 5000,
-                    "covered_lines": 4500,
-                    "coverage_percent": 90.0,
-                },
-                "frontend": {
-                    "total_lines": 3000,
-                    "covered_lines": 2400,
-                    "coverage_percent": 80.0,
-                },
-                "tools": {
-                    "total_lines": 2000,
-                    "covered_lines": 1300,
-                    "coverage_percent": 65.0,
-                },
-            },
-        }
-        self._mock_coverage(
-            monkeypatch,
-            backend=current_data["breakdown"]["backend"],
-            frontend=current_data["breakdown"]["frontend"],
-            tools=current_data["breakdown"]["tools"],
+        b, fe, t = (
+            _cov_comp(5000, 4500, 90.0),
+            _cov_comp(3000, 2400, 80.0),
+            _cov_comp(2000, 1300, 65.0),
         )
+        self._mock_coverage(monkeypatch, backend=b, frontend=fe, tools=t)
         assert cuc.main([]) == 1
         captured = capfd.readouterr()
         assert "82.0" in captured.err
@@ -674,9 +619,8 @@ class TestBaselineComparison:
                 {
                     "coverage_percent": 80.0,
                     "breakdown": {
-                        "backend": {"coverage_percent": 80.0},
-                        "frontend": {"coverage_percent": 80.0},
-                        "tools": {"coverage_percent": 80.0},
+                        c: {"coverage_percent": 80.0}
+                        for c in ("backend", "frontend", "tools")
                     },
                 }
             )
@@ -686,13 +630,9 @@ class TestBaselineComparison:
         monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
         self._mock_coverage(
             monkeypatch,
-            backend={"total_lines": 100, "covered_lines": 70, "coverage_percent": 70.0},
-            frontend={
-                "total_lines": 100,
-                "covered_lines": 80,
-                "coverage_percent": 80.0,
-            },
-            tools={"total_lines": 100, "covered_lines": 75, "coverage_percent": 75.0},
+            backend=_cov_comp(100, 70, 70.0),
+            frontend=_cov_comp(100, 80, 80.0),
+            tools=_cov_comp(100, 75, 75.0),
         )
         assert cuc.main([]) == 1
         err = capfd.readouterr().err
@@ -706,14 +646,7 @@ class TestBaselineComparison:
     def test_fails_when_backend_drops_despite_unified_ok(self, tmp_path, monkeypatch):
         """When backend drops significantly despite unified staying ok, expect exit 1."""
         self._setup_baseline(tmp_path, monkeypatch)
-        self._mock_coverage(
-            monkeypatch,
-            backend={
-                "total_lines": 5000,
-                "covered_lines": 4500,
-                "coverage_percent": 90.0,
-            },
-        )
+        self._mock_coverage(monkeypatch, backend=_cov_comp(5000, 4500, 90.0))
         assert cuc.main([]) == 1
 
     def test_fails_when_frontend_drops(self, tmp_path, monkeypatch):
@@ -721,16 +654,8 @@ class TestBaselineComparison:
         self._setup_baseline(tmp_path, monkeypatch)
         self._mock_coverage(
             monkeypatch,
-            backend={
-                "total_lines": 5000,
-                "covered_lines": 4159,
-                "coverage_percent": 83.18,
-            },
-            frontend={
-                "total_lines": 3000,
-                "covered_lines": 1800,
-                "coverage_percent": 60.0,
-            },
+            backend=_cov_comp(5000, 4159, 83.18),
+            frontend=_cov_comp(3000, 1800, 60.0),
         )
         assert cuc.main([]) == 1
 
@@ -739,61 +664,28 @@ class TestBaselineComparison:
         self._setup_baseline(tmp_path, monkeypatch)
         self._mock_coverage(
             monkeypatch,
-            backend={
-                "total_lines": 5000,
-                "covered_lines": 4159,
-                "coverage_percent": 83.18,
-            },
-            tools={
-                "total_lines": 2000,
-                "covered_lines": 1300,
-                "coverage_percent": 65.0,
-            },
+            backend=_cov_comp(5000, 4159, 83.18),
+            tools=_cov_comp(2000, 1300, 65.0),
         )
         assert cuc.main([]) == 1
 
     def test_passes_when_all_components_improve(self, tmp_path, monkeypatch):
         """When all components improve, expect exit 0 (no regression)."""
-        baseline_data = {
-            "coverage_percent": 80.0,
-            "total_lines": 10000,
-            "covered_lines": 8000,
-            "breakdown": {
-                "backend": {
-                    "total_lines": 5000,
-                    "covered_lines": 4000,
-                    "coverage_percent": 80.0,
-                },
-                "frontend": {
-                    "total_lines": 3000,
-                    "covered_lines": 2400,
-                    "coverage_percent": 80.0,
-                },
-                "tools": {
-                    "total_lines": 2000,
-                    "covered_lines": 1600,
-                    "coverage_percent": 80.0,
-                },
-            },
-        }
-        self._setup_baseline(tmp_path, monkeypatch, baseline_data)
+        self._setup_baseline(
+            tmp_path,
+            monkeypatch,
+            _cov_report(
+                _cov_comp(5000, 4000, 80.0),
+                _cov_comp(3000, 2400, 80.0),
+                _cov_comp(2000, 1600, 80.0),
+                80.0,
+            ),
+        )
         self._mock_coverage(
             monkeypatch,
-            backend={
-                "total_lines": 5000,
-                "covered_lines": 4500,
-                "coverage_percent": 90.0,
-            },
-            frontend={
-                "total_lines": 3000,
-                "covered_lines": 2700,
-                "coverage_percent": 90.0,
-            },
-            tools={
-                "total_lines": 2000,
-                "covered_lines": 1800,
-                "coverage_percent": 90.0,
-            },
+            backend=_cov_comp(5000, 4500, 90.0),
+            frontend=_cov_comp(3000, 2700, 90.0),
+            tools=_cov_comp(2000, 1800, 90.0),
         )
         assert cuc.main([]) == 0
 
@@ -826,63 +718,20 @@ class TestBaselineComparison:
         baseline_file1 = tmp_path / "baseline.json"
         baseline_file2 = tmp_path / "old-baseline.json"
 
-        baseline_file1.write_text(
-            json.dumps(
-                {
-                    "coverage_percent": 83.15,
-                    "total_lines": 10000,
-                    "covered_lines": 8315,
-                    "breakdown": {
-                        "backend": {
-                            "total_lines": 5000,
-                            "covered_lines": 4159,
-                            "coverage_percent": 83.18,
-                        },
-                        "frontend": {
-                            "total_lines": 3000,
-                            "covered_lines": 2494,
-                            "coverage_percent": 83.13,
-                        },
-                        "tools": {
-                            "total_lines": 2000,
-                            "covered_lines": 1662,
-                            "coverage_percent": 83.10,
-                        },
-                    },
-                }
-            )
+        baseline_data1 = _cov_report(
+            _cov_comp(5000, 4159, 83.18),
+            _cov_comp(3000, 2494, 83.13),
+            _cov_comp(2000, 1662, 83.10),
+            83.15,
         )
-
-        baseline_data1 = json.loads(baseline_file1.read_text())
-
-        baseline_file2.write_text(
-            json.dumps(
-                {
-                    "coverage_percent": 85.0,
-                    "total_lines": 10000,
-                    "covered_lines": 8500,
-                    "breakdown": {
-                        "backend": {
-                            "total_lines": 5000,
-                            "covered_lines": 4250,
-                            "coverage_percent": 85.0,
-                        },
-                        "frontend": {
-                            "total_lines": 3000,
-                            "covered_lines": 2550,
-                            "coverage_percent": 85.0,
-                        },
-                        "tools": {
-                            "total_lines": 2000,
-                            "covered_lines": 1700,
-                            "coverage_percent": 85.0,
-                        },
-                    },
-                }
-            )
+        baseline_file1.write_text(json.dumps(baseline_data1))
+        baseline_data2 = _cov_report(
+            _cov_comp(5000, 4250, 85.0),
+            _cov_comp(3000, 2550, 85.0),
+            _cov_comp(2000, 1700, 85.0),
+            85.0,
         )
-
-        baseline_data2 = json.loads(baseline_file2.read_text())
+        baseline_file2.write_text(json.dumps(baseline_data2))
 
         # Use baseline_file1
         monkeypatch.setenv("BASELINE_FILE", str(baseline_file1))
@@ -1094,28 +943,12 @@ class TestRatchetMode:
         baseline_file = tmp_path / "baseline.json"
         baseline_file.write_text(
             json.dumps(
-                {
-                    "coverage_percent": 80.0,
-                    "total_lines": 300,
-                    "covered_lines": 240,
-                    "breakdown": {
-                        "backend": {
-                            "total_lines": 100,
-                            "covered_lines": 80,
-                            "coverage_percent": 80.0,
-                        },
-                        "frontend": {
-                            "total_lines": 100,
-                            "covered_lines": 80,
-                            "coverage_percent": 80.0,
-                        },
-                        "tools": {
-                            "total_lines": 100,
-                            "covered_lines": 80,
-                            "coverage_percent": 80.0,
-                        },
-                    },
-                }
+                _cov_report(
+                    _cov_comp(100, 80, 80.0),
+                    _cov_comp(100, 80, 80.0),
+                    _cov_comp(100, 80, 80.0),
+                    80.0,
+                )
             )
         )
         monkeypatch.setenv("BASELINE_FILE", str(baseline_file))
@@ -1123,11 +956,9 @@ class TestRatchetMode:
         monkeypatch.delenv("COVERAGE_RATCHET_MODE", raising=False)
         monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
         monkeypatch.setattr(
-            cuc,
-            "get_backend_coverage",
-            lambda: {"total_lines": 100, "covered_lines": 70, "coverage_percent": 70.0},
+            cuc, "get_backend_coverage", lambda: _cov_comp(100, 70, 70.0)
         )
-        ok = {"total_lines": 100, "covered_lines": 80, "coverage_percent": 80.0}
+        ok = _cov_comp(100, 80, 80.0)
         monkeypatch.setattr(cuc, "get_frontend_coverage", lambda: ok)
         monkeypatch.setattr(cuc, "get_tools_coverage", lambda: ok)
         return _re

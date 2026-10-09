@@ -14,6 +14,32 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from tools._lib.dev import cli, dev_backend, dev_frontend, toolchain  # noqa: E402
 
 
+def _test_args(**kwargs):
+    d = {
+        "frontend": False,
+        "e2e": False,
+        "backend_e2e": False,
+        "perf": False,
+        "fast": False,
+        "smart": False,
+        "ephemeral": False,
+    }
+    d.update(kwargs)
+    return SimpleNamespace(**d)
+
+
+def _dev_args(**kwargs):
+    d = {
+        "infra": False,
+        "backend": False,
+        "frontend": False,
+        "migrate": False,
+        "check": False,
+    }
+    d.update(kwargs)
+    return SimpleNamespace(**d)
+
+
 def test_AC16_11_16_get_compose_cmd_prefers_podman(monkeypatch):
     """AC-runtime.24.16: cli.get_compose_cmd honors CONTAINER_RUNTIME, otherwise prefers podman then docker, and exits when neither is available."""
     monkeypatch.setattr(
@@ -59,15 +85,7 @@ def test_AC16_11_17_cmd_test_frontend_route(monkeypatch):
         lambda cmd, cwd=cli.REPO_ROOT, env=None, check=True: calls.append((cmd, cwd)),
     )
     cli.cmd_test(
-        SimpleNamespace(
-            frontend=True,
-            e2e=False,
-            backend_e2e=False,
-            perf=False,
-            fast=False,
-            smart=False,
-            ephemeral=False,
-        ),
+        _test_args(frontend=True),
         ["--runInBand"],
     )
     assert calls[0][0] == ["npm", "run", "test", "--runInBand"]
@@ -82,15 +100,7 @@ def test_AC16_11_17_cmd_test_e2e_route(monkeypatch):
         lambda cmd, cwd=cli.REPO_ROOT, env=None, check=True: calls.append((cmd, cwd)),
     )
     cli.cmd_test(
-        SimpleNamespace(
-            frontend=False,
-            e2e=True,
-            backend_e2e=False,
-            perf=False,
-            fast=False,
-            smart=False,
-            ephemeral=False,
-        ),
+        _test_args(e2e=True),
         ["-q"],
     )
     assert calls[0][0][:7] == [
@@ -116,15 +126,7 @@ def test_AC8_13_79_cmd_test_backend_e2e_route(monkeypatch):
         lambda cmd, cwd=cli.REPO_ROOT, env=None, check=True: calls.append((cmd, cwd)),
     )
     cli.cmd_test(
-        SimpleNamespace(
-            frontend=False,
-            e2e=False,
-            backend_e2e=True,
-            perf=False,
-            fast=False,
-            smart=False,
-            ephemeral=False,
-        ),
+        _test_args(backend_e2e=True),
         ["--maxfail=1"],
     )
 
@@ -140,15 +142,7 @@ def test_AC16_11_17_cmd_test_perf_route(monkeypatch):
         lambda cmd, cwd=cli.REPO_ROOT, env=None, check=True: calls.append((cmd, cwd)),
     )
     cli.cmd_test(
-        SimpleNamespace(
-            frontend=False,
-            e2e=False,
-            backend_e2e=False,
-            perf=True,
-            fast=False,
-            smart=False,
-            ephemeral=False,
-        ),
+        _test_args(perf=True),
         [],
     )
     assert calls[0][0][:7] == [
@@ -170,15 +164,7 @@ def test_AC16_11_17_cmd_test_backend_path_route(monkeypatch):
         lambda cmd, cwd=cli.REPO_ROOT, env=None, check=True: calls.append((cmd, cwd)),
     )
     cli.cmd_test(
-        SimpleNamespace(
-            frontend=False,
-            e2e=False,
-            backend_e2e=False,
-            perf=False,
-            fast=False,
-            smart=False,
-            ephemeral=False,
-        ),
+        _test_args(),
         ["tests/review/test_x.py"],
     )
     assert calls[0][0][:7] == [
@@ -202,15 +188,7 @@ def test_AC16_11_17_cmd_test_backend_path_route_honors_explicit_cov(monkeypatch)
         lambda cmd, cwd=cli.REPO_ROOT, env=None, check=True: calls.append((cmd, cwd)),
     )
     cli.cmd_test(
-        SimpleNamespace(
-            frontend=False,
-            e2e=False,
-            backend_e2e=False,
-            perf=False,
-            fast=False,
-            smart=False,
-            ephemeral=False,
-        ),
+        _test_args(),
         ["tests/review/test_x.py", "--cov=src"],
     )
     cmd = calls[0][0]
@@ -227,15 +205,7 @@ def test_AC16_11_17_cmd_test_backend_path_route_honors_fast_mode(monkeypatch):
         lambda cmd, cwd=cli.REPO_ROOT, env=None, check=True: calls.append((cmd, cwd)),
     )
     cli.cmd_test(
-        SimpleNamespace(
-            frontend=False,
-            e2e=False,
-            backend_e2e=False,
-            perf=False,
-            fast=True,
-            smart=False,
-            ephemeral=False,
-        ),
+        _test_args(fast=True),
         ["tests/infra/test_boot.py"],
     )
 
@@ -257,15 +227,7 @@ def test_AC16_11_17_cmd_test_lifecycle_route(monkeypatch):
         lambda cmd, cwd=cli.REPO_ROOT, env=None, check=True: calls.append((cmd, cwd)),
     )
     cli.cmd_test(
-        SimpleNamespace(
-            frontend=False,
-            e2e=False,
-            backend_e2e=False,
-            perf=False,
-            fast=True,
-            smart=False,
-            ephemeral=True,
-        ),
+        _test_args(fast=True, ephemeral=True),
         ["-k", "foo"],
     )
     cmd = calls[0][0]
@@ -436,11 +398,7 @@ class TestCmdDev:
         """Given --infra flag, should start infrastructure."""
         calls = _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
-        cli.cmd_dev(
-            SimpleNamespace(
-                infra=True, backend=False, frontend=False, migrate=False, check=False
-            )
-        )
+        cli.cmd_dev(_dev_args(infra=True))
         assert len(calls) == 1
         assert "--profile" in calls[0]["cmd"]
         assert "infra" in calls[0]["cmd"]
@@ -449,33 +407,21 @@ class TestCmdDev:
         """Given --backend flag, should run dev_backend.py."""
         calls = _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
-        cli.cmd_dev(
-            SimpleNamespace(
-                infra=False, backend=True, frontend=False, migrate=False, check=False
-            )
-        )
+        cli.cmd_dev(_dev_args(backend=True))
         assert any("dev_backend.py" in str(c["cmd"]) for c in calls)
 
     def test_dev_frontend(self, monkeypatch):
         """Given --frontend flag, should run dev_frontend.py."""
         calls = _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
-        cli.cmd_dev(
-            SimpleNamespace(
-                infra=False, backend=False, frontend=True, migrate=False, check=False
-            )
-        )
+        cli.cmd_dev(_dev_args(frontend=True))
         assert any("dev_frontend.py" in str(c["cmd"]) for c in calls)
 
     def test_dev_migrate(self, monkeypatch):
         """Given --migrate flag, should run alembic upgrade head."""
         calls = _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
-        cli.cmd_dev(
-            SimpleNamespace(
-                infra=False, backend=False, frontend=False, migrate=True, check=False
-            )
-        )
+        cli.cmd_dev(_dev_args(migrate=True))
         assert any("alembic" in str(c["cmd"]) for c in calls)
         assert any("head" in str(c["cmd"]) for c in calls)
 
@@ -483,22 +429,14 @@ class TestCmdDev:
         """Given --check flag, should run boot module."""
         calls = _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
-        cli.cmd_dev(
-            SimpleNamespace(
-                infra=False, backend=False, frontend=False, migrate=False, check=True
-            )
-        )
+        cli.cmd_dev(_dev_args(check=True))
         assert any("src.boot" in str(c["cmd"]) for c in calls)
 
     def test_dev_no_flags_prints_instructions(self, monkeypatch, capsys):
         """Given no flags, should start infra and print instructions."""
         _mock_run(monkeypatch)
         monkeypatch.setattr(cli, "get_compose_cmd", lambda: ["docker", "compose"])
-        cli.cmd_dev(
-            SimpleNamespace(
-                infra=False, backend=False, frontend=False, migrate=False, check=False
-            )
-        )
+        cli.cmd_dev(_dev_args())
         captured = capsys.readouterr()
         assert "--backend" in captured.out
         assert "--frontend" in captured.out
@@ -614,15 +552,7 @@ class TestCmdTestSmart:
         """Given --smart flag, should pass --smart to lifecycle script."""
         calls = _mock_run(monkeypatch)
         cli.cmd_test(
-            SimpleNamespace(
-                frontend=False,
-                e2e=False,
-                backend_e2e=False,
-                perf=False,
-                fast=False,
-                smart=True,
-                ephemeral=False,
-            ),
+            _test_args(smart=True),
             [],
         )
         cmd = calls[0]["cmd"]

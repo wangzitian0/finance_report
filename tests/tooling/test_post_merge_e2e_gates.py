@@ -15,6 +15,59 @@ from common.testing import staging_ai_ocr_gate_contract as contract
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _has(text: str, *snippets: str) -> None:
+    for s in snippets:
+        assert s in text
+
+
+def _lacks(text: str, *snippets: str) -> None:
+    for s in snippets:
+        assert s not in text
+
+
+def _run_payload(
+    run_id: int,
+    status: str,
+    created_at: str,
+    workflow_id: int = 100,
+    conclusion: str | None = None,
+    **extra: object,
+) -> dict[str, object]:
+    d = {
+        "id": run_id,
+        "workflow_id": workflow_id,
+        "status": status,
+        "conclusion": conclusion
+        if conclusion is not None
+        else ("success" if status == "completed" else None),
+        "created_at": created_at,
+        "html_url": f"https://github.test/runs/{run_id}",
+        "display_title": extra.get("display_title", f"run-{run_id}"),
+    }
+    d.update(extra)
+    return d
+
+
+class _FakeResponse:
+    def __init__(self, data: object, code: int = 200) -> None:
+        if isinstance(data, (bytes, bytearray)):
+            self.data = bytes(data)
+        elif isinstance(data, str):
+            self.data = data.encode("utf-8")
+        else:
+            self.data = json.dumps(data).encode("utf-8")
+        self.code = code
+
+    def read(self) -> bytes:
+        return self.data
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        pass
+
+
 def read(path: str) -> str:
     target = ROOT / path
     if target.is_dir():
@@ -111,23 +164,12 @@ def test_AC8_13_13_post_merge_train_waits_until_blockers_finish(
     """AC8.13.13: FIFO gate polls until older active runs are gone."""
     from common.runtime import wait_post_merge_train_turn as train
 
-    current_payload = {
-        "id": 20,
-        "workflow_id": 100,
-        "status": "in_progress",
-        "conclusion": None,
-        "created_at": "2026-06-05T04:20:00Z",
-        "html_url": "https://github.test/runs/20",
-        "display_title": "current",
-    }
-    blocking_payload = {
-        "id": 10,
-        "status": "queued",
-        "conclusion": None,
-        "created_at": "2026-06-05T04:10:00Z",
-        "html_url": "https://github.test/runs/10",
-        "display_title": "blocking",
-    }
+    current_payload = _run_payload(
+        20, "in_progress", "2026-06-05T04:20:00Z", display_title="current"
+    )
+    blocking_payload = _run_payload(
+        10, "queued", "2026-06-05T04:10:00Z", display_title="blocking"
+    )
 
     class FakeClient:
         def __init__(self) -> None:
@@ -159,8 +201,9 @@ def test_AC8_13_13_post_merge_train_waits_until_blockers_finish(
     )
 
     assert sleeps == [5]
-    assert "waiting for 1 older run(s): 10:queued" in output.getvalue()
-    assert "front of the train" in output.getvalue()
+    _has(
+        output.getvalue(), "waiting for 1 older run(s): 10:queued", "front of the train"
+    )
 
 
 def test_AC8_13_13_post_merge_train_timeout_lists_blockers(
@@ -169,23 +212,12 @@ def test_AC8_13_13_post_merge_train_timeout_lists_blockers(
     """AC8.13.13: FIFO timeout reports the blocking run URLs."""
     from common.runtime import wait_post_merge_train_turn as train
 
-    current_payload = {
-        "id": 20,
-        "workflow_id": 100,
-        "status": "in_progress",
-        "conclusion": None,
-        "created_at": "2026-06-05T04:20:00Z",
-        "html_url": "https://github.test/runs/20",
-        "display_title": "current",
-    }
-    blocking_payload = {
-        "id": 10,
-        "status": "waiting",
-        "conclusion": None,
-        "created_at": "2026-06-05T04:10:00Z",
-        "html_url": "https://github.test/runs/10",
-        "display_title": "blocking",
-    }
+    current_payload = _run_payload(
+        20, "in_progress", "2026-06-05T04:20:00Z", display_title="current"
+    )
+    blocking_payload = _run_payload(
+        10, "waiting", "2026-06-05T04:10:00Z", display_title="blocking"
+    )
 
     class FakeClient:
         def get_run_payload(self, run_id: int) -> dict[str, object]:
@@ -207,8 +239,11 @@ def test_AC8_13_13_post_merge_train_timeout_lists_blockers(
             output=io.StringIO(),
         )
 
-    assert "Timed out waiting" in str(exc_info.value)
-    assert "10 waiting https://github.test/runs/10" in str(exc_info.value)
+    _has(
+        str(exc_info.value),
+        "Timed out waiting",
+        "10 waiting https://github.test/runs/10",
+    )
 
 
 def test_AC8_13_13_github_actions_client_pages_workflow_runs(
@@ -292,8 +327,7 @@ def test_AC8_13_13_github_actions_client_reports_http_errors(
     with pytest.raises(RuntimeError) as exc_info:
         client.get_run_payload(20)
 
-    assert "GitHub API HTTP 403" in str(exc_info.value)
-    assert "denied" in str(exc_info.value)
+    _has(str(exc_info.value), "GitHub API HTTP 403", "denied")
 
 
 def test_AC8_13_13_post_merge_train_cli_validates_context(
@@ -409,20 +443,29 @@ def test_AC8_13_1_to_5_full_statement_journey_contract() -> None:
     test_body = journey.split("async def test_dbs_statement_full_journey", 1)[1]
 
     assert "DBS PDF upload" in journey
-    assert "# === AC8.13.1: Upload PDF ===" in test_body
-    assert "Upload & Parse Statement" in test_body
-    assert "# === AC8.13.2: Poll until" in test_body
-    assert "_statement_row(page, INSTITUTION_LABEL)" in test_body
-    assert '_get_url(f"/statements/{statement_id}")' in test_body
-    assert 'a[href="/statements/{statement_id}"]' not in test_body
-    assert "filter(has_text=INSTITUTION_LABEL).first" not in test_body
-    assert '"parsed"' in test_body
-    assert "# === AC8.13.3: Detail page shows transactions ===" in test_body
-    assert "Transactions" in test_body
-    assert "# === AC8.13.4: Start Review" in test_body
-    assert "approved" in test_body
-    assert "# === AC8.13.5: Balance sheet report loads ===" in test_body
-    assert "/reports/balance-sheet" in test_body
+    _has(
+        test_body,
+        "# === AC8.13.1: Upload PDF ===",
+        "Upload & Parse Statement",
+        "# === AC8.13.2: Poll until",
+        "_statement_row(page, INSTITUTION_LABEL)",
+        '_get_url(f"/statements/{statement_id}")',
+    )
+    _lacks(
+        test_body,
+        'a[href="/statements/{statement_id}"]',
+        "filter(has_text=INSTITUTION_LABEL).first",
+    )
+    _has(
+        test_body,
+        '"parsed"',
+        "# === AC8.13.3: Detail page shows transactions ===",
+        "Transactions",
+        "# === AC8.13.4: Start Review",
+        "approved",
+        "# === AC8.13.5: Balance sheet report loads ===",
+        "/reports/balance-sheet",
+    )
 
 
 def test_AC8_10_8_registration_flow_accepts_current_landing_route() -> None:
@@ -430,10 +473,12 @@ def test_AC8_10_8_registration_flow_accepts_current_landing_route() -> None:
     flow = read("tests/e2e/test_auth_flows.py")
     test_body = flow.split("async def test_registration_flow", 1)[1]
 
-    assert 'page.expect_response("**/api/auth/register")' in test_body
-    assert "await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN" in test_body
-    assert 'page.wait_for_url("**/dashboard"' not in test_body
-    assert '"/dashboard" in page.url' not in test_body
+    _has(
+        test_body,
+        'page.expect_response("**/api/auth/register")',
+        "await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN",
+    )
+    _lacks(test_body, 'page.wait_for_url("**/dashboard"', '"/dashboard" in page.url')
 
 
 def test_AC8_13_6_critical_e2e_skips_become_failures() -> None:
@@ -446,10 +491,13 @@ def test_AC8_13_6_critical_e2e_skips_become_failures() -> None:
     """
     conftest = read("tests/e2e/conftest.py")
 
-    assert "pytest_runtest_makereport" in conftest
-    assert "fail_or_skip_ai_ocr_gate" in conftest
-    assert "should_convert_skip_to_failure" in conftest
-    assert 'report.outcome = "failed"' in conftest
+    _has(
+        conftest,
+        "pytest_runtest_makereport",
+        "fail_or_skip_ai_ocr_gate",
+        "should_convert_skip_to_failure",
+        'report.outcome = "failed"',
+    )
 
 
 def test_AC8_13_7_full_statement_journey_is_a_hard_ai_ocr_gate() -> None:
@@ -458,9 +506,12 @@ def test_AC8_13_7_full_statement_journey_is_a_hard_ai_ocr_gate() -> None:
     test_body = journey.split("async def test_dbs_statement_full_journey", 1)[1]
 
     assert "@pytest.mark.critical" in journey
-    assert "fail_or_skip_ai_ocr_gate(" in test_body
-    assert "status=rejected" in test_body
-    assert "/api/statements/{statement_id}" in test_body
+    _has(
+        test_body,
+        "fail_or_skip_ai_ocr_gate(",
+        "status=rejected",
+        "/api/statements/{statement_id}",
+    )
     assert "validation_error" in read("tests/e2e/conftest.py")
     assert "Last statement payload" in test_body
     assert "pytest.skip(" not in test_body
@@ -473,9 +524,12 @@ def test_AC8_13_8_upload_readiness_gate_rejects_rejected_status() -> None:
         "@pytest.mark.e2e", 1
     )[0]
 
-    assert "AI/OCR readiness gate" in test_body
-    assert "fail_or_skip_ai_ocr_gate(" in test_body
-    assert "statement=statement" in test_body
+    _has(
+        test_body,
+        "AI/OCR readiness gate",
+        "fail_or_skip_ai_ocr_gate(",
+        "statement=statement",
+    )
     assert '"rejected"' not in test_body.split("assert status in", 1)[1]
 
 
@@ -485,17 +539,20 @@ def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
 
     # The generic polling algorithm moved to infra2_sdk.deploy_health (#1535,
     # infra2-sdk v0.5.0); this module keeps only the route-shadow diagnostics.
-    assert "from infra2_sdk.deploy_health import" in health_check
-    assert "_print_route_probe" in health_check
-    assert "route_probe attempt=" in health_check
-    assert "platform_failure_domain=traefik-public-route" in health_check
-    assert "api_status={api_status}" in health_check
-    assert "frontend_status={frontend_status}" in health_check
-    assert "_print_404_route_diagnostics" in health_check
-    assert "Traefik API route is missing or shadowed" in health_check
-    assert '"API ping", f"{app_base_url}/api/ping"' in health_check
-    assert '"Frontend shell", f"{app_base_url}/"' in health_check
-    assert "status_code == 404" in health_check
+    _has(
+        health_check,
+        "from infra2_sdk.deploy_health import",
+        "_print_route_probe",
+        "route_probe attempt=",
+        "platform_failure_domain=traefik-public-route",
+        "api_status={api_status}",
+        "frontend_status={frontend_status}",
+        "_print_404_route_diagnostics",
+        "Traefik API route is missing or shadowed",
+        '"API ping", f"{app_base_url}/api/ping"',
+        '"Frontend shell", f"{app_base_url}/"',
+        "status_code == 404",
+    )
 
 
 def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
@@ -507,15 +564,14 @@ def test_AC8_13_12_ai_ocr_gate_failure_includes_statement_context() -> None:
     four_asset = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
 
     assert "format_ai_ocr_gate_failure" in conftest
-    for token in (
+    _has(
+        conftest,
         "validation_error",
         "confidence_score",
         "parsing_progress",
         "balance_validated",
-    ):
-        assert token in conftest
-    assert "model=default_model" in journey
-    assert "statement=last_statement" in journey
+    )
+    _has(journey, "model=default_model", "statement=last_statement")
     assert "statement=statement" in upload
     assert "statement=last_payload" in brokerage
     assert "fail_or_skip_ai_ocr_gate(" in four_asset
@@ -526,39 +582,51 @@ def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     workflow = read(".github/workflows/deploy.yml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    assert "concurrency:" in workflow
-    assert "inputs.target == 'staging' && 'staging-deploy'" in workflow
-    assert "cancel-in-progress: false" in workflow
-    assert "post-merge-train-turn:" not in workflow
-    assert "classify-staging:" not in workflow
+    _has(
+        workflow,
+        "concurrency:",
+        "inputs.target == 'staging' && 'staging-deploy'",
+        "cancel-in-progress: false",
+    )
+    _lacks(workflow, "post-merge-train-turn:", "classify-staging:")
     # Manual-only staging is serialized by the workflow-level concurrency group;
     # the in-job FIFO post-merge train wait (which only applied to the retired
     # workflow_run auto-deploy) is removed.
-    assert "name: Wait for FIFO post-merge train turn" not in workflow
-    assert "wait_post_merge_train_turn.py" not in workflow
-    assert "name: Classify staging and AI/OCR relevance" in workflow
-    assert "staging_required: ${{ steps.gates.outputs.staging_required }}" in workflow
-    assert "provider_gate_required" in workflow
-    assert (
-        "staging-post-merge-${{ github.event.workflow_run.head_branch || github.ref_name }}"
-        not in workflow
+    _lacks(
+        workflow,
+        "name: Wait for FIFO post-merge train turn",
+        "wait_post_merge_train_turn.py",
     )
-    assert "timeout-minutes: 75" in workflow
-    assert "timeout-minutes: 22" in workflow
-    assert "run_timed_phase()" in workflow
-    assert "[phase:start]" in workflow
-    assert "[phase:end]" in workflow
-    assert "duration=%ss" in workflow
-    assert 'run_timed_phase "Phase 1: Smoke Check (Shell)"' in workflow
-    assert 'run_timed_phase "Phase 2: Core Flow Validation (Python)"' in workflow
+    _has(
+        workflow,
+        "name: Classify staging and AI/OCR relevance",
+        "staging_required: ${{ steps.gates.outputs.staging_required }}",
+        "provider_gate_required",
+    )
+    _lacks(
+        workflow,
+        "staging-post-merge-${{ github.event.workflow_run.head_branch || github.ref_name }}",
+    )
+    _has(
+        workflow,
+        "timeout-minutes: 75",
+        "timeout-minutes: 22",
+        "run_timed_phase()",
+        "[phase:start]",
+        "[phase:end]",
+        "duration=%ss",
+        'run_timed_phase "Phase 1: Smoke Check (Shell)"',
+        'run_timed_phase "Phase 2: Core Flow Validation (Python)"',
+    )
     assert "in-job FIFO" not in ci_cd
     assert "workflow-level singleton concurrency" in ci_cd
-    assert (
-        "No two `Deploy Staging` workflow runs mutate staging concurrently" not in ci_cd
+    _lacks(ci_cd, "No two `Deploy Staging` workflow runs mutate staging concurrently")
+    _has(
+        ci_cd,
+        "only one `Deploy Staging` run mutates staging at a time",
+        "75-minute deploy-health job timeout",
+        "22-minute E2E step timeout",
     )
-    assert "only one `Deploy Staging` run mutates staging at a time" in ci_cd
-    assert "75-minute deploy-health job timeout" in ci_cd
-    assert "22-minute E2E step timeout" in ci_cd
 
 
 def test_AC8_13_13_main_ci_keeps_each_merge_commit_run() -> None:
@@ -566,13 +634,16 @@ def test_AC8_13_13_main_ci_keeps_each_merge_commit_run() -> None:
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    assert (
-        "group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.event_name == 'push' && github.sha || github.run_id }}"
-        in workflow
+    _has(
+        workflow,
+        "group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.event_name == 'push' && github.sha || github.run_id }}",
+        "cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
     )
-    assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow
-    assert "Pushes to `main` use a SHA-scoped concurrency" in ci_cd
-    assert "do not cancel or replace a pending main CI" in ci_cd
+    _has(
+        ci_cd,
+        "Pushes to `main` use a SHA-scoped concurrency",
+        "do not cancel or replace a pending main CI",
+    )
 
 
 def test_AC8_13_157_audit_replay_workflow_is_nightly_and_nonblocking() -> None:
@@ -585,9 +656,7 @@ def test_AC8_13_157_audit_replay_workflow_is_nightly_and_nonblocking() -> None:
     triggers = audit.get("on", audit.get(True))
     assert isinstance(triggers, dict)
     assert "workflow_dispatch" in triggers
-    assert "push" not in triggers
-    assert "workflow_run" not in triggers
-    assert "pull_request" not in triggers
+    _lacks(triggers, "push", "workflow_run", "pull_request")
 
     # The audit-replay job calls the SAME reusable gate body, selecting the heavy
     # audit corpus, and is non-blocking (blocking=false) so it never blocks
@@ -631,8 +700,11 @@ def test_AC_extraction_1913_10_staging_statement_canary_is_sha_pinned_and_blocki
     assert canary["with"]["blocking"] is True
     assert canary["with"]["commit_ref"] == emitted_sha
     assert canary["with"]["expected_sha"] == release_tag
-    assert 'source_sha="${{ steps.release.outputs.full_sha }}"' in deploy_request
-    assert '--source-sha "$source_sha"' in deploy_request
+    _has(
+        deploy_request,
+        'source_sha="${{ steps.release.outputs.full_sha }}"',
+        '--source-sha "$source_sha"',
+    )
 
 
 def test_AC8_13_158_canary_transient_classification_owned_by_provider_gate() -> None:
@@ -646,10 +718,13 @@ def test_AC8_13_158_canary_transient_classification_owned_by_provider_gate() -> 
 
     # The provider gate keeps the 4xx-block / 5xx-degrade classifier.
     provider_block = deploy.split("provider-gate:", 1)[1].split("ai-ocr-gate:", 1)[0]
-    assert "provider_status=config-failure" in provider_block
-    assert "client/config error" in provider_block
-    assert "provider_status=degraded" in provider_block
-    assert "transient" in provider_block
+    _has(
+        provider_block,
+        "provider_status=config-failure",
+        "client/config error",
+        "provider_status=degraded",
+        "transient",
+    )
     # 4xx blocks (exit 1), transient degrades without blocking (exit 0).
     assert '"$status_code" -ge 400 ] && [ "$status_code" -lt 500 ]' in provider_block
 
@@ -659,9 +734,7 @@ def test_AC8_13_160_ci_cd_distinguishes_canary_from_audit_replay() -> None:
     nightly comprehensive Audit Replay, and the split is a recorded decision."""
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    assert "AI/OCR Canary" in ci_cd
-    assert "Audit Replay" in ci_cd
-    assert "audit-replay.yml" in ci_cd
+    _has(ci_cd, "AI/OCR Canary", "Audit Replay", "audit-replay.yml")
     # The canary is the minimal blocking-path liveness check.
     assert "test_brokerage_upload_to_portfolio_value.py" in ci_cd
     # The split is recorded as an intentional keep_separate decision in the
@@ -682,39 +755,32 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
     # Inline caller in deploy.yml delegates to the reusable gate (AC8.13.153).
-    assert "ai-ocr-gate:" in deploy_workflow
-    assert "needs: [build-and-deploy, provider-gate]" in deploy_workflow
-    assert (
-        "if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' }}"
-        in deploy_workflow
+    _has(
+        deploy_workflow,
+        "ai-ocr-gate:",
+        "needs: [build-and-deploy, provider-gate]",
+        "if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' }}",
+        "name: Staging AI/OCR Gate",
+        "commit_full_sha: ${{ steps.release.outputs.full_sha }}",
+        "deployed_version_ref: ${{ steps.release.outputs.version_ref }}",
+        "uses: ./.github/workflows/staging-ai-ocr-gate.yml",
+        "commit_ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}",
+        "expected_sha: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}",
+        "blocking: true",
     )
-    assert "name: Staging AI/OCR Gate" in deploy_workflow
-    assert "commit_full_sha: ${{ steps.release.outputs.full_sha }}" in deploy_workflow
-    assert (
-        "deployed_version_ref: ${{ steps.release.outputs.version_ref }}"
-        in deploy_workflow
-    )
-    assert "uses: ./.github/workflows/staging-ai-ocr-gate.yml" in deploy_workflow
-    assert (
-        "commit_ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}"
-        in deploy_workflow
-    )
-    assert (
-        "expected_sha: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}"
-        in deploy_workflow
-    )
-    assert "blocking: true" in deploy_workflow
 
     # The gate body (corpus replay, contract shell, version check) lives once in
     # the reusable workflow.
-    assert "PARSING_TIMEOUT_MS: 480000" in reusable
-    assert 'run_timed_phase "Staging AI/OCR Gate' in reusable
-    assert "tools/staging_ai_ocr_gate_contract.py --shell" in reusable
-    assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in reusable
+    _has(
+        reusable,
+        "PARSING_TIMEOUT_MS: 480000",
+        'run_timed_phase "Staging AI/OCR Gate',
+        "tools/staging_ai_ocr_gate_contract.py --shell",
+        'pytest "${STAGING_AI_OCR_TESTS[@]}"',
+    )
     # Marker expression equality is owned by the matrix conformance
     # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
-    assert "test_version_check.py" in reusable
-    assert "STRICT_E2E_GATES: true" in reusable
+    _has(reusable, "test_version_check.py", "STRICT_E2E_GATES: true")
 
     # The deploy-health E2E stage in build-and-deploy must not run the llm corpus.
     deploy_e2e_block = deploy_workflow.split("name: End-to-End Tests", 1)[1].split(
@@ -725,16 +791,17 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     # Manual entrance is the same reusable gate, fail-fast (blocking=true).
     assert "manual-ai-ocr-gate:" in deploy_workflow
     assert 'workflows: ["Deploy Staging"]' not in deploy_workflow
-    assert "workflow_dispatch:" in deploy_workflow
-    assert (
-        "inputs.target == 'staging-ai-ocr-gate' && format('staging-manual-ai-ocr-{0}', github.ref)"
-        in deploy_workflow
+    _has(
+        deploy_workflow,
+        "workflow_dispatch:",
+        "inputs.target == 'staging-ai-ocr-gate' && format('staging-manual-ai-ocr-{0}', github.ref)",
+        "cancel-in-progress: false",
+        "blocking: true",
+        "expected_sha: ${{ github.sha }}",
     )
-    assert "cancel-in-progress: false" in deploy_workflow
-    assert "blocking: true" in deploy_workflow
-    assert "expected_sha: ${{ github.sha }}" in deploy_workflow
-    assert "same serialized post-merge workflow unit" in ci_cd
-    assert "manual recovery entry point" in ci_cd
+    _has(
+        ci_cd, "same serialized post-merge workflow unit", "manual recovery entry point"
+    )
 
 
 def _gha_expr_substituted(script: str, values: dict[str, str]) -> str:
@@ -954,56 +1021,50 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
     workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
     observability = read("common/observability/observability-logging.md")
 
-    assert "write_staging_audit_inventory()" in workflow
-    assert "write_staging_audit_result()" in workflow
-    assert "## Staging Audit Replay Inputs" in workflow
-    assert "## Staging Audit Replay Summary" in workflow
-    assert "- Environment: staging" in workflow
-    assert "- GitHub run ID: ${{ github.run_id }}" in workflow
+    _has(
+        workflow,
+        "write_staging_audit_inventory()",
+        "write_staging_audit_result()",
+        "## Staging Audit Replay Inputs",
+        "## Staging Audit Replay Summary",
+        "- Environment: staging",
+        "- GitHub run ID: ${{ github.run_id }}",
+    )
     assert (
         "- Expected SHA: ${EXPECTED_SHA}" in workflow
         or "- Expected version: ${EXPECTED_SHA}" in workflow
     )
-    assert "- Backend image tag:" in workflow
-    assert "- Frontend image tag:" in workflow
-    assert (
-        "- Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
-        in workflow
+    _has(
+        workflow,
+        "- Backend image tag:",
+        "- Frontend image tag:",
+        "- Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}",
+        "- Expected uploads: ${STAGING_AI_OCR_EXPECTED_UPLOADS}",
+        "- Expected parse completions: ${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}",
+        "- Expected brokerage imports: ${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}",
+        "- Expected report verifications: ${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS}",
+        "- Expected failures: 0",
+        "- Uploads verified: ${verified_uploads}",
+        "- Parse completions verified: ${verified_parse_completions}",
+        "- Brokerage imports verified: ${verified_brokerage_imports}",
+        "- Report verifications verified: ${verified_report_verifications}",
+        "- Failures observed: ${verified_failures}",
+        "for fixture_test in",
+        "${STAGING_AI_OCR_TESTS[@]}",
+        "GITHUB_STEP_SUMMARY",
     )
-    assert "- Expected uploads: ${STAGING_AI_OCR_EXPECTED_UPLOADS}" in workflow
-    assert (
-        "- Expected parse completions: ${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}"
-        in workflow
+    _lacks(
+        workflow,
+        "- Expected uploads: 7",
+        "- Expected parse completions: 7",
+        "- Expected brokerage imports: 3",
+        "- Expected report verifications: 1",
     )
-    assert (
-        "- Expected brokerage imports: ${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}"
-        in workflow
-    )
-    assert (
-        "- Expected report verifications: ${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS}"
-        in workflow
-    )
-    assert "- Expected failures: 0" in workflow
-    assert "- Uploads verified: ${verified_uploads}" in workflow
-    assert "- Parse completions verified: ${verified_parse_completions}" in workflow
-    assert "- Brokerage imports verified: ${verified_brokerage_imports}" in workflow
-    assert (
-        "- Report verifications verified: ${verified_report_verifications}" in workflow
-    )
-    assert "- Failures observed: ${verified_failures}" in workflow
-    assert "for fixture_test in" in workflow
-    assert "${STAGING_AI_OCR_TESTS[@]}" in workflow
-    assert "GITHUB_STEP_SUMMARY" in workflow
-    assert "- Expected uploads: 7" not in workflow
-    assert "- Expected parse completions: 7" not in workflow
-    assert "- Expected brokerage imports: 3" not in workflow
-    assert "- Expected report verifications: 1" not in workflow
 
     assert workflow.index("write_staging_audit_inventory") < workflow.index(
         'run_timed_phase "Staging AI/OCR Version Check"'
     )
-    assert "Staging Audit Replay Contract" in observability
-    assert "deployment-level inputs" in observability
+    _has(observability, "Staging Audit Replay Contract", "deployment-level inputs")
 
 
 def test_AC8_13_49_staging_ai_ocr_contract_outputs_files_and_counts() -> None:
@@ -1013,7 +1074,8 @@ def test_AC8_13_49_staging_ai_ocr_contract_outputs_files_and_counts() -> None:
     assert match is not None
     files = match.group("files").split()
 
-    for token in (
+    _has(
+        shell,
         "tests/e2e/test_statement_full_journey.py",
         "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
         "tests/e2e/test_four_asset_net_worth_golden_path.py",
@@ -1025,8 +1087,7 @@ def test_AC8_13_49_staging_ai_ocr_contract_outputs_files_and_counts() -> None:
         "STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS=14",
         "STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS=4",
         "STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS=3",
-    ):
-        assert token in shell
+    )
     assert len(files) == len(set(files))
     assert files == sorted(files)
 
@@ -1046,8 +1107,11 @@ def test_AC8_13_50_critical_llm_post_merge_proofs_are_in_ai_ocr_gates() -> None:
 
     # Both entrances (inline + manual) share the reusable gate body.
     workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
-    assert "tools/staging_ai_ocr_gate_contract.py --shell" in workflow
-    assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in workflow
+    _has(
+        workflow,
+        "tools/staging_ai_ocr_gate_contract.py --shell",
+        'pytest "${STAGING_AI_OCR_TESTS[@]}"',
+    )
 
     missing = [proof_file for proof_file in proof_files if proof_file not in shell]
     assert missing == []
@@ -1063,70 +1127,80 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     cleanup = read(".github/workflows/maintenance.yml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    for token in (
+    _has(
+        ci,
         "backend-shard-${{ matrix.shard }}-test-context",
         "backend-integration-test-context",
         "frontend-vitest-test-context",
         "frontend-playwright-test-context",
         "frontend-telemetry-test-context",
         "AC-TRACEABILITY-CONTEXT.md",
-    ):
-        assert token in ci
-    assert "--junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml" in ci
-    assert "--junit-xml=test-results/backend-integration.xml" in ci
-    assert "test-results/vitest-junit.xml" in ci
-    assert "apps/frontend/playwright-report/" in ci
+    )
+    _has(
+        ci,
+        "--junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml",
+        "--junit-xml=test-results/backend-integration.xml",
+        "test-results/vitest-junit.xml",
+        "apps/frontend/playwright-report/",
+    )
     assert "if: ${{ always() }}" in ci.split("Upload backend shard test context", 1)[0]
 
     assert "pr-preview-test-context" in pr_preview
     # Full runtime/API/UI E2E now runs image-free in the in-runner `e2e` job
     # (issue #839) after successful PR CI. Its junit lives here.
-    assert "test-results/in-runner-e2e.xml" in pr_preview
-    assert "ci-context/pr-preview-context.txt" in pr_preview
-    assert "preview_runtime=github-runner-compose" in pr_preview
-    assert (
-        "persistent_preview_url=${{ needs.setup.outputs.preview_app_url }}"
-        in pr_preview
+    _has(
+        pr_preview,
+        "test-results/in-runner-e2e.xml",
+        "ci-context/pr-preview-context.txt",
+        "preview_runtime=github-runner-compose",
+        "persistent_preview_url=${{ needs.setup.outputs.preview_app_url }}",
+        "registry_image_push=false",
+        "dokploy_deploy=after-e2e-non-blocking-build-from-source",
+        "e2e_outcome=${{ steps.e2e_tests.outcome }}",
     )
-    assert "registry_image_push=false" in pr_preview
-    assert "dokploy_deploy=after-e2e-non-blocking-build-from-source" in pr_preview
-    assert "e2e_outcome=${{ steps.e2e_tests.outcome }}" in pr_preview
 
-    assert "staging-deploy-test-context" in staging
-    assert "test-results/staging-core-e2e.xml" in staging
-    assert "ci-context/staging-deploy-context.txt" in staging
-    assert (
-        "failure_domain=${{ steps.deploy_failure_context.outputs.failure_domain }}"
-        in staging
-    )
-    assert (
-        "failed_step=${{ steps.deploy_failure_context.outputs.failed_step }}" in staging
-    )
-    assert (
-        "failure_summary=${{ steps.deploy_failure_context.outputs.failure_summary }}"
-        in staging
+    _has(
+        staging,
+        "staging-deploy-test-context",
+        "test-results/staging-core-e2e.xml",
+        "ci-context/staging-deploy-context.txt",
+        "failure_domain=${{ steps.deploy_failure_context.outputs.failure_domain }}",
+        "failed_step=${{ steps.deploy_failure_context.outputs.failed_step }}",
+        "failure_summary=${{ steps.deploy_failure_context.outputs.failure_summary }}",
     )
     # Observability-backend pivot links are intentionally NOT emitted by the app
     # workflow; the app emits OTLP and infra2 owns linking to its backend.
     assert "signoz" not in staging.lower()
 
     # The AI/OCR gate context/artifacts are owned by the reusable workflow.
-    assert "staging-ai-ocr-test-context" in ai_gate
-    assert "test-results/staging-ai-ocr-version.xml" in ai_gate
-    assert "test-results/staging-ai-ocr-gate.xml" in ai_gate
-    assert "ci-context/staging-ai-ocr-context.txt" in ai_gate
-    assert "primary_model=${STAGING_E2E_PRIMARY_MODEL}" in ai_gate
+    _has(
+        ai_gate,
+        "staging-ai-ocr-test-context",
+        "test-results/staging-ai-ocr-version.xml",
+        "test-results/staging-ai-ocr-gate.xml",
+        "ci-context/staging-ai-ocr-context.txt",
+        "primary_model=${STAGING_E2E_PRIMARY_MODEL}",
+    )
 
     # Production release context lives in release.yml.
-    assert "production-dry-run-context" in production
-    assert "production-deploy-test-context" in production
-    assert "test-results/production-readonly-e2e.xml" in production
+    _has(
+        production,
+        "production-dry-run-context",
+        "production-deploy-test-context",
+        "test-results/production-readonly-e2e.xml",
+    )
 
-    assert "pr-preview-scheduled-cleanup-context" in cleanup
-    assert "cleanup_action=ghcr-pr-tag-prune-only" in cleanup
+    _has(
+        cleanup,
+        "pr-preview-scheduled-cleanup-context",
+        "cleanup_action=ghcr-pr-tag-prune-only",
+    )
 
-    assert "CI observability artifacts" in ci_cd
-    assert "Step summaries remain human-readable status pages" in ci_cd
+    _has(
+        ci_cd,
+        "CI observability artifacts",
+        "Step summaries remain human-readable status pages",
+    )
 
 
 def test_AC8_13_51_staging_deploy_is_manual_dispatch_only() -> None:
@@ -1138,19 +1212,11 @@ def test_AC8_13_51_staging_deploy_is_manual_dispatch_only() -> None:
     # PyYAML parses the bare `on:` key as the boolean True.
     triggers = parsed.get("on", parsed.get(True))
     assert isinstance(triggers, dict), "deploy.yml must declare an `on:` map"
-    assert "workflow_dispatch" in triggers, (
-        "staging deploy must be manually dispatchable"
-    )
-    assert "workflow_run" not in triggers, (
-        "staging deploy must NOT auto-follow CI (manual-only)"
-    )
+    _has(triggers, "workflow_dispatch")
+    _lacks(triggers, "workflow_run")
     inputs = triggers["workflow_dispatch"].get("inputs") or {}
-    assert "version_ref" in inputs, (
-        "manual dispatch must accept a deploy_v2-aligned `version_ref` input"
-    )
-    assert "tag" not in inputs, (
-        "staging deploy must not expose a second release-ref name"
-    )
+    _has(inputs, "version_ref")
+    _lacks(inputs, "tag")
     assert inputs["version_ref"].get("required") is False, (
         "version_ref is validated by the staging/production target jobs because "
         "deploy.yml also hosts the on-demand AI/OCR diagnostic target"
@@ -1169,72 +1235,67 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     epic = read("docs/project/EPIC-008.testing-strategy.md")
 
-    assert "post-merge-delivery:" in workflow
-    assert "name: Post-merge Delivery" in workflow
-    assert ("needs: [build-and-deploy, provider-gate, ai-ocr-gate]") in workflow
-    assert "Aggregate post-merge delivery result" in workflow
-    assert (
-        'staging_required="${{ needs.build-and-deploy.outputs.staging_required }}"'
-        in workflow
+    _has(
+        workflow,
+        "post-merge-delivery:",
+        "name: Post-merge Delivery",
+        "needs: [build-and-deploy, provider-gate, ai-ocr-gate]",
+        "Aggregate post-merge delivery result",
+        'staging_required="${{ needs.build-and-deploy.outputs.staging_required }}"',
+        'ai_ocr_required="${{ needs.build-and-deploy.outputs.ai_ocr_required }}"',
+        'build_result="${{ needs.build-and-deploy.result }}"',
+        'provider_result="${{ needs.provider-gate.result }}"',
+        'provider_status="${{ needs.provider-gate.outputs.provider_status }}"',
+        'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"',
+        'ai_ocr_status="${{ needs.ai-ocr-gate.outputs.ai_ocr_status }}"',
     )
-    assert (
-        'ai_ocr_required="${{ needs.build-and-deploy.outputs.ai_ocr_required }}"'
-        in workflow
-    )
-    assert 'build_result="${{ needs.build-and-deploy.result }}"' in workflow
-    assert 'provider_result="${{ needs.provider-gate.result }}"' in workflow
-    assert (
-        'provider_status="${{ needs.provider-gate.outputs.provider_status }}"'
-        in workflow
-    )
-    assert 'ai_ocr_result="${{ needs.ai-ocr-gate.result }}"' in workflow
-    assert 'ai_ocr_status="${{ needs.ai-ocr-gate.outputs.ai_ocr_status }}"' in workflow
     # The retired post-merge auto-deploy alert job is no longer a delivery input.
-    assert "staging-deploy-alert" not in workflow
-    assert "alert_result" not in workflow
-    assert (
-        'failure_domain="${{ needs.build-and-deploy.outputs.failure_domain }}"'
-        in workflow
+    _lacks(workflow, "staging-deploy-alert", "alert_result")
+    _has(
+        workflow,
+        'failure_domain="${{ needs.build-and-deploy.outputs.failure_domain }}"',
+        'failed_step="${{ needs.build-and-deploy.outputs.failed_step }}"',
+        'failure_summary="${{ needs.build-and-deploy.outputs.failure_summary }}"',
+        'delivery_status="skipped-no-staging-required"',
+        'failure_reason="build/deploy gate failed"',
+        'failure_reason="provider connectivity gate failed"',
+        'failure_reason="staging AI/OCR canary failed"',
+        "Post-merge delivery failed: ${failure_reason}",
     )
-    assert 'failed_step="${{ needs.build-and-deploy.outputs.failed_step }}"' in workflow
-    assert (
-        'failure_summary="${{ needs.build-and-deploy.outputs.failure_summary }}"'
-        in workflow
-    )
-    assert 'delivery_status="skipped-no-staging-required"' in workflow
-    assert 'failure_reason="build/deploy gate failed"' in workflow
-    assert 'failure_reason="provider connectivity gate failed"' in workflow
-    assert 'failure_reason="staging AI/OCR canary failed"' in workflow
-    assert "Post-merge delivery failed: ${failure_reason}" in workflow
     # A reusable-workflow caller cannot set continue-on-error, so blocking must
     # be enforced by the caller input and reflected in the delivery aggregate.
-    assert (
-        "blocking: true"
-        in workflow.split("ai-ocr-gate:", 1)[1].split("post-merge-delivery:", 1)[0]
+    _has(
+        workflow.split("ai-ocr-gate:", 1)[1].split("post-merge-delivery:", 1)[0],
+        "blocking: true",
     )
-    assert 'delivery_status="degraded-provider"' in workflow
-    assert "## Post-merge Delivery" in workflow
-    assert "Build/deploy failure domain: ${failure_domain:-unknown}" in workflow
-    assert "Build/deploy failed step: ${failed_step:-unknown}" in workflow
-    assert "Build/deploy failure summary: ${failure_summary:-unknown}" in workflow
-    assert "Post-merge delivery failed" in workflow
-    assert (
-        "exit 1"
-        in workflow.split("post-merge-delivery:", 1)[1].split("post-merge-summary:", 1)[
-            0
-        ]
+    _has(
+        workflow,
+        'delivery_status="degraded-provider"',
+        "## Post-merge Delivery",
+        "Build/deploy failure domain: ${failure_domain:-unknown}",
+        "Build/deploy failed step: ${failed_step:-unknown}",
+        "Build/deploy failure summary: ${failure_summary:-unknown}",
+        "Post-merge delivery failed",
     )
-    assert (
-        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, post-merge-delivery]"
-    ) in workflow
-    assert "dedicated `Post-merge Delivery` check" in ci_cd
-    assert "A green `CI` workflow alone is not sufficient evidence" in ci_cd
-    assert "comprehensive staging AI/OCR audit replay" in ci_cd
-    assert "Release gate reclassification" in ci_cd
-    assert "Left-shifted:" in ci_cd
-    assert "Strengthened:" in ci_cd
-    assert "Removed:" in ci_cd
-    assert "Right-shifted:" in ci_cd
+    _has(
+        workflow.split("post-merge-delivery:", 1)[1].split("post-merge-summary:", 1)[0],
+        "exit 1",
+    )
+    _has(
+        workflow,
+        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, post-merge-delivery]",
+    )
+    _has(
+        ci_cd,
+        "dedicated `Post-merge Delivery` check",
+        "A green `CI` workflow alone is not sufficient evidence",
+        "comprehensive staging AI/OCR audit replay",
+        "Release gate reclassification",
+        "Left-shifted:",
+        "Strengthened:",
+        "Removed:",
+        "Right-shifted:",
+    )
     assert "AC8.13.103" in epic
 
 
@@ -1246,37 +1307,38 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
     assert "classify-staging:" not in workflow
-    assert "name: Classify staging and AI/OCR relevance" in workflow
-    assert "fetch-depth: 0" in workflow
+    _has(workflow, "name: Classify staging and AI/OCR relevance", "fetch-depth: 0")
     # Manual-only staging no longer scopes by changed paths inside the deploy
     # workflow: a manual dispatch always classifies staging (and the AI/OCR gate)
     # as required. The diff-based change classifier remains for CI/PR scoping only.
-    assert "git diff --name-only" not in workflow
-    assert "tools/ci_change_classifier.py" not in workflow
-    assert "staging_required: ${{ steps.gates.outputs.staging_required }}" in workflow
-    assert "staging_reason: ${{ steps.gates.outputs.staging_reason }}" in workflow
-    assert "if: steps.gates.outputs.staging_required == 'true'" in workflow
-    assert (
-        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}"
-        in workflow
+    _lacks(workflow, "git diff --name-only", "tools/ci_change_classifier.py")
+    _has(
+        workflow,
+        "staging_required: ${{ steps.gates.outputs.staging_required }}",
+        "staging_reason: ${{ steps.gates.outputs.staging_reason }}",
+        "if: steps.gates.outputs.staging_required == 'true'",
+        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}",
+        "manual-dispatch",
     )
-    assert "manual-dispatch" in workflow
 
-    assert "STAGING_EXACT" in classifier
-    assert "STAGING_PREFIXES" in classifier
-    assert "def is_staging_relevant" in classifier
-    assert "staging-paths-changed" in classifier
-    assert "no-staging-paths-changed" in classifier
-    assert (
-        "test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes"
-        in classifier_tests
+    _has(
+        classifier,
+        "STAGING_EXACT",
+        "STAGING_PREFIXES",
+        "def is_staging_relevant",
+        "staging-paths-changed",
+        "no-staging-paths-changed",
     )
-    assert "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md" in classifier_tests
-    assert "common/meta/extension/check_ssot_ownership.py" in classifier_tests
-    assert "Staging deploy is manual (`workflow_dispatch`) only" in ci_cd
-    assert (
-        "The diff-based change classifier no longer scopes the staging deploy by changed paths"
-        in ci_cd
+    _has(
+        classifier_tests,
+        "test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes",
+        "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md",
+        "common/meta/extension/check_ssot_ownership.py",
+    )
+    _has(
+        ci_cd,
+        "Staging deploy is manual (`workflow_dispatch`) only",
+        "The diff-based change classifier no longer scopes the staging deploy by changed paths",
     )
 
 
@@ -1294,8 +1356,7 @@ def test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates() -> None:
         assert "Deployment deps check skipped" not in workflow
 
     staging = workflows[0]
-    assert "Performance Benchmark" not in staging
-    assert "Don't block deploy, but report issues" not in staging
+    _lacks(staging, "Performance Benchmark", "Don't block deploy, but report issues")
     assert "infra2 receiver owns deploy dependency preflight" in ci_cd
 
 
@@ -1306,35 +1367,44 @@ def test_AC8_13_52_production_release_dry_run_does_not_mutate_production() -> No
     release_images = read("common/runtime/release_images.py")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    assert "dry_run:" in workflow
-    assert "version_ref:" in workflow
-    assert "Version ref to deploy (vX.Y.Z release tag)" in workflow
+    _has(
+        workflow,
+        "dry_run:",
+        "version_ref:",
+        "Version ref to deploy (vX.Y.Z release tag)",
+    )
     assert "leave empty for latest" not in workflow
-    assert "Validate release prerequisites without deploying production" in workflow
-    assert "dry-run:" in workflow
-    assert "if: ${{ inputs.dry_run }}" in workflow
-    assert "moon run :lint" in workflow
+    _has(
+        workflow,
+        "Validate release prerequisites without deploying production",
+        "dry-run:",
+        "if: ${{ inputs.dry_run }}",
+        "moon run :lint",
+    )
     assert "moon run :test" not in workflow
-    assert "Resolve release coordinate" in workflow
-    assert "tools/resolve_release_coordinate.py" in workflow
+    _has(workflow, "Resolve release coordinate", "tools/resolve_release_coordinate.py")
     assert workflow.count("tools/verify_release_evidence.py") == 11
     assert workflow.count("tools/verify_release_images.py") == 2
     assert "Verify source CI passed" in workflow
-    assert '"--workflow"' in release_evidence
-    assert '"ci.yml"' in release_evidence
-    assert "--commit" in release_evidence
-    assert 'run.get("headBranch") == "main"' in release_evidence
-    assert "Verify release images workflow passed" in workflow
-    assert "Verify staging passed" in workflow
-    assert "Verify Release Images Dry Run" in workflow
+    _has(
+        release_evidence,
+        '"--workflow"',
+        '"ci.yml"',
+        "--commit",
+        'run.get("headBranch") == "main"',
+    )
+    _has(
+        workflow,
+        "Verify release images workflow passed",
+        "Verify staging passed",
+        "Verify Release Images Dry Run",
+    )
     assert '"docker", "buildx", "imagetools", "inspect"' in release_images
     # release.yml is the production release line; the whole file is the prod jobs.
-    assert "gh run list" not in workflow
-    assert "gh run view" not in workflow
+    _lacks(workflow, "gh run list", "gh run view")
     assert "Production mutation skipped" in workflow
     dry_run_section = workflow.split("dry-run:", 1)[1].split("\n  deploy:", 1)[0]
-    assert "environment:" not in dry_run_section
-    assert "dokploy_deploy.sh" not in dry_run_section
+    _lacks(dry_run_section, "environment:", "dokploy_deploy.sh")
     assert "inputs.dry_run" in workflow.split("\n  deploy:", 1)[1].split("steps:", 1)[0]
     assert "Production release dry-run" in ci_cd
     assert "Verify Release Images Dry Run" in workflow
@@ -1391,26 +1461,29 @@ def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
         "def _required", 1
     )[0]
 
-    assert 'expected_title = f"Deploy Staging {version_ref}"' in staging_contract
-    assert 'run.get("displayTitle") == expected_title' in staging_contract
-    assert 'run.get("status") == "completed"' in staging_contract
-    assert 'run.get("conclusion") == "success"' not in staging_contract
-    assert (
-        'required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}'
-        in staging_contract
+    _has(
+        staging_contract,
+        'expected_title = f"Deploy Staging {version_ref}"',
+        'run.get("displayTitle") == expected_title',
+        'run.get("status") == "completed"',
     )
-    assert 'optional_staging_jobs = {"Staging AI/OCR Gate"}' in staging_contract
-    assert "candidate_run_ids" in staging_contract
-    assert "for candidate_run_id in candidate_run_ids:" in staging_contract
-    assert '"gh",' in staging_contract
-    assert '"run",' in staging_contract
-    assert '"view",' in staging_contract
-    assert "candidate_run_id," in staging_contract
-    assert "Skipping staging run " in staging_contract
-    assert "{candidate_run_id}: release-critical jobs" in staging_contract
-    assert "with successful release-critical jobs" in staging_contract
-    assert "Staging AI/OCR Gate" in staging_contract
-    assert "does not block production release eligibility" in staging_contract
+    assert 'run.get("conclusion") == "success"' not in staging_contract
+    _has(
+        staging_contract,
+        'required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}',
+        'optional_staging_jobs = {"Staging AI/OCR Gate"}',
+        "candidate_run_ids",
+        "for candidate_run_id in candidate_run_ids:",
+        '"gh",',
+        '"run",',
+        '"view",',
+        "candidate_run_id,",
+        "Skipping staging run ",
+        "{candidate_run_id}: release-critical jobs",
+        "with successful release-critical jobs",
+        "Staging AI/OCR Gate",
+        "does not block production release eligibility",
+    )
     assert 'version_ref in (run.get("displayTitle") or "")' not in staging_contract
 
 
@@ -1518,6 +1591,7 @@ def test_AC8_13_52_release_evidence_tool_reports_source_and_release_runs() -> No
     )
 
     def reviewed_changes_json(_args: list[str]) -> object:
+        base = {"ref": "main", "repo": {"full_name": "owner/repo"}}
         return [
             {
                 "number": 41,
@@ -1525,7 +1599,7 @@ def test_AC8_13_52_release_evidence_tool_reports_source_and_release_runs() -> No
                 "merged_at": "2026-07-14T00:00:00Z",
                 "merge_commit_sha": "b" * 40,
                 "html_url": "https://github.com/owner/repo/pull/41",
-                "base": {"ref": "main", "repo": {"full_name": "owner/repo"}},
+                "base": base,
             },
             {
                 "number": 42,
@@ -1533,7 +1607,7 @@ def test_AC8_13_52_release_evidence_tool_reports_source_and_release_runs() -> No
                 "merged_at": "2026-07-15T00:00:00Z",
                 "merge_commit_sha": "a" * 40,
                 "html_url": "https://github.com/owner/repo/pull/42",
-                "base": {"ref": "main", "repo": {"full_name": "owner/repo"}},
+                "base": base,
             },
         ]
 
@@ -1604,8 +1678,9 @@ def test_AC8_13_52_release_evidence_cli_writes_exact_outputs(
         )
         == 0
     )
-    assert "reviewed_change_url=https://github.com/owner/repo/pull/42" in (
-        capsys.readouterr().out
+    _has(
+        capsys.readouterr().out,
+        "reviewed_change_url=https://github.com/owner/repo/pull/42",
     )
 
     monkeypatch.setattr(
@@ -1708,56 +1783,61 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     environments = read("common/runtime/environments.md")
 
-    assert "name: Classify Changes" in workflow
-    assert "pr_required: ${{ steps.gates.outputs.pr_required }}" in workflow
-    assert (
-        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}"
-        in workflow
+    _has(
+        workflow,
+        "name: Classify Changes",
+        "pr_required: ${{ steps.gates.outputs.pr_required }}",
+        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}",
+        "tools/ci_change_classifier.py",
+        "--changed-files changed-files.txt",
     )
-    assert "tools/ci_change_classifier.py" in workflow
-    assert "--changed-files changed-files.txt" in workflow
-    assert '"docs/"' in classifier
-    assert '".github/ISSUE_TEMPLATE/"' in classifier
-    assert '".github/workflows/docs.yml"' in classifier
+    _has(
+        classifier,
+        '"docs/"',
+        '".github/ISSUE_TEMPLATE/"',
+        '".github/workflows/docs.yml"',
+    )
     assert "path.endswith" not in workflow
     assert "path.endswith" not in classifier
-    assert "runtime-or-ci-paths-changed" in classifier
-    assert "lightweight-docs-or-docs-workflow-only" in classifier
-    assert "pr-preview-paths-changed" in classifier
-    assert "no-pr-preview-paths-changed" in classifier
-    assert "needs: [changes]" in workflow
-    assert "if: needs.changes.outputs.pr_required == 'true'" in workflow
-    assert (
-        "pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}"
-        in pr_workflow
+    _has(
+        classifier,
+        "runtime-or-ci-paths-changed",
+        "lightweight-docs-or-docs-workflow-only",
+        "pr-preview-paths-changed",
+        "no-pr-preview-paths-changed",
     )
-    assert "name: Classify PR preview relevance" in pr_workflow
-    assert "name: Normalize PR preview gate" in pr_workflow
-    assert "needs.setup.outputs.pr_preview_required == 'true'" in pr_workflow
-    assert "name: AC Traceability Check" in workflow
-    assert (
-        "needs: [changes, schema-migrations, backend, backend-integration, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]"
-        in workflow
+    _has(
+        workflow, "needs: [changes]", "if: needs.changes.outputs.pr_required == 'true'"
+    )
+    _has(
+        pr_workflow,
+        "pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}",
+        "name: Classify PR preview relevance",
+        "name: Normalize PR preview gate",
+        "needs.setup.outputs.pr_preview_required == 'true'",
+    )
+    _has(
+        workflow,
+        "name: AC Traceability Check",
+        "needs: [changes, schema-migrations, backend, backend-integration, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]",
     )
     assert "finish remains the authoritative aggregate gate" in ci_cd
-    assert (
-        "Heavy backend/frontend/coverage jobs skipped for lightweight changes."
-        in workflow
+    _has(
+        workflow,
+        "Heavy backend/frontend/coverage jobs skipped for lightweight changes.",
+        "uses: actions/setup-node@v6",
+        "cache: npm",
+        "cache-dependency-path: apps/frontend/package-lock.json",
+        "run: npm ci",
     )
-    assert "uses: actions/setup-node@v6" in workflow
-    assert "cache: npm" in workflow
-    assert "cache-dependency-path: apps/frontend/package-lock.json" in workflow
-    assert "run: npm ci" in workflow
     assert "run: npm install" not in workflow
-    assert "PR vs Main CI Responsibilities" in ci_cd
-    assert "Lightweight changes do not repeat the heavy path" in ci_cd
-    assert (
-        "PR preview environments deploy only for runtime app, compose, root E2E, dependency, Dockerfile/config, or preview-action changes"
-        in ci_cd
-    )
-    assert "Frontend dependency installation uses `actions/setup-node@v6`" in ci_cd
-    assert (
-        "Markdown outside the documented lightweight trees is treated as heavy" in ci_cd
+    _has(
+        ci_cd,
+        "PR vs Main CI Responsibilities",
+        "Lightweight changes do not repeat the heavy path",
+        "PR preview environments deploy only for runtime app, compose, root E2E, dependency, Dockerfile/config, or preview-action changes",
+        "Frontend dependency installation uses `actions/setup-node@v6`",
+        "Markdown outside the documented lightweight trees is treated as heavy",
     )
     assert "lightweight documentation" in environments.lower()
 
@@ -1779,9 +1859,12 @@ def test_AC8_13_16_workflows_opt_into_node24_actions_runtime() -> None:
     ]
     exceptions = {exception["uses"] for exception in inventory["exceptions"]}
     assert inventory["forced_node20_metadata_count_must_be"] == 0
-    assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24" in ci_cd
-    assert "GitHub JavaScript action runtime debt is closed" in ci_cd
-    assert "common/testing/data/github-action-runtime.yaml" in ci_cd
+    _has(
+        ci_cd,
+        "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24",
+        "GitHub JavaScript action runtime debt is closed",
+        "common/testing/data/github-action-runtime.yaml",
+    )
     assert not forced_actions
     assert set(forced_actions) == exceptions
 
@@ -1798,20 +1881,19 @@ def test_AC8_13_17_ac_traceability_runs_registry_generation_check() -> None:
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    assert (
-        "uv run --with pyyaml python tools/generate_ac_registry.py --check" in workflow
-    )
+    _has(workflow, "uv run --with pyyaml python tools/generate_ac_registry.py --check")
     # The single, fail-closed index gate (folds in the former traceability gate).
-    assert (
-        "uv run --with pyyaml --with pydantic python tools/check_ac_index.py"
-        in workflow
+    _has(
+        workflow, "uv run --with pyyaml --with pydantic python tools/check_ac_index.py"
     )
     # The retired standalone steps are gone.
-    assert "tools/check_ac_traceability.py" not in workflow
-    assert "tools/check_critical_proof_matrix.py" not in workflow
-    assert (
-        "uv run --with pyyaml python tools/build_ac_traceability.py --output"
-        in workflow
+    _lacks(
+        workflow,
+        "tools/check_ac_traceability.py",
+        "tools/check_critical_proof_matrix.py",
+    )
+    _has(
+        workflow, "uv run --with pyyaml python tools/build_ac_traceability.py --output"
     )
     assert workflow.index("tools/generate_ac_registry.py --check") < workflow.index(
         "tools/build_ac_traceability.py --output"
@@ -1824,13 +1906,15 @@ def test_AC8_13_53_generated_api_reference_is_ci_checked() -> None:
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    assert "Generated API Reference Check" in workflow
-    assert "uv run python ../../tools/generate_api_reference.py --check" in workflow
+    _has(
+        workflow,
+        "Generated API Reference Check",
+        "uv run python ../../tools/generate_api_reference.py --check",
+    )
     assert workflow.index("Install dependencies") < workflow.index(
         "tools/generate_api_reference.py --check"
     )
-    assert "Generated API reference" in ci_cd
-    assert "FastAPI OpenAPI" in ci_cd
+    _has(ci_cd, "Generated API reference", "FastAPI OpenAPI")
 
 
 def test_AC14_1_17_generated_db_schema_reference_is_ci_checked() -> None:
@@ -1838,9 +1922,10 @@ def test_AC14_1_17_generated_db_schema_reference_is_ci_checked() -> None:
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    assert "Generated DB Schema Reference Check" in workflow
-    assert (
-        "uv run python ../../tools/generate_db_schema_reference.py --check" in workflow
+    _has(
+        workflow,
+        "Generated DB Schema Reference Check",
+        "uv run python ../../tools/generate_db_schema_reference.py --check",
     )
     generate_line = "uv run python ../../tools/generate_db_schema_reference.py\n"
     assert generate_line in workflow
@@ -1850,9 +1935,12 @@ def test_AC14_1_17_generated_db_schema_reference_is_ci_checked() -> None:
     assert workflow.index("tools/generate_api_reference.py --check") < workflow.index(
         "tools/generate_db_schema_reference.py --check"
     )
-    assert "Generated DB schema reference" in ci_cd
-    assert "SQLAlchemy model metadata" in ci_cd
-    assert "docs/hooks.py" in ci_cd
+    _has(
+        ci_cd,
+        "Generated DB schema reference",
+        "SQLAlchemy model metadata",
+        "docs/hooks.py",
+    )
 
 
 def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
@@ -1860,9 +1948,12 @@ def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    assert "moonrepo/setup-toolchain@v0" not in workflow
-    assert "moon run :build" not in workflow
-    assert "Build Frontend (via Moon)" not in workflow
+    _lacks(
+        workflow,
+        "moonrepo/setup-toolchain@v0",
+        "moon run :build",
+        "Build Frontend (via Moon)",
+    )
 
     backend_block = workflow.split("  backend:", 1)[1].split(
         "  backend-integration:",
@@ -1899,12 +1990,12 @@ def test_AC8_13_53_pr_ci_avoids_moon_bootstrap_for_direct_gates() -> None:
     ):
         assert "moonrepo/setup-toolchain@v0" not in frontend_block
         assert "working-directory: apps/frontend" in frontend_block
-    assert "name: Build Frontend" in frontend_build_block
-    assert "run: npm run build" in frontend_build_block
-    assert "PR CI avoids Moon bootstrap" in ci_cd
-    assert "direct `pytest` and `npm` commands" in ci_cd
-    assert (
-        "Moon CLI availability and project graph coverage are static contracts" in ci_cd
+    _has(frontend_build_block, "name: Build Frontend", "run: npm run build")
+    _has(
+        ci_cd,
+        "PR CI avoids Moon bootstrap",
+        "direct `pytest` and `npm` commands",
+        "Moon CLI availability and project graph coverage are static contracts",
     )
 
 
@@ -2019,8 +2110,9 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
 
     assert "npm run typecheck" in job_run_commands("frontend-build")
     assert "npm run test:coverage" in job_run_commands("frontend-vitest")
-    assert "npm run test:e2e -- --reporter=line,html" in job_run_commands(
-        "frontend-playwright"
+    _has(
+        job_run_commands("frontend-playwright"),
+        "npm run test:e2e -- --reporter=line,html",
     )
     assert "npm run test:e2e:telemetry" in job_run_commands("frontend-telemetry-e2e")
     for job_id in split_jobs:
@@ -2034,10 +2126,13 @@ def test_AC8_13_147_frontend_ci_split_preserves_merge_authority() -> None:
     assert telemetry_commands.index("npm run build") < telemetry_commands.index(
         "npm run test:e2e:telemetry"
     )
-    assert "coverage-frontend" in workflow_text
-    assert "frontend-vitest-test-context" in workflow_text
-    assert "frontend-playwright-test-context" in workflow_text
-    assert "frontend-telemetry-test-context" in workflow_text
+    _has(
+        workflow_text,
+        "coverage-frontend",
+        "frontend-vitest-test-context",
+        "frontend-playwright-test-context",
+        "frontend-telemetry-test-context",
+    )
 
 
 def test_AC8_13_162_frontend_telemetry_e2e_is_right_moved_and_skip_is_a_pass() -> None:
@@ -2180,29 +2275,34 @@ def test_AC8_13_148_backend_shards_use_seeded_4_way_split() -> None:
         for step in backend_job.get("steps", [])
         if isinstance(step, dict)
     )
-    assert "Loaded pytest-split duration seed" in backend_commands
-    assert "pytest-split duration seed is missing" in backend_commands
-    assert "len(durations) < 500" in backend_commands
-    assert "--splits 4" in backend_commands
-    assert "--group ${{ matrix.shard }}" in backend_commands
-    assert "--splitting-algorithm=least_duration" in backend_commands
-    assert "--durations-path ci/backend-test-durations.json" in backend_commands
+    _has(
+        backend_commands,
+        "Loaded pytest-split duration seed",
+        "pytest-split duration seed is missing",
+        "len(durations) < 500",
+        "--splits 4",
+        "--group ${{ matrix.shard }}",
+        "--splitting-algorithm=least_duration",
+        "--durations-path ci/backend-test-durations.json",
+    )
     assert "--store-durations" not in backend_commands
-    assert (
-        "test-results/backend-shard-${{ matrix.shard }}-durations.json"
-        not in workflow_text
+    _lacks(
+        workflow_text, "test-results/backend-shard-${{ matrix.shard }}-durations.json"
     )
 
     upload_context = workflow_text.split("Upload backend shard test context", 1)[1]
-    assert (
-        "apps/backend/test-results/backend-shard-${{ matrix.shard }}.xml"
-        in upload_context
+    _has(
+        upload_context,
+        "apps/backend/test-results/backend-shard-${{ matrix.shard }}.xml",
     )
     assert "apps/backend/ci/backend-test-durations.json" not in upload_context
-    assert "workflow job name `Backend Tests (Shard ${{ matrix.shard }}/4)`" in ci_cd
-    assert "4-way parallel test sharding over the `pytest-split` duration seed" in ci_cd
-    assert "apps/backend/ci/backend-test-durations.json" in ci_cd
-    assert "not runner-local cache writes" in ci_cd
+    _has(
+        ci_cd,
+        "workflow job name `Backend Tests (Shard ${{ matrix.shard }}/4)`",
+        "4-way parallel test sharding over the `pytest-split` duration seed",
+        "apps/backend/ci/backend-test-durations.json",
+        "not runner-local cache writes",
+    )
     assert "matrix_legs: 4" in inventory
 
 
@@ -2225,13 +2325,19 @@ def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
         "frontend-vitest",
         "tooling-coverage",
     ]
-    assert "Install uv" not in unified_block
-    assert "uv run python tools/merge_lcov.py" not in unified_block
-    assert "uv run python tools/check_coverage_policy.py" not in unified_block
-    assert "uv run python tools/calculate_unified_coverage.py" not in unified_block
-    assert "python tools/merge_lcov.py coverage/backend.lcov" in unified_block
-    assert "python tools/check_coverage_policy.py" in unified_block
-    assert "python tools/calculate_unified_coverage.py" in unified_block
+    _lacks(
+        unified_block,
+        "Install uv",
+        "uv run python tools/merge_lcov.py",
+        "uv run python tools/check_coverage_policy.py",
+        "uv run python tools/calculate_unified_coverage.py",
+    )
+    _has(
+        unified_block,
+        "python tools/merge_lcov.py coverage/backend.lcov",
+        "python tools/check_coverage_policy.py",
+        "python tools/calculate_unified_coverage.py",
+    )
 
     assert jobs["ac-behavioral-ratchet"]["needs"] == [
         "changes",
@@ -2240,16 +2346,19 @@ def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
         "frontend-vitest",
     ]
     assert "Download all test junit artifacts" not in ratchet_block
-    assert "pattern: backend-shard-*-test-context" in ratchet_block
-    assert "name: backend-integration-test-context" in ratchet_block
+    _has(
+        ratchet_block,
+        "pattern: backend-shard-*-test-context",
+        "name: backend-integration-test-context",
+    )
     assert "pattern: backend-tier1-e2e-*-test-context" not in ratchet_block
     assert "name: frontend-vitest-test-context" in ratchet_block
-    assert (
-        "uv run --with pyyaml python tools/aggregate_ac_evidence.py"
-        not in ratchet_block
+    _lacks(ratchet_block, "uv run --with pyyaml python tools/aggregate_ac_evidence.py")
+    _has(
+        ratchet_block,
+        "python tools/aggregate_ac_evidence.py",
+        "python tools/check_ac_score_baseline.py",
     )
-    assert "python tools/aggregate_ac_evidence.py" in ratchet_block
-    assert "python tools/check_ac_score_baseline.py" in ratchet_block
 
 
 def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
@@ -2274,14 +2383,20 @@ def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
     assert notify_on["workflow_run"]["branches"] == ["main"]
 
     dispatch_job = notify_yaml["jobs"]["dispatch"]
-    assert "github.event.workflow_run.conclusion == 'success'" in dispatch_job["if"]
-    assert "github.event.workflow_run.head_branch == 'main'" in dispatch_job["if"]
+    _has(
+        dispatch_job["if"],
+        "github.event.workflow_run.conclusion == 'success'",
+        "github.event.workflow_run.head_branch == 'main'",
+    )
     dispatch_script = "\n".join(
         step.get("run", "") for step in dispatch_job["steps"] if isinstance(step, dict)
     )
     assert "WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}" in notify
-    assert "/git/ref/heads/main" in dispatch_script
-    assert "tools/_lib/shell/resolve_report_main_dispatch_sha.sh" in dispatch_script
+    _has(
+        dispatch_script,
+        "/git/ref/heads/main",
+        "tools/_lib/shell/resolve_report_main_dispatch_sha.sh",
+    )
     assert "$GITHUB_SHA" not in dispatch_script
     assert '--arg sha "$dispatch_sha"' in dispatch_script
 
@@ -2344,10 +2459,9 @@ def test_AC_testing_deploy_gates_36_every_main_commit_image_is_independently_ver
     # own skip-is-a-pass clause — otherwise every PR would fail finish. (The
     # membership check above already proves finish depends on this job at
     # all; this proves the skip case specifically doesn't fail it.)
-    assert (
-        '"${{ needs.verify-sha-image-published.result }}" != "success" '
-        '&& "${{ needs.verify-sha-image-published.result }}" != "skipped"'
-        in finish_script
+    _has(
+        finish_script,
+        '"${{ needs.verify-sha-image-published.result }}" != "success" && "${{ needs.verify-sha-image-published.result }}" != "skipped"',
     )
 
 
@@ -2357,11 +2471,11 @@ def test_AC8_13_68_ci_runs_e2e_epic_traceability_gate() -> None:
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     tdd = read("common/testing/tdd.md")
 
-    assert (
-        "uv run --with pyyaml python tools/check_e2e_epic_traceability.py --output"
-        in workflow
+    _has(
+        workflow,
+        "uv run --with pyyaml python tools/check_e2e_epic_traceability.py --output",
+        "$RUNNER_TEMP/E2E-EPIC-TRACEABILITY.md",
     )
-    assert "$RUNNER_TEMP/E2E-EPIC-TRACEABILITY.md" in workflow
     # The standalone check_ac_traceability / check_critical_proof_matrix steps are
     # retired (AC8.13.141); the surviving ordering is E2E traceability before the
     # audit-artifact build.
@@ -2379,13 +2493,14 @@ def test_AC8_13_70_ci_documents_closed_e2e_traceability_system() -> None:
     readme = read("README.md")
     checker = read("common/testing/check_e2e_epic_traceability.py")
 
-    assert "the README EPIC map matches project EPIC files" in ci_cd
-    assert "unclassified E2E-like assets outside declared roots" in ci_cd
-    assert "root README EPIC map" in tdd
-    assert "fails unclassified" in tdd
+    _has(
+        ci_cd,
+        "the README EPIC map matches project EPIC files",
+        "unclassified E2E-like assets outside declared roots",
+    )
+    _has(tdd, "root README EPIC map", "fails unclassified")
     assert "tools/check_e2e_epic_traceability.py" in readme
-    assert "DECLARED_NON_PRODUCT_E2E_ROOTS" in checker
-    assert "DECLARED_NON_PRODUCT_E2E_FILES" in checker
+    _has(checker, "DECLARED_NON_PRODUCT_E2E_ROOTS", "DECLARED_NON_PRODUCT_E2E_FILES")
 
 
 def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
@@ -2393,29 +2508,28 @@ def test_AC8_13_9_production_release_runs_prod_safe_e2e_smoke() -> None:
     workflow = read(".github/workflows/release.yml")
     prod_smoke = read("tests/e2e/test_production_readonly_smoke.py")
 
-    assert 'NODE_VERSION: "20.19.0"' in workflow
-    assert "Set up Node" in workflow
-    assert "Install frontend dependencies" in workflow
-    assert "cache-dependency-path: apps/frontend/package-lock.json" in workflow
-    assert "working-directory: apps/frontend" in workflow
-    assert "Verify source CI passed" in workflow
+    _has(
+        workflow,
+        'NODE_VERSION: "20.19.0"',
+        "Set up Node",
+        "Install frontend dependencies",
+        "cache-dependency-path: apps/frontend/package-lock.json",
+        "working-directory: apps/frontend",
+        "Verify source CI passed",
+    )
     assert workflow.index("Install frontend dependencies") < workflow.index(
         "moon run :lint"
     )
-    assert "Setup E2E Tests" in workflow
-    assert "Production Infrastructure Smoke" in workflow
-    assert "tools/production_infra_smoke.py" in workflow
-    assert "test_production_readonly_smoke.py" in workflow
-    assert "TEST_ENV: production" in workflow
+    _has(
+        workflow,
+        "Setup E2E Tests",
+        "Production Infrastructure Smoke",
+        "tools/production_infra_smoke.py",
+        "test_production_readonly_smoke.py",
+        "TEST_ENV: production",
+    )
     assert "@pytest.mark.prod_safe" in prod_smoke
-    for mutating_token in (
-        "/api/auth/register",
-        ".post(",
-        ".patch(",
-        ".put(",
-        ".delete(",
-    ):
-        assert mutating_token not in prod_smoke
+    _lacks(prod_smoke, "/api/auth/register", ".post(", ".patch(", ".put(", ".delete(")
 
 
 def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_deploy_failure() -> (
@@ -2446,17 +2560,20 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
     # the OLD version's paper trail); rollback_block/rollback_unavailable_block's
     # outcome-based branching above is what actually handles a real gap safely.
     assert rollback_evidence_block.count("continue-on-error: true") == 3
-    for step_name in (
+    _has(
+        rollback_evidence_block,
         "Verify rollback release images workflow passed",
         "Verify rollback staging passed",
         "Verify rollback reviewed change",
-    ):
-        assert step_name in rollback_evidence_block
+    )
 
-    assert "id: production_rollback" in rollback_block
-    assert "failure()" in rollback_block
-    assert "steps.deploy_v2.outcome == 'success'" in rollback_block
-    assert "steps.production_before.outputs.rollback_ref != ''" in rollback_block
+    _has(
+        rollback_block,
+        "id: production_rollback",
+        "failure()",
+        "steps.deploy_v2.outcome == 'success'",
+        "steps.production_before.outputs.rollback_ref != ''",
+    )
     for step_id in (
         "deploy_health",
         "production_infra_smoke",
@@ -2464,23 +2581,23 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
         "production_readonly_e2e",
     ):
         assert f"steps.{step_id}.outcome == 'failure'" in rollback_block
-    assert "rollback_ref" in probe_block
-    assert "health_version" in probe_block
-    assert "git_sha" in probe_block
-    assert (
-        'rollback_ref="${{ steps.rollback_release.outputs.version_ref }}"'
-        in rollback_block
+    _has(probe_block, "rollback_ref", "health_version", "git_sha")
+    _has(
+        rollback_block,
+        'rollback_ref="${{ steps.rollback_release.outputs.version_ref }}"',
     )
-    assert "pre-deploy version" not in rollback_block
-    assert "is not a release tag" not in rollback_block
-    assert "python -m tools.app_deploy_request" in rollback_block
-    assert "python -m tools.app_deploy_transport" in rollback_block
-    assert "--deploy-type prod" in rollback_block
-    assert '--version-ref "$rollback_ref"' in rollback_block
-    assert "--staging-run-url" in rollback_block
-    assert "--reviewed-change-url" in rollback_block
-    assert "bash tools/health_check.sh" in rollback_block
-    assert '"$rollback_ref"' in rollback_block
+    _lacks(rollback_block, "pre-deploy version", "is not a release tag")
+    _has(
+        rollback_block,
+        "python -m tools.app_deploy_request",
+        "python -m tools.app_deploy_transport",
+        "--deploy-type prod",
+        '--version-ref "$rollback_ref"',
+        "--staging-run-url",
+        "--reviewed-change-url",
+        "bash tools/health_check.sh",
+        '"$rollback_ref"',
+    )
     # infra2#588: a rollback target's OWN release evidence (release-images/staging/
     # reviewed-change) is reconstructed from this repo's Actions history, which is
     # blind to a prod version deployed via any other deploy_v2 caller — so this
@@ -2514,17 +2631,11 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
         )
     )
     assert "dokploy_deploy.sh" not in rollback_block
-    assert (
-        "production_rollback_outcome=${{ steps.production_rollback.outcome }}"
-        in workflow
-    )
-    assert (
-        "production_rollback_unavailable_outcome=${{ steps.production_rollback_unavailable.outcome }}"
-        in workflow
-    )
-    assert (
-        "production_before_rollback_ref=${{ steps.production_before.outputs.rollback_ref }}"
-        in workflow
+    _has(
+        workflow,
+        "production_rollback_outcome=${{ steps.production_rollback.outcome }}",
+        "production_rollback_unavailable_outcome=${{ steps.production_rollback_unavailable.outcome }}",
+        "production_before_rollback_ref=${{ steps.production_before.outputs.rollback_ref }}",
     )
     assert "Production release rollback uses the infra2 receiver" in ci_cd
     assert "production_rollback" in inventory
@@ -2545,11 +2656,13 @@ def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
     assert len(promote_blocks) == 2
     assert "docker buildx imagetools create --tag" not in workflow
 
-    assert "Verify staging passed" in workflow
-    assert "Verify Release Images Dry Run" in workflow
-
-    assert '--source-sha "$source_sha"' in workflow
-    assert '"${{ steps.release.outputs.version_ref }}"' in workflow
+    _has(
+        workflow,
+        "Verify staging passed",
+        "Verify Release Images Dry Run",
+        '--source-sha "$source_sha"',
+        '"${{ steps.release.outputs.version_ref }}"',
+    )
 
 
 def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
@@ -2563,9 +2676,7 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     deployment = read("common/runtime/deployment.md")
 
     # AC7.10.1: deploy.yml promotes main-CI SHA images instead of rebuilding.
-    assert (
-        "docker buildx imagetools create --prefer-index=false --tag" in release_images
-    )
+    _has(release_images, "docker buildx imagetools create --prefer-index=false --tag")
     assert "docker/build-push-action" not in release_images
     assert "docker buildx imagetools create --tag" not in workflow
     # short_sha truncation is now covered behaviorally, not by source text —
@@ -2579,27 +2690,31 @@ def test_AC7_10_production_release_promotes_not_rebuilds() -> None:
     )
 
     # AC7.10.2: fails closed if no staging-validated SHA image exists or digests differ
-    assert "Verify staging passed" in workflow
-    assert "Verify release images workflow passed" in workflow
+    _has(workflow, "Verify staging passed", "Verify release images workflow passed")
     assert '"docker", "buildx", "imagetools", "inspect"' in release_image_tool
     assert "tools/verify_release_images.py" in workflow
-    assert "main-CI SHA images not found" in release_images
-    assert 'backend_sha_digest" != "$backend_promoted_digest' in release_images
-    assert 'frontend_sha_digest" != "$frontend_promoted_digest' in release_images
+    _has(
+        release_images,
+        "main-CI SHA images not found",
+        'backend_sha_digest" != "$backend_promoted_digest',
+        'frontend_sha_digest" != "$frontend_promoted_digest',
+    )
 
     # AC7.10.3: summary records released commit, source CI run, digest, and no rebuild
-    assert "Released commit: ${{ steps.release.outputs.full_sha }}" in workflow
-    assert "Source CI run: ${{ steps.source_ci.outputs.run_id }}" in workflow
-    assert "Backend release image digest" in workflow
-    assert "No rebuild occurred" in workflow
+    _has(
+        workflow,
+        "Released commit: ${{ steps.release.outputs.full_sha }}",
+        "Source CI run: ${{ steps.source_ci.outputs.run_id }}",
+        "Backend release image digest",
+        "No rebuild occurred",
+    )
 
     # AC7.10.4: SSOTs document promote-not-rebuild consistency ladder
     assert "promote-not-rebuild consistency ladder" in deployment
     assert "promote-not-rebuild consistency ladder" in ci_cd
 
     # AC7.10.5: workflow_dispatch dry-run proves promote path without mutating
-    assert "Verify Release Images Dry Run" in workflow
-    assert "dry_run:" in workflow
+    _has(workflow, "Verify Release Images Dry Run", "dry_run:")
 
 
 def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
@@ -2613,20 +2728,25 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     upload = read("tests/e2e/test_statement_upload_e2e.py")
     preview_lifecycle = read("tools/_lib/dev/pr_preview_lifecycle")
 
-    assert "post-merge-train-turn:" not in workflow
-    assert "wait_post_merge_train_turn.py" not in workflow
-    assert "workflow_dispatch:" in workflow
-    assert "STAGING_E2E_PRIMARY_MODEL: glm-5.2" in workflow
-    assert "STAGING_E2E_OCR_MODEL: glm-4.6v" in workflow
-    assert "STAGING_E2E_VISION_MODEL: glm-4.6v" in workflow
+    _lacks(workflow, "post-merge-train-turn:", "wait_post_merge_train_turn.py")
+    _has(
+        workflow,
+        "workflow_dispatch:",
+        "STAGING_E2E_PRIMARY_MODEL: glm-5.2",
+        "STAGING_E2E_OCR_MODEL: glm-4.6v",
+        "STAGING_E2E_VISION_MODEL: glm-4.6v",
+    )
     # Marker expression equality is owned by the matrix conformance
     # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
     assert "PARSING_TIMEOUT_MS: 480000" in workflow
     # Staging is manual-only; no workflow_run auto-trigger remains.
     assert "workflow_run" not in workflow
     contract = staging_ai_ocr_contract_shell()
-    assert "test_brokerage_upload_to_portfolio_value.py" in contract
-    assert "test_four_asset_net_worth_golden_path.py" in contract
+    _has(
+        contract,
+        "test_brokerage_upload_to_portfolio_value.py",
+        "test_four_asset_net_worth_golden_path.py",
+    )
     assert "tools/staging_ai_ocr_gate_contract.py --shell" in ai_workflow
     # Marker expression equality is owned by the matrix conformance
     # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
@@ -2635,14 +2755,18 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert "@pytest.mark.llm" in brokerage
     assert "@pytest.mark.llm" in four_asset
     assert upload.count("@pytest.mark.llm") >= 2
-    assert '"ZAI_API_KEY": ""' in preview_lifecycle
-    assert '"AI_BASE_URL": "https://api.z.ai/api/coding/paas/v4"' in preview_lifecycle
-    assert '"OCR_MODEL": "glm-4.6v"' in preview_lifecycle
-    assert '"AI_JSON_TIMEOUT_SECONDS": "360"' in preview_lifecycle
-    assert '"AI_JSON_MAX_TOKENS": "8192"' in preview_lifecycle
-    assert '"AI_JSON_DISABLE_THINKING": "true"' in preview_lifecycle
-    assert "https://api.z.ai/api/coding/paas/v4" in (
-        read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
+    _has(
+        preview_lifecycle,
+        '"ZAI_API_KEY": ""',
+        '"AI_BASE_URL": "https://api.z.ai/api/coding/paas/v4"',
+        '"OCR_MODEL": "glm-4.6v"',
+        '"AI_JSON_TIMEOUT_SECONDS": "360"',
+        '"AI_JSON_MAX_TOKENS": "8192"',
+        '"AI_JSON_DISABLE_THINKING": "true"',
+    )
+    _has(
+        read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"),
+        "https://api.z.ai/api/coding/paas/v4",
     )
     # The preview marker expression is derived from the execution matrix at
     # runtime (#1547/#1556); the llm exclusion is asserted on the SSOT value.
@@ -2664,23 +2788,24 @@ def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
     # PyYAML parses the bare `on:` key as the boolean True.
     triggers = parsed.get("on", parsed.get(True))
     assert isinstance(triggers, dict), "deploy.yml must declare an `on:` map"
-    assert "workflow_dispatch" in triggers, (
-        "staging deploy must be manually dispatchable"
-    )
+    _has(triggers, "workflow_dispatch")
     assert "workflow_run" not in triggers, "staging deploy must NOT auto-follow CI"
 
     # The AI/OCR gate still exists in the staging deploy workflow (as a reusable
     # caller) and inherits its `workflow_dispatch` trigger rather than
     # auto-following a CI `workflow_run`. The gate body lives in the reusable.
-    assert "ai-ocr-gate:" in workflow
-    assert "name: Staging AI/OCR Gate" in workflow
-    assert "uses: ./.github/workflows/staging-ai-ocr-gate.yml" in workflow
+    _has(
+        workflow,
+        "ai-ocr-gate:",
+        "name: Staging AI/OCR Gate",
+        "uses: ./.github/workflows/staging-ai-ocr-gate.yml",
+    )
     assert "Run Staging AI/OCR Gate" in reusable
     assert set(triggers) == {"push", "workflow_dispatch"}
     assert triggers["push"] == {"tags": ["v[0-9]+.[0-9]+.[0-9]+"]}
-    assert (
-        "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}"
-        in workflow
+    _has(
+        workflow,
+        "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}",
     )
     assert "workflow_run" not in triggers
 
@@ -2697,51 +2822,49 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     provider_test = read("tests/e2e/test_ai_provider_connectivity.py")
 
-    assert "provider-gate:" in workflow
-    assert "name: Staging Provider Gate" in workflow
-    assert "needs: [build-and-deploy]" in workflow
-    assert (
-        "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.provider_gate_required == 'true' }}"
-        in workflow
+    _has(
+        workflow,
+        "provider-gate:",
+        "name: Staging Provider Gate",
+        "needs: [build-and-deploy]",
+        "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.provider_gate_required == 'true' }}",
+        "provider_gate_required: ${{ steps.gates.outputs.provider_gate_required }}",
+        "provider_gate_reason: ${{ steps.gates.outputs.provider_gate_reason }}",
+        "provider_status: ${{ steps.ai_provider_connectivity.outputs.provider_status }}",
+        "name: AI Provider Connectivity Smoke",
+        "id: ai_provider_connectivity",
+        "timeout-minutes: 10",
+        "pytest tests/e2e/test_ai_provider_connectivity.py",
     )
-    assert (
-        "provider_gate_required: ${{ steps.gates.outputs.provider_gate_required }}"
-        in workflow
-    )
-    assert (
-        "provider_gate_reason: ${{ steps.gates.outputs.provider_gate_reason }}"
-        in workflow
-    )
-    assert (
-        "provider_status: ${{ steps.ai_provider_connectivity.outputs.provider_status }}"
-        in workflow
-    )
-    assert "name: AI Provider Connectivity Smoke" in workflow
-    assert "id: ai_provider_connectivity" in workflow
-    assert "timeout-minutes: 10" in workflow
-    assert "pytest tests/e2e/test_ai_provider_connectivity.py" in workflow
     # Marker expression equality is owned by the matrix conformance
     # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
-    assert "test-results/staging-provider-connectivity.xml" in workflow
-    assert "provider-connectivity" in workflow
-    assert "provider_connectivity_outcome=" in workflow
+    _has(
+        workflow,
+        "test-results/staging-provider-connectivity.xml",
+        "provider-connectivity",
+        "provider_connectivity_outcome=",
+    )
     build_job = workflow.split("  build-and-deploy:", 1)[1].split(
         "\n  provider-gate:", 1
     )[0]
     provider_job = workflow.split("  provider-gate:", 1)[1].split("\n  ai-ocr-gate:", 1)
     assert "id: ai_provider_connectivity" not in build_job
-    assert "id: ai_provider_connectivity" in provider_job[0]
-    assert (
-        "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in provider_job[0]
+    _has(
+        provider_job[0],
+        "id: ai_provider_connectivity",
+        "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}",
     )
     # The smoke is resilient to transient provider failure: it retries with
     # backoff, hard-fails only on a client/config 4xx
     # (config-failure), and reports a transient 5xx/timeout as a non-blocking
     # degraded status so a provider blip cannot red main.
-    assert "PROVIDER_CONNECTIVITY_RETRIES" in workflow
-    assert "provider_status=config-failure" in workflow
-    assert "provider_status=degraded" in workflow
-    assert "degraded-provider" in workflow
+    _has(
+        workflow,
+        "PROVIDER_CONNECTIVITY_RETRIES",
+        "provider_status=config-failure",
+        "provider_status=degraded",
+        "degraded-provider",
+    )
     provider_smoke = (
         provider_job[0]
         .split("name: AI Provider Connectivity Smoke", 1)[1]
@@ -2751,22 +2874,30 @@ def test_AC8_13_120_staging_runs_lightweight_provider_connectivity_smoke() -> No
         "provider_status=degraded", 1
     )[0]
     degraded_branch = provider_smoke.split("provider_status=degraded", 1)[1]
-    assert "connectivity failed: [0-9]{3}" in provider_smoke
-    assert '[ "$status_code" -ge 400 ]' in provider_smoke
-    assert '[ "$status_code" -lt 500 ]' in provider_smoke
+    _has(
+        provider_smoke,
+        "connectivity failed: [0-9]{3}",
+        '[ "$status_code" -ge 400 ]',
+        '[ "$status_code" -lt 500 ]',
+    )
     assert "exit 1" in config_branch
     assert "exit 0" in degraded_branch
-    assert "provider connectivity smoke" in ci_cd
-    assert "runs only when `provider_gate_required.staging` is true" in ci_cd
-    assert "full OCR/LLM replay remains gated" in ci_cd
-    assert "degraded-provider" in ci_cd
-    assert "transient provider blips do not" in ci_cd
-    assert "@pytest.mark.llm" in provider_test
-    assert "authenticated_page_unique" in provider_test
-    assert "authenticated_page_unique.request.post" in provider_test
-    assert '"/chat"' in provider_test
-    assert "Wait for matching CI success" not in workflow
-    assert "wait_for_github_ci.py" not in workflow
+    _has(
+        ci_cd,
+        "provider connectivity smoke",
+        "runs only when `provider_gate_required.staging` is true",
+        "full OCR/LLM replay remains gated",
+        "degraded-provider",
+        "transient provider blips do not",
+    )
+    _has(
+        provider_test,
+        "@pytest.mark.llm",
+        "authenticated_page_unique",
+        "authenticated_page_unique.request.post",
+        '"/chat"',
+    )
+    _lacks(workflow, "Wait for matching CI success", "wait_for_github_ci.py")
     assert "inherits the deploy workflow's `workflow_dispatch` trigger" in ci_cd
 
 
@@ -2782,24 +2913,24 @@ def test_AC8_13_22_staging_deploys_manually_dispatched_version_ref() -> None:
     assert "workflow_dispatch" in triggers
     assert "workflow_run" not in triggers
 
-    assert "actions: read" in workflow
-    assert "contents: read" in workflow
-    assert "packages: read" in workflow
+    _has(workflow, "actions: read", "contents: read", "packages: read")
     assert set(triggers) == {"push", "workflow_dispatch"}
     assert triggers["push"] == {"tags": ["v[0-9]+.[0-9]+.[0-9]+"]}
-    assert (
-        "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}"
-        in workflow
+    _has(
+        workflow,
+        "if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}",
     )
     assert "Wait for matching CI success" not in workflow
     inputs = triggers["workflow_dispatch"].get("inputs") or {}
     assert "version_ref" in inputs
     assert "tag" not in inputs
     assert inputs["version_ref"].get("required") is False
-    assert "Version ref to deploy (vX.Y.Z release tag)" in workflow
-    assert "tools/resolve_release_coordinate.py" in workflow
-    assert "_RELEASE_VERSION_REF_RE" in resolver
-    assert "version_ref must be a release tag" in resolver
+    _has(
+        workflow,
+        "Version ref to deploy (vX.Y.Z release tag)",
+        "tools/resolve_release_coordinate.py",
+    )
+    _has(resolver, "_RELEASE_VERSION_REF_RE", "version_ref must be a release tag")
     assert "version_ref.strip()" not in resolver
     # The superproject release-tag fetch stays narrow (no --force, only the
     # requested tag, --no-tags so it does not pull every app tag).
@@ -2807,19 +2938,24 @@ def test_AC8_13_22_staging_deploys_manually_dispatched_version_ref() -> None:
     assert '"--no-tags"' in resolver
     assert '"refs/tags/*:refs/tags/*"' not in resolver
     assert 'f"refs/tags/{version_ref}:refs/tags/{version_ref}"' in resolver
-    assert "resolve_infra2_release_tag" not in resolver
-    assert "iac_ref" not in resolver
+    _lacks(resolver, "resolve_infra2_release_tag", "iac_ref")
     assert "VERSION_REF: ${{ inputs.version_ref }}" in workflow
     assert workflow.index("Resolve release coordinate") < workflow.index(
         "Deploy to Staging"
     )
-    assert "Build and push Backend" not in workflow
-    assert "Build and push Frontend" not in workflow
-    assert "Promote Backend Image to Staging Tag" not in workflow
-    assert "python -m tools.app_deploy_request" in workflow
-    assert "python -m tools.app_deploy_transport" in workflow
-    assert "--deploy-type staging" in workflow
-    assert '--version-ref "$version_ref"' in workflow
+    _lacks(
+        workflow,
+        "Build and push Backend",
+        "Build and push Frontend",
+        "Promote Backend Image to Staging Tag",
+    )
+    _has(
+        workflow,
+        "python -m tools.app_deploy_request",
+        "python -m tools.app_deploy_transport",
+        "--deploy-type staging",
+        '--version-ref "$version_ref"',
+    )
 
 
 def test_AC8_13_22_release_coordinate_rejects_non_release_ref() -> None:
@@ -2882,75 +3018,69 @@ def test_AC8_13_36_post_merge_reuses_sha_tagged_staging_images() -> None:
     resolver = read("common/runtime/release_coordinate.py")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    assert "container-images:" in ci_workflow
-    assert "name: Build Staging Images" in ci_workflow
+    _has(ci_workflow, "container-images:", "name: Build Staging Images")
     container_block = ci_workflow.split("  container-images:", 1)[1].split(
         "  tooling-coverage:", 1
     )[0]
     assert "needs: [changes]" in container_block
-    assert "lint" not in container_block.split("steps:", 1)[0]
-    assert "ac-traceability" not in container_block.split("steps:", 1)[0]
-    assert "needs.changes.outputs.pr_required == 'true'" in ci_workflow
-    assert (
-        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
-        in ci_workflow
+    _lacks(container_block.split("steps:", 1)[0], "lint", "ac-traceability")
+    _has(
+        ci_workflow,
+        "needs.changes.outputs.pr_required == 'true'",
+        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'",
+        "packages: write",
+        "Build Backend SHA image",
+        "Build Frontend SHA image",
+        "full_sha=$(git rev-parse HEAD)",
+        'short_sha="${full_sha:0:7}"',
+        "push: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch' }}",
+        "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}",
+        "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}",
     )
-    assert "packages: write" in ci_workflow
-    assert "Build Backend SHA image" in ci_workflow
-    assert "Build Frontend SHA image" in ci_workflow
-    assert "full_sha=$(git rev-parse HEAD)" in ci_workflow
-    assert 'short_sha="${full_sha:0:7}"' in ci_workflow
-    assert (
-        "push: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch' }}"
-        in ci_workflow
-    )
-    assert (
-        "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.get_sha.outputs.short_sha }}"
-        in ci_workflow
-    )
-    assert (
-        "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.get_sha.outputs.short_sha }}"
-        in ci_workflow
-    )
-    assert "backend:staging" not in ci_workflow
-    assert "frontend:staging" not in ci_workflow
+    _lacks(ci_workflow, "backend:staging", "frontend:staging")
 
-    assert "Release Images" in release_workflow
-    assert "tags: ['v[0-9]+.[0-9]+.[0-9]+']" in release_workflow
-    assert 'full_sha="$(git rev-parse "$GITHUB_SHA")"' in release_workflow
-    assert 'short_sha="${full_sha:0:7}"' in release_workflow
-    assert (
-        "docker buildx imagetools create --prefer-index=false --tag" in release_workflow
+    _has(
+        release_workflow,
+        "Release Images",
+        "tags: ['v[0-9]+.[0-9]+.[0-9]+']",
+        'full_sha="$(git rev-parse "$GITHUB_SHA")"',
+        'short_sha="${full_sha:0:7}"',
+        "docker buildx imagetools create --prefer-index=false --tag",
+        "Backend digests differ!",
+        "Frontend digests differ!",
     )
-    assert "Backend digests differ!" in release_workflow
-    assert "Frontend digests differ!" in release_workflow
 
-    assert "Resolve Backend Image" not in deploy_workflow
-    assert "Resolve Frontend Image" not in deploy_workflow
-    assert "tools/check_ghcr_image_tag.sh" not in deploy_workflow
-    assert "Build and push Backend" not in deploy_workflow
-    assert "Build and push Frontend" not in deploy_workflow
-    assert "Promote Backend Image to Staging Tag" not in deploy_workflow
-    assert "VERSION_REF: ${{ inputs.version_ref }}" in deploy_workflow
-    assert "tools/resolve_release_coordinate.py" in deploy_workflow
-    assert '"git", "rev-parse", "HEAD"' in resolver
-    assert '"short_sha": full_sha[:7]' in resolver
+    _lacks(
+        deploy_workflow,
+        "Resolve Backend Image",
+        "Resolve Frontend Image",
+        "tools/check_ghcr_image_tag.sh",
+        "Build and push Backend",
+        "Build and push Frontend",
+        "Promote Backend Image to Staging Tag",
+    )
+    _has(
+        deploy_workflow,
+        "VERSION_REF: ${{ inputs.version_ref }}",
+        "tools/resolve_release_coordinate.py",
+    )
+    _has(resolver, '"git", "rev-parse", "HEAD"', '"short_sha": full_sha[:7]')
     assert deploy_workflow.index("Resolve release coordinate") < deploy_workflow.index(
         "Deploy to Staging"
     )
-    assert (
-        "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.release.outputs.version_ref }}"
-        in deploy_workflow
-    )
-    assert (
-        "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.release.outputs.version_ref }}"
-        in deploy_workflow
+    _has(
+        deploy_workflow,
+        "backend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend:${{ steps.release.outputs.version_ref }}",
+        "frontend_image=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend:${{ steps.release.outputs.version_ref }}",
     )
 
-    assert "SHA-tagged images" in ci_cd
-    assert "deploy.yml" in ci_cd
-    assert "promotes main-CI SHA images to the immutable release tag" in ci_cd
-    assert "staging deploy consumes the release tag without rebuilding" in ci_cd
+    _has(
+        ci_cd,
+        "SHA-tagged images",
+        "deploy.yml",
+        "promotes main-CI SHA images to the immutable release tag",
+        "staging deploy consumes the release tag without rebuilding",
+    )
 
 
 def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
@@ -2968,13 +3098,13 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
 
     # PR path still gates the dry-run on pr_required + image_build_required; a
     # main/release push always builds (immutable :<sha> for promote-not-rebuild).
-    assert (
-        "needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.image_build_required == 'true'"
-        in container_block
+    _has(
+        container_block,
+        "needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.image_build_required == 'true'",
     )
-    assert (
-        "if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch'"
-        in login_block
+    _has(
+        login_block,
+        "if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch'",
     )
     assert container_block.count("uses: docker/build-push-action@v7") == 2
     assert (
@@ -2983,11 +3113,13 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
         )
         == 2
     )
-    assert "Build Backend SHA image" in container_block
-    assert "Build Frontend SHA image" in container_block
+    _has(container_block, "Build Backend SHA image", "Build Frontend SHA image")
     assert "Container image validation failed" in finish_block
-    assert "PR CI dry-runs staging image builds before merge" in ci_cd
-    assert "Main and release-branch push CI, plus on-demand" in ci_cd
+    _has(
+        ci_cd,
+        "PR CI dry-runs staging image builds before merge",
+        "Main and release-branch push CI, plus on-demand",
+    )
 
 
 def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
@@ -3011,41 +3143,54 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
     # workflow_run, which a fast/auto merge could outrun) so it is a real required
     # check before merge. Preview stays on-demand (deploy-preview = workflow_dispatch).
     assert "workflow_run:" not in workflow
-    assert "types: [opened, synchronize, reopened, closed]" in workflow
-    assert 'action = "deploy"' in workflow
-    assert 'action_reason = "pull-request-sync"' in workflow
-    assert 'action = "cleanup"' in workflow
-    assert "github.event.pull_request.number" in workflow
-    assert "gate-cheap-ci:" not in workflow
-    assert "tools/wait_for_cheap_ci.py" not in workflow
+    _has(
+        workflow,
+        "types: [opened, synchronize, reopened, closed]",
+        'action = "deploy"',
+        'action_reason = "pull-request-sync"',
+        'action = "cleanup"',
+        "github.event.pull_request.number",
+    )
+    _lacks(workflow, "gate-cheap-ci:", "tools/wait_for_cheap_ci.py")
     # No PR preview IMAGES are built/pushed/preflighted in CI: the persistent
     # preview is built from source on the Dokploy host instead.
-    assert "build-preview-backend-image:" not in workflow
-    assert "build-preview-frontend-image:" not in workflow
-    assert "Preflight PR preview image tags" not in workflow
-    assert "docker/build-push-action@v7" not in workflow
-    assert "push: true" not in workflow
-    assert "packages: write" not in workflow
+    _lacks(
+        workflow,
+        "build-preview-backend-image:",
+        "build-preview-frontend-image:",
+        "Preflight PR preview image tags",
+        "docker/build-push-action@v7",
+        "push: true",
+        "packages: write",
+    )
     # Persistent preview: non-blocking deploy job, after the in-runner E2E gate,
     # building from the PR source on the Dokploy host (no image pull/push).
     assert "deploy-preview:" in workflow
     assert "needs: [setup, e2e]" in deploy_block
     assert "needs.e2e.result == 'success'" in workflow
-    assert "continue-on-error: true" in deploy_block
-    assert "--action deploy" in deploy_block
-    assert "--github-integration-id" in deploy_block
-    assert "build from source on Dokploy host" in deploy_block
+    _has(
+        deploy_block,
+        "continue-on-error: true",
+        "--action deploy",
+        "--github-integration-id",
+        "build from source on Dokploy host",
+    )
     # The preview compose builds backend/frontend from source (no image pull).
-    assert "context: ./apps/backend" in pr_preview_compose
-    assert "context: ./apps/frontend" in pr_preview_compose
+    _has(pr_preview_compose, "context: ./apps/backend", "context: ./apps/frontend")
     assert "pull_policy: always" not in pr_preview_compose
-    assert "GIT_COMMIT_SHA: ${{ needs.setup.outputs.head_sha }}" in e2e_block
-    assert "EXPECTED_SHA: ${{ needs.setup.outputs.head_sha }}" in e2e_block
-    assert "APP_URL: http://localhost:8080" in e2e_block
-    assert "docker compose up --build" in e2e_block
-    assert "docker compose down --volumes --remove-orphans" in e2e_block
-    assert "ARG GIT_COMMIT_SHA=unknown" in frontend_dockerfile
-    assert "ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}" in frontend_dockerfile
+    _has(
+        e2e_block,
+        "GIT_COMMIT_SHA: ${{ needs.setup.outputs.head_sha }}",
+        "EXPECTED_SHA: ${{ needs.setup.outputs.head_sha }}",
+        "APP_URL: http://localhost:8080",
+        "docker compose up --build",
+        "docker compose down --volumes --remove-orphans",
+    )
+    _has(
+        frontend_dockerfile,
+        "ARG GIT_COMMIT_SHA=unknown",
+        "ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}",
+    )
     assert "process.env.GIT_COMMIT_SHA" in frontend_version_route
     assert "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}" in frontend_compose_block
     assert (
@@ -3056,21 +3201,26 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
         )
         == 2
     )
-    assert "Wait for stack readiness" in e2e_block
-    assert "End-to-End Tests" in e2e_block
+    _has(e2e_block, "Wait for stack readiness", "End-to-End Tests")
     assert e2e_block.index("Wait for stack readiness") < e2e_block.index(
         "End-to-End Tests"
     )
-    assert 'curl -fsS "$APP_URL/api/health"' in e2e_block
-    assert "bash tools/smoke_test.sh" in e2e_block
-    assert "no PR preview image is pushed" in e2e_block
+    _has(
+        e2e_block,
+        'curl -fsS "$APP_URL/api/health"',
+        "bash tools/smoke_test.sh",
+        "no PR preview image is pushed",
+    )
     assert "Delete GHCR images" not in cleanup_block
     assert "pr_preview_images=not-created" in cleanup_block
-    assert "synchronously on `pull_request`" in ci_cd
-    assert "does not push, preflight, pull, or delete PR preview images" in ci_cd
-    assert "built from the PR source on the Dokploy host" in ci_cd
-    assert "not the infra2 `deploy_v2 preview/*` front door" in ci_cd
-    assert "The runner stack waits for `/api/health` before smoke/E2E" in ci_cd
+    _has(
+        ci_cd,
+        "synchronously on `pull_request`",
+        "does not push, preflight, pull, or delete PR preview images",
+        "built from the PR source on the Dokploy host",
+        "not the infra2 `deploy_v2 preview/*` front door",
+        "The runner stack waits for `/api/health` before smoke/E2E",
+    )
 
 
 def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
@@ -3080,43 +3230,28 @@ def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
     assert "post-merge-train-turn:" not in deploy_workflow
-    assert "name: Classify staging and AI/OCR relevance" in deploy_workflow
-    assert "ai-ocr-gate:" in deploy_workflow
-    assert "needs: [build-and-deploy]" in deploy_workflow
-    assert (
-        "ai_ocr_required: ${{ steps.gates.outputs.ai_ocr_required }}" in deploy_workflow
-    )
-    assert (
-        "PROVIDER_GATE_REQUIRED: ${{ steps.classify.outputs.provider_gate_required }}"
-        in deploy_workflow
-    )
-    assert (
-        "STAGING_AI_OCR_REQUIRED: ${{ steps.classify.outputs.staging_ai_ocr_required }}"
-        in deploy_workflow
-    )
-    assert (
-        "STAGING_AI_OCR_REASON: ${{ steps.classify.outputs.staging_ai_ocr_reason }}"
-        in deploy_workflow
-    )
-    assert "commit_full_sha: ${{ steps.release.outputs.full_sha }}" in deploy_workflow
-    assert (
-        "deployed_version_ref: ${{ steps.release.outputs.version_ref }}"
-        in deploy_workflow
-    )
-    assert (
-        "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}" in deploy_workflow
-    )
-    assert (
-        "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}"
-        in deploy_workflow
+    _has(
+        deploy_workflow,
+        "name: Classify staging and AI/OCR relevance",
+        "ai-ocr-gate:",
+        "needs: [build-and-deploy]",
+        "ai_ocr_required: ${{ steps.gates.outputs.ai_ocr_required }}",
+        "PROVIDER_GATE_REQUIRED: ${{ steps.classify.outputs.provider_gate_required }}",
+        "STAGING_AI_OCR_REQUIRED: ${{ steps.classify.outputs.staging_ai_ocr_required }}",
+        "STAGING_AI_OCR_REASON: ${{ steps.classify.outputs.staging_ai_ocr_reason }}",
+        "commit_full_sha: ${{ steps.release.outputs.full_sha }}",
+        "deployed_version_ref: ${{ steps.release.outputs.version_ref }}",
+        "ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}",
+        "EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}",
     )
     assert 'workflows: ["Deploy Staging"]' not in ai_workflow
     assert "serialized deploy workflow unit" in ci_cd
     assert "in-job FIFO" not in ci_cd
-    assert (
-        "test code, audit context, and deployed image under validation aligned" in ci_cd
+    _has(
+        ci_cd,
+        "test code, audit context, and deployed image under validation aligned",
+        "only one `Deploy Staging` run mutates staging at a time",
     )
-    assert "only one `Deploy Staging` run mutates staging at a time" in ci_cd
 
 
 def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate() -> (
@@ -3128,20 +3263,21 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     project_readme = read("docs/project/README.md")
 
-    assert (
-        "uv run --with pyyaml python tools/generate_ac_registry.py --check" in workflow
+    _has(
+        workflow,
+        "uv run --with pyyaml python tools/generate_ac_registry.py --check",
+        'tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
+        "uses: actions/upload-artifact@v7",
+        "name: ac-test-traceability-audit",
     )
-    assert (
-        'tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"'
-        in workflow
-    )
-    assert "uses: actions/upload-artifact@v7" in workflow
-    assert "name: ac-test-traceability-audit" in workflow
     assert "tools/build_ac_traceability.py --check" not in workflow
     assert "CI uploads the generated audit as an artifact" in audit_builder
     assert "uploaded as a CI artifact" in ci_cd
-    assert "Do not commit generated audit snapshots in routine" in project_readme
-    assert "issue #548" in project_readme
+    _has(
+        project_readme,
+        "Do not commit generated audit snapshots in routine",
+        "issue #548",
+    )
 
 
 def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> None:
@@ -3180,17 +3316,16 @@ def test_AC8_13_25_full_ci_aggregates_static_traceability_and_test_gates() -> No
         "frontend-vitest",
     }
     assert workflow_data["jobs"]["ac-traceability"]["if"] == "${{ always() }}"
-    assert (
-        "needs: [changes, schema-migrations, backend, backend-integration, frontend-build, "
-        "frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, "
-        "verify-sha-image-published, lint, tooling-coverage, "
-        "unified-coverage, ac-traceability, ac-behavioral-ratchet]" in finish_block
+    _has(
+        finish_block,
+        "needs: [changes, schema-migrations, backend, backend-integration, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]",
     )
-    assert "late evidence consumer" in ci_cd
-    assert (
-        "Deterministic test and image jobs start after change classification" in ci_cd
+    _has(
+        ci_cd,
+        "late evidence consumer",
+        "Deterministic test and image jobs start after change classification",
+        "finish remains the authoritative aggregate gate",
     )
-    assert "finish remains the authoritative aggregate gate" in ci_cd
 
 
 def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
@@ -3226,12 +3361,13 @@ def test_AC8_13_86_fast_feedback_jobs_do_not_wait_for_behavior_gates() -> None:
         "frontend-vitest",
     }
     assert workflow_data["jobs"]["ac-traceability"]["if"] == "${{ always() }}"
-    assert "Standalone lint starts immediately" in ci_cd
-    assert (
-        "Deterministic test and image jobs start after change classification" in ci_cd
+    _has(
+        ci_cd,
+        "Standalone lint starts immediately",
+        "Deterministic test and image jobs start after change classification",
+        "Behavior-only backend gates run in parallel",
+        "`ac-traceability` is intentionally a late evidence consumer",
     )
-    assert "Behavior-only backend gates run in parallel" in ci_cd
-    assert "`ac-traceability` is intentionally a late evidence consumer" in ci_cd
 
 
 def test_AC8_13_94_env_and_pipeline_stage_contract_is_documented() -> None:
@@ -3240,7 +3376,8 @@ def test_AC8_13_94_env_and_pipeline_stage_contract_is_documented() -> None:
     environments = read("common/runtime/environments.md")
     readme = read("README.md")
 
-    for token in (
+    _has(
+        ci_cd,
         "Environment Axis",
         "Pipeline Stage Axis",
         "Env x Stage Execution Matrix",
@@ -3256,16 +3393,15 @@ def test_AC8_13_94_env_and_pipeline_stage_contract_is_documented() -> None:
         "Local runs are fast advisory gates",
         "PR CI is the deterministic merge authority",
         "deployed-environment proof gates",
-    ):
-        assert token in ci_cd
-
-    assert "not every environment runs every pipeline stage" in ci_cd
-    assert "environment taxonomy, pipeline stages, and GitHub Actions jobs" in ci_cd
-    assert (
-        "Environment taxonomy is not the delivery pipeline stage count" in environments
     )
-    assert "Local fast feedback" in readme
-    assert "PR CI is the authoritative merge gate" in readme
+
+    _has(
+        ci_cd,
+        "not every environment runs every pipeline stage",
+        "environment taxonomy, pipeline stages, and GitHub Actions jobs",
+    )
+    _has(environments, "Environment taxonomy is not the delivery pipeline stage count")
+    _has(readme, "Local fast feedback", "PR CI is the authoritative merge gate")
 
 
 def test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented() -> None:
@@ -3274,7 +3410,8 @@ def test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented() -> Non
     development = read("common/meta/development.md")
     readme = read("README.md")
 
-    for token in (
+    _has(
+        ci_cd,
         "Path Risk to Local Gate Matrix",
         "accounting, posting, reconciliation, money, balance",
         "schema, migrations",
@@ -3282,14 +3419,15 @@ def test_AC8_13_95_local_fast_gate_and_escalation_policy_are_documented() -> Non
         "shared common/tooling",
         "Docker, workflow, environment, deploy",
         "docs-only",
-    ):
-        assert token in ci_cd
+    )
 
-    assert "Default local verification starts with affected fast tests" in development
-    assert "moon run :test -- --smart" in development
-    assert "Risk-triggered local escalation" in development
-    assert "Default local loop" in readme
-    assert "risk-triggered escalation" in readme
+    _has(
+        development,
+        "Default local verification starts with affected fast tests",
+        "moon run :test -- --smart",
+        "Risk-triggered local escalation",
+    )
+    _has(readme, "Default local loop", "risk-triggered escalation")
 
 
 def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
@@ -3300,9 +3438,9 @@ def test_AC8_13_67_backend_tier1_api_e2e_scope_excludes_browser_e2e() -> None:
     matrix_yaml = yaml.safe_load(read("common/testing/data/test-execution-matrix.yaml"))
 
     assert "backend-e2e-tier1:" not in workflow
-    assert (
-        "e2e: End-to-end tests, including backend API scenarios and browser UI flows"
-        in pyproject
+    _has(
+        pyproject,
+        "e2e: End-to-end tests, including backend API scenarios and browser UI flows",
     )
     assert "test-execution-matrix.yaml" in ci_cd
     # Legacy apps/backend/tests/e2e/test_core_journeys.py has been consolidated into Bench V2
@@ -3323,34 +3461,48 @@ def test_AC8_13_27_coveralls_uploads_are_reporting_only() -> None:
         "- name: Upload main unified coverage to Coveralls", 1
     )[1].split("  ac-traceability:", 1)[0]
 
-    assert (
-        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
-        in unified_block
+    _has(
+        unified_block,
+        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'",
     )
-    assert "Upload backend to Coveralls (per-flag)" not in workflow
-    assert "Upload frontend to Coveralls (per-flag)" not in workflow
+    _lacks(
+        workflow,
+        "Upload backend to Coveralls (per-flag)",
+        "Upload frontend to Coveralls (per-flag)",
+    )
     global_permissions = workflow.split("env:", 1)[0]
     unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
         "  ac-traceability:", 1
     )[0]
     assert "statuses: write" not in global_permissions
     assert "statuses: write" not in unified_coverage_block
-    assert "Mark Coveralls statuses reporting-only" not in workflow
-    assert "tools/mark_coveralls_reporting_status.py" not in workflow
-    assert "publish_coveralls_reporting_statuses" not in workflow
-    assert "Wait for Coveralls unified status" not in workflow
-    assert "mark_coveralls_reporting_status.py" not in workflow
-    assert "wait_for_github_status.py" not in workflow
-    assert "Write coverage gate summary" in workflow
-    assert "Authoritative coverage gate" in workflow
-    assert "Pull requests do not publish Coveralls status contexts" in workflow
-    assert "Pull requests do not call Coveralls" in ci_cd
-    assert "coverage gate summary" in ci_cd
-    assert "Coveralls badge is reporting-only" in coverage
-    assert "authoritative coverage gate" in coverage
-    assert "PR CI does not call Coveralls" in coverage
-    assert "Pull requests do not publish" in readme
-    assert "merge readiness follows the `finish` check" in readme
+    _lacks(
+        workflow,
+        "Mark Coveralls statuses reporting-only",
+        "tools/mark_coveralls_reporting_status.py",
+        "publish_coveralls_reporting_statuses",
+        "Wait for Coveralls unified status",
+        "mark_coveralls_reporting_status.py",
+        "wait_for_github_status.py",
+    )
+    _has(
+        workflow,
+        "Write coverage gate summary",
+        "Authoritative coverage gate",
+        "Pull requests do not publish Coveralls status contexts",
+    )
+    _has(ci_cd, "Pull requests do not call Coveralls", "coverage gate summary")
+    _has(
+        coverage,
+        "Coveralls badge is reporting-only",
+        "authoritative coverage gate",
+        "PR CI does not call Coveralls",
+    )
+    _has(
+        readme,
+        "Pull requests do not publish",
+        "merge readiness follows the `finish` check",
+    )
 
 
 def test_AC8_13_75_coverage_gate_summary_is_nonblocking() -> None:
@@ -3361,11 +3513,14 @@ def test_AC8_13_75_coverage_gate_summary_is_nonblocking() -> None:
         "- name: Check job status", 1
     )[0]
 
-    assert "if: ${{ always() }}" in summary_block
-    assert "continue-on-error: true" in summary_block
-    assert "Authoritative coverage gate" in summary_block
-    assert "badge/trend reporting only" in summary_block
-    assert "Merge readiness follows" in summary_block
+    _has(
+        summary_block,
+        "if: ${{ always() }}",
+        "continue-on-error: true",
+        "Authoritative coverage gate",
+        "badge/trend reporting only",
+        "Merge readiness follows",
+    )
 
 
 def test_AC8_13_75_unified_coverage_uploads_debug_context() -> None:
@@ -3384,25 +3539,33 @@ def test_AC8_13_75_unified_coverage_uploads_debug_context() -> None:
         "- name: Upload unified coverage context", 1
     )[1].split("# Note: baseline auto-push removed", 1)[0]
 
-    assert "Tooling/Common Coverage" in tooling_coverage_block
-    assert "Run tooling tests with coverage" in tooling_coverage_block
-    assert "Upload tooling coverage context" in tooling_coverage_block
-    assert "name: coverage-tooling" in tooling_coverage_block
-    assert "--cov=common" in tooling_coverage_block
-    assert "--cov=tools" in tooling_coverage_block
+    _has(
+        tooling_coverage_block,
+        "Tooling/Common Coverage",
+        "Run tooling tests with coverage",
+        "Upload tooling coverage context",
+        "name: coverage-tooling",
+        "--cov=common",
+        "--cov=tools",
+    )
     assert "Run tooling tests with coverage" not in unified_coverage_block
-    assert "Download tooling coverage" in unified_coverage_block
-    assert "Write coverage debug context" in unified_coverage_block
-    assert "if: ${{ always() }}" in upload_block
-    assert "name: unified-coverage-context" in upload_block
-    assert "coverage/backend.lcov" in upload_block
-    assert "coverage/frontend.lcov" in upload_block
-    assert "coverage/common.lcov" in upload_block
-    assert "coverage/tools.lcov" in upload_block
-    assert "coverage/coverage-context.txt" in upload_block
-    assert "unified-coverage.json" in upload_block
-    assert "coverage context artifact" in coverage
-    assert "unified-coverage-context" in coverage
+    _has(
+        unified_coverage_block,
+        "Download tooling coverage",
+        "Write coverage debug context",
+    )
+    _has(
+        upload_block,
+        "if: ${{ always() }}",
+        "name: unified-coverage-context",
+        "coverage/backend.lcov",
+        "coverage/frontend.lcov",
+        "coverage/common.lcov",
+        "coverage/tools.lcov",
+        "coverage/coverage-context.txt",
+        "unified-coverage.json",
+    )
+    _has(coverage, "coverage context artifact", "unified-coverage-context")
     assert "raw line-count inputs" in ci_cd
 
 
@@ -3424,24 +3587,25 @@ def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main
         "- name: Open unified coverage baseline PR", 1
     )[1]
 
-    assert "permissions:" in unified_coverage_block
-    assert "contents: read" in unified_coverage_block
-    assert "contents: write" not in unified_coverage_block
-    assert "pull-requests: write" not in unified_coverage_block
-    assert "needs: [changes, unified-coverage]" in baseline_job_block
-    assert "contents: write" in baseline_job_block
-    assert "pull-requests: write" in baseline_job_block
-    assert (
-        "if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.pr_required == 'true' && needs.unified-coverage.result == 'success'"
-        in baseline_job_block
+    _has(unified_coverage_block, "permissions:", "contents: read")
+    _lacks(unified_coverage_block, "contents: write", "pull-requests: write")
+    _has(
+        baseline_job_block,
+        "needs: [changes, unified-coverage]",
+        "contents: write",
+        "pull-requests: write",
+        "if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.pr_required == 'true' && needs.unified-coverage.result == 'success'",
+        "name: unified-coverage-context",
     )
-    assert "name: unified-coverage-context" in baseline_job_block
     # The baseline content still comes from the uploaded coverage context; the
     # rise-only merge reads it instead of a blind cp (which folded dips in).
     tool_impl = read("common/testing/unified_coverage_baseline_pr.py")
-    assert "tools/open_unified_coverage_baseline_pr.py" in baseline_block
-    assert "--coverage-context coverage-context/unified-coverage.json" in baseline_block
-    assert "BASELINE_BRANCH: automation/unified-coverage-baseline" in baseline_block
+    _has(
+        baseline_block,
+        "tools/open_unified_coverage_baseline_pr.py",
+        "--coverage-context coverage-context/unified-coverage.json",
+        "BASELINE_BRANCH: automation/unified-coverage-baseline",
+    )
     # Quantized-rise guard (replaces the old byte-level `git diff --quiet`,
     # which churned a baseline PR on every ±1 covered-line jitter) and a plain
     # --force push (not leased: the shallow CI checkout never fetches the bot
@@ -3460,8 +3624,7 @@ def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main
     assert "[skip ci]" not in baseline_block
     assert "unified-coverage-baseline-pr" not in workflow.split("  finish:", 1)[1]
     assert "automatic baseline PR" in ci_cd
-    assert "task_category: coverage_fan_in" in inventory
-    assert "baseline_update_pr_on_main" in inventory
+    _has(inventory, "task_category: coverage_fan_in", "baseline_update_pr_on_main")
 
 
 def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
@@ -3470,20 +3633,27 @@ def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:
     coverage = read("common/testing/coverage.md")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    assert (
-        "tools/build_unified_lcov.py coverage/coveralls-unified.lcov --strip-branches"
-        in workflow
+    _has(
+        workflow,
+        "tools/build_unified_lcov.py coverage/coveralls-unified.lcov --strip-branches",
+        "file: coverage/coveralls-unified.lcov",
     )
-    assert "file: coverage/coveralls-unified.lcov" in workflow
-    assert "file: coverage/coveralls-backend.lcov" not in workflow
-    assert "file: coverage/coveralls-frontend.lcov" not in workflow
-    assert (
-        "if: github.event_name == 'push' && github.ref == 'refs/heads/main'" in workflow
+    _lacks(
+        workflow,
+        "file: coverage/coveralls-backend.lcov",
+        "file: coverage/coveralls-frontend.lcov",
     )
-    assert "Coveralls upload LCOV files are line-only" in coverage
-    assert "Coveralls is a main-branch external reporting baseline only" in coverage
-    assert "Coverage scope is deny-list based within each governed source root" in ci_cd
-    assert "strip branch records before upload" in ci_cd
+    _has(workflow, "if: github.event_name == 'push' && github.ref == 'refs/heads/main'")
+    _has(
+        coverage,
+        "Coveralls upload LCOV files are line-only",
+        "Coveralls is a main-branch external reporting baseline only",
+    )
+    _has(
+        ci_cd,
+        "Coverage scope is deny-list based within each governed source root",
+        "strip branch records before upload",
+    )
 
 
 def test_AC8_13_93_staging_promotion_requires_manual_dispatch() -> None:
@@ -3507,8 +3677,7 @@ def test_AC8_13_93_staging_promotion_requires_manual_dispatch() -> None:
 
     # The retired auto-deploy machinery (the dedicated "CI Workflow Run Ignored"
     # skip-summary job that fired on a non-success CI workflow_run) is gone.
-    assert "ci-not-success-summary:" not in workflow
-    assert "name: CI Workflow Run Ignored" not in workflow
+    _lacks(workflow, "ci-not-success-summary:", "name: CI Workflow Run Ignored")
 
     # The staging build-and-deploy job and Dokploy mutation only run on the
     # staging manual target; a bare event-only guard would be too weak now that
@@ -3519,7 +3688,8 @@ def test_AC8_13_93_staging_promotion_requires_manual_dispatch() -> None:
     failure_context = workflow.split("Classify staging deploy failure context", 1)[
         1
     ].split("Write staging deploy context", 1)[0]
-    for expected_line in [
+    _has(
+        failure_context,
         "id: deploy_failure_context",
         '"toolchain/uv-install"',
         '"toolchain/python-setup"',
@@ -3530,12 +3700,14 @@ def test_AC8_13_93_staging_promotion_requires_manual_dispatch() -> None:
         "Failure domain: ${failure_domain}",
         "Failed step: ${failed_step}",
         "Failure summary: ${failure_summary}",
-    ]:
-        assert expected_line in failure_context
+    )
 
-    assert "Staging deploy is manual" in ci_cd
-    assert "does not poll or wait for CI" in ci_cd
-    assert "failure domain, failed step, and failure summary" in ci_cd
+    _has(
+        ci_cd,
+        "Staging deploy is manual",
+        "does not poll or wait for CI",
+        "failure domain, failed step, and failure summary",
+    )
     assert "manual" in deployment.lower()
 
 
@@ -3556,12 +3728,11 @@ def test_AC8_13_45_root_moon_tasks_use_explicit_app_workspace_inputs() -> None:
     moon = yaml.safe_load(read("moon.yml"))
 
     workspace_inputs = moon["fileGroups"]["workspace"]
-    assert "repo" not in workspace_inputs
-    assert "**/*" not in workspace_inputs
-    assert "common/**/*" in workspace_inputs
-    assert "tools/**/*" in workspace_inputs
-    assert "uncached wrappers with explicit workspace inputs" in read(
-        "common/meta/development.md"
+    _lacks(workspace_inputs, "repo", "**/*")
+    _has(workspace_inputs, "common/**/*", "tools/**/*")
+    _has(
+        read("common/meta/development.md"),
+        "uncached wrappers with explicit workspace inputs",
     )
 
     for task_name in ("setup", "dev", "test", "lint", "build", "clean"):
@@ -3591,12 +3762,12 @@ def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() 
     # (common/testing/matrix.py, #1547/#1556): the workflow carries no
     # hardcoded test list; full conformance is gated in
     # tests/tooling/test_execution_matrix_contract.py (AC8.22).
-    assert (
-        'eval "$(python tools/test_selection.py --stage pr_preview_e2e --shell)"'
-        in preview_block
+    _has(
+        preview_block,
+        'eval "$(python tools/test_selection.py --stage pr_preview_e2e --shell)"',
+        'pytest "${PR_PREVIEW_E2E_TESTS[@]}"',
+        '-m "$PR_PREVIEW_E2E_MARKER"',
     )
-    assert 'pytest "${PR_PREVIEW_E2E_TESTS[@]}"' in preview_block
-    assert '-m "$PR_PREVIEW_E2E_MARKER"' in preview_block
     assert "tests/e2e/" not in preview_block
 
     from common.testing import matrix
@@ -3617,21 +3788,16 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     lifecycle = read("tools/_lib/dev/pr_preview_lifecycle")
 
-    assert (
-        "PR preview Dokploy API responses are parsed for required fields only" in ci_cd
-    )
+    _has(ci_cd, "PR preview Dokploy API responses are parsed for required fields only")
     # Deploy goes through pr_preview_lifecycle.py (no hand-rolled Dokploy curl), so
     # it logs no raw responses.
-    assert "Deploy preview lifecycle" in preview
-    assert "--action deploy" in preview
+    _has(preview, "Deploy preview lifecycle", "--action deploy")
     # Reclaim is infra2-owned: no app-side cleanup/reconcile; on PR close the app
     # only dispatches a vendor-neutral teardown signal to infra2.
-    assert "--action cleanup" not in preview
-    assert "--action reconcile" not in preview
+    _lacks(preview, "--action cleanup", "--action reconcile")
     assert "preview-teardown" in preview
     assert "Response body" not in lifecycle
-    assert "raw_body_printed: false" in lifecycle
-    assert "safe_message" in lifecycle
+    _has(lifecycle, "raw_body_printed: false", "safe_message")
 
     unsafe_patterns = (
         r"response=\$\(curl[^)]*/compose\.create",
@@ -3665,25 +3831,22 @@ def test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unkno
     ]:
         assert f"id: {step_id}" in workflow
 
-    assert '"classification"' in failure_context
-    assert '"release-coordinate-resolution"' in failure_context
-    assert '"change-classification"' in failure_context
-    assert (
-        "Change classification failed before staging relevance could be trusted."
-        in failure_context
+    _has(
+        failure_context,
+        '"classification"',
+        '"release-coordinate-resolution"',
+        '"change-classification"',
+        "Change classification failed before staging relevance could be trusted.",
+        '"toolchain/uv-install"',
+        '"toolchain/python-setup"',
+        '"toolchain/deploy-v2-deps"',
+        '"deploy-v2-rollout"',
+        '"staging-route-health"',
+        '"unclassified-build-deploy-failure"',
+        "A build/deploy job step failed outside the known failure map.",
+        "STEPS_CONTEXT: ${{ toJSON(steps) }}",
+        'grep -q \'"outcome":"failure"\'',
     )
-    assert '"toolchain/uv-install"' in failure_context
-    assert '"toolchain/python-setup"' in failure_context
-    assert '"toolchain/deploy-v2-deps"' in failure_context
-    assert '"deploy-v2-rollout"' in failure_context
-    assert '"staging-route-health"' in failure_context
-    assert '"unclassified-build-deploy-failure"' in failure_context
-    assert (
-        "A build/deploy job step failed outside the known failure map."
-        in failure_context
-    )
-    assert "STEPS_CONTEXT: ${{ toJSON(steps) }}" in failure_context
-    assert 'grep -q \'"outcome":"failure"\'' in failure_context
     assert failure_context.index('"change-classification"') < failure_context.index(
         'staging_required" != "true"'
     )
@@ -3695,7 +3858,8 @@ def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
     project_readme = read("docs/project/README.md")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    for token in (
+    _has(
+        recommendation,
         "Coveralls reporting split",
         "workflow_run staging trigger",
         "parallel image build jobs",
@@ -3707,13 +3871,15 @@ def test_AC8_13_47_delivery_engine_recommendations_are_tracked() -> None:
         "3m 31s / 3m 43s / 3m 49s / 3m 50s / 3m 41s",
         "Do not add more shards",
         "Out of scope for this PR",
-    ):
-        assert token in recommendation
+    )
 
     assert "DELIVERY_ENGINE_RECOMMENDATIONS.md" in project_readme
-    assert "delivery-engine recommendation note" in ci_cd
-    assert "Main CI run `27896401849` after PR #1288" in ci_cd
-    assert "backend shards finished in the 3m 31s-3m 50s band" in ci_cd
+    _has(
+        ci_cd,
+        "delivery-engine recommendation note",
+        "Main CI run `27896401849` after PR #1288",
+        "backend shards finished in the 3m 31s-3m 50s band",
+    )
 
 
 def test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path() -> None:
@@ -3722,7 +3888,8 @@ def test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path() ->
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     classifier = read("common/testing/change_classifier.py")
 
-    for token in (
+    _has(
+        recommendation,
         "Structured matrix consumer migration",
         "Env x Stage",
         "env_stage_required",
@@ -3738,19 +3905,18 @@ def test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path() ->
         "Deploy Staging",
         "Staging AI/OCR Gate",
         "Production Release",
-    ):
-        assert token in recommendation
+    )
 
     assert "Env x Stage Contract" in ci_cd
     # Migration complete: the per-env legacy scalar outputs are retired, and the
     # SSOT records that completed state rather than an in-progress shim.
-    assert "legacy per-env scalar outputs" in ci_cd
-    assert "retired" in ci_cd
-    assert (
-        "GitHub Actions consumers normalize gates from the structured matrix" in ci_cd
+    _has(
+        ci_cd,
+        "legacy per-env scalar outputs",
+        "retired",
+        "GitHub Actions consumers normalize gates from the structured matrix",
     )
-    assert "ENV_STAGE_MATRIX" in classifier
-    assert "LEGACY_ENV_OUTPUTS" in classifier
+    _has(classifier, "ENV_STAGE_MATRIX", "LEGACY_ENV_OUTPUTS")
 
 
 def test_AC8_13_112_workflows_consume_structured_env_stage_gates() -> None:
@@ -3759,65 +3925,41 @@ def test_AC8_13_112_workflows_consume_structured_env_stage_gates() -> None:
     pr_workflow = read(".github/workflows/preview.yml")
     staging_workflow = read(".github/workflows/deploy.yml")
 
-    assert "pr_required: ${{ steps.gates.outputs.pr_required }}" in ci_workflow
-    assert (
-        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}"
-        in ci_workflow
+    _has(
+        ci_workflow,
+        "pr_required: ${{ steps.gates.outputs.pr_required }}",
+        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}",
+        "ENV_STAGE_REASONS: ${{ steps.classify.outputs.env_stage_reasons }}",
+        "if: needs.changes.outputs.pr_required == 'true'",
     )
-    assert (
-        "ENV_STAGE_REASONS: ${{ steps.classify.outputs.env_stage_reasons }}"
-        in ci_workflow
-    )
-    assert "if: needs.changes.outputs.pr_required == 'true'" in ci_workflow
-    assert "needs.changes.outputs.heavy_required" not in ci_workflow
-    assert (
-        "heavy_required: ${{ steps.classify.outputs.heavy_required }}"
-        not in ci_workflow
+    _lacks(
+        ci_workflow,
+        "needs.changes.outputs.heavy_required",
+        "heavy_required: ${{ steps.classify.outputs.heavy_required }}",
     )
 
-    assert (
-        "pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}"
-        in pr_workflow
+    _has(
+        pr_workflow,
+        "pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}",
+        "ENV_STAGE_REQUIRED: ${{ steps.preview.outputs.env_stage_required }}",
+        "ENV_STAGE_REASONS: ${{ steps.preview.outputs.env_stage_reasons }}",
+        "required['pr-preview']",
     )
-    assert (
-        "ENV_STAGE_REQUIRED: ${{ steps.preview.outputs.env_stage_required }}"
-        in pr_workflow
-    )
-    assert (
-        "ENV_STAGE_REASONS: ${{ steps.preview.outputs.env_stage_reasons }}"
-        in pr_workflow
-    )
-    assert "required['pr-preview']" in pr_workflow
     assert "steps.preview.outputs.pr_preview_required" not in pr_workflow
 
-    assert (
-        "staging_required: ${{ steps.gates.outputs.staging_required }}"
-        in staging_workflow
+    _has(
+        staging_workflow,
+        "staging_required: ${{ steps.gates.outputs.staging_required }}",
+        "ai_ocr_required: ${{ steps.gates.outputs.ai_ocr_required }}",
+        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}",
+        "PROVIDER_GATE_REQUIRED: ${{ steps.classify.outputs.provider_gate_required }}",
+        "STAGING_AI_OCR_REQUIRED: ${{ steps.classify.outputs.staging_ai_ocr_required }}",
+        "STAGING_AI_OCR_REASON: ${{ steps.classify.outputs.staging_ai_ocr_reason }}",
+        "staging_ai_ocr_required_raw",
+        "staging_ai_ocr_reason = os.environ.get",
+        "env_required['staging']",
+        "provider_required['staging']",
     )
-    assert (
-        "ai_ocr_required: ${{ steps.gates.outputs.ai_ocr_required }}"
-        in staging_workflow
-    )
-    assert (
-        "ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}"
-        in staging_workflow
-    )
-    assert (
-        "PROVIDER_GATE_REQUIRED: ${{ steps.classify.outputs.provider_gate_required }}"
-        in staging_workflow
-    )
-    assert (
-        "STAGING_AI_OCR_REQUIRED: ${{ steps.classify.outputs.staging_ai_ocr_required }}"
-        in staging_workflow
-    )
-    assert (
-        "STAGING_AI_OCR_REASON: ${{ steps.classify.outputs.staging_ai_ocr_reason }}"
-        in staging_workflow
-    )
-    assert "staging_ai_ocr_required_raw" in staging_workflow
-    assert "staging_ai_ocr_reason = os.environ.get" in staging_workflow
-    assert "env_required['staging']" in staging_workflow
-    assert "provider_required['staging']" in staging_workflow
     assert "steps.classify.outputs.staging_required" not in staging_workflow
 
 
@@ -3859,8 +4001,11 @@ def test_AC8_13_152_workflow_consumers_keep_classification_single_owned() -> Non
         "ENV_STAGE_REQUIRED": "${{ steps.classify.outputs.env_stage_required }}",
         "ENV_STAGE_REASONS": "${{ steps.classify.outputs.env_stage_reasons }}",
     }
-    assert 'json.loads(os.environ["ENV_STAGE_REQUIRED"])' in str(ci_gate["run"])
-    assert "required['pr']" in str(ci_gate["run"])
+    _has(
+        str(ci_gate["run"]),
+        'json.loads(os.environ["ENV_STAGE_REQUIRED"])',
+        "required['pr']",
+    )
 
     for job_name, job in ci_jobs.items():
         assert isinstance(job, dict)
@@ -3883,8 +4028,11 @@ def test_AC8_13_152_workflow_consumers_keep_classification_single_owned() -> Non
         "ENV_STAGE_REQUIRED": "${{ steps.preview.outputs.env_stage_required }}",
         "ENV_STAGE_REASONS": "${{ steps.preview.outputs.env_stage_reasons }}",
     }
-    assert 'json.loads(os.environ["ENV_STAGE_REQUIRED"])' in str(preview_gate["run"])
-    assert "required['pr-preview']" in str(preview_gate["run"])
+    _has(
+        str(preview_gate["run"]),
+        'json.loads(os.environ["ENV_STAGE_REQUIRED"])',
+        "required['pr-preview']",
+    )
 
     for job_name in ("deploy-preview", "e2e"):
         text = job_text(pr_jobs[job_name])
@@ -3893,11 +4041,11 @@ def test_AC8_13_152_workflow_consumers_keep_classification_single_owned() -> Non
         assert "changed-files.txt" not in text, job_name
         assert "/pulls/" not in text, job_name
 
-    assert (
-        "Workflow YAML remains explicit; it is not generated from SSOT or the "
-        "classifier at runtime."
-    ) in ci_cd
-    assert ("changed-path classification stays owned by the classifier step") in ci_cd
+    _has(
+        ci_cd,
+        "Workflow YAML remains explicit; it is not generated from SSOT or the classifier at runtime.",
+        "changed-path classification stays owned by the classifier step",
+    )
 
 
 def test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded() -> (
@@ -3913,16 +4061,17 @@ def test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded(
     statement = statements["AC-testing.deploy-gates.24"]
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
 
-    for token in (
+    _has(
+        statement,
         "three newest successful and three newest failed",
         "delivery-speed balance",
         "end-to-end consistency",
         "quality fallback",
         "resource leak candidates",
-    ):
-        assert token in statement
+    )
 
-    for token in (
+    _has(
+        recommendation,
         "June 9, 2026 evidence sample",
         "27186502313",
         "27184608585",
@@ -3938,8 +4087,7 @@ def test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded(
         "Docker build cache",
         "stale staging or production routes",
         "safe simplification boundary",
-    ):
-        assert token in recommendation
+    )
 
 
 def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
@@ -3957,16 +4105,17 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     staging = read(".github/workflows/staging-ai-ocr-gate.yml")
     production = read(".github/workflows/release.yml")
 
-    for token in (
+    _has(
+        statement,
         "PR preview leftovers",
         "GHCR PR tag accumulation",
         "stale staging or production routes",
         "provider-backed external-state residue",
         "Docker build cache and stopped containers",
-    ):
-        assert token in statement
+    )
 
-    for token in (
+    _has(
+        recommendation,
         "Resource leak hardening bundle",
         "one PR",
         "closed-PR Dokploy reconciliation",
@@ -3974,58 +4123,58 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
         "production_before_version",
         "isolated-users-provider-gate-only",
         "finance-report-vps-host-hygiene",
-    ):
-        assert token in recommendation
+    )
 
-    assert "packages: write" in preview_cleanup
-    assert "Prune stale PR preview GHCR tags" in preview_cleanup
-    assert "retention_days=14" in preview_cleanup
-    assert "gh pr list --state open" in preview_cleanup
-    assert 'owner_type="$(gh api' in preview_cleanup
-    assert (
-        'package_scope_path="/orgs/${{ github.repository_owner }}"' in preview_cleanup
+    _has(
+        preview_cleanup,
+        "packages: write",
+        "Prune stale PR preview GHCR tags",
+        "retention_days=14",
+        "gh pr list --state open",
+        'owner_type="$(gh api',
+        'package_scope_path="/orgs/${{ github.repository_owner }}"',
+        'package_scope_path="/users/${{ github.repository_owner }}"',
+        '"${package_scope_path}/packages/container/${image_name}/versions"',
+        "if ! gh api \\",
+        "list-failed package_scope=${package_scope_path}",
+        "continue",
+        'f"{package_scope_path}/packages/container/{image_name}/versions/{version_id}"',
     )
-    assert (
-        'package_scope_path="/users/${{ github.repository_owner }}"' in preview_cleanup
+    _lacks(
+        preview_cleanup,
+        '"/orgs/${{ github.repository_owner }}/packages/container',
+        'f"/orgs/{owner}/packages/container',
     )
-    assert (
-        '"${package_scope_path}/packages/container/${image_name}/versions"'
-        in preview_cleanup
+    _has(
+        preview_cleanup,
+        "^pr-([1-9][0-9]*)-[0-9a-f]{40}$",
+        "ghcr_cleanup=closed-pr-pr-tags-older-than-14-days",
     )
-    assert "if ! gh api \\" in preview_cleanup
-    assert "list-failed package_scope=${package_scope_path}" in preview_cleanup
-    assert "continue" in preview_cleanup
-    assert (
-        'f"{package_scope_path}/packages/container/{image_name}/versions/{version_id}"'
-        in preview_cleanup
-    )
-    assert (
-        '"/orgs/${{ github.repository_owner }}/packages/container'
-        not in preview_cleanup
-    )
-    assert 'f"/orgs/{owner}/packages/container' not in preview_cleanup
-    assert r"^pr-([1-9][0-9]*)-[0-9a-f]{40}$" in preview_cleanup
-    assert "ghcr_cleanup=closed-pr-pr-tags-older-than-14-days" in preview_cleanup
     # Host hygiene moved to infra2 (host-GC owner); the app's maintenance job no
     # longer owns or provisions it.
     assert "host_hygiene=infra2-owned" in preview_cleanup
-    assert "finance-report-vps-host-hygiene" not in preview_cleanup
-    assert "VPS_SSH_KEY" not in preview_cleanup
-    assert "ssh-keyscan" not in preview_cleanup
+    _lacks(
+        preview_cleanup, "finance-report-vps-host-hygiene", "VPS_SSH_KEY", "ssh-keyscan"
+    )
 
     assert "Delete GHCR images" not in pr_preview
-    assert "pr_preview_images=not-created" in pr_preview
-    assert "registry_image_push=false" in pr_preview
+    _has(pr_preview, "pr_preview_images=not-created", "registry_image_push=false")
 
-    assert "provider_resource_boundary=isolated-users-provider-gate-only" in staging
-    assert "shared mutable user fixtures" in staging
+    _has(
+        staging,
+        "provider_resource_boundary=isolated-users-provider-gate-only",
+        "shared mutable user fixtures",
+    )
 
-    assert "Probe current production version" in production
-    assert "production_before_version" in production
-    assert "deploy_health_outcome" in production
-    assert "failure_domain=${failure_domain}" in production
-    assert "deploy-v2-rollout" in production
-    assert "production-route-health" in production
+    _has(
+        production,
+        "Probe current production version",
+        "production_before_version",
+        "deploy_health_outcome",
+        "failure_domain=${failure_domain}",
+        "deploy-v2-rollout",
+        "production-route-health",
+    )
 
     # Host hygiene (the "Docker build cache and stopped containers" leak path) is
     # infra2-owned now (tools/host_hygiene_schedule.py); the app ships no
@@ -4044,29 +4193,30 @@ def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:
     generator = read("common/testing/fixtures/pdf/generate_pdf_fixtures.py")
 
     assert "tools/staging_ai_ocr_gate_contract.py --shell" in reusable
-    assert (
-        "test_brokerage_upload_to_portfolio_value.py" in staging_ai_ocr_contract_shell()
-    )
+    _has(staging_ai_ocr_contract_shell(), "test_brokerage_upload_to_portfolio_value.py")
     # Marker expression equality is owned by the matrix conformance
     # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
-    assert "pytest.mark.critical" in brokerage
-    assert "pytest.mark.llm" in brokerage
-    assert '("moomoo", "Moomoo E2E Portfolio")' in brokerage
-    assert '("futu", "Futu E2E Portfolio")' in brokerage
-    assert "/statements/upload" in brokerage
-    assert "/brokerage/import" in brokerage
-    assert "/portfolio/holdings" in brokerage
-    assert "/reports/balance-sheet" in brokerage
-    assert "fail_or_skip_ai_ocr_gate(" in brokerage
-    assert "parsed_positions" in brokerage
-    assert "_assert_portfolio_market_valuation_covered" in brokerage
-    assert "_market_valuation_lines" in brokerage
-    assert "market_valuation_adjustment_total" in brokerage
-    assert "non_portfolio_asset_total" in brokerage
+    _has(
+        brokerage,
+        "pytest.mark.critical",
+        "pytest.mark.llm",
+        '("moomoo", "Moomoo E2E Portfolio")',
+        '("futu", "Futu E2E Portfolio")',
+        "/statements/upload",
+        "/brokerage/import",
+        "/portfolio/holdings",
+        "/reports/balance-sheet",
+        "fail_or_skip_ai_ocr_gate(",
+        "parsed_positions",
+        "_assert_portfolio_market_valuation_covered",
+        "_market_valuation_lines",
+        "market_valuation_adjustment_total",
+        "non_portfolio_asset_total",
+    )
     assert "BrokeragePositionImportService" in statements_router
-    assert (
-        "Statement must be parsed before importing brokerage positions"
-        in brokerage_payload
+    _has(
+        brokerage_payload,
+        "Statement must be parsed before importing brokerage positions",
     )
     assert '"futu"' in generator
 
@@ -4075,15 +4225,15 @@ def test_AC8_13_19_brokerage_gate_reports_portfolio_diagnostics() -> None:
     """AC8.13.19: Brokerage gate failures include portfolio valuation diagnostics."""
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
 
-    for token in (
+    _has(
+        brokerage,
         "imported_positions=",
         "holdings_total_market_value=",
         "market_valuation_adjustment_total=",
         "non_portfolio_asset_total=",
         "net_worth_adjustment_gain_loss=",
         "relevant_asset_lines=",
-    ):
-        assert token in brokerage
+    )
 
 
 def test_AC8_13_28_vision_hard_gate_uses_deterministic_fixture_with_fresh_user() -> (
@@ -4093,18 +4243,22 @@ def test_AC8_13_28_vision_hard_gate_uses_deterministic_fixture_with_fresh_user()
     gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
     contract = read("common/testing/contract.py")
 
-    assert "@pytest.mark.e2e" in gate
-    assert "@pytest.mark.tier3" in gate
-    assert "@pytest.mark.critical" in gate
+    _has(gate, "@pytest.mark.e2e", "@pytest.mark.tier3", "@pytest.mark.critical")
     assert "@pytest.mark.llm" not in gate
-    assert "authenticated_page_unique" in gate
-    assert "vision_hard_gate_statement.csv" in gate
-    assert "pytest.skip(" in gate
+    _has(
+        gate,
+        "authenticated_page_unique",
+        "vision_hard_gate_statement.csv",
+        "pytest.skip(",
+    )
     assert "AC-testing.product-gates.2" in contract
-    assert "AC-testing.product-gates.3" not in contract
-    assert "AC-testing.product-gates.4" not in contract
-    assert "AC-testing.product-gates.5" not in contract
-    assert "AC-testing.product-gates.6" not in contract
+    _lacks(
+        contract,
+        "AC-testing.product-gates.3",
+        "AC-testing.product-gates.4",
+        "AC-testing.product-gates.5",
+        "AC-testing.product-gates.6",
+    )
     assert "test_statement_upload_to_dashboard_vision_hard_gate" in contract
 
 
@@ -4115,10 +4269,12 @@ def test_AC8_13_28_vision_hard_gate_uses_statement_id_link_locator() -> None:
         "async def test_statement_upload_to_dashboard_vision_hard_gate", 1
     )[1]
 
-    assert "f'a[href=\"/statements/{statement_id}\"]'" in test_body
-    assert "fixture_path.name" in test_body
-    assert "filter(has_text=INSTITUTION_LABEL).first" not in test_body
-    assert 'page.locator("a").filter(has_text=INSTITUTION_LABEL)' not in test_body
+    _has(test_body, "f'a[href=\"/statements/{statement_id}\"]'", "fixture_path.name")
+    _lacks(
+        test_body,
+        "filter(has_text=INSTITUTION_LABEL).first",
+        'page.locator("a").filter(has_text=INSTITUTION_LABEL)',
+    )
 
 
 def test_AC8_13_28_vision_hard_gate_requires_economic_review_before_approval() -> None:
@@ -4128,14 +4284,17 @@ def test_AC8_13_28_vision_hard_gate_requires_economic_review_before_approval() -
         "async def test_statement_upload_to_dashboard_vision_hard_gate", 1
     )[1]
 
-    assert 'review_path = f"/statements/{statement_id}/review"' in test_body
-    assert "f\"a[href='{review_path}']\"" in test_body
-    assert "page.expect_response(" in test_body
-    assert 'get_by_role("button", name="Approve", exact=True)' in test_body
-    assert "approve_response.status == 409" in test_body
-    assert '"Economic review required: intent_missing"' in test_body
-    assert 'reviewed_statement["stage1_status"] == "pending_review"' in test_body
-    assert 'journal_body["total"] == 0' in test_body
+    _has(
+        test_body,
+        'review_path = f"/statements/{statement_id}/review"',
+        "f\"a[href='{review_path}']\"",
+        "page.expect_response(",
+        'get_by_role("button", name="Approve", exact=True)',
+        "approve_response.status == 409",
+        '"Economic review required: intent_missing"',
+        'reviewed_statement["stage1_status"] == "pending_review"',
+        'journal_body["total"] == 0',
+    )
 
 
 def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> None:
@@ -4146,7 +4305,8 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
     contract = read("common/testing/contract.py")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    for token in (
+    _has(
+        gate,
         "@pytest.mark.e2e",
         "@pytest.mark.tier3",
         "@pytest.mark.critical",
@@ -4168,8 +4328,7 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
         "expected_net_worth",
         "net_worth_adjustment_gain_loss",
         "market valuation adjustment",
-    ):
-        assert token in gate
+    )
 
     # The gate body (contract shell + llm marker) lives in the reusable workflow.
     assert "tools/staging_ai_ocr_gate_contract.py --shell" in ai_workflow
@@ -4180,11 +4339,17 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
     # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
     assert "test_four_asset_net_worth_golden_path.py" in staging_ai_ocr_contract_shell()
 
-    assert "four-asset-as-of-net-worth" in matrix
-    assert "test_four_asset_as_of_net_worth_golden_path" in matrix
-    assert "AC-testing.product-gates.7" in matrix
-    assert "AC-testing.product-gates.7" in contract
-    assert "test_four_asset_as_of_net_worth_golden_path" in contract
+    _has(
+        matrix,
+        "four-asset-as-of-net-worth",
+        "test_four_asset_as_of_net_worth_golden_path",
+        "AC-testing.product-gates.7",
+    )
+    _has(
+        contract,
+        "AC-testing.product-gates.7",
+        "test_four_asset_as_of_net_worth_golden_path",
+    )
     assert "four-asset gate" in ci_cd
 
 
@@ -4193,24 +4358,18 @@ def test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers() -> None
     action = read(".github/actions/setup-e2e-tests/action.yml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    assert "Cache E2E virtualenv" in action
-    assert "path: .venv" in action
-    assert (
-        "e2e-venv-${{ runner.os }}-${{ hashFiles('tests/e2e/requirements.txt') }}"
-        in action
+    _has(
+        action,
+        "Cache E2E virtualenv",
+        "path: .venv",
+        "e2e-venv-${{ runner.os }}-${{ hashFiles('tests/e2e/requirements.txt') }}",
+        "Cache Playwright browsers",
+        "path: ~/.cache/ms-playwright",
+        "playwright-${{ runner.os }}-${{ hashFiles('tests/e2e/requirements.txt') }}",
+        "if [ ! -x .venv/bin/python ]; then",
+        'echo "PYTHONPATH=${GITHUB_WORKSPACE:-$PWD}${PYTHONPATH:+:$PYTHONPATH}" >> "$GITHUB_ENV"',
+        "uv pip install -r tests/e2e/requirements.txt",
     )
-    assert "Cache Playwright browsers" in action
-    assert "path: ~/.cache/ms-playwright" in action
-    assert (
-        "playwright-${{ runner.os }}-${{ hashFiles('tests/e2e/requirements.txt') }}"
-        in action
-    )
-    assert "if [ ! -x .venv/bin/python ]; then" in action
-    assert (
-        'echo "PYTHONPATH=${GITHUB_WORKSPACE:-$PWD}${PYTHONPATH:+:$PYTHONPATH}"'
-        ' >> "$GITHUB_ENV"'
-    ) in action
-    assert "uv pip install -r tests/e2e/requirements.txt" in action
     assert "shared E2E setup action caches `.venv` and Playwright browsers" in ci_cd
 
 
@@ -4221,20 +4380,22 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     timing_script = read("common/testing/github_workflow_timing_summary.py")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    assert "Write CI timing summary" in ci_workflow
-    assert "tools/github_workflow_timing_summary.py" in ci_workflow
-    assert '--title "CI Timing Summary"' in ci_workflow
-    assert '--run-id "${{ github.run_id }}"' in ci_workflow
-    assert '--summary-path "$GITHUB_STEP_SUMMARY"' in ci_workflow
-    assert "post-merge-summary:" in deploy_workflow
-    assert (
-        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, post-merge-delivery]"
-        in deploy_workflow
+    _has(
+        ci_workflow,
+        "Write CI timing summary",
+        "tools/github_workflow_timing_summary.py",
+        '--title "CI Timing Summary"',
+        '--run-id "${{ github.run_id }}"',
+        '--summary-path "$GITHUB_STEP_SUMMARY"',
     )
-    assert "Write post-merge timing summary" in deploy_workflow
-    assert '--title "Post-merge Timing Summary"' in deploy_workflow
-    assert "Queue delay" in timing_script
-    assert "Longest completed job" in timing_script
+    _has(
+        deploy_workflow,
+        "post-merge-summary:",
+        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, post-merge-delivery]",
+        "Write post-merge timing summary",
+        '--title "Post-merge Timing Summary"',
+    )
+    _has(timing_script, "Queue delay", "Longest completed job")
     assert "GitHub Step Summary" in ci_cd
 
 
@@ -4246,27 +4407,35 @@ def test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run() -> None:
     CI artifact and runs independently."""
     workflow = read(".github/workflows/preview.yml")
     assert "workflow_run:" not in workflow
-    assert "types: [opened, synchronize, reopened, closed]" in workflow
-    assert 'action_reason = "pull-request-sync"' in workflow
-    assert 'action = "deploy"' in workflow
-    assert 'action = "cleanup"' in workflow  # pull_request closed -> cleanup
-    assert "pr_preview_required == 'true'" in workflow
-    assert "tools/wait_for_cheap_ci.py" not in workflow
-    assert "gate-cheap-ci:" not in workflow
-    assert "build-preview-backend-image:" not in workflow
-    assert "build-preview-frontend-image:" not in workflow
+    _has(
+        workflow,
+        "types: [opened, synchronize, reopened, closed]",
+        'action_reason = "pull-request-sync"',
+        'action = "deploy"',
+        'action = "cleanup"',
+        "pr_preview_required == 'true'",
+    )
+    _lacks(
+        workflow,
+        "tools/wait_for_cheap_ci.py",
+        "gate-cheap-ci:",
+        "build-preview-backend-image:",
+        "build-preview-frontend-image:",
+    )
 
 
 def test_AC8_13_115_readiness_fail_fast() -> None:
     """AC-testing.preview.14: AC8.13.115: Runner preview readiness is bounded before smoke/E2E starts."""
     workflow = read(".github/workflows/preview.yml")
     e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
-    assert "timeout-minutes: 25" in e2e_block
-    assert "Wait for stack readiness" in e2e_block
-    assert "for i in $(seq 1 60)" in e2e_block
-    assert "stack did not become healthy within 300s" in e2e_block
-    assert "consecutive_dokploy_failures" not in workflow
-    assert "consecutive_404_failures" not in workflow
+    _has(
+        e2e_block,
+        "timeout-minutes: 25",
+        "Wait for stack readiness",
+        "for i in $(seq 1 60)",
+        "stack did not become healthy within 300s",
+    )
+    _lacks(workflow, "consecutive_dokploy_failures", "consecutive_404_failures")
 
 
 def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
@@ -4293,13 +4462,10 @@ def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
     container_images_block = workflow.split("  container-images:", 1)[1].split(
         "\n\n", 1
     )[0]
-    assert (
-        "needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.image_build_required == 'true'"
-        in container_images_block
-    )
-    assert (
-        "github.event_name == 'push' && (github.ref == 'refs/heads/main'"
-        in container_images_block
+    _has(
+        container_images_block,
+        "needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.image_build_required == 'true'",
+        "github.event_name == 'push' && (github.ref == 'refs/heads/main'",
     )
 
     # frontend-telemetry-e2e (#1689): right-moved off unrelated PRs the same way
@@ -4316,14 +4482,13 @@ def test_AC8_13_116_skip_heavy_ci_on_main_push() -> None:
     main_push_override = (
         "github.event_name == 'push' && (github.ref == 'refs/heads/main'"
     )
-    assert pr_scope_condition in telemetry_block
-    assert main_push_override in telemetry_block
+    _has(telemetry_block, pr_scope_condition, main_push_override)
 
     # Check finish job handles skipped tests on push via pr_required output
     finish_block = workflow.split("  finish:", 1)[1]
-    assert (
-        'if [[ "${{ needs.changes.outputs.pr_required }}" == "true" ]]; then'
-        in finish_block
+    _has(
+        finish_block,
+        'if [[ "${{ needs.changes.outputs.pr_required }}" == "true" ]]; then',
     )
 
 
@@ -4333,10 +4498,13 @@ def test_AC8_13_118_timeouts_and_retries_documented() -> None:
     # The staging FIFO train wait is retired with the manual-only model; staging is
     # serialized by the workflow concurrency group, so no FIFO timeout is documented.
     assert "STAGING_FIFO_TIMEOUT_SECONDS" not in ci_cd
-    assert "The runner stack waits for `/api/health` before smoke/E2E" in ci_cd
-    assert "caps readiness at 300 seconds" in ci_cd
-    assert "docker compose down --volumes" in ci_cd
-    assert "parallel staging" in ci_cd
+    _has(
+        ci_cd,
+        "The runner stack waits for `/api/health` before smoke/E2E",
+        "caps readiness at 300 seconds",
+        "docker compose down --volumes",
+        "parallel staging",
+    )
 
 
 def test_wait_for_cheap_ci_full_flow(monkeypatch) -> None:
@@ -4348,55 +4516,46 @@ def test_wait_for_cheap_ci_full_flow(monkeypatch) -> None:
     import urllib.request
     import urllib.error
     from io import BytesIO
-    import json
-
-    class MockResponse:
-        def __init__(self, data: bytes, code: int = 200):
-            self.data = data
-            self.code = code
-
-        def read(self) -> bytes:
-            return self.data
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            pass
 
     def mock_urlopen(request, timeout=None):
         url = request.full_url
         if "jobs" in url:
-            res_data = {
-                "jobs": [
-                    {"name": "Lint", "status": "completed", "conclusion": "success"},
-                    {
-                        "name": "AC Traceability Check",
-                        "status": "completed",
-                        "conclusion": "success",
-                    },
-                ]
-            }
-            return MockResponse(json.dumps(res_data).encode("utf-8"))
+            return _FakeResponse(
+                {
+                    "jobs": [
+                        {
+                            "name": "Lint",
+                            "status": "completed",
+                            "conclusion": "success",
+                        },
+                        {
+                            "name": "AC Traceability Check",
+                            "status": "completed",
+                            "conclusion": "success",
+                        },
+                    ]
+                }
+            )
         elif "runs" in url:
-            res_data = {
-                "workflow_runs": [
-                    {
-                        "id": 3,
-                        "status": "completed",
-                        "conclusion": "success",
-                        "created_at": "2026-06-08T10:00:00Z",
-                    },
-                    {
-                        "id": 4,
-                        "status": "queued",
-                        "conclusion": None,
-                        "created_at": "2026-06-08T10:01:00Z",
-                    },
-                ]
-            }
-            return MockResponse(json.dumps(res_data).encode("utf-8"))
-        return MockResponse(b"{}")
+            return _FakeResponse(
+                {
+                    "workflow_runs": [
+                        {
+                            "id": 3,
+                            "status": "completed",
+                            "conclusion": "success",
+                            "created_at": "2026-06-08T10:00:00Z",
+                        },
+                        {
+                            "id": 4,
+                            "status": "queued",
+                            "conclusion": None,
+                            "created_at": "2026-06-08T10:01:00Z",
+                        },
+                    ]
+                }
+            )
+        return _FakeResponse({})
 
     monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
 
@@ -4421,17 +4580,18 @@ def test_wait_for_cheap_ci_full_flow(monkeypatch) -> None:
     # Restore normal mock_urlopen
     monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen)
 
-    argv = [
-        "--repository",
-        "owner/repo",
-        "--token",
-        "tok",
-        "--commit-sha",
-        "abc123",
-        "--poll-seconds",
-        "1",
-        "--timeout-seconds",
-        "5",
-    ]
-    res = main(argv)
+    res = main(
+        [
+            "--repository",
+            "owner/repo",
+            "--token",
+            "tok",
+            "--commit-sha",
+            "abc123",
+            "--poll-seconds",
+            "1",
+            "--timeout-seconds",
+            "5",
+        ]
+    )
     assert res == 0
