@@ -55,6 +55,7 @@ from common.meta.package_contract import (
     Unit,
 )
 
+# fmt: off
 CONTRACT = PackageContract(
     name="identity",
     status="active",
@@ -297,247 +298,57 @@ CONTRACT = PackageContract(
         ),
     ],
     roadmap=[
-        ac(
-            "AC-identity.vocabulary-ownership.1",
-            "User CRUD and AI-settings request/response DTOs are identity-owned base value objects; src.schemas.user retains only compatibility re-exports and its generic list envelope.",
-            "tests/tooling/test_vocabulary_ownership.py::test_AC_identity_vocabulary_ownership_1_identity_owns_user_dtos",
-            priority="P1",
-        ),
-        ac(
-            "AC-identity.1.1",
-            "Email identity is unique case-insensitively: a duplicate registration in any case variant is rejected (the normalized-email index makes a duplicate unrepresentable). Was EPIC-001 AC1.7.2 / AC1.10.2.",
-            "apps/backend/tests/identity/test_auth_router.py::test_register_duplicate_email",
-        ),
-        ac(
-            "AC-identity.1.2",
-            "Case-variant email is normalized on registration and login so case variants cannot create or split a duplicate account. Was EPIC-001 AC1.10.2.",
-            "apps/backend/tests/identity/test_auth_router.py::test_AC1_10_2_register_rejects_case_variant_duplicate_email",
-        ),
-        ac(
-            "AC-identity.2.1",
-            "Registration accepts a valid payload, bcrypt-hashes the password (plaintext is never stored), and returns a JWT + HttpOnly cookie. Was EPIC-001 AC1.5.5 / AC1.7.1.",
-            "apps/backend/tests/identity/test_auth_router.py::test_register_success",
-        ),
-        ac(
-            "AC-identity.2.2",
-            "Login accepts valid credentials and returns a JWT + HttpOnly cookie; invalid credentials are rejected. Was EPIC-001 AC1.5.5 / AC1.7.3.",
-            "apps/backend/tests/identity/test_auth_router.py::test_login_success",
-        ),
-        ac(
-            "AC-identity.2.3",
-            "Registration handles the duplicate-email IntegrityError race (concurrent registrations of the same email) with a clean 400. Was EPIC-001 AC1.7.4.",
-            "apps/backend/tests/identity/test_auth_router.py::test_register_integrity_error_race_condition",
-            priority="P1",
-        ),
-        ac(
-            "AC-identity.2.4",
-            "A valid JWT bearer token grants 200 on a protected endpoint (GET /accounts). Was EPIC-001 AC1.2.2 (migration closeout wave 3, #1663).",
-            "apps/backend/tests/identity/test_auth.py::test_auth_valid_user",
-            priority="P1",
-        ),
-        ac(
-            "AC-identity.2.5",
-            "The auth dependency accepts the HttpOnly session cookie directly (no bearer header required) for GET /auth/me. Was EPIC-001 AC1.10.3 (migration closeout wave 3, #1663); the row's frontend-storage half stays in the EPIC (no backend package home).",
-            "apps/backend/tests/identity/test_auth_router.py::test_AC1_10_3_get_me_accepts_httponly_cookie",
-            priority="P1",
-        ),
-        ac(
-            "AC-identity.2.6",
-            "Browser logout expires the HttpOnly authentication cookie at its original scope, is idempotent, and leaves subsequent cookie-only requests unauthorized until login. Independently issued bearer tokens are not globally revoked.",
-            "apps/backend/tests/identity/test_auth_router.py::test_browser_logout_expires_cookie",
-        ),
-        ac(
-            "AC-identity.fe-auth.15",
-            "Desktop and mobile logout wait for server cookie expiration before clearing local identity and navigating to login; failures preserve identity and allow retry.",
-            "apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::waits for cookie logout before clearing desktop identity",
-        ),
-        ac(
-            "AC-identity.1.3",
-            "The /users management endpoints expose authenticated current-user operations without cross-user leakage (a non-self user_id returns not-found). Was EPIC-001 AC1.8.1.",
-            "apps/backend/tests/identity/test_users_router.py::test_AC1_8_1_get_user_by_id_hides_other_users",
-            priority="P1",
-        ),
+        ac('AC-identity.vocabulary-ownership.1', 'User CRUD and AI-settings request/response DTOs are identity-owned base value objects; src.schemas.user retains only compatibility re-exports and its generic list envelope.', 'tests/tooling/test_vocabulary_ownership.py::test_AC_identity_vocabulary_ownership_1_identity_owns_user_dtos', priority='P1'),
+        ac('AC-identity.1.1', 'Email identity is unique case-insensitively: a duplicate registration in any case variant is rejected (the normalized-email index makes a duplicate unrepresentable). Was EPIC-001 AC1.7.2 / AC1.10.2.', 'apps/backend/tests/identity/test_auth_router.py::test_register_duplicate_email'),
+        ac('AC-identity.1.2', 'Case-variant email is normalized on registration and login so case variants cannot create or split a duplicate account. Was EPIC-001 AC1.10.2.', 'apps/backend/tests/identity/test_auth_router.py::test_AC1_10_2_register_rejects_case_variant_duplicate_email'),
+        ac('AC-identity.2.1', 'Registration accepts a valid payload, bcrypt-hashes the password (plaintext is never stored), and returns a JWT + HttpOnly cookie. Was EPIC-001 AC1.5.5 / AC1.7.1.', 'apps/backend/tests/identity/test_auth_router.py::test_register_success'),
+        ac('AC-identity.2.2', 'Login accepts valid credentials and returns a JWT + HttpOnly cookie; invalid credentials are rejected. Was EPIC-001 AC1.5.5 / AC1.7.3.', 'apps/backend/tests/identity/test_auth_router.py::test_login_success'),
+        ac('AC-identity.2.3', 'Registration handles the duplicate-email IntegrityError race (concurrent registrations of the same email) with a clean 400. Was EPIC-001 AC1.7.4.', 'apps/backend/tests/identity/test_auth_router.py::test_register_integrity_error_race_condition', priority='P1'),
+        ac('AC-identity.2.4', 'A valid JWT bearer token grants 200 on a protected endpoint (GET /accounts). Was EPIC-001 AC1.2.2 (migration closeout wave 3, #1663).', 'apps/backend/tests/identity/test_auth.py::test_auth_valid_user', priority='P1'),
+        ac('AC-identity.2.5', "The auth dependency accepts the HttpOnly session cookie directly (no bearer header required) for GET /auth/me. Was EPIC-001 AC1.10.3 (migration closeout wave 3, #1663); the row's frontend-storage half stays in the EPIC (no backend package home).", 'apps/backend/tests/identity/test_auth_router.py::test_AC1_10_3_get_me_accepts_httponly_cookie', priority='P1'),
+        ac('AC-identity.2.6', 'Browser logout expires the HttpOnly authentication cookie at its original scope, is idempotent, and leaves subsequent cookie-only requests unauthorized until login. Independently issued bearer tokens are not globally revoked.', 'apps/backend/tests/identity/test_auth_router.py::test_browser_logout_expires_cookie'),
+        ac('AC-identity.fe-auth.15', 'Desktop and mobile logout wait for server cookie expiration before clearing local identity and navigating to login; failures preserve identity and allow retry.', 'apps/frontend/src/__tests__/sidebarAndTabs.test.tsx::waits for cookie logout before clearing desktop identity'),
+        ac('AC-identity.1.3', 'The /users management endpoints expose authenticated current-user operations without cross-user leakage (a non-self user_id returns not-found). Was EPIC-001 AC1.8.1.', 'apps/backend/tests/identity/test_users_router.py::test_AC1_8_1_get_user_by_id_hides_other_users', priority='P1'),
         # ── group journeys: E2E auth/session proof (migrated from EPIC-008
         # AC8.2.1/.7.1-3/.19.2, migration closeout continuation, #1663) ──
-        ac(
-            "AC-identity.journeys.1",
-            "A new user can register and log in end to end through the deployed API.",
-            "apps/backend/tests/identity/test_auth_shift_left.py::test_password_hashing_and_verification",
-        ),
-        ac(
-            "AC-identity.journeys.2",
-            "API authentication failures (missing/invalid credentials) return a clean 401/422, not a 500.",
-            "apps/backend/tests/identity/test_auth_shift_left.py::test_invalid_token_rejected_with_401",
-        ),
-        ac(
-            "AC-identity.journeys.3",
-            "Unauthenticated requests to protected endpoints are blocked with 401.",
-            "apps/backend/tests/identity/test_auth_shift_left.py::test_unauthenticated_request_blocked",
-        ),
-        ac(
-            "AC-identity.journeys.4",
-            "A user's session (JWT/cookie) is created, reused, and honored consistently across requests.",
-            "apps/backend/tests/identity/test_auth_shift_left.py::test_jwt_session_token_lifecycle",
-            priority="P1",
-        ),
-        ac(
-            "AC-identity.journeys.5",
-            "The frontend registration E2E targets the mode-toggle register control by test id and switches into register mode without a strict-mode locator failure.",
-            "tests/e2e/test_auth_flows.py::test_full_registration_flow",
-            priority="P1",
-        ),
-        ac(
-            "AC-identity.journeys.6",
-            "On an explicitly pinned deployment a new browser user registers, survives reload, logs out through desktop or mobile controls, receives 401 on cookie-only protected requests after reload, and can log in again.",
-            "tests/e2e/test_auth_flows.py::test_browser_cookie_logout_lifecycle",
-        ),
+        ac('AC-identity.journeys.1', 'A new user can register and log in end to end through the deployed API.', 'apps/backend/tests/identity/test_auth_shift_left.py::test_password_hashing_and_verification'),
+        ac('AC-identity.journeys.2', 'API authentication failures (missing/invalid credentials) return a clean 401/422, not a 500.', 'apps/backend/tests/identity/test_auth_shift_left.py::test_invalid_token_rejected_with_401'),
+        ac('AC-identity.journeys.3', 'Unauthenticated requests to protected endpoints are blocked with 401.', 'apps/backend/tests/identity/test_auth_shift_left.py::test_unauthenticated_request_blocked'),
+        ac('AC-identity.journeys.4', "A user's session (JWT/cookie) is created, reused, and honored consistently across requests.", 'apps/backend/tests/identity/test_auth_shift_left.py::test_jwt_session_token_lifecycle', priority='P1'),
+        ac('AC-identity.journeys.5', 'The frontend registration E2E targets the mode-toggle register control by test id and switches into register mode without a strict-mode locator failure.', 'tests/e2e/test_auth_flows.py::test_full_registration_flow', priority='P1'),
+        ac('AC-identity.journeys.6', 'On an explicitly pinned deployment a new browser user registers, survives reload, logs out through desktop or mobile controls, receives 401 on cookie-only protected requests after reload, and can log in again.', 'tests/e2e/test_auth_flows.py::test_browser_cookie_logout_lifecycle'),
         # ── purge: test/QA account-purge maintenance (was EPIC-008 AC8.17,
         # folded in with extension/account_purge.py per #1677 / #1663 wave 3) ──
-        ac(
-            "AC-identity.purge.1",
-            "Only disposable test accounts (qa/e2e/load-test prefixes on example.com / test.example.com) are selected for purging; real accounts and plain local fixtures are excluded, and the users table itself is never in the owned-tables delete list. Was EPIC-008 AC8.17.1.",
-            "apps/backend/tests/identity/test_account_purge.py::test_selection_matches_test_accounts_and_excludes_real_ones",
-            priority="P1",
-        ),
-        ac(
-            "AC-identity.purge.2",
-            "Applying the purge removes a clean test account and every row it owns, while leaving non-test accounts untouched. Was EPIC-008 AC8.17.2.",
-            "apps/backend/tests/identity/test_account_purge.py::test_apply_purges_clean_account_and_leaves_others",
-            priority="P1",
-        ),
-        ac(
-            "AC-identity.purge.3",
-            "An account owning a posted (immutable) ledger entry is reported blocked and fully preserved, never force-deleted — mirroring the 409 the API returns. Was EPIC-008 AC8.17.3.",
-            "apps/backend/tests/identity/test_account_purge.py::test_account_with_posted_ledger_entry_is_blocked_not_deleted",
-            priority="P1",
-        ),
-        ac(
-            "AC-identity.purge.4",
-            "A dry run names the accounts it would purge but persists no deletions. Was EPIC-008 AC8.17.4.",
-            "apps/backend/tests/identity/test_account_purge.py::test_dry_run_reports_but_persists_nothing",
-            priority="P1",
-        ),
-        ac(
-            "AC-identity.purge.5",
-            "The CLI --apply environment guard allows dev/staging/CI and refuses production (or an unset environment) without an explicit override. Was EPIC-008 AC8.17.5.",
-            "apps/backend/tests/identity/test_account_purge.py::test_environment_guard_allows_dev_staging_and_refuses_production",
-            priority="P1",
-        ),
+        ac('AC-identity.purge.1', 'Only disposable test accounts (qa/e2e/load-test prefixes on example.com / test.example.com) are selected for purging; real accounts and plain local fixtures are excluded, and the users table itself is never in the owned-tables delete list. Was EPIC-008 AC8.17.1.', 'apps/backend/tests/identity/test_account_purge.py::test_selection_matches_test_accounts_and_excludes_real_ones', priority='P1'),
+        ac('AC-identity.purge.2', 'Applying the purge removes a clean test account and every row it owns, while leaving non-test accounts untouched. Was EPIC-008 AC8.17.2.', 'apps/backend/tests/identity/test_account_purge.py::test_apply_purges_clean_account_and_leaves_others', priority='P1'),
+        ac('AC-identity.purge.3', 'An account owning a posted (immutable) ledger entry is reported blocked and fully preserved, never force-deleted — mirroring the 409 the API returns. Was EPIC-008 AC8.17.3.', 'apps/backend/tests/identity/test_account_purge.py::test_account_with_posted_ledger_entry_is_blocked_not_deleted', priority='P1'),
+        ac('AC-identity.purge.4', 'A dry run names the accounts it would purge but persists no deletions. Was EPIC-008 AC8.17.4.', 'apps/backend/tests/identity/test_account_purge.py::test_dry_run_reports_but_persists_nothing', priority='P1'),
+        ac('AC-identity.purge.5', 'The CLI --apply environment guard allows dev/staging/CI and refuses production (or an unset environment) without an explicit override. Was EPIC-008 AC8.17.5.', 'apps/backend/tests/identity/test_account_purge.py::test_environment_guard_allows_dev_staging_and_refuses_production', priority='P1'),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-016
         # (two-stage-review-ui) ──
-        ac(
-            "AC-identity.fe-auth.1",
-            "`getUserId` returns `null` when not set",
-            "apps/frontend/src/__tests__/auth.test.ts::AC16.5.1/AC16.5.2 returns null when key is not set",
-            priority="P2",
-        ),
-        ac(
-            "AC-identity.fe-auth.2",
-            "`getUserId` returns stored `userId` from `localStorage`",
-            "apps/frontend/src/__tests__/auth.test.ts::AC16.5.2 returns stored userId from localStorage",
-            priority="P2",
-        ),
-        ac(
-            "AC-identity.fe-auth.3",
-            "`setUser` stores `userId` and `email` in `localStorage`; it never persists a bearer token, even when the caller provides one (a stale token is actively cleared)",
-            "apps/frontend/src/__tests__/auth.test.ts::AC16.5.3 stores userId and email",
-            priority="P2",
-        ),
-        ac(
-            "AC-identity.fe-auth.4",
-            "`clearUser` removes all auth keys from `localStorage`",
-            "apps/frontend/src/__tests__/auth.test.ts::AC16.5.4 removes all auth keys from localStorage",
-            priority="P2",
-        ),
-        ac(
-            "AC-identity.fe-auth.5",
-            "`isAuthenticated` returns `true` when a local session marker (userId) is stored, `false` when none exists",
-            "apps/frontend/src/__tests__/auth.test.ts::AC16.5.5 returns true when non-secret user session metadata exists",
-            priority="P2",
-        ),
-        ac(
-            "AC-identity.fe-auth.6",
-            "Login page submits login payload and redirects on success",
-            "apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.5 AC22.1.3 submits login payload and redirects to Home",
-            priority="P2",
-        ),
-        ac(
-            "AC-identity.fe-auth.7",
-            "Login page toggles register mode and switches endpoint for submit",
-            "apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.6 switches to register mode and uses register endpoint",
-            priority="P2",
-        ),
-        ac(
-            "AC-identity.fe-auth.8",
-            "Login page shows API error messages and resets loading state on failure",
-            "apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.7 shows API error and exits loading state",
-            priority="P2",
-        ),
-        ac(
-            "AC-identity.fe-auth.9",
-            "Toggles password visibility",
-            "apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.13 toggles password visibility",
-            priority="P1",
-        ),
-        ac(
-            "AC-identity.fe-auth.10",
-            "Shows error with alert role and aria-live",
-            "apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.14 shows error with alert role and aria-live",
-            priority="P1",
-        ),
-        ac(
-            "AC-identity.fe-auth.11",
-            "Shows mode toggle links",
-            "apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.15 shows mode toggle links",
-            priority="P1",
-        ),
-        ac(
-            "AC-identity.fe-auth.12",
-            "Shows loading spinner during submission",
-            "apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.16 shows loading spinner during submission",
-            priority="P1",
-        ),
-        ac(
-            "AC-identity.fe-auth.13",
-            "App shell renders workspace providers and main content with collapse-aware layout",
-            "apps/frontend/src/__tests__/shellAndAuth.test.tsx::AC16.19.1 renders providers and collapse-aware shell layout",
-            priority="P2",
-        ),
-        ac(
-            "AC-identity.fe-auth.14",
-            "Auth guard redirects unauthenticated protected routes and allows public routes",
-            "apps/frontend/src/__tests__/shellAndAuth.test.tsx::AC16.19.2 redirects unauthenticated protected routes",
-            priority="P2",
-        ),
+        ac('AC-identity.fe-auth.1', '`getUserId` returns `null` when not set', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.1/AC16.5.2 returns null when key is not set', priority='P2'),
+        ac('AC-identity.fe-auth.2', '`getUserId` returns stored `userId` from `localStorage`', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.2 returns stored userId from localStorage', priority='P2'),
+        ac('AC-identity.fe-auth.3', '`setUser` stores `userId` and `email` in `localStorage`; it never persists a bearer token, even when the caller provides one (a stale token is actively cleared)', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.3 stores userId and email', priority='P2'),
+        ac('AC-identity.fe-auth.4', '`clearUser` removes all auth keys from `localStorage`', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.4 removes all auth keys from localStorage', priority='P2'),
+        ac('AC-identity.fe-auth.5', '`isAuthenticated` returns `true` when a local session marker (userId) is stored, `false` when none exists', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.5 returns true when non-secret user session metadata exists', priority='P2'),
+        ac('AC-identity.fe-auth.6', 'Login page submits login payload and redirects on success', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.5 AC22.1.3 submits login payload and redirects to Home', priority='P2'),
+        ac('AC-identity.fe-auth.7', 'Login page toggles register mode and switches endpoint for submit', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.6 switches to register mode and uses register endpoint', priority='P2'),
+        ac('AC-identity.fe-auth.8', 'Login page shows API error messages and resets loading state on failure', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.7 shows API error and exits loading state', priority='P2'),
+        ac('AC-identity.fe-auth.9', 'Toggles password visibility', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.13 toggles password visibility', priority='P1'),
+        ac('AC-identity.fe-auth.10', 'Shows error with alert role and aria-live', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.14 shows error with alert role and aria-live', priority='P1'),
+        ac('AC-identity.fe-auth.11', 'Shows mode toggle links', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.15 shows mode toggle links', priority='P1'),
+        ac('AC-identity.fe-auth.12', 'Shows loading spinner during submission', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.16 shows loading spinner during submission', priority='P1'),
+        ac('AC-identity.fe-auth.13', 'App shell renders workspace providers and main content with collapse-aware layout', 'apps/frontend/src/__tests__/shellAndAuth.test.tsx::AC16.19.1 renders providers and collapse-aware shell layout', priority='P2'),
+        ac('AC-identity.fe-auth.14', 'Auth guard redirects unauthenticated protected routes and allows public routes', 'apps/frontend/src/__tests__/shellAndAuth.test.tsx::AC16.19.2 redirects unauthenticated protected routes', priority='P2'),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
         # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
-        ac(
-            "AC-identity.fe-ia-identity.1",
-            "A typed `fetchCurrentUser` client function consumes `GET /api/auth/me`, and the authenticated app shell calls it on mount to bootstrap/refresh the local session identity, clearing local session state when the endpoint reports the session is invalid",
-            "apps/frontend/src/__tests__/appShellSessionBootstrap.test.tsx::AC22.15.3 does not call /auth/me when there is no local session",
-            priority="P1",
-        ),
+        ac('AC-identity.fe-ia-identity.1', 'A typed `fetchCurrentUser` client function consumes `GET /api/auth/me`, and the authenticated app shell calls it on mount to bootstrap/refresh the local session identity, clearing local session state when the endpoint reports the session is invalid', 'apps/frontend/src/__tests__/appShellSessionBootstrap.test.tsx::AC22.15.3 does not call /auth/me when there is no local session', priority='P1'),
         # ── Wave B (#1821): frontend-proof rows migrated from the
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
-        ac(
-            "AC-identity.fe-auth2.1",
-            "Frontend storage keeps only non-secret user metadata, relying on the HttpOnly session cookie rather than localStorage for the bearer token",
-            "apps/frontend/src/__tests__/apiFunctions.test.ts::AC1.10.3 sends HttpOnly auth cookies by default",
-            priority="P2",
-        ),
-        ac(
-            "AC-identity.fe-auth2.2",
-            'Login auth controls (mode-toggle register button and inline register CTA) expose distinct `data-testid` hooks and accessible names, so no duplicate accessible-name ambiguity remains while the visible text stays "Register"',
-            "apps/frontend/src/__tests__/loginPage.test.tsx::AC8.19.1 login register controls expose distinct test ids and accessible names",
-            priority="P1",
-        ),
+        ac('AC-identity.fe-auth2.1', 'Frontend storage keeps only non-secret user metadata, relying on the HttpOnly session cookie rather than localStorage for the bearer token', 'apps/frontend/src/__tests__/apiFunctions.test.ts::AC1.10.3 sends HttpOnly auth cookies by default', priority='P2'),
+        ac('AC-identity.fe-auth2.2', 'Login auth controls (mode-toggle register button and inline register CTA) expose distinct `data-testid` hooks and accessible names, so no duplicate accessible-name ambiguity remains while the visible text stays "Register"', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC8.19.1 login register controls expose distinct test ids and accessible names', priority='P1'),
         # ── group ai-suggestions: the AiFeedback review surface (#1864 S1) ──
-        ac(
-            "AC-identity.ai-suggestions.1",
-            "``GET /ai/suggestions`` enforces a bounded page size: ``limit`` is declared with ``ge=1, le=200`` and an over-limit request is rejected with 422 instead of being accepted unbounded (#1864 S1).",
-            "apps/backend/tests/api/test_ai_feedback_router.py::test_AC_ai_suggestions_1_list_rejects_unbounded_limit",
-            priority="P1",
-        ),
+        ac('AC-identity.ai-suggestions.1', '``GET /ai/suggestions`` enforces a bounded page size: ``limit`` is declared with ``ge=1, le=200`` and an over-limit request is rejected with 422 instead of being accepted unbounded (#1864 S1).', 'apps/backend/tests/api/test_ai_feedback_router.py::test_AC_ai_suggestions_1_list_rejects_unbounded_limit', priority='P1'),
     ],
     concepts=[
         ConceptRecord(
@@ -552,3 +363,4 @@ CONTRACT = PackageContract(
         ),
     ],
 )
+# fmt: on

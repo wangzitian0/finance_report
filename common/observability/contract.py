@@ -33,6 +33,7 @@ from common.meta.package_contract import (
     PackageContract,
 )
 
+# fmt: off
 CONTRACT = PackageContract(
     context=ContextScope(
         purpose="Own the cross-cutting observability language that makes runtime behavior and safe operational evidence visible without owning the behavior observed.",
@@ -102,476 +103,126 @@ CONTRACT = PackageContract(
         # governance, not backend observability). Each test= resolves to a real
         # path::func anchor that proves the statement.
         # ── group 1: Backend logging configuration (was EPIC-010 AC10.1.*) ──
-        ac(
-            "AC-observability.1.1",
-            "OTEL settings are explicit, environment-backed config fields owned by the backend config singleton. Was EPIC-010 AC10.1.1.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_otel_settings_are_explicit_and_environment_backed",
-        ),
-        ac(
-            "AC-observability.1.2",
-            "Optional OTLP log export is configured through an OTLP exporter when an endpoint is set. Was EPIC-010 AC10.1.2.",
-            "apps/backend/tests/infra/test_logger.py::test_configure_otel_logging_with_fake_exporter",
-            priority="P1",
-        ),
-        ac(
-            "AC-observability.1.3",
-            "Logging falls back to a structured stdout JSON renderer when OTEL vars are absent. Was EPIC-010 AC10.1.3.",
-            "apps/backend/tests/infra/test_logger.py::test_select_renderer_uses_json_in_production",
-        ),
+        ac('AC-observability.1.1', 'OTEL settings are explicit, environment-backed config fields owned by the backend config singleton. Was EPIC-010 AC10.1.1.', 'apps/backend/tests/infra/test_observability_contract.py::test_otel_settings_are_explicit_and_environment_backed'),
+        ac('AC-observability.1.2', 'Optional OTLP log export is configured through an OTLP exporter when an endpoint is set. Was EPIC-010 AC10.1.2.', 'apps/backend/tests/infra/test_logger.py::test_configure_otel_logging_with_fake_exporter', priority='P1'),
+        ac('AC-observability.1.3', 'Logging falls back to a structured stdout JSON renderer when OTEL vars are absent. Was EPIC-010 AC10.1.3.', 'apps/backend/tests/infra/test_logger.py::test_select_renderer_uses_json_in_production'),
         # ── group 2: OTLP endpoint construction (was EPIC-010 AC10.2.*) ──
-        ac(
-            "AC-observability.2.2",
-            "Building the OTLP logs endpoint preserves an explicit /v1/logs path. Was EPIC-010 AC10.2.2.",
-            "apps/backend/tests/infra/test_logger.py::test_build_otlp_logs_endpoint_preserves_logs_path",
-        ),
+        ac('AC-observability.2.2', 'Building the OTLP logs endpoint preserves an explicit /v1/logs path. Was EPIC-010 AC10.2.2.', 'apps/backend/tests/infra/test_logger.py::test_build_otlp_logs_endpoint_preserves_logs_path'),
         # ── group 4: OTEL configuration & error handling (was EPIC-010 AC10.4.*) ──
-        ac(
-            "AC-observability.4.1",
-            "Configuring OTEL logging warns (and stays no-op) when the opentelemetry dependency is missing. Was EPIC-010 AC10.4.1.",
-            "apps/backend/tests/infra/test_logger.py::test_configure_otel_logging_missing_dependency_warns",
-        ),
-        ac(
-            "AC-observability.4.2",
-            "Configuring OTEL logging wires the OTLP exporter, resource, and handler when the endpoint is set. Was EPIC-010 AC10.4.2.",
-            "apps/backend/tests/infra/test_logger.py::test_configure_otel_logging_with_fake_exporter",
-            priority="P1",
-        ),
-        ac(
-            "AC-observability.4.3",
-            "FastAPI request instrumentation binds the running app instance (not the no-op classmethod). Was EPIC-010 AC10.4.3.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_AC10_4_3_main_instruments_fastapi_app_instance",
-        ),
-        ac(
-            "AC-observability.4.4",
-            "The OTEL resource carries the deploy commit for run-to-trace correlation. Was EPIC-010 AC10.4.4.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_AC10_4_4_otel_resource_includes_commit_version",
-        ),
+        ac('AC-observability.4.1', 'Configuring OTEL logging warns (and stays no-op) when the opentelemetry dependency is missing. Was EPIC-010 AC10.4.1.', 'apps/backend/tests/infra/test_logger.py::test_configure_otel_logging_missing_dependency_warns'),
+        ac('AC-observability.4.2', 'Configuring OTEL logging wires the OTLP exporter, resource, and handler when the endpoint is set. Was EPIC-010 AC10.4.2.', 'apps/backend/tests/infra/test_logger.py::test_configure_otel_logging_with_fake_exporter', priority='P1'),
+        ac('AC-observability.4.3', 'FastAPI request instrumentation binds the running app instance (not the no-op classmethod). Was EPIC-010 AC10.4.3.', 'apps/backend/tests/infra/test_observability_contract.py::test_AC10_4_3_main_instruments_fastapi_app_instance'),
+        ac('AC-observability.4.4', 'The OTEL resource carries the deploy commit for run-to-trace correlation. Was EPIC-010 AC10.4.4.', 'apps/backend/tests/infra/test_observability_contract.py::test_AC10_4_4_otel_resource_includes_commit_version'),
         # ── group 5: OTEL config ownership (was the backend-config row AC10.5.4; doc-linkage AC10.5.1-5.3 stay in EPIC-010) ──
-        ac(
-            "AC-observability.5.4",
-            "OTEL settings are documented as explicit backend config fields in config.py. Was EPIC-010 AC10.5.4.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_otel_settings_are_explicit_and_environment_backed",
-        ),
+        ac('AC-observability.5.4', 'OTEL settings are documented as explicit backend config fields in config.py. Was EPIC-010 AC10.5.4.', 'apps/backend/tests/infra/test_observability_contract.py::test_otel_settings_are_explicit_and_environment_backed'),
         # ── group 7: Must-have runtime traceability (was the runtime rows of AC10.7.*; doc/infra rows 7.5/7.6 stay in EPIC-010) ──
-        ac(
-            "AC-observability.7.1",
-            "The backend starts without an observability backend (missing OTEL endpoint keeps the startup path local). Was EPIC-010 AC10.7.1.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_backend_otel_absence_is_startup_safe",
-        ),
-        ac(
-            "AC-observability.7.2",
-            "Logs export over OTLP through the configured exporter. Was EPIC-010 AC10.7.2.",
-            "apps/backend/tests/infra/test_logger.py::test_configure_otel_logging_with_fake_exporter",
-        ),
-        ac(
-            "AC-observability.7.3",
-            "No sensitive data appears in logs (external API logging omits credentials by default). Was EPIC-010 AC10.7.3.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_external_api_logging_omits_sensitive_arguments_by_default",
-        ),
-        ac(
-            "AC-observability.7.4",
-            "OTLP export is optional by default (no endpoint keeps the local path). Was EPIC-010 AC10.7.4.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_backend_otel_absence_is_startup_safe",
-        ),
-        ac(
-            "AC-observability.7.7",
-            "Non-debug mode emits structured, parseable JSON logs. Was EPIC-010 AC10.7.7.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_production_renderer_outputs_structured_json",
-        ),
+        ac('AC-observability.7.1', 'The backend starts without an observability backend (missing OTEL endpoint keeps the startup path local). Was EPIC-010 AC10.7.1.', 'apps/backend/tests/infra/test_observability_contract.py::test_backend_otel_absence_is_startup_safe'),
+        ac('AC-observability.7.2', 'Logs export over OTLP through the configured exporter. Was EPIC-010 AC10.7.2.', 'apps/backend/tests/infra/test_logger.py::test_configure_otel_logging_with_fake_exporter'),
+        ac('AC-observability.7.3', 'No sensitive data appears in logs (external API logging omits credentials by default). Was EPIC-010 AC10.7.3.', 'apps/backend/tests/infra/test_observability_contract.py::test_external_api_logging_omits_sensitive_arguments_by_default'),
+        ac('AC-observability.7.4', 'OTLP export is optional by default (no endpoint keeps the local path). Was EPIC-010 AC10.7.4.', 'apps/backend/tests/infra/test_observability_contract.py::test_backend_otel_absence_is_startup_safe'),
+        ac('AC-observability.7.7', 'Non-debug mode emits structured, parseable JSON logs. Was EPIC-010 AC10.7.7.', 'apps/backend/tests/infra/test_observability_contract.py::test_production_renderer_outputs_structured_json'),
         # ── group 8: Staging audit replay logging (was EPIC-010 AC10.8.*) ──
-        ac(
-            "AC-observability.8.1",
-            "Statement upload audit logs include non-sensitive input provenance, correlation IDs, and storage failure context. Was EPIC-010 AC10.8.1.",
-            "apps/backend/tests/api/test_statements_router.py::test_AC10_8_1_upload_audit_logs_include_statement_input_provenance",
-        ),
-        ac(
-            "AC-observability.8.2",
-            "Async statement parsing emits structured 5/10/20/70/80/90/100 checkpoints and safe failure context. Was EPIC-010 AC10.8.2.",
-            "apps/backend/tests/extraction/test_statement_parsing_audit_logging.py::test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured",
-        ),
-        ac(
-            "AC-observability.8.3",
-            "Brokerage import and reconciliation emit start/complete/failure audit checkpoints with result counts. Was EPIC-010 AC10.8.3.",
-            "apps/backend/tests/api/test_statements_router.py::test_AC10_8_3_statement_scoped_brokerage_import_audit_logs",
-        ),
-        ac(
-            "AC-observability.8.4",
-            "High-volume staging audit noise is reduced for SQL echo and repeated FX/portfolio valuation detail logs. Was EPIC-010 AC10.8.4.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_AC10_8_4_high_volume_fx_audit_noise_uses_debug_level",
-            priority="P1",
-        ),
+        ac('AC-observability.8.1', 'Statement upload audit logs include non-sensitive input provenance, correlation IDs, and storage failure context. Was EPIC-010 AC10.8.1.', 'apps/backend/tests/api/test_statements_router.py::test_AC10_8_1_upload_audit_logs_include_statement_input_provenance'),
+        ac('AC-observability.8.2', 'Async statement parsing emits structured 5/10/20/70/80/90/100 checkpoints and safe failure context. Was EPIC-010 AC10.8.2.', 'apps/backend/tests/extraction/test_statement_parsing_audit_logging.py::test_AC10_8_2_parse_checkpoints_and_failure_logs_are_structured'),
+        ac('AC-observability.8.3', 'Brokerage import and reconciliation emit start/complete/failure audit checkpoints with result counts. Was EPIC-010 AC10.8.3.', 'apps/backend/tests/api/test_statements_router.py::test_AC10_8_3_statement_scoped_brokerage_import_audit_logs'),
+        ac('AC-observability.8.4', 'High-volume staging audit noise is reduced for SQL echo and repeated FX/portfolio valuation detail logs. Was EPIC-010 AC10.8.4.', 'apps/backend/tests/infra/test_observability_contract.py::test_AC10_8_4_high_volume_fx_audit_noise_uses_debug_level', priority='P1'),
         # ── group 9: Production observability runtime contract (was the app-owned rows of AC10.9.*; deploy-tooling AC10.9.5 stays in EPIC-010) ──
-        ac(
-            "AC-observability.9.1",
-            "The backend exposes a stable redacted, vendor-neutral OTEL observability status (service name, deployment environment, resource attributes, exporter flags) without exposing the OTLP endpoint or any backend-specific alert metadata. Was EPIC-010 AC10.9.1.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_AC10_9_1_observability_status_is_redacted_and_vendor_neutral",
-        ),
-        ac(
-            "AC-observability.9.2",
-            "Startup logs emit one structured observability runtime event capturing OTEL runtime readiness. Was EPIC-010 AC10.9.2.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_AC10_9_2_observability_startup_log_uses_runtime_contract",
-        ),
-        ac(
-            "AC-observability.9.3",
-            "/health includes the same redacted observability status so deploy checks can prove app-side OTEL readiness. Was EPIC-010 AC10.9.3.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_AC10_9_3_health_response_includes_redacted_observability_status",
-        ),
+        ac('AC-observability.9.1', 'The backend exposes a stable redacted, vendor-neutral OTEL observability status (service name, deployment environment, resource attributes, exporter flags) without exposing the OTLP endpoint or any backend-specific alert metadata. Was EPIC-010 AC10.9.1.', 'apps/backend/tests/infra/test_observability_contract.py::test_AC10_9_1_observability_status_is_redacted_and_vendor_neutral'),
+        ac('AC-observability.9.2', 'Startup logs emit one structured observability runtime event capturing OTEL runtime readiness. Was EPIC-010 AC10.9.2.', 'apps/backend/tests/infra/test_observability_contract.py::test_AC10_9_2_observability_startup_log_uses_runtime_contract'),
+        ac('AC-observability.9.3', '/health includes the same redacted observability status so deploy checks can prove app-side OTEL readiness. Was EPIC-010 AC10.9.3.', 'apps/backend/tests/infra/test_observability_contract.py::test_AC10_9_3_health_response_includes_redacted_observability_status'),
         # ── group 10: Backend OTEL metrics pillar (was EPIC-010 AC10.10.*) ──
-        ac(
-            "AC-observability.10.1",
-            "The MeterProvider and OTLP metric exporter are endpoint-gated and no-op safe when unset. Was EPIC-010 AC10.10.1.",
-            "apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_10_1_configure_metrics_is_noop_without_endpoint",
-        ),
-        ac(
-            "AC-observability.10.2",
-            "RED request-count and request-duration metrics use low-cardinality route/status labels. Was EPIC-010 AC10.10.2.",
-            "apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_10_2_red_metrics_record_low_cardinality_labels",
-        ),
-        ac(
-            "AC-observability.10.3",
-            "DB pool and async parse in-flight gauges expose current saturation values. Was EPIC-010 AC10.10.3.",
-            "apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_10_3_saturation_gauges_observe_current_values",
-        ),
-        ac(
-            "AC-observability.10.4",
-            "Business metric helpers cover parse, AI-provider, reconciliation, and confidence signals and are emitted from their production call- sites (parse completion success + failure, the AI provider stream latency + outcome, and reconciliation match resolution) through the real code path with low-cardinality labels only. Was EPIC-010 AC10.10.4.",
-            "apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_10_4_business_metric_helpers_record_outcomes",
-        ),
+        ac('AC-observability.10.1', 'The MeterProvider and OTLP metric exporter are endpoint-gated and no-op safe when unset. Was EPIC-010 AC10.10.1.', 'apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_10_1_configure_metrics_is_noop_without_endpoint'),
+        ac('AC-observability.10.2', 'RED request-count and request-duration metrics use low-cardinality route/status labels. Was EPIC-010 AC10.10.2.', 'apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_10_2_red_metrics_record_low_cardinality_labels'),
+        ac('AC-observability.10.3', 'DB pool and async parse in-flight gauges expose current saturation values. Was EPIC-010 AC10.10.3.', 'apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_10_3_saturation_gauges_observe_current_values'),
+        ac('AC-observability.10.4', 'Business metric helpers cover parse, AI-provider, reconciliation, and confidence signals and are emitted from their production call- sites (parse completion success + failure, the AI provider stream latency + outcome, and reconciliation match resolution) through the real code path with low-cardinality labels only. Was EPIC-010 AC10.10.4.', 'apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_10_4_business_metric_helpers_record_outcomes'),
         # ── group 11: Logging content hardening (was EPIC-010 AC10.11.*) ──
-        ac(
-            "AC-observability.11.1",
-            "Authenticated requests bind user_id into structured log context, and authentication/rate-limit failures emit warning events plus the rate-limit rejection metric without credentials. Was EPIC-010 AC10.11.1.",
-            "apps/backend/tests/identity/test_auth.py::test_AC10_11_1_get_current_user_id_binds_user_context",
-        ),
-        ac(
-            "AC-observability.11.2",
-            "Financial mutations emit stable audit logs for journal post/void and reconciliation accept operations. Was EPIC-010 AC10.11.2.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_AC10_11_2_financial_mutation_audit_helpers_and_callsites",
-        ),
-        ac(
-            "AC-observability.11.3",
-            "Provider/error-body logging uses bounded safe summaries and rejects raw risky payload fields. Was EPIC-010 AC10.11.3.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_AC10_11_3_provider_error_body_logging_is_redacted",
-        ),
-        ac(
-            "AC-observability.11.4",
-            "Telemetry↔alerting ownership contract (#1655, generalizes #1652, finance_report#1851 G3): an expected/user-input parse outcome (a statement that fails extraction because the source document itself is bad — not a system fault) logs at WARNING, never ERROR. ERROR is reserved for actionable system faults; a routine bad upload must never be indistinguishable, at the log level, from an infra incident — that conflation is exactly what let a single bad upload fire a zero-threshold critical alert before #1652. Changing which outcomes are routine vs. faulty is an infra alerting-policy question (thresholds/rules), never an app log-level question — this contract is what makes that boundary hold without requiring an app release to fix alert noise.",
-            "apps/backend/tests/extraction/test_statement_parsing_audit_logging.py::test_AC_observability_11_4_expected_parse_failure_never_logs_at_error",
-        ),
+        ac('AC-observability.11.1', 'Authenticated requests bind user_id into structured log context, and authentication/rate-limit failures emit warning events plus the rate-limit rejection metric without credentials. Was EPIC-010 AC10.11.1.', 'apps/backend/tests/identity/test_auth.py::test_AC10_11_1_get_current_user_id_binds_user_context'),
+        ac('AC-observability.11.2', 'Financial mutations emit stable audit logs for journal post/void and reconciliation accept operations. Was EPIC-010 AC10.11.2.', 'apps/backend/tests/infra/test_observability_contract.py::test_AC10_11_2_financial_mutation_audit_helpers_and_callsites'),
+        ac('AC-observability.11.3', 'Provider/error-body logging uses bounded safe summaries and rejects raw risky payload fields. Was EPIC-010 AC10.11.3.', 'apps/backend/tests/infra/test_observability_contract.py::test_AC10_11_3_provider_error_body_logging_is_redacted'),
+        ac('AC-observability.11.4', 'Telemetry↔alerting ownership contract (#1655, generalizes #1652, finance_report#1851 G3): an expected/user-input parse outcome (a statement that fails extraction because the source document itself is bad — not a system fault) logs at WARNING, never ERROR. ERROR is reserved for actionable system faults; a routine bad upload must never be indistinguishable, at the log level, from an infra incident — that conflation is exactly what let a single bad upload fire a zero-threshold critical alert before #1652. Changing which outcomes are routine vs. faulty is an infra alerting-policy question (thresholds/rules), never an app log-level question — this contract is what makes that boundary hold without requiring an app release to fix alert noise.', 'apps/backend/tests/extraction/test_statement_parsing_audit_logging.py::test_AC_observability_11_4_expected_parse_failure_never_logs_at_error'),
         # ── group 12: Async parse failure visibility (was EPIC-010 AC10.12.*) ──
-        ac(
-            "AC-observability.12.1",
-            "Failed async statement parse tasks emit a low-cardinality failure metric and safe structured log context. Was EPIC-010 AC10.12.1.",
-            "apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_12_1_async_parse_tracking_records_failures",
-        ),
-        ac(
-            "AC-observability.12.2",
-            "In-process fallback and Prefect flow wrappers pass statement/request context into async parse tracking. Was EPIC-010 AC10.12.2.",
-            "apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_12_2_async_parse_tracking_receives_statement_context",
-        ),
-        ac(
-            "AC-observability.12.3",
-            "Parse failure handling rejects invalid sources, retains identity ambiguity for human review, and emits the existing safe statement.parse.failed contract. Was EPIC-010 AC10.12.3.",
-            "apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved",
-        ),
+        ac('AC-observability.12.1', 'Failed async statement parse tasks emit a low-cardinality failure metric and safe structured log context. Was EPIC-010 AC10.12.1.', 'apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_12_1_async_parse_tracking_records_failures'),
+        ac('AC-observability.12.2', 'In-process fallback and Prefect flow wrappers pass statement/request context into async parse tracking. Was EPIC-010 AC10.12.2.', 'apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_12_2_async_parse_tracking_receives_statement_context'),
+        ac('AC-observability.12.3', 'Parse failure handling rejects invalid sources, retains identity ambiguity for human review, and emits the existing safe statement.parse.failed contract. Was EPIC-010 AC10.12.3.', 'apps/backend/tests/infra/test_telemetry_metrics.py::test_AC10_12_3_parse_failure_state_and_log_contract_are_preserved'),
         # ── group 1 (extended): Backend logging configuration ──
-        ac(
-            "AC-observability.1.4",
-            "In debug mode, _select_renderer returns structlog's ConsoleRenderer for human-readable local output. Was EPIC-012 AC12.2.1.",
-            "apps/backend/tests/infra/test_logger.py::test_select_renderer_uses_console_in_debug",
-        ),
-        ac(
-            "AC-observability.1.5",
-            "configure_logging() wires a working structlog configuration in debug mode without requiring an OTEL endpoint. Was EPIC-012 AC12.15.1.",
-            "apps/backend/tests/infra/test_logger.py::test_configure_logging_basic",
-        ),
-        ac(
-            "AC-observability.1.6",
-            "configure_logging() wires a working structlog configuration in production mode without requiring an OTEL endpoint. Was EPIC-012 AC12.15.2.",
-            "apps/backend/tests/infra/test_logger.py::test_configure_logging_production_mode",
-        ),
+        ac('AC-observability.1.4', "In debug mode, _select_renderer returns structlog's ConsoleRenderer for human-readable local output. Was EPIC-012 AC12.2.1.", 'apps/backend/tests/infra/test_logger.py::test_select_renderer_uses_console_in_debug'),
+        ac('AC-observability.1.5', 'configure_logging() wires a working structlog configuration in debug mode without requiring an OTEL endpoint. Was EPIC-012 AC12.15.1.', 'apps/backend/tests/infra/test_logger.py::test_configure_logging_basic'),
+        ac('AC-observability.1.6', 'configure_logging() wires a working structlog configuration in production mode without requiring an OTEL endpoint. Was EPIC-012 AC12.15.2.', 'apps/backend/tests/infra/test_logger.py::test_configure_logging_production_mode'),
         # ── group 2 (extended): OTLP endpoint construction ──
-        ac(
-            "AC-observability.2.1",
-            "Building the OTLP logs endpoint appends /v1/logs when the configured endpoint has no explicit path, with or without a trailing slash. Was EPIC-012 AC12.1.1.",
-            "apps/backend/tests/infra/test_logger.py::test_build_otlp_logs_endpoint_adds_suffix",
-            priority="P1",
-        ),
+        ac('AC-observability.2.1', 'Building the OTLP logs endpoint appends /v1/logs when the configured endpoint has no explicit path, with or without a trailing slash. Was EPIC-012 AC12.1.1.', 'apps/backend/tests/infra/test_logger.py::test_build_otlp_logs_endpoint_adds_suffix', priority='P1'),
         # ── group 4 (extended): OTEL configuration & error handling ──
-        ac(
-            "AC-observability.4.5",
-            "Configuring OTEL tracing warns (and stays no-op) when the opentelemetry dependency is missing. Was EPIC-012 AC12.3.2.",
-            "apps/backend/tests/infra/test_logger.py::test_configure_otel_tracing_missing_dependency_warns",
-        ),
-        ac(
-            "AC-observability.4.6",
-            "Configuring OTEL logging returns early without raising when no OTLP endpoint is configured. Was EPIC-012 AC12.3.3.",
-            "apps/backend/tests/infra/test_logger.py::test_configure_otel_logging_no_endpoint",
-        ),
-        ac(
-            "AC-observability.4.7",
-            "Building the OTEL resource sets service.name from the configured OTEL service name and merges additional key=value pairs parsed from OTEL_RESOURCE_ATTRIBUTES into the resource attributes. Was EPIC-012 AC12.5.1.",
-            "apps/backend/tests/infra/test_logger.py::test_build_otel_resource",
-        ),
-        ac(
-            "AC-observability.4.8",
-            "Configuring OTEL tracing returns early without raising when no OTLP endpoint is configured. Was EPIC-012 AC12.12.1.",
-            "apps/backend/tests/infra/test_logger.py::test_configure_otel_tracing_no_endpoint",
-        ),
-        ac(
-            "AC-observability.4.9",
-            "Configuring OTEL tracing wires a TracerProvider carrying the resource (service name + resource attributes) and registers a batch span processor pointed at the OTLP span exporter. Was EPIC-012 AC12.12.2.",
-            "apps/backend/tests/infra/test_logger.py::test_configure_otel_tracing_with_fake_exporter",
-        ),
-        ac(
-            "AC-observability.4.10",
-            "Configuring OTEL tracing appends /v1/traces to the configured OTLP endpoint, including when the endpoint has a trailing slash. Was EPIC-012 AC12.12.3.",
-            "apps/backend/tests/infra/test_logger.py::test_configure_otel_tracing_appends_traces_path",
-        ),
+        ac('AC-observability.4.5', 'Configuring OTEL tracing warns (and stays no-op) when the opentelemetry dependency is missing. Was EPIC-012 AC12.3.2.', 'apps/backend/tests/infra/test_logger.py::test_configure_otel_tracing_missing_dependency_warns'),
+        ac('AC-observability.4.6', 'Configuring OTEL logging returns early without raising when no OTLP endpoint is configured. Was EPIC-012 AC12.3.3.', 'apps/backend/tests/infra/test_logger.py::test_configure_otel_logging_no_endpoint'),
+        ac('AC-observability.4.7', 'Building the OTEL resource sets service.name from the configured OTEL service name and merges additional key=value pairs parsed from OTEL_RESOURCE_ATTRIBUTES into the resource attributes. Was EPIC-012 AC12.5.1.', 'apps/backend/tests/infra/test_logger.py::test_build_otel_resource'),
+        ac('AC-observability.4.8', 'Configuring OTEL tracing returns early without raising when no OTLP endpoint is configured. Was EPIC-012 AC12.12.1.', 'apps/backend/tests/infra/test_logger.py::test_configure_otel_tracing_no_endpoint'),
+        ac('AC-observability.4.9', 'Configuring OTEL tracing wires a TracerProvider carrying the resource (service name + resource attributes) and registers a batch span processor pointed at the OTLP span exporter. Was EPIC-012 AC12.12.2.', 'apps/backend/tests/infra/test_logger.py::test_configure_otel_tracing_with_fake_exporter'),
+        ac('AC-observability.4.10', 'Configuring OTEL tracing appends /v1/traces to the configured OTLP endpoint, including when the endpoint has a trailing slash. Was EPIC-012 AC12.12.3.', 'apps/backend/tests/infra/test_logger.py::test_configure_otel_tracing_appends_traces_path'),
         # ── group 13 (new): Timing instrumentation (log_timing / async_log_timing) ──
-        ac(
-            "AC-observability.13.1",
-            "Sync log_timing logs '<operation> completed' with a duration_ms field. Was EPIC-012 AC12.6.1.",
-            "apps/backend/tests/infra/test_logger.py::test_log_timing_basic",
-        ),
-        ac(
-            "AC-observability.13.2",
-            "Sync log_timing includes caller-supplied context fields in the completion log. Was EPIC-012 AC12.6.2.",
-            "apps/backend/tests/infra/test_logger.py::test_log_timing_with_context",
-        ),
-        ac(
-            "AC-observability.13.3",
-            "log_timing yields a mutable context dict; entries added inside the block appear in the completion log. Was EPIC-012 AC12.6.3.",
-            "apps/backend/tests/infra/test_logger.py::test_log_timing_yields_mutable_dict",
-        ),
-        ac(
-            "AC-observability.13.4",
-            "log_timing respects a caller-supplied custom log level while still logging completion. Was EPIC-012 AC12.6.4.",
-            "apps/backend/tests/infra/test_logger.py::test_log_timing_with_custom_level",
-        ),
-        ac(
-            "AC-observability.13.5",
-            "Async log_timing (async_log_timing) logs '<operation> completed' with a duration_ms field. Was EPIC-012 AC12.16.1.",
-            "apps/backend/tests/infra/test_logger.py::test_async_log_timing_basic",
-        ),
-        ac(
-            "AC-observability.13.6",
-            "Async log_timing includes caller-supplied context fields in the completion log. Was EPIC-012 AC12.16.2.",
-            "apps/backend/tests/infra/test_logger.py::test_async_log_timing_with_context",
-        ),
+        ac('AC-observability.13.1', "Sync log_timing logs '<operation> completed' with a duration_ms field. Was EPIC-012 AC12.6.1.", 'apps/backend/tests/infra/test_logger.py::test_log_timing_basic'),
+        ac('AC-observability.13.2', 'Sync log_timing includes caller-supplied context fields in the completion log. Was EPIC-012 AC12.6.2.', 'apps/backend/tests/infra/test_logger.py::test_log_timing_with_context'),
+        ac('AC-observability.13.3', 'log_timing yields a mutable context dict; entries added inside the block appear in the completion log. Was EPIC-012 AC12.6.3.', 'apps/backend/tests/infra/test_logger.py::test_log_timing_yields_mutable_dict'),
+        ac('AC-observability.13.4', 'log_timing respects a caller-supplied custom log level while still logging completion. Was EPIC-012 AC12.6.4.', 'apps/backend/tests/infra/test_logger.py::test_log_timing_with_custom_level'),
+        ac('AC-observability.13.5', "Async log_timing (async_log_timing) logs '<operation> completed' with a duration_ms field. Was EPIC-012 AC12.16.1.", 'apps/backend/tests/infra/test_logger.py::test_async_log_timing_basic'),
+        ac('AC-observability.13.6', 'Async log_timing includes caller-supplied context fields in the completion log. Was EPIC-012 AC12.16.2.', 'apps/backend/tests/infra/test_logger.py::test_async_log_timing_with_context'),
         # ── group 14 (new): External API call logging (log_external_api decorator) ──
-        ac(
-            "AC-observability.14.1",
-            "The log_external_api decorator logs a success event with duration_ms for a synchronous call. Was EPIC-012 AC12.7.1.",
-            "apps/backend/tests/infra/test_logger.py::test_log_external_api_sync_success",
-        ),
-        ac(
-            "AC-observability.14.2",
-            "The log_external_api decorator logs a failure event including the exception type, and re-raises, for a synchronous call. Was EPIC-012 AC12.7.2.",
-            "apps/backend/tests/infra/test_logger.py::test_log_external_api_sync_failure",
-        ),
-        ac(
-            "AC-observability.14.3",
-            "The log_external_api decorator logs a success event with duration_ms for an asynchronous call. Was EPIC-012 AC12.7.3.",
-            "apps/backend/tests/infra/test_logger.py::test_log_external_api_async_success",
-        ),
-        ac(
-            "AC-observability.14.4",
-            "The log_external_api decorator logs a failure event including the exception type, and re-raises, for an asynchronous call. Was EPIC-012 AC12.7.4.",
-            "apps/backend/tests/infra/test_logger.py::test_log_external_api_async_failure",
-        ),
-        ac(
-            "AC-observability.14.5",
-            "With log_args=True a synchronous external-API call logs args_count and kwargs_keys instead of the raw argument values. Was EPIC-012 AC12.7.5.",
-            "apps/backend/tests/infra/test_logger.py::test_log_external_api_with_log_args",
-        ),
-        ac(
-            "AC-observability.14.6",
-            "With log_args=True an asynchronous external-API call logs args_count and kwargs_keys instead of the raw argument values. Was EPIC-012 AC12.17.1.",
-            "apps/backend/tests/infra/test_logger.py::test_log_external_api_async_with_log_args",
-        ),
-        ac(
-            "AC-observability.14.7",
-            "With log_args=True an asynchronous external-API call failure still logs args_count alongside the failure event. Was EPIC-012 AC12.17.2.",
-            "apps/backend/tests/infra/test_logger.py::test_log_external_api_async_failure_with_log_args",
-        ),
+        ac('AC-observability.14.1', 'The log_external_api decorator logs a success event with duration_ms for a synchronous call. Was EPIC-012 AC12.7.1.', 'apps/backend/tests/infra/test_logger.py::test_log_external_api_sync_success'),
+        ac('AC-observability.14.2', 'The log_external_api decorator logs a failure event including the exception type, and re-raises, for a synchronous call. Was EPIC-012 AC12.7.2.', 'apps/backend/tests/infra/test_logger.py::test_log_external_api_sync_failure'),
+        ac('AC-observability.14.3', 'The log_external_api decorator logs a success event with duration_ms for an asynchronous call. Was EPIC-012 AC12.7.3.', 'apps/backend/tests/infra/test_logger.py::test_log_external_api_async_success'),
+        ac('AC-observability.14.4', 'The log_external_api decorator logs a failure event including the exception type, and re-raises, for an asynchronous call. Was EPIC-012 AC12.7.4.', 'apps/backend/tests/infra/test_logger.py::test_log_external_api_async_failure'),
+        ac('AC-observability.14.5', 'With log_args=True a synchronous external-API call logs args_count and kwargs_keys instead of the raw argument values. Was EPIC-012 AC12.7.5.', 'apps/backend/tests/infra/test_logger.py::test_log_external_api_with_log_args'),
+        ac('AC-observability.14.6', 'With log_args=True an asynchronous external-API call logs args_count and kwargs_keys instead of the raw argument values. Was EPIC-012 AC12.17.1.', 'apps/backend/tests/infra/test_logger.py::test_log_external_api_async_with_log_args'),
+        ac('AC-observability.14.7', 'With log_args=True an asynchronous external-API call failure still logs args_count alongside the failure event. Was EPIC-012 AC12.17.2.', 'apps/backend/tests/infra/test_logger.py::test_log_external_api_async_failure_with_log_args'),
         # ── group 15 (new): Exception logging (log_exception helper) ──
-        ac(
-            "AC-observability.15.1",
-            "log_exception logs the supplied message together with the exception type and message as structured context. Was EPIC-012 AC12.8.1.",
-            "apps/backend/tests/infra/test_logger.py::test_log_exception_basic",
-        ),
-        ac(
-            "AC-observability.15.2",
-            "log_exception includes caller-supplied extra keyword context in the error log. Was EPIC-012 AC12.8.2.",
-            "apps/backend/tests/infra/test_logger.py::test_log_exception_with_extra_context",
-        ),
-        ac(
-            "AC-observability.15.3",
-            "log_exception can omit the traceback via include_traceback=False while still logging the message and exception type. Was EPIC-012 AC12.8.3.",
-            "apps/backend/tests/infra/test_logger.py::test_log_exception_without_traceback",
-        ),
-        ac(
-            "AC-observability.15.4",
-            "log_exception respects a caller-supplied custom log level instead of the error default. Was EPIC-012 AC12.8.4.",
-            "apps/backend/tests/infra/test_logger.py::test_log_exception_custom_level",
-        ),
+        ac('AC-observability.15.1', 'log_exception logs the supplied message together with the exception type and message as structured context. Was EPIC-012 AC12.8.1.', 'apps/backend/tests/infra/test_logger.py::test_log_exception_basic'),
+        ac('AC-observability.15.2', 'log_exception includes caller-supplied extra keyword context in the error log. Was EPIC-012 AC12.8.2.', 'apps/backend/tests/infra/test_logger.py::test_log_exception_with_extra_context'),
+        ac('AC-observability.15.3', 'log_exception can omit the traceback via include_traceback=False while still logging the message and exception type. Was EPIC-012 AC12.8.3.', 'apps/backend/tests/infra/test_logger.py::test_log_exception_without_traceback'),
+        ac('AC-observability.15.4', 'log_exception respects a caller-supplied custom log level instead of the error default. Was EPIC-012 AC12.8.4.', 'apps/backend/tests/infra/test_logger.py::test_log_exception_custom_level'),
         # ── group 16 (new): Structlog processor pipeline & trace-context injection ──
-        ac(
-            "AC-observability.16.1",
-            "_build_processors returns a list of at least five structlog processors, including the contextvars merger, trace-context injector, log-level adder, exception-info renderer, and timestamper. Was EPIC-012 AC12.10.1.",
-            "apps/backend/tests/infra/test_logger.py::test_build_processors_returns_list",
-        ),
-        ac(
-            "AC-observability.16.2",
-            "The trace-context processor injects hex-formatted trace_id and span_id into the event dict when the current OTEL span context is valid. Was EPIC-012 AC12.11.1.",
-            "apps/backend/tests/infra/test_logger.py::test_add_trace_context_with_valid_span",
-        ),
-        ac(
-            "AC-observability.16.3",
-            "The trace-context processor leaves trace_id/span_id out of the event dict when the current OTEL span context is invalid. Was EPIC-012 AC12.11.2.",
-            "apps/backend/tests/infra/test_logger.py::test_add_trace_context_with_invalid_span",
-        ),
-        ac(
-            "AC-observability.16.4",
-            "The trace-context processor returns the event dict unchanged, without raising, when the opentelemetry package cannot be imported. Was EPIC-012 AC12.11.3.",
-            "apps/backend/tests/infra/test_logger.py::test_add_trace_context_handles_import_error",
-        ),
+        ac('AC-observability.16.1', '_build_processors returns a list of at least five structlog processors, including the contextvars merger, trace-context injector, log-level adder, exception-info renderer, and timestamper. Was EPIC-012 AC12.10.1.', 'apps/backend/tests/infra/test_logger.py::test_build_processors_returns_list'),
+        ac('AC-observability.16.2', 'The trace-context processor injects hex-formatted trace_id and span_id into the event dict when the current OTEL span context is valid. Was EPIC-012 AC12.11.1.', 'apps/backend/tests/infra/test_logger.py::test_add_trace_context_with_valid_span'),
+        ac('AC-observability.16.3', 'The trace-context processor leaves trace_id/span_id out of the event dict when the current OTEL span context is invalid. Was EPIC-012 AC12.11.2.', 'apps/backend/tests/infra/test_logger.py::test_add_trace_context_with_invalid_span'),
+        ac('AC-observability.16.4', 'The trace-context processor returns the event dict unchanged, without raising, when the opentelemetry package cannot be imported. Was EPIC-012 AC12.11.3.', 'apps/backend/tests/infra/test_logger.py::test_add_trace_context_handles_import_error'),
         # ── group 17 (new): Observability doc/SSOT linkage (was EPIC-010 AC10.5.*/7.5) ──
-        ac(
-            "AC-observability.17.1",
-            "common/observability/observability.md exists as the observability SSOT page (declares an 'SSOT Key' section and covers 'observability'). Was EPIC-010 AC10.5.1.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_observability_ssot_and_env_docs_are_linked",
-        ),
-        ac(
-            "AC-observability.17.2",
-            "common/observability/observability.md is anchored as the concept owner in common/meta/data/MANIFEST.yaml (the cross-package concept-ownership registry; relocated from the retired docs/ssot/ in #1823). Was EPIC-010 AC10.5.2.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_observability_ssot_and_env_docs_are_linked",
-        ),
-        ac(
-            "AC-observability.17.3",
-            "The three OTEL environment variables (OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_SERVICE_NAME, OTEL_RESOURCE_ATTRIBUTES) are documented in .env.example. Was EPIC-010 AC10.5.3.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_observability_ssot_and_env_docs_are_linked",
-        ),
-        ac(
-            "AC-observability.17.4",
-            "The three OTEL environment variables are documented in common/observability/observability.md alongside the SSOT page. Was EPIC-010 AC10.7.5.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_observability_ssot_and_env_docs_are_linked",
-        ),
+        ac('AC-observability.17.1', "common/observability/observability.md exists as the observability SSOT page (declares an 'SSOT Key' section and covers 'observability'). Was EPIC-010 AC10.5.1.", 'apps/backend/tests/infra/test_observability_contract.py::test_observability_ssot_and_env_docs_are_linked'),
+        ac('AC-observability.17.2', 'common/observability/observability.md is anchored as the concept owner in common/meta/data/MANIFEST.yaml (the cross-package concept-ownership registry; relocated from the retired docs/ssot/ in #1823). Was EPIC-010 AC10.5.2.', 'apps/backend/tests/infra/test_observability_contract.py::test_observability_ssot_and_env_docs_are_linked'),
+        ac('AC-observability.17.3', 'The three OTEL environment variables (OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_SERVICE_NAME, OTEL_RESOURCE_ATTRIBUTES) are documented in .env.example. Was EPIC-010 AC10.5.3.', 'apps/backend/tests/infra/test_observability_contract.py::test_observability_ssot_and_env_docs_are_linked'),
+        ac('AC-observability.17.4', 'The three OTEL environment variables are documented in common/observability/observability.md alongside the SSOT page. Was EPIC-010 AC10.7.5.', 'apps/backend/tests/infra/test_observability_contract.py::test_observability_ssot_and_env_docs_are_linked'),
         # ── group 18 (new): financial-invariant violation observability (EPIC-026) ──
-        ac(
-            "AC-observability.18.1",
-            "Financial-invariant violations (balance mismatch, per-currency NAV self-check failure, running-balance chain break, within-document dedup collapse) emit a WARNING-level structured log plus a finance.invariant.violation counter labelled by kind and an anonymized institution_class, independent of routing; a balance-invalid parse still fires the detection metric even though the LLM-LED blocking gate now quarantines it to REJECTED. Was EPIC-026 AC26.8.1.",
-            "apps/backend/tests/extraction/test_invariant_observability.py::test_AC26_8_1_balance_invalid_parse_quarantines_and_emits_metric",
-            proof_kind="property",
-        ),
+        ac('AC-observability.18.1', 'Financial-invariant violations (balance mismatch, per-currency NAV self-check failure, running-balance chain break, within-document dedup collapse) emit a WARNING-level structured log plus a finance.invariant.violation counter labelled by kind and an anonymized institution_class, independent of routing; a balance-invalid parse still fires the detection metric even though the LLM-LED blocking gate now quarantines it to REJECTED. Was EPIC-026 AC26.8.1.', 'apps/backend/tests/extraction/test_invariant_observability.py::test_AC26_8_1_balance_invalid_parse_quarantines_and_emits_metric', proof_kind='property'),
         # ── group 6 (new): OTEL keys wired through the app's Vault template,
         # README, and compose.yaml (was EPIC-010 AC10.6.1-.4; AC10.7.6 was a
         # duplicate of AC10.6.1 citing the identical test and is merged into
         # `.1` with no separate entry, #1821 Wave A horizontal move) ──
-        ac(
-            "AC-observability.6.1",
-            "OTEL keys are present in the versioned required-env artifact.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_required_env_manifest_exports_observability_contract",
-            priority="P1",
-        ),
-        ac(
-            "AC-observability.6.2",
-            "OTEL keys are documented in the generated app env reference.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_required_env_manifest_exports_observability_contract",
-            priority="P1",
-        ),
-        ac(
-            "AC-observability.6.3",
-            "The app publishes its deploy-time env requirements without reading compose.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_required_env_manifest_exports_observability_contract",
-            priority="P1",
-        ),
-        ac(
-            "AC-observability.6.4",
-            "Vault-owned observability fields are marked explicitly in required-env.",
-            "apps/backend/tests/infra/test_observability_contract.py::test_required_env_manifest_exports_observability_contract",
-            priority="P1",
-        ),
+        ac('AC-observability.6.1', 'OTEL keys are present in the versioned required-env artifact.', 'apps/backend/tests/infra/test_observability_contract.py::test_required_env_manifest_exports_observability_contract', priority='P1'),
+        ac('AC-observability.6.2', 'OTEL keys are documented in the generated app env reference.', 'apps/backend/tests/infra/test_observability_contract.py::test_required_env_manifest_exports_observability_contract', priority='P1'),
+        ac('AC-observability.6.3', 'The app publishes its deploy-time env requirements without reading compose.', 'apps/backend/tests/infra/test_observability_contract.py::test_required_env_manifest_exports_observability_contract', priority='P1'),
+        ac('AC-observability.6.4', 'Vault-owned observability fields are marked explicitly in required-env.', 'apps/backend/tests/infra/test_observability_contract.py::test_required_env_manifest_exports_observability_contract', priority='P1'),
         # ── group 9 (continued): deploy-failure-snapshot boundary (was
         # EPIC-010 AC10.9.5, #1821 Wave A horizontal move) ──
-        ac(
-            "AC-observability.9.4",
-            "Deploy failure snapshots are infra2-owned end to end — the app ships no Dokploy failure-snapshot tool and never reaches the Dokploy API for platform diagnostics; the app builds no observability-backend pivot links (App/Infra boundary #876).",
-            "tests/tooling/test_public_boundary_control.py::test_AC10_9_5_app_side_snapshot_is_retired",
-            proof_kind="property",
-        ),
+        ac('AC-observability.9.4', 'Deploy failure snapshots are infra2-owned end to end — the app ships no Dokploy failure-snapshot tool and never reaches the Dokploy API for platform diagnostics; the app builds no observability-backend pivot links (App/Infra boundary #876).', 'tests/tooling/test_public_boundary_control.py::test_AC10_9_5_app_side_snapshot_is_retired', proof_kind='property'),
         # ── group openpanel-query: the OpenPanel analytics query CLI (was
         # EPIC-024 AC24.1.4, #1821 Wave A horizontal move; the EPIC row's
         # own test citation was just the file name, not a function — the
         # file's tests are docstring-tagged AC23.1.4, an id that resolves to
         # no live registry entry; the function below is the closest content
         # match) ──
-        ac(
-            "AC-observability.openpanel-query.1",
-            "The OpenPanel query CLI exists, reads its API key from OPENPANEL_API_KEY (never a CLI flag), and supports events/funnels with an --env filter.",
-            "tests/tooling/test_openpanel_query.py::test_AC23_1_4_api_key_read_from_env_not_args",
-            priority="P1",
-        ),
+        ac('AC-observability.openpanel-query.1', 'The OpenPanel query CLI exists, reads its API key from OPENPANEL_API_KEY (never a CLI flag), and supports events/funnels with an --env filter.', 'tests/tooling/test_openpanel_query.py::test_AC23_1_4_api_key_read_from_env_not_args', priority='P1'),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
         # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
-        ac(
-            "AC-observability.fe-ia-analytics.1",
-            "A typed `track(event, props)` analytics wrapper dispatches through the OpenPanel command queue, is strictly non-blocking (never throws, no-op when unconfigured), exposes a taxonomy of ≥6 named product events, and strips PII (emails, monetary amounts, account numbers) from event properties before sending",
-            "apps/frontend/src/__tests__/analyticsTrack.test.ts::AC22.18.2 exposes a typed taxonomy of at least six named product events",
-            priority="P1",
-        ),
-        ac(
-            "AC-observability.fe-ia-analytics.2",
-            "The core product funnel is instrumented through the wrapper — signup, statement upload started/succeeded/failed, Stage-1 review approved, and report generated — with tests asserting `track()` is invoked on each action",
-            "apps/frontend/src/__tests__/StatementUploader.test.tsx::AC22.18.3 tracks UPLOAD_STARTED and UPLOAD_SUCCEEDED with non-PII props on success",
-            priority="P1",
-        ),
+        ac('AC-observability.fe-ia-analytics.1', 'A typed `track(event, props)` analytics wrapper dispatches through the OpenPanel command queue, is strictly non-blocking (never throws, no-op when unconfigured), exposes a taxonomy of ≥6 named product events, and strips PII (emails, monetary amounts, account numbers) from event properties before sending', 'apps/frontend/src/__tests__/analyticsTrack.test.ts::AC22.18.2 exposes a typed taxonomy of at least six named product events', priority='P1'),
+        ac('AC-observability.fe-ia-analytics.2', 'The core product funnel is instrumented through the wrapper — signup, statement upload started/succeeded/failed, Stage-1 review approved, and report generated — with tests asserting `track()` is invoked on each action', 'apps/frontend/src/__tests__/StatementUploader.test.tsx::AC22.18.3 tracks UPLOAD_STARTED and UPLOAD_SUCCEEDED with non-PII props on success', priority='P1'),
         # ── Wave B (#1821): frontend-proof rows migrated from the
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
-        ac(
-            "AC-observability.fe-telemetry.1",
-            "The browser OTel module is config-gated (complete no-op until `NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT` is set), non-blocking, idempotent, and swallows SDK errors so it never throws into the app",
-            "apps/frontend/src/__tests__/frontendTelemetry.test.tsx::AC24.1.1 renders nothing and forwards runtime props to initOtel as the env map",
-            priority="P1",
-        ),
-        ac(
-            "AC-observability.fe-telemetry.2",
-            "The PII scrub strips query strings and fragments from captured URLs and drops sensitive attributes (emails, amounts, account numbers) before any span is emitted",
-            "apps/frontend/src/__tests__/otel.test.ts::AC24.1.2 strips query string and fragment from an absolute URL",
-            priority="P1",
-        ),
-        ac(
-            "AC-observability.fe-telemetry.3",
-            "Uncaught errors (`window.onerror`) and unhandled promise rejections are captured as span exceptions with a scrubbed page URL",
-            "apps/frontend/src/__tests__/otel.test.ts::AC24.1.3 keeps the error type but redacts the message/stack",
-            priority="P1",
-        ),
-        ac(
-            "AC-observability.fe-telemetry.4",
-            "With the OTLP endpoint configured, the real browser OTel exporter emits a span (span actually exported, not merely wired): the vitest proof asserts the span reaches `OTLPTraceExporter.export()`, and the Playwright spec asserts the actual outbound `POST /v1/traces` over the wire; both hermetic against a stubbed collector",
-            "apps/frontend/src/__tests__/telemetryEmission.test.ts::emits a finished browser OTel span to the real OTLP exporter's export() (AC24.2.1)",
-            priority="P1",
-        ),
-        ac(
-            "AC-observability.fe-telemetry.5",
-            "With the OpenPanel client id configured, the analytics layer actually dispatches an OpenPanel event/page-view (`window.op('track'` or `'screenView', ...)` invoked); asserted against a stubbed `window.op`/endpoint so the test is hermetic",
-            "apps/frontend/src/__tests__/telemetryEmission.test.ts::dispatches an OpenPanel event via window.op when configured (AC24.2.2)",
-            priority="P1",
-        ),
+        ac('AC-observability.fe-telemetry.1', 'The browser OTel module is config-gated (complete no-op until `NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT` is set), non-blocking, idempotent, and swallows SDK errors so it never throws into the app', 'apps/frontend/src/__tests__/frontendTelemetry.test.tsx::AC24.1.1 renders nothing and forwards runtime props to initOtel as the env map', priority='P1'),
+        ac('AC-observability.fe-telemetry.2', 'The PII scrub strips query strings and fragments from captured URLs and drops sensitive attributes (emails, amounts, account numbers) before any span is emitted', 'apps/frontend/src/__tests__/otel.test.ts::AC24.1.2 strips query string and fragment from an absolute URL', priority='P1'),
+        ac('AC-observability.fe-telemetry.3', 'Uncaught errors (`window.onerror`) and unhandled promise rejections are captured as span exceptions with a scrubbed page URL', 'apps/frontend/src/__tests__/otel.test.ts::AC24.1.3 keeps the error type but redacts the message/stack', priority='P1'),
+        ac('AC-observability.fe-telemetry.4', 'With the OTLP endpoint configured, the real browser OTel exporter emits a span (span actually exported, not merely wired): the vitest proof asserts the span reaches `OTLPTraceExporter.export()`, and the Playwright spec asserts the actual outbound `POST /v1/traces` over the wire; both hermetic against a stubbed collector', "apps/frontend/src/__tests__/telemetryEmission.test.ts::emits a finished browser OTel span to the real OTLP exporter's export() (AC24.2.1)", priority='P1'),
+        ac('AC-observability.fe-telemetry.5', "With the OpenPanel client id configured, the analytics layer actually dispatches an OpenPanel event/page-view (`window.op('track'` or `'screenView', ...)` invoked); asserted against a stubbed `window.op`/endpoint so the test is hermetic", 'apps/frontend/src/__tests__/telemetryEmission.test.ts::dispatches an OpenPanel event via window.op when configured (AC24.2.2)', priority='P1'),
         # ── group safe-error-ssot: one PII-redacting error-text sanitizer
         # (naive `[:500]` copies in routers/extraction bypassed redaction,
         # signature review 2026-07-15, #1864 S1) ──
-        ac(
-            "AC-observability.safe-error-ssot.1",
-            "Exactly one error-text sanitizer exists: ``safe_error_message`` in ``src/observability/audit.py``. No module under ``apps/backend/src/`` defines a local ``_safe_error_message`` — the naive truncate-only copies bypassed PII redaction on parse/match failure paths.",
-            "tests/tooling/test_safe_error_message_ssot.py::test_AC_safe_error_ssot_1_single_sanitizer_definition",
-        ),
-        ac(
-            "AC-observability.safe-error-ssot.2",
-            "Parse-failure text is PII-redacted and bounded before it is persisted or logged: a failure message carrying an email or account number reaches neither ``validation_error`` nor the failure-log fields raw — both go through ``safe_error_message``.",
-            "apps/backend/tests/extraction/test_parse_failure_redaction.py::test_AC_safe_error_ssot_2_handle_parse_failure_redacts_pii",
-        ),
+        ac('AC-observability.safe-error-ssot.1', 'Exactly one error-text sanitizer exists: ``safe_error_message`` in ``src/observability/audit.py``. No module under ``apps/backend/src/`` defines a local ``_safe_error_message`` — the naive truncate-only copies bypassed PII redaction on parse/match failure paths.', 'tests/tooling/test_safe_error_message_ssot.py::test_AC_safe_error_ssot_1_single_sanitizer_definition'),
+        ac('AC-observability.safe-error-ssot.2', 'Parse-failure text is PII-redacted and bounded before it is persisted or logged: a failure message carrying an email or account number reaches neither ``validation_error`` nor the failure-log fields raw — both go through ``safe_error_message``.', 'apps/backend/tests/extraction/test_parse_failure_redaction.py::test_AC_safe_error_ssot_2_handle_parse_failure_redacts_pii'),
     ],
     concepts=[
         ConceptRecord(
@@ -607,3 +258,4 @@ CONTRACT = PackageContract(
         ),
     ],
 )
+# fmt: on
