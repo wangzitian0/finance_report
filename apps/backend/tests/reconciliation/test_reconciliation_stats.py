@@ -31,17 +31,35 @@ def _make_atomic(user_id, *, txn_date, description, amount, direction=Transactio
     )
 
 
+async def _make_account(db, user_id, name="Test Account"):
+    account = Account(user_id=user_id, name=name, type=AccountType.ASSET, currency="SGD")
+    db.add(account)
+    await db.flush()
+    return account
+
+
+def _make_match(
+    txn_id,
+    *,
+    status=ReconciliationStatus.AUTO_ACCEPTED,
+    score=95,
+    breakdown=None,
+    superseded_by_id=None,
+):
+    return ReconciliationMatch(
+        atomic_txn_id=txn_id,
+        journal_entry_ids=[str(uuid4())],
+        match_score=score,
+        score_breakdown=breakdown or {"amount": 100.0, "date": 100.0},
+        status=status,
+        superseded_by_id=superseded_by_id,
+    )
+
+
 async def test_get_reconciliation_stats_basic(db, test_user):
     """Test basic reconciliation stats with various match states."""
     user_id = test_user.id
-    account = Account(
-        user_id=user_id,
-        name="Test Account",
-        type=AccountType.ASSET,
-        currency="SGD",
-    )
-    db.add(account)
-    await db.flush()
+    await _make_account(db, user_id)
 
     # Three atomic transactions
     txn1 = _make_atomic(user_id, txn_date=date(2024, 1, 15), description="Salary", amount=Decimal("5000"))
@@ -63,18 +81,11 @@ async def test_get_reconciliation_stats_basic(db, test_user):
     await db.flush()
 
     # txn1 -> auto-accepted (counts as matched), txn3 -> pending (not matched)
-    match1 = ReconciliationMatch(
-        atomic_txn_id=txn1.id,
-        journal_entry_ids=[str(uuid4())],
-        match_score=95,
-        score_breakdown={"amount": 100.0, "date": 100.0},
-        status=ReconciliationStatus.AUTO_ACCEPTED,
-    )
-    match2 = ReconciliationMatch(
-        atomic_txn_id=txn3.id,
-        journal_entry_ids=[str(uuid4())],
-        match_score=70,
-        score_breakdown={"amount": 90.0, "date": 80.0},
+    match1 = _make_match(txn1.id, score=95)
+    match2 = _make_match(
+        txn3.id,
+        score=70,
+        breakdown={"amount": 90.0, "date": 80.0},
         status=ReconciliationStatus.PENDING_REVIEW,
     )
     db.add_all([match1, match2])
@@ -99,37 +110,22 @@ async def test_get_reconciliation_stats_dedups_multiple_accepted_matches(db, tes
     ``matched`` counts DISTINCT atomic transactions and ignores superseded history.
     """
     user_id = test_user.id
-    account = Account(
-        user_id=user_id,
-        name="Test Account",
-        type=AccountType.ASSET,
-        currency="SGD",
-    )
-    db.add(account)
-    await db.flush()
+    await _make_account(db, user_id)
 
     txn = _make_atomic(user_id, txn_date=date(2024, 1, 15), description="Salary", amount=Decimal("5000"))
     db.add(txn)
     await db.flush()
 
     # One historical head and one current head on the same atomic transaction.
-    match_a = ReconciliationMatch(
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(uuid4())],
-        match_score=95,
-        score_breakdown={"amount": 100.0, "date": 100.0},
-        status=ReconciliationStatus.SUPERSEDED,
-    )
-    match_b = ReconciliationMatch(
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(uuid4())],
-        match_score=91,
-        score_breakdown={"amount": 100.0, "date": 90.0},
-        status=ReconciliationStatus.AUTO_ACCEPTED,
-    )
+    match_b = _make_match(txn.id, score=91, breakdown={"amount": 100.0, "date": 90.0})
     db.add(match_b)
     await db.flush()
-    match_a.superseded_by_id = match_b.id
+    match_a = _make_match(
+        txn.id,
+        score=95,
+        status=ReconciliationStatus.SUPERSEDED,
+        superseded_by_id=match_b.id,
+    )
     db.add(match_a)
     await db.flush()
 
@@ -161,26 +157,13 @@ async def test_get_reconciliation_stats_zero_division(db):
 async def test_get_reconciliation_stats_without_distribution(db, test_user):
     """Test that stats work correctly without score distribution."""
     user_id = test_user.id
-    account = Account(
-        user_id=user_id,
-        name="Test Account",
-        type=AccountType.ASSET,
-        currency="SGD",
-    )
-    db.add(account)
-    await db.flush()
+    await _make_account(db, user_id)
 
     txn = _make_atomic(user_id, txn_date=date(2024, 1, 15), description="Test", amount=Decimal("100"))
     db.add(txn)
     await db.flush()
 
-    match = ReconciliationMatch(
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(uuid4())],
-        match_score=85,
-        score_breakdown={"amount": 100.0},
-        status=ReconciliationStatus.AUTO_ACCEPTED,
-    )
+    match = _make_match(txn.id, score=85, breakdown={"amount": 100.0})
     db.add(match)
     await db.flush()
 
@@ -195,14 +178,7 @@ async def test_get_reconciliation_stats_without_distribution(db, test_user):
 async def test_get_reconciliation_stats_with_distribution(db, test_user):
     """Test score distribution bucketing with various scores."""
     user_id = test_user.id
-    account = Account(
-        user_id=user_id,
-        name="Test Account",
-        type=AccountType.ASSET,
-        currency="SGD",
-    )
-    db.add(account)
-    await db.flush()
+    await _make_account(db, user_id)
 
     scores = [50, 55, 65, 70, 75, 85, 88, 92, 95, 100]
     transactions = [
@@ -212,16 +188,7 @@ async def test_get_reconciliation_stats_with_distribution(db, test_user):
     db.add_all(transactions)
     await db.commit()
 
-    matches = [
-        ReconciliationMatch(
-            atomic_txn_id=txn.id,
-            journal_entry_ids=[str(uuid4())],
-            match_score=score,
-            score_breakdown={"amount": 100.0, "date": 100.0},
-            status=ReconciliationStatus.AUTO_ACCEPTED,
-        )
-        for txn, score in zip(transactions, scores)
-    ]
+    matches = [_make_match(txn.id, score=score) for txn, score in zip(transactions, scores)]
     db.add_all(matches)
     await db.commit()
 
