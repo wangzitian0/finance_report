@@ -3,15 +3,14 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import AiSettingsPage from "@/components/settings/AiSettingsPanel"
-import { fetchUserSettings, patchUserSettings } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }))
 
-vi.mock("@/lib/api", () => ({
-  fetchUserSettings: vi.fn(),
-  patchUserSettings: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
 const showToast = vi.fn()
@@ -19,14 +18,17 @@ vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast }),
 }))
 
-const mockedFetch = vi.mocked(fetchUserSettings)
-const mockedPatch = vi.mocked(patchUserSettings)
+const mockedApiOperation = vi.mocked(apiOperation)
 
 beforeEach(() => {
   showToast.mockReset()
-  mockedFetch.mockReset()
-  mockedPatch.mockReset()
-  mockedFetch.mockResolvedValue({ enable_ai_reconciliation: true, enable_ai_classification: false })
+  mockedApiOperation.mockReset()
+  mockedApiOperation.mockImplementation(async (op: any) => {
+    if (op === "get_current_user_settings_users_me_settings_get") {
+      return { enable_ai_reconciliation: true, enable_ai_classification: false } as any
+    }
+    return {} as any
+  })
 })
 
 describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
@@ -51,7 +53,15 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
   })
 
   it("AC22.15.2 submits edited flags via patchUserSettings and shows success", async () => {
-    mockedPatch.mockResolvedValue({ enable_ai_reconciliation: true, enable_ai_classification: true })
+    mockedApiOperation.mockImplementation(async (op: any) => {
+      if (op === "get_current_user_settings_users_me_settings_get") {
+        return { enable_ai_reconciliation: true, enable_ai_classification: false } as any
+      }
+      if (op === "patch_current_user_settings_users_me_settings_patch") {
+        return { enable_ai_reconciliation: true, enable_ai_classification: true } as any
+      }
+      return {} as any
+    })
     render(<AiSettingsPage />)
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
 
@@ -61,9 +71,11 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
     fireEvent.click(save)
 
     await waitFor(() =>
-      expect(mockedPatch).toHaveBeenCalledWith({
-        enable_ai_reconciliation: true,
-        enable_ai_classification: true,
+      expect(mockedApiOperation).toHaveBeenCalledWith("patch_current_user_settings_users_me_settings_patch", {
+        body: {
+          enable_ai_reconciliation: true,
+          enable_ai_classification: true,
+        },
       }),
     )
     await waitFor(() => expect(showToast).toHaveBeenCalledWith("AI settings saved", "success"))
@@ -72,7 +84,15 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
   })
 
   it("AC22.15.2 surfaces an error and keeps the draft when the PATCH fails", async () => {
-    mockedPatch.mockRejectedValue(new Error("Save failed"))
+    mockedApiOperation.mockImplementation(async (op: any) => {
+      if (op === "get_current_user_settings_users_me_settings_get") {
+        return { enable_ai_reconciliation: true, enable_ai_classification: false } as any
+      }
+      if (op === "patch_current_user_settings_users_me_settings_patch") {
+        throw new Error("Save failed")
+      }
+      return {} as any
+    })
     render(<AiSettingsPage />)
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
 
@@ -98,7 +118,8 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
   })
 
   it("AC22.15.2 shows a load error when fetchUserSettings rejects", async () => {
-    mockedFetch.mockRejectedValue(new Error("Load failed"))
+    mockedApiOperation.mockReset()
+    mockedApiOperation.mockRejectedValue(new Error("Load failed"))
     render(<AiSettingsPage />)
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Load failed"))
   })

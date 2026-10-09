@@ -87,9 +87,16 @@ def write_baseline(path: Path, drafts: set[str]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-def violations(repo_root: Path, baseline_path: Path) -> list[str]:
+def violations(repo_root: Path, baseline_path: Path | None = None) -> list[str]:
     drafts = _draft_packages(repo_root)
-    baseline = load_baseline(baseline_path)
+    baseline = (
+        load_baseline(baseline_path)
+        if (baseline_path is not None and baseline_path.exists())
+        else set()
+    )
+    baseline_name = (
+        baseline_path.name if baseline_path is not None else "in-code baseline"
+    )
     errors: list[str] = []
     for name in sorted(drafts):
         done = drafts[name]["done"]
@@ -108,12 +115,12 @@ def violations(repo_root: Path, baseline_path: Path) -> list[str]:
         if name not in baseline:
             errors.append(
                 f"draft package {name!r} is not registered in "
-                f"{baseline_path.name}: add it (deliberate, reviewed) or run "
+                f"{baseline_name}: add it (deliberate, reviewed) or run "
                 "--rewrite-baseline."
             )
     for name in sorted(baseline - set(drafts)):
         errors.append(
-            f"stale draft registration {name!r} remains in {baseline_path.name}: "
+            f"stale draft registration {name!r} remains in {baseline_name}: "
             "remove it or run --rewrite-baseline."
         )
     return errors

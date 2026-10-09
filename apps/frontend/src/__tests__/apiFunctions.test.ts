@@ -428,30 +428,32 @@ describe('user settings & session bootstrap client (EPIC-022 AC22.15 / #1010)', 
   });
 
   // AC-meta.fe-ia-nav.19
-  it('AC22.15.1 fetchUserSettings GETs /api/users/me/settings via apiFetch', async () => {
+  it('AC22.15.1 get_current_user_settings_users_me_settings_get GETs /api/users/me/settings', async () => {
     const fetchMock = makeFetchMock(200, {
       enable_ai_reconciliation: true,
       enable_ai_classification: false,
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { fetchUserSettings } = await import('../lib/api');
-    const result = await fetchUserSettings();
+    const { apiOperation } = await import('../lib/api-client');
+    const result = await apiOperation('get_current_user_settings_users_me_settings_get');
 
     expect(result).toEqual({ enable_ai_reconciliation: true, enable_ai_classification: false });
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/users\/me\/settings/);
     expect(fetchMock.mock.calls[0][1]?.method ?? 'GET').toBe('GET');
   });
 
-  it('AC22.15.1 patchUserSettings PATCHes the edited flags via apiFetch', async () => {
+  it('AC22.15.1 patch_current_user_settings_users_me_settings_patch PATCHes the edited flags', async () => {
     const fetchMock = makeFetchMock(200, {
       enable_ai_reconciliation: false,
       enable_ai_classification: true,
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { patchUserSettings } = await import('../lib/api');
-    const result = await patchUserSettings({ enable_ai_classification: true });
+    const { apiOperation } = await import('../lib/api-client');
+    const result = await apiOperation('patch_current_user_settings_users_me_settings_patch', {
+      body: { enable_ai_classification: true },
+    });
 
     expect(result).toEqual({ enable_ai_reconciliation: false, enable_ai_classification: true });
     const [calledUrl, calledInit] = fetchMock.mock.calls[0];
@@ -460,15 +462,19 @@ describe('user settings & session bootstrap client (EPIC-022 AC22.15 / #1010)', 
     expect(JSON.parse(calledInit.body as string)).toEqual({ enable_ai_classification: true });
   });
 
-  it('AC22.15.1 patchUserSettings surfaces backend error detail', async () => {
+  it('AC22.15.1 patch_current_user_settings_users_me_settings_patch surfaces backend error detail', async () => {
     const fetchMock = makeFetchMock(400, { detail: 'Invalid setting' });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { patchUserSettings } = await import('../lib/api');
-    await expect(patchUserSettings({ enable_ai_reconciliation: true })).rejects.toThrow('Invalid setting');
+    const { apiOperation } = await import('../lib/api-client');
+    await expect(
+      apiOperation('patch_current_user_settings_users_me_settings_patch', {
+        body: { enable_ai_reconciliation: true },
+      }),
+    ).rejects.toThrow('Invalid setting');
   });
 
-  it('AC22.15.3 fetchCurrentUser GETs /api/auth/me via apiFetch', async () => {
+  it('AC22.15.3 get_me_auth_me_get GETs /api/auth/me', async () => {
     const fetchMock = makeFetchMock(200, {
       id: 'user-1',
       email: 'a@example.com',
@@ -477,8 +483,8 @@ describe('user settings & session bootstrap client (EPIC-022 AC22.15 / #1010)', 
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { fetchCurrentUser } = await import('../lib/api');
-    const result = await fetchCurrentUser();
+    const { apiOperation } = await import('../lib/api-client');
+    const result = await apiOperation('get_me_auth_me_get');
 
     expect(result.email).toBe('a@example.com');
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/auth\/me/);
@@ -591,12 +597,12 @@ describe('base currency app-config api (EPIC-012 AC12.39)', () => {
     vi.stubGlobal('localStorage', localStorageMock);
   });
 
-  it('AC12.39 fetchBaseCurrency GETs the effective base currency', async () => {
+  it('AC12.39 get_base_currency_app_config_base_currency_get GETs the effective base currency', async () => {
     const fetchMock = makeFetchMock(200, { base_currency: 'SGD' });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { fetchBaseCurrency } = await import('../lib/api');
-    const result = await fetchBaseCurrency();
+    const { apiOperation } = await import('../lib/api-client');
+    const result = await apiOperation('get_base_currency_app_config_base_currency_get');
 
     expect(result).toEqual({ base_currency: 'SGD' });
     expect(fetchMock).toHaveBeenCalledWith(
@@ -605,12 +611,14 @@ describe('base currency app-config api (EPIC-012 AC12.39)', () => {
     );
   });
 
-  it('AC12.39 updateBaseCurrency PUTs the new ISO code', async () => {
+  it('AC12.39 update_base_currency_app_config_base_currency_put PUTs the new ISO code', async () => {
     const fetchMock = makeFetchMock(200, { base_currency: 'USD' });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { updateBaseCurrency } = await import('../lib/api');
-    const result = await updateBaseCurrency('USD');
+    const { apiOperation } = await import('../lib/api-client');
+    const result = await apiOperation('update_base_currency_app_config_base_currency_put', {
+      body: { base_currency: 'USD' },
+    });
 
     expect(result).toEqual({ base_currency: 'USD' });
     expect(fetchMock).toHaveBeenCalledWith(

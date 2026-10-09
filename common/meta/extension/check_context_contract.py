@@ -36,20 +36,22 @@ def discover_findings(repo_root: Path) -> list[str]:
     return sorted(findings)
 
 
-def violations(repo_root: Path, baseline_path: Path) -> list[str]:
-    try:
-        payload = json.loads(baseline_path.read_text(encoding="utf-8"))
-        if not isinstance(payload, list) or not all(
-            isinstance(item, str) for item in payload
-        ):
-            raise ValueError("baseline must be a JSON string list")
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
-        return [f"cannot read context-contract baseline: {exc}"]
+def violations(repo_root: Path, baseline_path: Path | None = None) -> list[str]:
+    baseline: set[str] = set()
+    if baseline_path is not None and baseline_path.exists():
+        try:
+            payload = json.loads(baseline_path.read_text(encoding="utf-8"))
+            if not isinstance(payload, list) or not all(
+                isinstance(item, str) for item in payload
+            ):
+                raise ValueError("baseline must be a JSON string list")
+            baseline = {f"missing-context::{item}" for item in payload}
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            return [f"cannot read context-contract baseline: {exc}"]
     try:
         current = set(discover_findings(repo_root))
     except ValueError as exc:
         return [f"cannot discover context contracts: {exc}"]
-    baseline = {f"missing-context::{item}" for item in payload}
     return [
         *(f"new context-contract debt: {item}" for item in sorted(current - baseline)),
         *(
@@ -61,9 +63,7 @@ def violations(repo_root: Path, baseline_path: Path) -> list[str]:
 
 def _run_command(argv: Sequence[str] | None = None) -> int:
     repo_root = parse_args(list(argv or ())).repo_root.resolve()
-    findings = violations(
-        repo_root, repo_root / "common/meta/data/context-contract-baseline.json"
-    )
+    findings = violations(repo_root)
     if findings:
         print("[CONTEXT-CONTRACT] FAILED", file=sys.stderr)
         print("\n".join(findings), file=sys.stderr)

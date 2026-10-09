@@ -651,9 +651,8 @@ CONTRACT = PackageContract(
                 "tools/*.py implementations over 40 lines."
             ),
             cross_refs=[
-                "common/testing/data/fat-tool-baseline.json",
                 "common/testing/readme.md",
-                "tools/check_tool_shim_contract.py",
+                "tests/tooling/test_s4_tool_homing.py",
             ],
             proofs=["tests/tooling/test_s4_tool_homing.py"],
             family="delivery",
@@ -703,7 +702,7 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/testing/readme.md",
-                "tools/check_baseline_update_contract.py",
+                "common/testing/gate_cli.py",
             ],
             proofs=["tests/tooling/test_s4_gate_contracts.py"],
             family="delivery",
@@ -735,7 +734,7 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/testing/readme.md",
-                "tools/check_gate_main_contract.py",
+                "common/testing/gate_cli.py",
             ],
             proofs=["tests/tooling/test_s4_gate_contracts.py"],
             family="delivery",
@@ -860,7 +859,6 @@ CONTRACT = PackageContract(
                 "common/testing/ac_graph.py",
                 ".github/workflows/ci.yml",
                 "common/testing/ac_proof.py",
-                "tools/generate_critical_proof_matrix.py",
                 "tools/check_ac_index.py",
             ],
             family="tdd",
@@ -877,7 +875,6 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "common/testing/ac_graph.py",
                 "common/testing/generate_critical_proof_matrix.py",
-                "tools/generate_critical_proof_matrix.py",
             ],
             family="tdd",
             kind="registry",

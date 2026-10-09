@@ -18,7 +18,13 @@ type OperationRequest = {
   signal?: AbortSignal;
 };
 
-const useProductionOperationClient = process.env.NODE_ENV !== "test";
+function hasExport(name: string): boolean {
+  try {
+    return typeof (api as Record<string, unknown>)[name] === "function";
+  } catch {
+    return false;
+  }
+}
 
 function compatibilityPath(
   operationId: ApiOperationId,
@@ -53,10 +59,10 @@ export async function apiOperation<Id extends ApiOperationId>(
   operationId: Id,
   ...args: api.ApiOperationArgs<Id>
 ): Promise<api.ApiOperationResponse<Id>> {
-  const request = (args[0] ?? {}) as api.ApiOperationRequest<Id>;
-  if (useProductionOperationClient && "apiOperation" in api) {
+  if (hasExport("apiOperation")) {
     return api.apiOperation(operationId, ...args);
   }
+  const request = (args[0] ?? {}) as api.ApiOperationRequest<Id>;
   const parts = request as OperationRequest;
   const path = compatibilityPath(operationId, parts);
   if (
@@ -65,7 +71,7 @@ export async function apiOperation<Id extends ApiOperationId>(
     parts.headers === undefined &&
     parts.signal === undefined
   ) {
-    if (Reflect.has(api, "apiDelete")) {
+    if (hasExport("apiDelete")) {
       const legacyApiDelete = Reflect.get(api, "apiDelete") as typeof api.apiDelete;
       await legacyApiDelete(path);
     } else {
@@ -93,7 +99,7 @@ export async function apiOperationStream<Id extends ApiOperationId>(
   operationId: Id,
   request: api.ApiOperationRequest<Id>,
 ): Promise<api.StreamResponse> {
-  if (useProductionOperationClient && "apiOperationStream" in api) {
+  if (hasExport("apiOperationStream")) {
     return api.apiOperationStream(operationId, request);
   }
   const parts = request as OperationRequest;
@@ -109,7 +115,7 @@ export async function apiOperationDownload<Id extends ApiOperationId>(
   operationId: Id,
   request: api.ApiOperationRequest<Id>,
 ): Promise<api.DownloadResponse> {
-  if (useProductionOperationClient && "apiOperationDownload" in api) {
+  if (hasExport("apiOperationDownload")) {
     return api.apiOperationDownload(operationId, request);
   }
   const parts = request as OperationRequest;
@@ -132,7 +138,7 @@ export async function apiOperationUpload<Id extends api.MultipartOperationId>(
   operationId: Id,
   request: api.ApiOperationUploadRequest<Id>,
 ): Promise<api.ApiOperationResponse<Id>> {
-  if (useProductionOperationClient && "apiOperationUpload" in api) {
+  if (hasExport("apiOperationUpload")) {
     return api.apiOperationUpload(operationId, request);
   }
   const parts = request as OperationRequest & { body: FormData };

@@ -2,18 +2,18 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FirstRunModal } from "@/components/llm/FirstRunModal";
-import { createLlmProvider } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import { useLlmConfigStatus } from "@/hooks/useLlmConfigStatus";
 
-vi.mock("@/lib/api", () => ({
-  createLlmProvider: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }));
 
 vi.mock("@/hooks/useLlmConfigStatus", () => ({
   useLlmConfigStatus: vi.fn(),
 }));
 
-const mockedCreate = vi.mocked(createLlmProvider);
+const mockedApiOperation = vi.mocked(apiOperation);
 const mockedHook = vi.mocked(useLlmConfigStatus);
 const refresh = vi.fn();
 
@@ -22,7 +22,7 @@ function setStatus(configured: boolean | null) {
 }
 
 beforeEach(() => {
-  mockedCreate.mockReset();
+  mockedApiOperation.mockReset();
   refresh.mockReset();
 });
 
@@ -55,7 +55,7 @@ describe("FirstRunModal (EPIC-023 PR4)", () => {
 
   it("creates the provider and refreshes status on submit", async () => {
     setStatus(false);
-    mockedCreate.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       id: "p1",
       label: "My key",
       protocol: "openrouter-compatible",
@@ -63,7 +63,7 @@ describe("FirstRunModal (EPIC-023 PR4)", () => {
       has_api_key: true,
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",
-    });
+    } as any);
 
     render(<FirstRunModal />);
 
@@ -76,11 +76,13 @@ describe("FirstRunModal (EPIC-023 PR4)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Save provider/i }));
 
     await waitFor(() =>
-      expect(mockedCreate).toHaveBeenCalledWith({
-        label: "My key",
-        protocol: "openrouter-compatible",
-        api_key: "sk-secret",
-        api_base: "https://openrouter.ai/api/v1",
+      expect(mockedApiOperation).toHaveBeenCalledWith("create_provider_llm_providers_post", {
+        body: {
+          label: "My key",
+          protocol: "openrouter-compatible",
+          api_key: "sk-secret",
+          api_base: "https://openrouter.ai/api/v1",
+        },
       })
     );
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
@@ -92,12 +94,12 @@ describe("FirstRunModal (EPIC-023 PR4)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Cancel/i }));
     expect(screen.queryByText("Set up your AI provider")).not.toBeInTheDocument();
-    expect(mockedCreate).not.toHaveBeenCalled();
+    expect(mockedApiOperation).not.toHaveBeenCalled();
   });
 
   it("surfaces an error when create fails and keeps the form open", async () => {
     setStatus(false);
-    mockedCreate.mockRejectedValue(new Error("Bad key"));
+    mockedApiOperation.mockRejectedValue(new Error("Bad key"));
 
     render(<FirstRunModal />);
     fireEvent.change(screen.getByLabelText("Label"), {
@@ -116,7 +118,7 @@ describe("FirstRunModal (EPIC-023 PR4)", () => {
 
   it("submits api_base as null when cleared", async () => {
     setStatus(false);
-    mockedCreate.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       id: "p1",
       label: "L",
       protocol: "openai-compatible",
@@ -124,7 +126,7 @@ describe("FirstRunModal (EPIC-023 PR4)", () => {
       has_api_key: true,
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",
-    });
+    } as any);
 
     render(<FirstRunModal />);
     fireEvent.change(screen.getByLabelText("API base URL"), {
@@ -142,11 +144,13 @@ describe("FirstRunModal (EPIC-023 PR4)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Save provider/i }));
 
     await waitFor(() =>
-      expect(mockedCreate).toHaveBeenCalledWith({
-        label: "L",
-        protocol: "openai-compatible",
-        api_key: "k",
-        api_base: null,
+      expect(mockedApiOperation).toHaveBeenCalledWith("create_provider_llm_providers_post", {
+        body: {
+          label: "L",
+          protocol: "openai-compatible",
+          api_key: "k",
+          api_base: null,
+        },
       })
     );
   });

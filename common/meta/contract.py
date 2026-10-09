@@ -929,25 +929,20 @@ CONTRACT = PackageContract(
         ),
         ConceptRecord(
             key="app_boundary_baseline",
-            owner="common/meta/data/app-boundary-baseline.json",
+            owner="common/meta/extension/check_app_boundary.py",
             description=(
-                "Monotonic shrink-only baseline of cross-boundary edges between the un-carved "
-                "apps/backend/src remainder (the L4 backend super-package) and the "
-                "already-carved packages — inbound (remainder → a carved package's "
-                "unpublished internal) and outbound (a carved package → the app remainder, "
-                "upward-layer). A new edge fails check_app_boundary; the count is the "
-                "migration burndown."
+                "In-code absolute zero-debt assertion of cross-boundary edges between the "
+                "apps/backend/src remainder and carved packages; check_app_boundary rejects "
+                "any newly introduced leak or upward edge."
             ),
             cross_refs=[
                 "common/meta/migration-standard.md",
                 "common/meta/extension/app_boundary.py",
-                "common/meta/extension/check_app_boundary.py",
                 "tools/check_app_boundary.py",
                 "tests/tooling/test_app_boundary.py",
             ],
             family="platform",
-            kind="baseline",
-            authority="machine_generated",
+            kind="concept",
             parent="package_model",
         ),
         ConceptRecord(
@@ -970,20 +965,18 @@ CONTRACT = PackageContract(
         ),
         ConceptRecord(
             key="l4_root_import_baseline",
-            owner="common/meta/data/l4-root-import-baseline.json",
+            owner="common/meta/extension/app_boundary.py",
             description=(
-                "Exact shrink-only inventory of statement-level deep imports from "
-                "the L4 delivery/composition shell into package internals; "
-                "check_app_boundary rejects newly introduced or stale entries."
+                "In-code absolute zero-debt assertion of statement-level deep imports from "
+                "the L4 delivery/composition shell into package internals."
             ),
             cross_refs=[
-                "common/meta/extension/app_boundary.py",
                 "common/meta/extension/check_app_boundary.py",
                 "tools/check_app_boundary.py",
+                "tests/tooling/test_app_boundary.py",
             ],
             family="platform",
-            kind="baseline",
-            authority="machine_generated",
+            kind="concept",
             parent="package_model",
         ),
         ConceptRecord(
@@ -1157,22 +1150,18 @@ CONTRACT = PackageContract(
         ),
         ConceptRecord(
             key="draft_package_baseline",
-            owner="common/meta/data/draft-package-baseline.json",
+            owner="common/meta/extension/check_draft_packages.py",
             description=(
-                "Registered draft packages for the migration-safety draft gate "
-                "(tools/check_draft_packages.py); a draft package leaves its authority tier "
-                "undecided, so listing it here makes adding one a reviewed act and a draft "
-                "must carry no done ACs."
+                "In-code absolute zero-debt assertion for draft-package hygiene; "
+                "un-baselined draft packages and finished work in draft are strictly "
+                "prohibited."
             ),
             cross_refs=[
                 "common/meta/readme.md",
-                "common/meta/extension/check_draft_packages.py",
-                "tools/check_draft_packages.py",
                 "tests/tooling/test_migration_safety_gates.py",
             ],
             family="tdd",
-            kind="baseline",
-            authority="machine_generated",
+            kind="concept",
             parent="authority_tiers",
         ),
         ConceptRecord(
@@ -1189,22 +1178,18 @@ CONTRACT = PackageContract(
         ),
         ConceptRecord(
             key="context_contract_debt_baseline",
-            owner="common/meta/data/context-contract-baseline.json",
+            owner="common/meta/extension/check_context_contract.py",
             description=(
-                "Exact shrink-only list of packages that have not yet adopted "
-                "their package-owned bounded-context declaration. It is migration "
-                "debt rather than a context map: purpose, scope, and relationship "
-                "semantics remain owned by each package contract."
+                "In-code absolute zero-debt assertion for package-owned bounded-context "
+                "declarations; unclassified dependencies or missing contexts are "
+                "strictly prohibited."
             ),
             cross_refs=[
                 "common/meta/base/package_contract.py",
-                "common/meta/extension/check_context_contract.py",
-                "tools/check_context_contract.py",
                 "tests/tooling/test_context_contract.py",
             ],
             family="platform",
-            kind="baseline",
-            authority="machine_generated",
+            kind="concept",
             parent="package_model",
         ),
         ConceptRecord(

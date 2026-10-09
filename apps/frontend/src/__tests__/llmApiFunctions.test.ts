@@ -45,30 +45,30 @@ describe("LLM api wrappers (EPIC-023 PR4)", () => {
     vi.stubGlobal("localStorage", localStorageMock);
   });
 
-  it("fetchLlmConfigStatus GETs /api/llm/config/status", async () => {
+  it("get_config_status_llm_config_status_get GETs /api/llm/config/status", async () => {
     const fetchMock = makeFetchMock(200, { configured: true });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { fetchLlmConfigStatus } = await import("../lib/api");
-    const result = await fetchLlmConfigStatus();
+    const { apiOperation } = await import("@/lib/api-client");
+    const result = await apiOperation("get_config_status_llm_config_status_get");
 
     expect(result).toEqual({ configured: true });
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/llm\/config\/status/);
     expect(fetchMock.mock.calls[0][1]?.method ?? "GET").toBe("GET");
   });
 
-  it("fetchLlmProviders GETs /api/llm/providers", async () => {
+  it("list_providers_llm_providers_get GETs /api/llm/providers", async () => {
     const fetchMock = makeFetchMock(200, { providers: [] });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { fetchLlmProviders } = await import("../lib/api");
-    const result = await fetchLlmProviders();
+    const { apiOperation } = await import("@/lib/api-client");
+    const result = await apiOperation("list_providers_llm_providers_get");
 
     expect(result).toEqual({ providers: [] });
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/llm\/providers/);
   });
 
-  it("createLlmProvider POSTs the provider body", async () => {
+  it("create_provider_llm_providers_post POSTs the provider body", async () => {
     const created = {
       id: "p1",
       label: "OR",
@@ -81,12 +81,14 @@ describe("LLM api wrappers (EPIC-023 PR4)", () => {
     const fetchMock = makeFetchMock(201, created);
     vi.stubGlobal("fetch", fetchMock);
 
-    const { createLlmProvider } = await import("../lib/api");
-    const result = await createLlmProvider({
-      label: "OR",
-      protocol: "openrouter-compatible",
-      api_key: "secret",
-      api_base: "https://openrouter.ai/api/v1",
+    const { apiOperation } = await import("@/lib/api-client");
+    const result = await apiOperation("create_provider_llm_providers_post", {
+      body: {
+        label: "OR",
+        protocol: "openrouter-compatible",
+        api_key: "secret",
+        api_base: "https://openrouter.ai/api/v1",
+      },
     });
 
     expect(result).toEqual(created);
@@ -101,69 +103,75 @@ describe("LLM api wrappers (EPIC-023 PR4)", () => {
     });
   });
 
-  it("deleteLlmProvider DELETEs /api/llm/providers/{id}", async () => {
+  it("delete_provider_llm_providers__provider_id__delete DELETEs /api/llm/providers/{id}", async () => {
     // The backend returns 200 with a JSON confirmation body ({id, deleted}).
     const fetchMock = makeFetchMock(200, { id: "p1", deleted: true });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { deleteLlmProvider } = await import("../lib/api");
-    await deleteLlmProvider("p1");
+    const { apiOperation } = await import("@/lib/api-client");
+    await apiOperation("delete_provider_llm_providers__provider_id__delete", {
+      path: { provider_id: "p1" },
+    });
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toMatch(/\/api\/llm\/providers\/p1/);
     expect(init.method).toBe("DELETE");
   });
 
-  it("fetchLlmCatalog GETs without query when no options", async () => {
+  it("get_catalog_llm_catalog_get GETs without query when no options", async () => {
     const fetchMock = makeFetchMock(200, { models: [] });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { fetchLlmCatalog } = await import("../lib/api");
-    await fetchLlmCatalog();
+    const { apiOperation } = await import("@/lib/api-client");
+    await apiOperation("get_catalog_llm_catalog_get");
 
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/llm\/catalog$/);
   });
 
-  it("fetchLlmCatalog builds a query string from modality and freeOnly", async () => {
+  it("get_catalog_llm_catalog_get builds a query string from modality and free_only", async () => {
     const fetchMock = makeFetchMock(200, { models: [] });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { fetchLlmCatalog } = await import("../lib/api");
-    await fetchLlmCatalog({ modality: "image", freeOnly: true });
+    const { apiOperation } = await import("@/lib/api-client");
+    await apiOperation("get_catalog_llm_catalog_get", {
+      query: { modality: "image" as any, free_only: true },
+    });
 
     const url = String(fetchMock.mock.calls[0][0]);
     expect(url).toContain("modality=image");
     expect(url).toContain("free_only=true");
   });
 
-  it("fetchLlmCatalog includes free_only=false explicitly when set", async () => {
+  it("get_catalog_llm_catalog_get includes free_only=false explicitly when set", async () => {
     const fetchMock = makeFetchMock(200, { models: [] });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { fetchLlmCatalog } = await import("../lib/api");
-    await fetchLlmCatalog({ freeOnly: false });
+    const { apiOperation } = await import("@/lib/api-client");
+    await apiOperation("get_catalog_llm_catalog_get", {
+      query: { free_only: false },
+    });
 
     expect(String(fetchMock.mock.calls[0][0])).toContain("free_only=false");
   });
 
-  it("fetchLlmScenes GETs /api/llm/scenes", async () => {
+  it("get_scenes_llm_scenes_get GETs /api/llm/scenes", async () => {
     const fetchMock = makeFetchMock(200, { bindings: [] });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { fetchLlmScenes } = await import("../lib/api");
-    const result = await fetchLlmScenes();
+    const { apiOperation } = await import("@/lib/api-client");
+    const result = await apiOperation("get_scenes_llm_scenes_get");
 
     expect(result).toEqual({ bindings: [] });
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/llm\/scenes/);
   });
 
-  it("putLlmScenes PUTs the bindings", async () => {
+  it("put_scenes_llm_scenes_put PUTs the bindings", async () => {
     const body = { bindings: [] };
     const fetchMock = makeFetchMock(200, body);
     vi.stubGlobal("fetch", fetchMock);
 
-    const { putLlmScenes } = await import("../lib/api");
-    const result = await putLlmScenes(body);
+    const { apiOperation } = await import("@/lib/api-client");
+    const result = await apiOperation("put_scenes_llm_scenes_put", { body });
 
     expect(result).toEqual(body);
     const [url, init] = fetchMock.mock.calls[0];

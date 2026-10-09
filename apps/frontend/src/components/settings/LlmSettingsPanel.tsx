@@ -5,13 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ProviderForm } from "@/components/llm/ProviderForm";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
-import {
-  deleteLlmProvider,
-  fetchLlmCatalog,
-  fetchLlmProviders,
-  fetchLlmScenes,
-  putLlmScenes,
-} from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import type {
   LlmModelResponse,
   LlmProviderResponse,
@@ -79,9 +73,9 @@ export default function LlmSettingsPanel() {
     setLoading(true);
     try {
       const [providerList, sceneList, catalogResponse] = await Promise.all([
-        fetchLlmProviders(),
-        fetchLlmScenes(),
-        fetchLlmCatalog(),
+        apiOperation("list_providers_llm_providers_get"),
+        apiOperation("get_scenes_llm_scenes_get"),
+        apiOperation("get_catalog_llm_catalog_get"),
       ]);
       setProviders(providerList.providers);
       setCatalog(catalogResponse.models);
@@ -124,7 +118,9 @@ export default function LlmSettingsPanel() {
     setSubmitting(true);
     setError(null);
     try {
-      const response = await putLlmScenes({ bindings: configured });
+      const response = await apiOperation("put_scenes_llm_scenes_put", {
+        body: { bindings: configured },
+      });
       const merged = mergeBindings(response.bindings);
       setSaved(merged);
       setDraft(merged);
@@ -148,7 +144,12 @@ export default function LlmSettingsPanel() {
     setError(null);
     setDeletingProvider(true);
     try {
-      await deleteLlmProvider(id);
+      await apiOperation(
+        "delete_provider_llm_providers__provider_id__delete",
+        {
+          path: { provider_id: id },
+        },
+      );
       showToast("Provider deleted", "success");
       await loadAll();
       setPendingDeleteId(null);

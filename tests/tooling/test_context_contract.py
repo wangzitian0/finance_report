@@ -147,12 +147,7 @@ def test_context_relationships_require_context_and_declared_provider() -> None:
 
 def test_context_contract_baseline_is_exact_on_real_repository() -> None:
     """AC-meta.context-governance.1: context declaration debt only shrinks."""
-    assert (
-        check_context_contract.violations(
-            REPO_ROOT, REPO_ROOT / "common/meta/data/context-contract-baseline.json"
-        )
-        == []
-    )
+    assert check_context_contract.violations(REPO_ROOT) == []
 
 
 def test_context_contract_rejects_unclassified_dependency_after_adoption(

@@ -11,8 +11,8 @@ Model (see common/meta/readme.md):
     * ``LLM-LED``   (50 <= share < 100)
     * ``LLM-ONLY``  (share == 100)   — enforceable: no hardcode permitted
 
-This module is the base library; ``tools/authority_counter.py`` is the runnable
-counter. Pure-Python, no key/network/DB — runs in the lint job.
+This module is both the base library and a runnable counter (run with -m).
+Pure-Python, no key/network/DB — runs in the lint job.
 """
 
 from __future__ import annotations

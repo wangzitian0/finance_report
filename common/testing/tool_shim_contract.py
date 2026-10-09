@@ -25,6 +25,8 @@ def _fat_tools(repo_root: Path) -> dict[str, int]:
 
 
 def _load_baseline(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
     payload = json.loads(path.read_text(encoding="utf-8"))
     values = payload.get("legacy_fat_tools") if isinstance(payload, dict) else None
     if not isinstance(values, list) or not all(

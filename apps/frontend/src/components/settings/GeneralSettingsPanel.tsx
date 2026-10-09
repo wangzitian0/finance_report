@@ -1,7 +1,7 @@
 "use client";
 
 import { useToast } from "@/components/ui/Toast";
-import { fetchBaseCurrency, updateBaseCurrency } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import { useSettingsForm } from "@/hooks/useSettingsForm";
 
 // EPIC-012 AC12.39 / #1340: edit the effective base reporting currency.
@@ -10,8 +10,8 @@ import { useSettingsForm } from "@/hooks/useSettingsForm";
 export default function GeneralSettingsPanel() {
   const { showToast } = useToast();
   const { draft, setDraft, loading, submitting, error, isDirty, submit, reset } = useSettingsForm<string>({
-    load: async () => (await fetchBaseCurrency()).base_currency,
-    save: async (next) => (await updateBaseCurrency(next)).base_currency,
+    load: async () => (await apiOperation("get_base_currency_app_config_base_currency_get")).base_currency,
+    save: async (next) => (await apiOperation("update_base_currency_app_config_base_currency_put", { body: { base_currency: next } })).base_currency,
     loadErrorMessage: "Failed to load base currency",
     saveErrorMessage: "Failed to save base currency",
   });

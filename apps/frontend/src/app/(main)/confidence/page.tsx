@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { AuditBackLink } from "@/components/audit/AuditBackLink";
 import { Badge, EmptyState, LoadingState, PageHeader } from "@/components/ui";
-import { fetchCorrectionLoopReplay } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import { summarizeReplay } from "@/lib/confidence";
 import type { CorrectionLoopReplayResponse } from "@/lib/types";
 
@@ -19,7 +19,9 @@ export default function CorrectionLoopPage() {
     setError(null);
     const load = async () => {
       try {
-        const result = await fetchCorrectionLoopReplay();
+        const result = await apiOperation(
+          "get_correction_loop_replay_metrics_correction_loop_replay_get",
+        );
         if (active) setReplay(result);
       } catch (err) {
         if (active) {
