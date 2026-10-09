@@ -96,13 +96,23 @@ _ValueKey = tuple[Path, str]
 
 
 @functools.lru_cache(maxsize=8192)
+def _resolve_path(path: Path) -> Path:
+    return path.resolve()
+
+
+@functools.lru_cache(maxsize=8192)
+def _relative_posix(source: Path, repo_root: Path) -> str:
+    return source.relative_to(repo_root).as_posix()
+
+
+@functools.lru_cache(maxsize=8192)
 def _parse_source_tree_cached(path_str: str, mtime_ns: int, size: int) -> ast.Module:
     path = Path(path_str)
     return ast.parse(path.read_text(encoding="utf-8"), filename=path_str)
 
 
 def _parse_source_tree(source: Path) -> ast.Module:
-    resolved = source.resolve()
+    resolved = _resolve_path(source)
     st = resolved.stat()
     return _parse_source_tree_cached(str(resolved), st.st_mtime_ns, st.st_size)
 
@@ -199,7 +209,7 @@ def _binding_fingerprint(
     if isinstance(binding, _ImportedModule):
         return binding.binding
     if isinstance(binding, _LocalDefinition):
-        key = (binding.source.resolve(), binding.symbol)
+        key = (_resolve_path(binding.source), binding.symbol)
         if key in seen:
             return binding.binding
         definition_seen = seen | {key}
@@ -246,11 +256,10 @@ def _dereference_value(
 ) -> _ValueBinding | None:
     """Resolve captured aliases without evaluating repository code."""
     if isinstance(binding, _ImportedValue):
-        key = (binding.source.resolve(), binding.symbol)
+        key = (_resolve_path(binding.source), binding.symbol)
         if key in seen:
             return None
-        tree = _parse_source_tree(binding.source)
-        values = _module_values(tree.body, source=binding.source, repo_root=repo_root)
+        values = _source_module_values(binding.source, repo_root)
         target = values.get(binding.symbol)
         return (
             _dereference_value(target, repo_root, seen | {key})
@@ -515,11 +524,10 @@ def _imported_value_fingerprint(
     repo_root: Path,
     seen: frozenset[_ValueKey],
 ) -> str | None:
-    key = (source.resolve(), symbol)
+    key = (_resolve_path(source), symbol)
     if key in seen:
         return None
-    tree = _parse_source_tree(source)
-    values = _module_values(tree.body, source=source, repo_root=repo_root)
+    values = _source_module_values(source, repo_root)
     binding = values.get(symbol)
     if binding is not None:
         binding_seen = seen if isinstance(binding, _LocalDefinition) else seen | {key}
@@ -533,7 +541,7 @@ def _imported_definition_fingerprint(
     repo_root: Path,
     value_seen: frozenset[_ValueKey],
 ) -> str | None:
-    tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+    tree = _parse_source_tree(source)
     for index in range(len(tree.body) - 1, -1, -1):
         node = tree.body[index]
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -567,6 +575,7 @@ def _module_values(
 ) -> dict[str, _ValueBinding]:
     values = dict(initial or {})
     scope_body = tuple(body)
+    rel_str = _relative_posix(source, repo_root)
     for index, node in enumerate(scope_body):
         if isinstance(node, ast.If) and _is_type_checking_test(node.test):
             values = _module_values(
@@ -577,7 +586,6 @@ def _module_values(
             )
             continue
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            relative = source.relative_to(repo_root).as_posix()
             values[node.name] = _LocalDefinition(
                 source=source,
                 symbol=node.name,
@@ -585,7 +593,7 @@ def _module_values(
                 values=tuple(values.items()),
                 body=scope_body,
                 index=index,
-                binding=f"{relative}::{node.name}",
+                binding=f"{rel_str}::{node.name}",
             )
             continue
         if isinstance(node, ast.Import):
@@ -640,6 +648,57 @@ def _module_values(
         if isinstance(node, ast.TypeAlias) and isinstance(node.name, ast.Name):
             values[node.name.id] = _capture_expression(node.value, values)
     return values
+
+
+@functools.lru_cache(maxsize=4096)
+def _source_module_values_cached(
+    path_str: str, repo_root_str: str, mtime_ns: int, size: int
+) -> dict[str, _ValueBinding]:
+    source = Path(path_str)
+    repo_root = Path(repo_root_str)
+    tree = _parse_source_tree(source)
+    return _module_values(tree.body, source=source, repo_root=repo_root)
+
+
+def _source_module_values(source: Path, repo_root: Path) -> dict[str, _ValueBinding]:
+    """Retrieve cached top-level module values for a source file."""
+    resolved = _resolve_path(source)
+    st = resolved.stat()
+    return _source_module_values_cached(
+        str(resolved),
+        str(_resolve_path(repo_root)),
+        st.st_mtime_ns,
+        st.st_size,
+    )
+
+
+@functools.lru_cache(maxsize=8192)
+def _module_prefix_values_cached(
+    path_str: str,
+    index: int,
+    repo_root_str: str,
+    mtime_ns: int,
+    size: int,
+) -> dict[str, _ValueBinding]:
+    source = Path(path_str)
+    repo_root = Path(repo_root_str)
+    tree = _parse_source_tree(source)
+    return _module_values(tree.body[:index], source=source, repo_root=repo_root)
+
+
+def _module_prefix_values(
+    source: Path, index: int, repo_root: Path
+) -> dict[str, _ValueBinding]:
+    """Retrieve cached prefix module values for statements before an index."""
+    resolved = _resolve_path(source)
+    st = resolved.stat()
+    return _module_prefix_values_cached(
+        str(resolved),
+        index,
+        str(_resolve_path(repo_root)),
+        st.st_mtime_ns,
+        st.st_size,
+    )
 
 
 def _resolved_references(
@@ -823,7 +882,7 @@ def _class_signature(
             members.append(f"inherits[{ast.unparse(base)}]={signature}")
     class_values = dict(values)
     class_body = tuple(node.body)
-    relative = source.relative_to(repo_root).as_posix()
+    relative = _relative_posix(source, repo_root)
     for child_index, child in enumerate(class_body):
         if (
             isinstance(child, ast.AnnAssign)
@@ -998,7 +1057,7 @@ def _module_definition_signature(
     value_seen: frozenset[_ValueKey] = frozenset(),
 ) -> str | None:
     node = body[index]
-    values = _module_values(body[:index], source=source, repo_root=repo_root)
+    values = _module_prefix_values(source, index, repo_root)
     signature = _definition_signature(
         node,
         symbol,
@@ -1368,7 +1427,7 @@ def _resolve_export(
     *,
     before_index: int | None = None,
 ) -> _ResolvedExport | None:
-    key = (source.resolve(), symbol, before_index)
+    key = (_resolve_path(source), symbol, before_index)
     if key in seen:
         return None
     tree = _parse_source_tree(source)
@@ -1384,9 +1443,7 @@ def _resolve_export(
             if isinstance(alias_value, ast.Name):
                 alias_target = alias_value.id
             elif isinstance(alias_value, ast.Attribute):
-                values = _module_values(
-                    tree.body[:index], source=source, repo_root=repo_root
-                )
+                values = _module_prefix_values(source, index, repo_root)
                 alias_target = _qualified_imported_value(alias_value, values)
                 if alias_target is None:
                     raise RuntimeError(
@@ -1439,7 +1496,7 @@ def _resolve_export(
                 seen=next_seen,
             )
             if signature is not None:
-                relative = source.relative_to(repo_root).as_posix()
+                relative = _relative_posix(source, repo_root)
                 return _ResolvedExport(
                     signature=signature,
                     binding=f"{relative}::{symbol}",
@@ -1471,7 +1528,7 @@ def _resolve_export(
                     target_source.parent / imported_symbol
                 )
                 if submodule_source is not None:
-                    relative = submodule_source.relative_to(repo_root).as_posix()
+                    relative = _relative_posix(submodule_source, repo_root)
                     resolved = _ResolvedExport(
                         signature=f"module:{relative}",
                         binding=f"{relative}::{imported_symbol}",
@@ -1541,7 +1598,7 @@ def _public_symbol_records(
                 "symbol": symbol,
                 "signature": f"{resolved.binding} => {resolved.signature}",
                 "resolution": "reexport" if resolved.reexported else "definition",
-                "source": resolved.source.relative_to(repo_root).as_posix(),
+                "source": _relative_posix(resolved.source, repo_root),
             }
             if symbol in command_boundaries:
                 record.update(command_boundaries[symbol])
@@ -1558,7 +1615,7 @@ def _public_symbol_records(
                 "symbol": symbol,
                 "signature": "dynamic-export",
                 "resolution": "dynamic",
-                "source": init_path.relative_to(repo_root).as_posix(),
+                "source": _relative_posix(init_path, repo_root),
             }
         )
     return records
@@ -1703,7 +1760,7 @@ def _snapshot_packages(repo_root: Path) -> list[SnapshotPackage]:
 def build_dependency_snapshot(repo_root: Path) -> dict[str, object]:
     """Build a deterministic dependency/public-boundary snapshot of a tree."""
 
-    root = repo_root.resolve()
+    root = _resolve_path(repo_root)
     packages = _snapshot_packages(root)
     if not packages:
         raise RuntimeError(f"no package contracts discovered under {root}")
