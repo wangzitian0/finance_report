@@ -7,12 +7,11 @@ reports for current metrics.
 
 | Source | Purpose |
 |---|---|
-| `python tools/audit_ac_epic_mismatches.py` | Current AC-to-EPIC mismatch triage, separated into actionable and fixture-only refs |
+| `python tools/check_ac_index.py` | AC integrity and protection ratchet gate |
 | [traceability-exceptions.md](traceability-exceptions.md) | Classified helper/SSOT tests and source surfaces that are not AC proof |
 
 Current generated AC snapshot values are owned by:
 
-- `python tools/audit_ac_epic_mismatches.py`
 - `python tools/analyze_test_ac_coverage.py --no-write --stdout`
 - `python tools/check_ac_index.py`
 

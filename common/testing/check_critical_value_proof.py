@@ -124,6 +124,12 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
+        if not BASELINE_PATH.exists() and not current:
+            print(
+                "[CRITICAL-VALUE-PROOF] Zero debt achieved: baseline is retired and no non-value proofs found. "
+                "Skipping baseline file creation."
+            )
+            return 0
         BASELINE_PATH.write_text(
             json.dumps({"non_value_proofs": sorted(current)}, indent=2) + "\n",
             encoding="utf-8",

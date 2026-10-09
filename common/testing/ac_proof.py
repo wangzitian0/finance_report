@@ -9,7 +9,7 @@ This module moves the proof declaration to the source of truth — the test
 itself — exactly like ``docs/ac_registry.yaml`` is generated from EPIC docs. A
 PR anchoring a new AC now edits only its OWN test file (adds an ``@ac_proof``
 decorator); the matrix is a DERIVED on-demand view rendered by
-``tools/generate_critical_proof_matrix.py`` and validated by
+``common.testing.generate_critical_proof_matrix`` and validated by
 ``tools/check_ac_index.py``.
 
 The decorator is a pure runtime **no-op**: it returns the test function
@@ -116,7 +116,7 @@ def ac_proof(
     Runtime no-op: the decorated function is returned unchanged, with the
     declaration attached as ``func.__ac_proof__`` for introspection. The proof
     matrix YAML is regenerated from these declarations by
-    ``tools/generate_critical_proof_matrix.py``.
+    ``common.testing.generate_critical_proof_matrix``.
 
     Arguments mirror a ``proofs[]`` entry; ``file`` and ``test`` are derived by
     the generator. Keep every argument a plain literal — the generator reads

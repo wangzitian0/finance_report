@@ -2,7 +2,7 @@
 
 QA and E2E runs leave behind disposable accounts (`qa.*@example.com`,
 `e2e-*@test.example.com`, `load-test-*@example.com`) on shared/staging
-databases. `tools/purge_test_accounts.py` reclaims them safely.
+databases. `tools._lib.dev.purge_test_accounts` reclaims them safely.
 
 This is the operator runbook. The deletion logic, safety model, and email
 predicate live in `apps/backend/src/identity/extension/account_purge.py`
@@ -27,13 +27,13 @@ Run from the repository root.
 
 ```bash
 # 1. Dry run (default): report what WOULD be purged / blocked. Changes nothing.
-python tools/purge_test_accounts.py
+python -m tools._lib.dev.purge_test_accounts
 
 # 2. Apply on a dev/staging database:
-python tools/purge_test_accounts.py --apply
+python -m tools._lib.dev.purge_test_accounts --apply
 
 # 3. One-off custom predicate (e.g. a specific load-test batch):
-python tools/purge_test_accounts.py --pattern '^load-test-2026-.*@example\.com$' --apply
+python -m tools._lib.dev.purge_test_accounts --pattern '^load-test-2026-.*@example\.com$' --apply
 ```
 
 The target database and mode are echoed (with credentials redacted) before

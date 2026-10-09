@@ -72,3 +72,13 @@ def test_AC_testing_fe_fetch_1_ratchet_is_locked_and_only_goes_down(
     fake_baseline.write_text(json.dumps({"total": 10}), encoding="utf-8")
     assert fe_fetch_ratchet.main(["--update"]) == 0
     assert json.loads(fake_baseline.read_text())["total"] == 5
+
+
+def test_update_zero_debt_does_not_recreate_baseline(tmp_path, monkeypatch) -> None:
+    fake_baseline = tmp_path / "baseline.json"
+    fake_src = tmp_path / "src"
+    fake_src.mkdir()
+    monkeypatch.setattr(fe_fetch_ratchet, "FRONTEND_SRC", fake_src)
+    monkeypatch.setattr(fe_fetch_ratchet, "BASELINE_PATH", fake_baseline)
+    assert fe_fetch_ratchet.main(["--update"]) == 0
+    assert not fake_baseline.exists()

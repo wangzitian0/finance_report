@@ -92,3 +92,13 @@ def test_baseline_only_shrinks_never_grows(tmp_path: Path, monkeypatch) -> None:
         )
         == 1
     )
+
+
+def test_update_zero_debt_does_not_recreate_baseline(
+    tmp_path: Path, monkeypatch
+) -> None:
+    baseline = tmp_path / "critical-value-proof-baseline.json"
+    monkeypatch.setattr(cvp, "BASELINE_PATH", baseline)
+    monkeypatch.setattr(cvp, "current_non_value_proofs", lambda: set())
+    assert cvp.main(["--update"]) == 0
+    assert not baseline.exists()

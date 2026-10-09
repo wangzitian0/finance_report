@@ -82,8 +82,23 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 return 1
-        dump_baseline(baseline_path, current)
-        dump_baseline(l4_baseline_path, l4_current)
+
+        if (
+            not baseline_path.exists()
+            and not current
+            and not l4_baseline_path.exists()
+            and not l4_current
+        ):
+            print(
+                "[APP-BOUNDARY] Zero debt achieved: baseline files are retired and 0 edges found. "
+                "Skipping baseline file creation."
+            )
+            return 0
+
+        if baseline_path.exists() or current:
+            dump_baseline(baseline_path, current)
+        if l4_baseline_path.exists() or l4_current:
+            dump_baseline(l4_baseline_path, l4_current)
         print(
             f"[APP-BOUNDARY] baselines updated: {len(current)} cross-boundary edge(s), "
             f"{len(l4_current)} L4 deep import(s)."

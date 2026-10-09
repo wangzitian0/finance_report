@@ -10,12 +10,12 @@ any original sensitive value in the output, everything rolls back (fail closed).
 
 Usage (from the repo root):
 
-    cd apps/backend && uv run python ../../tools/anonymize_snapshot.py \
+    cd apps/backend && uv run python -m tools._lib.dev.anonymize_snapshot \
         --database-url postgresql+psycopg2://user:pass@host/scratch_db \
         --i-am-on-a-scratch-copy
 
     # classification-only (no database needed): fails on unclassified columns
-    cd apps/backend && uv run python ../../tools/anonymize_snapshot.py --check-only
+    cd apps/backend && uv run python -m tools._lib.dev.anonymize_snapshot --check-only
 
 The scale factor defaults to a cryptographically-random integer in [3, 19] and
 is deliberately NOT printed or persisted; the HMAC secret defaults to a random
