@@ -1,3 +1,5 @@
+"""Tests for common/testing/sync_ci_test_durations.py (AC-testing.ci-structure.13)."""
+
 from __future__ import annotations
 
 import json
@@ -12,6 +14,7 @@ from common.testing.sync_ci_test_durations import (
 
 
 def test_case_to_node_id_simple() -> None:
+    """AC-testing.ci-structure.13: map JUnit testcase to pytest node ID."""
     case = ElementTree.Element(
         "testcase",
         {"classname": "tests.api.test_foo", "name": "test_bar", "time": "1.23"},
