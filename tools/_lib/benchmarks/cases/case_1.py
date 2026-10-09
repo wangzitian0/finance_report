@@ -343,16 +343,13 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
 
         # Pillar 1: AI Semantic Grounding Oracle
         print("  [10/10] Verifying AI Advisor Grounding & Semantic Invariant...")
+        advisor_answer = None
         try:
             advisor_answer = runner.query_ai_advisor(
                 client,
                 "What is my current net worth and are there any balance discrepancies?",
             )
             print(f"        AI Advisor response: {advisor_answer[:120]}...")
-            assert_ai_advisor_semantic_grounding(
-                advisor_answer,
-                expected_figures=["24,200", "24200"],
-            )
         except Exception as exc:
             if (
                 "temporarily unavailable" in str(exc).lower()
@@ -364,6 +361,12 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 )
             else:
                 raise
+
+        if advisor_answer is not None:
+            assert_ai_advisor_semantic_grounding(
+                advisor_answer,
+                expected_figures=["24,200", "24200"],
+            )
 
         duration = time.time() - start_time
         print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
