@@ -223,3 +223,15 @@ async def add_txn(
     db.add(txn)
     await db.flush()
     return txn
+
+
+async def create_statement_account(db, user_id, name: str = "DBS Statement Account") -> Account:
+    account = Account(
+        user_id=user_id,
+        name=name,
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(account)
+    await db.flush()
+    return account
