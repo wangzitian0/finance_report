@@ -196,51 +196,68 @@ async def _create_reviewed_entry(db: AsyncSession, txn: AtomicTransaction, *, us
     )
 
 
-async def test_get_pending_items_returns_pending_matches(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt)
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
-    await ReconciliationMatchFactory.create_async(
+async def _seed_pending_match(
+    db: AsyncSession,
+    user_id,
+    *,
+    status: ReconciliationStatus = ReconciliationStatus.PENDING_REVIEW,
+    match_score: int | None = None,
+):
+    stmt = await _make_statement(db, user_id)
+    txn = await _make_txn(db, user_id, stmt)
+    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=user_id)
+    kwargs = {"match_score": match_score} if match_score is not None else {}
+    match = await ReconciliationMatchFactory.create_async(
         db,
         atomic_txn_id=txn.id,
         journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.PENDING_REVIEW,
+        status=status,
+        **kwargs,
     )
     await db.commit()
+    return stmt, txn, entry, match
 
+
+async def _seed_reviewed_match(
+    db: AsyncSession,
+    user_id,
+    *,
+    amount: Decimal = Decimal("100.00"),
+    status: ReconciliationStatus = ReconciliationStatus.PENDING_REVIEW,
+    match_score: int | None = None,
+    stmt=None,
+):
+    if stmt is None:
+        stmt = await _make_statement(db, user_id, create_mapped_account=True)
+    txn = await _make_txn(db, user_id, stmt, amount=amount)
+    entry = await _create_reviewed_entry(db, txn, user_id=user_id, auto_post=True)
+    kwargs = {"match_score": match_score} if match_score is not None else {}
+    match = await ReconciliationMatchFactory.create_async(
+        db,
+        atomic_txn_id=txn.id,
+        journal_entry_ids=[str(entry.id)],
+        status=status,
+        **kwargs,
+    )
+    await db.commit()
+    return stmt, txn, entry, match
+
+
+async def test_get_pending_items_returns_pending_matches(db, test_user):
+    await _seed_pending_match(db, test_user.id)
     results = await get_pending_items(db, user_id=test_user.id)
     assert len(results) == 1
     assert results[0].status == ReconciliationStatus.PENDING_REVIEW
 
 
 async def test_get_pending_items_excludes_accepted(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt)
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
-    await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.ACCEPTED,
-    )
-    await db.commit()
-
+    await _seed_pending_match(db, test_user.id, status=ReconciliationStatus.ACCEPTED)
     results = await get_pending_items(db, user_id=test_user.id)
     assert len(results) == 0
 
 
 async def test_accept_match_updates_status(db, test_user):
-    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    await db.commit()
-
+    _, _, _, match = await _seed_reviewed_match(db, test_user.id)
     result = await accept_match(db, match.id, user_id=test_user.id)
     assert result.status == ReconciliationStatus.ACCEPTED
     assert result.version == 2
@@ -252,75 +269,32 @@ async def test_accept_match_not_found_raises(db, test_user):
 
 
 async def test_accept_match_already_accepted_returns_unchanged(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt)
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.ACCEPTED,
-    )
-    await db.commit()
-
+    _, _, _, match = await _seed_pending_match(db, test_user.id, status=ReconciliationStatus.ACCEPTED)
     result = await accept_match(db, match.id, user_id=test_user.id)
     assert result.status == ReconciliationStatus.ACCEPTED
     assert result.version == 1
 
 
 async def test_accept_match_amount_mismatch_raises(db, test_user):
-    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
+    _, txn, _, match = await _seed_reviewed_match(db, test_user.id)
     txn.amount = Decimal("500.00")
-    await db.flush()
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
     await db.commit()
-
     with pytest.raises(AmountMismatchError, match="Amount mismatch"):
         await accept_match(db, match.id, user_id=test_user.id)
 
 
 async def test_AC_review_hardening_2_accept_match_validation_unconditional(db, test_user):
     """AC-reconciliation.review-hardening.2: amount validation cannot be bypassed (#1864)."""
-    # The public signature carries no bypass flag — entry balance validation
-    # is never skippable (red line).
     assert "skip_amount_validation" not in inspect.signature(accept_match).parameters
-
-    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
+    _, txn, _, match = await _seed_reviewed_match(db, test_user.id)
     txn.amount = Decimal("500.00")
-    await db.flush()
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
     await db.commit()
-
     with pytest.raises(AmountMismatchError, match="Amount mismatch"):
         await accept_match(db, match.id, user_id=test_user.id)
 
 
 async def test_accept_match_reconciles_journal_entries(db, test_user):
-    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    await db.commit()
-
+    _, _, entry, match = await _seed_reviewed_match(db, test_user.id)
     await accept_match(db, match.id, user_id=test_user.id)
     await db.refresh(entry)
     assert entry.status == JournalEntryStatus.RECONCILED
@@ -373,17 +347,7 @@ async def test_accept_match_does_not_reconcile_void_entries(db, test_user):
 
 
 async def test_reject_match_updates_status(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt)
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    await db.commit()
-
+    _, _, _, match = await _seed_pending_match(db, test_user.id)
     result = await reject_match(db, str(match.id), user_id=test_user.id)
     assert result.status == ReconciliationStatus.REJECTED
     assert result.version == 2
@@ -395,17 +359,7 @@ async def test_reject_match_not_found_raises(db, test_user):
 
 
 async def test_reject_match_already_rejected_returns_unchanged(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt)
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.REJECTED,
-    )
-    await db.commit()
-
+    _, _, _, match = await _seed_pending_match(db, test_user.id, status=ReconciliationStatus.REJECTED)
     result = await reject_match(db, str(match.id), user_id=test_user.id)
     assert result.status == ReconciliationStatus.REJECTED
     assert result.version == 1
@@ -418,28 +372,8 @@ async def test_batch_accept_empty_list(db, test_user):
 
 async def test_batch_accept_accepts_high_score_matches(db, test_user):
     stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-
-    txn1 = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry1 = await _create_reviewed_entry(db, txn1, user_id=test_user.id, auto_post=True)
-    match1 = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn1.id,
-        journal_entry_ids=[str(entry1.id)],
-        match_score=90,
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-
-    txn2 = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry2 = await _create_reviewed_entry(db, txn2, user_id=test_user.id, auto_post=True)
-    match2 = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn2.id,
-        journal_entry_ids=[str(entry2.id)],
-        match_score=90,
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    await db.commit()
-
+    _, _, _, match1 = await _seed_reviewed_match(db, test_user.id, match_score=90, stmt=stmt)
+    _, _, _, match2 = await _seed_reviewed_match(db, test_user.id, match_score=90, stmt=stmt)
     accepted = await batch_accept(db, [str(match1.id), str(match2.id)], user_id=test_user.id, min_score=80)
     assert len(accepted) == 2
     for m in accepted:
@@ -447,35 +381,13 @@ async def test_batch_accept_accepts_high_score_matches(db, test_user):
 
 
 async def test_batch_accept_skips_low_score(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt)
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        match_score=50,
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    await db.commit()
-
+    _, _, _, match = await _seed_pending_match(db, test_user.id, match_score=50)
     accepted = await batch_accept(db, [str(match.id)], user_id=test_user.id, min_score=80)
     assert len(accepted) == 0
 
 
 async def test_batch_accept_reconciles_journal_entries(db, test_user):
-    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        match_score=90,
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    await db.commit()
-
+    _, _, entry, match = await _seed_reviewed_match(db, test_user.id, match_score=90)
     await batch_accept(db, [str(match.id)], user_id=test_user.id, min_score=80)
     await db.refresh(entry)
     assert entry.status == JournalEntryStatus.RECONCILED
