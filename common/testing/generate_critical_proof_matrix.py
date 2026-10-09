@@ -27,6 +27,7 @@ from __future__ import annotations
 import ast
 from collections.abc import Sequence
 from dataclasses import dataclass
+import functools
 from pathlib import Path
 from typing import Any
 
@@ -133,8 +134,19 @@ def _decorator_proof_call(node: ast.AST) -> ast.Call | None:
     return None
 
 
-def _collect_from_file(path: Path, repo_root: Path) -> list[CollectedProof]:
-    module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+@functools.lru_cache(maxsize=2048)
+def _cached_file_proofs(
+    path_str: str, repo_root_str: str, mtime_ns: int
+) -> tuple[CollectedProof, ...]:
+    path = Path(path_str)
+    repo_root = Path(repo_root_str)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ()
+    if DECORATOR_NAME not in text:
+        return ()
+    module = ast.parse(text, filename=str(path))
     rel_file = _rel(path, repo_root)
     collected: list[CollectedProof] = []
     for node in ast.walk(module):
@@ -205,7 +217,26 @@ def _collect_from_file(path: Path, repo_root: Path) -> list[CollectedProof]:
                 fields=fields,
             )
         )
-    return collected
+    return tuple(collected)
+
+
+def _collect_from_file(path: Path, repo_root: Path) -> list[CollectedProof]:
+    try:
+        mtime_ns = path.stat().st_mtime_ns
+    except OSError:
+        mtime_ns = 0
+    cached = _cached_file_proofs(
+        str(path.resolve()), str(repo_root.resolve()), mtime_ns
+    )
+    return [
+        CollectedProof(
+            proof_id=p.proof_id,
+            file=p.file,
+            test=p.test,
+            fields=dict(p.fields),
+        )
+        for p in cached
+    ]
 
 
 def collect_proofs(repo_root: Path) -> list[CollectedProof]:
