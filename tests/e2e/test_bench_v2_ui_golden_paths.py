@@ -32,13 +32,15 @@ from playwright.async_api import Page, expect
 
 from tests.e2e.bench_ui_bridge import BenchUiBridge
 from tests.e2e.conftest import TestConfig
-from tools._lib.benchmarks.run_financial_scenario_benchmark import (
-    ScenarioBenchmarkRunner,
+from tools._lib.benchmarks.cases import (
     execute_case_1,
     execute_case_2,
     execute_case_3,
     execute_case_4,
     execute_case_5,
+)
+from tools._lib.benchmarks.run_financial_scenario_benchmark import (
+    ScenarioBenchmarkRunner,
 )
 
 APP_URL: str = os.getenv("APP_URL", TestConfig.APP_URL)

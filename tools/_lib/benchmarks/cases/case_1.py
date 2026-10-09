@@ -38,7 +38,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 def _upload_month1_statement(
     runner: ScenarioBenchmarkRunner, client: httpx.Client
 ) -> tuple[str, dict[str, Any], str, str]:
-    if getattr(runner, "cassette_mode", "off") == "replay":
+    if getattr(runner, "replay_mode", "off") == "replay":
         print("  [2/9] Uploading Month 1 (Jan 2025) statement via replay cassette...")
         m1_bytes = generate_consecutive_month1_csv()
         m1_id = runner.upload_statement(
@@ -87,7 +87,7 @@ def _ingest_chained_months(
     m1_account_id: str,
     m1_institution: str,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    is_replay = getattr(runner, "cassette_mode", "off") == "replay"
+    is_replay = getattr(runner, "replay_mode", "off") == "replay"
 
     # Month 2
     if is_replay:

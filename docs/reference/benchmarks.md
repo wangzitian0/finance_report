@@ -17,7 +17,7 @@ Open Benchmark Observatory Dashboard →
 
 ## 🛡️ Monitored Financial Invariants (The Proof)
 
-Each benchmark run executes multi-period accounting scenarios against the live application and mathematically asserts five core accounting identities:
+Each benchmark run executes multi-period accounting scenarios against the live application and asserts the accounting identities below:
 
 | Invariant | Mathematical Formulation | Acceptance Criteria |
 | :--- | :--- | :--- |
@@ -29,6 +29,19 @@ Each benchmark run executes multi-period accounting scenarios against the live a
 | **Cash Flow Conservation** | $Beginning\,Cash + Net\,Cash\,Flow \equiv Ending\,Cash$ | Direct and indirect reconciliation equality. |
 | **Multi-Currency Consolidation** | $Assets_{base} \equiv \sum (Assets_i \times FX_i)$ | Consolidated balance sheet balances with $\Delta = 0.00$ across base and foreign currencies. |
 | **Holistic Multi-Asset Valuation** | $Net\,Worth \equiv Cash + Securities_{FMV} + Real\,Estate_{Appraisal}$ | Public equities and real estate appraisals integrate into consolidated net worth with $\Delta = 0.00$. |
+
+---
+
+## 🔬 Physical Truth Oracles
+
+Four oracles in `tools/_lib/benchmarks/oracles.py` check the system against facts that the application code does not write itself.
+
+| Pillar | Check | Runs in |
+| :--- | :--- | :--- |
+| **1. AI semantic grounding** | The AI Advisor answer about net worth contains the expected figure and no discrepancy claim. A negated sentence such as "no discrepancy found" passes. | Case 1. The check is skipped when the AI service returns 503 or reports a missing API key. |
+| **2. Zero console errors** | Playwright visits the routes listed in `verify_browser_ui_hygiene`. Any console error or uncaught exception fails the run. | `--case all`, `--case ui`, or `--verify-ui`. Status is `SKIPPED` when Playwright is not installed. |
+| **3. DOM hygiene** | Rendered page text contains no developer jargon (`FORBIDDEN_DOM_JARGON`). | Same run as Pillar 2. |
+| **4. Triple articulation** | `is_balanced` holds. Net worth equals equity plus net income plus FX, CTA and net-worth adjustments. The balance sheet and income statement agree on net income. | Cases 1 to 6. |
 
 ---
 
@@ -53,17 +66,12 @@ The V2 benchmark test matrix covers end-to-end multi-period accounting sufficien
 
 ## 🏛️ 30-Flow Canonical Architecture & Shift-Left Matrix
 
-Bench V2 aligns directly with the 30 canonical wealth & accounting flows across 7 domains defined in `common/meta/flows/thirty_flows_ssot.json`:
+Bench V2 covers 30 canonical wealth and accounting flows in 7 domains.
 
-| Domain | Flows Covered | Primary Mathematical Invariants ($\Delta = 0.00$) |
-| :--- | :--- | :--- |
-| **Domain 1: Ingestion & Extraction** | Flows 1–5 | Opening + sum(IN) - sum(OUT) == calculated_closing; $M_{n+1} \equiv M_n$; receipt digest hash SHA-256; appraisal asset/gain. |
-| **Domain 2: Review & Human-in-the-Loop** | Flows 6–10 | Balanced posted entries; balance mismatch rejection defense; deterministic cross-statement deduplication. |
-| **Domain 3: Economic Intent & Splits** | Flows 11–14 | Intent counter-account assignment; atomic batch rule commit; dynamic account creation; payroll gross == net + tax + CPF. |
-| **Domain 4: Transfers & Reconciliation** | Flows 15–18 | Inter-account transfer zero clearing; credit card liability clearance with zero P&L leak; multi-currency realized FX decomposition; penny rounding write-off. |
-| **Domain 5: Investments & Multi-Asset** | Flows 19–22 | Brokerage position book cost sync; dividend gross == net + WHT; real-time market revaluation; mortgage principal + interest split. |
-| **Domain 6: Reporting & Equation Governance** | Flows 23–26 | Assets == Liabilities + Equity + Net Income ($\Delta = 0.00$); out-of-balance diagnostic root cause; comparative trends; 3-activity cash flow identity. |
-| **Domain 7: Audit Traceability & Insights** | Flows 27–30 | Report line drilldown to journal lines and statement provenance; annual tax package ZIP manifest integrity; recurring anomaly detection; AI assistant tool calling. |
+- The registry `common/meta/flows/thirty_flows_ssot.json` owns the flows, their domains, and their invariants. [thirty-wealth-flows.md](thirty-wealth-flows.md) renders it.
+- `FLOW_TO_CASES` in `tools/_lib/benchmarks/case_types.py` maps each flow to the benchmark cases that cover it. The tooling suite fails when its flow ids differ from the registry.
+- Select a subset with `--domain 1,4` or `--flow 14,23`.
+- `apps/backend/tests/reporting/test_bench_articulation_matrix.py` checks the same invariants in memory, without a live stack.
 
 ---
 

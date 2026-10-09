@@ -12,7 +12,6 @@ Defines the 4 pillars of benchmark physical verification:
 
 from __future__ import annotations
 
-import json
 import re
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -186,14 +185,11 @@ def verify_browser_ui_hygiene(
     if not target_auth:
         raise ValueError("verify_browser_ui_hygiene requires an active auth_context")
 
-    user_data = target_auth.get("user_data") or {}
-    user_email = target_auth.get("user_email")
-    token = user_data.get("access_token")
-    user_id = user_data.get("id") or (
-        user_data.get("user", {}).get("id")
-        if isinstance(user_data.get("user"), dict)
-        else None
-    )
+    # Validate the auth context before any browser check, so a bad context fails closed
+    # whether or not Playwright is installed.
+    from tests.e2e.auth_cookie import build_runner_browser_session
+
+    cookie, init_script = build_runner_browser_session(target_auth, runner.base_url)
 
     console_errors: list[str] = []
     page_errors: list[str] = []
@@ -215,13 +211,6 @@ def verify_browser_ui_hygiene(
             }
         raise
 
-    try:
-        from tests.e2e.auth_cookie import build_auth_cookie
-
-        cookie = build_auth_cookie(runner.base_url, token)
-    except Exception:
-        cookie = None
-
     with sync_playwright() as p:
         try:
             browser = p.chromium.launch(headless=True)
@@ -240,15 +229,8 @@ def verify_browser_ui_hygiene(
 
         try:
             context = browser.new_context(viewport=viewport)
-            if cookie:
-                context.add_cookies([cookie])
-            if user_id and user_email:
-                context.add_init_script(
-                    f"""
-                    localStorage.setItem('finance_user_id', {json.dumps(str(user_id))});
-                    localStorage.setItem('finance_user_email', {json.dumps(user_email)});
-                    """
-                )
+            context.add_cookies([cookie])
+            context.add_init_script(init_script)
 
             page = context.new_page()
 

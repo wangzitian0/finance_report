@@ -23,8 +23,6 @@ from tools._lib.benchmarks.case_types import (
     get_case_to_flows,
 )
 
-CASE_TO_FLOWS: dict[str, set[int]] = get_case_to_flows()
-
 
 def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
     """Extract machine-readable summary metrics from full benchmark report data."""
@@ -51,10 +49,11 @@ def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
         for r in results
         if r.get("status") == "PASS" and r.get("case_id")
     }
+    case_to_flows = get_case_to_flows()
     covered_flows: set[int] = set()
     for cid in passed_case_ids:
-        if cid in CASE_TO_FLOWS:
-            covered_flows.update(CASE_TO_FLOWS[cid])
+        if cid in case_to_flows:
+            covered_flows.update(case_to_flows[cid])
     covered_domains = {FLOW_TO_DOMAIN[f] for f in covered_flows if f in FLOW_TO_DOMAIN}
 
     return {
