@@ -41,7 +41,7 @@ from src.schemas.review import (
     ResolveConflictsRequest,
     Stage1ApprovalRequest,
 )
-from tests.api.test_statements_router import (
+from tests.api._statement_router_fixtures import (
     add_reviewed_disposition_rule,
     add_txn,
     build_statement,

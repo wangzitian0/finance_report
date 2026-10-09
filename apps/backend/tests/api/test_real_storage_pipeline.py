@@ -57,7 +57,7 @@ def real_s3(monkeypatch: pytest.MonkeyPatch):
 
 
 async def _upload_csv(db, test_user) -> statements_router.BankStatementResponse:
-    from tests.api.test_statements_router import make_upload_file
+    from tests.api._statement_router_fixtures import make_upload_file
 
     upload_file = make_upload_file("vision_hard_gate_statement.csv", CSV_FIXTURE.read_bytes())
     return await statements_router.upload_statement(
