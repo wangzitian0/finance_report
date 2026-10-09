@@ -884,7 +884,13 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         txn_currency = resolved_currency.code
         txn_balance_after = self._safe_decimal(txn.get("balance_after"))
         txn_direction = TransactionDirection.IN if direction == "IN" else TransactionDirection.OUT
-        txn_description = txn.get("description", "Unknown")
+        # The statement prompt lets the model return null for a field it cannot read,
+        # so the key can be present with a None value. A missing, null or blank
+        # description falls back to the placeholder instead of rejecting the statement.
+        raw_description = txn.get("description")
+        txn_description = str(raw_description) if raw_description is not None else ""
+        if not txn_description.strip():
+            txn_description = "Unknown"
         txn_reference = txn.get("reference")
 
         # Dedup disambiguator (see calculate_transaction_hash): the running balance

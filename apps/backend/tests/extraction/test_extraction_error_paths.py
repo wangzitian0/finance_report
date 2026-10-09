@@ -660,6 +660,70 @@ async def test_parse_document_unexpected_exception():
         )
 
 
+_ABSENT = object()
+
+
+def _statement_payload(*transactions: dict) -> dict:
+    return {
+        "currency": "CNY",
+        "period_start": "2025-02-01",
+        "period_end": "2025-02-28",
+        "opening_balance": "100.00",
+        "closing_balance": str(Decimal("100.00") + sum(Decimal(t["amount"]) for t in transactions)),
+        "transactions": list(transactions),
+    }
+
+
+def _transaction(description: object, amount: str = "50.00") -> dict:
+    row = {"date": "2025-02-03", "amount": amount, "direction": "IN"}
+    if description is not _ABSENT:
+        row["description"] = description
+    return row
+
+
+async def _parse(payload: dict):
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(return_value=payload)
+    return await service.parse_document(
+        DocumentSource.resolve(path=Path("test.pdf"), content=b"content"), institution="CMB", user_id=uuid4()
+    )
+
+
+@pytest.mark.parametrize(
+    "description",
+    [None, "", "   ", _ABSENT],
+    ids=["null", "empty", "blank", "absent"],
+)
+async def test_parse_document_uses_placeholder_for_missing_description(description):
+    """AC-extraction.parse-robustness.1: a null, empty, blank or absent description keeps the row."""
+    result = await _parse(_statement_payload(_transaction(description)))
+
+    assert len(result.transactions) == 1
+    assert result.transactions[0].description == "Unknown"
+
+
+async def test_parse_document_keeps_the_text_the_model_read():
+    """AC-extraction.parse-robustness.1: the placeholder never replaces a readable description."""
+    result = await _parse(_statement_payload(_transaction("  Salary March  ")))
+
+    assert result.transactions[0].description == "Salary March"
+
+
+async def test_parse_document_accepts_a_numeric_description():
+    """AC-extraction.parse-robustness.1: a number in the description field becomes its text."""
+    result = await _parse(_statement_payload(_transaction(12345)))
+
+    assert result.transactions[0].description == "12345"
+
+
+async def test_parse_document_keeps_two_rows_that_differ_only_by_a_null_description():
+    """AC-extraction.parse-robustness.1: the placeholder does not merge identical-looking rows."""
+    result = await _parse(_statement_payload(_transaction(None), _transaction(None)))
+
+    assert len(result.transactions) == 2
+    assert len({row.fact_id for row in result.transactions}) == 2
+
+
 def test_safe_decimal_invalid():
     service = ExtractionService()
     assert service._safe_decimal("1.23") == Decimal("1.23")
