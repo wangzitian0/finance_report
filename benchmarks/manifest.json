@@ -1,0 +1,51 @@
+[
+  {
+    "version": "v0.1.75",
+    "run_at": "2026-10-09T17:55:51.839473+00:00",
+    "app_url": "https://report-staging.zitian.party",
+    "status": "FAIL",
+    "cases_total": 7,
+    "cases_passed": 6,
+    "cases_failed": 1,
+    "duration_seconds": 418.31,
+    "max_equation_delta": "0.01",
+    "zero_pnl_contamination": true,
+    "rollforward_balanced": false,
+    "multicurrency_consolidated": true,
+    "portfolio_holdings_verified": true,
+    "overdraft_articulation_verified": true,
+    "thirty_flows_coverage": "23/30",
+    "domains_covered": 7,
+    "report_url": "v0.1.75/report.html"
+  },
+  {
+    "version": "v0.1.64",
+    "run_at": "2026-09-24T12:39:23.610590+00:00",
+    "app_url": "https://report-staging.zitian.party",
+    "status": "PASS",
+    "cases_total": 5,
+    "cases_passed": 5,
+    "cases_failed": 0,
+    "duration_seconds": 391.75,
+    "max_equation_delta": "0.00",
+    "zero_pnl_contamination": true,
+    "rollforward_balanced": true,
+    "multicurrency_consolidated": true,
+    "portfolio_holdings_verified": true,
+    "report_url": "v0.1.64/report.html"
+  },
+  {
+    "version": "v0.1.52",
+    "run_at": "2026-09-17T13:41:50.229423",
+    "app_url": "https://report-staging.zitian.party",
+    "status": "PASS",
+    "cases_total": 2,
+    "cases_passed": 2,
+    "cases_failed": 0,
+    "duration_seconds": 113.58,
+    "max_equation_delta": "0.00",
+    "zero_pnl_contamination": true,
+    "rollforward_balanced": true,
+    "report_url": "v0.1.52/report.html"
+  }
+]

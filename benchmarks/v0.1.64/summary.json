@@ -1,0 +1,16 @@
+{
+  "version": "v0.1.64",
+  "run_at": "2026-09-24T12:39:23.610590+00:00",
+  "app_url": "https://report-staging.zitian.party",
+  "status": "PASS",
+  "cases_total": 5,
+  "cases_passed": 5,
+  "cases_failed": 0,
+  "duration_seconds": 391.75,
+  "max_equation_delta": "0.00",
+  "zero_pnl_contamination": true,
+  "rollforward_balanced": true,
+  "multicurrency_consolidated": true,
+  "portfolio_holdings_verified": true,
+  "report_url": "v0.1.64/report.html"
+}
