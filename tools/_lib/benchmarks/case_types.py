@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
+
+FLOWS_SSOT_PATH = (
+    Path(__file__).resolve().parents[3] / "common/meta/flows/thirty_flows_ssot.json"
+)
 
 
 @dataclass
@@ -16,41 +22,21 @@ class CaseResult:
     error_message: str | None = None
 
 
-# Canonical 7-domain grouping of the 30 flows defined in thirty_flows_ssot.json
-FLOW_TO_DOMAIN: dict[int, int] = {
-    1: 1,
-    2: 1,
-    3: 1,
-    4: 1,
-    5: 1,
-    6: 2,
-    7: 2,
-    8: 2,
-    9: 2,
-    10: 2,
-    11: 3,
-    12: 3,
-    13: 3,
-    14: 3,
-    15: 4,
-    16: 4,
-    17: 4,
-    18: 4,
-    19: 5,
-    20: 5,
-    21: 5,
-    22: 5,
-    23: 6,
-    24: 6,
-    25: 6,
-    26: 6,
-    27: 7,
-    28: 7,
-    29: 7,
-    30: 7,
-}
+def load_flow_to_domain(path: Path = FLOWS_SSOT_PATH) -> dict[int, int]:
+    """Read flow id -> domain id from the 30-flow registry (concept `thirty_wealth_flows`)."""
+    registry = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        flow["id"]: domain["id"]
+        for domain in registry["domains"]
+        for flow in domain["flows"]
+    }
 
-# Canonical mapping from 30 flows to holistic cases (1..6)
+
+# Domain of each flow. The registry JSON is the only source.
+FLOW_TO_DOMAIN: dict[int, int] = load_flow_to_domain()
+
+# Canonical mapping from 30 flows to holistic cases (1..6).
+# Its key set must equal the registry flow ids (enforced by the tooling suite).
 FLOW_TO_CASES: dict[int, list[str]] = {
     1: ["1"],
     2: ["1"],
@@ -95,7 +81,7 @@ DOMAIN_TO_CASES: dict[int, list[str]] = {
         },
         key=lambda c: int(c) if c.isdigit() else c,
     )
-    for domain in range(1, 8)
+    for domain in sorted(set(FLOW_TO_DOMAIN.values()))
 }
 
 

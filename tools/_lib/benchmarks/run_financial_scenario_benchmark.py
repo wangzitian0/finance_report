@@ -42,14 +42,7 @@ from tools._lib.benchmarks.case_types import (  # noqa: E402
     FLOW_TO_CASES,
     CaseResult,
 )
-from tools._lib.benchmarks.oracles import (  # noqa: E402
-    FORBIDDEN_DOM_JARGON,
-    HALLUCINATED_DISCREPANCY_TOKENS,
-    assert_ai_advisor_semantic_grounding,
-    assert_triple_accounting_articulation,
-    scan_dom_hygiene,
-    verify_browser_ui_hygiene,
-)
+from tools._lib.benchmarks.oracles import verify_browser_ui_hygiene  # noqa: E402
 from tools._lib.benchmarks.cases import (  # noqa: E402
     execute_case_1,
     execute_case_2,
@@ -57,16 +50,6 @@ from tools._lib.benchmarks.cases import (  # noqa: E402
     execute_case_4,
     execute_case_5,
     execute_case_6,
-)
-from tools._lib.benchmarks.statement_generators import (  # noqa: E402
-    generate_consecutive_month2_pdf,
-    generate_consecutive_month3_pdf,
-    generate_consecutive_month4_pdf,
-    generate_credit_card_repayment_bank_pdf,
-    generate_household_wife_operations_csv,
-    generate_multicurrency_hkd_csv,
-    generate_multicurrency_usd_csv,
-    generate_standard_operations_csv,
 )
 
 
@@ -79,13 +62,11 @@ class ScenarioBenchmarkRunner:
         timeout: float = 180.0,
         verify: bool = True,
         replay_mode: str = "off",
-        cassette_mode: str | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.verify = verify
-        self.replay_mode = cassette_mode or replay_mode
-        self.cassette_mode = self.replay_mode
+        self.replay_mode = replay_mode
         self.last_auth_context: dict[str, Any] | None = None
 
     def create_ephemeral_client(
@@ -563,38 +544,6 @@ def execute_case_ui(runner: ScenarioBenchmarkRunner) -> CaseResult:
 
 
 # =====================================================================
-# Re-exported Benchmark Case Executors & Statement Generators
-# =====================================================================
-
-__all__ = [
-    "CaseResult",
-    "FORBIDDEN_DOM_JARGON",
-    "HALLUCINATED_DISCREPANCY_TOKENS",
-    "ScenarioBenchmarkRunner",
-    "assert_ai_advisor_semantic_grounding",
-    "assert_triple_accounting_articulation",
-    "execute_case_1",
-    "execute_case_2",
-    "execute_case_3",
-    "execute_case_4",
-    "execute_case_5",
-    "execute_case_6",
-    "execute_case_ui",
-    "generate_consecutive_month2_pdf",
-    "generate_consecutive_month3_pdf",
-    "generate_consecutive_month4_pdf",
-    "generate_credit_card_repayment_bank_pdf",
-    "generate_household_wife_operations_csv",
-    "generate_multicurrency_hkd_csv",
-    "generate_multicurrency_usd_csv",
-    "generate_standard_operations_csv",
-    "main",
-    "scan_dom_hygiene",
-    "verify_browser_ui_hygiene",
-]
-
-
-# =====================================================================
 # Main Orchestrator & CLI Entrypoint
 # =====================================================================
 
@@ -824,7 +773,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         base_url=args.app_url,
         timeout=args.timeout,
         verify=not args.insecure,
-        cassette_mode=args.cassette,
+        replay_mode=args.cassette,
     )
     runner.verify_ui = args.verify_ui
 
