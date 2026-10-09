@@ -30,9 +30,7 @@ from common.meta.base.gate_cli import run_gate
 from common.meta.extension.generate_ac_registry import package_contract_meta
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_BASELINE = (
-    REPO_ROOT / "common" / "meta" / "data" / "draft-package-baseline.json"
-)
+DEFAULT_BASELINE: Path | None = None
 BASELINE_UPDATE_MODE = "rewrite"
 
 
@@ -113,15 +111,24 @@ def violations(repo_root: Path, baseline_path: Path | None = None) -> list[str]:
                 "be verified statically. Declare id/status as plain literals."
             )
         if name not in baseline:
+            remediation = (
+                "draft packages are disallowed by in-code baseline (zero debt)."
+                if baseline_path is None
+                else "add it (deliberate, reviewed) or run --rewrite-baseline."
+            )
             errors.append(
                 f"draft package {name!r} is not registered in "
-                f"{baseline_name}: add it (deliberate, reviewed) or run "
-                "--rewrite-baseline."
+                f"{baseline_name}: {remediation}"
             )
     for name in sorted(baseline - set(drafts)):
+        remediation = (
+            "remove it from in-code baseline."
+            if baseline_path is None
+            else "remove it or run --rewrite-baseline."
+        )
         errors.append(
             f"stale draft registration {name!r} remains in {baseline_name}: "
-            "remove it or run --rewrite-baseline."
+            f"{remediation}"
         )
     return errors
 
@@ -144,14 +151,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def _run_command(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     repo_root = args.repo_root.resolve()
-    baseline_path = args.baseline or (
-        repo_root / DEFAULT_BASELINE.relative_to(REPO_ROOT)
-    )
+    baseline_path = args.baseline
 
     if args.rewrite_baseline:
+        target_path = baseline_path or (
+            repo_root / "common" / "meta" / "data" / "draft-package-baseline.json"
+        )
         drafts = set(_draft_packages(repo_root))
-        write_baseline(baseline_path, drafts)
-        print(f"Updated draft baseline: {baseline_path} ({len(drafts)} draft(s))")
+        write_baseline(target_path, drafts)
+        print(f"Updated draft baseline: {target_path} ({len(drafts)} draft(s))")
         return 0
 
     errors = violations(repo_root, baseline_path)

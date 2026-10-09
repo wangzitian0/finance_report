@@ -191,3 +191,7 @@ def render_table(result: dict) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     print(render_table(classify_repo(REPO_ROOT)))
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
