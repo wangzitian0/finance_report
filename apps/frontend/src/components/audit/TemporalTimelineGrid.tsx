@@ -9,6 +9,8 @@ interface TemporalTimelineGridProps {
 }
 
 export function TemporalTimelineGrid({ timeline }: TemporalTimelineGridProps) {
+  const buckets = timeline ?? [];
+
   return (
     <div className="space-y-3">
       <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
@@ -37,7 +39,7 @@ export function TemporalTimelineGrid({ timeline }: TemporalTimelineGridProps) {
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-        {timeline.map((bucket) => {
+        {buckets.map((bucket) => {
           const isGap = bucket.status === "GAP_DETECTED";
           const isHealthy = bucket.status === "HEALTHY";
           const isPending = bucket.status === "PENDING_PROCESSING";

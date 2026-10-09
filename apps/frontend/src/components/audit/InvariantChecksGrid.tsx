@@ -52,7 +52,7 @@ export function InvariantChecksGrid({
 
       <div className="grid gap-4 sm:grid-cols-2">
         {cards.map(({ invariant, icon: Icon, fallbackName, proofFormula }) => {
-          const isHealthy = invariant.is_healthy;
+          const isHealthy = Boolean(invariant?.is_healthy);
           return (
             <div
               key={fallbackName}
@@ -75,7 +75,7 @@ export function InvariantChecksGrid({
                       <Icon className="h-4 w-4" aria-hidden="true" />
                     </span>
                     <span className="text-sm font-semibold">
-                      {invariant.name || fallbackName}
+                      {invariant?.name || fallbackName}
                     </span>
                   </div>
 
@@ -101,10 +101,10 @@ export function InvariantChecksGrid({
                 </div>
 
                 <p className="mt-3 text-xs font-mono text-muted">{proofFormula}</p>
-                <p className="mt-1 text-sm font-medium">{invariant.summary}</p>
+                <p className="mt-1 text-sm font-medium">{invariant?.summary ?? "Pending verification."}</p>
               </div>
 
-              {invariant.detail && (
+              {invariant?.detail && (
                 <p className="mt-3 border-t border-[var(--border)] pt-2 text-xs text-muted">
                   {invariant.detail}
                 </p>

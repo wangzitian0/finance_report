@@ -9,16 +9,18 @@ interface ActionChecklistProps {
 }
 
 export function ActionChecklist({ actionItems }: ActionChecklistProps) {
-  if (actionItems.length === 0) {
+  const items = actionItems ?? [];
+
+  if (items.length === 0) {
     return (
       <div className="card flex items-center gap-4 border-[var(--success)] bg-[color-mix(in_srgb,var(--success)_8%,transparent)] p-6">
         <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-[var(--success)] text-white">
           <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
         </span>
         <div>
-          <h3 className="text-base font-bold text-[var(--success)]">
+          <p className="text-base font-bold text-[var(--success)]">
             100% Invariant Perfection · Audit Ready
-          </h3>
+          </p>
           <p className="mt-0.5 text-sm text-muted">
             All accounting balance proofs, temporal rollforward continuity, and reconciliation purity
             checks are fully satisfied. No remedial actions required.
@@ -38,12 +40,12 @@ export function ActionChecklist({ actionItems }: ActionChecklistProps) {
           </p>
         </div>
         <span className="rounded-full bg-[var(--background-muted)] px-2.5 py-0.5 text-xs font-medium text-muted">
-          {actionItems.length} action{actionItems.length > 1 ? "s" : ""} pending
+          {items.length} action{items.length > 1 ? "s" : ""} pending
         </span>
       </div>
 
       <div className="grid gap-3">
-        {actionItems.map((item) => {
+        {items.map((item) => {
           const isP0 = item.priority === "P0";
           const isP1 = item.priority === "P1";
 

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction import BankStatementStatus, StatementSummary
 from src.identity import User
 from src.reconciliation.data.stats import ReconciliationStats
+from src.reporting import QualityGrade
 from src.reporting.base.diagnostics import (
     EquationDiagnosticCategory,
     EquationDiagnosticResult,
@@ -19,7 +20,6 @@ from src.reporting.extension.data_quality_service import (
     _shift_months,
     compute_personal_data_quality,
 )
-from src.schemas.data_quality import QualityGrade
 
 
 def test_shift_months_calculation():

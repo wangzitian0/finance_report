@@ -33,7 +33,7 @@ export default function AuditPage() {
           <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[var(--border)] border-t-[var(--accent)]" />
           <p className="text-sm text-muted">Evaluating accounting invariants and temporal timeline...</p>
         </div>
-      ) : isError || !data ? (
+      ) : isError || !data || typeof data.score !== "number" || !data.equation_invariant ? (
         <div className="card border-[var(--error)] p-6 text-center">
           <p className="text-sm font-medium text-[var(--error)]">
             Failed to evaluate data quality health.
