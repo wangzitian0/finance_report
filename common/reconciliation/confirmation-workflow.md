@@ -60,12 +60,12 @@ Stage 1 endpoints live in the extraction half:
 
 | Test | File | What It Verifies |
 |------|------|-----------------|
-| `test_AC16_32_3_stage2_queue_returns_all_pending_checks` | `api/test_statements_router.py` | Stage 2 queue returns the complete unresolved blocker set |
-| `test_AC19_11_1_stage2_run_queue_filters_by_run_id` | `api/test_statements_router.py` | Run-scoped Stage 2 queue and approval cannot affect another run |
+| `test_AC16_32_3_stage2_queue_returns_all_pending_checks` | `api/test_review_router.py` | Stage 2 queue returns the complete unresolved blocker set |
+| `test_AC19_11_1_stage2_run_queue_filters_by_run_id` | `api/test_review_router.py` | Run-scoped Stage 2 queue and approval cannot affect another run |
 | `test_batch_approve_requires_checks_resolved` | `review/test_review_workflow.py` | Stage 2 batch blocked by open checks (⏳ Planned) |
 | `test_journal_entry_created_on_accept` | `review/test_review_workflow.py` | Journal entry only on accepted transition (⏳ Planned) |
-| `test_batch_approve_matches_reconciles_referenced_entry` | `api/test_statements_router.py` | Stage 2 batch approval reconciles referenced journal entries |
-| `test_batch_approve_matches_creates_missing_entry_once` | `api/test_statements_router.py` | Stage 2 batch approval creates missing journal entries idempotently |
+| `test_batch_approve_matches_reconciles_referenced_entry` | `api/test_review_router.py` | Stage 2 batch approval reconciles referenced journal entries |
+| `test_batch_approve_matches_creates_missing_entry_once` | `api/test_review_router.py` | Stage 2 batch approval creates missing journal entries idempotently |
 
 Stage 1 verification lives in the extraction half:
 [common/extraction/confirmation-workflow.md §Verification](../extraction/confirmation-workflow.md#7-verification-the-proof--stage-1).
