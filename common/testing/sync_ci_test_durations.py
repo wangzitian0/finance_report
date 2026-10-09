@@ -82,7 +82,9 @@ def update_duration_seed(
         data[nid] = t
         updated_count += 1
 
-    if prune_missing and repo_root is not None:
+    if prune_missing:
+        if repo_root is None:
+            raise ValueError("repo_root must be provided when prune_missing is True")
         pruned: dict[str, float] = {}
         for nid, dur in data.items():
             rel_file = nid.split("::")[0]
@@ -185,12 +187,13 @@ def sync_from_directory(
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
+    source_group = parser.add_mutually_exclusive_group(required=True)
+    source_group.add_argument(
         "--run-id",
         type=int,
         help="GitHub Actions run ID to download artifacts from via gh cli",
     )
-    parser.add_argument(
+    source_group.add_argument(
         "--junit-dir",
         type=Path,
         help="Local directory containing downloaded JUnit XML artifacts",
@@ -209,10 +212,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
-    if not args.run_id and not args.junit_dir:
-        parser.error("Either --run-id or --junit-dir must be specified")
-
-    if args.run_id:
+    if args.run_id is not None:
         temp_dir = Path(tempfile.mkdtemp(prefix=f"ci_run_{args.run_id}_"))
         try:
             print(f"Downloading artifacts for run {args.run_id} to {temp_dir}...")
