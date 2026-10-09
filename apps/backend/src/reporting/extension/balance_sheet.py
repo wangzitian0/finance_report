@@ -21,6 +21,7 @@ from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
     _aggregate_account_provenance,
     _aggregate_balances_sql,
+    _aggregate_equity_translation_variance_sql,
     _aggregate_net_income_sql,
     _build_account_lines,
     _line_total,
@@ -272,12 +273,34 @@ async def generate_balance_sheet(
     net_worth_adjustment = _quantize_money(
         _line_total(portfolio_adjustments) + _line_total(valuation_assets) - _line_total(valuation_liabilities)
     )
+    base_curr = settings.base_currency.upper()
+    is_presentation_currency = target_currency.upper() != base_curr
     is_multicurrency = bool(included_ledger_currencies - {target_currency})
-    cta_adjustment = calculate_currency_translation_adjustment(
-        is_multicurrency=is_multicurrency,
-        pnl_translation_variance=pnl_translation_variance,
-        unrealized_fx=unrealized_fx,
-    )
+
+    if is_presentation_currency:
+        # Under IAS 21 paragraph 39, financial statements translated into a different
+        # presentation currency translate assets/liabilities at closing spot rates and
+        # income/expenses at transaction/average rates. All resulting exchange differences
+        # are recognized in other comprehensive income as the presentation CTA reserve.
+        unadjusted_total = total_liabilities + total_equity + net_income + unrealized_fx + net_worth_adjustment
+        cta_adjustment = _quantize_money(total_assets - unadjusted_total)
+    else:
+        # Functional currency reporting: CTA strictly absorbs translation variances
+        # between spot rate balance sheet items, period-average net income, and
+        # opening equity position variances, without circular plugging.
+        equity_translation_variance = await _aggregate_equity_translation_variance_sql(
+            db,
+            user_id,
+            target_currency,
+            as_of_date,
+            fx_warnings=fx_warnings,
+        )
+        cta_adjustment = calculate_currency_translation_adjustment(
+            is_multicurrency=is_multicurrency,
+            pnl_translation_variance=pnl_translation_variance,
+            unrealized_fx=unrealized_fx,
+            equity_translation_variance=equity_translation_variance,
+        )
     totals = calculate_balance_sheet_equation(
         total_assets=total_assets,
         total_liabilities=total_liabilities,
