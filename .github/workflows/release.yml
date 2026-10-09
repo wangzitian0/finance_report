@@ -519,6 +519,7 @@ jobs:
           APP_URL: https://report.zitian.party
           FRONTEND_URL: https://report.zitian.party
           TEST_ENV: production
+          EXPECTED_SHA: ${{ steps.release.outputs.version_ref }}
           PROD_SMOKE_EMAIL: ${{ secrets.PROD_SMOKE_EMAIL }}
           PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
         run: |
