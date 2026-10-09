@@ -276,7 +276,7 @@ class AIAdvisorService:
             top_expenses = "N/A"
 
         stats = await get_reconciliation_stats(db, user_id)
-        period_net_income = net_income_bs if net_income_bs != Decimal("0") else (monthly_income - monthly_expenses)
+        period_net_income = net_income_bs
 
         context.update(
             {

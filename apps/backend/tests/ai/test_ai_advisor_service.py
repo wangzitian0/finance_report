@@ -1202,4 +1202,4 @@ async def test_get_financial_context_articulates_net_worth_and_equity_rollforwar
     prompt = get_ai_advisor_prompt(context, "zh")
     assert "Net worth: SGD 24200.00" in prompt
     assert "Opening equity: SGD 15450.75" in prompt
-    assert "Current period net income: SGD 8749.25" in prompt
+    assert "Cumulative net income: SGD 8749.25" in prompt
