@@ -45,6 +45,22 @@ def _atomic(user_id, *, description, amount, direction=TransactionDirection.OUT)
     )
 
 
+def _match(
+    txn_id,
+    *,
+    entry_id=None,
+    score: int = 90,
+    breakdown_amount: float = 95.0,
+) -> ReconciliationMatch:
+    return ReconciliationMatch(
+        atomic_txn_id=txn_id,
+        journal_entry_ids=[str(entry_id)] if entry_id else [],
+        match_score=score,
+        score_breakdown={"amount": breakdown_amount},
+        status=ReconciliationStatus.PENDING_REVIEW,
+    )
+
+
 async def _post_manual_entry(
     db: AsyncSession,
     *,
@@ -79,24 +95,9 @@ async def _post_manual_entry(
 
 async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, test_user) -> None:
     session = db
-    bank_account = Account(
-        user_id=test_user.id,
-        name="Bank - Main",
-        type=AccountType.ASSET,
-        currency="SGD",
-    )
-    income_account = Account(
-        user_id=test_user.id,
-        name="Income - Salary",
-        type=AccountType.INCOME,
-        currency="SGD",
-    )
-    expense_account = Account(
-        user_id=test_user.id,
-        name="Expense - Misc",
-        type=AccountType.EXPENSE,
-        currency="SGD",
-    )
+    bank_account = Account(user_id=test_user.id, name="Bank - Main", type=AccountType.ASSET, currency="SGD")
+    income_account = Account(user_id=test_user.id, name="Income - Salary", type=AccountType.INCOME, currency="SGD")
+    expense_account = Account(user_id=test_user.id, name="Expense - Misc", type=AccountType.EXPENSE, currency="SGD")
     session.add_all([bank_account, income_account, expense_account])
     await session.flush()
 
@@ -109,33 +110,21 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, t
         credit_account=income_account,
         amount=Decimal("1000.00"),
     )
-    entry_accept = await _post_manual_entry(
-        session,
-        user_id=test_user.id,
-        entry_date=date.today(),
-        memo="Coffee",
-        debit_account=expense_account,
-        credit_account=bank_account,
-        amount=Decimal("12.00"),
-    )
-    entry_reject = await _post_manual_entry(
-        session,
-        user_id=test_user.id,
-        entry_date=date.today(),
-        memo="Snacks",
-        debit_account=expense_account,
-        credit_account=bank_account,
-        amount=Decimal("8.00"),
-    )
-    entry_batch = await _post_manual_entry(
-        session,
-        user_id=test_user.id,
-        entry_date=date.today(),
-        memo="Lunch",
-        debit_account=expense_account,
-        credit_account=bank_account,
-        amount=Decimal("20.00"),
-    )
+
+    async def _post_expense(memo: str, amount: str) -> JournalEntry:
+        return await _post_manual_entry(
+            session,
+            user_id=test_user.id,
+            entry_date=date.today(),
+            memo=memo,
+            debit_account=expense_account,
+            credit_account=bank_account,
+            amount=Decimal(amount),
+        )
+
+    entry_accept = await _post_expense("Coffee", "12.00")
+    entry_reject = await _post_expense("Snacks", "8.00")
+    entry_batch = await _post_expense("Lunch", "20.00")
 
     # txn_run is the only pending atomic transaction when /run executes, so the
     # engine auto-accepts it against entry_run without touching the other rows.
@@ -161,34 +150,10 @@ async def test_reconciliation_endpoints(client: AsyncClient, db: AsyncSession, t
     session.add_all([txn_accept, txn_reject, txn_batch, txn_unmatched, txn_low])
     await session.flush()
 
-    match_accept = ReconciliationMatch(
-        atomic_txn_id=txn_accept.id,
-        journal_entry_ids=[str(entry_accept.id)],
-        match_score=82,
-        score_breakdown={"amount": 90.0},
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    match_reject = ReconciliationMatch(
-        atomic_txn_id=txn_reject.id,
-        journal_entry_ids=[str(entry_reject.id)],
-        match_score=70,
-        score_breakdown={"amount": 80.0},
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    match_batch = ReconciliationMatch(
-        atomic_txn_id=txn_batch.id,
-        journal_entry_ids=[str(entry_batch.id)],
-        match_score=90,
-        score_breakdown={"amount": 95.0},
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    match_low = ReconciliationMatch(
-        atomic_txn_id=txn_low.id,
-        journal_entry_ids=[],
-        match_score=50,
-        score_breakdown={"amount": 40.0},
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
+    match_accept = _match(txn_accept.id, entry_id=entry_accept.id, score=82, breakdown_amount=90.0)
+    match_reject = _match(txn_reject.id, entry_id=entry_reject.id, score=70, breakdown_amount=80.0)
+    match_batch = _match(txn_batch.id, entry_id=entry_batch.id, score=90, breakdown_amount=95.0)
+    match_low = _match(txn_low.id, score=50, breakdown_amount=40.0)
     session.add_all([match_accept, match_reject, match_batch, match_low])
     await session.commit()
 
