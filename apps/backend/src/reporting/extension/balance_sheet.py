@@ -21,6 +21,7 @@ from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
     _aggregate_account_provenance,
     _aggregate_balances_sql,
+    _aggregate_equity_translation_variance_sql,
     _aggregate_net_income_sql,
     _build_account_lines,
     _line_total,
@@ -272,11 +273,19 @@ async def generate_balance_sheet(
     net_worth_adjustment = _quantize_money(
         _line_total(portfolio_adjustments) + _line_total(valuation_assets) - _line_total(valuation_liabilities)
     )
+    equity_translation_variance = await _aggregate_equity_translation_variance_sql(
+        db,
+        user_id,
+        target_currency,
+        as_of_date,
+        fx_warnings=fx_warnings,
+    )
     is_multicurrency = bool(included_ledger_currencies - {target_currency})
     cta_adjustment = calculate_currency_translation_adjustment(
         is_multicurrency=is_multicurrency,
         pnl_translation_variance=pnl_translation_variance,
         unrealized_fx=unrealized_fx,
+        equity_translation_variance=equity_translation_variance,
     )
     totals = calculate_balance_sheet_equation(
         total_assets=total_assets,

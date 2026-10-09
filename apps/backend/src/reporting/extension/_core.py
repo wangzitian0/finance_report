@@ -12,6 +12,7 @@ from sqlalchemy import case, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
+from src.config import settings
 from src.ledger import (
     Account,
     AccountType,
@@ -471,3 +472,87 @@ async def _aggregate_net_income_sql(
         return net_income, pnl_translation_variance
 
     return net_income
+
+
+async def _aggregate_equity_translation_variance_sql(
+    db: AsyncSession,
+    user_id: UUID,
+    target_currency: str,
+    as_of_date: date,
+    *,
+    fx_warnings: list[FxWarning] | None = None,
+) -> Decimal:
+    """Compute translation variance on equity contributions and opening positions.
+
+    Under IAS 21, opening positions and equity contributions can fund foreign assets.
+    Their recorded equity amounts remain at historical cost.
+    The foreign assets are translated at the closing spot rate.
+    The resulting variance is part of the currency translation adjustment reserve.
+    """
+    target = target_currency.upper()
+    equity_entries_stmt = (
+        select(JournalLine.journal_entry_id)
+        .distinct()
+        .join(Account, JournalLine.account_id == Account.id)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .where(Account.user_id == user_id)
+        .where(Account.type == AccountType.EQUITY)
+        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
+        .where(JournalEntry.entry_date <= as_of_date)
+    )
+    equity_entry_ids = (await db.execute(equity_entries_stmt)).scalars().all()
+    if not equity_entry_ids:
+        return Decimal("0.00")
+
+    stmt = (
+        select(
+            JournalLine.direction,
+            JournalLine.amount,
+            JournalLine.currency,
+            JournalLine.fx_rate,
+            JournalEntry.entry_date,
+            Account.type,
+        )
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .join(Account, JournalLine.account_id == Account.id)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.id.in_(equity_entry_ids))
+        .where(Account.type.in_((AccountType.ASSET, AccountType.LIABILITY)))
+        .where(JournalLine.currency != target)
+        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
+        .where(JournalEntry.entry_date <= as_of_date)
+    )
+    rows = (await db.execute(stmt)).all()
+    if not rows:
+        return Decimal("0.00")
+
+    currencies = {row.currency.upper() for row in rows}
+    spot_rates = await _get_fx_rates_map(db, currencies, target, as_of_date, fx_warnings=fx_warnings)
+
+    total_variance = Decimal("0.00")
+    for row in rows:
+        curr = row.currency.upper()
+        spot_rate = spot_rates.get(curr)
+        if spot_rate is None:
+            continue
+        base_curr = settings.base_currency.upper()
+        if row.fx_rate is not None and target == base_curr:
+            hist_rate = Decimal(str(row.fx_rate))
+        else:
+            try:
+                hist_rate = await get_exchange_rate(db, curr, target, row.entry_date, lazy_load=True)
+            except fx_gateway.FxRateError:
+                hist_rate = spot_rate
+
+        rate_delta = spot_rate - hist_rate
+        if row.type == AccountType.ASSET:
+            sign = Decimal("1") if row.direction == Direction.DEBIT else Decimal("-1")
+        else:
+            sign = Decimal("-1") if row.direction == Direction.CREDIT else Decimal("1")
+
+        line_variance = sign * Decimal(str(row.amount)) * rate_delta
+        total_variance += line_variance
+
+    return _quantize_money(total_variance)

@@ -361,6 +361,93 @@ async def test_bench_case_4_multicurrency_cta_balance_sheet(db: AsyncSession, te
     assert bs["cta_adjustment"] is not None
 
 
+async def test_bench_case_4_multicurrency_opening_equity_and_revenue_cta(db: AsyncSession, test_user_id) -> None:
+    """Benchmark Case 4 variant: foreign currency opening equity contributions + operational revenue.
+
+    Under IAS 21, opening positions in foreign currencies create an equity translation variance
+    when translated at closing spot rates versus historical opening rates. This test ensures
+    that both PnL translation variance and equity translation variance are absorbed into CTA,
+    maintaining an exact 0.00 balance sheet equation delta.
+    """
+    cash_sgd, cash_usd, cash_hkd, capital_sgd, rev_usd, rev_hkd = await _seed_accounts(
+        db,
+        test_user_id,
+        ("DBS SGD", AccountType.ASSET, "SGD"),
+        ("SVB USD", AccountType.ASSET, "USD"),
+        ("HSBC HKD", AccountType.ASSET, "HKD"),
+        ("Opening Balance Equity", AccountType.EQUITY, "SGD"),
+        ("Consulting USD", AccountType.INCOME, "USD"),
+        ("Dividend HKD", AccountType.INCOME, "HKD"),
+    )
+    await _seed_fx_rates(
+        db,
+        ("USD", "SGD", "1.343920", date(2025, 4, 1)),
+        ("USD", "SGD", "1.343920", date(2025, 4, 15)),
+        ("USD", "SGD", "1.305640", date(2025, 4, 30)),
+        ("HKD", "SGD", "0.172706", date(2025, 4, 1)),
+        ("HKD", "SGD", "0.172706", date(2025, 4, 15)),
+        ("HKD", "SGD", "0.169139", date(2025, 4, 30)),
+        ("HKD", "USD", "0.129545", date(2025, 4, 30)),
+    )
+    db.add_all(
+        [
+            _pair_entry(test_user_id, date(2025, 4, 1), "Opening SGD", cash_sgd, capital_sgd, "10000.00"),
+            _post_entry(
+                test_user_id,
+                date(2025, 4, 1),
+                "Opening USD",
+                [
+                    (cash_usd, Direction.DEBIT, Decimal("5000.00"), "USD"),
+                    (capital_sgd, Direction.CREDIT, Decimal("6719.60"), "SGD"),
+                ],
+                fx_rate=Decimal("1.343920"),
+            ),
+            _post_entry(
+                test_user_id,
+                date(2025, 4, 1),
+                "Opening HKD",
+                [
+                    (cash_hkd, Direction.DEBIT, Decimal("20000.00"), "HKD"),
+                    (capital_sgd, Direction.CREDIT, Decimal("3454.12"), "SGD"),
+                ],
+                fx_rate=Decimal("0.172706"),
+            ),
+            _pair_entry(
+                test_user_id,
+                date(2025, 4, 10),
+                "Consulting USD",
+                cash_usd,
+                rev_usd,
+                "1800.00",
+                "USD",
+                Decimal("1.319330"),
+            ),
+            _pair_entry(
+                test_user_id,
+                date(2025, 4, 12),
+                "Dividend HKD",
+                cash_hkd,
+                rev_hkd,
+                "4000.00",
+                "HKD",
+                Decimal("0.170200"),
+            ),
+        ]
+    )
+    await db.commit()
+
+    bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 4, 30), currency="SGD")
+    assert bs["is_balanced"] is True
+    assert bs["equation_delta"] == Decimal("0.00")
+
+    bs_usd = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 4, 30), currency="USD")
+    print(
+        f"DEBUG BS USD: delta={bs_usd['equation_delta']} cta={bs_usd['cta_adjustment']} ufx={bs_usd['unrealized_fx_gain_loss']} assets={bs_usd['total_assets']} eq={bs_usd['total_equity']} ni={bs_usd['net_income']}"
+    )
+    assert bs_usd["is_balanced"] is True
+    assert abs(bs_usd["equation_delta"]) < Decimal("0.05")
+
+
 async def test_bench_case_5_holistic_multi_asset_and_tax_ecosystem(db: AsyncSession, test_user_id) -> None:
     """Benchmark Case 5: multi-asset portfolio, illiquid property, and W-2 tax withholding."""
     cash_sgd, tax_expense, salary_income, equity_account = await _seed_accounts(

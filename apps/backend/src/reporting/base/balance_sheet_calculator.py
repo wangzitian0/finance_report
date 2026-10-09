@@ -46,7 +46,7 @@ def calculate_currency_translation_adjustment(
     CTA is determined strictly from translation variances and unrealized FX rather
     than circularly plugging balance sheet totals.
     """
-    if not is_multicurrency or (not pnl_translation_variance and not equity_translation_variance and not unrealized_fx):
+    if not is_multicurrency or (not pnl_translation_variance and not equity_translation_variance):
         return Decimal("0.00")
 
     pnl_var = pnl_translation_variance or Decimal("0.00")

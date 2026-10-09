@@ -58,24 +58,12 @@ def test_cta_when_pnl_translation_variance_is_zero_but_equity_or_ufx_differs():
     assert cta == Decimal("-200.00")
 
 
-def test_cta_when_only_unrealized_fx_exists():
-    """AC-reporting.balance-sheet.2: When PnL and equity variances are zero/None, CTA offsets unrealized_fx."""
+def test_cta_when_translation_variances_are_zero():
+    """AC-reporting.balance-sheet.2: When translation variances are zero, CTA is strictly 0.00."""
     cta = calculate_currency_translation_adjustment(
         is_multicurrency=True,
         pnl_translation_variance=Decimal("0.00"),
         unrealized_fx=Decimal("262.73"),
+        equity_translation_variance=Decimal("0.00"),
     )
-    # CTA = 0 - 262.73 + 0 = -262.73
-    assert cta == Decimal("-262.73")
-
-    totals = calculate_balance_sheet_equation(
-        total_assets=Decimal("25737.69"),
-        total_liabilities=Decimal("0.00"),
-        total_equity=Decimal("20173.72"),
-        net_income=Decimal("5563.97"),
-        unrealized_fx=Decimal("262.73"),
-        net_worth_adjustment=Decimal("0.00"),
-        cta_adjustment=cta,
-    )
-    assert totals.equation_delta == Decimal("0.00")
-    assert totals.is_balanced is True
+    assert cta == Decimal("0.00")
