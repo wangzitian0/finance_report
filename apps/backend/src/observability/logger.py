@@ -7,10 +7,11 @@ This module provides:
 - Exception logging helpers with full context
 """
 
+import datetime
 import logging
 import sys
 import time
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator, Mapping, Sequence
 from contextlib import asynccontextmanager, contextmanager
 from functools import wraps
 from typing import Any, ParamSpec, TypeVar
@@ -30,10 +31,41 @@ P = ParamSpec("P")
 T = TypeVar("T")
 
 
+def _sanitize_value(val: Any) -> Any:
+    """Sanitize arbitrary Python values for OTel and structlog encoders.
+
+    OTel Protobuf encoder accepts only bool, str, int, float, bytes,
+    and Sequences/Mappings thereof. Dates, datetimes, UUIDs, decimals,
+    exceptions, etc. must be converted to compliant types.
+    """
+    if val is None or isinstance(val, bool | str | int | float | bytes):
+        return val
+    if isinstance(val, datetime.date | datetime.datetime):
+        return val.isoformat()
+    if isinstance(val, Mapping):
+        return {str(k): _sanitize_value(v) for k, v in val.items()}
+    if isinstance(val, list | tuple | set | frozenset | Sequence) and not isinstance(val, str | bytes):
+        return [_sanitize_value(x) for x in val]
+    return str(val)
+
+
+def _sanitize_event_dict(
+    logger: logging.Logger,
+    method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    """Structlog processor to sanitize non-primitive values in event_dict."""
+    _ = (logger, method_name)
+    for key, val in list(event_dict.items()):
+        event_dict[key] = _sanitize_value(val)
+    return event_dict
+
+
 def _build_processors() -> list[Processor]:
     return [
         structlog.contextvars.merge_contextvars,
         _add_trace_context,
+        _sanitize_event_dict,
         structlog.processors.add_log_level,
         structlog.processors.format_exc_info,
         structlog.processors.TimeStamper(fmt="iso"),
@@ -156,6 +188,29 @@ def _configure_otel_tracing() -> None:
     trace.set_tracer_provider(provider)
 
 
+class SanitizingLogRecordProcessor:
+    """OTel LogRecordProcessor that ensures all attributes and body are encode-safe."""
+
+    def __init__(self, exporter: Any = None) -> None:
+        self.exporter = exporter
+
+    def on_emit(self, log_record: Any) -> None:
+        raw_record = getattr(log_record, "log_record", log_record)
+        attrs = getattr(raw_record, "attributes", None)
+        if attrs is not None and hasattr(attrs, "items"):
+            for k, v in list(attrs.items()):
+                attrs[k] = _sanitize_value(v)
+        body = getattr(raw_record, "body", None)
+        if body is not None and not isinstance(body, bool | str | int | float | bytes):
+            raw_record.body = _sanitize_value(body)
+
+    def shutdown(self) -> None:
+        pass
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        return True
+
+
 def _configure_otel_logging() -> None:
     if not settings.otel_exporter_otlp_endpoint:
         return
@@ -180,6 +235,7 @@ def _configure_otel_logging() -> None:
     resource = _build_otel_resource()
 
     provider = LoggerProvider(resource=resource)
+    provider.add_log_record_processor(SanitizingLogRecordProcessor())
     exporter = OTLPLogExporter(
         endpoint=_build_otlp_logs_endpoint(settings.otel_exporter_otlp_endpoint),
     )
