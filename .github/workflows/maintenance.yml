@@ -326,6 +326,7 @@ jobs:
     name: Advisory Governance Audit
     if: ${{ (github.event_name == 'schedule' && github.event.schedule == '17 3 * * *') || (github.event_name == 'workflow_dispatch' && (inputs.task == 'advisory-governance-audit' || inputs.task == 'all')) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
