@@ -271,3 +271,21 @@ def test_l4_baseline_new_and_stale_entries_fail(tmp_path: Path, monkeypatch) -> 
         check_app_boundary, "discover_l4_deep_import_edges", lambda _root: []
     )
     assert check_app_boundary.main(["--repo-root", str(tmp_path)]) == 1
+
+
+def test_update_with_zero_debt_preserves_retired_baselines(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from common.meta.extension import check_app_boundary
+
+    monkeypatch.setattr(
+        check_app_boundary, "discover_and_compute_edges", lambda _root: []
+    )
+    monkeypatch.setattr(
+        check_app_boundary, "discover_l4_deep_import_edges", lambda _root: []
+    )
+    base = tmp_path / "common/meta/data/app-boundary-baseline.json"
+    l4_base = tmp_path / "common/meta/data/l4-root-import-baseline.json"
+    assert check_app_boundary.main(["--repo-root", str(tmp_path), "--update"]) == 0
+    assert not base.exists()
+    assert not l4_base.exists()
