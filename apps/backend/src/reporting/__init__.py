@@ -44,6 +44,7 @@ _EXPORTS = {
     "CashFlowItem": "src.reporting.base.cash_flow_types",
     "CashFlowResponse": "src.reporting.base.cash_flow_types",
     "CashFlowSummary": "src.reporting.base.cash_flow_types",
+    "compute_personal_data_quality": "src.reporting.extension.data_quality_service",
     "PersonalReportingFrameworkId": "src.reporting.base.types",
     "PolicyDimension": "src.reporting.base.types",
     "ReportError": "src.reporting.extension.reporting_calc",
@@ -108,6 +109,7 @@ __all__ = [
     "CashFlowItem",
     "CashFlowResponse",
     "CashFlowSummary",
+    "compute_personal_data_quality",
     "PersonalReportingFrameworkId",
     "PolicyDimension",
     "ReportError",
@@ -185,6 +187,7 @@ if TYPE_CHECKING:
         register_manual_valuation_lines_provider,
     )
     from src.reporting.extension.cash_flow import generate_cash_flow
+    from src.reporting.extension.data_quality_service import compute_personal_data_quality
     from src.reporting.extension.diagnostics import (
         diagnose_equation_imbalance,
         run_balance_sheet_diagnostics,

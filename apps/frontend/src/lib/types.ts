@@ -607,3 +607,11 @@ export type LlmCatalogResponse = Schemas["LlmCatalogResponse"];
 export type LlmSceneBindingItem = Schemas["LlmSceneBindingItem"];
 export type LlmScenesResponse = Schemas["LlmScenesResponse"];
 export type LlmScenesUpdate = Schemas["LlmScenesUpdate"];
+
+// ── Personal Data Quality Observatory ──────────────────────────────────────
+export type PersonalDataQualityHealthResponse =
+  Schemas["PersonalDataQualityHealthResponse"];
+export type QualityGrade = Schemas["QualityGrade"];
+export type InvariantStatus = Schemas["InvariantStatus"];
+export type MonthContinuityBucket = Schemas["MonthContinuityBucket"];
+export type QualityActionItem = Schemas["QualityActionItem"];

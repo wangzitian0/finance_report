@@ -184,6 +184,11 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/diagnostics.py",
         ),
+        Unit(
+            name="compute_personal_data_quality",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/data_quality_service.py",
+        ),
         Unit(name="ReportSnapshot", kind=Kind.AGGREGATE_ROOT),
         # ── extension (report generation + lanes) ──
         Unit(
@@ -290,6 +295,7 @@ CONTRACT = PackageContract(
         "CashFlowItem",
         "CashFlowResponse",
         "CashFlowSummary",
+        "compute_personal_data_quality",
         "PersonalReportingFrameworkId",
         "PolicyDimension",
         "ReportError",

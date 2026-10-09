@@ -766,6 +766,15 @@ export interface paths {
         get: operations["get_available_currencies_reports_currencies_get"];
         put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
     };
+    "/reports/data-quality": {
+        parameters: { query?: never; header?: never; path?: never; cookie?: never; };
+        /**
+         * Get Data Quality Health
+         * @description Return comprehensive financial data quality, invariants, timeline, and action items.
+         */
+        get: operations["get_data_quality_health_reports_data_quality_get"];
+        put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
+    };
     "/reports/export": {
         parameters: { query?: never; header?: never; path?: never; cookie?: never; };
         /**
@@ -3172,6 +3181,37 @@ export interface components {
             total_income: string;
         };
         /**
+         * InvariantStatus
+         * @description Invariant status and audit proof details.
+         */
+        InvariantStatus: {
+            /**
+             * Delta
+             * @description Numeric variance or discrepancy delta if applicable.
+             */
+            delta?: string | null;
+            /**
+             * Detail
+             * @description Detailed explanation or root-cause guidance.
+             */
+            detail?: string | null;
+            /**
+             * Is Healthy
+             * @description Whether the invariant is strictly satisfied.
+             */
+            is_healthy: boolean;
+            /**
+             * Name
+             * @description Human-readable invariant name.
+             */
+            name: string;
+            /**
+             * Summary
+             * @description Short summary statement of verification status.
+             */
+            summary: string;
+        };
+        /**
          * InvestmentPerformanceAllocationRow
          * @description Allocation row for one report-schedule dimension.
          */
@@ -3983,6 +4023,48 @@ export interface components {
          */
         Modality: "text" | "image" | "pdf" | "file";
         /**
+         * MonthContinuityBucket
+         * @description Monthly continuity bucket across the temporal timeline.
+         */
+        MonthContinuityBucket: {
+            /**
+             * Closing Balance
+             * @description Closing balance recorded at the end of the period.
+             */
+            closing_balance?: string | null;
+            /**
+             * Has Gap
+             * @description Whether a missing period gap was detected for this month.
+             */
+            has_gap: boolean;
+            /**
+             * Month
+             * @description Year and month identifier formatted as YYYY-MM.
+             */
+            month: string;
+            /**
+             * Net Movement
+             * @description Calculated net movement (closing minus opening balance).
+             */
+            net_movement?: string | null;
+            /**
+             * Opening Balance
+             * @description Opening balance recorded at the start of the period.
+             */
+            opening_balance?: string | null;
+            /**
+             * Statement Count
+             * @description Number of uploaded statements covering this monthly period.
+             */
+            statement_count: number;
+            /**
+             * Status
+             * @description Continuity status category for this monthly period.
+             * @enum {string}
+             */
+            status: "HEALTHY" | "GAP_DETECTED" | "PENDING_PROCESSING" | "NO_DATA";
+        };
+        /**
          * NetWorthAllocationResponse
          * @description Net-worth allocation schedule response.
          */
@@ -4209,6 +4291,48 @@ export interface components {
             time_weighted_return: string;
             /** Xirr */
             xirr: string;
+        };
+        /**
+         * PersonalDataQualityHealthResponse
+         * @description Response payload for the personal data quality observatory.
+         */
+        PersonalDataQualityHealthResponse: {
+            /**
+             * Action Items
+             * @description Prioritized list of remediation action items to boost data quality.
+             */
+            action_items: components["schemas"]["QualityActionItem"][];
+            /**
+             * As Of Date
+             * Format: date
+             * @description Effective valuation date for the invariant calculations.
+             */
+            as_of_date: string;
+            /**
+             * Currency
+             * @description Three-letter ISO currency code used for reporting figures.
+             */
+            currency: string;
+            /** @description Accounting equation balance invariant proof (Assets = Liabilities + Equity). */
+            equation_invariant: components["schemas"]["InvariantStatus"];
+            /** @description Overall quality grade classification from A to D. */
+            grade: components["schemas"]["QualityGrade"];
+            /** @description Source document lineage and evidence graph anchor coverage proof. */
+            lineage_anchors_invariant: components["schemas"]["InvariantStatus"];
+            /** @description Debt settlement purity and transaction reconciliation completeness proof. */
+            reconciliation_purity_invariant: components["schemas"]["InvariantStatus"];
+            /**
+             * Score
+             * @description Overall financial data quality trust score from 0 to 100.
+             */
+            score: number;
+            /** @description Multi-period cash rollforward and statement continuity invariant proof. */
+            temporal_continuity_invariant: components["schemas"]["InvariantStatus"];
+            /**
+             * Timeline
+             * @description Twelve-month temporal timeline with monthly continuity statuses.
+             */
+            timeline: components["schemas"]["MonthContinuityBucket"][];
         };
         /**
          * PersonalReportPackageCompletenessWarning
@@ -5006,6 +5130,55 @@ export interface components {
             /** Threshold */
             threshold: string;
         };
+        /**
+         * QualityActionItem
+         * @description Actionable improvement item to boost data quality.
+         */
+        QualityActionItem: {
+            /**
+             * Action Type
+             * @description Categorical action type triggering workflow navigation.
+             * @enum {string}
+             */
+            action_type: "UPLOAD_STATEMENT" | "REVIEW_STATEMENT" | "RECONCILE_TRANSACTIONS" | "RESOLVE_EQUATION";
+            /**
+             * Action Url
+             * @description Relative application URL to navigate and resolve the item.
+             */
+            action_url: string;
+            /**
+             * Description
+             * @description Specific instructions detailing how to complete the action.
+             */
+            description: string;
+            /**
+             * Id
+             * @description Unique identifier for the action item.
+             */
+            id: string;
+            /**
+             * Priority
+             * @description Urgency priority ranking for the remedial action.
+             * @enum {string}
+             */
+            priority: "P0" | "P1" | "P2";
+            /**
+             * Score Boost
+             * @description Estimated points increase upon completing this action.
+             */
+            score_boost: number;
+            /**
+             * Title
+             * @description Concise, action-oriented title.
+             */
+            title: string;
+        };
+        /**
+         * QualityGrade
+         * @description Overall data quality grade.
+         * @enum {string}
+         */
+        QualityGrade: "A_AUDIT_READY" | "B_BALANCED_GAPS" | "C_ATTENTION_NEEDED" | "D_OUT_OF_BALANCE";
         /**
          * RealizedLotResponse
          * @description Lot-level realized P&L row for a holding detail page.
@@ -8786,6 +8959,36 @@ export interface operations {
             404: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
             /** @description Conflict */
             409: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Too many requests */
+            429: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Internal server error */
+            500: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+        };
+    };
+    get_data_quality_health_reports_data_quality_get: {
+        parameters: {
+            query?: {
+                as_of_date?: string | null;
+                currency?: string | null;
+            };
+            header?: never; path?: never; cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["PersonalDataQualityHealthResponse"]; }; };
+            /** @description Bad request */
+            400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Unauthorized */
+            401: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Forbidden */
+            403: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Not found */
+            404: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Conflict */
+            409: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Validation Error */
+            422: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["HTTPValidationError"]; }; };
             /** @description Too many requests */
             429: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
             /** @description Internal server error */

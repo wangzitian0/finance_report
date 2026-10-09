@@ -35,6 +35,7 @@ from src.reporting import (
     ReportingSnapshotService,
     ReportSnapshot,
     ReportType as SnapshotReportType,
+    compute_personal_data_quality,
     generate_balance_sheet,
     generate_cash_flow,
     generate_income_statement,
@@ -62,6 +63,7 @@ from src.schemas import (
     NetWorthAllocationResponse,
     NetWorthGranularity,
     NetWorthTimeSeriesResponse,
+    PersonalDataQualityHealthResponse,
     PersonalReportingFrameworkId,
     PersonalReportPackageDocument,
     PersonalReportPackageDocumentLifecycle,
@@ -535,6 +537,34 @@ async def balance_sheet_diagnostics(
     except ReportError as exc:
         logger.warning(
             "Balance sheet diagnostics failed",
+            as_of_date=str(report_date),
+            currency=currency,
+            error=str(exc),
+        )
+        raise_bad_request(str(exc), cause=exc)
+
+
+@router.get("/data-quality", response_model=PersonalDataQualityHealthResponse)
+async def get_data_quality_health(
+    as_of_date: date | None = Query(default=None),
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> PersonalDataQualityHealthResponse:
+    """Return comprehensive financial data quality, invariants, timeline, and action items."""
+    report_date = as_of_date or date.today()
+    try:
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=report_date)
+        return await compute_personal_data_quality(
+            db,
+            user_id,
+            as_of_date=report_date,
+            currency=currency,
+        )
+    except ReportError as exc:
+        logger.warning(
+            "Data quality evaluation failed",
             as_of_date=str(report_date),
             currency=currency,
             error=str(exc),
