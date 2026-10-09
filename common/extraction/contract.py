@@ -641,7 +641,7 @@ CONTRACT = PackageContract(
         ac('AC-extraction.2.3', 'Completeness Validation', 'apps/backend/tests/extraction/test_pdf_parsing.py::test_missing_required_fields_detected', priority='P1', proof_kind='property'),
         ac('AC-extraction.2.4', 'Bank statement balance mismatches preserve validation_error details', 'apps/backend/tests/extraction/test_pdf_parsing.py::test_parse_document_bank_balance_mismatch_records_validation_error', proof_kind='property'),
         ac('AC-extraction.2.5', 'CSV transaction exports without statement balances remain reviewable', 'apps/backend/tests/extraction/test_extraction_flow.py::test_parse_document_csv_without_statement_balances_remains_reviewable', proof_kind='property'),
-        ac('AC-extraction.3.1', 'High Confidence (Auto-Accept)', 'apps/backend/tests/api/test_statements_router.py::test_auto_approve_high_confidence_statement_creates_posted_entries', proof_kind='property'),
+        ac('AC-extraction.3.1', 'High Confidence (Auto-Accept)', 'apps/backend/tests/api/test_statements_approval.py::test_auto_approve_high_confidence_statement_creates_posted_entries', proof_kind='property'),
         ac('AC-extraction.3.2', 'Medium Confidence (Review)', 'apps/backend/tests/extraction/test_extraction.py::test_medium_confidence', proof_kind='property'),
         ac('AC-extraction.3.3', 'Low Confidence (Manual)', 'apps/backend/tests/extraction/test_extraction.py::test_low_confidence_empty_transactions', proof_kind='property'),
         ac('AC-extraction.4.1', 'Invalid Parse Not Persisted', 'apps/backend/tests/extraction/test_pdf_parsing.py::test_extraction_error_not_persisted', proof_kind='property'),
