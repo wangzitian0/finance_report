@@ -408,9 +408,9 @@ CONTRACT = PackageContract(
         ac('AC-reconciliation.recovered-coverage.3', "execute_matching's layer-2 path records an atomic match for a single-entry candidate and supports transfer-pair logging within the same phase.", 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_execute_matching_layer2_atomic_match_and_transfer_pair_logging', priority='P1'),
         # ============================= bank-side-amount (AC4.9) =============================
         ac('AC-reconciliation.bank-side-amount.1', "calculate_match_score computes the 'amount' score dimension from the bank/cash account's line amount (not the total of all entry debits) so a split entry with clearing/payable lines still yields a 100.0 amount score for a matching outflow.", 'apps/backend/tests/reconciliation/test_reconciliation_financial_logic.py::test_AC4_9_1_entry_total_uses_bank_side_line_for_outflow'),
-        ac('AC-reconciliation.bank-side-amount.2', 'Retrying accept_match_service on an already-ACCEPTED match returns the same version and the same journal_entry_ids without creating a duplicate journal entry.', 'apps/backend/tests/api/test_statements_router.py::test_accept_match_retry_is_idempotent_after_success'),
-        ac('AC-reconciliation.bank-side-amount.3', "create_entry_from_txn with auto_post=True raises ValueError('... not active ...') and creates no journal entry when the statement's linked account is inactive.", 'apps/backend/tests/api/test_statements_router.py::test_create_entry_from_txn_auto_post_rejects_inactive_statement_account'),
-        ac('AC-reconciliation.bank-side-amount.4', 'get_stage2_review_queue returns a pending PENDING_REVIEW match with a confidence_tier of MEDIUM derived from its match_score (75).', 'apps/backend/tests/api/test_statements_router.py::test_get_stage2_review_queue_with_pending_match', priority='P1'),
+        ac('AC-reconciliation.bank-side-amount.2', 'Retrying accept_match_service on an already-ACCEPTED match returns the same version and the same journal_entry_ids without creating a duplicate journal entry.', 'apps/backend/tests/api/test_review_router.py::test_accept_match_retry_is_idempotent_after_success'),
+        ac('AC-reconciliation.bank-side-amount.3', "create_entry_from_txn with auto_post=True raises ValueError('... not active ...') and creates no journal entry when the statement's linked account is inactive.", 'apps/backend/tests/api/test_review_router.py::test_create_entry_from_txn_auto_post_rejects_inactive_statement_account'),
+        ac('AC-reconciliation.bank-side-amount.4', 'get_stage2_review_queue returns a pending PENDING_REVIEW match with a confidence_tier of MEDIUM derived from its match_score (75).', 'apps/backend/tests/api/test_review_router.py::test_get_stage2_review_queue_with_pending_match', priority='P1'),
         ac('AC-reconciliation.bank-side-amount.5', 'derive_reconciliation_score_tier maps a reconciliation match_score to LOW (<60 or None), MEDIUM (60-84), or HIGH (>=85).', 'apps/backend/tests/reconciliation/test_confidence_tier.py::test_ac4_9_4_derive_reconciliation_score_tier', priority='P1'),
         # ============================= audit-harness (AC4.10) =============================
         # NB: old AC4.10.3 is NOT here -- its test asserts a literal substring of
@@ -464,14 +464,14 @@ CONTRACT = PackageContract(
         # ── group stage2-batch: Stage-2 batch approve blocking + typed contract
         # (was EPIC-016 AC16.22.3-4/AC16.35, migration closeout continuation,
         # #1663 / #1711) ──
-        ac('AC-reconciliation.stage2-batch.1', 'A Stage-2 pending_review -> accepted transition is blocked while unresolved consistency checks exist.', 'apps/backend/tests/api/test_statements_router.py::test_batch_approve_matches_blocked_by_unresolved_checks'),
-        ac('AC-reconciliation.stage2-batch.2', 'A Stage-2 batch approve may reconcile an existing source entry but cannot create a journal entry for a pending match without a reviewed economic disposition; the match remains pending and no entry is written.', 'apps/backend/tests/api/test_statements_router.py::test_batch_approve_matches_without_entry_requires_review'),
+        ac('AC-reconciliation.stage2-batch.1', 'A Stage-2 pending_review -> accepted transition is blocked while unresolved consistency checks exist.', 'apps/backend/tests/api/test_review_router.py::test_batch_approve_matches_blocked_by_unresolved_checks'),
+        ac('AC-reconciliation.stage2-batch.2', 'A Stage-2 batch approve may reconcile an existing source entry but cannot create a journal entry for a pending match without a reviewed economic disposition; the match remains pending and no entry is written.', 'apps/backend/tests/api/test_review_router.py::test_batch_approve_matches_without_entry_requires_review'),
         ac('AC-reconciliation.stage2-batch.3', 'An empty batch approve returns the typed counters with no success field.', 'apps/backend/tests/api/test_typed_contract_sweep.py::test_AC16_35_1_batch_approve_empty_returns_typed_response', priority='P1'),
         ac('AC-reconciliation.stage2-batch.4', 'Unresolved consistency checks block batch approve with a 409 structured error.', 'apps/backend/tests/api/test_typed_contract_sweep.py::test_AC16_35_2_batch_approve_blocked_returns_409', priority='P1'),
         # ── group review-hardening: Stage-2 queue requests the full unresolved
         # blocker set instead of truncating (was EPIC-016 AC16.32.3, migration
         # closeout continuation, #1663 / #1711) ──
-        ac('AC-reconciliation.review-hardening.1', 'Stage-2 review check lists request the full unresolved blocker set needed to unblock batch approval, instead of silently truncating at the backend default page size.', 'apps/backend/tests/api/test_statements_router.py::test_AC16_32_3_stage2_queue_returns_all_pending_checks'),
+        ac('AC-reconciliation.review-hardening.1', 'Stage-2 review check lists request the full unresolved blocker set needed to unblock batch approval, instead of silently truncating at the backend default page size.', 'apps/backend/tests/api/test_review_router.py::test_AC16_32_3_stage2_queue_returns_all_pending_checks'),
         ac('AC-reconciliation.review-hardening.2', '``accept_match`` validates journal-entry amounts against the transaction unconditionally: the public signature carries no bypass flag, and accepting a match whose entry total mismatches the transaction amount raises (entry balance validation is never skippable — red line, #1864 S1).', 'apps/backend/tests/reconciliation/test_review_queue.py::test_AC_review_hardening_2_accept_match_validation_unconditional'),
         # ── group audit-anchors: reconciliation-to-ledger anchor referential
         # integrity (was EPIC-018 AC18.11.1, migration closeout continuation,
@@ -489,7 +489,7 @@ CONTRACT = PackageContract(
         # ── group run-scoped-review: Stage-2 run-scoped review queue filtering
         # (was EPIC-019 AC19.11.1, migration closeout continuation, #1663 /
         # #1711) ──
-        ac('AC-reconciliation.run-scoped-review.1', '/review/run/{runId} uses a run-scoped Stage-2 queue and batch-approval API, so approving a run cannot approve pending matches from another workflow session or batch.', 'apps/backend/tests/api/test_statements_router.py::test_AC19_11_1_stage2_run_queue_filters_by_run_id'),
+        ac('AC-reconciliation.run-scoped-review.1', '/review/run/{runId} uses a run-scoped Stage-2 queue and batch-approval API, so approving a run cannot approve pending matches from another workflow session or batch.', 'apps/backend/tests/api/test_review_router.py::test_AC19_11_1_stage2_run_queue_filters_by_run_id'),
         # ── group consistency-checks (continued): Stage 2 dedup/transfer-pair
         # detection (was EPIC-016 AC16.2.1/AC16.2.2, #1821 Wave A
         # pending-package move; AC16.2.3 "batch approve blocked if unresolved
@@ -503,15 +503,15 @@ CONTRACT = PackageContract(
         # ── group stage2-batch (continued): reconcile-referenced-entry /
         # idempotent-retry half not yet covered by .1-.4 (was EPIC-016
         # AC16.24.4, #1821 Wave A pending-package move) ──
-        ac('AC-reconciliation.stage2-batch.5', 'Stage 2 batch approval reconciles a match against an existing referenced journal entry rather than creating a duplicate (the create-missing-entry-once half is already AC-reconciliation.stage2-batch.2).', 'apps/backend/tests/api/test_statements_router.py::test_batch_approve_matches_reconciles_referenced_entry', priority='P1'),
+        ac('AC-reconciliation.stage2-batch.5', 'Stage 2 batch approval reconciles a match against an existing referenced journal entry rather than creating a duplicate (the create-missing-entry-once half is already AC-reconciliation.stage2-batch.2).', 'apps/backend/tests/api/test_review_router.py::test_batch_approve_matches_reconciles_referenced_entry', priority='P1'),
         # ── group conflict-resolution: Stage 1 duplicate/transfer-pair
         # conflict gate + resolution endpoint (was EPIC-016 AC16.32.1,
         # AC16.34.1, AC16.34.2 backend halves, #1821 Wave A pending-package
         # move; each row also cites a frontend test that stays untracked by
         # this Python-only roadmap) ──
-        ac('AC-reconciliation.conflict-resolution.1', 'Stage 1 approval and edit-approval are blocked while duplicate or transfer-pair conflict candidates remain unresolved.', 'apps/backend/tests/api/test_statements_router.py::test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts'),
-        ac('AC-reconciliation.conflict-resolution.2', "POST /api/review/conflicts/{statement_id}/resolve records the reviewer's resolution; the Stage-1 approval guard honors it so a previously-blocked statement with duplicate/transfer-pair candidates can be approved, and an unknown statement returns 404 (also proven by test_AC16_34_1_resolve_conflicts_404_for_unknown_statement in the same file).", 'apps/backend/tests/api/test_statements_router.py::test_AC16_34_1_resolve_unblocks_stage1_approval'),
-        ac('AC-reconciliation.conflict-resolution.3', 'A reject/reparse clears a prior conflict resolution so the fresh transaction set must be re-reviewed.', 'apps/backend/tests/api/test_statements_router.py::test_AC16_34_2_reject_clears_conflict_resolution'),
+        ac('AC-reconciliation.conflict-resolution.1', 'Stage 1 approval and edit-approval are blocked while duplicate or transfer-pair conflict candidates remain unresolved.', 'apps/backend/tests/api/test_review_router.py::test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts'),
+        ac('AC-reconciliation.conflict-resolution.2', "POST /api/review/conflicts/{statement_id}/resolve records the reviewer's resolution; the Stage-1 approval guard honors it so a previously-blocked statement with duplicate/transfer-pair candidates can be approved, and an unknown statement returns 404 (also proven by test_AC16_34_1_resolve_conflicts_404_for_unknown_statement in the same file).", 'apps/backend/tests/api/test_review_router.py::test_AC16_34_1_resolve_unblocks_stage1_approval'),
+        ac('AC-reconciliation.conflict-resolution.3', 'A reject/reparse clears a prior conflict resolution so the fresh transaction set must be re-reviewed.', 'apps/backend/tests/api/test_review_router.py::test_AC16_34_2_reject_clears_conflict_resolution'),
         # ── group candidate-matching: transfer/candidate-matching helper
         # unit tests (was EPIC-012 AC12.18.7 stub, #1821 Wave A
         # pending-package move) ──

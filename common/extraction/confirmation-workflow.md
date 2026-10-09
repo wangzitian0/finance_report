@@ -208,7 +208,7 @@ Stage 2 endpoints live in the reconciliation half:
 | `test_validate_balance_chain_exceeds_tolerance` | `review/test_statement_validation.py` | 0.0011 USD delta fails |
 | `test_ac16_22_7_tolerance_policy_constants_are_intentional` | `review/test_tolerance_policy.py` | Stage 1 and extraction/reconciliation tolerances remain intentionally separate |
 | `test_approve_statement_invalid_balance_fails` | `review/test_statement_validation.py` | Approve blocked if balance bad |
-| `test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts` | `api/test_statements_router.py` | Stage 1 approve blocked if duplicate/transfer candidates remain |
+| `test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts` | `api/test_review_router.py` | Stage 1 approve blocked if duplicate/transfer candidates remain |
 | `test_stage1_approve_promotes_source_type` | `extraction/test_source_type_promotion.py` | Stage 1 approve raises source_type to user_confirmed (✅ Implemented) |
 
 Stage 2 verification lives in the reconciliation half:
