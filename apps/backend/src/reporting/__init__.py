@@ -44,6 +44,12 @@ _EXPORTS = {
     "CashFlowItem": "src.reporting.base.cash_flow_types",
     "CashFlowResponse": "src.reporting.base.cash_flow_types",
     "CashFlowSummary": "src.reporting.base.cash_flow_types",
+    "PersonalDataQualityHealthResponse": "src.reporting.base.data_quality_types",
+    "QualityGrade": "src.reporting.base.data_quality_types",
+    "InvariantStatus": "src.reporting.base.data_quality_types",
+    "MonthContinuityBucket": "src.reporting.base.data_quality_types",
+    "QualityActionItem": "src.reporting.base.data_quality_types",
+    "compute_personal_data_quality": "src.reporting.extension.data_quality_service",
     "PersonalReportingFrameworkId": "src.reporting.base.types",
     "PolicyDimension": "src.reporting.base.types",
     "ReportError": "src.reporting.extension.reporting_calc",
@@ -108,6 +114,12 @@ __all__ = [
     "CashFlowItem",
     "CashFlowResponse",
     "CashFlowSummary",
+    "PersonalDataQualityHealthResponse",
+    "QualityGrade",
+    "InvariantStatus",
+    "MonthContinuityBucket",
+    "QualityActionItem",
+    "compute_personal_data_quality",
     "PersonalReportingFrameworkId",
     "PolicyDimension",
     "ReportError",
@@ -167,6 +179,13 @@ def __getattr__(name: str) -> object:
 
 if TYPE_CHECKING:
     from src.reporting.base.cash_flow_types import CashFlowItem, CashFlowResponse, CashFlowSummary
+    from src.reporting.base.data_quality_types import (
+        InvariantStatus,
+        MonthContinuityBucket,
+        PersonalDataQualityHealthResponse,
+        QualityActionItem,
+        QualityGrade,
+    )
     from src.reporting.base.diagnostics import (
         EquationDiagnosticCategory,
         EquationDiagnosticResult,
@@ -185,6 +204,7 @@ if TYPE_CHECKING:
         register_manual_valuation_lines_provider,
     )
     from src.reporting.extension.cash_flow import generate_cash_flow
+    from src.reporting.extension.data_quality_service import compute_personal_data_quality
     from src.reporting.extension.diagnostics import (
         diagnose_equation_imbalance,
         run_balance_sheet_diagnostics,

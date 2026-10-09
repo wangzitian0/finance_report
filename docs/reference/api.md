@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `135`
-- Schema count: `261`
+- Endpoint count: `136`
+- Schema count: `266`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -33,7 +33,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `notifications` | 1 |
 | `portfolio` | 13 |
 | `reconciliation` | 11 |
-| `reports` | 18 |
+| `reports` | 19 |
 | `review` | 9 |
 | `statements` | 15 |
 | `untagged` | 3 |
@@ -224,6 +224,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/breakdown` | yes | `type`* (query), `period` (query), `currency` (query) | - | `200` `CategoryBreakdownResponse` | Category Breakdown |
 | `GET` | `/reports/cash-flow` | yes | `start_date` (query), `end_date` (query), `currency` (query) | - | `200` `CashFlowResponse` | Cash Flow |
 | `GET` | `/reports/currencies` | no | - | - | `200` array[string] | Get Available Currencies |
+| `GET` | `/reports/data-quality` | yes | `as_of_date` (query), `currency` (query) | - | `200` `PersonalDataQualityHealthResponse` | Get Data Quality Health |
 | `GET` | `/reports/export` | yes | `report_type`* (query), `format` (query), `as_of_date` (query), `start_date` (query), `end_date` (query), `currency` (query), `include_restricted` (query), `framework_id` (query) | - | `200` - | Export Report |
 | `GET` | `/reports/income-statement` | yes | `start_date` (query), `end_date` (query), `currency` (query), `tags` (query), `account_type` (query) | - | `200` `IncomeStatementResponse` | Income Statement |
 | `GET` | `/reports/net-worth/allocation` | yes | `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `NetWorthAllocationResponse` | Net Worth Allocation |

@@ -11,8 +11,13 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from src.ledger import AccountType, Direction
 from src.reporting import (
     CashFlowResponse,
+    InvariantStatus as InvariantStatus,
+    MonthContinuityBucket as MonthContinuityBucket,
+    PersonalDataQualityHealthResponse as PersonalDataQualityHealthResponse,
     PersonalReportingFrameworkId,
     PolicyDimension,
+    QualityActionItem as QualityActionItem,
+    QualityGrade as QualityGrade,
     ReportLineId,
     ReportType,
 )

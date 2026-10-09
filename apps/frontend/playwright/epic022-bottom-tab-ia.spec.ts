@@ -27,6 +27,43 @@ async function installMocks(page: Page) {
             body = { items: [], total: 0 };
         } else if (path === "/api/confidence/north-star") {
             body = { points: [], current: null };
+        } else if (path === "/api/reports/data-quality") {
+            body = {
+                score: 100,
+                grade: "A_AUDIT_READY",
+                as_of_date: "2026-10-09",
+                currency: "USD",
+                equation_invariant: {
+                    name: "Accounting Equation Balance",
+                    status: "PASSED",
+                    score_impact: 30,
+                    summary: "Assets equal Liabilities plus Equity (Δ = 0.00)",
+                    details: {},
+                },
+                temporal_continuity_invariant: {
+                    name: "Temporal Continuity & Rollforward",
+                    status: "PASSED",
+                    score_impact: 30,
+                    summary: "12-month consecutive statement coverage verified",
+                    details: {},
+                },
+                reconciliation_purity_invariant: {
+                    name: "Reconciliation & Debt Clearance Purity",
+                    status: "PASSED",
+                    score_impact: 20,
+                    summary: "All credit card and liability accounts zero leakage",
+                    details: {},
+                },
+                lineage_anchors_invariant: {
+                    name: "Evidence Lineage & Traceability Anchors",
+                    status: "PASSED",
+                    score_impact: 20,
+                    summary: "All journal entries anchored to immutable source documents",
+                    details: {},
+                },
+                timeline: [],
+                action_items: [],
+            };
         }
 
         await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });

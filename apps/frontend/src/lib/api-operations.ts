@@ -51,6 +51,7 @@ export const API_OPERATIONS = {
   "get_config_status_llm_config_status_get": { method: "GET", path: "/api/llm/config/status" },
   "get_correction_loop_replay_metrics_correction_loop_replay_get": { method: "GET", path: "/api/metrics/correction-loop/replay" },
   "get_current_user_settings_users_me_settings_get": { method: "GET", path: "/api/users/me/settings" },
+  "get_data_quality_health_reports_data_quality_get": { method: "GET", path: "/api/reports/data-quality" },
   "get_evidence_lineage_evidence_lineage_get": { method: "GET", path: "/api/evidence/lineage" },
   "get_geography_allocation_portfolio_allocation_geography_get": { method: "GET", path: "/api/portfolio/allocation/geography" },
   "get_holding_dividends_portfolio__ticker__dividends_get": { method: "GET", path: "/api/portfolio/{ticker}/dividends" },
