@@ -166,7 +166,7 @@ describe("HomePage", () => {
 
     render(<HomePage />)
 
-    expect(screen.getByText("Loading upload-to-report workflow...")).toBeInTheDocument()
+    expect(screen.getByLabelText("Upload-to-report home")).toBeInTheDocument()
     expect(screen.getByText("Loading dashboard analytics...")).toBeInTheDocument()
   })
 

@@ -83,8 +83,7 @@ export function AdvisorBrief({
     <section className={`card p-5 ${className}`} aria-label="Advisor Brief" data-testid="advisor-brief">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-mono text-muted">advisor_brief</p>
-          <h2 className="mt-1 text-lg font-semibold">{title}</h2>
+          <h2 className="text-lg font-semibold">{title}</h2>
           {!compact ? <p className="mt-2 max-w-3xl text-sm text-muted">{description}</p> : null}
         </div>
         <Link

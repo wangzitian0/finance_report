@@ -285,10 +285,10 @@ describe("workflow notification surfaces", () => {
 
     expect(screen.getByText("Upload files to start the automated reporting workflow.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /Upload statements/i })).toHaveAttribute("href", "/statements/upload")
-    expect(screen.getAllByText("Report none")[0]).toBeInTheDocument()
+    expect(screen.getAllByText("No reports generated yet")[0]).toBeInTheDocument()
     expect(screen.getByText("0 blockers")).toBeInTheDocument()
     expect(screen.getByText("No action required")).toBeInTheDocument()
-    expect(screen.getByText("0 routine events")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Routine automation" })).not.toBeInTheDocument()
   })
 
   it("AC19.4.4 exposes ready, processing, and stale report readiness states above analytics", () => {
