@@ -289,8 +289,9 @@ async def _upload_brokerage_pdf(
     source: str,
     institution: str,
     model: str,
+    period_end: date,
 ) -> str:
-    pdf_path = _unique_pdf_copy(generated_pdf_path(source))
+    pdf_path = _unique_pdf_copy(generated_pdf_path(source, period_end=period_end))
     with pdf_path.open("rb") as fh:
         response = await client.post(
             _api_url("/statements/upload"),
@@ -499,6 +500,7 @@ async def test_personal_financial_report_package_post_merge_journey(
             source=BROKERAGE_SOURCE,
             institution=BROKERAGE_INSTITUTION,
             model=model,
+            period_end=fixture_period_end,
         )
         parsed_brokerage = await _wait_for_parsed_statement(
             client,
