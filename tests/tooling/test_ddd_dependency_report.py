@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import shutil
 import json
 from pathlib import Path
 from textwrap import dedent
@@ -553,17 +554,35 @@ def _write_package(
     )
 
 
+_SEED_TEMPLATE: tuple[Path, str] | None = None
+
+
 def _seed_repo(tmp_path: Path) -> tuple[Path, str]:
+    global _SEED_TEMPLATE
     repo = tmp_path / "repo"
-    _write_package(repo, "provider", klass="meta", depends_on=[])
-    _write_package(repo, "middle", klass="infra", depends_on=["provider"])
-    _write_package(repo, "consumer", klass="domain", depends_on=["middle"])
-    _git(repo, "init", "-q")
-    _git(repo, "config", "user.email", "dependency-test@example.invalid")
-    _git(repo, "config", "user.name", "Dependency Test")
-    _git(repo, "add", ".")
-    _git(repo, "commit", "-qm", "base")
-    return repo, _git(repo, "rev-parse", "HEAD")
+    if _SEED_TEMPLATE is None or not _SEED_TEMPLATE[0].exists():
+        template_repo = tmp_path.parent / "_ddd_seed_template"
+        if not template_repo.exists():
+            _write_package(template_repo, "provider", klass="meta", depends_on=[])
+            _write_package(
+                template_repo, "middle", klass="infra", depends_on=["provider"]
+            )
+            _write_package(
+                template_repo, "consumer", klass="domain", depends_on=["middle"]
+            )
+            _git(template_repo, "init", "-q")
+            _git(
+                template_repo, "config", "user.email", "dependency-test@example.invalid"
+            )
+            _git(template_repo, "config", "user.name", "Dependency Test")
+            _git(template_repo, "add", ".")
+            _git(template_repo, "commit", "-qm", "base")
+        head = _git(template_repo, "rev-parse", "HEAD")
+        _SEED_TEMPLATE = (template_repo, head)
+
+    template_repo, head = _SEED_TEMPLATE
+    shutil.copytree(template_repo, repo, symlinks=True)
+    return repo, head
 
 
 def _write_public_types(
