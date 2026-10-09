@@ -179,10 +179,10 @@ def test_AC_meta_governance_ratchet_4_frontend_export_denominator() -> None:
     oracle_kind="deterministic_contract",
 )
 def test_AC_meta_governance_ratchet_5_operation_consumer_truth() -> None:
-    """AC-meta.governance-ratchet.5: api.ts wrapper calls contribute to operation consumers and are not dead code."""
+    """AC-meta.governance-ratchet.5: api.ts wrapper calls converge to direct consumers and operations are not dead code."""
     consumers = discover_frontend_operation_consumers(REPO_ROOT)
     api_ts_call_sites = [c for c in consumers if "api.ts" in c["source"]]
-    assert len(api_ts_call_sites) >= 16
+    assert len(api_ts_call_sites) == 0
 
     # Verify the 11 known wrapper-consumed operations are recognized
     known_wrapper_ops = {
