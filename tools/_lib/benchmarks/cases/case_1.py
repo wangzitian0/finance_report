@@ -13,6 +13,10 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from tools._lib.benchmarks.case_types import CaseResult
+from tools._lib.benchmarks.oracles import (
+    assert_ai_advisor_semantic_grounding,
+    assert_triple_accounting_articulation,
+)
 from tools._lib.benchmarks.statement_generators import (
     generate_consecutive_month1_csv,
     generate_consecutive_month2_csv,
@@ -238,6 +242,7 @@ def _verify_q1_checkpoint(
     assert q1_net_cash == Decimal("5849.25"), f"Q1 net cash: {q1_net_cash}"
     assert q1_end_cash == Decimal("21300.00"), f"Q1 end cash: {q1_end_cash}"
     assert q1_beg_cash + q1_net_cash == q1_end_cash, "Q1 cash rollforward mismatch"
+    assert_triple_accounting_articulation(bs_q1, inc_q1)
     return q1_assets, q1_net_income
 
 
@@ -288,6 +293,7 @@ def _verify_month4_checkpoint(
     assert net_cash == Decimal("8749.25"), f"4-Month net cash: {net_cash}"
     assert end_cash == Decimal("24200.00"), f"4-Month end cash: {end_cash}"
     assert beg_cash + net_cash == end_cash, "4-Month cash rollforward mismatch"
+    assert_triple_accounting_articulation(bs_m4, inc_4m)
     return (
         total_assets,
         total_equity,
@@ -334,6 +340,33 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
             equation_delta,
             is_balanced,
         ) = _verify_month4_checkpoint(runner, client)
+
+        # Pillar 1: AI Semantic Grounding Oracle
+        print("  [10/10] Verifying AI Advisor Grounding & Semantic Invariant...")
+        advisor_answer = None
+        try:
+            advisor_answer = runner.query_ai_advisor(
+                client,
+                "What is my current net worth and are there any balance discrepancies?",
+            )
+            print(f"        AI Advisor response: {advisor_answer[:120]}...")
+        except Exception as exc:
+            if (
+                "temporarily unavailable" in str(exc).lower()
+                or "503" in str(exc)
+                or "api key" in str(exc).lower()
+            ):
+                print(
+                    f"        ⚠️ AI Advisor service unavailable in target environment: {exc}"
+                )
+            else:
+                raise
+
+        if advisor_answer is not None:
+            assert_ai_advisor_semantic_grounding(
+                advisor_answer,
+                expected_figures=["24,200", "24200"],
+            )
 
         duration = time.time() - start_time
         print(f"✅ {case_name} PASSED in {duration:.2f}s\n")

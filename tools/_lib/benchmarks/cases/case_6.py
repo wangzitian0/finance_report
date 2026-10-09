@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from tools._lib.benchmarks.case_types import CaseResult
+from tools._lib.benchmarks.oracles import assert_triple_accounting_articulation
 
 if TYPE_CHECKING:
     from tools._lib.benchmarks.run_financial_scenario_benchmark import (
@@ -127,6 +128,7 @@ def _verify_overdraft_balance_sheet(
     assert equation_delta == Decimal("0.00"), (
         f"Equation delta not zero: {equation_delta}"
     )
+    assert_triple_accounting_articulation(bs)
     return total_assets, total_equity, net_income, equation_delta, is_balanced
 
 
@@ -240,6 +242,7 @@ def _verify_final_articulated_balance_sheet(
     assert equation_delta == Decimal("0.00"), (
         f"Equation delta not zero: {equation_delta}"
     )
+    assert_triple_accounting_articulation(bs)
     return total_assets, total_equity, net_income, equation_delta, is_balanced
 
 

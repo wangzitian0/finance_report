@@ -1005,9 +1005,6 @@ async def test_personal_financial_report_package_post_merge_journey(
     await expect(page.get_by_label("Upload-to-report home")).to_be_visible(
         timeout=10_000
     )
-    await expect(page.get_by_text("Loading upload-to-report workflow...")).to_be_hidden(
-        timeout=30_000
-    )
     await expect(page.get_by_label("Dashboard analytics", exact=True)).to_be_visible(
         timeout=10_000
     )

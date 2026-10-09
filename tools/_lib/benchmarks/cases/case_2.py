@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from tools._lib.benchmarks.case_types import CaseResult
+from tools._lib.benchmarks.oracles import assert_triple_accounting_articulation
 from tools._lib.benchmarks.statement_generators import (
     generate_household_wife_operations_csv,
     generate_standard_operations_csv,
@@ -143,6 +144,7 @@ def _verify_household_statements(
         f"Expected ending cash 20900.00, got {end_cash}"
     )
     assert beg_cash + net_cash == end_cash, "Cash flow rollforward mismatch"
+    assert_triple_accounting_articulation(bs, inc)
 
     return (
         total_assets,

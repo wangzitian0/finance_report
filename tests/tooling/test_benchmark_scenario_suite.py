@@ -586,3 +586,115 @@ def test_benchmark_mapping_ssot_bijection_and_coverage() -> None:
     assert len(DOMAIN_TO_CASES) == 7
     for domain_id, cases in DOMAIN_TO_CASES.items():
         assert len(cases) > 0, f"Domain {domain_id} must cover at least one case"
+
+
+def test_benchmark_oracle_triple_accounting_articulation_pass_and_fail() -> None:
+    """AC-testing.benchmarks.v2: Validate Pillar 4 Triple Accounting Articulation Invariant."""
+    from tools._lib.benchmarks.oracles import assert_triple_accounting_articulation
+
+    # 1. Balanced case with matching income statement
+    valid_bs = {
+        "total_assets": "24200.00",
+        "total_liabilities": "0.00",
+        "total_equity": "15450.75",
+        "net_income": "8749.25",
+        "unrealized_fx_gain_loss": "0.00",
+        "cta_adjustment": "0.00",
+        "net_worth_adjustment_gain_loss": "0.00",
+        "equation_delta": "0.00",
+        "is_balanced": True,
+    }
+    valid_is = {
+        "net_income": "8749.25",
+    }
+    # Must pass without exception
+    assert_triple_accounting_articulation(valid_bs, valid_is)
+
+    # 2. Failure: is_balanced is False
+    unbalanced_bs = dict(valid_bs, is_balanced=False)
+    with pytest.raises(AssertionError, match="Balance Sheet not balanced"):
+        assert_triple_accounting_articulation(unbalanced_bs, valid_is)
+
+    # 3. Failure: non-zero equation_delta
+    delta_bs = dict(valid_bs, equation_delta="10.00")
+    with pytest.raises(AssertionError, match="Equation delta 10.00 exceeds tolerance"):
+        assert_triple_accounting_articulation(delta_bs, valid_is)
+
+    # 4. Failure: net worth mismatch (assets - liabilities != ending equity)
+    mismatch_nw_bs = dict(valid_bs, total_assets="25000.00")
+    with pytest.raises(AssertionError, match="Net Worth .* != Ending Total Equity"):
+        assert_triple_accounting_articulation(mismatch_nw_bs, valid_is)
+
+    # 5. Failure: income statement net income mismatch
+    mismatch_is = {"net_income": "5000.00"}
+    with pytest.raises(
+        AssertionError, match="does not match Income Statement Net Income"
+    ):
+        assert_triple_accounting_articulation(valid_bs, mismatch_is)
+
+
+def test_benchmark_oracle_ai_advisor_semantic_grounding_pass_and_fail() -> None:
+    """AC-testing.benchmarks.v2: Validate Pillar 1 AI Semantic Grounding Oracle."""
+    from tools._lib.benchmarks.oracles import assert_ai_advisor_semantic_grounding
+
+    # 1. Passing answer: grounded net worth with 0 discrepancy keywords
+    clean_answer = (
+        "Your total net worth is SGD 24,200.00. Total assets are SGD 24,200.00, "
+        "and total liabilities are SGD 0.00. All accounts are reconciled."
+    )
+    assert_ai_advisor_semantic_grounding(
+        clean_answer, expected_figures=["24,200", "24200"]
+    )
+
+    # 2. Failure: hallucinated discrepancy token
+    hallucinated_answer = (
+        "Your net worth is SGD 24,200.00, but there is a discrepancy of SGD 8,749.25."
+    )
+    with pytest.raises(
+        AssertionError, match="hallucinated discrepancy/imbalance token 'discrepancy'"
+    ):
+        assert_ai_advisor_semantic_grounding(
+            hallucinated_answer, expected_figures=["24,200", "24200"]
+        )
+
+    # 3. Failure: missing expected figures
+    vague_answer = "Your financial position is good and everything is balanced."
+    with pytest.raises(AssertionError, match="did not contain any expected figures"):
+        assert_ai_advisor_semantic_grounding(
+            vague_answer, expected_figures=["24,200", "24200"]
+        )
+
+
+def test_benchmark_oracle_dom_hygiene_scanner() -> None:
+    """AC-testing.benchmarks.v2: Validate Pillar 3 DOM Hygiene Scanner."""
+    from tools._lib.benchmarks.oracles import (
+        FORBIDDEN_DOM_JARGON,
+        scan_dom_hygiene,
+    )
+
+    clean_dom = (
+        "Welcome Alex. Here is your financial overview and balance sheet summary."
+    )
+    assert scan_dom_hygiene(clean_dom) == []
+
+    dirty_dom = (
+        "Dashboard overview: Loading upload-to-report workflow... Report none generated. "
+        "Review details with source_result_digest and advisor_brief."
+    )
+    violations = scan_dom_hygiene(dirty_dom)
+    assert len(violations) == len(FORBIDDEN_DOM_JARGON)
+
+
+def test_benchmark_cli_verify_ui_option_and_dispatch() -> None:
+    """AC-testing.benchmarks.v2: CLI supports --verify-ui flag and propagates to runner."""
+    from tools._lib.benchmarks.run_financial_scenario_benchmark import (
+        ScenarioBenchmarkRunner,
+        _parse_args,
+    )
+
+    parsed = _parse_args(["--verify-ui", "--app-url", "http://localhost:8000"])
+    assert parsed.verify_ui is True
+
+    runner = ScenarioBenchmarkRunner(base_url="http://localhost:8000")
+    runner.verify_ui = parsed.verify_ui
+    assert runner.verify_ui is True
