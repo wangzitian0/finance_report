@@ -61,9 +61,9 @@ vi.mock("@/lib/api", () => ({
   apiFetch: vi.fn(),
 }))
 
-const makeStmt = (id: string, name: string, status: BankStatement["status"], extra: Partial<BankStatement> = {}): BankStatement => ({
+const makeStmt = (id: string, name: string, status: BankStatement["status"], extra: Record<string, unknown> = {}): BankStatement => ({
   ...({} as BankStatement), id, original_filename: name, institution: "DBS", status, transactions: [], ...extra,
-})
+} as BankStatement)
 
 describe("StatementsPage", () => {
   const mockedApiFetch = vi.mocked(apiFetch)
