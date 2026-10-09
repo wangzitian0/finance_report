@@ -9,22 +9,63 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import yaml
 from common.testing import check_critical_proof_matrix as matrix
+
+DEFAULT_OUTCOMES = [
+    {
+        "id": "asset-distribution-net-worth",
+        "status": "gap",
+        "owner_epics": ["EPIC-008"],
+        "issue": "#521",
+    },
+    {
+        "id": "monthly-income-spending",
+        "status": "gap",
+        "owner_epics": ["EPIC-008"],
+        "issue": "#521",
+    },
+    {
+        "id": "investment-performance",
+        "status": "gap",
+        "owner_epics": ["EPIC-008"],
+        "issue": "#521",
+    },
+    {
+        "id": "annualized-income-long-term",
+        "status": "gap",
+        "owner_epics": ["EPIC-008"],
+        "issue": "#521",
+    },
+    {
+        "id": "source-ledger-report-traceability",
+        "status": "gap",
+        "owner_epics": ["EPIC-008"],
+        "issue": "#521",
+    },
+    {
+        "id": "personal-financial-report-package",
+        "status": "gap",
+        "owner_epics": ["EPIC-008"],
+        "issue": "#563",
+    },
+]
+
+
+def _write(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content.strip() + "\n", encoding="utf-8")
 
 
 def _write_registry(repo_root: Path) -> None:
     docs = repo_root / "docs"
-    docs.mkdir(parents=True, exist_ok=True)
     project = docs / "project"
     project.mkdir(parents=True, exist_ok=True)
-    (project / "EPIC-008.testing-strategy.md").write_text(
+    _write(
+        project / "EPIC-008.testing-strategy.md",
         """
 # EPIC-008: Testing Strategy
 
 ## Macro Proof Ownership
-
-This EPIC owns the following macro outcomes from `docs/ssot/critical-proof-matrix.yaml`:
 
 - `asset-distribution-net-worth`
 - `monthly-income-spending`
@@ -32,11 +73,10 @@ This EPIC owns the following macro outcomes from `docs/ssot/critical-proof-matri
 - `annualized-income-long-term`
 - `source-ledger-report-traceability`
 - `personal-financial-report-package`
-""".strip()
-        + "\n",
-        encoding="utf-8",
+""",
     )
-    (repo_root / "README.md").write_text(
+    _write(
+        repo_root / "README.md",
         """
 # Test README
 
@@ -53,11 +93,10 @@ Checker: tools/check_ac_index.py
 | `annualized-income-long-term` | annualized long-term income |
 | `source-ledger-report-traceability` | source to report traceability |
 | `personal-financial-report-package` | personal report package |
-""".strip()
-        + "\n",
-        encoding="utf-8",
+""",
     )
-    (docs / "ac_registry.yaml").write_text(
+    _write(
+        docs / "ac_registry.yaml",
         """
 version: '1.0'
 groups:
@@ -88,7 +127,6 @@ groups:
         epic_name: testing-strategy
         description: critical proof matrix validates README and owner EPIC closure
         mandatory: true
-  AC8.14:
     AC8.14:
       - id: AC8.14.1
         epic: 8
@@ -100,123 +138,83 @@ groups:
         epic_name: testing-strategy
         description: LLM/OCR critical proof requires deterministic PR mirror
         mandatory: true
-""".strip()
-        + "\n",
-        encoding="utf-8",
+""",
     )
-    (docs / "infra_registry.yaml").write_text(
-        "version: '1.0'\ngroups: {}\n",
-        encoding="utf-8",
-    )
+    _write(docs / "infra_registry.yaml", "version: '1.0'\ngroups: {}\n")
 
 
-def _write_matrix(repo_root: Path, content: str) -> Path:
-    matrix_path = repo_root / "docs" / "ssot" / "critical-proof-matrix.yaml"
-    matrix_path.parent.mkdir(parents=True, exist_ok=True)
-    rendered = content.strip()
-    if "\noutcomes:" not in f"\n{rendered}":
-        rendered += """
-
-outcomes:
-  - id: asset-distribution-net-worth
-    status: gap
-    owner_epics: [EPIC-008]
-    issue: "#521"
-  - id: monthly-income-spending
-    status: gap
-    owner_epics: [EPIC-008]
-    issue: "#521"
-  - id: investment-performance
-    status: gap
-    owner_epics: [EPIC-008]
-    issue: "#521"
-  - id: annualized-income-long-term
-    status: gap
-    owner_epics: [EPIC-008]
-    issue: "#521"
-  - id: source-ledger-report-traceability
-    status: gap
-    owner_epics: [EPIC-008]
-    issue: "#521"
-  - id: personal-financial-report-package
-    status: gap
-    owner_epics: [EPIC-008]
-    issue: "#563"
-"""
-    matrix_path.write_text(rendered + "\n", encoding="utf-8")
-    return matrix_path
+def _matrix(proofs: list[dict], outcomes: list[dict] | None = None) -> dict:
+    return {
+        "version": "1.0",
+        "proofs": proofs,
+        "outcomes": DEFAULT_OUTCOMES if outcomes is None else outcomes,
+    }
 
 
-def _payload(matrix_path: Path) -> dict:
-    return yaml.safe_load(matrix_path.read_text(encoding="utf-8"))
+def _proof(
+    id: str = "core-flow",
+    scope: str = "behavioral",
+    ci_tier: str = "post_merge_environment",
+    file: str = "tests/e2e/test_core.py",
+    test: str = "test_core_flow",
+    ac_ids: list[str] = ("AC8.13.1",),
+    **kwargs,
+) -> dict:
+    d = {
+        "id": id,
+        "scope": scope,
+        "ci_tier": ci_tier,
+        "file": file,
+        "test": test,
+        "ac_ids": list(ac_ids),
+    }
+    d.update(kwargs)
+    return d
 
 
 def test_valid_behavioral_static_and_manual_entries_pass(tmp_path: Path) -> None:
     """AC-testing.trust-mirrors.1: AC8.13.41: Critical proof matrix accepts explicit proof classes."""
     _write_registry(tmp_path)
-    test_dir = tmp_path / "tests" / "e2e"
-    test_dir.mkdir(parents=True)
-    (test_dir / "test_core.py").write_text(
-        """
-import pytest
-
-@pytest.mark.e2e
-@pytest.mark.critical
-async def test_core_flow():
-    \"\"\"AC8.13.1 AC8.13.2: core path proof.\"\"\"
-    assert True
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    _write(
+        tmp_path / "tests/e2e/test_core.py",
+        'import pytest\n@pytest.mark.e2e\n@pytest.mark.critical\nasync def test_core_flow():\n    """AC8.13.1 AC8.13.2: core path proof."""\n    assert True',
     )
-    tooling_dir = tmp_path / "tests" / "tooling"
-    tooling_dir.mkdir(parents=True)
-    (tooling_dir / "test_contract.py").write_text(
-        """
-def test_contract_shape():
-    \"\"\"AC8.13.41: static checker contract.\"\"\"
-    assert True
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    _write(
+        tmp_path / "tests/tooling/test_contract.py",
+        'def test_contract_shape():\n    """AC8.13.41: static checker contract."""\n    assert True',
     )
-    matrix_path = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: core-flow
-    scope: behavioral
-    ci_tier: post_merge_environment
-    trust_mode: hybrid
-    source_classes: [bank_statement]
-    file: tests/e2e/test_core.py
-    test: test_core_flow
-    required_markers: [e2e, critical]
-    ac_ids: [AC8.13.1, AC8.13.2]
-  - id: static-contract
-    scope: static_contract
-    ci_tier: pr_ci
-    trust_mode: deterministic_pr
-    source_classes: [bank_statement]
-    file: tests/tooling/test_contract.py
-    test: test_contract_shape
-    ac_ids: [AC8.13.41]
-  - id: manual-provider-gate
-    scope: manual_gate
-    ci_tier: manual
-    evidence: "Provider dashboard reviewed by release owner."
-    ac_ids: [AC8.13.2]
-""",
+    payload = _matrix(
+        [
+            _proof(
+                trust_mode="hybrid",
+                source_classes=["bank_statement"],
+                required_markers=["e2e", "critical"],
+                ac_ids=["AC8.13.1", "AC8.13.2"],
+            ),
+            _proof(
+                id="static-contract",
+                scope="static_contract",
+                ci_tier="pr_ci",
+                trust_mode="deterministic_pr",
+                source_classes=["bank_statement"],
+                file="tests/tooling/test_contract.py",
+                test="test_contract_shape",
+                ac_ids=["AC8.13.41"],
+            ),
+            _proof(
+                id="manual-provider-gate",
+                scope="manual_gate",
+                ci_tier="manual",
+                file="",
+                test="",
+                evidence="Provider dashboard reviewed by release owner.",
+                ac_ids=["AC8.13.2"],
+            ),
+        ]
     )
-
-    results = matrix.validate_matrix(tmp_path, _payload(matrix_path))
-    assert [result.status for result in results] == [
-        "behavioral",
-        "static_contract",
-        "manual",
-    ]
-    assert not [error for result in results for error in result.errors]
+    results = matrix.validate_matrix(tmp_path, payload)
+    assert [r.status for r in results] == ["behavioral", "static_contract", "manual"]
+    assert not [e for r in results for e in r.errors]
 
 
 def test_AC8_14_2_llm_ocr_proof_requires_deterministic_pr_mirror(
@@ -224,100 +222,61 @@ def test_AC8_14_2_llm_ocr_proof_requires_deterministic_pr_mirror(
 ) -> None:
     """AC-testing.trust-mirrors.2: AC8.14.2: LLM/OCR critical proof must name a deterministic PR mirror."""
     _write_registry(tmp_path)
-    test_dir = tmp_path / "tests" / "e2e"
-    test_dir.mkdir(parents=True)
-    (test_dir / "test_core.py").write_text(
-        """
-import pytest
-
-@pytest.mark.e2e
-@pytest.mark.critical
-@pytest.mark.llm
-async def test_core_flow():
-    \"\"\"AC8.13.1 AC8.14.2: LLM path proof.\"\"\"
-    assert True
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    _write(
+        tmp_path / "tests/e2e/test_core.py",
+        'import pytest\n@pytest.mark.e2e\n@pytest.mark.critical\n@pytest.mark.llm\nasync def test_core_flow():\n    """AC8.13.1 AC8.14.2: LLM path proof."""\n    assert True',
     )
-    matrix_path = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: llm-flow
-    scope: behavioral
-    ci_tier: post_merge_environment
-    trust_mode: llm_ocr_post_merge
-    source_classes: [bank_statement]
-    file: tests/e2e/test_core.py
-    test: test_core_flow
-    required_markers: [e2e, critical, llm]
-    ac_ids: [AC8.13.1, AC8.14.2]
-""",
+    payload = _matrix(
+        [
+            _proof(
+                id="llm-flow",
+                trust_mode="llm_ocr_post_merge",
+                source_classes=["bank_statement"],
+                required_markers=["e2e", "critical", "llm"],
+                ac_ids=["AC8.13.1", "AC8.14.2"],
+            )
+        ]
     )
-
-    results = matrix.validate_matrix(tmp_path, _payload(matrix_path))
-    errors = [error for result in results for error in result.errors]
-    assert "llm-flow: llm_ocr_post_merge proof requires mirror_proof_id" in errors
+    results = matrix.validate_matrix(tmp_path, payload)
+    assert "llm-flow: llm_ocr_post_merge proof requires mirror_proof_id" in [
+        e for r in results for e in r.errors
+    ]
 
 
 def test_AC8_14_2_llm_ocr_mirror_must_be_pr_deterministic(tmp_path: Path) -> None:
     """AC8.14.2: LLM/OCR mirrors must be deterministic PR proofs for the same sources."""
     _write_registry(tmp_path)
-    (tmp_path / "tests" / "e2e").mkdir(parents=True)
-    (tmp_path / "apps" / "backend" / "tests").mkdir(parents=True)
-    (tmp_path / "tests" / "e2e" / "test_core.py").write_text(
-        """
-import pytest
-
-@pytest.mark.e2e
-@pytest.mark.critical
-@pytest.mark.llm
-async def test_core_flow():
-    \"\"\"AC8.13.1 AC8.14.2: LLM path proof.\"\"\"
-    assert True
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    _write(
+        tmp_path / "tests/e2e/test_core.py",
+        'import pytest\n@pytest.mark.e2e\n@pytest.mark.critical\n@pytest.mark.llm\nasync def test_core_flow():\n    """AC8.13.1 AC8.14.2: LLM path proof."""\n    assert True',
     )
-    (tmp_path / "apps" / "backend" / "tests" / "test_mirror.py").write_text(
-        """
-def test_mirror_flow():
-    \"\"\"AC8.14.1 AC8.14.2: deterministic mirror proof.\"\"\"
-    assert True
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    _write(
+        tmp_path / "apps/backend/tests/test_mirror.py",
+        'def test_mirror_flow():\n    """AC8.14.1 AC8.14.2: deterministic mirror proof."""\n    assert True',
     )
-    matrix_path = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: deterministic-mirror
-    scope: behavioral
-    ci_tier: pr_ci
-    trust_mode: deterministic_pr
-    source_classes: [bank_statement]
-    file: apps/backend/tests/test_mirror.py
-    test: test_mirror_flow
-    ac_ids: [AC8.14.1, AC8.14.2]
-  - id: llm-flow
-    scope: behavioral
-    ci_tier: post_merge_environment
-    trust_mode: llm_ocr_post_merge
-    source_classes: [bank_statement]
-    mirror_proof_id: deterministic-mirror
-    file: tests/e2e/test_core.py
-    test: test_core_flow
-    required_markers: [e2e, critical, llm]
-    ac_ids: [AC8.13.1, AC8.14.2]
-""",
+    payload = _matrix(
+        [
+            _proof(
+                id="deterministic-mirror",
+                ci_tier="pr_ci",
+                trust_mode="deterministic_pr",
+                source_classes=["bank_statement"],
+                file="apps/backend/tests/test_mirror.py",
+                test="test_mirror_flow",
+                ac_ids=["AC8.14.1", "AC8.14.2"],
+            ),
+            _proof(
+                id="llm-flow",
+                trust_mode="llm_ocr_post_merge",
+                source_classes=["bank_statement"],
+                mirror_proof_id="deterministic-mirror",
+                required_markers=["e2e", "critical", "llm"],
+                ac_ids=["AC8.13.1", "AC8.14.2"],
+            ),
+        ]
     )
-
-    results = matrix.validate_matrix(tmp_path, _payload(matrix_path))
-    assert [error for result in results for error in result.errors] == []
+    results = matrix.validate_matrix(tmp_path, payload)
+    assert [e for r in results for e in r.errors] == []
 
 
 def test_AC8_14_1_critical_proof_matrix_reports_duplicate_proof_ids(
@@ -325,85 +284,49 @@ def test_AC8_14_1_critical_proof_matrix_reports_duplicate_proof_ids(
 ) -> None:
     """AC-testing.acgates.5: AC8.14.1: Critical proof IDs are unique so mirrors cannot resolve ambiguously."""
     _write_registry(tmp_path)
-    (tmp_path / "apps" / "backend" / "tests").mkdir(parents=True)
-    (tmp_path / "apps" / "backend" / "tests" / "test_mirror.py").write_text(
-        """
-def test_first_mirror():
-    \"\"\"AC8.14.1: first deterministic mirror proof.\"\"\"
-    assert True
-
-
-def test_second_mirror():
-    \"\"\"AC8.14.1: duplicate deterministic mirror proof.\"\"\"
-    assert True
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    _write(
+        tmp_path / "apps/backend/tests/test_mirror.py",
+        'def test_first_mirror():\n    """AC8.14.1: first."""\n    assert True\ndef test_second_mirror():\n    """AC8.14.1: second."""\n    assert True',
     )
-    matrix_path = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: duplicate-proof
-    scope: behavioral
-    ci_tier: pr_ci
-    trust_mode: deterministic_pr
-    source_classes: [bank_statement]
-    file: apps/backend/tests/test_mirror.py
-    test: test_first_mirror
-    ac_ids: [AC8.14.1]
-  - id: duplicate-proof
-    scope: behavioral
-    ci_tier: pr_ci
-    trust_mode: deterministic_pr
-    source_classes: [brokerage_statement]
-    file: apps/backend/tests/test_mirror.py
-    test: test_second_mirror
-    ac_ids: [AC8.14.1]
-""",
+    payload = _matrix(
+        [
+            _proof(
+                id="duplicate-proof",
+                ci_tier="pr_ci",
+                trust_mode="deterministic_pr",
+                source_classes=["bank_statement"],
+                file="apps/backend/tests/test_mirror.py",
+                test="test_first_mirror",
+                ac_ids=["AC8.14.1"],
+            ),
+            _proof(
+                id="duplicate-proof",
+                ci_tier="pr_ci",
+                trust_mode="deterministic_pr",
+                source_classes=["brokerage_statement"],
+                file="apps/backend/tests/test_mirror.py",
+                test="test_second_mirror",
+                ac_ids=["AC8.14.1"],
+            ),
+        ]
     )
-
-    results = matrix.validate_matrix(tmp_path, _payload(matrix_path))
-    errors = [error for result in results for error in result.errors]
-
-    assert "critical proof matrix duplicate proof ids: duplicate-proof" in errors
+    results = matrix.validate_matrix(tmp_path, payload)
+    assert "critical proof matrix duplicate proof ids: duplicate-proof" in [
+        e for r in results for e in r.errors
+    ]
 
 
 def test_file_level_ac_reference_does_not_satisfy_core_proof(tmp_path: Path) -> None:
     """AC8.13.41: File/body-only AC strings are reference-only for core paths."""
     _write_registry(tmp_path)
-    test_dir = tmp_path / "tests" / "e2e"
-    test_dir.mkdir(parents=True)
-    (test_dir / "test_core.py").write_text(
-        """
-# AC8.13.1 appears here, but not in the test anchor.
-import pytest
-
-@pytest.mark.e2e
-@pytest.mark.critical
-async def test_core_flow():
-    assert True  # AC8.13.2
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    _write(
+        tmp_path / "tests/e2e/test_core.py",
+        "# AC8.13.1 appears here, but not in the test anchor.\nimport pytest\n@pytest.mark.e2e\n@pytest.mark.critical\nasync def test_core_flow():\n    assert True  # AC8.13.2",
     )
-    matrix_path = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: core-flow
-    scope: behavioral
-    ci_tier: post_merge_environment
-    file: tests/e2e/test_core.py
-    test: test_core_flow
-    required_markers: [e2e, critical]
-    ac_ids: [AC8.13.1, AC8.13.2]
-""",
+    payload = _matrix(
+        [_proof(required_markers=["e2e", "critical"], ac_ids=["AC8.13.1", "AC8.13.2"])]
     )
-
-    [result] = matrix.validate_matrix(tmp_path, _payload(matrix_path))
+    [result] = matrix.validate_matrix(tmp_path, payload)
     assert result.status == "fail"
     assert any("only a file/body reference" in error for error in result.errors)
 
@@ -411,76 +334,55 @@ proofs:
 def test_broad_contract_file_cannot_satisfy_behavioral_proof(tmp_path: Path) -> None:
     """AC8.13.41: Broad contract tests cannot close core behavioral proof."""
     _write_registry(tmp_path)
-    test_dir = tmp_path / "tests" / "tooling"
-    test_dir.mkdir(parents=True)
-    (test_dir / "test_issue_459_infra_contracts.py").write_text(
-        """
-def test_many_contracts():
-    \"\"\"AC8.13.1: broad contract bucket.\"\"\"
-    assert True
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    _write(
+        tmp_path / "tests/tooling/test_issue_459_infra_contracts.py",
+        'def test_many_contracts():\n    """AC8.13.1: broad contract bucket."""\n    assert True',
     )
-    matrix_path = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: fake-core-flow
-    scope: behavioral
-    ci_tier: post_merge_environment
-    file: tests/tooling/test_issue_459_infra_contracts.py
-    test: test_many_contracts
-    ac_ids: [AC8.13.1]
-""",
+    payload = _matrix(
+        [
+            _proof(
+                id="fake-core-flow",
+                file="tests/tooling/test_issue_459_infra_contracts.py",
+                test="test_many_contracts",
+                ac_ids=["AC8.13.1"],
+            )
+        ]
     )
-
-    [result] = matrix.validate_matrix(tmp_path, _payload(matrix_path))
+    [result] = matrix.validate_matrix(tmp_path, payload)
     assert result.status == "fail"
-    assert any("broad contract tests cannot satisfy critical proof" in error for error in result.errors)
-    assert any("behavioral proof must live under product test roots" in error for error in result.errors)
+    assert any(
+        "broad contract tests cannot satisfy critical proof" in error
+        for error in result.errors
+    )
+    assert any(
+        "behavioral proof must live under product test roots" in error
+        for error in result.errors
+    )
 
 
 def test_unknown_ac_missing_file_and_missing_marker_fail(tmp_path: Path) -> None:
     """AC8.13.41: Matrix drift reports missing ACs, files, and markers."""
     _write_registry(tmp_path)
-    test_dir = tmp_path / "tests" / "e2e"
-    test_dir.mkdir(parents=True)
-    (test_dir / "test_core.py").write_text(
-        """
-import pytest
-
-@pytest.mark.e2e
-async def test_core_flow():
-    \"\"\"AC8.13.1: core path proof.\"\"\"
-    assert True
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    _write(
+        tmp_path / "tests/e2e/test_core.py",
+        'import pytest\n@pytest.mark.e2e\nasync def test_core_flow():\n    """AC8.13.1: core path proof."""\n    assert True',
     )
-    matrix_path = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: missing-marker-and-ac
-    scope: behavioral
-    ci_tier: post_merge_environment
-    file: tests/e2e/test_core.py
-    test: test_core_flow
-    required_markers: [e2e, critical]
-    ac_ids: [AC8.13.1, AC8.13.99]
-  - id: missing-file
-    scope: behavioral
-    ci_tier: post_merge_environment
-    file: tests/e2e/test_missing.py
-    test: test_missing
-    ac_ids: [AC8.13.1]
-""",
+    payload = _matrix(
+        [
+            _proof(
+                id="missing-marker-and-ac",
+                required_markers=["e2e", "critical"],
+                ac_ids=["AC8.13.1", "AC8.13.99"],
+            ),
+            _proof(
+                id="missing-file",
+                file="tests/e2e/test_missing.py",
+                test="test_missing",
+                ac_ids=["AC8.13.1"],
+            ),
+        ]
     )
-
-    results = matrix.validate_matrix(tmp_path, _payload(matrix_path))
+    results = matrix.validate_matrix(tmp_path, payload)
     errors = [error for result in results for error in result.errors]
     assert any("unknown AC id AC8.13.99" in error for error in errors)
     assert any("missing pytest markers" in error for error in errors)
@@ -492,69 +394,58 @@ def test_typescript_anchor_and_missing_test_anchor_are_validated(
 ) -> None:
     """AC8.13.41: Frontend test titles can carry stable critical AC proof."""
     _write_registry(tmp_path)
-    frontend_dir = tmp_path / "apps" / "frontend" / "src"
-    frontend_dir.mkdir(parents=True)
-    (frontend_dir / "upload.test.tsx").write_text(
-        """
-import { test } from "vitest";
-
-test("AC8.13.1 upload journey renders", () => {
-  expect(new Set(["upload"]).has("upload")).toBe(true);
-});
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    _write(
+        tmp_path / "apps/frontend/src/upload.test.tsx",
+        'import { test } from "vitest";\ntest("AC8.13.1 upload journey renders", () => {\n  expect(new Set(["upload"]).has("upload")).toBe(true);\n});',
     )
-    matrix_path = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: frontend-upload
-    scope: behavioral
-    ci_tier: pr_ci
-    file: apps/frontend/src/upload.test.tsx
-    test: AC8.13.1 upload journey renders
-    ac_ids: [AC8.13.1]
-  - id: missing-anchor
-    scope: static_contract
-    ci_tier: pr_ci
-    file: apps/frontend/src/upload.test.tsx
-    test: AC8.13.1 missing title
-    ac_ids: [AC8.13.1]
-""",
+    payload = _matrix(
+        [
+            _proof(
+                id="frontend-upload",
+                ci_tier="pr_ci",
+                file="apps/frontend/src/upload.test.tsx",
+                test="AC8.13.1 upload journey renders",
+                ac_ids=["AC8.13.1"],
+            ),
+            _proof(
+                id="missing-anchor",
+                scope="static_contract",
+                ci_tier="pr_ci",
+                file="apps/frontend/src/upload.test.tsx",
+                test="AC8.13.1 missing title",
+                ac_ids=["AC8.13.1"],
+            ),
+        ]
     )
-
-    valid, invalid = matrix.validate_matrix(tmp_path, _payload(matrix_path))
-    assert valid.status == "behavioral"
-    assert not valid.errors
+    valid, invalid = matrix.validate_matrix(tmp_path, payload)
+    assert valid.status == "behavioral" and not valid.errors
     assert invalid.status == "fail"
-    assert invalid.errors == ["missing-anchor: test anchor not found: AC8.13.1 missing title"]
+    assert invalid.errors == [
+        "missing-anchor: test anchor not found: AC8.13.1 missing title"
+    ]
 
 
 def test_shape_errors_are_reported_before_file_validation(tmp_path: Path) -> None:
     """AC8.13.41: Malformed proof rows fail with actionable messages."""
     _write_registry(tmp_path)
-    matrix_path = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: bad-shape
-    scope: behaviorish
-    ci_tier: someday
-    ac_ids: []
-  - id: manual-without-evidence
-    scope: manual_gate
-    ci_tier: manual
-    ac_ids: [AC8.13.1]
-  - scope: behavioral
-    ci_tier: pr_ci
-    ac_ids: [AC8.13.1]
-""",
+    payload = _matrix(
+        [
+            {
+                "id": "bad-shape",
+                "scope": "behaviorish",
+                "ci_tier": "someday",
+                "ac_ids": [],
+            },
+            {
+                "id": "manual-without-evidence",
+                "scope": "manual_gate",
+                "ci_tier": "manual",
+                "ac_ids": ["AC8.13.1"],
+            },
+            {"scope": "behavioral", "ci_tier": "pr_ci", "ac_ids": ["AC8.13.1"]},
+        ]
     )
-
-    results = matrix.validate_matrix(tmp_path, _payload(matrix_path))
+    results = matrix.validate_matrix(tmp_path, payload)
     errors = [error for result in results for error in result.errors]
     assert "bad-shape: invalid scope 'behaviorish'" in errors
     assert "bad-shape: invalid ci_tier 'someday'" in errors
@@ -571,43 +462,24 @@ def test_invalid_matrix_yaml_shapes_raise_value_error(tmp_path: Path) -> None:
     scalar_matrix.write_text("- not-a-mapping\n", encoding="utf-8")
     with pytest.raises(ValueError, match="must contain a YAML mapping"):
         matrix._load_matrix(scalar_matrix)
-
-    _write_registry(tmp_path)
-    empty_matrix = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs: []
-""",
-    )
     with pytest.raises(ValueError, match="must define a non-empty proofs list"):
-        matrix.validate_matrix(tmp_path, _payload(empty_matrix))
+        matrix.validate_matrix(tmp_path, {"version": "1.0", "proofs": []})
 
 
 def test_AC8_13_54_readme_outcome_table_parser_handles_empty_and_split_rows() -> None:
     """AC8.13.54: README macro table parsing handles empty and interrupted tables."""
     ids, errors = matrix._readme_outcome_ids("no table here")
     assert ids == []
-    assert errors == ["README.md missing parseable macro outcome table with `Outcome ID` header"]
+    assert errors == [
+        "README.md missing parseable macro outcome table with `Outcome ID` header"
+    ]
 
-    ids, errors = matrix._readme_outcome_ids(
-        """
-| Outcome ID | Purpose |
-|---|---|
-""".strip()
-    )
+    ids, errors = matrix._readme_outcome_ids("| Outcome ID | Purpose |\n|---|---|\n")
     assert ids == []
     assert errors == ["README.md macro outcome table has no outcome rows"]
 
     ids, errors = matrix._readme_outcome_ids(
-        """
-| Outcome ID | Purpose |
-|---|---|
-
-| `asset-distribution-net-worth` | asset distribution |
-not part of the table
-| `monthly-income-spending` | ignored after table close |
-""".strip()
+        "| Outcome ID | Purpose |\n|---|---|\n\n| `asset-distribution-net-worth` | asset distribution |\nnot part\n| `monthly-income-spending` | ignored |\n"
     )
     assert ids == ["asset-distribution-net-worth"]
     assert errors == []
@@ -616,21 +488,9 @@ not part of the table
 def test_AC8_13_54_macro_ownership_section_parser_handles_absent_and_bounded() -> None:
     """AC8.13.54: Owner EPIC macro declarations are section-scoped."""
     assert matrix._macro_ownership_section("# EPIC\n\nNo ownership here") is None
-
     section = matrix._macro_ownership_section(
-        """
-# EPIC
-
-## Macro Proof Ownership
-
-- `asset-distribution-net-worth`
-
-## Other Section
-
-- `not-in-ownership`
-""".strip()
+        "# EPIC\n\n## Macro Proof Ownership\n\n- `asset-distribution-net-worth`\n\n## Other Section\n\n- `not-in-ownership`\n"
     )
-
     assert section is not None
     assert "asset-distribution-net-worth" in section
     assert "not-in-ownership" not in section
@@ -641,9 +501,9 @@ def test_AC8_13_50_outcome_validation_reports_shape_owner_and_proof_errors(
 ) -> None:
     """AC8.13.50: Macro outcome rows fail closed on malformed owner/proof data."""
     _write_registry(tmp_path)
-    (tmp_path / "docs" / "project" / "EPIC-007.deployment.md").write_text(
+    _write(
+        tmp_path / "docs/project/EPIC-007.deployment.md",
         "# EPIC-007: Deployment\n\nNo macro ownership section.\n",
-        encoding="utf-8",
     )
     broken_proof = matrix.ProofResult(
         proof_id="broken-proof",
@@ -657,12 +517,12 @@ def test_AC8_13_50_outcome_validation_reports_shape_owner_and_proof_errors(
     )
 
     missing_shape = matrix._validate_outcome(
-        {"id": "shape-only"},
-        repo_root=tmp_path,
-        proof_by_id={},
-        index=0,
+        {"id": "shape-only"}, repo_root=tmp_path, proof_by_id={}, index=0
     )
-    assert "shape-only: missing required outcome keys: owner_epics, status" in (missing_shape.errors)
+    assert (
+        "shape-only: missing required outcome keys: owner_epics, status"
+        in missing_shape.errors
+    )
     assert "shape-only: owner_epics must be a non-empty list" in missing_shape.errors
 
     malformed = matrix._validate_outcome(
@@ -676,12 +536,14 @@ def test_AC8_13_50_outcome_validation_reports_shape_owner_and_proof_errors(
         proof_by_id={"broken-proof": broken_proof},
         index=1,
     )
-
     assert "bad-outcome: invalid owner EPIC id 'NOT-AN-EPIC'" in malformed.errors
-    assert "bad-outcome: owner EPIC EPIC-007 missing `## Macro Proof Ownership` section" in malformed.errors
+    assert (
+        "bad-outcome: owner EPIC EPIC-007 missing `## Macro Proof Ownership` section"
+        in malformed.errors
+    )
     assert "bad-outcome: unknown proof_id missing-proof" in malformed.errors
     assert "bad-outcome: proof broken-proof has validation errors" in malformed.errors
-    assert "bad-outcome: proof broken-proof must be behavioral E2E" in (malformed.errors)
+    assert "bad-outcome: proof broken-proof must be behavioral E2E" in malformed.errors
 
     bad_shape = matrix._validate_outcome(
         {
@@ -704,157 +566,133 @@ def test_AC8_13_50_macro_outcome_contract_requires_closed_set_and_e2e_proofs(
 ) -> None:
     """AC8.13.50: Macro outcomes are closed and covered outcomes must point to E2E proofs."""
     _write_registry(tmp_path)
-    test_dir = tmp_path / "tests" / "e2e"
-    test_dir.mkdir(parents=True)
-    (test_dir / "test_core.py").write_text(
-        """
-import pytest
-
-@pytest.mark.e2e
-@pytest.mark.critical
-async def test_core_flow():
-    \"\"\"AC8.13.1: macro path proof.\"\"\"
-    assert True
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    _write(
+        tmp_path / "tests/e2e/test_core.py",
+        'import pytest\n@pytest.mark.e2e\n@pytest.mark.critical\nasync def test_core_flow():\n    """AC8.13.1: macro path proof."""\n    assert True',
     )
-    matrix_path = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: core-flow
-    scope: behavioral
-    ci_tier: post_merge_environment
-    file: tests/e2e/test_core.py
-    test: test_core_flow
-    required_markers: [e2e, critical]
-    ac_ids: [AC8.13.1]
-
-outcomes:
-  - id: asset-distribution-net-worth
-    status: covered
-    owner_epics: [EPIC-008]
-    proof_ids: [core-flow]
-  - id: monthly-income-spending
-    status: gap
-    owner_epics: [EPIC-008]
-    issue: "#521"
-  - id: investment-performance
-    status: gap
-    owner_epics: [EPIC-008]
-    issue: "#521"
-  - id: annualized-income-long-term
-    status: gap
-    owner_epics: [EPIC-008]
-    issue: "#521"
-  - id: source-ledger-report-traceability
-    status: gap
-    owner_epics: [EPIC-008]
-    issue: "#521"
-  - id: personal-financial-report-package
-    status: gap
-    owner_epics: [EPIC-008]
-    issue: "#563"
-""",
-    )
-
-    validation = matrix.validate_matrix_contract(tmp_path, _payload(matrix_path))
-    assert [outcome.outcome_id for outcome in validation.outcomes] == [
-        "asset-distribution-net-worth",
-        "monthly-income-spending",
-        "investment-performance",
-        "annualized-income-long-term",
-        "source-ledger-report-traceability",
-        "personal-financial-report-package",
+    outcomes = [
+        {
+            "id": "asset-distribution-net-worth",
+            "status": "covered",
+            "owner_epics": ["EPIC-008"],
+            "proof_ids": ["core-flow"],
+        },
+        {
+            "id": "monthly-income-spending",
+            "status": "gap",
+            "owner_epics": ["EPIC-008"],
+            "issue": "#521",
+        },
+        {
+            "id": "investment-performance",
+            "status": "gap",
+            "owner_epics": ["EPIC-008"],
+            "issue": "#521",
+        },
+        {
+            "id": "annualized-income-long-term",
+            "status": "gap",
+            "owner_epics": ["EPIC-008"],
+            "issue": "#521",
+        },
+        {
+            "id": "source-ledger-report-traceability",
+            "status": "gap",
+            "owner_epics": ["EPIC-008"],
+            "issue": "#521",
+        },
+        {
+            "id": "personal-financial-report-package",
+            "status": "gap",
+            "owner_epics": ["EPIC-008"],
+            "issue": "#563",
+        },
     ]
+    payload = _matrix(
+        [_proof(required_markers=["e2e", "critical"], ac_ids=["AC8.13.1"])],
+        outcomes=outcomes,
+    )
+    validation = matrix.validate_matrix_contract(tmp_path, payload)
+    assert [o.outcome_id for o in validation.outcomes] == [o["id"] for o in outcomes]
     assert not validation.errors
 
 
-def test_AC8_13_50_macro_outcome_contract_rejects_drift(
-    tmp_path: Path,
-) -> None:
+def test_AC8_13_50_macro_outcome_contract_rejects_drift(tmp_path: Path) -> None:
     """AC-testing.acgates.6: AC8.13.50: Covered macro outcomes cannot drift from README, EPICs, or E2E anchors."""
     _write_registry(tmp_path)
-    (tmp_path / "README.md").write_text(
-        """
-# Test README
-
-## Core Proof Paths
-
-Source: common/testing/data/critical-proof-outcomes.yaml
-Checker: tools/check_ac_index.py
-
-- asset-distribution-net-worth
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    _write(
+        tmp_path / "README.md",
+        "# Test README\n\n## Core Proof Paths\n\nSource: common/testing/data/critical-proof-outcomes.yaml\nChecker: tools/check_ac_index.py\n\n- asset-distribution-net-worth\n",
     )
-    tooling_dir = tmp_path / "tests" / "tooling"
-    tooling_dir.mkdir(parents=True)
-    (tooling_dir / "test_contract.py").write_text(
-        """
-def test_contract():
-    \"\"\"AC8.13.1: not an E2E macro proof.\"\"\"
-    assert True
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    _write(
+        tmp_path / "tests/tooling/test_contract.py",
+        'def test_contract():\n    """AC8.13.1: not an E2E macro proof."""\n    assert True',
     )
-    matrix_path = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: contract-proof
-    scope: static_contract
-    ci_tier: pr_ci
-    file: tests/tooling/test_contract.py
-    test: test_contract
-    ac_ids: [AC8.13.1]
-
-outcomes:
-  - id: asset-distribution-net-worth
-    status: covered
-    owner_epics: [EPIC-999]
-    proof_ids: [contract-proof]
-  - id: monthly-income-spending
-    status: covered
-    owner_epics: [EPIC-008]
-  - id: investment-performance
-    status: gap
-    owner_epics: [EPIC-008]
-  - id: annualized-income-long-term
-    status: unknown
-    owner_epics: [EPIC-008]
-    issue: "521"
-  - id: source-ledger-report-traceability
-    status: gap
-    owner_epics: [EPIC-008]
-    issue: "#521"
-  - id: personal-financial-report-package
-    status: gap
-    owner_epics: [EPIC-008]
-    issue: "#563"
-  - id: surprise-outcome
-    status: gap
-    owner_epics: [EPIC-008]
-    issue: "#521"
-  - not-a-mapping
-""",
+    outcomes = [
+        {
+            "id": "asset-distribution-net-worth",
+            "status": "covered",
+            "owner_epics": ["EPIC-999"],
+            "proof_ids": ["contract-proof"],
+        },
+        {
+            "id": "monthly-income-spending",
+            "status": "covered",
+            "owner_epics": ["EPIC-008"],
+        },
+        {"id": "investment-performance", "status": "gap", "owner_epics": ["EPIC-008"]},
+        {
+            "id": "annualized-income-long-term",
+            "status": "unknown",
+            "owner_epics": ["EPIC-008"],
+            "issue": "521",
+        },
+        {
+            "id": "source-ledger-report-traceability",
+            "status": "gap",
+            "owner_epics": ["EPIC-008"],
+            "issue": "#521",
+        },
+        {
+            "id": "personal-financial-report-package",
+            "status": "gap",
+            "owner_epics": ["EPIC-008"],
+            "issue": "#563",
+        },
+        {
+            "id": "surprise-outcome",
+            "status": "gap",
+            "owner_epics": ["EPIC-008"],
+            "issue": "#521",
+        },
+        "not-a-mapping",
+    ]
+    payload = _matrix(
+        [
+            _proof(
+                id="contract-proof",
+                scope="static_contract",
+                ci_tier="pr_ci",
+                file="tests/tooling/test_contract.py",
+                test="test_contract",
+                ac_ids=["AC8.13.1"],
+            )
+        ],
+        outcomes=outcomes,
     )
-
-    validation = matrix.validate_matrix_contract(tmp_path, _payload(matrix_path))
+    validation = matrix.validate_matrix_contract(tmp_path, payload)
     errors = validation.errors
     assert "macro outcomes include unknown ids: surprise-outcome" in errors
-    assert any("owner EPIC does not exist: EPIC-999" in error for error in errors)
-    assert any("covered outcome requires at least one proof_id" in error for error in errors)
-    assert any("proof contract-proof must be behavioral E2E" in error for error in errors)
-    assert any("gap outcome requires issue like #521" in error for error in errors)
-    assert any("invalid status 'unknown'" in error for error in errors)
-    assert any("outcome[7] must be a mapping" in error for error in errors)
-    assert any("README.md missing macro outcome id `monthly-income-spending`" in error for error in errors)
+    assert any("owner EPIC does not exist: EPIC-999" in e for e in errors)
+    assert any("covered outcome requires at least one proof_id" in e for e in errors)
+    assert any("proof contract-proof must be behavioral E2E" in e for e in errors)
+    assert any("gap outcome requires issue like #521" in e for e in errors)
+    assert any("invalid status 'unknown'" in e for e in errors)
+    assert any("outcome[7] must be a mapping" in e for e in errors)
+    assert any(
+        "README.md missing macro outcome id `monthly-income-spending`" in e
+        for e in errors
+    )
 
 
 def test_AC8_13_54_macro_contract_requires_readme_matrix_exact_match(
@@ -862,7 +700,8 @@ def test_AC8_13_54_macro_contract_requires_readme_matrix_exact_match(
 ) -> None:
     """AC8.13.54: README macro outcome table and matrix outcomes must be identical."""
     _write_registry(tmp_path)
-    (tmp_path / "README.md").write_text(
+    _write(
+        tmp_path / "README.md",
         """
 # Test README
 
@@ -879,28 +718,29 @@ Checker: tools/check_ac_index.py
 | `source-ledger-report-traceability` | source traceability |
 | `personal-financial-report-package` | personal report package |
 | `surprise-outcome` | not in the matrix |
-""".strip()
-        + "\n",
-        encoding="utf-8",
-    )
-    matrix_path = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: static-contract
-    scope: static_contract
-    ci_tier: pr_ci
-    file: docs/project/EPIC-008.testing-strategy.md
-    test: unused
-    ac_ids: [AC8.13.54]
 """,
     )
-
-    validation = matrix.validate_matrix_contract(tmp_path, _payload(matrix_path))
-    errors = validation.errors
-    assert "README macro outcomes missing ids: monthly-income-spending" in errors
-    assert "README macro outcomes include unknown ids: surprise-outcome" in errors
+    payload = _matrix(
+        [
+            _proof(
+                id="static-contract",
+                scope="static_contract",
+                ci_tier="pr_ci",
+                file="docs/project/EPIC-008.testing-strategy.md",
+                test="unused",
+                ac_ids=["AC8.13.54"],
+            )
+        ]
+    )
+    validation = matrix.validate_matrix_contract(tmp_path, payload)
+    assert (
+        "README macro outcomes missing ids: monthly-income-spending"
+        in validation.errors
+    )
+    assert (
+        "README macro outcomes include unknown ids: surprise-outcome"
+        in validation.errors
+    )
 
 
 def test_AC8_13_54_macro_contract_requires_owner_epic_reverse_declarations(
@@ -908,35 +748,27 @@ def test_AC8_13_54_macro_contract_requires_owner_epic_reverse_declarations(
 ) -> None:
     """AC-testing.acgates.7: AC8.13.54: Owner EPICs must reverse-declare their macro outcomes."""
     _write_registry(tmp_path)
-    (tmp_path / "docs" / "project" / "EPIC-008.testing-strategy.md").write_text(
-        """
-# EPIC-008: Testing Strategy
-
-## Macro Proof Ownership
-
-- `asset-distribution-net-worth`
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    _write(
+        tmp_path / "docs/project/EPIC-008.testing-strategy.md",
+        "# EPIC-008: Testing Strategy\n\n## Macro Proof Ownership\n\n- `asset-distribution-net-worth`\n",
     )
-    matrix_path = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: static-contract
-    scope: static_contract
-    ci_tier: pr_ci
-    file: docs/project/EPIC-008.testing-strategy.md
-    test: unused
-    ac_ids: [AC8.13.54]
-""",
+    payload = _matrix(
+        [
+            _proof(
+                id="static-contract",
+                scope="static_contract",
+                ci_tier="pr_ci",
+                file="docs/project/EPIC-008.testing-strategy.md",
+                test="unused",
+                ac_ids=["AC8.13.54"],
+            )
+        ]
     )
-
-    validation = matrix.validate_matrix_contract(tmp_path, _payload(matrix_path))
-    errors = validation.errors
+    validation = matrix.validate_matrix_contract(tmp_path, payload)
     assert any(
-        "monthly-income-spending: owner EPIC EPIC-008 missing macro outcome declaration" in error for error in errors
+        "monthly-income-spending: owner EPIC EPIC-008 missing macro outcome declaration"
+        in e
+        for e in validation.errors
     )
 
 
@@ -959,9 +791,10 @@ def test_AC8_13_54_readme_contract_reports_missing_duplicate_and_drift(
     assert "README.md missing" in missing.errors
     assert "README.md missing `## Core Proof Paths` section" in missing.errors
     assert "README.md missing critical proof outcomes source link" in missing.errors
-    assert "README.md missing AC index consistency gate command" in (missing.errors)
+    assert "README.md missing AC index consistency gate command" in missing.errors
 
-    (tmp_path / "README.md").write_text(
+    _write(
+        tmp_path / "README.md",
         """
 # README
 
@@ -975,11 +808,8 @@ Checker: tools/check_ac_index.py
 | `asset-distribution-net-worth` | asset distribution |
 | `asset-distribution-net-worth` | duplicate |
 | `surprise-outcome` | not in matrix |
-""".strip()
-        + "\n",
-        encoding="utf-8",
+""",
     )
-
     drift = matrix._validate_readme_contract(
         tmp_path,
         [
@@ -999,10 +829,12 @@ Checker: tools/check_ac_index.py
             ),
         ],
     )
-
-    assert "README macro outcomes duplicate ids: asset-distribution-net-worth" in drift.errors
-    assert "README macro outcomes missing ids: monthly-income-spending" in (drift.errors)
-    assert "README macro outcomes include unknown ids: surprise-outcome" in (drift.errors)
+    assert (
+        "README macro outcomes duplicate ids: asset-distribution-net-worth"
+        in drift.errors
+    )
+    assert "README macro outcomes missing ids: monthly-income-spending" in drift.errors
+    assert "README macro outcomes include unknown ids: surprise-outcome" in drift.errors
 
 
 def test_AC8_13_50_validate_outcomes_reports_missing_and_duplicate_closed_set(
@@ -1010,10 +842,9 @@ def test_AC8_13_50_validate_outcomes_reports_missing_and_duplicate_closed_set(
 ) -> None:
     """AC8.13.50: Macro outcome collection validation reports closed-set drift."""
     _write_registry(tmp_path)
-
-    empty = matrix.validate_outcomes(tmp_path, {"outcomes": []}, [])
-    assert empty[0].errors == ["critical proof matrix must define a non-empty outcomes list"]
-
+    assert matrix.validate_outcomes(tmp_path, {"outcomes": []}, [])[0].errors == [
+        "critical proof matrix must define a non-empty outcomes list"
+    ]
     outcomes = matrix.validate_outcomes(
         tmp_path,
         {
@@ -1034,33 +865,27 @@ def test_AC8_13_50_validate_outcomes_reports_missing_and_duplicate_closed_set(
         },
         [],
     )
-
-    errors = [error for outcome in outcomes for error in outcome.errors]
+    errors = [e for o in outcomes for e in o.errors]
     assert "macro outcomes duplicate ids: asset-distribution-net-worth" in errors
-    assert any("macro outcomes missing required ids:" in error for error in errors)
+    assert any("macro outcomes missing required ids:" in e for e in errors)
 
 
 def test_stub_path_unknown_suffix_and_external_relative_helpers(tmp_path: Path) -> None:
     """AC8.13.41: Critical proof cannot be delegated to stubs or unknown anchors."""
     _write_registry(tmp_path)
-    stub_dir = tmp_path / "tests" / "e2e" / "_ac_stubs"
-    stub_dir.mkdir(parents=True)
-    (stub_dir / "proof.txt").write_text("AC8.13.1\n", encoding="utf-8")
-    matrix_path = _write_matrix(
-        tmp_path,
-        """
-version: "1.0"
-proofs:
-  - id: stub-proof
-    scope: behavioral
-    ci_tier: pr_ci
-    file: tests/e2e/_ac_stubs/proof.txt
-    test: AC8.13.1 proof
-    ac_ids: [AC8.13.1]
-""",
+    _write(tmp_path / "tests/e2e/_ac_stubs/proof.txt", "AC8.13.1\n")
+    payload = _matrix(
+        [
+            _proof(
+                id="stub-proof",
+                ci_tier="pr_ci",
+                file="tests/e2e/_ac_stubs/proof.txt",
+                test="AC8.13.1 proof",
+                ac_ids=["AC8.13.1"],
+            )
+        ]
     )
-
-    [result] = matrix.validate_matrix(tmp_path, _payload(matrix_path))
+    [result] = matrix.validate_matrix(tmp_path, payload)
     assert result.status == "fail"
     assert "stub-proof: critical proof cannot point at _ac_stubs" in result.errors
     assert "stub-proof: test anchor not found: AC8.13.1 proof" in result.errors
