@@ -189,7 +189,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             print(f"Downloading artifacts for run {args.run_id} to {temp_dir}...")
             subprocess.run(
-                ["gh", "run", "download", str(args.run_id), "--dir", str(temp_dir)],
+                [
+                    "gh",
+                    "run",
+                    "download",
+                    str(args.run_id),
+                    "-p",
+                    "backend-shard-*",
+                    "-p",
+                    "coverage-tooling-*",
+                    "--dir",
+                    str(temp_dir),
+                ],
                 check=True,
             )
             sync_from_directory(temp_dir, args.repo_root, dry_run=args.dry_run)
