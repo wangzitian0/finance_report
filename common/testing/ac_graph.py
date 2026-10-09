@@ -42,22 +42,20 @@ from typing import Any
 
 import yaml
 
-from common.testing.ac_score_baseline_format import load_jsonl
-from common.testing.ac_traceability_refs import AC_PATTERN, classify_reference_file
 from common.meta.extension.generate_ac_registry import build_registry_entries
+from common.testing.ac_scan import collect_real_refs
+from common.testing.ac_score_baseline_format import load_jsonl
 from common.testing.generate_critical_proof_matrix import (
     CollectedProof,
     collect_proofs,
 )
 from common.testing.ac_proof_execution import normalize_proof_execution
-from common.testing.test_surface import default_ac_test_dirs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUTCOMES = REPO_ROOT / "common" / "testing" / "data" / "critical-proof-outcomes.yaml"
+DEFAULT_OUTCOMES = (
+    REPO_ROOT / "common" / "testing" / "data" / "critical-proof-outcomes.yaml"
+)
 DEFAULT_BASELINE = REPO_ROOT / "common" / "testing" / "data" / "ac-score-baseline.jsonl"
-
-EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
-TEST_FILE_SUFFIXES = ("_test.py", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
 
 
 @dataclass(frozen=True)
@@ -130,43 +128,7 @@ class AcGraph:
         return None
 
 
-def _is_test_file(name: str) -> bool:
-    return name.startswith("test_") or name.endswith(TEST_FILE_SUFFIXES)
-
-
-def _iter_test_files(repo_root: Path) -> list[Path]:
-    found: list[Path] = []
-    for base in default_ac_test_dirs(repo_root):
-        if not base.exists():
-            continue
-        for path in base.rglob("*"):
-            if not path.is_file():
-                continue
-            if any(part in EXCLUDED_DIRS for part in path.parts):
-                continue
-            if _is_test_file(path.name):
-                found.append(path)
-    return sorted(found)
-
-
-def _collect_real_refs(repo_root: Path) -> dict[str, set[str]]:
-    """Return ``{ac_id: {test_file, ...}}`` for real (non-stub/placeholder) refs.
-
-    Single authoritative scan of the AC test universe shared by every
-    projection, so all views agree on which tests exist (no per-view drift).
-    """
-    refs: dict[str, set[str]] = {}
-    for path in _iter_test_files(repo_root):
-        try:
-            content = path.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        if classify_reference_file(path, content) != "real":
-            continue
-        rel = path.relative_to(repo_root).as_posix()
-        for match in AC_PATTERN.finditer(content):
-            refs.setdefault(match.group(0), set()).add(rel)
-    return refs
+_collect_real_refs = collect_real_refs
 
 
 def _proof_edges(proofs: list[CollectedProof]) -> list[ProofEdge]:

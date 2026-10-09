@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import os
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Callable, TypeAlias
 
 from common.testing.ac_traceability_refs import AC_PATTERN, classify_reference_file
+from common.testing.test_surface import default_ac_test_dirs
 
 EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
 TEST_FILE_SUFFIXES = ("_test.py", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
@@ -81,6 +83,20 @@ def discover_paths(base: Path, patterns: tuple[str, ...]) -> list[Path]:
     return sorted(paths)
 
 
+@functools.lru_cache(maxsize=8192)
+def _scan_file_cached(
+    path_str: str, mtime_ns: int, size: int
+) -> tuple[str, tuple[str, ...]]:
+    path = Path(path_str)
+    try:
+        content = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return ("missing", ())
+    kind = classify_reference_file(path, content)
+    matches = tuple(m.group(0) for m in AC_PATTERN.finditer(content))
+    return (kind, matches)
+
+
 def collect_references(
     files: list[Path | ScanFile],
     *,
@@ -94,13 +110,15 @@ def collect_references(
     for item in files:
         scan_file = item if isinstance(item, ScanFile) else ScanFile(path=item)
         try:
-            content = scan_file.path.read_text(encoding="utf-8", errors="ignore")
+            st = scan_file.path.stat()
+            kind, matches = _scan_file_cached(
+                str(scan_file.path), st.st_mtime_ns, st.st_size
+            )
         except OSError:
             continue
-        kind = classify_reference_file(scan_file.path, content)
         rendered_path = render_path(scan_file.path)
-        for match in AC_PATTERN.finditer(content):
-            stats = references[match.group(0)]
+        for match in matches:
+            stats = references[match]
             if kind == "stub":
                 stats.stub_files.add(rendered_path)
                 if scan_file.source:
@@ -116,3 +134,14 @@ def collect_references(
                 if scan_file.source:
                     stats.real_sources.add(scan_file.source)
     return dict(references)
+
+
+def collect_real_refs(repo_root: Path) -> dict[str, set[str]]:
+    """Return {ac_id: {rel_path, ...}} for real (non-stub/placeholder) refs."""
+    files = find_test_files(list(default_ac_test_dirs(repo_root)))
+    stats = collect_references(
+        files, display_path=lambda p: p.relative_to(repo_root).as_posix()
+    )
+    return {
+        ac: set(str(p) for p in s.real_files) for ac, s in stats.items() if s.real_files
+    }

@@ -44,7 +44,7 @@ except ImportError:  # pragma: no cover - import guard
     sys.exit(1)
 
 from common.meta.extension.ac_registry_format import load_registry_entries, sort_key
-from common.testing.ac_traceability_refs import AC_PATTERN, classify_reference_file
+from common.testing.ac_scan import collect_real_refs, find_test_files
 from common.testing.test_surface import default_ac_test_dirs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -55,9 +55,6 @@ FEATURE_REGISTRY = REPO_ROOT / "docs" / "ac_registry.yaml"
 INFRA_REGISTRY = REPO_ROOT / "docs" / "infra_registry.yaml"
 
 VERSION = "1.0"
-
-EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
-TEST_FILE_SUFFIXES = ("_test.py", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
 
 # vision.md anchors are declared as <a id="..."></a>.
 _ANCHOR_RE = re.compile(r'<a\s+id="([^"]+)"\s*>')
@@ -212,32 +209,13 @@ def _load_registry_acs(
 
 
 def _find_test_files(repo_root: Path = REPO_ROOT) -> list[Path]:
-    found: list[Path] = []
-    for base in default_ac_test_dirs(repo_root):
-        if not base.exists():
-            continue
-        for root, dirs, files in os.walk(base):
-            dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
-            for fname in files:
-                if fname.startswith("test_") or fname.endswith(TEST_FILE_SUFFIXES):
-                    found.append(Path(root) / fname)
-    return sorted(found)
+    return find_test_files(list(default_ac_test_dirs(repo_root)))
 
 
 def collect_real_test_refs(repo_root: Path = REPO_ROOT) -> dict[str, list[str]]:
     """Return ``{ac_id: [test_file, ...]}`` for real (non-stub/placeholder) refs."""
-    refs: dict[str, set[str]] = defaultdict(set)
-    for fpath in _find_test_files(repo_root):
-        try:
-            content = fpath.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        if classify_reference_file(fpath, content) != "real":
-            continue
-        rel = fpath.relative_to(repo_root).as_posix()
-        for match in AC_PATTERN.finditer(content):
-            refs[match.group(0)].add(rel)
-    return {ac_id: sorted(files) for ac_id, files in refs.items()}
+    real_refs = collect_real_refs(repo_root)
+    return {ac_id: sorted(files) for ac_id, files in real_refs.items()}
 
 
 def _epic_num(epic_id: str) -> int:
