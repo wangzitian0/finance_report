@@ -7,7 +7,10 @@ import inspect
 import sys
 from pathlib import Path
 
-from common.meta.extension.check_package_contract import discover_packages, run
+from common.meta.extension.check_package_contract import (
+    check_single_package,
+    discover_packages,
+)
 from common.testing.ac_proof import ac_proof
 
 REPO = Path(__file__).resolve().parents[2]
@@ -125,7 +128,7 @@ def test_AC_workflow_package_1_owns_contract_and_direct_domain_reads() -> None:
     """AC-workflow.package.1: workflow is governed and no longer uses locators."""
     packages = {package.contract.name: package for package in discover_packages(REPO)}
     assert "workflow" in packages
-    ok, messages = run(REPO)
+    ok, messages = check_single_package("workflow", REPO)
     assert ok, "package contract gate failed:\n" + "\n".join(messages)
 
     workflow = SRC / "workflow"
