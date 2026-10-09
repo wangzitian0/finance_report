@@ -521,7 +521,7 @@ jobs:
             --cov-report=term-missing \
             --cov-branch \
             --cov-fail-under=0 \
-            --dist worksteal \
+            --dist load \
             --junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml \
             "${BACKEND_SHARD_TESTS[@]}"
 
@@ -607,7 +607,7 @@ jobs:
           uv run pytest -n auto -v \
             --override-ini addopts="" \
             -m "integration" \
-            --dist worksteal \
+            --dist load \
             --junit-xml=test-results/backend-integration.xml
 
       - name: Upload backend integration test context
