@@ -167,7 +167,18 @@ def verify_browser_ui_hygiene(
       - Zero developer jargon in rendered DOM
     """
     if routes is None:
-        routes = ["/dashboard", "/reports/balance-sheet", "/upload", "/reconciliation"]
+        routes = [
+            "/dashboard",
+            "/reports/balance-sheet",
+            "/reports/income-statement",
+            "/reports/cash-flow",
+            "/reports",
+            "/upload",
+            "/reconciliation",
+            "/chat",
+            "/journal",
+            "/accounts",
+        ]
     if viewport is None:
         viewport = {"width": 1440, "height": 900}
 
