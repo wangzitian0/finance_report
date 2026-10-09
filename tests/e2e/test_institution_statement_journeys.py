@@ -25,7 +25,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import tempfile
 import time
 import uuid
@@ -40,9 +39,11 @@ from common.testing.ac_proof import ac_proof
 from common.testing import money_amount
 from common.testing.provider_review import (
     FixtureDisposition,
+    FixtureEnvelope,
     approve_statement_with_fixture_review,
 )
 from conftest import fail_or_skip_ai_ocr_gate
+from deployment_pin import assert_pinned_deployment, resolve_expected_commit
 from pdf_fixture_paths import committed_fixture_pdf, generated_pdf_path
 from playwright.async_api import Page, expect
 
@@ -58,6 +59,8 @@ GXS_EXPECTED = (
     / "generated"
     / "gxs_statement_fixture_expected.json"
 )
+MARIBANK_EXPECTED = GXS_EXPECTED.with_name("maribank_statement_fixture_expected.json")
+CMB_EXPECTED = GXS_EXPECTED.with_name("cmb_statement_fixture_expected.json")
 
 CMB_DISPOSITIONS = {
     "工资入账": FixtureDisposition(
@@ -93,9 +96,6 @@ CMB_DISPOSITIONS = {
 }
 
 MARIBANK_DISPOSITIONS = {
-    "Inward Transfer from Salary": FixtureDisposition(
-        "income", "INCOME", "The MariBank fixture declares salary income.", "SALARY"
-    ),
     "PayNow to KOPI SHOP PTE LTD": FixtureDisposition(
         "expense", "EXPENSE", "The MariBank fixture declares dining expense.", "DINING"
     ),
@@ -269,6 +269,19 @@ async def _wait_for_parsed(
     )
 
 
+def _fixture_envelope(expected: dict, rationale: str) -> FixtureEnvelope:
+    """Source facts that the committed fixture JSON declares, never extraction output."""
+    source = expected["statement"]
+    return FixtureEnvelope(
+        currency=source["currency"],
+        period_start=date.fromisoformat(source["period_start"]),
+        period_end=date.fromisoformat(source["period_end"]),
+        opening_balance=Decimal(source["opening_balance"]),
+        closing_balance=Decimal(source["closing_balance"]),
+        rationale=rationale,
+    )
+
+
 async def _run_institution_journey(
     page: Page,
     *,
@@ -277,6 +290,7 @@ async def _run_institution_journey(
     min_transactions: int,
     dispositions: dict[str, FixtureDisposition],
     record_property: Callable[[str, object], None] | None = None,
+    envelope: FixtureEnvelope | None = None,
 ) -> dict:
     """Upload → parse → approve → balance sheet; returns the parsed payload."""
     headers = await _auth_headers(page)
@@ -317,6 +331,7 @@ async def _run_institution_journey(
                 statement_id=statement_id,
                 transactions=transactions,
                 dispositions=dispositions,
+                envelope=envelope,
             )
             assert approval.get("status") == "approved"
             if record_property:
@@ -355,13 +370,22 @@ async def _run_institution_journey(
 @pytest.mark.critical
 @pytest.mark.llm
 async def test_cmb_statement_journey(authenticated_page_unique: Page) -> None:
-    """EPIC-003 EPIC-008 / AC-llm.12.1: CMB (Chinese bank layout) journey."""
+    """EPIC-003 EPIC-008 / AC-llm.12.1: CMB (Chinese bank layout) journey.
+
+    CMB ships as a committed PDF + expected-JSON pair. The disposition table is keyed
+    to that fixture's rows, so the journey uploads the committed PDF. The PDF built at
+    run time uses another vocabulary that the table does not cover.
+    """
+    expected = json.loads(CMB_EXPECTED.read_text())
     await _run_institution_journey(
         authenticated_page_unique,
-        pdf_path=generated_pdf_path("cmb"),
+        pdf_path=committed_fixture_pdf("cmb_statement_fixture.pdf"),
         institution="CMB E2E Institution Journey",
-        min_transactions=1,
+        min_transactions=len(expected["events"]),
         dispositions=CMB_DISPOSITIONS,
+        envelope=_fixture_envelope(
+            expected, "The CMB fixture JSON declares these source facts."
+        ),
     )
 
 
@@ -381,13 +405,22 @@ async def test_cmb_statement_journey(authenticated_page_unique: Page) -> None:
 @pytest.mark.critical
 @pytest.mark.llm
 async def test_maribank_statement_journey(authenticated_page_unique: Page) -> None:
-    """EPIC-003 EPIC-008 / AC-llm.12.2: MariBank (digital bank) journey."""
+    """EPIC-003 EPIC-008 / AC-llm.12.2: MariBank (digital bank) journey.
+
+    MariBank ships as a committed PDF + expected-JSON pair. The disposition table is
+    keyed to that fixture's rows, so the journey uploads the committed PDF. A PDF
+    built at run time picks random rows that the table cannot cover.
+    """
+    expected = json.loads(MARIBANK_EXPECTED.read_text())
     await _run_institution_journey(
         authenticated_page_unique,
-        pdf_path=generated_pdf_path("mari"),
+        pdf_path=committed_fixture_pdf("maribank_statement_fixture.pdf"),
         institution="MariBank E2E Institution Journey",
-        min_transactions=1,
+        min_transactions=len(expected["events"]),
         dispositions=MARIBANK_DISPOSITIONS,
+        envelope=_fixture_envelope(
+            expected, "The MariBank fixture JSON declares these source facts."
+        ),
     )
 
 
@@ -485,25 +518,7 @@ async def _assert_saved_gxs_package(
     assert expected_version, (
         "complete live happy-flow proof requires an explicit EXPECTED_SHA"
     )
-    resolved_commit = subprocess.run(
-        [
-            "git",
-            "rev-parse",
-            "--verify",
-            "--end-of-options",
-            f"{expected_version}^{{commit}}",
-        ],
-        cwd=Path(__file__).resolve().parents[2],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    # The post-merge gate checks out a shallow commit, so the release tag need
-    # not exist locally. Exact release strings remain sufficient; mixed tag/SHA
-    # comparison is allowed only when we can resolve their commit identity.
-    expected_commit = (
-        resolved_commit.stdout.strip() if resolved_commit.returncode == 0 else None
-    )
+    expected_commit = resolve_expected_commit(expected_version)
     record_property("expected_version", expected_version)
     record_property("expected_commit", expected_commit)
     async with httpx.AsyncClient(
@@ -511,14 +526,14 @@ async def _assert_saved_gxs_package(
     ) as client:
         health = await client.get(_api_url("/health"))
         assert health.status_code == 200
-        _assert_pinned_deployment(health.json(), expected_version, expected_commit)
+        assert_pinned_deployment(health.json(), expected_version, expected_commit)
         record_property("backend_version", health.json().get("git_sha"))
         frontend = await client.get(f"{APP_URL.rstrip('/')}/frontend-version.json")
         record_property("frontend_version_http_status", frontend.status_code)
         assert frontend.status_code == 200, (
             "frontend deployment version must be observable"
         )
-        _assert_pinned_deployment(frontend.json(), expected_version, expected_commit)
+        assert_pinned_deployment(frontend.json(), expected_version, expected_commit)
         frontend_version = frontend.json().get("git_sha")
         assert frontend_version, "frontend deployment must identify its actual build"
         record_property("frontend_version", frontend_version)
@@ -724,20 +739,6 @@ async def _assert_saved_gxs_package(
             csv_bytes=exported_csv.content,
         )
         record_property("saved_package_browser_interactions", 5)
-
-
-def _assert_pinned_deployment(
-    payload: dict, expected_version: str, expected_commit: str | None
-) -> None:
-    """Release tags must match exactly; an observed SHA must name their commit."""
-    observed = [payload.get("git_sha"), payload.get("version")]
-    assert all(observed), "deployed service must publish version and git_sha"
-    for version in observed:
-        assert version == expected_version or (
-            expected_commit
-            and re.fullmatch(r"[0-9a-f]{7,40}", version)
-            and expected_commit.startswith(version)
-        ), f"deployed version {version} does not match pinned target {expected_version}"
 
 
 async def _post_later_gxs_income(

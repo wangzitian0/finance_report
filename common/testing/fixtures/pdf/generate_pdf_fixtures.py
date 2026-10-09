@@ -20,7 +20,7 @@ Requires: reportlab, pyyaml
 
 import argparse
 from collections.abc import Sequence
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
 try:
@@ -159,6 +159,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Directory to save PDFs (default: pdf_fixtures/output/)",
     )
     parser.add_argument(
+        "--period-end",
+        type=date.fromisoformat,
+        default=None,
+        help=(
+            "Statement period end date (YYYY-MM-DD). Default: now. "
+            "The period starts 30 days earlier and the file name uses this month."
+        ),
+    )
+    parser.add_argument(
         "output_dir",
         nargs="?",
         help="[Legacy] Directory to save PDFs (for backward compatibility)",
@@ -201,10 +210,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Template paths
     templates_dir = Path(__file__).parent / "templates"
 
-    # Generate period (last 30 days)
-    now = datetime.now(UTC)
-    period_start = now - timedelta(days=30)
-    period_end = now
+    # Generate period: 30 days ending now, or ending on --period-end
+    period_end = (
+        datetime.combine(args.period_end, time(12, 0), tzinfo=UTC)
+        if args.period_end is not None
+        else datetime.now(UTC)
+    )
+    period_start = period_end - timedelta(days=30)
 
     # Period string for filename (e.g., "2501" for Jan 2025)
     period_str = period_end.strftime("%y%m")

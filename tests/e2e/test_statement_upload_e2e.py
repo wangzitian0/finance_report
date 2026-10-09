@@ -7,14 +7,13 @@ Run with: pytest tests/e2e/test_statement_upload_e2e.py
 
 import os
 import shutil
-import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
 
 import pytest
 from conftest import fail_or_skip_ai_ocr_gate, is_strict_or_ci
+from pdf_fixture_paths import generated_pdf_path
 from playwright.async_api import Page, expect
 
 _APP_URL: str = os.getenv("APP_URL") or os.getenv("FRONTEND_URL") or ""
@@ -31,39 +30,6 @@ def _skip_if_no_url() -> None:
                 "Fatal: APP_URL or FRONTEND_URL must be explicitly provided in CI / strict gates"
             )
         pytest.skip("APP_URL / FRONTEND_URL not set — skipping Playwright E2E")
-
-
-def _get_test_pdf() -> Path:
-    # tests/e2e/ → tests/ → repo root  (parents[2])
-    root = Path(__file__).resolve().parents[2]
-    dbs_dir = root / "tools" / "_lib" / "pdf_fixtures" / "output" / "dbs"
-
-    if dbs_dir.exists():
-        pdfs = sorted(dbs_dir.glob("test_dbs_*.pdf"))
-        if pdfs:
-            return pdfs[-1]
-
-    script = root / "tools" / "generate_pdf_fixtures.py"
-    if script.exists():
-        result = subprocess.run(
-            [sys.executable, str(script), "--source", "dbs"],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0 and dbs_dir.exists():
-            pdfs = sorted(dbs_dir.glob("test_dbs_*.pdf"))
-            if pdfs:
-                return pdfs[-1]
-
-    if is_strict_or_ci():
-        pytest.fail(
-            "Fatal: No PDF fixture found and generator unavailable in CI/strict gates. "
-            "Run: python tools/generate_pdf_fixtures.py --source dbs"
-        )
-    pytest.skip(
-        "No PDF fixture found and generator unavailable — skipping upload E2E. "
-        "Run: python tools/generate_pdf_fixtures.py --source dbs"
-    )
 
 
 def _unique_pdf_copy(src: Path) -> Path:
@@ -115,7 +81,7 @@ async def test_statement_upload_full_flow(authenticated_page_unique: Page) -> No
     """AC-extraction.813.12: EPIC-003 EPIC-008 EPIC-013 / AC8.13.8: Upload PDF flow."""
     _skip_if_no_url()
 
-    pdf_path = _unique_pdf_copy(_get_test_pdf())
+    pdf_path = _unique_pdf_copy(generated_pdf_path("dbs"))
 
     page = authenticated_page_unique
     await page.goto(_get_url("/statements"))
@@ -177,7 +143,7 @@ async def test_model_selection_and_upload(authenticated_page_unique: Page) -> No
     """EPIC-003 EPIC-006 EPIC-008 EPIC-013 / AC8.4.2: Model upload flow."""
     _skip_if_no_url()
 
-    pdf_path = _unique_pdf_copy(_get_test_pdf())
+    pdf_path = _unique_pdf_copy(generated_pdf_path("dbs"))
 
     page = authenticated_page_unique
     await page.goto(_get_url("/statements"))

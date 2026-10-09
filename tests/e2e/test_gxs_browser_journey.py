@@ -22,6 +22,7 @@ import pytest
 from common.testing.ac_proof import ac_proof
 from playwright.async_api import Page, expect
 
+from deployment_pin import assert_pinned_deployment, resolve_expected_commit
 from pdf_fixture_paths import committed_fixture_pdf
 
 APP_URL = os.getenv("APP_URL", "http://localhost:3000").rstrip("/")
@@ -62,12 +63,13 @@ async def test_gxs_browser_upload_to_saved_package(
     expected = json.loads(EXPECTED_PATH.read_text())
     expected_version = os.getenv("EXPECTED_SHA")
     assert expected_version, "live browser proof requires an explicit EXPECTED_SHA"
+    expected_commit = resolve_expected_commit(expected_version)
     for path in ("/api/health", "/frontend-version.json"):
         response = await page.request.get(f"{APP_URL}{path}")
         assert response.status == 200
-        version = (await response.json())["git_sha"]
-        assert version == expected_version, f"{path} is not the pinned deployment"
-        record_property(path, version)
+        payload = await response.json()
+        assert_pinned_deployment(payload, expected_version, expected_commit)
+        record_property(path, payload["git_sha"])
 
     await page.goto(f"{APP_URL}/upload")
     await page.locator('[data-testid="uploader-institution-statement"]').fill(
