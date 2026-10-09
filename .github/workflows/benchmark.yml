@@ -101,9 +101,17 @@ jobs:
         run: |
           uv run --with httpx --with pyyaml python tools/sync_benchmark_fixtures.py
 
+      # Pillars 2 and 3 (zero console errors, DOM hygiene) need a real browser. Without
+      # one the UI case is SKIPPED, and a SKIPPED case fails the run (#2318). The
+      # version pin matches apps/backend/uv.lock.
+      - name: Install Playwright browser
+        run: |
+          uv run --with "playwright==1.57.0" python -m playwright install --with-deps chromium
+
+      # No continue-on-error: a failed or skipped case must turn this run red. The index
+      # and Pages steps below use `if: always()`, so the report is still published.
       - name: Run Financial Scenario Benchmark Suite
         id: benchmark
-        continue-on-error: true
         env:
           APP_URL: ${{ inputs.app_url || 'https://report-staging.zitian.party' }}
           VERSION_REF: ${{ steps.target.outputs.version_ref }}
@@ -112,7 +120,7 @@ jobs:
           set -uo pipefail
           mkdir -p "docs/benchmarks/${VERSION_REF}"
 
-          uv run --with httpx --with reportlab --with pyyaml python tools/run_financial_scenario_benchmark.py \
+          uv run --with httpx --with reportlab --with pyyaml --with "playwright==1.57.0" python tools/run_financial_scenario_benchmark.py \
             --app-url "$APP_URL" \
             --case "$CASE" \
             --version-ref "$VERSION_REF" \
