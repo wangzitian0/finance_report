@@ -8,7 +8,6 @@ import { ActionChecklist } from "@/components/audit/ActionChecklist";
 import { InvariantChecksGrid } from "@/components/audit/InvariantChecksGrid";
 import { TemporalTimelineGrid } from "@/components/audit/TemporalTimelineGrid";
 import { TrustScoreHero } from "@/components/audit/TrustScoreHero";
-import { TrustMeter } from "@/components/home/TrustMeter";
 import {
   getGradeColor,
   getGradeLabel,
@@ -222,7 +221,7 @@ describe("Personal Data Quality Observatory (#2294)", () => {
       render(<AuditPage />, { wrapper: createWrapper() });
 
       expect(
-        screen.getByText("Financial Data Quality & Audit Observatory"),
+        screen.getByRole("heading", { name: "Audit" }),
       ).toBeInTheDocument();
 
       await waitFor(() => {
@@ -236,29 +235,19 @@ describe("Personal Data Quality Observatory (#2294)", () => {
       expect(screen.getByRole("link", { name: /Journal/ })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Processing/ })).toBeInTheDocument();
     });
-  });
 
-  describe("TrustMeter on HomePage", () => {
-    it("renders Audit-Ready link to /audit when 0 items need confirmation", async () => {
-      mockedApiOperation
-        .mockResolvedValueOnce({ items: [], total: 0 } as any) // list_statements
-        .mockResolvedValueOnce({
-          total_transactions: 10,
-          matched_transactions: 10,
-          unmatched_transactions: 0,
-          pending_review: 0,
-          auto_accepted: 0,
-          match_rate: 1.0,
-        } as any) // reconciliation_stats
-        .mockResolvedValueOnce({ items: [], total: 0 } as any); // processing_pending
+    it("renders error state with retry button when query fails", async () => {
+      mockedApiOperation.mockRejectedValueOnce(new Error("Network failure"));
 
-      render(<TrustMeter />);
+      render(<AuditPage />, { wrapper: createWrapper() });
 
       await waitFor(() => {
-        expect(screen.getByText("Financial Data Quality")).toBeInTheDocument();
+        expect(
+          screen.getByText("Failed to evaluate data quality health."),
+        ).toBeInTheDocument();
       });
-      expect(screen.getByText("Audit Ready · 100%")).toBeInTheDocument();
-      expect(screen.getByRole("link")).toHaveAttribute("href", "/audit");
+
+      expect(screen.getByRole("button", { name: "Retry Evaluation" })).toBeInTheDocument();
     });
   });
 });

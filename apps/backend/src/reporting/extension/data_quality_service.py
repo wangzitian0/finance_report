@@ -13,14 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction import BankStatementStatus, StatementSummary
 from src.observability import get_logger
 from src.reconciliation import get_reconciliation_stats
-from src.reporting.extension.diagnostics import run_balance_sheet_diagnostics
-from src.schemas.data_quality import (
+from src.reporting.base.data_quality_types import (
     InvariantStatus,
     MonthContinuityBucket,
     PersonalDataQualityHealthResponse,
     QualityActionItem,
     QualityGrade,
 )
+from src.reporting.extension.diagnostics import run_balance_sheet_diagnostics
 
 __all__ = [
     "compute_personal_data_quality",

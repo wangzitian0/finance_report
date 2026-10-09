@@ -24,8 +24,8 @@ export default function AuditPage() {
   return (
     <div className="space-y-8 p-6 max-w-7xl mx-auto">
       <PageHeader
-        title="Financial Data Quality & Audit Observatory"
-        description="Continuous mathematical verification of accounting invariants, statement rollforward continuity, and audit-ready integrity."
+        title="Audit"
+        description="Financial Data Quality & Audit Observatory. Continuous mathematical verification of accounting invariants, statement rollforward continuity, and audit-ready integrity."
       />
 
       {isLoading ? (

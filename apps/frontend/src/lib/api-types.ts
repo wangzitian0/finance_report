@@ -4299,7 +4299,7 @@ export interface components {
         PersonalDataQualityHealthResponse: {
             /**
              * Action Items
-             * @description Prioritized list of remediation action items to boost data quality.
+             * @description Prioritized remediation items ranked by score impact.
              */
             action_items: components["schemas"]["QualityActionItem"][];
             /**
@@ -4330,7 +4330,7 @@ export interface components {
             temporal_continuity_invariant: components["schemas"]["InvariantStatus"];
             /**
              * Timeline
-             * @description Twelve-month temporal timeline with monthly continuity statuses.
+             * @description 12-month rolling statement continuity and cash movement timeline.
              */
             timeline: components["schemas"]["MonthContinuityBucket"][];
         };

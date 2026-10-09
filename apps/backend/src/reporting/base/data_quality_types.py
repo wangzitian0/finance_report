@@ -1,4 +1,4 @@
-"""Data quality observatory schema models."""
+"""Data quality observatory domain value objects and response models."""
 
 from __future__ import annotations
 
@@ -100,10 +100,10 @@ class PersonalDataQualityHealthResponse(BaseModel):
         description="Source document lineage and evidence graph anchor coverage proof."
     )
 
-    # Timeline & Action Plan
+    # 12-Month Temporal Timeline
     timeline: list[MonthContinuityBucket] = Field(
-        description="Twelve-month temporal timeline with monthly continuity statuses."
+        description="12-month rolling statement continuity and cash movement timeline."
     )
-    action_items: list[QualityActionItem] = Field(
-        description="Prioritized list of remediation action items to boost data quality."
-    )
+
+    # Prioritized Action Items
+    action_items: list[QualityActionItem] = Field(description="Prioritized remediation items ranked by score impact.")
