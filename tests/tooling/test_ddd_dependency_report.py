@@ -1912,3 +1912,13 @@ def test_AC_meta_dependency_governance_2_ci_publishes_dependency_summary() -> No
         'cat "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md" >> "$GITHUB_STEP_SUMMARY"'
         in workflow
     )
+
+
+def test_parse_source_tree_caches_ast_by_mtime_and_size(tmp_path: Path) -> None:
+    """_parse_source_tree returns an ast.Module and caches by mtime and size."""
+    source = tmp_path / "sample.py"
+    source.write_text("x = 1\n", encoding="utf-8")
+    tree1 = dependency_report._parse_source_tree(source)
+    assert isinstance(tree1, dependency_report.ast.Module)
+    tree2 = dependency_report._parse_source_tree(source)
+    assert tree1 is tree2
