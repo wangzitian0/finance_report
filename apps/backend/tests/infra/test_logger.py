@@ -91,6 +91,9 @@ def test_configure_otel_logging_with_fake_exporter(monkeypatch) -> None:
             super().__init__(level=level)
             self.logger_provider = logger_provider
 
+        def emit(self, record):
+            pass
+
     class DummyProcessor:
         def __init__(self, exporter) -> None:
             self.exporter = exporter
@@ -165,7 +168,9 @@ def test_configure_otel_logging_with_fake_exporter(monkeypatch) -> None:
     provider = calls[0]
     assert provider.resource["service.name"] == "test-service"
     assert provider.resource["deployment.environment"] == "staging"
-    assert provider.processors[0].exporter.endpoint.endswith("/v1/logs")
+    batch_processor = next(p for p in provider.processors if getattr(p, "exporter", None) is not None)
+    assert batch_processor.exporter.endpoint.endswith("/v1/logs")
+    assert any(isinstance(p, logger_module.SanitizingLogRecordProcessor) for p in provider.processors)
 
     for handler in list(root_logger.handlers):
         if handler not in previous_handlers:
@@ -795,3 +800,54 @@ async def test_log_external_api_async_failure_with_log_args(caplog) -> None:
             await failing_async_with_args(1, 2)
 
     assert "args_count" in caplog.text
+
+
+def test_sanitize_value_primitives_and_dates() -> None:
+    """_sanitize_value converts datetime.date and datetime.datetime to ISO format strings."""
+    import datetime
+
+    assert logger_module._sanitize_value(123) == 123
+    assert logger_module._sanitize_value("text") == "text"
+    assert logger_module._sanitize_value(True) is True
+    assert logger_module._sanitize_value(None) is None
+    d = datetime.date(2025, 4, 30)
+    assert logger_module._sanitize_value(d) == "2025-04-30"
+    dt = datetime.datetime(2025, 4, 30, 12, 0, 0)
+    assert logger_module._sanitize_value(dt) == "2025-04-30T12:00:00"
+    nested = {"date": d, "list": [dt, 1]}
+    assert logger_module._sanitize_value(nested) == {
+        "date": "2025-04-30",
+        "list": ["2025-04-30T12:00:00", 1],
+    }
+
+
+def test_sanitize_event_dict_processor() -> None:
+    """_sanitize_event_dict processor converts date objects in structlog events."""
+    import datetime
+
+    event_dict = {"event": "test", "snapshot_date": datetime.date(2025, 4, 30)}
+    processed = logger_module._sanitize_event_dict(None, "info", event_dict)  # type: ignore[arg-type]
+    assert processed["snapshot_date"] == "2025-04-30"
+
+
+def test_sanitizing_log_record_processor_encodes_cleanly_for_otel() -> None:
+    """SanitizingLogRecordProcessor prevents Invalid type datetime.date crashes in OTel."""
+    import datetime
+
+    from opentelemetry.exporter.otlp.proto.common._internal import _encode_value
+
+    class FakeRecord:
+        def __init__(self):
+            self.attributes = {"report_date": datetime.date(2025, 4, 30), "count": 10}
+            self.body = {"nested_date": datetime.date(2025, 4, 30)}
+
+    record = FakeRecord()
+    processor = logger_module.SanitizingLogRecordProcessor()
+    processor.on_emit(record)
+
+    assert record.attributes["report_date"] == "2025-04-30"
+    # Verify OTel protobuf encoder encodes without raising Exception
+    encoded_attr = _encode_value(record.attributes["report_date"])
+    assert encoded_attr.string_value == "2025-04-30"
+    encoded_body = _encode_value(record.body)
+    assert encoded_body is not None
