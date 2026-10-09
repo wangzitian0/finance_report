@@ -313,7 +313,23 @@ def _render_balance_sheet_csv(bs: BalanceSheetResponse) -> str:
             writer.writerow([section, line.name, line.amount, bs.currency])
     writer.writerow(["Total Assets", "", bs.total_assets, bs.currency])
     writer.writerow(["Total Liabilities", "", bs.total_liabilities, bs.currency])
-    writer.writerow(["Total Equity", "", bs.total_equity, bs.currency])
+    writer.writerow(["Opening Equity", "", bs.total_equity, bs.currency])
+    writer.writerow(["Net Income", "", bs.net_income, bs.currency])
+    if bs.unrealized_fx_gain_loss:
+        writer.writerow(["Unrealized FX Gain/Loss", "", bs.unrealized_fx_gain_loss, bs.currency])
+    if bs.cta_adjustment:
+        writer.writerow(["CTA Adjustment", "", bs.cta_adjustment, bs.currency])
+    if bs.net_worth_adjustment_gain_loss:
+        writer.writerow(["Net Worth Adjustment", "", bs.net_worth_adjustment_gain_loss, bs.currency])
+    ending_equity = (
+        bs.total_equity
+        + bs.net_income
+        + bs.unrealized_fx_gain_loss
+        + bs.cta_adjustment
+        + bs.net_worth_adjustment_gain_loss
+    )
+    writer.writerow(["Ending Total Equity", "", ending_equity, bs.currency])
+    writer.writerow(["Total Liabilities and Equity", "", bs.total_liabilities + ending_equity, bs.currency])
     return output.getvalue()
 
 
@@ -797,8 +813,35 @@ async def export_report(
                     balance_sheet_report["currency"],
                 ]
             )
+            net_income_val = balance_sheet_report.get("net_income") or Decimal("0.00")
+            unrealized_fx_val = balance_sheet_report.get("unrealized_fx_gain_loss") or Decimal("0.00")
+            cta_adj_val = balance_sheet_report.get("cta_adjustment") or Decimal("0.00")
+            net_worth_adj_val = balance_sheet_report.get("net_worth_adjustment_gain_loss") or Decimal("0.00")
+            ending_equity_val = (
+                Decimal(str(balance_sheet_report["total_equity"]))
+                + Decimal(str(net_income_val))
+                + Decimal(str(unrealized_fx_val))
+                + Decimal(str(cta_adj_val))
+                + Decimal(str(net_worth_adj_val))
+            )
             writer.writerow(
-                ["Total Equity", "", balance_sheet_report["total_equity"], balance_sheet_report["currency"]]
+                ["Opening Equity", "", balance_sheet_report["total_equity"], balance_sheet_report["currency"]]
+            )
+            writer.writerow(["Net Income", "", net_income_val, balance_sheet_report["currency"]])
+            if unrealized_fx_val:
+                writer.writerow(["Unrealized FX Gain/Loss", "", unrealized_fx_val, balance_sheet_report["currency"]])
+            if cta_adj_val:
+                writer.writerow(["CTA Adjustment", "", cta_adj_val, balance_sheet_report["currency"]])
+            if net_worth_adj_val:
+                writer.writerow(["Net Worth Adjustment", "", net_worth_adj_val, balance_sheet_report["currency"]])
+            writer.writerow(["Ending Total Equity", "", ending_equity_val, balance_sheet_report["currency"]])
+            writer.writerow(
+                [
+                    "Total Liabilities and Equity",
+                    "",
+                    Decimal(str(balance_sheet_report["total_liabilities"])) + ending_equity_val,
+                    balance_sheet_report["currency"],
+                ]
             )
             filename = f"balance-sheet-{balance_sheet_report['as_of_date']}.csv"
         elif report_type == ExportReportType.INCOME_STATEMENT:

@@ -224,13 +224,17 @@ class AIAdvisorService:
             balance = cast(dict[str, Any], await generate_balance_sheet(db, user_id, as_of_date=today))
             total_assets = Decimal(str(balance["total_assets"]))
             total_liabilities = Decimal(str(balance["total_liabilities"]))
-            total_equity = Decimal(str(balance["total_equity"]))
+            opening_equity = Decimal(str(balance["total_equity"]))
+            net_income_bs = Decimal(str(balance.get("net_income") or "0.00"))
+            net_worth = total_assets - total_liabilities
             currency = str(balance.get("currency") or settings.base_currency)
             balance_sheet_confidence_tier = str(balance.get("confidence_tier") or "DETERMINISTIC")
         except ReportError:
             total_assets = Decimal("0")
             total_liabilities = Decimal("0")
-            total_equity = Decimal("0")
+            opening_equity = Decimal("0")
+            net_income_bs = Decimal("0")
+            net_worth = Decimal("0")
             currency = settings.base_currency
             balance_sheet_confidence_tier = "UNAVAILABLE"
 
@@ -272,12 +276,16 @@ class AIAdvisorService:
             top_expenses = "N/A"
 
         stats = await get_reconciliation_stats(db, user_id)
+        period_net_income = net_income_bs if net_income_bs != Decimal("0") else (monthly_income - monthly_expenses)
 
         context.update(
             {
                 "total_assets": self._format_money(total_assets, currency),
                 "total_liabilities": self._format_money(total_liabilities, currency),
-                "equity": self._format_money(total_equity, currency),
+                "net_worth": self._format_money(net_worth, currency),
+                "equity": self._format_money(net_worth, currency),
+                "opening_equity": self._format_money(opening_equity, currency),
+                "net_income": self._format_money(period_net_income, currency),
                 "monthly_income": self._format_money(monthly_income, currency),
                 "monthly_expenses": self._format_money(monthly_expenses, currency),
                 "top_expenses": top_expenses or "N/A",
