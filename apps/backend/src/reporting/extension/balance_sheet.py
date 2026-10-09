@@ -286,6 +286,11 @@ async def generate_balance_sheet(
         pnl_translation_variance=pnl_translation_variance,
         unrealized_fx=unrealized_fx,
         equity_translation_variance=equity_translation_variance,
+        total_assets=total_assets,
+        total_liabilities=total_liabilities,
+        total_equity=total_equity,
+        net_income=net_income,
+        net_worth_adjustment=net_worth_adjustment,
     )
     totals = calculate_balance_sheet_equation(
         total_assets=total_assets,

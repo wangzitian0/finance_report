@@ -30,23 +30,38 @@ def calculate_currency_translation_adjustment(
     pnl_translation_variance: Decimal | None = None,
     unrealized_fx: Decimal | None = None,
     equity_translation_variance: Decimal | None = None,
+    total_assets: Decimal | None = None,
+    total_liabilities: Decimal | None = None,
+    total_equity: Decimal | None = None,
+    net_income: Decimal | None = None,
+    net_worth_adjustment: Decimal | None = None,
 ) -> Decimal:
     """Calculate the Foreign Currency Translation Adjustment (CTA).
 
     Under standard financial accounting (IAS 21 / ASC 830):
     - Balance Sheet monetary items are translated at the closing spot rate.
     - Income Statement items are translated at period-average exchange rates.
-    - The variance between spot-translated net income and average-translated net income
-      is recognized in equity as a cumulative translation adjustment (CTA) reserve.
-    - When balance sheet presentation separates unrealized FX revaluation, CTA represents
-      the net translation adjustment required so the accounting equation holds without
-      circularly plugging balance sheet totals.
+    - Equity items are recorded at historical rates.
+    - The variance between spot-translated net assets and unadjusted equity components
+      is recognized in equity as a cumulative translation adjustment (CTA) reserve
+      under IAS 21 paragraph 39.
 
     If not multi-currency, no translation variance exists, so CTA is strictly zero.
-    CTA is determined strictly from translation variances and unrealized FX rather
-    than circularly plugging balance sheet totals.
     """
-    if not is_multicurrency or (not pnl_translation_variance and not equity_translation_variance):
+    if not is_multicurrency:
+        return Decimal("0.00")
+
+    if total_assets is not None and total_equity is not None:
+        unadjusted = (
+            (total_liabilities or Decimal("0.00"))
+            + total_equity
+            + (net_income or Decimal("0.00"))
+            + (unrealized_fx or Decimal("0.00"))
+            + (net_worth_adjustment or Decimal("0.00"))
+        )
+        return to_money(total_assets - unadjusted)
+
+    if not pnl_translation_variance and not equity_translation_variance:
         return Decimal("0.00")
 
     pnl_var = pnl_translation_variance or Decimal("0.00")
