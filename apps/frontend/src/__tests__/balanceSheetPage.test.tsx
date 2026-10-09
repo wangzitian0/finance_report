@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -255,5 +255,33 @@ describe("BalanceSheetPage", () => {
     expect(screen.getByText("CTA Adjustment")).toBeInTheDocument()
     expect(screen.getByTestId("equation-detail-cta")).toHaveTextContent("142.50")
     expect(screen.getByText("✓ Balanced")).toBeInTheDocument()
+  })
+
+  it("articulates opening equity, net income, and total equity in progressive disclosure", async () => {
+    const vector = {
+      ...balanceSheetVector(),
+      total_assets: "24200.00",
+      total_liabilities: "0.00",
+      total_equity: "15450.75",
+      net_income: "8749.25",
+      is_balanced: true,
+      currency: "SGD",
+    }
+    mockedApiFetch.mockResolvedValue(vector)
+
+    render(<BalanceSheetPage />)
+
+    await waitFor(() => expect(screen.getByText("Balance Sheet")).toBeInTheDocument())
+
+    const equationDetail = screen.getByTestId("balance-equation-detail")
+    expect(equationDetail.tagName.toLowerCase()).toBe("details")
+    expect(screen.getByText("Books in balance")).toBeInTheDocument()
+
+    const equityCard = document.getElementById("equity")!
+    expect(within(equityCard).getByText("Opening Equity:")).toBeInTheDocument()
+    expect(within(equityCard).getByText("Net Income (P&L):")).toBeInTheDocument()
+    expect(within(equityCard).getByText(/15,450\.75/)).toBeInTheDocument()
+    expect(within(equityCard).getByText(/8,749\.25/)).toBeInTheDocument()
+    expect(within(equityCard).getByText(/24,200\.00/)).toBeInTheDocument()
   })
 })

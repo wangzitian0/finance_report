@@ -1096,3 +1096,110 @@ async def test_stream_model_yields_chunks(monkeypatch: pytest.MonkeyPatch) -> No
         chunks.append(chunk)
 
     assert chunks == ["chunk-a", "chunk-b"]
+
+
+async def test_get_financial_context_articulates_net_worth_and_equity_rollforward(db: AsyncSession, test_user) -> None:
+    """AC-advisor.context.1 / Issue #2273: Financial context articulates net worth = assets - liabilities = opening equity + net income."""
+    service = AIAdvisorService()
+    user_id = test_user.id
+    today = date.today()
+
+    cash = Account(user_id=user_id, name="Cash", type=AccountType.ASSET, currency="SGD")
+    equity = Account(user_id=user_id, name="Equity", type=AccountType.EQUITY, currency="SGD")
+    income = Account(user_id=user_id, name="Salary", type=AccountType.INCOME, currency="SGD")
+    expense = Account(user_id=user_id, name="Dining", type=AccountType.EXPENSE, currency="SGD")
+    db.add_all([cash, equity, income, expense])
+    await db.commit()
+    for account in (cash, equity, income, expense):
+        await db.refresh(account)
+
+    equity_entry = JournalEntry(
+        user_id=user_id,
+        entry_date=today,
+        memo="Owner contribution",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    income_entry = JournalEntry(
+        user_id=user_id,
+        entry_date=today,
+        memo="Salary",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    expense_entry = JournalEntry(
+        user_id=user_id,
+        entry_date=today,
+        memo="Dining",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add_all([equity_entry, income_entry, expense_entry])
+    await db.flush()
+
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=equity_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("15450.75"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=equity_entry.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("15450.75"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=income_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("10000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=income_entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("10000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=expense_entry.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1250.75"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=expense_entry.id,
+                account_id=cash.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("1250.75"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    context = await service.get_financial_context(db, user_id)
+
+    # Assets: 15450.75 + 10000 - 1250.75 = 24200.00
+    # Liabilities: 0.00
+    # Net Income: 10000 - 1250.75 = 8749.25
+    # Opening Equity: 15450.75
+    # Net Worth: 24200.00
+    assert context["total_assets"] == "SGD 24200.00"
+    assert context["total_liabilities"] == "SGD 0.00"
+    assert context["opening_equity"] == "SGD 15450.75"
+    assert context["net_income"] == "SGD 8749.25"
+    assert context["net_worth"] == "SGD 24200.00"
+    assert context["equity"] == "SGD 24200.00"
+
+    prompt = get_ai_advisor_prompt(context, "zh")
+    assert "Net worth: SGD 24200.00" in prompt
+    assert "Opening equity: SGD 15450.75" in prompt
+    assert "Cumulative net income: SGD 8749.25" in prompt

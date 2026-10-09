@@ -340,6 +340,12 @@ class TestReportsEndpoints:
         assert response.status_code == status.HTTP_200_OK
         assert response.headers["content-type"] == "text/csv; charset=utf-8"
         assert "attachment" in response.headers["content-disposition"]
+        assert "Total Assets,,1000.00,SGD" in response.text
+        assert "Total Liabilities,,0.00,SGD" in response.text
+        assert "Opening Equity,,1000.00,SGD" in response.text
+        assert "Net Income,,0.00,SGD" in response.text
+        assert "Ending Total Equity,,1000.00,SGD" in response.text
+        assert "Total Liabilities and Equity,,1000.00,SGD" in response.text
         assert mock_service.called
 
     @patch("src.routers.reports.generate_income_statement")

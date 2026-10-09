@@ -318,73 +318,89 @@ export default function BalanceSheetPage() {
         </div>
       </div>
 
-      <div className="card p-5 mb-6">
-        <h2 className="font-semibold mb-3">Balance Equation Detail</h2>
-        <dl className="grid gap-3 text-sm grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
-          <div>
-            <dt className="text-xs text-muted uppercase">Net Income</dt>
-            <dd className="mt-1 font-medium">
-              {report
-                ? formatCurrencyLocale(report.net_income ?? 0, report.currency)
-                : "—"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted uppercase">Unrealized FX</dt>
-            <dd className="mt-1 font-medium">
-              {report
-                ? formatCurrencyLocale(
-                    report.unrealized_fx_gain_loss ?? 0,
-                    report.currency,
-                  )
-                : "—"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted uppercase">
-              Net Worth Adjustment
-            </dt>
-            <dd className="mt-1 font-medium">
-              {report
-                ? formatCurrencyLocale(
-                    report.net_worth_adjustment_gain_loss ?? 0,
-                    report.currency,
-                  )
-                : "—"}
-            </dd>
-          </div>
-          <div data-testid="equation-detail-cta">
-            <dt className="text-xs text-muted uppercase">CTA Adjustment</dt>
-            <dd
-              className="mt-1 font-medium"
-              aria-label="Currency translation adjustment"
-            >
-              {report
-                ? formatCurrencyLocale(
-                    report.cta_adjustment ?? "0.00",
-                    report.currency,
-                  )
-                : "—"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted uppercase">Equation Delta</dt>
-            <dd className="mt-1 font-medium">
-              {report
-                ? formatCurrencyLocale(report.equation_delta, report.currency)
-                : "—"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted uppercase">
-              Restricted Treatment
-            </dt>
-            <dd className="mt-1 font-medium">
-              {includeRestricted ? "Included" : "Excluded by default"}
-            </dd>
-          </div>
-        </dl>
-      </div>
+      <details className="card mb-6 group" data-testid="balance-equation-detail">
+        <summary className="p-4 font-semibold cursor-pointer list-none flex items-center justify-between hover:bg-[var(--background-muted)] rounded-lg transition-colors select-none">
+          <span className="flex items-center gap-2">
+            <span>Balance Equation Detail</span>
+            <span className="text-xs font-normal text-muted">
+              {report?.is_balanced
+                ? "Books in balance"
+                : report
+                  ? `Delta: ${formatCurrencyLocale(report.equation_delta, report.currency)}`
+                  : "—"}
+            </span>
+          </span>
+          <span className="text-xs text-muted group-open:rotate-180 transition-transform">
+            ▼
+          </span>
+        </summary>
+        <div className="p-5 pt-1 border-t border-[var(--border)]">
+          <dl className="grid gap-3 text-sm grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+            <div>
+              <dt className="text-xs text-muted uppercase">Net Income</dt>
+              <dd className="mt-1 font-medium">
+                {report
+                  ? formatCurrencyLocale(report.net_income ?? 0, report.currency)
+                  : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted uppercase">Unrealized FX</dt>
+              <dd className="mt-1 font-medium">
+                {report
+                  ? formatCurrencyLocale(
+                      report.unrealized_fx_gain_loss ?? 0,
+                      report.currency,
+                    )
+                  : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted uppercase">
+                Net Worth Adjustment
+              </dt>
+              <dd className="mt-1 font-medium">
+                {report
+                  ? formatCurrencyLocale(
+                      report.net_worth_adjustment_gain_loss ?? 0,
+                      report.currency,
+                    )
+                  : "—"}
+              </dd>
+            </div>
+            <div data-testid="equation-detail-cta">
+              <dt className="text-xs text-muted uppercase">CTA Adjustment</dt>
+              <dd
+                className="mt-1 font-medium"
+                aria-label="Currency translation adjustment"
+              >
+                {report
+                  ? formatCurrencyLocale(
+                      report.cta_adjustment ?? "0.00",
+                      report.currency,
+                    )
+                  : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted uppercase">Equation Delta</dt>
+              <dd className="mt-1 font-medium">
+                {report
+                  ? formatCurrencyLocale(report.equation_delta, report.currency)
+                  : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted uppercase">
+                Restricted Treatment
+              </dt>
+              <dd className="mt-1 font-medium">
+                {includeRestricted ? "Included" : "Excluded by default"}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </details>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card p-5" id="assets">
@@ -444,11 +460,60 @@ export default function BalanceSheetPage() {
               <span className="text-muted">—</span>
             )}
           </div>
-          <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold">
-            Total:{" "}
-            {report
-              ? formatCurrencyLocale(report.total_equity, report.currency)
-              : "—"}
+          <div className="mt-4 pt-3 border-t border-[var(--border)] space-y-1 text-sm">
+            <div className="flex justify-between text-muted">
+              <span>Opening Equity:</span>
+              <span>
+                {report
+                  ? formatCurrencyLocale(report.total_equity, report.currency)
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex justify-between text-muted">
+              <span>Net Income (P&L):</span>
+              <span
+                className={
+                  report && Number(report.net_income ?? 0) >= 0
+                    ? "text-[var(--success)] font-medium"
+                    : "text-[var(--error)] font-medium"
+                }
+              >
+                {report
+                  ? formatCurrencyLocale(report.net_income ?? 0, report.currency)
+                  : "—"}
+              </span>
+            </div>
+            {report &&
+              (Number(report.unrealized_fx_gain_loss ?? 0) !== 0 ||
+                Number(report.cta_adjustment ?? 0) !== 0 ||
+                Number(report.net_worth_adjustment_gain_loss ?? 0) !== 0) && (
+                <div className="flex justify-between text-muted">
+                  <span>Adjustments (FX/CTA):</span>
+                  <span>
+                    {formatCurrencyLocale(
+                      Number(report.unrealized_fx_gain_loss ?? 0) +
+                        Number(report.cta_adjustment ?? 0) +
+                        Number(report.net_worth_adjustment_gain_loss ?? 0),
+                      report.currency,
+                    )}
+                  </span>
+                </div>
+              )}
+            <div className="pt-2 border-t border-[var(--border)] font-semibold flex justify-between">
+              <span>Total:</span>
+              <span>
+                {report
+                  ? formatCurrencyLocale(
+                      Number(report.total_equity) +
+                        Number(report.net_income ?? 0) +
+                        Number(report.unrealized_fx_gain_loss ?? 0) +
+                        Number(report.cta_adjustment ?? 0) +
+                        Number(report.net_worth_adjustment_gain_loss ?? 0),
+                      report.currency,
+                    )
+                  : "—"}
+              </span>
+            </div>
           </div>
         </div>
       </div>
