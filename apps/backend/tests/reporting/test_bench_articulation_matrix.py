@@ -437,16 +437,10 @@ async def test_bench_case_4_multicurrency_opening_equity_and_revenue_cta(db: Asy
     await db.commit()
 
     bs = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 4, 30), currency="SGD")
-    print(
-        f"DEBUG BS SGD: delta={bs['equation_delta']} cta={bs['cta_adjustment']} ufx={bs['unrealized_fx_gain_loss']} assets={bs['total_assets']} eq={bs['total_equity']} ni={bs['net_income']}"
-    )
     assert bs["is_balanced"] is True
     assert bs["equation_delta"] == Decimal("0.00")
 
     bs_usd = await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 4, 30), currency="USD")
-    print(
-        f"DEBUG BS USD: delta={bs_usd['equation_delta']} cta={bs_usd['cta_adjustment']} ufx={bs_usd['unrealized_fx_gain_loss']} assets={bs_usd['total_assets']} eq={bs_usd['total_equity']} ni={bs_usd['net_income']}"
-    )
     assert bs_usd["is_balanced"] is True
     assert abs(bs_usd["equation_delta"]) < Decimal("0.05")
 
