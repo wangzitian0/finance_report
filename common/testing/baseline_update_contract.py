@@ -192,7 +192,10 @@ def monotonic_update_commands(repo_root: Path) -> set[UpdateCommand]:
         if not root.exists():
             continue
         for path in sorted(root.rglob("*.py")):
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            text = path.read_text(encoding="utf-8")
+            if "BASELINE_UPDATE_MODE" not in text:
+                continue
+            tree = ast.parse(text, filename=str(path))
             if _declared_mode(tree) not in MONOTONIC_MODES:
                 continue
             relative = path.relative_to(repo_root).as_posix()
@@ -219,7 +222,14 @@ def declaration_violations(repo_root: Path) -> list[str]:
         if not root.exists():
             continue
         for path in sorted(root.rglob("*.py")):
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            text = path.read_text(encoding="utf-8")
+            if (
+                "BASELINE_UPDATE_MODE" not in text
+                and "update" not in text
+                and "rewrite" not in text
+            ):
+                continue
+            tree = ast.parse(text, filename=str(path))
             flags = _mutation_flags(tree)
             mode = _declared_mode(tree)
             relative = path.relative_to(repo_root)

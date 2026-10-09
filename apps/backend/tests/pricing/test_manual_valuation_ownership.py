@@ -28,7 +28,10 @@ def test_AC_pricing_manualvaluation_10_pricing_owns_the_manual_valuation_mapping
     production_sources = (repo_root / "apps/backend/src").rglob("*.py")
     offenders: set[str] = set()
     for path in production_sources:
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        text = path.read_text(encoding="utf-8")
+        if "layer3" not in text:
+            continue
+        tree = ast.parse(text, filename=str(path))
         layer3_aliases: set[str] = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
