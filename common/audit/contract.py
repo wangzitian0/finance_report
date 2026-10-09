@@ -70,6 +70,7 @@ from common.meta.package_contract import (
     Unit,
 )
 
+# fmt: off
 CONTRACT = PackageContract(
     name="audit",
     # infra (L1): audit now physically hosts the value-object family it governs
@@ -394,383 +395,90 @@ CONTRACT = PackageContract(
     # anchor. No package tier lower than "P0"/"P1" was assigned per-AC; the
     # package-level tier="CODE-ONLY" above applies to every roadmap AC.
     roadmap=[
-        ac(
-            "AC-money.22.3",
-            "Reporting net-worth restatement routes through the convert primitive (restate / restate_unrounded); restated totals are byte-identical to to_money(amount*rate) / amount*rate. Was EPIC-002 AC2.22.3.",
-            "apps/backend/tests/audit/money/test_money_adopt.py::test_AC2_22_3_restate_is_byte_identical",
-        ),
-        ac(
-            "AC-money.23.1",
-            "The narrow-waist guard flags a money-shaped float violation on an injected sample and reports none on the real money modules; each stack (Python reference, shipped backend, frontend) keeps a conformance suite. Was EPIC-002 AC2.23.1.",
-            "tests/tooling/test_money_narrow_waist_guard.py::test_AC2_23_1_guard_flags_injected_float_violation",
-        ),
+        ac('AC-money.22.3', 'Reporting net-worth restatement routes through the convert primitive (restate / restate_unrounded); restated totals are byte-identical to to_money(amount*rate) / amount*rate. Was EPIC-002 AC2.22.3.', 'apps/backend/tests/audit/money/test_money_adopt.py::test_AC2_22_3_restate_is_byte_identical'),
+        ac('AC-money.23.1', 'The narrow-waist guard flags a money-shaped float violation on an injected sample and reports none on the real money modules; each stack (Python reference, shipped backend, frontend) keeps a conformance suite. Was EPIC-002 AC2.23.1.', 'tests/tooling/test_money_narrow_waist_guard.py::test_AC2_23_1_guard_flags_injected_float_violation'),
         # ── group 19: Money/Currency value types (was EPIC-002 AC2.19.*) ──
-        ac(
-            "AC-audit.19.1",
-            "Money(amount, currency) rejects float/bool, is Decimal-backed and immutable; Currency rejects non-ISO-4217 codes and normalises case. Was EPIC-002 AC2.19.1.",
-            "tests/tooling/test_money_value_type.py::test_AC2_19_1_money_rejects_float_amount",
-        ),
-        ac(
-            "AC-audit.19.2",
-            "Same-currency +/-/compare works; cross-currency arithmetic or comparison raises a typed CurrencyMismatchError (no implicit float, no implicit conversion). Was EPIC-002 AC2.19.2.",
-            "tests/tooling/test_money_value_type.py::test_AC2_19_2_cross_currency_arithmetic_raises",
-        ),
+        ac('AC-audit.19.1', 'Money(amount, currency) rejects float/bool, is Decimal-backed and immutable; Currency rejects non-ISO-4217 codes and normalises case. Was EPIC-002 AC2.19.1.', 'tests/tooling/test_money_value_type.py::test_AC2_19_1_money_rejects_float_amount'),
+        ac('AC-audit.19.2', 'Same-currency +/-/compare works; cross-currency arithmetic or comparison raises a typed CurrencyMismatchError (no implicit float, no implicit conversion). Was EPIC-002 AC2.19.2.', 'tests/tooling/test_money_value_type.py::test_AC2_19_2_cross_currency_arithmetic_raises'),
         # ── group 20: Single FX conversion primitive (was EPIC-002 AC2.20.*) ──
-        ac(
-            "AC-audit.20.1",
-            "convert(money, rate, *, to, rounding) applies a Decimal rate into an explicit target currency, rejects float rates, quantizes with banker's rounding at the boundary, and round-trips at 2 dp. Was EPIC-002 AC2.20.1.",
-            "tests/tooling/test_money_value_type.py::test_AC2_20_1_convert_rounds_half_even_at_boundary",
-        ),
+        ac('AC-audit.20.1', "convert(money, rate, *, to, rounding) applies a Decimal rate into an explicit target currency, rejects float rates, quantizes with banker's rounding at the boundary, and round-trips at 2 dp. Was EPIC-002 AC2.20.1.", 'tests/tooling/test_money_value_type.py::test_AC2_20_1_convert_rounds_half_even_at_boundary'),
         # Cross-runtime resolution proof (#1820): the FIRST roadmap AC whose
         # `test=` anchors directly to a frontend vitest title — no Python
         # proxy test — proving `check_package_contract`'s TS-ref resolution
         # (file exists + a real `it(...)`/`test(...)` title matches) end to
         # end against the live gate, not just its unit tests.
-        ac(
-            "AC-audit.20.2",
-            "The frontend money conformance suite's rounding and convert vector tables share one rounding vocabulary (every RoundingName the convert vectors exercise is also a rounding vector), so quantize() and convert() can never silently diverge on which rounding modes the standard supports.",
-            "apps/frontend/src/lib/audit/money/money.conformance.test.ts::AC-audit.20.2 quantize() and convert() share the same rounding vocabulary",
-            priority="P2",
-        ),
+        ac('AC-audit.20.2', "The frontend money conformance suite's rounding and convert vector tables share one rounding vocabulary (every RoundingName the convert vectors exercise is also a rounding vector), so quantize() and convert() can never silently diverge on which rounding modes the standard supports.", 'apps/frontend/src/lib/audit/money/money.conformance.test.ts::AC-audit.20.2 quantize() and convert() share the same rounding vocabulary', priority='P2'),
         # ── group 9: Ratio / percent value type (was EPIC-012 AC12.9.*) ──
-        ac(
-            "AC-audit.9.1",
-            "Ratio rejects float, is Decimal-backed/immutable; fraction(part, whole) builds it (zero whole undefined → raises); percent display is the canonical 2 dp / ROUND_HALF_UP; dimensionless arithmetic. Was EPIC-012 AC12.9.1.",
-            "tests/tooling/test_ratio_value_type.py::test_AC12_9_1_ratio_rejects_float_and_is_decimal_backed",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.9.2",
-            "Cross-language conformance: the Python reference, shipped backend src.audit.ratio, and frontend lib/ratio reproduce the same vectors.json (to_percent / percent_of / from_percent) and export the same shared_api (identifier-parity guard). Was EPIC-012 AC12.9.2.",
-            "tests/tooling/test_ratio_conformance.py::test_AC12_9_2_to_percent_matches_standard",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.9.3",
-            "Ratio adoption: portfolio performance/P&L percentages, allocation shares, reconciliation match rate, and frontend confidence/portfolio percent formatting route through the Ratio narrow waist without changing API shapes. Was EPIC-012 AC12.9.3.",
-            "tests/tooling/test_ratio_adoption.py::test_AC12_9_3_backend_percentage_call_sites_route_through_ratio",
-            priority="P1",
-        ),
+        ac('AC-audit.9.1', 'Ratio rejects float, is Decimal-backed/immutable; fraction(part, whole) builds it (zero whole undefined → raises); percent display is the canonical 2 dp / ROUND_HALF_UP; dimensionless arithmetic. Was EPIC-012 AC12.9.1.', 'tests/tooling/test_ratio_value_type.py::test_AC12_9_1_ratio_rejects_float_and_is_decimal_backed', priority='P1'),
+        ac('AC-audit.9.2', 'Cross-language conformance: the Python reference, shipped backend src.audit.ratio, and frontend lib/ratio reproduce the same vectors.json (to_percent / percent_of / from_percent) and export the same shared_api (identifier-parity guard). Was EPIC-012 AC12.9.2.', 'tests/tooling/test_ratio_conformance.py::test_AC12_9_2_to_percent_matches_standard', priority='P1'),
+        ac('AC-audit.9.3', 'Ratio adoption: portfolio performance/P&L percentages, allocation shares, reconciliation match rate, and frontend confidence/portfolio percent formatting route through the Ratio narrow waist without changing API shapes. Was EPIC-012 AC12.9.3.', 'tests/tooling/test_ratio_adoption.py::test_AC12_9_3_backend_percentage_call_sites_route_through_ratio', priority='P1'),
         # ── groups 21–22: multi-currency balances + typed-Money adoption
         # (was EPIC-002 AC2.21.*/AC2.22.*, minus the HU-retained rows) ──
-        ac(
-            "AC-audit.21.1",
-            "CurrencyBalances holds one balance per currency with no scalar accessor (a multi-currency statement is structurally inexpressible as a scalar) and round-trips the StatementSummary.currency_balances JSONB shape; closes the representation gap behind #1139/#1123",
-            "tests/tooling/test_money_value_type.py::test_AC2_21_1_multi_currency_balance_is_not_a_scalar",
-        ),
-        ac(
-            "AC-audit.22.1",
-            "StatementSummary.typed_currency_balances() reads the per-currency JSONB as a typed CurrencyBalances (no scalar collapse)",
-            "apps/backend/tests/audit/money/test_money_backend_module.py::test_AC2_22_1_statement_summary_typed_currency_balances",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.22.2",
-            "Reconciliation per-currency balance check routes through same-currency Money; per-currency totals are byte-identical to the legacy arithmetic (incl. '*'/non-ISO fallback)",
-            "apps/backend/tests/audit/money/test_money_adopt.py::test_AC2_22_2_per_currency_validation_totals_unchanged",
-        ),
-        ac(
-            "AC-audit.22.4",
-            "TransferLeg.money exposes a leg's value as a typed Money (same-currency-only combination)",
-            "apps/backend/tests/audit/money/test_money_backend_module.py::test_AC2_22_4_transfer_leg_exposes_typed_money",
-            priority="P1",
-        ),
+        ac('AC-audit.21.1', 'CurrencyBalances holds one balance per currency with no scalar accessor (a multi-currency statement is structurally inexpressible as a scalar) and round-trips the StatementSummary.currency_balances JSONB shape; closes the representation gap behind #1139/#1123', 'tests/tooling/test_money_value_type.py::test_AC2_21_1_multi_currency_balance_is_not_a_scalar'),
+        ac('AC-audit.22.1', 'StatementSummary.typed_currency_balances() reads the per-currency JSONB as a typed CurrencyBalances (no scalar collapse)', 'apps/backend/tests/audit/money/test_money_backend_module.py::test_AC2_22_1_statement_summary_typed_currency_balances', priority='P1'),
+        ac('AC-audit.22.2', "Reconciliation per-currency balance check routes through same-currency Money; per-currency totals are byte-identical to the legacy arithmetic (incl. '*'/non-ISO fallback)", 'apps/backend/tests/audit/money/test_money_adopt.py::test_AC2_22_2_per_currency_validation_totals_unchanged'),
+        ac('AC-audit.22.4', "TransferLeg.money exposes a leg's value as a typed Money (same-currency-only combination)", 'apps/backend/tests/audit/money/test_money_backend_module.py::test_AC2_22_4_transfer_leg_exposes_typed_money', priority='P1'),
         # ── group 30: Quantity + ExchangeRate (was EPIC-012 AC12.30.*) ──
-        ac(
-            "AC-audit.30.1",
-            "Quantity(value, unit) rejects float/bool, is Decimal-backed/immutable, quantizes to 6 dp / ROUND_HALF_UP, supports same-unit arithmetic/comparison, and derives Ratio from same-unit quantities. Was EPIC-012 AC12.30.1.",
-            "tests/tooling/test_quantity_value_type.py::test_AC12_30_1_quantity_rejects_float_and_is_decimal_backed",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.30.2",
-            "Cross-language conformance: Python reference, shipped backend src.audit.quantity, and frontend lib/quantity reproduce the same vectors.json and export the same shared_api. Was EPIC-012 AC12.30.2.",
-            "tests/tooling/test_quantity_conformance.py::test_AC12_30_2_quantity_quantize_matches_standard",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.30.3",
-            "Money conversion uses typed ExchangeRate(base, quote, rate) instead of a naked rate; source/target mismatch raises and the Python/backend/frontend conformance vectors route through ExchangeRate. Was EPIC-012 AC12.30.3.",
-            "tests/tooling/test_money_value_type.py::test_AC12_30_3_convert_accepts_typed_exchange_rate",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.30.4",
-            "Quantity adoption: frontend quantity formatting is public only from lib/quantity, and targeted backend quantity hot paths use Quantity for 6-dp quantization/zero checks instead of local naked-Decimal quantity helpers. Was EPIC-012 AC12.30.4.",
-            "tests/tooling/test_quantity_adoption.py::test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money",
-            priority="P1",
-        ),
+        ac('AC-audit.30.1', 'Quantity(value, unit) rejects float/bool, is Decimal-backed/immutable, quantizes to 6 dp / ROUND_HALF_UP, supports same-unit arithmetic/comparison, and derives Ratio from same-unit quantities. Was EPIC-012 AC12.30.1.', 'tests/tooling/test_quantity_value_type.py::test_AC12_30_1_quantity_rejects_float_and_is_decimal_backed', priority='P1'),
+        ac('AC-audit.30.2', 'Cross-language conformance: Python reference, shipped backend src.audit.quantity, and frontend lib/quantity reproduce the same vectors.json and export the same shared_api. Was EPIC-012 AC12.30.2.', 'tests/tooling/test_quantity_conformance.py::test_AC12_30_2_quantity_quantize_matches_standard', priority='P1'),
+        ac('AC-audit.30.3', 'Money conversion uses typed ExchangeRate(base, quote, rate) instead of a naked rate; source/target mismatch raises and the Python/backend/frontend conformance vectors route through ExchangeRate. Was EPIC-012 AC12.30.3.', 'tests/tooling/test_money_value_type.py::test_AC12_30_3_convert_accepts_typed_exchange_rate', priority='P1'),
+        ac('AC-audit.30.4', 'Quantity adoption: frontend quantity formatting is public only from lib/quantity, and targeted backend quantity hot paths use Quantity for 6-dp quantization/zero checks instead of local naked-Decimal quantity helpers. Was EPIC-012 AC12.30.4.', 'tests/tooling/test_quantity_adoption.py::test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money', priority='P1'),
         # ── group 32: UnitPrice (was EPIC-012 AC12.32.*) ──
-        ac(
-            "AC-audit.32.1",
-            "UnitPrice(rate, currency, unit) rejects float/bool, is Decimal-backed/immutable, quantizes to 6 dp / ROUND_HALF_UP, applies to a same-unit Quantity to yield Money (unit/currency mismatch raises), and derives from Money / Quantity via from_total (zero quantity undefined → raises). Was EPIC-012 AC12.32.1.",
-            "tests/tooling/test_unit_price_value_type.py::test_AC12_32_1_unit_price_rejects_float_and_is_decimal_backed",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.32.2",
-            "Cross-language conformance: the Python reference (common/audit/unit_price) and shipped backend (src.audit.unit_price) reproduce the same vectors.json (quantize / product / from_total) and export the same shared_api (identifier-parity guard). Frontend is a P2 follow-up. Was EPIC-012 AC12.32.2.",
-            "tests/tooling/test_unit_price_conformance.py::test_AC12_32_2_unit_price_quantize_matches_standard",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.32.3",
-            "UnitPrice adoption: investment accounting prices buys/sells and lot/avg-cost through UnitPrice (removing the local _quantized_unit_rate helper and UNIT_RATE_QUANTUM literal), and market-data single-sources the price quantum from UNIT_PRICE_QUANTUM. Was EPIC-012 AC12.32.3.",
-            "tests/tooling/test_unit_price_adoption.py::test_AC12_32_3_investment_accounting_uses_unit_price",
-            priority="P1",
-        ),
+        ac('AC-audit.32.1', 'UnitPrice(rate, currency, unit) rejects float/bool, is Decimal-backed/immutable, quantizes to 6 dp / ROUND_HALF_UP, applies to a same-unit Quantity to yield Money (unit/currency mismatch raises), and derives from Money / Quantity via from_total (zero quantity undefined → raises). Was EPIC-012 AC12.32.1.', 'tests/tooling/test_unit_price_value_type.py::test_AC12_32_1_unit_price_rejects_float_and_is_decimal_backed', priority='P1'),
+        ac('AC-audit.32.2', 'Cross-language conformance: the Python reference (common/audit/unit_price) and shipped backend (src.audit.unit_price) reproduce the same vectors.json (quantize / product / from_total) and export the same shared_api (identifier-parity guard). Frontend is a P2 follow-up. Was EPIC-012 AC12.32.2.', 'tests/tooling/test_unit_price_conformance.py::test_AC12_32_2_unit_price_quantize_matches_standard', priority='P1'),
+        ac('AC-audit.32.3', 'UnitPrice adoption: investment accounting prices buys/sells and lot/avg-cost through UnitPrice (removing the local _quantized_unit_rate helper and UNIT_RATE_QUANTUM literal), and market-data single-sources the price quantum from UNIT_PRICE_QUANTUM. Was EPIC-012 AC12.32.3.', 'tests/tooling/test_unit_price_adoption.py::test_AC12_32_3_investment_accounting_uses_unit_price', priority='P1'),
         # ── group 33: composite value operations (was EPIC-012 AC12.33.*) ──
-        ac(
-            "AC-audit.33.1",
-            "Money exposes is_zero/is_positive/is_negative and a typed Money.sum (cross-currency raises; empty needs a currency); Ratio.fraction_or_zero/fraction_or_none give the zero-denominator fallback; MoneyTolerance(absolute, relative) matches on max(absolute, relative*|expected|), scales, and rejects cross-currency comparison. Was EPIC-012 AC12.33.1.",
-            "tests/tooling/test_composite_ops.py::test_AC12_33_1_money_predicates_and_sum",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.33.2",
-            "Cross-language conformance: the Python reference and shipped backend reproduce the shared vectors.json groups (predicates/sum/tolerance for money, fraction_or_zero for ratio). Was EPIC-012 AC12.33.2.",
-            "tests/tooling/test_composite_ops.py::test_AC12_33_2_money_composite_matches_standard",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.33.3",
-            'Adoption: zero-denominator ratio branching routes through Ratio.fraction_or_zero (retiring the local _ratio_or_zero helper in portfolio, plus performance-report and reconciliation-stats call sites), and investment accounting uses Money predicates + Money.sum instead of naked Decimal("0") comparisons. Was EPIC-012 AC12.33.3.',
-            "tests/tooling/test_composite_ops_adoption.py::test_AC12_33_3_zero_denominator_branching_routes_through_ratio",
-            priority="P1",
-        ),
+        ac('AC-audit.33.1', 'Money exposes is_zero/is_positive/is_negative and a typed Money.sum (cross-currency raises; empty needs a currency); Ratio.fraction_or_zero/fraction_or_none give the zero-denominator fallback; MoneyTolerance(absolute, relative) matches on max(absolute, relative*|expected|), scales, and rejects cross-currency comparison. Was EPIC-012 AC12.33.1.', 'tests/tooling/test_composite_ops.py::test_AC12_33_1_money_predicates_and_sum', priority='P1'),
+        ac('AC-audit.33.2', 'Cross-language conformance: the Python reference and shipped backend reproduce the shared vectors.json groups (predicates/sum/tolerance for money, fraction_or_zero for ratio). Was EPIC-012 AC12.33.2.', 'tests/tooling/test_composite_ops.py::test_AC12_33_2_money_composite_matches_standard', priority='P1'),
+        ac('AC-audit.33.3', 'Adoption: zero-denominator ratio branching routes through Ratio.fraction_or_zero (retiring the local _ratio_or_zero helper in portfolio, plus performance-report and reconciliation-stats call sites), and investment accounting uses Money predicates + Money.sum instead of naked Decimal("0") comparisons. Was EPIC-012 AC12.33.3.', 'tests/tooling/test_composite_ops_adoption.py::test_AC12_33_3_zero_denominator_branching_routes_through_ratio', priority='P1'),
         # ── group 36: shared Decimal-scalar codec (was EPIC-012 AC12.36.*) ──
-        ac(
-            "AC-audit.36.1",
-            "The four common/ base-package codecs route raw-Decimal conversion through one shared common.audit.decimal_scalar module (decimal_to_wire / coerce_decimal / WireCodec); no base package re-defines the _decimal_to_wire / _decimal_from_wire / _payload_mapping / _field bodies or the construction-time _coerce body locally, and the canonical codec logic (rstrip, IEEE-754 rejection, decimal-string parse) lives only in decimal_scalar. Was EPIC-012 AC12.36.1.",
-            "tests/tooling/test_decimal_scalar_ssot.py::test_AC12_36_1_common_base_packages_share_one_scalar_codec",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.36.2",
-            "The backend self-contained mirror likewise routes every base-package Decimal boundary through one shared src.audit.decimal_scalar module, keeping the backend end conformant without re-duplicating the codec per package. Was EPIC-012 AC12.36.2.",
-            "tests/tooling/test_decimal_scalar_ssot.py::test_AC12_36_2_backend_base_packages_share_one_scalar_codec",
-            priority="P1",
-        ),
+        ac('AC-audit.36.1', 'The four common/ base-package codecs route raw-Decimal conversion through one shared common.audit.decimal_scalar module (decimal_to_wire / coerce_decimal / WireCodec); no base package re-defines the _decimal_to_wire / _decimal_from_wire / _payload_mapping / _field bodies or the construction-time _coerce body locally, and the canonical codec logic (rstrip, IEEE-754 rejection, decimal-string parse) lives only in decimal_scalar. Was EPIC-012 AC12.36.1.', 'tests/tooling/test_decimal_scalar_ssot.py::test_AC12_36_1_common_base_packages_share_one_scalar_codec', priority='P1'),
+        ac('AC-audit.36.2', 'The backend self-contained mirror likewise routes every base-package Decimal boundary through one shared src.audit.decimal_scalar module, keeping the backend end conformant without re-duplicating the codec per package. Was EPIC-012 AC12.36.2.', 'tests/tooling/test_decimal_scalar_ssot.py::test_AC12_36_2_backend_base_packages_share_one_scalar_codec', priority='P1'),
         # AC-audit.* migrated from EPIC-012 groups 12.31, 12.35, 12.37, 12.38 (#1419-pattern AC move).
-        ac(
-            "AC-audit.31.1",
-            "The SSOT declares a MECE raw-Decimal boundary policy: allowed at base packages, DB/schema/API contracts, parser/provider adapters, generated code, and tests/fixtures; forbidden as naked business semantics in migrated service/application hot paths. Was EPIC-012 AC12.31.1.",
-            "tests/tooling/test_decimal_boundary_policy.py::test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.31.2",
-            "The FX service preserves the legacy Decimal return contract for DB/API callers but routes cross-currency conversion through Money(amount, source) plus ExchangeRate(source, target, rate). Was EPIC-012 AC12.31.2.",
-            "apps/backend/tests/pricing/test_convert.py::test_AC12_31_2_convert_amount_routes_through_money_exchange_rate",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.31.3",
-            "Migrated quantity/reporting/application hotspots use Quantity helpers instead of naked quantity-zero comparisons or quantity * price, and frontend app pages do not import decimal.js types directly. Was EPIC-012 AC12.31.3.",
-            "tests/tooling/test_decimal_boundary_policy.py::test_AC12_31_3_migrated_hotspots_use_base_packages",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.31.4",
-            "Base packages own boundary codecs: JSON/wire serialization uses decimal strings, DB adapters return exact Decimal storage fields, and Python/backend/frontend exports expose the canonical codec surface instead of scattering ad-hoc conversions. Was EPIC-012 AC12.31.4.",
-            "tests/tooling/test_base_package_boundary_codecs.py::test_AC12_31_4_common_boundary_codecs_round_trip_strings_and_db_fields",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.31.5",
-            "Migration cleanup removes duplicated money/percent adapters: tests and fixtures use the shared common.testing.money_amount Money adapter, backend services use the shared Money rounding adapter directly, and frontend portfolio/reporting/reconciliation percent call-sites use canonical Ratio format helpers directly. Was EPIC-012 AC12.31.5.",
-            "tests/tooling/test_base_package_migration_cleanup.py::test_AC12_31_5_money_fixture_helpers_route_through_base_package",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.31.6",
-            "Post-merge cleanup retires remaining base-package drift: confidence percent display calls Ratio helpers directly and SSOT FX examples use Money/ExchangeRate instead of hand-rolled Decimal conversion. Was EPIC-012 AC12.31.6.",
-            "tests/tooling/test_base_package_migration_cleanup.py::test_AC12_31_6_confidence_percent_wrapper_is_retired",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.31.7",
-            "Backend Quantity migration cleanup keeps Quantity objects in service calculations, removes service-local and package-level Decimal-to-Decimal quantity facades, and permits raw Decimal only at DB/model/SQL boundaries. Was EPIC-012 AC12.31.7.",
-            "tests/tooling/test_base_package_migration_cleanup.py::test_AC12_31_7_backend_quantity_business_code_uses_value_type",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.35.1",
-            "ManagedPosition exposes typed read accessors at the ORM boundary — cost_basis_money/unrealized_pnl_money/realized_pnl_money → Money (nullable PnL coalesces to zero) and quantity_qty → Quantity — built from the raw amount + currency columns (the audit package's src.audit.money/src.audit.quantity, no service import). Was EPIC-012 AC12.35.1.",
-            "tests/tooling/test_orm_value_type_boundary.py::test_AC12_35_1_managed_position_exposes_typed_accessors",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.35.2",
-            "Investment accounting updates position state through the typed accessors (position.cost_basis_money/realized_pnl_money/quantity_qty) with Money/Quantity arithmetic instead of re-wrapping raw Decimal columns; writes back .amount/.value only at the storage edge. Was EPIC-012 AC12.35.2.",
-            "tests/tooling/test_orm_value_type_boundary.py::test_AC12_35_2_investment_accounting_reads_position_via_accessors",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.35.3",
-            "The FX boundary is Money-native: fx.convert_money(money, target) -> Money wraps convert_amount, and portfolio holdings valuation flows as Money end-to-end (UnitPrice(price) * position.quantity_qty → fx.convert_money → Money P&L), collapsing the if currency != base Decimal branch. Was EPIC-012 AC12.35.3.",
-            "tests/tooling/test_orm_value_type_boundary.py::test_AC12_35_3_portfolio_holdings_value_flows_as_money",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.35.4",
-            "Ratchet: the migrated business files (portfolio, investment_accounting, assets, performance_report, reporting/portfolio_market) read ManagedPosition money only via the typed accessors — no raw position.cost_basis/unrealized_pnl/realized_pnl reads remain (column writes position.x = … at the storage edge stay allowed), so the old raw-Decimal pattern cannot creep back. Was EPIC-012 AC12.35.4.",
-            "tests/tooling/test_orm_value_type_boundary.py::test_AC12_35_4_no_raw_managed_position_money_reads_in_migrated_files",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.37.1",
-            "JournalLine exposes a typed money read accessor (Money(amount, currency), currency mirroring the column's configured base-currency default for unflushed rows) at the ORM boundary; the raw amount/currency columns remain the storage edge. Was EPIC-012 AC12.37.1.",
-            "tests/tooling/test_orm_value_type_boundary.py::test_AC12_37_1_journal_line_exposes_money_accessor",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.37.2",
-            "The reconciliation entry-amount helpers (entry_total_amount/entry_bank_side_amount) sum journal lines via line.money + Money.sum (currency-checked) instead of a raw currency-blind sum(line.amount). Was EPIC-012 AC12.37.2.",
-            "tests/tooling/test_orm_value_type_boundary.py::test_AC12_37_2_reconciliation_config_sums_lines_as_money",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.37.3",
-            "The income-statement slow-path FX converts journal lines through the Money-native convert_money(line.money, …) (incl. average- rate + spot fallbacks) instead of raw convert_amount(line.amount, line.currency, …). (The pre-fetched- rate fast path stays a raw Decimal multiply by design; serialization edges and the balance core legitimately read raw columns). Was EPIC-012 AC12.37.3.",
-            "tests/tooling/test_orm_value_type_boundary.py::test_AC12_37_3_income_statement_fx_is_money_native",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.38.1",
-            "JournalLine currency resolves to the single settings.base_currency SSOT — .money accessor fallback + column default lambda: settings.base_currency — with no hard-coded base literal ('SGD'). Was EPIC-012 AC12.38.1.",
-            "tests/tooling/test_orm_value_type_boundary.py::test_AC12_38_1_journal_line_currency_resolves_to_base_ssot",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.38.2",
-            "The journal balance core (_line_base_amount → Money, validate_journal_balance → Money.sum) computes balance currency- checked; single-currency entries balance identically, a cross- currency line set without fx_rate raises instead of silently summing. Was EPIC-012 AC12.38.2.",
-            "tests/tooling/test_orm_value_type_boundary.py::test_AC12_38_2_balance_core_sums_money",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.38.3",
-            "Annualized-income (and the fx-revaluation + processing-account balance sums) read line.money / sum via Money.sum, dropping the per-site or account.currency or target currency fallback (only the impossible currency-None path differs; the column is non- null). Was EPIC-012 AC12.38.3.",
-            "tests/tooling/test_orm_value_type_boundary.py::test_AC12_38_3_annualized_income_reads_line_money",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.38.4",
-            "Ratchet: no service/ledger code sums journal-line amounts raw (sum(line.amount …) / line.amount for …); currency-blind addition must use Money.sum. Manual fast-path rate multiplies and single-value serialization reads are not sums and stay raw. Was EPIC-012 AC12.38.4.",
-            "tests/tooling/test_orm_value_type_boundary.py::test_AC12_38_4_no_currency_blind_line_amount_sum",
-            priority="P1",
-        ),
+        ac('AC-audit.31.1', 'The SSOT declares a MECE raw-Decimal boundary policy: allowed at base packages, DB/schema/API contracts, parser/provider adapters, generated code, and tests/fixtures; forbidden as naked business semantics in migrated service/application hot paths. Was EPIC-012 AC12.31.1.', 'tests/tooling/test_decimal_boundary_policy.py::test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced', priority='P1'),
+        ac('AC-audit.31.2', 'The FX service preserves the legacy Decimal return contract for DB/API callers but routes cross-currency conversion through Money(amount, source) plus ExchangeRate(source, target, rate). Was EPIC-012 AC12.31.2.', 'apps/backend/tests/pricing/test_convert.py::test_AC12_31_2_convert_amount_routes_through_money_exchange_rate', priority='P1'),
+        ac('AC-audit.31.3', 'Migrated quantity/reporting/application hotspots use Quantity helpers instead of naked quantity-zero comparisons or quantity * price, and frontend app pages do not import decimal.js types directly. Was EPIC-012 AC12.31.3.', 'tests/tooling/test_decimal_boundary_policy.py::test_AC12_31_3_migrated_hotspots_use_base_packages', priority='P1'),
+        ac('AC-audit.31.4', 'Base packages own boundary codecs: JSON/wire serialization uses decimal strings, DB adapters return exact Decimal storage fields, and Python/backend/frontend exports expose the canonical codec surface instead of scattering ad-hoc conversions. Was EPIC-012 AC12.31.4.', 'tests/tooling/test_base_package_boundary_codecs.py::test_AC12_31_4_common_boundary_codecs_round_trip_strings_and_db_fields', priority='P1'),
+        ac('AC-audit.31.5', 'Migration cleanup removes duplicated money/percent adapters: tests and fixtures use the shared common.testing.money_amount Money adapter, backend services use the shared Money rounding adapter directly, and frontend portfolio/reporting/reconciliation percent call-sites use canonical Ratio format helpers directly. Was EPIC-012 AC12.31.5.', 'tests/tooling/test_base_package_migration_cleanup.py::test_AC12_31_5_money_fixture_helpers_route_through_base_package', priority='P1'),
+        ac('AC-audit.31.6', 'Post-merge cleanup retires remaining base-package drift: confidence percent display calls Ratio helpers directly and SSOT FX examples use Money/ExchangeRate instead of hand-rolled Decimal conversion. Was EPIC-012 AC12.31.6.', 'tests/tooling/test_base_package_migration_cleanup.py::test_AC12_31_6_confidence_percent_wrapper_is_retired', priority='P1'),
+        ac('AC-audit.31.7', 'Backend Quantity migration cleanup keeps Quantity objects in service calculations, removes service-local and package-level Decimal-to-Decimal quantity facades, and permits raw Decimal only at DB/model/SQL boundaries. Was EPIC-012 AC12.31.7.', 'tests/tooling/test_base_package_migration_cleanup.py::test_AC12_31_7_backend_quantity_business_code_uses_value_type', priority='P1'),
+        ac('AC-audit.35.1', "ManagedPosition exposes typed read accessors at the ORM boundary — cost_basis_money/unrealized_pnl_money/realized_pnl_money → Money (nullable PnL coalesces to zero) and quantity_qty → Quantity — built from the raw amount + currency columns (the audit package's src.audit.money/src.audit.quantity, no service import). Was EPIC-012 AC12.35.1.", 'tests/tooling/test_orm_value_type_boundary.py::test_AC12_35_1_managed_position_exposes_typed_accessors', priority='P1'),
+        ac('AC-audit.35.2', 'Investment accounting updates position state through the typed accessors (position.cost_basis_money/realized_pnl_money/quantity_qty) with Money/Quantity arithmetic instead of re-wrapping raw Decimal columns; writes back .amount/.value only at the storage edge. Was EPIC-012 AC12.35.2.', 'tests/tooling/test_orm_value_type_boundary.py::test_AC12_35_2_investment_accounting_reads_position_via_accessors', priority='P1'),
+        ac('AC-audit.35.3', 'The FX boundary is Money-native: fx.convert_money(money, target) -> Money wraps convert_amount, and portfolio holdings valuation flows as Money end-to-end (UnitPrice(price) * position.quantity_qty → fx.convert_money → Money P&L), collapsing the if currency != base Decimal branch. Was EPIC-012 AC12.35.3.', 'tests/tooling/test_orm_value_type_boundary.py::test_AC12_35_3_portfolio_holdings_value_flows_as_money', priority='P1'),
+        ac('AC-audit.35.4', 'Ratchet: the migrated business files (portfolio, investment_accounting, assets, performance_report, reporting/portfolio_market) read ManagedPosition money only via the typed accessors — no raw position.cost_basis/unrealized_pnl/realized_pnl reads remain (column writes position.x = … at the storage edge stay allowed), so the old raw-Decimal pattern cannot creep back. Was EPIC-012 AC12.35.4.', 'tests/tooling/test_orm_value_type_boundary.py::test_AC12_35_4_no_raw_managed_position_money_reads_in_migrated_files', priority='P1'),
+        ac('AC-audit.37.1', "JournalLine exposes a typed money read accessor (Money(amount, currency), currency mirroring the column's configured base-currency default for unflushed rows) at the ORM boundary; the raw amount/currency columns remain the storage edge. Was EPIC-012 AC12.37.1.", 'tests/tooling/test_orm_value_type_boundary.py::test_AC12_37_1_journal_line_exposes_money_accessor', priority='P1'),
+        ac('AC-audit.37.2', 'The reconciliation entry-amount helpers (entry_total_amount/entry_bank_side_amount) sum journal lines via line.money + Money.sum (currency-checked) instead of a raw currency-blind sum(line.amount). Was EPIC-012 AC12.37.2.', 'tests/tooling/test_orm_value_type_boundary.py::test_AC12_37_2_reconciliation_config_sums_lines_as_money', priority='P1'),
+        ac('AC-audit.37.3', 'The income-statement slow-path FX converts journal lines through the Money-native convert_money(line.money, …) (incl. average- rate + spot fallbacks) instead of raw convert_amount(line.amount, line.currency, …). (The pre-fetched- rate fast path stays a raw Decimal multiply by design; serialization edges and the balance core legitimately read raw columns). Was EPIC-012 AC12.37.3.', 'tests/tooling/test_orm_value_type_boundary.py::test_AC12_37_3_income_statement_fx_is_money_native', priority='P1'),
+        ac('AC-audit.38.1', "JournalLine currency resolves to the single settings.base_currency SSOT — .money accessor fallback + column default lambda: settings.base_currency — with no hard-coded base literal ('SGD'). Was EPIC-012 AC12.38.1.", 'tests/tooling/test_orm_value_type_boundary.py::test_AC12_38_1_journal_line_currency_resolves_to_base_ssot', priority='P1'),
+        ac('AC-audit.38.2', 'The journal balance core (_line_base_amount → Money, validate_journal_balance → Money.sum) computes balance currency- checked; single-currency entries balance identically, a cross- currency line set without fx_rate raises instead of silently summing. Was EPIC-012 AC12.38.2.', 'tests/tooling/test_orm_value_type_boundary.py::test_AC12_38_2_balance_core_sums_money', priority='P1'),
+        ac('AC-audit.38.3', 'Annualized-income (and the fx-revaluation + processing-account balance sums) read line.money / sum via Money.sum, dropping the per-site or account.currency or target currency fallback (only the impossible currency-None path differs; the column is non- null). Was EPIC-012 AC12.38.3.', 'tests/tooling/test_orm_value_type_boundary.py::test_AC12_38_3_annualized_income_reads_line_money', priority='P1'),
+        ac('AC-audit.38.4', 'Ratchet: no service/ledger code sums journal-line amounts raw (sum(line.amount …) / line.amount for …); currency-blind addition must use Money.sum. Manual fast-path rate multiplies and single-value serialization reads are not sums and stay raw. Was EPIC-012 AC12.38.4.', 'tests/tooling/test_orm_value_type_boundary.py::test_AC12_38_4_no_currency_blind_line_amount_sum', priority='P1'),
         # ── group 39: Editable base reporting currency (Phase D, was AC12.39.*) ──
-        ac(
-            "AC-audit.39.1",
-            "GET /app-config/base-currency returns the env-default base currency when nothing is persisted. Was EPIC-012 AC12.39.1.",
-            "apps/backend/tests/api/test_app_config_router.py::test_AC12_39_1_get_returns_env_default_when_unset",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.39.2",
-            "get_effective_base_currency() falls back to settings.base_currency when no app_config override is persisted. Was EPIC-012 AC12.39.2.",
-            "apps/backend/tests/api/test_app_config_router.py::test_AC12_39_2_effective_accessor_falls_back_to_env_default",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.39.4",
-            "PUT /app-config/base-currency persists an ISO-4217-validated override, and the effective accessor plus a subsequent GET both reflect the new value. Was EPIC-012 AC12.39.4.",
-            "apps/backend/tests/api/test_app_config_router.py::test_AC12_39_4_update_persists_and_effective_accessor_returns_new_value",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.39.5",
-            "PUT /app-config/base-currency rejects a non-ISO-4217 code with HTTP 422 and does not persist it; the effective accessor still returns the env default. Was the second half of EPIC-012 AC12.39.1.",
-            "apps/backend/tests/api/test_app_config_router.py::test_AC12_39_1_invalid_currency_returns_422_and_is_not_persisted",
-            priority="P1",
-        ),
+        ac('AC-audit.39.1', 'GET /app-config/base-currency returns the env-default base currency when nothing is persisted. Was EPIC-012 AC12.39.1.', 'apps/backend/tests/api/test_app_config_router.py::test_AC12_39_1_get_returns_env_default_when_unset', priority='P1'),
+        ac('AC-audit.39.2', 'get_effective_base_currency() falls back to settings.base_currency when no app_config override is persisted. Was EPIC-012 AC12.39.2.', 'apps/backend/tests/api/test_app_config_router.py::test_AC12_39_2_effective_accessor_falls_back_to_env_default', priority='P1'),
+        ac('AC-audit.39.4', 'PUT /app-config/base-currency persists an ISO-4217-validated override, and the effective accessor plus a subsequent GET both reflect the new value. Was EPIC-012 AC12.39.4.', 'apps/backend/tests/api/test_app_config_router.py::test_AC12_39_4_update_persists_and_effective_accessor_returns_new_value', priority='P1'),
+        ac('AC-audit.39.5', 'PUT /app-config/base-currency rejects a non-ISO-4217 code with HTTP 422 and does not persist it; the effective accessor still returns the env default. Was the second half of EPIC-012 AC12.39.1.', 'apps/backend/tests/api/test_app_config_router.py::test_AC12_39_1_invalid_currency_returns_422_and_is_not_persisted', priority='P1'),
         # ── group 40: Currency established at ingest, never silent-defaulted (Phase E, was AC12.40.*) ──
-        ac(
-            "AC-audit.40.1",
-            "resolve_ingest_currency attaches the first valid ISO-4217 candidate — the parsed transaction currency, then the statement currency — normalized (trimmed + upper-cased), when the currency is determinable. Was EPIC-012 AC12.40.1.",
-            "apps/backend/tests/audit/test_currency_resolution.py::test_AC12_40_1_attaches_explicit_currency",
-        ),
-        ac(
-            "AC-audit.40.2",
-            "When no candidate is a valid ISO-4217 code, resolve_ingest_currency flags the row currency_unresolved with a non-trusted placeholder and never silently defaults to a base currency. Was EPIC-012 AC12.40.2.",
-            "apps/backend/tests/audit/test_currency_resolution.py::test_AC12_40_2_flags_unresolved_instead_of_silent_default",
-        ),
-        ac(
-            "AC-audit.40.3",
-            "resolve_transaction_currency lets a reviewer set an ISO-4217-validated currency on an unresolved transaction, recording who (user_id) and when (timestamp) it was resolved. Was EPIC-012 AC12.40.3.",
-            "apps/backend/tests/audit/test_currency_resolution.py::test_AC12_40_3_reviewer_resolves_currency_with_audit",
-        ),
-        ac(
-            "AC-audit.40.4",
-            "create_entry_from_txn (the JournalLine promotion gate) raises CurrencyUnresolvedError and refuses to proceed while the transaction is still flagged currency_unresolved. Was EPIC-012 AC12.40.4.",
-            "apps/backend/tests/audit/test_currency_resolution.py::test_AC12_40_4_promotion_gate_blocks_unresolved_currency",
-        ),
+        ac('AC-audit.40.1', 'resolve_ingest_currency attaches the first valid ISO-4217 candidate — the parsed transaction currency, then the statement currency — normalized (trimmed + upper-cased), when the currency is determinable. Was EPIC-012 AC12.40.1.', 'apps/backend/tests/audit/test_currency_resolution.py::test_AC12_40_1_attaches_explicit_currency'),
+        ac('AC-audit.40.2', 'When no candidate is a valid ISO-4217 code, resolve_ingest_currency flags the row currency_unresolved with a non-trusted placeholder and never silently defaults to a base currency. Was EPIC-012 AC12.40.2.', 'apps/backend/tests/audit/test_currency_resolution.py::test_AC12_40_2_flags_unresolved_instead_of_silent_default'),
+        ac('AC-audit.40.3', 'resolve_transaction_currency lets a reviewer set an ISO-4217-validated currency on an unresolved transaction, recording who (user_id) and when (timestamp) it was resolved. Was EPIC-012 AC12.40.3.', 'apps/backend/tests/audit/test_currency_resolution.py::test_AC12_40_3_reviewer_resolves_currency_with_audit'),
+        ac('AC-audit.40.4', 'create_entry_from_txn (the JournalLine promotion gate) raises CurrencyUnresolvedError and refuses to proceed while the transaction is still flagged currency_unresolved. Was EPIC-012 AC12.40.4.', 'apps/backend/tests/audit/test_currency_resolution.py::test_AC12_40_4_promotion_gate_blocks_unresolved_currency'),
         # ── group 41: financial-invariant promotion gate (physically relocated
         # to apps/backend/src/audit/promotion/, #1667; migrated from EPIC-018
         # AC18.13, migration closeout continuation, #1663 / #1709) ──
-        ac(
-            "AC-audit.41.1",
-            "A failed deterministic invariant rejects the version regardless of confidence, with a queryable reason (failing invariant + delta vs tolerance). Was EPIC-018 AC18.13.1.",
-            "apps/backend/tests/audit/promotion/test_promotion_gate.py::test_AC18_13_1_failed_invariant_is_rejected_with_queryable_reason",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.41.2",
-            "Invariants pass but confidence is below threshold yields a non-authoritative review candidate. Was EPIC-018 AC18.13.2.",
-            "apps/backend/tests/audit/promotion/test_promotion_gate.py::test_AC18_13_2_invariants_pass_but_low_confidence_is_review",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.41.3",
-            "Invariants pass and confidence meets threshold yields authoritative; the same contract carries both tier and reconciliation-score confidence. Was EPIC-018 AC18.13.3.",
-            "apps/backend/tests/audit/promotion/test_promotion_gate.py::test_AC18_13_3_invariants_pass_and_confidence_met_is_authoritative",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.41.4",
-            "The previously-scattered thresholds (balance 0.001, reconciliation 85/60) are named, centrally owned, and consumed by the services. Was EPIC-018 AC18.13.4.",
-            "apps/backend/tests/audit/promotion/test_promotion_gate.py::test_AC18_13_4_thresholds_are_centrally_owned_and_consumed_by_services",
-            priority="P1",
-        ),
-        ac(
-            "AC-audit.41.5",
-            "Stage-1 statement balance-chain approval is disposed by the promotion gate (balance checks as invariants), making the gate load-bearing for a real decision while preserving behavior. Was EPIC-018 AC18.13.5.",
-            "apps/backend/tests/review/test_statement_validation.py::test_AC18_13_5_balance_chain_decision_routes_through_promotion_gate",
-            priority="P1",
-        ),
+        ac('AC-audit.41.1', 'A failed deterministic invariant rejects the version regardless of confidence, with a queryable reason (failing invariant + delta vs tolerance). Was EPIC-018 AC18.13.1.', 'apps/backend/tests/audit/promotion/test_promotion_gate.py::test_AC18_13_1_failed_invariant_is_rejected_with_queryable_reason', priority='P1'),
+        ac('AC-audit.41.2', 'Invariants pass but confidence is below threshold yields a non-authoritative review candidate. Was EPIC-018 AC18.13.2.', 'apps/backend/tests/audit/promotion/test_promotion_gate.py::test_AC18_13_2_invariants_pass_but_low_confidence_is_review', priority='P1'),
+        ac('AC-audit.41.3', 'Invariants pass and confidence meets threshold yields authoritative; the same contract carries both tier and reconciliation-score confidence. Was EPIC-018 AC18.13.3.', 'apps/backend/tests/audit/promotion/test_promotion_gate.py::test_AC18_13_3_invariants_pass_and_confidence_met_is_authoritative', priority='P1'),
+        ac('AC-audit.41.4', 'The previously-scattered thresholds (balance 0.001, reconciliation 85/60) are named, centrally owned, and consumed by the services. Was EPIC-018 AC18.13.4.', 'apps/backend/tests/audit/promotion/test_promotion_gate.py::test_AC18_13_4_thresholds_are_centrally_owned_and_consumed_by_services', priority='P1'),
+        ac('AC-audit.41.5', 'Stage-1 statement balance-chain approval is disposed by the promotion gate (balance checks as invariants), making the gate load-bearing for a real decision while preserving behavior. Was EPIC-018 AC18.13.5.', 'apps/backend/tests/review/test_statement_validation.py::test_AC18_13_5_balance_chain_decision_routes_through_promotion_gate', priority='P1'),
         # ── group 42: financial fact schema invariants (migrated from EPIC-011
         # AC11.18, migration closeout continuation, #1663 / #1709) ──
-        ac(
-            "AC-audit.42.1",
-            "Positive source fact constraints reject zero/negative transaction amounts and manual-valuation values, while positions are signed — a short carries negative quantity AND negative market value (#1448). Was EPIC-011 AC11.18.1.",
-            "apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_1_positive_source_fact_constraints",
-        ),
-        ac(
-            "AC-audit.42.2",
-            "Approved statement summaries require account, currency, period, and balance fields, and statement periods cannot be inverted. Was EPIC-011 AC11.18.2.",
-            "apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_2_statement_summary_approved_completeness_and_period_order",
-        ),
-        ac(
-            "AC-audit.42.3",
-            "Managed positions, investment lots, and investment facts enforce deterministic uniqueness and disposal/acquisition ordering; positions are signed and may carry negative quantity/cost basis for shorts (#1448). Was EPIC-011 AC11.18.3.",
-            "apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_3_portfolio_fact_constraints_and_managed_position_uniqueness",
-        ),
-        ac(
-            "AC-audit.42.4",
-            "Latest report snapshots cannot conflict for the same logical report scope and report date ranges cannot be inverted. Was EPIC-011 AC11.18.4.",
-            "apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_4_report_snapshot_latest_scope_and_date_constraints",
-        ),
-        ac(
-            "AC-audit.42.5",
-            "Market-data facts enforce positive rates/prices and stock prices are unique by symbol, currency, provider source, and date. Was EPIC-011 AC11.18.5.",
-            "apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_5_market_data_constraints_and_stock_price_uniqueness",
-        ),
-        ac(
-            "AC-audit.42.6",
-            "The constraint migration declares preflight checks and migration-risk classification for existing data compatibility. Was EPIC-011 AC11.18.6.",
-            "apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_6_migration_preflights_and_risk_contract_are_declared",
-        ),
+        ac('AC-audit.42.1', 'Positive source fact constraints reject zero/negative transaction amounts and manual-valuation values, while positions are signed — a short carries negative quantity AND negative market value (#1448). Was EPIC-011 AC11.18.1.', 'apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_1_positive_source_fact_constraints'),
+        ac('AC-audit.42.2', 'Approved statement summaries require account, currency, period, and balance fields, and statement periods cannot be inverted. Was EPIC-011 AC11.18.2.', 'apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_2_statement_summary_approved_completeness_and_period_order'),
+        ac('AC-audit.42.3', 'Managed positions, investment lots, and investment facts enforce deterministic uniqueness and disposal/acquisition ordering; positions are signed and may carry negative quantity/cost basis for shorts (#1448). Was EPIC-011 AC11.18.3.', 'apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_3_portfolio_fact_constraints_and_managed_position_uniqueness'),
+        ac('AC-audit.42.4', 'Latest report snapshots cannot conflict for the same logical report scope and report date ranges cannot be inverted. Was EPIC-011 AC11.18.4.', 'apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_4_report_snapshot_latest_scope_and_date_constraints'),
+        ac('AC-audit.42.5', 'Market-data facts enforce positive rates/prices and stock prices are unique by symbol, currency, provider source, and date. Was EPIC-011 AC11.18.5.', 'apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_5_market_data_constraints_and_stock_price_uniqueness'),
+        ac('AC-audit.42.6', 'The constraint migration declares preflight checks and migration-risk classification for existing data compatibility. Was EPIC-011 AC11.18.6.', 'apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_6_migration_preflights_and_risk_contract_are_declared'),
         # ── group global-invariant: cross-package numeric-governance closeout
         # (#1429, umbrella #1416, formalized per the 2026-07-12 scope freeze on
         # #1429). This is audit's `extension` reach into the financial flow
@@ -788,130 +496,32 @@ CONTRACT = PackageContract(
         # `common/reporting/contract.py` (the source/ledger anchors-per-line
         # appendix), so it is not duplicated here as a fifth
         # `AC-audit.global-invariant` id.
-        ac(
-            "AC-audit.global-invariant.1",
-            "Global accounting identity: across a user's whole posted ledger, debits == credits — proven as the accounting equation (Assets = Liabilities + Equity + Income - Expenses) holding across every account type after multiple entries, not just within one balanced entry. Pinned from #1429's 2026-07-12 scope-freeze wording (umbrella #1416).",
-            "apps/backend/tests/ledger/test_accounting_equation.py::test_accounting_equation_holds_with_all_account_types",
-        ),
-        ac(
-            "AC-audit.global-invariant.2",
-            "The extraction source->fact balance chain reconciles to posted ledger entries: a statement's source transactions flow through parse -> review-approve -> post, and the resulting ledger-derived balance-sheet line equals the known net of those source transactions end to end (not just reconciled within extraction or within the ledger alone). Pinned from #1429's 2026-07-12 scope-freeze wording.",
-            "tests/e2e/test_bench_v2_ui_golden_paths.py::test_case_1_four_month_rollforward_ui",
-        ),
-        ac(
-            "AC-audit.global-invariant.3",
-            "Report lines reconcile to ledger balances: L1 report-line aggregation sums its ledger-backed L2 constituents exactly (no plugs), and a framework's total assets equals the exact sum of its own asset lines. Pinned from #1429's 2026-07-12 scope-freeze wording.",
-            "apps/backend/tests/reporting/test_l1_registry_aggregation.py::test_AC20_9_1_framework_balance_sheet_exact_aggregation",
-        ),
-        ac(
-            "AC-audit.global-invariant.4",
-            "Every displayed posted number retains a ledger DecisionAnchor whose TraceRecord parents preserve the reviewed source decision. Reporting displays contribution refs but cannot relabel an opaque source id as an extraction fact or document.",
-            "apps/backend/tests/api/test_personal_report_package_contract.py::test_AC18_8_4_AC18_8_7_package_traceability_preserves_the_ledger_decision_boundary",
-            priority="P1",
-        ),
+        ac('AC-audit.global-invariant.1', "Global accounting identity: across a user's whole posted ledger, debits == credits — proven as the accounting equation (Assets = Liabilities + Equity + Income - Expenses) holding across every account type after multiple entries, not just within one balanced entry. Pinned from #1429's 2026-07-12 scope-freeze wording (umbrella #1416).", 'apps/backend/tests/ledger/test_accounting_equation.py::test_accounting_equation_holds_with_all_account_types'),
+        ac('AC-audit.global-invariant.2', "The extraction source->fact balance chain reconciles to posted ledger entries: a statement's source transactions flow through parse -> review-approve -> post, and the resulting ledger-derived balance-sheet line equals the known net of those source transactions end to end (not just reconciled within extraction or within the ledger alone). Pinned from #1429's 2026-07-12 scope-freeze wording.", 'tests/e2e/test_bench_v2_ui_golden_paths.py::test_case_1_four_month_rollforward_ui'),
+        ac('AC-audit.global-invariant.3', "Report lines reconcile to ledger balances: L1 report-line aggregation sums its ledger-backed L2 constituents exactly (no plugs), and a framework's total assets equals the exact sum of its own asset lines. Pinned from #1429's 2026-07-12 scope-freeze wording.", 'apps/backend/tests/reporting/test_l1_registry_aggregation.py::test_AC20_9_1_framework_balance_sheet_exact_aggregation'),
+        ac('AC-audit.global-invariant.4', 'Every displayed posted number retains a ledger DecisionAnchor whose TraceRecord parents preserve the reviewed source decision. Reporting displays contribution refs but cannot relabel an opaque source id as an extraction fact or document.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC18_8_4_AC18_8_7_package_traceability_preserves_the_ledger_decision_boundary', priority='P1'),
         # ── group anchor-invariants: tenant-scoped audit-anchor schema
         # invariants (was EPIC-018 AC18.11.2-.6, #1821 Wave A horizontal
         # move) ──
-        ac(
-            "AC-audit.anchor-invariants.1",
-            "Atomic transaction and position source-document anchors are represented by normalized link tables that reject missing or cross-user uploaded documents.",
-            "apps/backend/tests/infra/test_audit_anchor_schema_invariants.py::test_AC18_11_2_atomic_source_links_reject_missing_and_cross_user_documents",
-        ),
-        ac(
-            "AC-audit.anchor-invariants.2",
-            "Evidence Graph edges are tenant-scoped at the database boundary and cannot connect nodes owned by different users.",
-            "apps/backend/tests/infra/test_audit_anchor_schema_invariants.py::test_AC18_11_3_evidence_edges_reject_cross_user_endpoints",
-        ),
-        ac(
-            "AC-audit.anchor-invariants.3",
-            "Journal lines, approved statement summaries, and transaction classifications reject cross-user account references at the database boundary.",
-            "apps/backend/tests/infra/test_audit_anchor_schema_invariants.py::test_AC18_11_4_account_references_reject_cross_user_accounts",
-        ),
-        ac(
-            "AC-audit.anchor-invariants.4",
-            "Unresolved legacy source UUIDs remain explicit blockers and are never promoted to trusted source anchors.",
-            "apps/backend/tests/infra/test_audit_anchor_schema_invariants.py::test_AC18_11_5_unresolved_legacy_source_ids_remain_blockers",
-        ),
-        ac(
-            "AC-audit.anchor-invariants.5",
-            "The audit-anchor migration declares preflights, backfills resolvable legacy anchors, preserves unresolved hints, and is registered in migration-risk metadata.",
-            "apps/backend/tests/infra/test_audit_anchor_schema_invariants.py::test_AC18_11_6_migration_preflights_and_risk_contract_are_declared",
-        ),
-        ac(
-            "AC-audit.trace-record.1",
-            "One immutable, versioned, Decimal-safe TraceRecord schema and canonical codec represent OBSERVATION and DECISION without financial payloads or unvalidated type-specific truth.",
-            "apps/backend/tests/audit/trace/test_trace_record.py::test_AC_audit_trace_record_1_schema_and_codec_are_canonical",
-        ),
-        ac(
-            "AC-audit.trace-record.2",
-            "Every TraceRecord carries a resolved package authority, proof-kind, execution stage, and target-class profile that stays parity-locked to the canonical CODE/LLM and execution vocabularies; human evidence uses manual.adjudication and never invents a package tier.",
-            "apps/backend/tests/audit/trace/test_trace_record.py::test_AC_audit_trace_record_2_authority_profile_reuses_canonical_matrix",
-        ),
-        ac(
-            "AC-audit.trace-record.3",
-            "A DECISION is constructible only through a registered versioned policy over complete, successful same-scope parents: DIRECT requires the same target version and execution, while MANIFEST permits only the policy-declared exact cross-target/cross-execution parent set.",
-            "apps/backend/tests/audit/trace/test_trace_causality.py::test_AC_audit_trace_record_3_decision_causality_fails_closed",
-        ),
-        ac(
-            "AC-audit.trace-record.4",
-            "Trace persistence is typed-scope, append-only, content-idempotent, and linear for each stable authoritative decision lineage while independent observations may coexist; cross-scope links, mutation, authority forks, or persistence failure cannot be treated as an authoritative write.",
-            "apps/backend/tests/audit/trace/test_trace_repository.py::test_AC_audit_trace_record_4_repository_is_append_only_and_fail_closed",
-        ),
-        ac(
-            "AC-audit.trace-record.5",
-            "An LLM-produced financial observation can become authoritative only through a final CODE-ONLY DECISION that includes an authoritative CODE-ONLY invariant or promotion DECISION over the same exact target; an LLM-ONLY record can never own the persisted financial-number decision.",
-            "apps/backend/tests/audit/trace/test_trace_causality.py::test_AC_audit_trace_record_5_financial_authority_requires_code_parent",
-        ),
-        ac(
-            "AC-audit.trace-record.6",
-            "The public current-authoritative TraceRecord projection returns only financial decisions whose complete parent graph is current, so a cross-package read can fail closed without importing audit ORM internals.",
-            "apps/backend/tests/audit/trace/test_trace_decision_projection.py::test_AC_audit_trace_record_6_current_projection_matches_repository_current_ancestry",
-        ),
-        ac(
-            "AC-audit.trace-record.7",
-            "The TraceRecord repository exposes a typed physical decision head that distinguishes an absent lineage from a head whose complete ancestry is current or stale; current_decision remains the fail-closed authoritative view, while a writer can supersede the exact stale head without guessing from a missing result or importing audit persistence internals.",
-            "apps/backend/tests/audit/trace/test_trace_repository.py::test_AC_audit_trace_record_7_decision_head_preserves_absent_current_and_stale_states",
-        ),
-        ac(
-            "AC-audit.terminal-trace.1",
-            "Exact selected package and manifest decision refs resolve in one tenant scope; the package direct decision parents equal the selected manifest while canonical non-decision parents remain part of the replayed graph.",
-            "apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_1_verifies_exact_frozen_graph",
-            proof_kind="exact",
-        ),
-        ac(
-            "AC-audit.terminal-trace.2",
-            "Missing, cross-scope, wrong type, result, target, assertion, disconnected, and repository-read failures fail closed; available owner diagnostics derive from the canonical record authority rather than caller input.",
-            "apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_2_counterexamples_fail_closed",
-            proof_kind="exact",
-        ),
-        ac(
-            "AC-audit.terminal-trace.3",
-            "Exact testing executed-proof coordinates are mandatory and successful composition emits only a canonical TraceRecord round-trippable through the existing TraceRecordCodec.",
-            "apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_3_emits_only_canonical_trace_record",
-            proof_kind="exact",
-        ),
-        ac(
-            "AC-audit.terminal-trace.4",
-            "The audit-owned promotion shadow exports, file, and tests are deleted without embedding another package's producer, reader, status, or retired-symbol map in the terminal verifier.",
-            "apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_4_deletes_audit_owned_shadow_only",
-            proof_kind="exact",
-        ),
-        ac(
-            "AC-audit.terminal-trace.5",
-            "The terminal TraceRecord and first-boundary failure diagnostics are redaction-safe and contain no financial payload, source text, prompt, identity, or secret.",
-            "apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_5_output_and_diagnostics_are_redaction_safe",
-            proof_kind="exact",
-        ),
-        ac(
-            "AC-audit.trace-projection.1",
-            "Confidence projects from a fixed machine-produced cohort of stable target/assertion lineages and their current version-pinned supersession heads; manual or system volume cannot change its denominator.",
-            "apps/backend/tests/audit/trace/test_trace_confidence.py::test_AC_audit_trace_projection_1_uses_fixed_machine_cohort_heads",
-        ),
-        ac(
-            "AC-audit.deletion-ownership.1",
-            "Every production SQLAlchemy ForeignKey or ForeignKeyConstraint ondelete=CASCADE site realized on a mapped table is classified exactly once with its source owner, target owner, deletion class, and rationale. Discovery fails closed on an empty scan, opaque deletion policy, or unresolved mixin; duplicate or unclassified sites fail, and the checked-in inventory cannot hide additions or removals. Only aggregate-internal sites are approved survivors; all other sites remain exact #1848 shrink-only debt.",
-            "tests/tooling/test_fk_cascade_ownership.py::test_AC_audit_deletion_ownership_1_inventory_is_exact_and_valid",
-        ),
+        ac('AC-audit.anchor-invariants.1', 'Atomic transaction and position source-document anchors are represented by normalized link tables that reject missing or cross-user uploaded documents.', 'apps/backend/tests/infra/test_audit_anchor_schema_invariants.py::test_AC18_11_2_atomic_source_links_reject_missing_and_cross_user_documents'),
+        ac('AC-audit.anchor-invariants.2', 'Evidence Graph edges are tenant-scoped at the database boundary and cannot connect nodes owned by different users.', 'apps/backend/tests/infra/test_audit_anchor_schema_invariants.py::test_AC18_11_3_evidence_edges_reject_cross_user_endpoints'),
+        ac('AC-audit.anchor-invariants.3', 'Journal lines, approved statement summaries, and transaction classifications reject cross-user account references at the database boundary.', 'apps/backend/tests/infra/test_audit_anchor_schema_invariants.py::test_AC18_11_4_account_references_reject_cross_user_accounts'),
+        ac('AC-audit.anchor-invariants.4', 'Unresolved legacy source UUIDs remain explicit blockers and are never promoted to trusted source anchors.', 'apps/backend/tests/infra/test_audit_anchor_schema_invariants.py::test_AC18_11_5_unresolved_legacy_source_ids_remain_blockers'),
+        ac('AC-audit.anchor-invariants.5', 'The audit-anchor migration declares preflights, backfills resolvable legacy anchors, preserves unresolved hints, and is registered in migration-risk metadata.', 'apps/backend/tests/infra/test_audit_anchor_schema_invariants.py::test_AC18_11_6_migration_preflights_and_risk_contract_are_declared'),
+        ac('AC-audit.trace-record.1', 'One immutable, versioned, Decimal-safe TraceRecord schema and canonical codec represent OBSERVATION and DECISION without financial payloads or unvalidated type-specific truth.', 'apps/backend/tests/audit/trace/test_trace_record.py::test_AC_audit_trace_record_1_schema_and_codec_are_canonical'),
+        ac('AC-audit.trace-record.2', 'Every TraceRecord carries a resolved package authority, proof-kind, execution stage, and target-class profile that stays parity-locked to the canonical CODE/LLM and execution vocabularies; human evidence uses manual.adjudication and never invents a package tier.', 'apps/backend/tests/audit/trace/test_trace_record.py::test_AC_audit_trace_record_2_authority_profile_reuses_canonical_matrix'),
+        ac('AC-audit.trace-record.3', 'A DECISION is constructible only through a registered versioned policy over complete, successful same-scope parents: DIRECT requires the same target version and execution, while MANIFEST permits only the policy-declared exact cross-target/cross-execution parent set.', 'apps/backend/tests/audit/trace/test_trace_causality.py::test_AC_audit_trace_record_3_decision_causality_fails_closed'),
+        ac('AC-audit.trace-record.4', 'Trace persistence is typed-scope, append-only, content-idempotent, and linear for each stable authoritative decision lineage while independent observations may coexist; cross-scope links, mutation, authority forks, or persistence failure cannot be treated as an authoritative write.', 'apps/backend/tests/audit/trace/test_trace_repository.py::test_AC_audit_trace_record_4_repository_is_append_only_and_fail_closed'),
+        ac('AC-audit.trace-record.5', 'An LLM-produced financial observation can become authoritative only through a final CODE-ONLY DECISION that includes an authoritative CODE-ONLY invariant or promotion DECISION over the same exact target; an LLM-ONLY record can never own the persisted financial-number decision.', 'apps/backend/tests/audit/trace/test_trace_causality.py::test_AC_audit_trace_record_5_financial_authority_requires_code_parent'),
+        ac('AC-audit.trace-record.6', 'The public current-authoritative TraceRecord projection returns only financial decisions whose complete parent graph is current, so a cross-package read can fail closed without importing audit ORM internals.', 'apps/backend/tests/audit/trace/test_trace_decision_projection.py::test_AC_audit_trace_record_6_current_projection_matches_repository_current_ancestry'),
+        ac('AC-audit.trace-record.7', 'The TraceRecord repository exposes a typed physical decision head that distinguishes an absent lineage from a head whose complete ancestry is current or stale; current_decision remains the fail-closed authoritative view, while a writer can supersede the exact stale head without guessing from a missing result or importing audit persistence internals.', 'apps/backend/tests/audit/trace/test_trace_repository.py::test_AC_audit_trace_record_7_decision_head_preserves_absent_current_and_stale_states'),
+        ac('AC-audit.terminal-trace.1', 'Exact selected package and manifest decision refs resolve in one tenant scope; the package direct decision parents equal the selected manifest while canonical non-decision parents remain part of the replayed graph.', 'apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_1_verifies_exact_frozen_graph', proof_kind='exact'),
+        ac('AC-audit.terminal-trace.2', 'Missing, cross-scope, wrong type, result, target, assertion, disconnected, and repository-read failures fail closed; available owner diagnostics derive from the canonical record authority rather than caller input.', 'apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_2_counterexamples_fail_closed', proof_kind='exact'),
+        ac('AC-audit.terminal-trace.3', 'Exact testing executed-proof coordinates are mandatory and successful composition emits only a canonical TraceRecord round-trippable through the existing TraceRecordCodec.', 'apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_3_emits_only_canonical_trace_record', proof_kind='exact'),
+        ac('AC-audit.terminal-trace.4', "The audit-owned promotion shadow exports, file, and tests are deleted without embedding another package's producer, reader, status, or retired-symbol map in the terminal verifier.", 'apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_4_deletes_audit_owned_shadow_only', proof_kind='exact'),
+        ac('AC-audit.terminal-trace.5', 'The terminal TraceRecord and first-boundary failure diagnostics are redaction-safe and contain no financial payload, source text, prompt, identity, or secret.', 'apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_5_output_and_diagnostics_are_redaction_safe', proof_kind='exact'),
+        ac('AC-audit.trace-projection.1', 'Confidence projects from a fixed machine-produced cohort of stable target/assertion lineages and their current version-pinned supersession heads; manual or system volume cannot change its denominator.', 'apps/backend/tests/audit/trace/test_trace_confidence.py::test_AC_audit_trace_projection_1_uses_fixed_machine_cohort_heads'),
+        ac('AC-audit.deletion-ownership.1', 'Every production SQLAlchemy ForeignKey or ForeignKeyConstraint ondelete=CASCADE site realized on a mapped table is classified exactly once with its source owner, target owner, deletion class, and rationale. Discovery fails closed on an empty scan, opaque deletion policy, or unresolved mixin; duplicate or unclassified sites fail, and the checked-in inventory cannot hide additions or removals. Only aggregate-internal sites are approved survivors; all other sites remain exact #1848 shrink-only debt.', 'tests/tooling/test_fk_cascade_ownership.py::test_AC_audit_deletion_ownership_1_inventory_is_exact_and_valid'),
     ],
     concepts=[
         ConceptRecord(
@@ -1003,3 +613,4 @@ CONTRACT = PackageContract(
         ),
     ],
 )
+# fmt: on
