@@ -8,11 +8,13 @@ in common/testing/matrix.py; workflows keep literal text proven equal here.
 
 from __future__ import annotations
 
+import copy
 import os
 import re
 from html import escape
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -32,6 +34,20 @@ from common.testing.executed_proof import (
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
+
+_BASE_CRITICAL_PROOF_MATRIX: dict[str, Any] | None = None
+
+
+def _get_base_matrix() -> dict[str, Any]:
+    global _BASE_CRITICAL_PROOF_MATRIX
+    if _BASE_CRITICAL_PROOF_MATRIX is None:
+        from common.testing.ac_graph import build_proofs_only
+        from common.testing.generate_critical_proof_matrix import (
+            build_matrix_from_graph,
+        )
+
+        _BASE_CRITICAL_PROOF_MATRIX = build_matrix_from_graph(build_proofs_only())
+    return copy.deepcopy(_BASE_CRITICAL_PROOF_MATRIX)
 
 
 def _joined_lines(text: str) -> list[str]:
@@ -155,12 +171,7 @@ def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(
     the reconciliation gate; present proofs pass; skipped-only fails."""
     from common.testing.check_pr_ci_evidence import run_check
 
-    # Real reconciliation over a synthetic junit containing every scoped
-    # proof: build the junit from the proof graph itself, then drop one.
-    from common.testing.ac_graph import build_proofs_only
-    from common.testing.generate_critical_proof_matrix import build_matrix_from_graph
-
-    matrix_payload = build_matrix_from_graph(build_proofs_only())
+    matrix_payload = _get_base_matrix()
     # Exercise non-exact declarations even before any business package adds
     # one. The real gate still validates the resulting canonical TraceRecord.
     scenario_proof = next(
@@ -179,6 +190,10 @@ def test_AC8_23_4_pr_ci_evidence_reconciliation_gate(
         "expected a scoped pr_ci scenario proof for semantic-strength coverage"
     )
     scenario_proof["governance_strength"] = governance_strength
+    monkeypatch.setattr(
+        "common.testing.ac_graph.build_proofs_only",
+        lambda *args, **kwargs: None,
+    )
     monkeypatch.setattr(
         "common.testing.generate_critical_proof_matrix.build_matrix_from_graph",
         lambda _graph: matrix_payload,
