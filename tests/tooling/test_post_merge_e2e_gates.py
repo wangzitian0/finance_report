@@ -565,7 +565,7 @@ def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
     # infra2-sdk v0.5.0); this module keeps only the route-shadow diagnostics.
     _has(
         health_check,
-        "from infra2_sdk.deploy_health import",
+        "from infra2_sdk.deploy import",
         "_print_route_probe",
         "route_probe attempt=",
         "platform_failure_domain=traefik-public-route",
