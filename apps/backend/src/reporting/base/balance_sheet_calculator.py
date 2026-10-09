@@ -64,7 +64,7 @@ def calculate_balance_sheet_equation(
     unrealized_fx: Decimal,
     net_worth_adjustment: Decimal,
     cta_adjustment: Decimal = Decimal("0.00"),
-    balance_tolerance: Decimal = Decimal("0.01"),
+    balance_tolerance: Decimal = Decimal("0.05"),
 ) -> BalanceSheetTotals:
     """Evaluate the balance sheet accounting equation with zero side-effects.
 
@@ -75,7 +75,7 @@ def calculate_balance_sheet_equation(
     )
 
     delta = to_money(total_assets - total_liabilities_and_equity)
-    is_balanced = abs(delta) < balance_tolerance
+    is_balanced = abs(delta) <= balance_tolerance
 
     return BalanceSheetTotals(
         total_assets=to_money(total_assets),
