@@ -57,24 +57,16 @@ vi.mock("@/lib/api", () => {
 const statusNeedsAction: WorkflowStatusResponse = {
   primary_state: "needs_action",
   next_action: {
-    type: "review_required",
-    count: 2,
-    href: "/review",
-    label: "Review required",
+    type: "review_required", count: 2, href: "/review", label: "Review required",
     summary: "Confirm the source or review item so trusted report preparation can continue.",
   },
   report_readiness: { state: "blocked", blocking_count: 2, href: "/reports/package" },
   event_counts: { unread: 3, action_required: 2, blocked: 1 },
   active_session: {
-    id: "session-1",
-    status: "active",
-    title: "Upload-to-report session",
+    id: "session-1", status: "active", title: "Upload-to-report session",
     summary: "Current upload, processing, review, and report-readiness work.",
-    started_at: "2026-06-03T05:00:00Z",
-    last_event_at: "2026-06-03T08:00:00Z",
-    source_count: 4,
-    primary_state: "needs_action",
-    report_readiness: { state: "blocked", blocking_count: 2, href: "/reports/package" },
+    started_at: "2026-06-03T05:00:00Z", last_event_at: "2026-06-03T08:00:00Z", source_count: 4,
+    primary_state: "needs_action", report_readiness: { state: "blocked", blocking_count: 2, href: "/reports/package" },
     event_counts: { unread: 3, action_required: 2, blocked: 1 },
   },
 }
@@ -82,106 +74,28 @@ const statusNeedsAction: WorkflowStatusResponse = {
 const statusEmpty: WorkflowStatusResponse = {
   primary_state: "empty",
   next_action: {
-    type: "upload",
-    count: 0,
-    href: "/statements/upload",
-    label: "Upload statements",
+    type: "upload", count: 0, href: "/statements/upload", label: "Upload statements",
     summary: "Add source documents to start the upload-to-report workflow.",
   },
   report_readiness: { state: "none", blocking_count: 0, href: "/reports/package" },
   event_counts: { unread: 0, action_required: 0, blocked: 0 },
 }
 
+const makeWfEvent = (id: string, severity: string, status: string, title: string, summary: string, source_type: string, action_href: string, report_impact: string, extra: Record<string, unknown> = {}) => ({
+  id, user_id: "user-1", session_id: "session-1", occurred_at: "2026-06-03T08:00:00Z", family: `${source_type}.${severity}`,
+  severity, status, title, summary, source_type, source_id: id, action_href, report_impact,
+  dedupe_key: `event:${id}`, created_at: "2026-06-03T08:00:00Z", updated_at: "2026-06-03T08:00:00Z", ...extra,
+})
+
 const workflowEvents: WorkflowEventListResponse = {
   total: 4,
   items: [
-    {
-      id: "blocked-event",
-      user_id: "user-1",
-      session_id: "session-1",
-      occurred_at: "2026-06-03T08:00:00Z",
-      family: "reconciliation.blocked",
-      severity: "blocked",
-      status: "unread",
-      title: "Reconciliation blocked",
-      summary: "Two transactions need matching before the report can be trusted.",
-      source_type: "reconciliation",
-      source_id: "source-1",
-      action_href: "/reconciliation/unmatched",
-      report_impact: "blocked",
-      dedupe_key: "event:blocked",
-      created_at: "2026-06-03T08:00:00Z",
-      updated_at: "2026-06-03T08:00:00Z",
-    },
-    {
-      id: "review-event",
-      user_id: "user-1",
-      session_id: "session-1",
-      occurred_at: "2026-06-03T07:00:00Z",
-      family: "review.required",
-      severity: "action_required",
-      status: "unread",
-      title: "Review required",
-      summary: "A statement has low-confidence entries that need confirmation.",
-      source_type: "bank_statement",
-      source_id: "source-2",
-      action_href: "/review",
-      report_impact: "blocked",
-      dedupe_key: "event:review",
-      created_at: "2026-06-03T07:00:00Z",
-      updated_at: "2026-06-03T07:00:00Z",
-    },
-    {
-      id: "success-event",
-      user_id: "user-1",
-      session_id: "session-1",
-      occurred_at: "2026-06-03T06:00:00Z",
-      family: "ledger.auto_posted",
-      severity: "success",
-      status: "read",
-      title: "Safe entries posted",
-      summary: "Automation posted high-confidence entries.",
-      source_type: "journal",
-      source_id: "source-3",
-      action_href: "/journal",
-      report_impact: "ready",
-      dedupe_key: "event:success",
-      created_at: "2026-06-03T06:00:00Z",
-      updated_at: "2026-06-03T06:00:00Z",
-    },
-    {
-      id: "info-event",
-      user_id: "user-1",
-      session_id: "session-1",
-      occurred_at: "2026-06-03T05:00:00Z",
-      family: "source.uploaded",
-      severity: "info",
-      status: "read",
-      title: "Statement uploaded",
-      summary: "The file is queued for processing.",
-      source_type: "bank_statement",
-      source_id: "source-4",
-      action_href: "/statements/source-4",
-      report_impact: "processing",
-      dedupe_key: "event:info",
-      created_at: "2026-06-03T05:00:00Z",
-      updated_at: "2026-06-03T05:00:00Z",
-    },
+    makeWfEvent("blocked-event", "blocked", "unread", "Reconciliation blocked", "Two transactions need matching before the report can be trusted.", "reconciliation", "/reconciliation/unmatched", "blocked") as any,
+    makeWfEvent("review-event", "action_required", "unread", "Review required", "A statement has low-confidence entries that need confirmation.", "bank_statement", "/review", "blocked") as any,
+    makeWfEvent("success-event", "success", "read", "Safe entries posted", "Automation posted high-confidence entries.", "journal", "/journal", "ready") as any,
+    makeWfEvent("info-event", "info", "read", "Statement uploaded", "The file is queued for processing.", "bank_statement", "/statements/source-4", "processing") as any,
   ],
-  sessions: [
-    {
-      id: "session-1",
-      status: "active",
-      title: "Upload-to-report session",
-      summary: "Current upload, processing, review, and report-readiness work.",
-      started_at: "2026-06-03T05:00:00Z",
-      last_event_at: "2026-06-03T08:00:00Z",
-      source_count: 4,
-      primary_state: "needs_action",
-      report_readiness: { state: "blocked", blocking_count: 2, href: "/reports/package" },
-      event_counts: { unread: 3, action_required: 2, blocked: 1 },
-    },
-  ],
+  sessions: [statusNeedsAction.active_session!],
 }
 
 function renderWithQuery(ui: ReactNode) {
@@ -382,13 +296,7 @@ describe("workflow notification surfaces", () => {
       <UploadToReportHome
         status={{
           primary_state: "ready",
-          next_action: {
-            type: "open_report",
-            count: 0,
-            href: "/reports/package",
-            label: "Open report package",
-            summary: "Inspect the personal report package and its readiness evidence.",
-          },
+          next_action: { type: "open_report", count: 0, href: "/reports/package", label: "Open report package", summary: "Inspect the personal report package and its readiness evidence." },
           report_readiness: { state: "ready", blocking_count: 0, href: "/reports/package" },
           event_counts: { unread: 0, action_required: 0, blocked: 0 },
         }}
@@ -404,13 +312,7 @@ describe("workflow notification surfaces", () => {
       <UploadToReportHome
         status={{
           primary_state: "processing",
-          next_action: {
-            type: "wait",
-            count: 0,
-            href: "/events",
-            label: "View processing",
-            summary: "Automation is processing source files; open the session timeline for progress.",
-          },
+          next_action: { type: "wait", count: 0, href: "/events", label: "View processing", summary: "Automation is processing source files; open the session timeline for progress." },
           report_readiness: { state: "processing", blocking_count: 0, href: "/reports/package" },
           event_counts: { unread: 1, action_required: 0, blocked: 0 },
         }}
@@ -426,13 +328,7 @@ describe("workflow notification surfaces", () => {
       <UploadToReportHome
         status={{
           primary_state: "blocked",
-          next_action: {
-            type: "resolve_blocker",
-            count: 1,
-            href: "/reconciliation/unmatched",
-            label: "Resolve blocker",
-            summary: "Resolve the blocking condition before the report package can be trusted.",
-          },
+          next_action: { type: "resolve_blocker", count: 1, href: "/reconciliation/unmatched", label: "Resolve blocker", summary: "Resolve the blocking condition before the report package can be trusted." },
           report_readiness: { state: "stale", blocking_count: 1, href: "/reports/package" },
           event_counts: { unread: 1, action_required: 0, blocked: 1 },
         }}
@@ -452,13 +348,7 @@ describe("workflow notification surfaces", () => {
       <UploadToReportHome
         status={{
           primary_state: "ready",
-          next_action: {
-            type: "open_report",
-            count: 0,
-            href: "/reports/package",
-            label: "Open report package",
-            summary: "",
-          },
+          next_action: { type: "open_report", count: 0, href: "/reports/package", label: "Open report package", summary: "" },
           report_readiness: { state: "ready", blocking_count: 0, href: "/reports/package" },
           event_counts: { unread: 0, action_required: 0, blocked: 0 },
         }}
@@ -474,13 +364,7 @@ describe("workflow notification surfaces", () => {
       <UploadToReportHome
         status={{
           primary_state: "ready",
-          next_action: {
-            type: "unknown" as WorkflowStatusResponse["next_action"]["type"],
-            count: 0,
-            href: "/events",
-            label: "",
-            summary: "",
-          },
+          next_action: { type: "unknown" as WorkflowStatusResponse["next_action"]["type"], count: 0, href: "/events", label: "", summary: "" },
           report_readiness: { state: "none", blocking_count: 0, href: "/reports/package" },
           event_counts: { unread: 0, action_required: 0, blocked: 0 },
         }}

@@ -355,7 +355,7 @@ def render_required_env_manifest(fields: list[dict]) -> str:
         ),
         "fields": entries,
     }
-    return json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
+    return json.dumps(manifest, separators=(",", ":"), ensure_ascii=False) + "\n"
 
 
 def _environment_contract():

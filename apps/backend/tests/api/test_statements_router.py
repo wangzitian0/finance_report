@@ -396,15 +396,93 @@ async def create_statement_account(db, user_id, name: str = "DBS Statement Accou
     return account
 
 
+async def _seed_approved_statement_with_txn(
+    db,
+    user_id,
+    name: str = "DBS",
+    amount: Decimal = Decimal("50.00"),
+    description: str = "Payment",
+    txn_date: date = date(2025, 1, 15),
+    direction: str = "OUT",
+):
+    account = await create_statement_account(db, user_id, f"{name} Account")
+    statement = build_statement(user_id, f"hash_{uuid4().hex[:8]}", 90)
+    statement.status = BankStatementStatus.APPROVED
+    statement.account_id = account.id
+    db.add(statement)
+    await db.commit()
+
+    txn = await add_txn(db, statement, txn_date=txn_date, description=description, amount=amount, direction=direction)
+    db.add(txn)
+    await db.commit()
+    await db.refresh(txn)
+    return account, statement, txn
+
+
+async def _seed_approved_statement_with_posted_txn(
+    db,
+    user_id,
+    name: str = "DBS",
+    amount: Decimal = Decimal("50.00"),
+    description: str = "Payment",
+    txn_date: date = date(2025, 1, 15),
+    direction: str = "OUT",
+    intent: EconomicIntent = EconomicIntent.EXPENSE,
+    source_type: JournalEntrySourceType = JournalEntrySourceType.AUTO_PARSED,
+):
+    account, statement, txn = await _seed_approved_statement_with_txn(
+        db,
+        user_id,
+        name=name,
+        amount=amount,
+        description=description,
+        txn_date=txn_date,
+        direction=direction,
+    )
+    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
+        db,
+        user_id=user_id,
+        transaction=txn,
+        intent=intent,
+    )
+    entry = await create_entry_from_txn(
+        db,
+        txn,
+        user_id=user_id,
+        auto_post=True,
+        source_type=source_type,
+        disposition=decision,
+        counter_account=counter_account,
+        source_decision=source_decision,
+        trace_emitter=trace_emitter,
+    )
+    await db.flush()
+    return account, statement, txn, entry
+
+
 async def wait_for_background_tasks() -> None:
     await statements_router.wait_for_parse_tasks()
 
 
-async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
-    """AC-extraction.5.4: Uploading the same file twice should trigger duplicate detection."""
-    content = b"duplicate-statement"
+def _patch_parse_document(
+    monkeypatch,
+    test_user_id,
+    *,
+    confidence_score=90,
+    status=None,
+    transactions=None,
+    side_effect=None,
+    modifier=None,
+):
+    if side_effect is not None:
+        monkeypatch.setattr(
+            statement_parsing_mod.ExtractionService,
+            "parse_document",
+            AsyncMock(side_effect=side_effect),
+        )
+        return
 
-    async def fake_parse_document(
+    async def fake_parse(
         self,
         source: DocumentSource,
         institution,
@@ -415,14 +493,24 @@ async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, model_c
         force_model=None,
         db=None,
     ):
-        statement = build_statement(test_user.id, source.content_hash, confidence_score=90)
-        return await persist_mock_result(db, source=source, statement=statement, transactions=[])
+        score = confidence_score(source.content_hash) if callable(confidence_score) else confidence_score
+        stmt = build_statement(test_user_id, source.content_hash, confidence_score=score)
+        if status is not None:
+            stmt.status = status
+        if account_id is not None:
+            stmt.account_id = account_id
+        if modifier:
+            modifier(stmt, source)
+        txns = transactions(source) if callable(transactions) else (transactions or [])
+        return await persist_mock_result(db, source=source, statement=stmt, transactions=txns)
 
-    monkeypatch.setattr(
-        statement_parsing_mod.ExtractionService,
-        "parse_document",
-        fake_parse_document,
-    )
+    monkeypatch.setattr(statement_parsing_mod.ExtractionService, "parse_document", fake_parse)
+
+
+async def test_upload_statement_duplicate(db, monkeypatch, storage_stub, model_catalog_stub, test_user):
+    """AC-extraction.5.4: Uploading the same file twice should trigger duplicate detection."""
+    content = b"duplicate-statement"
+    _patch_parse_document(monkeypatch, test_user.id)
 
     upload_file = make_upload_file("statement.pdf", content)
     await statements_router.upload_statement(
@@ -784,48 +872,30 @@ async def test_list_and_transactions_flow(db, monkeypatch, storage_stub, model_c
 
     from src.extraction.extension.deduplication import DeduplicationService
 
-    async def fake_parse_document(
-        self,
-        source: DocumentSource,
-        institution,
-        *,
-        user_id,
-        file_type="pdf",
-        account_id=None,
-        force_model=None,
-        db=None,
-    ):
-        statement = build_statement(test_user.id, source.content_hash, confidence_score=90)
-        txn_date = date(2025, 1, 2)
-        amount = Decimal("5000.00")
-        direction = TransactionDirection.IN
-        description = "Salary"
-        transaction = ExtractedTransactionRow(
-            user_id=test_user.id,
-            txn_date=txn_date,
-            description=description,
-            amount=amount,
-            direction=direction.value,
-            reference=None,
-            currency="SGD",
-            currency_unresolved=False,
-            balance_after=None,
-            occurrence_index=0,
-            dedup_hash=DeduplicationService.calculate_transaction_hash(
-                test_user.id,
-                txn_date,
-                amount,
-                direction,
-                description,
-            ),
-        )
-        return await persist_mock_result(db, source=source, statement=statement, transactions=[transaction])
-
-    monkeypatch.setattr(
-        statement_parsing_mod.ExtractionService,
-        "parse_document",
-        fake_parse_document,
+    txn_date = date(2025, 1, 2)
+    amount = Decimal("5000.00")
+    direction = TransactionDirection.IN
+    description = "Salary"
+    transaction = ExtractedTransactionRow(
+        user_id=test_user.id,
+        txn_date=txn_date,
+        description=description,
+        amount=amount,
+        direction=direction.value,
+        reference=None,
+        currency="SGD",
+        currency_unresolved=False,
+        balance_after=None,
+        occurrence_index=0,
+        dedup_hash=DeduplicationService.calculate_transaction_hash(
+            test_user.id,
+            txn_date,
+            amount,
+            direction,
+            description,
+        ),
     )
+    _patch_parse_document(monkeypatch, test_user.id, transactions=[transaction])
 
     monkeypatch.setattr(
         statements_router.StorageService,
@@ -871,27 +941,11 @@ async def test_pending_review_and_decisions(db, monkeypatch, storage_stub, model
         hashlib.sha256(contents[1]).hexdigest(): scores[1],
     }
 
-    async def fake_parse_document(
-        self,
-        source: DocumentSource,
-        institution,
-        *,
-        user_id,
-        file_type="pdf",
-        account_id=None,
-        force_model=None,
-        db=None,
-    ):
-        score = score_by_hash[source.content_hash]
-        statement = build_statement(test_user.id, source.content_hash, confidence_score=score)
-        statement.account_id = account_id
-        statement.closing_balance = Decimal("100.00")
-        return await persist_mock_result(db, source=source, statement=statement, transactions=[])
-
-    monkeypatch.setattr(
-        statement_parsing_mod.ExtractionService,
-        "parse_document",
-        fake_parse_document,
+    _patch_parse_document(
+        monkeypatch,
+        test_user.id,
+        confidence_score=lambda h: score_by_hash[h],
+        modifier=lambda stmt, src: setattr(stmt, "closing_balance", Decimal("100.00")),
     )
 
     account = await create_statement_account(db, test_user.id, "Review Queue Account")
@@ -1061,24 +1115,7 @@ async def test_upload_extraction_failure(db, monkeypatch, model_catalog_stub, te
     mock_storage_cls = MagicMock(return_value=mock_storage)
     monkeypatch.setattr(statements_router, "StorageService", mock_storage_cls)
 
-    async def fake_parse_document(
-        self,
-        source: DocumentSource,
-        institution,
-        *,
-        user_id,
-        file_type="pdf",
-        account_id=None,
-        force_model=None,
-        db=None,
-    ):
-        raise ExtractionError("Failed to parse PDF")
-
-    monkeypatch.setattr(
-        statement_parsing_mod.ExtractionService,
-        "parse_document",
-        fake_parse_document,
-    )
+    _patch_parse_document(monkeypatch, test_user.id, side_effect=ExtractionError("Failed to parse PDF"))
 
     upload_file = make_upload_file("statement.pdf", content)
     created = await statements_router.upload_statement(
@@ -1192,26 +1229,7 @@ async def test_retry_statement_invalid_status(db, monkeypatch, storage_stub, mod
 
     content = b"statement"
 
-    async def fake_parse_document(
-        self,
-        source: DocumentSource,
-        institution,
-        *,
-        user_id,
-        file_type="pdf",
-        account_id=None,
-        force_model=None,
-        db=None,
-    ):
-        statement = build_statement(test_user.id, source.content_hash, confidence_score=90)
-        statement.status = BankStatementStatus.PARSING
-        return await persist_mock_result(db, source=source, statement=statement, transactions=[])
-
-    monkeypatch.setattr(
-        statement_parsing_mod.ExtractionService,
-        "parse_document",
-        fake_parse_document,
-    )
+    _patch_parse_document(monkeypatch, test_user.id, status=BankStatementStatus.PARSING)
 
     upload_file = make_upload_file("statement.pdf", content)
     created = await statements_router.upload_statement(
@@ -1347,26 +1365,11 @@ async def test_retry_statement_success(db, monkeypatch, storage_stub, model_cata
 
     content = b"statement"
 
-    async def fake_parse_document(
-        self,
-        source: DocumentSource,
-        institution,
-        *,
-        user_id,
-        file_type="pdf",
-        account_id=None,
-        force_model=None,
-        db=None,
-    ):
-        statement = build_statement(test_user.id, source.content_hash, confidence_score=95)
-        statement.status = BankStatementStatus.REJECTED
-        statement.confidence_score = 60
-        return await persist_mock_result(db, source=source, statement=statement, transactions=[])
-
-    monkeypatch.setattr(
-        statement_parsing_mod.ExtractionService,
-        "parse_document",
-        fake_parse_document,
+    _patch_parse_document(
+        monkeypatch,
+        test_user.id,
+        confidence_score=60,
+        status=BankStatementStatus.REJECTED,
     )
 
     upload_file = make_upload_file("statement.pdf", content)
@@ -1409,26 +1412,7 @@ async def test_retry_statement_extraction_failure(db, monkeypatch, storage_stub,
 
     content = b"statement"
 
-    async def fake_parse_document(
-        self,
-        source: DocumentSource,
-        institution,
-        *,
-        user_id,
-        file_type="pdf",
-        account_id=None,
-        force_model=None,
-        db=None,
-    ):
-        statement = build_statement(test_user.id, source.content_hash, confidence_score=90)
-        statement.status = BankStatementStatus.REJECTED
-        return await persist_mock_result(db, source=source, statement=statement, transactions=[])
-
-    monkeypatch.setattr(
-        statement_parsing_mod.ExtractionService,
-        "parse_document",
-        fake_parse_document,
-    )
+    _patch_parse_document(monkeypatch, test_user.id, status=BankStatementStatus.REJECTED)
 
     upload_file = make_upload_file("statement.pdf", content)
     created = await statements_router.upload_statement(
@@ -1556,14 +1540,7 @@ async def test_background_parse_error_logging(db, monkeypatch, test_user, storag
     """AC-extraction.5.24: Background parse error should be caught and logged."""
     content = b"content"
 
-    async def fake_parse_document_fail(*args, **kwargs):
-        raise Exception("Fatal background error")
-
-    monkeypatch.setattr(
-        statement_parsing_mod.ExtractionService,
-        "parse_document",
-        fake_parse_document_fail,
-    )
+    _patch_parse_document(monkeypatch, test_user.id, side_effect=Exception("Fatal background error"))
 
     # Patch the catalogue to return an image-capable model and pass validation.
     async def fake_catalog_get(self, model_id):
@@ -1605,14 +1582,7 @@ async def test_background_retry_error_logging(db, monkeypatch, test_user, storag
     await seed_uploaded_document(db, statement, file_path="path")
     await db.commit()
 
-    async def fake_parse_document_fail(*args, **kwargs):
-        raise Exception("Fatal background retry error")
-
-    monkeypatch.setattr(
-        statement_parsing_mod.ExtractionService,
-        "parse_document",
-        fake_parse_document_fail,
-    )
+    _patch_parse_document(monkeypatch, test_user.id, side_effect=Exception("Fatal background retry error"))
 
     monkeypatch.setattr(
         statements_router.StorageService,
@@ -3347,24 +3317,7 @@ async def test_get_stage2_review_queue_with_pending_match(db, test_user):
     """
     from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
-    account = await create_statement_account(db, test_user.id, "Stage 2 Queue Account")
-    statement = build_statement(test_user.id, "hash_s2_queue", 90)
-    statement.status = BankStatementStatus.APPROVED
-    statement.account_id = account.id
-    db.add(statement)
-    await db.commit()
-
-    txn = await add_txn(
-        db,
-        statement,
-        txn_date=date(2025, 1, 15),
-        description="Payment",
-        amount=Decimal("50.00"),
-        direction="OUT",
-    )
-    db.add(txn)
-    await db.commit()
-    await db.refresh(txn)
+    _, _, txn = await _seed_approved_statement_with_txn(db, test_user.id, "Stage 2 Queue")
 
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
@@ -3913,43 +3866,7 @@ async def test_batch_approve_matches_success(db, test_user):
     """
     from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
-    account = await create_statement_account(db, test_user.id, "DBS Batch Approval")
-    statement = build_statement(test_user.id, "hash_batch_app", 90)
-    statement.status = BankStatementStatus.APPROVED
-    statement.account_id = account.id
-    db.add(statement)
-    await db.commit()
-
-    txn = await add_txn(
-        db,
-        statement,
-        txn_date=date(2025, 1, 15),
-        description="Payment",
-        amount=Decimal("50.00"),
-        direction="OUT",
-    )
-    db.add(txn)
-    await db.commit()
-    await db.refresh(txn)
-
-    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
-        db,
-        user_id=test_user.id,
-        transaction=txn,
-        intent=EconomicIntent.EXPENSE,
-    )
-    await create_entry_from_txn(
-        db,
-        txn,
-        user_id=test_user.id,
-        auto_post=True,
-        disposition=decision,
-        counter_account=counter_account,
-        source_decision=source_decision,
-        trace_emitter=trace_emitter,
-    )
-    await db.flush()
-
+    _, _, txn, _ = await _seed_approved_statement_with_posted_txn(db, test_user.id, "DBS Batch Approval")
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
         match_score=75,
@@ -3959,10 +3876,9 @@ async def test_batch_approve_matches_success(db, test_user):
     db.add(match)
     await db.commit()
     await db.refresh(match)
-    match_id = match.id
 
     result = await review_router.batch_approve_matches(
-        request=BatchApproveRequest(match_ids=[match_id]),
+        request=BatchApproveRequest(match_ids=[match.id]),
         db=db,
         user_id=test_user.id,
     )
@@ -3971,40 +3887,12 @@ async def test_batch_approve_matches_success(db, test_user):
 
 async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
     """AC-reconciliation.stage2-batch.5: AC16.24.4: Batch approving a pending Stage 2 match reconciles referenced ledger entries."""
-    account = await create_statement_account(db, test_user.id, "DBS Batch Referenced")
-    statement = build_statement(test_user.id, "hash_batch_reconcile", 90)
-    statement.status = BankStatementStatus.APPROVED
-    statement.account_id = account.id
-    db.add(statement)
-    await db.commit()
-
-    txn = await add_txn(
+    _, _, txn, entry = await _seed_approved_statement_with_posted_txn(
         db,
-        statement,
+        test_user.id,
+        "DBS Batch Referenced",
         txn_date=date(2025, 1, 16),
         description="Referenced entry payment",
-        amount=Decimal("50.00"),
-        direction="OUT",
-    )
-    db.add(txn)
-    await db.commit()
-    await db.refresh(txn)
-
-    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
-        db,
-        user_id=test_user.id,
-        transaction=txn,
-        intent=EconomicIntent.EXPENSE,
-    )
-    entry = await create_entry_from_txn(
-        db,
-        txn,
-        user_id=test_user.id,
-        auto_post=True,
-        disposition=decision,
-        counter_account=counter_account,
-        source_decision=source_decision,
-        trace_emitter=trace_emitter,
     )
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
@@ -4029,31 +3917,19 @@ async def test_batch_approve_matches_reconciles_referenced_entry(db, test_user):
     await db.refresh(txn)
     await db.refresh(entry)
     assert match.status == ReconciliationStatus.ACCEPTED
-    # AtomicTransaction has no per-txn status; the ReconciliationMatch status is the truth.
     assert entry.status == JournalEntryStatus.RECONCILED
 
 
 async def test_batch_approve_matches_without_entry_requires_review(db, test_user):
     """AC-reconciliation.stage2-batch.2: Stage 2 cannot invent economic meaning."""
     user_id = test_user.id
-    account = await create_statement_account(db, user_id, "DBS Batch Missing")
-    statement = build_statement(user_id, "hash_batch_create_once", 90)
-    statement.status = BankStatementStatus.APPROVED
-    statement.account_id = account.id
-    db.add(statement)
-    await db.commit()
-
-    txn = await add_txn(
+    _, _, txn = await _seed_approved_statement_with_txn(
         db,
-        statement,
+        user_id,
+        "DBS Batch Missing",
         txn_date=date(2025, 1, 17),
         description="Missing entry payment",
-        amount=Decimal("50.00"),
-        direction="OUT",
     )
-    db.add(txn)
-    await db.commit()
-    await db.refresh(txn)
     txn_id = txn.id
 
     match = ReconciliationMatch(
@@ -4090,43 +3966,13 @@ async def test_batch_approve_matches_without_entry_requires_review(db, test_user
 
 async def test_accept_match_retry_is_idempotent_after_success(db, test_user):
     """AC-reconciliation.bank-side-amount.2: AC4.9.2: Retrying an accepted match must not mutate version or duplicate posting side effects."""
-    account = await create_statement_account(db, test_user.id, "DBS Accept Retry")
-    statement = build_statement(test_user.id, "hash_accept_retry", 90)
-    statement.status = BankStatementStatus.APPROVED
-    statement.account_id = account.id
-    db.add(statement)
-    await db.commit()
-
-    txn = await add_txn(
+    _, _, txn, _ = await _seed_approved_statement_with_posted_txn(
         db,
-        statement,
+        test_user.id,
+        "DBS Accept Retry",
         txn_date=date(2025, 1, 18),
         description="Retry-safe payment",
-        amount=Decimal("50.00"),
-        direction="OUT",
     )
-    db.add(txn)
-    await db.commit()
-    await db.refresh(txn)
-
-    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
-        db,
-        user_id=test_user.id,
-        transaction=txn,
-        intent=EconomicIntent.EXPENSE,
-    )
-    await create_entry_from_txn(
-        db,
-        txn,
-        user_id=test_user.id,
-        auto_post=True,
-        disposition=decision,
-        counter_account=counter_account,
-        source_decision=source_decision,
-        trace_emitter=trace_emitter,
-    )
-    await db.flush()
-
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
         journal_entry_ids=[],
@@ -4160,40 +4006,12 @@ async def test_accept_match_retry_is_idempotent_after_success(db, test_user):
 
 async def test_batch_approve_matches_reuses_existing_source_entry(db, test_user):
     """AC16.24.4: Batch approval links an existing source journal entry instead of duplicating it."""
-    account = await create_statement_account(db, test_user.id, "DBS Batch Existing Source")
-    statement = build_statement(test_user.id, "hash_batch_reuse_source", 90)
-    statement.status = BankStatementStatus.APPROVED
-    statement.account_id = account.id
-    db.add(statement)
-    await db.commit()
-
-    txn = await add_txn(
+    _, _, txn, entry = await _seed_approved_statement_with_posted_txn(
         db,
-        statement,
+        test_user.id,
+        "DBS Batch Existing Source",
         txn_date=date(2025, 1, 18),
         description="Existing source entry payment",
-        amount=Decimal("50.00"),
-        direction="OUT",
-    )
-    db.add(txn)
-    await db.commit()
-    await db.refresh(txn)
-
-    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
-        db,
-        user_id=test_user.id,
-        transaction=txn,
-        intent=EconomicIntent.EXPENSE,
-    )
-    entry = await create_entry_from_txn(
-        db,
-        txn,
-        user_id=test_user.id,
-        auto_post=True,
-        disposition=decision,
-        counter_account=counter_account,
-        source_decision=source_decision,
-        trace_emitter=trace_emitter,
     )
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,
@@ -4290,40 +4108,15 @@ async def test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledge
     test_user,
 ):
     """AC-extraction.1808.3 AC-extraction.1808.6: AC18.8.3 AC18.8.6 AC18.8.7: Statement posting records extracted->ledger entry->ledger line lineage."""
-    account = await create_statement_account(db, test_user.id, "DBS Evidence Graph Posting")
-    statement = build_statement(test_user.id, "hash_evidence_graph_posting", 90)
-    statement.status = BankStatementStatus.APPROVED
-    statement.account_id = account.id
-    db.add(statement)
-    await db.flush()
-
-    txn = await add_txn(
+    _, _, txn, entry = await _seed_approved_statement_with_posted_txn(
         db,
-        statement,
+        test_user.id,
+        "DBS Evidence Graph Posting",
         txn_date=date(2025, 1, 21),
         description="Evidence graph salary",
-        amount=Decimal("50.00"),
         direction="IN",
-    )
-    db.add(txn)
-    await db.flush()
-
-    decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
-        db,
-        user_id=test_user.id,
-        transaction=txn,
         intent=EconomicIntent.INCOME,
-    )
-    entry = await create_entry_from_txn(
-        db,
-        txn,
-        user_id=test_user.id,
-        auto_post=True,
         source_type=JournalEntrySourceType.AUTO_PARSED,
-        disposition=decision,
-        counter_account=counter_account,
-        source_decision=source_decision,
-        trace_emitter=trace_emitter,
     )
     await db.commit()
 
@@ -4359,20 +4152,12 @@ async def test_AC18_8_3_AC18_8_6_create_entry_from_txn_writes_statement_to_ledge
 
 async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_user):
     """AC16.24.4: Batch approval preserves acceptance amount validation failures."""
-    account = await create_statement_account(db, test_user.id, "DBS Batch Mismatch")
-    statement = build_statement(test_user.id, "hash_batch_mismatch", 90)
-    statement.status = BankStatementStatus.APPROVED
-    statement.account_id = account.id
-    db.add(statement)
-    await db.commit()
-
-    txn = await add_txn(
+    account, statement, txn, _ = await _seed_approved_statement_with_posted_txn(
         db,
-        statement,
+        test_user.id,
+        "DBS Batch Mismatch",
         txn_date=date(2025, 1, 19),
         description="Mismatched payment",
-        amount=Decimal("50.00"),
-        direction="OUT",
     )
     entry_source_txn = await add_txn(
         db,
@@ -4382,9 +4167,8 @@ async def test_batch_approve_matches_returns_400_on_amount_mismatch(db, test_use
         amount=Decimal("100.00"),
         direction="OUT",
     )
-    db.add_all([txn, entry_source_txn])
+    db.add(entry_source_txn)
     await db.commit()
-    await db.refresh(txn)
     await db.refresh(entry_source_txn)
 
     decision, counter_account, source_decision, trace_emitter = await anchored_reviewed_posting_inputs(
@@ -4444,24 +4228,7 @@ async def test_batch_reject_matches_success(db, test_user):
     """
     from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
-    account = await create_statement_account(db, test_user.id, "DBS Batch Reject")
-    statement = build_statement(test_user.id, "hash_batch_rej", 90)
-    statement.status = BankStatementStatus.APPROVED
-    statement.account_id = account.id
-    db.add(statement)
-    await db.commit()
-
-    txn = await add_txn(
-        db,
-        statement,
-        txn_date=date(2025, 1, 15),
-        description="Payment",
-        amount=Decimal("50.00"),
-        direction="OUT",
-    )
-    db.add(txn)
-    await db.commit()
-    await db.refresh(txn)
+    _, _, txn = await _seed_approved_statement_with_txn(db, test_user.id, "DBS Batch Reject")
 
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,

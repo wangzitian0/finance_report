@@ -21,6 +21,68 @@ from src.schemas.portfolio import HoldingResponse
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
+def _make_managed_position(
+    user_id,
+    account_id,
+    asset_identifier: str = "AAPL",
+    quantity: Decimal = Decimal("100"),
+    cost_basis: Decimal = Decimal("10000.00"),
+    currency: str = "SGD",
+    acquisition_date: date | None = None,
+    status: PositionStatus = PositionStatus.ACTIVE,
+    cost_basis_method: CostBasisMethod = CostBasisMethod.FIFO,
+) -> ManagedPosition:
+    if acquisition_date is None:
+        acquisition_date = date.today() - timedelta(days=60)
+    return ManagedPosition(
+        user_id=user_id,
+        account_id=account_id,
+        asset_identifier=asset_identifier,
+        quantity=quantity,
+        cost_basis=cost_basis,
+        currency=currency,
+        acquisition_date=acquisition_date,
+        status=status,
+        cost_basis_method=cost_basis_method,
+    )
+
+
+def _make_atomic_position(
+    user_id,
+    asset_identifier: str = "AAPL",
+    broker: str = "Investment Account",
+    quantity: Decimal = Decimal("100"),
+    market_value: Decimal = Decimal("12000.00"),
+    currency: str = "SGD",
+    snapshot_date: date | None = None,
+    sector: str | None = None,
+    geography: str | None = None,
+    asset_type: str | None = None,
+    dedup_hash: str | None = None,
+    source_documents: dict | list | None = None,
+) -> AtomicPosition:
+    if snapshot_date is None:
+        snapshot_date = date.today()
+    if dedup_hash is None:
+        dedup_hash = f"{asset_identifier}_{snapshot_date}_{broker}"
+    if source_documents is None:
+        source_documents = {}
+    return AtomicPosition(
+        user_id=user_id,
+        snapshot_date=snapshot_date,
+        asset_identifier=asset_identifier,
+        broker=broker,
+        quantity=quantity,
+        market_value=market_value,
+        currency=currency,
+        sector=sector,
+        geography=geography,
+        asset_type=asset_type,
+        dedup_hash=dedup_hash,
+        source_documents=source_documents,
+    )
+
+
 @pytest.fixture
 async def investment_account(db: AsyncSession, test_user):
     account = Account(
@@ -46,46 +108,26 @@ async def portfolio_with_data(db: AsyncSession, test_user, investment_account):
         source_documents={},
         dedup_hash="test_deposit",
     )
-    db.add(deposit)
-
-    position = ManagedPosition(
-        user_id=test_user.id,
-        account_id=investment_account.id,
-        asset_identifier="AAPL",
-        quantity=Decimal("100"),
-        cost_basis=Decimal("10000.00"),
-        currency="SGD",
-        acquisition_date=date.today() - timedelta(days=60),
-        status=PositionStatus.ACTIVE,
-        cost_basis_method=CostBasisMethod.FIFO,
+    position = _make_managed_position(
+        test_user.id, investment_account.id, "AAPL", quantity=Decimal("100"), cost_basis=Decimal("10000.00")
     )
-    db.add(position)
-
-    atomic = AtomicPosition(
-        user_id=test_user.id,
-        snapshot_date=date.today(),
-        asset_identifier="AAPL",
-        # Matches investment_account.name -- point-in-time lookups now key by
-        # (asset_identifier, broker) via Account.name (#1791 follow-up).
+    atomic = _make_atomic_position(
+        test_user.id,
+        "AAPL",
         broker="Investment Account",
         quantity=Decimal("100"),
         market_value=Decimal("12000.00"),
-        currency="SGD",
         sector="Technology",
         geography="US",
         asset_type="stock",
         dedup_hash="aapl_test",
         source_documents={
             "documents": [
-                {
-                    "doc_id": "brokerage-doc-aapl",
-                    "doc_type": "brokerage_statement",
-                    "broker": "Investment Account",
-                }
+                {"doc_id": "brokerage-doc-aapl", "doc_type": "brokerage_statement", "broker": "Investment Account"}
             ]
         },
     )
-    db.add(atomic)
+    db.add_all([deposit, position, atomic])
     await db.commit()
     return {"position": position, "atomic": atomic, "account": investment_account}
 
@@ -262,27 +304,22 @@ async def test_get_holdings_defaults_to_future_imported_snapshot(
 ):
     """AC-extraction.813.10: Default holdings endpoint returns latest imported snapshot."""
     future_date = date.today() + timedelta(days=12)
-    position = ManagedPosition(
-        user_id=test_user.id,
-        account_id=investment_account.id,
-        asset_identifier="FULLERTON-SGD-MMF",
+    position = _make_managed_position(
+        test_user.id,
+        investment_account.id,
+        "FULLERTON-SGD-MMF",
         quantity=Decimal("100"),
         cost_basis=Decimal("1000.00"),
-        currency="SGD",
         acquisition_date=date.today(),
-        status=PositionStatus.ACTIVE,
-        cost_basis_method=CostBasisMethod.FIFO,
     )
-    atomic = AtomicPosition(
-        user_id=test_user.id,
-        snapshot_date=future_date,
-        asset_identifier="FULLERTON-SGD-MMF",
+    atomic = _make_atomic_position(
+        test_user.id,
+        "FULLERTON-SGD-MMF",
         broker="Moomoo E2E Portfolio",
         quantity=Decimal("100"),
         market_value=Decimal("1234.00"),
-        currency="SGD",
+        snapshot_date=future_date,
         dedup_hash="router_future_snapshot",
-        source_documents={},
     )
     db.add_all([position, atomic])
     await db.commit()
@@ -304,27 +341,22 @@ async def test_get_holdings_explicit_date_does_not_use_future_snapshot(
 ):
     """AC-extraction.813.10: Explicit holdings date remains date-bounded."""
     future_date = date.today() + timedelta(days=12)
-    position = ManagedPosition(
-        user_id=test_user.id,
-        account_id=investment_account.id,
-        asset_identifier="FULLERTON-SGD-MMF",
+    position = _make_managed_position(
+        test_user.id,
+        investment_account.id,
+        "FULLERTON-SGD-MMF",
         quantity=Decimal("100"),
         cost_basis=Decimal("1000.00"),
-        currency="SGD",
         acquisition_date=date.today(),
-        status=PositionStatus.ACTIVE,
-        cost_basis_method=CostBasisMethod.FIFO,
     )
-    atomic = AtomicPosition(
-        user_id=test_user.id,
-        snapshot_date=future_date,
-        asset_identifier="FULLERTON-SGD-MMF",
+    atomic = _make_atomic_position(
+        test_user.id,
+        "FULLERTON-SGD-MMF",
         broker="Moomoo E2E Portfolio",
         quantity=Decimal("100"),
         market_value=Decimal("1234.00"),
-        currency="SGD",
+        snapshot_date=future_date,
         dedup_hash="router_explicit_future_snapshot",
-        source_documents={},
     )
     db.add_all([position, atomic])
     await db.commit()
@@ -344,38 +376,31 @@ async def test_get_holdings_explicit_date_uses_historical_snapshot_quantity(
     """AC-portfolio.as-of.2: AC17.9.2: GET /portfolio/holdings with as_of_date returns historical snapshot quantity/value."""
     historical_date = date(2025, 1, 31)
     current_date = date(2025, 2, 28)
-    position = ManagedPosition(
-        user_id=test_user.id,
-        account_id=investment_account.id,
-        asset_identifier="VWRA",
+    position = _make_managed_position(
+        test_user.id,
+        investment_account.id,
+        "VWRA",
         quantity=Decimal("20"),
         cost_basis=Decimal("3000.00"),
-        currency="SGD",
         acquisition_date=historical_date,
-        status=PositionStatus.ACTIVE,
-        cost_basis_method=CostBasisMethod.FIFO,
     )
-    historical_atomic = AtomicPosition(
-        user_id=test_user.id,
-        snapshot_date=historical_date,
-        asset_identifier="VWRA",
+    historical_atomic = _make_atomic_position(
+        test_user.id,
+        "VWRA",
         broker="Investment Account",
         quantity=Decimal("10"),
         market_value=Decimal("1200.00"),
-        currency="SGD",
+        snapshot_date=historical_date,
         dedup_hash="router_vwra_historical_snapshot",
-        source_documents={},
     )
-    current_atomic = AtomicPosition(
-        user_id=test_user.id,
-        snapshot_date=current_date,
-        asset_identifier="VWRA",
+    current_atomic = _make_atomic_position(
+        test_user.id,
+        "VWRA",
         broker="Investment Account",
         quantity=Decimal("20"),
         market_value=Decimal("3000.00"),
-        currency="SGD",
+        snapshot_date=current_date,
         dedup_hash="router_vwra_current_snapshot",
-        source_documents={},
     )
     db.add_all([position, historical_atomic, current_atomic])
     await db.commit()
@@ -401,16 +426,14 @@ async def test_AC_portfolio_holdings_6_unreconciled_snapshot_disclosed_in_warnin
     response silently read as complete."""
     snapshot_date = date(2025, 1, 31)
     db.add(
-        AtomicPosition(
-            user_id=test_user.id,
-            snapshot_date=snapshot_date,
-            asset_identifier="ORPHAN-FUND",
+        _make_atomic_position(
+            test_user.id,
+            "ORPHAN-FUND",
             broker="Test Broker",
             quantity=Decimal("10"),
             market_value=Decimal("1000.00"),
-            currency="SGD",
+            snapshot_date=snapshot_date,
             dedup_hash="orphan_snapshot_warning",
-            source_documents={},
         )
     )
     await db.commit()
@@ -556,16 +579,13 @@ async def test_AC17_10_1_investment_schedule_publishes_the_exact_market_observat
     # the source identifier rendered in the schedule.
     position.asset_identifier = " aapl "
     atomic.asset_identifier = " aapl "
-    zero_position = ManagedPosition(
-        user_id=position.user_id,
-        account_id=position.account_id,
-        asset_identifier="ZERO",
+    zero_position = _make_managed_position(
+        position.user_id,
+        position.account_id,
+        "ZERO",
         quantity=Decimal("0"),
         cost_basis=Decimal("0.00"),
-        currency="SGD",
         acquisition_date=as_of,
-        status=PositionStatus.ACTIVE,
-        cost_basis_method=CostBasisMethod.FIFO,
     )
     stock_price = StockPrice(
         symbol="AAPL",
@@ -582,16 +602,14 @@ async def test_AC17_10_1_investment_schedule_publishes_the_exact_market_observat
         source="recorded-provider",
     )
     # A zero snapshot falls back to statement value, not its provider price.
-    zero_snapshot = AtomicPosition(
-        user_id=position.user_id,
-        snapshot_date=as_of,
-        asset_identifier="ZERO",
+    zero_snapshot = _make_atomic_position(
+        position.user_id,
+        "ZERO",
         broker="Investment Account",
         quantity=Decimal("0"),
         market_value=Decimal("0.00"),
-        currency="SGD",
+        snapshot_date=as_of,
         dedup_hash="zero_schedule_market_selection",
-        source_documents={},
     )
     db.add_all([zero_position, stock_price, unused_zero_stock_price, zero_snapshot])
     await db.commit()
@@ -632,52 +650,35 @@ async def test_AC17_10_6_investment_performance_schedule_converts_mixed_currency
     sell_date = date(2026, 3, 1)
     dividend_date = date(2026, 4, 1)
     as_of_date = date(2026, 5, 20)
-    position = ManagedPosition(
-        user_id=test_user.id,
-        account_id=investment_account.id,
-        asset_identifier="USD-STOCK",
+    position = _make_managed_position(
+        test_user.id,
+        investment_account.id,
+        "USD-STOCK",
         quantity=Decimal("10"),
         cost_basis=Decimal("1000.00"),
         currency="USD",
         acquisition_date=period_start,
-        status=PositionStatus.ACTIVE,
-        cost_basis_method=CostBasisMethod.FIFO,
     )
     db.add(position)
     await db.flush()
+    fx_rates = [
+        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.500000"), rate_date=d, source="test")
+        for d in [period_start, sell_date, dividend_date, as_of_date]
+    ]
+    atomic = _make_atomic_position(
+        test_user.id,
+        "USD-STOCK",
+        broker="Test Broker",
+        quantity=Decimal("10"),
+        market_value=Decimal("1200.00"),
+        currency="USD",
+        snapshot_date=as_of_date,
+        dedup_hash="usd_stock_schedule_snapshot",
+    )
     db.add_all(
         [
-            FxRate(
-                base_currency="USD",
-                quote_currency="SGD",
-                rate=Decimal("1.500000"),
-                rate_date=period_start,
-                source="test",
-            ),
-            FxRate(
-                base_currency="USD", quote_currency="SGD", rate=Decimal("1.500000"), rate_date=sell_date, source="test"
-            ),
-            FxRate(
-                base_currency="USD",
-                quote_currency="SGD",
-                rate=Decimal("1.500000"),
-                rate_date=dividend_date,
-                source="test",
-            ),
-            FxRate(
-                base_currency="USD", quote_currency="SGD", rate=Decimal("1.500000"), rate_date=as_of_date, source="test"
-            ),
-            AtomicPosition(
-                user_id=test_user.id,
-                snapshot_date=as_of_date,
-                asset_identifier="USD-STOCK",
-                broker="Test Broker",
-                quantity=Decimal("10"),
-                market_value=Decimal("1200.00"),
-                currency="USD",
-                dedup_hash="usd_stock_schedule_snapshot",
-                source_documents={},
-            ),
+            *fx_rates,
+            atomic,
             InvestmentTransaction(
                 user_id=test_user.id,
                 position_id=position.id,
@@ -787,25 +788,21 @@ async def test_AC17_10_4_report_schedule_marks_stale_when_any_holding_price_is_s
 ):
     """AC-portfolio.report-schedule.4: AC17.10.4: freshness is stale when any holding lacks current as-of-date price evidence."""
     stale_date = date.today() - timedelta(days=7)
-    position = ManagedPosition(
-        user_id=test_user.id,
-        account_id=investment_account.id,
-        asset_identifier="MSFT",
+    position = _make_managed_position(
+        test_user.id,
+        investment_account.id,
+        "MSFT",
         quantity=Decimal("10"),
         cost_basis=Decimal("2500.00"),
-        currency="SGD",
         acquisition_date=stale_date,
-        status=PositionStatus.ACTIVE,
-        cost_basis_method=CostBasisMethod.FIFO,
     )
-    atomic = AtomicPosition(
-        user_id=test_user.id,
-        snapshot_date=stale_date,
-        asset_identifier="MSFT",
+    atomic = _make_atomic_position(
+        test_user.id,
+        "MSFT",
         broker="Stale Broker",
         quantity=Decimal("10"),
         market_value=Decimal("2700.00"),
-        currency="SGD",
+        snapshot_date=stale_date,
         sector="Technology",
         geography="US",
         asset_type="stock",
@@ -838,25 +835,21 @@ async def test_AC17_10_1_report_schedule_uses_manual_override_after_period_end(
     period_start = date(2026, 5, 2)
     period_end = date(2026, 5, 19)
     override_date = date(2026, 5, 31)
-    position = ManagedPosition(
-        user_id=test_user.id,
-        account_id=investment_account.id,
-        asset_identifier="FULLERTON_SGD_MMF",
+    position = _make_managed_position(
+        test_user.id,
+        investment_account.id,
+        "FULLERTON_SGD_MMF",
         quantity=Decimal("100"),
         cost_basis=Decimal("1000.00"),
-        currency="SGD",
         acquisition_date=period_start,
-        status=PositionStatus.ACTIVE,
-        cost_basis_method=CostBasisMethod.FIFO,
     )
-    atomic = AtomicPosition(
-        user_id=test_user.id,
-        snapshot_date=override_date,
-        asset_identifier="FULLERTON_SGD_MMF",
+    atomic = _make_atomic_position(
+        test_user.id,
+        "FULLERTON_SGD_MMF",
         broker="Moomoo",
         quantity=Decimal("100"),
         market_value=Decimal("1250.00"),
-        currency="SGD",
+        snapshot_date=override_date,
         sector="Cash",
         geography="SG",
         asset_type="mutual_fund",
@@ -1197,27 +1190,21 @@ async def test_AC17_30_1_holdings_default_cap_applied(
         ticker = f"TICK{index}"
         db.add_all(
             [
-                ManagedPosition(
-                    user_id=test_user.id,
-                    account_id=investment_account.id,
-                    asset_identifier=ticker,
+                _make_managed_position(
+                    test_user.id,
+                    investment_account.id,
+                    ticker,
                     quantity=Decimal("10"),
                     cost_basis=Decimal("1000.00"),
-                    currency="SGD",
                     acquisition_date=date.today(),
-                    status=PositionStatus.ACTIVE,
-                    cost_basis_method=CostBasisMethod.FIFO,
                 ),
-                AtomicPosition(
-                    user_id=test_user.id,
-                    snapshot_date=date.today(),
-                    asset_identifier=ticker,
+                _make_atomic_position(
+                    test_user.id,
+                    ticker,
                     broker="Test Broker",
                     quantity=Decimal("10"),
                     market_value=Decimal("1100.00"),
-                    currency="SGD",
                     dedup_hash=f"cap_snapshot_{ticker}",
-                    source_documents={},
                 ),
             ]
         )
@@ -1243,27 +1230,21 @@ async def test_AC17_30_2_holdings_limit_offset_honored(
         ticker = f"PAGE{index}"
         db.add_all(
             [
-                ManagedPosition(
-                    user_id=test_user.id,
-                    account_id=investment_account.id,
-                    asset_identifier=ticker,
+                _make_managed_position(
+                    test_user.id,
+                    investment_account.id,
+                    ticker,
                     quantity=Decimal("10"),
                     cost_basis=Decimal("1000.00"),
-                    currency="SGD",
                     acquisition_date=date.today(),
-                    status=PositionStatus.ACTIVE,
-                    cost_basis_method=CostBasisMethod.FIFO,
                 ),
-                AtomicPosition(
-                    user_id=test_user.id,
-                    snapshot_date=date.today(),
-                    asset_identifier=ticker,
+                _make_atomic_position(
+                    test_user.id,
+                    ticker,
                     broker="Test Broker",
                     quantity=Decimal("10"),
                     market_value=Decimal("1100.00"),
-                    currency="SGD",
                     dedup_hash=f"page_snapshot_{ticker}",
-                    source_documents={},
                 ),
             ]
         )

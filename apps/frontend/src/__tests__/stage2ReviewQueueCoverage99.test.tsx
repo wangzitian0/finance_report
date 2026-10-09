@@ -24,51 +24,23 @@ const mockedApiFetch = vi.mocked(apiFetch)
 const originalMatchMedia = window.matchMedia
 
 const pendingMatch = {
-  id: "m1",
-  match_score: 88,
-  confidence_tier: "HIGH",
-  status: "pending_review",
-  created_at: "2026-01-01T00:00:00Z",
-  description: "Salary transfer",
-  amount: "1200",
-  txn_date: "2026-01-01",
+  id: "m1", match_score: 88, confidence_tier: "HIGH", status: "pending_review",
+  created_at: "2026-01-01T00:00:00Z", description: "Salary transfer", amount: "1200", txn_date: "2026-01-01",
 }
 
 const lowMatch = {
-  id: "m2",
-  match_score: 55,
-  confidence_tier: "HIGH",
-  status: "pending_review",
-  created_at: "2026-01-02T00:00:00Z",
-  description: "Low confidence transfer",
-  amount: null,
-  txn_date: null,
+  id: "m2", match_score: 55, confidence_tier: "HIGH", status: "pending_review",
+  created_at: "2026-01-02T00:00:00Z", description: "Low confidence transfer", amount: null, txn_date: null,
 }
 
 const duplicateCheck = {
-  id: "c1",
-  check_type: "duplicate",
-  status: "pending",
-  related_txn_ids: [],
-  details: { message: "Potential duplicate" },
-  severity: "high",
-  resolved_at: null,
-  resolution_note: null,
-  created_at: "2026-01-01T00:00:00Z",
-  updated_at: "2026-01-01T00:00:00Z",
+  id: "c1", check_type: "duplicate", status: "pending", related_txn_ids: [], details: { message: "Potential duplicate" },
+  severity: "high", resolved_at: null, resolution_note: null, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z",
 }
 
 const customCheck = {
-  id: "c2",
-  check_type: "manual_review",
-  status: "pending",
-  related_txn_ids: [],
-  details: { reason: "Needs human review" },
-  severity: "low",
-  resolved_at: null,
-  resolution_note: null,
-  created_at: "2026-01-02T00:00:00Z",
-  updated_at: "2026-01-02T00:00:00Z",
+  id: "c2", check_type: "manual_review", status: "pending", related_txn_ids: [], details: { reason: "Needs human review" },
+  severity: "low", resolved_at: null, resolution_note: null, created_at: "2026-01-02T00:00:00Z", updated_at: "2026-01-02T00:00:00Z",
 }
 
 function queue(overrides: Partial<{
@@ -82,6 +54,25 @@ function queue(overrides: Partial<{
     has_unresolved_checks: false,
     ...overrides,
   }
+}
+
+function mockApi(
+  q: unknown = queue(),
+  summary: unknown = { pending_count: 0, pending_total: "0", currency: "SGD", oldest_pending_date: null },
+  checks: unknown[] = [],
+  extra?: (path: string, options?: RequestInit) => Promise<unknown> | undefined,
+) {
+  const sum = summary ?? { pending_count: 0, pending_total: "0", currency: "SGD", oldest_pending_date: null }
+  mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
+    if (extra) {
+      const res = extra(path, options)
+      if (res !== undefined) return res as never
+    }
+    if (path.startsWith("/api/statements/stage2/queue")) return Promise.resolve(q as never)
+    if (path === "/api/accounts/processing/summary") return (sum instanceof Promise ? sum : Promise.resolve(sum)) as never
+    if (path.startsWith("/api/statements/consistency-checks/list")) return Promise.resolve({ items: checks } as never)
+    return Promise.reject(new Error(`Unexpected path ${path}`))
+  })
 }
 
 function mockMobileViewport() {
@@ -118,15 +109,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   it("AC8.13.76/AC16.26.2 mobile queue renders selectable match cards and batch actions", async () => {
     mockMobileViewport()
 
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/statements/stage2/queue")) {
-        return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
-      }
-      if (path.startsWith("/api/statements/consistency-checks/list")) {
-        return Promise.resolve({ items: [] } as never)
-      }
-      return Promise.reject(new Error(`Unexpected path ${path}`))
-    })
+    mockApi(queue({ pending_matches: [pendingMatch] }))
 
     renderReviewComponent(<Stage2ReviewQueue />)
 
@@ -141,16 +124,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
 
   it("AC22.11.3 preserves attention origin while the Stage 2 queue updates filters", async () => {
     navState.searchParams = new URLSearchParams("from=attention")
-
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/statements/stage2/queue")) {
-        return Promise.resolve(queue({ pending_matches: [] }) as never)
-      }
-      if (path.startsWith("/api/statements/consistency-checks/list")) {
-        return Promise.resolve({ items: [] } as never)
-      }
-      return Promise.reject(new Error(`Unexpected path ${path}`))
-    })
+    mockApi(queue({ pending_matches: [] }))
 
     renderReviewComponent(<Stage2ReviewQueue />)
 
@@ -170,19 +144,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   it("AC16.26.3 mobile run review preserves approval gate and pending match workflow", async () => {
     mockMobileViewport()
     navState.pathname = "/review/run/mobile-run"
-
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/statements/stage2/queue")) {
-        return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
-      }
-      if (path === "/api/accounts/processing/summary") {
-        return Promise.resolve({ pending_count: 0, pending_total: "0", currency: "SGD", oldest_pending_date: null } as never)
-      }
-      if (path.startsWith("/api/statements/consistency-checks/list")) {
-        return Promise.resolve({ items: [] } as never)
-      }
-      return Promise.reject(new Error(`Unexpected path ${path}`))
-    })
+    mockApi(queue({ pending_matches: [pendingMatch] }))
 
     renderReviewComponent(<Stage2ReviewQueue />)
 
@@ -197,16 +159,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
       writable: true,
       value: undefined,
     })
-
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/statements/stage2/queue")) {
-        return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
-      }
-      if (path.startsWith("/api/statements/consistency-checks/list")) {
-        return Promise.resolve({ items: [] } as never)
-      }
-      return Promise.reject(new Error(`Unexpected path ${path}`))
-    })
+    mockApi(queue({ pending_matches: [pendingMatch] }))
 
     renderReviewComponent(<Stage2ReviewQueue />)
 
@@ -222,16 +175,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
       writable: true,
       value: undefined,
     })
-
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/statements/stage2/queue")) {
-        return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
-      }
-      if (path.startsWith("/api/statements/consistency-checks/list")) {
-        return Promise.resolve({ items: [] } as never)
-      }
-      return Promise.reject(new Error(`Unexpected path ${path}`))
-    })
+    mockApi(queue({ pending_matches: [pendingMatch] }))
 
     renderReviewComponent(<Stage2ReviewQueue />)
 
@@ -241,15 +185,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
 
   // AC-reconciliation.fe-stage2-review.17
   it("AC8.13.82/AC16.27.3 exposes a fixed desktop pending-match region for responsive UX proofs", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/statements/stage2/queue")) {
-        return Promise.resolve(queue({ pending_matches: [pendingMatch] }) as never)
-      }
-      if (path.startsWith("/api/statements/consistency-checks/list")) {
-        return Promise.resolve({ items: [] } as never)
-      }
-      return Promise.reject(new Error(`Unexpected path ${path}`))
-    })
+    mockApi(queue({ pending_matches: [pendingMatch] }))
 
     renderReviewComponent(<Stage2ReviewQueue />)
 
@@ -266,24 +202,11 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     navState.pathname = "/review/run/run%201"
     navState.searchParams = new URLSearchParams("check_type=duplicate&status=pending&severity=high,medium&min_score=60")
 
-    mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
-      if (path.startsWith("/api/statements/stage2/queue")) {
-        return Promise.resolve(queue({ pending_matches: [pendingMatch, lowMatch], consistency_checks: [] }) as never)
-      }
-      if (path === "/api/accounts/processing/summary") {
-        return Promise.resolve({ pending_count: 0, pending_total: "0", currency: "SGD", oldest_pending_date: null } as never)
-      }
-      if (path.startsWith("/api/statements/consistency-checks/list")) {
-        return Promise.resolve({ items: [] } as never)
-      }
+    mockApi(queue({ pending_matches: [pendingMatch, lowMatch], consistency_checks: [] }), undefined, [], (path, options) => {
       if (path === "/api/statements/batch-approve-matches") {
-        expect(options).toMatchObject({
-          method: "POST",
-          body: JSON.stringify({ match_ids: ["m1", "m2"] }),
-        })
-        return Promise.resolve({ success: true, approved_count: 2 } as never)
+        expect(options).toMatchObject({ method: "POST", body: JSON.stringify({ match_ids: ["m1", "m2"] }) })
+        return Promise.resolve({ success: true, approved_count: 2 })
       }
-      return Promise.reject(new Error(`Unexpected path ${path}`))
     })
 
     renderReviewComponent(<Stage2ReviewQueue />)
@@ -369,25 +292,9 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   it("test_AC8_13_48_batch_and_run_error_branches_surface_actionable_feedback", async () => {
     navState.pathname = "/review/run/run-2"
 
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/statements/stage2/queue")) {
-        return Promise.resolve(queue({ pending_matches: [pendingMatch], consistency_checks: [] }) as never)
-      }
-      if (path === "/api/accounts/processing/summary") {
-        return Promise.resolve({ pending_count: 0, pending_total: "0", currency: "SGD", oldest_pending_date: null } as never)
-      }
-      if (path.startsWith("/api/statements/consistency-checks/list")) {
-        return Promise.resolve({ items: [] } as never)
-      }
-      if (path === "/api/statements/batch-approve-matches") {
-        // #1001: server-side failure now surfaces as a thrown ApiError (e.g. 409),
-        // not a 200 body with {success:false}.
-        return Promise.reject(new Error("approval rejected by server"))
-      }
-      if (path === "/api/statements/batch-reject-matches") {
-        return Promise.reject(new Error("batch reject failed"))
-      }
-      return Promise.reject(new Error(`Unexpected path ${path}`))
+    mockApi(queue({ pending_matches: [pendingMatch], consistency_checks: [] }), undefined, [], (path) => {
+      if (path === "/api/statements/batch-approve-matches") return Promise.reject(new Error("approval rejected by server"))
+      if (path === "/api/statements/batch-reject-matches") return Promise.reject(new Error("batch reject failed"))
     })
 
     renderReviewComponent(<Stage2ReviewQueue />)
@@ -425,18 +332,11 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   it("test_AC8_13_48_filters_checks_and_toggles_individual_match_selection", async () => {
     navState.pathname = "/review/run/run-3"
 
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/statements/stage2/queue")) {
-        return Promise.resolve(queue({ pending_matches: [pendingMatch], consistency_checks: [duplicateCheck, customCheck] }) as never)
-      }
-      if (path === "/api/accounts/processing/summary") {
-        return Promise.reject(new Error("processing summary failed"))
-      }
-      if (path.startsWith("/api/statements/consistency-checks/list")) {
-        return Promise.resolve({ items: [duplicateCheck, customCheck] } as never)
-      }
-      return Promise.reject(new Error(`Unexpected path ${path}`))
-    })
+    mockApi(
+      queue({ pending_matches: [pendingMatch], consistency_checks: [duplicateCheck, customCheck] }),
+      Promise.reject(new Error("processing summary failed")),
+      [duplicateCheck, customCheck],
+    )
 
     renderReviewComponent(<Stage2ReviewQueue />)
 
@@ -457,18 +357,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   it("test_AC8_13_48_run_approval_guard_states_explain_disabled_actions", async () => {
     navState.pathname = "/review/run/run-4"
 
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/statements/stage2/queue")) {
-        return Promise.resolve(queue({ pending_matches: [pendingMatch], consistency_checks: [duplicateCheck], has_unresolved_checks: true }) as never)
-      }
-      if (path === "/api/accounts/processing/summary") {
-        return Promise.resolve({ pending_count: 0, pending_total: "0", currency: "SGD", oldest_pending_date: null } as never)
-      }
-      if (path.startsWith("/api/statements/consistency-checks/list")) {
-        return Promise.resolve({ items: [duplicateCheck] } as never)
-      }
-      return Promise.reject(new Error(`Unexpected path ${path}`))
-    })
+    mockApi(queue({ pending_matches: [pendingMatch], consistency_checks: [duplicateCheck], has_unresolved_checks: true }), undefined, [duplicateCheck])
 
     const first = renderReviewComponent(<Stage2ReviewQueue />)
     const unresolvedButton = await screen.findByRole("button", { name: "Approve Run" })
@@ -477,18 +366,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     first.unmount()
 
     mockedApiFetch.mockReset()
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/statements/stage2/queue")) {
-        return Promise.resolve(queue({ pending_matches: [pendingMatch], consistency_checks: [] }) as never)
-      }
-      if (path === "/api/accounts/processing/summary") {
-        return Promise.resolve({ pending_count: 1, pending_total: "10", currency: "SGD", oldest_pending_date: "2026-01-01" } as never)
-      }
-      if (path.startsWith("/api/statements/consistency-checks/list")) {
-        return Promise.resolve({ items: [] } as never)
-      }
-      return Promise.reject(new Error(`Unexpected path ${path}`))
-    })
+    mockApi(queue({ pending_matches: [pendingMatch], consistency_checks: [] }), { pending_count: 1, pending_total: "10", currency: "SGD", oldest_pending_date: "2026-01-01" })
 
     const second = renderReviewComponent(<Stage2ReviewQueue />)
     const processingButton = await screen.findByRole("button", { name: "Approve Run" })
@@ -497,18 +375,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     second.unmount()
 
     mockedApiFetch.mockReset()
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/statements/stage2/queue")) {
-        return Promise.resolve(queue({ pending_matches: [], consistency_checks: [] }) as never)
-      }
-      if (path === "/api/accounts/processing/summary") {
-        return Promise.resolve({ pending_count: 0, pending_total: "0", currency: "SGD", oldest_pending_date: null } as never)
-      }
-      if (path.startsWith("/api/statements/consistency-checks/list")) {
-        return Promise.resolve({ items: [] } as never)
-      }
-      return Promise.reject(new Error(`Unexpected path ${path}`))
-    })
+    mockApi(queue({ pending_matches: [], consistency_checks: [] }))
 
     renderReviewComponent(<Stage2ReviewQueue />)
     const emptyButton = await screen.findByRole("button", { name: "Approve Run" })
@@ -519,20 +386,8 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   it("test_AC8_13_48_run_approval_network_errors_are_reported", async () => {
     navState.pathname = "/review/run/run-5"
 
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/statements/stage2/queue")) {
-        return Promise.resolve(queue({ pending_matches: [pendingMatch], consistency_checks: [] }) as never)
-      }
-      if (path === "/api/accounts/processing/summary") {
-        return Promise.resolve({ pending_count: 0, pending_total: "0", currency: "SGD", oldest_pending_date: null } as never)
-      }
-      if (path.startsWith("/api/statements/consistency-checks/list")) {
-        return Promise.resolve({ items: [] } as never)
-      }
-      if (path === "/api/statements/batch-approve-matches") {
-        return Promise.reject(new Error("approve run failed"))
-      }
-      return Promise.reject(new Error(`Unexpected path ${path}`))
+    mockApi(queue({ pending_matches: [pendingMatch], consistency_checks: [] }), undefined, [], (path) => {
+      if (path === "/api/statements/batch-approve-matches") return Promise.reject(new Error("approve run failed"))
     })
 
     renderReviewComponent(<Stage2ReviewQueue />)

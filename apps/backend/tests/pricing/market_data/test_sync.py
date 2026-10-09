@@ -17,6 +17,84 @@ from src.pricing.extension import market_data
 from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
 
 
+def _make_stock_series(
+    symbol: str,
+    dates: list[date] | tuple[date, date] | None = None,
+    price: Decimal = Decimal("150.1234564"),
+    currency: str = "USD",
+    source: str = "test_primary",
+) -> market_data.ValidatedMarketObservationSeries:
+    dates_list = (
+        dates
+        if isinstance(dates, list)
+        else list(market_data._iter_dates(dates[0], dates[1]))
+        if isinstance(dates, tuple)
+        else []
+    )
+    return market_data.ValidatedMarketObservationSeries(
+        observations=[
+            market_data.StockPriceObservation(
+                symbol=symbol,
+                price=price,
+                currency=currency,
+                price_date=d,
+                source=source,
+            )
+            for d in dates_list
+        ]
+    )
+
+
+def _make_fx_series(
+    base: str,
+    quote: str,
+    dates: list[date] | tuple[date, date] | None = None,
+    rate: Decimal = Decimal("1.350000"),
+    source: str = "test_primary",
+) -> market_data.ValidatedMarketObservationSeries:
+    dates_list = (
+        dates
+        if isinstance(dates, list)
+        else list(market_data._iter_dates(dates[0], dates[1]))
+        if isinstance(dates, tuple)
+        else []
+    )
+    return market_data.ValidatedMarketObservationSeries(
+        observations=[
+            market_data.FxRateObservation(
+                base_currency=base,
+                quote_currency=quote,
+                rate=rate,
+                rate_date=d,
+                source=source,
+            )
+            for d in dates_list
+        ]
+    )
+
+
+def _make_position(
+    user_id,
+    account_id,
+    asset_identifier: str,
+    quantity: Decimal = Decimal("2"),
+    cost_basis: Decimal = Decimal("100.00"),
+    currency: str = "USD",
+    status: PositionStatus = PositionStatus.ACTIVE,
+) -> ManagedPosition:
+    return ManagedPosition(
+        user_id=user_id,
+        account_id=account_id,
+        asset_identifier=asset_identifier,
+        quantity=quantity,
+        cost_basis=cost_basis,
+        currency=currency,
+        acquisition_date=date(2026, 1, 1),
+        status=status,
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+
+
 async def test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent(
     db: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -24,18 +102,7 @@ async def test_sync_stock_prices_inserts_missing_daily_rows_and_is_idempotent(
     """AC-pricing.marketdata.1: AC11.10.1: Stock sync stores daily rows once and skips existing rows on rerun."""
 
     async def fake_fetch(symbol: str, start_date: date, end_date: date) -> market_data.ValidatedMarketObservationSeries:
-        return market_data.ValidatedMarketObservationSeries(
-            observations=[
-                market_data.StockPriceObservation(
-                    symbol=symbol,
-                    price=Decimal("150.1234564"),
-                    currency="USD",
-                    price_date=requested_date,
-                    source="test_primary",
-                )
-                for requested_date in market_data._iter_dates(start_date, end_date)
-            ]
-        )
+        return _make_stock_series(symbol, (start_date, end_date))
 
     monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_fetch)
 
@@ -132,18 +199,7 @@ async def test_sync_fx_rates_starts_after_last_stored_date(
         base: str, quote: str, start_date: date, end_date: date
     ) -> market_data.ValidatedMarketObservationSeries:
         requested.append((base, quote, start_date, end_date))
-        return market_data.ValidatedMarketObservationSeries(
-            observations=[
-                market_data.FxRateObservation(
-                    base_currency=base,
-                    quote_currency=quote,
-                    rate=Decimal("1.350000"),
-                    rate_date=requested_date,
-                    source="test_primary",
-                )
-                for requested_date in market_data._iter_dates(start_date, end_date)
-            ]
-        )
+        return _make_fx_series(base, quote, (start_date, end_date))
 
     monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", fake_fetch)
 
@@ -234,39 +290,14 @@ async def test_sync_ignores_mismatched_observation_types(
     """AC11.10.4: Sync ignores provider observations with the wrong market data kind."""
 
     async def fake_stock_observation_for_fx(
-        _base: str,
-        _quote: str,
-        start_date: date,
-        _end_date: date,
+        _base: str, _quote: str, start_date: date, _end_date: date
     ) -> market_data.ValidatedMarketObservationSeries:
-        return market_data.ValidatedMarketObservationSeries(
-            observations=[
-                market_data.StockPriceObservation(
-                    symbol="AAPL",
-                    price=Decimal("100.000000"),
-                    currency="USD",
-                    price_date=start_date,
-                    source="bad_provider",
-                )
-            ]
-        )
+        return _make_stock_series("AAPL", [start_date], price=Decimal("100.000000"), source="bad_provider")
 
     async def fake_fx_observation_for_stock(
-        _symbol: str,
-        start_date: date,
-        _end_date: date,
+        _symbol: str, start_date: date, _end_date: date
     ) -> market_data.ValidatedMarketObservationSeries:
-        return market_data.ValidatedMarketObservationSeries(
-            observations=[
-                market_data.FxRateObservation(
-                    base_currency="USD",
-                    quote_currency="SGD",
-                    rate=Decimal("1.350000"),
-                    rate_date=start_date,
-                    source="bad_provider",
-                )
-            ]
-        )
+        return _make_fx_series("USD", "SGD", [start_date], rate=Decimal("1.350000"), source="bad_provider")
 
     monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", fake_stock_observation_for_fx)
     monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_fx_observation_for_stock)
@@ -301,18 +332,7 @@ async def test_sync_fx_rates_defaults_usd_to_base_currency_when_empty(
         base: str, quote: str, start_date: date, end_date: date
     ) -> market_data.ValidatedMarketObservationSeries:
         requested.append((base, quote, start_date, end_date))
-        return market_data.ValidatedMarketObservationSeries(
-            observations=[
-                market_data.FxRateObservation(
-                    base_currency=base,
-                    quote_currency=quote,
-                    rate=Decimal("1.350000"),
-                    rate_date=requested_date,
-                    source="test_primary",
-                )
-                for requested_date in market_data._iter_dates(start_date, end_date)
-            ]
-        )
+        return _make_fx_series(base, quote, (start_date, end_date))
 
     monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", fake_fetch)
 
@@ -375,19 +395,7 @@ async def test_observed_fx_pairs_compose_ledger_portfolio_and_extraction_reads(
             currency="JPY",
         )
     )
-    db.add(
-        ManagedPosition(
-            user_id=test_user.id,
-            account_id=account.id,
-            asset_identifier="VWRA",
-            quantity=Decimal("2"),
-            cost_basis=Decimal("100.00"),
-            currency="EUR",
-            acquisition_date=date(2026, 1, 1),
-            status=PositionStatus.ACTIVE,
-            cost_basis_method=CostBasisMethod.FIFO,
-        )
-    )
+    db.add(_make_position(test_user.id, account.id, "VWRA", quantity=Decimal("2"), currency="EUR"))
     db.add(
         AtomicPosition(
             user_id=test_user.id,
@@ -423,39 +431,9 @@ async def test_active_stock_symbols_use_active_nonzero_holdings(
     await db.flush()
     db.add_all(
         [
-            ManagedPosition(
-                user_id=test_user.id,
-                account_id=account.id,
-                asset_identifier="aapl",
-                quantity=Decimal("2"),
-                cost_basis=Decimal("100.00"),
-                currency="USD",
-                acquisition_date=date(2026, 1, 1),
-                status=PositionStatus.ACTIVE,
-                cost_basis_method=CostBasisMethod.FIFO,
-            ),
-            ManagedPosition(
-                user_id=test_user.id,
-                account_id=account.id,
-                asset_identifier="MSFT",
-                quantity=Decimal("0"),
-                cost_basis=Decimal("0.00"),
-                currency="USD",
-                acquisition_date=date(2026, 1, 1),
-                status=PositionStatus.ACTIVE,
-                cost_basis_method=CostBasisMethod.FIFO,
-            ),
-            ManagedPosition(
-                user_id=test_user.id,
-                account_id=account.id,
-                asset_identifier="TSLA",
-                quantity=Decimal("1"),
-                cost_basis=Decimal("100.00"),
-                currency="USD",
-                acquisition_date=date(2026, 1, 1),
-                status=PositionStatus.DISPOSED,
-                cost_basis_method=CostBasisMethod.FIFO,
-            ),
+            _make_position(test_user.id, account.id, "aapl", quantity=Decimal("2")),
+            _make_position(test_user.id, account.id, "MSFT", quantity=Decimal("0"), cost_basis=Decimal("0.00")),
+            _make_position(test_user.id, account.id, "TSLA", quantity=Decimal("1"), status=PositionStatus.DISPOSED),
         ]
     )
     await db.commit()
@@ -575,17 +553,7 @@ async def test_portfolio_uses_synced_stock_price_before_atomic_snapshot(
     )
     db.add(account)
     await db.flush()
-    position = ManagedPosition(
-        user_id=test_user.id,
-        account_id=account.id,
-        asset_identifier="AAPL",
-        quantity=Decimal("2"),
-        cost_basis=Decimal("100.00"),
-        currency="SGD",
-        acquisition_date=date(2026, 1, 1),
-        status=PositionStatus.ACTIVE,
-        cost_basis_method=CostBasisMethod.FIFO,
-    )
+    position = _make_position(test_user.id, account.id, "AAPL", quantity=Decimal("2"), currency="SGD")
     stale_snapshot = AtomicPosition(
         user_id=test_user.id,
         snapshot_date=date(2026, 1, 5),
@@ -631,16 +599,8 @@ async def test_portfolio_quantizes_synced_stock_market_values(
     )
     db.add(account)
     await db.flush()
-    position = ManagedPosition(
-        user_id=test_user.id,
-        account_id=account.id,
-        asset_identifier="AAPL",
-        quantity=Decimal("3"),
-        cost_basis=Decimal("26.90"),
-        currency="SGD",
-        acquisition_date=date(2026, 1, 1),
-        status=PositionStatus.ACTIVE,
-        cost_basis_method=CostBasisMethod.FIFO,
+    position = _make_position(
+        test_user.id, account.id, "AAPL", quantity=Decimal("3"), cost_basis=Decimal("26.90"), currency="SGD"
     )
     snapshot = AtomicPosition(
         user_id=test_user.id,
@@ -818,19 +778,7 @@ async def test_market_data_freshness_sync_runs_once_after_24h(
     )
     db.add(account)
     await db.flush()
-    db.add(
-        ManagedPosition(
-            user_id=test_user.id,
-            account_id=account.id,
-            asset_identifier="AAPL",
-            quantity=Decimal("1"),
-            cost_basis=Decimal("100.00"),
-            currency="USD",
-            acquisition_date=date(2026, 1, 1),
-            status=PositionStatus.ACTIVE,
-            cost_basis_method=CostBasisMethod.FIFO,
-        )
-    )
+    db.add(_make_position(test_user.id, account.id, "AAPL", quantity=Decimal("1"), currency="USD"))
     stale_success = datetime(2026, 1, 4, 0, 0, tzinfo=UTC)
     db.add_all(
         [
@@ -859,34 +807,12 @@ async def test_market_data_freshness_sync_runs_once_after_24h(
     async def fake_fx_fetch(
         base: str, quote: str, start_date: date, end_date: date
     ) -> market_data.ValidatedMarketObservationSeries:
-        return market_data.ValidatedMarketObservationSeries(
-            observations=[
-                market_data.FxRateObservation(
-                    base_currency=base,
-                    quote_currency=quote,
-                    rate=Decimal("1.350000"),
-                    rate_date=requested_date,
-                    source="test_primary",
-                )
-                for requested_date in market_data._iter_dates(start_date, end_date)
-            ]
-        )
+        return _make_fx_series(base, quote, (start_date, end_date))
 
     async def fake_stock_fetch(
         symbol: str, start_date: date, end_date: date
     ) -> market_data.ValidatedMarketObservationSeries:
-        return market_data.ValidatedMarketObservationSeries(
-            observations=[
-                market_data.StockPriceObservation(
-                    symbol=symbol,
-                    price=Decimal("200.000000"),
-                    currency="USD",
-                    price_date=requested_date,
-                    source="test_primary",
-                )
-                for requested_date in market_data._iter_dates(start_date, end_date)
-            ]
-        )
+        return _make_stock_series(symbol, (start_date, end_date), price=Decimal("200.000000"))
 
     monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", fake_fx_fetch)
     monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_stock_fetch)
@@ -931,17 +857,7 @@ async def test_market_data_freshness_backfills_report_date_when_latest_price_is_
     await db.flush()
     db.add_all(
         [
-            ManagedPosition(
-                user_id=test_user.id,
-                account_id=account.id,
-                asset_identifier="IBM",
-                quantity=Decimal("1"),
-                cost_basis=Decimal("100.00"),
-                currency="SGD",
-                acquisition_date=date(2024, 1, 1),
-                status=PositionStatus.ACTIVE,
-                cost_basis_method=CostBasisMethod.FIFO,
-            ),
+            _make_position(test_user.id, account.id, "IBM", quantity=Decimal("1"), currency="SGD"),
             StockPrice(
                 symbol="IBM",
                 price=Decimal("200.000000"),
@@ -968,17 +884,7 @@ async def test_market_data_freshness_backfills_report_date_when_latest_price_is_
         symbol: str, start_date: date, end_date: date
     ) -> market_data.ValidatedMarketObservationSeries:
         requested_ranges.append((symbol, start_date, end_date))
-        return market_data.ValidatedMarketObservationSeries(
-            observations=[
-                market_data.StockPriceObservation(
-                    symbol=symbol,
-                    price=Decimal("150.000000"),
-                    currency="USD",
-                    price_date=end_date,
-                    source="test_primary",
-                )
-            ]
-        )
+        return _make_stock_series(symbol, [end_date], price=Decimal("150.000000"))
 
     monkeypatch.setattr(market_data._providers, "_fetch_validated_stock_price_series", fake_stock_fetch)
 

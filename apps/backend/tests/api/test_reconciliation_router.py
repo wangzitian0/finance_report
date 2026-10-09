@@ -176,19 +176,84 @@ async def create_anchored_match_entry(
     return await post_journal_entry(db, entry.id, user_id, base_currency="SGD")
 
 
+async def _seed_router_txns(
+    db,
+    user: User,
+    count: int = 1,
+    statement: StatementSummary | None = None,
+) -> tuple[StatementSummary, list[AtomicTransaction]]:
+    stmt = statement or await create_test_statement(db, user)
+    txns = [create_test_transaction(db, stmt) for _ in range(count)]
+    db.add_all(txns)
+    await db.commit()
+    return stmt, txns
+
+
+async def _seed_router_matches(
+    db,
+    user: User,
+    statuses: list[ReconciliationStatus],
+    statement: StatementSummary | None = None,
+) -> tuple[StatementSummary, list[AtomicTransaction], list[ReconciliationMatch]]:
+    stmt = statement or await create_test_statement(db, user)
+    txns = [create_test_transaction(db, stmt) for _ in statuses]
+    db.add_all(txns)
+    matches = [create_test_match(db, txn, status=s) for txn, s in zip(txns, statuses)]
+    db.add_all(matches)
+    await db.commit()
+    return stmt, txns, matches
+
+
+async def _seed_router_match(
+    db,
+    user: User,
+    *,
+    status: ReconciliationStatus = ReconciliationStatus.PENDING_REVIEW,
+    score: int = 85,
+    journal_entry_ids: list[str] | None = None,
+    statement: StatementSummary | None = None,
+) -> tuple[StatementSummary, AtomicTransaction, ReconciliationMatch]:
+    stmt = statement or await create_test_statement(db, user)
+    txn = create_test_transaction(db, stmt)
+    db.add(txn)
+    match = create_test_match(
+        db,
+        txn,
+        status=status,
+        match_score=score,
+        journal_entry_ids=journal_entry_ids or [],
+    )
+    db.add(match)
+    await db.commit()
+    return stmt, txn, match
+
+
+async def _seed_expense_setup(
+    db,
+    user: User,
+    *,
+    expense_name: str = "Expense",
+) -> tuple[Account, StatementSummary, AtomicTransaction, Account]:
+    account = await create_test_asset_account(db, user)
+    statement = await create_test_statement(db, user, account_id=account.id, currency="SGD")
+    expense = Account(
+        user_id=user.id,
+        name=f"{expense_name} {uuid4().hex[:8]}",
+        type=AccountType.EXPENSE,
+        currency="SGD",
+    )
+    transaction = create_test_transaction(db, statement)
+    db.add_all([expense, transaction])
+    await db.commit()
+    return account, statement, transaction, expense
+
+
 class TestReconciliationEndpoints:
     """Test reconciliation API endpoints."""
 
     async def test_run_reconciliation_success(self, client: AsyncClient, db, test_user: User):
         """AC4.1.1: Test successful reconciliation run."""
-        # GIVEN valid statement with transactions
-        statement = await create_test_statement(db, test_user)
-        db.add(statement)
-        await db.commit()
-
-        transaction = create_test_transaction(db, statement)
-        db.add(transaction)
-        await db.commit()
+        statement, _ = await _seed_router_txns(db, test_user, count=1)
 
         # WHEN calling run endpoint
         payload = {"statement_id": str(statement.id)}
@@ -216,20 +281,9 @@ class TestReconciliationEndpoints:
 
     async def test_list_matches_success(self, client: AsyncClient, db, test_user: User):
         """AC4.3.1: Test listing reconciliation matches."""
-        # GIVEN existing matches with proper hierarchy
-        statement = await create_test_statement(db, test_user)
-        db.add(statement)
-        await db.commit()
-
-        txn1 = create_test_transaction(db, statement)
-        txn2 = create_test_transaction(db, statement)
-        db.add_all([txn1, txn2])
-        await db.commit()
-
-        match1 = create_test_match(db, txn1, status=ReconciliationStatus.PENDING_REVIEW)
-        match2 = create_test_match(db, txn2, status=ReconciliationStatus.AUTO_ACCEPTED)
-        db.add_all([match1, match2])
-        await db.commit()
+        await _seed_router_matches(
+            db, test_user, [ReconciliationStatus.PENDING_REVIEW, ReconciliationStatus.AUTO_ACCEPTED]
+        )
 
         # WHEN calling matches endpoint
         response = await client.get("/reconciliation/matches")
@@ -243,20 +297,9 @@ class TestReconciliationEndpoints:
 
     async def test_list_matches_with_status_filter(self, client: AsyncClient, db, test_user: User):
         """AC4.3.2: Test listing matches with status filter."""
-        # GIVEN matches with different statuses
-        statement = await create_test_statement(db, test_user)
-        db.add(statement)
-        await db.commit()
-
-        txn1 = create_test_transaction(db, statement)
-        txn2 = create_test_transaction(db, statement)
-        db.add_all([txn1, txn2])
-        await db.commit()
-
-        match1 = create_test_match(db, txn1, status=ReconciliationStatus.PENDING_REVIEW)
-        match2 = create_test_match(db, txn2, status=ReconciliationStatus.AUTO_ACCEPTED)
-        db.add_all([match1, match2])
-        await db.commit()
+        await _seed_router_matches(
+            db, test_user, [ReconciliationStatus.PENDING_REVIEW, ReconciliationStatus.AUTO_ACCEPTED]
+        )
 
         # WHEN calling matches endpoint with status filter
         response = await client.get("/reconciliation/matches?status=pending_review")
@@ -268,20 +311,9 @@ class TestReconciliationEndpoints:
 
     async def test_list_pending_review_success(self, client: AsyncClient, db, test_user: User):
         """AC4.3.3: Test listing pending review queue."""
-        # GIVEN pending review matches
-        statement = await create_test_statement(db, test_user)
-        db.add(statement)
-        await db.commit()
-
-        txn1 = create_test_transaction(db, statement)
-        txn2 = create_test_transaction(db, statement)
-        db.add_all([txn1, txn2])
-        await db.commit()
-
-        match1 = create_test_match(db, txn1, status=ReconciliationStatus.PENDING_REVIEW)
-        match2 = create_test_match(db, txn2, status=ReconciliationStatus.PENDING_REVIEW)
-        db.add_all([match1, match2])
-        await db.commit()
+        await _seed_router_matches(
+            db, test_user, [ReconciliationStatus.PENDING_REVIEW, ReconciliationStatus.PENDING_REVIEW]
+        )
 
         # WHEN calling pending endpoint
         response = await client.get("/reconciliation/pending")
@@ -296,23 +328,9 @@ class TestReconciliationEndpoints:
     async def test_accept_match_success(self, client: AsyncClient, db, test_user: User):
         """AC-reconciliation.review-queue.3: Accept a match against an existing entry."""
         # GIVEN an existing, balanced entry that the matcher has already selected
-        account = await create_test_asset_account(db, test_user)
-        statement = await create_test_statement(db, test_user, account_id=account.id, currency="SGD")
-        db.add(statement)
-        await db.commit()
-
-        transaction = create_test_transaction(db, statement)
-        db.add(transaction)
-        await db.commit()
-
-        counter_account = Account(
-            user_id=test_user.id,
-            name=f"Matched expense {uuid4().hex[:8]}",
-            type=AccountType.EXPENSE,
-            currency="SGD",
+        account, _, transaction, counter_account = await _seed_expense_setup(
+            db, test_user, expense_name="Matched expense"
         )
-        db.add(counter_account)
-        await db.flush()
         entry = await create_anchored_match_entry(
             db,
             user_id=test_user.id,
@@ -348,17 +366,7 @@ class TestReconciliationEndpoints:
     async def test_reject_match_success(self, client: AsyncClient, db, test_user: User):
         """AC-reconciliation.review-queue.5: AC4.3.6: Test rejecting a reconciliation match."""
         # GIVEN existing match
-        statement = await create_test_statement(db, test_user)
-        db.add(statement)
-        await db.commit()
-
-        transaction = create_test_transaction(db, statement)
-        db.add(transaction)
-        await db.commit()
-
-        match = create_test_match(db, transaction)
-        db.add(match)
-        await db.commit()
+        _, _, match = await _seed_router_match(db, test_user)
 
         # WHEN calling reject endpoint
         response = await client.post(f"/reconciliation/matches/{match.id}/reject")
@@ -382,24 +390,11 @@ class TestReconciliationEndpoints:
     async def test_batch_accept_success(self, client: AsyncClient, db, test_user: User):
         """AC4.2.1: Test batch accepting matches."""
         # GIVEN multiple matches
-        account = await create_test_asset_account(db, test_user)
-        statement = await create_test_statement(db, test_user, account_id=account.id, currency="SGD")
-        db.add(statement)
-        await db.commit()
-
-        txn1 = create_test_transaction(db, statement)
+        account, statement, txn1, expense = await _seed_expense_setup(db, test_user, expense_name="Batch Expense")
         txn2 = create_test_transaction(db, statement)
-        db.add_all([txn1, txn2])
+        db.add(txn2)
         await db.commit()
 
-        expense = Account(
-            user_id=test_user.id,
-            name=f"Batch Expense {uuid4().hex[:8]}",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-        )
-        db.add(expense)
-        await db.flush()
         entries = []
         for transaction in (txn1, txn2):
             entry = await create_anchored_match_entry(
@@ -473,15 +468,7 @@ class TestReconciliationEndpoints:
 
     async def test_list_unmatched_success(self, client: AsyncClient, db, test_user: User):
         """AC-reconciliation.review-queue.8: AC4.3.9: Test listing unmatched transactions."""
-        # GIVEN unmatched transactions
-        statement = await create_test_statement(db, test_user)
-        db.add(statement)
-        await db.commit()
-
-        txn1 = create_test_transaction(db, statement)
-        txn2 = create_test_transaction(db, statement)
-        db.add_all([txn1, txn2])
-        await db.commit()
+        await _seed_router_txns(db, test_user, count=2)
 
         # WHEN calling unmatched endpoint
         response = await client.get("/reconciliation/unmatched")
@@ -497,10 +484,8 @@ class TestReconciliationEndpoints:
         self, client: AsyncClient, db, test_user: User
     ):
         """AC-reconciliation.review-queue.15: statement scoping is tenant-safe."""
-        selected_statement = await create_test_statement(db, test_user)
-        other_statement = await create_test_statement(db, test_user)
-        selected_txn = create_test_transaction(db, selected_statement)
-        other_txn = create_test_transaction(db, other_statement)
+        selected_statement, (selected_txn,) = await _seed_router_txns(db, test_user, count=1)
+        _, (other_txn,) = await _seed_router_txns(db, test_user, count=1)
 
         foreign_user = User(
             email=f"statement-scope-{uuid4()}@example.com",
@@ -508,10 +493,7 @@ class TestReconciliationEndpoints:
         )
         db.add(foreign_user)
         await db.flush()
-        foreign_statement = await create_test_statement(db, foreign_user)
-        foreign_txn = create_test_transaction(db, foreign_statement)
-        db.add_all([selected_txn, other_txn, foreign_txn])
-        await db.commit()
+        foreign_statement, (foreign_txn,) = await _seed_router_txns(db, foreign_user, count=1)
 
         scoped = await client.get(
             "/reconciliation/unmatched",
@@ -573,18 +555,7 @@ class TestReconciliationEndpoints:
 
     async def test_submit_reviewed_disposition_from_unmatched_success(self, client: AsyncClient, db, test_user: User):
         """AC-reconciliation.review-queue.9: a reviewed command is the only unmatched-entry write path."""
-        statement = await create_test_statement(db, test_user)
-        statement.account_id = (await create_test_asset_account(db, test_user)).id
-        expense = Account(
-            user_id=test_user.id,
-            name=f"Expense - Dining {uuid4().hex[:8]}",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-        )
-        db.add(expense)
-        transaction = create_test_transaction(db, statement)
-        db.add(transaction)
-        await db.commit()
+        _, _, transaction, expense = await _seed_expense_setup(db, test_user, expense_name="Expense - Dining")
 
         payload = {
             "intent": "expense",
@@ -655,22 +626,14 @@ class TestReconciliationEndpoints:
         self, client: AsyncClient, db, test_user: User
     ):
         """AC-reconciliation.reviewed-disposition.1: the command digest anchors exactly one valid entry."""
-        statement = await create_test_statement(db, test_user)
-        statement.account_id = (await create_test_asset_account(db, test_user)).id
-        expense = Account(
-            user_id=test_user.id,
-            name=f"Expense - Transport {uuid4().hex[:8]}",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-        )
+        _, _, transaction, expense = await _seed_expense_setup(db, test_user, expense_name="Expense - Transport")
         income = Account(
             user_id=test_user.id,
             name=f"Income - Invalid {uuid4().hex[:8]}",
             type=AccountType.INCOME,
             currency="SGD",
         )
-        transaction = create_test_transaction(db, statement)
-        db.add_all([expense, income, transaction])
+        db.add(income)
         await db.commit()
 
         payload = {
@@ -708,24 +671,18 @@ class TestReconciliationEndpoints:
         self, client: AsyncClient, db, test_user: User
     ):
         """AC-reconciliation.reviewed-disposition.3: only a genuinely unmatched, postable command may write."""
-        statement = await create_test_statement(db, test_user)
-        statement.account_id = (await create_test_asset_account(db, test_user)).id
+        _, statement, transfer_txn, expense = await _seed_expense_setup(
+            db, test_user, expense_name="Expense - Matched Target"
+        )
         asset = Account(
             user_id=test_user.id,
             name=f"Asset - Transfer Target {uuid4().hex[:8]}",
             type=AccountType.ASSET,
             currency="SGD",
         )
-        expense = Account(
-            user_id=test_user.id,
-            name=f"Expense - Matched Target {uuid4().hex[:8]}",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-        )
-        transfer_txn = create_test_transaction(db, statement)
         matched_txn = create_test_transaction(db, statement)
         match = create_test_match(db, matched_txn)
-        db.add_all([asset, expense, transfer_txn, matched_txn, match])
+        db.add_all([asset, matched_txn, match])
         await db.commit()
 
         transfer = await client.post(
@@ -758,17 +715,7 @@ class TestReconciliationEndpoints:
         self, client: AsyncClient, db, test_user: User, monkeypatch
     ):
         """AC-reconciliation.reviewed-disposition.4: semantic review and posting commit atomically."""
-        statement = await create_test_statement(db, test_user)
-        statement.account_id = (await create_test_asset_account(db, test_user)).id
-        expense = Account(
-            user_id=test_user.id,
-            name=f"Expense - Fault Injection {uuid4().hex[:8]}",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-        )
-        transaction = create_test_transaction(db, statement)
-        db.add_all([expense, transaction])
-        await db.commit()
+        _, _, transaction, expense = await _seed_expense_setup(db, test_user, expense_name="Expense - Fault Injection")
         transaction_id = transaction.id
 
         async def fail_after_decision(*_args, **_kwargs):
@@ -798,17 +745,7 @@ class TestReconciliationEndpoints:
 
     async def test_reviewed_disposition_rolls_back_when_trace_append_fails(self, db, test_user: User, monkeypatch):
         """AC-reconciliation.reviewed-disposition.4: trace persistence is fail-closed in the posting UoW."""
-        statement = await create_test_statement(db, test_user)
-        statement.account_id = (await create_test_asset_account(db, test_user)).id
-        expense = Account(
-            user_id=test_user.id,
-            name=f"Expense - Trace Fault {uuid4().hex[:8]}",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-        )
-        transaction = create_test_transaction(db, statement)
-        db.add_all([expense, transaction])
-        await db.commit()
+        _, _, transaction, expense = await _seed_expense_setup(db, test_user, expense_name="Expense - Trace Fault")
         transaction_id = transaction.id
 
         class FailingRepository:
@@ -854,17 +791,7 @@ class TestReconciliationEndpoints:
         self, field: str, client: AsyncClient, db, test_user: User
     ):
         """AC-reconciliation.review-queue.9: whitespace semantic input fails at schema validation."""
-        statement = await create_test_statement(db, test_user)
-        statement.account_id = (await create_test_asset_account(db, test_user)).id
-        expense = Account(
-            user_id=test_user.id,
-            name=f"Expense - Blank Input {uuid4().hex[:8]}",
-            type=AccountType.EXPENSE,
-            currency="SGD",
-        )
-        transaction = create_test_transaction(db, statement)
-        db.add_all([expense, transaction])
-        await db.commit()
+        _, _, transaction, expense = await _seed_expense_setup(db, test_user, expense_name="Expense - Blank Input")
         payload = {
             "intent": "expense",
             "counter_account_id": str(expense.id),
@@ -885,10 +812,7 @@ class TestReconciliationEndpoints:
 
     async def test_legacy_unmatched_entry_routes_are_absent(self, client: AsyncClient, db, test_user: User):
         """AC-reconciliation.review-queue.13: no parameterless path may invent a ledger entry."""
-        statement = await create_test_statement(db, test_user)
-        transaction = create_test_transaction(db, statement)
-        db.add(transaction)
-        await db.commit()
+        _, (transaction,) = await _seed_router_txns(db, test_user, count=1)
 
         single = await client.post(f"/reconciliation/unmatched/{transaction.id}/create-entry")
         batch = await client.post("/reconciliation/unmatched/batch-create", json={"all": True})
@@ -901,14 +825,7 @@ class TestReconciliationEndpoints:
 
     async def test_list_anomalies_success(self, client: AsyncClient, db, test_user: User):
         """AC4.5.1: Test listing anomalies for a transaction."""
-        # GIVEN transaction
-        statement = await create_test_statement(db, test_user)
-        db.add(statement)
-        await db.commit()
-
-        transaction = create_test_transaction(db, statement)
-        db.add(transaction)
-        await db.commit()
+        _, (transaction,) = await _seed_router_txns(db, test_user, count=1)
 
         # WHEN calling anomalies endpoint
         response = await client.get(f"/reconciliation/transactions/{transaction.id}/anomalies")
@@ -946,13 +863,7 @@ class TestReconciliationEndpoints:
         db.add(other_user)
         await db.commit()
 
-        other_statement = await create_test_statement(db, other_user)
-        db.add(other_statement)
-        await db.commit()
-
-        other_transaction = create_test_transaction(db, other_statement)
-        db.add(other_transaction)
-        await db.commit()
+        _, (other_transaction,) = await _seed_router_txns(db, other_user, count=1)
 
         # WHEN calling unmatched endpoint
         response = await client.get("/reconciliation/unmatched")
@@ -966,15 +877,7 @@ class TestReconciliationEndpoints:
 
     async def test_run_reconciliation_with_statement_filter(self, client: AsyncClient, db, test_user: User):
         """AC4.1.3: Test reconciliation run with statement_id filter."""
-        # GIVEN statement with transactions
-        statement = await create_test_statement(db, test_user)
-        db.add(statement)
-        await db.commit()
-
-        txn1 = create_test_transaction(db, statement)
-        txn2 = create_test_transaction(db, statement)
-        db.add_all([txn1, txn2])
-        await db.commit()
+        statement, _ = await _seed_router_txns(db, test_user, count=2)
 
         # WHEN calling run endpoint with statement_id filter
         payload = {"statement_id": str(statement.id)}
@@ -1035,21 +938,7 @@ class TestReconciliationEndpoints:
         await db.commit()
 
         # GIVEN match with journal entry reference
-        statement = await create_test_statement(db, test_user)
-        db.add(statement)
-        await db.commit()
-
-        transaction = create_test_transaction(db, statement)
-        db.add(transaction)
-        await db.commit()
-
-        match = create_test_match(
-            db,
-            transaction,
-            journal_entry_ids=[str(entry.id)],
-        )
-        db.add(match)
-        await db.commit()
+        await _seed_router_match(db, test_user, journal_entry_ids=[str(entry.id)])
 
         # WHEN calling matches endpoint
         response = await client.get("/reconciliation/matches")
@@ -1066,22 +955,7 @@ class TestReconciliationEndpoints:
 
     async def test_list_matches_with_invalid_entry_id(self, client: AsyncClient, db, test_user: User):
         """AC4.3.15: Test listing matches with invalid journal entry UUID."""
-        # GIVEN match with invalid UUID in journal_entry_ids
-        statement = await create_test_statement(db, test_user)
-        db.add(statement)
-        await db.commit()
-
-        transaction = create_test_transaction(db, statement)
-        db.add(transaction)
-        await db.commit()
-
-        match = create_test_match(
-            db,
-            transaction,
-            journal_entry_ids=[str(uuid4())],
-        )
-        db.add(match)
-        await db.commit()
+        await _seed_router_match(db, test_user, journal_entry_ids=[str(uuid4())])
 
         # WHEN calling matches endpoint
         response = await client.get("/reconciliation/matches")
@@ -1097,15 +971,7 @@ class TestReconciliationEndpoints:
     async def test_load_transactions_enforces_user_isolation(self, db, test_user: User):
         """AC-reconciliation.tenant.1: _load_transactions must filter by user_id and exclude other users' transactions."""
         other_user_id = uuid4()
-        statement = await create_test_statement(db, test_user)
-        db.add(statement)
-        await db.commit()
-
-        transaction = create_test_transaction(db, statement)
-        db.add(transaction)
-        await db.commit()
-
-        match = create_test_match(db, transaction)
+        _, transaction, match = await _seed_router_match(db, test_user)
 
         # When called with owner's user_id, transaction is loaded
         loaded_owner = await reconciliation_router._load_transactions(db, [match], user_id=test_user.id)

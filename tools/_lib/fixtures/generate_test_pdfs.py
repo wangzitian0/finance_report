@@ -280,7 +280,8 @@ def write_fixture_pdf_and_json(fixture: StatementFixture) -> None:
 
     payload = build_expected_json(fixture, balances)
     json_path.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        json.dumps(payload, separators=(",", ":"), ensure_ascii=False) + "\n",
+        encoding="utf-8",
     )
 
     print(f"Generated {pdf_path.relative_to(ROOT_DIR)}")

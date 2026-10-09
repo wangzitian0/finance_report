@@ -251,6 +251,34 @@ async def _read_streaming_body(response) -> str:
     return "".join([chunk async for chunk in response.body_iterator])
 
 
+def _make_pair_entry(
+    user_id,
+    entry_date: date,
+    debit_account_id,
+    credit_account_id,
+    *,
+    amount: Decimal = Decimal("100.00"),
+    currency: str = "SGD",
+    memo: str = "Income",
+    source_type: JournalEntrySourceType = JournalEntrySourceType.USER_CONFIRMED,
+    source_id=None,
+    status: JournalEntryStatus = JournalEntryStatus.POSTED,
+) -> JournalEntry:
+    entry = JournalEntry(
+        user_id=user_id,
+        entry_date=entry_date,
+        memo=memo,
+        source_type=source_type,
+        source_id=source_id,
+        status=status,
+    )
+    entry.lines = [
+        JournalLine(account_id=debit_account_id, direction=Direction.DEBIT, amount=amount, currency=currency),
+        JournalLine(account_id=credit_account_id, direction=Direction.CREDIT, amount=amount, currency=currency),
+    ]
+    return entry
+
+
 def _package_snapshot_sections(label: str = "Total Assets") -> dict:
     return {
         "balance_sheet": {"total_assets": "100.00", "currency": "SGD"},
@@ -304,11 +332,7 @@ def _package_snapshot_sections(label: str = "Total Assets") -> dict:
                         "source_types": ["package_contract"],
                         "identifiers": ["package_contract:personal-financial-report-package"],
                     },
-                    "ledger_anchor": {
-                        "state": "not_applicable",
-                        "entry_statuses": [],
-                        "identifiers": [],
-                    },
+                    "ledger_anchor": {"state": "not_applicable", "entry_statuses": [], "identifiers": []},
                     "anchor_count": 1,
                     "blocker_codes": [],
                 },
@@ -334,11 +358,7 @@ def _package_document(
         "action_href": "/reports/package",
         "blocking_count": blocking_count,
         "blockers": [],
-        "input_coverage": {
-            "manifest_decision_count": 1,
-            "authoritative_input_count": 1,
-            "unproven_input_count": 0,
-        },
+        "input_coverage": {"manifest_decision_count": 1, "authoritative_input_count": 1, "unproven_input_count": 0},
     }
     return PersonalReportPackageDocument.model_validate(
         {
@@ -348,8 +368,6 @@ def _package_document(
             "generated_at": datetime(2025, 12, 31, tzinfo=UTC),
             "frozen_at": frozen_at,
             "package_id": "personal-financial-report-package",
-            # A fixture without a persisted package Decision can only be draft,
-            # regardless of the projected readiness label.
             "status": "draft",
             "context": {
                 "framework_id": "personal_us_gaap_like",
@@ -1152,11 +1170,18 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
     db.add(other_user)
     await db.flush()
 
-    bank = Account(user_id=test_user.id, name="Trace Bank", type=AccountType.ASSET, currency="SGD")
-    income = Account(user_id=test_user.id, name="Trace Salary", type=AccountType.INCOME, currency="SGD")
-    investment = Account(user_id=test_user.id, name="Trace Brokerage", type=AccountType.ASSET, currency="SGD")
-    other_bank = Account(user_id=other_user.id, name="Other Bank", type=AccountType.ASSET, currency="SGD")
-    other_income = Account(user_id=other_user.id, name="Other Income", type=AccountType.INCOME, currency="SGD")
+    bank, income, investment = [
+        Account(user_id=test_user.id, name=n, type=t, currency="SGD")
+        for n, t in [
+            ("Trace Bank", AccountType.ASSET),
+            ("Trace Salary", AccountType.INCOME),
+            ("Trace Brokerage", AccountType.ASSET),
+        ]
+    ]
+    other_bank, other_income = [
+        Account(user_id=other_user.id, name=n, type=t, currency="SGD")
+        for n, t in [("Other Bank", AccountType.ASSET), ("Other Income", AccountType.INCOME)]
+    ]
     db.add_all([bank, income, investment, other_bank, other_income])
     await db.flush()
 
@@ -1200,57 +1225,14 @@ async def test_AC5_13_5_package_traceability_returns_dynamic_current_user_identi
         )
     )
 
-    entry = JournalEntry(
-        user_id=test_user.id,
-        entry_date=report_date,
-        memo="Traceable income",
-        source_type=JournalEntrySourceType.USER_CONFIRMED,
-        source_id=statement_txn_id,
-        status=JournalEntryStatus.POSTED,
+    entry = _make_pair_entry(
+        test_user.id, report_date, bank.id, income.id, source_id=statement_txn_id, memo="Traceable income"
     )
-    other_source_id = uuid4()
-    other_entry = JournalEntry(
-        user_id=other_user.id,
-        entry_date=report_date,
-        memo="Other income",
-        source_type=JournalEntrySourceType.USER_CONFIRMED,
-        source_id=other_source_id,
-        status=JournalEntryStatus.POSTED,
+    other_entry = _make_pair_entry(
+        other_user.id, report_date, other_bank.id, other_income.id, source_id=uuid4(), memo="Other income"
     )
     db.add_all([entry, other_entry])
     await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=bank.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=other_entry.id,
-                account_id=other_bank.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("100.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=other_entry.id,
-                account_id=other_income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("100.00"),
-                currency="SGD",
-            ),
-        ]
-    )
 
     position = ManagedPosition(
         user_id=test_user.id,
@@ -1607,34 +1589,16 @@ async def test_AC19_10_1_unknown_journal_source_ids_are_not_reported_as_statemen
     await db.flush()
 
     unknown_source_id = uuid4()
-    entry = JournalEntry(
-        user_id=test_user.id,
-        entry_date=report_date,
-        memo="Income with unsupported source",
-        source_type=JournalEntrySourceType.USER_CONFIRMED,
+    entry = _make_pair_entry(
+        test_user.id,
+        report_date,
+        bank.id,
+        income.id,
+        amount=Decimal("88.00"),
         source_id=unknown_source_id,
-        status=JournalEntryStatus.POSTED,
+        memo="Income with unsupported source",
     )
     db.add(entry)
-    await db.flush()
-    db.add_all(
-        [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=bank.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("88.00"),
-                currency="SGD",
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=income.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("88.00"),
-                currency="SGD",
-            ),
-        ]
-    )
     await db.commit()
 
     traceability = PersonalReportPackageTraceabilityResponse.model_validate(

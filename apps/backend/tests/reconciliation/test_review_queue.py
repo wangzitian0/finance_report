@@ -118,6 +118,37 @@ async def _make_txn(
     )
 
 
+async def _make_statement_and_txn(
+    db: AsyncSession,
+    user_id,
+    *,
+    amount: Decimal = Decimal("50.00"),
+    direction: TransactionDirection = TransactionDirection.OUT,
+    currency: str = "SGD",
+    create_mapped_account: bool = False,
+    account_id=None,
+    txn_date: date | None = None,
+    description: str = "Transaction",
+    commit: bool = True,
+) -> tuple[StatementSummary, AtomicTransaction]:
+    stmt = await _make_statement(
+        db, user_id, account_id=account_id, currency=currency, create_mapped_account=create_mapped_account
+    )
+    txn = await _make_txn(
+        db,
+        user_id,
+        stmt,
+        amount=amount,
+        direction=direction,
+        txn_date=txn_date,
+        description=description,
+        currency=currency,
+    )
+    if commit:
+        await db.commit()
+    return stmt, txn
+
+
 async def _reviewed_posting_command(db: AsyncSession, user_id, txn: AtomicTransaction, *, counter_account=None):
     """Build explicit reviewed semantic input for entry-creation tests."""
     if counter_account is None:
@@ -196,51 +227,68 @@ async def _create_reviewed_entry(db: AsyncSession, txn: AtomicTransaction, *, us
     )
 
 
-async def test_get_pending_items_returns_pending_matches(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt)
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
-    await ReconciliationMatchFactory.create_async(
+async def _seed_pending_match(
+    db: AsyncSession,
+    user_id,
+    *,
+    status: ReconciliationStatus = ReconciliationStatus.PENDING_REVIEW,
+    match_score: int | None = None,
+):
+    stmt = await _make_statement(db, user_id)
+    txn = await _make_txn(db, user_id, stmt)
+    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=user_id)
+    kwargs = {"match_score": match_score} if match_score is not None else {}
+    match = await ReconciliationMatchFactory.create_async(
         db,
         atomic_txn_id=txn.id,
         journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.PENDING_REVIEW,
+        status=status,
+        **kwargs,
     )
     await db.commit()
+    return stmt, txn, entry, match
 
+
+async def _seed_reviewed_match(
+    db: AsyncSession,
+    user_id,
+    *,
+    amount: Decimal = Decimal("100.00"),
+    status: ReconciliationStatus = ReconciliationStatus.PENDING_REVIEW,
+    match_score: int | None = None,
+    stmt=None,
+):
+    if stmt is None:
+        stmt = await _make_statement(db, user_id, create_mapped_account=True)
+    txn = await _make_txn(db, user_id, stmt, amount=amount)
+    entry = await _create_reviewed_entry(db, txn, user_id=user_id, auto_post=True)
+    kwargs = {"match_score": match_score} if match_score is not None else {}
+    match = await ReconciliationMatchFactory.create_async(
+        db,
+        atomic_txn_id=txn.id,
+        journal_entry_ids=[str(entry.id)],
+        status=status,
+        **kwargs,
+    )
+    await db.commit()
+    return stmt, txn, entry, match
+
+
+async def test_get_pending_items_returns_pending_matches(db, test_user):
+    await _seed_pending_match(db, test_user.id)
     results = await get_pending_items(db, user_id=test_user.id)
     assert len(results) == 1
     assert results[0].status == ReconciliationStatus.PENDING_REVIEW
 
 
 async def test_get_pending_items_excludes_accepted(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt)
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
-    await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.ACCEPTED,
-    )
-    await db.commit()
-
+    await _seed_pending_match(db, test_user.id, status=ReconciliationStatus.ACCEPTED)
     results = await get_pending_items(db, user_id=test_user.id)
     assert len(results) == 0
 
 
 async def test_accept_match_updates_status(db, test_user):
-    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    await db.commit()
-
+    _, _, _, match = await _seed_reviewed_match(db, test_user.id)
     result = await accept_match(db, match.id, user_id=test_user.id)
     assert result.status == ReconciliationStatus.ACCEPTED
     assert result.version == 2
@@ -252,75 +300,32 @@ async def test_accept_match_not_found_raises(db, test_user):
 
 
 async def test_accept_match_already_accepted_returns_unchanged(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt)
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.ACCEPTED,
-    )
-    await db.commit()
-
+    _, _, _, match = await _seed_pending_match(db, test_user.id, status=ReconciliationStatus.ACCEPTED)
     result = await accept_match(db, match.id, user_id=test_user.id)
     assert result.status == ReconciliationStatus.ACCEPTED
     assert result.version == 1
 
 
 async def test_accept_match_amount_mismatch_raises(db, test_user):
-    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
+    _, txn, _, match = await _seed_reviewed_match(db, test_user.id)
     txn.amount = Decimal("500.00")
-    await db.flush()
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
     await db.commit()
-
     with pytest.raises(AmountMismatchError, match="Amount mismatch"):
         await accept_match(db, match.id, user_id=test_user.id)
 
 
 async def test_AC_review_hardening_2_accept_match_validation_unconditional(db, test_user):
     """AC-reconciliation.review-hardening.2: amount validation cannot be bypassed (#1864)."""
-    # The public signature carries no bypass flag — entry balance validation
-    # is never skippable (red line).
     assert "skip_amount_validation" not in inspect.signature(accept_match).parameters
-
-    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
+    _, txn, _, match = await _seed_reviewed_match(db, test_user.id)
     txn.amount = Decimal("500.00")
-    await db.flush()
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
     await db.commit()
-
     with pytest.raises(AmountMismatchError, match="Amount mismatch"):
         await accept_match(db, match.id, user_id=test_user.id)
 
 
 async def test_accept_match_reconciles_journal_entries(db, test_user):
-    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    await db.commit()
-
+    _, _, entry, match = await _seed_reviewed_match(db, test_user.id)
     await accept_match(db, match.id, user_id=test_user.id)
     await db.refresh(entry)
     assert entry.status == JournalEntryStatus.RECONCILED
@@ -336,8 +341,9 @@ async def test_accept_match_without_reviewed_disposition_requires_entry_context(
         type=AccountType.ASSET,
         currency="SGD",
     )
-    stmt = await _make_statement(db, test_user.id, account_id=account.id)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("42.00"), direction=TransactionDirection.OUT)
+    stmt, txn = await _make_statement_and_txn(
+        db, test_user.id, account_id=account.id, amount=Decimal("42.00"), commit=False
+    )
     match = await ReconciliationMatchFactory.create_async(
         db,
         atomic_txn_id=txn.id,
@@ -354,8 +360,7 @@ async def test_accept_match_without_reviewed_disposition_requires_entry_context(
 
 
 async def test_accept_match_does_not_reconcile_void_entries(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
+    _, txn = await _make_statement_and_txn(db, test_user.id, amount=Decimal("100.00"), commit=False)
     entry = await create_valid_void_entry(db, test_user.id, memo="Void match candidate")
     match = await ReconciliationMatchFactory.create_async(
         db,
@@ -373,17 +378,7 @@ async def test_accept_match_does_not_reconcile_void_entries(db, test_user):
 
 
 async def test_reject_match_updates_status(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt)
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    await db.commit()
-
+    _, _, _, match = await _seed_pending_match(db, test_user.id)
     result = await reject_match(db, str(match.id), user_id=test_user.id)
     assert result.status == ReconciliationStatus.REJECTED
     assert result.version == 2
@@ -395,17 +390,7 @@ async def test_reject_match_not_found_raises(db, test_user):
 
 
 async def test_reject_match_already_rejected_returns_unchanged(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt)
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        status=ReconciliationStatus.REJECTED,
-    )
-    await db.commit()
-
+    _, _, _, match = await _seed_pending_match(db, test_user.id, status=ReconciliationStatus.REJECTED)
     result = await reject_match(db, str(match.id), user_id=test_user.id)
     assert result.status == ReconciliationStatus.REJECTED
     assert result.version == 1
@@ -418,28 +403,8 @@ async def test_batch_accept_empty_list(db, test_user):
 
 async def test_batch_accept_accepts_high_score_matches(db, test_user):
     stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-
-    txn1 = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry1 = await _create_reviewed_entry(db, txn1, user_id=test_user.id, auto_post=True)
-    match1 = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn1.id,
-        journal_entry_ids=[str(entry1.id)],
-        match_score=90,
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-
-    txn2 = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry2 = await _create_reviewed_entry(db, txn2, user_id=test_user.id, auto_post=True)
-    match2 = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn2.id,
-        journal_entry_ids=[str(entry2.id)],
-        match_score=90,
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    await db.commit()
-
+    _, _, _, match1 = await _seed_reviewed_match(db, test_user.id, match_score=90, stmt=stmt)
+    _, _, _, match2 = await _seed_reviewed_match(db, test_user.id, match_score=90, stmt=stmt)
     accepted = await batch_accept(db, [str(match1.id), str(match2.id)], user_id=test_user.id, min_score=80)
     assert len(accepted) == 2
     for m in accepted:
@@ -447,35 +412,13 @@ async def test_batch_accept_accepts_high_score_matches(db, test_user):
 
 
 async def test_batch_accept_skips_low_score(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt)
-    entry, _, _ = await JournalEntryFactory.create_balanced_async(db, user_id=test_user.id)
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        match_score=50,
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    await db.commit()
-
+    _, _, _, match = await _seed_pending_match(db, test_user.id, match_score=50)
     accepted = await batch_accept(db, [str(match.id)], user_id=test_user.id, min_score=80)
     assert len(accepted) == 0
 
 
 async def test_batch_accept_reconciles_journal_entries(db, test_user):
-    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-    txn = await _make_txn(db, test_user.id, stmt, amount=Decimal("100.00"))
-    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
-    match = await ReconciliationMatchFactory.create_async(
-        db,
-        atomic_txn_id=txn.id,
-        journal_entry_ids=[str(entry.id)],
-        match_score=90,
-        status=ReconciliationStatus.PENDING_REVIEW,
-    )
-    await db.commit()
-
+    _, _, entry, match = await _seed_reviewed_match(db, test_user.id, match_score=90)
     await batch_accept(db, [str(match.id)], user_id=test_user.id, min_score=80)
     await db.refresh(entry)
     assert entry.status == JournalEntryStatus.RECONCILED
@@ -513,17 +456,15 @@ async def test_get_or_create_account_returns_existing(db, test_user):
 
 
 async def test_create_entry_from_txn_in_direction(db, test_user):
-    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-    txn = await _make_txn(
+    _, txn = await _make_statement_and_txn(
         db,
         test_user.id,
-        stmt,
+        create_mapped_account=True,
         direction=TransactionDirection.IN,
         amount=Decimal("200.00"),
         txn_date=date(2025, 1, 15),
         description="Salary deposit",
     )
-    await db.commit()
 
     entry = await _create_reviewed_entry(db, txn, user_id=test_user.id)
     assert entry.status == JournalEntryStatus.DRAFT
@@ -536,17 +477,15 @@ async def test_create_entry_from_txn_in_direction(db, test_user):
 
 
 async def test_create_entry_from_txn_out_direction(db, test_user):
-    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-    txn = await _make_txn(
+    _, txn = await _make_statement_and_txn(
         db,
         test_user.id,
-        stmt,
+        create_mapped_account=True,
         direction=TransactionDirection.OUT,
         amount=Decimal("50.00"),
         txn_date=date(2025, 1, 20),
         description="Coffee shop",
     )
-    await db.commit()
 
     entry = await _create_reviewed_entry(db, txn, user_id=test_user.id)
     assert entry.status == JournalEntryStatus.DRAFT
@@ -561,15 +500,9 @@ async def test_create_entry_from_txn_auto_post_creates_posted_entry(db, test_use
         type=AccountType.ASSET,
         currency="SGD",
     )
-    stmt = await _make_statement(db, test_user.id, account_id=linked_account.id)
-    txn = await _make_txn(
-        db,
-        test_user.id,
-        stmt,
-        direction=TransactionDirection.IN,
-        amount=Decimal("75.00"),
+    _, txn = await _make_statement_and_txn(
+        db, test_user.id, account_id=linked_account.id, direction=TransactionDirection.IN, amount=Decimal("75.00")
     )
-    await db.commit()
 
     entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
     assert entry.status == JournalEntryStatus.POSTED
@@ -577,15 +510,7 @@ async def test_create_entry_from_txn_auto_post_creates_posted_entry(db, test_use
 
 async def test_create_entry_from_txn_auto_post_requires_account_mapping(db, test_user):
     """AC-extraction.6.2: Posted entries cannot silently use the Bank - Main fallback."""
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(
-        db,
-        test_user.id,
-        stmt,
-        direction=TransactionDirection.IN,
-        amount=Decimal("75.00"),
-    )
-    await db.commit()
+    _, txn = await _make_statement_and_txn(db, test_user.id, direction=TransactionDirection.IN, amount=Decimal("75.00"))
 
     with pytest.raises(ValueError, match="Account mapping required before statement posting"):
         await create_entry_from_txn(db, txn, user_id=test_user.id, auto_post=True)
@@ -658,9 +583,7 @@ async def test_create_entry_from_txn_rejects_mismatched_preloaded_bank_account(d
 
 
 async def test_create_entry_from_txn_wrong_user_raises(db, test_user):
-    stmt = await _make_statement(db, test_user.id)
-    txn = await _make_txn(db, test_user.id, stmt)
-    await db.commit()
+    _, txn = await _make_statement_and_txn(db, test_user.id)
 
     with pytest.raises(ValueError, match="Transaction does not belong to user"):
         await create_entry_from_txn(db, txn, user_id=uuid4())
@@ -674,17 +597,15 @@ async def test_create_entry_from_txn_uses_statement_linked_account(db, test_user
         type=AccountType.ASSET,
         currency="SGD",
     )
-    stmt = await _make_statement(db, test_user.id, account_id=linked_account.id)
-    txn = await _make_txn(
+    _, txn = await _make_statement_and_txn(
         db,
         test_user.id,
-        stmt,
+        account_id=linked_account.id,
         direction=TransactionDirection.IN,
         amount=Decimal("300.00"),
         txn_date=date(2025, 2, 1),
         description="Bonus",
     )
-    await db.commit()
 
     entry = await _create_reviewed_entry(db, txn, user_id=test_user.id)
     account_ids = {line.account_id for line in entry.lines}
@@ -706,15 +627,9 @@ async def test_statement_summary_rejects_linked_account_not_owned(db, test_user)
 
 
 async def test_create_entry_from_txn_raises_when_generated_entry_unbalanced(db, test_user):
-    stmt = await _make_statement(db, test_user.id, create_mapped_account=True)
-    txn = await _make_txn(
-        db,
-        test_user.id,
-        stmt,
-        direction=TransactionDirection.IN,
-        amount=Decimal("10.00"),
+    _, txn = await _make_statement_and_txn(
+        db, test_user.id, create_mapped_account=True, direction=TransactionDirection.IN, amount=Decimal("10.00")
     )
-    await db.commit()
 
     with patch(
         "src.extraction.extension.review_queue.submit_anchored_journal_entry_v2",
@@ -733,19 +648,15 @@ async def test_create_entry_from_txn_uses_layer3_classification_account(db, test
         type=AccountType.EXPENSE,
         currency="SGD",
     )
-    stmt = await _make_statement(
+    _, txn = await _make_statement_and_txn(
         db,
         test_user.id,
         currency="SGD",
         create_mapped_account=True,
-    )
-    txn = await _make_txn(
-        db,
-        test_user.id,
-        stmt,
         direction=TransactionDirection.OUT,
         amount=Decimal("80.00"),
         description="Dinner",
+        commit=False,
     )
 
     rule = ClassificationRule(
@@ -791,21 +702,15 @@ async def test_create_entry_from_txn_uses_layer3_classification_account(db, test
 
 async def test_create_entry_from_txn_outflow_without_disposition_requires_review(db, test_user):
     """AC-extraction.1801.4: an outflow cannot manufacture an expense category."""
-    stmt = await _make_statement(
+    _, txn = await _make_statement_and_txn(
         db,
         test_user.id,
         currency="SGD",
         create_mapped_account=True,
-    )
-    txn = await _make_txn(
-        db,
-        test_user.id,
-        stmt,
         direction=TransactionDirection.OUT,
         amount=Decimal("15.00"),
         description="MRT",
     )
-    await db.commit()
 
     with pytest.raises(ValueError, match="Authoritative economic disposition"):
         await create_entry_from_txn(db, txn, user_id=test_user.id)
@@ -813,21 +718,15 @@ async def test_create_entry_from_txn_outflow_without_disposition_requires_review
 
 async def test_create_entry_from_txn_inflow_without_disposition_requires_review(db, test_user):
     """AC-extraction.1801.5: an inflow cannot manufacture an income category."""
-    stmt = await _make_statement(
+    _, txn = await _make_statement_and_txn(
         db,
         test_user.id,
         currency="SGD",
         create_mapped_account=True,
-    )
-    txn = await _make_txn(
-        db,
-        test_user.id,
-        stmt,
         direction=TransactionDirection.IN,
         amount=Decimal("1200.00"),
         description="Monthly salary",
     )
-    await db.commit()
 
     with pytest.raises(ValueError, match="Authoritative economic disposition"):
         await create_entry_from_txn(db, txn, user_id=test_user.id)
@@ -839,22 +738,15 @@ async def test_create_entry_from_txn_lazy_loads_missing_fx_rate(db, test_user):
     closed immediately -- a date->rate fact is immutable once resolved, so
     consulting the same lazy chain reporting/internal-transfer/revaluation
     already use is safe here too (#1779)."""
-    stmt = await _make_statement(
+    _, txn = await _make_statement_and_txn(
         db,
         test_user.id,
         currency="CNY",
         create_mapped_account=True,
-    )
-    txn = await _make_txn(
-        db,
-        test_user.id,
-        stmt,
         direction=TransactionDirection.OUT,
         amount=Decimal("100.00"),
-        currency="CNY",
         txn_date=date(2025, 1, 15),
     )
-    await db.commit()
 
     with patch(
         # Patches the injected port, not src.pricing.get_exchange_rate: #1675
@@ -879,17 +771,14 @@ async def test_create_entry_from_txn_still_fails_closed_when_fx_rate_unresolvabl
     rate, entry creation still fails closed -- a journal entry cannot post
     without a real rate, unlike a report line, which can just omit the value
     (#1779)."""
-    stmt = await _make_statement(db, test_user.id, currency="CNY")
-    txn = await _make_txn(
+    _, txn = await _make_statement_and_txn(
         db,
         test_user.id,
-        stmt,
+        currency="CNY",
         direction=TransactionDirection.OUT,
         amount=Decimal("100.00"),
-        currency="CNY",
         txn_date=date(2025, 1, 15),
     )
-    await db.commit()
 
     with patch(
         # Patches the injected port, not src.pricing.get_exchange_rate: see
