@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CircleCheck, FileCheck2, Inbox, Loader2, UploadCloud } from "lucide-react";
+import { ArrowRight, CircleCheck, FileCheck2, Inbox, UploadCloud } from "lucide-react";
 
 import { Badge } from "@/components/ui";
 import { isWorkflowStatusResponse, useWorkflowEventsQuery, useWorkflowStatusQuery } from "@/hooks/useWorkflowStatus";
@@ -33,7 +33,10 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
   };
   const primaryLabel = nextActionLabel(status);
   const primarySummary = nextActionSummary(status);
-  const readinessLabel = `Report ${sentenceFromSnake(status.report_readiness.state)}`;
+  const readinessLabel =
+    status.report_readiness.state === "none"
+      ? "No reports generated yet"
+      : `Report ${sentenceFromSnake(status.report_readiness.state)}`;
   const blockerLabel = countLabel(status.report_readiness.blocking_count, "blocker");
   const primaryIsUpload = status.next_action.type === "upload";
   const activeSession = status.active_session;
@@ -97,7 +100,7 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
         </Link>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.45fr)]">
+      <div className={`grid gap-4 ${groupedEvents.routine.length > 0 ? "lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.45fr)]" : ""}`}>
         <section className="card p-5" aria-label="Workflow status">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
@@ -131,19 +134,19 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
           )}
         </section>
 
-        <section className="card p-5" aria-label="Routine automation">
-          <div className="flex items-center gap-2">
-            <CircleCheck className="h-4 w-4 text-muted" aria-hidden="true" />
-            <h2 className="text-sm font-semibold">Routine automation</h2>
-          </div>
-          <p className="mt-3 text-sm text-muted">{countLabel(groupedEvents.routine.length, "routine event")}</p>
-          {groupedEvents.routine.length > 0 && (
+        {groupedEvents.routine.length > 0 && (
+          <section className="card p-5" aria-label="Routine automation">
+            <div className="flex items-center gap-2">
+              <CircleCheck className="h-4 w-4 text-muted" aria-hidden="true" />
+              <h2 className="text-sm font-semibold">Routine automation</h2>
+            </div>
+            <p className="mt-3 text-sm text-muted">{countLabel(groupedEvents.routine.length, "routine event")}</p>
             <div className="mt-3 rounded-md border border-border bg-surface-muted p-3 text-sm">
               <p className="font-medium">{groupedEvents.routine[0].title}</p>
               <p className="mt-1 text-muted">{groupedEvents.routine[0].summary}</p>
             </div>
-          )}
-        </section>
+          </section>
+        )}
       </div>
     </section>
   );
@@ -157,10 +160,22 @@ export function UploadToReportHomePanel() {
 
   if (statusQuery.isLoading || eventsQuery.isLoading) {
     return (
-      <section className="card p-5" aria-label="Upload-to-report home">
-        <div className="flex items-center gap-2 text-sm text-muted" role="status">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Loading upload-to-report workflow...
+      <section className="space-y-4" aria-label="Upload-to-report home" role="status" aria-busy="true">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
+          <div className="card p-5 space-y-4 animate-pulse">
+            <div className="h-3 w-28 rounded bg-muted/20" />
+            <div className="h-7 w-48 rounded bg-muted/20" />
+            <div className="h-4 w-72 rounded bg-muted/20" />
+            <div className="flex gap-2 pt-2">
+              <div className="h-6 w-20 rounded bg-muted/20" />
+              <div className="h-6 w-24 rounded bg-muted/20" />
+            </div>
+          </div>
+          <div className="card p-5 space-y-4 animate-pulse">
+            <div className="h-3 w-24 rounded bg-muted/20" />
+            <div className="h-6 w-36 rounded bg-muted/20" />
+            <div className="h-4 w-52 rounded bg-muted/20" />
+          </div>
         </div>
       </section>
     );

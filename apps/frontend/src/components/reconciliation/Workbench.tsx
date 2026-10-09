@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { SmartBackLink } from "@/components/ui/SmartBackLink";
 import { InfoHint } from "@/components/ui/InfoHint";
 import { apiOperation } from "@/lib/api-client";
 import { formatAmount } from "@/lib/audit/money";
@@ -175,9 +174,6 @@ export default function ReconciliationWorkbench() {
 
   return (
     <div className="p-6">
-      <div className="mb-4">
-        <SmartBackLink fallbackHref="/dashboard" fallbackLabel="Back to Dashboard" />
-      </div>
       <div className="page-header flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
         <div>
           <h1 className="page-title">Reconciliation Workbench</h1>

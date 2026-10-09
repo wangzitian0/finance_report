@@ -30,8 +30,8 @@ function parseSources(str) {
 }
 
 // Canonical base CSP directives (satisfies test_csp_script_src_contract.py).
-const BASE_SCRIPT_SRC = "script-src 'self' 'unsafe-inline' https://api.openpanel.dev";
-const BASE_CONNECT_SRC = "connect-src 'self' https://api.openpanel.dev";
+const BASE_SCRIPT_SRC = "script-src 'self' 'unsafe-inline' https://api.openpanel.dev https://static.cloudflareinsights.com";
+const BASE_CONNECT_SRC = "connect-src 'self' https://api.openpanel.dev https://cloudflareinsights.com";
 
 export function buildContentSecurityPolicy() {
     const scriptSources = BASE_SCRIPT_SRC.slice("script-src ".length).split(' ');

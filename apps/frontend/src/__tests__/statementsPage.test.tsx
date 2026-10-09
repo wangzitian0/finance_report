@@ -467,6 +467,11 @@ describe("StatementsPage", () => {
     fireEvent.click(viewReportBtn)
     expect(routerPushMock).toHaveBeenCalledWith("/reports/balance-sheet")
 
+    const viewTxnsBtn = screen.getByRole("button", { name: "View Transactions" })
+    expect(viewTxnsBtn).toBeInTheDocument()
+    fireEvent.click(viewTxnsBtn)
+    expect(routerPushMock).toHaveBeenCalledWith("/statements/s-approved")
+
     expect(screen.getByRole("link", { name: "Open Reports →" })).toHaveAttribute(
       "href",
       "/reports/balance-sheet",

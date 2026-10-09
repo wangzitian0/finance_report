@@ -365,15 +365,26 @@ export default function UploadPage() {
                       </div>
                     )}
                     {statement.status === "approved" && (
-                      <Button
-                        variant="secondary"
-                        className="text-sm"
-                        onClick={() =>
-                          router.push("/reports/balance-sheet")
-                        }
-                      >
-                        View Report →
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="secondary"
+                          className="text-sm"
+                          onClick={() =>
+                            router.push(`/statements/${statement.id}`)
+                          }
+                        >
+                          View Transactions
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          className="text-sm"
+                          onClick={() =>
+                            router.push("/reports/balance-sheet")
+                          }
+                        >
+                          View Report →
+                        </Button>
+                      </div>
                     )}
                     <IconButton
                       icon={Trash2}
