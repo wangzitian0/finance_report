@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
 import shlex
@@ -58,6 +59,7 @@ REPLAY_COUNTERS: dict[str, dict[str, int]] = json.loads(
 )
 
 
+@functools.lru_cache(maxsize=1)
 def _load_matrix() -> dict[str, Any]:
     """Build the critical proof matrix payload in-memory from the AC graph.
 
