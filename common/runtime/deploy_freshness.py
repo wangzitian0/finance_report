@@ -45,7 +45,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from infra2_sdk.deploy_health import HttpGet, default_http_get
+from infra2_sdk.deploy import HttpGet, default_http_get
 
 from common.runtime.github_api import write_github_output
 

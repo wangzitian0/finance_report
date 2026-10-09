@@ -24,7 +24,7 @@ import os
 import time
 from collections.abc import Callable, Sequence
 
-from infra2_sdk.deploy_health import HttpGet, default_http_get, poll_until_healthy
+from infra2_sdk.deploy import HttpGet, default_http_get, poll_until_healthy
 
 SIGNOZ_URL = (os.environ.get("OBSERVABILITY_BACKEND_URL") or "").strip()
 SERVICE_NAME = "finance-report-backend"

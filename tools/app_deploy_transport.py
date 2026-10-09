@@ -10,8 +10,8 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from infra2_sdk.dispatch import ReceiverRun as ReceiverRun  # noqa: E402, F401
-from infra2_sdk.dispatch import dispatch_and_wait as _sdk_dispatch_and_wait  # noqa: E402, F401
+from infra2_sdk.deploy import ReceiverRun as ReceiverRun  # noqa: E402, F401
+from infra2_sdk.deploy import dispatch_and_wait as _sdk_dispatch_and_wait  # noqa: E402, F401
 from tools._lib.deploy import app_deploy_transport as _impl  # noqa: E402
 from tools._lib.deploy.app_deploy_transport import (  # noqa: E402
     dispatch_and_wait as dispatch_and_wait,

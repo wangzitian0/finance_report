@@ -330,7 +330,10 @@ def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> 
     # the "app-deploy-request.yml"/"repository_dispatch" receiver facts, now live in
     # infra2_sdk.dispatch (infra2-sdk's own tests cover them) -- this module is a
     # thin, validating wrapper that delegates to it.
-    assert "from infra2_sdk.dispatch import" in source
+    assert (
+        "from infra2_sdk.deploy import" in source
+        or "from infra2_sdk.dispatch import" in source
+    )
     assert "dispatch_and_wait as _sdk_dispatch_and_wait" in source
     assert "request_from_mapping" in source
     assert hasattr(transport, "dispatch_and_wait")
