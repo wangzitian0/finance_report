@@ -13,6 +13,7 @@ Defines the 4 pillars of benchmark physical verification:
 from __future__ import annotations
 
 import json
+import re
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -40,6 +41,14 @@ HALLUCINATED_DISCREPANCY_TOKENS: list[str] = [
     "不平",
     "差额",
     "对不上",
+]
+
+NEGATED_DISCREPANCY_PATTERNS: list[str] = [
+    r"(?:no|zero|without|not create any|does not create any|doesn\x27t create any|not cause any|does not cause any|not an|neither|no balance)\s+(?:balance\s+)?(?:discrepanc(?:y|ies)|imbalance|mismatch|unbalanced)",
+    r"no\s+(?:balance\s+)?discrepanc(?:y|ies)\s+found",
+    r"no\s+ledger\s+imbalance",
+    r"not\s+unbalanced",
+    r"(?:不存在|没有|无|并未发现|并无)\s*(?:任何)?\s*(?:不一致|不平|差额|对不上)",
 ]
 
 
@@ -109,8 +118,17 @@ def assert_ai_advisor_semantic_grounding(
         else HALLUCINATED_DISCREPANCY_TOKENS
     )
     answer_lower = answer.lower()
+    sanitized_answer = answer_lower
+    for pattern in NEGATED_DISCREPANCY_PATTERNS:
+        sanitized_answer = re.sub(
+            pattern,
+            " [negated_consistency_assertion] ",
+            sanitized_answer,
+            flags=re.IGNORECASE,
+        )
+
     for token in tokens:
-        assert token.lower() not in answer_lower, (
+        assert token.lower() not in sanitized_answer, (
             f"Pillar 1 Invariant Failure: AI Advisor hallucinated discrepancy/imbalance token '{token}' in response: {answer}"
         )
     if expected_figures:
