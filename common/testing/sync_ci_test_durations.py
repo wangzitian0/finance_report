@@ -117,12 +117,12 @@ def sync_from_directory(
 ) -> None:
     """Find XMLs in directory and update both duration seeds."""
     backend_xmls = sorted(
-        list(junit_root.glob("backend-shard-*-test-context/**/*.xml"))
-        + list(junit_root.glob("backend-shard-*-test-context/*.xml"))
+        set(junit_root.glob("backend-shard-*-test-context/**/*.xml"))
+        | set(junit_root.glob("backend-shard-*-test-context/*.xml"))
     )
     tooling_xmls = sorted(
-        list(junit_root.glob("coverage-tooling-*/**/*.xml"))
-        + list(junit_root.glob("coverage-tooling-*/*.xml"))
+        set(junit_root.glob("coverage-tooling-*/**/*.xml"))
+        | set(junit_root.glob("coverage-tooling-*/*.xml"))
     )
 
     if backend_xmls:
@@ -132,9 +132,14 @@ def sync_from_directory(
         print(
             f"Backend: {len(backend_xmls)} XMLs -> {updated} tests updated, total {total} in seed."
         )
+        report_data = (
+            json.loads(b_seed.read_text(encoding="utf-8"))
+            if b_seed.exists()
+            else b_durations
+        )
         report_backend_balance(
             repo_root / "apps" / "backend",
-            json.loads(b_seed.read_text(encoding="utf-8")),
+            report_data,
         )
     else:
         print("Backend: no backend-shard XML files found in directory.")
@@ -196,5 +201,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

@@ -12,5 +12,5 @@ if str(ROOT_DIR) not in sys.path:
 
 from common.testing.sync_ci_test_durations import main  # noqa: E402
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
