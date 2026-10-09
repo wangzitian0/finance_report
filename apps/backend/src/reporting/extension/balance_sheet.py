@@ -284,7 +284,7 @@ async def generate_balance_sheet(
         # are recognized in other comprehensive income as the presentation CTA reserve.
         unadjusted_total = total_liabilities + total_equity + net_income + unrealized_fx + net_worth_adjustment
         cta_adjustment = _quantize_money(total_assets - unadjusted_total)
-    else:
+    elif is_multicurrency:
         # Functional currency reporting: CTA strictly absorbs translation variances
         # between spot rate balance sheet items, period-average net income, and
         # opening equity position variances, without circular plugging.
@@ -301,6 +301,9 @@ async def generate_balance_sheet(
             unrealized_fx=unrealized_fx,
             equity_translation_variance=equity_translation_variance,
         )
+    else:
+        equity_translation_variance = Decimal("0.00")
+        cta_adjustment = Decimal("0.00")
     totals = calculate_balance_sheet_equation(
         total_assets=total_assets,
         total_liabilities=total_liabilities,

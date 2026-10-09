@@ -67,3 +67,14 @@ def test_cta_when_translation_variances_are_zero():
         equity_translation_variance=Decimal("0.00"),
     )
     assert cta == Decimal("0.00")
+
+
+def test_cta_when_not_multicurrency():
+    """AC-reporting.balance-sheet.2: When single-currency, CTA must be 0.00 regardless of variance inputs."""
+    cta = calculate_currency_translation_adjustment(
+        is_multicurrency=False,
+        pnl_translation_variance=Decimal("100.00"),
+        unrealized_fx=Decimal("50.00"),
+        equity_translation_variance=Decimal("25.00"),
+    )
+    assert cta == Decimal("0.00")

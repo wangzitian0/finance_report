@@ -542,7 +542,7 @@ async def _aggregate_equity_translation_variance_sql(
             hist_rate = Decimal(str(row.fx_rate))
         else:
             try:
-                hist_rate = await get_exchange_rate(db, curr, target, row.entry_date, lazy_load=True)
+                hist_rate = await get_exchange_rate(db, curr, target, row.entry_date, lazy_load=False)
             except fx_gateway.FxRateError:
                 hist_rate = spot_rate
 
