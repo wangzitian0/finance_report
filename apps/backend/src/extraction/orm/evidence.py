@@ -385,6 +385,7 @@ FOR EACH ROW EXECUTE FUNCTION fr_validate_transaction_classification_user_scope(
 
 
 def _install_audit_anchor_scope_ddl(target: Any, connection: Any, **_: Any) -> None:
+    _ = target
     if connection.dialect.name != "postgresql":
         return
 

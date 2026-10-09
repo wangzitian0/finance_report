@@ -360,6 +360,7 @@ async def get_unpaired_transfers(
     Returns:
         List of dicts with keys: entry_id, direction, amount, date, description
     """
+    _ = days_threshold
     processing_account = await get_or_create_processing_account(db, user_id, currency=currency)
     # Get all journal lines for Processing account
     result = await db.execute(

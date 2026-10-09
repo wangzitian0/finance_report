@@ -112,6 +112,7 @@ def _find_transfer_candidates(
     The paired_txn is always None here because actual pairing (find_transfer_pairs)
     happens after all phases in execute_matching.
     """
+    _ = (atomic_txns, pattern_scores, config)
     results: list[tuple[AtomicTransaction, MatchCandidate, AtomicTransaction | None]] = []
     for txn in pending_txns:
         if not detect_transfer_pattern(txn.description):

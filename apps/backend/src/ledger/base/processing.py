@@ -27,7 +27,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from src.ledger.base.validators import JournalEntry, ValidationError
+from src.ledger.base.validators import ValidationError
 from src.ledger.base.vocabulary import AccountType, Direction
 
 # The fixed identity of the Processing virtual account (SSOT P3 in
@@ -93,8 +93,8 @@ class ProcessingAccount:
 class TransferPair:
     """Represents a matched pair of transfer transactions."""
 
-    out_entry: JournalEntry
-    in_entry: JournalEntry
+    out_entry: Any
+    in_entry: Any
     confidence: int
     score_breakdown: dict[str, float]
 

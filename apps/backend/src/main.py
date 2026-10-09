@@ -260,6 +260,7 @@ _init_otel_instrumentation()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan - init DB on startup."""
+    _ = app
     # Environment variable check
     # Bootloader check (Critical Only)
     # This ensures we have DB connectivity before accepting traffic
@@ -423,6 +424,7 @@ async def global_rate_limit_middleware(request: Request, call_next: Any) -> Resp
 @app.exception_handler(BaseAppException)
 async def base_app_exception_handler(request: Request, exc: BaseAppException) -> JSONResponse:
     """Handle BaseAppException: return structured JSON with error_id and correct HTTP status."""
+    _ = request
     request_id = current_request_id()
     logger.warning(
         "Application exception",
@@ -444,6 +446,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
     branch on a code instead of parsing ``detail`` text. ``detail`` is preserved as
     a human-readable string for display and back-compat with existing callers.
     """
+    _ = request
     request_id = current_request_id()
     # Preserve the original ``detail`` verbatim: most call sites pass a string, but a
     # few raise ``HTTPException(detail={...})`` with a structured body. We add
@@ -464,6 +467,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler to ensure a consistent structured JSON response."""
+    _ = request
     # Log is already handled by middleware or logger.exception
 
     # Only show exception details in DEBUG mode

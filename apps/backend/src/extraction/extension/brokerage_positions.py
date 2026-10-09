@@ -758,6 +758,7 @@ def brokerage_currency_balances(
     ladder, which routes the result to review rather than pseudo-reconciliation.
     """
     declared: dict[str, dict[str, Any]] = {}
+    _ = (filename, institution)
     raw_balances = payload.get("balances")
     if isinstance(raw_balances, list):
         for entry in raw_balances:

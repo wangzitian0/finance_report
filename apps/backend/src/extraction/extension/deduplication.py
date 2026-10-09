@@ -578,15 +578,19 @@ async def dual_write_layer2(
 
         evidence_graph = EvidenceGraphIntegrationService()
 
-        layer2_count = await _upsert_layer2_transactions(
-            db=db,
-            user_id=user_id,
-            transactions=transactions,
-            uploaded_doc=uploaded_doc,
-            doc_type=doc_type,
-            statement_account_id=statement.account_id,
-            dedup_service=dedup_service,
-            evidence_graph=evidence_graph,
+        layer2_count = (
+            await _upsert_layer2_transactions(
+                db=db,
+                user_id=user_id,
+                transactions=transactions,
+                uploaded_doc=uploaded_doc,
+                doc_type=doc_type,
+                statement_account_id=statement.account_id,
+                dedup_service=dedup_service,
+                evidence_graph=evidence_graph,
+            )
+            if not envelope_only
+            else 0
         )
 
         canonical_statement = await _persist_conform_statement_summary(

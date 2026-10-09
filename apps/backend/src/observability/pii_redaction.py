@@ -92,6 +92,7 @@ def detect_pii(text: str) -> list[PIIMatch]:
 
 
 def redact_text(text: str, replacement: str = "[REDACTED]") -> RedactionResult:
+    _ = replacement
     matches = detect_pii(text)
 
     if not matches:

@@ -25,6 +25,7 @@ async def detect_duplicates(
     statement_id: UUID | None = None,
     run_id: str | None = None,
 ) -> list[ConsistencyCheck]:
+    _ = statement_id
     base_query = select(AtomicTransaction).where(AtomicTransaction.user_id == user_id)
 
     all_result = await db.execute(base_query)
@@ -93,6 +94,7 @@ async def detect_transfer_pairs(
     statement_id: UUID | None = None,
     run_id: str | None = None,
 ) -> list[ConsistencyCheck]:
+    _ = statement_id
     base_query = select(AtomicTransaction).where(AtomicTransaction.user_id == user_id)
 
     all_result = await db.execute(base_query)
@@ -166,6 +168,7 @@ async def detect_anomalies_batch(
     statement_id: UUID | None = None,
     run_id: str | None = None,
 ) -> list[ConsistencyCheck]:
+    _ = statement_id
     query = select(AtomicTransaction).where(AtomicTransaction.user_id == user_id)
 
     result = await db.execute(query)

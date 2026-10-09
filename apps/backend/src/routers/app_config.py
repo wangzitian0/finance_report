@@ -21,6 +21,7 @@ async def get_base_currency(
     user_id: CurrentUserId,
 ) -> BaseCurrencyResponse:
     """Return the effective base currency (persisted override else env default)."""
+    _ = user_id
     return BaseCurrencyResponse(base_currency=await get_effective_base_currency(db))
 
 
@@ -31,6 +32,7 @@ async def update_base_currency(
     user_id: CurrentUserId,
 ) -> BaseCurrencyResponse:
     """Persist a new effective base currency. Invalid ISO 4217 code -> HTTP 422."""
+    _ = user_id
     stored = await set_base_currency(db, payload.base_currency)
     await db.commit()  # router owns the transaction boundary
     return BaseCurrencyResponse(base_currency=stored)

@@ -51,6 +51,7 @@ def _add_trace_context(
     and adds them to the log event. This enables correlation between
     logs and traces in the observability backend.
     """
+    _ = (logger, method_name)
     try:
         from opentelemetry import trace
 
