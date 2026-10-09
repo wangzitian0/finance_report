@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.pricing.orm.market_data import FxRate
 from src.reporting import generate_balance_sheet
+from src.reporting.extension._core import _aggregate_equity_translation_variance_sql
 
 
 @pytest.fixture
@@ -95,3 +96,127 @@ async def test_balance_sheet_multicurrency_cta_resolution(db: AsyncSession, user
     # Equation delta must be exactly 0.00 and is_balanced must be True!
     assert bs["equation_delta"] == Decimal("0.00")
     assert bs["is_balanced"] is True
+
+
+async def test_aggregate_equity_translation_variance_hist_rate_lookup(db: AsyncSession, user_id):
+    """Verify equity translation variance resolves historical rate when target currency differs from base currency."""
+    checking_usd = Account(user_id=user_id, name="Checking USD Eq", type=AccountType.ASSET, currency="USD")
+    equity_usd = Account(user_id=user_id, name="Equity USD", type=AccountType.EQUITY, currency="USD")
+    db.add_all([checking_usd, equity_usd])
+    await db.commit()
+    await db.refresh(checking_usd)
+    await db.refresh(equity_usd)
+
+    # FX rates:
+    # 1. USD -> SGD (base currency) for journal line validation
+    # 2. USD -> HKD (target currency) spot on 2025-01-31 (7.80) and historical on 2025-01-05 (7.75)
+    fx_rates = [
+        FxRate(
+            base_currency="USD", quote_currency="SGD", rate=Decimal("1.30"), rate_date=date(2025, 1, 5), source="test"
+        ),
+        FxRate(
+            base_currency="USD", quote_currency="HKD", rate=Decimal("7.75"), rate_date=date(2025, 1, 5), source="test"
+        ),
+        FxRate(
+            base_currency="USD", quote_currency="HKD", rate=Decimal("7.80"), rate_date=date(2025, 1, 31), source="test"
+        ),
+    ]
+    db.add_all(fx_rates)
+    await db.commit()
+
+    entry = JournalEntry(
+        user_id=user_id,
+        entry_date=date(2025, 1, 5),
+        memo="Opening Capital USD",
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+
+    line_debit = JournalLine(
+        journal_entry_id=entry.id,
+        account_id=checking_usd.id,
+        direction=Direction.DEBIT,
+        amount=Decimal("500.00"),
+        currency="USD",
+        fx_rate=Decimal("1.30"),
+    )
+    line_credit = JournalLine(
+        journal_entry_id=entry.id,
+        account_id=equity_usd.id,
+        direction=Direction.CREDIT,
+        amount=Decimal("500.00"),
+        currency="USD",
+        fx_rate=Decimal("1.30"),
+    )
+    db.add_all([line_debit, line_credit])
+    await db.commit()
+
+    variance = await _aggregate_equity_translation_variance_sql(
+        db,
+        user_id,
+        target_currency="HKD",
+        as_of_date=date(2025, 1, 31),
+    )
+    # 500 * (7.80 - 7.75) = 25.00 HKD
+    assert variance == Decimal("25.00")
+
+
+async def test_aggregate_equity_translation_variance_missing_hist_rate_fallback(db: AsyncSession, user_id):
+    """When historical rate is absent and lazy_load=False, falls back to spot rate safely."""
+    checking_eur = Account(user_id=user_id, name="Checking EUR Eq", type=AccountType.ASSET, currency="EUR")
+    equity_eur = Account(user_id=user_id, name="Equity EUR", type=AccountType.EQUITY, currency="EUR")
+    db.add_all([checking_eur, equity_eur])
+    await db.commit()
+    await db.refresh(checking_eur)
+    await db.refresh(equity_eur)
+
+    # EUR -> SGD for journal line validation
+    # EUR -> HKD spot on 2025-01-31 provided, but historical rate on 2025-01-05 is missing
+    fx_rates = [
+        FxRate(
+            base_currency="EUR", quote_currency="SGD", rate=Decimal("1.45"), rate_date=date(2025, 1, 5), source="test"
+        ),
+        FxRate(
+            base_currency="EUR", quote_currency="HKD", rate=Decimal("8.50"), rate_date=date(2025, 1, 31), source="test"
+        ),
+    ]
+    db.add_all(fx_rates)
+    await db.commit()
+
+    entry = JournalEntry(
+        user_id=user_id,
+        entry_date=date(2025, 1, 5),
+        memo="Opening EUR Capital",
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+
+    line_debit = JournalLine(
+        journal_entry_id=entry.id,
+        account_id=checking_eur.id,
+        direction=Direction.DEBIT,
+        amount=Decimal("300.00"),
+        currency="EUR",
+        fx_rate=Decimal("1.45"),
+    )
+    line_credit = JournalLine(
+        journal_entry_id=entry.id,
+        account_id=equity_eur.id,
+        direction=Direction.CREDIT,
+        amount=Decimal("300.00"),
+        currency="EUR",
+        fx_rate=Decimal("1.45"),
+    )
+    db.add_all([line_debit, line_credit])
+    await db.commit()
+
+    variance = await _aggregate_equity_translation_variance_sql(
+        db,
+        user_id,
+        target_currency="HKD",
+        as_of_date=date(2025, 1, 31),
+    )
+    # spot_rate (8.50) - fallback spot_rate (8.50) = 0.00
+    assert variance == Decimal("0.00")
