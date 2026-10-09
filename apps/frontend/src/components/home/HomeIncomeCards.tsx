@@ -205,7 +205,8 @@ export function HomeIncomeCards({
       {/* Fallback to Period P&L KPI Cards when trends are empty but period figures exist */}
       {incomeStatement &&
         (!incomeStatement.trends || incomeStatement.trends.length === 0) &&
-        (incomeStatement.total_income !== "0" || incomeStatement.total_expenses !== "0") &&
+        (!toDecimal(incomeStatement.total_income).isZero() ||
+          !toDecimal(incomeStatement.total_expenses).isZero()) &&
         (() => {
           const totalIncome = toDecimal(incomeStatement.total_income);
           const totalExpense = toDecimal(incomeStatement.total_expenses);

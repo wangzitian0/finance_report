@@ -338,6 +338,9 @@ jobs:
           python-version: "3.12.12"
           version: "0.9.18"
 
+      - name: Install backend dependencies
+        run: cd apps/backend && uv sync
+
       - name: Run Full Advisory Preflight Audit
         run: |
-          python tools/preflight.py --tier=full --relaxed || true
+          apps/backend/.venv/bin/python tools/preflight.py --tier=full --relaxed
