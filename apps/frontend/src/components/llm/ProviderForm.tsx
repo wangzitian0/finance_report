@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { createLlmProvider } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import type { LlmProtocolFamily, LlmProviderResponse } from "@/lib/types";
 
 /** Selectable protocol families with human-readable labels. */
@@ -52,12 +52,17 @@ export function ProviderForm({
     setSubmitting(true);
     setError(null);
     try {
-      const created = await createLlmProvider({
-        label: label.trim(),
-        protocol,
-        api_key: apiKey,
-        api_base: apiBase.trim() ? apiBase.trim() : null,
-      });
+      const created = await apiOperation(
+        "create_provider_llm_providers_post",
+        {
+          body: {
+            label: label.trim(),
+            protocol,
+            api_key: apiKey,
+            api_base: apiBase.trim() ? apiBase.trim() : null,
+          },
+        },
+      );
       onCreated(created);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add provider");

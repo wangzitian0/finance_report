@@ -286,7 +286,6 @@ CHECKS: tuple[Check, ...] = (
         globs=(
             "common/*/contract.py",
             "common/meta/base/package_contract.py",
-            "common/meta/data/context-contract-baseline.json",
             "common/meta/extension/check_context_contract.py",
             "tools/check_context_contract.py",
         ),

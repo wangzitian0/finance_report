@@ -64,7 +64,11 @@ def count_call_sites() -> dict[str, int]:
 def main(argv: Sequence[str] | None = None) -> int:
     args = argv if argv is not None else sys.argv[1:]
     total = sum(count_call_sites().values())
-    baseline = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))["total"]
+    baseline = (
+        json.loads(BASELINE_PATH.read_text(encoding="utf-8"))["total"]
+        if BASELINE_PATH.exists()
+        else 0
+    )
 
     if "--update" in args:
         if total > baseline:

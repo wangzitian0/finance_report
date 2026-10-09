@@ -3,8 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { Sidebar } from "@/components/Sidebar"
 import { WorkspaceTabs } from "@/components/WorkspaceTabs"
-import { apiFetch, fetchWorkflowStatus } from "@/lib/api"
-import type { WorkflowStatusResponse } from "@/lib/types"
+import { apiOperation } from "@/lib/api-client"
 
 const pushMock = vi.fn()
 const toggleSidebarMock = vi.fn()
@@ -14,8 +13,7 @@ const setActiveTabMock = vi.fn()
 const clearUserMock = vi.fn()
 const getUserEmailMock = vi.fn()
 const isAuthenticatedMock = vi.fn()
-const mockedApiFetch = vi.mocked(apiFetch)
-const mockedFetchWorkflowStatus = vi.mocked(fetchWorkflowStatus)
+const mockedApiOperation = vi.mocked(apiOperation)
 
 let pathnameMock = "/dashboard"
 
@@ -34,33 +32,19 @@ vi.mock("@/lib/auth", () => ({
   isAuthenticated: () => isAuthenticatedMock(),
 }))
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
-  fetchWorkflowStatus: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
-const defaultWorkflowStatus: WorkflowStatusResponse = {
-  primary_state: "needs_action",
-  next_action: {
-    type: "review_required",
-    count: 2,
-    href: "/review",
-    label: "Review required",
-    summary: "Confirm the source or review item so trusted report preparation can continue.",
-  },
-  report_readiness: { state: "blocked", blocking_count: 1, href: "/reports/package" },
-  event_counts: { unread: 4, action_required: 2, blocked: 1 },
-}
-
 let workspaceMockData = {
-    isCollapsed: false,
-    toggleSidebar: toggleSidebarMock,
-    tabs: [{ id: "tab-1", label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" }],
-    activeTabId: "tab-1" as string | null,
-    addTab: addTabMock,
-    removeTab: removeTabMock,
-    setActiveTab: setActiveTabMock,
-  }
+  isCollapsed: false,
+  toggleSidebar: toggleSidebarMock,
+  tabs: [{ id: "tab-1", label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" }],
+  activeTabId: "tab-1" as string | null,
+  addTab: addTabMock,
+  removeTab: removeTabMock,
+  setActiveTab: setActiveTabMock,
+}
 
 vi.mock("@/hooks/useWorkspace", () => ({
   useWorkspace: () => workspaceMockData,
@@ -76,13 +60,11 @@ describe("Sidebar and WorkspaceTabs", () => {
     clearUserMock.mockReset()
     getUserEmailMock.mockReset()
     isAuthenticatedMock.mockReset()
-    mockedApiFetch.mockReset()
-    mockedFetchWorkflowStatus.mockReset()
+    mockedApiOperation.mockReset()
     pathnameMock = "/dashboard"
     getUserEmailMock.mockReturnValue("user@example.com")
     isAuthenticatedMock.mockReturnValue(true)
-    mockedApiFetch.mockResolvedValue({})
-    mockedFetchWorkflowStatus.mockResolvedValue(defaultWorkflowStatus)
+    mockedApiOperation.mockResolvedValue({} as any)
     workspaceMockData = {
       isCollapsed: false,
       toggleSidebar: toggleSidebarMock,
@@ -115,10 +97,10 @@ describe("Sidebar and WorkspaceTabs", () => {
   // AC-identity.fe-auth.15
   it("waits for cookie logout before clearing desktop identity", async () => {
     let complete!: () => void
-    mockedApiFetch.mockReturnValue(new Promise<void>((resolve) => { complete = resolve }))
+    mockedApiOperation.mockReturnValue(new Promise<void>((resolve) => { complete = resolve }) as any)
     render(<Sidebar />)
     fireEvent.click(await screen.findByRole("button", { name: "Logout" }))
-    expect(mockedApiFetch).toHaveBeenCalledWith("/api/auth/logout", expect.objectContaining({ method: "POST" }))
+    expect(mockedApiOperation).toHaveBeenCalledWith("logout_auth_logout_post")
     expect(clearUserMock).not.toHaveBeenCalled()
     expect(pushMock).not.toHaveBeenCalled()
     expect(screen.getByRole("button", { name: "Logout" })).toBeDisabled()
@@ -128,13 +110,13 @@ describe("Sidebar and WorkspaceTabs", () => {
   })
 
   it("preserves desktop identity when cookie logout fails and allows retry", async () => {
-    mockedApiFetch.mockRejectedValueOnce(new Error("Offline"))
+    mockedApiOperation.mockRejectedValueOnce(new Error("Offline"))
     render(<Sidebar />)
     fireEvent.click(await screen.findByRole("button", { name: "Logout" }))
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not log out. Please try again.")
     expect(clearUserMock).not.toHaveBeenCalled()
     expect(pushMock).not.toHaveBeenCalled()
-    mockedApiFetch.mockResolvedValue(undefined)
+    mockedApiOperation.mockResolvedValue(undefined as any)
     fireEvent.click(screen.getByRole("button", { name: "Logout" }))
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/login"))
   })

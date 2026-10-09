@@ -11,8 +11,8 @@ Model (see common/meta/readme.md):
     * ``LLM-LED``   (50 <= share < 100)
     * ``LLM-ONLY``  (share == 100)   — enforceable: no hardcode permitted
 
-This module is the base library; ``tools/authority_counter.py`` is the runnable
-counter. Pure-Python, no key/network/DB — runs in the lint job.
+This module is both the base library and a runnable counter (run with -m).
+Pure-Python, no key/network/DB — runs in the lint job.
 """
 
 from __future__ import annotations
@@ -191,3 +191,7 @@ def render_table(result: dict) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     print(render_table(classify_repo(REPO_ROOT)))
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

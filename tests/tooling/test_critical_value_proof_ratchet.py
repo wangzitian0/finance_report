@@ -57,17 +57,16 @@ def test_proof_kinds_read_live_contracts_explicit_only(tmp_path: Path) -> None:
 
 def test_no_new_non_value_asserting_critical_proofs() -> None:
     """A new covered critical outcome (or a proof that stops asserting a value)
-    fails CI: current non-value-asserting set must be a subset of the baseline."""
+    fails CI: current non-value-asserting set must be empty (0 debt)."""
     current = cvp.current_non_value_proofs()
-    baseline = set(
-        json.loads(cvp.BASELINE_PATH.read_text(encoding="utf-8"))["non_value_proofs"]
-    )
+    baseline = cvp._load_baseline()
     added = current - baseline
     assert not added, (
         "New critical macro-outcome proof(s) assert no business value — give a "
         "backing AC a value-asserting proof_kind (exact/property/invariant/eval), "
         "do not baseline them:\n  " + "\n  ".join(sorted(added))
     )
+    assert not current, "All critical macro-outcome proofs must be value-asserting."
 
 
 def test_value_asserting_kinds_are_the_oracle_set() -> None:

@@ -99,7 +99,6 @@ def test_baseline_inventory_covers_the_repos_real_ratchet_files() -> None:
     inventory = eb.ratchet_baseline_inventory(ROOT)
     files = {entry["file"] for entry in inventory}
     known_ratchets = {
-        "common/testing/critical-value-proof-baseline.json",
         "common/testing/mirror-assertion-baseline.json",
         "common/testing/data/ac-score-baseline.jsonl",
         "common/testing/data/protection-floor.json",

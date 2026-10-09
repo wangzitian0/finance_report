@@ -2,17 +2,17 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import CorrectionLoopPage from "@/app/(main)/confidence/page";
-import { fetchCorrectionLoopReplay } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 
-vi.mock("@/lib/api", () => ({ fetchCorrectionLoopReplay: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 
-const mockedReplay = vi.mocked(fetchCorrectionLoopReplay);
+const mockedApiOperation = vi.mocked(apiOperation);
 
 describe("Correction loop proof page", () => {
-  beforeEach(() => mockedReplay.mockReset());
+  beforeEach(() => mockedApiOperation.mockReset());
 
   it("renders held-out replay without a source-type confidence trend", async () => {
-    mockedReplay.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       holdout_size: 10,
       grounded: 4,
       proportion_before: "0.30000",
@@ -31,8 +31,8 @@ describe("Correction loop proof page", () => {
   it("surfaces a retryable error", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      mockedReplay.mockRejectedValueOnce(new Error("offline"));
-      mockedReplay.mockResolvedValueOnce({
+      mockedApiOperation.mockRejectedValueOnce(new Error("offline"));
+      mockedApiOperation.mockResolvedValueOnce({
         holdout_size: 10,
         grounded: 4,
         proportion_before: "0.30000",
@@ -45,7 +45,7 @@ describe("Correction loop proof page", () => {
       );
       fireEvent.click(screen.getByRole("button", { name: "Retry" }));
       expect(await screen.findByText("30.0%")).toBeInTheDocument();
-      expect(mockedReplay).toHaveBeenCalledTimes(2);
+      expect(mockedApiOperation).toHaveBeenCalledTimes(2);
     } finally {
       consoleError.mockRestore();
     }

@@ -563,7 +563,7 @@ CONTRACT = PackageContract(
         ac('AC-meta.fe-ia-nav.16', 'Shared toast and flow-step status affordances use Lucide icons or text instead of unicode glyph icons, and warning toast messages do not embed emoji-like status glyphs', 'apps/frontend/src/__tests__/toastProviderComponent.test.tsx::AC22.12.5 uses semantic icon components instead of unicode glyph icons', priority='P1'),
         ac('AC-meta.fe-ia-nav.17', 'Data-dense report and asset-table loading states reserve layout with token-backed skeleton placeholders instead of spinner-only or text-only states', 'apps/frontend/src/__tests__/uiPrimitives.test.tsx::AC22.12.6 renders token-backed skeleton primitives without spinner affordances', priority='P1'),
         ac('AC-meta.fe-ia-nav.18', 'Carryover accessibility review fixes keep the skip-link target covered by global focus-visible styling and keep report package table-of-contents section status in the accessible link name', 'apps/frontend/src/__tests__/designTokens.test.tsx::AC22.12.1 AC22.12.3 AC22.13.3 defines the global accessibility baseline in SSOT and CSS', priority='P1'),
-        ac('AC-meta.fe-ia-nav.19', 'A typed `patchUserSettings` client function in `lib/api.ts` issues `PATCH /api/users/me/settings` through the shared `apiFetch` client (no raw `fetch`) and returns the effective `UserAiSettings` response', 'apps/frontend/src/__tests__/apiFunctions.test.ts::AC22.15.1 fetchUserSettings GETs /api/users/me/settings via apiFetch', priority='P1'),
+        ac('AC-meta.fe-ia-nav.19', 'A typed user settings client via `apiOperation` issues `PATCH /api/users/me/settings` through `lib/api-client.ts` and returns the effective `UserAiSettings` response', 'apps/frontend/src/__tests__/apiFunctions.test.ts::AC22.15.1 get_current_user_settings_users_me_settings_get GETs /api/users/me/settings', priority='P1'),
         ac('AC-meta.fe-ia-nav.20', 'The legacy `/events` alias is removed from `ROUTE_CONFIG` so `/notifications` is the single canonical path/label; the `/events`→`/notifications` redirect is unchanged', 'apps/frontend/src/__tests__/navigation.test.ts::AC22.18.1 drops the legacy /events alias so /notifications is the one canonical label', priority='P1'),
         ac('AC-meta.fe-http-client.21', 'Balance sheet, income statement, and cash-flow pages download CSV through the authenticated API wrapper (backend cash-flow CSV export half migrated as `AC-reporting.csv-export.1`)', 'apps/frontend/src/__tests__/apiFunctions.test.ts::AC5.17.1 downloads authenticated CSV blobs and preserves the server filename'),
         ac('AC-meta.fe-ia-nav.21', 'The install manifest uses the canonical `/` app launch route, stable app identity, standalone display, and required 192/512/apple icon metadata without relying on the legacy `/dashboard` redirect', 'apps/frontend/src/__tests__/pwaInstall.test.tsx::AC22.20.1 keeps install manifest on the canonical home-screen launch contract', priority='P1'),
@@ -597,7 +597,7 @@ CONTRACT = PackageContract(
         ac('AC-meta.governance-ratchet.2', 'Backend root module boundaries are tracked in the package governance census and enforced shrink-only; unauthorized root composition modules or domain boundary escapes fail closed.', 'tests/tooling/test_governance_ratchet.py::test_AC_meta_governance_ratchet_2_domain_locality', proof_kind='exact'),
         ac('AC-meta.governance-ratchet.3', 'Public Python signatures and app-root composition boundaries are counted and governed; an undiscovered root module or zero-count denominator fails closed.', 'tests/tooling/test_governance_ratchet.py::test_AC_meta_governance_ratchet_3_python_boundary_denominator', proof_kind='exact'),
         ac('AC-meta.governance-ratchet.4', 'Frontend production discovery covers all active modules and exports; empty, partial, or vacuous frontend scans fail closed with non-zero exit and actionable diagnostics.', 'tests/tooling/test_governance_ratchet.py::test_AC_meta_governance_ratchet_4_frontend_export_denominator', proof_kind='exact'),
-        ac('AC-meta.governance-ratchet.5', 'Frontend operation consumer discovery recognizes API wrapper call sites in apps/frontend/src/lib/api.ts, classifying wrapper-delegated OpenAPI operations as consumed rather than dead code.', 'tests/tooling/test_governance_ratchet.py::test_AC_meta_governance_ratchet_5_operation_consumer_truth', proof_kind='exact'),
+        ac('AC-meta.governance-ratchet.5', 'Frontend operation consumer discovery confirms retired api.ts wrappers converge to direct callers, classifying OpenAPI operations as consumed rather than dead code.', 'tests/tooling/test_governance_ratchet.py::test_AC_meta_governance_ratchet_5_operation_consumer_truth', proof_kind='exact'),
         ac('AC-meta.governance-ratchet.6', 'Unused OpenAPI operations are partitioned honestly between intentional API-only operations and consumer gaps, ensuring total operations equal consumed plus API-only with zero unaccounted endpoints.', 'tests/tooling/test_governance_ratchet.py::test_AC_meta_governance_ratchet_6_unused_operation_honesty', proof_kind='exact'),
         ac('AC-meta.governance-ratchet.7', 'The delivery surface migration debt remains visible with semantic owner and shrink-only status; expansion beyond baseline fails closed.', 'tests/tooling/test_governance_ratchet.py::test_AC_meta_governance_ratchet_7_delivery_surface_truth', proof_kind='exact'),
         ac('AC-meta.governance-ratchet.8', 'DDD unit accountability enforces that all declared bounded context units are accounted for, unbound units are tracked with shrink-only limits, and incomplete splits fail closed.', 'tests/tooling/test_governance_ratchet.py::test_AC_meta_governance_ratchet_8_unit_accountability', proof_kind='exact'),
@@ -929,25 +929,20 @@ CONTRACT = PackageContract(
         ),
         ConceptRecord(
             key="app_boundary_baseline",
-            owner="common/meta/data/app-boundary-baseline.json",
+            owner="common/meta/extension/check_app_boundary.py",
             description=(
-                "Monotonic shrink-only baseline of cross-boundary edges between the un-carved "
-                "apps/backend/src remainder (the L4 backend super-package) and the "
-                "already-carved packages — inbound (remainder → a carved package's "
-                "unpublished internal) and outbound (a carved package → the app remainder, "
-                "upward-layer). A new edge fails check_app_boundary; the count is the "
-                "migration burndown."
+                "In-code absolute zero-debt assertion of cross-boundary edges between the "
+                "apps/backend/src remainder and carved packages; check_app_boundary rejects "
+                "any newly introduced leak or upward edge."
             ),
             cross_refs=[
                 "common/meta/migration-standard.md",
                 "common/meta/extension/app_boundary.py",
-                "common/meta/extension/check_app_boundary.py",
                 "tools/check_app_boundary.py",
                 "tests/tooling/test_app_boundary.py",
             ],
             family="platform",
-            kind="baseline",
-            authority="machine_generated",
+            kind="concept",
             parent="package_model",
         ),
         ConceptRecord(
@@ -970,20 +965,18 @@ CONTRACT = PackageContract(
         ),
         ConceptRecord(
             key="l4_root_import_baseline",
-            owner="common/meta/data/l4-root-import-baseline.json",
+            owner="common/meta/extension/app_boundary.py",
             description=(
-                "Exact shrink-only inventory of statement-level deep imports from "
-                "the L4 delivery/composition shell into package internals; "
-                "check_app_boundary rejects newly introduced or stale entries."
+                "In-code absolute zero-debt assertion of statement-level deep imports from "
+                "the L4 delivery/composition shell into package internals."
             ),
             cross_refs=[
-                "common/meta/extension/app_boundary.py",
                 "common/meta/extension/check_app_boundary.py",
                 "tools/check_app_boundary.py",
+                "tests/tooling/test_app_boundary.py",
             ],
             family="platform",
-            kind="baseline",
-            authority="machine_generated",
+            kind="concept",
             parent="package_model",
         ),
         ConceptRecord(
@@ -1157,22 +1150,18 @@ CONTRACT = PackageContract(
         ),
         ConceptRecord(
             key="draft_package_baseline",
-            owner="common/meta/data/draft-package-baseline.json",
+            owner="common/meta/extension/check_draft_packages.py",
             description=(
-                "Registered draft packages for the migration-safety draft gate "
-                "(tools/check_draft_packages.py); a draft package leaves its authority tier "
-                "undecided, so listing it here makes adding one a reviewed act and a draft "
-                "must carry no done ACs."
+                "In-code absolute zero-debt assertion for draft-package hygiene; "
+                "un-baselined draft packages and finished work in draft are strictly "
+                "prohibited."
             ),
             cross_refs=[
                 "common/meta/readme.md",
-                "common/meta/extension/check_draft_packages.py",
-                "tools/check_draft_packages.py",
                 "tests/tooling/test_migration_safety_gates.py",
             ],
             family="tdd",
-            kind="baseline",
-            authority="machine_generated",
+            kind="concept",
             parent="authority_tiers",
         ),
         ConceptRecord(
@@ -1189,22 +1178,18 @@ CONTRACT = PackageContract(
         ),
         ConceptRecord(
             key="context_contract_debt_baseline",
-            owner="common/meta/data/context-contract-baseline.json",
+            owner="common/meta/extension/check_context_contract.py",
             description=(
-                "Exact shrink-only list of packages that have not yet adopted "
-                "their package-owned bounded-context declaration. It is migration "
-                "debt rather than a context map: purpose, scope, and relationship "
-                "semantics remain owned by each package contract."
+                "In-code absolute zero-debt assertion for package-owned bounded-context "
+                "declarations; unclassified dependencies or missing contexts are "
+                "strictly prohibited."
             ),
             cross_refs=[
                 "common/meta/base/package_contract.py",
-                "common/meta/extension/check_context_contract.py",
-                "tools/check_context_contract.py",
                 "tests/tooling/test_context_contract.py",
             ],
             family="platform",
-            kind="baseline",
-            authority="machine_generated",
+            kind="concept",
             parent="package_model",
         ),
         ConceptRecord(

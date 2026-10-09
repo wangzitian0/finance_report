@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { fetchCurrentUser } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import { clearUser, getUserId, setUser } from "@/lib/auth";
 
 /**
@@ -26,7 +26,7 @@ export function useSessionBootstrap(): void {
         let cancelled = false;
         void (async () => {
             try {
-                const user = await fetchCurrentUser();
+                const user = await apiOperation("get_me_auth_me_get");
                 if (!cancelled) {
                     setUser(user.id, user.email);
                 }

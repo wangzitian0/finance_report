@@ -2,11 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import GeneralSettingsPage from "@/components/settings/GeneralSettingsPanel"
-import { fetchBaseCurrency, updateBaseCurrency } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 
-vi.mock("@/lib/api", () => ({
-  fetchBaseCurrency: vi.fn(),
-  updateBaseCurrency: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
 const showToast = vi.fn()
@@ -14,14 +13,17 @@ vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast }),
 }))
 
-const mockedFetch = vi.mocked(fetchBaseCurrency)
-const mockedUpdate = vi.mocked(updateBaseCurrency)
+const mockedApiOperation = vi.mocked(apiOperation)
 
 beforeEach(() => {
   showToast.mockReset()
-  mockedFetch.mockReset()
-  mockedUpdate.mockReset()
-  mockedFetch.mockResolvedValue({ base_currency: "SGD" })
+  mockedApiOperation.mockReset()
+  mockedApiOperation.mockImplementation(async (op: any) => {
+    if (op === "get_base_currency_app_config_base_currency_get") {
+      return { base_currency: "SGD" } as any
+    }
+    return {} as any
+  })
 })
 
 describe("GeneralSettingsPage (EPIC-012 AC12.39.3)", () => {
@@ -35,7 +37,15 @@ describe("GeneralSettingsPage (EPIC-012 AC12.39.3)", () => {
   })
 
   it("AC12.39.3 submits the edited currency via updateBaseCurrency and shows success", async () => {
-    mockedUpdate.mockResolvedValue({ base_currency: "EUR" })
+    mockedApiOperation.mockImplementation(async (op: any) => {
+      if (op === "get_base_currency_app_config_base_currency_get") {
+        return { base_currency: "SGD" } as any
+      }
+      if (op === "update_base_currency_app_config_base_currency_put") {
+        return { base_currency: "EUR" } as any
+      }
+      return {} as any
+    })
     render(<GeneralSettingsPage />)
     await waitFor(() => expect(screen.getByText("General Settings")).toBeInTheDocument())
 
@@ -44,13 +54,25 @@ describe("GeneralSettingsPage (EPIC-012 AC12.39.3)", () => {
     expect(save).toBeEnabled()
     fireEvent.click(save)
 
-    await waitFor(() => expect(mockedUpdate).toHaveBeenCalledWith("EUR"))
+    await waitFor(() =>
+      expect(mockedApiOperation).toHaveBeenCalledWith("update_base_currency_app_config_base_currency_put", {
+        body: { base_currency: "EUR" },
+      })
+    )
     await waitFor(() => expect(showToast).toHaveBeenCalledWith("Base currency saved", "success"))
     await waitFor(() => expect(screen.getByRole("button", { name: /Save changes/i })).toBeDisabled())
   })
 
   it("AC12.39.3 surfaces an error and keeps the draft when the update fails", async () => {
-    mockedUpdate.mockRejectedValue(new Error("not an ISO-4217 currency code"))
+    mockedApiOperation.mockImplementation(async (op: any) => {
+      if (op === "get_base_currency_app_config_base_currency_get") {
+        return { base_currency: "SGD" } as any
+      }
+      if (op === "update_base_currency_app_config_base_currency_put") {
+        throw new Error("not an ISO-4217 currency code")
+      }
+      return {} as any
+    })
     render(<GeneralSettingsPage />)
     await waitFor(() => expect(screen.getByText("General Settings")).toBeInTheDocument())
 
@@ -63,8 +85,8 @@ describe("GeneralSettingsPage (EPIC-012 AC12.39.3)", () => {
   })
 
   it("AC12.39.3 surfaces a load error when fetching the base currency fails", async () => {
-    mockedFetch.mockReset()
-    mockedFetch.mockRejectedValueOnce(new Error("Network Error"))
+    mockedApiOperation.mockReset()
+    mockedApiOperation.mockRejectedValueOnce(new Error("Network Error"))
     render(<GeneralSettingsPage />)
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Network Error"))
   })
@@ -80,6 +102,6 @@ describe("GeneralSettingsPage (EPIC-012 AC12.39.3)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Reset/i }))
     expect(screen.getByLabelText("Base currency")).toHaveValue("SGD")
     expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument()
-    expect(mockedUpdate).not.toHaveBeenCalled()
+    expect(mockedApiOperation).not.toHaveBeenCalledWith("update_base_currency_app_config_base_currency_put", expect.anything())
   })
 })

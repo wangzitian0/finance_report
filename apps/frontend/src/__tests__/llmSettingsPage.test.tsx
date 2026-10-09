@@ -2,22 +2,10 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import LlmSettingsPage from "@/components/settings/LlmSettingsPanel";
-import {
-  createLlmProvider,
-  deleteLlmProvider,
-  fetchLlmCatalog,
-  fetchLlmProviders,
-  fetchLlmScenes,
-  putLlmScenes,
-} from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 
-vi.mock("@/lib/api", () => ({
-  createLlmProvider: vi.fn(),
-  deleteLlmProvider: vi.fn(),
-  fetchLlmCatalog: vi.fn(),
-  fetchLlmProviders: vi.fn(),
-  fetchLlmScenes: vi.fn(),
-  putLlmScenes: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }));
 
 const showToast = vi.fn();
@@ -25,12 +13,7 @@ vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast }),
 }));
 
-const mockedProviders = vi.mocked(fetchLlmProviders);
-const mockedScenes = vi.mocked(fetchLlmScenes);
-const mockedCatalog = vi.mocked(fetchLlmCatalog);
-const mockedPut = vi.mocked(putLlmScenes);
-const mockedDelete = vi.mocked(deleteLlmProvider);
-const mockedCreate = vi.mocked(createLlmProvider);
+const mockedApiOperation = vi.mocked(apiOperation);
 
 const PROVIDER = {
   id: "prov-1",
@@ -53,31 +36,44 @@ const MODEL = {
 };
 
 function primeHappyLoad() {
-  mockedProviders.mockResolvedValue({ providers: [PROVIDER] });
-  mockedCatalog.mockResolvedValue({ models: [MODEL] });
-  mockedScenes.mockResolvedValue({
-    bindings: [
-      {
-        scene: "advisor.chat",
-        provider_id: "prov-1",
-        model: "openrouter/auto",
-        reasoning: "low",
-        prefer_free: true,
-        fallback_model_ids: ["fallback-1"],
-        max_tokens: null,
-      },
-    ],
+  mockedApiOperation.mockImplementation(async (op: any) => {
+    if (op === "list_providers_llm_providers_get") {
+      return { providers: [PROVIDER] } as any;
+    }
+    if (op === "get_catalog_llm_catalog_get") {
+      return { models: [MODEL] } as any;
+    }
+    if (op === "get_scenes_llm_scenes_get") {
+      return {
+        bindings: [
+          {
+            scene: "advisor.chat",
+            provider_id: "prov-1",
+            model: "openrouter/auto",
+            reasoning: "low",
+            prefer_free: true,
+            fallback_model_ids: ["fallback-1"],
+            max_tokens: null,
+          },
+        ],
+      } as any;
+    }
+    if (op === "put_scenes_llm_scenes_put") {
+      return { bindings: [] } as any;
+    }
+    if (op === "delete_provider_llm_providers__provider_id__delete") {
+      return undefined as any;
+    }
+    if (op === "create_provider_llm_providers_post") {
+      return PROVIDER as any;
+    }
+    return {} as any;
   });
 }
 
 beforeEach(() => {
   showToast.mockReset();
-  mockedProviders.mockReset();
-  mockedScenes.mockReset();
-  mockedCatalog.mockReset();
-  mockedPut.mockReset();
-  mockedDelete.mockReset();
-  mockedCreate.mockReset();
+  mockedApiOperation.mockReset();
 });
 
 describe("LlmSettingsPage (EPIC-023 PR4)", () => {
@@ -104,9 +100,7 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
   });
 
   it("shows a load error when fetching fails", async () => {
-    mockedProviders.mockRejectedValue(new Error("Load failed"));
-    mockedScenes.mockResolvedValue({ bindings: [] });
-    mockedCatalog.mockResolvedValue({ models: [] });
+    mockedApiOperation.mockRejectedValue(new Error("Load failed"));
     render(<LlmSettingsPage />);
 
     await waitFor(() =>
@@ -115,9 +109,12 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
   });
 
   it("renders an empty-providers hint when none are configured", async () => {
-    mockedProviders.mockResolvedValue({ providers: [] });
-    mockedScenes.mockResolvedValue({ bindings: [] });
-    mockedCatalog.mockResolvedValue({ models: [] });
+    mockedApiOperation.mockImplementation(async (op: any) => {
+      if (op === "list_providers_llm_providers_get") return { providers: [] } as any;
+      if (op === "get_scenes_llm_scenes_get") return { bindings: [] } as any;
+      if (op === "get_catalog_llm_catalog_get") return { models: [] } as any;
+      return {} as any;
+    });
     render(<LlmSettingsPage />);
 
     await waitFor(() =>
@@ -127,7 +124,6 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
 
   it("keeps Save disabled until a binding is edited, then PUTs configured bindings", async () => {
     primeHappyLoad();
-    mockedPut.mockResolvedValue({ bindings: [] });
     render(<LlmSettingsPage />);
     await waitFor(() => expect(screen.getByText("LLM Models")).toBeInTheDocument());
 
@@ -145,10 +141,14 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
     expect(save).toBeEnabled();
     fireEvent.click(save);
 
-    await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
-    const sent = mockedPut.mock.calls[0][0].bindings;
+    await waitFor(() => {
+      const putCalls = mockedApiOperation.mock.calls.filter(([op]) => op === "put_scenes_llm_scenes_put");
+      expect(putCalls).toHaveLength(1);
+    });
+    const putCalls = mockedApiOperation.mock.calls.filter(([op]) => op === "put_scenes_llm_scenes_put");
+    const sent = (putCalls[0][1] as any).body.bindings;
     // Only the two configured scenes (advisor.chat from load + edited ocr) persist.
-    const scenes = sent.map((b) => b.scene).sort();
+    const scenes = sent.map((b: any) => b.scene).sort();
     expect(scenes).toEqual(["advisor.chat", "extraction.ocr"]);
     await waitFor(() =>
       expect(showToast).toHaveBeenCalledWith("LLM bindings saved", "success")
@@ -157,7 +157,6 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
 
   it("edits reasoning, fallbacks and prefer_free then persists them", async () => {
     primeHappyLoad();
-    mockedPut.mockResolvedValue({ bindings: [] });
     render(<LlmSettingsPage />);
     await waitFor(() => expect(screen.getByText("LLM Models")).toBeInTheDocument());
 
@@ -174,10 +173,14 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
-    await waitFor(() => expect(mockedPut).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      const putCalls = mockedApiOperation.mock.calls.filter(([op]) => op === "put_scenes_llm_scenes_put");
+      expect(putCalls).toHaveLength(1);
+    });
 
-    const chatBinding = mockedPut.mock.calls[0][0].bindings.find(
-      (b) => b.scene === "advisor.chat"
+    const putCalls = mockedApiOperation.mock.calls.filter(([op]) => op === "put_scenes_llm_scenes_put");
+    const chatBinding = (putCalls[0][1] as any).body.bindings.find(
+      (b: any) => b.scene === "advisor.chat"
     )!;
     expect(chatBinding.reasoning).toBe("high");
     expect(chatBinding.fallback_model_ids).toEqual(["a", "b"]);
@@ -202,7 +205,27 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
 
   it("surfaces a save error and keeps the draft", async () => {
     primeHappyLoad();
-    mockedPut.mockRejectedValue(new Error("Save boom"));
+    mockedApiOperation.mockImplementation(async (op: any) => {
+      if (op === "put_scenes_llm_scenes_put") throw new Error("Save boom");
+      if (op === "list_providers_llm_providers_get") return { providers: [PROVIDER] } as any;
+      if (op === "get_catalog_llm_catalog_get") return { models: [MODEL] } as any;
+      if (op === "get_scenes_llm_scenes_get") {
+        return {
+          bindings: [
+            {
+              scene: "advisor.chat",
+              provider_id: "prov-1",
+              model: "openrouter/auto",
+              reasoning: "low",
+              prefer_free: true,
+              fallback_model_ids: ["fallback-1"],
+              max_tokens: null,
+            },
+          ],
+        } as any;
+      }
+      return {} as any;
+    });
     render(<LlmSettingsPage />);
     await waitFor(() => expect(screen.getByText("LLM Models")).toBeInTheDocument());
 
@@ -219,13 +242,20 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
   });
 
   it("deletes a provider and reloads", async () => {
-    primeHappyLoad();
-    mockedDelete.mockResolvedValue(undefined);
+    let providers = [PROVIDER];
+    mockedApiOperation.mockImplementation(async (op: any) => {
+      if (op === "list_providers_llm_providers_get") return { providers } as any;
+      if (op === "get_catalog_llm_catalog_get") return { models: [MODEL] } as any;
+      if (op === "get_scenes_llm_scenes_get") return { bindings: [] } as any;
+      if (op === "delete_provider_llm_providers__provider_id__delete") {
+        providers = [];
+        return undefined as any;
+      }
+      return {} as any;
+    });
     render(<LlmSettingsPage />);
     await waitFor(() => expect(screen.getByRole("button", { name: /Delete provider OpenRouter/i })).toBeInTheDocument());
 
-    // Second load after delete returns no providers.
-    mockedProviders.mockResolvedValue({ providers: [] });
     fireEvent.click(
       screen.getByRole("button", { name: /Delete provider OpenRouter/i })
     );
@@ -234,7 +264,12 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
       await screen.findByRole("button", { name: "Delete provider" })
     );
 
-    await waitFor(() => expect(mockedDelete).toHaveBeenCalledWith("prov-1"));
+    await waitFor(() =>
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "delete_provider_llm_providers__provider_id__delete",
+        { path: { provider_id: "prov-1" } },
+      )
+    );
     await waitFor(() =>
       expect(showToast).toHaveBeenCalledWith("Provider deleted", "success")
     );
@@ -245,7 +280,13 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
 
   it("surfaces a delete error", async () => {
     primeHappyLoad();
-    mockedDelete.mockRejectedValue(new Error("Delete boom"));
+    mockedApiOperation.mockImplementation(async (op: any) => {
+      if (op === "delete_provider_llm_providers__provider_id__delete") throw new Error("Delete boom");
+      if (op === "list_providers_llm_providers_get") return { providers: [PROVIDER] } as any;
+      if (op === "get_catalog_llm_catalog_get") return { models: [MODEL] } as any;
+      if (op === "get_scenes_llm_scenes_get") return { bindings: [] } as any;
+      return {} as any;
+    });
     render(<LlmSettingsPage />);
     await waitFor(() => expect(screen.getByRole("button", { name: /Delete provider OpenRouter/i })).toBeInTheDocument());
 
@@ -262,7 +303,6 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
 
   it("#1609 does not delete until the confirmation is accepted", async () => {
     primeHappyLoad();
-    mockedDelete.mockResolvedValue(undefined);
     render(<LlmSettingsPage />);
     await waitFor(() => expect(screen.getByRole("button", { name: /Delete provider OpenRouter/i })).toBeInTheDocument());
 
@@ -271,17 +311,22 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
     );
     // The confirm dialog is shown and nothing has been deleted yet.
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(mockedDelete).not.toHaveBeenCalled();
+    expect(mockedApiOperation).not.toHaveBeenCalledWith(
+      "delete_provider_llm_providers__provider_id__delete",
+      expect.anything(),
+    );
 
     // Cancelling closes the dialog without deleting.
     fireEvent.click(screen.getByRole("button", { name: /Cancel/i }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(mockedDelete).not.toHaveBeenCalled();
+    expect(mockedApiOperation).not.toHaveBeenCalledWith(
+      "delete_provider_llm_providers__provider_id__delete",
+      expect.anything(),
+    );
   });
 
   it("toggles the add-provider form and reloads after creating one", async () => {
     primeHappyLoad();
-    mockedCreate.mockResolvedValue(PROVIDER);
     render(<LlmSettingsPage />);
     await waitFor(() => expect(screen.getByText("LLM Models")).toBeInTheDocument());
 
@@ -298,7 +343,14 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
     // button left is the form's submit.
     fireEvent.click(screen.getByRole("button", { name: /^Add provider$/i }));
 
-    await waitFor(() => expect(mockedCreate).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "create_provider_llm_providers_post",
+        expect.objectContaining({
+          body: expect.objectContaining({ label: "New", api_key: "key" }),
+        }),
+      )
+    );
     await waitFor(() =>
       expect(showToast).toHaveBeenCalledWith("Provider added", "success")
     );

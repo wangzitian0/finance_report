@@ -129,7 +129,7 @@ def test_AC26_9_1_counter_renders_live_table(tmp_path: Path) -> None:
     check_authority_reconcile gate is the enforced check, this counter is the
     on-demand human view.
     """
-    from tools.authority_counter import main, render_table
+    from common.meta.extension.authority_classifier import main, render_table
 
     table = render_table(classify_repo())
     assert "band" in table and "ALL" in table

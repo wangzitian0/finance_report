@@ -15,14 +15,14 @@ def test_check_only_validates_full_classification(capsys) -> None:
     """AC-runtime.snapshot-anonymizer.1: --check-only classifies every live
     model column and exits 0 without touching any database (a zero exit IS the
     guarantee — classify_columns raises on any unclassified column)."""
-    from tools.anonymize_snapshot import main
+    from tools._lib.dev.anonymize_snapshot import main
 
     assert main(["--check-only"]) == 0
     capsys.readouterr()
 
 
 def test_transform_requires_database_url() -> None:
-    from tools.anonymize_snapshot import main
+    from tools._lib.dev.anonymize_snapshot import main
 
     with pytest.raises(SystemExit) as excinfo:
         main([])
@@ -32,7 +32,7 @@ def test_transform_requires_database_url() -> None:
 def test_transform_refuses_without_scratch_acknowledgement() -> None:
     """RL-DATA-2: the tool must never be pointed at prod or live staging; the
     explicit scratch-copy acknowledgement is a hard requirement."""
-    from tools.anonymize_snapshot import main
+    from tools._lib.dev.anonymize_snapshot import main
 
     with pytest.raises(SystemExit) as excinfo:
         main(["--database-url", "postgresql+psycopg2://x:y@localhost/scratch"])
@@ -42,7 +42,7 @@ def test_transform_refuses_without_scratch_acknowledgement() -> None:
 def test_async_database_url_is_normalized_to_sync_driver() -> None:
     """The backend's canonical postgresql+asyncpg:// URL is accepted and run
     through a sync driver (same normalization as migrations/env.py)."""
-    from tools.anonymize_snapshot import _normalize_url
+    from tools._lib.dev.anonymize_snapshot import _normalize_url
 
     assert (
         _normalize_url("postgresql+asyncpg://u:p@host:5432/db")
@@ -85,7 +85,7 @@ def test_transform_success_path_reports_counts(monkeypatch, capsys) -> None:
     """The wrapper drives anonymize + residual scan in one transaction and
     reports counts only (never values)."""
     import sqlalchemy
-    import tools.anonymize_snapshot as cli
+    import tools._lib.dev.anonymize_snapshot as cli
 
     from src.runtime.extension.snapshot_anonymizer import AnonymizationReport
 
@@ -115,7 +115,7 @@ def test_transform_residuals_fail_closed(monkeypatch) -> None:
     """AC-runtime.snapshot-anonymizer.3: a surviving original aborts the
     transaction — the wrapper raises instead of committing."""
     import sqlalchemy
-    import tools.anonymize_snapshot as cli
+    import tools._lib.dev.anonymize_snapshot as cli
 
     from src.runtime.extension.snapshot_anonymizer import (
         AnonymizationReport,
@@ -147,7 +147,7 @@ def test_emit_audit_proof_outputs_verified_json(monkeypatch, tmp_path) -> None:
     """--emit-audit-proof writes verified json upon clean completion."""
     import json
     import sqlalchemy
-    import tools.anonymize_snapshot as cli
+    import tools._lib.dev.anonymize_snapshot as cli
     from src.runtime.extension.snapshot_anonymizer import AnonymizationReport
 
     report = AnonymizationReport(
@@ -183,7 +183,7 @@ def test_emit_audit_proof_outputs_verified_json(monkeypatch, tmp_path) -> None:
 def test_emit_audit_proof_fails_closed_on_residuals(monkeypatch, tmp_path) -> None:
     """When residual values survive, the proof file must NEVER be created."""
     import sqlalchemy
-    import tools.anonymize_snapshot as cli
+    import tools._lib.dev.anonymize_snapshot as cli
     from src.runtime.extension.snapshot_anonymizer import (
         AnonymizationReport,
         ResidualError,
@@ -216,7 +216,7 @@ def test_emit_audit_proof_fails_closed_on_residuals(monkeypatch, tmp_path) -> No
 
 def test_get_schema_revision_fails_closed_on_error() -> None:
     """Verify fail-closed RuntimeError when schema revision is unreadable or missing."""
-    import tools.anonymize_snapshot as cli
+    import tools._lib.dev.anonymize_snapshot as cli
 
     class _FailingConn:
         def execute(self, stmt):
@@ -240,7 +240,7 @@ def test_get_schema_revision_fails_closed_on_error() -> None:
 def test_get_anonymizer_sha_branches(monkeypatch) -> None:
     """Verify all branches of _get_anonymizer_sha (env, git success, git failure, exception)."""
     import subprocess
-    import tools.anonymize_snapshot as cli
+    import tools._lib.dev.anonymize_snapshot as cli
 
     # 1. GITHUB_SHA env var
     monkeypatch.setenv("GITHUB_SHA", "a" * 40)

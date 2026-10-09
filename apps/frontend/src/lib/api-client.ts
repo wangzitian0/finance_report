@@ -18,8 +18,6 @@ type OperationRequest = {
   signal?: AbortSignal;
 };
 
-const useProductionOperationClient = process.env.NODE_ENV !== "test";
-
 function compatibilityPath(
   operationId: ApiOperationId,
   request: OperationRequest,
@@ -54,9 +52,6 @@ export async function apiOperation<Id extends ApiOperationId>(
   ...args: api.ApiOperationArgs<Id>
 ): Promise<api.ApiOperationResponse<Id>> {
   const request = (args[0] ?? {}) as api.ApiOperationRequest<Id>;
-  if (useProductionOperationClient && "apiOperation" in api) {
-    return api.apiOperation(operationId, ...args);
-  }
   const parts = request as OperationRequest;
   const path = compatibilityPath(operationId, parts);
   if (
@@ -93,9 +88,6 @@ export async function apiOperationStream<Id extends ApiOperationId>(
   operationId: Id,
   request: api.ApiOperationRequest<Id>,
 ): Promise<api.StreamResponse> {
-  if (useProductionOperationClient && "apiOperationStream" in api) {
-    return api.apiOperationStream(operationId, request);
-  }
   const parts = request as OperationRequest;
   return api.apiStream(compatibilityPath(operationId, parts), {
     method: API_OPERATIONS[operationId].method,
@@ -109,9 +101,6 @@ export async function apiOperationDownload<Id extends ApiOperationId>(
   operationId: Id,
   request: api.ApiOperationRequest<Id>,
 ): Promise<api.DownloadResponse> {
-  if (useProductionOperationClient && "apiOperationDownload" in api) {
-    return api.apiOperationDownload(operationId, request);
-  }
   const parts = request as OperationRequest;
   const path = compatibilityPath(operationId, parts);
   if (
@@ -132,9 +121,6 @@ export async function apiOperationUpload<Id extends api.MultipartOperationId>(
   operationId: Id,
   request: api.ApiOperationUploadRequest<Id>,
 ): Promise<api.ApiOperationResponse<Id>> {
-  if (useProductionOperationClient && "apiOperationUpload" in api) {
-    return api.apiOperationUpload(operationId, request);
-  }
   const parts = request as OperationRequest & { body: FormData };
   return api.apiUpload(compatibilityPath(operationId, parts), parts.body, {
     method: API_OPERATIONS[operationId].method,

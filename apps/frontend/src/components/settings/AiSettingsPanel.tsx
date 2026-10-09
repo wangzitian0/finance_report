@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import { useToast } from "@/components/ui/Toast";
-import { fetchUserSettings, patchUserSettings } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import { useSettingsForm } from "@/hooks/useSettingsForm";
 import type { UserAiSettings } from "@/lib/types";
 
@@ -17,8 +17,8 @@ export default function AiSettingsPanel() {
   // `saved` is the last value persisted by the backend; `draft` is the
   // in-progress edit. A dirty form is any divergence between the two.
   const { draft, setDraft, loading, submitting, error, isDirty, submit, reset } = useSettingsForm<UserAiSettings>({
-    load: fetchUserSettings,
-    save: patchUserSettings,
+    load: () => apiOperation("get_current_user_settings_users_me_settings_get"),
+    save: (next) => apiOperation("patch_current_user_settings_users_me_settings_patch", { body: next }),
     isEqual: (a, b) =>
       a.enable_ai_reconciliation === b.enable_ai_reconciliation &&
       a.enable_ai_classification === b.enable_ai_classification,

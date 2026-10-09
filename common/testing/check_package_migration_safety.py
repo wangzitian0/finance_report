@@ -36,10 +36,7 @@ def violations(repo_root: Path) -> list[str]:
             for ac_id in dual
         ]
     )
-    draft_baseline = repo_root / check_draft_packages.DEFAULT_BASELINE.relative_to(
-        REPO_ROOT
-    )
-    findings.extend(check_draft_packages.violations(repo_root, draft_baseline))
+    findings.extend(check_draft_packages.violations(repo_root, None))
     reconcile_violations, _ = check_authority_reconcile.reconcile(repo_root)
     findings.extend(reconcile_violations)
     findings.extend(gate_main_contract.violations(repo_root))

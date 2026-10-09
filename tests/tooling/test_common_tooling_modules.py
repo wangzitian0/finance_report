@@ -196,7 +196,6 @@ def test_AC8_13_57_ssot_tools_delegate_to_common_implementations():
     """AC-testing.toolchain.6: AC8.13.57: SSOT commands live under tools and delegate to common."""
     command_modules = {
         "tools.analyze_test_ac_coverage": "common.testing.analyze_test_ac_coverage",
-        "tools.audit_ac_epic_mismatches": "common.testing.audit_ac_epic_mismatches",
         "tools.build_ac_traceability": "common.testing.build_ac_traceability",
         # check_ac_traceability / check_critical_proof_matrix are no longer
         # standalone tool commands: their validators are folded into the single

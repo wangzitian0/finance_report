@@ -11,27 +11,21 @@ import AiSuggestionsPage from "@/app/(main)/review/ai-suggestions/page";
 import AiSettingsPage from "@/components/settings/AiSettingsPanel";
 import AuditTrailPanel from "@/components/AuditTrailPanel";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
-import { apiFetch, fetchUserSettings, patchUserSettings } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
-  fetchUserSettings: vi.fn(),
-  patchUserSettings: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }));
 
 vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }));
 
-const mockedApiFetch = vi.mocked(apiFetch);
-const mockedFetchUserSettings = vi.mocked(fetchUserSettings);
-const mockedPatchUserSettings = vi.mocked(patchUserSettings);
+const mockedApiOperation = vi.mocked(apiOperation);
 
 describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
   beforeEach(() => {
-    mockedApiFetch.mockReset();
-    mockedFetchUserSettings.mockReset();
-    mockedPatchUserSettings.mockReset();
+    mockedApiOperation.mockReset();
   });
 
   // AC-meta.fe-app-shell2.1
@@ -66,7 +60,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
 
   // AC-ledger.fe-accounts2.4
   it("AC18.5.2 — Journal page surfaces ConfidenceBadge tier", async () => {
-    mockedApiFetch.mockResolvedValueOnce({
+    mockedApiOperation.mockResolvedValueOnce({
       items: [
         {
           id: "entry-1",
@@ -88,7 +82,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
         },
       ],
       total: 1,
-    });
+    } as any);
 
     const { default: JournalPage } = await import("@/app/(main)/journal/page");
     render(<JournalPage />);
@@ -103,7 +97,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
 
   // AC-reconciliation.fe-remainder-reconciliation.2
   it("AC18.5.3 — AI Suggestion Review Queue page renders suggestions", async () => {
-    mockedApiFetch.mockResolvedValueOnce({
+    mockedApiOperation.mockResolvedValueOnce({
       items: [
         {
           suggestion_id: "00000000-0000-0000-0000-000000000011",
@@ -114,7 +108,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
         },
       ],
       total: 1,
-    });
+    } as any);
 
     render(<AiSuggestionsPage />);
 
@@ -131,7 +125,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
 
   // AC-reconciliation.fe-remainder-reconciliation.3
   it("AC18.5.4 — feedback POST on accept/reject/edit", async () => {
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({
         items: [
           {
@@ -143,10 +137,10 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
           },
         ],
         total: 1,
-      })
-      .mockResolvedValueOnce({ id: "feedback-1" })
-      .mockResolvedValueOnce({ id: "feedback-2" })
-      .mockResolvedValueOnce({ id: "feedback-3" });
+      } as any)
+      .mockResolvedValueOnce({ id: "feedback-1" } as any)
+      .mockResolvedValueOnce({ id: "feedback-2" } as any)
+      .mockResolvedValueOnce({ id: "feedback-3" } as any);
 
     render(<AiSuggestionsPage />);
 
@@ -164,19 +158,21 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     );
 
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/ai/feedback", {
-        method: "POST",
-        body: JSON.stringify({
-          suggestion_id: "00000000-0000-0000-0000-000000000012",
-          action: "edit_accept",
-          corrected_value: { value: "Expense - Transport" },
-        }),
-      }),
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "create_ai_feedback_ai_feedback_post",
+        {
+          body: {
+            suggestion_id: "00000000-0000-0000-0000-000000000012",
+            action: "edit_accept",
+            corrected_value: { value: "Expense - Transport" },
+          },
+        },
+      ),
     );
   });
 
   it("AC16.25.2 — AI suggestions mobile cards expose feedback actions", async () => {
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({
         items: [
           {
@@ -189,10 +185,10 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
           },
         ],
         total: 1,
-      })
-      .mockResolvedValueOnce({ id: "feedback-accept" })
-      .mockResolvedValueOnce({ id: "feedback-reject" })
-      .mockResolvedValueOnce({ id: "feedback-edit" });
+      } as any)
+      .mockResolvedValueOnce({ id: "feedback-accept" } as any)
+      .mockResolvedValueOnce({ id: "feedback-reject" } as any)
+      .mockResolvedValueOnce({ id: "feedback-edit" } as any);
 
     render(<AiSuggestionsPage />);
 
@@ -217,19 +213,21 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     );
 
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/ai/feedback", {
-        method: "POST",
-        body: JSON.stringify({
-          suggestion_id: "00000000-0000-0000-0000-000000000025",
-          action: "edit_accept",
-          corrected_value: { value: "Expense - Transport" },
-        }),
-      }),
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "create_ai_feedback_ai_feedback_post",
+        {
+          body: {
+            suggestion_id: "00000000-0000-0000-0000-000000000025",
+            action: "edit_accept",
+            corrected_value: { value: "Expense - Transport" },
+          },
+        },
+      ),
     );
   });
 
   it("test_AC8_13_48 — AI suggestions page renders load errors", async () => {
-    mockedApiFetch.mockRejectedValueOnce(new Error("suggestions unavailable"));
+    mockedApiOperation.mockRejectedValueOnce(new Error("suggestions unavailable"));
 
     render(<AiSuggestionsPage />);
 
@@ -240,13 +238,20 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
 
   // AC-llm.fe-ai-settings2.1
   it("AC18.5.5 — Settings AI toggles persist", async () => {
-    mockedFetchUserSettings.mockResolvedValue({
-      enable_ai_reconciliation: true,
-      enable_ai_classification: false,
-    });
-    mockedPatchUserSettings.mockResolvedValue({
-      enable_ai_reconciliation: true,
-      enable_ai_classification: true,
+    mockedApiOperation.mockImplementation(async (op: any) => {
+      if (op === "get_current_user_settings_users_me_settings_get") {
+        return {
+          enable_ai_reconciliation: true,
+          enable_ai_classification: false,
+        } as any;
+      }
+      if (op === "patch_current_user_settings_users_me_settings_patch") {
+        return {
+          enable_ai_reconciliation: true,
+          enable_ai_classification: true,
+        } as any;
+      }
+      return {} as any;
     });
 
     render(<AiSettingsPage />);
@@ -264,16 +269,18 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
 
     await waitFor(() =>
-      expect(mockedPatchUserSettings).toHaveBeenCalledWith({
-        enable_ai_reconciliation: true,
-        enable_ai_classification: true,
+      expect(mockedApiOperation).toHaveBeenCalledWith("patch_current_user_settings_users_me_settings_patch", {
+        body: {
+          enable_ai_reconciliation: true,
+          enable_ai_classification: true,
+        },
       }),
     );
   });
 
   // AC-extraction.fe-remainder-extraction.1
   it("AC18.5.6 — Audit Trail panel renders provenance", async () => {
-    mockedApiFetch.mockResolvedValueOnce({
+    mockedApiOperation.mockResolvedValueOnce({
       items: [
         {
           timestamp: "2026-04-01T10:00:00Z",
@@ -283,7 +290,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
           new_value: { category: "Food & Dining" },
         },
       ],
-    });
+    } as any);
 
     render(
       <AuditTrailPanel transactionId="00000000-0000-0000-0000-000000000013" />,
@@ -297,9 +304,14 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
 
   // AC-llm.fe-ai-settings2.2
   it("AC18.5.7 — AI settings mount reflects saved toggles", async () => {
-    mockedFetchUserSettings.mockResolvedValue({
-      enable_ai_reconciliation: false,
-      enable_ai_classification: true,
+    mockedApiOperation.mockImplementation(async (op: any) => {
+      if (op === "get_current_user_settings_users_me_settings_get") {
+        return {
+          enable_ai_reconciliation: false,
+          enable_ai_classification: true,
+        } as any;
+      }
+      return {} as any;
     });
 
     render(<AiSettingsPage />);
@@ -311,7 +323,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
   });
 
   it("test_AC8_13_48 — AI settings handles load and reconciliation update failures", async () => {
-    mockedFetchUserSettings.mockRejectedValueOnce(
+    mockedApiOperation.mockRejectedValueOnce(
       new Error("settings unavailable"),
     );
 
@@ -321,12 +333,19 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       "settings unavailable",
     );
 
-    mockedFetchUserSettings.mockReset();
-    mockedFetchUserSettings.mockResolvedValue({
-      enable_ai_reconciliation: false,
-      enable_ai_classification: true,
+    mockedApiOperation.mockReset();
+    mockedApiOperation.mockImplementation(async (op: any) => {
+      if (op === "get_current_user_settings_users_me_settings_get") {
+        return {
+          enable_ai_reconciliation: false,
+          enable_ai_classification: true,
+        } as any;
+      }
+      if (op === "patch_current_user_settings_users_me_settings_patch") {
+        throw new Error("update failed");
+      }
+      return {} as any;
     });
-    mockedPatchUserSettings.mockRejectedValueOnce(new Error("update failed"));
 
     render(<AiSettingsPage />);
 
@@ -337,9 +356,11 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
 
     await waitFor(() =>
-      expect(mockedPatchUserSettings).toHaveBeenCalledWith({
-        enable_ai_reconciliation: true,
-        enable_ai_classification: true,
+      expect(mockedApiOperation).toHaveBeenCalledWith("patch_current_user_settings_users_me_settings_patch", {
+        body: {
+          enable_ai_reconciliation: true,
+          enable_ai_classification: true,
+        },
       }),
     );
     expect(await screen.findByText("update failed")).toBeInTheDocument();

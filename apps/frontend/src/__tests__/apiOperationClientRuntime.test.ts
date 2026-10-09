@@ -158,8 +158,9 @@ describe("operation client runtime boundary", () => {
       "upload_statement_statements_upload_post",
       { body: formData } as never,
     );
-    const { fetchCorrectionLoopReplay } = await import("@/lib/api");
-    await fetchCorrectionLoopReplay();
+    await client.apiOperation(
+      "get_correction_loop_replay_metrics_correction_loop_replay_get",
+    );
 
     expect(stream.sessionId).toBe("session-1");
     expect(download.filename).toBe("snapshot.json");

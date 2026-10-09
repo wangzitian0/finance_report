@@ -668,8 +668,8 @@ into four bands:
 Because the bit is detected, the band is **computed, not argued** — so it serves
 as a **cross-check on the declared `PackageContract.tier`**: a package declared on
 the hard side (`CODE-ONLY`/`CODE-LED`) but measuring `LLM` ACs is drift. The base
-library is `common/meta/extension/authority_classifier.py`; `tools/authority_counter.py`
-prints the live view on demand (no committed snapshot). This cross-check is
+library is `common/meta/extension/authority_classifier.py`; running
+`python -m common.meta.extension.authority_classifier` prints the live view on demand (no committed snapshot). This cross-check is
 **enforced** by `tools/check_authority_reconcile.py`, which fails CI at the
 enforceable ends (declared `CODE-ONLY` ⟹ no `LLM` test; `LLM-ONLY` ⟹ no
 deterministic test). The cross-tier MUST rules still bind (an `LLM` value entering

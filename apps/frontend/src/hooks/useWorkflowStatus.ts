@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useApiQuery } from "@/hooks/useApiQuery";
-import { updateWorkflowEventStatus } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import type {
   WorkflowEventListResponse,
   WorkflowEventStatus,
@@ -65,7 +65,14 @@ export function useWorkflowLifecycleMutation() {
     }: {
       eventId: string;
       status: WorkflowEventStatus;
-    }) => updateWorkflowEventStatus(eventId, status),
+    }) =>
+      apiOperation(
+        "update_workflow_event_status_endpoint_workflow_events__event_id__patch",
+        {
+          path: { event_id: eventId },
+          body: { status },
+        },
+      ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: WORKFLOW_STATUS_QUERY_KEY,

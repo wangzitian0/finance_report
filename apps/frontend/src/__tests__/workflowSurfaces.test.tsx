@@ -10,12 +10,7 @@ import {
   UploadToReportHome,
   WorkflowStatusFeed,
 } from "@/components/workflow/WorkflowNotifications"
-import {
-  apiFetch,
-  fetchWorkflowEvents,
-  fetchWorkflowStatus,
-  updateWorkflowEventStatus,
-} from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 import type {
   WorkflowEventListResponse,
   WorkflowStatusResponse,
@@ -31,28 +26,24 @@ vi.mock("next/link", () => ({
   ),
 }))
 
-vi.mock("@/lib/api", () => {
-  const fetchWorkflowStatus = vi.fn()
-  const fetchWorkflowEvents = vi.fn()
-  const updateWorkflowEventStatus = vi.fn()
-  const apiFetch = vi.fn((path: string, options: RequestInit = {}) => {
-    if (path === "/api/workflow/status") return fetchWorkflowStatus()
-    if (path.startsWith("/api/workflow/events?")) return fetchWorkflowEvents()
-    const eventMatch = path.match(/^\/api\/workflow\/events\/([^/]+)$/)
-    if (eventMatch && options.method === "PATCH") {
-      const body = JSON.parse(String(options.body ?? "{}")) as { status?: string }
-      return updateWorkflowEventStatus(eventMatch[1], body.status)
-    }
-    return Promise.reject(new Error(`Unexpected apiFetch call: ${path}`))
-  })
+const fetchWorkflowStatus = vi.fn()
+const fetchWorkflowEvents = vi.fn()
+const updateWorkflowEventStatus = vi.fn()
 
-  return {
-    apiFetch,
-    fetchWorkflowEvents,
-    fetchWorkflowStatus,
-    updateWorkflowEventStatus,
-  }
-})
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(async (operationId: string, request: any = {}) => {
+    if (operationId === "get_workflow_status_endpoint_workflow_status_get") {
+      return fetchWorkflowStatus()
+    }
+    if (operationId === "list_workflow_events_endpoint_workflow_events_get") {
+      return fetchWorkflowEvents()
+    }
+    if (operationId === "update_workflow_event_status_endpoint_workflow_events__event_id__patch") {
+      return updateWorkflowEventStatus(request?.path?.event_id, request?.body?.status)
+    }
+    throw new Error(`Unexpected apiOperation call: ${operationId}`)
+  }),
+}))
 
 const statusNeedsAction: WorkflowStatusResponse = {
   primary_state: "needs_action",
@@ -107,7 +98,6 @@ function renderWithQuery(ui: ReactNode) {
 
 describe("workflow notification surfaces", () => {
   beforeEach(() => {
-    vi.mocked(apiFetch).mockClear()
     vi.mocked(fetchWorkflowStatus).mockReset()
     vi.mocked(fetchWorkflowEvents).mockReset()
     vi.mocked(updateWorkflowEventStatus).mockReset()
