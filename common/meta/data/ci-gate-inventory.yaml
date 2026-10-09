@@ -420,6 +420,19 @@ gates:
     artifacts: [ghcr-sha-retention-context]
     failure_semantics: Scheduled or manual GHCR SHA retention could not discover live deploy SHAs, classify package versions, or delete selected stale SHA versions.
     action: keep
+  - id: maintenance.advisory_governance_audit
+    stage: ops.scheduled_cleanup
+    task_category: static_contract
+    workflow: .github/workflows/maintenance.yml
+    job: advisory-governance-audit
+    owner: tools/preflight.py
+    triggers: [schedule, workflow_dispatch]
+    blocks_workflow: false
+    inputs: [repo_tree]
+    outputs: []
+    artifacts: []
+    failure_semantics: Offline advisory preflight check emitted governance or contract warnings.
+    action: observe
   - id: deploy_freshness.freshness
     stage: prod.release_integrity
     task_category: deploy_smoke
