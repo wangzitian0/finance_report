@@ -92,7 +92,7 @@ async def find_transfer_pairs(
     description_scorer: Callable[[str | None, str | None], float],
     threshold: int = AUTO_PAIR_THRESHOLD,
     max_entries: int = 500,
-) -> list[TransferPair]:
+) -> list[TransferPair[JournalEntry]]:
     """Find matching transfer pairs based on confidence scoring.
     and attempts to match them based on amount, description, and date proximity.
     Note: The pairing algorithm is O(n²) where n = max(out_entries, in_entries).
