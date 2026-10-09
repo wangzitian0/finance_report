@@ -201,6 +201,62 @@ export function HomeIncomeCards({
             </div>
           );
         })()}
+
+      {/* Fallback to Period P&L KPI Cards when trends are empty but period figures exist */}
+      {incomeStatement &&
+        (!incomeStatement.trends || incomeStatement.trends.length === 0) &&
+        (incomeStatement.total_income !== "0" || incomeStatement.total_expenses !== "0") &&
+        (() => {
+          const totalIncome = toDecimal(incomeStatement.total_income);
+          const totalExpense = toDecimal(incomeStatement.total_expenses);
+          const netIncome = toDecimal(incomeStatement.net_income);
+          const currency = incomeStatement.currency;
+          const fmtOpts = { maximumFractionDigits: 0 } as const;
+          return (
+            <div className="grid gap-4 md:grid-cols-3 mb-6" data-testid="period-pnl-summary">
+              <Link
+                href="/reports/income-statement"
+                className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block"
+              >
+                <p className="text-xs text-muted uppercase tracking-wide">
+                  Period — Income
+                </p>
+                <p className="text-2xl font-semibold text-[var(--success)] mt-1">
+                  {formatCurrencyLocale(totalIncome, currency, "en-US", fmtOpts)}
+                </p>
+                <p className="text-xs text-muted mt-1">Total revenue</p>
+              </Link>
+              <Link
+                href="/reports/income-statement"
+                className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block"
+              >
+                <p className="text-xs text-muted uppercase tracking-wide">
+                  Period — Expenses
+                </p>
+                <p className="text-2xl font-semibold text-[var(--error)] mt-1">
+                  {formatCurrencyLocale(totalExpense, currency, "en-US", fmtOpts)}
+                </p>
+                <p className="text-xs text-muted mt-1">Total outflows</p>
+              </Link>
+              <Link
+                href="/reports/income-statement"
+                className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block"
+              >
+                <p className="text-xs text-muted uppercase tracking-wide">
+                  Period — Net
+                </p>
+                <p
+                  className={`text-2xl font-semibold mt-1 ${netIncome.isNegative() ? "text-[var(--error)]" : "text-[var(--success)]"}`}
+                >
+                  {formatCurrencyLocale(netIncome, currency, "en-US", fmtOpts)}
+                </p>
+                <p className="text-xs text-muted mt-1">
+                  {netIncome.isNegative() ? "Deficit" : "Surplus"}
+                </p>
+              </Link>
+            </div>
+          );
+        })()}
     </>
   );
 }

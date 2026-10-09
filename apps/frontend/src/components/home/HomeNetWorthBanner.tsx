@@ -185,6 +185,64 @@ export function HomeNetWorthBanner({
                 );
               })()}
           </div>
+          <div
+            className="mt-4 pt-3 border-t border-[var(--border)] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs"
+            data-testid="dashboard-net-worth-articulation"
+          >
+            <div>
+              <span className="text-muted block">Opening Equity</span>
+              <span className="font-semibold text-sm">
+                {formatCurrencyLocale(
+                  balanceSheet.total_equity,
+                  balanceSheet.currency,
+                  "en-US",
+                  { maximumFractionDigits: 0 },
+                )}
+              </span>
+            </div>
+            <div>
+              <span className="text-muted block">Period Net Income</span>
+              <span
+                className={`font-semibold text-sm ${
+                  Number(balanceSheet.net_income ?? 0) >= 0
+                    ? "text-[var(--success)]"
+                    : "text-[var(--error)]"
+                }`}
+              >
+                {formatCurrencyLocale(
+                  balanceSheet.net_income ?? "0",
+                  balanceSheet.currency,
+                  "en-US",
+                  { maximumFractionDigits: 0 },
+                )}
+              </span>
+            </div>
+            <div>
+              <span className="text-muted block">Total Obligations</span>
+              <span className="font-semibold text-sm">
+                {formatCurrencyLocale(
+                  balanceSheet.total_liabilities,
+                  balanceSheet.currency,
+                  "en-US",
+                  { maximumFractionDigits: 0 },
+                )}
+              </span>
+            </div>
+            <div>
+              <span className="text-muted block">Accounting Status</span>
+              <span
+                className={`font-semibold text-sm ${
+                  balanceSheet.is_balanced
+                    ? "text-[var(--success)]"
+                    : "text-[var(--warning)]"
+                }`}
+              >
+                {balanceSheet.is_balanced
+                  ? "Balanced (Δ 0.00)"
+                  : `Drift: ${balanceSheet.equation_delta}`}
+              </span>
+            </div>
+          </div>
         </div>
       )}
     </>

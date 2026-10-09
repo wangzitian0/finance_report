@@ -74,6 +74,12 @@ async def test_case_1_four_month_rollforward_ui(page: Page):
     net_worth_card = page.locator(".card").filter(has_text="Net Worth")
     await expect(net_worth_card).to_contain_text("24,200", timeout=15_000)
 
+    # Net worth articulation reflects double-entry accounting breakdown
+    articulation = page.locator('[data-testid="dashboard-net-worth-articulation"]')
+    await expect(articulation).to_be_visible(timeout=10_000)
+    await expect(articulation).to_contain_text("Opening Equity")
+    await expect(articulation).to_contain_text("Period Net Income")
+
     # 2. Balance Sheet: Verify Q1 checkpoint (as of 2025-03-31) articulation
     await page.goto(
         f"{APP_URL}/reports/balance-sheet?as_of_date=2025-03-31&currency=SGD",

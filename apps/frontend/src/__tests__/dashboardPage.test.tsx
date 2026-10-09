@@ -630,4 +630,49 @@ describe("HomePage", () => {
     expect(screen.queryByLabelText("Getting started")).not.toBeInTheDocument()
     expect(screen.getByText("Total Assets")).toBeInTheDocument()
   })
+
+  it("renders articulated net worth breakdown with opening equity and net income", async () => {
+    mockDashboardApi({
+      balance: {
+        ...baseBalance,
+        total_assets: 15242,
+        total_liabilities: 0,
+        total_equity: 12000,
+        net_income: 3242,
+        is_balanced: true,
+        currency: "SGD",
+      },
+    })
+
+    render(<HomePage />)
+
+    await waitForDashboardAnalyticsReady()
+    const articulation = await screen.findByTestId("dashboard-net-worth-articulation")
+    expect(within(articulation).getByText("Opening Equity")).toBeInTheDocument()
+    expect(within(articulation).getByText("Period Net Income")).toBeInTheDocument()
+    expect(within(articulation).getByText("Total Obligations")).toBeInTheDocument()
+    expect(within(articulation).getByText("Accounting Status")).toBeInTheDocument()
+    expect(within(articulation).getByText("Balanced (Δ 0.00)")).toBeInTheDocument()
+  })
+
+  it("renders period P&L fallback cards when trends array is empty but income data exists", async () => {
+    mockDashboardApi({
+      income: {
+        currency: "USD",
+        trends: [],
+        total_income: "5000",
+        total_expenses: "3000",
+        net_income: "2000",
+      },
+    })
+
+    render(<HomePage />)
+
+    await waitForDashboardAnalyticsReady()
+    const pnl = await screen.findByTestId("period-pnl-summary")
+    expect(within(pnl).getByText("Period \u2014 Income")).toBeInTheDocument()
+    expect(within(pnl).getByText("Period \u2014 Expenses")).toBeInTheDocument()
+    expect(within(pnl).getByText("Period \u2014 Net")).toBeInTheDocument()
+    expect(within(pnl).getByText("Surplus")).toBeInTheDocument()
+  })
 })
