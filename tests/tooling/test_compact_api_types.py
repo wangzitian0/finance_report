@@ -1,6 +1,7 @@
 """Tests for tools/_lib/dev/compact_api_types.py and tools/compact_api_types.py.
 
-Verifies deterministic compaction of OpenAPI TypeScript definitions and CLI behavior.
+AC-platform.28.1: Verifies deterministic compaction of OpenAPI TypeScript definitions
+and CLI behavior.
 """
 
 from __future__ import annotations
