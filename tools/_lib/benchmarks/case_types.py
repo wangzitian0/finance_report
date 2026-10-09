@@ -16,7 +16,7 @@ FLOWS_SSOT_PATH = (
 class CaseResult:
     case_id: str
     case_name: str
-    status: str  # PASS / FAIL / ERROR
+    status: str  # PASS / FAIL / SKIPPED / ERROR
     duration_seconds: float
     details: dict[str, Any] = field(default_factory=dict)
     error_message: str | None = None
@@ -24,12 +24,17 @@ class CaseResult:
 
 def load_flow_to_domain(path: Path = FLOWS_SSOT_PATH) -> dict[int, int]:
     """Read flow id -> domain id from the 30-flow registry (concept `thirty_wealth_flows`)."""
-    registry = json.loads(path.read_text(encoding="utf-8"))
-    return {
-        flow["id"]: domain["id"]
-        for domain in registry["domains"]
-        for flow in domain["flows"]
-    }
+    try:
+        registry = json.loads(path.read_text(encoding="utf-8"))
+        return {
+            flow["id"]: domain["id"]
+            for domain in registry["domains"]
+            for flow in domain["flows"]
+        }
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise ValueError(
+            f"Cannot read the 30-flow registry {path}: {type(exc).__name__}: {exc}"
+        ) from exc
 
 
 # Domain of each flow. The registry JSON is the only source.
