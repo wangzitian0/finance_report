@@ -1,3 +1,5 @@
+import copy
+import functools
 import io
 import json
 import re
@@ -68,13 +70,35 @@ class _FakeResponse:
         pass
 
 
-def read(path: str) -> str:
+@functools.lru_cache(maxsize=128)
+def _read_cached(path: str) -> str:
     target = ROOT / path
     if target.is_dir():
         return "\n# <<< file-boundary >>>\n".join(
             p.read_text(encoding="utf-8") for p in sorted(target.rglob("*.py"))
         )
     return target.read_text(encoding="utf-8")
+
+
+def read(path: str) -> str:
+    return _read_cached(path)
+
+
+_orig_safe_load = yaml.safe_load
+
+
+@functools.lru_cache(maxsize=128)
+def _cached_safe_load(stream: str) -> Any:
+    return _orig_safe_load(stream)
+
+
+def _safe_load_wrapper(stream: Any) -> Any:
+    if isinstance(stream, str):
+        return copy.deepcopy(_cached_safe_load(stream))
+    return _orig_safe_load(stream)
+
+
+yaml.safe_load = _safe_load_wrapper
 
 
 def build_critical_matrix() -> dict:

@@ -13,7 +13,6 @@ from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
@@ -274,7 +273,6 @@ class TestMatchingAccuracy:
 class TestBatchPerformance:
     """Performance tests for batch reconciliation."""
 
-    @pytest.mark.slow  # Mark as slow test, can be skipped with -m "not slow"
     async def test_batch_1000_transactions_reasonable_time(self, db: AsyncSession, test_user):
         """AC-reconciliation.performance.1:
         [AC4.4.1] HIGH #13: Batch matching 1000 transactions should complete quickly.
