@@ -393,9 +393,18 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
     """AC-testing.deploy-gates.14: AC-testing.classifier.1: AC8.13.55: Staging deploys are scoped to paths that can change deploy risk."""
     for p in (
         ".github/workflows/deploy.yml",
+        ".github/workflows/ci.yml",
+        ".github/actions/setup-e2e-tests/action.yml",
         "docker-compose.yml",
+        "apps/backend/src/routers/statements.py",
         "apps/backend/src/services/reporting.py",
+        "apps/backend/migrations/versions/0001_initial_schema.py",
+        "apps/backend/pyproject.toml",
         "apps/frontend/src/app/page.tsx",
+        "apps/frontend/src/lib/api.ts",
+        "apps/frontend/public/icon.svg",
+        "apps/frontend/package-lock.json",
+        "tests/e2e/test_bench_v2_ui_golden_paths.py",
         "tests/e2e/test_statement_upload_e2e.py",
         "tools/health_check.sh",
         "tools/smoke_test.sh",

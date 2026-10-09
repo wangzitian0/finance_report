@@ -127,7 +127,7 @@ def _run_deploy_step(
     wait_hook: object | None = None,
     deploy_args: SimpleNamespace | None = None,
     default: str = '{"ok":true}',
-) -> tuple[int, str, list[list[str]]]:
+) -> tuple[int, str]:
     lifecycle = lifecycle_module()
     calls: list[list[str]] = []
     monkeypatch.setattr(
@@ -148,7 +148,7 @@ def _run_deploy_step(
     args = deploy_args or _deploy_args()
     code = lifecycle.main_from_args(args)
     rendered = "\n".join(" ".join(c) for c in calls)
-    return code, rendered, calls
+    return code, rendered
 
 
 def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
@@ -860,7 +860,7 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     effective_env = f"{DEFAULT_EFFECTIVE_ENV}\nVAULT_APP_TOKEN=hvs.secret"
-    code, calls, _ = _run_deploy_step(
+    code, rendered = _run_deploy_step(
         monkeypatch,
         {
             "environment.one": '{"compose":[]}',
@@ -877,8 +877,8 @@ def test_AC8_13_72_deploy_action_reads_effective_env_before_deploy(
     )
     assert code == 0
     for kw in ("compose.update", "compose.one", "compose.deploy"):
-        assert kw in calls
-    assert "secret-key" not in calls
+        assert kw in rendered
+    assert "secret-key" not in rendered
 
 
 def test_AC8_13_102_new_preview_redeploys_when_initial_deploy_record_is_missing(
@@ -896,7 +896,7 @@ def test_AC8_13_102_new_preview_redeploys_when_initial_deploy_record_is_missing(
         if wait_calls == 1:
             raise lifecycle.DokployDeploymentDidNotStart("queued deploy was lost")
 
-    code, calls, _ = _run_deploy_step(
+    code, rendered = _run_deploy_step(
         monkeypatch,
         {
             "environment.one": '{"compose":[]}',
@@ -906,7 +906,7 @@ def test_AC8_13_102_new_preview_redeploys_when_initial_deploy_record_is_missing(
         wait_hook=fake_wait,
     )
     assert code == 0
-    assert "compose.deploy" in calls and "compose.redeploy" in calls
+    assert "compose.deploy" in rendered and "compose.redeploy" in rendered
     assert wait_calls == 2
     assert "retrying with compose.redeploy" in capsys.readouterr().out
 
@@ -916,7 +916,7 @@ def test_AC8_13_102_existing_preview_without_deployments_is_recreated(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """AC8.13.102: Existing empty preview composes are recreated before rollout."""
-    code, calls, _ = _run_deploy_step(
+    code, rendered = _run_deploy_step(
         monkeypatch,
         {
             "environment.one": '{"compose":[{"name":"pr-591","composeId":"empty-cmp"}]}',
@@ -926,8 +926,8 @@ def test_AC8_13_102_existing_preview_without_deployments_is_recreated(
     )
     assert code == 0
     for kw in ("compose.delete", "compose.create", "compose.deploy"):
-        assert kw in calls
-    assert "compose.redeploy" not in calls
+        assert kw in rendered
+    assert "compose.redeploy" not in rendered
     assert "recreating before deploy" in capsys.readouterr().out
 
 
@@ -941,7 +941,7 @@ def test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids(
         previous = kwargs.get("previous_deployment_ids")
         rollout_previous_ids.append(previous if isinstance(previous, set) else None)
 
-    code, calls, _ = _run_deploy_step(
+    code, rendered = _run_deploy_step(
         monkeypatch,
         {
             "environment.one": '{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
@@ -950,9 +950,9 @@ def test_AC8_13_102_existing_preview_rollout_tracks_new_deployment_ids(
         wait_hook=fake_wait,
     )
     assert code == 0
-    assert "compose.redeploy" in calls and "compose.start" not in calls
+    assert "compose.redeploy" in rendered and "compose.start" not in rendered
     assert rollout_previous_ids == [{"old-dep-591"}]
-    assert "VAULT_APP_TOKEN" not in calls and "MINIO_ROOT_PASSWORD" not in calls
+    assert "VAULT_APP_TOKEN" not in rendered and "MINIO_ROOT_PASSWORD" not in rendered
 
 
 def test_AC8_13_102_existing_preview_missing_deploy_record_recreates_once(
@@ -969,7 +969,7 @@ def test_AC8_13_102_existing_preview_missing_deploy_record_recreates_once(
         if wait_calls == 1:
             raise lifecycle.DokployDeploymentDidNotStart("queued deploy was lost")
 
-    code, calls, _ = _run_deploy_step(
+    code, rendered = _run_deploy_step(
         monkeypatch,
         {
             "environment.one": '{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
@@ -986,7 +986,7 @@ def test_AC8_13_102_existing_preview_missing_deploy_record_recreates_once(
         "compose.create",
         "compose.deploy",
     ):
-        assert kw in calls
+        assert kw in rendered
     assert wait_calls == 2
     out = capsys.readouterr().out
     assert "recreating compose before retry" in out
@@ -1007,7 +1007,7 @@ def test_AC8_13_102_recreated_preview_missing_record_fails_before_readiness(
         wait_calls += 1
         raise lifecycle.DokployDeploymentDidNotStart("deployment record missing")
 
-    code, calls, _ = _run_deploy_step(
+    code, rendered = _run_deploy_step(
         monkeypatch,
         {
             "environment.one": '{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
@@ -1023,7 +1023,7 @@ def test_AC8_13_102_recreated_preview_missing_record_fails_before_readiness(
         "compose.create",
         "compose.deploy",
     ):
-        assert kw in calls
+        assert kw in rendered
     assert wait_calls == 3
     out = capsys.readouterr().out
     for s in (
@@ -1049,7 +1049,7 @@ def test_AC8_13_102_existing_preview_rollout_error_recreates_once(
         if wait_calls == 1:
             raise lifecycle.DokployDeploymentFailed("compose source checkout failed")
 
-    code, calls, _ = _run_deploy_step(
+    code, rendered = _run_deploy_step(
         monkeypatch,
         {
             "environment.one": '{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
@@ -1066,7 +1066,7 @@ def test_AC8_13_102_existing_preview_rollout_error_recreates_once(
         "compose.create",
         "compose.deploy",
     ):
-        assert kw in calls
+        assert kw in rendered
     assert wait_calls == 2
 
 
@@ -1084,7 +1084,7 @@ def test_AC8_13_102_new_preview_missing_after_redeploy_recreates_once(
         wait_calls += 1
         raise lifecycle.DokployDeploymentDidNotStart("new deploy was lost")
 
-    code, calls, _ = _run_deploy_step(
+    code, rendered = _run_deploy_step(
         monkeypatch,
         {
             "environment.one": '{"compose":[]}',
@@ -1094,9 +1094,9 @@ def test_AC8_13_102_new_preview_missing_after_redeploy_recreates_once(
         wait_hook=fake_wait,
     )
     assert code == 1
-    assert calls.count("compose.create") == 2
+    assert rendered.count("compose.create") == 2
     for kw in ("compose.delete", "compose.redeploy", "compose.deploy"):
-        assert kw in calls
+        assert kw in rendered
     assert wait_calls == 3
     out = capsys.readouterr().out
     for s in (
@@ -1118,7 +1118,7 @@ def test_AC8_13_102_new_preview_rollout_error_still_fails(
     def fake_wait(*args: object, **kwargs: object) -> None:
         raise lifecycle.DokployDeploymentFailed("new rollout failed")
 
-    code, calls, _ = _run_deploy_step(
+    code, rendered = _run_deploy_step(
         monkeypatch,
         {
             "environment.one": '{"compose":[]}',
@@ -1132,11 +1132,11 @@ def test_AC8_13_102_new_preview_rollout_error_still_fails(
         wait_hook=fake_wait,
     )
     assert code == 1
-    assert calls.count("compose.create") == 1
+    assert rendered.count("compose.create") == 1
     assert (
-        "compose.delete" not in calls
-        and "compose.redeploy" not in calls
-        and "compose.deploy" in calls
+        "compose.delete" not in rendered
+        and "compose.redeploy" not in rendered
+        and "compose.deploy" in rendered
     )
 
 
@@ -1144,7 +1144,7 @@ def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC-testing.preview.8: AC8.13.98: Existing PR previews redeploy without disrupting active routes."""
-    code, calls, _ = _run_deploy_step(
+    code, rendered = _run_deploy_step(
         monkeypatch,
         {
             "environment.one": '{"compose":[{"name":"pr-591","composeId":"cmp-591"}]}',
@@ -1157,7 +1157,7 @@ def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
     )
     assert code == 0
     for kw in ("compose.update", "compose.one", "compose.redeploy"):
-        assert kw in calls
+        assert kw in rendered
     for forbidden in (
         "compose.delete",
         "compose.create",
@@ -1165,7 +1165,7 @@ def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
         "compose.start",
         "secret-key",
     ):
-        assert forbidden not in calls
+        assert forbidden not in rendered
 
 
 def test_AC8_13_100_pr_preview_runner_readiness_is_bounded_and_observable() -> None:
