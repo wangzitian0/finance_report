@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -777,3 +777,37 @@ async def test_orm_listener_rejects_in_memory_mutation(db):
     loaded.reason_code = "mutated"
     with pytest.raises(ValueError, match="append-only"):
         await db.flush()
+
+
+async def test_repository_memoizes_ancestry_and_invalidates_on_supersede(db):
+    repository = SqlTraceRecordRepository(db)
+    record = observation()
+    await repository.append(record)
+
+    # First call queries database and populates ancestry and lineage caches.
+    assert await repository._has_current_ancestry(record.scope, record.record_id, frozenset())
+    assert (record.scope, record.record_id) in repository._lineage_head_cache
+    assert repository._lineage_head_cache[(record.scope, record.record_id)] is True
+    assert (record.scope, record.record_id) in repository._ancestry_cache
+    assert repository._ancestry_cache[(record.scope, record.record_id)] is True
+
+    # Second call uses cache; verified by ensuring database query attempts raise an error.
+    with patch.object(repository._db, "execute", side_effect=RuntimeError("database query attempted")):
+        assert await repository._has_current_ancestry(record.scope, record.record_id, frozenset())
+        assert await repository._is_lineage_head(record.scope, record.record_id)
+
+    # Appending a superseding record clears caches for the superseded head.
+    correction = observation(
+        scope=record.scope,
+        target_id=record.target.id,
+        target_version="v2",
+        assertion_version="v2",
+        supersedes_id=record.record_id,
+        score="0.5",
+    )
+    await repository.append(correction)
+
+    assert (record.scope, record.record_id) not in repository._lineage_head_cache
+    assert (record.scope, record.record_id) not in repository._ancestry_cache
+    assert not await repository._is_lineage_head(record.scope, record.record_id)
+    assert not await repository._has_current_ancestry(record.scope, record.record_id, frozenset())
