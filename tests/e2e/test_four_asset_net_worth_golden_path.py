@@ -15,7 +15,7 @@ import shutil
 import tempfile
 import time
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
@@ -24,6 +24,7 @@ import pytest
 from common.testing import money_amount
 from common.testing.ac_proof import ac_proof
 from common.testing.provider_review import (
+    FixtureEnvelope,
     FixtureDisposition,
     approve_statement_with_fixture_review,
 )
@@ -149,8 +150,9 @@ async def _upload_brokerage_pdf(
     source: str,
     institution: str,
     model: str,
+    period_end: date,
 ) -> str:
-    pdf_path = _unique_pdf_copy(generated_pdf_path(source))
+    pdf_path = _unique_pdf_copy(generated_pdf_path(source, period_end=period_end))
     with pdf_path.open("rb") as fh:
         response = await client.post(
             _api_url("/statements/upload"),
@@ -254,6 +256,19 @@ def _line_total_by_name(lines: list[dict], token: str) -> Decimal:
     return _line_total(matches)
 
 
+def _line_total_by_account(lines: list[dict], account_id: str) -> Decimal:
+    """Total of the balance-sheet lines of one account.
+
+    The review harness names the account it creates for a confirmed source, so a
+    line is found by the account the approved statement is linked to, not by name.
+    """
+    matches = [line for line in lines if str(line.get("account_id")) == str(account_id)]
+    assert matches, (
+        f"missing balance-sheet line for account {account_id}; lines={lines}"
+    )
+    return _line_total(matches)
+
+
 @ac_proof(
     "four-asset-as-of-net-worth",
     ac_ids=[
@@ -295,7 +310,10 @@ async def test_four_asset_as_of_net_worth_golden_path(
     four assets produce exact as-of net worth.
     """
     page = authenticated_page_unique
-    report_date = date.today()
+    # A brokerage statement is dated to the end of its month, and a holding exists only
+    # on or after its snapshot. Report on the last day of the previous month, and build
+    # the brokerage PDF for that month, so the snapshot falls on the report date.
+    report_date = date.today().replace(day=1) - timedelta(days=1)
     headers = await _auth_headers(page)
 
     async with httpx.AsyncClient(
@@ -316,9 +334,28 @@ async def test_four_asset_as_of_net_worth_golden_path(
             statement_id=bank_statement_id,
             transactions=parsed_bank["transactions"],
             dispositions=BANK_DISPOSITIONS,
+            # The CSV header written by _write_bank_fixture owns these source facts.
+            envelope=FixtureEnvelope(
+                currency="SGD",
+                period_start=report_date,
+                period_end=report_date,
+                opening_balance=Decimal("0.00"),
+                closing_balance=Decimal("2500.00"),
+                rationale="The four-asset bank CSV header declares these source facts.",
+            ),
         )
         assert (
             approval["journal_entries_created"] + approval["reviewed_dispositions"] == 2
+        )
+        bank_statement_response = await client.get(
+            _api_url(f"/statements/{bank_statement_id}")
+        )
+        assert bank_statement_response.status_code == 200, (
+            f"bank statement lookup failed: {bank_statement_response.status_code} {bank_statement_response.text}"
+        )
+        bank_account_id = bank_statement_response.json().get("account_id")
+        assert bank_account_id, (
+            "the approved bank statement must be linked to an account"
         )
 
         journal_response = await client.get(_api_url("/journal-entries?limit=6"))
@@ -377,6 +414,7 @@ async def test_four_asset_as_of_net_worth_golden_path(
             source="moomoo",
             institution="Moomoo Four Asset E2E",
             model=model,
+            period_end=report_date,
         )
         parsed_brokerage = await _wait_for_parsed_statement(
             client,
@@ -483,7 +521,7 @@ async def test_four_asset_as_of_net_worth_golden_path(
             brokerage_value + PROPERTY_VALUE + ESOP_VALUE - MORTGAGE_BALANCE
         )
 
-        assert _line_total_by_name(asset_lines, BANK_INSTITUTION) == BANK_CASH
+        assert _line_total_by_account(asset_lines, bank_account_id) == BANK_CASH
         assert market_total == brokerage_value, (
             f"brokerage market value did not reach reporting exactly; holdings={holdings}; "
             f"market_lines={market_lines}; balance_sheet={balance_sheet}"

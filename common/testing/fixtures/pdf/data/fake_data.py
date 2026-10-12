@@ -201,9 +201,13 @@ def generate_moomoo_transactions(
     start_date: datetime,
     count: int = 10,
     opening_balance: Decimal = Decimal("10000.00"),
+    end_date: datetime | None = None,
 ) -> tuple[list[dict[str, Any]], Decimal]:
     """
     Generate fictional Moomoo brokerage transactions.
+
+    When ``end_date`` is given, no transaction is dated after it. Random steps of
+    up to five days can otherwise run past a 30-day statement period.
 
     Returns:
         (transactions, closing_balance)
@@ -236,6 +240,8 @@ def generate_moomoo_transactions(
 
     for _ in range(max(count - 1, 0)):
         current_date += timedelta(days=random.randint(1, 5))
+        if end_date is not None and current_date > end_date:
+            current_date = end_date
 
         txn_type, min_amt, max_amt = random.choice(transaction_types)
 

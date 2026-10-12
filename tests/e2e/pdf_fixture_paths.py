@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import pytest
@@ -33,17 +33,48 @@ def committed_fixture_pdf(name: str) -> Path:
     return path
 
 
-def generated_pdf_path(source: str) -> Path:
+def _run_generator(source: str, *extra_args: str) -> None:
+    """Run the fixture generator. A failure fails the strict gates and skips elsewhere."""
+    result = subprocess.run(
+        [sys.executable, str(GENERATE_SCRIPT), "--source", source, *extra_args],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        message = (
+            f"PDF fixture generation failed for {source}.\n"
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+        if is_strict_or_ci():
+            pytest.fail(message)
+        pytest.skip(message)
+
+
+def generated_pdf_path(source: str, period_end: date | None = None) -> Path:
     """Locate a runtime-generated statement PDF for ``source``, generating it
     via ``tools/generate_pdf_fixtures.py`` when absent.
 
-    Search order:
+    Without ``period_end`` the search order is:
       1. ``output/<source>/test_<source>_<yymm>.pdf`` — current-month build
       2. ``output/<source>/test_<source>_*.pdf``      — any prior build
       3. on-the-fly generation (skip only if the generator itself fails,
          e.g. an environment without reportlab)
+
+    With ``period_end`` the PDF is rebuilt for a statement period that ends on
+    that date, so a journey that asks a report for an as-of date reads a source
+    dated on or before it. The file name carries the year and month of that date.
     """
     source_dir = OUTPUT_DIR / source
+    if period_end is not None:
+        _run_generator(source, "--period-end", period_end.isoformat())
+        built = source_dir / f"test_{source}_{period_end:%y%m}.pdf"
+        if not built.exists():
+            pytest.fail(
+                f"PDF generation for {source} exited 0 but did not write {built} — "
+                "path drift between the generator and this helper."
+            )
+        return built
+
     yymm = datetime.now().strftime("%y%m")
     prebuilt = source_dir / f"test_{source}_{yymm}.pdf"
     if prebuilt.exists():
@@ -53,19 +84,7 @@ def generated_pdf_path(source: str) -> Path:
         if pdfs:
             return pdfs[-1]
 
-    result = subprocess.run(
-        [sys.executable, str(GENERATE_SCRIPT), "--source", source],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        if is_strict_or_ci():
-            pytest.fail(
-                f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-            )
-        pytest.skip(
-            f"PDF fixture generation failed for {source}.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-        )
+    _run_generator(source)
     pdfs = (
         sorted(source_dir.glob(f"test_{source}_*.pdf")) if source_dir.exists() else []
     )
