@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from src.audit import JournalEntrySourceType
 from src.extraction import DocumentType, UploadedDocument
+from src.extraction.base.source_vocabulary import TransactionDirection
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
@@ -1273,3 +1274,98 @@ async def test_sync_reconciliation_matches_journal_entry_links_batch(db: AsyncSe
         (match1.id, entry1.id),
         (match1.id, entry2.id),
     }
+
+
+def test_normal_entry_combinations_parity_and_precomputation():
+    """Verify _normal_entry_combinations yields singles, pairs, and triples within tolerance."""
+    from src.reconciliation.extension.candidate_policy import _normal_entry_combinations
+
+    user_id = uuid4()
+    txn = AtomicTransaction(
+        id=uuid4(),
+        user_id=user_id,
+        txn_date=date(2026, 1, 1),
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        amount=Decimal("100.00"),
+        description="Test Txn",
+    )
+
+    def _create_balanced_entry(amount_val: Decimal) -> JournalEntry:
+        from src.ledger.orm.journal import JournalEntryAuthorityState
+
+        eid = uuid4()
+        e = JournalEntry(
+            id=eid,
+            user_id=user_id,
+            source_type=JournalEntrySourceType.MANUAL,
+            status=JournalEntryStatus.POSTED,
+            entry_date=date(2026, 1, 1),
+            memo="Entry",
+            decision_authority_state=JournalEntryAuthorityState.LEGACY_UNPROVEN,
+        )
+        e.lines = [
+            JournalLine(
+                id=uuid4(),
+                journal_entry_id=eid,
+                account_id=uuid4(),
+                direction=Direction.DEBIT,
+                amount=amount_val,
+                currency="SGD",
+            ),
+            JournalLine(
+                id=uuid4(),
+                journal_entry_id=eid,
+                account_id=uuid4(),
+                direction=Direction.CREDIT,
+                amount=amount_val,
+                currency="SGD",
+            ),
+        ]
+        return e
+
+    from src.ledger.orm.journal import JournalEntryAuthorityState
+
+    entry_50_a = _create_balanced_entry(Decimal("50.00"))
+    entry_50_b = _create_balanced_entry(Decimal("50.00"))
+    entry_30 = _create_balanced_entry(Decimal("30.00"))
+    entry_20 = _create_balanced_entry(Decimal("20.00"))
+    entry_unbalanced = JournalEntry(
+        id=uuid4(),
+        user_id=user_id,
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+        entry_date=date(2026, 1, 1),
+        memo="Unbalanced",
+        decision_authority_state=JournalEntryAuthorityState.LEGACY_UNPROVEN,
+    )
+    entry_unbalanced.lines = [
+        JournalLine(
+            id=uuid4(),
+            journal_entry_id=entry_unbalanced.id,
+            account_id=uuid4(),
+            direction=Direction.DEBIT,
+            amount=Decimal("100.00"),
+            currency="SGD",
+        )
+    ]
+
+    candidates = [entry_50_a, entry_50_b, entry_30, entry_20, entry_unbalanced]
+    config = DEFAULT_CONFIG
+
+    combos = list(_normal_entry_combinations(txn, candidates, config, base_currency="SGD"))
+
+    # Verify single combinations: all balanced entries yielded as singles
+    singles = [c for c in combos if len(c) == 1]
+    assert len(singles) == 4
+    assert entry_unbalanced not in [c[0] for c in singles]
+
+    # Verify pair combinations: entry_50_a + entry_50_b = 100.00 (within tolerance of 100.00)
+    pairs = [c for c in combos if len(c) == 2]
+    assert [entry_50_a, entry_50_b] in pairs or [entry_50_b, entry_50_a] in pairs
+
+    # Verify triple combinations: entry_50_a + entry_30 + entry_20 = 100.00
+    triples = [c for c in combos if len(c) == 3]
+    triple_ids = [{e.id for e in t} for t in triples]
+    assert {entry_50_a.id, entry_30.id, entry_20.id} in triple_ids
+    assert {entry_50_b.id, entry_30.id, entry_20.id} in triple_ids
