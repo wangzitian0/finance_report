@@ -65,6 +65,17 @@ class Check:
     tier: str = "static"
 
 
+# Backend files that shape the OpenAPI document: route handlers (FastAPI copies
+# their docstrings into route descriptions), request/response schemas and the app
+# factory. The api-reference gate and the openapi-spec gate read that one document,
+# so both take the same inputs (#2372).
+OPENAPI_INPUT_GLOBS: tuple[str, ...] = (
+    "apps/backend/src/routers/*.py",
+    "apps/backend/src/*/extension/api/*.py",
+    "apps/backend/src/schemas/*.py",
+    "apps/backend/src/main.py",
+)
+
 # Ordered cheapest/most-localizing first. ``fnmatch`` treats ``*`` as matching
 # across ``/`` too, so a single ``*`` already spans nested directories.
 CHECKS: tuple[Check, ...] = (
@@ -135,12 +146,7 @@ CHECKS: tuple[Check, ...] = (
     ),
     Check(
         name="api-reference",
-        globs=(
-            "apps/backend/src/routers/*.py",
-            "apps/backend/src/*/extension/api/*.py",
-            "apps/backend/src/schemas/*.py",
-            "apps/backend/src/main.py",
-        ),
+        globs=OPENAPI_INPUT_GLOBS,
         commands=((PY, "../../tools/generate_api_reference.py", "--check"),),
         why="router/schema changed: the generated OpenAPI reference (docs/reference/api.md) must be regenerated — mirrors the CI 'Generated API Reference Check' Lint gate",
         cwd="apps/backend",
@@ -230,11 +236,7 @@ CHECKS: tuple[Check, ...] = (
     ),
     Check(
         name="openapi-spec",
-        globs=(
-            "apps/backend/src/routers/*.py",
-            "apps/backend/src/schemas/*.py",
-            "apps/backend/src/main.py",
-        ),
+        globs=OPENAPI_INPUT_GLOBS,
         commands=(
             (PY, "tools/generate_openapi_spec.py", "--check"),
             ("npm", "--prefix", "apps/frontend", "run", "check:api-types"),

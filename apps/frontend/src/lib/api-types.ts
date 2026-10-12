@@ -325,6 +325,9 @@ export interface paths {
         /**
          * Health Check
          * @description Return fast liveness (default) or manifest-complete dependency health (?full=1).
+         *
+         *     The payload keeps this local shape, not the SDK health report. Deploy gates read
+         *     `version` and `git_sha` from it.
          */
         get: operations["health_check_health_get"];
         put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
