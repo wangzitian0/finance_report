@@ -815,7 +815,7 @@ async def test_repository_memoizes_ancestry_and_invalidates_on_supersede(db):
 
 
 async def test_repository_instances_share_caches_via_session_info(db):
-    """AC-audit.trace-record.4: AC19.4.2: repository instances on the same session share cache."""
+    """AC-audit.trace-record.4: repository instances on the same session share cache."""
     repo1 = SqlTraceRecordRepository(db)
     record = observation()
     await repo1.append(record)
@@ -833,7 +833,7 @@ async def test_repository_instances_share_caches_via_session_info(db):
 
 
 async def test_repository_handles_unhashable_policy_registry(db):
-    """AC-audit.trace-record.4: AC19.4.2: repository handles unhashable policy registries via object id."""
+    """AC-audit.trace-record.4: repository handles unhashable policy registries via object id."""
 
     class _UnhashablePolicy(FixtureDecisionPolicy):
         __hash__ = None  # type: ignore[assignment]
@@ -846,3 +846,26 @@ async def test_repository_handles_unhashable_policy_registry(db):
     repo1 = SqlTraceRecordRepository(db, registry)
     repo2 = SqlTraceRecordRepository(db, registry)
     assert repo1._cache is repo2._cache
+
+
+async def test_repository_cached_decision_isolated_by_policy_registry(db):
+    """AC-audit.trace-record.4: decision records cached in session are isolated across policy registries."""
+    record = observation()
+    policy = decision_policy(assertion_id="cache-isolated-parent")
+    decision = TraceRecord.decision(
+        scope=record.scope,
+        target=record.target,
+        policy=policy,
+        execution_id=record.execution_id,
+        occurred_at=record.occurred_at,
+        parents=[record],
+    )
+    repo_with_policy = SqlTraceRecordRepository(db, TraceDecisionPolicyRegistry((policy,)))
+    await repo_with_policy.append(record)
+    await repo_with_policy.append(decision)
+
+    # Repository with empty policy registry must not reuse cached decision and must fail replay on get.
+    repo_empty_policy = SqlTraceRecordRepository(db)
+    assert repo_empty_policy._cache is not repo_with_policy._cache
+    with pytest.raises(TraceRecordPersistenceError, match="no registered decision policy"):
+        await repo_empty_policy.get(decision.scope, decision.record_id)
