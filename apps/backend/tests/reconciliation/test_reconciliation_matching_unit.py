@@ -1369,3 +1369,18 @@ def test_normal_entry_combinations_parity_and_precomputation():
     triple_ids = [{e.id for e in t} for t in triples]
     assert {entry_50_a.id, entry_30.id, entry_20.id} in triple_ids
     assert {entry_50_b.id, entry_30.id, entry_20.id} in triple_ids
+
+
+def test_entry_reads_handles_duck_typed_entry_without_lines():
+    """Verify entry amount readers support duck-typed objects without lines attribute."""
+    from types import SimpleNamespace
+
+    from src.reconciliation.extension.entry_reads import entry_bank_side_amount, entry_total_amount
+
+    entry_with_amount = SimpleNamespace(id=uuid4(), amount=Decimal("123.45"))
+    entry_empty = SimpleNamespace(id=uuid4())
+
+    assert entry_total_amount(entry_with_amount, currency="SGD") == Decimal("123.45")
+    assert entry_total_amount(entry_empty, currency="SGD") == Decimal("0.00")
+    assert entry_bank_side_amount(entry_with_amount, "IN", currency="SGD") == Decimal("123.45")
+    assert entry_bank_side_amount(entry_empty, "IN", currency="SGD") == Decimal("0.00")
