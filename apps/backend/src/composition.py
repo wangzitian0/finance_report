@@ -145,6 +145,11 @@ async def _get_or_create_default_counter_account(
     currency: str,
 ) -> Account:
     expected_name = f"General {account_type.value.capitalize()} ({currency})"
+    cache = db.info.setdefault("_default_account_cache", {})
+    cache_key = (user_id, expected_name, account_type, currency)
+    if cache_key in cache:
+        return cache[cache_key]
+
     result = await db.execute(
         select(Account)
         .where(
@@ -158,6 +163,7 @@ async def _get_or_create_default_counter_account(
     )
     account = result.scalar_one_or_none()
     if account is not None:
+        cache[cache_key] = account
         return account
 
     account = Account(
@@ -170,6 +176,7 @@ async def _get_or_create_default_counter_account(
     db.add(account)
     await db.flush()
     await db.refresh(account)
+    cache[cache_key] = account
     return account
 
 

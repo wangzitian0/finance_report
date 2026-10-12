@@ -34,7 +34,7 @@ from src.extraction.base.source_vocabulary import ClassificationStatus, RuleType
 from src.extraction.extension.classification import ClassificationService
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
-from src.ledger import AccountType
+from src.ledger import Account, AccountType
 from src.observability import get_logger
 
 logger = get_logger(__name__)
@@ -298,7 +298,7 @@ async def _classification_enabled(db: AsyncSession, user_id: UUID) -> bool:
     """The EPIC-018 flag, with the per-user ``ai_settings`` override on top."""
     from src.identity import User
 
-    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    user = await db.get(User, user_id)
     overrides = user.ai_settings if user is not None and isinstance(user.ai_settings, dict) else {}
     return bool(overrides.get("enable_ai_classification", settings.enable_ai_classification))
 
@@ -311,6 +311,11 @@ async def _ensure_policy_rule(db: AsyncSession, user_id: UUID, policy: Classific
     effective date, append-only supersession) — so the policy anchors there instead
     of a new table. One rule row per (user, policy version).
     """
+    cache = db.info.setdefault("_policy_rule_cache", {})
+    cache_key = (user_id, policy.version)
+    if cache_key in cache:
+        return cache[cache_key]
+
     existing = (
         await db.execute(
             select(ClassificationRule)
@@ -320,6 +325,7 @@ async def _ensure_policy_rule(db: AsyncSession, user_id: UUID, policy: Classific
         )
     ).scalar_one_or_none()
     if existing is not None:
+        cache[cache_key] = existing
         return existing
 
     rule = ClassificationRule(
@@ -342,6 +348,7 @@ async def _ensure_policy_rule(db: AsyncSession, user_id: UUID, policy: Classific
     )
     db.add(rule)
     await db.flush()
+    cache[cache_key] = rule
     return rule
 
 
@@ -468,6 +475,7 @@ async def classify_transactions(
                 .all()
             }
     proposal_by_txn = dict(zip(remaining, proposals))
+    category_account_cache: dict[tuple[TransactionCategory, str], Account] = {}
     for txn in transactions:
         if txn.id in ruled:
             outcomes.append(
@@ -512,7 +520,10 @@ async def classify_transactions(
         if commit_basis and disposition in ("applied", "review") and txn.id not in already_classified:
             if policy_rule is None:
                 policy_rule = await _ensure_policy_rule(db, user_id, policy)
-            account = await _resolve_category_account(db, user_id, category, txn.currency)
+            acc_key = (category, txn.currency)
+            if acc_key not in category_account_cache:
+                category_account_cache[acc_key] = await _resolve_category_account(db, user_id, category, txn.currency)
+            account = category_account_cache[acc_key]
             db.add(
                 TransactionClassification(
                     atomic_txn_id=txn.id,
