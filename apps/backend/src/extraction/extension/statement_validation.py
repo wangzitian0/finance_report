@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import STATEMENT_BALANCE_TOLERANCE, InvariantResult, evaluate_promotion
 from src.audit.money.adopt import balance_check
 from src.extraction.base.source_vocabulary import BankStatementStatus, Stage1Status, TransactionDirection
+from src.extraction.base.validation import STATEMENT_RESOLVED_TRANSACTIONS_ATTR
 from src.extraction.extension.reviewed_statement_envelope import (
     get_current_statement_extraction_result,
     require_current_statement_envelope_trust,
@@ -476,7 +477,7 @@ async def approve_statement_with_transactions(
     statement.stage1_reviewed_at = datetime.now(UTC)
     statement.balance_validation_result = validation_result
     statement.status = BankStatementStatus.APPROVED
-    setattr(statement, "_resolved_transactions", transactions)
+    setattr(statement, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, transactions)
 
     await db.flush()
     return statement, transactions

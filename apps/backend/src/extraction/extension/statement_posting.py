@@ -49,7 +49,10 @@ from src.extraction.base.types import (
     StatementPostingOutcome,
     StatementPostingStatus,
 )
-from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
+from src.extraction.base.validation import (
+    HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD,
+    STATEMENT_RESOLVED_TRANSACTIONS_ATTR,
+)
 from src.extraction.extension.custody_binding import is_bank_custody_source, resolve_bank_custody_account
 from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
 from src.extraction.extension.disposition_trace import emit_disposition_trace_records
@@ -134,7 +137,7 @@ async def auto_create_posted_entries_for_statement(
 ) -> StatementPostingOutcome:
     """Evaluate then apply one statement posting plan after Stage 1 source confirmation."""
     if transactions is None:
-        transactions = getattr(statement, "_resolved_transactions", None)
+        transactions = getattr(statement, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, None)
     if transactions is None:
         transactions = await resolve_statement_transactions(db, statement)
     txn_ids = [txn.id for txn in transactions]

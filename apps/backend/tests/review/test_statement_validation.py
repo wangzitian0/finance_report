@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import select
 
 from src.extraction import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection, UploadedDocument
+from src.extraction.base.validation import STATEMENT_RESOLVED_TRANSACTIONS_ATTR
 from src.extraction.extension import statement_validation as stmt_val_mod
 from src.extraction.extension.statement_validation import (
     BALANCE_TOLERANCE,
@@ -364,6 +365,35 @@ class TestApproveStatement:
         assert stmt.status == BankStatementStatus.APPROVED
         assert len(txns) == 1
         assert resolve_count == 1, "resolve_statement_transactions must be invoked exactly once during approval"
+        assert getattr(stmt, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, None) == txns
+
+    async def test_auto_create_posted_entries_reuses_cached_transactions_without_resolving(
+        self, db, statement_with_transactions, user_id, monkeypatch
+    ):
+        """AC-extraction.stage1-validation.1: auto_create_posted_entries_for_statement reuses cached transactions and skips resolution query."""
+        from src.extraction.extension import statement_posting as stmt_posting_mod
+        from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement
+        from tests.statement_ingestion import posting_dependencies
+
+        stmt = await approve_statement(db, statement_with_transactions.id, user_id)
+        cached_txns = getattr(stmt, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, None)
+        assert cached_txns is not None
+        assert len(cached_txns) == 1
+
+        resolve_count = 0
+        original_resolve = stmt_posting_mod.resolve_statement_transactions
+
+        async def spy_resolve(*args, **kwargs):
+            nonlocal resolve_count
+            resolve_count += 1
+            return await original_resolve(*args, **kwargs)
+
+        monkeypatch.setattr(stmt_posting_mod, "resolve_statement_transactions", spy_resolve)
+
+        await auto_create_posted_entries_for_statement(db, stmt, user_id, dependencies=posting_dependencies())
+        assert resolve_count == 0, (
+            "auto_create_posted_entries_for_statement must reuse cached transactions on statement without re-querying"
+        )
 
     async def test_approve_with_invalid_balance_raises(self, db, user_id):
         """AC-extraction.stage1-validation.8: AC1.2.2 AC16.22.1: Reject approval attempt when balance chain is invalid."""
