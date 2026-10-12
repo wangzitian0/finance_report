@@ -44,7 +44,11 @@ GATE_JOB_SUFFIX = f" / {GATE_JOB_NAME}"
 # A skipped reusable call shows only as "Staging AI/OCR Gate" (no suffix), the
 # same as the skipped manual job. "Deploy Staging" marks a staging deploy run.
 DEPLOY_STAGING_JOB = "Deploy Staging"
-BOARD_WORKFLOWS = ("Deploy", "AI/OCR Audit Replay")
+# A run's "name" is its run-name (for example "Deploy Staging v0.1.75"), not
+# the workflow name, so the workflow file path identifies the workflow.
+DEPLOY_WORKFLOW = ".github/workflows/deploy.yml"
+REPLAY_WORKFLOW = ".github/workflows/audit-replay.yml"
+BOARD_WORKFLOWS = (DEPLOY_WORKFLOW, REPLAY_WORKFLOW)
 LANES = ("canary", "core_journey", "audit_replay", "all")
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
@@ -259,7 +263,7 @@ def _run_meta(run: dict[str, Any]) -> dict[str, Any]:
         "id": str(run.get("id", "")),
         "attempt": int(run.get("run_attempt") or 1),
         "url": run.get("html_url", ""),
-        "workflow": run.get("name", ""),
+        "workflow": run.get("path", ""),
         "event": run.get("event", ""),
         "conclusion": run.get("conclusion"),
         "completed_at": run.get("updated_at") or run.get("run_started_at") or "",
@@ -267,7 +271,7 @@ def _run_meta(run: dict[str, Any]) -> dict[str, Any]:
 
 
 def _lane_from_run(run: dict[str, Any]) -> str:
-    if run.get("name") == "Deploy":
+    if run.get("path") == DEPLOY_WORKFLOW:
         return "canary"
     match = re.search(
         r"\((core_journey|audit_replay|canary|all)\)", run.get("display_title", "")
@@ -309,7 +313,7 @@ def build_record(
     or a gate run with no artifact, gives a ``not-run`` or ``no-evidence``
     record: the board must show a missing proof, not hide it.
     """
-    if run.get("name") not in BOARD_WORKFLOWS:
+    if run.get("path") not in BOARD_WORKFLOWS:
         raise ValueError(
             f"run {run.get('id')} is not a {' or '.join(BOARD_WORKFLOWS)} run"
         )
@@ -320,7 +324,7 @@ def build_record(
     recorded_at = recorded_at or datetime.now(UTC).isoformat(timespec="seconds")
     context_path = _find(artifact_dir, CONTEXT_FILE)
     if context_path is None:
-        if run.get("name") == "Deploy" and not ran and not deploy_jobs:
+        if run.get("path") == DEPLOY_WORKFLOW and not ran and not deploy_jobs:
             return None
         if ran:
             status, reason = "no-evidence", "the gate ran but uploaded no test context"

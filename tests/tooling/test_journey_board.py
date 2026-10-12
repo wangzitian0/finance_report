@@ -89,19 +89,33 @@ def _artifact(
     return root
 
 
+# The GitHub run payload: "name" is the run-name, "path" names the workflow
+# (run 37965691488: name "Deploy Staging v0.1.75", path deploy.yml).
+RUN_SHAPES = {
+    "Deploy": (".github/workflows/deploy.yml", "Deploy Staging v9.9.9"),
+    "AI/OCR Audit Replay": (
+        ".github/workflows/audit-replay.yml",
+        "AI/OCR Audit Replay",
+    ),
+    "CI": (".github/workflows/ci.yml", "CI"),
+}
+
+
 def _run(
-    name: str = "AI/OCR Audit Replay",
+    workflow: str = "AI/OCR Audit Replay",
     run_id: int = 1,
     completed: str = "2026-10-12T00:00:00Z",
 ) -> dict:
+    path, run_name = RUN_SHAPES[workflow]
     return {
         "id": run_id,
         "run_attempt": 1,
         "html_url": f"https://example.invalid/runs/{run_id}",
-        "name": name,
+        "name": run_name,
+        "path": path,
         "event": "workflow_dispatch",
         "updated_at": completed,
-        "display_title": name,
+        "display_title": run_name,
     }
 
 
@@ -261,7 +275,7 @@ def test_AC_testing_journey_board_3_artifact_values_are_validated(
     )
     with pytest.raises(ValueError, match="unknown lane"):
         build_record(artifact, _run(), [], MAP)
-    with pytest.raises(ValueError, match="is not a Deploy or AI/OCR Audit Replay run"):
+    with pytest.raises(ValueError, match="is not a .github/workflows/deploy.yml or"):
         build_record(artifact, _run("CI"), [], MAP)
 
 
