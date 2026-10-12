@@ -167,12 +167,16 @@ def _normal_entry_combinations(
 ) -> Iterator[list[JournalEntry]]:
     """Enumerate balanced singles and amount-eligible pairs/triples once."""
     balanced = [entry for entry in candidates if is_entry_balanced(entry, base_currency=base_currency)]
+    for entry in balanced:
+        yield [entry]
+
+    if len(balanced) < 2:
+        return
+
     amount_by_id = {
         entry.id: entry_bank_side_amount(entry, transaction.direction, currency=transaction.currency)
         for entry in balanced
     }
-    for entry in balanced:
-        yield [entry]
 
     for e0, e1 in combinations(balanced, 2):
         combined = amount_by_id[e0.id] + amount_by_id[e1.id]

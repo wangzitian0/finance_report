@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from decimal import Decimal
+from typing import Any, cast
 
 from src.audit import source_type_rank
 from src.audit.money import Currency, Money
@@ -42,8 +44,12 @@ def _candidate_is_better(
 
 def entry_total_amount(entry: JournalEntry, *, currency: str) -> Decimal:
     """Return debit magnitude in one explicit transaction currency."""
+    lines = getattr(entry, "lines", None)
+    if lines is None:
+        amount = getattr(entry, "amount", None)
+        return amount if isinstance(amount, Decimal) else Decimal("0.00")
     target = Currency.of(currency)
-    debits = [line.money for line in entry.lines if line.direction == Direction.DEBIT and line.money.currency == target]
+    debits = [line.money for line in lines if line.direction == Direction.DEBIT and line.money.currency == target]
     return Money.sum(debits, currency=target).amount
 
 
@@ -54,13 +60,17 @@ def entry_bank_side_amount(
     currency: str,
 ) -> Decimal:
     """Return the bank/cash-side amount that should match a statement transaction."""
+    lines = getattr(entry, "lines", None)
+    if lines is None:
+        amount = getattr(entry, "amount", None)
+        return amount if isinstance(amount, Decimal) else Decimal("0.00")
     if not transaction_direction:
         return entry_total_amount(entry, currency=currency)
     direction = transaction_direction.upper()
     bank_line_direction = Direction.DEBIT if direction == "IN" else Direction.CREDIT
     bank_lines = [
         line.money
-        for line in entry.lines
+        for line in lines
         if line.direction == bank_line_direction
         and line.account
         and line.account.type == AccountType.ASSET
@@ -74,7 +84,7 @@ def entry_bank_side_amount(
 def is_entry_balanced(entry: JournalEntry, *, base_currency: str) -> bool:
     """Return True if entry is balanced."""
     try:
-        validate_journal_balance(entry.lines, base_currency=base_currency)
+        validate_journal_balance(cast(Sequence[Any], entry.lines), base_currency=base_currency)
     except ValidationError:
         return False
     return True
