@@ -811,3 +811,21 @@ async def test_repository_memoizes_ancestry_and_invalidates_on_supersede(db):
     assert (record.scope, record.record_id) not in repository._ancestry_cache
     assert not await repository._is_lineage_head(record.scope, record.record_id)
     assert not await repository._has_current_ancestry(record.scope, record.record_id, frozenset())
+
+
+async def test_repository_instances_share_caches_via_session_info(db):
+    """AC-audit.trace-record.4: AC19.4.2: repository instances on the same session share cache."""
+    repo1 = SqlTraceRecordRepository(db)
+    record = observation()
+    await repo1.append(record)
+
+    # Cache is populated in session info and shared with subsequent repository instances.
+    repo2 = SqlTraceRecordRepository(db)
+    assert repo2._cache is repo1._cache
+    assert repo2._lineage_head_cache is repo1._lineage_head_cache
+    assert repo2._ancestry_cache is repo1._ancestry_cache
+
+    # Second repository instance on the same session reuses the populated cache without SQL.
+    with patch.object(db, "execute", side_effect=RuntimeError("database query attempted")):
+        retrieved = await repo2.get(record.scope, record.record_id)
+    assert retrieved == record
