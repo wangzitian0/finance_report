@@ -10,7 +10,7 @@ import GuidedEvidenceForm, {
   validateEvidenceForm,
 } from "@/components/assets/GuidedEvidenceForm"
 import GuidedEvidencePage from "@/app/(main)/portfolio/evidence/page"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 import type {
   ManualValuationSnapshot,
   ManualValuationSnapshotListResponse,
@@ -34,11 +34,11 @@ vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast: showToastMock }),
 }))
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
-const mockedApiFetch = vi.mocked(apiFetch)
+const mockedApiOperation = vi.mocked(apiOperation)
 const originalMatchMedia = window.matchMedia
 
 const emptyList: ManualValuationSnapshotListResponse = { items: [], total: 0 }
@@ -74,12 +74,12 @@ function createWrapper() {
 }
 
 function mockListOnly(list: ManualValuationSnapshotListResponse = emptyList) {
-  mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
-    if (path.startsWith("/api/assets/valuation-snapshots") && !options) {
+  mockedApiOperation.mockImplementation(((operationId: string) => {
+    if (operationId === "list_valuation_snapshots_assets_valuation_snapshots_get") {
       return Promise.resolve(list) as never
     }
-    return Promise.reject(new Error(`Unexpected call ${path}`)) as never
-  })
+    return Promise.reject(new Error(`Unexpected call ${operationId}`)) as never
+  }) as any)
 }
 
 /** Fill the form with a valid, submittable evidence record. */
@@ -111,7 +111,7 @@ function mockMobileViewport() {
 
 describe("GuidedEvidenceForm", () => {
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
     showToastMock.mockReset()
     navigationState.sourceClass = null
   })
@@ -242,7 +242,7 @@ describe("GuidedEvidenceForm", () => {
       ).toBeInTheDocument()
       // Only the initial GET list call happened; no POST.
       expect(
-        mockedApiFetch.mock.calls.filter(([, opts]) => opts?.method === "POST"),
+        mockedApiOperation.mock.calls.filter(([op]) => op === "create_valuation_snapshot_assets_valuation_snapshots_post"),
       ).toHaveLength(0)
     })
 
@@ -260,7 +260,7 @@ describe("GuidedEvidenceForm", () => {
         await screen.findByText("As-of date is required"),
       ).toBeInTheDocument()
       expect(
-        mockedApiFetch.mock.calls.filter(([, opts]) => opts?.method === "POST"),
+        mockedApiOperation.mock.calls.filter(([op]) => op === "create_valuation_snapshot_assets_valuation_snapshots_post"),
       ).toHaveLength(0)
     })
   })
@@ -269,15 +269,15 @@ describe("GuidedEvidenceForm", () => {
   describe("AC11.9.7 typed persistence", () => {
     // AC-portfolio.fe-ia-portfolio.2 / AC-portfolio.fe-assets2.2 / AC-portfolio.fe-assets2.4
     it("AC11.9.4 AC22.10.2 AC11.9.7 valid submit posts a Decimal-safe payload through the typed client", async () => {
-      mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
-        if (path.startsWith("/api/assets/valuation-snapshots") && !options) {
+      mockedApiOperation.mockImplementation(((operationId: string) => {
+        if (operationId === "list_valuation_snapshots_assets_valuation_snapshots_get") {
           return Promise.resolve(emptyList) as never
         }
-        if (path === "/api/assets/valuation-snapshots" && options?.method === "POST") {
+        if (operationId === "create_valuation_snapshot_assets_valuation_snapshots_post") {
           return Promise.resolve(sampleSnapshot) as never
         }
-        return Promise.reject(new Error(`Unexpected ${path}`)) as never
-      })
+        return Promise.reject(new Error(`Unexpected ${operationId}`)) as never
+      }) as any)
 
       render(<GuidedEvidenceForm initialSourceClass="esop_rsu_plan" />, {
         wrapper: createWrapper(),
@@ -291,14 +291,13 @@ describe("GuidedEvidenceForm", () => {
 
       await waitFor(() =>
         expect(
-          mockedApiFetch.mock.calls.some(([, opts]) => opts?.method === "POST"),
+          mockedApiOperation.mock.calls.some(([op]) => op === "create_valuation_snapshot_assets_valuation_snapshots_post"),
         ).toBe(true),
       )
-      const postCall = mockedApiFetch.mock.calls.find(
-        ([path, opts]) =>
-          path === "/api/assets/valuation-snapshots" && opts?.method === "POST",
+      const postCall = mockedApiOperation.mock.calls.find(
+        ([op]) => op === "create_valuation_snapshot_assets_valuation_snapshots_post",
       )
-      const body = JSON.parse((postCall?.[1]?.body as string) ?? "{}")
+      const body = (postCall?.[1] as any)?.body ?? {}
       expect(body).toMatchObject({
         component_type: "rsu",
         value: "12500",
@@ -316,16 +315,16 @@ describe("GuidedEvidenceForm", () => {
     })
 
     it("AC-testing.fe-async.2 guided-evidence create flow invalidates the matrix-declared query keys against a real QueryClient", async () => {
-      // #1827 G-async-seam: only apiFetch is mocked; react-query runs for real.
-      mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
-        if (path.startsWith("/api/assets/valuation-snapshots") && !options) {
+      // #1827 G-async-seam: only apiOperation is mocked; react-query runs for real.
+      mockedApiOperation.mockImplementation(((operationId: string) => {
+        if (operationId === "list_valuation_snapshots_assets_valuation_snapshots_get") {
           return Promise.resolve(emptyList) as never
         }
-        if (path === "/api/assets/valuation-snapshots" && options?.method === "POST") {
+        if (operationId === "create_valuation_snapshot_assets_valuation_snapshots_post") {
           return Promise.resolve(sampleSnapshot) as never
         }
-        return Promise.reject(new Error(`Unexpected ${path}`)) as never
-      })
+        return Promise.reject(new Error(`Unexpected ${operationId}`)) as never
+      }) as any)
 
       const probe = createInvalidationProbe("assets.guided-evidence-create")
       render(<GuidedEvidenceForm initialSourceClass="esop_rsu_plan" />, {
@@ -338,22 +337,22 @@ describe("GuidedEvidenceForm", () => {
 
       await waitFor(() =>
         expect(
-          mockedApiFetch.mock.calls.some(([, opts]) => opts?.method === "POST"),
+          mockedApiOperation.mock.calls.some(([op]) => op === "create_valuation_snapshot_assets_valuation_snapshots_post"),
         ).toBe(true),
       )
       await waitFor(() => probe.expectDeclaredInvalidated())
     })
 
     it("AC11.9.7 switching source class maps to the right component type and basis", async () => {
-      mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
-        if (path.startsWith("/api/assets/valuation-snapshots") && !options) {
+      mockedApiOperation.mockImplementation(((operationId: string) => {
+        if (operationId === "list_valuation_snapshots_assets_valuation_snapshots_get") {
           return Promise.resolve(emptyList) as never
         }
-        if (path === "/api/assets/valuation-snapshots" && options?.method === "POST") {
+        if (operationId === "create_valuation_snapshot_assets_valuation_snapshots_post") {
           return Promise.resolve(sampleSnapshot) as never
         }
-        return Promise.reject(new Error(`Unexpected ${path}`)) as never
-      })
+        return Promise.reject(new Error(`Unexpected ${operationId}`)) as never
+      }) as any)
 
       render(<GuidedEvidenceForm />, { wrapper: createWrapper() })
 
@@ -364,22 +363,22 @@ describe("GuidedEvidenceForm", () => {
       fireEvent.click(screen.getByRole("button", { name: "Save evidence" }))
 
       await waitFor(() => {
-        const postCall = mockedApiFetch.mock.calls.find(
-          ([, opts]) => opts?.method === "POST",
+        const postCall = mockedApiOperation.mock.calls.find(
+          ([op]) => op === "create_valuation_snapshot_assets_valuation_snapshots_post",
         )
-        const body = JSON.parse((postCall?.[1]?.body as string) ?? "{}")
+        const body = (postCall?.[1] as any)?.body ?? {}
         expect(body.component_type).toBe("other_liability")
         expect(body.valuation_basis).toBe("bank_statement")
       })
     })
 
     it("AC11.9.7 surfaces API errors via toast and does not crash", async () => {
-      mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
-        if (path.startsWith("/api/assets/valuation-snapshots") && !options) {
+      mockedApiOperation.mockImplementation(((operationId: string) => {
+        if (operationId === "list_valuation_snapshots_assets_valuation_snapshots_get") {
           return Promise.resolve(emptyList) as never
         }
         return Promise.reject(new Error("save failed")) as never
-      })
+      }) as any)
 
       render(<GuidedEvidenceForm />, { wrapper: createWrapper() })
       fillValidForm()
@@ -394,15 +393,15 @@ describe("GuidedEvidenceForm", () => {
     })
 
     it("AC11.9.7 omits the anchor suffix when no anchor is provided", async () => {
-      mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
-        if (path.startsWith("/api/assets/valuation-snapshots") && !options) {
+      mockedApiOperation.mockImplementation(((operationId: string) => {
+        if (operationId === "list_valuation_snapshots_assets_valuation_snapshots_get") {
           return Promise.resolve(emptyList) as never
         }
-        if (path === "/api/assets/valuation-snapshots" && options?.method === "POST") {
+        if (operationId === "create_valuation_snapshot_assets_valuation_snapshots_post") {
           return Promise.resolve(sampleSnapshot) as never
         }
-        return Promise.reject(new Error(`Unexpected ${path}`)) as never
-      })
+        return Promise.reject(new Error(`Unexpected ${operationId}`)) as never
+      }) as any)
 
       render(<GuidedEvidenceForm />, { wrapper: createWrapper() })
       fireEvent.change(screen.getByLabelText("Currency"), {
@@ -415,10 +414,10 @@ describe("GuidedEvidenceForm", () => {
       fireEvent.click(screen.getByRole("button", { name: "Save evidence" }))
 
       await waitFor(() => {
-        const postCall = mockedApiFetch.mock.calls.find(
-          ([, opts]) => opts?.method === "POST",
+        const postCall = mockedApiOperation.mock.calls.find(
+          ([op]) => op === "create_valuation_snapshot_assets_valuation_snapshots_post",
         )
-        const body = JSON.parse((postCall?.[1]?.body as string) ?? "{}")
+        const body = (postCall?.[1] as any)?.body ?? {}
         expect(body.source).toBe("Acme RSU grant")
         expect(body.currency).toBe("USD")
         expect(body.notes).toBe("Quarterly review")

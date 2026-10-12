@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { Stage2ReviewQueue } from "@/components/review/Stage2ReviewQueue"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 
 import { renderReviewComponent } from "./helpers/renderReviewComponent"
 
@@ -13,14 +13,54 @@ const navState = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
 }))
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }))
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }))
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: navState.replace, push: navState.push }),
   useSearchParams: () => navState.searchParams,
   usePathname: () => navState.pathname,
 }))
 
-const mockedApiFetch = vi.mocked(apiFetch)
+function mapStage2OperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
+  switch (operationId) {
+    case "get_stage2_review_queue_statements_stage2_queue_get": {
+      const q = req?.query;
+      let path = "/api/statements/stage2/queue";
+      if (q) {
+        const params = new URLSearchParams();
+        for (const [k, v] of Object.entries(q)) {
+          if (v !== undefined && v !== null) params.append(k, String(v));
+        }
+        const qs = params.toString();
+        if (qs) path += `?${qs}`;
+      }
+      return [path, undefined];
+    }
+    case "list_consistency_checks_statements_consistency_checks_list_get":
+      return ["/api/statements/consistency-checks/list", undefined];
+    case "batch_approve_matches_statements_batch_approve_matches_post":
+      return ["/api/statements/batch-approve-matches", { method: "POST", body: JSON.stringify(req?.body) }];
+    case "batch_reject_matches_statements_batch_reject_matches_post":
+      return ["/api/statements/batch-reject-matches", { method: "POST", body: JSON.stringify(req?.body) }];
+    case "resolve_consistency_check_statements_consistency_checks__check_id__resolve_post":
+      return [`/api/statements/consistency-checks/${req?.path?.check_id ?? "c1"}/resolve`, { method: "POST", body: JSON.stringify(req?.body) }];
+    case "get_processing_summary_accounts_processing_summary_get":
+      return ["/api/accounts/processing/summary", undefined];
+    default:
+      return [operationId, req];
+  }
+}
+
+const mockedApiFetch = vi.mocked(apiOperation)
+const originalMockImplementation = mockedApiFetch.mockImplementation.bind(mockedApiFetch)
+mockedApiFetch.mockImplementation = (fn: any) => {
+  return originalMockImplementation((operationId: any, req: any) => {
+    if (typeof operationId === "string" && operationId.startsWith("/")) {
+      return fn(operationId, req)
+    }
+    const [path, options] = mapStage2OperationToLegacy(operationId, req)
+    return fn(path, options)
+  })
+}
 const originalMatchMedia = window.matchMedia
 
 const pendingMatch = {
@@ -71,6 +111,9 @@ function mockApi(
     if (path.startsWith("/api/statements/stage2/queue")) return Promise.resolve(q as never)
     if (path === "/api/accounts/processing/summary") return (sum instanceof Promise ? sum : Promise.resolve(sum)) as never
     if (path.startsWith("/api/statements/consistency-checks/list")) return Promise.resolve({ items: checks } as never)
+    if (path.includes("/resolve")) return Promise.resolve({ success: true } as never)
+    if (path.includes("batch-approve-matches")) return Promise.resolve({ success: true, approved_count: 1 } as never)
+    if (path.includes("batch-reject-matches")) return Promise.resolve({ success: true, rejected_count: 1 } as never)
     return Promise.reject(new Error(`Unexpected path ${path}`))
   })
 }
@@ -228,8 +271,8 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
 
     await waitFor(() => {
       expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/statements/batch-approve-matches",
-        expect.objectContaining({ method: "POST" }),
+        "batch_approve_matches_statements_batch_approve_matches_post",
+        expect.anything(),
       )
     })
     await waitFor(() => {
@@ -275,10 +318,10 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
 
     await waitFor(() => {
       expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/statements/consistency-checks/c2/resolve",
+        "resolve_consistency_check_statements_consistency_checks__check_id__resolve_post",
         expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ action: "reject", note: "Keep reviewing" }),
+          path: { check_id: "c2" },
+          body: { action: "reject", note: "Keep reviewing" },
         }),
       )
     })
@@ -305,8 +348,8 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     fireEvent.click(screen.getByRole("button", { name: "Approve Selected" }))
     await waitFor(() => {
       expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/statements/batch-approve-matches",
-        expect.objectContaining({ method: "POST" }),
+        "batch_approve_matches_statements_batch_approve_matches_post",
+        expect.anything(),
       )
     })
 
@@ -315,8 +358,8 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     fireEvent.click(rejectButton)
     await waitFor(() => {
       expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/statements/batch-reject-matches",
-        expect.objectContaining({ method: "POST" }),
+        "batch_reject_matches_statements_batch_reject_matches_post",
+        expect.anything(),
       )
     })
 
@@ -324,7 +367,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     await waitFor(() => expect(approveRunButton).toBeEnabled())
     fireEvent.click(approveRunButton)
     await waitFor(() => {
-      const approveCalls = mockedApiFetch.mock.calls.filter((call) => call[0] === "/api/statements/batch-approve-matches")
+      const approveCalls = mockedApiFetch.mock.calls.filter((call) => (call[0] as string) === "batch_approve_matches_statements_batch_approve_matches_post" || (call[0] as string) === "/api/statements/batch-approve-matches")
       expect(approveCalls.length).toBeGreaterThanOrEqual(2)
     })
   })
@@ -395,8 +438,8 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Approve Run" }))
     await waitFor(() => {
       expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/statements/batch-approve-matches",
-        expect.objectContaining({ method: "POST" }),
+        "batch_approve_matches_statements_batch_approve_matches_post",
+        expect.anything(),
       )
     })
     expect(await screen.findByText("approve run failed")).toBeInTheDocument()

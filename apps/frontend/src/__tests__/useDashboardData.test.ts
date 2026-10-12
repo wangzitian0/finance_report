@@ -2,13 +2,42 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDashboardData } from "@/hooks/useDashboardData";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }));
 
-const mockedApiFetch = vi.mocked(apiFetch);
+const mockedApiOperation = vi.mocked(apiOperation);
+
+function mapDashboardOperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
+  switch (operationId) {
+    case "balance_sheet_reports_balance_sheet_get":
+      return ["/api/reports/balance-sheet", undefined];
+    case "income_statement_reports_income_statement_get":
+      return ["/api/reports/income-statement", undefined];
+    case "get_annualized_income_income_annualized_get":
+      return ["/api/income/annualized", undefined];
+    case "list_restricted_holdings_assets_restricted_get":
+      return ["/api/assets/restricted", undefined];
+    case "reconciliation_stats_reconciliation_stats_get":
+      return ["/api/reconciliation/stats", undefined];
+    case "list_unmatched_reconciliation_unmatched_get":
+      return ["/api/reconciliation/unmatched", undefined];
+    case "list_journal_entries_journal_entries_get":
+      return ["/api/journal-entries", undefined];
+    case "list_accounts_accounts_get":
+      return ["/api/accounts", undefined];
+    case "list_statements_statements_get":
+      return ["/api/statements", undefined];
+    case "suggestions_chat_suggestions_get":
+      return ["/api/chat/suggestions", undefined];
+    case "account_trend_reports_trend_get":
+      return ["/api/reports/trend", undefined];
+    default:
+      return [operationId, req];
+  }
+}
 
 function routeResponder(map: Record<string, unknown>, fallback?: (path: string) => unknown) {
   return (path: string) => {
@@ -21,12 +50,22 @@ function routeResponder(map: Record<string, unknown>, fallback?: (path: string) 
 
 describe("useDashboardData", () => {
   beforeEach(() => {
-    mockedApiFetch.mockReset();
+    mockedApiOperation.mockReset();
+    const originalMockImplementation = mockedApiOperation.mockImplementation.bind(mockedApiOperation);
+    mockedApiOperation.mockImplementation = (fn: any) => {
+      return originalMockImplementation((operationId: any, req: any) => {
+        if (typeof operationId === "string" && operationId.startsWith("/")) {
+          return fn(operationId, req);
+        }
+        const [path, options] = mapDashboardOperationToLegacy(operationId, req);
+        return fn(path, options);
+      });
+    };
   });
 
   // AC-reporting.fe-viz-reports.24
   it("AC5.35.1 aggregates dashboard endpoints over apiFetch", async () => {
-    mockedApiFetch.mockImplementation((path: string) =>
+    mockedApiOperation.mockImplementation((path: string) =>
       routeResponder({
         "/api/reports/balance-sheet": {
           assets: [{ account_id: "a1", name: "Cash", amount: "5000" }],
@@ -65,15 +104,16 @@ describe("useDashboardData", () => {
     expect(result.current.balanceSheet?.total_assets).toBe("5000");
     expect(result.current.incomeStatement?.total_income).toBe("3500");
     expect(result.current.annualizedIncome?.annualized_total).toBe("42000");
-    expect(mockedApiFetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/reports/balance-sheet"),
+    expect(mockedApiOperation).toHaveBeenCalledWith(
+      "balance_sheet_reports_balance_sheet_get",
+      expect.anything(),
     );
   });
 
   // AC-reporting.fe-viz-reports.25
   it("AC5.35.2 normalizes missing report fields to defaults", async () => {
     // Backend returns sparse payloads (only a few fields populated).
-    mockedApiFetch.mockImplementation((path: string) =>
+    mockedApiOperation.mockImplementation((path: string) =>
       routeResponder(
         {
           "/api/reports/balance-sheet": { currency: "SGD" },
@@ -98,7 +138,7 @@ describe("useDashboardData", () => {
 
   // AC-reporting.fe-viz-reports.26
   it("AC5.35.3 surfaces error and retries on failure", async () => {
-    mockedApiFetch.mockReturnValue(Promise.reject(new Error("network down")));
+    mockedApiOperation.mockReturnValue(Promise.reject(new Error("network down")));
 
     const { result } = renderHook(() => useDashboardData(false));
 
@@ -106,7 +146,7 @@ describe("useDashboardData", () => {
     expect(result.current.error).toBe("network down");
 
     // Recover on retry.
-    mockedApiFetch.mockImplementation((path: string) =>
+    mockedApiOperation.mockImplementation((path: string) =>
       routeResponder(
         {
           "/api/reports/balance-sheet": { currency: "SGD" },
@@ -127,7 +167,7 @@ describe("useDashboardData", () => {
 
   // AC-reporting.fe-ia-reports.22
   it("AC22.16.3 composes the snapshot and asset-trend hooks, exposing the trend once the balance loads", async () => {
-    mockedApiFetch.mockImplementation((path: string) =>
+    mockedApiOperation.mockImplementation((path: string) =>
       routeResponder(
         {
           "/api/reports/balance-sheet": {
@@ -158,14 +198,15 @@ describe("useDashboardData", () => {
     // resolved by the composed useAssetTrend hook for the top asset.
     await waitFor(() => expect(result.current.trend).not.toBeNull());
     expect(result.current.trendAccountName).toBe("Cash");
-    expect(mockedApiFetch).toHaveBeenCalledWith(
-      "/api/reports/trend?account_id=a1&period=monthly",
+    expect(mockedApiOperation).toHaveBeenCalledWith(
+      "account_trend_reports_trend_get",
+      expect.objectContaining({ query: expect.objectContaining({ account_id: "a1", period: "monthly" }) }),
     );
   });
 
   // AC-reporting.fe-viz-reports.27
   it("AC5.35.4 tolerates failing chat suggestions endpoint", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       if (path.startsWith("/api/chat/suggestions")) {
         return Promise.reject(new Error("suggestions unavailable"));
       }

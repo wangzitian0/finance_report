@@ -3,17 +3,34 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import ReportsPage from "@/app/(main)/reports/page"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }))
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
-const mockedApiFetch = vi.mocked(apiFetch)
+const mockedApiOperation = vi.mocked(apiOperation)
+
+function mapOperationToLegacy(operationId: string): string {
+  if (operationId === "get_annualized_income_income_annualized_get") return "/api/income/annualized"
+  if (operationId === "reconciliation_stats_reconciliation_stats_get") return "/api/reconciliation/stats"
+  if (operationId === "preview_personal_report_package_reports_package_get") return "/api/reports/package?"
+  return operationId
+}
+
+const mockedApiFetch = {
+  mockReset: () => mockedApiOperation.mockReset(),
+  mockImplementation: (fn: (path: string) => Promise<unknown>) => {
+    mockedApiOperation.mockImplementation(((operationId: string) => fn(mapOperationToLegacy(operationId))) as any)
+  },
+  mockRejectedValue: (err: unknown) => {
+    mockedApiOperation.mockRejectedValue(err)
+  },
+}
 
 beforeEach(() => {
   mockedApiFetch.mockReset()

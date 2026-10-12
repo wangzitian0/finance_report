@@ -2,26 +2,26 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import JournalEntryForm from "@/components/journal/JournalEntryForm"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
 describe("JournalEntryForm", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
   const onClose = vi.fn()
   const onSuccess = vi.fn()
 
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
     onClose.mockReset()
     onSuccess.mockReset()
   })
 
   // AC-ledger.fe-accounts-journal.15
   it("AC16.21.4 loads account options and shows balanced/unbalanced state", async () => {
-    mockedApiFetch.mockResolvedValueOnce({
+    mockedApiOperation.mockResolvedValueOnce({
       items: [
         { id: "a1", name: "Cash", code: "1000", type: "ASSET", currency: "SGD", is_active: true, balance: 0 },
         { id: "a2", name: "Revenue", code: "4000", type: "INCOME", currency: "SGD", is_active: true, balance: 0 },
@@ -42,7 +42,7 @@ describe("JournalEntryForm", () => {
   })
 
   it("AC-ledger.12.1 balances multi-currency lines using SGD base amounts", async () => {
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({
         items: [
           { id: "a1", name: "USD Bank", code: "1010", type: "ASSET", currency: "USD", is_active: true, balance: 0 },
@@ -71,10 +71,10 @@ describe("JournalEntryForm", () => {
     fireEvent.submit(container.querySelector("form") as HTMLFormElement)
 
     await waitFor(() => {
-      const createCall = mockedApiFetch.mock.calls.find((call) => call[0] === "/api/journal-entries")
+      const createCall = mockedApiOperation.mock.calls.find((call) => call[0] === "create_entry_journal_entries_post")
       expect(createCall).toBeDefined()
-      const request = createCall?.[1] as { method: string; body: string }
-      const body = JSON.parse(request.body)
+      const request = createCall?.[1] as { body: any }
+      const body = request.body
       expect(body.lines).toEqual([
         { account_id: "a1", direction: "DEBIT", amount: "100.00", currency: "USD", fx_rate: "1.350000" },
         { account_id: "a2", direction: "CREDIT", amount: "135.00", currency: "SGD" },
@@ -84,7 +84,7 @@ describe("JournalEntryForm", () => {
 
   // AC-ledger.fe-accounts-journal.17
   it("AC16.21.6 supports add and remove line interactions", async () => {
-    mockedApiFetch.mockResolvedValueOnce({
+    mockedApiOperation.mockResolvedValueOnce({
       items: [{ id: "a1", name: "Cash", code: "1000", type: "ASSET", currency: "SGD", is_active: true, balance: 0 }],
     })
 
@@ -104,7 +104,7 @@ describe("JournalEntryForm", () => {
   })
 
   it("AC16.21.6 handles account option load failures", async () => {
-    mockedApiFetch.mockRejectedValueOnce(new Error("accounts unavailable"))
+    mockedApiOperation.mockRejectedValueOnce(new Error("accounts unavailable"))
 
     render(<JournalEntryForm isOpen onClose={onClose} onSuccess={onSuccess} />)
 
@@ -116,7 +116,7 @@ describe("JournalEntryForm", () => {
 
   // AC-ledger.fe-accounts-journal.16
   it("AC16.21.5 submits create-draft payload with normalized amounts", async () => {
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({
         items: [
           { id: "a1", name: "Cash", code: "1000", type: "ASSET", currency: "SGD", is_active: true, balance: 0 },
@@ -143,11 +143,10 @@ describe("JournalEntryForm", () => {
     fireEvent.submit(container.querySelector("form") as HTMLFormElement)
 
     await waitFor(() => {
-      const createCall = mockedApiFetch.mock.calls.find((call) => call[0] === "/api/journal-entries")
+      const createCall = mockedApiOperation.mock.calls.find((call) => call[0] === "create_entry_journal_entries_post")
       expect(createCall).toBeDefined()
-      const request = createCall?.[1] as { method: string; body: string }
-      expect(request.method).toBe("POST")
-      const body = JSON.parse(request.body)
+      const request = createCall?.[1] as { body: any }
+      const body = request.body
       expect(body.memo).toBe("Manual adjustment")
       expect(body.rationale).toBe("Recorded by account owner.")
       expect(body.source_type).toBeUndefined()
@@ -161,7 +160,7 @@ describe("JournalEntryForm", () => {
   })
 
   it("AC16.21.5 posts immediately when checkbox is enabled", async () => {
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({
         items: [
           { id: "a1", name: "Cash", code: "1000", type: "ASSET", currency: "SGD", is_active: true, balance: 0 },
@@ -192,12 +191,12 @@ describe("JournalEntryForm", () => {
     fireEvent.submit(container.querySelector("form") as HTMLFormElement)
 
     await waitFor(() => {
-      expect(mockedApiFetch.mock.calls.some((call) => call[0] === "/api/journal-entries/je-post/postings")).toBe(true)
+      expect(mockedApiOperation.mock.calls.some((call) => call[0] === "post_entry_journal_entries__entry_id__postings_post")).toBe(true)
     })
   })
 
   it("AC16.21.6 surfaces form-level and API errors", async () => {
-    mockedApiFetch.mockResolvedValueOnce({
+    mockedApiOperation.mockResolvedValueOnce({
       items: [
         { id: "a1", name: "Cash", code: "1000", type: "ASSET", currency: "SGD", is_active: true, balance: 0 },
         { id: "a2", name: "Revenue", code: "4000", type: "INCOME", currency: "SGD", is_active: true, balance: 0 },
@@ -211,7 +210,7 @@ describe("JournalEntryForm", () => {
 
     expect(await screen.findByText("Memo is required")).toBeInTheDocument()
 
-    mockedApiFetch.mockRejectedValueOnce(new Error("create entry failed"))
+    mockedApiOperation.mockRejectedValueOnce(new Error("create entry failed"))
     const dateInput = container.querySelector("input[name='entry_date']") as HTMLInputElement
     fireEvent.change(dateInput, { target: { value: "2026-02-03" } })
     fireEvent.change(screen.getByPlaceholderText("Description"), { target: { value: "Try submit" } })
@@ -226,7 +225,7 @@ describe("JournalEntryForm", () => {
 
     fireEvent.submit(container.querySelector("form") as HTMLFormElement)
     await waitFor(() => {
-      expect(mockedApiFetch.mock.calls.some((call) => call[0] === "/api/journal-entries")).toBe(true)
+      expect(mockedApiOperation.mock.calls.some((call) => call[0] === "create_entry_journal_entries_post")).toBe(true)
     })
     expect(await screen.findByText("create entry failed")).toBeInTheDocument()
     expect(onSuccess).not.toHaveBeenCalled()

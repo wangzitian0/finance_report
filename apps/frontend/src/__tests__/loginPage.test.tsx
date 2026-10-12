@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import LoginPage from "@/app/login/page"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 import { setUser } from "@/lib/auth"
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics"
 
@@ -12,8 +12,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
 }))
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
 vi.mock("@/lib/auth", () => ({
@@ -26,11 +26,11 @@ vi.mock("@/lib/analytics", async (importOriginal) => ({
 }))
 
 describe("LoginPage", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
   const mockedSetUser = vi.mocked(setUser)
 
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
     mockedSetUser.mockReset()
     pushMock.mockReset()
     vi.mocked(track).mockReset()
@@ -38,7 +38,7 @@ describe("LoginPage", () => {
 
   // AC-identity.fe-auth.6
   it("AC16.12.5 AC22.1.3 submits login payload and redirects to Home", async () => {
-    mockedApiFetch.mockResolvedValueOnce({
+    mockedApiOperation.mockResolvedValueOnce({
       id: "u1",
       email: "user@example.com",
       name: null,
@@ -57,9 +57,9 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign In" }))
 
     await waitFor(() => {
-      expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/auth/login",
-        expect.objectContaining({ method: "POST" }),
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "login_auth_login_post",
+        { body: { email: "user@example.com", password: "password123" } },
       )
     })
     expect(mockedSetUser).toHaveBeenCalledTimes(1)
@@ -70,7 +70,7 @@ describe("LoginPage", () => {
 
   // AC-identity.fe-auth.7
   it("AC16.12.6 switches to register mode and uses register endpoint", async () => {
-    mockedApiFetch.mockResolvedValueOnce({
+    mockedApiOperation.mockResolvedValueOnce({
       id: "u2",
       email: "new@example.com",
       name: null,
@@ -90,9 +90,9 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create Account" }))
 
     await waitFor(() => {
-      expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/auth/register",
-        expect.objectContaining({ method: "POST" }),
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "register_auth_register_post",
+        { body: { email: "new@example.com", password: "password123" } },
       )
     })
   })
@@ -123,7 +123,7 @@ describe("LoginPage", () => {
 
   it("AC22.18.3 tracks SIGNUP only on successful register, not on login", async () => {
     // Successful register: the signup funnel event fires.
-    mockedApiFetch.mockResolvedValueOnce({
+    mockedApiOperation.mockResolvedValueOnce({
       id: "u3",
       email: "signup@example.com",
       name: null,
@@ -150,7 +150,7 @@ describe("LoginPage", () => {
     vi.mocked(track).mockReset()
 
     // Plain login must NOT be counted as a signup.
-    mockedApiFetch.mockResolvedValueOnce({
+    mockedApiOperation.mockResolvedValueOnce({
       id: "u4",
       email: "login@example.com",
       name: null,
@@ -176,7 +176,7 @@ describe("LoginPage", () => {
 
   // AC-identity.fe-auth.8
   it("AC16.12.7 shows API error and exits loading state", async () => {
-    mockedApiFetch.mockRejectedValueOnce(new Error("invalid credentials"))
+    mockedApiOperation.mockRejectedValueOnce(new Error("invalid credentials"))
 
     render(<LoginPage />)
 
@@ -213,7 +213,7 @@ describe("LoginPage", () => {
 
   // AC-identity.fe-auth.10
   it("AC16.12.14 shows error with alert role and aria-live", async () => {
-    mockedApiFetch.mockRejectedValueOnce(new Error("bad request"))
+    mockedApiOperation.mockRejectedValueOnce(new Error("bad request"))
     render(<LoginPage />)
 
     fireEvent.change(screen.getByLabelText("Email Address"), { target: { value: "a@b.com" } })
@@ -242,7 +242,7 @@ describe("LoginPage", () => {
   // AC-identity.fe-auth.12
   it("AC16.12.16 shows loading spinner during submission", async () => {
     let resolvePromise: (v: unknown) => void
-    mockedApiFetch.mockReturnValueOnce(new Promise((r) => { resolvePromise = r }))
+    mockedApiOperation.mockReturnValueOnce(new Promise((r) => { resolvePromise = r }))
 
     render(<LoginPage />)
     fireEvent.change(screen.getByLabelText("Email Address"), { target: { value: "a@b.com" } })

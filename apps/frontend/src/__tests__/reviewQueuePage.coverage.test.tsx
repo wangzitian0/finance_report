@@ -1,17 +1,44 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import ReviewQueuePage from "@/app/(main)/reconciliation/review-queue/page";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 vi.mock("next/navigation", () => ({
     useRouter: vi.fn(() => ({ replace: vi.fn(), push: vi.fn() })),
     useSearchParams: vi.fn(() => new URLSearchParams()),
     usePathname: vi.fn(() => "/reconciliation"),
 }));
 
-const mockedApi = vi.mocked(apiFetch);
+function mapStage2OperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
+    switch (operationId) {
+        case "get_stage2_review_queue_statements_stage2_queue_get":
+            return ["/api/statements/stage2/queue", undefined];
+        case "list_consistency_checks_statements_consistency_checks_list_get":
+            return ["/api/statements/consistency-checks/list", undefined];
+        case "batch_approve_matches_statements_batch_approve_matches_post":
+            return ["/api/statements/batch-approve-matches", { method: "POST", body: JSON.stringify(req?.body) }];
+        case "batch_reject_matches_statements_batch_reject_matches_post":
+            return ["/api/statements/batch-reject-matches", { method: "POST", body: JSON.stringify(req?.body) }];
+        case "resolve_consistency_check_statements_consistency_checks__check_id__resolve_post":
+            return [`/api/statements/consistency-checks/${req?.path?.check_id ?? "c1"}/resolve`, { method: "POST", body: JSON.stringify(req?.body) }];
+        default:
+            return [operationId, req];
+    }
+}
+
+const mockedApi = vi.mocked(apiOperation);
+const originalMockImplementation = mockedApi.mockImplementation.bind(mockedApi);
+mockedApi.mockImplementation = (fn: any) => {
+    return originalMockImplementation((operationId: any, req: any) => {
+        if (typeof operationId === "string" && operationId.startsWith("/")) {
+            return fn(operationId, req);
+        }
+        const [path, options] = mapStage2OperationToLegacy(operationId, req);
+        return fn(path, options);
+    });
+};
 
 describe("ReviewQueuePage - coverage additions", () => {
     beforeEach(() => {
@@ -59,7 +86,7 @@ describe("ReviewQueuePage - coverage additions", () => {
         const approve = await screen.findByRole("button", { name: /Approve Selected/i });
         fireEvent.click(approve);
 
-        await waitFor(() => expect(mockedApi.mock.calls.some(c => String(c[0]).includes("batch-approve-matches"))).toBe(true));
+        await waitFor(() => expect(mockedApi.mock.calls.some(c => String(c[0]).includes("batch_approve_matches") || String(c[0]).includes("batch-approve-matches"))).toBe(true));
 
         // reject selected after the approve flow clears selection
         const desktopRegion = await screen.findByTestId("stage2-desktop-match-region");
@@ -68,7 +95,7 @@ describe("ReviewQueuePage - coverage additions", () => {
         fireEvent.click(checkbox);
         const reject = await screen.findByRole("button", { name: /Reject/i });
         fireEvent.click(reject);
-        await waitFor(() => expect(mockedApi.mock.calls.some(c => String(c[0]).includes("batch-reject-matches"))).toBe(true));
+        await waitFor(() => expect(mockedApi.mock.calls.some(c => String(c[0]).includes("batch_reject_matches") || String(c[0]).includes("batch-reject-matches"))).toBe(true));
     });
 
     it("handles resolve dialog open and keydown escape to close", async () => {
@@ -103,10 +130,10 @@ describe("ReviewQueuePage - coverage additions", () => {
         await (async () => {
             const max = 20;
             for (let i = 0; i < max; i++) {
-                if (mockedApi.mock.calls.some(c => String(c[0]).includes("consistency-checks"))) return;
+                if (mockedApi.mock.calls.some(c => String(c[0]).includes("consistency_checks") || String(c[0]).includes("consistency-checks"))) return;
                 await new Promise(r => setTimeout(r, 50));
             }
-            expect(mockedApi.mock.calls.some(c => String(c[0]).includes("consistency-checks"))).toBe(true);
+            expect(mockedApi.mock.calls.some(c => String(c[0]).includes("consistency_checks") || String(c[0]).includes("consistency-checks"))).toBe(true);
         })();
 
         // press Escape - should close (no unhandled errors)
@@ -143,10 +170,10 @@ describe("ReviewQueuePage - coverage additions", () => {
         await (async () => {
             const max = 20;
             for (let i = 0; i < max; i++) {
-                if (mockedApi.mock.calls.some(c => String(c[0]).includes("consistency-checks"))) return;
+                if (mockedApi.mock.calls.some(c => String(c[0]).includes("consistency_checks") || String(c[0]).includes("consistency-checks"))) return;
                 await new Promise(r => setTimeout(r, 50));
             }
-            expect(mockedApi.mock.calls.some(c => String(c[0]).includes("consistency-checks"))).toBe(true);
+            expect(mockedApi.mock.calls.some(c => String(c[0]).includes("consistency_checks") || String(c[0]).includes("consistency-checks"))).toBe(true);
         })();
 
         // Re-open dialog and click Flag
@@ -158,10 +185,10 @@ describe("ReviewQueuePage - coverage additions", () => {
         await (async () => {
             const max = 20;
             for (let i = 0; i < max; i++) {
-                if (mockedApi.mock.calls.filter(c => String(c[0]).includes("consistency-checks")).length >= 2) return;
+                if (mockedApi.mock.calls.filter(c => String(c[0]).includes("consistency_checks") || String(c[0]).includes("consistency-checks")).length >= 2) return;
                 await new Promise(r => setTimeout(r, 50));
             }
-            expect(mockedApi.mock.calls.filter(c => String(c[0]).includes("consistency-checks")).length).toBeGreaterThanOrEqual(2);
+            expect(mockedApi.mock.calls.filter(c => String(c[0]).includes("consistency_checks") || String(c[0]).includes("consistency-checks")).length).toBeGreaterThanOrEqual(2);
         })();
     });
 });

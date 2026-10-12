@@ -675,3 +675,27 @@ class TestCiLogging:
         warning_msg = "warning message"
         assert error_msg in captured.out
         assert warning_msg in captured.err
+
+    def test_default_runner_handles_timeout(self, capsys, monkeypatch):
+        import subprocess
+
+        def fake_run(*args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=args[0], timeout=180)
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        rc = preflight._default_runner(["sleep", "999"], cwd="/tmp")
+        assert rc == 124
+        captured = capsys.readouterr()
+        assert "timed out after 180s" in captured.out
+
+    def test_default_quiet_runner_handles_timeout(self, capsys, monkeypatch):
+        import subprocess
+
+        def fake_run(*args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=args[0], timeout=180)
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        rc = preflight._default_quiet_runner(["sleep", "999"], cwd="/tmp")
+        assert rc == 124
+        captured = capsys.readouterr()
+        assert "timed out after 180s" in captured.out

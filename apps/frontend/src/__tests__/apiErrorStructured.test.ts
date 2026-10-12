@@ -29,7 +29,7 @@ function makeFetchMock(status: number, body: unknown) {
   });
 }
 
-// AC12.27.3: the frontend apiFetch throws a typed ApiError carrying the parsed
+// AC12.27.3: the frontend apiOperation throws a typed ApiError carrying the parsed
 // error_id, so callers branch on a machine-readable code instead of message text.
 describe("structured ApiError (#1005)", () => {
   beforeEach(() => {
@@ -52,15 +52,19 @@ describe("structured ApiError (#1005)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { apiFetch, ApiError, isApiErrorCode } = await import("../lib/api");
+    const { apiOperation, ApiError, isApiErrorCode } = await import("../lib/api");
 
-    await expect(apiFetch("/api/statements/batch-approve-matches")).rejects.toThrow(
-      ApiError
-    );
+    await expect(
+      apiOperation("batch_approve_matches_statements_batch_approve_matches_post", {
+        body: { match_ids: [] },
+      }),
+    ).rejects.toThrow(ApiError);
 
     let caught: unknown;
     try {
-      await apiFetch("/api/statements/batch-approve-matches");
+      await apiOperation("batch_approve_matches_statements_batch_approve_matches_post", {
+        body: { match_ids: [] },
+      });
     } catch (err) {
       caught = err;
     }
@@ -83,11 +87,13 @@ describe("structured ApiError (#1005)", () => {
     const fetchMock = makeFetchMock(422, rawBody);
     vi.stubGlobal("fetch", fetchMock);
 
-    const { apiFetch, ApiError } = await import("../lib/api");
+    const { apiOperation, ApiError } = await import("../lib/api");
 
     let caught: unknown;
     try {
-      await apiFetch("/api/test");
+      await apiOperation("batch_approve_matches_statements_batch_approve_matches_post", {
+        body: { match_ids: [] },
+      });
     } catch (err) {
       caught = err;
     }
@@ -102,11 +108,13 @@ describe("structured ApiError (#1005)", () => {
     const fetchMock = makeFetchMock(500, "plain text failure");
     vi.stubGlobal("fetch", fetchMock);
 
-    const { apiFetch, ApiError } = await import("../lib/api");
+    const { apiOperation, ApiError } = await import("../lib/api");
 
     let caught: unknown;
     try {
-      await apiFetch("/api/test");
+      await apiOperation("batch_approve_matches_statements_batch_approve_matches_post", {
+        body: { match_ids: [] },
+      });
     } catch (err) {
       caught = err;
     }

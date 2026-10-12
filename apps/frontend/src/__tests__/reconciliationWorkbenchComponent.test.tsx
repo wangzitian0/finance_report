@@ -4,7 +4,7 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import ReconciliationWorkbench from "@/components/reconciliation/Workbench"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 
 import { createInvalidationProbe } from "./fixtures/invalidationProbe"
 
@@ -12,9 +12,30 @@ const navigationState = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
 }))
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
+
+function mapWorkbenchOperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
+  switch (operationId) {
+    case "reconciliation_stats_reconciliation_stats_get":
+      return ["/api/reconciliation/stats", undefined];
+    case "pending_review_queue_reconciliation_pending_get":
+      return ["/api/reconciliation/pending", undefined];
+    case "list_anomalies_reconciliation_transactions__txn_id__anomalies_get":
+      return [`/api/reconciliation/transactions/${req?.path?.txn_id}/anomalies`, undefined];
+    case "run_reconciliation_reconciliation_runs_post":
+      return ["/api/reconciliation/runs", { method: "POST", body: JSON.stringify(req?.body ?? {}) }];
+    case "batch_accept_reconciliation_batch_accept_post":
+      return ["/api/reconciliation/batch-accept", { method: "POST", body: JSON.stringify(req?.body) }];
+    case "accept_match_reconciliation_matches__match_id__accept_post":
+      return [`/api/reconciliation/matches/${req?.path?.match_id}/accept`, { method: "POST" }];
+    case "reject_match_reconciliation_matches__match_id__reject_post":
+      return [`/api/reconciliation/matches/${req?.path?.match_id}/reject`, { method: "POST" }];
+    default:
+      return [operationId, req];
+  }
+}
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => navigationState.searchParams,
@@ -33,10 +54,20 @@ function createWrapper() {
 }
 
 describe("ReconciliationWorkbench", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
 
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
+    const originalMockImplementation = mockedApiOperation.mockImplementation.bind(mockedApiOperation)
+    mockedApiOperation.mockImplementation = (fn: any) => {
+      return originalMockImplementation((operationId: any, req: any) => {
+        if (typeof operationId === "string" && operationId.startsWith("/")) {
+          return fn(operationId, req)
+        }
+        const [path, options] = mapWorkbenchOperationToLegacy(operationId, req)
+        return fn(path, options)
+      })
+    }
     navigationState.searchParams = new URLSearchParams()
   })
 
@@ -61,7 +92,7 @@ describe("ReconciliationWorkbench", () => {
 
   // AC-reconciliation.fe-stage2-review.7
   it("AC16.20.1 loads stats and pending queue with default selection", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       const url = String(path)
       if (url.includes("/api/reconciliation/stats")) {
         return Promise.resolve({
@@ -104,7 +135,7 @@ describe("ReconciliationWorkbench", () => {
 
   // AC-reconciliation.fe-stage2-review.8
   it("AC16.20.2 triggers run, batch, accept, and reject APIs", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       const url = String(path)
       if (url.includes("/api/reconciliation/stats")) {
         return Promise.resolve({
@@ -142,26 +173,25 @@ describe("ReconciliationWorkbench", () => {
     await waitFor(() => expect(screen.getByText("Rent")).toBeInTheDocument())
 
     fireEvent.click(screen.getByRole("button", { name: "Run Matching" }))
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/runs", { method: "POST", body: JSON.stringify({}) }))
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledWith("run_reconciliation_reconciliation_runs_post", { body: {} }))
 
     fireEvent.click(screen.getByRole("button", { name: "Batch Accept ≥ 85" }))
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/batch-accept", {
-        method: "POST",
-        body: JSON.stringify({ match_ids: ["m1"] }),
+      expect(mockedApiOperation).toHaveBeenCalledWith("batch_accept_reconciliation_batch_accept_post", {
+        body: { match_ids: ["m1"] },
       }),
     )
 
     fireEvent.click(screen.getByRole("button", { name: "Accept" }))
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/matches/m1/accept", { method: "POST" }))
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledWith("accept_match_reconciliation_matches__match_id__accept_post", { path: { match_id: "m1" } }))
 
     fireEvent.click(screen.getByRole("button", { name: "Reject" }))
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/matches/m1/reject", { method: "POST" }))
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledWith("reject_match_reconciliation_matches__match_id__reject_post", { path: { match_id: "m1" } }))
   })
 
   // AC-reconciliation.fe-stage2-review.11
   it("AC16.20.6 score distribution renders 0% height for buckets with value 0", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       const url = String(path)
       if (url.includes("/api/reconciliation/stats")) {
         return Promise.resolve({
@@ -198,7 +228,7 @@ describe("ReconciliationWorkbench", () => {
   })
 
   it("test_AC8_13_48 surfaces query failures for stats and pending matches", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       const url = String(path)
       if (url.includes("/api/reconciliation/stats")) {
         return Promise.reject(new Error("stats down"))
@@ -213,8 +243,8 @@ describe("ReconciliationWorkbench", () => {
 
     expect(await screen.findByText("Failed to load reconciliation stats: stats down")).toBeInTheDocument()
 
-    mockedApiFetch.mockReset()
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockReset()
+    mockedApiOperation.mockImplementation((path: string) => {
       const url = String(path)
       if (url.includes("/api/reconciliation/stats")) {
         return Promise.resolve(statsResponse)
@@ -231,7 +261,7 @@ describe("ReconciliationWorkbench", () => {
   })
 
   it("test_AC8_13_48 reports mutation failures without dropping the review queue", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       const url = String(path)
       if (url.includes("/api/reconciliation/stats")) return Promise.resolve(statsResponse)
       if (url.includes("/api/reconciliation/pending")) return Promise.resolve({ items: [matchResponse] })
@@ -275,7 +305,7 @@ describe("ReconciliationWorkbench", () => {
       { items: [] },
     ]
 
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       const url = String(path)
       if (url.includes("/api/reconciliation/stats")) return Promise.resolve(statsResponse)
       if (url.includes("/api/reconciliation/pending")) return Promise.resolve(pendingResponses.shift() ?? { items: [] })
@@ -302,12 +332,22 @@ describe("ReconciliationWorkbench", () => {
 // against a real QueryClient so removing any single invalidateQueries call
 // reds exactly its own test. Only the network fn apiFetch is mocked.
 describe("Workbench invalidation matrix flows (#1827 G-async-seam)", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
 
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
+    const originalMockImplementation = mockedApiOperation.mockImplementation.bind(mockedApiOperation)
+    mockedApiOperation.mockImplementation = (fn: any) => {
+      return originalMockImplementation((operationId: any, req: any) => {
+        if (typeof operationId === "string" && operationId.startsWith("/")) {
+          return fn(operationId, req)
+        }
+        const [path, options] = mapWorkbenchOperationToLegacy(operationId, req)
+        return fn(path, options)
+      })
+    }
     navigationState.searchParams = new URLSearchParams()
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       const url = String(path)
       if (url.includes("/api/reconciliation/stats")) {
         return Promise.resolve({
@@ -353,9 +393,8 @@ describe("Workbench invalidation matrix flows (#1827 G-async-seam)", () => {
     const probe = await renderWithProbe("reconciliation.run")
     fireEvent.click(screen.getByRole("button", { name: "Run Matching" }))
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/runs", {
-        method: "POST",
-        body: JSON.stringify({}),
+      expect(mockedApiOperation).toHaveBeenCalledWith("run_reconciliation_reconciliation_runs_post", {
+        body: {},
       }),
     )
     await waitFor(() => probe.expectDeclaredInvalidated())
@@ -365,7 +404,9 @@ describe("Workbench invalidation matrix flows (#1827 G-async-seam)", () => {
     const probe = await renderWithProbe("reconciliation.accept-match")
     fireEvent.click(screen.getByRole("button", { name: "Accept" }))
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/matches/m1/accept", { method: "POST" }),
+      expect(mockedApiOperation).toHaveBeenCalledWith("accept_match_reconciliation_matches__match_id__accept_post", {
+        path: { match_id: "m1" },
+      }),
     )
     await waitFor(() => probe.expectDeclaredInvalidated())
   })
@@ -374,7 +415,9 @@ describe("Workbench invalidation matrix flows (#1827 G-async-seam)", () => {
     const probe = await renderWithProbe("reconciliation.reject-match")
     fireEvent.click(screen.getByRole("button", { name: "Reject" }))
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/matches/m1/reject", { method: "POST" }),
+      expect(mockedApiOperation).toHaveBeenCalledWith("reject_match_reconciliation_matches__match_id__reject_post", {
+        path: { match_id: "m1" },
+      }),
     )
     await waitFor(() => probe.expectDeclaredInvalidated())
   })
@@ -383,9 +426,8 @@ describe("Workbench invalidation matrix flows (#1827 G-async-seam)", () => {
     const probe = await renderWithProbe("reconciliation.batch-accept")
     fireEvent.click(screen.getByRole("button", { name: "Batch Accept ≥ 85" }))
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/reconciliation/batch-accept", {
-        method: "POST",
-        body: JSON.stringify({ match_ids: ["m1"] }),
+      expect(mockedApiOperation).toHaveBeenCalledWith("batch_accept_reconciliation_batch_accept_post", {
+        body: { match_ids: ["m1"] },
       }),
     )
     await waitFor(() => probe.expectDeclaredInvalidated())

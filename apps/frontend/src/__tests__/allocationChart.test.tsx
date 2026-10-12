@@ -5,11 +5,11 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { AllocationChart } from "@/components/portfolio/AllocationChart"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 import type { AllocationBreakdown } from "@/lib/types"
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
 function createWrapper() {
@@ -33,14 +33,14 @@ const mockAllocation: AllocationBreakdown[] = [
 ]
 
 describe("AllocationChart", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
 
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
   })
 
   it("renders loading spinner while fetching", () => {
-    mockedApiFetch.mockReturnValue(new Promise(() => {}))
+    mockedApiOperation.mockReturnValue(new Promise(() => {}))
 
     render(<AllocationChart type="sector" title="Sector Allocation" />, {
       wrapper: createWrapper(),
@@ -52,7 +52,7 @@ describe("AllocationChart", () => {
   })
 
   it("renders error state when fetch fails", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("network error"))
+    mockedApiOperation.mockRejectedValue(new Error("network error"))
 
     render(<AllocationChart type="sector" title="Sector Allocation" />, {
       wrapper: createWrapper(),
@@ -64,7 +64,7 @@ describe("AllocationChart", () => {
   })
 
   it("renders empty state when data is empty array", async () => {
-    mockedApiFetch.mockResolvedValue([])
+    mockedApiOperation.mockResolvedValue([])
 
     render(<AllocationChart type="geography" title="Geography Allocation" />, {
       wrapper: createWrapper(),
@@ -76,7 +76,7 @@ describe("AllocationChart", () => {
   })
 
   it("renders PieChart with center label matching type", async () => {
-    mockedApiFetch.mockResolvedValue(mockAllocation)
+    mockedApiOperation.mockResolvedValue(mockAllocation)
 
     render(<AllocationChart type="sector" title="Sector Allocation" />, {
       wrapper: createWrapper(),
@@ -91,7 +91,7 @@ describe("AllocationChart", () => {
   })
 
   it("renders legend items with category, count, and percentage", async () => {
-    mockedApiFetch.mockResolvedValue(mockAllocation)
+    mockedApiOperation.mockResolvedValue(mockAllocation)
 
     render(<AllocationChart type="sector" title="Sector Allocation" />, {
       wrapper: createWrapper(),
@@ -112,7 +112,7 @@ describe("AllocationChart", () => {
   })
 
   it("uses correct API endpoint based on type prop", async () => {
-    mockedApiFetch.mockResolvedValue(mockAllocation)
+    mockedApiOperation.mockResolvedValue(mockAllocation)
 
     render(<AllocationChart type="asset-class" title="Asset Class" />, {
       wrapper: createWrapper(),
@@ -120,11 +120,11 @@ describe("AllocationChart", () => {
 
     await waitFor(() => expect(screen.getAllByText("Technology").length).toBeGreaterThanOrEqual(1))
 
-    expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/allocation/asset-class")
+    expect(mockedApiOperation).toHaveBeenCalledWith("get_asset_class_allocation_portfolio_allocation_asset_class_get")
   })
 
   it("renders center label as 'Asset Class' for asset-class type", async () => {
-    mockedApiFetch.mockResolvedValue(mockAllocation)
+    mockedApiOperation.mockResolvedValue(mockAllocation)
 
     render(<AllocationChart type="asset-class" title="Asset Class Allocation" />, {
       wrapper: createWrapper(),
@@ -134,7 +134,7 @@ describe("AllocationChart", () => {
   })
 
   it("renders center label as 'Geography' for geography type", async () => {
-    mockedApiFetch.mockResolvedValue(mockAllocation)
+    mockedApiOperation.mockResolvedValue(mockAllocation)
 
     render(<AllocationChart type="geography" title="Geography Allocation" />, {
       wrapper: createWrapper(),

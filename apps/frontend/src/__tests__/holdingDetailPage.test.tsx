@@ -5,11 +5,11 @@ import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import HoldingDetailPage from "@/app/(main)/portfolio/[ticker]/page"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 import type { DividendEvent, PortfolioHolding, RealizedLot } from "@/lib/types"
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
 vi.mock("next/navigation", () => ({
@@ -94,30 +94,30 @@ function mockHoldingDetailApi(options: {
   dividends?: DividendEvent[]
   realizedLots?: RealizedLot[]
 } = {}) {
-  const mockedApiFetch = vi.mocked(apiFetch)
-  mockedApiFetch.mockImplementation((path: string, init?: RequestInit) => {
-    if (path === "/api/portfolio/holdings?include_disposed=true") {
+  const mockedApiOperation = vi.mocked(apiOperation)
+  mockedApiOperation.mockImplementation(((operationId: string) => {
+    if (operationId === "get_holdings_portfolio_holdings_get") {
       const items = options.holdings ?? [mockActiveHolding]
       return Promise.resolve({ items, total: items.length, warnings: [] })
     }
-    if (path === "/api/portfolio/AAPL/dividends") {
+    if (operationId === "get_holding_dividends_portfolio__ticker__dividends_get") {
       return Promise.resolve(options.dividends ?? [mockDividend])
     }
-    if (path === "/api/portfolio/AAPL/realized") {
+    if (operationId === "get_holding_realized_lots_portfolio__ticker__realized_get") {
       return Promise.resolve(options.realizedLots ?? [mockRealizedLot])
     }
-    if (path === "/api/portfolio/AAPL" && init?.method === "PATCH") {
+    if (operationId === "update_holding_cost_basis_method_portfolio__ticker__patch") {
       return Promise.resolve({ updated_count: 1, cost_basis_method: "LIFO" })
     }
-    return Promise.reject(new Error(`unhandled path ${path}`))
-  })
+    return Promise.reject(new Error(`unhandled operation ${operationId}`))
+  }) as any)
 }
 
 describe("HoldingDetailPage", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
 
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
   })
 
   afterEach(() => {
@@ -125,10 +125,10 @@ describe("HoldingDetailPage", () => {
   })
 
   it("renders loading state", () => {
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/portfolio/holdings?include_disposed=true") return new Promise(() => {})
+    mockedApiOperation.mockImplementation(((operationId: string) => {
+      if (operationId === "get_holdings_portfolio_holdings_get") return new Promise(() => {})
       return Promise.resolve([])
-    })
+    }) as any)
 
     render(<HoldingDetailPage />, { wrapper: createWrapper() })
 
@@ -136,15 +136,15 @@ describe("HoldingDetailPage", () => {
   })
 
   it("renders error state with retry button", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("server error"))
+    mockedApiOperation.mockRejectedValue(new Error("server error"))
 
     render(<HoldingDetailPage />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.getByText("Failed to load holding")).toBeInTheDocument())
     expect(screen.getByText("server error")).toBeInTheDocument()
-    const callCountBeforeRetry = mockedApiFetch.mock.calls.length
+    const callCountBeforeRetry = mockedApiOperation.mock.calls.length
     fireEvent.click(screen.getByText("Retry"))
-    await waitFor(() => expect(mockedApiFetch.mock.calls.length).toBeGreaterThan(callCountBeforeRetry))
+    await waitFor(() => expect(mockedApiOperation.mock.calls.length).toBeGreaterThan(callCountBeforeRetry))
   })
 
   it("renders not-found state when no holdings match ticker", async () => {
@@ -208,15 +208,18 @@ describe("HoldingDetailPage", () => {
     fireEvent.change(screen.getByLabelText("Cost basis method"), { target: { value: "LIFO" } })
 
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/portfolio/AAPL",
-        expect.objectContaining({
-          method: "PATCH",
-          body: JSON.stringify({ cost_basis_method: "LIFO" }),
-        }),
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "update_holding_cost_basis_method_portfolio__ticker__patch",
+        {
+          path: { ticker: "AAPL" },
+          body: { cost_basis_method: "LIFO" },
+        },
       ),
     )
-    expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/AAPL/realized")
+    expect(mockedApiOperation).toHaveBeenCalledWith(
+      "get_holding_realized_lots_portfolio__ticker__realized_get",
+      { path: { ticker: "AAPL" } },
+    )
   })
 
   // AC-portfolio.fe-assets2.23
@@ -243,7 +246,12 @@ describe("HoldingDetailPage", () => {
 
     render(<HoldingDetailPage />, { wrapper: createWrapper() })
 
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/holdings?include_disposed=true"))
+    await waitFor(() =>
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "get_holdings_portfolio_holdings_get",
+        { query: { include_disposed: true } },
+      ),
+    )
     const link = (await screen.findByText("Back to Portfolio")).closest("a")
     expect(link).toHaveAttribute("href", "/portfolio")
   })

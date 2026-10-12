@@ -178,8 +178,6 @@ async function requestJson<T>(
   return (await res.json()) as T;
 }
 
-/** @deprecated Compatibility seam for existing tests; production callers must use apiOperation. */
-export const apiFetch = requestJson;
 
 type ParametersOf<Id extends ApiOperationId> = operations[Id]["parameters"];
 type RequiredParameter<
@@ -382,9 +380,6 @@ async function requestDownload(
   };
 }
 
-/** @deprecated Compatibility seam; production callers must use apiOperationDownload. */
-export const apiDownload = requestDownload;
-
 export interface StreamResponse {
   response: Response;
   sessionId: string | null;
@@ -429,28 +424,6 @@ async function requestStream(
     response: res,
     sessionId: res.headers.get("X-Session-Id"),
   };
-}
-
-/** @deprecated Compatibility seam; production callers must use apiOperationStream. */
-export const apiStream = requestStream;
-
-/** @deprecated Compatibility seam; production callers must use apiOperation. */
-export async function apiDelete(path: string): Promise<void> {
-  const token = getAccessToken();
-  const headers: HeadersInit = {};
-  if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-  }
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const res = await fetch(`${API_URL}${normalizedPath}`, {
-    method: "DELETE",
-    credentials: "include",
-    headers,
-  });
-  if (!res.ok) {
-    if (res.status === 401) handle401Redirect();
-    throw new Error(`Delete failed with ${res.status}`);
-  }
 }
 
 async function requestUpload<T>(
@@ -500,14 +473,6 @@ async function requestUpload<T>(
   return (await res.json()) as T;
 }
 
-/** @deprecated Compatibility seam; production callers must use apiOperationUpload. */
-export function apiUpload<T>(
-  path: string,
-  formData: FormData,
-  options: RequestInit = {},
-): Promise<T> {
-  return requestUpload(path, formData, { method: "POST", ...options });
-}
 
 export async function apiOperationDownload<Id extends ApiOperationId>(
   operationId: Id,

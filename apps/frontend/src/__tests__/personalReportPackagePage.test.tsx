@@ -5,21 +5,80 @@ import { PackageSectionCards } from "@/components/reports/package/PackageSchedul
 import type { PersonalReportPackageSections } from "@/lib/types";
 import PersonalReportPackagePage from "@/app/(main)/reports/package/page";
 import { renderCsv, renderSourceClasses } from "@/components/reports/package/shared";
-import { apiDownload, apiFetch } from "@/lib/api";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
-vi.mock("@/lib/api", () => ({
-  apiDownload: vi.fn(),
-  apiFetch: vi.fn(),
-}));
+const mockedApiDownload = vi.fn();
+const mockedApiFetch = vi.fn();
+
+vi.mock("@/lib/api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api-client")>();
+  const { API_OPERATIONS } = await import("@/lib/api-operations");
+
+  function compatibilityPath(operationId: string, request: any): string {
+    const definition = (API_OPERATIONS as Record<string, { method: string; path: string }>)[operationId];
+    if (!definition) return `/${operationId}`;
+    let path = definition.path.replace(/\{([^}]+)\}/g, (_placeholder, name: string) => {
+      const value = request.path?.[name];
+      if (value === undefined || value === null) {
+        throw new Error(`Missing OpenAPI path parameter: ${name}`);
+      }
+      return encodeURIComponent(String(value));
+    });
+    if (request.query) {
+      const query = new URLSearchParams();
+      for (const [name, rawValue] of Object.entries(request.query)) {
+        if (rawValue === undefined || rawValue === null) continue;
+        for (const value of Array.isArray(rawValue) ? rawValue : [rawValue]) {
+          query.append(name, String(value));
+        }
+      }
+      const encoded = query.toString();
+      if (encoded) path = `${path}?${encoded}`;
+    }
+    return path;
+  }
+
+  return {
+    ...actual,
+    apiOperation: vi.fn(async (operationId: any, ...args: any[]) => {
+      const request = (args[0] ?? {}) as any;
+      const path = compatibilityPath(operationId, request);
+      const def = (API_OPERATIONS as Record<string, { method: string; path: string }>)[operationId];
+      if (
+        def?.method === "GET" &&
+        request.body === undefined &&
+        request.headers === undefined &&
+        request.signal === undefined
+      ) {
+        return mockedApiFetch(path);
+      }
+      return mockedApiFetch(path, {
+        method: def?.method ?? "POST",
+        body: request.body === undefined ? undefined : JSON.stringify(request.body),
+        headers: request.headers,
+        signal: request.signal,
+      });
+    }),
+    apiOperationDownload: vi.fn(async (operationId: any, request: any) => {
+      const path = compatibilityPath(operationId, request);
+      const def = (API_OPERATIONS as Record<string, { method: string; path: string }>)[operationId];
+      if (def?.method === "GET" && request.headers === undefined && request.signal === undefined) {
+        return mockedApiDownload(path);
+      }
+      return mockedApiDownload(path, {
+        method: def?.method ?? "GET",
+        headers: request.headers,
+        signal: request.signal,
+      });
+    }),
+  };
+});
 
 vi.mock("@/lib/analytics", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/analytics")>()),
   track: vi.fn(),
 }));
 
-const mockedApiDownload = vi.mocked(apiDownload);
-const mockedApiFetch = vi.mocked(apiFetch);
 const statementTxnId = "11111111-1111-4111-8111-111111111111";
 const journalEntryId = "22222222-2222-4222-8222-222222222222";
 const journalLineId = "33333333-3333-4333-8333-333333333333";

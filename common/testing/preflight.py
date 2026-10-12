@@ -557,27 +557,47 @@ def changed_files(base: str | None = None, *, git: Git = _default_git) -> list[s
     return sorted(out)
 
 
+DEFAULT_SUBPROCESS_TIMEOUT: int = 180
+
+
 def _default_runner(argv: Sequence[str], cwd: str) -> int:
-    return subprocess.run(list(argv), cwd=cwd, check=False).returncode
+    try:
+        return subprocess.run(
+            list(argv), cwd=cwd, check=False, timeout=DEFAULT_SUBPROCESS_TIMEOUT
+        ).returncode
+    except subprocess.TimeoutExpired:
+        print(
+            f"::error::Gate command timed out after {DEFAULT_SUBPROCESS_TIMEOUT}s: {' '.join(argv)}",
+            flush=True,
+        )
+        return 124
 
 
 def _default_quiet_runner(argv: Sequence[str], cwd: str) -> int:
-    proc = subprocess.run(
-        list(argv),
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        errors="replace",
-        check=False,
-    )
-    if proc.returncode != 0:
-        if proc.stdout:
-            sys.stdout.write(proc.stdout)
-            sys.stdout.flush()
-        if proc.stderr:
-            sys.stderr.write(proc.stderr)
-            sys.stderr.flush()
-    return proc.returncode
+    try:
+        proc = subprocess.run(
+            list(argv),
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            check=False,
+            timeout=DEFAULT_SUBPROCESS_TIMEOUT,
+        )
+        if proc.returncode != 0:
+            if proc.stdout:
+                sys.stdout.write(proc.stdout)
+                sys.stdout.flush()
+            if proc.stderr:
+                sys.stderr.write(proc.stderr)
+                sys.stderr.flush()
+        return proc.returncode
+    except subprocess.TimeoutExpired:
+        print(
+            f"::error::Gate command timed out after {DEFAULT_SUBPROCESS_TIMEOUT}s: {' '.join(argv)}",
+            flush=True,
+        )
+        return 124
 
 
 def _resolve(
