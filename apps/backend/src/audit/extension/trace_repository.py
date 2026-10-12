@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import exists, func, select
@@ -36,9 +37,23 @@ class SqlTraceRecordRepository(TraceRecordRepository):
     ) -> None:
         self._db = db
         self._policies = policies or TraceDecisionPolicyRegistry()
-        self._cache: dict[tuple[TraceScope, UUID], TraceRecord] = {}
-        self._lineage_head_cache: dict[tuple[TraceScope, UUID], bool] = {}
-        self._ancestry_cache: dict[tuple[TraceScope, UUID], bool] = {}
+        info = getattr(db, "info", None)
+        if isinstance(info, dict):
+            policy_records: dict[Any, dict[tuple[TraceScope, UUID], TraceRecord]] = info.setdefault(
+                "_trace_record_cache_by_policies", {}
+            )
+            try:
+                self._cache: dict[tuple[TraceScope, UUID], TraceRecord] = policy_records.setdefault(self._policies, {})
+            except TypeError:
+                self._cache = policy_records.setdefault(id(self._policies), {})
+            self._lineage_head_cache: dict[tuple[TraceScope, UUID], bool] = info.setdefault(
+                "_trace_lineage_head_cache", {}
+            )
+            self._ancestry_cache: dict[tuple[TraceScope, UUID], bool] = info.setdefault("_trace_ancestry_cache", {})
+        else:
+            self._cache = {}
+            self._lineage_head_cache = {}
+            self._ancestry_cache = {}
 
     async def append(self, record: TraceRecord) -> TraceRecord:
         try:
