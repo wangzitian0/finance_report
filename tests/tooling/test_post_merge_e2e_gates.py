@@ -670,21 +670,32 @@ def test_AC8_13_13_main_ci_keeps_each_merge_commit_run() -> None:
     )
 
 
-def test_AC8_13_157_audit_replay_workflow_is_nightly_and_nonblocking() -> None:
-    """AC-testing.deploy-gates.32: AC8.13.157: heavy LLM journeys run as a separate nightly/manual, non-blocking
-    audit-replay job that does not block production promotion by default."""
+def test_AC8_13_157_audit_replay_workflow_is_weekly_and_blocks_nothing() -> None:
+    """AC-testing.deploy-gates.32: AC8.13.157: heavy LLM journeys run in a separate audit-replay
+    workflow (weekly schedule, manual dispatch, post-deploy core_journey dispatch). No deploy
+    or release depends on it, so its red blocks nothing (#2370)."""
     audit = yaml.safe_load(read(".github/workflows/audit-replay.yml"))
     deploy = yaml.safe_load(read(".github/workflows/deploy.yml"))
 
-    # Manual dispatch on-demand, NOT on push / workflow_run / pull_request.
+    # Weekly schedule plus dispatch, NOT push / workflow_run / pull_request.
     triggers = audit.get("on", audit.get(True))
     assert isinstance(triggers, dict)
     assert "workflow_dispatch" in triggers
+    assert [entry["cron"] for entry in triggers["schedule"]] == ["23 4 * * 1"]
     _lacks(triggers, "push", "workflow_run", "pull_request")
+    corpus_input = triggers["workflow_dispatch"]["inputs"]["corpus"]
+    assert corpus_input["options"] == ["audit_replay", "core_journey"]
+    assert corpus_input["default"] == "audit_replay"
+    # One pending run per corpus: a core_journey dispatch never drops a
+    # pending weekly replay.
+    assert audit["concurrency"]["group"] == (
+        "ai-ocr-audit-replay-${{ inputs.corpus || 'audit_replay' }}"
+    )
+    assert audit["concurrency"]["cancel-in-progress"] is False
 
-    # The audit-replay job calls the SAME reusable gate body, selecting the heavy
-    # audit corpus, and is non-blocking (blocking=false) so it never blocks
-    # production promotion.
+    # The audit-replay job calls the SAME reusable gate body. A schedule event
+    # has no inputs, so the corpus falls back to audit_replay. No deploy or
+    # release job needs this workflow.
     jobs = audit["jobs"]
     callers = [
         job
@@ -693,15 +704,24 @@ def test_AC8_13_157_audit_replay_workflow_is_nightly_and_nonblocking() -> None:
     ]
     assert callers, "audit-replay.yml must call the reusable AI/OCR gate"
     for job in callers:
-        assert job["with"]["corpus"] == "audit_replay"
-        assert job["with"]["blocking"] is False
+        assert job["with"]["corpus"] == "${{ inputs.corpus || 'audit_replay' }}"
+        assert "blocking" not in job["with"]
         assert job.get("secrets") == "inherit"
+    for workflow_name in ("deploy.yml", "release.yml"):
+        assert "audit-replay" not in str(
+            [
+                job.get("needs")
+                for job in yaml.safe_load(read(f".github/workflows/{workflow_name}"))[
+                    "jobs"
+                ].values()
+            ]
+        )
 
     # The production-promotion (deploy) blocking path keeps the heavy corpus OUT:
     # its inline ai-ocr-gate runs only the canary corpus.
     assert deploy["jobs"]["ai-ocr-gate"]["with"]["corpus"] == "canary"
 
-    # SSOT names the audit-replay job as separate and non-blocking.
+    # SSOT names the audit-replay job as separate and blocking nothing.
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     assert "audit-replay.yml" in ci_cd
 
@@ -721,7 +741,10 @@ def test_AC_extraction_1913_10_staging_statement_canary_is_sha_pinned_and_blocki
     )
 
     assert canary["with"]["corpus"] == "canary"
-    assert canary["with"]["blocking"] is True
+    # The reusable gate always exits with the real status (#2370), and
+    # post-merge-delivery fails on a red canary: the canary blocks delivery.
+    assert "blocking" not in canary["with"]
+    assert 'exit "$status"' in read(".github/workflows/staging-ai-ocr-gate.yml")
     assert canary["with"]["commit_ref"] == emitted_sha
     assert canary["with"]["expected_sha"] == release_tag
     _has(
@@ -790,8 +813,8 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
         "uses: ./.github/workflows/staging-ai-ocr-gate.yml",
         "commit_ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}",
         "expected_sha: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}",
-        "blocking: true",
     )
+    assert "blocking:" not in deploy_workflow
 
     # The gate body (corpus replay, contract shell, version check) lives once in
     # the reusable workflow.
@@ -812,7 +835,8 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
     )[0]
     assert '-v -m "llm"' not in deploy_e2e_block
 
-    # Manual entrance is the same reusable gate, fail-fast (blocking=true).
+    # Manual entrance is the same reusable gate, fail-fast (the gate always
+    # exits with the real status, #2370).
     assert "manual-ai-ocr-gate:" in deploy_workflow
     assert 'workflows: ["Deploy Staging"]' not in deploy_workflow
     _has(
@@ -820,7 +844,6 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
         "workflow_dispatch:",
         "inputs.target == 'staging-ai-ocr-gate' && format('staging-manual-ai-ocr-{0}', github.ref)",
         "cancel-in-progress: false",
-        "blocking: true",
         "expected_sha: ${{ github.sha }}",
     )
     _has(
@@ -847,7 +870,7 @@ def _run_gate_timeout_fallback(
     tmp_path: Path,
     *,
     outcome: str,
-    blocking: str,
+    corpus: str,
     existing_issue: str,
 ) -> dict[str, object]:
     """Execute the real ``gate_timeout_fallback`` step body (AC8.13.166) as a
@@ -866,8 +889,7 @@ def _run_gate_timeout_fallback(
         {
             "steps.staging_ai_ocr_tests.outcome": outcome,
             "github.run_id": "999",
-            "inputs.corpus": "audit_replay",
-            "inputs.blocking": blocking,
+            "inputs.corpus": corpus,
             "inputs.commit_ref": "deadbeef",
         },
     )
@@ -931,7 +953,7 @@ def test_AC8_13_166_gate_timeout_fallback_alerts_when_corpus_step_dies_without_o
     fallback = next(s for s in job["steps"] if s.get("id") == "gate_timeout_fallback")
     # Fires exactly when the corpus step did not succeed AND produced no
     # output -- i.e. it died before its own record_and_finish call. A normal
-    # blocking=true regression already sets ai_ocr_status and must not
+    # regression already sets ai_ocr_status and must not
     # double-alert here (record_and_finish owns that path, #1623).
     assert fallback["if"] == (
         "${{ always() && steps.staging_ai_ocr_tests.outcome != 'success' "
@@ -953,12 +975,15 @@ def test_AC8_13_166_gate_timeout_fallback_alerts_when_corpus_step_dies_without_o
     # issue create -- no separate permission grant needed.
     assert job["permissions"]["issues"] == "write"
 
-    # Behavior 1: no standing alert -> creates exactly one issue and reports
-    # the distinct gate-timeout status, non-blocking mode exits clean.
+    # Behavior 1: no standing alert -> creates exactly one issue, reports the
+    # distinct gate-timeout status and fails the job (red means red, #2370).
     run1 = _run_gate_timeout_fallback(
-        tmp_path / "case1", outcome="cancelled", blocking="false", existing_issue=""
+        tmp_path / "case1",
+        outcome="cancelled",
+        corpus="audit_replay",
+        existing_issue="",
     )
-    assert run1["exit_code"] == 0
+    assert run1["exit_code"] == 1
     assert run1["parsed_output"] == {
         "ai_ocr_status": "gate-timeout",
         "ai_ocr_exit_code": "124",
@@ -976,21 +1001,26 @@ def test_AC8_13_166_gate_timeout_fallback_alerts_when_corpus_step_dies_without_o
 
     # Behavior 2: a standing alert already exists -> dedup, no new issue.
     run2 = _run_gate_timeout_fallback(
-        tmp_path / "case2", outcome="failure", blocking="false", existing_issue="42"
+        tmp_path / "case2",
+        outcome="failure",
+        corpus="audit_replay",
+        existing_issue="42",
     )
-    assert run2["exit_code"] == 0
+    assert run2["exit_code"] == 1
     creates2 = [call for call in run2["gh_calls"] if call[:2] == ["issue", "create"]]
     assert creates2 == []
 
-    # Behavior 3: blocking mode still alerts (fresh issue) but propagates
-    # failure so the manual diagnostic entrance stays fail-fast even on a
-    # bare timeout (#1767 F3: the recovery path shared the same flaw).
+    # Behavior 3: the core_journey corpus files no issue (the journey board is
+    # its surface) but still reports gate-timeout and fails the job (#2370).
     run3 = _run_gate_timeout_fallback(
-        tmp_path / "case3", outcome="cancelled", blocking="true", existing_issue=""
+        tmp_path / "case3",
+        outcome="cancelled",
+        corpus="core_journey",
+        existing_issue="",
     )
     assert run3["exit_code"] == 1
-    creates3 = [call for call in run3["gh_calls"] if call[:2] == ["issue", "create"]]
-    assert len(creates3) == 1
+    assert run3["parsed_output"]["ai_ocr_status"] == "gate-timeout"
+    assert [call for call in run3["gh_calls"] if call[:1] == ["issue"]] == []
 
 
 def test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case() -> None:
@@ -1019,10 +1049,11 @@ def test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case() -> None:
     # queue under a single pytest process).
     parse_ceiling_minutes = 8
     overhead_minutes = 6
-    budgets = {"canary": 25, "audit_replay": 110, "all": 125}
+    budgets = {"canary": 25, "audit_replay": 110, "core_journey": 110, "all": 125}
     wait_counts = {
         "canary": contract.totals(contract.canary_files())["uploads"],
         "audit_replay": contract.totals(contract.audit_replay_files())["uploads"],
+        "core_journey": contract.totals(contract.core_journey_files())["uploads"],
         "all": contract.totals(contract.gate_files())["uploads"],
     }
     for corpus_name, budget in budgets.items():
@@ -1286,11 +1317,11 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
         'failure_reason="staging AI/OCR canary failed"',
         "Post-merge delivery failed: ${failure_reason}",
     )
-    # A reusable-workflow caller cannot set continue-on-error, so blocking must
-    # be enforced by the caller input and reflected in the delivery aggregate.
-    _has(
-        workflow.split("ai-ocr-gate:", 1)[1].split("post-merge-delivery:", 1)[0],
-        "blocking: true",
+    # A reusable-workflow caller cannot set continue-on-error. The gate exits
+    # with the real status (#2370) and the delivery aggregate fails on it.
+    assert (
+        "blocking:"
+        not in workflow.split("ai-ocr-gate:", 1)[1].split("post-merge-delivery:", 1)[0]
     )
     _has(
         workflow,

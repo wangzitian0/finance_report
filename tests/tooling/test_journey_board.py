@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -345,6 +346,27 @@ def test_AC_testing_journey_board_3_record_reads_the_gate_artifact(
     )
 
 
+def test_AC_testing_journey_board_3_staging_change_during_the_run_invalidates_the_record(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.journey-board.3: a staging deploy during the run invalidates the record."""
+    artifact = _artifact(
+        tmp_path, [("mod_a::test_a", "passed", ["U1", "U2", "U4"])], outcome="passed"
+    )
+    context = artifact / "ci-context" / "staging-ai-ocr-context.txt"
+    context.write_text(context.read_text() + "end_version=v9.9.10\n")
+    record = build_record(artifact, _run(), [], MAP)
+    assert record["status"] == "invalidated"
+    assert record["reason"] == "staging changed from v9.9.9 to v9.9.10 during the run"
+
+    context.write_text(
+        context.read_text().replace("end_version=v9.9.10", "end_version=" + "c" * 40)
+    )
+    assert build_record(artifact, _run(), [], MAP)["status"] == "passed", (
+        "tag versus SHA is not a change"
+    )
+
+
 def test_AC_testing_journey_board_4_index_and_fragment_are_regenerated_honestly(
     tmp_path: Path,
 ) -> None:
@@ -572,3 +594,105 @@ def test_AC_testing_journey_board_5_map_rejects_unknown_or_repeated_checkpoints(
     )
     with pytest.raises(ValueError):
         load_checkpoint_map(path)
+
+
+def _record_and_finish_script() -> str:
+    workflow = yaml.safe_load((WORKFLOWS / "staging-ai-ocr-gate.yml").read_text())
+    step = next(
+        s
+        for s in workflow["jobs"]["run"]["steps"]
+        if s.get("id") == "staging_ai_ocr_tests"
+    )
+    script = step["run"]
+    start = script.index("record_and_finish() {")
+    end = script.index("\n}\n", start)
+    return script[start : end + len("\n}\n")]
+
+
+def _run_record_and_finish(tmp_path: Path, corpus: str) -> dict:
+    tmp_path.mkdir(parents=True)
+    calls = tmp_path / "gh_calls.jsonl"
+    fake_gh = tmp_path / "gh"
+    fake_gh.write_text(
+        "#!/bin/bash\n"
+        f'python3 -c \'import json,sys; open(sys.argv[1], "a").write(json.dumps(sys.argv[2:]) + "\\n")\' "{calls}" "$@"\n'
+        "exit 0\n"
+    )
+    fake_gh.chmod(0o755)
+    output = tmp_path / "out.txt"
+    script = _record_and_finish_script() + '\nrecord_and_finish 1 "regression-failed"\n'
+    result = subprocess.run(
+        ["bash", "-c", script],
+        env={
+            "PATH": f"{tmp_path}:/usr/bin:/bin",
+            "GITHUB_OUTPUT": str(output),
+            "CORPUS": corpus,
+            "APP_URL": "https://example.invalid",
+        },
+        capture_output=True,
+        text=True,
+        timeout=30,
+        cwd=tmp_path,
+    )
+    gh_calls = (
+        [json.loads(line) for line in calls.read_text().splitlines()]
+        if calls.exists()
+        else []
+    )
+    return {
+        "exit_code": result.returncode,
+        "gh_calls": gh_calls,
+        "output": output.read_text(),
+    }
+
+
+def test_AC_testing_journey_board_7_core_journey_lane_runs_after_deploy_and_files_no_alert(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.journey-board.7: the post-deploy core_journey lane is red on failure, files no alert, and blocks nothing."""
+    from common.testing import staging_ai_ocr_gate_contract as contract
+
+    proof_files = sorted({proof.file for proof in load_checkpoint_map().proofs})
+    assert contract.core_journey_files() == proof_files
+
+    journey = _run_record_and_finish(tmp_path / "journey", "core_journey")
+    assert journey["exit_code"] == 1
+    assert journey["gh_calls"] == []
+    assert "ai_ocr_status=regression-failed" in journey["output"]
+    replay = _run_record_and_finish(tmp_path / "replay", "audit_replay")
+    assert replay["exit_code"] == 1
+    assert any(call[:2] == ["issue", "create"] for call in replay["gh_calls"])
+
+    gate = (WORKFLOWS / "staging-ai-ocr-gate.yml").read_text()
+    guard_at = gate.index('if [ "${#STAGING_AI_OCR_TESTS[@]}" -eq 0 ]; then')
+    assert (
+        gate.index("--preflight")
+        < guard_at
+        < gate.index('pytest "${STAGING_AI_OCR_TESTS[@]}"')
+    )
+
+    deploy = yaml.safe_load((WORKFLOWS / "deploy.yml").read_text())
+    delivery = deploy["jobs"]["post-merge-delivery"]
+    assert delivery["permissions"] == {"contents": "read", "actions": "write"}
+    dispatch = delivery["steps"][0]
+    assert dispatch["continue-on-error"] is True
+    assert dispatch["if"] == (
+        "${{ needs.build-and-deploy.result == 'success' && "
+        "needs.build-and-deploy.outputs.staging_required == 'true' }}"
+    )
+    assert "gh workflow run audit-replay.yml" in dispatch["run"]
+    assert "-f corpus=core_journey" in dispatch["run"]
+    assert (
+        dispatch["env"]["DEPLOYED_VERSION_REF"]
+        == "${{ needs.build-and-deploy.outputs.deployed_version_ref }}"
+    )
+    for workflow_name in ("deploy.yml", "release.yml"):
+        needs = [
+            job.get("needs")
+            for job in yaml.safe_load((WORKFLOWS / workflow_name).read_text())[
+                "jobs"
+            ].values()
+        ]
+        assert "audit-replay" not in json.dumps(needs), (
+            "no deploy or release job may wait for the replay"
+        )

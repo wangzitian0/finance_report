@@ -51,6 +51,10 @@ CANARY_FILES = [
     "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
 ]
 
+# The journey-board checkpoint map (#2370). Its proof files are the
+# core_journey corpus, so a new core-journey proof needs no second list.
+CORE_JOURNEY_MAP_PATH = ROOT_DIR / "common/testing/data/core-journey-checkpoints.json"
+
 REPLAY_COUNTERS_PATH = (
     ROOT_DIR / "common/testing/data/staging-ai-ocr-replay-counters.json"
 )
@@ -132,11 +136,30 @@ def audit_replay_files() -> list[str]:
     return [path for path in gate_files() if path not in canary]
 
 
+def core_journey_files() -> list[str]:
+    """The non-blocking post-deploy core-journey corpus (#2370).
+
+    Derived from the proof files of the journey-board checkpoint map. It may
+    overlap audit_replay and may hold tests without the llm marker. It runs
+    after each staging deploy, publishes to the board and blocks nothing.
+    """
+    data = json.loads(CORE_JOURNEY_MAP_PATH.read_text(encoding="utf-8"))
+    files = sorted({proof["file"] for proof in data["proofs"]})
+    missing_counters = [path for path in files if path not in REPLAY_COUNTERS]
+    if missing_counters:
+        raise SystemExit(
+            "Missing staging AI/OCR replay counters for: "
+            + ", ".join(sorted(missing_counters))
+        )
+    return files
+
+
 def corpus_files(corpus: str) -> list[str]:
     selectors = {
         "all": gate_files,
         "canary": canary_files,
         "audit_replay": audit_replay_files,
+        "core_journey": core_journey_files,
     }
     if corpus not in selectors:
         raise SystemExit(
@@ -583,12 +606,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--shell", action="store_true", help="Emit bash assignments.")
     parser.add_argument(
         "--corpus",
-        choices=("all", "canary", "audit_replay"),
+        choices=("all", "canary", "audit_replay", "core_journey"),
         default="all",
         help=(
             "Which corpus to emit: 'all' (default, full derived corpus), "
-            "'canary' (minimal blocking liveness), or 'audit_replay' "
-            "(comprehensive nightly journeys)."
+            "'canary' (minimal blocking liveness), 'audit_replay' "
+            "(comprehensive weekly journeys), or 'core_journey' (post-deploy "
+            "journey-board proofs)."
         ),
     )
     parser.add_argument(

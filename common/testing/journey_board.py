@@ -369,10 +369,15 @@ def build_record(
         for case in cases:
             if case.outcome in FAILED_OUTCOMES:
                 case.failure_class = classes.get(case.test_id)
+    status = context.get("ai_ocr_outcome", "not-run")
+    reason = None if gate_xml else "the gate wrote no JUnit file"
+    drift = staging_drift(context.get("expected_version"), context.get("end_version"))
+    if drift:
+        status, reason = "invalidated", drift
     return _record(
         lane=lane,
-        status=context.get("ai_ocr_outcome", "not-run"),
-        reason=None if gate_xml else "the gate wrote no JUnit file",
+        status=status,
+        reason=reason,
         tested_sha=_valid_sha(context.get("tested_sha")) or _valid_sha(resolved_sha),
         expected_version=context.get("expected_version"),
         meta=meta,
@@ -382,6 +387,19 @@ def build_record(
         recorded_at=recorded_at,
         map_note=map_note,
     )
+
+
+def staging_drift(expected: str | None, end: str | None) -> str | None:
+    """Name a staging version change during the run, or return ``None``.
+
+    Staging health reports a release tag. Only two tags are compared: a tag
+    against a commit SHA is a different notation, not a change.
+    """
+    if not expected or not end:
+        return None
+    if not (expected.startswith("v") and end.startswith("v")) or expected == end:
+        return None
+    return f"staging changed from {expected} to {end} during the run"
 
 
 def _record(
@@ -521,7 +539,7 @@ def stale_reason(
 def _status_class(status: str) -> str:
     if status in ("passed", "passed-on-retry"):
         return "ok"
-    if status in ("not-run", "not-covered", "skipped"):
+    if status in ("not-run", "not-covered", "skipped", "invalidated"):
         return "none"
     return "bad"
 

@@ -698,7 +698,6 @@ jobs:
       # version_ref -> source_sha. Health reports that immutable release tag,
       # while commit_ref keeps the test code pinned to its exact source SHA.
       expected_sha: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}
-      blocking: true
       # Production-promotion blocking path runs only the minimal AI/OCR canary
       # (issue #1232, AC8.13.156); the heavy audit journeys run on-demand via
       # audit-replay.yml (AC8.13.157), never on the deploy path (AC8.13.159).
@@ -710,7 +709,27 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-and-deploy, provider-gate, ai-ocr-gate]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
+    permissions:
+      contents: read
+      # #2370: dispatch the post-deploy core-journey replay.
+      actions: write
     steps:
+      - name: Dispatch the core-journey replay for this deploy
+        # Heavy board, light gates (#2370): the core journey runs after every
+        # staging deploy in its own audit-replay.yml run. This deploy does not
+        # wait for it, and a failed dispatch only leaves the journey board
+        # stale. The canary above stays the only blocking AI/OCR check.
+        if: ${{ needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOYED_VERSION_REF: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}
+        run: |
+          set -euo pipefail
+          gh workflow run audit-replay.yml -R "${{ github.repository }}" --ref main \
+            -f corpus=core_journey -f version_ref="${DEPLOYED_VERSION_REF}"
+          echo "Dispatched core_journey replay for ${DEPLOYED_VERSION_REF}." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Aggregate post-merge delivery result
         run: |
           set -euo pipefail
@@ -931,7 +950,6 @@ jobs:
     with:
       commit_ref: ${{ github.sha }}
       expected_sha: ${{ github.sha }}
-      blocking: true
       # On-demand recovery diagnostic runs the FULL corpus (canary + audit
       # journeys) fail-fast, so a human can reproduce the whole regression.
       corpus: all

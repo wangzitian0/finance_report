@@ -555,7 +555,7 @@ gates:
     task_category: provider_gate
     workflow: .github/workflows/deploy.yml
     job: manual-ai-ocr-gate
-    owner: reusable staging-ai-ocr-gate.yml (fail-fast caller, blocking=true)
+    owner: reusable staging-ai-ocr-gate.yml (fail-fast caller, corpus=all)
     triggers: [workflow_dispatch]
     blocks_workflow: true
     inputs: [staging_environment, provider_credentials, llm_e2e_corpus]
@@ -594,13 +594,13 @@ gates:
     task_category: provider_gate
     workflow: .github/workflows/deploy.yml
     job: ai-ocr-gate
-    owner: reusable staging-ai-ocr-gate.yml (record-only caller, blocking=false, corpus=canary)
+    owner: reusable staging-ai-ocr-gate.yml (deploy caller, corpus=canary)
     triggers: [workflow_dispatch]
-    blocks_workflow: false
+    blocks_workflow: true
     inputs: [staging_environment, provider_credentials, llm_canary_corpus]
     outputs: [ai_ocr_gate_summary, ai_ocr_status]
     artifacts: []
-    failure_semantics: Minimal AI/OCR canary (one upload→parse→import→value liveness check) regression after release-critical deploy validation; record and triage, but do not block production eligibility. The heavy audit journeys run on-demand via audit-replay.yml. Gate body and artifact are owned by the reusable staging-ai-ocr-gate.yml run job.
+    failure_semantics: Minimal AI/OCR canary (one upload→parse→import→value liveness check) regression after release-critical deploy validation; the job fails and Post-merge Delivery fails on it. The heavy audit journeys and the core_journey corpus run in audit-replay.yml and block nothing (#2370). Gate body and artifact are owned by the reusable staging-ai-ocr-gate.yml run job.
     action: keep
   - id: staging_ai_ocr_gate.reusable_run
     stage: staging.provider_regression
@@ -610,10 +610,10 @@ gates:
     owner: tests/e2e provider-backed OCR corpus (single owner for both entrances)
     triggers: [workflow_call]
     blocks_workflow: true
-    inputs: [commit_ref, expected_sha, blocking]
+    inputs: [commit_ref, expected_sha, corpus]
     outputs: [ai_ocr_status, ai_ocr_exit_code]
     artifacts: [staging-ai-ocr-test-context]
-    failure_semantics: Shared staging AI/OCR gate body failed; blocking=true (manual) fails the run, blocking=false (inline) records the regression status and does not block release-critical delivery.
+    failure_semantics: Shared staging AI/OCR gate body failed; the job always fails with the real status (#2370, red means red). Each caller decides what depends on it; the core_journey corpus files no alert issue.
     action: keep
   - id: staging_deploy.post_merge_delivery
     stage: staging.release_validation
@@ -626,7 +626,7 @@ gates:
     inputs: [staging_job_results]
     outputs: [post_merge_delivery_decision]
     artifacts: []
-    failure_semantics: Staging post-merge delivery contract failed after release-critical build/deploy or provider connectivity gates; automatic full AI/OCR regression failures are recorded, not blocking.
+    failure_semantics: Staging post-merge delivery contract failed after release-critical build/deploy, provider connectivity or AI/OCR canary gates; full AI/OCR regression failures are recorded, not blocking. After a successful deploy it dispatches the core_journey replay and does not wait for it (#2370).
     action: keep
   - id: ai_ocr_audit_replay.resolve_target
     stage: staging.provider_regression
@@ -634,25 +634,25 @@ gates:
     workflow: .github/workflows/audit-replay.yml
     job: resolve-target
     owner: .github/workflows/audit-replay.yml#resolve-target
-    triggers: [workflow_dispatch]
+    triggers: [schedule, workflow_dispatch]
     blocks_workflow: false
     inputs: [staging_health, optional_version_ref]
     outputs: [commit_ref, expected_sha]
     artifacts: []
-    failure_semantics: Could not resolve the live staging replay target (health probe and version_ref both unavailable); the manual audit-replay has no SHA to run against.
+    failure_semantics: Could not resolve the live staging replay target (health probe and version_ref both unavailable); the audit replay has no SHA to run against.
     action: keep
   - id: ai_ocr_audit_replay.audit_replay
     stage: staging.provider_regression
     task_category: provider_gate
     workflow: .github/workflows/audit-replay.yml
     job: audit-replay
-    owner: reusable staging-ai-ocr-gate.yml (audit-replay caller, blocking=false, corpus=audit_replay)
-    triggers: [workflow_dispatch]
+    owner: reusable staging-ai-ocr-gate.yml (audit-replay caller, corpus=audit_replay weekly or core_journey after a staging deploy)
+    triggers: [schedule, workflow_dispatch]
     blocks_workflow: false
     inputs: [staging_environment, provider_credentials, llm_audit_corpus]
     outputs: [ai_ocr_gate_summary, ai_ocr_status]
     artifacts: []
-    failure_semantics: Comprehensive manual AI/OCR audit-replay corpus regressed; recorded as evidence for triage and never blocks production promotion. Gate body and artifact are owned by the reusable staging-ai-ocr-gate.yml run job.
+    failure_semantics: The audit_replay or core_journey corpus regressed; the run fails (red means red, #2370) and the journey board publishes it. No deploy or release job needs this workflow, so it never blocks production promotion. Gate body and artifact are owned by the reusable staging-ai-ocr-gate.yml run job.
     action: keep
   - id: ai_ocr_audit_replay.evidence_bundle
     stage: staging.provider_regression
@@ -660,12 +660,12 @@ gates:
     workflow: .github/workflows/audit-replay.yml
     job: evidence-bundle
     owner: common/testing/evidence_bundle.py
-    triggers: [workflow_dispatch]
+    triggers: [schedule, workflow_dispatch]
     blocks_workflow: false
     inputs: [ai_ocr_status, ai_ocr_exit_code, unified-coverage.json, common/testing/data/ac-score-baseline.jsonl, common/meta/data/ac-tier-baseline.json, common/testing/data/protection-floor.json]
     outputs: [evidence_bundle_json]
     artifacts: [evidence-bundle]
-    failure_semantics: Non-blocking (#1690) — runs regardless of audit-replay's own (record-only) result and bundles the staging AI/OCR gate's ai_ocr_status/ai_ocr_exit_code as provider/canary health alongside the same ratchet water-lines the main-CI producer reports.
+    failure_semantics: Non-blocking (#1690) — runs regardless of audit-replay's own result and bundles the staging AI/OCR gate's ai_ocr_status/ai_ocr_exit_code as provider/canary health alongside the same ratchet water-lines the main-CI producer reports.
     action: keep
   - id: staging_deploy.post_merge_summary
     stage: staging.release_validation
@@ -714,7 +714,7 @@ resolved_duplicate_cleanups:
     command: pytest "${STAGING_AI_OCR_TESTS[@]}" -m "llm"
     retained_owner: staging_ai_ocr_gate.reusable_run
     removed_from: [staging_deploy.ai_ocr_gate, staging_ai_ocr_gate.manual_ai_ocr_gate]
-    final_state: The ~120-line staging AI/OCR corpus gate body lives once in the reusable staging-ai-ocr-gate.yml run job; the inline (deploy.yml ai-ocr-gate, blocking=false) and manual (deploy.yml manual-ai-ocr-gate, blocking=true) jobs are uses; callers that differ only by the blocking input and checkout/expected_sha values (AC8.13.153).
+    final_state: The ~120-line staging AI/OCR corpus gate body lives once in the reusable staging-ai-ocr-gate.yml run job; the inline (deploy.yml ai-ocr-gate) and manual (deploy.yml manual-ai-ocr-gate) jobs are uses; callers that differ only by the corpus input and checkout/expected_sha values (AC8.13.153; the blocking input was removed in #2370).
     same_owner: true
     same_input: false
     same_command_family: true
@@ -731,8 +731,8 @@ deferred_candidates:
       corpus and trigger (issue #1232). The deploy-path ai-ocr-gate runs only the
       minimal AI/OCR canary (corpus=canary, one upload→parse→import→value liveness
       check) on the production-promotion path, while audit-replay.yml runs the
-      comprehensive heavy journeys (corpus=audit_replay) on-demand,
-      record-only. Merging them back into one corpus on the deploy path would let
+      comprehensive heavy journeys (corpus=audit_replay) weekly and the
+      core_journey corpus after each staging deploy, blocking nothing (#2370). Merging them back into one corpus on the deploy path would let
       the broad audit suite creep into the blocking gate (AC8.13.156/AC8.13.159).
   - id: pr_preview_cleanup_event_vs_scheduled
     gates: [preview.cleanup, pr_preview_cleanup.cleanup]

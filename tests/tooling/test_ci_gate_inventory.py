@@ -141,29 +141,30 @@ def test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow() -> None:
     reusable = _load_yaml(reusable_path)
     reusable_text = reusable_path.read_text(encoding="utf-8")
 
-    # The reusable workflow is workflow_call with the parameterized blocking input.
+    # The reusable workflow is workflow_call; the corpus is its only behavioral
+    # input. The blocking input is gone: the gate always exits with the real
+    # status (#2370: red means red).
     on = reusable.get("on", reusable.get(True))
     assert isinstance(on, dict) and "workflow_call" in on
     inputs = on["workflow_call"]["inputs"]
-    assert {"commit_ref", "expected_sha", "blocking"} <= set(inputs)
+    assert {"commit_ref", "expected_sha", "corpus"} <= set(inputs)
+    assert "blocking" not in inputs
     assert "run" in reusable["jobs"]
     # The ~120-line gate body lives here exactly once.
     assert "tools/staging_ai_ocr_gate_contract.py --shell" in reusable_text
     assert 'pytest "${STAGING_AI_OCR_TESTS[@]}"' in reusable_text
 
-    # Record-only (blocking=false) must NOT fail the job: a non-zero exit is
-    # guarded by BLOCKING == "true", and the record-only path exits 0 so it keeps
-    # the old inline continue-on-error semantics (#1365 Copilot fix).
-    assert 'if [ "$status" -ne 0 ] && [ "$BLOCKING" = "true" ]; then' in reusable_text
-    assert "exit 0" in reusable_text
+    # A failed gate fails the job for every caller; no BLOCKING switch exists.
+    assert 'exit "$status"' in reusable_text
+    assert "BLOCKING" not in reusable_text
 
     # Both deploy.yml entrances use the reusable workflow and fail closed. The
-    # separate audit-replay workflow owns the only record-only invocation.
+    # separate audit-replay workflow is the only caller that nothing depends on.
     ref = "./.github/workflows/staging-ai-ocr-gate.yml"
     for job_id in ("ai-ocr-gate", "manual-ai-ocr-gate"):
         job = deploy["jobs"][job_id]
         assert job["uses"] == ref
-        assert job["with"]["blocking"] is True
+        assert "blocking" not in job["with"]
         assert job.get("secrets") == "inherit"
         # A caller cannot also inline steps — the body must not be duplicated.
         assert "steps" not in job

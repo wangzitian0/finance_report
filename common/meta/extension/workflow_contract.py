@@ -43,10 +43,11 @@ ON_KEYS = ("on", True)
 WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
     ".github/workflows/audit-replay.yml": {
         # Heavy provider-backed LLM audit journeys, decoupled from the blocking
-        # deploy path: on-demand manual dispatch, record-only
-        # (issue #1232 / AC8.13.157).
+        # deploy path (issue #1232 / AC8.13.157). Weekly schedule for the
+        # audit_replay corpus (owner instruction, #2370) plus dispatch, which
+        # deploy.yml also uses for the post-deploy core_journey corpus.
         "jobs": ("resolve-target", "audit-replay"),
-        "triggers": ("workflow_dispatch",),
+        "triggers": ("schedule", "workflow_dispatch"),
     },
     ".github/workflows/journey-board.yml": {
         # Core-journey board publisher (#2370): the only board writer; it

@@ -384,6 +384,9 @@ BACKEND_TIER1_MARKER = "e2e and not slow and not integration and not perf"
 # Staging post-deploy core E2E intentionally scopes to smoke and not llm for fast fail-closed health.
 STAGING_CORE_E2E_MARKER = "smoke and not llm"
 STAGING_AI_OCR_MARKER = "llm"
+# The AI/OCR gate also runs core-journey proofs that make no provider call
+# (journey marker, #2370). The provider connectivity check stays "llm" only.
+STAGING_AI_OCR_GATE_MARKER = "llm or journey"
 STAGING_VERSION_CHECK_MARKER = "smoke"
 PRODUCTION_READONLY_MARKER = "prod_safe"
 
@@ -468,7 +471,7 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
     WorkflowPytestContract(
         stage="staging_ai_ocr_gate",
         workflow=".github/workflows/staging-ai-ocr-gate.yml",
-        marker=STAGING_AI_OCR_MARKER,
+        marker=STAGING_AI_OCR_GATE_MARKER,
         # Corpus is derived from @ac_proof metadata by
         # tools/staging_ai_ocr_gate_contract.py --shell (a view over the same
         # AC graph); the invocation consumes the emitted array.
@@ -478,7 +481,7 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
     WorkflowPytestContract(
         stage="staging_ai_ocr_transient_retry",
         workflow=".github/workflows/staging-ai-ocr-gate.yml",
-        marker=STAGING_AI_OCR_MARKER,
+        marker=STAGING_AI_OCR_GATE_MARKER,
         # #1806/AC-testing.deploy-gates.38: the single bounded retry re-runs
         # only the transient-failed corpus files emitted by --classify-junit —
         # a subset of the same derived corpus under the same marker, never a
