@@ -15,13 +15,14 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 
+from infra2_sdk.runtime.health import DependencyStatus
+
 from src.config import PROTECTED_ENVIRONMENTS, settings
 from src.observability import get_logger
 from src.runtime import (
     DEPENDENCY_MANIFEST,
     AnalyticsCheck,
     DatabaseCheck,
-    DependencyStatus,
     EnvTier,
     LlmCheck,
     MarketDataCheck,

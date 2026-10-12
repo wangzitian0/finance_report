@@ -4,16 +4,15 @@
 (ubiquitous language, invariants, roadmap) lives in `common/runtime/`. This
 ships the `base` value language + manifest and the `extension` probe adapters
 (`boot.Bootloader` delegates its checks to them). The `DependencyCheck` port,
-`DependencyStatus` and `ProbeResult` are the infra2-sdk types
-(`infra2_sdk.runtime.health`), re-exported here as this package's published language.
+`DependencyStatus` and `ProbeResult` are the infra2-sdk types in
+`infra2_sdk.runtime.health`. Import them from there. This package does not re-export
+them, because its published interface lists only names that the repo defines.
 The declared-required enforcement and the compose/lifecycle integration.
 """
 
 from __future__ import annotations
 
 from importlib import import_module
-
-from infra2_sdk.runtime.health import DependencyCheck, DependencyStatus, ProbeResult
 
 from src.runtime.base.env_classification import (
     NON_DEPENDENCY_ENV_FIELDS,
@@ -48,16 +47,13 @@ __all__ = [
     "DEPENDENCY_MANIFEST",
     "DatabaseCheck",
     "Dependency",
-    "DependencyCheck",
     "DependencyKind",
     "DependencyManifest",
-    "DependencyStatus",
     "EnvTier",
     "LlmCheck",
     "MarketDataCheck",
     "NON_DEPENDENCY_ENV_FIELDS",
     "ObjectStorageCheck",
-    "ProbeResult",
     "RedisCheck",
     "StorageError",
     "StorageService",

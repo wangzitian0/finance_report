@@ -125,7 +125,8 @@ while including the workflow entrypoint in the tooling coverage measurement.
 - **base** — the **DependencyManifest** (declared required dependencies per env tier)
   + the value language (`Kind`, `EnvTier`). The `DependencyCheck` port and the
   presence types (`ProbeResult`, `DependencyStatus` — binary, no `skipped`) are the
-  infra2-sdk types in `infra2_sdk.runtime.health`; `src.runtime` re-exports them.
+  infra2-sdk types in `infra2_sdk.runtime.health`. Import them from there; `src.runtime`
+  does not re-export them.
 - **extension** — the per-dependency check/substitute adapters (db, s3, llm,
   redis, telemetry). Each implements the port; an adapter may instead live in its
   own domain package and implement this port (dependency inversion).
@@ -205,11 +206,12 @@ affected package before it can land.
 ## Public vs internal
 
 The package publishes (`contract.interface`) the `base` value language + manifest
-+ port and the `extension` adapters: `DependencyKind`, `EnvTier`
+and the `extension` adapters: `DependencyKind`, `EnvTier`
 (+ `APP_OWNED_TIERS` / `VPS_TIERS`), `Dependency` / `DependencyManifest` /
-`DEPENDENCY_MANIFEST`, the `DependencyCheck` port (+ `DependencyStatus` /
-`ProbeResult`, re-exported from `infra2_sdk.runtime.health`), and `DatabaseCheck` /
-`ObjectStorageCheck` / `LlmCheck`.
+`DEPENDENCY_MANIFEST`, and `DatabaseCheck` / `ObjectStorageCheck` / `LlmCheck`.
+The `DependencyCheck` port and the `DependencyStatus` / `ProbeResult` types are not
+published here. They live in `infra2_sdk.runtime.health`, and callers import them
+from there. The interface lists only names that this repo defines.
 `boot.Bootloader` delegates its checks to the adapters. New enforcement work
 must start in a GitHub issue and the package roadmap rather than a parallel list.
 

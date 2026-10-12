@@ -15,12 +15,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from infra2_sdk.runtime import health as sdk_health
+from infra2_sdk.runtime.health import DependencyStatus
 
 import src.runtime as runtime_package
 from src.runtime import (
     AnalyticsCheck,
     DatabaseCheck,
-    DependencyStatus,
     MarketDataCheck,
     RedisCheck,
     TelemetryCheck,
@@ -179,16 +179,15 @@ def test_AC_runtime_4_1_every_declared_dependency_has_a_probe_adapter():
 
 
 def test_probe_value_language_is_the_sdk_definition():
-    """#2364: the runtime package re-exports the SDK probe types and defines none.
+    """#2364: the runtime package defines none of the SDK probe types and re-exports none.
 
     Two definitions of the same value language drift. The SDK owns `ProbeResult`,
-    `DependencyStatus` and `DependencyCheck`.
+    `DependencyStatus` and `DependencyCheck`. The package interface lists only names
+    that the repo defines (the dependency report cannot resolve an external export).
     """
-    assert runtime_package.ProbeResult is sdk_health.ProbeResult
-    assert runtime_package.DependencyStatus is sdk_health.DependencyStatus
-    assert runtime_package.DependencyCheck is sdk_health.DependencyCheck
-
     sdk_owned = {"ProbeResult", "DependencyStatus", "DependencyCheck"}
+    assert sdk_owned.isdisjoint(runtime_package.__all__)
+
     package_dir = Path(runtime_package.__file__).resolve().parent
     sources = sorted(package_dir.rglob("*.py"))
     assert any(path.name == "adapters.py" for path in sources), "the scan must reach the adapters"
@@ -199,6 +198,13 @@ def test_probe_value_language_is_the_sdk_definition():
         if isinstance(node, ast.ClassDef) and node.name in sdk_owned
     ]
     assert redefined == [], f"the SDK owns these types: {redefined}"
+
+
+async def test_adapters_return_the_sdk_probe_result_type():
+    """#2364: a local probe result is an instance of the SDK `ProbeResult`."""
+    result = await RedisCheck(url=None).probe()
+    assert isinstance(result, sdk_health.ProbeResult)
+    assert result.status is sdk_health.DependencyStatus.ABSENT
 
 
 @pytest.mark.parametrize(
