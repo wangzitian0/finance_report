@@ -727,9 +727,7 @@ def render_release_row(
         if record is None:
             lines.append(f"| {lane} | NO RECORD for this revision | | | |")
             continue
-        status = record["status"] + (
-            f" ({record['reason']})" if record["reason"] else ""
-        )
+        status = _lane_label(record)
         counts = record["counts"]
         lines.append(
             f"| {lane} | {status} | {record['run']['completed_at']} | "

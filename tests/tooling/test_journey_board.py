@@ -810,7 +810,12 @@ def test_AC_testing_journey_board_8_release_shows_the_row_and_true_canary_eviden
 
     sha = "d" * 40
     canary = build_record(
-        _artifact(tmp_path / "c", [], corpus="canary", outcome="passed"),
+        _artifact(
+            tmp_path / "c",
+            [("mod_c::test_c", "passed", [])],
+            corpus="canary",
+            outcome="passed",
+        ),
         _run("Deploy", run_id=20, completed="2026-10-12T00:00:00Z"),
         [
             {
@@ -837,6 +842,17 @@ def test_AC_testing_journey_board_8_release_shows_the_row_and_true_canary_eviden
         now=datetime(2026, 10, 12, tzinfo=UTC),
     )
     assert "| canary | passed |" in row
+    empty_canary = dict(
+        canary, counts={"total": 0, "passed": 0, "failed": 0, "skipped": 0}
+    )
+    empty_row = board.render_release_row(
+        [empty_canary],
+        MAP,
+        sha=sha,
+        version_ref="v9.9.9",
+        now=datetime(2026, 10, 12, tzinfo=UTC),
+    )
+    assert "| canary | passed (no test evidence) |" in empty_row
     assert "| core_journey | NO RECORD for this revision |" in row
     assert "| U3 route | not-covered #2370 |" in row
     assert "11.0 days old (STALE)" in row
