@@ -9,14 +9,18 @@ and 'not configured' is ABSENT — there is no `skipped`.
 
 from __future__ import annotations
 
+import ast
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from infra2_sdk.runtime import health as sdk_health
+from infra2_sdk.runtime.health import DependencyStatus
 
+import src.runtime as runtime_package
 from src.runtime import (
     AnalyticsCheck,
     DatabaseCheck,
-    DependencyStatus,
     MarketDataCheck,
     RedisCheck,
     TelemetryCheck,
@@ -172,3 +176,49 @@ def test_AC_runtime_4_1_every_declared_dependency_has_a_probe_adapter():
     for tier in EnvTier:
         _probed, unprobed = Bootloader._required_checks(tier)
         assert unprobed == [], f"{tier.value}: unprobed {unprobed}"
+
+
+def test_probe_value_language_is_the_sdk_definition():
+    """#2364: the runtime package defines none of the SDK probe types and re-exports none.
+
+    Two definitions of the same value language drift. The SDK owns `ProbeResult`,
+    `DependencyStatus` and `DependencyCheck`. The package interface lists only names
+    that the repo defines (the dependency report cannot resolve an external export).
+    """
+    sdk_owned = {"ProbeResult", "DependencyStatus", "DependencyCheck"}
+    assert sdk_owned.isdisjoint(runtime_package.__all__)
+
+    package_dir = Path(runtime_package.__file__).resolve().parent
+    sources = sorted(package_dir.rglob("*.py"))
+    assert any(path.name == "adapters.py" for path in sources), "the scan must reach the adapters"
+    redefined = [
+        f"{path.relative_to(package_dir).as_posix()}:{node.lineno}: class {node.name}"
+        for path in sources
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.ClassDef) and node.name in sdk_owned
+    ]
+    assert redefined == [], f"the SDK owns these types: {redefined}"
+
+
+async def test_adapters_return_the_sdk_probe_result_type():
+    """#2364: a local probe result is an instance of the SDK `ProbeResult`."""
+    result = await RedisCheck(url=None).probe()
+    assert isinstance(result, sdk_health.ProbeResult)
+    assert result.status is sdk_health.DependencyStatus.ABSENT
+
+
+@pytest.mark.parametrize(
+    ("make_check", "name"),
+    [
+        (lambda: WorkflowEngineCheck(api_url="http://prefect:4200/api"), "workflow_engine"),
+        (lambda: AnalyticsCheck(api_url="https://op.example.com/api"), "analytics"),
+        (lambda: MarketDataCheck(timeout_seconds=5), "market_data"),
+    ],
+)
+async def test_http_adapters_return_the_sdk_probe_result_unchanged(make_check, name):
+    """#2364: `probe_http` already returns the SDK `ProbeResult`; no per-field copy is made."""
+    sdk_result = sdk_health.ProbeResult(name, sdk_health.DependencyStatus.PRESENT, "HTTP 200", 1.5)
+    with patch("src.runtime.extension.adapters.probe_http", AsyncMock(return_value=sdk_result)) as probe_http:
+        result = await make_check().probe()
+    assert result is sdk_result
+    assert probe_http.await_args.kwargs["name"] == name

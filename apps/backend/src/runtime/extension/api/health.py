@@ -51,7 +51,11 @@ async def health_check(
     full: bool = False,
     db: AsyncSession | None = Depends(_get_health_db),
 ) -> Response:
-    """Return fast liveness (default) or manifest-complete dependency health (?full=1)."""
+    """Return fast liveness (default) or manifest-complete dependency health (?full=1).
+
+    The payload keeps this local shape, not the SDK health report. Deploy gates read
+    `version` and `git_sha` from it.
+    """
     try:
         checks: dict[str, bool] = {}
         tier = None

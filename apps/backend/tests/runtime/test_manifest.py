@@ -9,6 +9,7 @@ lands in the switch phase and gets its own roadmap AC then.
 from __future__ import annotations
 
 import pytest
+from infra2_sdk.runtime.health import DependencyStatus
 
 from src.config import settings
 from src.runtime import (
@@ -16,7 +17,6 @@ from src.runtime import (
     DEPENDENCY_MANIFEST,
     Dependency,
     DependencyKind,
-    DependencyStatus,
     EnvTier,
 )
 
