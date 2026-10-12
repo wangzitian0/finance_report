@@ -37,6 +37,8 @@ class SqlTraceRecordRepository(TraceRecordRepository):
         self._db = db
         self._policies = policies or TraceDecisionPolicyRegistry()
         self._cache: dict[tuple[TraceScope, UUID], TraceRecord] = {}
+        self._lineage_head_cache: dict[tuple[TraceScope, UUID], bool] = {}
+        self._ancestry_cache: dict[tuple[TraceScope, UUID], bool] = {}
 
     async def append(self, record: TraceRecord) -> TraceRecord:
         try:
@@ -66,6 +68,9 @@ class SqlTraceRecordRepository(TraceRecordRepository):
                 )
                 await self._db.flush()
             self._cache[(record.scope, record.record_id)] = record
+            if record.supersedes_id is not None:
+                self._lineage_head_cache.pop((record.scope, record.supersedes_id), None)
+                self._ancestry_cache.clear()
             return record
         except TraceRecordPersistenceError:
             raise
@@ -92,6 +97,9 @@ class SqlTraceRecordRepository(TraceRecordRepository):
     ) -> TraceRecord | None:
         if record_id in visiting:
             raise TraceRecordPersistenceError("TraceRecord parent graph contains a cycle")
+        cached = self._cache.get((scope, record_id))
+        if cached is not None:
+            return cached
         row = (
             await self._db.execute(
                 select(TraceRecordRow)
@@ -102,7 +110,9 @@ class SqlTraceRecordRepository(TraceRecordRepository):
         ).scalar_one_or_none()
         if row is None:
             return None
-        return await self._restore(row, visiting | {record_id})
+        record = await self._restore(row, visiting | {record_id})
+        self._cache[(scope, record_id)] = record
+        return record
 
     async def current_decision(
         self,
@@ -239,8 +249,11 @@ class SqlTraceRecordRepository(TraceRecordRepository):
         await self._db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(lineage_key, 0))))
 
     async def _is_lineage_head(self, scope: TraceScope, record_id: UUID) -> bool:
+        cache_key = (scope, record_id)
+        if cache_key in self._lineage_head_cache:
+            return self._lineage_head_cache[cache_key]
         superseder = TraceRecordRow.__table__.alias("trace_superseder")
-        return not bool(
+        is_head = not bool(
             (
                 await self._db.execute(
                     select(superseder.c.id)
@@ -251,6 +264,8 @@ class SqlTraceRecordRepository(TraceRecordRepository):
                 )
             ).scalar_one_or_none()
         )
+        self._lineage_head_cache[cache_key] = is_head
+        return is_head
 
     async def _has_current_ancestry(
         self,
@@ -260,7 +275,12 @@ class SqlTraceRecordRepository(TraceRecordRepository):
     ) -> bool:
         if record_id in visiting:
             raise TraceRecordPersistenceError("TraceRecord parent graph contains a cycle")
+        cache_key = (scope, record_id)
+        if not visiting and cache_key in self._ancestry_cache:
+            return self._ancestry_cache[cache_key]
         if not await self._is_lineage_head(scope, record_id):
+            if not visiting:
+                self._ancestry_cache[cache_key] = False
             return False
         record_type = (
             await self._db.execute(
@@ -271,6 +291,8 @@ class SqlTraceRecordRepository(TraceRecordRepository):
             )
         ).scalar_one_or_none()
         if record_type is None:
+            if not visiting:
+                self._ancestry_cache[cache_key] = False
             return False
         parent_ids = tuple(
             (
@@ -283,11 +305,21 @@ class SqlTraceRecordRepository(TraceRecordRepository):
             ).scalars()
         )
         if record_type is TraceRecordType.OBSERVATION:
-            return not parent_ids
+            is_valid = not parent_ids
+            if not visiting:
+                self._ancestry_cache[cache_key] = is_valid
+            return is_valid
         if not parent_ids:
+            if not visiting:
+                self._ancestry_cache[cache_key] = False
             return False
         next_visiting = visiting | {record_id}
-        return all([await self._has_current_ancestry(scope, parent_id, next_visiting) for parent_id in parent_ids])
+        has_ancestry = all(
+            [await self._has_current_ancestry(scope, parent_id, next_visiting) for parent_id in parent_ids]
+        )
+        if not visiting or has_ancestry:
+            self._ancestry_cache[cache_key] = has_ancestry
+        return has_ancestry
 
     async def _restore(
         self,
