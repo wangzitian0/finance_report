@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 from common.testing import preflight
 
@@ -761,3 +763,148 @@ class TestCiLogging:
         assert rc == 124
         captured = capsys.readouterr()
         assert "timed out after 180s" in captured.out
+
+
+# ── Named-gate selection and CI wiring (#2378) ──
+# CI runs the `openapi-spec` gate through `--only`, so CI and the local pre-push
+# run share one command list. Issue #2372: a stale openapi.json reached main
+# because no CI step ran this gate.
+
+CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+
+
+class TestOnlyNamedGate:
+    """`--only NAME` runs the named gate whatever the diff (AC-testing.preflight.2)."""
+
+    @staticmethod
+    def _collect(args: list[str], rc_of_runner: int = 0) -> tuple[int, list[list[str]]]:
+        ran: list[list[str]] = []
+        rc = preflight.run(
+            args, runner=lambda argv, cwd: ran.append(list(argv)) or rc_of_runner
+        )
+        return rc, ran
+
+    def test_AC_testing_preflight_2_only_runs_the_named_gate_commands(self, capsys):
+        rc, ran = self._collect(["--only", "openapi-spec"])
+        assert rc == 0
+        assert "preflight: running 1 named gate(s)..." in capsys.readouterr().out
+        gate = next(c for c in preflight.CHECKS if c.name == "openapi-spec")
+        expected = [
+            preflight._resolve(command, python=preflight.sys.executable)
+            for command in gate.commands
+        ]
+        # Positive control: the gate has two commands, spec check and api-types check.
+        assert len(expected) == 2
+        assert ran == expected
+
+    def test_AC_testing_preflight_2_only_ignores_the_diff(self, monkeypatch):
+        def fail_if_called(args):
+            raise AssertionError(f"--only must not read the git diff: {args}")
+
+        rc = preflight.run(
+            ["--only", "openapi-spec"],
+            runner=lambda argv, cwd: 0,
+            git=fail_if_called,
+        )
+        assert rc == 0
+
+    def test_AC_testing_preflight_2_only_returns_one_when_the_gate_fails(self, capsys):
+        rc, ran = self._collect(["--only", "openapi-spec"], rc_of_runner=1)
+        assert rc == 1
+        assert len(ran) == 1  # fail fast: the api-types command did not run
+        assert "[FAIL] openapi-spec" in capsys.readouterr().out
+
+    def test_AC_testing_preflight_2_only_rejects_an_unknown_gate(self, capsys):
+        # Positive control: the same call with a real name selects and runs a gate.
+        rc, ran = self._collect(["--only", "openapi-spec"])
+        assert rc == 0 and ran
+
+        ran.clear()
+        with pytest.raises(SystemExit) as exc:
+            preflight.run(
+                ["--only", "openapi-specc"],
+                runner=lambda argv, cwd: ran.append(list(argv)) or 0,
+            )
+        assert exc.value.code == 2
+        assert ran == []
+        assert "unknown gate name(s): openapi-specc" in capsys.readouterr().err
+
+    @pytest.mark.parametrize("extra", [["--all"], ["--changed", "Makefile"]])
+    def test_AC_testing_preflight_2_only_rejects_diff_selection_flags(
+        self, extra, capsys
+    ):
+        ran: list[list[str]] = []
+        with pytest.raises(SystemExit) as exc:
+            preflight.run(
+                ["--only", "openapi-spec", *extra],
+                runner=lambda argv, cwd: ran.append(list(argv)) or 0,
+            )
+        assert exc.value.code == 2
+        assert ran == []
+        assert (
+            "--only cannot combine with --all or --changed" in capsys.readouterr().err
+        )
+
+    def test_AC_testing_preflight_2_only_runs_a_gate_outside_the_requested_tier(self):
+        heavy = next(c for c in preflight.CHECKS if c.tier == "heavy")
+        rc, ran = self._collect(["--only", heavy.name, "--tier=static"])
+        assert rc == 0
+        # A tier filter must not turn a named gate into a silent no-op.
+        assert len(ran) == len(heavy.commands) > 0
+
+    def test_AC_testing_preflight_2_select_named_checks_keeps_registry_order(self):
+        names = [c.name for c in preflight.CHECKS]
+        picked = preflight.select_named_checks(["openapi-spec", "api-reference"])
+        assert [c.name for c in picked] == [
+            n for n in names if n in {"openapi-spec", "api-reference"}
+        ]
+        with pytest.raises(ValueError, match="unknown gate name"):
+            preflight.select_named_checks(["no-such-gate"])
+
+
+def _lint_steps() -> list[dict]:
+    workflow = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
+    return workflow["jobs"]["lint"]["steps"]
+
+
+def test_AC_testing_preflight_2_ci_lint_job_runs_the_openapi_spec_gate():
+    """AC-testing.preflight.2: the CI Lint job runs the `openapi-spec` gate (#2378).
+
+    The step must run after the backend venv and the frontend dependencies exist.
+    """
+    steps = _lint_steps()
+    names = [step.get("name", "") for step in steps]
+    matching = [
+        i
+        for i, step in enumerate(steps)
+        if "--only openapi-spec" in step.get("run", "")
+    ]
+    assert len(matching) == 1, f"expected one openapi-spec step in Lint, got {matching}"
+    step = steps[matching[0]]
+    run_lines = [
+        line.strip()
+        for line in step["run"].splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    assert run_lines == [
+        "cd apps/backend",
+        "uv run python ../../tools/preflight.py --only openapi-spec --ci",
+    ]
+    assert names.index("Install dependencies") < matching[0]
+    assert names.index("Install frontend dependencies") < matching[0]
+    assert "if" not in step, "the openapi-spec step must run on every Lint run"
+    assert not step.get("continue-on-error"), "the step must fail the Lint job"
+
+
+def test_AC_testing_preflight_2_every_ci_only_gate_name_exists():
+    """AC-testing.preflight.2: each `preflight.py --only NAME` in a workflow names a real gate."""
+    registry = {c.name for c in preflight.CHECKS}
+    referenced: set[str] = set()
+    for workflow in sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml")):
+        text = workflow.read_text(encoding="utf-8")
+        referenced.update(
+            re.findall(r"preflight\.py[^\n]*?--only[= ]([A-Za-z0-9_-]+)", text)
+        )
+    # Positive control: the scan must find the openapi-spec reference.
+    assert "openapi-spec" in referenced
+    assert referenced <= registry, sorted(referenced - registry)

@@ -245,6 +245,15 @@ jobs:
         run: |
           cd apps/backend
           uv run python ../../tools/generate_api_reference.py --check
+      - name: Generated OpenAPI Spec and API Types Check
+        run: |
+          # The committed apps/frontend/openapi.json and src/lib/api-types.ts must
+          # equal the generated output (#2378). The command list is the
+          # `openapi-spec` gate of common/testing/preflight.py, so CI and the
+          # local pre-push run share one source. Needs the backend venv and the
+          # frontend dependencies installed by the steps above.
+          cd apps/backend
+          uv run python ../../tools/preflight.py --only openapi-spec --ci
       - name: EPIC Status Pointer Check
         run: |
           # The EPIC-status numbers are a derived (not committed) view of the AC
