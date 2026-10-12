@@ -134,6 +134,8 @@ async def auto_create_posted_entries_for_statement(
 ) -> StatementPostingOutcome:
     """Evaluate then apply one statement posting plan after Stage 1 source confirmation."""
     if transactions is None:
+        transactions = getattr(statement, "_resolved_transactions", None)
+    if transactions is None:
         transactions = await resolve_statement_transactions(db, statement)
     txn_ids = [txn.id for txn in transactions]
     if not txn_ids:

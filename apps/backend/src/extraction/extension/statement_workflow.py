@@ -19,7 +19,7 @@ from src.extraction.extension.statement_posting import (
     try_auto_post_statement_opening_balance,
 )
 from src.extraction.extension.statement_validation import (
-    approve_statement_with_transactions,
+    approve_statement,
     reject_statement,
 )
 from src.extraction.orm.statement_summary import StatementSummary
@@ -42,10 +42,8 @@ async def approve_statement_workflow(
     economic plan returns ``POSTED``; an incomplete plan is committed back to
     pending review and returns ``REVIEW_REQUIRED``.
     """
-    statement, transactions = await approve_statement_with_transactions(db, statement_id, user_id)
-    outcome = await auto_create_posted_entries_for_statement(
-        db, statement, user_id, dependencies=dependencies, transactions=transactions
-    )
+    statement = await approve_statement(db, statement_id, user_id)
+    outcome = await auto_create_posted_entries_for_statement(db, statement, user_id, dependencies=dependencies)
     if outcome.status is not StatementPostingStatus.REVIEW_REQUIRED:
         await try_auto_post_statement_opening_balance(db, statement, user_id, dependencies=dependencies)
     await db.commit()

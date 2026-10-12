@@ -476,6 +476,7 @@ async def approve_statement_with_transactions(
     statement.stage1_reviewed_at = datetime.now(UTC)
     statement.balance_validation_result = validation_result
     statement.status = BankStatementStatus.APPROVED
+    setattr(statement, "_resolved_transactions", transactions)
 
     await db.flush()
     return statement, transactions
