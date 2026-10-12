@@ -63,7 +63,6 @@ from src.reconciliation.extension.matching import (
     score_group,
     score_single,
     sync_reconciliation_match_journal_entry_links,
-    sync_reconciliation_matches_journal_entry_links_batch,
 )
 from src.reconciliation.extension.review_queue import (
     accept_match,
@@ -174,6 +173,5 @@ __all__ = [
     "score_pattern",
     "submit_reviewed_disposition",
     "sync_reconciliation_match_journal_entry_links",
-    "sync_reconciliation_matches_journal_entry_links_batch",
     "weighted_total",
 ]
