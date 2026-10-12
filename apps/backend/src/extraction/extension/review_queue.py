@@ -209,6 +209,7 @@ async def _create_entry_from_txn(
     counter_account: Account | None = None,
     source_decision: TraceRecord | None = None,
     trace_emitter: TraceEmitter | None = None,
+    record_evidence: bool = True,
 ) -> JournalEntry:
     """Create a journal entry from an atomic transaction.
 
@@ -386,28 +387,29 @@ async def _create_entry_from_txn(
     )
     entry = entry_result.scalar_one()
 
-    # Eager evidence-graph lineage (AtomicTransaction --posted_as--> JournalEntry
-    # --contains--> JournalLine). Imported lazily to avoid an import cycle.
-    # Best-effort: provenance must never break journal posting.
-    try:
-        from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
+    if record_evidence:
+        # Eager evidence-graph lineage (AtomicTransaction --posted_as--> JournalEntry
+        # --contains--> JournalLine). Imported lazily to avoid an import cycle.
+        # Best-effort: provenance must never break journal posting.
+        try:
+            from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 
-        await EvidenceGraphIntegrationService().record_journal_posting(
-            db,
-            user_id=user_id,
-            atomic_transaction=txn,
-            journal_entry=entry,
-        )
-    except Exception as evidence_exc:
-        logger.warning(
-            "Evidence-graph journal-posting lineage failed (posting continues)",
-            extra={
-                "error": str(evidence_exc),
-                "error_type": type(evidence_exc).__name__,
-                "user_id": str(user_id),
-                "journal_entry_id": str(entry.id),
-            },
-        )
+            await EvidenceGraphIntegrationService().record_journal_posting(
+                db,
+                user_id=user_id,
+                atomic_transaction=txn,
+                journal_entry=entry,
+            )
+        except Exception as evidence_exc:
+            logger.warning(
+                "Evidence-graph journal-posting lineage failed (posting continues)",
+                extra={
+                    "error": str(evidence_exc),
+                    "error_type": type(evidence_exc).__name__,
+                    "user_id": str(user_id),
+                    "journal_entry_id": str(entry.id),
+                },
+            )
 
     return entry
 
@@ -428,6 +430,7 @@ async def create_entry_from_txn(
     counter_account: Account | None = None,
     source_decision: TraceRecord | None = None,
     trace_emitter: TraceEmitter | None = None,
+    record_evidence: bool = True,
 ) -> JournalEntry:
     """Create a journal entry, atomically including all auto-post side effects."""
 
@@ -447,6 +450,7 @@ async def create_entry_from_txn(
             counter_account=counter_account,
             source_decision=source_decision,
             trace_emitter=trace_emitter,
+            record_evidence=record_evidence,
         )
 
     if auto_post:
