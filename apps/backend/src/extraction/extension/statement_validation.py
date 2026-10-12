@@ -153,6 +153,8 @@ async def validate_balance_chain(
             raise ValueError("Statement not found")
 
     if transactions is None:
+        transactions = getattr(statement, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, None)
+    if transactions is None:
         transactions = await resolve_statement_transactions(db, statement)
 
     typed_balances = statement.typed_currency_balances()
