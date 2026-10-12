@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Core Journey Board</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f2328; --muted: #59636e; --line: #d1d9e0;
+    --ok-bg: #dafbe1; --ok-fg: #116329; --bad-bg: #ffebe9; --bad-fg: #a40e26;
+    --none-bg: #f6f8fa; --none-fg: #59636e; --link: #0969da;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --fg: #e6edf3; --muted: #9198a1; --line: #3d444d;
+      --ok-bg: #12261e; --ok-fg: #6fdd8b; --bad-bg: #2d1214; --bad-fg: #ff9492;
+      --none-bg: #151b23; --none-fg: #9198a1; --link: #4493f8;
+    }
+  }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg);
+         font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 28px 0 8px; }
+  h3 { font-size: 14px; margin: 16px 0 4px; }
+  p.lead, p.generated { color: var(--muted); margin: 4px 0; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; vertical-align: top; }
+  th { font-weight: 600; }
+  a { color: var(--link); }
+  .ok { background: var(--ok-bg); color: var(--ok-fg); }
+  .bad { background: var(--bad-bg); color: var(--bad-fg); }
+  .none { background: var(--none-bg); color: var(--none-fg); }
+  .ok a, .bad a { color: inherit; }
+  ul { padding-left: 20px; }
+  li { margin: 2px 0; padding: 0 4px; }
+  code { font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Core Journey Board</h1>
+  <p class="lead">
+    Each staging lane run publishes one record: the tested revision, the outcome of each test,
+    and the status of each core-journey checkpoint. The board blocks nothing. A production
+    release shows the row of its own revision to the approving owner (#2370).
+  </p>
+  <div id="board" class="scroll"><p class="none">Loading board data…</p></div>
+</main>
+<script>
+  // The publisher pushes board/fragment.html to gh-pages after each lane run.
+  // A failed read shows a red message. It never shows an empty or green board.
+  const SOURCE = "https://raw.githubusercontent.com/wangzitian0/finance_report/gh-pages/board/fragment.html";
+  const board = document.getElementById("board");
+
+  function showAge() {
+    for (const el of board.querySelectorAll("time[data-ts]")) {
+      const at = Date.parse(el.dataset.ts);
+      if (Number.isNaN(at)) continue;
+      const days = (Date.now() - at) / 86400000;
+      el.textContent = el.dataset.ts.slice(0, 16).replace("T", " ") + " UTC (" + days.toFixed(1) + " days ago)";
+      const limit = Number(el.dataset.staleDays);
+      if (el.dataset.staleDays && days > limit) {
+        const badge = document.createElement("span");
+        badge.className = "bad";
+        badge.textContent = " STALE: older than " + limit + " days";
+        el.after(badge);
+      }
+    }
+  }
+
+  fetch(SOURCE, { cache: "no-store" })
+    .then((response) => {
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      return response.text();
+    })
+    .then((html) => {
+      board.innerHTML = html;
+      showAge();
+    })
+    .catch((error) => {
+      const message = document.createElement("p");
+      message.className = "bad";
+      message.textContent = "Board data unavailable (" + error.message + "). Do not read this as a pass.";
+      board.replaceChildren(message);
+    });
+</script>
+</body>
+</html>

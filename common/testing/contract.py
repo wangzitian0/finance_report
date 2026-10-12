@@ -540,6 +540,12 @@ CONTRACT = PackageContract(
         ac('AC-testing.benchmarks.6', 'Bench V2 oracles reject a balance sheet that does not articulate (Pillar 4) and an AI advisor answer that claims a discrepancy (Pillar 1). They accept a negated statement such as "no discrepancy found" (#2275, #2285).', 'tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_oracle_triple_accounting_articulation_pass_and_fail', priority='P1'),
         ac('AC-testing.benchmarks.7', 'Bench V2 fixtures match the SHA-256 values in the manifest. Every statement generator is used by a case. The runner defaults to a legal valuation basis.', 'tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_manifest_v2_fixtures_verified', priority='P1'),
         ac('AC-testing.benchmarks.8', 'The Bench V2 reporter extracts a machine-readable summary from a run report and renders a standalone HTML report.', 'tests/tooling/test_benchmark_scenario_suite.py::test_benchmark_reporter_summary_extraction_v2', priority='P1'),
+        ac('AC-testing.journey-board.1', 'A core-journey checkpoint shows passed when its test reached it. When the test failed, the first checkpoint that it did not reach shows failed and the later checkpoints show blocked. When the test passed but did not reach a mapped checkpoint, the checkpoint shows unproven.', 'tests/tooling/test_journey_board.py::test_AC_testing_journey_board_1_checkpoint_status_follows_reached_order', priority='P1'),
+        ac('AC-testing.journey-board.2', 'A case that failed and then passed on the single gate retry shows passed-on-retry, and a retried case that failed shows failed also when its first pass passed. A skipped proof shows skipped, a proof that did not run shows not-run, and a checkpoint with no proof shows not-covered with its gap issue. One failed proof makes the checkpoint failed.', 'tests/tooling/test_journey_board.py::test_AC_testing_journey_board_2_retry_skip_and_absence_are_distinct', priority='P1'),
+        ac('AC-testing.journey-board.3', 'A Deploy run with no staging deploy and no gate run gives no board record. A staging deploy whose gate did not run gives a not-run record, and a gate run with no test context gives a no-evidence record. A gate artifact gives one record with the tested SHA, the lane and the retry result. The tested SHA must be 40 hex characters, the lane must be a known lane, the run must belong to the repository, and the record uses the checkpoint map of the tested revision.', 'tests/tooling/test_journey_board.py::test_AC_testing_journey_board_3_missing_evidence_is_shown_not_hidden', priority='P1'),
+        ac('AC-testing.journey-board.4', 'The board index is regenerated from all records. It keeps one record per run attempt (a record with a tested SHA, then the later record time, wins), lists the newest first and keeps at most 200 records. The board fragment shows a red message when no record exists, shows a lane green only with a JUnit file, a pass and no failure, marks a core-journey record stale when it did not test the newest canary SHA, and escapes HTML.', 'tests/tooling/test_journey_board.py::test_AC_testing_journey_board_4_index_and_fragment_are_regenerated_honestly', priority='P1'),
+        ac('AC-testing.journey-board.5', "Each proof in the core-journey checkpoint map names a real test. Expanded through the module's own helper calls, the test marks exactly the checkpoints of the proof, in execution order. Only a mapped proof marks checkpoints.", 'tests/tooling/test_journey_board.py::test_AC_testing_journey_board_5_checkpoint_map_matches_test_source', priority='P1'),
+        ac('AC-testing.journey-board.6', 'Only journey-board.yml writes board records to gh-pages. It runs on workflow_run of Deploy and AI/OCR Audit Replay and has no concurrency group. The gate workflows keep read-only permissions, benchmark.yml never rewrites gh-pages history, and the board module imports only the standard library.', 'tests/tooling/test_journey_board.py::test_AC_testing_journey_board_6_publisher_wiring_keeps_gates_read_only', priority='P1'),
     ],
     governance=[
         GovernanceInitiative(
@@ -650,6 +656,24 @@ CONTRACT = PackageContract(
                 "apps/backend/tests/integration/test_trusted_year_scenario.py",
             ],
             family="tdd",
+            kind="concept",
+        ),
+        ConceptRecord(
+            key="journey_board",
+            owner="common/testing/readme.md#journey-board",
+            description=(
+                "Per-revision core-journey board: one record per staging lane "
+                "run, published to gh-pages; it shows outcomes and blocks nothing."
+            ),
+            cross_refs=[
+                "common/testing/journey_board.py",
+                "common/testing/data/core-journey-checkpoints.json",
+                ".github/workflows/journey-board.yml",
+                "docs/board/index.html",
+                "tests/e2e/journey_checkpoint.py",
+            ],
+            proofs=["tests/tooling/test_journey_board.py"],
+            family="delivery",
             kind="concept",
         ),
         ConceptRecord(

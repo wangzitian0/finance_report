@@ -44,6 +44,7 @@ from common.testing.provider_review import (
 )
 from conftest import fail_or_skip_ai_ocr_gate
 from deployment_pin import assert_pinned_deployment, resolve_expected_commit
+from journey_checkpoint import checkpoint
 from pdf_fixture_paths import committed_fixture_pdf, generated_pdf_path
 from playwright.async_api import Page, expect
 
@@ -282,6 +283,32 @@ def _fixture_envelope(expected: dict, rationale: str) -> FixtureEnvelope:
     )
 
 
+async def _assert_gxs_pinned_before_upload(page: Page, record_property) -> None:
+    """Prove the pinned deployment before the upload (#2370).
+
+    The journey board reads the first unreached checkpoint as the failed one.
+    Checking the pin first keeps a later parse failure from showing as U12.
+    """
+    expected_version = os.getenv("EXPECTED_SHA")
+    assert expected_version, (
+        "complete live happy-flow proof requires an explicit EXPECTED_SHA"
+    )
+    expected_commit = resolve_expected_commit(expected_version)
+    headers = await _auth_headers(page)
+    async with httpx.AsyncClient(
+        headers=headers, verify=False, timeout=120.0
+    ) as client:
+        health = await client.get(_api_url("/health"))
+        assert health.status_code == 200
+        assert_pinned_deployment(health.json(), expected_version, expected_commit)
+        frontend = await client.get(f"{APP_URL.rstrip('/')}/frontend-version.json")
+        assert frontend.status_code == 200, (
+            "frontend deployment version must be observable"
+        )
+        assert_pinned_deployment(frontend.json(), expected_version, expected_commit)
+    checkpoint(record_property, "U12")
+
+
 async def _run_institution_journey(
     page: Page,
     *,
@@ -306,6 +333,8 @@ async def _run_institution_journey(
             institution=institution,
             model=model,
         )
+        if record_property:
+            checkpoint(record_property, "U1")
         parsed = await _wait_for_parsed(client, statement_id, model=model)
 
         transactions = parsed.get("transactions") or []
@@ -479,6 +508,7 @@ async def test_gxs_statement_journey_matches_expected_balances(
     expected = json.loads(GXS_EXPECTED.read_text())
     expected_stmt = expected["statement"]
     expected_count = len(expected["events"])
+    await _assert_gxs_pinned_before_upload(authenticated_page_unique, record_property)
 
     parsed = await _run_institution_journey(
         authenticated_page_unique,
@@ -548,6 +578,7 @@ async def _assert_saved_gxs_package(
         assert actual_transactions == expected_transactions, (
             "source transaction facts must match the independent fixture"
         )
+        checkpoint(record_property, "U2")
 
         readiness = await client.get(_api_url("/accounts/opening-balance-readiness"))
         assert readiness.status_code == 200
@@ -591,6 +622,7 @@ async def _assert_saved_gxs_package(
             assert effects[0]["decision_anchor_id"], (
                 "posted source must retain its authority anchor"
             )
+        checkpoint(record_property, "U6")
 
         period = {
             "start_date": source["period_start"],
@@ -681,6 +713,7 @@ async def _assert_saved_gxs_package(
             sections["cash_flow"]["summary"]["ending_cash"], source["currency"]
         ) == Decimal(source["closing_balance"])
         assert sections["cash_flow"]["proof_state"] == "proven"
+        checkpoint(record_property, "U8")
 
         listed = await client.get(_api_url("/reports/package/snapshots"))
         assert listed.status_code == 200
@@ -718,6 +751,7 @@ async def _assert_saved_gxs_package(
         )
         assert csv_amounts["income_statement.total_income"] == expected_income
         assert csv_amounts["income_statement.total_expenses"] == expected_expenses
+        checkpoint(record_property, "U11")
 
         await _post_later_gxs_income(
             client,
@@ -738,6 +772,7 @@ async def _assert_saved_gxs_package(
             json_bytes=exported_json.content,
             csv_bytes=exported_csv.content,
         )
+        checkpoint(record_property, "U10")
         record_property("saved_package_browser_interactions", 5)
 
 

@@ -446,6 +446,19 @@ gates:
     artifacts: []
     failure_semantics: Successful app main CI could not notify infra2 to redeploy the report-branch-main preview guarded by the exact completed SHA (INFRA2_PAT missing/expired, stale CI completion skipped, or repository_dispatch did not return HTTP 204).
     action: keep
+  - id: journey_board.publish
+    stage: staging.release_validation
+    task_category: deploy_smoke
+    workflow: .github/workflows/journey-board.yml
+    job: publish
+    owner: common/testing/journey_board.py
+    triggers: [workflow_run, workflow_dispatch]
+    blocks_workflow: false
+    inputs: [staging_ai_ocr_test_context, workflow_run_jobs]
+    outputs: [journey_board_record, journey_board_index]
+    artifacts: []
+    failure_semantics: A completed Deploy or AI/OCR Audit Replay run could not publish its core-journey board record to gh-pages after five push attempts. The board shows stale data; no deploy or release is blocked.
+    action: keep
   - id: preview.setup
     stage: preview.runtime
     task_category: classify

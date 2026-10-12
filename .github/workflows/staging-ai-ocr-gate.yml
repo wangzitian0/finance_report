@@ -434,6 +434,8 @@ jobs:
             echo "event_name=${{ github.event_name }}"
             echo "ref=${{ github.ref }}"
             echo "sha=${{ github.sha }}"
+            # The checked-out commit_ref: the revision the tests ran against (#2370).
+            echo "tested_sha=$(git rev-parse HEAD 2>/dev/null || echo unknown)"
             echo "run_id=${{ github.run_id }}"
             echo "run_attempt=${{ github.run_attempt }}"
             echo "expected_version=${EXPECTED_SHA}"

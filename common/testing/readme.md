@@ -369,6 +369,31 @@ conclusion cannot create or satisfy that record.
    when behavior breaks (the real L3 proof).
 2. Migrating additional ACs and front-end (vitest) emission.
 
+## <a id="journey-board"></a>Journey Board
+
+The journey board shows the core user journey for each staging revision (#2370).
+The owner direction is "heavy board, light gates": the board shows outcomes and
+blocks nothing. The production approver reads it; no job or ruleset requires it.
+
+- **Checkpoint map** — `data/core-journey-checkpoints.json` defines checkpoints
+  U1–U13 and, for each proof test, the checkpoints it proves in execution order.
+  A checkpoint with no proof shows `not-covered` with its gap issue.
+- **Test marks** — a proof test calls `tests/e2e/journey_checkpoint.checkpoint()`
+  right after the assertions that prove a checkpoint. The call writes a JUnit
+  property. A guard keeps the calls and the map in the same order
+  (AC-testing.journey-board.5).
+- **Record** — `journey_board.py build-record` turns the artifact of one staging
+  AI/OCR gate run into one record: tested SHA, lane, run link, per-test outcome
+  and per-checkpoint status. A missing gate, artifact or JUnit file gives a
+  `not-run` or `no-evidence` record; it is never hidden. Records hold no amounts
+  and no failure text.
+- **Publish** — `.github/workflows/journey-board.yml` runs on `workflow_run` of
+  Deploy and AI/OCR Audit Replay, writes the record under `board/records/<sha>/`
+  on `gh-pages`, and regenerates `board/index.json` and `board/fragment.html`.
+  It is the only board writer; the gate workflows stay read-only.
+- **Read** — `docs/board/index.html` loads the fragment and adds data age. A
+  failed load shows a red "unavailable" message.
+
 ## <a id="trusted-year-scenario"></a>TrustedYearScenario
 
 `trusted_year.py` owns one deliberately small terminal scenario and its
