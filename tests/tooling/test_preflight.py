@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -226,6 +227,67 @@ class TestSelectChecks:
 
     def test_no_changes_selects_nothing(self):
         assert preflight.select_checks([]) == []
+
+
+def _route_defining_backend_files() -> list[str]:
+    """Return repo-relative paths of backend files that build a FastAPI app or router.
+
+    The scan parses each file, so a comment or a string that names `APIRouter`
+    does not count. FastAPI copies the docstring of each route handler into the
+    OpenAPI description. A change in such a file can move `openapi.json`.
+    """
+    src = REPO_ROOT / "apps" / "backend" / "src"
+    found: list[str] = []
+    for path in sorted(src.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = (
+                func.id
+                if isinstance(func, ast.Name)
+                else func.attr
+                if isinstance(func, ast.Attribute)
+                else None
+            )
+            if name in {"APIRouter", "FastAPI"}:
+                found.append(path.relative_to(REPO_ROOT).as_posix())
+                break
+    return found
+
+
+def test_AC_testing_preflight_2_openapi_spec_gate_selects_every_route_file():
+    """AC-testing.preflight.2: a change in any file that defines routes selects openapi-spec.
+
+    Issue #2372: the docstring of `/health` moved in
+    `apps/backend/src/runtime/extension/api/health.py` (#2365). No gate was selected,
+    and `apps/frontend/openapi.json` went stale on main.
+    """
+    route_files = _route_defining_backend_files()
+    # Positive controls: the scan must find the known route files. An empty scan
+    # would let the loop below pass without any assertion.
+    assert len(route_files) >= 26, route_files
+    assert "apps/backend/src/runtime/extension/api/health.py" in route_files
+    assert "apps/backend/src/routers/income.py" in route_files
+    assert "apps/backend/src/main.py" in route_files
+
+    unselected = [
+        path
+        for path in route_files
+        if "openapi-spec"
+        not in {c.name for c in preflight.select_checks([path], tier="static")}
+    ]
+    assert unselected == [], (
+        f"route files that do not select openapi-spec: {unselected}"
+    )
+
+
+def test_AC_testing_preflight_2_api_reference_and_openapi_spec_share_input_globs():
+    """AC-testing.preflight.2: both gates read the same OpenAPI document, so they share inputs."""
+    by_name = {c.name: c for c in preflight.CHECKS}
+    assert by_name["openapi-spec"].globs == by_name["api-reference"].globs
+    assert by_name["openapi-spec"].globs == preflight.OPENAPI_INPUT_GLOBS
 
 
 def test_every_check_command_references_an_existing_script():
