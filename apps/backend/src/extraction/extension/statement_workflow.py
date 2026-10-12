@@ -18,7 +18,10 @@ from src.extraction.extension.statement_posting import (
     auto_create_posted_entries_for_statement,
     try_auto_post_statement_opening_balance,
 )
-from src.extraction.extension.statement_validation import approve_statement, reject_statement
+from src.extraction.extension.statement_validation import (
+    approve_statement,
+    reject_statement,
+)
 from src.extraction.orm.statement_summary import StatementSummary
 
 

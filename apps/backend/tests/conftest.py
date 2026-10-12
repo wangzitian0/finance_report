@@ -549,12 +549,12 @@ async def test_user(db: AsyncSession):
     from src.identity import User
 
     user = User(
+        id=uuid4(),
         email=f"test-{uuid4()}@example.com",
         hashed_password="hashed",
     )
     db.add(user)
     await db.commit()
-    await db.refresh(user)
     return user
 
 
