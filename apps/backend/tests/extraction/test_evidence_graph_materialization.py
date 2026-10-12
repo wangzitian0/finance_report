@@ -414,3 +414,64 @@ async def test_AC18_10_7_missing_and_cross_user_requests_return_explicit_blocker
     assert await _graph_counts(db) == (0, 0)
     assert document.user_id == other_user.id
     assert atomic.user_id == other_user.id
+
+
+async def test_record_journal_postings_batch(
+    db: AsyncSession,
+    test_user: User,
+):
+    """Verify batch recording of journal posting evidence lineage with bit-for-bit parity."""
+    service = EvidenceGraphIntegrationService()
+
+    doc1, atomic1, entry1, line1 = await _create_historical_statement_entry(db, user_id=test_user.id)
+    doc2, atomic2, entry2, line2 = await _create_historical_statement_entry(db, user_id=test_user.id)
+
+    # Empty batch is no-op
+    await service.record_journal_postings_batch(db, user_id=test_user.id, postings=[])
+    assert await _graph_counts(db) == (0, 0)
+
+    # Batch record two postings
+    await service.record_journal_postings_batch(
+        db,
+        user_id=test_user.id,
+        postings=[(entry1, atomic1), (entry2, atomic2)],
+    )
+
+    nodes = {
+        (node.node_kind, node.entity_type, node.entity_id): node
+        for node in (await db.execute(select(EvidenceNode).where(EvidenceNode.user_id == test_user.id))).scalars()
+    }
+    edges = {
+        (edge.from_node_id, edge.to_node_id, edge.relation)
+        for edge in (await db.execute(select(EvidenceEdge).where(EvidenceEdge.user_id == test_user.id))).scalars()
+    }
+
+    # Each posting produces: 1 doc node, 1 atomic node, 1 entry node, 2 line nodes = 5 nodes * 2 = 10 nodes
+    assert len(nodes) == 10
+    assert ("source_document", "uploaded_document", doc1.id) in nodes
+    assert ("atomic_fact", "atomic_transaction", atomic1.id) in nodes
+    assert ("ledger_entry", "journal_entry", entry1.id) in nodes
+    assert ("ledger_line", "journal_line", line1.id) in nodes
+
+    assert ("source_document", "uploaded_document", doc2.id) in nodes
+    assert ("atomic_fact", "atomic_transaction", atomic2.id) in nodes
+    assert ("ledger_entry", "journal_entry", entry2.id) in nodes
+    assert ("ledger_line", "journal_line", line2.id) in nodes
+
+    # Edges: deduped_into (1) + posted_as (1) + contains (2) = 4 edges * 2 = 8 edges
+    assert len(edges) == 8
+    assert (
+        nodes[("source_document", "uploaded_document", doc1.id)].id,
+        nodes[("atomic_fact", "atomic_transaction", atomic1.id)].id,
+        "deduped_into",
+    ) in edges
+    assert (
+        nodes[("atomic_fact", "atomic_transaction", atomic1.id)].id,
+        nodes[("ledger_entry", "journal_entry", entry1.id)].id,
+        "posted_as",
+    ) in edges
+    assert (
+        nodes[("ledger_entry", "journal_entry", entry1.id)].id,
+        nodes[("ledger_line", "journal_line", line1.id)].id,
+        "contains",
+    ) in edges

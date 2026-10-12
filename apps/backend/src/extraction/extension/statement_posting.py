@@ -325,6 +325,7 @@ async def auto_create_posted_entries_for_statement(
         )
 
     created = 0
+    postings: list[tuple[JournalEntry, AtomicTransaction]] = []
     for txn, _proposal, decision, counter_account, _transaction in planned:
         if decision.status is DispositionStatus.ALREADY_COVERED:
             continue
@@ -334,7 +335,7 @@ async def auto_create_posted_entries_for_statement(
         source_decision = source_decisions.get(txn.id)
         if source_decision is None:
             raise RuntimeError("authoritative disposition is missing its source decision")
-        await create_entry_from_txn(
+        entry = await create_entry_from_txn(
             db,
             txn,
             user_id=user_id,
@@ -349,8 +350,30 @@ async def auto_create_posted_entries_for_statement(
             counter_account=counter_account,
             source_decision=source_decision,
             trace_emitter=emitter,
+            record_evidence=False,
         )
+        postings.append((entry, txn))
         created += 1
+
+    if postings:
+        try:
+            from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
+
+            await EvidenceGraphIntegrationService().record_journal_postings_batch(
+                db,
+                user_id=user_id,
+                postings=postings,
+            )
+        except Exception as evidence_exc:
+            logger.warning(
+                "Evidence-graph journal-posting batch lineage failed (posting continues)",
+                extra={
+                    "error": str(evidence_exc),
+                    "error_type": type(evidence_exc).__name__,
+                    "user_id": str(user_id),
+                    "statement_id": str(statement.id),
+                },
+            )
 
     return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=created)
 

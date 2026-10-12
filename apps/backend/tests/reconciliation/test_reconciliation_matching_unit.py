@@ -1184,3 +1184,92 @@ async def test_AC10_10_4_reconciliation_match_outcome_metric_emitted(db: AsyncSe
     matches = await execute_matching(db, user_id=user_id, currency="SGD")
     assert len(matches) == 1
     assert outcomes == ["auto_accepted"]
+
+
+async def test_sync_reconciliation_matches_journal_entry_links_batch(db: AsyncSession):
+    """Verify batch synchronization of reconciliation match journal entry links."""
+    from src.reconciliation.extension.matching import sync_reconciliation_matches_journal_entry_links_batch
+    from src.reconciliation.orm.reconciliation import ReconciliationMatchJournalEntry
+
+    user_id = uuid4()
+    db.add(User(id=user_id, email=f"batch-recon-{uuid4()}@example.com", hashed_password="hashed"))
+    await db.flush()
+
+    from src.extraction import TransactionDirection
+
+    atomic1 = _atomic_txn(
+        owner_id=user_id,
+        txn_date=date(2026, 1, 1),
+        amount=Decimal("100.00"),
+        direction=TransactionDirection.IN,
+        description="Batch link 1",
+    )
+    atomic2 = _atomic_txn(
+        owner_id=user_id,
+        txn_date=date(2026, 1, 2),
+        amount=Decimal("200.00"),
+        direction=TransactionDirection.IN,
+        description="Batch link 2",
+    )
+    db.add_all([atomic1, atomic2])
+    await db.flush()
+
+    entry1 = await create_valid_posted_entry(db, user_id=user_id)
+    entry2 = await create_valid_posted_entry(db, user_id=user_id)
+
+    match1 = ReconciliationMatch(
+        atomic_txn_id=atomic1.id,
+        journal_entry_ids=[str(entry1.id)],
+        match_score=95,
+        status=ReconciliationStatus.AUTO_ACCEPTED,
+    )
+    match2 = ReconciliationMatch(
+        atomic_txn_id=atomic2.id,
+        journal_entry_ids=[str(entry2.id)],
+        match_score=90,
+        status=ReconciliationStatus.AUTO_ACCEPTED,
+    )
+    db.add_all([match1, match2])
+    await db.flush()
+
+    # Initial batch sync
+    await sync_reconciliation_matches_journal_entry_links_batch(db, [match1, match2], user_id=user_id)
+
+    links = (
+        (
+            await db.execute(
+                select(ReconciliationMatchJournalEntry).where(
+                    ReconciliationMatchJournalEntry.match_id.in_([match1.id, match2.id])
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(links) == 2
+    assert {(link.match_id, link.journal_entry_id) for link in links} == {
+        (match1.id, entry1.id),
+        (match2.id, entry2.id),
+    }
+
+    # Update match1 to link both entries, and match2 to link none
+    match1.journal_entry_ids = [str(entry1.id), str(entry2.id)]
+    match2.journal_entry_ids = []
+    await sync_reconciliation_matches_journal_entry_links_batch(db, [match1, match2], user_id=user_id)
+
+    updated_links = (
+        (
+            await db.execute(
+                select(ReconciliationMatchJournalEntry).where(
+                    ReconciliationMatchJournalEntry.match_id.in_([match1.id, match2.id])
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(updated_links) == 2
+    assert {(link.match_id, link.journal_entry_id) for link in updated_links} == {
+        (match1.id, entry1.id),
+        (match1.id, entry2.id),
+    }
