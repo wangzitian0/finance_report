@@ -19,6 +19,7 @@ from __future__ import annotations
 import ast
 import re
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from fastapi import status
@@ -116,7 +117,9 @@ def test_AC12_29_4_no_route_or_tag_collisions() -> None:
     assert {"ai-feedback"} <= _tags_under_prefix("/ai")
 
 
-def test_AC12_29_1_status_codes_use_constants_and_async_uses_202() -> None:
+def test_AC12_29_1_status_codes_use_constants_and_async_uses_202(
+    openapi_schema: dict[str, Any],
+) -> None:
     """AC-platform.29.1: routers use ``status.HTTP_*`` constants (no raw-integer
     ``status_code=`` literals), and the async upload endpoint advertises ``202``."""
     offenders: list[str] = []
@@ -128,15 +131,17 @@ def test_AC12_29_1_status_codes_use_constants_and_async_uses_202() -> None:
 
     # The async/background upload endpoint advertises 202 Accepted (the parse runs
     # in a background task). Synchronous long operations keep a documented 200.
-    upload = app.openapi()["paths"]["/statements/upload"]["post"]
+    upload = openapi_schema["paths"]["/statements/upload"]["post"]
     assert "202" in upload["responses"]
 
 
-def test_AC12_29_6_verb_in_path_urls_renamed_to_resources() -> None:
+def test_AC12_29_6_verb_in_path_urls_renamed_to_resources(
+    openapi_schema: dict[str, Any],
+) -> None:
     """AC-platform.29.6: the verb-in-path action URLs are renamed to resource-style nouns
     (the rename #1099 originally deferred, completed FE+BE atomically). The old verb
     URLs are gone from the schema; the new noun URLs are present."""
-    paths = set(app.openapi()["paths"])
+    paths = set(openapi_schema["paths"])
     renamed = {
         "/reconciliation/run": "/reconciliation/runs",
         "/market-data/sync/fx": "/market-data/fx/syncs",
@@ -149,10 +154,12 @@ def test_AC12_29_6_verb_in_path_urls_renamed_to_resources() -> None:
         assert new in paths, f"{new} missing from OpenAPI"
 
 
-def test_AC12_29_2_named_unbounded_endpoints_are_bounded() -> None:
+def test_AC12_29_2_named_unbounded_endpoints_are_bounded(
+    openapi_schema: dict[str, Any],
+) -> None:
     """AC-platform.29.2: the three named unbounded list endpoints now accept bounded
     ``limit``/``offset`` query params, with ``limit`` capped at ``MAX_PAGE_LIMIT``."""
-    paths = app.openapi()["paths"]
+    paths = openapi_schema["paths"]
 
     for path in _PREVIOUSLY_UNBOUNDED_LIST_PATHS:
         assert path in paths, f"{path} missing from OpenAPI"
@@ -169,10 +176,12 @@ def test_AC12_29_2_named_unbounded_endpoints_are_bounded() -> None:
         assert params["offset"]["schema"].get("minimum") == 0
 
 
-def test_AC_platform_29_7_every_get_limit_has_an_upper_bound() -> None:
+def test_AC_platform_29_7_every_get_limit_has_an_upper_bound(
+    openapi_schema: dict[str, Any],
+) -> None:
     """AC-platform.29.7: every GET ``limit`` parameter has a finite maximum."""
     offenders: list[str] = []
-    for path, path_item in app.openapi()["paths"].items():
+    for path, path_item in openapi_schema["paths"].items():
         operation = path_item.get("get")
         if operation is None:
             continue
@@ -213,6 +222,8 @@ def test_AC_platform_29_8_delivery_helpers_have_one_honest_home() -> None:
         source = path.read_text(encoding="utf-8")
         for match in _DISHONEST_DEPENDENCY_DEFAULT.finditer(source):
             dishonest_defaults.append(f"{relative}:{source.count(chr(10), 0, match.start()) + 1}")
+        if "normalize_currency" not in source and "request_id" not in source:
+            continue
         tree = ast.parse(source, filename=str(path))
         for node in ast.walk(tree):
             if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
@@ -254,9 +265,11 @@ def test_AC_platform_29_8_delivery_helpers_have_one_honest_home() -> None:
     }
 
 
-def test_AC_platform_29_9_report_wire_shape_and_policy_are_single() -> None:
+def test_AC_platform_29_9_report_wire_shape_and_policy_are_single(
+    openapi_schema: dict[str, Any],
+) -> None:
     """AC-platform.29.9: package generation is body-only and restrictions default off."""
-    paths = app.openapi()["paths"]
+    paths = openapi_schema["paths"]
     generation = paths["/reports/package/generate"]["post"]
     assert generation.get("parameters", []) == []
     assert generation["requestBody"]["required"] is True
@@ -283,7 +296,10 @@ async def test_AC12_29_3_pagination_convention_is_enforced(client: AsyncClient) 
     assert too_big.status_code == 422
 
 
-async def test_AC12_29_5_deprecated_statement_decision_endpoints_removed(client: AsyncClient) -> None:
+async def test_AC12_29_5_deprecated_statement_decision_endpoints_removed(
+    client: AsyncClient,
+    openapi_schema: dict[str, Any],
+) -> None:
     """AC-platform.29.5: the deprecated Stage-0 ``/approve`` and ``/reject`` statement
     decision endpoints are removed; the ``/review/*`` variants remain.
 
@@ -302,7 +318,7 @@ async def test_AC12_29_5_deprecated_statement_decision_endpoints_removed(client:
         assert response.status_code in (404, 405), f"{removed} still resolves: {response.status_code}"
 
     # OpenAPI schema: removed paths gone, Stage-1 replacements still declared.
-    paths = set(app.openapi()["paths"])
+    paths = set(openapi_schema["paths"])
     assert "/statements/{statement_id}/approve" not in paths
     assert "/statements/{statement_id}/reject" not in paths
     assert "/statements/{statement_id}/review/approve" in paths
