@@ -1,6 +1,10 @@
 # Financial Reporting Benchmark Observatory
 
-Continuous 3-statement financial reconciliation and accounting invariant tracking across tagged releases and staging deployments.
+Three-statement reconciliation and accounting invariant checks. Bench V2 runs on manual dispatch against staging.
+
+## Core Journey Board
+
+The [Core Journey Board](../board/index.html) shows the core user journey for each staging revision: upload, parse, review, ledger, report, saved package and traceability. Each staging deploy, core-journey run and audit replay publishes one record. The board blocks nothing. A production release shows the row of its own revision to the approving owner. The checkpoint map is `common/testing/data/core-journey-checkpoints.json`; the publisher is `.github/workflows/journey-board.yml` (#2370).
 
 <div class="admonition tip" style="padding: 16px; margin: 16px 0; border-left: 4px solid #10b981; background: rgba(16, 185, 129, 0.08); border-radius: 4px;">
 <p class="admonition-title" style="font-weight: bold; margin-bottom: 8px;">📊 Interactive Observatory Dashboard</p>

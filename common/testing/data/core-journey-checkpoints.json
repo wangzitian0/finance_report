@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "description": "Core user journey checkpoints for the journey board (#2370). A proof lists, in execution order, the checkpoints that its test marks with journey_checkpoint.checkpoint(). A checkpoint with no proof is not covered and names the issue that tracks the gap.",
+  "checkpoints": [
+    {"id": "U1", "title": "The user uploads a statement through the product"},
+    {"id": "U2", "title": "The live provider parses the statement and its rows equal the independent fixture"},
+    {"id": "U3", "title": "Stage 1 auto-accepts a clean source and sends a broken source to review", "gap": "#2370"},
+    {"id": "U4", "title": "The user reviews and approves the source through browser actions"},
+    {"id": "U5", "title": "The user records the opening balance through the browser", "gap": "#2370"},
+    {"id": "U6", "title": "Each accepted source transaction has exactly one posted ledger effect"},
+    {"id": "U7", "title": "A transfer between two accounts clears through the Processing account", "gap": "#2370"},
+    {"id": "U8", "title": "Report totals equal the independent Decimal oracle"},
+    {"id": "U9", "title": "Twelve consecutive months tie out on a deployed revision", "gap": "#2370"},
+    {"id": "U10", "title": "The saved package lists, reopens and exports, and stays unchanged after a later posting"},
+    {"id": "U11", "title": "A report line traces to its source decision"},
+    {"id": "U12", "title": "The test ran against the pinned deployed revision"},
+    {"id": "U13", "title": "The proportion of low-confidence data is measured", "gap": "#2370"}
+  ],
+  "proofs": [
+    {
+      "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package",
+      "file": "tests/e2e/test_gxs_browser_journey.py",
+      "reaches": ["U12", "U1", "U2", "U4", "U8", "U11"]
+    },
+    {
+      "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances",
+      "file": "tests/e2e/test_institution_statement_journeys.py",
+      "reaches": ["U1", "U12", "U2", "U6", "U8", "U11", "U10"]
+    }
+  ]
+}

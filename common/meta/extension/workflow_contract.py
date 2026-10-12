@@ -48,6 +48,12 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
         "jobs": ("resolve-target", "audit-replay"),
         "triggers": ("workflow_dispatch",),
     },
+    ".github/workflows/journey-board.yml": {
+        # Core-journey board publisher (#2370): the only board writer; it
+        # runs after Deploy and AI/OCR Audit Replay and blocks nothing.
+        "jobs": ("publish",),
+        "triggers": ("workflow_run", "workflow_dispatch"),
+    },
     ".github/workflows/ci.yml": {
         # The classifier job id is `changes` (NOT `classify-changes`).
         "jobs": (
@@ -104,6 +110,7 @@ APP_WORKFLOW_FILES = (
     ".github/workflows/deploy-freshness.yml",
     ".github/workflows/deploy.yml",
     ".github/workflows/docs.yml",
+    ".github/workflows/journey-board.yml",
     ".github/workflows/maintenance.yml",
     ".github/workflows/notify-infra2.yml",
     ".github/workflows/preview.yml",

@@ -44,6 +44,7 @@ from common.testing.provider_review import (
 )
 from conftest import fail_or_skip_ai_ocr_gate
 from deployment_pin import assert_pinned_deployment, resolve_expected_commit
+from journey_checkpoint import checkpoint
 from pdf_fixture_paths import committed_fixture_pdf, generated_pdf_path
 from playwright.async_api import Page, expect
 
@@ -306,6 +307,8 @@ async def _run_institution_journey(
             institution=institution,
             model=model,
         )
+        if record_property:
+            checkpoint(record_property, "U1")
         parsed = await _wait_for_parsed(client, statement_id, model=model)
 
         transactions = parsed.get("transactions") or []
@@ -537,6 +540,7 @@ async def _assert_saved_gxs_package(
         frontend_version = frontend.json().get("git_sha")
         assert frontend_version, "frontend deployment must identify its actual build"
         record_property("frontend_version", frontend_version)
+        checkpoint(record_property, "U12")
         expected_transactions = sorted(
             (row["date"], Decimal(row["amount"]), row["direction"], row["currency"])
             for row in expected["events"]
@@ -548,6 +552,7 @@ async def _assert_saved_gxs_package(
         assert actual_transactions == expected_transactions, (
             "source transaction facts must match the independent fixture"
         )
+        checkpoint(record_property, "U2")
 
         readiness = await client.get(_api_url("/accounts/opening-balance-readiness"))
         assert readiness.status_code == 200
@@ -591,6 +596,7 @@ async def _assert_saved_gxs_package(
             assert effects[0]["decision_anchor_id"], (
                 "posted source must retain its authority anchor"
             )
+        checkpoint(record_property, "U6")
 
         period = {
             "start_date": source["period_start"],
@@ -681,6 +687,7 @@ async def _assert_saved_gxs_package(
             sections["cash_flow"]["summary"]["ending_cash"], source["currency"]
         ) == Decimal(source["closing_balance"])
         assert sections["cash_flow"]["proof_state"] == "proven"
+        checkpoint(record_property, "U8")
 
         listed = await client.get(_api_url("/reports/package/snapshots"))
         assert listed.status_code == 200
@@ -718,6 +725,7 @@ async def _assert_saved_gxs_package(
         )
         assert csv_amounts["income_statement.total_income"] == expected_income
         assert csv_amounts["income_statement.total_expenses"] == expected_expenses
+        checkpoint(record_property, "U11")
 
         await _post_later_gxs_income(
             client,
@@ -738,6 +746,7 @@ async def _assert_saved_gxs_package(
             json_bytes=exported_json.content,
             csv_bytes=exported_csv.content,
         )
+        checkpoint(record_property, "U10")
         record_property("saved_package_browser_interactions", 5)
 
 

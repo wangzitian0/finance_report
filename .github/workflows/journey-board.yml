@@ -1,0 +1,124 @@
+name: Journey Board
+
+# Core-journey board publisher (#2370, AC-testing.journey-board.6).
+#
+# Heavy board, light gates. When a Deploy or AI/OCR Audit Replay run completes,
+# this workflow turns the staging AI/OCR gate artifact of that run into one
+# board record and pushes it to the gh-pages branch under board/. The board
+# page (docs/board/index.html) reads board/fragment.html from there.
+#
+# This workflow blocks nothing. No job needs it and no ruleset requires it.
+# The gate workflows stay read-only: only this workflow has contents: write.
+# A red run here means the board did not update. It never means a deploy or a
+# release failed.
+
+on:
+  workflow_run:
+    workflows: ["Deploy", "AI/OCR Audit Replay"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Deploy or AI/OCR Audit Replay run ID to publish again"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    name: Publish board record
+    # Only runs of this repository. The artifact is parsed as data, never run.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_repository.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+    steps:
+      - name: Check out main for the board tooling
+        uses: actions/checkout@v7
+
+      - name: Check out gh-pages
+        uses: actions/checkout@v7
+        with:
+          ref: gh-pages
+          path: pages
+          fetch-depth: 1
+
+      - name: Build the record of the run
+        id: record
+        run: |
+          set -euo pipefail
+          mkdir -p board-input
+          gh api "repos/${REPO}/actions/runs/${RUN_ID}" > board-input/run.json
+          gh api --paginate "repos/${REPO}/actions/runs/${RUN_ID}/jobs?per_page=100" \
+            --jq '.jobs[]' | jq -s '{jobs: .}' > board-input/jobs.json
+          # A missing artifact is evidence, not an error: the record says so.
+          if ! gh run download "${RUN_ID}" -R "${REPO}" -n staging-ai-ocr-test-context -D board-input/artifact; then
+            echo "::notice::Run ${RUN_ID} has no staging-ai-ocr-test-context artifact."
+            mkdir -p board-input/artifact
+          fi
+          resolved_sha=""
+          context=$(find board-input/artifact -name staging-ai-ocr-context.txt | head -n 1)
+          if [ -n "${context}" ] && ! grep -q '^tested_sha=[0-9a-f]\{40\}$' "${context}"; then
+            version=$(sed -n 's/^expected_version=//p' "${context}")
+            if [ -n "${version}" ]; then
+              resolved_sha=$(gh api "repos/${REPO}/commits/${version}" --jq .sha || true)
+            fi
+          fi
+          python3 -I common/testing/journey_board.py build-record \
+            --artifact-dir board-input/artifact \
+            --run-json board-input/run.json \
+            --jobs-json board-input/jobs.json \
+            --board-dir board-new \
+            --resolved-sha "${resolved_sha}" | tee board-input/result.txt
+          if grep -q '^no-record:' board-input/result.txt; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push the record and regenerate the board
+        if: steps.record.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          git -C pages config user.name "github-actions[bot]"
+          git -C pages config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # No concurrency group: a group drops a pending publish. Each attempt
+          # starts from the newest gh-pages, adds the record file and
+          # regenerates the index from all records, so a lost race only retries.
+          for attempt in 1 2 3 4 5; do
+            git -C pages fetch --depth 1 origin gh-pages
+            git -C pages reset --hard FETCH_HEAD
+            mkdir -p pages/board
+            cp -R board-new/records pages/board/
+            python3 -I common/testing/journey_board.py build-index --board-dir pages/board
+            git -C pages add board
+            if git -C pages diff --cached --quiet; then
+              echo "The board already holds this record."
+              exit 0
+            fi
+            git -C pages commit -q -m "board: record run ${RUN_ID}"
+            if git -C pages push origin HEAD:gh-pages; then
+              echo "Published run ${RUN_ID} on attempt ${attempt}."
+              exit 0
+            fi
+            sleep $(( attempt * 3 + RANDOM % 7 ))
+          done
+          echo "::error::Could not push the board record after 5 attempts."
+          exit 1
+
+      - name: Write the step summary
+        if: always()
+        run: |
+          {
+            echo "### Journey board"
+            echo ""
+            echo "- Source run: ${RUN_ID}"
+            echo "- Result: $(cat board-input/result.txt 2>/dev/null || echo 'no result')"
+            echo "- Board: https://wangzitian0.github.io/finance_report/board/"
+          } >> "$GITHUB_STEP_SUMMARY"

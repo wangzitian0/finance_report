@@ -23,6 +23,7 @@ from common.testing.ac_proof import ac_proof
 from playwright.async_api import Page, expect
 
 from deployment_pin import assert_pinned_deployment, resolve_expected_commit
+from journey_checkpoint import checkpoint
 from pdf_fixture_paths import committed_fixture_pdf
 
 APP_URL = os.getenv("APP_URL", "http://localhost:3000").rstrip("/")
@@ -70,6 +71,7 @@ async def test_gxs_browser_upload_to_saved_package(
         payload = await response.json()
         assert_pinned_deployment(payload, expected_version, expected_commit)
         record_property(path, payload["git_sha"])
+    checkpoint(record_property, "U12")
 
     await page.goto(f"{APP_URL}/upload")
     await page.locator('[data-testid="uploader-institution-statement"]').fill(
@@ -92,6 +94,7 @@ async def test_gxs_browser_upload_to_saved_package(
     assert uploaded.status in (200, 201, 202)
     statement_id = (await uploaded.json())["id"]
     record_property("source_statement_id", statement_id)
+    checkpoint(record_property, "U1")
     deadline = time.monotonic() + int(os.getenv("PARSING_TIMEOUT_MS", "480000")) / 1000
     while time.monotonic() < deadline:
         response = await page.request.get(f"{APP_URL}/api/statements/{statement_id}")
@@ -111,6 +114,7 @@ async def test_gxs_browser_upload_to_saved_package(
         (row["date"], Decimal(row["amount"]), row["direction"], row["currency"])
         for row in expected["events"]
     )
+    checkpoint(record_property, "U2")
 
     await page.goto(f"{APP_URL}/statements/{statement_id}/review")
     await page.get_by_role("link", name="Review transaction classifications").click()
@@ -189,6 +193,7 @@ async def test_gxs_browser_upload_to_saved_package(
             .click()
         )
     assert (await pending.value).status == 200
+    checkpoint(record_property, "U4")
 
     await page.goto(f"{APP_URL}/reports/package")
     statement = expected["statement"]
@@ -295,6 +300,7 @@ async def test_gxs_browser_upload_to_saved_package(
         Decimal(mid_sections["balance_sheet"]["total_assets"])
         == Decimal(statement["opening_balance"]) + mid_income - mid_expense
     )
+    checkpoint(record_property, "U8")
     income_line = next(
         line
         for line in mid_sections["traceability_appendix"]["lines"]
@@ -304,6 +310,7 @@ async def test_gxs_browser_upload_to_saved_package(
     assert any(
         detail["decision_id"] for detail in income_line["source_anchor"]["details"]
     )
+    checkpoint(record_property, "U11")
     (tmp_path / "midperiod-package.json").write_text(json.dumps(midperiod, indent=2))
     record_property("midperiod_source_and_amount_oracle", "passed")
     record_property("browser_saved_package_oracle", "passed")
