@@ -2,12 +2,12 @@
 
 Ownership: the generic polling algorithm (HTTP-200 + status-field check, the
 version/git_sha stable-mismatch budget) is infra's responsibility, not app's --
-extracted to ``infra2_sdk.deploy_health`` (finance_report#1535, infra2-sdk
+extracted to ``infra2_sdk.deploy`` (finance_report#1535, infra2-sdk
 v0.5.0). This module keeps only Finance Report's own presentation on top of
 that shared core: periodic route-shadow probing on a 404 (diagnosing a
 missing/shadowed Traefik API route), and the observability backend link. Do
 not add behavioral changes to what "healthy" means here -- that belongs in
-infra2's deploy contract, which infra2_sdk.deploy_health serves.
+infra2's deploy contract, which infra2_sdk.deploy serves.
 
 Usage:
   python tools/health_check.py <health_url> <environment> [max_attempts] [image_tag]
