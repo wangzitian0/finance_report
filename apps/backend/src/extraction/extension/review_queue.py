@@ -170,6 +170,11 @@ async def get_or_create_account(
     user_id: UUID,
 ) -> Account:
     """Fetch or create a default account."""
+    cache = db.info.setdefault("_default_account_cache", {})
+    cache_key = (user_id, name, account_type, currency)
+    if cache_key in cache:
+        return cache[cache_key]
+
     result = await db.execute(
         select(Account)
         .where(Account.name == name)
@@ -179,6 +184,7 @@ async def get_or_create_account(
     )
     account = result.scalar_one_or_none()
     if account:
+        cache[cache_key] = account
         return account
 
     account = Account(
@@ -190,6 +196,7 @@ async def get_or_create_account(
     db.add(account)
     await db.flush()
     await db.refresh(account)
+    cache[cache_key] = account
     return account
 
 
