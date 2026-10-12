@@ -89,7 +89,7 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
     ".github/workflows/release.yml": {
         # Production release line, split out of deploy.yml: manual-dispatch only,
         # dry-run + deploy gated on the `dry_run` input.
-        "jobs": ("dry-run", "deploy"),
+        "jobs": ("journey-board", "dry-run", "deploy"),
         "triggers": ("workflow_dispatch",),
     },
     ".github/workflows/staging-ai-ocr-gate.yml": {

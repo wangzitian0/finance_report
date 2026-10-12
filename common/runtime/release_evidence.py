@@ -104,6 +104,29 @@ def verify_release_images_run(
     raise RuntimeError(f"No successful deploy.yml run found for {release_sha}")
 
 
+def _optional_job(jobs: list[dict[str, object]], name: str) -> dict[str, object] | None:
+    """Return the job that ran for an optional staging job name.
+
+    A staging run holds both the manual job ``<name>`` (skipped unless a
+    human dispatches it) and the reusable call ``<name> / <name>`` (#2370).
+    A name map keeps only the last of them, so read the reusable call first,
+    then any match that ran, then any match.
+    """
+    called = f"{name} / {name}"
+    matches = [
+        job
+        for job in jobs
+        if job.get("name") == name or str(job.get("name", "")).startswith(f"{name} / ")
+    ]
+    for job in matches:
+        if job.get("name") == called:
+            return job
+    ran = [job for job in matches if job.get("conclusion") != "skipped"]
+    if ran:
+        return ran[0]
+    return matches[0] if matches else None
+
+
 def verify_staging(
     *,
     repository: str,
@@ -176,11 +199,22 @@ def verify_staging(
             )
             continue
         for name in sorted(optional_staging_jobs):
-            job = by_name.get(name)
-            if job and job.get("conclusion") != "success":
+            job = _optional_job(jobs, name)
+            if job is None:
                 print(
-                    f"::warning::{name} concluded {job.get('conclusion')}; "
+                    f"::warning::{name} did not run in staging run "
+                    f"{candidate_run_id}; it does not block production release "
+                    "eligibility."
+                )
+            elif job.get("conclusion") != "success":
+                print(
+                    f"::warning::{job.get('name')} concluded {job.get('conclusion')}; "
                     "it does not block production release eligibility."
+                )
+            else:
+                print(
+                    f"::notice::{job.get('name')} concluded success in staging run "
+                    f"{candidate_run_id}."
                 )
         return candidate_run_id
 

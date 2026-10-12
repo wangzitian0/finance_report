@@ -798,3 +798,123 @@ def test_AC_testing_journey_board_7_core_journey_lane_runs_after_deploy_and_file
         assert "audit-replay" not in path.read_text(), (
             f"{path.name} must not depend on the replay"
         )
+
+
+def test_AC_testing_journey_board_8_release_shows_the_row_and_true_canary_evidence(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC-testing.journey-board.8: a release shows its board row before approval and reads the real canary job."""
+    from datetime import UTC, datetime
+
+    from common.runtime import release_evidence
+
+    sha = "d" * 40
+    canary = build_record(
+        _artifact(tmp_path / "c", [], corpus="canary", outcome="passed"),
+        _run("Deploy", run_id=20, completed="2026-10-12T00:00:00Z"),
+        [
+            {
+                "name": "Staging AI/OCR Gate / Staging AI/OCR Gate",
+                "conclusion": "success",
+            }
+        ],
+        MAP,
+    )
+    canary["tested_sha"] = sha
+    replay = build_record(
+        _artifact(
+            tmp_path / "r", [("mod_a::test_a", "failed", ["U1"])], corpus="audit_replay"
+        ),
+        _run(run_id=21, completed="2026-10-01T00:00:00Z"),
+        [],
+        MAP,
+    )
+    row = board.render_release_row(
+        [canary, replay],
+        MAP,
+        sha=sha,
+        version_ref="v9.9.9",
+        now=datetime(2026, 10, 12, tzinfo=UTC),
+    )
+    assert "| canary | passed |" in row
+    assert "| core_journey | NO RECORD for this revision |" in row
+    assert "| U3 route | not-covered #2370 |" in row
+    assert "11.0 days old (STALE)" in row
+    unresolved = board.render_release_row(
+        [], MAP, sha=None, version_ref="v9.9.9", now=datetime.now(UTC)
+    )
+    assert "Board unavailable: the release SHA could not be resolved." in unresolved
+
+    jobs = [
+        {"name": "Staging AI/OCR Gate", "conclusion": "skipped"},
+        {"name": "Staging AI/OCR Gate / Staging AI/OCR Gate", "conclusion": "failure"},
+    ]
+    assert (
+        release_evidence._optional_job(jobs, "Staging AI/OCR Gate")["conclusion"]
+        == "failure"
+    )
+    assert (
+        release_evidence._optional_job(list(reversed(jobs)), "Staging AI/OCR Gate")[
+            "conclusion"
+        ]
+        == "failure"
+    )
+    assert (
+        release_evidence._optional_job(jobs[:1], "Staging AI/OCR Gate")["conclusion"]
+        == "skipped"
+    )
+    assert release_evidence._optional_job([], "Staging AI/OCR Gate") is None
+    both_ran = [
+        {"name": "Staging AI/OCR Gate", "conclusion": "success"},
+        {"name": "Staging AI/OCR Gate / Staging AI/OCR Gate", "conclusion": "failure"},
+    ]
+    assert (
+        release_evidence._optional_job(both_ran, "Staging AI/OCR Gate")["conclusion"]
+        == "failure"
+    ), "the reusable call wins over the manual job"
+    no_call = [
+        {"name": "Staging AI/OCR Gate", "conclusion": "skipped"},
+        {"name": "Staging AI/OCR Gate / retry", "conclusion": "success"},
+    ]
+    assert (
+        release_evidence._optional_job(no_call, "Staging AI/OCR Gate")["name"]
+        == "Staging AI/OCR Gate / retry"
+    ), "a job that ran wins over a skipped one"
+
+    def fake_gh_json(args: list[str]) -> object:
+        if "list" in args:
+            return [
+                {
+                    "databaseId": 7,
+                    "status": "completed",
+                    "displayTitle": "Deploy Staging v9.9.9",
+                    "headSha": "e" * 40,
+                }
+            ]
+        return {
+            "jobs": [
+                {"name": "Deploy Staging", "conclusion": "success"},
+                {"name": "Staging Provider Gate", "conclusion": "success"},
+                *jobs,
+            ]
+        }
+
+    assert (
+        release_evidence.verify_staging(
+            repository="o/r",
+            version_ref="v9.9.9",
+            release_sha="e" * 40,
+            gh_json=fake_gh_json,
+        )
+        == "7"
+    )
+    printed = capsys.readouterr().out
+    assert "Staging AI/OCR Gate / Staging AI/OCR Gate concluded failure" in printed
+    assert "concluded skipped" not in printed
+
+    release = yaml.safe_load((WORKFLOWS / "release.yml").read_text())
+    board_job = release["jobs"]["journey-board"]
+    assert board_job["permissions"] == {"contents": "read"}
+    assert "environment" not in board_job
+    assert release["jobs"]["deploy"]["needs"] == ["journey-board"]
+    assert release["jobs"]["deploy"]["if"] == "${{ !cancelled() && !inputs.dry_run }}"

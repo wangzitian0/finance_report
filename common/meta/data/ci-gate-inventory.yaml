@@ -524,6 +524,19 @@ gates:
     artifacts: []
     failure_semantics: Release tag image promotion or digest verification failed.
     action: keep
+  - id: production_release.journey_board
+    stage: prod.release_integrity
+    task_category: release_integrity
+    workflow: .github/workflows/release.yml
+    job: journey-board
+    owner: common/testing/journey_board.py
+    triggers: [workflow_dispatch]
+    blocks_workflow: false
+    inputs: [version_ref, journey_board_records]
+    outputs: [journey_board_release_row]
+    artifacts: []
+    failure_semantics: The core-journey board row of this release could not be shown before the approval prompt. It never fails; deploy runs on !cancelled() whatever its result (#2370).
+    action: keep
   - id: production_release.dry_run
     stage: prod.release_integrity
     task_category: release_integrity

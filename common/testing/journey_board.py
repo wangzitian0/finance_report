@@ -688,6 +688,87 @@ def render_fragment(index: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+RELEASE_LANES = ("canary", "core_journey", "audit_replay")
+
+
+def _age_days(completed_at: str, now: datetime) -> float | None:
+    try:
+        at = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (now - at).total_seconds() / 86400
+
+
+def render_release_row(
+    records: list[dict[str, Any]],
+    checkpoint_map: CheckpointMap,
+    *,
+    sha: str | None,
+    version_ref: str,
+    now: datetime,
+) -> str:
+    """Markdown board row for one release, for the approving owner (#2370).
+
+    It shows every lane for the exact release SHA and the age of the newest
+    audit replay. It blocks nothing. A missing record shows as missing.
+    """
+    lines = [
+        f"### Core journey board: {version_ref} ({sha[:8] if sha else 'unresolved'})",
+        "",
+    ]
+    if not sha:
+        lines.append("Board unavailable: the release SHA could not be resolved.")
+        return "\n".join(lines)
+    lines += ["| Lane | Status | Completed | Tests | Run |", "|---|---|---|---|---|"]
+    for lane in RELEASE_LANES:
+        record = next(
+            (r for r in records if r["lane"] == lane and r["tested_sha"] == sha), None
+        )
+        if record is None:
+            lines.append(f"| {lane} | NO RECORD for this revision | | | |")
+            continue
+        status = record["status"] + (
+            f" ({record['reason']})" if record["reason"] else ""
+        )
+        counts = record["counts"]
+        lines.append(
+            f"| {lane} | {status} | {record['run']['completed_at']} | "
+            f"{counts['passed']} passed, {counts['failed']} failed, {counts['skipped']} skipped | "
+            f"{record['run']['url']} |"
+        )
+    combined = combine_for_sha(records, sha)
+    lines += ["", "| Checkpoint | Status |", "|---|---|"]
+    for checkpoint in checkpoint_map.checkpoints:
+        cell = combined.get(checkpoint.id)
+        if cell is None:
+            label = (
+                "not-run"
+                if checkpoint_map_has_proof(checkpoint_map, checkpoint.id)
+                else f"not-covered {checkpoint.gap or ''}".strip()
+            )
+        else:
+            label = cell["status"] + (f" {cell['gap']}" if cell.get("gap") else "")
+        lines.append(f"| {checkpoint.id} {checkpoint.title} | {label} |")
+    replay = next((r for r in records if r["lane"] == "audit_replay"), None)
+    lines.append("")
+    if replay is None:
+        lines.append("Newest audit replay: none recorded.")
+    else:
+        age = _age_days(replay["run"]["completed_at"], now)
+        stale = age is not None and age > AUDIT_REPLAY_STALE_DAYS
+        age_text = "unknown age" if age is None else f"{age:.1f} days old"
+        lines.append(
+            f"Newest audit replay: {replay['status']} on {(replay['tested_sha'] or 'unknown')[:8]}, "
+            f"{age_text}{' (STALE)' if stale else ''}."
+        )
+    lines += ["", "The board blocks nothing. Read it before you approve this release."]
+    return "\n".join(lines)
+
+
+def checkpoint_map_has_proof(checkpoint_map: CheckpointMap, checkpoint_id: str) -> bool:
+    return any(checkpoint_id in proof.reaches for proof in checkpoint_map.proofs)
+
+
 def _load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -763,6 +844,29 @@ def _cmd_build_index(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_release_row(args: argparse.Namespace) -> int:
+    try:
+        records = (
+            load_records(args.board_dir)
+            if (args.board_dir / "records").is_dir()
+            else []
+        )
+        text = render_release_row(
+            records,
+            load_checkpoint_map(),
+            sha=args.sha or None,
+            version_ref=args.version_ref,
+            now=datetime.now(UTC),
+        )
+    except (OSError, ValueError, KeyError) as error:
+        # The release row never fails a release; it reports what it could not read.
+        text = (
+            f"### Core journey board: {args.version_ref}\n\nBoard unavailable: {error}"
+        )
+    print(text)
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -787,6 +891,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     index.add_argument("--board-dir", type=Path, required=True)
     index.set_defaults(func=_cmd_build_index)
+    row = sub.add_parser(
+        "release-row", help="print the board row of one release as markdown"
+    )
+    row.add_argument("--board-dir", type=Path, required=True)
+    row.add_argument("--sha", default="")
+    row.add_argument("--version-ref", required=True)
+    row.set_defaults(func=_cmd_release_row)
     args = parser.parse_args(argv)
     return args.func(args)
 

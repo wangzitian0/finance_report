@@ -399,6 +399,10 @@ blocks nothing. The production approver reads it; no job or ruleset requires it.
   It is the only board writer; the gate workflows stay read-only.
 - **Read** — `docs/board/index.html` loads the fragment and adds data age. A
   failed load shows a red "unavailable" message.
+- **Release** — the `journey-board` job of `release.yml` prints the board row of
+  the exact release SHA before the production approval prompt
+  (`journey_board.py release-row`). It never fails and never skips the deploy
+  (AC-testing.journey-board.8).
 
 ## <a id="trusted-year-scenario"></a>TrustedYearScenario
 
