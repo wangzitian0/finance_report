@@ -5,6 +5,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -623,3 +624,11 @@ async def public_client(db_engine, test_database_url):
     finally:
         # Reset session maker
         database.set_test_session_maker(None)
+
+
+@pytest.fixture(scope="session")
+def openapi_schema() -> dict[str, Any]:
+    """Provide the live FastAPI OpenAPI schema once per test worker session."""
+    from src.main import app
+
+    return app.openapi()

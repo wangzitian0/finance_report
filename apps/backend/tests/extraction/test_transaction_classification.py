@@ -28,7 +28,8 @@ from src.extraction.orm.layer3 import ClassificationRule, TransactionClassificat
 from src.ledger import Account, AccountType
 from tests.factories import AtomicTransactionFactory
 
-MODULE_PATH = Path("src/extraction/extension/transaction_classification.py")
+_BACKEND_SRC = Path(__file__).resolve().parents[2] / "src"
+MODULE_PATH = _BACKEND_SRC / "extraction" / "extension" / "transaction_classification.py"
 
 
 def _policy(**overrides) -> ClassificationPolicy:
@@ -321,17 +322,21 @@ def test_AC18_15_8_production_consumers_are_the_declared_seams():
     (#1546's backfill entry point, published for the router per #1677: routers
     import only src.<pkg>, so the router-facing seam is the root re-export).
     No other module may grow a side-door into classification."""
-    src_root = Path("src")
+    src_root = _BACKEND_SRC
     importers = []
     for path in src_root.rglob("*.py"):
         if path == MODULE_PATH:
             continue
-        tree = ast.parse(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+        if "transaction_classification" not in text:
+            continue
+        tree = ast.parse(text)
+        rel_path = path.relative_to(_BACKEND_SRC.parent).as_posix()
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module and "transaction_classification" in node.module:
-                importers.append(str(path))
+                importers.append(rel_path)
             elif isinstance(node, ast.Import) and any("transaction_classification" in a.name for a in node.names):
-                importers.append(str(path))
+                importers.append(rel_path)
     assert sorted(importers) == [
         "src/extraction/__init__.py",
         "src/extraction/extension/statement_posting.py",
@@ -518,10 +523,13 @@ def test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked():
         return called
 
     external_calls: set[str] = set()
-    for path in Path("src").rglob("*.py"):
+    for path in _BACKEND_SRC.rglob("*.py"):
         if path == MODULE_PATH:
             continue
-        external_calls |= seam_calls(ast.parse(path.read_text(encoding="utf-8")))
+        text = path.read_text(encoding="utf-8")
+        if not any(seam in text for seam in entry_seams):
+            continue
+        external_calls |= seam_calls(ast.parse(text))
     orphaned = [w for w in entry_seams if w not in external_calls]
     assert not orphaned, f"classify entry seam(s) defined but never invoked in production: {orphaned}"
 
@@ -537,6 +545,6 @@ def test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked():
 def test_AC18_17_3_reports_read_only_applied_classifications():
     """AC-extraction.1817.3: AC18.17.3: reports consume exactly ONE classification source and only
     APPLIED rows — the DRAFT review band never leaks into as-reported figures."""
-    src = Path("src/reporting/extension/income_statement.py").read_text(encoding="utf-8")
+    src = (_BACKEND_SRC / "reporting" / "extension" / "income_statement.py").read_text(encoding="utf-8")
     assert "ClassificationStatus.APPLIED" in src
     assert "ClassificationStatus.DRAFT" not in src and "ClassificationStatus.SUPERSEDED" not in src

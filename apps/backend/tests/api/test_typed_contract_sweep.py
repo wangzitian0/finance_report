@@ -10,6 +10,8 @@ One pass that gives every touched router a declared response/param contract:
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import HTTPException, status
 from httpx import AsyncClient
 
@@ -33,12 +35,12 @@ async def test_AC12_27_1_http_error_has_structured_error_id(client: AsyncClient)
     assert "request_id" in body
 
 
-async def test_AC12_27_2_openapi_declares_error_response_contract() -> None:
+async def test_AC12_27_2_openapi_declares_error_response_contract(
+    openapi_schema: dict[str, Any],
+) -> None:
     """AC-platform.27.2: the shared ``ErrorResponse`` is declared in OpenAPI and referenced
     by the common 4xx responses, so the contract is visible to the generated client."""
-    from src.main import app
-
-    schema = app.openapi()
+    schema = openapi_schema
     assert "ErrorResponse" in schema["components"]["schemas"]
     props = schema["components"]["schemas"]["ErrorResponse"]["properties"]
     assert {"error_id", "detail", "request_id"} <= set(props)
