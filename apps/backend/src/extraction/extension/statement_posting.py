@@ -127,9 +127,13 @@ async def auto_create_posted_entries_for_statement(
     user_id: UUID,
     *,
     dependencies: StatementPostingDependencies,
+    transactions: list[AtomicTransaction] | None = None,
 ) -> StatementPostingOutcome:
     """Evaluate then apply one statement posting plan after Stage 1 source confirmation."""
-    transactions = await resolve_statement_transactions(db, statement)
+    if transactions is None:
+        transactions = getattr(statement, "_transient_resolved_transactions", None)
+    if transactions is None:
+        transactions = await resolve_statement_transactions(db, statement)
     txn_ids = [txn.id for txn in transactions]
     if not txn_ids:
         return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=0)

@@ -15,6 +15,7 @@ from src.extraction.extension.statement_validation import (
     edit_and_approve,
     get_pending_stage1_review,
     reject_statement,
+    resolve_statement_transactions,
     set_opening_balance,
     validate_balance_chain,
 )
@@ -231,6 +232,21 @@ class TestValidateBalanceChain:
         assert result["closing_match"] is True
         assert Decimal(result["closing_delta"]) == Decimal("0.00")
         assert result["calculated_closing"] == "1100.00"
+
+    async def test_validate_balance_chain_reuses_preresolved_statement_and_transactions(
+        self, db, statement_with_transactions
+    ):
+        """AC-extraction.stage1-validation.1: validate_balance_chain accepts pre-resolved statement and transactions."""
+        txns = await resolve_statement_transactions(db, statement_with_transactions)
+        result = await validate_balance_chain(
+            db,
+            statement_with_transactions.id,
+            statement=statement_with_transactions,
+            transactions=txns,
+        )
+        assert result["opening_match"] is True
+        assert result["closing_match"] is True
+        assert Decimal(result["closing_delta"]) == Decimal("0.00")
 
     async def test_within_tolerance(self, db, user_id):
         """AC-extraction.stage1-validation.1: AC1.1.2 AC16.1.1 AC16.22.5: Verify 0.0009 USD delta passes 0.001 tolerance."""
