@@ -321,6 +321,30 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
     assert string_literals.isdisjoint(forbidden_transport_literals)
 
 
+def _names_imported_from_sdk_deploy(source: str) -> set[str]:
+    """Names that `source` imports with `from infra2_sdk.deploy import ...`.
+
+    `infra2_sdk.deploy` is the only SDK module that owns dispatch. The old shim
+    modules (`infra2_sdk.dispatch`, `infra2_sdk.deploy_health`) do not count.
+    """
+    return {
+        alias.name
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.ImportFrom) and node.module == "infra2_sdk.deploy"
+        for alias in node.names
+    }
+
+
+def test_AC_runtime_deploy_request_3_sdk_import_check_rejects_shim() -> None:
+    """AC-runtime.deploy-request.3: only `infra2_sdk.deploy` satisfies the SDK import check."""
+    shim = "from infra2_sdk.dispatch import dispatch_and_wait\n"
+    mention = '"""Delegates to infra2_sdk.deploy import dispatch_and_wait."""\n'
+    current = "from infra2_sdk.deploy import dispatch_and_wait\n"
+    assert "dispatch_and_wait" not in _names_imported_from_sdk_deploy(shim)
+    assert "dispatch_and_wait" not in _names_imported_from_sdk_deploy(mention)
+    assert "dispatch_and_wait" in _names_imported_from_sdk_deploy(current)
+
+
 def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> None:
     """AC-runtime.deploy-request.3: dispatch success means this exact receiver run succeeded."""
     transport = importlib.import_module("tools.app_deploy_transport")
@@ -328,12 +352,9 @@ def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> 
 
     # The watermark/ambiguity-guard/log-content-verification algorithm itself, and
     # the "app-deploy-request.yml"/"repository_dispatch" receiver facts, now live in
-    # infra2_sdk.dispatch (infra2-sdk's own tests cover them) -- this module is a
+    # infra2_sdk.deploy (infra2-sdk's own tests cover them) -- this module is a
     # thin, validating wrapper that delegates to it.
-    assert (
-        "from infra2_sdk.deploy import" in source
-        or "from infra2_sdk.dispatch import" in source
-    )
+    assert "dispatch_and_wait" in _names_imported_from_sdk_deploy(source)
     assert "dispatch_and_wait as _sdk_dispatch_and_wait" in source
     assert "request_from_mapping" in source
     assert hasattr(transport, "dispatch_and_wait")

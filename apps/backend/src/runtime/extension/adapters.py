@@ -3,9 +3,9 @@
 These own the reachability logic (relocated from `apps/backend/src/boot.py`'s
 `_check_*`); `boot.Bootloader` now delegates to them. Config values are injected
 via the constructor (the adapters never reach a global `settings`), so the
-package stays a pure `kernel` leaf. Each returns a `ProbeResult` (binary status +
-detail + timing); probes never raise for an ordinary outage — an unreachable
-backend is `ABSENT`.
+package stays a pure `kernel` leaf. Each returns an `infra2_sdk.runtime.health.ProbeResult`
+(binary status + detail + timing); probes never raise for an ordinary outage — an
+unreachable backend is `ABSENT`.
 """
 
 from __future__ import annotations
@@ -18,14 +18,17 @@ from infra2_sdk.runtime import (
     probe_http,
     redact_postgres_error,
 )
+from infra2_sdk.runtime.health import DependencyStatus, ProbeResult
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from src.runtime.base.check import DependencyStatus, ProbeResult
-
 
 class DatabaseCheck:
-    """Postgres reachability via `SELECT 1`."""
+    """Postgres reachability via `SELECT 1`.
+
+    The probe uses SQLAlchemy and asyncpg, not the SDK `probe_postgres`. The SDK probe
+    needs psycopg v3, and this image does not install it.
+    """
 
     name = "database"
 
@@ -209,12 +212,7 @@ class WorkflowEngineCheck:
         url = f"{self._api_url.rstrip('/')}/health"
         settings = HttpClientSettings(timeout_seconds=5.0, connect_timeout_seconds=5.0)
         result = await probe_http(url, name=self.name, settings=settings)
-        return ProbeResult(
-            self.name,
-            DependencyStatus(result.status.value),
-            result.detail,
-            result.duration_ms,
-        )
+        return result
 
 
 class TelemetryCheck:
@@ -258,12 +256,7 @@ class AnalyticsCheck:
             return ProbeResult(self.name, DependencyStatus.ABSENT, "Not configured", 0.0)
         settings = HttpClientSettings(timeout_seconds=5.0, connect_timeout_seconds=5.0)
         result = await probe_http(self._api_url, name=self.name, settings=settings)
-        return ProbeResult(
-            self.name,
-            DependencyStatus(result.status.value),
-            result.detail,
-            result.duration_ms,
-        )
+        return result
 
 
 class MarketDataCheck:
@@ -284,9 +277,4 @@ class MarketDataCheck:
             user_agent="finance-report-smoke/1.0",
         )
         result = await probe_http(self._PROBE_URL, name=self.name, settings=settings)
-        return ProbeResult(
-            self.name,
-            DependencyStatus(result.status.value),
-            result.detail,
-            result.duration_ms,
-        )
+        return result

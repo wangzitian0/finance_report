@@ -42,7 +42,7 @@ staging, and merged-review evidence. `tools/app_deploy_transport.py` validates
 the request under Finance Report's own authority, then delegates dispatch —
 correlating exactly one receiver workflow run, waiting for success, and
 verifying the exact request id in receiver logs — to
-`infra2_sdk.dispatch.dispatch_and_wait` (the same infra2-receiver-boundary
+`infra2_sdk.deploy.dispatch_and_wait` (the same infra2-receiver-boundary
 implementation any app dispatching a `DeployRequest` reuses).
 
 **Key implications**:
@@ -154,7 +154,7 @@ The staging deploy gate separates platform rollout from application readiness.
 `.github/workflows/deploy.yml` renders a canonical request and dispatches it to
 infra2. The app waits for one correlated receiver run to succeed before
 `tools/health_check.sh` (a thin delegate to `tools/health_check.py`, which
-polls via `infra2_sdk.deploy_health.poll_until_healthy` and layers Finance
+polls via `infra2_sdk.deploy.poll_until_healthy` and layers Finance
 Report's own route-shadow diagnostics on top) polls `/api/health` for the
 target release tag. infra2
 owns Dokploy mutation, effective-config validation, and terminal rollout proof;

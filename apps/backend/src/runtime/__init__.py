@@ -2,20 +2,19 @@
 
 `PackageContract.implementations["be"]` for the `runtime` package; the spec
 (ubiquitous language, invariants, roadmap) lives in `common/runtime/`. This
-ships the `base` value language + manifest + `DependencyCheck` port and the
-`extension` probe adapters (`boot.Bootloader` delegates its checks to them). The
-declared-required enforcement and the compose/lifecycle integration.
+ships the `base` value language + manifest and the `extension` probe adapters
+(`boot.Bootloader` delegates its checks to them). The `DependencyCheck` port,
+`DependencyStatus` and `ProbeResult` are the infra2-sdk types
+(`infra2_sdk.runtime.health`), re-exported here as this package's published language.
+The declared-required enforcement and the compose/lifecycle integration.
 """
 
 from __future__ import annotations
 
 from importlib import import_module
 
-from src.runtime.base.check import (
-    DependencyCheck,
-    DependencyStatus,
-    ProbeResult,
-)
+from infra2_sdk.runtime.health import DependencyCheck, DependencyStatus, ProbeResult
+
 from src.runtime.base.env_classification import (
     NON_DEPENDENCY_ENV_FIELDS,
     check_env_classification,
