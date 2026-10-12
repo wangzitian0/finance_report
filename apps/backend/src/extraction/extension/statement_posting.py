@@ -55,7 +55,10 @@ from src.extraction.extension.disposition_policy import current_statement_dispos
 from src.extraction.extension.disposition_trace import emit_disposition_trace_records
 from src.extraction.extension.review_queue import FxRateProvider, create_entry_from_txn
 from src.extraction.extension.reviewed_statement_envelope import get_current_statement_extraction_result
-from src.extraction.extension.statement_validation import approve_statement, resolve_statement_transactions
+from src.extraction.extension.statement_validation import (
+    approve_statement_with_transactions,
+    resolve_statement_transactions,
+)
 from src.extraction.extension.transaction_classification import classify_by_effective_policy
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
@@ -130,8 +133,6 @@ async def auto_create_posted_entries_for_statement(
     transactions: list[AtomicTransaction] | None = None,
 ) -> StatementPostingOutcome:
     """Evaluate then apply one statement posting plan after Stage 1 source confirmation."""
-    if transactions is None:
-        transactions = getattr(statement, "_transient_resolved_transactions", None)
     if transactions is None:
         transactions = await resolve_statement_transactions(db, statement)
     txn_ids = [txn.id for txn in transactions]
@@ -607,8 +608,10 @@ async def try_auto_approve_high_confidence_statement(
 
     try:
         async with db.begin_nested():
-            approved = await approve_statement(db, statement_id, user_id)
-            outcome = await auto_create_posted_entries_for_statement(db, approved, user_id, dependencies=dependencies)
+            approved, transactions = await approve_statement_with_transactions(db, statement_id, user_id)
+            outcome = await auto_create_posted_entries_for_statement(
+                db, approved, user_id, dependencies=dependencies, transactions=transactions
+            )
             if outcome.status is not StatementPostingStatus.REVIEW_REQUIRED:
                 await try_auto_post_statement_opening_balance(db, approved, user_id, dependencies=dependencies)
             await db.flush()

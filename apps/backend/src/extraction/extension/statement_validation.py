@@ -458,11 +458,11 @@ def _raise_if_approved_envelope_incomplete(statement: StatementSummary) -> None:
         )
 
 
-async def approve_statement(
+async def approve_statement_with_transactions(
     db: AsyncSession,
     statement_id: UUID,
     user_id: UUID,
-) -> StatementSummary:
+) -> tuple[StatementSummary, list[AtomicTransaction]]:
     statement = await _get_statement_for_update(db, statement_id, user_id)
     await require_current_statement_envelope_trust(db, statement=statement)
     _raise_if_approved_envelope_incomplete(statement)
@@ -476,9 +476,17 @@ async def approve_statement(
     statement.stage1_reviewed_at = datetime.now(UTC)
     statement.balance_validation_result = validation_result
     statement.status = BankStatementStatus.APPROVED
-    setattr(statement, "_transient_resolved_transactions", transactions)
 
     await db.flush()
+    return statement, transactions
+
+
+async def approve_statement(
+    db: AsyncSession,
+    statement_id: UUID,
+    user_id: UUID,
+) -> StatementSummary:
+    statement, _ = await approve_statement_with_transactions(db, statement_id, user_id)
     return statement
 
 
