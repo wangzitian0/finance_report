@@ -35,7 +35,7 @@ def dispatch_and_wait(
 ) -> ReceiverRun:
     """Validate raw_request under Finance Report's fixed-env authority, then delegate
     the watermark/ambiguity-guard/log-content-verification dispatch algorithm to
-    infra2_sdk.deploy.dispatch_and_wait — the shared infra2-receiver-boundary implementation."""
+    infra2_sdk.dispatch — the shared infra2-receiver-boundary implementation."""
     request = request_from_mapping(raw_request)
     return _sdk_dispatch_and_wait(
         request,
