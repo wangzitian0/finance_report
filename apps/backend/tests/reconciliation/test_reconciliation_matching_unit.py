@@ -1105,8 +1105,8 @@ async def test_calculate_match_score_no_history_override(db: AsyncSession):
 
 
 async def test_get_pending_layer2_transactions_with_limit(db: AsyncSession):
-    """Cover lines 568-581: _get_pending_layer2_transactions with limit."""
-    from src.reconciliation import _get_pending_layer2_transactions
+    """Verify SqlReconciliationRepository list_pending_transactions with limit."""
+    from src.reconciliation.extension.repository import SqlReconciliationRepository
 
     user_id = uuid4()
     db.add(User(id=user_id, email=f"l2-limit-{uuid4()}@example.com", hashed_password="hashed"))
@@ -1124,13 +1124,14 @@ async def test_get_pending_layer2_transactions_with_limit(db: AsyncSession):
         )
     await db.commit()
 
-    assert len(await _get_pending_layer2_transactions(db, user_id)) == 3
-    assert len(await _get_pending_layer2_transactions(db, user_id, limit=2)) == 2
+    repo = SqlReconciliationRepository(db)
+    assert len(await repo.list_pending_transactions(user_id)) == 3
+    assert len(await repo.list_pending_transactions(user_id, limit=2)) == 2
 
 
 async def test_get_existing_active_match_layer2(db: AsyncSession):
-    """Cover _get_existing_active_match returning None then the active match."""
-    from src.reconciliation import _get_existing_active_match
+    """Verify SqlReconciliationRepository get_active_match returning None then the active match."""
+    from src.reconciliation.extension.repository import SqlReconciliationRepository
 
     user_id = uuid4()
     db.add(User(id=user_id, email=f"match-l2-{uuid4()}@example.com", hashed_password="hashed"))
@@ -1143,7 +1144,8 @@ async def test_get_existing_active_match_layer2(db: AsyncSession):
     await db.flush()
     txn_id = real_txn.id
 
-    assert await _get_existing_active_match(db, txn_id) is None
+    repo = SqlReconciliationRepository(db)
+    assert await repo.get_active_match(txn_id) is None
     db.add(
         ReconciliationMatch(
             atomic_txn_id=txn_id,
@@ -1154,7 +1156,7 @@ async def test_get_existing_active_match_layer2(db: AsyncSession):
         )
     )
     await db.commit()
-    result = await _get_existing_active_match(db, txn_id)
+    result = await repo.get_active_match(txn_id)
     assert result is not None
     assert result.atomic_txn_id == txn_id
 

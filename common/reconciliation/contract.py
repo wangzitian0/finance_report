@@ -269,8 +269,6 @@ CONTRACT = PackageContract(
         "_find_many_to_one_candidates",
         "_find_normal_candidates",
         "_find_transfer_candidates",
-        "_get_existing_active_match",
-        "_get_pending_layer2_transactions",
         "_within_combination_tolerance",
         "accept_match",
         "accepted_transfer_txn_ids",

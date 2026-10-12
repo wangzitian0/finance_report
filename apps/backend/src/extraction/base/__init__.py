@@ -46,6 +46,7 @@ from src.extraction.base.types import (
     StatementIngestionError,
     StatementIngestionOutcome,
     StatementIngestionStatus,
+    extract_source_document_ids,
 )
 
 __all__ = [
@@ -61,6 +62,7 @@ __all__ = [
     "ExtractedPositionFact",
     "ExtractedTransactionRow",
     "ExtractedTransactionFact",
+    "extract_source_document_ids",
     "IntentProposal",
     "IntentProposalOrigin",
     "ParseJob",

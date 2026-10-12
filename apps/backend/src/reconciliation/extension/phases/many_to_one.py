@@ -15,6 +15,7 @@ from src.reconciliation.extension.entry_reads import _candidate_is_better, is_en
 from src.reconciliation.extension.matching import (
     MatchingContext,
     _mark_auto_accepted_entry_reconciled,
+    auto_accept,
     score_group,
 )
 from src.reconciliation.orm.reconciliation import DispositionKind, ReconciliationMatch, ReconciliationStatus
@@ -74,7 +75,7 @@ async def run_many_to_one_phase(
         if best_candidate and best_entry:
             status = (
                 ReconciliationStatus.AUTO_ACCEPTED
-                if best_candidate.score >= context.config.auto_accept
+                if auto_accept(best_candidate.score, context.config)
                 else ReconciliationStatus.PENDING_REVIEW
             )
             for txn in group:

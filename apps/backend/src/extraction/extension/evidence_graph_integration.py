@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.base.source_vocabulary import DocumentType
+from src.extraction.base.types import extract_source_document_ids
 from src.extraction.extension.evidence_lineage import EvidenceLineageService
 from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 from src.extraction.orm.layer1 import UploadedDocument
@@ -66,23 +67,68 @@ class EvidenceGraphIntegrationService:
     ) -> None:
         """Record ``UploadedDocument -> AtomicTransaction`` dual-write lineage.
 
-        Layer-2 lineage skips the legacy extracted-record node entirely: the
-        uploaded source document deduplicates straight into the atomic fact.
+        Delegates to ``record_layer2_dual_writes_batch``.
         """
-        if uploaded_document.id is None or atomic_transaction.id is None:
+        await self.record_layer2_dual_writes_batch(
+            db,
+            user_id=user_id,
+            uploaded_document=uploaded_document,
+            atomic_transactions=[atomic_transaction],
+            document_type=document_type,
+        )
+
+    async def record_layer2_dual_writes_batch(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        uploaded_document: UploadedDocument,
+        atomic_transactions: Sequence[AtomicTransaction],
+        document_type: DocumentType | None = None,
+    ) -> None:
+        """Batch record ``UploadedDocument -> AtomicTransaction`` dual-write lineage.
+
+        Eliminates per-transaction SELECT queries and per-item flush roundtrips during ingestion.
+        """
+        if uploaded_document.id is None or not atomic_transactions:
             return
         doc_type = document_type or uploaded_document.document_type
-        existing_link = await db.get(AtomicTransactionSourceDocument, (atomic_transaction.id, uploaded_document.id))
-        if existing_link is None:
-            db.add(
-                AtomicTransactionSourceDocument(
-                    atomic_txn_id=atomic_transaction.id,
-                    uploaded_document_id=uploaded_document.id,
-                    doc_type=doc_type.value if doc_type is not None else uploaded_document.document_type.value,
-                    ordinal=0,
+        doc_type_val = doc_type.value if doc_type is not None else uploaded_document.document_type.value
+
+        valid_txns = [txn for txn in atomic_transactions if txn.id is not None]
+        if not valid_txns:
+            return
+
+        txn_ids = [txn.id for txn in valid_txns]
+        existing_links = set(
+            (
+                await db.execute(
+                    select(AtomicTransactionSourceDocument.atomic_txn_id).where(
+                        AtomicTransactionSourceDocument.atomic_txn_id.in_(txn_ids),
+                        AtomicTransactionSourceDocument.uploaded_document_id == uploaded_document.id,
+                    )
                 )
             )
+            .scalars()
+            .all()
+        )
+
+        added_link = False
+        for txn in valid_txns:
+            if txn.id not in existing_links:
+                db.add(
+                    AtomicTransactionSourceDocument(
+                        atomic_txn_id=txn.id,
+                        uploaded_document_id=uploaded_document.id,
+                        doc_type=doc_type_val,
+                        ordinal=0,
+                    )
+                )
+                existing_links.add(txn.id)
+                added_link = True
+        if added_link:
             await db.flush()
+
         source_node = await self.lineage.upsert_node(
             db,
             user_id=user_id,
@@ -95,22 +141,85 @@ class EvidenceGraphIntegrationService:
                 "file_hash": uploaded_document.file_hash,
             },
         )
-        atomic_node = await self._upsert_atomic_transaction_node(
-            db,
-            user_id=user_id,
-            atomic_transaction=atomic_transaction,
+
+        existing_nodes = {
+            node.entity_id: node
+            for node in (
+                await db.execute(
+                    select(EvidenceNode)
+                    .where(EvidenceNode.user_id == user_id)
+                    .where(EvidenceNode.entity_type == "atomic_transaction")
+                    .where(EvidenceNode.entity_id.in_(txn_ids))
+                )
+            )
+            .scalars()
+            .all()
+        }
+
+        created_node = False
+        atomic_nodes: dict[UUID, EvidenceNode] = {}
+        for txn in valid_txns:
+            node = existing_nodes.get(txn.id)
+            props = {
+                "dedup_hash": txn.dedup_hash,
+                "txn_date": txn.txn_date.isoformat(),
+                "direction": txn.direction.value,
+                "amount": str(txn.amount),
+                "currency": txn.currency,
+            }
+            if node is None:
+                node = EvidenceNode(
+                    user_id=user_id,
+                    node_kind="atomic_fact",
+                    entity_type="atomic_transaction",
+                    entity_id=txn.id,
+                    properties=props,
+                )
+                db.add(node)
+                created_node = True
+            else:
+                node.properties = props
+            atomic_nodes[txn.id] = node
+
+        if created_node:
+            await db.flush()
+
+        target_node_ids = [node.id for node in atomic_nodes.values()]
+        existing_edges = set(
+            (
+                await db.execute(
+                    select(EvidenceEdge.to_node_id).where(
+                        EvidenceEdge.user_id == user_id,
+                        EvidenceEdge.from_node_id == source_node.id,
+                        EvidenceEdge.to_node_id.in_(target_node_ids),
+                        EvidenceEdge.relation == "deduped_into",
+                    )
+                )
+            )
+            .scalars()
+            .all()
         )
-        await self.lineage.upsert_edge(
-            db,
-            user_id=user_id,
-            from_node_id=source_node.id,
-            to_node_id=atomic_node.id,
-            relation="deduped_into",
-            properties={
-                "dedup_hash": atomic_transaction.dedup_hash,
-                "adapter": "layer2_dual_write",
-            },
-        )
+
+        added_edge = False
+        for txn in valid_txns:
+            atomic_node = atomic_nodes.get(txn.id)
+            if atomic_node and atomic_node.id not in existing_edges:
+                db.add(
+                    EvidenceEdge(
+                        user_id=user_id,
+                        from_node_id=source_node.id,
+                        to_node_id=atomic_node.id,
+                        relation="deduped_into",
+                        properties={
+                            "dedup_hash": txn.dedup_hash,
+                            "adapter": "layer2_dual_write",
+                        },
+                    )
+                )
+                existing_edges.add(atomic_node.id)
+                added_edge = True
+        if added_edge:
+            await db.flush()
 
     async def record_journal_posting(
         self,
@@ -148,7 +257,7 @@ class EvidenceGraphIntegrationService:
         all_doc_ids: list[UUID] = []
         doc_id_set: set[UUID] = set()
         for _, txn in postings:
-            for doc_id in _ordered_source_doc_ids(txn.source_documents):
+            for doc_id in extract_source_document_ids(txn.source_documents):
                 if doc_id not in doc_id_set:
                     doc_id_set.add(doc_id)
                     all_doc_ids.append(doc_id)
@@ -170,7 +279,7 @@ class EvidenceGraphIntegrationService:
 
         needed_links: list[tuple[UUID, UUID, str]] = []
         for _, txn in postings:
-            for doc_id in _ordered_source_doc_ids(txn.source_documents):
+            for doc_id in extract_source_document_ids(txn.source_documents):
                 doc = docs_by_id.get(doc_id)
                 if doc:
                     needed_links.append((txn.id, doc.id, doc.document_type.value))
@@ -309,7 +418,7 @@ class EvidenceGraphIntegrationService:
             if not atomic_node:
                 continue
 
-            for doc_id in _ordered_source_doc_ids(txn.source_documents):
+            for doc_id in extract_source_document_ids(txn.source_documents):
                 source_node = nodes_by_key.get(("source_document", "uploaded_document", doc_id))
                 if source_node:
                     edge_specs.append(
@@ -406,33 +515,3 @@ class EvidenceGraphIntegrationService:
                 "currency": atomic_transaction.currency,
             },
         )
-
-
-def _ordered_source_doc_ids(source_documents: object) -> list[UUID]:
-    """Extract source ``UploadedDocument`` ids, in order, from ``source_documents``.
-
-    Accepts the canonical list form (``[{"doc_id": ..., "doc_type": ...}]``) and a
-    ``{"documents": [...]}`` wrapper. Invalid UUID strings are skipped so they never
-    raise during query binding.
-    """
-    if isinstance(source_documents, dict):
-        source_documents = source_documents.get("documents", [])
-    if not isinstance(source_documents, list):
-        return []
-
-    ordered: list[UUID] = []
-    seen: set[UUID] = set()
-    for entry in source_documents:
-        if not isinstance(entry, dict):
-            continue
-        raw = entry.get("doc_id")
-        if not raw:
-            continue
-        try:
-            doc_id = UUID(str(raw))
-        except (ValueError, TypeError):
-            continue
-        if doc_id not in seen:
-            seen.add(doc_id)
-            ordered.append(doc_id)
-    return ordered
