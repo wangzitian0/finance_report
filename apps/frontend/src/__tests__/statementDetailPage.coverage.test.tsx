@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, screen, fireEvent, waitFor } from "@testing-library/react";
 import StatementDetailPage from "@/app/(main)/statements/[id]/page";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 vi.mock("next/navigation", () => ({
     useParams: vi.fn(() => ({ id: "s1" })),
     useSearchParams: vi.fn(() => new URLSearchParams()),
@@ -16,7 +16,7 @@ vi.mock("next/link", () => ({
     ),
 }));
 
-const mockedApi = vi.mocked(apiFetch);
+const mockedApi = vi.mocked(apiOperation);
 
 const parsedBrokerageStatement = {
     id: "s1",
@@ -53,8 +53,8 @@ describe("StatementDetailPage - coverage additions", () => {
             transactions: [],
         };
 
-        mockedApi.mockImplementation((path: string) => {
-            if (String(path).includes(`/api/statements/`)) return Promise.resolve(stmt as any);
+        mockedApi.mockImplementation((operationId: string) => {
+            if (operationId === "get_statement_statements__statement_id__get") return Promise.resolve(stmt as any);
             return Promise.resolve(null as any);
         });
 
@@ -64,7 +64,7 @@ describe("StatementDetailPage - coverage additions", () => {
     });
 
     it("shows statement not found when api returns null", async () => {
-        mockedApi.mockImplementation((path: string) => {
+        mockedApi.mockImplementation(() => {
             return Promise.resolve(null as any);
         });
 
@@ -209,7 +209,7 @@ describe("StatementDetailPage - coverage additions", () => {
         fireEvent.click(screen.getByRole("button", { name: "Resume Auto-Refresh" }));
         await waitFor(() =>
           expect(mockedApi).toHaveBeenCalledWith(
-            "/api/statements/s1",
+            "get_statement_statements__statement_id__get",
             expect.objectContaining({ signal: expect.any(AbortSignal) }),
           ),
         );
@@ -233,12 +233,15 @@ describe("StatementDetailPage - coverage additions", () => {
         fireEvent.click(screen.getAllByRole("button", { name: "Retry Parse" })[0]);
 
         await waitFor(() => expect(screen.getAllByText("retry failed").length).toBeGreaterThan(0));
-        expect(mockedApi).toHaveBeenCalledWith("/api/statements/s1/retry", { method: "POST" });
+        expect(mockedApi).toHaveBeenCalledWith(
+            "retry_statement_parsing_statements__statement_id__retry_post",
+            { path: { statement_id: "s1" } },
+        );
     });
 
     it("handles delete statement confirmation and API call", async () => {
-        mockedApi.mockImplementation((path: string, options?: any) => {
-            if (options?.method === "DELETE") return Promise.resolve(null as any);
+        mockedApi.mockImplementation((operationId: string) => {
+            if (operationId === "delete_statement_statements__statement_id__delete") return Promise.resolve(null as any);
             return Promise.resolve(parsedBrokerageStatement as any);
         });
 
@@ -258,13 +261,16 @@ describe("StatementDetailPage - coverage additions", () => {
         fireEvent.click(confirmBtn);
 
         await waitFor(() => {
-            expect(mockedApi).toHaveBeenCalledWith("/api/statements/s1", expect.objectContaining({ method: "DELETE" }));
+            expect(mockedApi).toHaveBeenCalledWith(
+                "delete_statement_statements__statement_id__delete",
+                expect.objectContaining({ path: { statement_id: "s1" } }),
+            );
         });
     });
 
     it("handles delete statement error gracefully", async () => {
-        mockedApi.mockImplementation((path: string, options?: any) => {
-            if (options?.method === "DELETE") return Promise.reject(new Error("Failed to delete"));
+        mockedApi.mockImplementation((operationId: string) => {
+            if (operationId === "delete_statement_statements__statement_id__delete") return Promise.reject(new Error("Failed to delete"));
             return Promise.resolve(parsedBrokerageStatement as any);
         });
 

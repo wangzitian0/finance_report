@@ -3,15 +3,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ProcessingSummaryCard from '@/components/ProcessingSummaryCard';
 import ProcessingPage from '@/app/(main)/processing/page';
 import DashboardPage from '@/app/(main)/page';
-import { apiFetch } from '@/lib/api';
+import { apiOperation } from '@/lib/api-client';
 import type { ReactNode } from 'react';
 
 const navigationState = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
 }));
 
-vi.mock('@/lib/api', () => ({
-  apiFetch: vi.fn(),
+vi.mock('@/lib/api-client', () => ({
+  apiOperation: vi.fn(),
 }));
 
 vi.mock('next/link', () => ({
@@ -39,15 +39,15 @@ vi.mock("@/components/charts/NetWorthTimeSeriesChart", () => ({
 }))
 
 describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
-  const mockedApiFetch = vi.mocked(apiFetch);
+  const mockedApiOperation = vi.mocked(apiOperation);
 
   beforeEach(() => {
-    mockedApiFetch.mockReset();
+    mockedApiOperation.mockReset();
     navigationState.searchParams = new URLSearchParams();
   });
 
   it('AC15.7.1 — GET /api/accounts/processing/summary contract', async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       pending_count: 1,
       pending_total: "100.00",
       current_balance: "100.00",
@@ -58,13 +58,13 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
     render(<ProcessingSummaryCard />);
 
     await waitFor(() => {
-      expect(mockedApiFetch).toHaveBeenCalledWith('/api/accounts/processing/summary');
+      expect(mockedApiOperation).toHaveBeenCalledWith('get_processing_summary_accounts_processing_summary_get', expect.anything());
     });
   });
 
   // AC-ledger.fe-processing.1
   it('AC15.7.2 / AC15.7.8 — ProcessingSummaryCard renders fields and current balance warning', async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       pending_count: 3,
       pending_total: "150.00",
       current_balance: "150.00",
@@ -85,7 +85,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
 
   // AC-ledger.fe-processing.2
   it('AC15.7.3 — /processing listing renders pending transfers', async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       items: [
         {
           entry_id: "e1",
@@ -114,7 +114,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
     render(<ProcessingPage />);
 
     await waitFor(() => {
-      expect(mockedApiFetch).toHaveBeenCalledWith('/api/accounts/processing/pending');
+      expect(mockedApiOperation).toHaveBeenCalledWith('list_processing_pending_accounts_processing_pending_get');
       expect(screen.getByText('Bank A')).toBeInTheDocument();
       expect(screen.getByText('Bank B')).toBeInTheDocument();
       expect(screen.getByText(/500\.00/)).toBeInTheDocument();
@@ -126,7 +126,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
 
   // AC-ledger.fe-processing.3
   it('AC15.7.4 — warning badge for >7 day pending', async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       items: [
         {
           entry_id: "e1",
@@ -152,7 +152,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
   });
 
   it('test_AC8_13_48 — /processing listing renders load errors', async () => {
-    mockedApiFetch.mockRejectedValueOnce(new Error("processing unavailable"));
+    mockedApiOperation.mockRejectedValueOnce(new Error("processing unavailable"));
 
     render(<ProcessingPage />);
 
@@ -161,7 +161,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
 
   it('AC22.11.3 — /processing returns attention-origin users to the attention queue', async () => {
     navigationState.searchParams = new URLSearchParams("from=attention");
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       items: [
         {
           entry_id: "e1",
@@ -185,30 +185,33 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
 
   // AC-ledger.fe-processing.4
   it('AC15.7.5 — ProcessingSummaryCard mount test', async () => {
-    mockedApiFetch.mockImplementation((path) => {
-      if (path === '/api/accounts/processing/summary') {
+    mockedApiOperation.mockImplementation(((operationId: string) => {
+      if (operationId === 'get_processing_summary_accounts_processing_summary_get') {
         return Promise.resolve({ pending_count: 2, pending_total: "200.00", current_balance: "200.00", currency: "SGD", oldest_pending_date: "2026-05-01" });
       }
-      if (path === '/api/reports/balance-sheet') {
+      if (operationId === 'balance_sheet_reports_balance_sheet_get') {
         return Promise.resolve({ assets: [], total_assets: 0, total_liabilities: 0, currency: "SGD", as_of_date: "2026-05-04", is_balanced: true });
       }
-      if (path.includes('/api/reports/income-statement')) {
+      if (operationId === 'income_statement_reports_income_statement_get') {
         return Promise.resolve({ currency: "SGD", trends: [{ period_start: "2026-01-01", period_end: "2026-01-31", total_income: 1000, total_expenses: 800, net_income: 200 }] });
       }
-      if (path === '/api/reconciliation/stats') {
+      if (operationId === 'get_reconciliation_stats_reconciliation_stats_get') {
         return Promise.resolve({ total_transactions: 0, matched_transactions: 0, unmatched_transactions: 0, pending_review: 0, auto_accepted: 0, match_rate: 0, score_distribution: {} });
       }
-      if (path.includes('/api/reconciliation/unmatched')) {
+      if (operationId === 'get_unmatched_transactions_reconciliation_unmatched_get') {
         return Promise.resolve({ items: [], total: 0 });
       }
-      if (path.includes('/api/journal-entries')) {
+      if (operationId === 'list_journal_entries_journal_entries_get') {
         return Promise.resolve({ items: [], total: 0 });
       }
-      if (path.includes('/api/reports/trend')) {
+      if (operationId === 'trend_reports_trend_get') {
         return Promise.resolve({ points: [], account_id: "a1", currency: "SGD", period: "monthly" });
       }
+      if (operationId === 'net_worth_timeseries_reports_net_worth_timeseries_get') {
+        return Promise.resolve({ points: [], currency: "SGD" });
+      }
       return Promise.resolve({});
-    });
+    }) as any);
 
     render(<DashboardPage />);
 

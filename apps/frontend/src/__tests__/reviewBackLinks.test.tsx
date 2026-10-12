@@ -4,7 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 
 import { BackLink } from "@/components/ui/BackLink";
 import AiSuggestionsPage from "@/app/(main)/review/ai-suggestions/page";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 
 const navigationState = vi.hoisted(() => ({
     searchParams: new URLSearchParams(),
@@ -19,8 +19,8 @@ vi.mock("next/link", () => ({
     ),
 }));
 
-vi.mock("@/lib/api", () => ({
-    apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+    apiOperation: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -29,7 +29,7 @@ vi.mock("next/navigation", () => ({
 
 describe("Review surfaces back-link + plain copy (EPIC-022 AC22.5.3, AC22.5.4)", () => {
     beforeEach(() => {
-        vi.mocked(apiFetch).mockReset();
+        vi.mocked(apiOperation).mockReset();
         navigationState.searchParams = new URLSearchParams();
     });
 
@@ -43,7 +43,7 @@ describe("Review surfaces back-link + plain copy (EPIC-022 AC22.5.3, AC22.5.4)",
     });
 
     it("AC22.5.3 the AI suggestion review surface offers a back-link to /notifications", async () => {
-        vi.mocked(apiFetch).mockResolvedValue({ items: [] });
+        vi.mocked(apiOperation).mockResolvedValue({ items: [] } as any);
         render(<AiSuggestionsPage />);
         await waitFor(() =>
             expect(screen.getByRole("link", { name: /Back to Notifications/i })).toHaveAttribute(
@@ -66,7 +66,7 @@ describe("Review surfaces back-link + plain copy (EPIC-022 AC22.5.3, AC22.5.4)",
 
     // AC-platform.fe-ia-inbox.5
     it("AC22.5.4 the review surface heading uses plain language, not internal jargon", async () => {
-        vi.mocked(apiFetch).mockResolvedValue({ items: [] });
+        vi.mocked(apiOperation).mockResolvedValue({ items: [] } as any);
         render(<AiSuggestionsPage />);
         await waitFor(() => expect(screen.getByText("Suggestions to review")).toBeInTheDocument());
         expect(screen.queryByText(/Stage 2/i)).not.toBeInTheDocument();

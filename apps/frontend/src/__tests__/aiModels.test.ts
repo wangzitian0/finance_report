@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fetchAiModels } from "../lib/aiModels";
-import * as api from "../lib/api";
+import { apiOperation } from "../lib/api-client";
 
-vi.mock("../lib/api", () => ({
-    apiFetch: vi.fn(),
+vi.mock("../lib/api-client", () => ({
+    apiOperation: vi.fn(),
 }));
 
 const emptyCatalog = { models: [] };
@@ -15,41 +15,49 @@ describe("fetchAiModels", () => {
 
     // AC-llm.fe-ai-models-catalog.1
     it("AC16.8.1 calls /api/llm/catalog with no query when no options provided", async () => {
-        vi.mocked(api.apiFetch).mockResolvedValue(emptyCatalog);
+        vi.mocked(apiOperation).mockResolvedValue(emptyCatalog as any);
 
         await fetchAiModels();
 
-        expect(api.apiFetch).toHaveBeenCalledWith("/api/llm/catalog");
+        expect(apiOperation).toHaveBeenCalledWith("get_catalog_llm_catalog_get", {
+            query: { modality: undefined, free_only: undefined },
+        });
     });
 
     // AC-llm.fe-ai-models-catalog.2
     it("AC16.8.2 appends modality query param when provided", async () => {
-        vi.mocked(api.apiFetch).mockResolvedValue(emptyCatalog);
+        vi.mocked(apiOperation).mockResolvedValue(emptyCatalog as any);
 
         await fetchAiModels({ modality: "image" });
 
-        expect(api.apiFetch).toHaveBeenCalledWith("/api/llm/catalog?modality=image");
+        expect(apiOperation).toHaveBeenCalledWith("get_catalog_llm_catalog_get", {
+            query: { modality: "image", free_only: undefined },
+        });
     });
 
     // AC-llm.fe-ai-models-catalog.3
     it("AC16.8.3 appends free_only=true when freeOnly is set", async () => {
-        vi.mocked(api.apiFetch).mockResolvedValue(emptyCatalog);
+        vi.mocked(apiOperation).mockResolvedValue(emptyCatalog as any);
 
         await fetchAiModels({ freeOnly: true });
 
-        expect(api.apiFetch).toHaveBeenCalledWith("/api/llm/catalog?free_only=true");
+        expect(apiOperation).toHaveBeenCalledWith("get_catalog_llm_catalog_get", {
+            query: { modality: undefined, free_only: true },
+        });
     });
 
     it("AC16.8.3 combines modality and free_only params", async () => {
-        vi.mocked(api.apiFetch).mockResolvedValue(emptyCatalog);
+        vi.mocked(apiOperation).mockResolvedValue(emptyCatalog as any);
 
         await fetchAiModels({ modality: "text", freeOnly: true });
 
-        expect(api.apiFetch).toHaveBeenCalledWith("/api/llm/catalog?modality=text&free_only=true");
+        expect(apiOperation).toHaveBeenCalledWith("get_catalog_llm_catalog_get", {
+            query: { modality: "text", free_only: true },
+        });
     });
 
     it("AC16.8.3 adapts the catalogue response into the legacy model-list shape", async () => {
-        vi.mocked(api.apiFetch).mockResolvedValue({
+        vi.mocked(apiOperation).mockResolvedValue({
             models: [
                 {
                     id: "google/gemini-flash",
@@ -70,7 +78,7 @@ describe("fetchAiModels", () => {
                     supports_reasoning: true,
                 },
             ],
-        });
+        } as any);
 
         const result = await fetchAiModels({ modality: "image" });
 
@@ -98,7 +106,7 @@ describe("fetchAiModels", () => {
     });
 
     it("AC16.8.3 returns empty default_model when the catalogue is empty", async () => {
-        vi.mocked(api.apiFetch).mockResolvedValue(emptyCatalog);
+        vi.mocked(apiOperation).mockResolvedValue(emptyCatalog as any);
 
         const result = await fetchAiModels();
 

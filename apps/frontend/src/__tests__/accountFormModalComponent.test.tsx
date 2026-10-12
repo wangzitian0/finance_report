@@ -3,26 +3,26 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import AccountFormModal from "@/components/accounts/AccountFormModal"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
 describe("AccountFormModal", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
   const onClose = vi.fn()
   const onSuccess = vi.fn()
 
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
     onClose.mockReset()
     onSuccess.mockReset()
   })
 
   // AC-ledger.fe-accounts-journal.12
   it("AC16.21.1 create mode submits normalized payload and closes on success", async () => {
-    mockedApiFetch.mockResolvedValueOnce({ id: "a1" })
+    mockedApiOperation.mockResolvedValueOnce({ id: "a1" } as any)
 
     render(<AccountFormModal isOpen onClose={onClose} onSuccess={onSuccess} />)
 
@@ -36,15 +36,14 @@ describe("AccountFormModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create Account" }))
 
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/accounts", {
-        method: "POST",
-        body: JSON.stringify({
+      expect(mockedApiOperation).toHaveBeenCalledWith("create_account_accounts_post", {
+        body: {
           name: "Cash Box",
           code: null,
           type: "ASSET",
           currency: "USD",
           description: null,
-        }),
+        },
       }),
     )
     expect(onSuccess).toHaveBeenCalledTimes(1)
@@ -55,7 +54,7 @@ describe("AccountFormModal", () => {
   // AC-ledger.fe-accounts-journal.12: enter at the first committed DOM,
   // before passive effects run, matching fast interaction after reopening.
   it("preserves first input while a reopened account form becomes interactive", async () => {
-    mockedApiFetch.mockResolvedValue({ id: "generated-account" })
+    mockedApiOperation.mockResolvedValue({ id: "generated-account" } as any)
 
     function FirstInteraction({ open, name, type }: { open: boolean; name: string; type: string }) {
       useLayoutEffect(() => {
@@ -73,18 +72,19 @@ describe("AccountFormModal", () => {
       expect(screen.getByPlaceholderText("e.g., Cash on Hand")).toHaveValue(name)
       expect(screen.getAllByRole("combobox")[0]).toHaveValue(type)
       fireEvent.click(screen.getByRole("button", { name: "Create Account" }))
-      await waitFor(() => expect(mockedApiFetch).toHaveBeenLastCalledWith("/api/accounts", {
-        method: "POST",
-        body: JSON.stringify({ name, code: null, type, currency: "SGD", description: null }),
-      }))
+      await waitFor(() =>
+        expect(mockedApiOperation).toHaveBeenLastCalledWith("create_account_accounts_post", {
+          body: { name, code: null, type, currency: "SGD", description: null },
+        }),
+      )
       rerender(<FirstInteraction open={false} name={name} type={type} />)
     }
-    expect(mockedApiFetch).toHaveBeenCalledTimes(3)
+    expect(mockedApiOperation).toHaveBeenCalledTimes(3)
   })
 
   // AC-ledger.fe-accounts-journal.13
   it("AC16.21.2 edit mode pre-fills values and submits update payload", async () => {
-    mockedApiFetch.mockResolvedValueOnce({ id: "a1" })
+    mockedApiOperation.mockResolvedValueOnce({ id: "a1" } as any)
 
     render(
       <AccountFormModal
@@ -114,13 +114,13 @@ describe("AccountFormModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save Changes" }))
 
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/accounts/a1", {
-        method: "PUT",
-        body: JSON.stringify({
+      expect(mockedApiOperation).toHaveBeenCalledWith("update_account_accounts__account_id__put", {
+        path: { account_id: "a1" },
+        body: {
           name: "Renamed",
           code: "1100",
           is_active: true,
-        }),
+        },
       }),
     )
     expect(onSuccess).toHaveBeenCalledTimes(1)
@@ -130,7 +130,7 @@ describe("AccountFormModal", () => {
 
   // AC-ledger.fe-accounts-journal.14
   it("AC16.21.3 shows validation and API errors in create flow", async () => {
-    mockedApiFetch.mockRejectedValueOnce(new Error("create failed"))
+    mockedApiOperation.mockRejectedValueOnce(new Error("create failed"))
 
     render(<AccountFormModal isOpen onClose={onClose} onSuccess={onSuccess} />)
 
@@ -146,7 +146,7 @@ describe("AccountFormModal", () => {
   })
 
   it("AC16.21.3 shows API errors in edit flow", async () => {
-    mockedApiFetch.mockRejectedValueOnce(new Error("update failed"))
+    mockedApiOperation.mockRejectedValueOnce(new Error("update failed"))
 
     render(
       <AccountFormModal

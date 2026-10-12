@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import StatementsPage from "@/app/(main)/upload/page"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 import type { BankStatement } from "@/lib/types"
 
 const showToastMock = vi.fn()
@@ -57,8 +57,8 @@ vi.mock("@/components/ui/ConfirmDialog", () => ({
   ),
 }))
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
 const makeStmt = (id: string, name: string, status: BankStatement["status"], extra: Record<string, unknown> = {}): BankStatement => ({
@@ -66,7 +66,7 @@ const makeStmt = (id: string, name: string, status: BankStatement["status"], ext
 } as BankStatement)
 
 describe("StatementsPage", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiFetch = vi.mocked(apiOperation)
 
   function resolveQueued(queue: unknown[], fallback: unknown) {
     const next = queue.length ? queue.shift() : fallback
@@ -83,15 +83,18 @@ describe("StatementsPage", () => {
     const statementQueue = [...statements]
     const deleteQueue = [...deletes]
 
-    mockedApiFetch.mockImplementation((path, options) => {
+    mockedApiFetch.mockImplementation((path: any, options?: any) => {
       const url = String(path)
-      if (url === "/api/statements") {
+      if (url === "/api/statements" || url === "list_statements_statements_get") {
         return resolveQueued(statementQueue, { items: [] })
       }
-      if (url.startsWith("/api/statements/") && options?.method === "DELETE") {
+      if (
+        url === "delete_statement_statements__statement_id__delete" ||
+        (url.startsWith("/api/statements/") && options?.method === "DELETE")
+      ) {
         return resolveQueued(deleteQueue, undefined)
       }
-      return Promise.reject(new Error(`Unexpected apiFetch call: ${url}`))
+      return Promise.reject(new Error(`Unexpected api call: ${url}`))
     })
   }
 
@@ -113,8 +116,9 @@ describe("StatementsPage", () => {
     const teardownRefresh = deferred<typeof terminalResponse>()
     let statementReads = 0
     mockedApiFetch.mockImplementation((path) => {
-      if (String(path) !== "/api/statements") {
-        return Promise.reject(new Error(`Unexpected apiFetch call: ${String(path)}`))
+      const url = String(path)
+      if (url !== "/api/statements" && url !== "list_statements_statements_get") {
+        return Promise.reject(new Error(`Unexpected api call: ${url}`))
       }
       statementReads += 1
       if (statementReads === 1) return Promise.resolve(parsingResponse)
@@ -225,7 +229,7 @@ describe("StatementsPage", () => {
     expect(screen.queryByTestId("source-intake-manual_record")).toBeNull()
     // The page does not pull package data merely to render intake entries.
     expect(mockedApiFetch).toHaveBeenCalledWith(
-      "/api/statements",
+      "list_statements_statements_get",
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     )
   })
@@ -359,7 +363,10 @@ describe("StatementsPage", () => {
     await waitFor(() => expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument())
     fireEvent.click(screen.getByText("Confirm Delete"))
     await waitFor(() => {
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/statements/s3", { method: "DELETE" })
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        "delete_statement_statements__statement_id__delete",
+        { path: { statement_id: "s3" } },
+      )
     })
     expect(showToastMock).toHaveBeenCalledWith("Statement deleted successfully", "success")
 })

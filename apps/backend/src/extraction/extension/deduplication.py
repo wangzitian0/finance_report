@@ -714,6 +714,7 @@ async def _upsert_layer2_transactions(
 ) -> int:
     """Upsert atomic transactions and record best-effort lineage into evidence graph."""
     layer2_count = 0
+    upserted_txns: list[AtomicTransaction] = []
     for txn in transactions:
         upserted_txn = await dedup_service.upsert_scoped_atomic_transaction(
             db=db,
@@ -723,16 +724,18 @@ async def _upsert_layer2_transactions(
             custody_account_id=statement_account_id,
         )
         layer2_count += 1
+        upserted_txns.append(upserted_txn)
 
-        # Eager evidence-graph lineage (UploadedDocument --deduped_into-->
-        # AtomicTransaction). Best-effort: provenance must never break the
-        # money/atomic write, which is the priority.
+    # Batch evidence-graph lineage (UploadedDocument --deduped_into-->
+    # AtomicTransaction). Best-effort: provenance must never break the
+    # money/atomic write, which is the priority.
+    if upserted_txns:
         try:
-            await evidence_graph.record_layer2_dual_write(
+            await evidence_graph.record_layer2_dual_writes_batch(
                 db,
                 user_id=user_id,
                 uploaded_document=uploaded_doc,
-                atomic_transaction=upserted_txn,
+                atomic_transactions=upserted_txns,
                 document_type=doc_type,
             )
         except Exception as evidence_exc:
@@ -741,7 +744,7 @@ async def _upsert_layer2_transactions(
                 error=str(evidence_exc),
                 error_type=type(evidence_exc).__name__,
                 user_id=str(user_id),
-                atomic_transaction_id=str(upserted_txn.id),
+                uploaded_document_id=str(uploaded_doc.id),
             )
     return layer2_count
 

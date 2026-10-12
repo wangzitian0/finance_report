@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import StatementReviewPage from "@/app/(main)/statements/[id]/review/page";
-import { apiFetch } from "@/lib/api";
+import { apiOperation, apiOperationDownload } from "@/lib/api-client";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
 const navigationState = vi.hoisted(() => ({
     searchParams: new URLSearchParams(),
 }));
 
-vi.mock("@/lib/api", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("@/lib/api")>()),
-    apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/lib/api-client")>()),
+    apiOperation: vi.fn(),
     // PdfPreviewPane fetches the document blob on mount (#963 / AC16.33.5).
-    apiDownload: vi.fn(() => Promise.resolve({ blob: new Blob(["%PDF"]), filename: "f.pdf" })),
+    apiOperationDownload: vi.fn(() => Promise.resolve({ blob: new Blob(["%PDF"]), filename: "f.pdf" })),
 }));
 vi.mock("next/navigation", () => ({
     useRouter: vi.fn(() => ({ replace: vi.fn(), push: vi.fn() })),
@@ -20,7 +20,38 @@ vi.mock("next/navigation", () => ({
     useSearchParams: vi.fn(() => navigationState.searchParams),
 }));
 
-const mockedApi = vi.mocked(apiFetch);
+function mapOperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
+    switch (operationId) {
+        case "get_statement_for_review_statements__statement_id__review_get":
+            return [`/api/statements/${req?.path?.statement_id ?? "s1"}/review`, undefined];
+        case "list_pending_review_statements_pending_review_get":
+            return ["/api/statements/pending-review", undefined];
+        case "get_review_conflicts_review_conflicts__statement_id__get":
+            return [`/api/review/conflicts/${req?.path?.statement_id ?? "s1"}`, undefined];
+        case "approve_statement_stage1_statements__statement_id__review_approve_post":
+            return [`/api/statements/${req?.path?.statement_id ?? "s1"}/review/approve`, { method: "POST", body: JSON.stringify(req?.body) }];
+        case "edit_and_approve_statement_statements__statement_id__review_edit_post":
+            return [`/api/statements/${req?.path?.statement_id ?? "s1"}/review/edit`, { method: "POST", body: JSON.stringify(req?.body) }];
+        case "reject_statement_stage1_statements__statement_id__review_reject_post":
+            return [`/api/statements/${req?.path?.statement_id ?? "s1"}/review/reject`, { method: "POST", body: JSON.stringify(req?.body) }];
+        case "retry_statement_parsing_statements__statement_id__retry_post":
+            return [`/api/statements/${req?.path?.statement_id ?? "s1"}/retry`, { method: "POST" }];
+        default:
+            return [operationId, req];
+    }
+}
+
+const mockedApi = vi.mocked(apiOperation);
+const originalMockImplementation = mockedApi.mockImplementation.bind(mockedApi);
+mockedApi.mockImplementation = (fn: any) => {
+    return originalMockImplementation((operationId: any, req: any) => {
+        if (typeof operationId === "string" && operationId.startsWith("/")) {
+            return fn(operationId, req);
+        }
+        const [path, options] = mapOperationToLegacy(operationId, req);
+        return fn(path, options);
+    });
+};
 const emptyConflicts = { duplicates: [], transfer_pairs: [] };
 
 describe("StatementReviewPage - coverage additions", () => {
@@ -87,7 +118,7 @@ describe("StatementReviewPage - coverage additions", () => {
         expect(screen.queryByRole("button", { name: /Discard/i })).toBeNull();
 
         // The edit endpoint must never be called.
-        expect(mockedApi.mock.calls.some((c) => String(c[0]).includes("/review/edit"))).toBe(false);
+        expect(mockedApi.mock.calls.some((c) => String(c[0]).includes("review_edit"))).toBe(false);
     });
 
     it("opens conflict dialog when duplicate/transfer candidates present", async () => {
@@ -173,15 +204,14 @@ describe("StatementReviewPage - coverage additions", () => {
         await (async () => {
             const max = 20;
             for (let i = 0; i < max; i++) {
-                if (mockedApi.mock.calls.some(c => String(c[0]).includes("/review/approve"))) return;
+                if (mockedApi.mock.calls.some(c => String(c[0]).includes("review_approve"))) return;
                 await new Promise(r => setTimeout(r, 50));
             }
-            expect(mockedApi.mock.calls.some(c => String(c[0]).includes("/review/approve"))).toBe(true);
+            expect(mockedApi.mock.calls.some(c => String(c[0]).includes("review_approve"))).toBe(true);
         })();
-        const approveCall = mockedApi.mock.calls.find(c => String(c[0]).includes("/review/approve"));
+        const approveCall = mockedApi.mock.calls.find(c => String(c[0]).includes("review_approve"));
         expect(approveCall?.[1]).toMatchObject({
-            method: "POST",
-            body: JSON.stringify({ create_account_if_missing: true, auto_fill_default_categories: false }),
+            body: { create_account_if_missing: true, auto_fill_default_categories: false },
         });
 
         // Now test reject
@@ -198,10 +228,10 @@ describe("StatementReviewPage - coverage additions", () => {
         await (async () => {
             const max = 20;
             for (let i = 0; i < max; i++) {
-                if (mockedApi.mock.calls.some(c => String(c[0]).includes("/review/reject"))) return;
+                if (mockedApi.mock.calls.some(c => String(c[0]).includes("review_reject"))) return;
                 await new Promise(r => setTimeout(r, 50));
             }
-            expect(mockedApi.mock.calls.some(c => String(c[0]).includes("/review/reject"))).toBe(true);
+            expect(mockedApi.mock.calls.some(c => String(c[0]).includes("review_reject"))).toBe(true);
         })();
     });
 

@@ -15,6 +15,7 @@ from src.reconciliation.extension.entry_reads import _candidate_is_better
 from src.reconciliation.extension.matching import (
     MatchingContext,
     _mark_auto_accepted_entry_reconciled,
+    auto_accept,
     score_single,
 )
 from src.reconciliation.orm.reconciliation import DispositionKind, ReconciliationMatch, ReconciliationStatus
@@ -78,7 +79,7 @@ async def run_normal_matching_phase(
 
         status = (
             ReconciliationStatus.AUTO_ACCEPTED
-            if best_match.score >= context.config.auto_accept
+            if auto_accept(best_match.score, context.config)
             else ReconciliationStatus.PENDING_REVIEW
         )
         match_kwargs = {

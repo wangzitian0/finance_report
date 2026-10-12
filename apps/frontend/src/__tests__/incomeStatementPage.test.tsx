@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import IncomeStatementPage from "@/app/(main)/reports/income-statement/page"
-import { apiDownload, apiFetch } from "@/lib/api"
+import { apiOperation, apiOperationDownload } from "@/lib/api-client"
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
@@ -21,15 +21,15 @@ vi.mock("@/hooks/useCurrencies", () => ({
   useCurrencies: () => ({ currencies: ["SGD", "USD"] }),
 }))
 
-vi.mock("@/lib/api", () => ({
+vi.mock("@/lib/api-client", () => ({
   API_URL: "http://localhost:8000",
-  apiDownload: vi.fn(),
-  apiFetch: vi.fn(),
+  apiOperation: vi.fn(),
+  apiOperationDownload: vi.fn(),
 }))
 
 describe("IncomeStatementPage", () => {
-  const mockedApiDownload = vi.mocked(apiDownload)
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiDownload = vi.mocked(apiOperationDownload)
+  const mockedApiFetch = vi.mocked(apiOperation)
 
   beforeEach(() => {
     mockedApiDownload.mockReset()
@@ -90,8 +90,8 @@ describe("IncomeStatementPage", () => {
   })
 
   it("AC22.3.4 opens the source drill-down when an income amount is clicked", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/reports/account-lineage")) {
+    mockedApiFetch.mockImplementation((operationId: string) => {
+      if (operationId === "account_lineage_reports_account_lineage_get") {
         return Promise.resolve({
           account_id: "i1",
           account_name: "Salary",
@@ -163,8 +163,11 @@ describe("IncomeStatementPage", () => {
     await waitFor(() => expect(screen.getByText("Income Statement")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Business" }))
     await waitFor(() => {
-      const lastCall = mockedApiFetch.mock.calls.at(-1)?.[0]
-      expect(lastCall).toContain("tags=business")
+      const lastCall = mockedApiFetch.mock.calls.at(-1)
+      expect(lastCall?.[0]).toBe("income_statement_reports_income_statement_get")
+      expect((lastCall?.[1] as any)?.query).toMatchObject({
+        tags: ["business"],
+      })
     })
 
     const clearAllButton = await screen.findByRole("button", { name: "Clear all" })
@@ -223,27 +226,34 @@ describe("IncomeStatementPage", () => {
     fireEvent.change(selects[1], { target: { value: "INCOME" } })
 
     await waitFor(() => {
-      const lastCall = mockedApiFetch.mock.calls.at(-1)?.[0]
-      expect(lastCall).toContain("/api/reports/income-statement?")
-      expect(lastCall).toContain("account_type=INCOME")
+      const lastCall = mockedApiFetch.mock.calls.at(-1)
+      expect(lastCall?.[0]).toBe("income_statement_reports_income_statement_get")
+      expect((lastCall?.[1] as any)?.query).toMatchObject({
+        account_type: "INCOME",
+      })
     })
     await waitFor(() => expect(screen.getByText("Income Statement")).toBeInTheDocument())
 
     const dateInputs = container.querySelectorAll('input[type="date"]')
     fireEvent.change(dateInputs[0], { target: { value: "2026-01-15" } })
     await waitFor(() => {
-      const lastCall = mockedApiFetch.mock.calls.at(-1)?.[0]
-      expect(lastCall).toContain("start_date=2026-01-15")
+      const lastCall = mockedApiFetch.mock.calls.at(-1)
+      expect(lastCall?.[0]).toBe("income_statement_reports_income_statement_get")
+      expect((lastCall?.[1] as any)?.query).toMatchObject({
+        start_date: "2026-01-15",
+      })
     })
     await waitFor(() => expect(screen.getByText("Income Statement")).toBeInTheDocument())
     fireEvent.change(container.querySelectorAll('input[type="date"]')[1], { target: { value: "2026-02-15" } })
 
     await waitFor(() => {
-      const lastCall = mockedApiFetch.mock.calls.at(-1)?.[0]
-      expect(lastCall).toContain("/api/reports/income-statement?")
-      expect(lastCall).toContain("account_type=INCOME")
-      expect(lastCall).toContain("start_date=2026-01-15")
-      expect(lastCall).toContain("end_date=2026-02-15")
+      const lastCall = mockedApiFetch.mock.calls.at(-1)
+      expect(lastCall?.[0]).toBe("income_statement_reports_income_statement_get")
+      expect((lastCall?.[1] as any)?.query).toMatchObject({
+        account_type: "INCOME",
+        start_date: "2026-01-15",
+        end_date: "2026-02-15",
+      })
     })
   })
 })

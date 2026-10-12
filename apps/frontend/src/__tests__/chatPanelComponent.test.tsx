@@ -3,14 +3,50 @@ import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import ChatPanel from "@/components/ChatPanel"
-import { apiDelete, apiFetch, apiStream } from "@/lib/api"
+import { apiOperation, apiOperationStream } from "@/lib/api-client"
 import { fetchAiModels } from "@/lib/aiModels"
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
-  apiStream: vi.fn(),
-  apiDelete: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
+  apiOperationStream: vi.fn(),
 }))
+
+function mapChatOperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
+  switch (operationId) {
+    case "suggestions_chat_suggestions_get": {
+      const q = req?.query;
+      let path = "/api/chat/suggestions";
+      if (q) {
+        const params = new URLSearchParams();
+        for (const [k, v] of Object.entries(q)) {
+          if (v !== undefined && v !== null) params.append(k, String(v));
+        }
+        const qs = params.toString();
+        if (qs) path += `?${qs}`;
+      }
+      return [path, undefined];
+    }
+    case "chat_history_chat_history_get": {
+      const q = req?.query;
+      let path = "/api/chat/history";
+      if (q) {
+        const params = new URLSearchParams();
+        for (const [k, v] of Object.entries(q)) {
+          if (v !== undefined && v !== null) params.append(k, String(v));
+        }
+        const qs = params.toString();
+        if (qs) path += `?${qs}`;
+      }
+      return [path, undefined];
+    }
+    case "delete_session_chat_session__session_id__delete":
+      return [`/api/chat/session/${req?.path?.session_id}`, { method: "DELETE" }];
+    case "chat_message_chat_post":
+      return ["/api/chat", { method: "POST", body: JSON.stringify(req?.body ?? {}) }];
+    default:
+      return [operationId, req];
+  }
+}
 
 vi.mock("@/lib/aiModels", () => ({
   fetchAiModels: vi.fn(),
@@ -32,15 +68,23 @@ function streamingResponse(text: string, headers?: HeadersInit): Response {
 }
 
 describe("ChatPanel", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
-  const mockedApiStream = vi.mocked(apiStream)
-  const mockedApiDelete = vi.mocked(apiDelete)
+  const mockedApiOperation = vi.mocked(apiOperation)
+  const mockedApiStream = vi.mocked(apiOperationStream)
   const mockedFetchAiModels = vi.mocked(fetchAiModels)
 
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
     mockedApiStream.mockReset()
-    mockedApiDelete.mockReset()
+    const originalMockImplementation = mockedApiOperation.mockImplementation.bind(mockedApiOperation)
+    mockedApiOperation.mockImplementation = (fn: any) => {
+      return originalMockImplementation((operationId: any, req: any) => {
+        if (typeof operationId === "string" && operationId.startsWith("/")) {
+          return fn(operationId, req)
+        }
+        const [path, options] = mapChatOperationToLegacy(operationId, req)
+        return fn(path, options)
+      })
+    }
     mockedFetchAiModels.mockReset()
 
     const storage = new Map<string, string>([["ai_chat_session_id", "sess-1"]])
@@ -66,7 +110,7 @@ describe("ChatPanel", () => {
       fallback_models: [],
     })
 
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       if (path.includes("/api/chat/suggestions")) {
         return Promise.resolve({
           suggestions: ["How is cash flow?"],
@@ -88,7 +132,6 @@ describe("ChatPanel", () => {
     })
 
     mockedApiStream.mockResolvedValue({ response: streamingResponse("Assistant answer") as Response, sessionId: "sess-2" })
-    mockedApiDelete.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -111,8 +154,9 @@ describe("ChatPanel", () => {
     render(<ChatPanel variant="page" />)
 
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith(
-        expect.stringContaining("/api/chat/suggestions?language=en&include_structured=true"),
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "suggestions_chat_suggestions_get",
+        expect.objectContaining({ query: expect.objectContaining({ language: "en", include_structured: true }) }),
       ),
     )
     const brief = await screen.findByLabelText("Advisor Brief")
@@ -177,13 +221,13 @@ describe("ChatPanel", () => {
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "New" }))
-    await waitFor(() => expect(mockedApiDelete).toHaveBeenCalledWith("/api/chat/session/sess-1"))
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledWith("delete_session_chat_session__session_id__delete", { path: { session_id: "sess-1" } }))
     expect(localStorage.getItem("ai_chat_session_id")).toBeNull()
   })
 
   it("AC8.13.92 keeps widget close and disclaimer rendering covered", async () => {
     const onClose = vi.fn()
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       if (path.includes("/api/chat/suggestions")) {
         return Promise.resolve({ suggestions: [] })
       }
@@ -224,7 +268,10 @@ describe("ChatPanel", () => {
     expect(await screen.findByRole("dialog", { name: "AI sessions" })).toBeInTheDocument()
     expect(screen.getByText("Cash flow review")).toBeInTheDocument()
     fireEvent.click(screen.getByText("Cash flow review"))
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/chat/history?session_id=sess-1"))
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledWith(
+      "chat_history_chat_history_get",
+      expect.objectContaining({ query: expect.objectContaining({ session_id: "sess-1" }) }),
+    ))
   })
 
   it("AC19.8.6 renders an empty session drawer when no chat history exists", async () => {
@@ -238,7 +285,7 @@ describe("ChatPanel", () => {
         storage.delete(key)
       },
     })
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       if (path.includes("/api/chat/suggestions")) {
         return Promise.resolve({ suggestions: [] })
       }
@@ -315,8 +362,8 @@ describe("ChatPanel", () => {
 
   it("AC16.20.5 handles initialPrompt", async () => {
     render(<ChatPanel variant="page" initialPrompt="Analyze my data" />)
-    await waitFor(() => expect(mockedApiStream).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
-      body: expect.stringContaining("Analyze my data")
+    await waitFor(() => expect(mockedApiStream).toHaveBeenCalledWith("chat_message_chat_post", expect.objectContaining({
+      body: expect.objectContaining({ message: "Analyze my data" }),
     })))
   })
 
@@ -342,7 +389,7 @@ describe("ChatPanel", () => {
   })
 
   it("AC16.20.7 handles suggestions fetch failure", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       if (path.includes("/api/chat/suggestions")) {
         return Promise.reject(new Error("Suggestions fail"))
       }
@@ -357,7 +404,7 @@ describe("ChatPanel", () => {
   })
 
   it("AC16.20.7 handles history fetch failure", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       if (path.includes("/api/chat/suggestions")) {
         return Promise.resolve({ suggestions: ["Tip 1"] })
       }
@@ -382,7 +429,7 @@ describe("ChatPanel", () => {
         storage.delete(key)
       },
     })
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       if (path.includes("/api/chat/suggestions")) {
         return Promise.resolve({ suggestions: ["Tip 1"] })
       }
@@ -428,7 +475,7 @@ describe("ChatPanel", () => {
 
   // AC-advisor.fe-chat.6
   it("AC-advisor.fe-chat.6 renders modern conversational bubbles with avatar", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       if (path.includes("/api/chat/suggestions")) {
         return Promise.resolve({ suggestions: [] })
       }
@@ -463,7 +510,7 @@ describe("ChatPanel", () => {
 
   // AC-advisor.fe-chat.7
   it("AC-advisor.fe-chat.7 formats structured markdown tables and bold text", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       if (path.includes("/api/chat/suggestions")) {
         return Promise.resolve({ suggestions: [] })
       }
@@ -511,7 +558,7 @@ describe("ChatPanel", () => {
 
   // AC-advisor.fe-chat.6
   it("AC-advisor.fe-chat.6 populates input field when initialPrompt is provided and history has existing messages", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
+    mockedApiOperation.mockImplementation((path: string) => {
       if (path.includes("/api/chat/history")) {
         return Promise.resolve({
           sessions: [

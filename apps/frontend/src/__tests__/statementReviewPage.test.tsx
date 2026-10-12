@@ -4,7 +4,8 @@ import type { ReactNode } from "react";
 
 import StatementReviewPage from "@/app/(main)/statements/[id]/review/page";
 import { ToastProvider } from "@/components/ui/Toast";
-import { ApiError, apiFetch } from "@/lib/api";
+import { ApiError } from "@/lib/api";
+import { apiOperation, apiOperationDownload } from "@/lib/api-client";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 import { createInvalidationProbe } from "./fixtures/invalidationProbe";
@@ -18,11 +19,11 @@ const navigationState = vi.hoisted(() => ({
 const pushMock = navigationState.push;
 const replaceMock = navigationState.replace;
 
-vi.mock("@/lib/api", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("@/lib/api")>()),
-    apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/lib/api-client")>()),
+    apiOperation: vi.fn(),
     // PdfPreviewPane fetches the document blob on mount (#963 / AC16.33.5).
-    apiDownload: vi.fn(() => Promise.resolve({ blob: new Blob(["%PDF"]), filename: "f.pdf" })),
+    apiOperationDownload: vi.fn(() => Promise.resolve({ blob: new Blob(["%PDF"]), filename: "f.pdf" })),
 }));
 vi.mock("next/navigation", () => ({
     useRouter: vi.fn(() => ({ replace: replaceMock, push: pushMock })),
@@ -34,7 +35,55 @@ vi.mock("@/lib/analytics", async (importOriginal) => ({
     track: vi.fn(),
 }));
 
-const mockedApi = vi.mocked(apiFetch);
+function mapOperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
+    switch (operationId) {
+        case "get_statement_for_review_statements__statement_id__review_get":
+            return [`/api/statements/${req?.path?.statement_id ?? "s1"}/review`, undefined];
+        case "list_pending_review_statements_pending_review_get":
+            return ["/api/statements/pending-review", undefined];
+        case "get_review_conflicts_review_conflicts__statement_id__get":
+            return [`/api/review/conflicts/${req?.path?.statement_id ?? "s1"}`, undefined];
+        case "list_accounts_accounts_get": {
+            const q = req?.query;
+            let path = "/api/accounts";
+            if (q) {
+                const params = new URLSearchParams();
+                for (const [k, v] of Object.entries(q)) {
+                    if (v !== undefined && v !== null) params.append(k, String(v));
+                }
+                const qs = params.toString();
+                if (qs) path += `?${qs}`;
+            }
+            return [path, undefined];
+        }
+        case "approve_statement_stage1_statements__statement_id__review_approve_post":
+            return [`/api/statements/${req?.path?.statement_id ?? "s1"}/review/approve`, { method: "POST", body: JSON.stringify(req?.body) }];
+        case "edit_and_approve_statement_statements__statement_id__review_edit_post":
+            return [`/api/statements/${req?.path?.statement_id ?? "s1"}/review/edit`, { method: "POST", body: JSON.stringify(req?.body) }];
+        case "reject_statement_stage1_statements__statement_id__review_reject_post":
+            return [`/api/statements/${req?.path?.statement_id ?? "s1"}/review/reject`, { method: "POST", body: JSON.stringify(req?.body) }];
+        case "resolve_review_conflicts_review_conflicts__statement_id__resolve_post":
+            return [`/api/review/conflicts/${req?.path?.statement_id ?? "s1"}/resolve`, { method: "POST", body: JSON.stringify(req?.body) }];
+        case "retry_statement_parsing_statements__statement_id__retry_post":
+            return [`/api/statements/${req?.path?.statement_id ?? "s1"}/retry`, { method: "POST" }];
+        case "confirm_statement_review_envelope_statements__statement_id__review_envelope_post":
+            return [`/api/statements/${req?.path?.statement_id ?? "s1"}/review/envelope`, { method: "POST", body: JSON.stringify(req?.body) }];
+        default:
+            return [operationId, req];
+    }
+}
+
+const mockedApi = vi.mocked(apiOperation);
+const originalMockImplementation = mockedApi.mockImplementation.bind(mockedApi);
+mockedApi.mockImplementation = (fn: any) => {
+    return originalMockImplementation((operationId: any, req: any) => {
+        if (typeof operationId === "string" && operationId.startsWith("/")) {
+            return fn(operationId, req);
+        }
+        const [path, options] = mapOperationToLegacy(operationId, req);
+        return fn(path, options);
+    });
+};
 
 const baseStatement = {
     id: "s1", original_filename: "statement.pdf", institution: "DBS", currency: "SGD",
@@ -229,10 +278,11 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         });
 
         const probe = createInvalidationProbe("statements.review.confirm-envelope", ["s1"]);
+        const ProbeWrapperComponent = probe.wrapper;
         const ProbeWrapper = ({ children }: { children: ReactNode }) => (
-            <probe.wrapper>
+            <ProbeWrapperComponent>
                 <ToastProvider>{children}</ToastProvider>
-            </probe.wrapper>
+            </ProbeWrapperComponent>
         );
         render(<StatementReviewPage /> as never, { wrapper: ProbeWrapper });
 
@@ -253,8 +303,8 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
 
         await waitFor(() => {
             expect(mockedApi).toHaveBeenCalledWith(
-                "/api/statements/s1/review/envelope",
-                expect.objectContaining({ method: "POST" }),
+                "confirm_statement_review_envelope_statements__statement_id__review_envelope_post",
+                expect.objectContaining({ path: { statement_id: "s1" } }),
             );
         });
         await waitFor(() => probe.expectDeclaredInvalidated());
@@ -513,8 +563,8 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
 
         await waitFor(() => {
             expect(mockedApi).toHaveBeenCalledWith(
-                "/api/review/conflicts/s1/resolve",
-                expect.objectContaining({ method: "POST" }),
+                "resolve_review_conflicts_review_conflicts__statement_id__resolve_post",
+                expect.objectContaining({ path: { statement_id: "s1" } }),
             );
         });
     });
@@ -545,10 +595,11 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         });
 
         const probe = createInvalidationProbe("statements.review.resolve-conflicts", ["s1"]);
+        const ProbeWrapperComponent = probe.wrapper;
         const ProbeWrapper = ({ children }: { children: ReactNode }) => (
-            <probe.wrapper>
+            <ProbeWrapperComponent>
                 <ToastProvider>{children}</ToastProvider>
-            </probe.wrapper>
+            </ProbeWrapperComponent>
         );
         render(<StatementReviewPage /> as never, { wrapper: ProbeWrapper });
 
@@ -558,8 +609,8 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
 
         await waitFor(() => {
             expect(mockedApi).toHaveBeenCalledWith(
-                "/api/review/conflicts/s1/resolve",
-                expect.objectContaining({ method: "POST" }),
+                "resolve_review_conflicts_review_conflicts__statement_id__resolve_post",
+                expect.objectContaining({ path: { statement_id: "s1" } }),
             );
         });
         await waitFor(() => probe.expectDeclaredInvalidated());
@@ -744,7 +795,10 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         const dialog = await screen.findByRole("dialog", { name: "Resolve Conflicts" });
         expect(within(dialog).getByText("Duplicate Candidates")).toBeInTheDocument();
         expect(within(dialog).getByText("Transfer Pair Candidates")).toBeInTheDocument();
-        expect(mockedApi).toHaveBeenCalledWith("/api/review/conflicts/s1");
+        expect(mockedApi).toHaveBeenCalledWith(
+            "get_review_conflicts_review_conflicts__statement_id__get",
+            expect.objectContaining({ path: { statement_id: "s1" } }),
+        );
     });
 
     // AC-extraction.fe-stage1-review.13
@@ -903,7 +957,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
             },
         };
 
-        mockedApi.mockImplementation((path: string, options?: { method?: string }) => {
+        mockedApi.mockImplementation((path: any, options?: any) => {
             if (path === "/api/statements/s1/review") {
                 return Promise.resolve(mismatchedStatement);
             }

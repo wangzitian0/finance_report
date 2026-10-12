@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import STATEMENT_BALANCE_TOLERANCE, InvariantResult, evaluate_promotion
 from src.audit.money.adopt import balance_check
 from src.extraction.base.source_vocabulary import BankStatementStatus, Stage1Status, TransactionDirection
+from src.extraction.base.validation import STATEMENT_RESOLVED_TRANSACTIONS_ATTR
 from src.extraction.extension.reviewed_statement_envelope import (
     get_current_statement_extraction_result,
     require_current_statement_envelope_trust,
@@ -101,14 +102,24 @@ async def resolve_statement_transactions(
                 )
             ).all()
         )
+        fact_keys = {
+            (
+                Decimal(str(fact["amount"])),
+                fact["transaction_date"],
+                fact["direction"],
+                fact.get("currency"),
+            )
+            for fact in facts
+        }
         for row in rows:
-            if not any(
-                Decimal(str(fact["amount"])) == row.amount
-                and fact["transaction_date"] == row.txn_date.isoformat()
-                and fact["direction"] == row.direction.value
-                and (fact.get("currency") is None or fact["currency"] == row.currency)
-                for fact in facts
-            ):
+            row_date = row.txn_date.isoformat()
+            row_direction = row.direction.value if hasattr(row.direction, "value") else row.direction
+            if (row.amount, row_date, row_direction, row.currency) not in fact_keys and (
+                row.amount,
+                row_date,
+                row_direction,
+                None,
+            ) not in fact_keys:
                 raise ValueError("Current source transaction identity requires review: source fact or currency differs")
             if row.id not in aliased_rows:
                 # A matching historical raw hash does not prove currency/custody.
@@ -132,12 +143,19 @@ def _direction_is_in(direction: object) -> bool:
 async def validate_balance_chain(
     db: AsyncSession,
     statement_id: UUID,
+    *,
+    statement: StatementSummary | None = None,
+    transactions: list[AtomicTransaction] | None = None,
 ) -> dict:
-    statement = await db.get(StatementSummary, statement_id)
-    if not statement:
-        raise ValueError("Statement not found")
+    if statement is None:
+        statement = await db.get(StatementSummary, statement_id)
+        if not statement:
+            raise ValueError("Statement not found")
 
-    transactions = await resolve_statement_transactions(db, statement)
+    if transactions is None:
+        transactions = getattr(statement, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, None)
+    if transactions is None:
+        transactions = await resolve_statement_transactions(db, statement)
 
     typed_balances = statement.typed_currency_balances()
     if len(typed_balances):
@@ -443,16 +461,16 @@ def _raise_if_approved_envelope_incomplete(statement: StatementSummary) -> None:
         )
 
 
-async def approve_statement(
+async def approve_statement_with_transactions(
     db: AsyncSession,
     statement_id: UUID,
     user_id: UUID,
-) -> StatementSummary:
+) -> tuple[StatementSummary, list[AtomicTransaction]]:
     statement = await _get_statement_for_update(db, statement_id, user_id)
     await require_current_statement_envelope_trust(db, statement=statement)
     _raise_if_approved_envelope_incomplete(statement)
-    validation_result = await validate_balance_chain(db, statement_id)
     transactions = await resolve_statement_transactions(db, statement)
+    validation_result = await validate_balance_chain(db, statement_id, statement=statement, transactions=transactions)
 
     _raise_if_balance_chain_invalid(validation_result)
     _raise_if_statement_conflicts_unresolved(statement, transactions)
@@ -461,8 +479,18 @@ async def approve_statement(
     statement.stage1_reviewed_at = datetime.now(UTC)
     statement.balance_validation_result = validation_result
     statement.status = BankStatementStatus.APPROVED
+    setattr(statement, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, transactions)
 
     await db.flush()
+    return statement, transactions
+
+
+async def approve_statement(
+    db: AsyncSession,
+    statement_id: UUID,
+    user_id: UUID,
+) -> StatementSummary:
+    statement, _ = await approve_statement_with_transactions(db, statement_id, user_id)
     return statement
 
 

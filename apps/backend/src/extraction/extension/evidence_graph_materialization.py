@@ -12,7 +12,7 @@ from sqlalchemy.orm import aliased, selectinload
 
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
 from src.extraction.base.source_vocabulary import BankStatementStatus
-from src.extraction.extension.evidence_graph_integration import _ordered_source_doc_ids
+from src.extraction.base.types import extract_source_document_ids
 from src.extraction.extension.evidence_lineage import EvidenceLineageService
 from src.extraction.extension.statement_contribution import resolve_statement_contribution
 from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
@@ -610,7 +610,7 @@ class EvidenceGraphMaterializationService:
                     return
             return
 
-        doc_ids = _ordered_source_doc_ids(atomic.source_documents)
+        doc_ids = extract_source_document_ids(atomic.source_documents)
         if not doc_ids:
             return
         documents = (

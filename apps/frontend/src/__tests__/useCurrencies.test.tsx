@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useCurrencies } from "../hooks/useCurrencies";
-import * as api from "../lib/api";
+import { apiOperation } from "../lib/api-client";
 
-vi.mock("../lib/api", () => ({
-    apiFetch: vi.fn(),
+vi.mock("../lib/api-client", () => ({
+    apiOperation: vi.fn(),
 }));
 
 describe("useCurrencies", () => {
@@ -14,7 +14,7 @@ describe("useCurrencies", () => {
 
     // AC-pricing.fe-currencies.1
     it("AC16.9.1 returns default currencies while loading", () => {
-        vi.mocked(api.apiFetch).mockReturnValue(new Promise(() => {}));
+        vi.mocked(apiOperation).mockReturnValue(new Promise(() => {}));
 
         const { result } = renderHook(() => useCurrencies());
 
@@ -24,7 +24,7 @@ describe("useCurrencies", () => {
 
     // AC-pricing.fe-currencies.2
     it("AC16.9.2 updates currencies from API response", async () => {
-        vi.mocked(api.apiFetch).mockResolvedValue(["SGD", "USD", "EUR", "GBP"]);
+        vi.mocked(apiOperation).mockResolvedValue(["SGD", "USD", "EUR", "GBP"] as any);
 
         const { result } = renderHook(() => useCurrencies());
 
@@ -34,7 +34,7 @@ describe("useCurrencies", () => {
 
     // AC-pricing.fe-currencies.3
     it("AC16.9.3 falls back to defaults when API returns empty array", async () => {
-        vi.mocked(api.apiFetch).mockResolvedValue([]);
+        vi.mocked(apiOperation).mockResolvedValue([] as any);
 
         const { result } = renderHook(() => useCurrencies());
 
@@ -43,7 +43,7 @@ describe("useCurrencies", () => {
     });
 
     it("AC16.9.3 falls back to defaults on API error", async () => {
-        vi.mocked(api.apiFetch).mockRejectedValue(new Error("network error"));
+        vi.mocked(apiOperation).mockRejectedValue(new Error("network error"));
 
         const { result } = renderHook(() => useCurrencies());
 

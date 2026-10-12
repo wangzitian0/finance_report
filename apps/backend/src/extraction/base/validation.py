@@ -14,6 +14,7 @@ HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD = 85
 BALANCE_TOLERANCE = Decimal("0.10")
 IN_DIRECTION_ALIASES = {"IN", "CREDIT", "CR", "DEPOSIT", "INFLOW"}
 OUT_DIRECTION_ALIASES = {"OUT", "DEBIT", "DR", "WITHDRAWAL", "WITHDRAW", "OUTFLOW", "PAYMENT"}
+STATEMENT_RESOLVED_TRANSACTIONS_ATTR = "_resolved_transactions"
 
 # Under-extraction guard (issue #967). A brokerage statement that yields at most
 # one transaction is a strong under-capture signal — comparable brokerage

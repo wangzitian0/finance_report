@@ -91,10 +91,14 @@ class EvidenceLineageService:
         to_node_id: UUID,
         relation: str,
         properties: dict | None = None,
+        from_node: EvidenceNode | None = None,
+        to_node: EvidenceNode | None = None,
     ) -> EvidenceEdge:
         """Create or update a user-scoped edge between two nodes."""
-        from_node = await self._get_node_by_id(db, node_id=from_node_id)
-        to_node = await self._get_node_by_id(db, node_id=to_node_id)
+        if from_node is None:
+            from_node = await self._get_node_by_id(db, node_id=from_node_id)
+        if to_node is None:
+            to_node = await self._get_node_by_id(db, node_id=to_node_id)
         if from_node is None or to_node is None:
             raise ValueError("from_node_id and to_node_id must reference existing evidence nodes")
         if from_node.user_id != user_id or to_node.user_id != user_id:
@@ -173,8 +177,7 @@ class EvidenceLineageService:
         )
 
     async def _get_node_by_id(self, db: AsyncSession, *, node_id: UUID) -> EvidenceNode | None:
-        result = await db.execute(select(EvidenceNode).where(EvidenceNode.id == node_id).limit(1))
-        return result.scalar_one_or_none()
+        return await db.get(EvidenceNode, node_id)
 
     async def _traverse(
         self,

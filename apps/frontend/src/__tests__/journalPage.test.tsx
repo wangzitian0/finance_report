@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import JournalPage from "@/app/(main)/journal/page"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 
 const showToastMock = vi.fn()
 
@@ -25,15 +25,15 @@ vi.mock("@/components/ui/ConfirmDialog", () => ({
     ) : null,
 }))
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
 describe("JournalPage", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
 
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
     showToastMock.mockReset()
     vi.stubGlobal("confirm", vi.fn(() => true))
   })
@@ -44,7 +44,7 @@ describe("JournalPage", () => {
 
   // AC-ledger.fe-accounts-journal.8
   it("AC16.16.5 renders error state and retries loading entries", async () => {
-    mockedApiFetch.mockRejectedValueOnce(new Error("journal failed")).mockResolvedValueOnce({ items: [] })
+    mockedApiOperation.mockRejectedValueOnce(new Error("journal failed")).mockResolvedValueOnce({ items: [] })
 
     render(<JournalPage />)
 
@@ -55,7 +55,7 @@ describe("JournalPage", () => {
 
   // AC-ledger.fe-accounts-journal.9
   it("AC16.16.6 filters entries by status and renders totals", async () => {
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({
         items: [
           {
@@ -80,11 +80,20 @@ describe("JournalPage", () => {
     expect(screen.getByText(/120\.00/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "draft" }))
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("status_filter=draft")))
+    await waitFor(() =>
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "list_journal_entries_journal_entries_get",
+        {
+          query: {
+            status_filter: "draft",
+          },
+        },
+      ),
+    )
   })
 
   it("AC8.13.92 opens and closes journal entry details from a list row", async () => {
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({
         items: [
           {
@@ -143,7 +152,7 @@ describe("JournalPage", () => {
       ],
     }
 
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce(entriesResponse)
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(entriesResponse)
@@ -157,24 +166,41 @@ describe("JournalPage", () => {
     await waitFor(() => expect(screen.getByText("Draft Entry")).toBeInTheDocument())
 
     fireEvent.click(screen.getAllByRole("button", { name: "Post" })[0])
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/journal-entries/d1/postings", { method: "POST" }))
+    await waitFor(() =>
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "post_entry_journal_entries__entry_id__postings_post",
+        {
+          path: { entry_id: "d1" },
+        },
+      ),
+    )
 
     fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0])
     fireEvent.click(screen.getByRole("button", { name: "Delete Entry" }))
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/journal-entries/d1", { method: "DELETE" }))
+    await waitFor(() =>
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "delete_journal_entry_journal_entries__entry_id__delete",
+        {
+          path: { entry_id: "d1" },
+        },
+      ),
+    )
 
     fireEvent.click(screen.getAllByRole("button", { name: "Void" })[0])
     fireEvent.click(screen.getByRole("button", { name: "Void Entry" }))
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/journal-entries/p1/voidings", {
-        method: "POST",
-        body: JSON.stringify({ reason: "void reason" }),
-      }),
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "void_entry_journal_entries__entry_id__voidings_post",
+        {
+          path: { entry_id: "p1" },
+          body: { reason: "void reason" },
+        },
+      ),
     )
   })
 
   it("test_AC8_13_48 opens the entry form from header and empty state actions", async () => {
-    mockedApiFetch.mockResolvedValue({ items: [] })
+    mockedApiOperation.mockResolvedValue({ items: [] })
 
     render(<JournalPage />)
 
@@ -182,7 +208,7 @@ describe("JournalPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "New Entry" }))
     fireEvent.click(screen.getByRole("button", { name: "Mock Submit Entry" }))
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledTimes(2))
 
     fireEvent.click(await screen.findByRole("button", { name: "Create First Entry" }))
     expect(screen.getByRole("button", { name: "Mock Submit Entry" })).toBeInTheDocument()
@@ -205,7 +231,7 @@ describe("JournalPage", () => {
       ],
     }
 
-    mockedApiFetch.mockResolvedValueOnce(entriesResponse).mockRejectedValueOnce(new Error("post denied"))
+    mockedApiOperation.mockResolvedValueOnce(entriesResponse).mockRejectedValueOnce(new Error("post denied"))
 
     render(<JournalPage />)
 
@@ -232,7 +258,7 @@ describe("JournalPage", () => {
       ],
     }
 
-    mockedApiFetch.mockResolvedValueOnce(entriesResponse).mockRejectedValueOnce(new Error("delete denied"))
+    mockedApiOperation.mockResolvedValueOnce(entriesResponse).mockRejectedValueOnce(new Error("delete denied"))
 
     render(<JournalPage />)
 
@@ -271,7 +297,7 @@ describe("JournalPage", () => {
       ],
     }
 
-    mockedApiFetch.mockResolvedValueOnce(entriesResponse).mockRejectedValueOnce(new Error("void denied"))
+    mockedApiOperation.mockResolvedValueOnce(entriesResponse).mockRejectedValueOnce(new Error("void denied"))
 
     render(<JournalPage />)
 

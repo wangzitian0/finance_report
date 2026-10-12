@@ -135,12 +135,14 @@ def _score_rule_candidate(
     amount: Decimal,
     is_group: bool,
     history_score: float,
+    total_amount: Decimal | None = None,
 ) -> MatchCandidate:
     """Score loaded evidence without performing history or provider I/O."""
-    total_amount = sum(
-        (entry_bank_side_amount(entry, transaction.direction, currency=transaction.currency) for entry in entries),
-        Decimal("0.00"),
-    )
+    if total_amount is None:
+        total_amount = sum(
+            (entry_bank_side_amount(entry, transaction.direction, currency=transaction.currency) for entry in entries),
+            Decimal("0.00"),
+        )
     scores = {
         "amount": score_amount(amount, total_amount, config, is_multi=is_group or len(entries) > 1),
         "date": max(score_date(transaction.txn_date, entry.entry_date, config) for entry in entries),
@@ -167,19 +169,26 @@ def _normal_entry_combinations(
 ) -> Iterator[list[JournalEntry]]:
     """Enumerate balanced singles and amount-eligible pairs/triples once."""
     balanced = [entry for entry in candidates if is_entry_balanced(entry, base_currency=base_currency)]
-    for size in (1, 2, 3):
-        for entries in combinations(balanced, size):
-            if size > 1:
-                combined = sum(
-                    (
-                        entry_bank_side_amount(entry, transaction.direction, currency=transaction.currency)
-                        for entry in entries
-                    ),
-                    Decimal("0.00"),
-                )
-                if not _within_combination_tolerance(combined, transaction, config):
-                    continue
-            yield list(entries)
+    for entry in balanced:
+        yield [entry]
+
+    if len(balanced) < 2:
+        return
+
+    amount_by_id = {
+        entry.id: entry_bank_side_amount(entry, transaction.direction, currency=transaction.currency)
+        for entry in balanced
+    }
+
+    for e0, e1 in combinations(balanced, 2):
+        combined = amount_by_id[e0.id] + amount_by_id[e1.id]
+        if _within_combination_tolerance(combined, transaction, config):
+            yield [e0, e1]
+
+    for e0, e1, e2 in combinations(balanced, 3):
+        combined = amount_by_id[e0.id] + amount_by_id[e1.id] + amount_by_id[e2.id]
+        if _within_combination_tolerance(combined, transaction, config):
+            yield [e0, e1, e2]
 
 
 def _date_candidates(entries: list[JournalEntry], txn_date: date, config: ReconciliationConfig) -> list[JournalEntry]:
@@ -225,6 +234,7 @@ def _find_many_to_one_candidates(
                 amount=amount,
                 is_group=True,
                 history_score=_history_score(transaction, pattern_scores),
+                total_amount=entry_bank_side_amount(entry, transaction.direction, currency=transaction.currency),
             )
             candidate.breakdown["group_total"] = str(amount)
             if candidate.score >= config.pending_review and _candidate_is_better(candidate, best, entries_by_id):

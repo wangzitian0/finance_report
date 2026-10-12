@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import PricesPage from "@/app/(main)/portfolio/prices/page"
 import { PriceUpdateForm } from "@/components/portfolio/PriceUpdateForm"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 import type { PortfolioHolding, PriceUpdateResponse } from "@/lib/types"
 
 const showToastMock = vi.fn()
@@ -15,8 +15,8 @@ vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast: showToastMock }),
 }))
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
 function createWrapper() {
@@ -77,10 +77,10 @@ const mockHoldings: PortfolioHolding[] = [
 const mockHoldingsResponse = { items: mockHoldings, total: mockHoldings.length, warnings: [] }
 
 describe("PricesPage", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
 
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
     showToastMock.mockReset()
   })
 
@@ -89,7 +89,7 @@ describe("PricesPage", () => {
   })
 
   it("renders page header and back link", async () => {
-    mockedApiFetch.mockResolvedValue(mockHoldingsResponse)
+    mockedApiOperation.mockResolvedValue(mockHoldingsResponse)
 
     render(<PricesPage />, { wrapper: createWrapper() })
 
@@ -101,7 +101,7 @@ describe("PricesPage", () => {
   })
 
   it("renders price update form with known tickers from holdings", async () => {
-    mockedApiFetch.mockResolvedValue(mockHoldingsResponse)
+    mockedApiOperation.mockResolvedValue(mockHoldingsResponse)
 
     render(<PricesPage />, { wrapper: createWrapper() })
 
@@ -111,7 +111,7 @@ describe("PricesPage", () => {
   })
 
   it("renders ticker select with known tickers", async () => {
-    mockedApiFetch.mockResolvedValue(mockHoldingsResponse)
+    mockedApiOperation.mockResolvedValue(mockHoldingsResponse)
 
     render(<PricesPage />, { wrapper: createWrapper() })
 
@@ -124,7 +124,7 @@ describe("PricesPage", () => {
   })
 
   it("adds and removes rows", async () => {
-    mockedApiFetch.mockResolvedValue(mockHoldingsResponse)
+    mockedApiOperation.mockResolvedValue(mockHoldingsResponse)
     render(<PricesPage />, { wrapper: createWrapper() })
     await waitFor(() => {
       const options = screen.getAllByRole("option")
@@ -154,12 +154,12 @@ describe("PricesPage", () => {
       ],
     }
 
-    mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
-      if (path === "/api/portfolio/prices/update" && options?.method === "POST") {
+    mockedApiOperation.mockImplementation(((operationId: string) => {
+      if (operationId === "update_prices_portfolio_prices_update_post") {
         return Promise.resolve(mockResponse)
       }
       return Promise.resolve(mockHoldingsResponse)
-    })
+    }) as any)
 
     render(<PricesPage />, { wrapper: createWrapper() })
 
@@ -178,9 +178,9 @@ describe("PricesPage", () => {
     fireEvent.submit(form)
 
     await waitFor(() => {
-      expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/portfolio/prices/update",
-        expect.objectContaining({ method: "POST" })
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "update_prices_portfolio_prices_update_post",
+        expect.anything()
       )
     })
 
@@ -190,7 +190,7 @@ describe("PricesPage", () => {
   })
 
   it("shows error toast when submitting empty form", async () => {
-    mockedApiFetch.mockResolvedValue(mockHoldingsResponse)
+    mockedApiOperation.mockResolvedValue(mockHoldingsResponse)
     render(<PricesPage />, { wrapper: createWrapper() })
 
     await waitFor(() => {
@@ -205,10 +205,10 @@ describe("PricesPage", () => {
 })
 
 describe("PriceUpdateForm (direct)", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
 
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
     showToastMock.mockReset()
   })
 
@@ -240,7 +240,7 @@ describe("PriceUpdateForm (direct)", () => {
   })
 
   it("shows error toast when mutation fails", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("Network error"))
+    mockedApiOperation.mockRejectedValue(new Error("Network error"))
 
     render(<PriceUpdateForm knownTickers={[]} />, { wrapper: createWrapper() })
 
@@ -263,7 +263,7 @@ describe("PriceUpdateForm (direct)", () => {
       updated_count: 1,
       results: [{ success: true, message: "OK", asset_identifier: "GOOG", price_date: "2026-01-15", price: "100.00", currency: "EUR", source: "manual" }],
     }
-    mockedApiFetch.mockResolvedValue(mockResponse)
+    mockedApiOperation.mockResolvedValue(mockResponse)
 
     const onSuccess = vi.fn()
     render(<PriceUpdateForm knownTickers={[]} onSuccess={onSuccess} />, { wrapper: createWrapper() })

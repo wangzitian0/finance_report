@@ -23,7 +23,8 @@ from src.ledger import (
 )
 from src.routers import statements
 from src.schemas.review import Stage1ApprovalRequest
-from tests.api.test_statements_router import DummyStorage, add_reviewed_disposition_rule
+from tests.api._statement_router_fixtures import add_reviewed_disposition_rule
+from tests.api.conftest import DummyStorage
 from tests.factories import UserFactory, seed_parsed_statement
 
 

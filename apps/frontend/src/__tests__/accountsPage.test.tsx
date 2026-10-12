@@ -5,7 +5,7 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import AccountsPage from "@/app/(main)/accounts/page"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 import type { Account, AccountListResponse } from "@/lib/types"
 
 import { accountsListVector } from "./fixtures/apiVectors"
@@ -64,8 +64,8 @@ vi.mock("@/components/accounts/OpeningBalanceModal", () => ({
     ) : null,
 }))
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
 function createWrapper() {
@@ -82,7 +82,7 @@ function createWrapper() {
 }
 
 describe("AccountsPage", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiFetch = vi.mocked(apiOperation)
 
   beforeEach(() => {
     mockedApiFetch.mockReset()
@@ -92,7 +92,7 @@ describe("AccountsPage", () => {
   // AC-ledger.fe-accounts-journal.1
   it("AC16.15.1 renders loading and error retry states", async () => {
     const accountsCalls = () =>
-      mockedApiFetch.mock.calls.filter((c) => c[0] === "/api/accounts?include_balance=true").length
+      mockedApiFetch.mock.calls.filter((c) => c[0] === "list_accounts_accounts_get").length
     mockedApiFetch.mockRejectedValue(new Error("accounts failed"))
 
     render(<AccountsPage />, { wrapper: createWrapper() })
@@ -143,7 +143,10 @@ describe("AccountsPage", () => {
     fireEvent.click(screen.getByText("Confirm Delete"))
 
     await waitFor(() => {
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/accounts/a1", { method: "DELETE" })
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        "delete_account_accounts__account_id__delete",
+        { path: { account_id: "a1" } },
+      )
     })
     expect(showToastMock).toHaveBeenCalledWith("Account deleted successfully", "success")
     await waitFor(() => expect(screen.queryByText("Cash")).toBeNull())
@@ -154,9 +157,9 @@ describe("AccountsPage", () => {
     // for real. Red-team: removing the invalidateQueries call in
     // accounts/page.tsx reds this test.
     const probe = createInvalidationProbe("accounts.delete")
-    mockedApiFetch.mockImplementation((path: string, opts?: RequestInit) => {
-      if (path === "/api/accounts/opening-balance-readiness") return Promise.resolve({ needs_opening_balance: false })
-      if (opts?.method === "DELETE") return Promise.resolve(undefined)
+    mockedApiFetch.mockImplementation((operationId: string) => {
+      if (operationId === "get_opening_balance_readiness_status_accounts_opening_balance_readiness_get") return Promise.resolve({ needs_opening_balance: false })
+      if (operationId === "delete_account_accounts__account_id__delete") return Promise.resolve(undefined)
       return Promise.resolve({
         items: [mockAccount({ id: "a1", name: "Cash" })],
         total: 1,
@@ -172,15 +175,18 @@ describe("AccountsPage", () => {
     fireEvent.click(screen.getByText("Confirm Delete"))
 
     await waitFor(() => {
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/accounts/a1", { method: "DELETE" })
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        "delete_account_accounts__account_id__delete",
+        { path: { account_id: "a1" } },
+      )
     })
     await waitFor(() => probe.expectDeclaredInvalidated())
   })
 
   it("AC16.15.4 delete error shows error toast", async () => {
-    mockedApiFetch.mockImplementation((path: string, opts?: RequestInit) => {
-      if (path === "/api/accounts/opening-balance-readiness") return Promise.resolve({ needs_opening_balance: false })
-      if (opts?.method === "DELETE") return Promise.reject(new Error("Cannot delete account with transactions"))
+    mockedApiFetch.mockImplementation((operationId: string) => {
+      if (operationId === "get_opening_balance_readiness_status_accounts_opening_balance_readiness_get") return Promise.resolve({ needs_opening_balance: false })
+      if (operationId === "delete_account_accounts__account_id__delete") return Promise.reject(new Error("Cannot delete account with transactions"))
       return Promise.resolve({
         items: [mockAccount({ id: "a1", name: "Cash" })],
         total: 1,
@@ -212,8 +218,8 @@ describe("AccountsPage", () => {
   })
 
   it("AC16.15.6 cancel delete dialog closes without API call", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/accounts/opening-balance-readiness") return Promise.resolve({ needs_opening_balance: false })
+    mockedApiFetch.mockImplementation((operationId: string) => {
+      if (operationId === "get_opening_balance_readiness_status_accounts_opening_balance_readiness_get") return Promise.resolve({ needs_opening_balance: false })
       return Promise.resolve({
         items: [mockAccount({ id: "a1", name: "Cash" })],
         total: 1,
@@ -229,7 +235,10 @@ describe("AccountsPage", () => {
 
     await waitFor(() => expect(screen.queryByTestId("confirm-dialog")).toBeNull())
     // Cancelling never calls the delete endpoint.
-    expect(mockedApiFetch).not.toHaveBeenCalledWith("/api/accounts/a1", { method: "DELETE" })
+    expect(mockedApiFetch).not.toHaveBeenCalledWith(
+      "delete_account_accounts__account_id__delete",
+      expect.anything(),
+    )
   })
 
   // AC-ledger.fe-accounts-journal.4
@@ -277,8 +286,8 @@ describe("AccountsPage", () => {
   // AC-ledger.fe-accounts-journal.6
   it("AC16.15.9 modal onSuccess triggers account list refresh", async () => {
     let accountsCall = 0
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/accounts/opening-balance-readiness") return Promise.resolve({ needs_opening_balance: false })
+    mockedApiFetch.mockImplementation((operationId: string) => {
+      if (operationId === "get_opening_balance_readiness_status_accounts_opening_balance_readiness_get") return Promise.resolve({ needs_opening_balance: false })
       accountsCall += 1
       const items: Account[] = [mockAccount({ id: "a1", name: "Cash" })]
       if (accountsCall > 1) {
@@ -318,8 +327,8 @@ describe("AccountsPage", () => {
   })
 
   it("test_AC8_13_48 opens and closes the account details sidebar", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/accounts")) {
+    mockedApiFetch.mockImplementation((operationId: string) => {
+      if (operationId === "list_accounts_accounts_get") {
         return Promise.resolve({
           items: [
             mockAccount({
@@ -332,10 +341,10 @@ describe("AccountsPage", () => {
           total: 1,
         } satisfies AccountListResponse)
       }
-      if (path === "/api/journal-entries?limit=50") {
+      if (operationId === "list_journal_entries_journal_entries_get") {
         return Promise.resolve({ items: [], total: 0 })
       }
-      return Promise.reject(new Error(`Unexpected path ${path}`))
+      return Promise.resolve({ needs_opening_balance: false })
     })
 
     render(<AccountsPage />, { wrapper: createWrapper() })
@@ -372,8 +381,8 @@ describe("AccountsPage", () => {
 
   // AC-ledger.fe-accounts2.3
   it("AC2.16.3 shows a readiness nudge and opens the modal when opening balances are missing", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/accounts/opening-balance-readiness") {
+    mockedApiFetch.mockImplementation((operationId: string) => {
+      if (operationId === "get_opening_balance_readiness_status_accounts_opening_balance_readiness_get") {
         return Promise.resolve({ needs_opening_balance: true, earliest_activity_date: "2026-01-15" })
       }
       return Promise.resolve({
@@ -395,8 +404,8 @@ describe("AccountsPage", () => {
   })
 
   it("AC2.16.3 hides the readiness nudge when opening balances are already recorded", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/accounts/opening-balance-readiness") {
+    mockedApiFetch.mockImplementation((operationId: string) => {
+      if (operationId === "get_opening_balance_readiness_status_accounts_opening_balance_readiness_get") {
         return Promise.resolve({ needs_opening_balance: false, earliest_activity_date: null })
       }
       return Promise.resolve({
@@ -407,7 +416,7 @@ describe("AccountsPage", () => {
 
     render(<AccountsPage />, { wrapper: createWrapper() })
 
-    await waitFor(() => expect(screen.getByText("Cash")).toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText("Cash")).toBeInTheDocument())
     expect(screen.queryByText(/Your balance sheet may be incomplete/)).not.toBeInTheDocument()
   })
 })

@@ -53,8 +53,6 @@ from src.reconciliation.extension.fx_transfer import (
 from src.reconciliation.extension.fx_transfer_discovery import discover_fx_conversions
 from src.reconciliation.extension.matching import (
     MatchingContext,
-    _get_existing_active_match,
-    _get_pending_layer2_transactions,
     accepted_transfer_txn_ids,
     auto_accept,
     calculate_match_score,
@@ -130,8 +128,6 @@ __all__ = [
     "_find_many_to_one_candidates",
     "_find_normal_candidates",
     "_find_transfer_candidates",
-    "_get_existing_active_match",
-    "_get_pending_layer2_transactions",
     "_within_combination_tolerance",
     "accept_match",
     "accepted_transfer_txn_ids",

@@ -30,6 +30,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType
+from src.extraction.base.types import extract_source_document_ids
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
@@ -54,41 +55,6 @@ class StatementEventSource:
     stage1_reviewed_at: datetime | None
 
 
-def _ordered_bank_statement_doc_ids(source_documents: object) -> list[UUID]:
-    """Extract source ``UploadedDocument`` ids, in order, for bank-statement sources.
-
-    Accepts the canonical list form (``[{"doc_id": ..., "doc_type": ...}]``) and a
-    ``{"documents": [...]}`` wrapper. Non-bank-statement sources are ignored (custody
-    is a cash/bank-account concept), entries with a missing ``doc_type`` are kept,
-    and invalid UUID strings are skipped so they never raise during query binding.
-    """
-    if isinstance(source_documents, dict):
-        source_documents = source_documents.get("documents", [])
-    if not isinstance(source_documents, list):
-        return []
-
-    bank_statement = DocumentType.BANK_STATEMENT.value
-    ordered: list[UUID] = []
-    seen: set[UUID] = set()
-    for entry in source_documents:
-        if not isinstance(entry, dict):
-            continue
-        doc_type = entry.get("doc_type")
-        if doc_type is not None and doc_type != bank_statement:
-            continue
-        raw = entry.get("doc_id")
-        if not raw:
-            continue
-        try:
-            doc_id = UUID(str(raw))
-        except (ValueError, TypeError):
-            continue
-        if doc_id not in seen:
-            seen.add(doc_id)
-            ordered.append(doc_id)
-    return ordered
-
-
 async def resolve_custody_account_id(db: AsyncSession, atomic_txn: AtomicTransaction) -> UUID | None:
     """Resolve the custody account for a Layer-2 atomic transaction via the conform.
 
@@ -97,7 +63,7 @@ async def resolve_custody_account_id(db: AsyncSession, atomic_txn: AtomicTransac
     source-document order) that has one. Returns ``None`` when no source statement has
     a confirmed custody account.
     """
-    doc_ids = _ordered_bank_statement_doc_ids(atomic_txn.source_documents)
+    doc_ids = extract_source_document_ids(atomic_txn.source_documents, doc_type=DocumentType.BANK_STATEMENT.value)
     if not doc_ids:
         return None
 

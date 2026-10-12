@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import HomePage from "@/app/(main)/page"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode }) => <a href={href} {...props}>{children}</a>,
@@ -25,20 +25,63 @@ vi.mock("@/components/charts/NetWorthTimeSeriesChart", () => ({
   NetWorthTimeSeriesChart: () => <div>NetWorthTimeSeriesMock</div>,
 }))
 
-vi.mock("@/lib/api", () => {
-  const apiFetch = vi.fn()
-  return {
-    apiFetch,
-    fetchWorkflowStatus: () => apiFetch("/api/workflow/status"),
-    fetchWorkflowEvents: ({ limit }: { limit?: number } = {}) =>
-      apiFetch(`/api/workflow/events${limit ? `?limit=${limit}` : ""}`),
-    updateWorkflowEventStatus: (eventId: string, status: string) =>
-      apiFetch(`/api/workflow/events/${eventId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
-      }),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
+}))
+
+function mapDashboardOperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
+  switch (operationId) {
+    case "balance_sheet_reports_balance_sheet_get": {
+      const q = req?.query;
+      let path = "/api/reports/balance-sheet";
+      if (q?.include_restricted) path += "?include_restricted=true";
+      else if (q?.include_restricted === false) path += "?include_restricted=false";
+      return [path, undefined];
+    }
+    case "income_statement_reports_income_statement_get":
+      return ["/api/reports/income-statement", undefined];
+    case "get_annualized_income_income_annualized_get":
+      return ["/api/income/annualized", undefined];
+    case "list_restricted_holdings_assets_restricted_get":
+      return ["/api/assets/restricted", undefined];
+    case "reconciliation_stats_reconciliation_stats_get":
+      return ["/api/reconciliation/stats", undefined];
+    case "list_unmatched_reconciliation_unmatched_get":
+      return ["/api/reconciliation/unmatched", undefined];
+    case "list_journal_entries_journal_entries_get": {
+      const q = req?.query;
+      let path = "/api/journal-entries";
+      if (q?.status_filter) path += `?status_filter=${q.status_filter}`;
+      return [path, undefined];
+    }
+    case "list_accounts_accounts_get":
+      return ["/api/accounts", undefined];
+    case "list_statements_statements_get":
+      return ["/api/statements", undefined];
+    case "suggestions_chat_suggestions_get":
+      return ["/api/chat/suggestions?language=en&include_structured=true", undefined];
+    case "account_trend_reports_trend_get": {
+      const q = req?.query;
+      let path = "/api/reports/trend";
+      if (q?.account_id) path += `?account_id=${q.account_id}&period=${q.period ?? "monthly"}`;
+      return [path, undefined];
+    }
+    case "get_workflow_status_endpoint_workflow_status_get":
+      return ["/api/workflow/status", undefined];
+    case "list_workflow_events_endpoint_workflow_events_get": {
+      const q = req?.query;
+      let path = "/api/workflow/events";
+      if (q?.limit) path += `?limit=${q.limit}`;
+      return [path, undefined];
+    }
+    case "update_workflow_event_status_endpoint_workflow_events__event_id__patch":
+      return [`/api/workflow/events/${req?.path?.event_id}`, { method: "PATCH", body: JSON.stringify(req?.body ?? {}) }];
+    case "list_processing_pending_accounts_processing_pending_get":
+      return ["/api/accounts/processing/pending", undefined];
+    default:
+      return [operationId, req];
   }
-})
+}
 
 const baseBalance = {
   assets: [{ account_id: "a1", name: "Cash", amount: 5000 }],
@@ -59,10 +102,15 @@ const baseIncome = {
 }
 
 function mockDashboardApi(overrides: Record<string, unknown> = {}) {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
   const hasOverride = (key: string) => Object.prototype.hasOwnProperty.call(overrides, key)
   let trendCalls = 0
-  mockedApiFetch.mockImplementation((path: string) => {
+  mockedApiOperation.mockImplementation((operationId: any, req: any) => {
+    let path = operationId
+    if (typeof operationId === "string" && !operationId.startsWith("/")) {
+      const mapped = mapDashboardOperationToLegacy(operationId, req)
+      path = mapped[0]
+    }
     if (path.startsWith("/api/reports/balance-sheet")) {
       if (overrides.balanceError) return Promise.reject(overrides.balanceError)
       const includeRestricted = path.includes("include_restricted=true")
@@ -154,15 +202,15 @@ async function waitForDashboardAnalyticsReady() {
 }
 
 describe("HomePage", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
 
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
   })
 
   // AC-reporting.fe-report-surfaces.1
   it("AC16.12.1 shows loading state before dashboard data resolves", () => {
-    mockedApiFetch.mockImplementation(() => new Promise(() => {}))
+    mockedApiOperation.mockImplementation(() => new Promise(() => {}))
 
     render(<HomePage />)
 
@@ -172,7 +220,7 @@ describe("HomePage", () => {
 
   // AC-reporting.fe-report-surfaces.2
   it("AC16.12.2 renders error fallback and retry action on failure", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("dashboard failed"))
+    mockedApiOperation.mockRejectedValue(new Error("dashboard failed"))
 
     render(<HomePage />)
 
@@ -180,9 +228,9 @@ describe("HomePage", () => {
     expect(screen.getByText("Workflow status is unavailable. You can still upload files or open reports.")).toBeInTheDocument()
     expect(screen.getByText("Dashboard analytics unavailable")).toBeInTheDocument()
     expect(screen.getByText("dashboard failed")).toBeInTheDocument()
-    const callCountBeforeRetry = mockedApiFetch.mock.calls.length
+    const callCountBeforeRetry = mockedApiOperation.mock.calls.length
     fireEvent.click(screen.getByRole("button", { name: "Retry analytics" }))
-    await waitFor(() => expect(mockedApiFetch.mock.calls.length).toBeGreaterThan(callCountBeforeRetry))
+    await waitFor(() => expect(mockedApiOperation.mock.calls.length).toBeGreaterThan(callCountBeforeRetry))
   })
 
   // AC-reporting.fe-report-surfaces.3
@@ -193,7 +241,10 @@ describe("HomePage", () => {
     render(<HomePage />)
 
     await waitForDashboardAnalyticsReady()
-    expect(mockedApiFetch).toHaveBeenCalledWith("/api/chat/suggestions?language=en&include_structured=true")
+    expect(mockedApiOperation).toHaveBeenCalledWith(
+      "suggestions_chat_suggestions_get",
+      expect.objectContaining({ query: expect.objectContaining({ language: "en", include_structured: true }) }),
+    )
     expect(screen.getByText("Total Assets")).toBeInTheDocument()
     expect(screen.getByText("Total Liabilities")).toBeInTheDocument()
     // Net worth is shown once, in the hero banner — not duplicated as a KPI card.
@@ -254,8 +305,11 @@ describe("HomePage", () => {
     render(<HomePage />)
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "Workflow status" })).toBeInTheDocument())
-    expect(mockedApiFetch).toHaveBeenCalledWith("/api/workflow/status")
-    expect(mockedApiFetch).toHaveBeenCalledWith("/api/workflow/events?limit=5")
+    expect(mockedApiOperation).toHaveBeenCalledWith("get_workflow_status_endpoint_workflow_status_get", expect.anything())
+    expect(mockedApiOperation).toHaveBeenCalledWith(
+      "list_workflow_events_endpoint_workflow_events_get",
+      expect.objectContaining({ query: expect.objectContaining({ limit: 5 }) }),
+    )
     expect(screen.getAllByText("Review required").length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText("Report blocked").length).toBeGreaterThanOrEqual(1)
   })
@@ -310,7 +364,7 @@ describe("HomePage", () => {
       expect(uploadHome.getAllByRole("link", { name: /Review required/i })[0]).toHaveAttribute("href", "/review")
     })
     unmount()
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
 
     mockDashboardApi({
       workflowStatus: {
@@ -410,13 +464,19 @@ describe("HomePage", () => {
     render(<HomePage />)
 
     await waitFor(() => expect(screen.getByText("Include restricted holdings")).toBeInTheDocument())
-    expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/balance-sheet?include_restricted=false")
+    expect(mockedApiOperation).toHaveBeenCalledWith(
+      "balance_sheet_reports_balance_sheet_get",
+      expect.objectContaining({ query: expect.objectContaining({ include_restricted: false }) }),
+    )
     expect(screen.getAllByText("$4,000").length).toBeGreaterThanOrEqual(1)
 
     fireEvent.click(screen.getByLabelText("Include restricted holdings"))
 
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/balance-sheet?include_restricted=true"),
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "balance_sheet_reports_balance_sheet_get",
+        expect.objectContaining({ query: expect.objectContaining({ include_restricted: true }) }),
+      ),
     )
     await waitFor(() => expect(screen.getAllByText("$16,500").length).toBeGreaterThanOrEqual(1))
   })
@@ -540,7 +600,10 @@ describe("HomePage", () => {
 
     fireEvent.change(selector, { target: { value: "a2" } })
 
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/trend?account_id=a2&period=monthly"))
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledWith(
+      "account_trend_reports_trend_get",
+      expect.objectContaining({ query: expect.objectContaining({ account_id: "a2", period: "monthly" }) }),
+    ))
     expect(consoleError).toHaveBeenCalledWith("Failed to fetch trend data:", expect.any(Error))
     consoleError.mockRestore()
   })

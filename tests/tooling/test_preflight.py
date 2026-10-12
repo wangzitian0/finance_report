@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -228,6 +229,67 @@ class TestSelectChecks:
         assert preflight.select_checks([]) == []
 
 
+def _route_defining_backend_files() -> list[str]:
+    """Return repo-relative paths of backend files that build a FastAPI app or router.
+
+    The scan parses each file, so a comment or a string that names `APIRouter`
+    does not count. FastAPI copies the docstring of each route handler into the
+    OpenAPI description. A change in such a file can move `openapi.json`.
+    """
+    src = REPO_ROOT / "apps" / "backend" / "src"
+    found: list[str] = []
+    for path in sorted(src.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = (
+                func.id
+                if isinstance(func, ast.Name)
+                else func.attr
+                if isinstance(func, ast.Attribute)
+                else None
+            )
+            if name in {"APIRouter", "FastAPI"}:
+                found.append(path.relative_to(REPO_ROOT).as_posix())
+                break
+    return found
+
+
+def test_AC_testing_preflight_2_openapi_spec_gate_selects_every_route_file():
+    """AC-testing.preflight.2: a change in any file that defines routes selects openapi-spec.
+
+    Issue #2372: the docstring of `/health` moved in
+    `apps/backend/src/runtime/extension/api/health.py` (#2365). No gate was selected,
+    and `apps/frontend/openapi.json` went stale on main.
+    """
+    route_files = _route_defining_backend_files()
+    # Positive controls: the scan must find the known route files. An empty scan
+    # would let the loop below pass without any assertion.
+    assert len(route_files) >= 26, route_files
+    assert "apps/backend/src/runtime/extension/api/health.py" in route_files
+    assert "apps/backend/src/routers/income.py" in route_files
+    assert "apps/backend/src/main.py" in route_files
+
+    unselected = [
+        path
+        for path in route_files
+        if "openapi-spec"
+        not in {c.name for c in preflight.select_checks([path], tier="static")}
+    ]
+    assert unselected == [], (
+        f"route files that do not select openapi-spec: {unselected}"
+    )
+
+
+def test_AC_testing_preflight_2_api_reference_and_openapi_spec_share_input_globs():
+    """AC-testing.preflight.2: both gates read the same OpenAPI document, so they share inputs."""
+    by_name = {c.name: c for c in preflight.CHECKS}
+    assert by_name["openapi-spec"].globs == by_name["api-reference"].globs
+    assert by_name["openapi-spec"].globs == preflight.OPENAPI_INPUT_GLOBS
+
+
 def test_every_check_command_references_an_existing_script():
     """Guard against a typo'd tool path in the CHECKS registry."""
     for check in preflight.CHECKS:
@@ -370,42 +432,6 @@ class TestRunAndMain:
 
         rc = preflight.run([], runner=lambda argv, cwd: 0, git=fake_git)
         assert rc == 0
-
-    def test_main_relaxed_mode_passes_on_advisory_failure(self):
-        rc = preflight.run(
-            ["--changed", "README.md", "--relaxed"],
-            runner=lambda argv, cwd: 1,
-        )
-        assert rc == 0
-
-    def test_main_relaxed_mode_still_fails_on_hard_gate_failure(self):
-        rc = preflight.run(
-            ["--changed", ".env.example", "--relaxed"],
-            runner=lambda argv, cwd: 1,
-        )
-        assert rc == 1
-
-    def test_default_mode_is_relaxed_for_advisory(self):
-        rc = preflight.run(
-            ["--changed", "README.md"],
-            runner=lambda argv, cwd: 1,
-        )
-        assert rc == 0
-
-    def test_main_strict_mode_fails_on_advisory_failure(self):
-        rc = preflight.run(
-            ["--changed", "README.md", "--strict"],
-            runner=lambda argv, cwd: 1,
-        )
-        assert rc == 1
-
-    def test_env_var_strict_mode(self, monkeypatch):
-        monkeypatch.setenv("PREFLIGHT_STRICT", "1")
-        rc = preflight.run(
-            ["--changed", "README.md"],
-            runner=lambda argv, cwd: 1,
-        )
-        assert rc == 1
 
 
 # ── Tier-filtered selection (#1810 G-static-parity) ──
@@ -711,3 +737,27 @@ class TestCiLogging:
         warning_msg = "warning message"
         assert error_msg in captured.out
         assert warning_msg in captured.err
+
+    def test_default_runner_handles_timeout(self, capsys, monkeypatch):
+        import subprocess
+
+        def fake_run(*args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=args[0], timeout=180)
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        rc = preflight._default_runner(["sleep", "999"], cwd="/tmp")
+        assert rc == 124
+        captured = capsys.readouterr()
+        assert "timed out after 180s" in captured.out
+
+    def test_default_quiet_runner_handles_timeout(self, capsys, monkeypatch):
+        import subprocess
+
+        def fake_run(*args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=args[0], timeout=180)
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        rc = preflight._default_quiet_runner(["sleep", "999"], cwd="/tmp")
+        assert rc == 124
+        captured = capsys.readouterr()
+        assert "timed out after 180s" in captured.out

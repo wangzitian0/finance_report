@@ -11,18 +11,66 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import PortfolioPage from "@/app/(main)/portfolio/page";
-import { apiFetch } from "@/lib/api";
 import type { PortfolioHolding } from "@/lib/types";
 
 const showToastMock = vi.fn();
+const mockedApiFetch = vi.fn();
 
 vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast: showToastMock }),
 }));
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
-}));
+vi.mock("@/lib/api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api-client")>();
+  const { API_OPERATIONS } = await import("@/lib/api-operations");
+
+  function compatibilityPath(operationId: string, request: any): string {
+    const definition = (API_OPERATIONS as Record<string, { method: string; path: string }>)[operationId];
+    if (!definition) return `/${operationId}`;
+    let path = definition.path.replace(/\{([^}]+)\}/g, (_placeholder, name: string) => {
+      const value = request.path?.[name];
+      if (value === undefined || value === null) {
+        throw new Error(`Missing OpenAPI path parameter: ${name}`);
+      }
+      return encodeURIComponent(String(value));
+    });
+    if (request.query) {
+      const query = new URLSearchParams();
+      for (const [name, rawValue] of Object.entries(request.query)) {
+        if (rawValue === undefined || rawValue === null) continue;
+        for (const value of Array.isArray(rawValue) ? rawValue : [rawValue]) {
+          query.append(name, String(value));
+        }
+      }
+      const encoded = query.toString();
+      if (encoded) path = `${path}?${encoded}`;
+    }
+    return path;
+  }
+
+  return {
+    ...actual,
+    apiOperation: vi.fn(async (operationId: any, ...args: any[]) => {
+      const request = (args[0] ?? {}) as any;
+      const path = compatibilityPath(operationId, request);
+      const def = (API_OPERATIONS as Record<string, { method: string; path: string }>)[operationId];
+      if (
+        def?.method === "GET" &&
+        request.body === undefined &&
+        request.headers === undefined &&
+        request.signal === undefined
+      ) {
+        return mockedApiFetch(path);
+      }
+      return mockedApiFetch(path, {
+        method: def?.method ?? "POST",
+        body: request.body === undefined ? undefined : JSON.stringify(request.body),
+        headers: request.headers,
+        signal: request.signal,
+      });
+    }),
+  };
+});
 
 vi.mock("@/components/portfolio/PerformanceCard", () => ({
   PerformanceCard: () => (
@@ -73,7 +121,6 @@ function mockPortfolioApi(
   scheduleCurrency = "USD",
   netWorthAllocationMode: NetWorthAllocationMode = "default",
 ) {
-  const mockedApiFetch = vi.mocked(apiFetch);
   mockedApiFetch.mockImplementation((path: string) => {
     if (path.startsWith("/api/portfolio/summary")) {
       return Promise.resolve({
@@ -123,8 +170,6 @@ function mockPortfolioApi(
 }
 
 describe("PortfolioPage", () => {
-  const mockedApiFetch = vi.mocked(apiFetch);
-
   beforeEach(() => {
     mockedApiFetch.mockReset();
     showToastMock.mockReset();

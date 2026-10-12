@@ -49,13 +49,19 @@ from src.extraction.base.types import (
     StatementPostingOutcome,
     StatementPostingStatus,
 )
-from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
+from src.extraction.base.validation import (
+    HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD,
+    STATEMENT_RESOLVED_TRANSACTIONS_ATTR,
+)
 from src.extraction.extension.custody_binding import is_bank_custody_source, resolve_bank_custody_account
 from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
 from src.extraction.extension.disposition_trace import emit_disposition_trace_records
 from src.extraction.extension.review_queue import FxRateProvider, create_entry_from_txn
 from src.extraction.extension.reviewed_statement_envelope import get_current_statement_extraction_result
-from src.extraction.extension.statement_validation import approve_statement, resolve_statement_transactions
+from src.extraction.extension.statement_validation import (
+    approve_statement_with_transactions,
+    resolve_statement_transactions,
+)
 from src.extraction.extension.transaction_classification import classify_by_effective_policy
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
@@ -127,9 +133,13 @@ async def auto_create_posted_entries_for_statement(
     user_id: UUID,
     *,
     dependencies: StatementPostingDependencies,
+    transactions: list[AtomicTransaction] | None = None,
 ) -> StatementPostingOutcome:
     """Evaluate then apply one statement posting plan after Stage 1 source confirmation."""
-    transactions = await resolve_statement_transactions(db, statement)
+    if transactions is None:
+        transactions = getattr(statement, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, None)
+    if transactions is None:
+        transactions = await resolve_statement_transactions(db, statement)
     txn_ids = [txn.id for txn in transactions]
     if not txn_ids:
         return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=0)
@@ -325,6 +335,7 @@ async def auto_create_posted_entries_for_statement(
         )
 
     created = 0
+    postings: list[tuple[JournalEntry, AtomicTransaction]] = []
     for txn, _proposal, decision, counter_account, _transaction in planned:
         if decision.status is DispositionStatus.ALREADY_COVERED:
             continue
@@ -334,7 +345,7 @@ async def auto_create_posted_entries_for_statement(
         source_decision = source_decisions.get(txn.id)
         if source_decision is None:
             raise RuntimeError("authoritative disposition is missing its source decision")
-        await create_entry_from_txn(
+        entry = await create_entry_from_txn(
             db,
             txn,
             user_id=user_id,
@@ -349,8 +360,30 @@ async def auto_create_posted_entries_for_statement(
             counter_account=counter_account,
             source_decision=source_decision,
             trace_emitter=emitter,
+            record_evidence=False,
         )
+        postings.append((entry, txn))
         created += 1
+
+    if postings:
+        try:
+            from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
+
+            await EvidenceGraphIntegrationService().record_journal_postings_batch(
+                db,
+                user_id=user_id,
+                postings=postings,
+            )
+        except Exception as evidence_exc:
+            logger.warning(
+                "Evidence-graph journal-posting batch lineage failed (posting continues)",
+                extra={
+                    "error": str(evidence_exc),
+                    "error_type": type(evidence_exc).__name__,
+                    "user_id": str(user_id),
+                    "statement_id": str(statement.id),
+                },
+            )
 
     return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=created)
 
@@ -580,8 +613,10 @@ async def try_auto_approve_high_confidence_statement(
 
     try:
         async with db.begin_nested():
-            approved = await approve_statement(db, statement_id, user_id)
-            outcome = await auto_create_posted_entries_for_statement(db, approved, user_id, dependencies=dependencies)
+            approved, transactions = await approve_statement_with_transactions(db, statement_id, user_id)
+            outcome = await auto_create_posted_entries_for_statement(
+                db, approved, user_id, dependencies=dependencies, transactions=transactions
+            )
             if outcome.status is not StatementPostingStatus.REVIEW_REQUIRED:
                 await try_auto_post_statement_opening_balance(db, approved, user_id, dependencies=dependencies)
             await db.flush()

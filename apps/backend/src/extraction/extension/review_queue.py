@@ -20,6 +20,7 @@ import src.config
 from src.audit import JournalEntrySourceType, TraceEmitter, TraceRecord
 from src.extraction.base.disposition import DispositionDecision, DispositionStatus, intent_matches_counter_account
 from src.extraction.base.source_vocabulary import DocumentType, TransactionDirection
+from src.extraction.base.types import extract_source_document_ids
 from src.extraction.extension.currency_resolution import CurrencyUnresolvedError
 from src.extraction.extension.disposition_trace import authorize_financial_command
 from src.extraction.orm.layer1 import UploadedDocument
@@ -96,41 +97,6 @@ def _require_fx_rate_provider() -> "FxRateProvider":
     return _get_exchange_rate
 
 
-def _source_document_ids(source_documents: object) -> list[UUID]:
-    """Extract source ``UploadedDocument`` ids (bank-statement sources), in order.
-
-    Mirrors ``statement_summary._ordered_bank_statement_doc_ids``: accepts the
-    canonical list form (``[{"doc_id": ..., "doc_type": ...}]``) and a
-    ``{"documents": [...]}`` wrapper, keeps entries with a missing ``doc_type``,
-    and skips invalid UUID strings so they never raise during query binding.
-    """
-    if isinstance(source_documents, dict):
-        source_documents = source_documents.get("documents", [])
-    if not isinstance(source_documents, list):
-        return []
-
-    bank_statement = DocumentType.BANK_STATEMENT.value
-    ordered: list[UUID] = []
-    seen: set[UUID] = set()
-    for entry in source_documents:
-        if not isinstance(entry, dict):
-            continue
-        doc_type = entry.get("doc_type")
-        if doc_type is not None and doc_type != bank_statement:
-            continue
-        raw = entry.get("doc_id")
-        if not raw:
-            continue
-        try:
-            doc_id = UUID(str(raw))
-        except (ValueError, TypeError):
-            continue
-        if doc_id not in seen:
-            seen.add(doc_id)
-            ordered.append(doc_id)
-    return ordered
-
-
 async def _resolve_statement_summary(
     db: AsyncSession,
     txn: AtomicTransaction,
@@ -143,7 +109,7 @@ async def _resolve_statement_summary(
     returns the first source document's statement summary (in source-document
     order). Returns ``None`` when no source document maps to a statement summary.
     """
-    doc_ids = _source_document_ids(txn.source_documents)
+    doc_ids = extract_source_document_ids(txn.source_documents, doc_type=DocumentType.BANK_STATEMENT.value)
     if not doc_ids:
         return None
 
@@ -170,6 +136,11 @@ async def get_or_create_account(
     user_id: UUID,
 ) -> Account:
     """Fetch or create a default account."""
+    cache = db.info.setdefault("_default_account_cache", {})
+    cache_key = (user_id, name, account_type, currency)
+    if cache_key in cache:
+        return cache[cache_key]
+
     result = await db.execute(
         select(Account)
         .where(Account.name == name)
@@ -179,6 +150,7 @@ async def get_or_create_account(
     )
     account = result.scalar_one_or_none()
     if account:
+        cache[cache_key] = account
         return account
 
     account = Account(
@@ -190,6 +162,7 @@ async def get_or_create_account(
     db.add(account)
     await db.flush()
     await db.refresh(account)
+    cache[cache_key] = account
     return account
 
 
@@ -209,6 +182,7 @@ async def _create_entry_from_txn(
     counter_account: Account | None = None,
     source_decision: TraceRecord | None = None,
     trace_emitter: TraceEmitter | None = None,
+    record_evidence: bool = True,
 ) -> JournalEntry:
     """Create a journal entry from an atomic transaction.
 
@@ -386,28 +360,29 @@ async def _create_entry_from_txn(
     )
     entry = entry_result.scalar_one()
 
-    # Eager evidence-graph lineage (AtomicTransaction --posted_as--> JournalEntry
-    # --contains--> JournalLine). Imported lazily to avoid an import cycle.
-    # Best-effort: provenance must never break journal posting.
-    try:
-        from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
+    if record_evidence:
+        # Eager evidence-graph lineage (AtomicTransaction --posted_as--> JournalEntry
+        # --contains--> JournalLine). Imported lazily to avoid an import cycle.
+        # Best-effort: provenance must never break journal posting.
+        try:
+            from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 
-        await EvidenceGraphIntegrationService().record_journal_posting(
-            db,
-            user_id=user_id,
-            atomic_transaction=txn,
-            journal_entry=entry,
-        )
-    except Exception as evidence_exc:
-        logger.warning(
-            "Evidence-graph journal-posting lineage failed (posting continues)",
-            extra={
-                "error": str(evidence_exc),
-                "error_type": type(evidence_exc).__name__,
-                "user_id": str(user_id),
-                "journal_entry_id": str(entry.id),
-            },
-        )
+            await EvidenceGraphIntegrationService().record_journal_posting(
+                db,
+                user_id=user_id,
+                atomic_transaction=txn,
+                journal_entry=entry,
+            )
+        except Exception as evidence_exc:
+            logger.warning(
+                "Evidence-graph journal-posting lineage failed (posting continues)",
+                extra={
+                    "error": str(evidence_exc),
+                    "error_type": type(evidence_exc).__name__,
+                    "user_id": str(user_id),
+                    "journal_entry_id": str(entry.id),
+                },
+            )
 
     return entry
 
@@ -428,6 +403,7 @@ async def create_entry_from_txn(
     counter_account: Account | None = None,
     source_decision: TraceRecord | None = None,
     trace_emitter: TraceEmitter | None = None,
+    record_evidence: bool = True,
 ) -> JournalEntry:
     """Create a journal entry, atomically including all auto-post side effects."""
 
@@ -447,6 +423,7 @@ async def create_entry_from_txn(
             counter_account=counter_account,
             source_decision=source_decision,
             trace_emitter=trace_emitter,
+            record_evidence=record_evidence,
         )
 
     if auto_post:

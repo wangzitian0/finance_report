@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { NetWorthTimeSeriesChart } from "@/components/charts/NetWorthTimeSeriesChart";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import type { NetWorthTimeSeriesResponse } from "@/lib/types";
 
 let capturedChartOption: { tooltip?: { valueFormatter?: (value: number) => string } } | null = null;
@@ -15,21 +15,21 @@ vi.mock("echarts-for-react", () => ({
   },
 }));
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }));
 
 describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
-  const mockedApiFetch = vi.mocked(apiFetch);
+  const mockedApiOperation = vi.mocked(apiOperation);
 
   beforeEach(() => {
-    mockedApiFetch.mockReset();
+    mockedApiOperation.mockReset();
     capturedChartOption = null;
   });
 
   // AC-reporting.fe-viz-reports.28 / AC-reporting.fe-viz-reports.31
   it("AC5.7.2/AC5.7.6 mounts an ECharts-backed net worth line chart", async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       currency: "SGD",
       granularity: "daily",
       points: [
@@ -43,12 +43,12 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
     await waitFor(() => expect(screen.getByTestId("net-worth-echarts")).toBeInTheDocument());
     expect(screen.getByRole("img", { name: "ECharts net worth line chart" })).toBeInTheDocument();
     expect(capturedChartOption?.tooltip?.valueFormatter?.(1234)).toContain("1,234.00");
-    expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("/api/reports/net-worth/timeseries"));
+    expect(mockedApiOperation).toHaveBeenCalledWith("net_worth_timeseries_reports_net_worth_timeseries_get", expect.anything());
   });
 
   // AC-reporting.fe-viz-reports.29
   it("AC5.7.4 range selector toggles the from parameter and re-fetches", async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       currency: "SGD",
       granularity: "daily",
       points: [
@@ -58,22 +58,23 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
     } satisfies NetWorthTimeSeriesResponse);
 
     render(<NetWorthTimeSeriesChart />);
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole("tab", { name: "1M" }));
 
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(2));
-    expect(String(mockedApiFetch.mock.calls[1][0])).toContain("granularity=daily");
-    expect(String(mockedApiFetch.mock.calls[1][0])).toContain("from=");
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledTimes(2));
+    expect(mockedApiOperation.mock.calls[1][0]).toBe("net_worth_timeseries_reports_net_worth_timeseries_get");
+    expect((mockedApiOperation.mock.calls[1][1] as any)?.query?.granularity).toBe("daily");
+    expect((mockedApiOperation.mock.calls[1][1] as any)?.query?.from).toBeDefined();
 
     fireEvent.click(screen.getByRole("tab", { name: "All" }));
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(3));
-    expect(String(mockedApiFetch.mock.calls[2][0])).toContain("from=1970-01-01");
-    expect(String(mockedApiFetch.mock.calls[2][0])).toContain("granularity=monthly");
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledTimes(3));
+    expect((mockedApiOperation.mock.calls[2][1] as any)?.query?.from).toBe("1970-01-01");
+    expect((mockedApiOperation.mock.calls[2][1] as any)?.query?.granularity).toBe("monthly");
   });
 
   // AC-reporting.fe-viz-reports.30
   it("AC5.7.5 renders an empty state when fewer than two points exist", async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       currency: "SGD",
       granularity: "daily",
       points: [
@@ -89,7 +90,7 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
   });
 
   it("test_AC8_13_48 shows net worth history load failures", async () => {
-    mockedApiFetch.mockRejectedValueOnce(new Error("history failed"));
+    mockedApiOperation.mockRejectedValueOnce(new Error("history failed"));
 
     render(<NetWorthTimeSeriesChart />);
 

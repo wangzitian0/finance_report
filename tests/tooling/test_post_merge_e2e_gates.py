@@ -561,7 +561,7 @@ def test_AC8_13_11_health_check_diagnoses_staging_api_route_404() -> None:
     """AC-testing.deploy-gates.2: AC8.13.11: Staging health 404 reports API route diagnostics."""
     health_check = read("common/runtime/health_check.py")
 
-    # The generic polling algorithm moved to infra2_sdk.deploy_health (#1535,
+    # The generic polling algorithm moved to infra2_sdk.deploy (#1535,
     # infra2-sdk v0.5.0); this module keeps only the route-shadow diagnostics.
     _has(
         health_check,

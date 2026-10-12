@@ -8,13 +8,17 @@ import pytest
 from sqlalchemy import select
 
 from src.extraction import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection, UploadedDocument
+from src.extraction.base.validation import STATEMENT_RESOLVED_TRANSACTIONS_ATTR
+from src.extraction.extension import statement_validation as stmt_val_mod
 from src.extraction.extension.statement_validation import (
     BALANCE_TOLERANCE,
     _has_unresolved_statement_conflicts,
     approve_statement,
+    approve_statement_with_transactions,
     edit_and_approve,
     get_pending_stage1_review,
     reject_statement,
+    resolve_statement_transactions,
     set_opening_balance,
     validate_balance_chain,
 )
@@ -232,6 +236,72 @@ class TestValidateBalanceChain:
         assert Decimal(result["closing_delta"]) == Decimal("0.00")
         assert result["calculated_closing"] == "1100.00"
 
+    async def test_validate_balance_chain_reuses_preresolved_statement_and_transactions(
+        self, db, statement_with_transactions, monkeypatch
+    ):
+        """AC-extraction.stage1-validation.1: validate_balance_chain accepts pre-resolved statement and transactions."""
+        txns = await resolve_statement_transactions(db, statement_with_transactions)
+
+        resolve_calls = 0
+        db_get_calls = 0
+
+        original_resolve = stmt_val_mod.resolve_statement_transactions
+
+        async def spy_resolve(*args, **kwargs):
+            nonlocal resolve_calls
+            resolve_calls += 1
+            return await original_resolve(*args, **kwargs)
+
+        original_get = db.get
+
+        async def spy_get(*args, **kwargs):
+            nonlocal db_get_calls
+            db_get_calls += 1
+            return await original_get(*args, **kwargs)
+
+        monkeypatch.setattr(stmt_val_mod, "resolve_statement_transactions", spy_resolve)
+        monkeypatch.setattr(db, "get", spy_get)
+
+        result = await validate_balance_chain(
+            db,
+            statement_with_transactions.id,
+            statement=statement_with_transactions,
+            transactions=txns,
+        )
+        assert result["opening_match"] is True
+        assert result["closing_match"] is True
+        assert Decimal(result["closing_delta"]) == Decimal("0.00")
+        assert resolve_calls == 0, "resolve_statement_transactions must be skipped when pre-resolved"
+        assert db_get_calls == 0, "db.get must be skipped when pre-resolved statement is supplied"
+
+    async def test_validate_balance_chain_reuses_attached_cached_transactions(
+        self, db, statement_with_transactions, monkeypatch
+    ):
+        """AC-extraction.stage1-validation.1: validate_balance_chain reuses STATEMENT_RESOLVED_TRANSACTIONS_ATTR attached to statement."""
+        txns = await resolve_statement_transactions(db, statement_with_transactions)
+        setattr(statement_with_transactions, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, txns)
+
+        resolve_calls = 0
+        original_resolve = stmt_val_mod.resolve_statement_transactions
+
+        async def spy_resolve(*args, **kwargs):
+            nonlocal resolve_calls
+            resolve_calls += 1
+            return await original_resolve(*args, **kwargs)
+
+        monkeypatch.setattr(stmt_val_mod, "resolve_statement_transactions", spy_resolve)
+
+        result = await validate_balance_chain(
+            db,
+            statement_with_transactions.id,
+            statement=statement_with_transactions,
+        )
+        assert result["opening_match"] is True
+        assert result["closing_match"] is True
+        assert resolve_calls == 0, (
+            "resolve_statement_transactions must be skipped when statement has cached transactions attached"
+        )
+
     async def test_within_tolerance(self, db, user_id):
         """AC-extraction.stage1-validation.1: AC1.1.2 AC16.1.1 AC16.22.5: Verify 0.0009 USD delta passes 0.001 tolerance."""
         stmt = await _make_statement(
@@ -304,6 +374,54 @@ class TestApproveStatement:
         assert stmt.status == BankStatementStatus.APPROVED
         assert stmt.balance_validation_result is not None
         assert stmt.balance_validation_result["closing_match"] is True
+
+    async def test_approve_statement_with_transactions_resolves_transactions_once(
+        self, db, statement_with_transactions, user_id, monkeypatch
+    ):
+        """AC-extraction.stage1-validation.1: approve_statement_with_transactions returns statement and transactions with single resolution."""
+        resolve_count = 0
+        original_resolve = stmt_val_mod.resolve_statement_transactions
+
+        async def spy_resolve(*args, **kwargs):
+            nonlocal resolve_count
+            resolve_count += 1
+            return await original_resolve(*args, **kwargs)
+
+        monkeypatch.setattr(stmt_val_mod, "resolve_statement_transactions", spy_resolve)
+
+        stmt, txns = await approve_statement_with_transactions(db, statement_with_transactions.id, user_id)
+        assert stmt.status == BankStatementStatus.APPROVED
+        assert len(txns) == 1
+        assert resolve_count == 1, "resolve_statement_transactions must be invoked exactly once during approval"
+        assert getattr(stmt, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, None) == txns
+
+    async def test_auto_create_posted_entries_reuses_cached_transactions_without_resolving(
+        self, db, statement_with_transactions, user_id, monkeypatch
+    ):
+        """AC-extraction.stage1-validation.1: auto_create_posted_entries_for_statement reuses cached transactions and skips resolution query."""
+        from src.extraction.extension import statement_posting as stmt_posting_mod
+        from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement
+        from tests.statement_ingestion import posting_dependencies
+
+        stmt = await approve_statement(db, statement_with_transactions.id, user_id)
+        cached_txns = getattr(stmt, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, None)
+        assert cached_txns is not None
+        assert len(cached_txns) == 1
+
+        resolve_count = 0
+        original_resolve = stmt_posting_mod.resolve_statement_transactions
+
+        async def spy_resolve(*args, **kwargs):
+            nonlocal resolve_count
+            resolve_count += 1
+            return await original_resolve(*args, **kwargs)
+
+        monkeypatch.setattr(stmt_posting_mod, "resolve_statement_transactions", spy_resolve)
+
+        await auto_create_posted_entries_for_statement(db, stmt, user_id, dependencies=posting_dependencies())
+        assert resolve_count == 0, (
+            "auto_create_posted_entries_for_statement must reuse cached transactions on statement without re-querying"
+        )
 
     async def test_approve_with_invalid_balance_raises(self, db, user_id):
         """AC-extraction.stage1-validation.8: AC1.2.2 AC16.22.1: Reject approval attempt when balance chain is invalid."""

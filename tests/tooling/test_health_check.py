@@ -1,5 +1,5 @@
 """Tests for tools/health_check.py -- the Finance Report route-shadow diagnostics
-layered on top of infra2_sdk.deploy_health.poll_until_healthy (finance_report#1535).
+layered on top of infra2_sdk.deploy.poll_until_healthy (finance_report#1535).
 
 Complements AC-testing.deploy-gates.2 (test_post_merge_e2e_gates.py
 ::test_AC8_13_11_health_check_diagnoses_staging_api_route_404, the canonical

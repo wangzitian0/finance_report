@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import StatementDetailPage from "@/app/(main)/statements/[id]/page"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 
 const showToastMock = vi.fn()
 const mockSearchParams = new URLSearchParams()
@@ -17,8 +17,8 @@ vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast: showToastMock }),
 }))
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
 const parsedStatement = {
@@ -62,7 +62,7 @@ function deferred<T>() {
 }
 
 describe("StatementDetailPage", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiFetch = vi.mocked(apiOperation)
 
   beforeEach(() => {
     mockedApiFetch.mockReset()
@@ -209,11 +209,11 @@ describe("StatementDetailPage", () => {
     expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument()
     expect(mockedApiFetch).not.toHaveBeenCalledWith(
-      expect.stringContaining("/api/statements/s1/approve"),
+      expect.stringMatching(/approve/),
       expect.anything(),
     )
     expect(mockedApiFetch).not.toHaveBeenCalledWith(
-      expect.stringContaining("/api/statements/s1/reject"),
+      expect.stringMatching(/reject/),
       expect.anything(),
     )
   })
@@ -229,9 +229,12 @@ describe("StatementDetailPage", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Retry Parse" })[0])
 
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/statements/s1/retry", {
-        method: "POST",
-      }),
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        "retry_statement_parsing_statements__statement_id__retry_post",
+        {
+          path: { statement_id: "s1" },
+        },
+      ),
     )
   })
 

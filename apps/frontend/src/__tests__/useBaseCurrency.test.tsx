@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 
 import { useBaseCurrency } from "../hooks/useBaseCurrency";
-import * as api from "../lib/api";
+import { apiOperation } from "../lib/api-client";
 
-vi.mock("../lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("../lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }));
 
 describe("useBaseCurrency (#1487)", () => {
@@ -14,7 +14,7 @@ describe("useBaseCurrency (#1487)", () => {
   });
 
   it("defaults to SGD while loading", () => {
-    vi.mocked(api.apiFetch).mockReturnValue(new Promise(() => {}));
+    vi.mocked(apiOperation).mockReturnValue(new Promise(() => {}));
 
     const { result } = renderHook(() => useBaseCurrency());
 
@@ -23,7 +23,7 @@ describe("useBaseCurrency (#1487)", () => {
   });
 
   it("returns the configured base currency from app config", async () => {
-    vi.mocked(api.apiFetch).mockResolvedValue({ base_currency: "HKD" });
+    vi.mocked(apiOperation).mockResolvedValue({ base_currency: "HKD" } as any);
 
     const { result } = renderHook(() => useBaseCurrency());
 
@@ -32,7 +32,7 @@ describe("useBaseCurrency (#1487)", () => {
   });
 
   it("falls back to SGD on API error", async () => {
-    vi.mocked(api.apiFetch).mockRejectedValue(new Error("network error"));
+    vi.mocked(apiOperation).mockRejectedValue(new Error("network error"));
 
     const { result } = renderHook(() => useBaseCurrency());
 

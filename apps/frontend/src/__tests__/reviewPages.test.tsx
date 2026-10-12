@@ -3,12 +3,12 @@ import { screen } from "@testing-library/react";
 import ReviewQueuePage from "@/app/(main)/reconciliation/review-queue/page";
 import StatementReviewPage from "@/app/(main)/statements/[id]/review/page";
 import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
-import { apiDownload, apiFetch } from "@/lib/api";
+import { apiOperation, apiOperationDownload } from "@/lib/api-client";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn(), apiDownload: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn(), apiOperationDownload: vi.fn() }));
 
-const mockedDownload = vi.mocked(apiDownload);
+const mockedDownload = vi.mocked(apiOperationDownload);
 vi.mock("next/navigation", () => ({
     useRouter: vi.fn(() => ({ replace: vi.fn(), push: vi.fn() })),
     useSearchParams: vi.fn(() => ({ get: () => null })),
@@ -16,7 +16,7 @@ vi.mock("next/navigation", () => ({
     useParams: vi.fn(() => ({ id: "s1" })),
 }));
 
-const mockedApi = vi.mocked(apiFetch);
+const mockedApi = vi.mocked(apiOperation);
 
 describe("Review pages data flows", () => {
     beforeEach(() => {
@@ -53,11 +53,11 @@ describe("Review pages data flows", () => {
             pdf_url: null,
             transactions: [],
         };
-        mockedApi.mockImplementation((path: string) => {
-            if (path === "/api/statements/s1/review") return Promise.resolve(stmt);
-            if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }] });
-            if (path === "/api/review/conflicts/s1") return Promise.resolve({ duplicates: [], transfer_pairs: [] });
-            return Promise.reject(new Error(`Unexpected path ${path}`));
+        mockedApi.mockImplementation((operationId: any, req: any = {}) => {
+            if (operationId === "get_statement_review_statements__statement_id__review_get" || operationId === "/api/statements/s1/review") return Promise.resolve(stmt);
+            if (operationId === "list_pending_review_statements_pending_review_get" || operationId === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }] });
+            if (operationId === "list_conflicts_review_conflicts__statement_id__get" || operationId === "/api/review/conflicts/s1") return Promise.resolve({ duplicates: [], transfer_pairs: [] });
+            return Promise.reject(new Error(`Unexpected operation ${operationId}`));
         });
 
         renderReviewComponent(<StatementReviewPage /> as any);
@@ -70,7 +70,10 @@ describe("Review pages data flows", () => {
         const iframe = await screen.findByTitle("Statement PDF preview");
         // AC16.33.5: fetched from the authenticated same-origin proxy, never a
         // cross-origin object-storage URL, and embedded as a blob: object URL.
-        expect(mockedDownload).toHaveBeenCalledWith("/api/statements/s1/document");
+        expect(mockedDownload).toHaveBeenCalledWith(
+            "get_statement_document_statements__statement_id__document_get",
+            { path: { statement_id: "s1" } },
+        );
         expect(iframe).toHaveAttribute("src", "blob:preview-1");
         expect(iframe).not.toHaveAttribute("sandbox");
         expect(iframe).toHaveAttribute("referrerPolicy", "no-referrer");

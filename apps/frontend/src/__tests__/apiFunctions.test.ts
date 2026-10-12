@@ -24,7 +24,7 @@ function makeFetchMock(status: number, body: unknown, headers: Record<string, st
   });
 }
 
-describe('apiFetch', () => {
+describe('apiOperation', () => {
   beforeEach(() => {
     localStorageMock.clear();
     vi.unstubAllGlobals();
@@ -41,12 +41,12 @@ describe('apiFetch', () => {
     const fetchMock = makeFetchMock(200, { id: 1, name: 'test' });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiFetch } = await import('../lib/api');
-    const result = await apiFetch<{ id: number; name: string }>('/api/test');
+    const { apiOperation } = await import('../lib/api');
+    const result = await apiOperation('get_me_auth_me_get');
 
     expect(result).toEqual({ id: 1, name: 'test' });
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/test'),
+      expect.stringContaining('/api/auth/me'),
       expect.objectContaining({ credentials: 'include', headers: expect.any(Object) })
     );
   });
@@ -56,8 +56,10 @@ describe('apiFetch', () => {
     const fetchMock = makeFetchMock(204, null);
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiFetch } = await import('../lib/api');
-    const result = await apiFetch('/api/test');
+    const { apiOperation } = await import('../lib/api');
+    const result = await apiOperation('delete_account_accounts__account_id__delete', {
+      path: { account_id: 'test' },
+    });
 
     expect(result).toBeUndefined();
   });
@@ -67,8 +69,8 @@ describe('apiFetch', () => {
     const fetchMock = makeFetchMock(400, { detail: 'Validation failed' });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiFetch } = await import('../lib/api');
-    await expect(apiFetch('/api/test')).rejects.toThrow('Validation failed');
+    const { apiOperation } = await import('../lib/api');
+    await expect(apiOperation('get_me_auth_me_get')).rejects.toThrow('Validation failed');
   });
 
   // AC-meta.fe-http-client.4
@@ -80,8 +82,8 @@ describe('apiFetch', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiFetch } = await import('../lib/api');
-    await expect(apiFetch('/api/test')).rejects.toThrow('Internal Server Error');
+    const { apiOperation } = await import('../lib/api');
+    await expect(apiOperation('get_me_auth_me_get')).rejects.toThrow('Internal Server Error');
   });
 
   // AC-meta.fe-http-client.5
@@ -90,9 +92,9 @@ describe('apiFetch', () => {
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('window', { location: { href: '' } });
 
-    const { apiFetch, resetRedirectGuard } = await import('../lib/api');
+    const { apiOperation, resetRedirectGuard } = await import('../lib/api');
     resetRedirectGuard();
-    await expect(apiFetch('/api/statements')).rejects.toThrow('Authentication required');
+    await expect(apiOperation('list_statements_statements_get')).rejects.toThrow('Authentication required');
     expect(window.location.href).toBe('/login');
   });
 
@@ -101,11 +103,11 @@ describe('apiFetch', () => {
     const fetchMock = makeFetchMock(200, {});
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiFetch } = await import('../lib/api');
-    await apiFetch('api/no-slash');
+    const { apiOperation } = await import('../lib/api');
+    await apiOperation('get_base_currency_app_config_base_currency_get');
 
     const calledUrl = fetchMock.mock.calls[0][0] as string;
-    expect(calledUrl).toMatch(/\/api\/no-slash/);
+    expect(calledUrl).toMatch(/\/api\/app-config\/base-currency/);
   });
 
   // AC-meta.fe-http-client.14
@@ -114,8 +116,8 @@ describe('apiFetch', () => {
     const fetchMock = makeFetchMock(200, {});
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiFetch } = await import('../lib/api');
-    await apiFetch('/api/secure');
+    const { apiOperation } = await import('../lib/api');
+    await apiOperation('get_me_auth_me_get');
 
     const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
     expect(calledHeaders['Authorization']).toBe('Bearer test-jwt-token');
@@ -126,8 +128,8 @@ describe('apiFetch', () => {
     const fetchMock = makeFetchMock(200, {});
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiFetch } = await import('../lib/api');
-    await apiFetch('/api/cookie-auth');
+    const { apiOperation } = await import('../lib/api');
+    await apiOperation('get_me_auth_me_get');
 
     expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ credentials: 'include' }));
     const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
@@ -138,8 +140,8 @@ describe('apiFetch', () => {
     const fetchMock = makeFetchMock(422, 'false');
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiFetch } = await import('../lib/api');
-    await expect(apiFetch('/api/test')).rejects.toThrow('false');
+    const { apiOperation } = await import('../lib/api');
+    await expect(apiOperation('get_me_auth_me_get')).rejects.toThrow('false');
   });
 
   it('test_AC8_13_48 reports redirect assignment failures', async () => {
@@ -157,10 +159,10 @@ describe('apiFetch', () => {
       },
     });
 
-    const { apiFetch, resetRedirectGuard } = await import('../lib/api');
+    const { apiOperation, resetRedirectGuard } = await import('../lib/api');
     resetRedirectGuard();
 
-    await expect(apiFetch('/api/statements')).rejects.toThrow('Authentication required - redirect failed');
+    await expect(apiOperation('list_statements_statements_get')).rejects.toThrow('Authentication required - redirect failed');
     expect(consoleSpy).toHaveBeenCalledWith('[api] Failed to redirect to login:', expect.any(Error));
     consoleSpy.mockRestore();
   });
@@ -199,13 +201,17 @@ describe('apiDelete', () => {
 
   // AC-meta.fe-http-client.7
   it('AC16.10.7 succeeds on 200 response', async () => {
-    const fetchMock = makeFetchMock(200, '');
+    const fetchMock = makeFetchMock(200, { success: true });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiDelete } = await import('../lib/api');
-    await expect(apiDelete('/api/resource/1')).resolves.toBeUndefined();
+    const { apiOperation } = await import('../lib/api');
+    await expect(
+      apiOperation('delete_account_accounts__account_id__delete', {
+        path: { account_id: '1' },
+      }),
+    ).resolves.toBeDefined();
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/resource/1'),
+      expect.stringContaining('/api/accounts/1'),
       expect.objectContaining({ credentials: 'include', method: 'DELETE' })
     );
   });
@@ -215,8 +221,12 @@ describe('apiDelete', () => {
     const fetchMock = makeFetchMock(404, '');
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiDelete } = await import('../lib/api');
-    await expect(apiDelete('/api/resource/missing')).rejects.toThrow('Delete failed with 404');
+    const { apiOperation } = await import('../lib/api');
+    await expect(
+      apiOperation('delete_account_accounts__account_id__delete', {
+        path: { account_id: 'missing' },
+      }),
+    ).rejects.toThrow('Request failed with 404');
   });
 
   // AC-meta.fe-http-client.15
@@ -225,9 +235,13 @@ describe('apiDelete', () => {
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('window', { location: { href: '' } });
 
-    const { apiDelete, resetRedirectGuard } = await import('../lib/api');
+    const { apiOperation, resetRedirectGuard } = await import('../lib/api');
     resetRedirectGuard();
-    await expect(apiDelete('/api/delete-unauth')).rejects.toThrow('Authentication required');
+    await expect(
+      apiOperation('delete_account_accounts__account_id__delete', {
+        path: { account_id: 'delete-unauth' },
+      }),
+    ).rejects.toThrow('Authentication required');
     expect(window.location.href).toBe('/login');
   });
 
@@ -236,17 +250,19 @@ describe('apiDelete', () => {
     const fetchMock = makeFetchMock(200, '');
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiDelete } = await import('../lib/api');
-    await apiDelete('api/resource/1');
+    const { apiOperation } = await import('../lib/api');
+    await apiOperation('delete_account_accounts__account_id__delete', {
+      path: { account_id: '1' },
+    });
 
     const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
-    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/resource\/1/);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/accounts\/1/);
     expect(calledHeaders['Authorization']).toBe('Bearer delete-token');
   });
 });
 
 
-describe('apiStream', () => {
+describe('apiOperationStream', () => {
   beforeEach(() => {
     localStorageMock.clear();
     vi.unstubAllGlobals();
@@ -269,8 +285,10 @@ describe('apiStream', () => {
     };
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockResponse));
 
-    const { apiStream } = await import('../lib/api');
-    const result = await apiStream('/api/stream');
+    const { apiOperationStream } = await import('../lib/api');
+    const result = await apiOperationStream('chat_message_chat_post', {
+      body: { message: 'hello' } as any,
+    });
 
     expect(result.response).toBe(mockResponse);
     expect(result.sessionId).toBe('sess-abc');
@@ -281,8 +299,12 @@ describe('apiStream', () => {
     const fetchMock = makeFetchMock(503, { detail: 'Service Unavailable' });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiStream } = await import('../lib/api');
-    await expect(apiStream('/api/stream')).rejects.toThrow('Service Unavailable');
+    const { apiOperationStream } = await import('../lib/api');
+    await expect(
+      apiOperationStream('chat_message_chat_post', {
+        body: { message: 'hello' } as any,
+      }),
+    ).rejects.toThrow('Service Unavailable');
   });
 
   it('test_AC8_13_48 includes Authorization header on streams', async () => {
@@ -290,31 +312,41 @@ describe('apiStream', () => {
     const fetchMock = makeFetchMock(200, {}, { 'X-Session-Id': 'sess-auth' });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiStream } = await import('../lib/api');
-    const result = await apiStream('api/stream-auth');
+    const { apiOperationStream } = await import('../lib/api');
+    const result = await apiOperationStream('chat_message_chat_post', {
+      body: { message: 'hello' } as any,
+    });
 
     const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
     expect(result.sessionId).toBe('sess-auth');
-    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/stream-auth/);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/chat/);
     expect(calledHeaders['Authorization']).toBe('Bearer stream-token');
   });
 
   it('test_AC8_13_48 handles non-object and invalid JSON stream errors', async () => {
-    const { apiStream } = await import('../lib/api');
+    const { apiOperationStream } = await import('../lib/api');
 
     vi.stubGlobal('fetch', makeFetchMock(429, 'false'));
-    await expect(apiStream('/api/stream')).rejects.toThrow('false');
+    await expect(
+      apiOperationStream('chat_message_chat_post', {
+        body: { message: 'hello' } as any,
+      }),
+    ).rejects.toThrow('false');
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,
       status: 500,
       text: () => Promise.resolve('{bad json'),
     }));
-    await expect(apiStream('/api/stream')).rejects.toThrow('{bad json');
+    await expect(
+      apiOperationStream('chat_message_chat_post', {
+        body: { message: 'hello' } as any,
+      }),
+    ).rejects.toThrow('{bad json');
   });
 });
 
-describe('apiUpload', () => {
+describe('apiOperationUpload', () => {
   beforeEach(() => {
     localStorageMock.clear();
     vi.unstubAllGlobals();
@@ -331,14 +363,16 @@ describe('apiUpload', () => {
     const fetchMock = makeFetchMock(200, { uploaded: true });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiUpload } = await import('../lib/api');
+    const { apiOperationUpload } = await import('../lib/api');
     const fd = new FormData();
     fd.append('file', new Blob(['data']), 'test.pdf');
 
-    const result = await apiUpload<{ uploaded: boolean }>('/api/upload', fd);
+    const result = await apiOperationUpload('upload_statement_statements_upload_post', {
+      body: fd,
+    });
     expect(result).toEqual({ uploaded: true });
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/upload'),
+      expect.stringContaining('/api/statements/upload'),
       expect.objectContaining({ credentials: 'include', method: 'POST', body: fd })
     );
   });
@@ -348,9 +382,11 @@ describe('apiUpload', () => {
     const fetchMock = makeFetchMock(204, null);
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiUpload } = await import('../lib/api');
+    const { apiOperationUpload } = await import('../lib/api');
     const fd = new FormData();
-    const result = await apiUpload('/api/upload', fd);
+    const result = await apiOperationUpload('upload_statement_statements_upload_post', {
+      body: fd,
+    });
     expect(result).toBeUndefined();
   });
 
@@ -360,9 +396,11 @@ describe('apiUpload', () => {
     const fetchMock = makeFetchMock(200, {});
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiUpload } = await import('../lib/api');
+    const { apiOperationUpload } = await import('../lib/api');
     const fd = new FormData();
-    await apiUpload('/api/upload', fd);
+    await apiOperationUpload('upload_statement_statements_upload_post', {
+      body: fd,
+    });
 
     const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
     expect(calledHeaders['Authorization']).toBe('Bearer upload-token');
@@ -374,10 +412,14 @@ describe('apiUpload', () => {
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('window', { location: { href: '' } });
 
-    const { apiUpload, resetRedirectGuard } = await import('../lib/api');
+    const { apiOperationUpload, resetRedirectGuard } = await import('../lib/api');
     resetRedirectGuard();
     const fd = new FormData();
-    await expect(apiUpload('/api/upload-unauth', fd)).rejects.toThrow('Authentication required');
+    await expect(
+      apiOperationUpload('upload_statement_statements_upload_post', {
+        body: fd,
+      }),
+    ).rejects.toThrow('Authentication required');
     expect(window.location.href).toBe('/login');
   });
 
@@ -386,9 +428,13 @@ describe('apiUpload', () => {
     const fetchMock = makeFetchMock(400, { detail: 'Upload limit exceeded' });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiUpload } = await import('../lib/api');
+    const { apiOperationUpload } = await import('../lib/api');
     const fd = new FormData();
-    await expect(apiUpload('/api/upload', fd)).rejects.toThrow('Upload limit exceeded');
+    await expect(
+      apiOperationUpload('upload_statement_statements_upload_post', {
+        body: fd,
+      }),
+    ).rejects.toThrow('Upload limit exceeded');
   });
 
   // AC-meta.fe-http-client.19
@@ -400,18 +446,26 @@ describe('apiUpload', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiUpload } = await import('../lib/api');
+    const { apiOperationUpload } = await import('../lib/api');
     const fd = new FormData();
-    await expect(apiUpload('/api/upload', fd)).rejects.toThrow('Server Crash');
+    await expect(
+      apiOperationUpload('upload_statement_statements_upload_post', {
+        body: fd,
+      }),
+    ).rejects.toThrow('Server Crash');
   });
 
   it('test_AC8_13_48 uses raw text when apiUpload error JSON is not an object', async () => {
     const fetchMock = makeFetchMock(413, 'false');
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiUpload } = await import('../lib/api');
+    const { apiOperationUpload } = await import('../lib/api');
     const fd = new FormData();
-    await expect(apiUpload('/api/upload', fd)).rejects.toThrow('false');
+    await expect(
+      apiOperationUpload('upload_statement_statements_upload_post', {
+        body: fd,
+      }),
+    ).rejects.toThrow('false');
   });
 });
 
@@ -491,7 +545,7 @@ describe('user settings & session bootstrap client (EPIC-022 AC22.15 / #1010)', 
   });
 });
 
-describe('apiDownload', () => {
+describe('apiOperationDownload', () => {
   beforeEach(() => {
     localStorageMock.clear();
     vi.unstubAllGlobals();
@@ -521,8 +575,10 @@ describe('apiDownload', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiDownload } = await import('../lib/api');
-    const result = await apiDownload('/api/reports/export?report_type=cash-flow');
+    const { apiOperationDownload } = await import('../lib/api');
+    const result = await apiOperationDownload('export_report_reports_export_get', {
+      query: { report_type: 'cash-flow' } as any,
+    });
 
     const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
     expect(calledHeaders.Authorization).toBe('Bearer download-token');
@@ -551,26 +607,38 @@ describe('apiDownload', () => {
       });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { apiDownload } = await import('../lib/api');
-    await expect(apiDownload('api/reports/export')).resolves.toMatchObject({
+    const { apiOperationDownload } = await import('../lib/api');
+    await expect(
+      apiOperationDownload('export_report_reports_export_get', {
+        query: {} as any,
+      }),
+    ).resolves.toMatchObject({
       blob: csvBlob,
       filename: 'cash-flow-€.csv',
     });
-    await expect(apiDownload('/api/reports/export')).resolves.toMatchObject({
+    await expect(
+      apiOperationDownload('export_report_reports_export_get', {
+        query: {} as any,
+      }),
+    ).resolves.toMatchObject({
       blob: csvBlob,
       filename: '%E0%A4%A',
     });
   });
 
   it('test_AC8_13_48 reports download failures and redirects on 401', async () => {
-    const { apiDownload, resetRedirectGuard } = await import('../lib/api');
+    const { apiOperationDownload, resetRedirectGuard } = await import('../lib/api');
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,
       status: 503,
       text: () => Promise.resolve(''),
     }));
-    await expect(apiDownload('/api/reports/export')).rejects.toThrow('Download failed with 503');
+    await expect(
+      apiOperationDownload('export_report_reports_export_get', {
+        query: {} as any,
+      }),
+    ).rejects.toThrow('Download failed with 503');
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,
@@ -580,7 +648,11 @@ describe('apiDownload', () => {
     vi.stubGlobal('window', { location: { href: '' } });
     resetRedirectGuard();
 
-    await expect(apiDownload('/api/reports/export')).rejects.toThrow('Authentication required');
+    await expect(
+      apiOperationDownload('export_report_reports_export_get', {
+        query: {} as any,
+      }),
+    ).rejects.toThrow('Authentication required');
     expect(window.location.href).toBe('/login');
   });
 });

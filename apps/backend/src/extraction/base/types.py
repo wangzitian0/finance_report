@@ -205,3 +205,41 @@ class ExtractedTransactionRow:
     occurrence_index: int
     dedup_hash: str
     custody_scope: str | None = None
+
+
+def extract_source_document_ids(
+    source_documents: object,
+    *,
+    doc_type: str | None = None,
+) -> list[UUID]:
+    """Extract source UploadedDocument UUIDs, in order, from JSONB source_documents.
+
+    Accepts the canonical list form ([{"doc_id": ..., "doc_type": ...}]) and a
+    {"documents": [...]} wrapper. If doc_type is provided, filters for that type
+    (keeping entries with missing doc_type for compatibility). Skips invalid UUIDs.
+    """
+    if isinstance(source_documents, dict):
+        source_documents = source_documents.get("documents", [])
+    if not isinstance(source_documents, list):
+        return []
+
+    ordered: list[UUID] = []
+    seen: set[UUID] = set()
+    for entry in source_documents:
+        if not isinstance(entry, dict):
+            continue
+        if doc_type is not None:
+            entry_type = entry.get("doc_type")
+            if entry_type is not None and entry_type != doc_type:
+                continue
+        raw = entry.get("doc_id")
+        if not raw:
+            continue
+        try:
+            doc_id = UUID(str(raw))
+        except (ValueError, TypeError):
+            continue
+        if doc_id not in seen:
+            seen.add(doc_id)
+            ordered.append(doc_id)
+    return ordered
