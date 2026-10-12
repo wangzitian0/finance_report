@@ -9,11 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import PortfolioPage from "@/app/(main)/portfolio/page"
 import StatementDetailPage from "@/app/(main)/statements/[id]/page"
 import { ToastProvider } from "@/components/ui/Toast"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 import type { PortfolioHolding } from "@/lib/types"
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
 vi.mock("next/navigation", () => ({
@@ -133,16 +133,16 @@ function RouteHarness() {
 }
 
 describe("Brokerage import completion route flow", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
 
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
     window.history.pushState({}, "", "/statements/s1")
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path === "/api/statements/s1") {
+    mockedApiOperation.mockImplementation((operationId: string) => {
+      if (operationId === "get_statement_statements__statement_id__get") {
         return Promise.resolve(parsedBrokerageStatement as any)
       }
-      if (path === "/api/statements/s1/brokerage/import") {
+      if (operationId === "import_brokerage_statement_positions_statements__statement_id__brokerage_import_post") {
         return Promise.resolve({
           broker: "Moomoo",
           parsed_positions: 1,
@@ -154,7 +154,7 @@ describe("Brokerage import completion route flow", () => {
           skipped: 0,
         } as any)
       }
-      if (path.startsWith("/api/portfolio/summary")) {
+      if (operationId === "get_portfolio_summary_portfolio_summary_get") {
         return Promise.resolve({
           total_market_value: "1800.00",
           total_cost_basis: "1500.00",
@@ -172,10 +172,10 @@ describe("Brokerage import completion route flow", () => {
           dividend_income_ytd: "0.00",
         } as any)
       }
-      if (path.startsWith("/api/portfolio/holdings")) {
+      if (operationId === "get_holdings_portfolio_holdings_get") {
         return Promise.resolve({ items: [importedHolding], total: 1, warnings: [] } as any)
       }
-      return Promise.reject(new Error(`Unhandled API path: ${path}`))
+      return Promise.reject(new Error(`Unhandled API operation: ${operationId}`))
     })
   })
 
@@ -195,9 +195,12 @@ describe("Brokerage import completion route flow", () => {
     await user.click(importButton)
 
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenCalledWith("/api/statements/s1/brokerage/import", {
-        method: "POST",
-      }),
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "import_brokerage_statement_positions_statements__statement_id__brokerage_import_post",
+        {
+          path: { statement_id: "s1" },
+        },
+      ),
     )
     expect(await screen.findByTestId("import-result-banner")).toHaveTextContent(
       "Brokerage positions imported successfully",
@@ -208,6 +211,9 @@ describe("Brokerage import completion route flow", () => {
     await waitFor(() => expect(window.location.pathname).toBe("/portfolio"))
     expect(await screen.findByText("Total Portfolio Value")).toBeInTheDocument()
     expect(screen.getByTestId("total-portfolio-value")).toHaveTextContent("$1,800.00")
-    expect(mockedApiFetch).toHaveBeenCalledWith("/api/portfolio/holdings")
+    expect(mockedApiOperation).toHaveBeenCalledWith(
+      "get_holdings_portfolio_holdings_get",
+      expect.anything(),
+    )
   })
 })

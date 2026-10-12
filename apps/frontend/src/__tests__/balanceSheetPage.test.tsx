@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import BalanceSheetPage from "@/app/(main)/reports/balance-sheet/page"
-import { apiDownload, apiFetch } from "@/lib/api"
+import { apiOperation, apiOperationDownload } from "@/lib/api-client"
 
 import { balanceSheetVector } from "./fixtures/apiVectors"
 
@@ -24,15 +24,15 @@ vi.mock("@/hooks/useCurrencies", () => ({
   useCurrencies: () => ({ currencies: ["SGD", "USD"] }),
 }))
 
-vi.mock("@/lib/api", () => ({
+vi.mock("@/lib/api-client", () => ({
   API_URL: "http://localhost:8000",
-  apiDownload: vi.fn(),
-  apiFetch: vi.fn(),
+  apiOperation: vi.fn(),
+  apiOperationDownload: vi.fn(),
 }))
 
 describe("BalanceSheetPage", () => {
-  const mockedApiDownload = vi.mocked(apiDownload)
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiDownload = vi.mocked(apiOperationDownload)
+  const mockedApiFetch = vi.mocked(apiOperation)
 
   beforeEach(() => {
     mockedApiDownload.mockReset()
@@ -91,19 +91,28 @@ describe("BalanceSheetPage", () => {
     const imported = screen.getAllByText("Imported")
     expect(imported).toHaveLength(2)
     expect(imported[0]).toHaveAccessibleName("Provenance: Imported")
-    expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("include_restricted=false"))
+    expect(mockedApiFetch).toHaveBeenCalledWith(
+      "balance_sheet_reports_balance_sheet_get",
+      expect.objectContaining({ query: expect.objectContaining({ include_restricted: false }) }),
+    )
     expect(screen.getAllByText(/Total:/)).toHaveLength(3)
 
     fireEvent.click(screen.getByLabelText("Include restricted holdings"))
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenLastCalledWith(expect.stringContaining("include_restricted=true")),
+      expect(mockedApiFetch).toHaveBeenLastCalledWith(
+        "balance_sheet_reports_balance_sheet_get",
+        expect.objectContaining({ query: expect.objectContaining({ include_restricted: true }) }),
+      ),
     )
 
     const dateInput = container.querySelector('input[type="date"]')
     expect(dateInput).not.toBeNull()
     fireEvent.change(dateInput!, { target: { value: "2026-03-01" } })
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenLastCalledWith(expect.stringContaining("as_of_date=2026-03-01")),
+      expect(mockedApiFetch).toHaveBeenLastCalledWith(
+        "balance_sheet_reports_balance_sheet_get",
+        expect.objectContaining({ query: expect.objectContaining({ as_of_date: "2026-03-01" }) }),
+      ),
     )
   })
 
@@ -134,13 +143,18 @@ describe("BalanceSheetPage", () => {
 
     render(<BalanceSheetPage />)
 
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("include_restricted=true")))
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        "balance_sheet_reports_balance_sheet_get",
+        expect.objectContaining({ query: expect.objectContaining({ include_restricted: true }) }),
+      ),
+    )
     expect(await screen.findByLabelText("Include restricted holdings")).toBeChecked()
   })
 
   it("AC22.3.4 opens the source drill-down when an amount is clicked", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/reports/account-lineage")) {
+    mockedApiFetch.mockImplementation((operationId: string) => {
+      if (operationId === "account_lineage_reports_account_lineage_get") {
         return Promise.resolve({
           account_id: "a-root",
           account_name: "Cash",

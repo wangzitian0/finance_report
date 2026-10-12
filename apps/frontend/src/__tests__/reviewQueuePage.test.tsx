@@ -2,21 +2,61 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import ReviewQueuePage from "@/app/(main)/reconciliation/review-queue/page";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
 const replaceMock = vi.fn();
 const pushMock = vi.fn();
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 vi.mock("next/navigation", () => ({
     useRouter: vi.fn(() => ({ replace: replaceMock, push: pushMock })),
     useSearchParams: vi.fn(() => new URLSearchParams()),
     usePathname: vi.fn(() => "/reconciliation/review-queue"),
 }));
 
-const mockedApi = vi.mocked(apiFetch);
+function mapStage2OperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
+    switch (operationId) {
+        case "get_stage2_review_queue_statements_stage2_queue_get":
+            return ["/api/statements/stage2/queue", undefined];
+        case "list_consistency_checks_statements_consistency_checks_list_get": {
+            const q = req?.query;
+            let path = "/api/statements/consistency-checks/list";
+            if (q) {
+                const params = new URLSearchParams();
+                for (const [k, v] of Object.entries(q)) {
+                    if (v !== undefined && v !== null) params.append(k, String(v));
+                }
+                const qs = params.toString();
+                if (qs) path += `?${qs}`;
+            }
+            return [path, undefined];
+        }
+        case "batch_approve_matches_statements_batch_approve_matches_post":
+            return ["/api/statements/batch-approve-matches", { method: "POST", body: JSON.stringify(req?.body) }];
+        case "batch_reject_matches_statements_batch_reject_matches_post":
+            return ["/api/statements/batch-reject-matches", { method: "POST", body: JSON.stringify(req?.body) }];
+        case "resolve_consistency_check_statements_consistency_checks__check_id__resolve_post":
+            return [`/api/statements/consistency-checks/${req?.path?.check_id ?? "c1"}/resolve`, { method: "POST", body: JSON.stringify(req?.body) }];
+        case "get_processing_summary_accounts_processing_summary_get":
+            return ["/api/accounts/processing/summary", undefined];
+        default:
+            return [operationId, req];
+    }
+}
+
+const mockedApi = vi.mocked(apiOperation);
+const originalMockImplementation = mockedApi.mockImplementation.bind(mockedApi);
+mockedApi.mockImplementation = (fn: any) => {
+    return originalMockImplementation((operationId: any, req: any) => {
+        if (typeof operationId === "string" && operationId.startsWith("/")) {
+            return fn(operationId, req);
+        }
+        const [path, options] = mapStage2OperationToLegacy(operationId, req);
+        return fn(path, options);
+    });
+};
 
 const queueData = {
     pending_matches: [
@@ -208,10 +248,9 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
 
         await waitFor(() => {
             expect(mockedApi).toHaveBeenCalledWith(
-                "/api/statements/batch-approve-matches",
+                "batch_approve_matches_statements_batch_approve_matches_post",
                 expect.objectContaining({
-                    method: "POST",
-                    body: JSON.stringify({ match_ids: ["m1"] }),
+                    body: { match_ids: ["m1"] },
                 }),
             );
         });
@@ -276,10 +315,9 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
 
         await waitFor(() => {
             expect(mockedApi).toHaveBeenCalledWith(
-                "/api/statements/batch-reject-matches",
+                "batch_reject_matches_statements_batch_reject_matches_post",
                 expect.objectContaining({
-                    method: "POST",
-                    body: JSON.stringify({ match_ids: ["m1"] }),
+                    body: { match_ids: ["m1"] },
                 }),
             );
         });
@@ -323,10 +361,10 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
 
         await waitFor(() => {
             expect(mockedApi).toHaveBeenCalledWith(
-                "/api/statements/consistency-checks/c1/resolve",
+                "resolve_consistency_check_statements_consistency_checks__check_id__resolve_post",
                 expect.objectContaining({
-                    method: "POST",
-                    body: JSON.stringify({ action: "approve", note: "Looks good" }),
+                    path: { check_id: "c1" },
+                    body: { action: "approve", note: "Looks good" },
                 }),
             );
         });
@@ -382,10 +420,11 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
 
         await waitFor(() => {
             const queueCall = mockedApi.mock.calls.find((call) =>
+                call[0] === "get_stage2_review_queue_statements_stage2_queue_get" ||
                 String(call[0]).startsWith("/api/statements/stage2/queue")
             );
             expect(queueCall).toBeDefined();
-            expect(String(queueCall?.[0])).not.toContain("run_id");
+            expect((queueCall?.[1] as any)?.query?.run_id).toBeFalsy();
         });
     });
 });

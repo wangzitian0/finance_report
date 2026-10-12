@@ -2,22 +2,22 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import PingPongPage from "@/app/ping-pong/page"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 
-vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn(),
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
 }))
 
 describe("PingPongPage", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
 
   beforeEach(() => {
-    mockedApiFetch.mockReset()
+    mockedApiOperation.mockReset()
   })
 
   // AC-meta.fe-app-shell.1
   it("AC16.12.8 loads initial state and shows current value", async () => {
-    mockedApiFetch.mockResolvedValueOnce({
+    mockedApiOperation.mockResolvedValueOnce({
       state: "ping",
       toggle_count: 0,
       updated_at: "2026-01-01T00:00:00Z",
@@ -31,7 +31,7 @@ describe("PingPongPage", () => {
 
   // AC-meta.fe-app-shell.2
   it("AC16.12.9 toggles state and updates count", async () => {
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({ state: "ping", toggle_count: 0, updated_at: null })
       .mockResolvedValueOnce({ state: "pong", toggle_count: 1, updated_at: "2026-01-01T00:00:01Z" })
 
@@ -46,7 +46,7 @@ describe("PingPongPage", () => {
 
   // AC-meta.fe-app-shell.3
   it("AC16.12.10 renders retry flow on initial error", async () => {
-    mockedApiFetch
+    mockedApiOperation
       .mockRejectedValueOnce(new Error("network failed"))
       .mockResolvedValueOnce({ state: "ping", toggle_count: 0, updated_at: null })
 
@@ -59,7 +59,7 @@ describe("PingPongPage", () => {
   })
 
   it("AC16.12.10 surfaces toggle errors", async () => {
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({ state: "ping", toggle_count: 0, updated_at: null })
       .mockRejectedValueOnce(new Error("toggle failed"))
 

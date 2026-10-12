@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { LineagePanel } from "@/components/reports/LineagePanel"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 import type { LineageAnchor } from "@/lib/lineage"
 
 vi.mock("@/components/ui/Sheet", () => ({
@@ -15,9 +15,9 @@ vi.mock("@/components/ui/Sheet", () => ({
     ) : null,
 }))
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }))
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }))
 
-const mockedApiFetch = vi.mocked(apiFetch)
+const mockedApiOperation = vi.mocked(apiOperation)
 
 const JOURNAL_ANCHOR: LineageAnchor = {
   entity_type: "journal_line",
@@ -26,12 +26,12 @@ const JOURNAL_ANCHOR: LineageAnchor = {
 }
 
 beforeEach(() => {
-  mockedApiFetch.mockReset()
+  mockedApiOperation.mockReset()
 })
 
 describe("LineagePanel (EPIC-022 AC22.3.4/AC22.3.5)", () => {
   it("AC22.3.4 renders the evidence chain from ledger line to source document", async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       anchor: null,
       max_depth: 6,
       blockers: [],
@@ -51,12 +51,15 @@ describe("LineagePanel (EPIC-022 AC22.3.4/AC22.3.5)", () => {
     expect(screen.getByText("atomic fact")).toBeInTheDocument()
     expect(screen.getByText("source document")).toBeInTheDocument()
     // The anchored call targets the evidence lineage API for that journal line.
-    expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("/api/evidence/lineage?entity_type=journal_line"))
+    expect(mockedApiOperation).toHaveBeenCalledWith(
+      "get_evidence_lineage_evidence_lineage_get",
+      { query: expect.objectContaining({ entity_type: "journal_line" }) },
+    )
   })
 
   // AC-reporting.fe-ia-reports.11
   it("AC22.7.2 renders an ordered lineage path with source, confidence, and version badges", async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       anchor: null,
       max_depth: 6,
       blockers: [],
@@ -91,7 +94,7 @@ describe("LineagePanel (EPIC-022 AC22.3.4/AC22.3.5)", () => {
   })
 
   it("keeps disconnected evidence visible after the connected lineage path", async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       anchor: null,
       max_depth: 6,
       blockers: [],
@@ -112,7 +115,7 @@ describe("LineagePanel (EPIC-022 AC22.3.4/AC22.3.5)", () => {
   })
 
   it("orders cyclic evidence deterministically when no graph root exists", async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       anchor: null,
       max_depth: 6,
       blockers: [],
@@ -134,7 +137,7 @@ describe("LineagePanel (EPIC-022 AC22.3.4/AC22.3.5)", () => {
   })
 
   it("keeps evidence visible when an edge references an unavailable node", async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       anchor: null,
       max_depth: 6,
       blockers: [],
@@ -152,7 +155,7 @@ describe("LineagePanel (EPIC-022 AC22.3.4/AC22.3.5)", () => {
   })
 
   it("AC22.3.5 shows a graceful empty/blocker state when nothing is linked", async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       anchor: null,
       max_depth: 6,
       blockers: [{ code: "graph_node_missing", message: "No graph node for this anchor" }],
@@ -167,7 +170,7 @@ describe("LineagePanel (EPIC-022 AC22.3.4/AC22.3.5)", () => {
   })
 
   it("AC22.3.5 surfaces a load error without crashing", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("lineage boom"))
+    mockedApiOperation.mockRejectedValue(new Error("lineage boom"))
 
     render(<LineagePanel anchor={JOURNAL_ANCHOR} title="Erroring amount" onClose={() => {}} />)
 
@@ -178,6 +181,6 @@ describe("LineagePanel (EPIC-022 AC22.3.4/AC22.3.5)", () => {
     render(<LineagePanel anchor={null} title="None" onClose={() => {}} />)
 
     expect(screen.queryByRole("dialog")).toBeNull()
-    expect(mockedApiFetch).not.toHaveBeenCalled()
+    expect(mockedApiOperation).not.toHaveBeenCalled()
   })
 })

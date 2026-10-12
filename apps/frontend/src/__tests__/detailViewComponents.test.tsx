@@ -5,12 +5,12 @@ import { describe, expect, it, vi } from "vitest"
 
 import AccountDetailsSidebar from "@/components/accounts/AccountDetailsSidebar"
 import JournalEntryDetailsModal from "@/components/journal/JournalEntryDetailsModal"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 import type { Account, JournalEntry, JournalLine, JournalEntryResponse, JournalEntryListResponse } from "@/lib/types"
 
 import { accountsListVector } from "./fixtures/apiVectors"
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }))
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }))
 vi.mock("@/hooks/useFocusTrap", () => ({ useFocusTrap: vi.fn() }))
 
 function createWrapper() {
@@ -58,7 +58,7 @@ function mockJournalLine(
 }
 
 describe("AccountDetailsSidebar", () => {
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiOperation = vi.mocked(apiOperation)
 
   it("renders nothing when account is null", () => {
     const { container } = render(<AccountDetailsSidebar account={null} isOpen={false} onClose={vi.fn()} />, { wrapper: createWrapper() })
@@ -67,7 +67,7 @@ describe("AccountDetailsSidebar", () => {
 
   it("shows account details and empty state when no transactions", async () => {
     const account: Account = mockAccount({ id: "a1", name: "Cash", balance: "1000" })
-    mockedApiFetch.mockResolvedValueOnce({ items: [], total: 0 } satisfies JournalEntryListResponse)
+    mockedApiOperation.mockResolvedValueOnce({ items: [], total: 0 } as any)
 
     render(<AccountDetailsSidebar account={account} isOpen onClose={vi.fn()} />, { wrapper: createWrapper() })
 
@@ -80,7 +80,7 @@ describe("AccountDetailsSidebar", () => {
 
   it("shows account code and description when provided", async () => {
     const account: Account = mockAccount({ id: "a2", name: "Bank", balance: "200", code: "1001", description: "Main account" })
-    mockedApiFetch.mockResolvedValueOnce({ items: [], total: 0 } satisfies JournalEntryListResponse)
+    mockedApiOperation.mockResolvedValueOnce({ items: [], total: 0 } as any)
 
     render(<AccountDetailsSidebar account={account} isOpen onClose={vi.fn()} />, { wrapper: createWrapper() })
     await waitFor(() => expect(screen.getByText("Bank")).toBeInTheDocument())
@@ -92,7 +92,7 @@ describe("AccountDetailsSidebar", () => {
     const account: Account = mockAccount({ id: "a3", name: "Wallet", balance: "50" })
     const line = { id: "l1", journal_entry_id: "e1", account_id: "a3", direction: "DEBIT" as const, amount: "25", currency: "SGD", created_at: "2023-01-01T00:00:00Z", updated_at: "2023-01-01T00:00:00Z" }
     const entry: JournalEntryResponse = { id: "e1", user_id: "u1", decision_authority_state: "anchored", entry_date: "2023-01-01", memo: "Pay", source_type: "manual", status: "posted", lines: [line], created_at: "2023-01-01T00:00:00Z", updated_at: "2023-01-01T00:00:00Z" }
-    mockedApiFetch.mockResolvedValueOnce({ items: [entry], total: 1 } satisfies JournalEntryListResponse)
+    mockedApiOperation.mockResolvedValueOnce({ items: [entry], total: 1 } as any)
 
     render(<AccountDetailsSidebar account={account} isOpen onClose={vi.fn()} />, { wrapper: createWrapper() })
     await waitFor(() => expect(screen.getByText("Pay")).toBeInTheDocument())

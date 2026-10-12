@@ -5,11 +5,11 @@ import UnmatchedBoard, {
   compatibleAccountTypes,
   isReviewedDispositionComplete,
 } from "@/components/reconciliation/UnmatchedBoard";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 
 const navigationState = vi.hoisted(() => ({ searchParams: new URLSearchParams() }));
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => navigationState.searchParams }));
 
 const unmatchedItem = {
@@ -34,16 +34,16 @@ const expenseAccount = {
 const findReadyReviewDraft = () => screen.findByLabelText("Economic intent");
 
 describe("UnmatchedBoard", () => {
-  const mockedApiFetch = vi.mocked(apiFetch);
+  const mockedApiOperation = vi.mocked(apiOperation);
 
   const mockInitialLoad = () => {
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
       .mockResolvedValueOnce({ items: [expenseAccount], total: 1 });
   };
 
   beforeEach(() => {
-    mockedApiFetch.mockReset();
+    mockedApiOperation.mockReset();
     navigationState.searchParams = new URLSearchParams();
     const storage = new Map<string, string>();
     vi.stubGlobal("localStorage", {
@@ -55,7 +55,7 @@ describe("UnmatchedBoard", () => {
 
   it("AC-reconciliation.first-use.1 creates a missing account and resumes the same explicit review", async () => {
     navigationState.searchParams = new URLSearchParams("statement_id=s1");
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
       .mockResolvedValueOnce({ items: [{ ...expenseAccount, id: "other-currency", currency: "USD" }], total: 1 })
       .mockResolvedValueOnce(expenseAccount)
@@ -72,7 +72,7 @@ describe("UnmatchedBoard", () => {
     fireEvent.change(form.getByPlaceholderText("e.g., Cash on Hand"), { target: { value: expenseAccount.name } });
     fireEvent.click(form.getByRole("button", { name: "Create Account" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(mockedApiFetch).toHaveBeenCalledTimes(3);
+    expect(mockedApiOperation).toHaveBeenCalledTimes(3);
     expect(screen.getByLabelText("Economic intent")).toHaveValue("expense");
     expect(screen.getByLabelText("Report category")).toHaveValue("DINING");
     expect(screen.getByLabelText("Review rationale")).toHaveValue("Receipt reviewed.");
@@ -80,14 +80,17 @@ describe("UnmatchedBoard", () => {
     expect(screen.getByRole("button", { name: "Confirm and Post" })).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Counter account"), { target: { value: expenseAccount.id } });
     fireEvent.click(screen.getByRole("button", { name: "Confirm and Post" }));
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith(
-      "/api/reconciliation/unmatched/u1/reviewed-disposition",
-      expect.objectContaining({ body: JSON.stringify({ intent: "expense", counter_account_id: expenseAccount.id, rationale: "Receipt reviewed.", category: "DINING" }) }),
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledWith(
+      "submit_unmatched_reviewed_disposition_reconciliation_unmatched__txn_id__reviewed_disposition_post",
+      {
+        path: { txn_id: "u1" },
+        body: { intent: "expense", counter_account_id: expenseAccount.id, rationale: "Receipt reviewed.", category: "DINING" },
+      },
     ));
   });
 
   it("AC-reconciliation.first-use.1 preserves review after failed or cancelled account creation", async () => {
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
       .mockResolvedValueOnce({ items: [], total: 0 })
       .mockRejectedValueOnce(new Error("Account name already exists"));
@@ -106,11 +109,11 @@ describe("UnmatchedBoard", () => {
     expect(screen.getByLabelText("Report category")).toHaveValue("DINING");
     expect(screen.getByLabelText("Review rationale")).toHaveValue("Receipt reviewed.");
     expect(screen.getByRole("button", { name: "Confirm and Post" })).toBeDisabled();
-    expect(mockedApiFetch).toHaveBeenCalledTimes(3);
+    expect(mockedApiOperation).toHaveBeenCalledTimes(3);
   });
 
   it("AC-reconciliation.first-use.1 does not select a newly created incompatible account", async () => {
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
       .mockResolvedValueOnce({ items: [], total: 0 })
       .mockResolvedValueOnce({ ...expenseAccount, currency: "USD" });
@@ -135,7 +138,7 @@ describe("UnmatchedBoard", () => {
       currency: "SGD",
       is_active: true,
     };
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
       .mockResolvedValueOnce({ items: [expenseAccount], total: 1 })
       .mockResolvedValueOnce(secondAccount);
@@ -208,7 +211,7 @@ describe("UnmatchedBoard", () => {
   });
 
   it("shows an initial load failure instead of presenting a fabricated empty queue", async () => {
-    mockedApiFetch.mockRejectedValueOnce(new Error("unmatched queue unavailable"));
+    mockedApiOperation.mockRejectedValueOnce(new Error("unmatched queue unavailable"));
     render(<UnmatchedBoard />);
 
     expect(await screen.findByText("unmatched queue unavailable")).toBeInTheDocument();
@@ -216,7 +219,7 @@ describe("UnmatchedBoard", () => {
 
   it("AC-reconciliation.reviewed-disposition.2 / AC-reconciliation.fe-stage2-review.9 submits an explicit reviewed command instead of a raw create action", async () => {
     mockInitialLoad();
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({ id: "je1", entry_date: "2026-01-11", memo: "Card payment", status: "posted", total_amount: "88.00" })
       .mockResolvedValueOnce({ items: [], total: 0 })
       .mockResolvedValueOnce({ items: [expenseAccount], total: 1 });
@@ -232,12 +235,11 @@ describe("UnmatchedBoard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm and Post" }));
 
     await waitFor(() => {
-      const reviewedCall = mockedApiFetch.mock.calls.find(
-        ([path]) => path === "/api/reconciliation/unmatched/u1/reviewed-disposition",
+      const reviewedCall = mockedApiOperation.mock.calls.find(
+        ([op]) => op === "submit_unmatched_reviewed_disposition_reconciliation_unmatched__txn_id__reviewed_disposition_post",
       );
       expect(reviewedCall).toBeDefined();
-      expect((reviewedCall?.[1] as RequestInit).method).toBe("POST");
-      expect(JSON.parse((reviewedCall?.[1] as RequestInit).body as string)).toEqual({
+      expect((reviewedCall?.[1] as any)?.body).toEqual({
         intent: "expense",
         counter_account_id: "expense-1",
         category: "DINING",
@@ -274,7 +276,7 @@ describe("UnmatchedBoard", () => {
   it("AC-reconciliation.fe-stage2-review.31 requires explicit intent instead of deriving it from direction", async () => {
     const incomingItem = { ...unmatchedItem, id: "u2", description: "Salary", direction: "IN" as const };
     const incomeAccount = { ...expenseAccount, id: "income-1", name: "Income - Salary", type: "INCOME" as const };
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({ items: [unmatchedItem, incomingItem], total: 2 })
       .mockResolvedValueOnce({ items: [expenseAccount, incomeAccount], total: 2 });
     render(<UnmatchedBoard />);
@@ -307,7 +309,7 @@ describe("UnmatchedBoard", () => {
     const refreshResult = new Promise<{ items: typeof unmatchedItem[]; total: number }>((resolve) => {
       completeRefresh = resolve;
     });
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({ items: [unmatchedItem], total: 1 })
       .mockResolvedValueOnce({ items: [expenseAccount], total: 1 })
       .mockResolvedValueOnce({
@@ -323,8 +325,9 @@ describe("UnmatchedBoard", () => {
     render(<UnmatchedBoard />);
 
     await waitFor(() => {
-      expect(mockedApiFetch).toHaveBeenCalledWith(
-        "/api/reconciliation/unmatched?statement_id=s1",
+      expect(mockedApiOperation).toHaveBeenCalledWith(
+        "list_unmatched_reconciliation_unmatched_get",
+        expect.objectContaining({ query: expect.objectContaining({ statement_id: "s1" }) }),
       );
     });
     fireEvent.change(await findReadyReviewDraft(), {
@@ -348,7 +351,7 @@ describe("UnmatchedBoard", () => {
     // Navigation already exists before the post/refresh has completed.
     // It is not evidence that the selected statement's queue is empty.
     expect(screen.queryByText(/All transactions for this statement are classified/i)).not.toBeInTheDocument();
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(5));
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledTimes(5));
     completeRefresh({ items: [], total: 0 });
     expect(
       await screen.findByText(/All transactions for this statement are classified/i),
@@ -368,7 +371,7 @@ describe("UnmatchedBoard", () => {
 
   it("surfaces a reviewed-disposition failure without fabricating a success state", async () => {
     mockInitialLoad();
-    mockedApiFetch.mockRejectedValueOnce(new Error("counter account is incompatible"));
+    mockedApiOperation.mockRejectedValueOnce(new Error("counter account is incompatible"));
     render(<UnmatchedBoard />);
 
     await screen.findByRole("heading", { name: "Unmatched Transactions" });
@@ -385,7 +388,7 @@ describe("UnmatchedBoard", () => {
 
   // AC-reconciliation.fe-remainder-reconciliation.1
   it("AC4.11.1 renders unmatched monetary amounts with Decimal-safe currency formatting", async () => {
-    mockedApiFetch
+    mockedApiOperation
       .mockResolvedValueOnce({
         items: [{ ...unmatchedItem, id: "u-precise", amount: "12345678901234567890.12", currency: "USD" }],
         total: 1,

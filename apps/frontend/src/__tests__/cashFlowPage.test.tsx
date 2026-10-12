@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import CashFlowPage from "@/app/(main)/reports/cash-flow/page"
-import { apiDownload, apiFetch } from "@/lib/api"
+import { apiOperation, apiOperationDownload } from "@/lib/api-client"
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
@@ -21,15 +21,15 @@ vi.mock("@/hooks/useCurrencies", () => ({
   useCurrencies: () => ({ currencies: ["SGD", "USD", "EUR"], loading: false }),
 }))
 
-vi.mock("@/lib/api", () => ({
+vi.mock("@/lib/api-client", () => ({
   API_URL: "http://localhost:8000",
-  apiDownload: vi.fn(),
-  apiFetch: vi.fn(),
+  apiOperation: vi.fn(),
+  apiOperationDownload: vi.fn(),
 }))
 
 describe("CashFlowPage", () => {
-  const mockedApiDownload = vi.mocked(apiDownload)
-  const mockedApiFetch = vi.mocked(apiFetch)
+  const mockedApiDownload = vi.mocked(apiOperationDownload)
+  const mockedApiFetch = vi.mocked(apiOperation)
 
   beforeEach(() => {
     mockedApiDownload.mockReset()
@@ -179,8 +179,8 @@ describe("CashFlowPage", () => {
 
   // AC-reporting.fe-ia-reports.10
   it("AC22.7.1 drills a cash-flow amount down to its account lineage", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/reports/cash-flow")) {
+    mockedApiFetch.mockImplementation((operationId: string) => {
+      if (operationId === "cash_flow_reports_cash_flow_get") {
         return Promise.resolve({
           start_date: "2026-01-01",
           end_date: "2026-02-01",
@@ -196,7 +196,7 @@ describe("CashFlowPage", () => {
           },
         })
       }
-      if (path.startsWith("/api/reports/account-lineage")) {
+      if (operationId === "account_lineage_reports_account_lineage_get") {
         return Promise.resolve({
           account_id: "acc-salary", account_name: "Salary", account_type: "INCOME",
           currency: "SGD", as_of_date: "2026-02-01", start_date: "2026-01-01",
@@ -214,7 +214,10 @@ describe("CashFlowPage", () => {
     const dialog = await screen.findByRole("dialog")
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
-        expect.stringContaining("/api/reports/account-lineage?account_id=acc-salary"),
+        "account_lineage_reports_account_lineage_get",
+        expect.objectContaining({
+          query: expect.objectContaining({ account_id: "acc-salary" }),
+        }),
       ),
     )
 
@@ -280,12 +283,17 @@ describe("CashFlowPage", () => {
 
     await waitFor(() =>
       expect(mockedApiDownload).toHaveBeenCalledWith(
-        expect.stringContaining("/api/reports/export?report_type=cash-flow"),
+        "export_report_reports_export_get",
+        expect.objectContaining({
+          query: expect.objectContaining({
+            report_type: "cash-flow",
+            start_date: "2026-01-01",
+            end_date: "2026-01-31",
+            currency: "SGD",
+          }),
+        }),
       ),
     )
-    expect(String(mockedApiDownload.mock.calls[0][0])).toContain("start_date=2026-01-01")
-    expect(String(mockedApiDownload.mock.calls[0][0])).toContain("end_date=2026-01-31")
-    expect(String(mockedApiDownload.mock.calls[0][0])).toContain("currency=SGD")
   })
 
   it("AC16.14.10 / test_AC8_13_48 refetches when filters and dates change", async () => {
@@ -314,8 +322,11 @@ describe("CashFlowPage", () => {
 
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenLastCalledWith(
-        expect.stringContaining("currency=USD")
-      )
+        "cash_flow_reports_cash_flow_get",
+        expect.objectContaining({
+          query: expect.objectContaining({ currency: "USD" }),
+        }),
+      ),
     )
     await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
 
@@ -323,16 +334,29 @@ describe("CashFlowPage", () => {
     expect(dateInputs).toHaveLength(2)
     fireEvent.change(dateInputs[0], { target: { value: "2026-01-15" } })
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenLastCalledWith(expect.stringContaining("start_date=2026-01-15")),
+      expect(mockedApiFetch).toHaveBeenLastCalledWith(
+        "cash_flow_reports_cash_flow_get",
+        expect.objectContaining({
+          query: expect.objectContaining({ start_date: "2026-01-15" }),
+        }),
+      ),
     )
     await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
     fireEvent.change(container.querySelectorAll('input[type="date"]')[1], { target: { value: "2026-02-15" } })
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenLastCalledWith(expect.stringContaining("end_date=2026-02-15")),
+      expect(mockedApiFetch).toHaveBeenLastCalledWith(
+        "cash_flow_reports_cash_flow_get",
+        expect.objectContaining({
+          query: expect.objectContaining({ end_date: "2026-02-15" }),
+        }),
+      ),
     )
-    const lastCall = String(mockedApiFetch.mock.calls.at(-1)?.[0])
-    expect(lastCall).toContain("start_date=2026-01-15")
-    expect(lastCall).toContain("end_date=2026-02-15")
+    const lastCall = mockedApiFetch.mock.calls.at(-1)
+    expect(lastCall?.[0]).toBe("cash_flow_reports_cash_flow_get")
+    expect((lastCall?.[1] as any)?.query).toMatchObject({
+      start_date: "2026-01-15",
+      end_date: "2026-02-15",
+    })
     expect(screen.getAllByText("No items in this category.")).toHaveLength(3)
   })
 })

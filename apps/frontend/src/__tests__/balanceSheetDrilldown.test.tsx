@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { AccountLineageDrawer } from "@/components/reports/AccountLineageDrawer"
-import { apiFetch } from "@/lib/api"
+import { apiOperation } from "@/lib/api-client"
 
 vi.mock("@/components/ui/Sheet", () => ({
   default: ({
@@ -25,9 +25,9 @@ vi.mock("@/components/ui/Sheet", () => ({
     ) : null,
 }))
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }))
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }))
 
-const mockedApiFetch = vi.mocked(apiFetch)
+const mockedApiOperation = vi.mocked(apiOperation)
 
 const TARGET = {
   accountId: "22222222-2222-4222-8222-222222222222",
@@ -37,14 +37,14 @@ const TARGET = {
 }
 
 beforeEach(() => {
-  mockedApiFetch.mockReset()
+  mockedApiOperation.mockReset()
 })
 
 describe("Account drill-down to source transactions (EPIC-022 AC22.3.4/AC22.3.5)", () => {
   // AC-reporting.fe-ia-reports.4
   it("AC22.3.4 lists contributing journal lines and opens the lineage chain for one", async () => {
-    mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/reports/account-lineage")) {
+    mockedApiOperation.mockImplementation((operationId: string) => {
+      if (operationId === "account_lineage_reports_account_lineage_get") {
         return Promise.resolve({
           account_id: TARGET.accountId,
           account_name: "Checking",
@@ -78,7 +78,7 @@ describe("Account drill-down to source transactions (EPIC-022 AC22.3.4/AC22.3.5)
           ],
         })
       }
-      if (path.startsWith("/api/evidence/lineage")) {
+      if (operationId === "get_evidence_lineage_evidence_lineage_get") {
         return Promise.resolve({
           anchor: null,
           max_depth: 6,
@@ -101,7 +101,12 @@ describe("Account drill-down to source transactions (EPIC-022 AC22.3.4/AC22.3.5)
     // Drill from the contributing line into its evidence lineage.
     fireEvent.click(screen.getByText("Salary deposit"))
     await waitFor(() => expect(screen.getByText("source document")).toBeInTheDocument())
-    expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringContaining("/api/evidence/lineage?entity_type=journal_line"))
+    expect(mockedApiOperation).toHaveBeenCalledWith(
+      "get_evidence_lineage_evidence_lineage_get",
+      expect.objectContaining({
+        query: expect.objectContaining({ entity_type: "journal_line" }),
+      }),
+    )
 
     // Closing the lineage drawer clears the anchor.
     fireEvent.click(screen.getByText("Close Source lineage"))
@@ -110,7 +115,7 @@ describe("Account drill-down to source transactions (EPIC-022 AC22.3.4/AC22.3.5)
 
   // AC-reporting.fe-ia-reports.5
   it("AC22.3.5 shows an empty state when no transactions contribute", async () => {
-    mockedApiFetch.mockResolvedValue({
+    mockedApiOperation.mockResolvedValue({
       account_id: TARGET.accountId,
       account_name: "Checking",
       account_type: "ASSET",
@@ -129,7 +134,7 @@ describe("Account drill-down to source transactions (EPIC-022 AC22.3.4/AC22.3.5)
   })
 
   it("AC22.3.5 surfaces a load error for contributing transactions", async () => {
-    mockedApiFetch.mockRejectedValue(new Error("lineage list boom"))
+    mockedApiOperation.mockRejectedValue(new Error("lineage list boom"))
 
     render(<AccountLineageDrawer target={TARGET} onClose={() => {}} />)
 
@@ -140,6 +145,6 @@ describe("Account drill-down to source transactions (EPIC-022 AC22.3.4/AC22.3.5)
     render(<AccountLineageDrawer target={null} onClose={() => {}} />)
 
     expect(screen.queryByRole("dialog")).toBeNull()
-    expect(mockedApiFetch).not.toHaveBeenCalled()
+    expect(mockedApiOperation).not.toHaveBeenCalled()
   })
 })

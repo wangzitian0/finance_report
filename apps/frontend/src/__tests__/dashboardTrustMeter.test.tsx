@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TrustMeter } from "@/components/home/TrustMeter";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
@@ -13,21 +13,21 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 
-const mockedApiFetch = vi.mocked(apiFetch);
+const mockedApiOperation = vi.mocked(apiOperation);
 
 function mockSources(stats: unknown, statements: unknown[] = [], processing: unknown[] = []) {
-  mockedApiFetch.mockImplementation((path: string) => {
-    if (path === "/api/statements") return Promise.resolve({ items: statements, total: statements.length });
-    if (path === "/api/reconciliation/stats") return Promise.resolve(stats);
-    if (path === "/api/accounts/processing/pending") return Promise.resolve({ items: processing, total: processing.length });
+  mockedApiOperation.mockImplementation((operationId: any) => {
+    if (operationId === "list_statements_statements_get" || operationId === "/api/statements") return Promise.resolve({ items: statements, total: statements.length });
+    if (operationId === "reconciliation_stats_reconciliation_stats_get" || operationId === "/api/reconciliation/stats") return Promise.resolve(stats);
+    if (operationId === "list_processing_pending_accounts_processing_pending_get" || operationId === "/api/accounts/processing/pending") return Promise.resolve({ items: processing, total: processing.length });
     return Promise.resolve(null);
   });
 }
 
 describe("Home trust meter (EPIC-022 AC22.6.2)", () => {
-  beforeEach(() => mockedApiFetch.mockReset());
+  beforeEach(() => mockedApiOperation.mockReset());
 
   it("AC22.6.2 renders trusted / needs-confirmation / low-confidence counts and links to the attention queue", async () => {
     mockSources(
@@ -53,20 +53,20 @@ describe("Home trust meter (EPIC-022 AC22.6.2)", () => {
     const { container } = render(<TrustMeter />);
 
     // Give the effect a tick to resolve, then assert nothing rendered.
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalled());
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalled());
     await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 
   it("AC22.6.2 stays silent (no crash) when the sources fail to load", async () => {
     // Reject one source and resolve the rest so Promise.all rejects without
     // leaving sibling promises unhandled.
-    mockedApiFetch.mockImplementation((path: string) =>
-      path === "/api/statements" ? Promise.reject(new Error("offline")) : Promise.resolve(null),
+    mockedApiOperation.mockImplementation((op: any) =>
+      op === "list_statements_statements_get" || op === "/api/statements" ? Promise.reject(new Error("offline")) : Promise.resolve(null),
     );
 
     const { container } = render(<TrustMeter />);
 
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalled());
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalled());
     await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 });

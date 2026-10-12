@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AttentionPage from "@/app/(main)/attention/page";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => (
@@ -13,9 +13,9 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 
-const mockedApiFetch = vi.mocked(apiFetch);
+const mockedApiOperation = vi.mocked(apiOperation);
 
 function mockSources({
   statements = [],
@@ -26,16 +26,17 @@ function mockSources({
   stats?: unknown;
   processing?: unknown[];
 }) {
-  mockedApiFetch.mockImplementation((path: string) => {
-    if (path === "/api/statements") return Promise.resolve({ items: statements, total: statements.length });
-    if (path === "/api/reconciliation/stats") return Promise.resolve(stats);
-    if (path === "/api/accounts/processing/pending") return Promise.resolve({ items: processing, total: processing.length });
-    return Promise.resolve(null);
+  mockedApiOperation.mockImplementation((operationId: any) => {
+    if (operationId === "list_statements_statements_get") return Promise.resolve({ items: statements, total: statements.length } as any);
+    if (operationId === "reconciliation_stats_reconciliation_stats_get") return Promise.resolve(stats as any);
+    if (operationId === "list_processing_pending_accounts_processing_pending_get") return Promise.resolve({ items: processing, total: processing.length } as any);
+    return Promise.resolve(null as any);
   });
 }
 
 describe("Attention queue (EPIC-022 AC22.6)", () => {
-  beforeEach(() => mockedApiFetch.mockReset());
+  beforeEach(() => mockedApiOperation.mockReset());
+
 
   // AC-reconciliation.fe-ia-reconciliation.7 / AC-reconciliation.fe-ia-reconciliation.8
   it("AC22.6.1 AC22.11.3 AC22.12.4 renders the open attention items with readable reasons and action links", async () => {
@@ -80,10 +81,10 @@ describe("Attention queue (EPIC-022 AC22.6)", () => {
   });
 
   it("AC22.6.1 surfaces a retryable error state when the sources fail to load", async () => {
-    // Reject one source and resolve the rest so Promise.all rejects without
-    // leaving sibling promises unhandled.
-    mockedApiFetch.mockImplementation((path: string) =>
-      path === "/api/statements" ? Promise.reject(new Error("offline")) : Promise.resolve(null),
+    mockedApiOperation.mockImplementation((operationId: any) =>
+      operationId === "list_statements_statements_get"
+        ? Promise.reject(new Error("offline"))
+        : Promise.resolve(null as any),
     );
 
     render(<AttentionPage />);

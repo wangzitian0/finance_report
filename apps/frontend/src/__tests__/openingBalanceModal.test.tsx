@@ -3,12 +3,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import OpeningBalanceModal from "@/components/accounts/OpeningBalanceModal";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 import type { Account } from "@/lib/types";
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 
-const mockedApi = vi.mocked(apiFetch);
+const mockedApi = vi.mocked(apiOperation);
 
 const baseAccount: Account = {
     id: "a1",
@@ -50,7 +50,7 @@ describe("OpeningBalanceModal (#949 / AC2.15.8)", () => {
         fireEvent.change(screen.getByLabelText("Opening balance for Cash"), { target: { value: "100.00" } });
         fireEvent.click(screen.getByRole("button", { name: "Record opening balances" }));
         await waitFor(() => expect(mockedApi).toHaveBeenCalledTimes(1));
-        expect(JSON.parse(mockedApi.mock.calls[0][1]?.body as string).entry_date).toBe("2026-02-27");
+        expect(((mockedApi.mock.calls[0][1] as any)?.body as { entry_date: string }).entry_date).toBe("2026-02-27");
     });
 
     it.each([
@@ -107,14 +107,16 @@ describe("OpeningBalanceModal (#949 / AC2.15.8)", () => {
         fireEvent.click(screen.getByRole("button", { name: "Record opening balances" }));
 
         await waitFor(() => expect(mockedApi).toHaveBeenCalledTimes(1));
-        const [path, init] = mockedApi.mock.calls[0];
-        expect(path).toBe("/api/accounts/opening-balances");
-        expect(init?.method).toBe("POST");
-        expect(JSON.parse(init?.body as string)).toEqual({
-            entry_date: "2026-01-01",
-            balances: { a1: "1500.50" },
-            memo: "Opening balances",
-        });
+        expect(mockedApi).toHaveBeenCalledWith(
+            "post_opening_balances_accounts_opening_balances_post",
+            {
+                body: {
+                    entry_date: "2026-01-01",
+                    balances: { a1: "1500.50" },
+                    memo: "Opening balances",
+                },
+            },
+        );
         await waitFor(() => expect(onSuccess).toHaveBeenCalled());
         expect(onClose).toHaveBeenCalled();
     });
@@ -129,11 +131,16 @@ describe("OpeningBalanceModal (#949 / AC2.15.8)", () => {
         fireEvent.click(screen.getByRole("button", { name: "Record opening balances" }));
 
         await waitFor(() => expect(mockedApi).toHaveBeenCalledTimes(1));
-        expect(JSON.parse(mockedApi.mock.calls[0][1]?.body as string)).toEqual({
-            entry_date: "2025-01-01",
-            balances: { a1: "42.00" },
-            memo: "Year-start positions",
-        });
+        expect(mockedApi).toHaveBeenCalledWith(
+            "post_opening_balances_accounts_opening_balances_post",
+            {
+                body: {
+                    entry_date: "2025-01-01",
+                    balances: { a1: "42.00" },
+                    memo: "Year-start positions",
+                },
+            },
+        );
     });
 
     it("AC2.15.8 prompts to create an eligible account when none exist", () => {

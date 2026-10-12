@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
 import ReviewQueuePage from "@/app/(main)/reconciliation/review-queue/page";
 import { renderReviewComponent } from "@/__tests__/helpers/renderReviewComponent";
-import { apiFetch } from "@/lib/api";
+import { apiOperation } from "@/lib/api-client";
 
-vi.mock("@/lib/api", () => ({ apiFetch: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 const mockReplace = vi.fn();
 const mockRouter = { replace: mockReplace, push: vi.fn() };
 vi.mock("next/navigation", () => ({
@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
     usePathname: () => "/",
 }));
 
-const mocked = vi.mocked(apiFetch);
+const mocked = vi.mocked(apiOperation);
 
 describe("Review queue actions", () => {
     beforeEach(() => {
@@ -56,10 +56,9 @@ describe("Review queue actions", () => {
 
         await waitFor(() => {
             expect(mocked).toHaveBeenCalledWith(
-                expect.stringContaining("batch-approve-matches"),
+                "batch_approve_matches_statements_batch_approve_matches_post",
                 expect.objectContaining({
-                    method: "POST",
-                    body: JSON.stringify({ match_ids: ["m1"] }),
+                    body: { match_ids: ["m1"] },
                 }),
             );
         });
@@ -89,7 +88,10 @@ describe("Review queue actions", () => {
         await waitFor(() => {
             expect(mocked.mock.calls.length).toBeGreaterThanOrEqual(3);
             expect(mocked).toHaveBeenCalledWith(
-                expect.stringContaining("consistency-checks/list")
+                "list_consistency_checks_statements_consistency_checks_list_get",
+                expect.objectContaining({
+                    query: expect.objectContaining({ limit: 500 }),
+                }),
             );
         });
 
@@ -120,9 +122,9 @@ describe("Review queue actions", () => {
 
         await waitFor(() => {
             expect(mocked).toHaveBeenCalledWith(
-                expect.stringContaining("consistency-checks/c2/resolve"),
+                "resolve_consistency_check_statements_consistency_checks__check_id__resolve_post",
                 expect.objectContaining({
-                    method: "POST",
+                    path: { check_id: "c2" },
                 }),
             );
         });
@@ -188,10 +190,9 @@ describe("Review queue actions", () => {
 
         await waitFor(() => {
             expect(mocked).toHaveBeenCalledWith(
-                expect.stringContaining("batch-reject-matches"),
+                "batch_reject_matches_statements_batch_reject_matches_post",
                 expect.objectContaining({
-                    method: "POST",
-                    body: JSON.stringify({ match_ids: ["r1", "r2"] }),
+                    body: { match_ids: ["r1", "r2"] },
                 }),
             );
         });
