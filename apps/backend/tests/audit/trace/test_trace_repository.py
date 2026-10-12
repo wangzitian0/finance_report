@@ -19,11 +19,12 @@ from src.audit import (
     TraceResult,
     TraceScope,
     TraceTargetClass,
+    VersionedTraceRef,
 )
 from src.audit.extension.trace_repository import _row_from_record
 from src.audit.orm import TraceRecordParentRow, TraceRecordRow
 
-from .conftest import authority, decision_policy, observation
+from .conftest import FixtureDecisionPolicy, authority, decision_policy, observation
 
 
 def _parent_row(record: TraceRecord, parent: TraceRecord) -> TraceRecordParentRow:
@@ -829,3 +830,19 @@ async def test_repository_instances_share_caches_via_session_info(db):
     with patch.object(db, "execute", side_effect=RuntimeError("database query attempted")):
         retrieved = await repo2.get(record.scope, record.record_id)
     assert retrieved == record
+
+
+async def test_repository_handles_unhashable_policy_registry(db):
+    """AC-audit.trace-record.4: AC19.4.2: repository handles unhashable policy registries via object id."""
+
+    class _UnhashablePolicy(FixtureDecisionPolicy):
+        __hash__ = None  # type: ignore[assignment]
+
+    policy = _UnhashablePolicy(
+        assertion=VersionedTraceRef(kind="promotion", id="unhashable", version="v1"),
+        authority=authority(),
+    )
+    registry = TraceDecisionPolicyRegistry((policy,))
+    repo1 = SqlTraceRecordRepository(db, registry)
+    repo2 = SqlTraceRecordRepository(db, registry)
+    assert repo1._cache is repo2._cache
