@@ -533,6 +533,27 @@ def select_checks(
     ]
 
 
+def select_named_checks(
+    names: Iterable[str],
+    *,
+    checks: Sequence[Check] = CHECKS,
+) -> list[Check]:
+    """Return the checks with the given names, in registry order.
+
+    CI calls this path (``--only``) so that CI and the local pre-push run use one
+    command list. An unknown name raises ``ValueError``: a typo must not select
+    zero gates and report success (#2378).
+    """
+    wanted = list(dict.fromkeys(names))
+    known = {check.name for check in checks}
+    unknown = [name for name in wanted if name not in known]
+    if unknown:
+        raise ValueError(
+            f"unknown gate name(s): {', '.join(unknown)}; known: {', '.join(sorted(known))}"
+        )
+    return [check for check in checks if check.name in wanted]
+
+
 def _default_git(args: Sequence[str]) -> str:
     return subprocess.run(
         ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=False
@@ -694,6 +715,17 @@ def run(
         help="Select all registered checks for the tier regardless of diff.",
     )
     parser.add_argument(
+        "--only",
+        action="append",
+        default=None,
+        metavar="NAME",
+        help=(
+            "Run only the named gate, whatever the diff (repeatable). "
+            "Ignores --tier. Cannot combine with --all or --changed. "
+            "CI uses this to run the same commands as the local run."
+        ),
+    )
+    parser.add_argument(
         "--ci",
         action="store_true",
         help="Format logs with GitHub Actions ::group:: folding and ::error:: annotations.",
@@ -706,7 +738,15 @@ def run(
     )
     args = parser.parse_args(argv)
 
-    if args.all:
+    if args.only:
+        if args.all or args.changed is not None:
+            parser.error("--only cannot combine with --all or --changed")
+        try:
+            selected = select_named_checks(args.only)
+        except ValueError as exc:
+            parser.error(str(exc))
+        files = ()
+    elif args.all:
         files = ()
         selected = [
             check for check in CHECKS if args.tier == "full" or check.tier == args.tier
@@ -741,9 +781,12 @@ def run(
         return 0
 
     if not args.quiet:
-        print(
-            f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
-        )
+        if args.only:
+            print(f"preflight: running {len(selected)} named gate(s)...")
+        else:
+            print(
+                f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
+            )
     effective_runner = (
         _default_quiet_runner if runner is _default_runner and args.quiet else runner
     )
