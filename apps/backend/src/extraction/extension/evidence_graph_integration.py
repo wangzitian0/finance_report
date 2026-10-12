@@ -20,7 +20,7 @@ from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionSourceDocument
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import JournalEntry, JournalLine
+from src.ledger import JournalEntry
 
 
 class EvidenceGraphIntegrationService:
@@ -384,81 +384,6 @@ class EvidenceGraphIntegrationService:
 
         if created_edge:
             await db.flush()
-
-    async def _record_journal_line(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        journal_line: JournalLine,
-        ledger_entry_node_id: UUID,
-    ) -> None:
-        ledger_line_node = await self.lineage.upsert_node(
-            db,
-            user_id=user_id,
-            node_kind="ledger_line",
-            entity_type="journal_line",
-            entity_id=journal_line.id,
-            properties={
-                "journal_entry_id": str(journal_line.journal_entry_id),
-                "account_id": str(journal_line.account_id),
-                "direction": journal_line.direction.value,
-                "amount": str(journal_line.amount),
-                "currency": journal_line.currency,
-            },
-        )
-        await self.lineage.upsert_edge(
-            db,
-            user_id=user_id,
-            from_node_id=ledger_entry_node_id,
-            to_node_id=ledger_line_node.id,
-            relation="contains",
-            properties={"adapter": "journal_posting"},
-        )
-
-    async def _record_source_documents(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        atomic_transaction: AtomicTransaction,
-    ) -> None:
-        """Backfill ``UploadedDocument -> AtomicTransaction`` edges from source_documents."""
-        for document in await self._resolve_source_documents(
-            db, user_id=user_id, atomic_transaction=atomic_transaction
-        ):
-            await self.record_layer2_dual_write(
-                db,
-                user_id=user_id,
-                uploaded_document=document,
-                atomic_transaction=atomic_transaction,
-                document_type=document.document_type,
-            )
-
-    async def _resolve_source_documents(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        atomic_transaction: AtomicTransaction,
-    ) -> list[UploadedDocument]:
-        """Resolve the owning ``UploadedDocument`` rows from ``source_documents``."""
-        doc_ids = _ordered_source_doc_ids(atomic_transaction.source_documents)
-        if not doc_ids:
-            return []
-        rows = (
-            (
-                await db.execute(
-                    select(UploadedDocument)
-                    .where(UploadedDocument.user_id == user_id)
-                    .where(UploadedDocument.id.in_(doc_ids))
-                )
-            )
-            .scalars()
-            .all()
-        )
-        by_id = {document.id: document for document in rows}
-        return [by_id[doc_id] for doc_id in doc_ids if doc_id in by_id]
 
     async def _upsert_atomic_transaction_node(
         self,
