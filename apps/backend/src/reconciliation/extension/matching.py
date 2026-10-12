@@ -186,21 +186,6 @@ async def find_candidates(
     )
 
 
-async def _get_pending_layer2_transactions(
-    db: AsyncSession, user_id: UUID, limit: int | None = None
-) -> list[AtomicTransaction]:
-    """Compatibility wrapper over the single repository-owned pending query."""
-    return await SqlReconciliationRepository(db).list_pending_transactions(user_id, limit)
-
-
-async def _get_existing_active_match(
-    db: AsyncSession,
-    txn_id: UUID,
-) -> ReconciliationMatch | None:
-    """Compatibility wrapper over the single repository-owned active query."""
-    return await SqlReconciliationRepository(db).get_active_match(txn_id)
-
-
 async def accepted_transfer_txn_ids(
     db: AsyncSession,
     txn_ids: Sequence[UUID],

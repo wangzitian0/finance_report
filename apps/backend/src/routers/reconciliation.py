@@ -24,7 +24,6 @@ from src.ledger import (
     Account,
     AccountingError,
     AccountType,
-    Direction,
     JournalEntry,
     JournalEntryStatus,
     ValidationError,
@@ -44,6 +43,7 @@ from src.reconciliation import (
     accept_match as accept_match_service,
     batch_accept as batch_accept_service,
     detect_anomalies,
+    entry_total_amount,
     execute_matching,
     get_pending_items,
     get_reconciliation_stats,
@@ -109,17 +109,15 @@ def _statement_atomic_txn_ids_query(statement: StatementSummary) -> Select[tuple
     return select(AtomicTransaction.id).where(effective_statement_transaction_filter(statement.user_id, statement.id))
 
 
-def _entry_total_amount(entry: JournalEntry) -> Decimal:
-    return sum((line.amount for line in entry.lines if line.direction == Direction.DEBIT), Decimal("0"))
-
-
 def _build_entry_summary(entry: JournalEntry) -> JournalEntrySummary:
+    lines = getattr(entry, "lines", None)
+    currency = lines[0].currency if lines else "SGD"
     return JournalEntrySummary(
         id=entry.id,
         entry_date=entry.entry_date,
         memo=entry.memo,
         status=entry.status.value,
-        total_amount=_entry_total_amount(entry),
+        total_amount=entry_total_amount(entry, currency=currency),
     )
 
 

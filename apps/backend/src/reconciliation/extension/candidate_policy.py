@@ -135,12 +135,14 @@ def _score_rule_candidate(
     amount: Decimal,
     is_group: bool,
     history_score: float,
+    total_amount: Decimal | None = None,
 ) -> MatchCandidate:
     """Score loaded evidence without performing history or provider I/O."""
-    total_amount = sum(
-        (entry_bank_side_amount(entry, transaction.direction, currency=transaction.currency) for entry in entries),
-        Decimal("0.00"),
-    )
+    if total_amount is None:
+        total_amount = sum(
+            (entry_bank_side_amount(entry, transaction.direction, currency=transaction.currency) for entry in entries),
+            Decimal("0.00"),
+        )
     scores = {
         "amount": score_amount(amount, total_amount, config, is_multi=is_group or len(entries) > 1),
         "date": max(score_date(transaction.txn_date, entry.entry_date, config) for entry in entries),
@@ -232,6 +234,7 @@ def _find_many_to_one_candidates(
                 amount=amount,
                 is_group=True,
                 history_score=_history_score(transaction, pattern_scores),
+                total_amount=entry_bank_side_amount(entry, transaction.direction, currency=transaction.currency),
             )
             candidate.breakdown["group_total"] = str(amount)
             if candidate.score >= config.pending_review and _candidate_is_better(candidate, best, entries_by_id):
