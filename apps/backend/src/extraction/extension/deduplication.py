@@ -731,23 +731,13 @@ async def _upsert_layer2_transactions(
     # money/atomic write, which is the priority.
     if upserted_txns:
         try:
-            if hasattr(evidence_graph, "record_layer2_dual_writes_batch"):
-                await evidence_graph.record_layer2_dual_writes_batch(
-                    db,
-                    user_id=user_id,
-                    uploaded_document=uploaded_doc,
-                    atomic_transactions=upserted_txns,
-                    document_type=doc_type,
-                )
-            elif hasattr(evidence_graph, "record_layer2_dual_write"):
-                for upserted_txn in upserted_txns:
-                    await evidence_graph.record_layer2_dual_write(
-                        db,
-                        user_id=user_id,
-                        uploaded_document=uploaded_doc,
-                        atomic_transaction=upserted_txn,
-                        document_type=doc_type,
-                    )
+            await evidence_graph.record_layer2_dual_writes_batch(
+                db,
+                user_id=user_id,
+                uploaded_document=uploaded_doc,
+                atomic_transactions=upserted_txns,
+                document_type=doc_type,
+            )
         except Exception as evidence_exc:
             logger.warning(
                 "Evidence-graph dual-write lineage failed (ingestion continues)",
