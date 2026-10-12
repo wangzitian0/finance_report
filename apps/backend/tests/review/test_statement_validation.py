@@ -274,6 +274,34 @@ class TestValidateBalanceChain:
         assert resolve_calls == 0, "resolve_statement_transactions must be skipped when pre-resolved"
         assert db_get_calls == 0, "db.get must be skipped when pre-resolved statement is supplied"
 
+    async def test_validate_balance_chain_reuses_attached_cached_transactions(
+        self, db, statement_with_transactions, monkeypatch
+    ):
+        """AC-extraction.stage1-validation.1: validate_balance_chain reuses STATEMENT_RESOLVED_TRANSACTIONS_ATTR attached to statement."""
+        txns = await resolve_statement_transactions(db, statement_with_transactions)
+        setattr(statement_with_transactions, STATEMENT_RESOLVED_TRANSACTIONS_ATTR, txns)
+
+        resolve_calls = 0
+        original_resolve = stmt_val_mod.resolve_statement_transactions
+
+        async def spy_resolve(*args, **kwargs):
+            nonlocal resolve_calls
+            resolve_calls += 1
+            return await original_resolve(*args, **kwargs)
+
+        monkeypatch.setattr(stmt_val_mod, "resolve_statement_transactions", spy_resolve)
+
+        result = await validate_balance_chain(
+            db,
+            statement_with_transactions.id,
+            statement=statement_with_transactions,
+        )
+        assert result["opening_match"] is True
+        assert result["closing_match"] is True
+        assert resolve_calls == 0, (
+            "resolve_statement_transactions must be skipped when statement has cached transactions attached"
+        )
+
     async def test_within_tolerance(self, db, user_id):
         """AC-extraction.stage1-validation.1: AC1.1.2 AC16.1.1 AC16.22.5: Verify 0.0009 USD delta passes 0.001 tolerance."""
         stmt = await _make_statement(
