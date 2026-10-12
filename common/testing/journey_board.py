@@ -39,7 +39,14 @@ MANIFEST_FILE = "staging-ai-ocr-manifest.json"
 # The reusable gate job shows as "<caller job> / Staging AI/OCR Gate" in a
 # run: "Staging AI/OCR Gate / ..." in Deploy, "AI/OCR Audit Replay / ..." in
 # the replay. The skipped manual Deploy job has no " / " and never matches.
-GATE_JOB_SUFFIX = " / Staging AI/OCR Gate"
+GATE_JOB_NAME = "Staging AI/OCR Gate"
+GATE_JOB_SUFFIX = f" / {GATE_JOB_NAME}"
+# A skipped reusable call shows only as "Staging AI/OCR Gate" (no suffix), the
+# same as the skipped manual job. "Deploy Staging" marks a staging deploy run.
+DEPLOY_STAGING_JOB = "Deploy Staging"
+BOARD_WORKFLOWS = ("Deploy", "AI/OCR Audit Replay")
+LANES = ("canary", "core_journey", "audit_replay", "all")
+SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
 INDEX_CAP = 200
 MATRIX_COLUMNS = 10
@@ -149,14 +156,19 @@ def parse_junit(path: Path) -> list[Case]:
 def merge_retry(first: list[Case], retry: list[Case]) -> list[Case]:
     """Apply the gate's single transient retry to the first-pass cases.
 
-    A case that failed and then passed on retry becomes ``passed-on-retry``.
-    A retried case that failed again keeps the retry result.
+    The retry re-runs whole files. A case that failed and then passed on retry
+    becomes ``passed-on-retry``. A retried case that failed keeps the retry
+    failure, also when its first pass passed.
     """
     retried = {case.test_id: case for case in retry}
     merged: list[Case] = []
     for case in first:
         again = retried.get(case.test_id)
-        if again is None or case.outcome not in FAILED_OUTCOMES:
+        if again is None:
+            merged.append(case)
+        elif again.outcome in FAILED_OUTCOMES:
+            merged.append(again)
+        elif case.outcome not in FAILED_OUTCOMES:
             merged.append(case)
         elif again.outcome == "passed":
             merged.append(
@@ -272,6 +284,14 @@ def _counts(cases: list[Case]) -> dict[str, int]:
     }
 
 
+def _valid_sha(value: str | None) -> str | None:
+    return value if value and SHA_PATTERN.match(value) else None
+
+
+def _is_gate_job(name: str) -> bool:
+    return name == GATE_JOB_NAME or name.endswith(GATE_JOB_SUFFIX)
+
+
 def build_record(
     artifact_dir: Path,
     run: dict[str, Any],
@@ -279,40 +299,56 @@ def build_record(
     checkpoint_map: CheckpointMap,
     *,
     resolved_sha: str | None = None,
+    recorded_at: str | None = None,
+    map_note: str | None = None,
 ) -> dict[str, Any] | None:
-    """Build the record for one gate run, or ``None`` when no gate job ran.
+    """Build the record for one gate run, or ``None`` when there is nothing to record.
 
-    A Deploy run that has no staging AI/OCR gate job (a build-only or a
-    non-staging run) has nothing to record. A gate job that was skipped, or a
-    run with no artifact, gives a ``not-run`` or ``no-evidence`` record: the
-    board must show a missing proof, not hide it.
+    A Deploy run with no staging deploy and no gate run (a tag-push image
+    promotion) has nothing to record. A staging deploy whose gate did not run,
+    or a gate run with no artifact, gives a ``not-run`` or ``no-evidence``
+    record: the board must show a missing proof, not hide it.
     """
-    gate_jobs = [job for job in jobs if job.get("name", "").endswith(GATE_JOB_SUFFIX)]
-    if run.get("name") == "Deploy" and not gate_jobs:
-        return None
+    if run.get("name") not in BOARD_WORKFLOWS:
+        raise ValueError(
+            f"run {run.get('id')} is not a {' or '.join(BOARD_WORKFLOWS)} run"
+        )
+    gate_jobs = [job for job in jobs if _is_gate_job(job.get("name", ""))]
+    ran = [job for job in gate_jobs if job.get("conclusion") not in (None, "skipped")]
+    deploy_jobs = [job for job in jobs if job.get("name") == DEPLOY_STAGING_JOB]
     meta = _run_meta(run)
+    recorded_at = recorded_at or datetime.now(UTC).isoformat(timespec="seconds")
     context_path = _find(artifact_dir, CONTEXT_FILE)
     if context_path is None:
-        ran = [
-            job for job in gate_jobs if job.get("conclusion") not in (None, "skipped")
-        ]
-        status = "no-evidence" if ran else "not-run"
-        reason = (
-            "the gate ran but uploaded no test context"
-            if ran
-            else "the staging AI/OCR gate job did not run"
-        )
+        if run.get("name") == "Deploy" and not ran and not deploy_jobs:
+            return None
+        if ran:
+            status, reason = "no-evidence", "the gate ran but uploaded no test context"
+        elif deploy_jobs:
+            status = "not-run"
+            reason = (
+                "the staging AI/OCR gate job did not run "
+                f"(Deploy Staging concluded {deploy_jobs[0].get('conclusion')})"
+            )
+        else:
+            status, reason = "not-run", "the staging AI/OCR gate job did not run"
         return _record(
             lane=_lane_from_run(run),
             status=status,
             reason=reason,
-            tested_sha=resolved_sha,
+            tested_sha=_valid_sha(resolved_sha),
             expected_version=None,
             meta=meta,
             cases=[],
+            junit=False,
             checkpoint_map=checkpoint_map,
+            recorded_at=recorded_at,
+            map_note=map_note,
         )
     context = parse_context(context_path)
+    lane = context.get("corpus") or _lane_from_run(run)
+    if lane not in LANES:
+        raise ValueError(f"unknown lane {lane!r}; expected one of {LANES}")
     gate_xml = _find(artifact_dir, GATE_XML)
     cases = parse_junit(gate_xml) if gate_xml else []
     retry_xml = _find(artifact_dir, RETRY_XML)
@@ -329,16 +365,18 @@ def build_record(
         for case in cases:
             if case.outcome in FAILED_OUTCOMES:
                 case.failure_class = classes.get(case.test_id)
-    tested_sha = context.get("tested_sha") or resolved_sha
     return _record(
-        lane=context.get("corpus") or _lane_from_run(run),
+        lane=lane,
         status=context.get("ai_ocr_outcome", "not-run"),
         reason=None if gate_xml else "the gate wrote no JUnit file",
-        tested_sha=tested_sha if tested_sha and tested_sha != "unknown" else None,
+        tested_sha=_valid_sha(context.get("tested_sha")) or _valid_sha(resolved_sha),
         expected_version=context.get("expected_version"),
         meta=meta,
         cases=cases,
+        junit=gate_xml is not None,
         checkpoint_map=checkpoint_map,
+        recorded_at=recorded_at,
+        map_note=map_note,
     )
 
 
@@ -351,7 +389,10 @@ def _record(
     expected_version: str | None,
     meta: dict[str, Any],
     cases: list[Case],
+    junit: bool,
     checkpoint_map: CheckpointMap,
+    recorded_at: str,
+    map_note: str | None,
 ) -> dict[str, Any]:
     return {
         "schema": SCHEMA_VERSION,
@@ -360,6 +401,9 @@ def _record(
         "reason": reason,
         "tested_sha": tested_sha,
         "expected_version": expected_version,
+        "recorded_at": recorded_at,
+        "junit": junit,
+        "map_note": map_note,
         "run": meta,
         "counts": _counts(cases),
         "tests": [
@@ -387,15 +431,25 @@ def record_path(board_dir: Path, record: dict[str, Any]) -> Path:
     )
 
 
+def _preference(record: dict[str, Any]) -> tuple[bool, str]:
+    return (record.get("tested_sha") is not None, record.get("recorded_at") or "")
+
+
 def load_records(board_dir: Path) -> list[dict[str, Any]]:
-    """Read every record. One run attempt keeps its newest file only."""
+    """Read every record. One run attempt keeps one record.
+
+    A record with a tested SHA wins over one without; then the later
+    ``recorded_at`` wins. The file path never decides.
+    """
     by_run: dict[tuple[str, int], dict[str, Any]] = {}
     for path in sorted((board_dir / "records").rglob("*.json")):
         record = json.loads(path.read_text(encoding="utf-8"))
         if record.get("schema") != SCHEMA_VERSION:
             continue
         key = (record["run"]["id"], record["run"]["attempt"])
-        by_run[key] = record
+        current = by_run.get(key)
+        if current is None or _preference(record) > _preference(current):
+            by_run[key] = record
     return sorted(
         by_run.values(), key=lambda record: record["run"]["completed_at"], reverse=True
     )
@@ -468,6 +522,28 @@ def _status_class(status: str) -> str:
     return "bad"
 
 
+def _lane_class(record: dict[str, Any]) -> str:
+    """Green only with test evidence: a JUnit file, a pass and no failure."""
+    if record["status"] == "passed" and not (
+        record.get("junit")
+        and record["counts"]["passed"] > 0
+        and record["counts"]["failed"] == 0
+    ):
+        return "bad"
+    return _status_class(record["status"])
+
+
+def _lane_label(record: dict[str, Any]) -> str:
+    label = record["status"]
+    if record["status"] == "passed" and _lane_class(record) == "bad":
+        label += " (no test evidence)"
+    if record["reason"]:
+        label += f" ({record['reason']})"
+    if record.get("map_note"):
+        label += f" ({record['map_note']})"
+    return label
+
+
 def _short(sha: str | None) -> str:
     return escape(sha[:8]) if sha else "unknown"
 
@@ -494,13 +570,11 @@ def render_fragment(index: dict[str, Any]) -> str:
         counts = record["counts"]
         stale_days = AUDIT_REPLAY_STALE_DAYS if lane == "audit_replay" else ""
         stale = stale_reason(record, latest)
-        status = escape(record["status"]) + (
-            f" ({escape(record['reason'])})" if record["reason"] else ""
-        )
+        status = escape(_lane_label(record))
         parts.append(
             "<tr>"
             f"<td>{escape(lane)}</td>"
-            f'<td class="{_status_class(record["status"])}"><a href="{escape(record["run"]["url"])}">{status}</a></td>'
+            f'<td class="{_lane_class(record)}"><a href="{escape(record["run"]["url"])}">{status}</a></td>'
             f"<td>{_short(record['tested_sha'])}</td>"
             f"<td>{escape(record['expected_version'] or '')}</td>"
             f'<td><time data-ts="{escape(record["run"]["completed_at"])}" data-stale-days="{stale_days}">'
@@ -567,6 +641,24 @@ def _load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def map_for_tested_revision(path: Path | None) -> tuple[CheckpointMap, str | None]:
+    """Use the checkpoint map of the tested revision.
+
+    The tests run from the deployed revision, so their marks belong to that
+    revision's map. A revision without a map proves no checkpoint: keep the
+    current checkpoint list and drop every proof, so nothing shows as proven.
+    """
+    current = load_checkpoint_map()
+    if path is None:
+        return current, None
+    if not path.is_file():
+        return (
+            CheckpointMap(checkpoints=current.checkpoints, proofs=()),
+            "the tested revision has no checkpoint map",
+        )
+    return load_checkpoint_map(path), None
+
+
 def _cmd_build_record(args: argparse.Namespace) -> int:
     run = _load_json(args.run_json)
     jobs_payload = _load_json(args.jobs_json)
@@ -575,15 +667,27 @@ def _cmd_build_record(args: argparse.Namespace) -> int:
         if isinstance(jobs_payload, dict)
         else jobs_payload
     )
-    record = build_record(
-        args.artifact_dir,
-        run,
-        jobs,
-        load_checkpoint_map(),
-        resolved_sha=args.resolved_sha or None,
-    )
+    head_repository = (run.get("head_repository") or {}).get("full_name")
+    if head_repository != args.repository:
+        print(
+            f"error: run {run.get('id')} belongs to {head_repository}, not {args.repository}"
+        )
+        return 2
+    checkpoint_map, map_note = map_for_tested_revision(args.checkpoint_map)
+    try:
+        record = build_record(
+            args.artifact_dir,
+            run,
+            jobs,
+            checkpoint_map,
+            resolved_sha=args.resolved_sha or None,
+            map_note=map_note,
+        )
+    except ValueError as error:
+        print(f"error: {error}")
+        return 2
     if record is None:
-        print("no-record: the run has no staging AI/OCR gate job")
+        print("no-record: the run has no staging deploy and no staging AI/OCR gate job")
         return 0
     target = record_path(args.board_dir, record)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -617,6 +721,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     record.add_argument("--jobs-json", type=Path, required=True)
     record.add_argument("--board-dir", type=Path, required=True)
     record.add_argument("--resolved-sha", default="")
+    record.add_argument(
+        "--repository", required=True, help="owner/name; the run must belong to it"
+    )
+    record.add_argument(
+        "--checkpoint-map",
+        type=Path,
+        default=None,
+        help="checkpoint map of the tested revision; a missing file means the revision has none",
+    )
     record.set_defaults(func=_cmd_build_record)
     index = sub.add_parser(
         "build-index", help="regenerate index.json and fragment.html"

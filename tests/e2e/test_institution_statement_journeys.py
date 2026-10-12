@@ -283,6 +283,32 @@ def _fixture_envelope(expected: dict, rationale: str) -> FixtureEnvelope:
     )
 
 
+async def _assert_gxs_pinned_before_upload(page: Page, record_property) -> None:
+    """Prove the pinned deployment before the upload (#2370).
+
+    The journey board reads the first unreached checkpoint as the failed one.
+    Checking the pin first keeps a later parse failure from showing as U12.
+    """
+    expected_version = os.getenv("EXPECTED_SHA")
+    assert expected_version, (
+        "complete live happy-flow proof requires an explicit EXPECTED_SHA"
+    )
+    expected_commit = resolve_expected_commit(expected_version)
+    headers = await _auth_headers(page)
+    async with httpx.AsyncClient(
+        headers=headers, verify=False, timeout=120.0
+    ) as client:
+        health = await client.get(_api_url("/health"))
+        assert health.status_code == 200
+        assert_pinned_deployment(health.json(), expected_version, expected_commit)
+        frontend = await client.get(f"{APP_URL.rstrip('/')}/frontend-version.json")
+        assert frontend.status_code == 200, (
+            "frontend deployment version must be observable"
+        )
+        assert_pinned_deployment(frontend.json(), expected_version, expected_commit)
+    checkpoint(record_property, "U12")
+
+
 async def _run_institution_journey(
     page: Page,
     *,
@@ -482,6 +508,7 @@ async def test_gxs_statement_journey_matches_expected_balances(
     expected = json.loads(GXS_EXPECTED.read_text())
     expected_stmt = expected["statement"]
     expected_count = len(expected["events"])
+    await _assert_gxs_pinned_before_upload(authenticated_page_unique, record_property)
 
     parsed = await _run_institution_journey(
         authenticated_page_unique,
@@ -540,7 +567,6 @@ async def _assert_saved_gxs_package(
         frontend_version = frontend.json().get("git_sha")
         assert frontend_version, "frontend deployment must identify its actual build"
         record_property("frontend_version", frontend_version)
-        checkpoint(record_property, "U12")
         expected_transactions = sorted(
             (row["date"], Decimal(row["amount"]), row["direction"], row["currency"])
             for row in expected["events"]

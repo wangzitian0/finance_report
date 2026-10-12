@@ -25,7 +25,7 @@
     {
       "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances",
       "file": "tests/e2e/test_institution_statement_journeys.py",
-      "reaches": ["U1", "U12", "U2", "U6", "U8", "U11", "U10"]
+      "reaches": ["U12", "U1", "U2", "U6", "U8", "U11", "U10"]
     }
   ]
 }

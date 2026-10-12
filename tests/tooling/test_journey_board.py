@@ -135,6 +135,13 @@ def test_AC_testing_journey_board_2_retry_skip_and_absence_are_distinct() -> Non
         merge_retry(first, [Case("mod_a::test_a", "failed", 2.0)])[0].outcome
         == "failed"
     )
+    # The retry re-runs whole files: a first-pass pass that fails on retry is a failure.
+    passed_first = [Case("mod_a::test_a", "passed", 1.0, reached=["U1", "U2", "U4"])]
+    flipped = merge_retry(
+        passed_first, [Case("mod_a::test_a", "failed", 2.0, reached=["U1"])]
+    )
+    assert flipped[0].outcome == "failed"
+    assert flipped[0].reached == ["U1"]
 
     skipped = rollup_checkpoints([Case("mod_a::test_a", "skipped", 0.0)], MAP)
     assert skipped["U1"]["status"] == "skipped"
@@ -158,29 +165,39 @@ def test_AC_testing_journey_board_2_worst_status_wins_across_proofs() -> None:
     assert rollup_checkpoints([passed], two)["U1"]["status"] == "passed"
 
 
+# Job lists in the shapes GitHub reports (runs 37965691488 and 37964773709).
+# A skipped reusable call shows as "Staging AI/OCR Gate" with no suffix.
+DEPLOY_GATE_SKIPPED = [
+    {"name": "Deploy Staging", "conclusion": "failure"},
+    {"name": "Staging AI/OCR Gate", "conclusion": "skipped"},
+    {"name": "Staging AI/OCR Gate", "conclusion": "skipped"},
+]
+DEPLOY_GATE_RAN = [
+    {"name": "Deploy Staging", "conclusion": "success"},
+    {"name": "Staging AI/OCR Gate", "conclusion": "skipped"},
+    {"name": "Staging AI/OCR Gate / Staging AI/OCR Gate", "conclusion": "failure"},
+]
+TAG_PUSH_PROMOTION = [
+    {"name": "Deploy Staging", "conclusion": "skipped"},
+    {"name": "Promote SHA images to release tag", "conclusion": "success"},
+]
+
+
 def test_AC_testing_journey_board_3_missing_evidence_is_shown_not_hidden(
     tmp_path: Path,
 ) -> None:
-    """AC-testing.journey-board.3: no gate job, a skipped gate and a lost artifact are all visible."""
+    """AC-testing.journey-board.3: a skipped gate and a lost artifact are visible; a promotion run is not a record."""
     empty = tmp_path / "none"
-    build_only = build_record(
-        empty, _run("Deploy"), [{"name": "Build", "conclusion": "success"}], MAP
-    )
-    assert build_only is None
+    promotion = [job for job in TAG_PUSH_PROMOTION if job["name"] != "Deploy Staging"]
+    assert build_record(empty, _run("Deploy"), promotion, MAP) is None
 
     skipped_gate = build_record(
-        empty,
-        _run("Deploy"),
-        [
-            {
-                "name": "Staging AI/OCR Gate / Staging AI/OCR Gate",
-                "conclusion": "skipped",
-            }
-        ],
-        MAP,
-        resolved_sha="b" * 40,
+        empty, _run("Deploy"), DEPLOY_GATE_SKIPPED, MAP, resolved_sha="b" * 40
     )
     assert skipped_gate["status"] == "not-run"
+    assert skipped_gate["reason"] == (
+        "the staging AI/OCR gate job did not run (Deploy Staging concluded failure)"
+    )
     assert skipped_gate["lane"] == "canary"
     assert skipped_gate["tested_sha"] == "b" * 40
     assert {
@@ -189,39 +206,17 @@ def test_AC_testing_journey_board_3_missing_evidence_is_shown_not_hidden(
         if key != "U3"
     } == {"not-run"}
 
-    lost = build_record(
-        empty,
-        _run("Deploy"),
-        [
-            {
-                "name": "Staging AI/OCR Gate / Staging AI/OCR Gate",
-                "conclusion": "failure",
-            }
-        ],
-        MAP,
-    )
+    lost = build_record(empty, _run("Deploy"), DEPLOY_GATE_RAN, MAP)
     assert lost["status"] == "no-evidence"
 
     replay_not_started = build_record(
         empty,
         _run(),
-        [
-            {
-                "name": "AI/OCR Audit Replay / Staging AI/OCR Gate",
-                "conclusion": "skipped",
-            }
-        ],
+        [{"name": "Staging AI/OCR Gate", "conclusion": "skipped"}],
         MAP,
     )
     assert replay_not_started["status"] == "not-run"
     assert replay_not_started["lane"] == "audit_replay"
-    manual_only = build_record(
-        empty,
-        _run("Deploy"),
-        [{"name": "Staging AI/OCR Gate", "conclusion": "skipped"}],
-        MAP,
-    )
-    assert manual_only is None, "the skipped manual Deploy job is not the reusable gate"
 
     no_xml = tmp_path / "noxml"
     (no_xml / "ci-context").mkdir(parents=True)
@@ -231,7 +226,87 @@ def test_AC_testing_journey_board_3_missing_evidence_is_shown_not_hidden(
     record = build_record(no_xml, _run(), [], MAP)
     assert record["status"] == "version-check-failed"
     assert record["reason"] == "the gate wrote no JUnit file"
+    assert record["junit"] is False
     assert record["checkpoints"]["U1"]["status"] == "not-run"
+
+
+def test_AC_testing_journey_board_3_artifact_values_are_validated(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.journey-board.3: artifact values never escape the board directory or replace a resolved SHA."""
+    artifact = _artifact(
+        tmp_path / "a",
+        [("mod_a::test_a", "passed", ["U1", "U2", "U4"])],
+        outcome="passed",
+    )
+    context = artifact / "ci-context" / "staging-ai-ocr-context.txt"
+    context.write_text(
+        context.read_text().replace(
+            "tested_sha=" + "a" * 40, "tested_sha=../../escaped"
+        )
+    )
+    record = build_record(artifact, _run(), [], MAP, resolved_sha="c" * 40)
+    assert record["tested_sha"] == "c" * 40
+    assert record_path(tmp_path, record).parent == tmp_path / "records" / ("c" * 40)
+    context.write_text(
+        context.read_text().replace("tested_sha=../../escaped", "tested_sha=unknown")
+    )
+    assert (
+        build_record(artifact, _run(), [], MAP, resolved_sha="c" * 40)["tested_sha"]
+        == "c" * 40
+    )
+
+    context.write_text(
+        context.read_text().replace("corpus=core_journey", "corpus=../../x")
+    )
+    with pytest.raises(ValueError, match="unknown lane"):
+        build_record(artifact, _run(), [], MAP)
+    with pytest.raises(ValueError, match="is not a Deploy or AI/OCR Audit Replay run"):
+        build_record(artifact, _run("CI"), [], MAP)
+
+
+def test_AC_testing_journey_board_3_cli_checks_repository_and_tested_map(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.journey-board.3: the CLI rejects a foreign run and uses the tested revision's map."""
+    artifact = _artifact(
+        tmp_path / "a", [("mod_a::test_a", "passed", [])], outcome="passed"
+    )
+    run = _run() | {"head_repository": {"full_name": "owner/repo"}}
+    (tmp_path / "run.json").write_text(json.dumps(run))
+    (tmp_path / "jobs.json").write_text(json.dumps({"jobs": []}))
+    args = [
+        "build-record",
+        "--artifact-dir",
+        str(artifact),
+        "--run-json",
+        str(tmp_path / "run.json"),
+        "--jobs-json",
+        str(tmp_path / "jobs.json"),
+        "--board-dir",
+        str(tmp_path / "board"),
+    ]
+    assert board.main([*args, "--repository", "fork/repo"]) == 2
+    assert not (tmp_path / "board").exists()
+
+    assert (
+        board.main(
+            [
+                *args,
+                "--repository",
+                "owner/repo",
+                "--checkpoint-map",
+                str(tmp_path / "absent.json"),
+            ]
+        )
+        == 0
+    )
+    [written] = (tmp_path / "board" / "records").rglob("*.json")
+    record = json.loads(written.read_text())
+    assert record["map_note"] == "the tested revision has no checkpoint map"
+    assert {cell["status"] for cell in record["checkpoints"].values()} == {
+        "not-covered"
+    }
 
 
 def test_AC_testing_journey_board_3_record_reads_the_gate_artifact(
@@ -290,12 +365,21 @@ def test_AC_testing_journey_board_4_index_and_fragment_are_regenerated_honestly(
         target = record_path(tmp_path / "board", record)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(record))
+    # A later publish of the same run attempt without a SHA (a failed artifact
+    # download) sorts after every hex directory; it must not replace the record.
+    degraded = dict(
+        journey,
+        tested_sha=None,
+        status="no-evidence",
+        recorded_at="2099-01-01T00:00:00+00:00",
+    )
     duplicate = tmp_path / "board" / "records" / "unknown" / "republished.json"
     duplicate.parent.mkdir(parents=True)
-    duplicate.write_text(json.dumps(journey))
+    duplicate.write_text(json.dumps(degraded))
 
     records = load_records(tmp_path / "board")
     assert [record["run"]["id"] for record in records] == ["10", "9"]
+    assert records[1]["status"] == "regression-failed"
     index = build_index(
         records * (INDEX_CAP + 1), MAP, generated_at="2026-10-12T03:00:00+00:00"
     )
@@ -305,6 +389,11 @@ def test_AC_testing_journey_board_4_index_and_fragment_are_regenerated_honestly(
         build_index(records, MAP, generated_at="2026-10-12T03:00:00+00:00")
     )
     assert "STALE: did not test the newest staging deploy" in fragment
+    # The canary passed with no test case: never green.
+    assert (
+        'class="bad"><a href="https://example.invalid/runs/10">passed (no test evidence)</a>'
+        in fragment
+    )
     assert "<script>" not in fragment
     assert "&lt;script&gt;" in fragment
     assert (
@@ -328,6 +417,46 @@ def _checkpoint_calls(path: Path) -> list[str]:
         call.args[1].value
         for call in sorted(calls, key=lambda call: (call.lineno, call.col_offset))
     ]
+
+
+def _checkpoint_sequence(path: Path, function_name: str) -> list[str]:
+    """Checkpoint marks in execution order, from one test function.
+
+    A call to a function of the same module is expanded in place (its
+    arguments first, then its body), so a helper that is defined but not
+    called proves nothing. Branches are not evaluated.
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+    }
+    marks: list[str] = []
+    expanded: set[str] = set()
+
+    def visit(node: ast.AST) -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.Call) and isinstance(child.func, ast.Name):
+                name = child.func.id
+                if (
+                    name == "checkpoint"
+                    and len(child.args) == 2
+                    and isinstance(child.args[1], ast.Constant)
+                ):
+                    marks.append(child.args[1].value)
+                    continue
+                if name in functions and name not in expanded:
+                    for argument in [*child.args, *child.keywords]:
+                        visit(argument)
+                    expanded.add(name)
+                    visit(functions[name])
+                    continue
+            visit(child)
+
+    expanded.add(function_name)
+    visit(functions[function_name])
+    return marks
 
 
 def _function_names(path: Path) -> set[str]:
@@ -356,7 +485,7 @@ def test_AC_testing_journey_board_5_checkpoint_map_matches_test_source() -> None
         module, name = proof.test.split("::")
         assert module == path.stem, proof.test
         assert name in _function_names(path), proof.test
-        assert _checkpoint_calls(path) == list(proof.reaches), file
+        assert _checkpoint_sequence(path, name) == list(proof.reaches), proof.test
     marked = {
         path.relative_to(REPO_ROOT).as_posix()
         for path in (REPO_ROOT / "tests" / "e2e").glob("test_*.py")
