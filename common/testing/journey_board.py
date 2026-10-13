@@ -332,7 +332,14 @@ def build_record(
         )
     gate_jobs = [job for job in jobs if _is_gate_job(job.get("name", ""))]
     ran = [job for job in gate_jobs if job.get("conclusion") not in (None, "skipped")]
-    deploy_jobs = [job for job in jobs if job.get("name") == DEPLOY_STAGING_JOB]
+    # A tag-push image promotion also lists "Deploy Staging", as skipped; only a
+    # staging deploy that ran makes a record (run 38341095111).
+    deploy_jobs = [
+        job
+        for job in jobs
+        if job.get("name") == DEPLOY_STAGING_JOB
+        and job.get("conclusion") not in (None, "skipped")
+    ]
     meta = _run_meta(run)
     recorded_at = recorded_at or datetime.now(UTC).isoformat(timespec="seconds")
     context_path = _find(artifact_dir, CONTEXT_FILE)

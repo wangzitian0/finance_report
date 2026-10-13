@@ -193,8 +193,13 @@ DEPLOY_GATE_RAN = [
     {"name": "Staging AI/OCR Gate / Staging AI/OCR Gate", "conclusion": "failure"},
 ]
 TAG_PUSH_PROMOTION = [
-    {"name": "Deploy Staging", "conclusion": "skipped"},
+    # The real shape of "Release Images v0.1.76" (run 38341095111).
     {"name": "Promote SHA images to release tag", "conclusion": "success"},
+    {"name": "Staging AI/OCR Gate", "conclusion": "skipped"},
+    {"name": "Deploy Staging", "conclusion": "skipped"},
+    {"name": "Staging Provider Gate", "conclusion": "skipped"},
+    {"name": "Staging AI/OCR Gate", "conclusion": "skipped"},
+    {"name": "Post-merge Delivery", "conclusion": "skipped"},
 ]
 
 
@@ -203,8 +208,7 @@ def test_AC_testing_journey_board_3_missing_evidence_is_shown_not_hidden(
 ) -> None:
     """AC-testing.journey-board.3: a skipped gate and a lost artifact are visible; a promotion run is not a record."""
     empty = tmp_path / "none"
-    promotion = [job for job in TAG_PUSH_PROMOTION if job["name"] != "Deploy Staging"]
-    assert build_record(empty, _run("Deploy"), promotion, MAP) is None
+    assert build_record(empty, _run("Deploy"), TAG_PUSH_PROMOTION, MAP) is None
 
     skipped_gate = build_record(
         empty, _run("Deploy"), DEPLOY_GATE_SKIPPED, MAP, resolved_sha="b" * 40
