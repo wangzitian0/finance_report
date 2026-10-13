@@ -552,8 +552,24 @@ async def classify_transactions(
             continue
 
         if category in NON_PNL_CATEGORIES:
-            # Named, never posted as profit or loss. No account, no classification row: the row
-            # waits for its transfer match or for a person (intent_missing), as before AI.
+            # Named, never posted as profit or loss. The row gets no account and no applied row:
+            # it waits for its transfer match or for a person (intent_missing), as before AI.
+            # A draft row without an account records the class, so the one-click approval and the
+            # suggestion list can see that the AI named this row a transfer, a repayment, a loan
+            # payment or a trade (#2415).
+            if commit_basis and proposal.confidence >= policy.review_threshold and txn.id not in already_classified:
+                if policy_rule is None:
+                    policy_rule = await _ensure_policy_rule(db, user_id, policy)
+                db.add(
+                    TransactionClassification(
+                        atomic_txn_id=txn.id,
+                        rule_version_id=policy_rule.id,
+                        account_id=None,
+                        tags={"category": category.value, "reason": proposal.reason},
+                        confidence_score=proposal.confidence,
+                        status=ClassificationStatus.DRAFT,
+                    )
+                )
             outcomes.append(
                 ClassificationOutcome(
                     atomic_txn_id=txn.id,
@@ -610,6 +626,52 @@ async def classify_transactions(
         **summarize_outcomes(outcomes),
     )
     return outcomes
+
+
+class DraftSuggestion(BaseModel):
+    """What the classifier stored for a row that it did not apply (#2415)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    atomic_txn_id: UUID
+    category: str
+    confidence: int
+    account_id: UUID | None
+
+    @property
+    def non_pnl(self) -> bool:
+        """True when the AI named a movement that is not income or expense."""
+        return self.category in {c.value for c in NON_PNL_CATEGORIES}
+
+
+async def draft_suggestions(db: AsyncSession, txn_ids: Sequence[UUID]) -> dict[UUID, DraftSuggestion]:
+    """The latest draft suggestion per transaction, for the one-click approval and the review screen.
+
+    A draft is a proposal below the auto-apply threshold. Posting ignores it. A person accepts it
+    through a reviewed disposition.
+    """
+    if not txn_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(TransactionClassification)
+            .where(TransactionClassification.atomic_txn_id.in_(list(txn_ids)))
+            .where(TransactionClassification.status == ClassificationStatus.DRAFT)
+            .order_by(TransactionClassification.created_at.desc())
+        )
+    ).scalars()
+    suggestions: dict[UUID, DraftSuggestion] = {}
+    for row in rows:
+        category = (row.tags or {}).get("category") if isinstance(row.tags, dict) else None
+        if row.atomic_txn_id in suggestions or not isinstance(category, str) or not category:
+            continue
+        suggestions[row.atomic_txn_id] = DraftSuggestion(
+            atomic_txn_id=row.atomic_txn_id,
+            category=category,
+            confidence=row.confidence_score or 0,
+            account_id=row.account_id,
+        )
+    return suggestions
 
 
 async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:

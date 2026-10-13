@@ -17,7 +17,7 @@ import pytest
 from sqlalchemy import select
 
 from src.config import settings
-from src.extraction import DocumentSource, StatementPostingStatus
+from src.extraction import ClassificationStatus, DocumentSource, StatementPostingStatus
 from src.extraction.extension import transaction_classification
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_posting import auto_create_posted_entries_for_statement
@@ -96,9 +96,15 @@ async def test_AC_extraction_non_pnl_categories_5_unmatched_transfer_waits_for_r
     assert outcome.review_reasons == ("intent_missing",)
     assert outcome.created_count == 0
     assert list((await db.execute(select(JournalEntry.id))).scalars()) == []
-    # The grocery row has its classification. The TRANSFER row has none, and no "Other" account exists.
-    classified = set((await db.execute(select(TransactionClassification.atomic_txn_id))).scalars())
-    assert classified.isdisjoint(transfer_ids)
+    # The TRANSFER row has a draft row without an account: posting ignores it. No "Other" account exists.
+    transfer_rows = list(
+        (
+            await db.execute(
+                select(TransactionClassification).where(TransactionClassification.atomic_txn_id.in_(transfer_ids))
+            )
+        ).scalars()
+    )
+    assert [(row.status, row.account_id) for row in transfer_rows] == [(ClassificationStatus.DRAFT, None)]
     names = set((await db.execute(select(Account.name).where(Account.user_id == test_user.id))).scalars())
     assert "Expense - Other" not in names and "Income - Other" not in names
 
