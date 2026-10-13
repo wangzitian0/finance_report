@@ -718,6 +718,7 @@ Product E2E ownership index:
 | `apps/backend/tests/e2e/test_epic025_dry_ssot_e2e.py` | EPIC-025 DRY/SSOT product owner E2E; `AC-reporting.dry-ssot.1` (reporting_calc extraction is behavior-preserving, `common/reporting/contract.py`) references live in the test file |
 | `apps/backend/tests/e2e/test_statement_corpus_journeys.py` | Extraction-corpus merge-tier E2E; ACs live in the `llm` package roadmap (AC-llm.11.1 AC-llm.11.2 AC-llm.11.3 AC-llm.11.4 AC-llm.11.5 AC-llm.11.6, `common/llm/contract.py`) |
 | `tests/e2e/test_ai_provider_connectivity.py` | Staging AI provider connectivity smoke; its AC lives in the `testing` package roadmap (AC-testing.deploy-gates.27, `common/testing/contract.py`) |
+| `tests/e2e/test_transfer_processing_journey.py` | Core-journey board proof U7 (post-deploy core_journey lane, #2370, #2384); AC-ledger.transfer-clearing.1 is owned by `common/ledger/contract.py` |
 | `tests/e2e/test_auth_flows.py` | Deployed auth flow E2E; AC references live in the test file |
 | `tests/e2e/test_bench_v2_ui_golden_paths.py` | Bench V2 financial scenario browser E2E; AC references live in the test file (#2151) |
 | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Critical proof: AC-extraction.813.10; blocking value oracle `AC-portfolio.valuation.1` (`common/portfolio/contract.py`, #1826) |

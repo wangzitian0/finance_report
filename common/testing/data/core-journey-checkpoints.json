@@ -8,7 +8,7 @@
     {"id": "U4", "title": "The user reviews and approves the source through browser actions"},
     {"id": "U5", "title": "The user records the opening balance through the browser"},
     {"id": "U6", "title": "Each accepted source transaction has exactly one posted ledger effect"},
-    {"id": "U7", "title": "A transfer between two accounts clears through the Processing account", "gap": "#2370"},
+    {"id": "U7", "title": "A transfer between two accounts clears through the Processing account"},
     {"id": "U8", "title": "Report totals equal the independent Decimal oracle"},
     {"id": "U9", "title": "Twelve consecutive months tie out on a deployed revision", "gap": "#2370"},
     {"id": "U10", "title": "The saved package lists, reopens and exports, and stays unchanged after a later posting"},
@@ -31,6 +31,11 @@
       "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser",
       "file": "tests/e2e/test_opening_balance_browser_journey.py",
       "reaches": ["U12", "U5"]
+    },
+    {
+      "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing",
+      "file": "tests/e2e/test_transfer_processing_journey.py",
+      "reaches": ["U12", "U7"]
     }
   ]
 }

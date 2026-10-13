@@ -208,6 +208,15 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         reason="Real AI/OCR provider (llm marker); staging canary corpus.",
     ),
     E2ERow(
+        "tests/e2e/test_transfer_processing_journey.py",
+        needs=(NEEDS_DEPLOYED_ENV,),
+        audited=True,
+        reason=(
+            "Core-journey board proof U7 (#2384): runs only in the post-deploy "
+            "core_journey lane against a pinned staging revision (#2370)."
+        ),
+    ),
+    E2ERow(
         "tests/e2e/test_four_asset_net_worth_golden_path.py",
         needs=(NEEDS_LLM_PROVIDER,),
         audited=True,
