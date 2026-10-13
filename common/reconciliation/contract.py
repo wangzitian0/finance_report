@@ -254,6 +254,7 @@ CONTRACT = PackageContract(
         "MatchCandidate",
         "MatchNotFoundError",
         "MatchingContext",
+        "NamedTransfer",
         "RECONCILIATION_SEMANTIC_PROMPT",
         "ReconciliationConfig",
         "ReconciliationError",
@@ -297,6 +298,7 @@ CONTRACT = PackageContract(
         "load_reconciliation_config",
         "normalize_text",
         "pair_fx_legs",
+        "post_named_transfer_legs",
         "prune_candidates",
         "reject_match",
         "resolve_check",
@@ -603,6 +605,10 @@ CONTRACT = PackageContract(
         ac('AC-reconciliation.economic-disposition.6', 'Retry, worker restart, and phase permutation preserve disposition, journal, and transfer-pair cardinality after success or a rolled-back partial attempt.', 'apps/backend/tests/reconciliation/test_economic_disposition.py::test_AC_reconciliation_economic_disposition_6_retry_and_phase_permutation_are_idempotent'),
         ac('AC-reconciliation.economic-disposition.7', "Processing effects are invoked only through ledger's typed command after a current reconciliation decision claim; reconciliation owns no alternate posting path.", 'apps/backend/tests/reconciliation/test_economic_disposition.py::test_AC_reconciliation_economic_disposition_7_processing_uses_typed_ledger_boundary'),
         ac('AC-reconciliation.economic-disposition.8', 'The governance detail projects exact detector, proof-strength, target-SHA, and enforcement state for every economic-disposition guarantee.', 'apps/backend/tests/reconciliation/test_economic_disposition_governance.py::test_AC_reconciliation_economic_disposition_8_governance_detail_is_exact'),
+        # ── group named-transfer-legs: a row that the AI named a movement between accounts posts a Processing leg (#2415) ──
+        ac('AC-reconciliation.named-transfer-legs.1', 'post_named_transfer_legs posts the same Processing leg as the keyword fallback for a transaction that the AI classification named a movement between accounts. An outgoing row debits Processing and credits the custody account. An incoming row does the reverse. The match is accepted, carries the AI score, and records the AI class in its score breakdown.', 'apps/backend/tests/reconciliation/test_named_transfer_legs.py::test_AC_reconciliation_named_transfer_legs_1_an_outgoing_row_posts_dr_processing_cr_bank', priority='P0', proof_kind='property'),
+        ac('AC-reconciliation.named-transfer-legs.2', 'A named transaction is skipped, without an error and without a ledger effect, when it already has a live match, when its statement has no linked account, or when its currency does not fit the Processing account.', 'apps/backend/tests/reconciliation/test_named_transfer_legs.py::test_AC_reconciliation_named_transfer_legs_2_a_second_call_posts_nothing_more', priority='P0', proof_kind='property'),
+        ac('AC-reconciliation.named-transfer-legs.3', 'The two legs of one transfer pair in the same way as legs from the keyword fallback, so the other side of the movement clears the Processing account.', 'apps/backend/tests/reconciliation/test_named_transfer_legs.py::test_AC_reconciliation_named_transfer_legs_3_the_two_legs_of_one_transfer_are_paired', priority='P1', proof_kind='property'),
     ],
     governance=[
         GovernanceInitiative(

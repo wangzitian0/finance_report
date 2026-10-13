@@ -11,7 +11,6 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -22,6 +21,7 @@ from src.extraction.extension.transaction_classification import POLICY_RULE_NAME
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.identity import AiFeedbackRequest
 from src.ledger import Account, AccountType, JournalEntry
+from src.reconciliation.orm.reconciliation import DispositionKind, ReconciliationMatch
 from src.routers import ai_feedback as ai_feedback_router, statements as statements_router
 from src.schemas.review import Stage1ApprovalRequest
 from tests.api._statement_router_fixtures import add_txn, build_statement, create_statement_account
@@ -140,10 +140,14 @@ async def test_AC_extraction_accept_ai_suggestions_1_auto_fill_posts_the_draft_c
     assert await _counter_account_names(db, opaque, bank.id) == {"General Expense (SGD)"}
 
 
-async def test_AC_extraction_accept_ai_suggestions_2_a_non_income_expense_draft_is_left_for_a_person(
+async def test_AC_extraction_accept_ai_suggestions_2_a_non_income_expense_draft_posts_a_processing_leg(
     db, test_user, monkeypatch
 ):
-    """AC-extraction.accept-ai-suggestions.2: a row that the AI named TRANSFER is not posted as a general expense."""
+    """AC-extraction.accept-ai-suggestions.2: a row that the AI named TRANSFER is not posted as a general expense.
+
+    It posts as a Processing transfer leg. Tests/api/test_statement_one_click_balance_sheet.py covers the
+    full statement, the four classes and the case where the leg cannot post.
+    """
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     statement, _bank = await _statement(db, test_user.id, "hash_accept_ai_2")
     statement.closing_balance = Decimal("80.00")
@@ -159,18 +163,18 @@ async def test_AC_extraction_accept_ai_suggestions_2_a_non_income_expense_draft_
     await _draft(db, test_user.id, transfer, category="TRANSFER", account=None, score=78)
     await db.commit()
 
-    with pytest.raises(HTTPException) as error:
-        await statements_router.approve_statement_stage1(
-            statement_id=statement.id,
-            request=Stage1ApprovalRequest(auto_fill_default_categories=True),
-            db=db,
-            user_id=test_user.id,
-        )
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id,
+        request=Stage1ApprovalRequest(auto_fill_default_categories=True),
+        db=db,
+        user_id=test_user.id,
+    )
 
-    assert error.value.status_code == 409
-    assert error.value.detail == "Economic review required: intent_missing"
-    posted = set((await db.execute(select(JournalEntry.source_id))).scalars())
-    assert transfer.id not in posted, "the transfer row must wait for a person"
+    assert result.journal_entries_created == 1
+    match = (
+        await db.execute(select(ReconciliationMatch).where(ReconciliationMatch.atomic_txn_id == transfer.id))
+    ).scalar_one()
+    assert match.disposition_kind is DispositionKind.TRANSFER_LEG
     general = set((await db.execute(select(Account.name).where(Account.name.like("General %")))).scalars())
     assert general == set(), "no general account is created for a row that the AI named a transfer"
 

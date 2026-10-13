@@ -505,7 +505,7 @@ export default function StatementReviewPage() {
             Transaction classifications need review
           </h2>
           <p className="mt-1 text-sm text-muted">
-            These transactions need your confirmation before they can be posted into the journal. Auto-fill accepts the AI suggestion for each row and uses a general category for rows without one. A row that the AI named a transfer, repayment, loan payment or trade stays here for you. You can also review every row manually.
+            These transactions need your confirmation before they can be posted into the journal. Auto-fill accepts the AI suggestion for each row and uses a general category for rows without one. A row that the AI named a transfer, card repayment, loan payment or trade is posted to the Processing account until the other side of the movement arrives. You can also review every row manually.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <button

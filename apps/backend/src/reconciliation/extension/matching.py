@@ -220,6 +220,38 @@ def _mark_auto_accepted_entry_reconciled(entry: JournalEntry) -> None:
         promote_entry_source_type(entry, JournalEntrySourceType.AUTO_MATCHED)
 
 
+async def pair_transfer_legs(db: AsyncSession, *, user_id: UUID, currency: str) -> int:
+    """Find and pair transfers automatically per common/ledger/readme.md. Return the number of pairs.
+
+    A pairing error is not fatal: the legs stay unpaired and the caller continues.
+    """
+    try:
+        transfer_pairs = await find_transfer_pairs(
+            db,
+            user_id,
+            currency=currency,
+            description_scorer=score_description,
+            threshold=85,
+        )
+    except Exception as e:
+        logger.error(
+            "Failed to auto-pair transfers",
+            user_id=str(user_id),
+            error=str(e),
+        )
+        # Non-fatal error - continue with existing matches
+        transfer_pairs = []
+
+    if transfer_pairs:
+        await persist_transfer_pairs(db, transfer_pairs)
+        logger.info(
+            "Auto-pairing complete",
+            user_id=str(user_id),
+            pairs_found=len(transfer_pairs),
+        )
+    return len(transfer_pairs)
+
+
 async def execute_matching(
     db: AsyncSession,
     *,
@@ -343,31 +375,7 @@ async def execute_matching(
 
     # Auto-pair transfers only after every current disposition is durable in
     # the transaction. Pair persistence is idempotent under unique leg indexes.
-    # Find and pair transfers automatically per common/ledger/readme.md
-    try:
-        transfer_pairs = await find_transfer_pairs(
-            db,
-            user_id,
-            currency=currency,
-            description_scorer=score_description,
-            threshold=85,
-        )
-    except Exception as e:
-        logger.error(
-            "Failed to auto-pair transfers",
-            user_id=str(user_id),
-            error=str(e),
-        )
-        # Non-fatal error - continue with existing matches
-        transfer_pairs = []
-
-    if transfer_pairs:
-        await persist_transfer_pairs(db, transfer_pairs)
-        logger.info(
-            "Auto-pairing complete",
-            user_id=str(user_id),
-            pairs_found=len(transfer_pairs),
-        )
+    await pair_transfer_legs(db, user_id=user_id, currency=currency)
 
     # AC-observability.10.4: emit one business metric per resolved match, labelled by its
     # final disposition (auto_accepted / pending_review / rejected). Low

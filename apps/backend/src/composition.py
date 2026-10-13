@@ -67,11 +67,13 @@ from src.ledger import (
 from src.portfolio import active_stock_symbols, position_currencies
 from src.pricing import MarketDataScopes, PricingError, get_exchange_rate
 from src.reconciliation import (
+    NamedTransfer,
     ReconciliationMatch,
     ReconciliationStatus,
     ReviewedDispositionCommand,
     ReviewedDispositionDependencies,
     accepted_transfer_txn_ids,
+    post_named_transfer_legs,
     submit_reviewed_disposition,
 )
 from src.runtime import StorageService
@@ -251,10 +253,12 @@ async def auto_fill_default_statement_dispositions(
     Submits reviewed dispositions which create posted journal entries for any
     unmatched statement transactions, returning the number of posted entries created.
     A row that the classifier already applied, with an account that the policy accepts, is left to
-    the normal posting that follows. A row with a usable draft AI suggestion posts to the
-    suggested account and category. A row that the AI named a transfer, a repayment, a loan
-    payment or a trade is left for a person, because a general income or expense would misstate
-    it (#2415). Any other row posts to the general income or expense account of its direction.
+    the normal posting that follows. A row with a usable draft AI suggestion posts to the suggested
+    account and category. A row that the AI named a transfer, a card repayment, a loan payment or a
+    trade is not income or expense: it posts as a Processing transfer leg, like the keyword fallback
+    of the reconciliation run, and the other side of the movement clears it later. Such a row stays
+    for a person when its leg cannot post (#2415). Any other row posts to the general income or
+    expense account of its direction.
     """
     query = _statement_unmatched_txns_query(statement, user_id)
     result = await db.execute(query)
@@ -272,12 +276,21 @@ async def auto_fill_default_statement_dispositions(
     left_to_posting = await applied_rows_the_policy_accepts(
         db, unmatched_txns, mode=DispositionMode(settings.statement_disposition_mode)
     )
+    named_transfers: list[NamedTransfer] = []
 
     for txn in unmatched_txns:
         if txn.id in left_to_posting:
             continue
         suggestion = suggestions.get(txn.id)
         if suggestion is not None and suggestion.non_pnl:
+            named_transfers.append(
+                NamedTransfer(
+                    transaction=txn,
+                    category=suggestion.category,
+                    score=suggestion.confidence,
+                    decided_by_user=suggestion.corrected,
+                )
+            )
             continue
         accepted = await _accepted_suggestion_for(db, user_id, txn, suggestion)
         if accepted is not None:
@@ -332,6 +345,17 @@ async def auto_fill_default_statement_dispositions(
         )
         await settle_drafts_after_posting(db, txn.id, accepted_id=None)
         resolved_count += 1
+
+    if named_transfers:
+        legs = await post_named_transfer_legs(db, user_id=user_id, named=named_transfers)
+        classification_ids = {
+            item.transaction.id: suggestions[item.transaction.id].classification_id for item in named_transfers
+        }
+        for leg in legs:
+            await settle_drafts_after_posting(
+                db, leg.atomic_txn_id, accepted_id=classification_ids.get(leg.atomic_txn_id)
+            )
+        resolved_count += len(legs)
 
     return resolved_count
 

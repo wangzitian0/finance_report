@@ -62,6 +62,7 @@ from src.reconciliation.extension.matching import (
     score_single,
     sync_reconciliation_match_journal_entry_links,
 )
+from src.reconciliation.extension.named_transfers import NamedTransfer, post_named_transfer_legs
 from src.reconciliation.extension.review_queue import (
     accept_match,
     batch_accept,
@@ -113,6 +114,7 @@ __all__ = [
     "MatchCandidate",
     "MatchNotFoundError",
     "MatchingContext",
+    "NamedTransfer",
     "RECONCILIATION_SEMANTIC_PROMPT",
     "ReconciliationConfig",
     "ReconciliationError",
@@ -156,6 +158,7 @@ __all__ = [
     "load_reconciliation_config",
     "normalize_text",
     "pair_fx_legs",
+    "post_named_transfer_legs",
     "prune_candidates",
     "reject_match",
     "resolve_check",
