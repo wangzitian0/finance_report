@@ -84,6 +84,8 @@ main-only: unified-coverage ─→ unified-coverage-baseline-pr (not required by
 
 20a. **`verify-sha-image-published` — independently re-checks the `:<sha>` actually landed** (#1759, W4 of #1435): Property 20 guarantees every main commit *attempts* to build and push a `:<sha>` image, but a `docker/build-push-action` step reporting success does not, by itself, prove the image is pullable from the registry (a silent push failure or registry propagation gap would only surface later, at promote time — the #1411 failure mode). `verify-sha-image-published` runs after `container-images` on `main` push only (`needs: [container-images]`, `if: github.event_name == 'push' && github.ref == 'refs/heads/main'`) and calls the existing `tools/verify_release_images.py` (`common/runtime/release_images.py`) with `--version-ref <short_sha>` — the same digest-inspection primitive `release.yml`'s dry-run already uses for release tags, reused here for the per-commit tag instead of a new mechanism. `finish` treats a skipped run (PR / non-main push, per this job's own `if:`) as a pass, mirroring the `container-images` skip-is-a-pass clause above; a failed inspection fails `finish`.
 
+21. **A Hung Backend Test Fails By Name**: `apps/backend/pyproject.toml` sets `timeout = 60` and `timeout_method = "thread"` (`pytest-timeout`). A test that never returns ends its worker after 60 seconds and the run names the test, instead of the shard reaching the 15-minute job limit (#2398). The slowest of 3800 backend tests took 8.77 seconds on a green run.
+
 ### Env x Stage Contract
 
 This SSOT separates environment taxonomy, pipeline stages, and GitHub Actions jobs.
