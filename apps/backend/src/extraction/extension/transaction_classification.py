@@ -66,6 +66,35 @@ class TransactionCategory(str, Enum):
     INSURANCE = "INSURANCE"
     FEES = "FEES"
     OTHER_EXPENSE = "OTHER_EXPENSE"
+    # balance-sheet movements (policy v2, #2411): never income or expense
+    TRANSFER = "TRANSFER"
+    CARD_REPAYMENT = "CARD_REPAYMENT"
+    LOAN_PRINCIPAL = "LOAN_PRINCIPAL"
+    INVESTMENT_TRADE = "INVESTMENT_TRADE"
+
+
+#: Classes that name a money movement which is not income or expense. They have no category
+#: account. The model may name them so that a transfer, a card repayment, a loan principal
+#: payment or a trade is not filed under "Other", but they are never applied as profit or loss.
+NON_PNL_CATEGORIES = frozenset(
+    {
+        TransactionCategory.TRANSFER,
+        TransactionCategory.CARD_REPAYMENT,
+        TransactionCategory.LOAN_PRINCIPAL,
+        TransactionCategory.INVESTMENT_TRADE,
+    }
+)
+
+#: "Other" means "does not fit any class". A proposal in these classes always waits for a person.
+REVIEW_ONLY_CATEGORIES = frozenset({TransactionCategory.OTHER_INCOME, TransactionCategory.OTHER_EXPENSE})
+
+#: What each non-P&L class means, for the model prompt (the closed list alone is not enough).
+NON_PNL_GUIDANCE = {
+    TransactionCategory.TRANSFER: "TRANSFER is money moved between the user's own accounts.",
+    TransactionCategory.CARD_REPAYMENT: "CARD_REPAYMENT is a payment toward the user's own credit card.",
+    TransactionCategory.LOAN_PRINCIPAL: "LOAN_PRINCIPAL is a loan drawdown or a repayment of loan principal.",
+    TransactionCategory.INVESTMENT_TRADE: "INVESTMENT_TRADE is a purchase or a sale of an investment.",
+}
 
 
 # Deterministic category → (account name, account side). Code owns this mapping;
@@ -117,8 +146,17 @@ POLICY_VERSIONS: tuple[ClassificationPolicy, ...] = (
         # The INITIAL basis covers all prior history (pre-2020 statements are
         # normal); only later versions carry a meaningful cutover date.
         effective_from=date.min,
-        catalog=tuple(TransactionCategory),
+        # Frozen: the 18 income and expense classes. Never edit; append a version.
+        catalog=tuple(c for c in TransactionCategory if c not in NON_PNL_CATEGORIES),
         model_version="v1",
+    ),
+    ClassificationPolicy(
+        # #2411: the model can name a movement that is not income or expense. AI classification
+        # was off by default until #2405, so no history needs the v1 basis: v2 applies to every date.
+        version=2,
+        effective_from=date.min,
+        catalog=tuple(TransactionCategory),
+        model_version="v2",
     ),
 )
 
@@ -150,7 +188,7 @@ class CategoryProposal(BaseModel):
     reason: str = ""
 
 
-Disposition = Literal["rule", "applied", "review", "tail", "off_catalog", "no_proposal"]
+Disposition = Literal["rule", "applied", "review", "tail", "off_catalog", "no_proposal", "non_pnl"]
 
 
 class ClassificationOutcome(BaseModel):
@@ -239,9 +277,12 @@ async def propose_categories(
     lines = "\n".join(
         f'{i}. direction={t.direction.value} description="{t.description}"' for i, t in enumerate(transactions)
     )
+    guidance = " ".join(NON_PNL_GUIDANCE[c] for c in policy.catalog if c in NON_PNL_GUIDANCE)
+    if guidance:
+        guidance += " Use OTHER_INCOME or OTHER_EXPENSE only for a real income or expense that fits no other category. "
     prompt = (
         "Classify each personal-finance transaction into EXACTLY ONE category from "
-        f"this closed list: [{catalog}]. Respond with ONLY the raw JSON array — "
+        f"this closed list: [{catalog}]. {guidance}Respond with ONLY the raw JSON array — "
         "Do NOT wrap it in markdown or code fences and do not add prose. Item i "
         'must be {"category": "<one of the list>", "confidence": <0-100 integer>, '
         '"reason": "<short>"} for transaction i.\n\nTransactions:\n' + lines
@@ -510,7 +551,21 @@ async def classify_transactions(
             )
             continue
 
-        if proposal.confidence >= policy.auto_apply_threshold:
+        if category in NON_PNL_CATEGORIES:
+            # Named, never posted as profit or loss. No account, no classification row: the row
+            # waits for its transfer match or for a person (intent_missing), as before AI.
+            outcomes.append(
+                ClassificationOutcome(
+                    atomic_txn_id=txn.id,
+                    disposition="non_pnl",
+                    category=category.value,
+                    confidence=proposal.confidence,
+                    policy_version=policy.version,
+                )
+            )
+            continue
+
+        if proposal.confidence >= policy.auto_apply_threshold and category not in REVIEW_ONLY_CATEGORIES:
             disposition: Disposition = "applied"
         elif proposal.confidence >= policy.review_threshold:
             disposition = "review"

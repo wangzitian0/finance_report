@@ -166,24 +166,25 @@ async def test_AC18_16_2_import_produces_categorized_income_statement(db, test_u
 async def test_AC18_16_1_new_policy_version_never_restates_covered_periods(
     db, test_user, enabled_flag, stub_proposer, monkeypatch
 ):
-    """AC-extraction.1816.1: AC18.16.1: publishing policy v2 (effective 2026-07-01) leaves June's
-    as-reported income statement byte-identical; only July classifies under v2."""
+    """AC-extraction.1816.1: AC18.16.1: publishing a new policy version (effective 2026-07-01) leaves June's
+    as-reported income statement byte-identical; only July classifies under the new version."""
     import src.extraction.extension.transaction_classification as tc
 
     bank = await _bank(db, test_user.id)
     await _ingest_month(db, test_user.id, bank, "2026-06", opening=Decimal("0.00"), closing=SALARY - RENT)
     june_before = await _june_report(db, test_user.id)
 
-    # publish v2 with a July 1 cutoff (prospective by default)
-    v2 = ClassificationPolicy(
-        version=2,
+    # publish v3 with a July 1 cutoff (prospective by default). Policy v2 (#2411) already covers
+    # every date, so June classifies under v2 and July under v3.
+    v3 = ClassificationPolicy(
+        version=3,
         effective_from=date(2026, 7, 1),
         catalog=tuple(TransactionCategory),
-        model_version="v2",
+        model_version="v3",
     )
-    monkeypatch.setattr(tc, "POLICY_VERSIONS", (*POLICY_VERSIONS, v2))
+    monkeypatch.setattr(tc, "POLICY_VERSIONS", (*POLICY_VERSIONS, v3))
 
-    # July activity classifies under v2...
+    # July activity classifies under v3...
     await _ingest_month(db, test_user.id, bank, "2026-07", opening=SALARY - RENT, closing=2 * (SALARY - RENT))
     # ...and a full recompute over everything must still be prospective
     await backfill_classifications(db, test_user.id)
@@ -191,7 +192,7 @@ async def test_AC18_16_1_new_policy_version_never_restates_covered_periods(
     june_after = await _june_report(db, test_user.id)
     assert june_after == june_before  # as-reported June figures are untouched
 
-    # provenance: June rows anchored to policy v1, July rows to policy v2
+    # provenance: June rows anchored to policy v2, July rows to policy v3
     rows = (
         (
             await db.execute(
@@ -211,7 +212,7 @@ async def test_AC18_16_1_new_policy_version_never_restates_covered_periods(
             await db.execute(select(tc.ClassificationRule).where(tc.ClassificationRule.id == row.rule_version_id))
         ).scalar_one()
         versions.add(rule.version_number)
-    assert versions == {1, 2}
+    assert versions == {2, 3}
 
 
 # --- AC18.16.3: flag OFF is byte-identical to today --------------------------------
@@ -358,4 +359,6 @@ def test_AC18_16_6_initial_policy_covers_all_history():
     statements are normal), so real imports never hit the uncovered edge."""
     from src.extraction.extension.transaction_classification import policy_for
 
-    assert policy_for(date(1999, 1, 1)).version == 1
+    # The head policy is effective from the earliest date, so no statement date is uncovered.
+    assert policy_for(date(1999, 1, 1)).effective_from == date.min
+    assert policy_for(date.min).effective_from == date.min

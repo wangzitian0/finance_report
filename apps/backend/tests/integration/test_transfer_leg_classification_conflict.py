@@ -43,7 +43,7 @@ async def test_AC_extraction_disposition_transfer_fact_4_applied_model_category_
     """AC-extraction.disposition-transfer-fact.4: the model's expense category yields to an accepted transfer match."""
     monkeypatch.setattr(settings, "enable_ai_classification", True)
     proposals = {
-        TRANSFER_DESCRIPTION: CategoryProposal(category="OTHER_EXPENSE", confidence=95),
+        TRANSFER_DESCRIPTION: CategoryProposal(category="DINING", confidence=95),
         GROCERY_DESCRIPTION: CategoryProposal(category="GROCERIES", confidence=95),
     }
 
@@ -97,7 +97,7 @@ async def test_AC_extraction_disposition_transfer_fact_4_applied_model_category_
         )
     ).scalar_one()
     assert transfer_classification.status is ClassificationStatus.APPLIED
-    assert (transfer_classification.tags or {}).get("category") == "OTHER_EXPENSE"
+    assert (transfer_classification.tags or {}).get("category") == "DINING"
 
     assert outcome.status is StatementPostingStatus.POSTED
     assert outcome.created_count == 1, "only the grocery row posts; the transfer leg has its own Processing entry"

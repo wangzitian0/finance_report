@@ -582,3 +582,88 @@ def test_AC18_17_3_reports_read_only_applied_classifications():
     src = (_BACKEND_SRC / "reporting" / "extension" / "income_statement.py").read_text(encoding="utf-8")
     assert "ClassificationStatus.APPLIED" in src
     assert "ClassificationStatus.DRAFT" not in src and "ClassificationStatus.SUPERSEDED" not in src
+
+
+# --- AC-extraction.non-pnl-categories: the model can name a movement that is not income or expense (#2411) ---
+
+NON_PNL_NAMES = ("TRANSFER", "CARD_REPAYMENT", "LOAN_PRINCIPAL", "INVESTMENT_TRADE")
+
+
+def _pnl_account_names(accounts) -> set[str]:
+    return {name for name in accounts if name.startswith(("Income - ", "Expense - "))}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("category", NON_PNL_NAMES)
+async def test_AC_extraction_non_pnl_categories_1_balance_sheet_class_is_never_applied(
+    db, test_user, enabled_flag, category
+):
+    """AC-extraction.non-pnl-categories.1: a balance-sheet class never becomes profit or loss, at any confidence."""
+    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="MOVEMENT BETWEEN PRODUCTS")
+    proposer = _stub_proposer({txn.description: CategoryProposal(category=category, confidence=99)})
+
+    outcomes = await classify_transactions(
+        db, test_user.id, [txn], policy=policy_for(date(2026, 6, 1)), proposer=proposer, commit_basis=True
+    )
+
+    assert [outcome.disposition for outcome in outcomes] == ["non_pnl"]
+    assert outcomes[0].category == category
+    assert await _count(db, TransactionClassification) == 0
+    names = set((await db.execute(select(Account.name).where(Account.user_id == test_user.id))).scalars())
+    assert _pnl_account_names(names) == set(), "a balance-sheet class must not create an income or expense account"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("category", ("OTHER_INCOME", "OTHER_EXPENSE"))
+async def test_AC_extraction_non_pnl_categories_2_other_buckets_never_auto_apply(db, test_user, enabled_flag, category):
+    """AC-extraction.non-pnl-categories.2: 'Other' means 'does not fit', so it always waits for a person."""
+    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="UNCLEAR PAYMENT")
+    proposer = _stub_proposer({txn.description: CategoryProposal(category=category, confidence=99)})
+
+    outcomes = await classify_transactions(
+        db, test_user.id, [txn], policy=policy_for(date(2026, 6, 1)), proposer=proposer, commit_basis=True
+    )
+
+    assert [outcome.disposition for outcome in outcomes] == ["review"]
+    rows = list((await db.execute(select(TransactionClassification))).scalars())
+    assert [row.status for row in rows] == [ClassificationStatus.DRAFT]
+
+
+def test_AC_extraction_non_pnl_categories_3_policy_v1_stays_frozen_and_v2_adds_the_four_classes():
+    """AC-extraction.non-pnl-categories.3: a taxonomy change is a new policy version, never an edit."""
+    from src.extraction.extension.transaction_classification import POLICY_VERSIONS
+
+    by_version = {policy.version: policy for policy in POLICY_VERSIONS}
+    assert set(by_version) == {1, 2}
+    assert len(by_version[1].catalog) == 18
+    assert not {c.value for c in by_version[1].catalog} & set(NON_PNL_NAMES)
+    assert {c.value for c in by_version[2].catalog} >= set(NON_PNL_NAMES)
+    assert set(by_version[2].catalog) == set(TransactionCategory)
+    # v2 applies to every date, so a statement of any period can use the new classes.
+    for as_of in (date.min, date(2019, 1, 1), date(2026, 3, 1)):
+        assert policy_for(as_of).version == 2
+
+
+@pytest.mark.asyncio
+async def test_AC_extraction_non_pnl_categories_4_prompt_names_the_new_classes(monkeypatch):
+    """AC-extraction.non-pnl-categories.4: the model sees the four classes and when to use each."""
+    import src.llm
+    from src.extraction.extension.transaction_classification import propose_categories
+
+    seen: list[str] = []
+
+    async def fake_stream(messages, model, **_kwargs):
+        seen.append(messages[0]["content"])
+        yield json.dumps([{"category": "TRANSFER", "confidence": 90, "reason": "own account"}])
+
+    monkeypatch.setattr(src.llm, "stream_ai_json", fake_stream)
+    txn = AtomicTransactionFactory.build(description="Funds transfer between own accounts")
+
+    proposals = await propose_categories([txn], policy_for(date(2026, 6, 1)))
+
+    assert [p.category for p in proposals if p] == ["TRANSFER"]
+    prompt = seen[0]
+    for name in NON_PNL_NAMES:
+        assert name in prompt
+    assert "between the user's own accounts" in prompt
+    assert "OTHER_INCOME or OTHER_EXPENSE only" in prompt
