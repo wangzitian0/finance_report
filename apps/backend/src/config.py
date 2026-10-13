@@ -683,10 +683,10 @@ class Settings(BaseSettings):
         json_schema_extra={"group": "Feature Flags"},
     )
     enable_ai_classification: bool = Field(
-        default=False,
+        default=True,
         description=(
             "EPIC-018: enable AI-assisted transaction classification suggestions "
-            "(default false, opt-in to avoid API costs)."
+            "(default true). A user can turn it off in the AI settings."
         ),
         validation_alias="ENABLE_AI_CLASSIFICATION",
         json_schema_extra={"group": "Feature Flags"},

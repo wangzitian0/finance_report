@@ -316,6 +316,40 @@ async def test_AC18_15_8_flag_off_skips_llm_not_deterministic_rules(db, test_use
     assert await _count(db, TransactionClassification) == 1
 
 
+def test_AC_extraction_ai_classification_default_1_code_default_is_on(monkeypatch):
+    """AC-extraction.ai-classification-default.1: the code default is on; reconciliation stays opt-in."""
+    from src.config import Settings
+
+    monkeypatch.delenv("ENABLE_AI_CLASSIFICATION", raising=False)
+    monkeypatch.delenv("ENABLE_AI_RECONCILIATION", raising=False)
+
+    defaults = Settings(_env_file=None)
+
+    assert defaults.enable_ai_classification is True
+    assert defaults.enable_ai_reconciliation is False
+
+
+@pytest.mark.asyncio
+async def test_AC_extraction_ai_classification_default_1_new_user_gets_model_proposals(db, test_user, monkeypatch):
+    """AC-extraction.ai-classification-default.1: a user with no override reaches the model proposer."""
+    from src.config import Settings, settings
+
+    monkeypatch.delenv("ENABLE_AI_CLASSIFICATION", raising=False)
+    monkeypatch.setattr(settings, "enable_ai_classification", Settings(_env_file=None).enable_ai_classification)
+    assert not test_user.ai_settings, "the new user must carry no settings override"
+    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="ACME PAYROLL")
+    proposer = _stub_proposer(
+        {txn.description: CategoryProposal(category=TransactionCategory.SALARY.value, confidence=95)}
+    )
+
+    outcomes = await classify_transactions(
+        db, test_user.id, [txn], policy=_policy(), proposer=proposer, commit_basis=True
+    )
+
+    assert [outcome.disposition for outcome in outcomes] == ["applied"]
+    assert len(proposer.calls) == 1
+
+
 def test_AC18_15_8_production_consumers_are_the_declared_seams():
     """AC18.15.8: the classify node's production consumers are EXACTLY the two
     declared seams — the posting path (#1545) and the extraction package root
