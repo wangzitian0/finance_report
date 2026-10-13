@@ -58,6 +58,16 @@ with its external needs (`llm_provider`, `market_data`, `deployed_env`,
 (audited AND no needs) — an unaudited or dependent spec defaults to the
 post-merge ladder and can never silently creep into the merge-blocking path.
 
+The testing architecture strictly separates accounting mathematical verification
+from deployed user journeys (#2318, #2370):
+1. **Bench V2**: Pure accounting mathematical assertions and multi-period invariant
+   checks ($\Delta = 0.00$ SGD), driven by `common/meta/flows/thirty_flows_ssot.json`.
+   It does not execute browser UI flows.
+2. **Core Journey**: Physical user journeys on deployed environments, driven by
+   `common/testing/data/core-journey-checkpoints.json` (U1 to U13) and published to
+   the Core Journey Board.
+Hybrid UI test suites between these two tiers are prohibited.
+
 The root browser context records every HTTP 429 response through
 `e2e_rate_limit.py`. Its pytest report hook fails the owning journey with a
 bounded method/path diagnostic during either the call or teardown phase, while

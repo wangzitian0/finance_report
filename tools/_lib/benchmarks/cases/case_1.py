@@ -34,6 +34,16 @@ if TYPE_CHECKING:
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
+# Independent ground-truth balances for the 4-month chained accounting scenario (#2318)
+M1_EXPECTED_OPENING = Decimal("15450.75")
+M1_EXPECTED_CLOSING = Decimal("15271.23")
+M2_EXPECTED_OPENING = Decimal("15271.23")
+M2_EXPECTED_CLOSING = Decimal("18250.00")
+M3_EXPECTED_OPENING = Decimal("18250.00")
+M3_EXPECTED_CLOSING = Decimal("21300.00")
+M4_EXPECTED_OPENING = Decimal("21300.00")
+M4_EXPECTED_CLOSING = Decimal("24200.00")
+
 
 def _upload_month1_statement(
     runner: ScenarioBenchmarkRunner, client: httpx.Client
@@ -67,6 +77,12 @@ def _upload_month1_statement(
         f"        M1 parsed: Opening={m1_data['opening_balance']}, "
         f"Closing={m1_data['closing_balance']}, Txns={len(m1_data.get('transactions', []))}"
     )
+    assert Decimal(m1_data["opening_balance"]) == M1_EXPECTED_OPENING, (
+        f"M1 opening balance ({m1_data['opening_balance']}) != expected ({M1_EXPECTED_OPENING})"
+    )
+    assert Decimal(m1_data["closing_balance"]) == M1_EXPECTED_CLOSING, (
+        f"M1 closing balance ({m1_data['closing_balance']}) != expected ({M1_EXPECTED_CLOSING})"
+    )
 
     runner.adjudicate_unmatched_items(client, m1_id)
     m1_app = runner.approve_statement(client, m1_id)
@@ -89,14 +105,14 @@ def _ingest_chained_months(
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     is_replay = getattr(runner, "replay_mode", "off") == "replay"
 
-    # Month 2
+    # Month 2: generated with independent ground-truth opening balance (#2318 non-circular)
     if is_replay:
-        m2_bytes = generate_consecutive_month2_csv(opening_balance=m1_closing)
+        m2_bytes = generate_consecutive_month2_csv(opening_balance=M2_EXPECTED_OPENING)
         m2_filename = "scb_month2_replay.csv"
     else:
         m2_tmp_pdf = temp_dir / "case1_m2_scb.pdf"
         m2_bytes = generate_consecutive_month2_pdf(
-            m2_tmp_pdf, opening_balance=m1_closing
+            m2_tmp_pdf, opening_balance=M2_EXPECTED_OPENING
         )
         m2_filename = "scb_month2_chained.pdf"
 
@@ -116,8 +132,15 @@ def _ingest_chained_months(
         f"Closing={m2_data['closing_balance']}, Txns={len(m2_data.get('transactions', []))}"
     )
     m2_opening = Decimal(m2_data["opening_balance"])
+    m2_closing = Decimal(m2_data["closing_balance"])
     assert m2_opening == m1_closing, (
         f"Balance chain break: M1 closing ({m1_closing}) != M2 opening ({m2_opening})"
+    )
+    assert m2_opening == M2_EXPECTED_OPENING, (
+        f"M2 opening ({m2_opening}) != expected ({M2_EXPECTED_OPENING})"
+    )
+    assert m2_closing == M2_EXPECTED_CLOSING, (
+        f"M2 closing ({m2_closing}) != expected ({M2_EXPECTED_CLOSING})"
     )
     assert m2_data.get("balance_validated") is True, (
         f"M2 balance not validated: {m2_data}"
@@ -126,15 +149,14 @@ def _ingest_chained_months(
     m2_app = runner.approve_statement(client, m2_id)
     print(f"        M2 approved successfully (status={m2_app['status']})")
 
-    # Month 3
-    m2_closing = Decimal(m2_data["closing_balance"])
+    # Month 3: generated with independent ground-truth opening balance (#2318 non-circular)
     if is_replay:
-        m3_bytes = generate_consecutive_month3_csv(opening_balance=m2_closing)
+        m3_bytes = generate_consecutive_month3_csv(opening_balance=M3_EXPECTED_OPENING)
         m3_filename = "scb_month3_replay.csv"
     else:
         m3_tmp_pdf = temp_dir / "case1_m3_scb.pdf"
         m3_bytes = generate_consecutive_month3_pdf(
-            m3_tmp_pdf, opening_balance=m2_closing
+            m3_tmp_pdf, opening_balance=M3_EXPECTED_OPENING
         )
         m3_filename = "scb_month3_chained.pdf"
 
@@ -154,8 +176,15 @@ def _ingest_chained_months(
         f"Closing={m3_data['closing_balance']}, Txns={len(m3_data.get('transactions', []))}"
     )
     m3_opening = Decimal(m3_data["opening_balance"])
+    m3_closing = Decimal(m3_data["closing_balance"])
     assert m3_opening == m2_closing, (
         f"Balance chain break: M2 closing ({m2_closing}) != M3 opening ({m3_opening})"
+    )
+    assert m3_opening == M3_EXPECTED_OPENING, (
+        f"M3 opening ({m3_opening}) != expected ({M3_EXPECTED_OPENING})"
+    )
+    assert m3_closing == M3_EXPECTED_CLOSING, (
+        f"M3 closing ({m3_closing}) != expected ({M3_EXPECTED_CLOSING})"
     )
     assert m3_data.get("balance_validated") is True, (
         f"M3 balance not validated: {m3_data}"
@@ -164,15 +193,14 @@ def _ingest_chained_months(
     m3_app = runner.approve_statement(client, m3_id)
     print(f"        M3 approved successfully (status={m3_app['status']})")
 
-    # Month 4
-    m3_closing = Decimal(m3_data["closing_balance"])
+    # Month 4: generated with independent ground-truth opening balance (#2318 non-circular)
     if is_replay:
-        m4_bytes = generate_consecutive_month4_csv(opening_balance=m3_closing)
+        m4_bytes = generate_consecutive_month4_csv(opening_balance=M4_EXPECTED_OPENING)
         m4_filename = "scb_month4_replay.csv"
     else:
         m4_tmp_pdf = temp_dir / "case1_m4_scb.pdf"
         m4_bytes = generate_consecutive_month4_pdf(
-            m4_tmp_pdf, opening_balance=m3_closing
+            m4_tmp_pdf, opening_balance=M4_EXPECTED_OPENING
         )
         m4_filename = "scb_month4_chained.pdf"
 
@@ -192,8 +220,15 @@ def _ingest_chained_months(
         f"Closing={m4_data['closing_balance']}, Txns={len(m4_data.get('transactions', []))}"
     )
     m4_opening = Decimal(m4_data["opening_balance"])
+    m4_closing = Decimal(m4_data["closing_balance"])
     assert m4_opening == m3_closing, (
         f"Balance chain break: M3 closing ({m3_closing}) != M4 opening ({m4_opening})"
+    )
+    assert m4_opening == M4_EXPECTED_OPENING, (
+        f"M4 opening ({m4_opening}) != expected ({M4_EXPECTED_OPENING})"
+    )
+    assert m4_closing == M4_EXPECTED_CLOSING, (
+        f"M4 closing ({m4_closing}) != expected ({M4_EXPECTED_CLOSING})"
     )
     assert m4_data.get("balance_validated") is True, (
         f"M4 balance not validated: {m4_data}"

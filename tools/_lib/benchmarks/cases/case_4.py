@@ -96,8 +96,8 @@ def _verify_multicurrency_balance_sheets(
     assert balanced_sgd is True, (
         f"SGD balance sheet must be balanced under IAS 21 CTA: delta={delta_sgd}"
     )
-    assert abs(delta_sgd) < Decimal("0.05"), (
-        f"SGD equation delta exceeds tolerance: {delta_sgd}"
+    assert delta_sgd == Decimal("0.00"), (
+        f"SGD equation delta must be exactly zero: {delta_sgd}"
     )
     assert_triple_accounting_articulation(bs_sgd)
 
@@ -115,8 +115,8 @@ def _verify_multicurrency_balance_sheets(
     assert balanced_usd is True, (
         f"USD balance sheet must be balanced under IAS 21 CTA: delta={delta_usd}"
     )
-    assert abs(delta_usd) < Decimal("0.05"), (
-        f"USD equation delta exceeds tolerance: {delta_usd}"
+    assert delta_usd == Decimal("0.00"), (
+        f"USD equation delta must be exactly zero: {delta_usd}"
     )
     assert_triple_accounting_articulation(bs_usd)
     return assets_sgd, delta_sgd, balanced_sgd, assets_usd, delta_usd, balanced_usd

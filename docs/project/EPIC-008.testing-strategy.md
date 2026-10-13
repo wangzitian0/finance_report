@@ -721,7 +721,6 @@ Product E2E ownership index:
 | `tests/e2e/test_ai_provider_connectivity.py` | Staging AI provider connectivity smoke; its AC lives in the `testing` package roadmap (AC-testing.deploy-gates.27, `common/testing/contract.py`) |
 | `tests/e2e/test_transfer_processing_journey.py` | Core-journey board proof U7 (post-deploy core_journey lane, #2370, #2384); AC-ledger.transfer-clearing.1 is owned by `common/ledger/contract.py` |
 | `tests/e2e/test_auth_flows.py` | Deployed auth flow E2E; AC references live in the test file |
-| `tests/e2e/test_bench_v2_ui_golden_paths.py` | Bench V2 financial scenario browser E2E; AC references live in the test file (#2151) |
 | `tests/e2e/test_brokerage_upload_to_portfolio_value.py` | Critical proof: AC-extraction.813.10; blocking value oracle `AC-portfolio.valuation.1` (`common/portfolio/contract.py`, #1826) |
 | `tests/e2e/test_four_asset_net_worth_golden_path.py` | Critical proof: AC-testing.product-gates.7, AC-extraction.813.10, AC-reporting.net-worth-timeseries.2, AC-pricing.manualvaluation.5, AC-pricing.manualvaluation.6, AC-pricing.manualvaluation.7, AC-portfolio.valuation.1 |
 | `tests/e2e/test_frontend_observability_epic024.py` | EPIC-024 frontend browser observability product owner E2E |
@@ -731,7 +730,7 @@ Product E2E ownership index:
 | `tests/e2e/test_production_readonly_smoke.py` | Production-readonly smoke E2E; AC references live in the test file |
 | `tests/e2e/test_accounts_and_statements_ui_journey.py` | Accounts registry and statements review browser E2E; AC references live in the test file (#2171) |
 | `tests/e2e/test_reconciliation_ui_journey.py` | Reconciliation workbench, unmatched studio, and interactive disposition browser E2E; AC references live in the test file (#2158, #2171) |
-| `tests/e2e/test_statement_full_journey.py` | Critical proof: AC-extraction.813.11 |
+| `tests/e2e/test_statement_full_journey.py` | Critical proof: AC-extraction.813.11, AC-audit.global-invariant.2 |
 | `tests/e2e/test_statement_upload_e2e.py` | Statement upload E2E; AC references live in the test file |
 | `tests/e2e/test_version_check.py` | Version/runtime E2E; AC references live in the test file |
 | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Critical proof: AC-testing.product-gates.2; source facts without authoritative economic meaning return to Stage 1 review with zero journal entries |

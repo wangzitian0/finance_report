@@ -180,7 +180,7 @@ def _unique_pdf_copy(src: Path) -> Path:
 
 @ac_proof(
     "dbs-pdf-full-journey",
-    ac_ids=["AC-extraction.813.11"],
+    ac_ids=["AC-extraction.813.11", "AC-audit.global-invariant.2"],
     scope="behavioral",
     ci_tier="post_merge_environment",
     trust_mode="llm_ocr_post_merge",
