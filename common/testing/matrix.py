@@ -311,15 +311,6 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         ),
     ),
     E2ERow(
-        "tests/e2e/test_bench_v2_ui_golden_paths.py",
-        needs=(NEEDS_STATE_SENSITIVE,),
-        audited=True,
-        reason=(
-            "Audited (#2151): Bench V2 multi-period financial scenario verification; "
-            "registers ephemeral tenant sessions and verifies browser UI."
-        ),
-    ),
-    E2ERow(
         "tests/e2e/test_journal_ui_journey.py",
         needs=(NEEDS_STATE_SENSITIVE,),
         audited=True,

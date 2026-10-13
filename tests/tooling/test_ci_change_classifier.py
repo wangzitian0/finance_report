@@ -213,7 +213,7 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
         "apps/frontend/src/app/page.tsx",
         "apps/frontend/src/lib/api.ts",
         "apps/frontend/package-lock.json",
-        "tests/e2e/test_bench_v2_ui_golden_paths.py",
+        "tests/e2e/test_gxs_browser_journey.py",
         "docker-compose.yml",
         "docker-compose.pr-preview.yml",
         "tools/generate_pdf_fixtures.py",
@@ -404,7 +404,7 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "apps/frontend/src/lib/api.ts",
         "apps/frontend/public/icon.svg",
         "apps/frontend/package-lock.json",
-        "tests/e2e/test_bench_v2_ui_golden_paths.py",
+        "tests/e2e/test_gxs_browser_journey.py",
         "tests/e2e/test_statement_upload_e2e.py",
         "tools/health_check.sh",
         "tools/smoke_test.sh",
@@ -501,7 +501,7 @@ def test_AC8_13_20_summary_includes_pr_preview_files(tmp_path: Path) -> None:
     result = classify_changed_paths(
         [
             "apps/frontend/src/app/page.tsx",
-            "tests/e2e/test_bench_v2_ui_golden_paths.py",
+            "tests/e2e/test_gxs_browser_journey.py",
         ]
     )
     summary = tmp_path / "github-summary.md"
@@ -511,7 +511,7 @@ def test_AC8_13_20_summary_includes_pr_preview_files(tmp_path: Path) -> None:
     summary_text = summary.read_text(encoding="utf-8")
     assert "PR preview-triggering files:" in summary_text
     assert "- `apps/frontend/src/app/page.tsx`" in summary_text
-    assert "- `tests/e2e/test_bench_v2_ui_golden_paths.py`" in summary_text
+    assert "- `tests/e2e/test_gxs_browser_journey.py`" in summary_text
     assert "Staging-triggering files:" in summary_text
 
 

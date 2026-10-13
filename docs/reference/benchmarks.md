@@ -2,6 +2,23 @@
 
 Three-statement reconciliation and accounting invariant checks. Bench V2 runs on manual dispatch against staging.
 
+## Architectural Boundary and Single Source of Truth
+
+Testing and observability enforce two separate layers with zero overlapping responsibility:
+
+1. **Bench V2 (Financial Reporting Benchmark Observatory)**:
+   - **Scope**: Mathematical assertions of double-entry accounting invariants and multi-period financial continuity ($\Delta = 0.00$ SGD across balance sheet, income statement, and cash flow).
+   - **Execution**: Pure in-memory or deterministic API replay (`tools/run_financial_scenario_benchmark.py`).
+   - **Single Source of Truth**: Governed by `common/meta/flows/thirty_flows_ssot.json` (30 canonical wealth flows in 7 domains).
+   - **Boundary**: Bench V2 does not execute browser UI user flows.
+2. **Core Journey (Core User Journey Board)**:
+   - **Scope**: Physical user journeys on deployed environments (statement upload, live OCR provider parsing, browser review and approval, opening balances, inter-account transfers, package listing/reopen/export, and source-to-report traceability).
+   - **Execution**: Browser actions via Playwright on deployed revisions (`tests/e2e/test_*_journey.py`).
+   - **Single Source of Truth**: Governed by `common/testing/data/core-journey-checkpoints.json` (checkpoints U1 to U13).
+   - **Surface**: Visualized per revision on the [Core Journey Board](../board/index.html).
+
+The system prohibits hybrid UI test suites between these two layers.
+
 ## Core Journey Board
 
 The [Core Journey Board](../board/index.html) shows the core user journey for each staging revision: upload, parse, review, ledger, report, saved package and traceability. Each staging deploy, core-journey run and audit replay publishes one record. The board blocks nothing. A production release shows the row of its own revision to the approving owner. The checkpoint map is `common/testing/data/core-journey-checkpoints.json`; the publisher is `.github/workflows/journey-board.yml` (#2370).
