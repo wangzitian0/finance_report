@@ -32,6 +32,7 @@ CHECKPOINT_REACHED = "reached"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKPOINT_MAP_PATH = REPO_ROOT / "common/testing/data/core-journey-checkpoints.json"
 
+ARTIFACT_NAME = "staging-ai-ocr-test-context"
 GATE_XML = "staging-ai-ocr-gate.xml"
 RETRY_XML = "staging-ai-ocr-retry.xml"
 CONTEXT_FILE = "staging-ai-ocr-context.txt"
@@ -786,6 +787,27 @@ def checkpoint_map_has_proof(checkpoint_map: CheckpointMap, checkpoint_id: str) 
     return any(checkpoint_id in proof.reaches for proof in checkpoint_map.proofs)
 
 
+def pick_artifact(
+    artifacts: list[dict[str, Any]], run: dict[str, Any]
+) -> dict[str, Any] | None:
+    """The gate artifact of the run's current attempt, or ``None``.
+
+    A rerun keeps the earlier attempt's artifact under the same name (run
+    38341155894 holds two). Only an artifact created at or after the current
+    attempt started belongs to it; the newest of those wins. An older one
+    would report the previous attempt as this one (stale reported as fresh).
+    """
+    started = run.get("run_started_at") or ""
+    candidates = [
+        artifact
+        for artifact in artifacts
+        if artifact.get("name") == ARTIFACT_NAME
+        and not artifact.get("expired")
+        and (artifact.get("created_at") or "") >= started
+    ]
+    return max(candidates, key=lambda artifact: artifact["created_at"], default=None)
+
+
 def _load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -847,6 +869,16 @@ def _cmd_build_record(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_pick_artifact(args: argparse.Namespace) -> int:
+    payload = _load_json(args.artifacts_json)
+    artifacts = (
+        payload.get("artifacts", payload) if isinstance(payload, dict) else payload
+    )
+    artifact = pick_artifact(artifacts, _load_json(args.run_json))
+    print(artifact["id"] if artifact else "")
+    return 0
+
+
 def _cmd_build_index(args: argparse.Namespace) -> int:
     records = load_records(args.board_dir)
     generated_at = datetime.now(UTC).isoformat(timespec="seconds")
@@ -900,6 +932,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="checkpoint map of the tested revision; a missing file means the revision has none",
     )
     record.set_defaults(func=_cmd_build_record)
+    pick = sub.add_parser(
+        "pick-artifact", help="print the gate artifact id of the current run attempt"
+    )
+    pick.add_argument("--artifacts-json", type=Path, required=True)
+    pick.add_argument("--run-json", type=Path, required=True)
+    pick.set_defaults(func=_cmd_pick_artifact)
     index = sub.add_parser(
         "build-index", help="regenerate index.json and fragment.html"
     )
