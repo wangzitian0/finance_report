@@ -113,6 +113,14 @@ routes, live-proposal state, and deployment commit. Trace records bind that exac
 snapshot, while reporting receives the same published value object for frozen
 package disclosure instead of rebuilding policy facts from configuration.
 
+The AI category catalog is a versioned, append-only policy (`POLICY_VERSIONS`). Policy v1 holds
+18 income and expense classes and stays frozen. Policy v2 (#2411) adds four balance-sheet
+classes: `TRANSFER`, `CARD_REPAYMENT`, `LOAN_PRINCIPAL` and `INVESTMENT_TRADE`. The model may name
+them so that such a row is not filed under "Other". A proposal in one of them is never applied
+as profit or loss, creates no account and no classification row, and waits for its transfer
+match or for a person. `OTHER_INCOME` and `OTHER_EXPENSE` mean "does not fit": a proposal in
+them is always a draft for a person, whatever its confidence.
+
 ## Upload-First Product Contract
 
 The user-facing input model is upload-first: users provide source documents and
