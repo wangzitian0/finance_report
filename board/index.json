@@ -66,8 +66,192 @@
       "title": "The proportion of low-confidence data is measured"
     }
   ],
-  "generated_at": "2026-10-13T03:40:12+00:00",
+  "generated_at": "2026-10-13T03:45:03+00:00",
   "records": [
+    {
+      "checkpoints": {
+        "U1": {
+          "proofs": [
+            {
+              "status": "passed",
+              "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+            },
+            {
+              "status": "passed",
+              "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+            }
+          ],
+          "status": "passed"
+        },
+        "U10": {
+          "proofs": [
+            {
+              "status": "passed",
+              "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+            }
+          ],
+          "status": "passed"
+        },
+        "U11": {
+          "proofs": [
+            {
+              "status": "passed",
+              "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+            },
+            {
+              "status": "passed",
+              "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+            }
+          ],
+          "status": "passed"
+        },
+        "U12": {
+          "proofs": [
+            {
+              "status": "passed",
+              "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+            },
+            {
+              "status": "passed",
+              "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+            },
+            {
+              "status": "passed",
+              "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser"
+            },
+            {
+              "status": "passed",
+              "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing"
+            }
+          ],
+          "status": "passed"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "proofs": [
+            {
+              "status": "passed",
+              "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+            },
+            {
+              "status": "passed",
+              "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+            }
+          ],
+          "status": "passed"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "proofs": [
+            {
+              "status": "passed",
+              "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+            }
+          ],
+          "status": "passed"
+        },
+        "U5": {
+          "proofs": [
+            {
+              "status": "passed",
+              "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser"
+            }
+          ],
+          "status": "passed"
+        },
+        "U6": {
+          "proofs": [
+            {
+              "status": "passed",
+              "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+            }
+          ],
+          "status": "passed"
+        },
+        "U7": {
+          "proofs": [
+            {
+              "status": "passed",
+              "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing"
+            }
+          ],
+          "status": "passed"
+        },
+        "U8": {
+          "proofs": [
+            {
+              "status": "passed",
+              "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+            },
+            {
+              "status": "passed",
+              "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+            }
+          ],
+          "status": "passed"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 0,
+        "passed": 4,
+        "skipped": 0,
+        "total": 4
+      },
+      "expected_version": "v0.1.76",
+      "junit": true,
+      "lane": "core_journey",
+      "map_note": null,
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:50+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-13T03:42:03Z",
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "id": "38342582868",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/38342582868",
+        "workflow": ".github/workflows/audit-replay.yml"
+      },
+      "schema": 1,
+      "status": "passed",
+      "tested_sha": "11e25f50c999f098fb9b120593efd1a1648d9cdf",
+      "tests": [
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 90.67,
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 71.36,
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        },
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 8.54,
+          "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser"
+        },
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 35.84,
+          "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing"
+        }
+      ]
+    },
     {
       "checkpoints": {
         "U1": {
@@ -368,6 +552,165 @@
         }
       },
       "counts": {
+        "failed": 0,
+        "passed": 0,
+        "skipped": 0,
+        "total": 0
+      },
+      "expected_version": "v0.1.76",
+      "junit": false,
+      "lane": "core_journey",
+      "map_note": null,
+      "reason": "the gate wrote no JUnit file",
+      "recorded_at": "2026-10-13T03:44:52+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-13T03:31:49Z",
+        "conclusion": "failure",
+        "event": "workflow_dispatch",
+        "id": "38342031478",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/38342031478",
+        "workflow": ".github/workflows/audit-replay.yml"
+      },
+      "schema": 1,
+      "status": "regression-failed",
+      "tested_sha": "11e25f50c999f098fb9b120593efd1a1648d9cdf",
+      "tests": []
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "proofs": [
+            {
+              "status": "not-run",
+              "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+            },
+            {
+              "status": "not-run",
+              "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+            }
+          ],
+          "status": "not-run"
+        },
+        "U10": {
+          "proofs": [
+            {
+              "status": "not-run",
+              "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+            }
+          ],
+          "status": "not-run"
+        },
+        "U11": {
+          "proofs": [
+            {
+              "status": "not-run",
+              "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+            },
+            {
+              "status": "not-run",
+              "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+            }
+          ],
+          "status": "not-run"
+        },
+        "U12": {
+          "proofs": [
+            {
+              "status": "not-run",
+              "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+            },
+            {
+              "status": "not-run",
+              "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+            },
+            {
+              "status": "not-run",
+              "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser"
+            },
+            {
+              "status": "not-run",
+              "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing"
+            }
+          ],
+          "status": "not-run"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "proofs": [
+            {
+              "status": "not-run",
+              "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+            },
+            {
+              "status": "not-run",
+              "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+            }
+          ],
+          "status": "not-run"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "proofs": [
+            {
+              "status": "not-run",
+              "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+            }
+          ],
+          "status": "not-run"
+        },
+        "U5": {
+          "proofs": [
+            {
+              "status": "not-run",
+              "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser"
+            }
+          ],
+          "status": "not-run"
+        },
+        "U6": {
+          "proofs": [
+            {
+              "status": "not-run",
+              "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+            }
+          ],
+          "status": "not-run"
+        },
+        "U7": {
+          "proofs": [
+            {
+              "status": "not-run",
+              "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing"
+            }
+          ],
+          "status": "not-run"
+        },
+        "U8": {
+          "proofs": [
+            {
+              "status": "not-run",
+              "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+            },
+            {
+              "status": "not-run",
+              "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+            }
+          ],
+          "status": "not-run"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
         "failed": 1,
         "passed": 0,
         "skipped": 0,
@@ -523,6 +866,87 @@
           "status": "not-covered"
         },
         "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 0,
+        "passed": 0,
+        "skipped": 0,
+        "total": 0
+      },
+      "expected_version": null,
+      "junit": false,
+      "lane": "canary",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": "the staging AI/OCR gate job did not run (Deploy Staging concluded failure)",
+      "recorded_at": "2026-10-13T03:44:09+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-09T17:19:40Z",
+        "conclusion": "failure",
+        "event": "workflow_dispatch",
+        "id": "37964773709",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37964773709",
+        "workflow": ".github/workflows/deploy.yml"
+      },
+      "schema": 1,
+      "status": "not-run",
+      "tested_sha": "1055c9c9e2c61daf932d3c836ebd41796dfc830a",
+      "tests": []
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
           "gap": "#2370",
           "status": "not-covered"
         },
@@ -626,6 +1050,1488 @@
           "failure_class": "extraction",
           "outcome": "failed",
           "seconds": 4.68,
+          "test": "test_statement_upload_e2e::test_model_selection_and_upload"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "expected_version": "v0.1.74",
+      "junit": true,
+      "lane": "canary",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:12+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-09T16:04:30Z",
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "id": "37954902162",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37954902162",
+        "workflow": ".github/workflows/deploy.yml"
+      },
+      "schema": 1,
+      "status": "passed",
+      "tested_sha": "ff473b9d7905d5c92a2c22681f0ca6233e441f9c",
+      "tests": [
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 164.75,
+          "test": "test_brokerage_upload_to_portfolio_value::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "expected_version": "v0.1.74",
+      "junit": true,
+      "lane": "canary",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:15+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-09T15:45:21Z",
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "id": "37953095097",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37953095097",
+        "workflow": ".github/workflows/deploy.yml"
+      },
+      "schema": 1,
+      "status": "passed",
+      "tested_sha": "ff473b9d7905d5c92a2c22681f0ca6233e441f9c",
+      "tests": [
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 99.01,
+          "test": "test_brokerage_upload_to_portfolio_value::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "expected_version": "v0.1.73",
+      "junit": true,
+      "lane": "canary",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:18+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-09T15:23:26Z",
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "id": "37950263488",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37950263488",
+        "workflow": ".github/workflows/deploy.yml"
+      },
+      "schema": 1,
+      "status": "passed",
+      "tested_sha": "80a39d096c1523ffb403138c1258557e154de6a3",
+      "tests": [
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 86.21,
+          "test": "test_brokerage_upload_to_portfolio_value::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "expected_version": "v0.1.73",
+      "junit": true,
+      "lane": "canary",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:21+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-09T14:58:26Z",
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "id": "37947156657",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37947156657",
+        "workflow": ".github/workflows/deploy.yml"
+      },
+      "schema": 1,
+      "status": "passed",
+      "tested_sha": "80a39d096c1523ffb403138c1258557e154de6a3",
+      "tests": [
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 105.85,
+          "test": "test_brokerage_upload_to_portfolio_value::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "expected_version": "v0.1.72",
+      "junit": true,
+      "lane": "canary",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:25+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-09T11:39:29Z",
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "id": "37924082698",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37924082698",
+        "workflow": ".github/workflows/deploy.yml"
+      },
+      "schema": 1,
+      "status": "passed",
+      "tested_sha": "d3d3d1eaec623a6ff5d3d43ea8cd51430f7695e2",
+      "tests": [
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 109.26,
+          "test": "test_brokerage_upload_to_portfolio_value::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "expected_version": "v0.1.71",
+      "junit": true,
+      "lane": "canary",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:28+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-09T10:04:03Z",
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "id": "37914476023",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37914476023",
+        "workflow": ".github/workflows/deploy.yml"
+      },
+      "schema": 1,
+      "status": "passed",
+      "tested_sha": "b7164b8686b0e84b0c200b63604a73f0e7543352",
+      "tests": [
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 78.4,
+          "test": "test_brokerage_upload_to_portfolio_value::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "expected_version": "v0.1.70",
+      "junit": true,
+      "lane": "canary",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:31+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-09T07:42:06Z",
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "id": "37899639356",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37899639356",
+        "workflow": ".github/workflows/deploy.yml"
+      },
+      "schema": 1,
+      "status": "passed",
+      "tested_sha": "00257e5cb4b915d644327b3c4aa614ab0c1afb90",
+      "tests": [
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 177.59,
+          "test": "test_brokerage_upload_to_portfolio_value::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "expected_version": "v0.1.69",
+      "junit": true,
+      "lane": "canary",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:35+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-08T12:43:36Z",
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "id": "37777678193",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37777678193",
+        "workflow": ".github/workflows/deploy.yml"
+      },
+      "schema": 1,
+      "status": "passed",
+      "tested_sha": "616bd661bcb6049425ce7d3544e911a73d7179dd",
+      "tests": [
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 90.71,
+          "test": "test_brokerage_upload_to_portfolio_value::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "expected_version": "v0.1.68",
+      "junit": true,
+      "lane": "canary",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:38+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-08T12:29:11Z",
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "id": "37776134008",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37776134008",
+        "workflow": ".github/workflows/deploy.yml"
+      },
+      "schema": 1,
+      "status": "passed",
+      "tested_sha": "afc0421b2145a351cb887f904b9930197559ca26",
+      "tests": [
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 160.23,
+          "test": "test_brokerage_upload_to_portfolio_value::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "expected_version": "v0.1.67",
+      "junit": true,
+      "lane": "canary",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:42+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-08T04:49:58Z",
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "id": "37728722071",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37728722071",
+        "workflow": ".github/workflows/deploy.yml"
+      },
+      "schema": 1,
+      "status": "passed",
+      "tested_sha": "eec47a2069e675249d6a5b8c442736ba213eb089",
+      "tests": [
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 122.43,
+          "test": "test_brokerage_upload_to_portfolio_value::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 10,
+        "passed": 0,
+        "skipped": 0,
+        "total": 10
+      },
+      "expected_version": "v0.1.66",
+      "junit": true,
+      "lane": "audit_replay",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:55+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-08T04:44:11Z",
+        "conclusion": "success",
+        "event": "schedule",
+        "id": "37728461833",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37728461833",
+        "workflow": ".github/workflows/audit-replay.yml"
+      },
+      "schema": 1,
+      "status": "regression-failed",
+      "tested_sha": "b6e210ae74ff0860f8bec811a72ca2c076c38c94",
+      "tests": [
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 23.16,
+          "test": "test_four_asset_net_worth_golden_path::test_four_asset_as_of_net_worth_golden_path"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 2.81,
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "failure_class": "extraction",
+          "outcome": "failed",
+          "seconds": 64.47,
+          "test": "test_institution_statement_journeys::test_cmb_statement_journey"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 64.55,
+          "test": "test_institution_statement_journeys::test_maribank_statement_journey"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 88.77,
+          "test": "test_institution_statement_journeys::test_pingan_statement_journey"
+        },
+        {
+          "failure_class": "provider-latency",
+          "outcome": "failed",
+          "seconds": 16.73,
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        },
+        {
+          "failure_class": "provider-latency",
+          "outcome": "error",
+          "seconds": 0.8,
+          "test": "test_personal_financial_report_package::test_personal_financial_report_package_post_merge_journey"
+        },
+        {
+          "failure_class": "provider-latency",
+          "outcome": "error",
+          "seconds": 0.75,
+          "test": "test_statement_full_journey::test_dbs_statement_full_journey"
+        },
+        {
+          "failure_class": "provider-latency",
+          "outcome": "error",
+          "seconds": 0.77,
+          "test": "test_statement_upload_e2e::test_statement_upload_full_flow"
+        },
+        {
+          "failure_class": "provider-latency",
+          "outcome": "error",
+          "seconds": 0.79,
+          "test": "test_statement_upload_e2e::test_model_selection_and_upload"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "expected_version": "v0.1.66",
+      "junit": true,
+      "lane": "canary",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:45+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-07T16:48:50Z",
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "id": "37653924041",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37653924041",
+        "workflow": ".github/workflows/deploy.yml"
+      },
+      "schema": 1,
+      "status": "passed",
+      "tested_sha": "b6e210ae74ff0860f8bec811a72ca2c076c38c94",
+      "tests": [
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 99.19,
+          "test": "test_brokerage_upload_to_portfolio_value::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      },
+      "expected_version": "v0.1.65",
+      "junit": true,
+      "lane": "canary",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:48+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-07T16:03:56Z",
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "id": "37647943816",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37647943816",
+        "workflow": ".github/workflows/deploy.yml"
+      },
+      "schema": 1,
+      "status": "passed",
+      "tested_sha": "7ccf9f2d11939682f6c616d9b8dbfc09b1599298",
+      "tests": [
+        {
+          "failure_class": null,
+          "outcome": "passed",
+          "seconds": 120.49,
+          "test": "test_brokerage_upload_to_portfolio_value::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 8,
+        "passed": 0,
+        "skipped": 2,
+        "total": 10
+      },
+      "expected_version": "v0.1.64",
+      "junit": true,
+      "lane": "audit_replay",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:44:59+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-07T04:45:48Z",
+        "conclusion": "success",
+        "event": "schedule",
+        "id": "37572415932",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37572415932",
+        "workflow": ".github/workflows/audit-replay.yml"
+      },
+      "schema": 1,
+      "status": "regression-failed",
+      "tested_sha": "ebc610cfd4c8ad5565d26ed02d8f16cadf4147cd",
+      "tests": [
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 16.63,
+          "test": "test_four_asset_net_worth_golden_path::test_four_asset_as_of_net_worth_golden_path"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 2.75,
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 58.08,
+          "test": "test_institution_statement_journeys::test_cmb_statement_journey"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 49.7,
+          "test": "test_institution_statement_journeys::test_maribank_statement_journey"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 50.54,
+          "test": "test_institution_statement_journeys::test_pingan_statement_journey"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 60.19,
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 68.67,
+          "test": "test_personal_financial_report_package::test_personal_financial_report_package_post_merge_journey"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 46.65,
+          "test": "test_statement_full_journey::test_dbs_statement_full_journey"
+        },
+        {
+          "failure_class": null,
+          "outcome": "skipped",
+          "seconds": 4.62,
+          "test": "test_statement_upload_e2e::test_statement_upload_full_flow"
+        },
+        {
+          "failure_class": null,
+          "outcome": "skipped",
+          "seconds": 3.42,
+          "test": "test_statement_upload_e2e::test_model_selection_and_upload"
+        }
+      ]
+    },
+    {
+      "checkpoints": {
+        "U1": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U10": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U11": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U12": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U13": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U2": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U3": {
+          "gap": "#2370",
+          "status": "not-covered"
+        },
+        "U4": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U5": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U6": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U7": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U8": {
+          "gap": null,
+          "status": "not-covered"
+        },
+        "U9": {
+          "gap": "#2370",
+          "status": "not-covered"
+        }
+      },
+      "counts": {
+        "failed": 8,
+        "passed": 0,
+        "skipped": 2,
+        "total": 10
+      },
+      "expected_version": "v0.1.64",
+      "junit": true,
+      "lane": "audit_replay",
+      "map_note": "the tested revision has no checkpoint map",
+      "reason": null,
+      "recorded_at": "2026-10-13T03:45:02+00:00",
+      "run": {
+        "attempt": 1,
+        "completed_at": "2026-10-06T04:45:44Z",
+        "conclusion": "success",
+        "event": "schedule",
+        "id": "37414571654",
+        "url": "https://github.com/wangzitian0/finance_report/actions/runs/37414571654",
+        "workflow": ".github/workflows/audit-replay.yml"
+      },
+      "schema": 1,
+      "status": "regression-failed",
+      "tested_sha": "ebc610cfd4c8ad5565d26ed02d8f16cadf4147cd",
+      "tests": [
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 30.85,
+          "test": "test_four_asset_net_worth_golden_path::test_four_asset_as_of_net_worth_golden_path"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 2.61,
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "failure_class": "extraction",
+          "outcome": "failed",
+          "seconds": 68.21,
+          "test": "test_institution_statement_journeys::test_cmb_statement_journey"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 51.18,
+          "test": "test_institution_statement_journeys::test_maribank_statement_journey"
+        },
+        {
+          "failure_class": "extraction",
+          "outcome": "failed",
+          "seconds": 52.24,
+          "test": "test_institution_statement_journeys::test_pingan_statement_journey"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 67.26,
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 93.17,
+          "test": "test_personal_financial_report_package::test_personal_financial_report_package_post_merge_journey"
+        },
+        {
+          "failure_class": "app-assertion",
+          "outcome": "failed",
+          "seconds": 61.73,
+          "test": "test_statement_full_journey::test_dbs_statement_full_journey"
+        },
+        {
+          "failure_class": null,
+          "outcome": "skipped",
+          "seconds": 5.45,
+          "test": "test_statement_upload_e2e::test_statement_upload_full_flow"
+        },
+        {
+          "failure_class": null,
+          "outcome": "skipped",
+          "seconds": 10.28,
           "test": "test_statement_upload_e2e::test_model_selection_and_upload"
         }
       ]

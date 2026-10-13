@@ -1,0 +1,142 @@
+{
+  "checkpoints": {
+    "U1": {
+      "gap": null,
+      "status": "not-covered"
+    },
+    "U10": {
+      "gap": null,
+      "status": "not-covered"
+    },
+    "U11": {
+      "gap": null,
+      "status": "not-covered"
+    },
+    "U12": {
+      "gap": null,
+      "status": "not-covered"
+    },
+    "U13": {
+      "gap": "#2370",
+      "status": "not-covered"
+    },
+    "U2": {
+      "gap": null,
+      "status": "not-covered"
+    },
+    "U3": {
+      "gap": "#2370",
+      "status": "not-covered"
+    },
+    "U4": {
+      "gap": null,
+      "status": "not-covered"
+    },
+    "U5": {
+      "gap": null,
+      "status": "not-covered"
+    },
+    "U6": {
+      "gap": null,
+      "status": "not-covered"
+    },
+    "U7": {
+      "gap": null,
+      "status": "not-covered"
+    },
+    "U8": {
+      "gap": null,
+      "status": "not-covered"
+    },
+    "U9": {
+      "gap": "#2370",
+      "status": "not-covered"
+    }
+  },
+  "counts": {
+    "failed": 10,
+    "passed": 0,
+    "skipped": 0,
+    "total": 10
+  },
+  "expected_version": "v0.1.66",
+  "junit": true,
+  "lane": "audit_replay",
+  "map_note": "the tested revision has no checkpoint map",
+  "reason": null,
+  "recorded_at": "2026-10-13T03:44:55+00:00",
+  "run": {
+    "attempt": 1,
+    "completed_at": "2026-10-08T04:44:11Z",
+    "conclusion": "success",
+    "event": "schedule",
+    "id": "37728461833",
+    "url": "https://github.com/wangzitian0/finance_report/actions/runs/37728461833",
+    "workflow": ".github/workflows/audit-replay.yml"
+  },
+  "schema": 1,
+  "status": "regression-failed",
+  "tested_sha": "b6e210ae74ff0860f8bec811a72ca2c076c38c94",
+  "tests": [
+    {
+      "failure_class": "app-assertion",
+      "outcome": "failed",
+      "seconds": 23.16,
+      "test": "test_four_asset_net_worth_golden_path::test_four_asset_as_of_net_worth_golden_path"
+    },
+    {
+      "failure_class": "app-assertion",
+      "outcome": "failed",
+      "seconds": 2.81,
+      "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+    },
+    {
+      "failure_class": "extraction",
+      "outcome": "failed",
+      "seconds": 64.47,
+      "test": "test_institution_statement_journeys::test_cmb_statement_journey"
+    },
+    {
+      "failure_class": "app-assertion",
+      "outcome": "failed",
+      "seconds": 64.55,
+      "test": "test_institution_statement_journeys::test_maribank_statement_journey"
+    },
+    {
+      "failure_class": "app-assertion",
+      "outcome": "failed",
+      "seconds": 88.77,
+      "test": "test_institution_statement_journeys::test_pingan_statement_journey"
+    },
+    {
+      "failure_class": "provider-latency",
+      "outcome": "failed",
+      "seconds": 16.73,
+      "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+    },
+    {
+      "failure_class": "provider-latency",
+      "outcome": "error",
+      "seconds": 0.8,
+      "test": "test_personal_financial_report_package::test_personal_financial_report_package_post_merge_journey"
+    },
+    {
+      "failure_class": "provider-latency",
+      "outcome": "error",
+      "seconds": 0.75,
+      "test": "test_statement_full_journey::test_dbs_statement_full_journey"
+    },
+    {
+      "failure_class": "provider-latency",
+      "outcome": "error",
+      "seconds": 0.77,
+      "test": "test_statement_upload_e2e::test_statement_upload_full_flow"
+    },
+    {
+      "failure_class": "provider-latency",
+      "outcome": "error",
+      "seconds": 0.79,
+      "test": "test_statement_upload_e2e::test_model_selection_and_upload"
+    }
+  ]
+}
