@@ -40,6 +40,42 @@ env:
   UV_VERSION: "0.9.18"
 
 jobs:
+  journey-board:
+    # Heavy board, light gates (#2370): show the core-journey board row of this
+    # exact release before the production approval prompt. This job reads only
+    # and never fails a release; deploy runs whatever its result.
+    name: Core Journey Board Row
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.row.outputs.sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Show the board row of this release
+        id: row
+        env:
+          VERSION_REF: ${{ inputs.version_ref }}
+        run: |
+          set -uo pipefail
+          # Only a release tag resolves; anything else prints "unresolved".
+          sha="$(git rev-parse --verify --quiet "refs/tags/${VERSION_REF}^{commit}" || true)"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          mkdir -p board-ref
+          if git fetch --depth 1 origin gh-pages 2>/dev/null; then
+            git archive FETCH_HEAD board 2>/dev/null | tar -x -C board-ref || true
+          fi
+          python3 -I common/testing/journey_board.py release-row \
+            --board-dir board-ref/board --sha "${sha}" --version-ref "${VERSION_REF}" \
+            >> "$GITHUB_STEP_SUMMARY" \
+            || echo "Core journey board unavailable for ${VERSION_REF}." >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
   dry-run:
     name: Production Release Dry Run
     if: ${{ inputs.dry_run }}
@@ -230,7 +266,10 @@ jobs:
 
   deploy:
     name: Production Deploy
-    if: ${{ !inputs.dry_run }}
+    # The board row shows before the approval prompt. !cancelled() keeps a
+    # board error from ever skipping production (#2370: light gates).
+    needs: [journey-board]
+    if: ${{ !cancelled() && !inputs.dry_run }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -256,6 +295,17 @@ jobs:
           VERSION_REF: ${{ inputs.version_ref }}
         run: |
           python3 tools/resolve_release_coordinate.py --version-ref "$VERSION_REF"
+
+      - name: Warn when the board row described another commit
+        # The board row resolved the tag before the approval prompt. A tag
+        # moved during the wait makes that row describe another commit. This
+        # step warns and never blocks (#2370: light gates).
+        if: ${{ needs.journey-board.outputs.sha != '' && needs.journey-board.outputs.sha != steps.release.outputs.full_sha }}
+        env:
+          BOARD_SHA: ${{ needs.journey-board.outputs.sha }}
+          RELEASE_SHA: ${{ steps.release.outputs.full_sha }}
+        run: |
+          echo "::warning::The core-journey board row showed ${BOARD_SHA}, but this release deploys ${RELEASE_SHA}. Read the board for ${RELEASE_SHA} before you trust it."
 
       - name: Verify source CI passed
         id: source_ci
