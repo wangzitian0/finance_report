@@ -350,6 +350,8 @@ INVARIANT_VIOLATION_KINDS = (
     "per_currency_balance",
     "chain_break",
     "dedup_within_doc_collapse",
+    # The stored closing balance is not a number that the PDF text prints (#2394).
+    "closing_balance_not_in_source",
     # Blocking LLM-LED gate quarantine outcomes (EPIC-020 AC-extraction.2009.7, #1352). Distinct
     # from the detection-only kinds above: these fire only when an extraction is
     # actually BLOCKED from becoming trusted truth, one per failure mode.

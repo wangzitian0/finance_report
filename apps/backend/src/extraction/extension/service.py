@@ -13,6 +13,7 @@ import src.config
 from src.audit.money.currency import normalize_currency_code
 from src.extraction.base.paged_extraction import build_paged_prompt, merge_paged_extractions
 from src.extraction.base.result import ExtractionMethod, StatementEvidenceType, StatementExtractionResult
+from src.extraction.base.source_balance_check import SourceBalanceVerdict, check_closing_balance_against_text
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
 from src.extraction.base.types import DocumentSource, ExtractedTransactionRow
 from src.extraction.base.validation import (
@@ -55,6 +56,7 @@ from src.extraction.extension.custody_binding import (
     validate_custody_account,
 )
 from src.extraction.extension.deduplication import DeduplicationService, _decimal_key, dual_write_layer2
+from src.extraction.extension.pdf_text_layer import read_pdf_text_layer
 from src.extraction.extension.prompts.statement import get_parsing_prompt
 from src.extraction.extension.result_contract import build_statement_extraction_result, statement_evidence_type
 from src.extraction.orm.statement_summary import StatementSummary
@@ -403,6 +405,26 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 if source_fact_gaps
                 else None
             )
+            # The model must not author the closing balance (#2394). A PDF text layer holds
+            # the printed numbers; a stored closing balance that it lacks goes to review.
+            if file_type == "pdf" and not is_brokerage_payload and bank_balances is None:
+                closing_source_verdict = check_closing_balance_against_text(
+                    await asyncio.to_thread(
+                        read_pdf_text_layer, source.content, max_pages=self.PDF_VISION_MAX_TOTAL_PAGES
+                    ),
+                    opening=statement.opening_balance,
+                    closing=statement.closing_balance,
+                    amounts=[transaction.amount for transaction in transactions],
+                )
+                if closing_source_verdict is SourceBalanceVerdict.CLOSING_NOT_IN_TEXT:
+                    record_financial_invariant_violation(
+                        kind="closing_balance_not_in_source",
+                        institution_class=_institution_class(is_brokerage=is_brokerage_payload),
+                    )
+                    if source_review_reason is None:
+                        source_review_reason = (
+                            f"Closing balance {statement.closing_balance} is not in the document text"
+                        )
 
             if csv_balance_missing or source_review_reason is not None:
                 confidence = compute_confidence_score(

@@ -10,32 +10,13 @@ from src.extraction.extension.brokerage_positions import (
     looks_like_brokerage_document,
     parse_brokerage_positions,
 )
-from src.observability import safe_error_message
+from src.extraction.extension.pdf_text_layer import read_pdf_text_layer
 
 
 class _BrokerageMixin:
     def _extract_pdf_text_for_brokerage_fallback(self, file_content: bytes | None) -> str | None:
         """Extract plain PDF text for deterministic generated brokerage fixture fallback."""
-        if not file_content:
-            return None
-        try:
-            import fitz  # type: ignore[import-untyped]
-        except ImportError:
-            logger.warning("PyMuPDF is unavailable; skipping generated brokerage PDF fallback")
-            return None
-        try:
-            document = fitz.open(stream=file_content, filetype="pdf")
-        except Exception as exc:
-            logger.warning(
-                "Generated brokerage PDF text fallback could not read PDF",
-                error_type=type(exc).__name__,
-                error=safe_error_message(str(exc)),
-            )
-            return None
-        try:
-            return "\n".join(page.get_text() or "" for page in document)
-        finally:
-            document.close()
+        return read_pdf_text_layer(file_content)
 
     def _backfill_generated_brokerage_positions(
         self,
