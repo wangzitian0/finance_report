@@ -119,7 +119,10 @@ classes: `TRANSFER`, `CARD_REPAYMENT`, `LOAN_PRINCIPAL` and `INVESTMENT_TRADE`. 
 them so that such a row is not filed under "Other". A proposal in one of them is never applied
 as profit or loss, creates no account and no classification row, and waits for its transfer
 match or for a person. `OTHER_INCOME` and `OTHER_EXPENSE` mean "does not fit": a proposal in
-them is always a draft for a person, whatever its confidence.
+them is always a draft for a person, whatever its confidence. A draft suggestion (the review
+band, 60 to 84) is not posted by itself. The one-click approval on the statement review page
+accepts it: the row posts to the suggested account and category as a reviewed disposition (#2415).
+A row that the AI named a balance-sheet class is left for a person.
 
 ## Upload-First Product Contract
 

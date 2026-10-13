@@ -608,7 +608,11 @@ async def test_AC_extraction_non_pnl_categories_1_balance_sheet_class_is_never_a
 
     assert [outcome.disposition for outcome in outcomes] == ["non_pnl"]
     assert outcomes[0].category == category
-    assert await _count(db, TransactionClassification) == 0
+    # Posting reads applied rows only. The draft row has no account and records what the AI named.
+    rows = list((await db.execute(select(TransactionClassification))).scalars())
+    assert [(row.status, row.account_id, (row.tags or {}).get("category")) for row in rows] == [
+        (ClassificationStatus.DRAFT, None, category)
+    ]
     names = set((await db.execute(select(Account.name).where(Account.user_id == test_user.id))).scalars())
     assert _pnl_account_names(names) == set(), "a balance-sheet class must not create an income or expense account"
 
@@ -667,3 +671,49 @@ async def test_AC_extraction_non_pnl_categories_4_prompt_names_the_new_classes(m
         assert name in prompt
     assert "between the user's own accounts" in prompt
     assert "OTHER_INCOME or OTHER_EXPENSE only" in prompt
+
+
+@pytest.mark.asyncio
+async def test_AC_extraction_accept_ai_suggestions_4_reader_returns_the_latest_draft_per_transaction(
+    db, test_user, enabled_flag
+):
+    """AC-extraction.accept-ai-suggestions.4: the reader sees drafts only, newest first, and skips untagged rows."""
+    from src.extraction.extension.transaction_classification import draft_suggestions
+
+    txn_draft = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="DRAFT ROW")
+    txn_applied = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="APPLIED ROW")
+    txn_untagged = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="UNTAGGED ROW")
+    proposer = _stub_proposer(
+        {
+            txn_draft.description: CategoryProposal(category="DINING", confidence=75),
+            txn_applied.description: CategoryProposal(category="GROCERIES", confidence=95),
+        }
+    )
+    await classify_transactions(
+        db,
+        test_user.id,
+        [txn_draft, txn_applied],
+        policy=policy_for(date(2026, 6, 1)),
+        proposer=proposer,
+        commit_basis=True,
+    )
+    rule = (await db.execute(select(ClassificationRule))).scalars().first()
+    db.add(
+        TransactionClassification(
+            atomic_txn_id=txn_untagged.id,
+            rule_version_id=rule.id,
+            account_id=None,
+            tags={"reason": "no category"},
+            confidence_score=70,
+            status=ClassificationStatus.DRAFT,
+        )
+    )
+    await db.flush()
+
+    found = await draft_suggestions(db, [txn_draft.id, txn_applied.id, txn_untagged.id])
+
+    assert set(found) == {txn_draft.id}
+    assert (found[txn_draft.id].category, found[txn_draft.id].confidence) == ("DINING", 75)
+    assert found[txn_draft.id].account_id is not None
+    assert found[txn_draft.id].non_pnl is False
+    assert await draft_suggestions(db, []) == {}

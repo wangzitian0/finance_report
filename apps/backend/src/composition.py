@@ -39,12 +39,14 @@ from src.extraction import (
     AtomicTransaction,
     DispositionMode,
     DispositionPolicy,
+    DraftSuggestion,
     EconomicIntent,
     StatementIngestionUseCase,
     StatementPostingDependencies,
     StatementSummary,
     TransactionDirection,
     build_statement_ingestion_use_case,
+    draft_suggestions,
     effective_statement_transaction_filter,
     extraction_trace_policy_registry,
     snapshot_currencies,
@@ -207,15 +209,46 @@ def _statement_unmatched_txns_query(statement: StatementSummary, user_id: UUID):
     )
 
 
+async def _accepted_suggestion_for(
+    db: AsyncSession,
+    user_id: UUID,
+    txn: AtomicTransaction,
+    suggestion: DraftSuggestion | None,
+) -> tuple[EconomicIntent, Account, str, str] | None:
+    """The reviewed disposition that accepting the draft AI suggestion of a row stands for.
+
+    Returns None when there is no usable suggestion: no account, an account that is not the
+    user's active account in the row currency, or a type that contradicts the direction of the
+    row (income for an outgoing row, expense for an incoming row).
+    """
+    if suggestion is None or suggestion.account_id is None:
+        return None
+    account = await db.get(Account, suggestion.account_id)
+    if account is None or account.user_id != user_id or not account.is_active or account.currency != txn.currency:
+        return None
+    if account.type is AccountType.INCOME and txn.direction == TransactionDirection.IN:
+        intent = EconomicIntent.INCOME
+    elif account.type is AccountType.EXPENSE and txn.direction == TransactionDirection.OUT:
+        intent = EconomicIntent.EXPENSE
+    else:
+        return None
+    rationale = f"Accepted AI suggestion {suggestion.category} (score {suggestion.confidence})"
+    return intent, account, suggestion.category, rationale
+
+
 async def auto_fill_default_statement_dispositions(
     db: AsyncSession,
     statement: StatementSummary,
     user_id: UUID,
 ) -> int:
-    """Auto-fill default counter accounts and submit reviewed dispositions.
+    """Accept the draft AI suggestions, then fill general counter accounts for the other rows.
 
     Submits reviewed dispositions which create posted journal entries for any
     unmatched statement transactions, returning the number of posted entries created.
+    A row with a usable draft AI suggestion posts to the suggested account and category. A row
+    that the AI named a transfer, a repayment, a loan payment or a trade is left for a person,
+    because a general income or expense would misstate it (#2415). Any other row posts to the
+    general income or expense account of its direction.
     """
     query = _statement_unmatched_txns_query(statement, user_id)
     result = await db.execute(query)
@@ -226,8 +259,30 @@ async def auto_fill_default_statement_dispositions(
     dependencies = compose_reviewed_disposition_dependencies(db)
     resolved_count = 0
     accounts_cache: dict[tuple[AccountType, str], Account] = {}
+    suggestions = await draft_suggestions(db, [txn.id for txn in unmatched_txns])
 
     for txn in unmatched_txns:
+        suggestion = suggestions.get(txn.id)
+        if suggestion is not None and suggestion.non_pnl:
+            continue
+        accepted = await _accepted_suggestion_for(db, user_id, txn, suggestion)
+        if accepted is not None:
+            intent, counter_account, category, rationale = accepted
+            await submit_reviewed_disposition(
+                db,
+                transaction_id=txn.id,
+                user_id=user_id,
+                command=ReviewedDispositionCommand(
+                    intent=intent,
+                    counter_account_id=counter_account.id,
+                    category=category,
+                    rationale=rationale,
+                ),
+                dependencies=dependencies,
+            )
+            resolved_count += 1
+            continue
+
         if txn.direction == TransactionDirection.OUT:
             intent = EconomicIntent.EXPENSE
             account_type = AccountType.EXPENSE
