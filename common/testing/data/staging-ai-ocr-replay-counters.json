@@ -41,6 +41,12 @@
     "report_verifications": 1,
     "uploads": 2
   },
+  "tests/e2e/test_stage1_routing_journey.py": {
+    "brokerage_imports": 0,
+    "parse_completions": 2,
+    "report_verifications": 0,
+    "uploads": 2
+  },
   "tests/e2e/test_statement_full_journey.py": {
     "brokerage_imports": 0,
     "parse_completions": 1,

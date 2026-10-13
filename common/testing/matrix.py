@@ -256,6 +256,12 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         ),
     ),
     E2ERow(
+        "tests/e2e/test_stage1_routing_journey.py",
+        needs=(NEEDS_LLM_PROVIDER,),
+        audited=True,
+        reason="Real provider Stage 1 routing proof U3 (#2392); audit replay and core-journey lane.",
+    ),
+    E2ERow(
         "tests/e2e/test_institution_statement_journeys.py",
         needs=(NEEDS_LLM_PROVIDER,),
         audited=True,

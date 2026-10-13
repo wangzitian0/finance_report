@@ -61,7 +61,7 @@ jobs:
     # #1767/AC8.13.167: sized for corpus=all worst-case sequential parse waits
     # -- tools/staging_ai_ocr_gate_contract.py totals()['uploads'] -- x the 8-min
     # PARSING_TIMEOUT_MS ceiling each, plus checkout/setup/summary overhead.
-    timeout-minutes: 135
+    timeout-minutes: 150
     permissions:
       contents: read
       issues: write # #1623: open the GitHub-issue fallback alert on regression
@@ -86,7 +86,7 @@ jobs:
         # Pytest runs single-worker, no -n xdist, so
         # every wait across every file is fully serial, plus checkout/setup
         # overhead, not a per-file or per-journey guess.
-        timeout-minutes: ${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 125 || 110) }}
+        timeout-minutes: ${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 140 || 125) }}
         env:
           EXPECTED_SHA_RAW: ${{ inputs.expected_sha }}
           CORPUS: ${{ inputs.corpus }}

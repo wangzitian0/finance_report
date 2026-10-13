@@ -4,7 +4,7 @@
   "checkpoints": [
     {"id": "U1", "title": "The user uploads a statement through the product"},
     {"id": "U2", "title": "The live provider parses the statement and its rows equal the independent fixture"},
-    {"id": "U3", "title": "Stage 1 auto-accepts a clean source and sends a broken source to review", "gap": "#2370"},
+    {"id": "U3", "title": "Stage 1 auto-accepts a clean source (AI classification enabled) and sends a broken source to review"},
     {"id": "U4", "title": "The user reviews and approves the source through browser actions"},
     {"id": "U5", "title": "The user records the opening balance through the browser"},
     {"id": "U6", "title": "Each accepted source transaction has exactly one posted ledger effect"},
@@ -36,6 +36,11 @@
       "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing",
       "file": "tests/e2e/test_transfer_processing_journey.py",
       "reaches": ["U12", "U7"]
+    },
+    {
+      "test": "test_stage1_routing_journey::test_stage1_accepts_clean_source_and_reviews_broken_source",
+      "file": "tests/e2e/test_stage1_routing_journey.py",
+      "reaches": ["U12", "U3"]
     }
   ]
 }
