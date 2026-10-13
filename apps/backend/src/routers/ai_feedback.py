@@ -6,7 +6,13 @@ from fastapi import APIRouter, Query, status
 from sqlalchemy import func, select
 
 from src.deps import CurrentUserId, DbSession
-from src.extraction import AtomicTransaction, ClassificationStatus, TransactionClassification
+from src.extraction import (
+    AtomicTransaction,
+    ClassificationStatus,
+    SuggestionCorrectionError,
+    TransactionClassification,
+    apply_suggestion_feedback,
+)
 from src.identity import (
     AiFeedback,
     AiFeedbackRequest,
@@ -14,6 +20,7 @@ from src.identity import (
     AiSuggestionListResponse,
     AiSuggestionResponse,
 )
+from src.platform import raise_bad_request
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 router = APIRouter(prefix="/ai", tags=["ai-feedback"])
@@ -25,7 +32,17 @@ async def create_ai_feedback(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> AiFeedbackResponse:
-    """Persist user feedback for an AI suggestion."""
+    """Persist user feedback for an AI suggestion and apply it to the draft classification.
+
+    A rejected draft is superseded. A corrected draft takes the category of the user. The one-click
+    approval reads the draft, so it then honors the decision (#2419).
+    """
+    try:
+        effect = await apply_suggestion_feedback(
+            db, user_id, payload.suggestion_id, payload.action, payload.corrected_value
+        )
+    except SuggestionCorrectionError as exc:
+        raise_bad_request(str(exc), cause=exc)
     feedback = AiFeedback(
         suggestion_id=payload.suggestion_id,
         user_id=user_id,
@@ -35,7 +52,9 @@ async def create_ai_feedback(
     db.add(feedback)
     await db.commit()
     await db.refresh(feedback)
-    return AiFeedbackResponse.model_validate(feedback)
+    response = AiFeedbackResponse.model_validate(feedback)
+    response.effect = effect
+    return response
 
 
 @router.get("/suggestions", response_model=AiSuggestionListResponse)
@@ -52,6 +71,8 @@ async def list_ai_suggestions(
         TransactionClassification.status == ClassificationStatus.DRAFT,
         TransactionClassification.confidence_score >= 60,
         TransactionClassification.confidence_score < 85,
+        # A corrected draft is decided. It is not pending.
+        func.coalesce(TransactionClassification.tags["corrected_by_user"].astext, "false") != "true",
     )
     reconciliation_filters = (
         ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,

@@ -28,6 +28,13 @@ class AiFeedbackResponse(BaseModel):
     action: str
     corrected_value: dict[str, Any] | None = None
     created_at: datetime
+    effect: str = Field(
+        default="recorded",
+        description=(
+            "What the decision changed: accepted, rejected or corrected for a pending draft; "
+            "recorded when the id is not a pending draft of the user, so only the feedback is stored."
+        ),
+    )
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -21,11 +21,13 @@ from enum import StrEnum
 MIN_AMOUNT_MATCH_NUMERATOR = 4
 MIN_AMOUNT_MATCH_DENOMINATOR = 5
 
-_GROUP_SEPARATORS = " ,.'  "
+_GROUP_SEPARATORS = " ,.'\u00a0\u202f\u2009\u2019"
 # A run of digits with the separators that money uses: ``4,837.55`` ``4.837,55`` ``4 837.55``.
 _RUN = re.compile(rf"\d(?:[\d{re.escape(_GROUP_SEPARATORS)}]*\d)?")
 _PLAIN = re.compile(r"\d+(?:[.,]\d{1,2})?")
 _GROUPED = re.compile(rf"(\d{{1,3}}(?:[{re.escape(_GROUP_SEPARATORS)}]\d{{3}})+)([.,]\d{{1,2}})?")
+# Indian grouping: one or two digits, then pairs, then three digits (``1,03,450.00``).
+_INDIAN_GROUPED = re.compile(r"(\d{1,2}(?:,\d{2})+,\d{3})([.,]\d{1,2})?")
 _GROUP_SEPARATOR_CHARS = re.compile(rf"[{re.escape(_GROUP_SEPARATORS)}]")
 
 
@@ -38,7 +40,7 @@ class SourceBalanceVerdict(StrEnum):
 def _piece_values(piece: str) -> Iterable[Decimal]:
     if _PLAIN.fullmatch(piece):
         yield Decimal(piece.replace(",", "."))
-    grouped = _GROUPED.fullmatch(piece)
+    grouped = _GROUPED.fullmatch(piece) or _INDIAN_GROUPED.fullmatch(piece)
     if grouped:
         integer_part = _GROUP_SEPARATOR_CHARS.sub("", grouped.group(1))
         fraction = grouped.group(2)
@@ -49,8 +51,9 @@ def text_money_values(text: str) -> frozenset[Decimal]:
     """Return every number in ``text`` that a layout could print as money.
 
     A run such as ``85.40 4837.55`` yields both numbers. A run such as ``4 837.55``
-    yields 4837.55. The set can hold extra values. A superset only makes a match more
-    likely, so it never raises a false flag.
+    yields 4837.55 and its parts 4 and 837.55. The set can hold extra values. A superset
+    only makes a match more likely, so it never raises a false flag. It can verify a
+    closing balance that equals a part of a spaced number (a known limit, #2419).
     """
     values: set[Decimal] = set()
     for run in _RUN.findall(text):
@@ -72,10 +75,11 @@ def check_closing_balance_against_text(
     """Return whether the stored closing balance is a number that the document prints.
 
     Signs are ignored: a layout prints a negative balance with a minus sign, with
-    parentheses, or with a trailing ``-``.
+    parentheses, or with a trailing ``-``. A zero closing balance cannot be checked: a layout
+    prints it as a word or a dash, and ``0.00`` occurs elsewhere in a statement.
     """
     amount_list = list(amounts)
-    if not text or not text.strip() or closing is None or not amount_list:
+    if not text or not text.strip() or closing is None or closing == 0 or not amount_list:
         return SourceBalanceVerdict.TEXT_UNUSABLE
     values = text_money_values(text)
     if opening is not None and abs(opening) not in values:

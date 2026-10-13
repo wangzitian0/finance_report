@@ -401,7 +401,7 @@ async def test_AC18_15_3_proposer_parses_and_clamps_model_json(monkeypatch):
     ]
     content = json.dumps(
         [
-            {"category": "SALARY", "confidence": 250, "reason": "payroll"},  # clamped to 100
+            {"index": 0, "category": "SALARY", "confidence": 250, "reason": "payroll"},  # clamped to 100
             "not-a-dict",  # -> None
         ]
     )
@@ -473,8 +473,10 @@ async def test_AC18_15_3_proposer_recovers_fenced_or_prose_wrapped_arrays(monkey
     txns = [AtomicTransactionFactory.build(user_id=None, description="ACME PAYROLL")]
     policy = policy_for(date.today())
 
-    fenced = '```json\n[{"category": "SALARY", "confidence": 90, "reason": "payroll"}]\n```'
-    prose = 'Sure! Here is the classification:\n[{"category": "SALARY", "confidence": 88}]\nHope that helps.'
+    fenced = '```json\n[{"index": 0, "category": "SALARY", "confidence": 90, "reason": "payroll"}]\n```'
+    prose = (
+        'Sure! Here is the classification:\n[{"index": 0, "category": "SALARY", "confidence": 88}]\nHope that helps.'
+    )
     for content in (fenced, prose):
         monkeypatch.setattr("src.llm.stream_ai_json", lambda **kw: _fake_stream(content))
         proposals = await tc.propose_categories(txns, policy)
@@ -658,7 +660,7 @@ async def test_AC_extraction_non_pnl_categories_4_prompt_names_the_new_classes(m
 
     async def fake_stream(messages, model, **_kwargs):
         seen.append(messages[0]["content"])
-        yield json.dumps([{"category": "TRANSFER", "confidence": 90, "reason": "own account"}])
+        yield json.dumps([{"index": 0, "category": "TRANSFER", "confidence": 90, "reason": "own account"}])
 
     monkeypatch.setattr(src.llm, "stream_ai_json", fake_stream)
     txn = AtomicTransactionFactory.build(description="Funds transfer between own accounts")

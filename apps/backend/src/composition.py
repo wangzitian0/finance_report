@@ -45,10 +45,12 @@ from src.extraction import (
     StatementPostingDependencies,
     StatementSummary,
     TransactionDirection,
+    applied_rows_the_policy_accepts,
     build_statement_ingestion_use_case,
     classification_suggestions,
     effective_statement_transaction_filter,
     extraction_trace_policy_registry,
+    settle_drafts_after_posting,
     snapshot_currencies,
 )
 from src.ledger import (
@@ -232,7 +234,10 @@ async def _accepted_suggestion_for(
         intent = EconomicIntent.EXPENSE
     else:
         return None
-    rationale = f"Accepted AI suggestion {suggestion.category} (score {suggestion.confidence})"
+    if suggestion.corrected:
+        rationale = f"Category corrected by the user: {suggestion.category}"
+    else:
+        rationale = f"Accepted AI suggestion {suggestion.category} (score {suggestion.confidence})"
     return intent, account, suggestion.category, rationale
 
 
@@ -245,11 +250,11 @@ async def auto_fill_default_statement_dispositions(
 
     Submits reviewed dispositions which create posted journal entries for any
     unmatched statement transactions, returning the number of posted entries created.
-    A row that the classifier already applied is left to the normal posting that follows. A row
-    with a usable draft AI suggestion posts to the suggested account and category. A row
-    that the AI named a transfer, a repayment, a loan payment or a trade is left for a person,
-    because a general income or expense would misstate it (#2415). Any other row posts to the
-    general income or expense account of its direction.
+    A row that the classifier already applied, with an account that the policy accepts, is left to
+    the normal posting that follows. A row with a usable draft AI suggestion posts to the
+    suggested account and category. A row that the AI named a transfer, a repayment, a loan
+    payment or a trade is left for a person, because a general income or expense would misstate
+    it (#2415). Any other row posts to the general income or expense account of its direction.
     """
     query = _statement_unmatched_txns_query(statement, user_id)
     result = await db.execute(query)
@@ -261,13 +266,17 @@ async def auto_fill_default_statement_dispositions(
     resolved_count = 0
     accounts_cache: dict[tuple[AccountType, str], Account] = {}
     suggestions = await classification_suggestions(db, [txn.id for txn in unmatched_txns])
+    # The posting that follows posts these rows from their applied classification (85 or more, or a
+    # reviewed rule). The disposition policy decides, as in the posting itself. An applied row that the
+    # policy refuses falls through to the default below, because the posting cannot clear such a row (#2419).
+    left_to_posting = await applied_rows_the_policy_accepts(
+        db, unmatched_txns, mode=DispositionMode(settings.statement_disposition_mode)
+    )
 
     for txn in unmatched_txns:
-        suggestion = suggestions.get(txn.id)
-        if suggestion is not None and suggestion.applied and not suggestion.non_pnl:
-            # The classifier applied this row (85 or more, or a reviewed rule). The normal posting
-            # that follows posts it to its own account under the full disposition policy.
+        if txn.id in left_to_posting:
             continue
+        suggestion = suggestions.get(txn.id)
         if suggestion is not None and suggestion.non_pnl:
             continue
         accepted = await _accepted_suggestion_for(db, user_id, txn, suggestion)
@@ -284,6 +293,9 @@ async def auto_fill_default_statement_dispositions(
                     rationale=rationale,
                 ),
                 dependencies=dependencies,
+            )
+            await settle_drafts_after_posting(
+                db, txn.id, accepted_id=suggestion.classification_id if suggestion else None
             )
             resolved_count += 1
             continue
@@ -318,6 +330,7 @@ async def auto_fill_default_statement_dispositions(
             ),
             dependencies=dependencies,
         )
+        await settle_drafts_after_posting(db, txn.id, accepted_id=None)
         resolved_count += 1
 
     return resolved_count
