@@ -67,9 +67,9 @@
   },
   "tests/e2e/test_twelve_month_journey.py": {
     "brokerage_imports": 0,
-    "parse_completions": 12,
+    "parse_completions": 0,
     "report_verifications": 1,
-    "uploads": 12
+    "uploads": 0
   },
   "tests/e2e/test_confidence_metrics_journey.py": {
     "brokerage_imports": 0,

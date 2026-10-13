@@ -256,6 +256,24 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         ),
     ),
     E2ERow(
+        "tests/e2e/test_twelve_month_journey.py",
+        needs=(NEEDS_DEPLOYED_ENV,),
+        audited=True,
+        reason=(
+            "Core-journey board proof U9 (#2370): runs only in the post-deploy "
+            "core_journey lane against a pinned staging revision."
+        ),
+    ),
+    E2ERow(
+        "tests/e2e/test_confidence_metrics_journey.py",
+        needs=(NEEDS_DEPLOYED_ENV,),
+        audited=True,
+        reason=(
+            "Core-journey board proof U13 (#2370): runs only in the post-deploy "
+            "core_journey lane against a pinned staging revision."
+        ),
+    ),
+    E2ERow(
         "tests/e2e/test_stage1_routing_journey.py",
         needs=(NEEDS_LLM_PROVIDER,),
         audited=True,
