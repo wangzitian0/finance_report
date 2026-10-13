@@ -198,9 +198,9 @@ from src.extraction.extension.statement_workflow import (
     reject_statement_workflow,
 )
 from src.extraction.extension.transaction_classification import (
-    DraftSuggestion,
+    ClassificationSuggestion,
     backfill_classifications,
-    draft_suggestions,
+    classification_suggestions,
 )
 from src.extraction.extension.transaction_membership import effective_statement_transaction_filter
 from src.extraction.extension.uploaded_document_reads import (
@@ -309,9 +309,9 @@ __all__ = [
     "_brokerage_payload_from_statement",
     "approve_statement_workflow",
     "auto_create_posted_entries_for_statement",
-    "DraftSuggestion",
+    "ClassificationSuggestion",
     "backfill_classifications",
-    "draft_suggestions",
+    "classification_suggestions",
     "build_csv_mapping_prompt",
     "build_disposition_trace_records",
     "build_statement_ingestion_use_case",

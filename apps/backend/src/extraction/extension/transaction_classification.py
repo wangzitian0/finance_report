@@ -628,8 +628,8 @@ async def classify_transactions(
     return outcomes
 
 
-class DraftSuggestion(BaseModel):
-    """What the classifier stored for a row that it did not apply (#2415)."""
+class ClassificationSuggestion(BaseModel):
+    """The latest stored classification of a row: applied (85 or more) or draft (60 to 84) (#2415)."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -637,6 +637,7 @@ class DraftSuggestion(BaseModel):
     category: str
     confidence: int
     account_id: UUID | None
+    applied: bool
 
     @property
     def non_pnl(self) -> bool:
@@ -644,11 +645,11 @@ class DraftSuggestion(BaseModel):
         return self.category in {c.value for c in NON_PNL_CATEGORIES}
 
 
-async def draft_suggestions(db: AsyncSession, txn_ids: Sequence[UUID]) -> dict[UUID, DraftSuggestion]:
-    """The latest draft suggestion per transaction, for the one-click approval and the review screen.
+async def classification_suggestions(db: AsyncSession, txn_ids: Sequence[UUID]) -> dict[UUID, ClassificationSuggestion]:
+    """The latest stored classification per transaction, for the one-click approval and the review screen.
 
-    A draft is a proposal below the auto-apply threshold. Posting ignores it. A person accepts it
-    through a reviewed disposition.
+    An applied row is posted by the normal posting path. A draft row is a proposal below the
+    auto-apply threshold: posting ignores it, and a person accepts it through a reviewed disposition.
     """
     if not txn_ids:
         return {}
@@ -656,20 +657,21 @@ async def draft_suggestions(db: AsyncSession, txn_ids: Sequence[UUID]) -> dict[U
         await db.execute(
             select(TransactionClassification)
             .where(TransactionClassification.atomic_txn_id.in_(list(txn_ids)))
-            .where(TransactionClassification.status == ClassificationStatus.DRAFT)
+            .where(TransactionClassification.status.in_((ClassificationStatus.APPLIED, ClassificationStatus.DRAFT)))
             .order_by(TransactionClassification.created_at.desc())
         )
     ).scalars()
-    suggestions: dict[UUID, DraftSuggestion] = {}
+    suggestions: dict[UUID, ClassificationSuggestion] = {}
     for row in rows:
         category = (row.tags or {}).get("category") if isinstance(row.tags, dict) else None
         if row.atomic_txn_id in suggestions or not isinstance(category, str) or not category:
             continue
-        suggestions[row.atomic_txn_id] = DraftSuggestion(
+        suggestions[row.atomic_txn_id] = ClassificationSuggestion(
             atomic_txn_id=row.atomic_txn_id,
             category=category,
             confidence=row.confidence_score or 0,
             account_id=row.account_id,
+            applied=row.status is ClassificationStatus.APPLIED,
         )
     return suggestions
 

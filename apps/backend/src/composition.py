@@ -37,16 +37,16 @@ from src.config_app import get_effective_base_currency
 from src.database import async_session_maker
 from src.extraction import (
     AtomicTransaction,
+    ClassificationSuggestion,
     DispositionMode,
     DispositionPolicy,
-    DraftSuggestion,
     EconomicIntent,
     StatementIngestionUseCase,
     StatementPostingDependencies,
     StatementSummary,
     TransactionDirection,
     build_statement_ingestion_use_case,
-    draft_suggestions,
+    classification_suggestions,
     effective_statement_transaction_filter,
     extraction_trace_policy_registry,
     snapshot_currencies,
@@ -213,7 +213,7 @@ async def _accepted_suggestion_for(
     db: AsyncSession,
     user_id: UUID,
     txn: AtomicTransaction,
-    suggestion: DraftSuggestion | None,
+    suggestion: ClassificationSuggestion | None,
 ) -> tuple[EconomicIntent, Account, str, str] | None:
     """The reviewed disposition that accepting the draft AI suggestion of a row stands for.
 
@@ -245,7 +245,8 @@ async def auto_fill_default_statement_dispositions(
 
     Submits reviewed dispositions which create posted journal entries for any
     unmatched statement transactions, returning the number of posted entries created.
-    A row with a usable draft AI suggestion posts to the suggested account and category. A row
+    A row that the classifier already applied is left to the normal posting that follows. A row
+    with a usable draft AI suggestion posts to the suggested account and category. A row
     that the AI named a transfer, a repayment, a loan payment or a trade is left for a person,
     because a general income or expense would misstate it (#2415). Any other row posts to the
     general income or expense account of its direction.
@@ -259,10 +260,14 @@ async def auto_fill_default_statement_dispositions(
     dependencies = compose_reviewed_disposition_dependencies(db)
     resolved_count = 0
     accounts_cache: dict[tuple[AccountType, str], Account] = {}
-    suggestions = await draft_suggestions(db, [txn.id for txn in unmatched_txns])
+    suggestions = await classification_suggestions(db, [txn.id for txn in unmatched_txns])
 
     for txn in unmatched_txns:
         suggestion = suggestions.get(txn.id)
+        if suggestion is not None and suggestion.applied and not suggestion.non_pnl:
+            # The classifier applied this row (85 or more, or a reviewed rule). The normal posting
+            # that follows posts it to its own account under the full disposition policy.
+            continue
         if suggestion is not None and suggestion.non_pnl:
             continue
         accepted = await _accepted_suggestion_for(db, user_id, txn, suggestion)
