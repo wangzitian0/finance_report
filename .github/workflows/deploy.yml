@@ -707,6 +707,7 @@ jobs:
   post-merge-delivery:
     name: Post-merge Delivery
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [build-and-deploy, provider-gate, ai-ocr-gate]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
     permissions:
@@ -808,6 +809,7 @@ jobs:
   post-merge-summary:
     name: Post-merge Timing Summary
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [build-and-deploy, provider-gate, ai-ocr-gate, post-merge-delivery]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
     permissions:
@@ -833,6 +835,7 @@ jobs:
     name: Promote SHA images to release tag
     if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       actions: read
       contents: read

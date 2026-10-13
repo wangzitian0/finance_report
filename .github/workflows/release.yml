@@ -80,6 +80,7 @@ jobs:
     name: Production Release Dry Run
     if: ${{ inputs.dry_run }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       actions: read
       contents: read
@@ -271,6 +272,7 @@ jobs:
     needs: [journey-board]
     if: ${{ !cancelled() && !inputs.dry_run }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       actions: read
       contents: read

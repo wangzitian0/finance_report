@@ -647,13 +647,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Set up Node
         uses: actions/setup-node@v6
@@ -692,8 +685,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v6
@@ -747,8 +738,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v6
@@ -838,8 +827,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v6
@@ -952,6 +939,7 @@ jobs:
           echo "Building staging images for commit: $short_sha"
 
       - name: Build-context Secret Scan (gitleaks)
+        if: github.event_name != 'pull_request'
         uses: ./.github/actions/gitleaks-scan
         with:
           source: apps/${{ matrix.component }}

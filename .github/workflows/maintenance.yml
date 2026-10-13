@@ -53,6 +53,7 @@ jobs:
     name: Prune stale GHCR SHA images
     if: ${{ (github.event_name == 'schedule' && github.event.schedule == '17 3 * * *') || (github.event_name == 'workflow_dispatch' && (inputs.task == 'ghcr-sha-retention' || inputs.task == 'all')) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -170,6 +171,7 @@ jobs:
     name: Prune stale PR preview GHCR tags
     if: ${{ (github.event_name == 'schedule' && github.event.schedule == '37 */6 * * *') || (github.event_name == 'workflow_dispatch' && (inputs.task == 'pr-preview-cleanup' || inputs.task == 'all')) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
