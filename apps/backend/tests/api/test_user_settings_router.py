@@ -6,7 +6,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
+from src.config import Settings, settings
 from src.identity import User
 
 pytestmark = pytest.mark.asyncio
@@ -23,6 +23,23 @@ async def test_ac18_5_5_get_ai_settings_returns_config_defaults(
         "enable_ai_reconciliation": settings.enable_ai_reconciliation,
         "enable_ai_classification": settings.enable_ai_classification,
     }
+
+
+async def test_AC_extraction_ai_classification_default_1_new_user_settings_show_classification_on(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-extraction.ai-classification-default.1: a user with no override sees classification on, reconciliation off."""
+    monkeypatch.delenv("ENABLE_AI_CLASSIFICATION", raising=False)
+    monkeypatch.delenv("ENABLE_AI_RECONCILIATION", raising=False)
+    code_defaults = Settings(_env_file=None)
+    monkeypatch.setattr(settings, "enable_ai_classification", code_defaults.enable_ai_classification)
+    monkeypatch.setattr(settings, "enable_ai_reconciliation", code_defaults.enable_ai_reconciliation)
+
+    response = await client.get("/users/me/settings")
+
+    assert response.status_code == 200
+    assert response.json() == {"enable_ai_reconciliation": False, "enable_ai_classification": True}
 
 
 async def test_ac18_5_5_patch_ai_settings_persists_user_overrides(

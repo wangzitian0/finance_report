@@ -24,10 +24,11 @@ in 11 trials, but 11 trials are too few to tell. The numbers and the raw data ar
 #2394. A flaky result of this test is a signal about #2394, not about the board.
 
 Auto-posting needs economic meaning for every transaction. The product default is
-off. The test sets the user's own ``enable_ai_classification`` setting, as the
-Settings page does. The classifier proposes a category for each transaction. The
-0.85 confidence gate decides. Each description names a merchant or an income
-source, so each proposal is clear.
+on (#2405). The test changes no setting. It reads the ``enable_ai_classification``
+setting of the new user and asserts that it is on. It also asserts that it sent no
+settings write. The classifier proposes a category for each transaction. The 0.85
+confidence gate decides. Each description names a merchant or an income source, so
+each proposal is clear.
 
 No CSV can reach auto-accept. The CSV parser always marks its balances as missing,
 and that caps the confidence at 59. Only live OCR plus live classification reaches
@@ -324,6 +325,15 @@ def _review_action_requests(requests: list[RecordedRequest]) -> list[RecordedReq
     ]
 
 
+def _settings_write_requests(requests: list[RecordedRequest]) -> list[RecordedRequest]:
+    """Requests that change the user's settings."""
+    return [
+        request
+        for request in requests
+        if request.method != "GET" and request.path.endswith("/users/me/settings")
+    ]
+
+
 def _bank_side_lines(entries: list[dict], account_id: str) -> Counter:
     return Counter(
         (line["direction"], Decimal(str(line["amount"])))
@@ -383,13 +393,13 @@ async def test_stage1_accepts_clean_source_and_reviews_broken_source(
         assert_pinned_deployment(frontend.json(), expected_version, expected_commit)
         checkpoint(record_property, "U12")
 
-        settings = await client.patch(
-            _api_url("/users/me/settings"), json={"enable_ai_classification": True}
-        )
+        settings = await client.get(_api_url("/users/me/settings"))
         assert settings.status_code == 200, (
-            f"user settings update failed: {settings.status_code} {settings.text}"
+            f"user settings read failed: {settings.status_code} {settings.text}"
         )
-        assert settings.json()["enable_ai_classification"] is True
+        assert settings.json()["enable_ai_classification"] is True, (
+            "a new user must have AI classification on by default (#2405)"
+        )
 
         model = await _default_image_model(client)
         record_property("selected_ocr_model", model)
@@ -443,6 +453,10 @@ async def test_stage1_accepts_clean_source_and_reviews_broken_source(
             f"the test must not approve or review the clean statement: {review_actions}"
         )
         record_property("statement_approval_api_attempts", len(review_actions))
+        settings_writes = _settings_write_requests(sent_requests)
+        assert settings_writes == [], (
+            f"the default setting must be enough; the test sent: {settings_writes}"
+        )
 
         # Path 2: the broken source. Its printed closing balance is 0.05 too high.
         broken_pdf = _render_statement_pdf(

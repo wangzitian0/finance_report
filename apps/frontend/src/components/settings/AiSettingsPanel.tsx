@@ -9,7 +9,7 @@ import type { UserAiSettings } from "@/lib/types";
 
 const DEFAULT_SETTINGS: UserAiSettings = {
   enable_ai_reconciliation: false,
-  enable_ai_classification: false,
+  enable_ai_classification: true,
 };
 
 export default function AiSettingsPanel() {
@@ -92,7 +92,7 @@ export default function AiSettingsPanel() {
           <label className="p-5 flex items-center justify-between gap-4 cursor-pointer">
             <div>
               <div className="font-medium">Enable AI classification</div>
-              <p className="text-sm text-muted">Use AI-extracted category suggestions before manual classification review.</p>
+              <p className="text-sm text-muted">AI classifies each transaction. High-confidence results post without manual review. Turn this off to review every transaction yourself.</p>
             </div>
             <input
               aria-label="Enable AI classification"
