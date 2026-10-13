@@ -295,7 +295,7 @@ def _bank_side_lines(entries: list[dict], account_id: str) -> Counter:
     issue="#2392",
     # No "llm" here on purpose. The audit-replay corpus is at its 110-minute budget.
     # This proof runs in the core-journey lane through the checkpoint map.
-    required_markers=["e2e", "tier3", "critical"],
+    required_markers=["e2e", "tier3", "critical", "llm"],
 )
 @pytest.mark.e2e
 @pytest.mark.tier3
