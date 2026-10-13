@@ -730,7 +730,7 @@ Product E2E ownership index:
 | `tests/e2e/test_production_readonly_smoke.py` | Production-readonly smoke E2E; AC references live in the test file |
 | `tests/e2e/test_accounts_and_statements_ui_journey.py` | Accounts registry and statements review browser E2E; AC references live in the test file (#2171) |
 | `tests/e2e/test_reconciliation_ui_journey.py` | Reconciliation workbench, unmatched studio, and interactive disposition browser E2E; AC references live in the test file (#2158, #2171) |
-| `tests/e2e/test_statement_full_journey.py` | Critical proof: AC-extraction.813.11 |
+| `tests/e2e/test_statement_full_journey.py` | Critical proof: AC-extraction.813.11, AC-audit.global-invariant.2 |
 | `tests/e2e/test_statement_upload_e2e.py` | Statement upload E2E; AC references live in the test file |
 | `tests/e2e/test_version_check.py` | Version/runtime E2E; AC references live in the test file |
 | `tests/e2e/test_vision_upload_to_dashboard_hard_gate.py` | Critical proof: AC-testing.product-gates.2; source facts without authoritative economic meaning return to Stage 1 review with zero journal entries |
