@@ -7,15 +7,15 @@ instructions, skills, and MCP tools:
 * ``AGENTS.md`` is the single source of truth (read natively by Codex and
   OpenCode); ``CLAUDE.md`` and ``GEMINI.md`` symlink to it for Claude Code and
   the Gemini CLI.
-* ``.claude/skills``, ``.codex/skills`` and ``.agents/skills`` are flat
-  symlinks onto the canonical skill library in ``skills`` so every
+* ``.claude/skills``, ``.codex/skills`` and ``.agents/skills`` hold
+  materialized copies of the canonical skill library in ``skills`` so every
   runtime discovers the same SKILL.md files (agy reads ``.agents/skills``).
 * The project MCP baseline ships in ``.mcp.json`` (Claude Code),
   ``opencode.json`` (OpenCode), and ``.gemini/settings.json`` (Gemini CLI).
 
-These tests fail loudly if a link goes stale (renamed/removed target, a skill
-added on one side only, a re-introduced ban-risk auth plugin or model provider,
-a dropped MCP server, etc.).
+These tests fail loudly if a link or materialized copy goes stale (renamed/removed
+target, a skill added on one side only, a re-introduced ban-risk auth plugin or model
+provider, a dropped MCP server, etc.).
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 CANONICAL_SKILLS = ROOT / "skills"
-# Runtimes that mirror the canonical skill library via flat symlinks
+# Runtimes that mirror the canonical skill library via materialized directories
 # (Claude Code reads .claude/skills, Codex reads .codex/skills, agy reads
 # .agents/skills — all project-level and discovered on clone).
 MIRROR_SKILL_DIRS = {
@@ -121,42 +121,53 @@ def test_instruction_mirrors_exempt_from_ssot_ownership_check() -> None:
 
 
 def test_every_canonical_skill_is_mirrored() -> None:
-    """No skill exists on the canonical side without a link in each mirror."""
+    """Every canonical skill exists as a materialized directory in each mirror."""
     leaves = _canonical_leaf_skill_dirs()
     assert leaves, "expected to discover skills/**/SKILL.md leaves"
 
     for runtime, skills_dir in MIRROR_SKILL_DIRS.items():
         for name, leaf in sorted(leaves.items()):
-            link = skills_dir / name
-            assert link.is_symlink(), f"{runtime}: {link} missing or not a symlink"
-            assert link.resolve() == leaf.resolve(), (
-                f"{runtime}: {link} resolves to {link.resolve()}, expected {leaf}"
+            mirror_dir = skills_dir / name
+            assert mirror_dir.is_dir() and not mirror_dir.is_symlink(), (
+                f"{runtime}: {mirror_dir} must be a physical directory, not a symlink"
             )
-            assert (link / "SKILL.md").is_file(), (
-                f"{runtime}: {link} does not expose a SKILL.md (case-sensitive)"
+            skill_md = mirror_dir / "SKILL.md"
+            assert skill_md.is_file() and not skill_md.is_symlink(), (
+                f"{runtime}: {mirror_dir} does not expose a physical SKILL.md"
             )
+            for canonical_file in sorted(p for p in leaf.rglob("*") if p.is_file()):
+                rel = canonical_file.relative_to(leaf)
+                mirror_file = mirror_dir / rel
+                assert mirror_file.is_file() and not mirror_file.is_symlink(), (
+                    f"{runtime}: missing materialized file {mirror_file}"
+                )
+                assert mirror_file.read_bytes() == canonical_file.read_bytes(), (
+                    f"{runtime}: {mirror_file} content drifts from {canonical_file}"
+                )
 
 
 def test_no_orphan_or_broken_mirror_skill_links() -> None:
-    """Every mirror entry is a live symlink onto the canonical skill of its name.
-
-    The forward direction -- every canonical skill is mirrored everywhere -- is
-    `test_every_canonical_skill_is_mirrored`. This one is the reverse: nothing
-    sits in a mirror directory that points nowhere, or at something outside the
-    repository, or at a directory that is not a canonical skill.
-    """
+    """Every mirror entry is a physical directory matching a canonical skill."""
     leaves = _canonical_leaf_skill_dirs()
     for runtime, skills_dir in MIRROR_SKILL_DIRS.items():
         for entry in sorted(skills_dir.iterdir()):
-            assert entry.is_symlink(), f"{runtime}: {entry} should be a symlink"
-            assert entry.exists(), (
-                f"{runtime}: {entry} is a broken symlink -> {os.readlink(entry)}"
+            assert entry.is_dir() and not entry.is_symlink(), (
+                f"{runtime}: {entry} must be a physical directory, not a symlink"
             )
-            resolved = entry.resolve()
-            assert entry.name in leaves and resolved == leaves[entry.name].resolve(), (
-                f"{runtime}: {entry.name} resolves to {resolved}, which is not the "
-                "canonical skill of that name. skills/ is the one declared "
-                "source; anything else is drift."
+            assert entry.name in leaves, (
+                f"{runtime}: {entry.name} is not in canonical skills/. "
+                "skills/ is the one declared source; anything else is drift."
+            )
+            leaf = leaves[entry.name]
+            canonical_rels = {
+                p.relative_to(leaf) for p in leaf.rglob("*") if p.is_file()
+            }
+            mirror_rels = {
+                p.relative_to(entry) for p in entry.rglob("*") if p.is_file()
+            }
+            assert mirror_rels == canonical_rels, (
+                f"{runtime}: {entry.name} file set {sorted(mirror_rels)} != "
+                f"canonical {sorted(canonical_rels)}"
             )
 
 

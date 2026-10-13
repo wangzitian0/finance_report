@@ -9,22 +9,26 @@ Run this when you stop, for any reason. Each rule came from a session that ended
 
 ## 1. Choose the mode
 
-Run `ws-delivery-status` to verify physical delivery state before ending:
+Run `ws-delivery-status` to verify physical delivery state before ending.
 
+To declare **Complete**, you MUST run:
 ```bash
-ws-delivery-status
+ws-delivery-status --assert-complete --reality-probe "<command>"
 ```
 
-| Condition | Mode |
-|---|---|
-| `ws-delivery-status` exit 0 (merged on main), no service impact | **Complete**, production disposition `none` |
-| `ws-delivery-status` exit 0, service impact, owner gave "deploy" or "hold" | **Complete** |
-| `ws-delivery-status` exit 0, service impact, no answer yet | **Complete** after production question; issue stays open |
-| `ws-delivery-status` exit 1 (PR in review) | **Suspend**, report state strictly as `In review` with PR URL |
-| `ws-delivery-status` exit 2 (unmerged branch, draft changes) | **Suspend**, run `auto` to merge or write handover |
+| Condition | Mode | Required Action / Disposition |
+|---|---|---|
+| `ws-delivery-status --assert-complete ...` exit 0, no service impact | **Complete** | Production disposition `none` |
+| `ws-delivery-status` exit 0 (Stage 1 only, no reality probe or probe failed) | **Suspend** | Report state strictly as `Stage 1 Landed (Unverified)`; issue stays open |
+| `ws-delivery-status --assert-complete ...` exit 0 + service impact, owner gave "deploy" + prod verified | **Complete** | Production disposition `deployed` |
+| `ws-delivery-status` exit 0 + service impact, no owner answer yet | **Suspend** | Production disposition `pending` (issue stays open) |
+| `ws-delivery-status` exit 1 (PR in review) | **Suspend** | Report state strictly as `In review` with PR URL |
+| `ws-delivery-status` exit 2 (unmerged branch, draft changes, or probe failed) | **Suspend** | Run `auto` to merge or write handover |
 
-Unmerged work is never Complete. Do not close the issue and do not delete the worktree in Suspend.
+Unmerged work is never Complete. Merge to main without a verified Business Reality Probe is never Complete.
+Do not close the issue and do not delete the worktree in Suspend.
 Never declare complete or done when `ws-delivery-status` exits non-zero.
+Complete also needs the predecessor gone: each file, branch, worktree, stash or flag that this issue's change replaces is deleted, or the issue states why it stays. Delete only what this issue created or replaced. Never delete what another session's worktree or stash owns.
 Unpushed commits are invisible to everyone else. One log feature lived 3 days on a never-pushed branch
 while the docs described it as existing. Push the branch or write it into the handover.
 
@@ -55,6 +59,17 @@ PROBE
 
 Use `ps -o etime=`. The keyword `etimes` exists only in procps-ng: macOS prints its keyword list to stdout and the output looks like a measurement.
 Report "cannot measure" as UNDETERMINED. Never turn it into "not stale".
+
+## 2.5 Business Reality Probe (verify the goal in physical reality)
+
+Merge to main is Stage 1 only. Before declaring **Complete**, you MUST execute a physical reality probe proving the change works in reality:
+
+1. **Data / Metrics / Factor tasks**: Execute live DB, API, or MCP query. Assert `records > 0`, `status == available` (reject `unavailable` or `lines: 0`).
+2. **Refactoring / Code Slimming tasks**: Run physical diff/metrics (`wc -l` before/after or token counts) proving net reduction of complexity or lines (reject peripheral lint fixes).
+3. **Pipeline / Benchmark tasks**: Execute against real non-empty input datasets or statements (reject 0-transaction / empty accounts).
+4. **Bugfix tasks**: Reproduce against the original failing trigger payload and verify it now succeeds.
+
+If the reality probe fails, is empty, or is unperformed, the session MUST exit as **Suspend** (`Stage 1 Landed`), never Complete.
 
 ## 3. Production gatekeeper (service changes)
 
@@ -124,9 +139,13 @@ Commands for this machine are in `local.md`.
    git worktree unlock "../<repo>_issue<N>_<slug>" 2>/dev/null || true
    git worktree remove --force "../<repo>_issue<N>_<slug>" || git worktree prune
    ```
-3. Close the issue with the merge proof when the production disposition is `none`, `deployed`, or `hold`.
+3. Delete the merged branch when `gh pr view <n> --json state,headRefOid,isCrossRepository` shows `MERGED`, no cross-repository head, and `git rev-parse <branch>` equals `headRefOid`.
+   Run `git branch -d` first. A squash or rebase merge can make it refuse. The equal tip proves that nothing is lost, so `-D` is then safe. A host gate that blocks `-D` stays in force: leave the local branch and say so in the handover.
+   Delete the remote branch only at that tip: `git push --force-with-lease=refs/heads/<branch>:<headRefOid> origin --delete <branch>`. GitHub may have deleted it already.
+   The PR keeps `refs/pull/<n>/head`, so the commits stay recoverable. A different tip means commits that the PR did not merge: open a new PR for them or write them into the handover.
+4. Close the issue with the merge proof when the production disposition is `none`, `deployed`, or `hold`.
    With `pending`, keep it open (section 3).
-4. Delete scratch files. Record each leftover TODO in the handover.
+5. Delete scratch files. Record each leftover TODO in the handover.
 
 ## 6. Route each lesson (distill)
 
@@ -163,4 +182,8 @@ A finding that is both a criterion and unfinished work becomes two records. One 
 
 Report in the owner's language, in a short table. Show the mode, merge proof, verification that ran on which machine,
 the oracles you did not touch, the sample size, the data age, and the discarded findings.
-End with two answers: "Sufficient?" and "MECE?".
+
+End with the **Falsification Probe** instead of formulaic prose:
+- **Target**: What physical probe would expose if this change were secretly broken, empty, or un-deployed?
+- **Command**: `<exact probe command>`
+- **Physical Output**: `<raw stdout snippet proving non-empty real-world effect>`
