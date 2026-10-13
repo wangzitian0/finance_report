@@ -1,29 +1,48 @@
-# AI/OCR Audit Replay (on-demand manual)
+# AI/OCR Audit Replay (weekly schedule, manual dispatch, post-deploy dispatch)
 #
 # Issue #1232 (AC8.13.157): the heavy provider-backed LLM audit journeys (full
 # statement journey, four-asset net-worth golden path, personal financial report
 # package, CSV/traceability) are NOT part of the production-promotion blocking
 # path. The blocking deploy path runs only the minimal AI/OCR canary
-# (deploy.yml#ai-ocr-gate, corpus: canary). This workflow gives the heavy
-# journeys a separate, non-blocking home: on-demand manual dispatch.
+# (deploy.yml#ai-ocr-gate, corpus: canary). This workflow is their separate home.
+#
+# #2370 (owner direction: heavy board, light gates):
+#   - corpus audit_replay runs weekly (schedule) and on manual dispatch.
+#   - corpus core_journey runs after each staging deploy: deploy.yml dispatches
+#     it, and the deploy run does not wait for it.
+#   - Red means red: a failed replay fails this run. Nothing depends on this
+#     workflow, so its red blocks no deploy and no release. The journey board
+#     (journey-board.yml) publishes every run.
 #
 # It calls the SAME reusable gate body (staging-ai-ocr-gate.yml) as the deploy
-# path and the manual recovery gate (single owner, AC8.13.153), selecting the
-# audit_replay corpus and running record-only (blocking=false) so a heavy
-# regression is captured as evidence without blocking any release.
+# path and the manual recovery gate (single owner, AC8.13.153).
 name: AI/OCR Audit Replay
+run-name: AI/OCR Audit Replay (${{ inputs.corpus || 'audit_replay' }})
 
 on:
+  schedule:
+    # Weekly comprehensive replay (owner instruction 2026-10-12, #2370).
+    - cron: "23 4 * * 1"
   workflow_dispatch:
     inputs:
+      corpus:
+        description: "audit_replay (comprehensive journeys) or core_journey (journey-board proofs)"
+        required: false
+        default: audit_replay
+        type: choice
+        options:
+          - audit_replay
+          - core_journey
       version_ref:
         description: "Optional deployed version_ref / SHA to replay against (defaults to the live staging /api/health git_sha)"
         required: false
         type: string
 
 concurrency:
-  # One audit replay at a time; never cancel an in-flight provider-backed run.
-  group: ai-ocr-audit-replay
+  # One run per corpus at a time; never cancel an in-flight provider-backed run.
+  # A group keeps one pending run, so the corpora use separate groups: a
+  # post-deploy core_journey dispatch must not drop a pending weekly replay.
+  group: ai-ocr-audit-replay-${{ inputs.corpus || 'audit_replay' }}
   cancel-in-progress: false
 
 jobs:
@@ -84,24 +103,23 @@ jobs:
       contents: read
       issues: write
     needs: [resolve-target]
-    # Comprehensive audit corpus, record-only: it must never block production
+    # Nothing depends on this job, so its red never blocks production
     # promotion (AC8.13.157). The single gate body lives in the reusable
-    # workflow (AC8.13.153).
+    # workflow (AC8.13.153). A schedule event has no inputs: it runs audit_replay.
     uses: ./.github/workflows/staging-ai-ocr-gate.yml
     with:
       commit_ref: ${{ needs.resolve-target.outputs.commit_ref }}
       expected_sha: ${{ needs.resolve-target.outputs.expected_sha }}
-      blocking: false
-      corpus: audit_replay
+      corpus: ${{ inputs.corpus || 'audit_replay' }}
     secrets: inherit
 
   evidence-bundle:
     name: Generate Evidence Bundle
     runs-on: ubuntu-latest
     needs: [audit-replay]
-    # #1690: this producer runs regardless of the (record-only, never
-    # blocking) audit-replay outcome, since a regression IS itself evidence
-    # worth bundling — mirrors the "record-only" spirit of AC8.13.157.
+    # #1690: this producer runs regardless of the audit-replay outcome (a red
+    # replay fails its run but blocks nothing, AC8.13.157), since a regression
+    # IS itself evidence worth bundling.
     if: always()
     permissions:
       contents: read

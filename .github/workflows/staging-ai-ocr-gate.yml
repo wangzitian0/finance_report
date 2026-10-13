@@ -1,13 +1,18 @@
 # Staging AI/OCR Gate (reusable)
 #
-# Single owner of the provider-backed staging AI/OCR corpus replay. Both the
-# inline staging deploy chain (`deploy.yml#ai-ocr-gate`, record-only) and the
-# on-demand manual dispatch (`deploy.yml#manual-ai-ocr-gate`, fail-fast) call
-# this reusable workflow so the gate body cannot drift between two copies
-# (EPIC-008 AC8.13.153). The `blocking` input is the ONLY behavioral difference:
-#   - blocking=false -> record the regression as a right-shifted, non-blocking
-#     status output and always exit 0 (post-merge delivery reads the status).
-#   - blocking=true  -> fail the job when the gate fails (manual diagnostic).
+# Single owner of the provider-backed staging AI/OCR corpus replay. The staging
+# deploy chain (`deploy.yml#ai-ocr-gate`, canary), the manual recovery gate
+# (`deploy.yml#manual-ai-ocr-gate`, all) and the audit replay workflow
+# (`audit-replay.yml`, audit_replay or core_journey) call this reusable workflow,
+# so the gate body cannot drift between copies (EPIC-008 AC8.13.153).
+#
+# Red means red (#2370): a failed gate always fails this job. A caller decides
+# what depends on the job; the audit replay depends on nothing, so its red blocks
+# nothing. The `corpus` input is the only behavioral difference. Only the
+# audit_replay corpus files regression alert issues, as before #2370: a red
+# canary or `all` run fails its own run, and the core_journey corpus shows on
+# the journey board. Alerts dedup by title, so one filing corpus keeps the
+# corpus-scoped auto-close (AC-testing.deploy-gates.45) correct.
 name: Staging AI/OCR Gate (reusable)
 
 on:
@@ -21,13 +26,8 @@ on:
         description: "Expected deployed version_ref or commit SHA (40-hex SHAs are shortened to 7)"
         required: true
         type: string
-      blocking:
-        description: "true = fail the job on gate failure; false = record-only and exit 0"
-        required: false
-        default: false
-        type: boolean
       corpus:
-        description: "Which AI/OCR corpus to run: canary (minimal blocking liveness), audit_replay (comprehensive nightly journeys), or all"
+        description: "Which AI/OCR corpus to run: canary (minimal blocking liveness), audit_replay (comprehensive weekly journeys), core_journey (post-deploy journey-board proofs), or all"
         required: false
         default: canary
         type: string
@@ -89,8 +89,8 @@ jobs:
         timeout-minutes: ${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 125 || 110) }}
         env:
           EXPECTED_SHA_RAW: ${{ inputs.expected_sha }}
-          BLOCKING: ${{ inputs.blocking }}
           CORPUS: ${{ inputs.corpus }}
+          COMMIT_REF: ${{ inputs.commit_ref }}
           # #1623: open the GitHub-issue fallback alert with the built-in token
           # when the record-only gate regresses (no new secret needed).
           GH_TOKEN: ${{ github.token }}
@@ -193,27 +193,22 @@ jobs:
           }
 
           record_and_finish() {
-            # Record the gate outcome as job outputs, then honor the blocking mode.
-            #   blocking=true  -> fail the job with the gate status (manual diagnostic).
-            #   blocking=false -> right-shift: record the status output and exit 0 so
-            #                     the job stays green (replaces the old inline
-            #                     continue-on-error: true). post-merge delivery reads
-            #                     ai_ocr_status, not the job result.
+            # Record the gate outcome as job outputs, file or refresh the alert
+            # issue, then exit with the real status (#2370: red means red). The
+            # caller decides what depends on this job; no caller turns a red
+            # gate green. Only audit_replay files the alert issue (the alert set
+            # before #2370): canary and all fail their run, core_journey shows
+            # on the journey board.
             local status="$1"
             local ai_ocr_status="$2"
             echo "ai_ocr_status=${ai_ocr_status}" >> "$GITHUB_OUTPUT"
             echo "ai_ocr_exit_code=${status}" >> "$GITHUB_OUTPUT"
-            if [ "$status" -ne 0 ] && [ "$BLOCKING" = "true" ]; then
-              exit "$status"
-            fi
-            if [ "$status" -ne 0 ]; then
-              echo "::warning::Staging AI/OCR gate '${ai_ocr_status}' recorded as right-shifted regression; not blocking release-critical delivery."
-              # #1623: give the record-only gate teeth. This gate runs in GitHub
-              # Actions, which the SigNoz->Feishu alert bridge does not watch, so
-              # use the documented GitHub-issue fallback (Infra-012 P2): a
-              # real-provider regression (a class cassette replay cannot catch)
-              # becomes a visible issue with no new secret. Dedup so re-runs of a
-              # standing regression do not spam.
+            if [ "$status" -ne 0 ] && [ "${CORPUS:-canary}" = "audit_replay" ]; then
+              # #1623: this gate runs in GitHub Actions, which the SigNoz->Feishu
+              # alert bridge does not watch, so use the documented GitHub-issue
+              # fallback (Infra-012 P2): a real-provider regression (a class
+              # cassette replay cannot catch) becomes a visible issue with no new
+              # secret. Dedup so re-runs of a standing regression do not spam.
               alert_title="[staging-ai-ocr] real-provider regression: ${ai_ocr_status}"
               existing="$(gh issue list --state open --search "in:title ${alert_title}" --json number --jq '.[0].number // empty' 2>/dev/null || true)"
               if [ -z "$existing" ]; then
@@ -246,13 +241,13 @@ jobs:
                   || echo "::warning::GitHub-issue recurrence comment failed (non-fatal)."
               fi
             fi
-            exit 0
+            exit "$status"
           }
 
           echo "Starting Staging AI/OCR Gate for $APP_URL"
           echo "Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
-          echo "Blocking mode: ${BLOCKING}"
           echo "Corpus: ${CORPUS:-canary}"
+          STAGING_AI_OCR_TESTS=()
           eval "$(.venv/bin/python tools/staging_ai_ocr_gate_contract.py --shell --corpus "${CORPUS:-canary}")"
           mkdir -p test-results
           write_staging_audit_inventory
@@ -292,10 +287,17 @@ jobs:
             record_and_finish "$preflight_status" "precondition-failed"
           fi
 
+          # #2370: the corpus tool comes from the deployed checkout. An older
+          # checkout rejects a newer corpus name (exit 2) and eval swallows it,
+          # which would leave pytest to fall back to every test path. Fail closed.
+          if [ "${#STAGING_AI_OCR_TESTS[@]}" -eq 0 ]; then
+            echo "::error::corpus '${CORPUS:-canary}' resolved to no test files in checkout ${COMMIT_REF}."
+            record_and_finish 2 "precondition-failed"
+          fi
           gate_status=0
           run_timed_phase "Staging AI/OCR Gate (primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL})" \
             pytest "${STAGING_AI_OCR_TESTS[@]}" \
-              -v -m "llm" --junit-xml=test-results/staging-ai-ocr-gate.xml || gate_status=$?
+              -v -m "llm or journey" --junit-xml=test-results/staging-ai-ocr-gate.xml || gate_status=$?
 
           if [ "$gate_status" -ne 0 ]; then
             # #1806/AC-testing.deploy-gates.38: attribute every failed case from
@@ -323,7 +325,7 @@ jobs:
               retry_status=0
               run_timed_phase "Staging AI/OCR transient retry (single, bounded)" \
                 pytest "${AI_OCR_RETRY_TESTS[@]}" \
-                  -v -m "llm" --junit-xml=test-results/staging-ai-ocr-retry.xml || retry_status=$?
+                  -v -m "llm or journey" --junit-xml=test-results/staging-ai-ocr-retry.xml || retry_status=$?
               if [ "$retry_status" -eq 0 ]; then
                 echo "::notice::transient failures recovered on the single bounded retry."
                 gate_status=0
@@ -346,6 +348,8 @@ jobs:
           # #1806/AC-testing.deploy-gates.40: a green run closes the loop — every
           # standing gate alert is resolved by this run's evidence, so an issue
           # titled "regression" can never keep lying after the gate recovers.
+          # core_journey opens no alert, so it closes none either (#2370).
+          if [ "${CORPUS:-canary}" != "core_journey" ]; then
           for resolved_title in \
             "[staging-ai-ocr] real-provider regression: regression-failed" \
             "[staging-ai-ocr] real-provider regression: provider-transient" \
@@ -365,6 +369,7 @@ jobs:
               fi
             fi
           done
+          fi
 
           .venv/bin/python tools/staging_ai_ocr_gate_contract.py \
             --status passed --corpus "${CORPUS:-canary}" \
@@ -390,6 +395,9 @@ jobs:
         if: ${{ always() && steps.staging_ai_ocr_tests.outcome != 'success' && steps.staging_ai_ocr_tests.outputs.ai_ocr_status == '' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          # Inputs reach the script through env, never inline (#2370 audit).
+          CORPUS: ${{ inputs.corpus }}
+          COMMIT_REF: ${{ inputs.commit_ref }}
         run: |
           echo "ai_ocr_status=gate-timeout" >> "$GITHUB_OUTPUT"
           echo "ai_ocr_exit_code=124" >> "$GITHUB_OUTPUT"
@@ -402,29 +410,32 @@ jobs:
             echo "regression detail is available from this run."
           } | tee -a "$GITHUB_STEP_SUMMARY"
           alert_title="[staging-ai-ocr] gate produced no result (likely step timeout)"
+          if [ "${CORPUS}" = "core_journey" ]; then
+            # #2370: the journey board shows this run; core_journey files no issue.
+            exit 1
+          fi
           existing="$(gh issue list --state open --search "in:title ${alert_title}" --json number --jq '.[0].number // empty' 2>/dev/null || true)"
           if [ -z "$existing" ]; then
             gh issue create --title "$alert_title" --label "surface: ai-ocr" \
-              --body "Staging AI/OCR gate run ${{ github.run_id }} (corpus=${{ inputs.corpus }}, blocking=${{ inputs.blocking }}) on ${{ inputs.commit_ref }} ended with outcome \`${{ steps.staging_ai_ocr_tests.outcome }}\` and produced no ai_ocr_status output — the corpus step likely hit its own timeout-minutes before reaching any record_and_finish call, so no JUnit/regression detail is available from this run. Widen the step budget or investigate a hang. See common/runtime/ci-cd.md and #1767." \
+              --body "Staging AI/OCR gate run ${{ github.run_id }} (corpus=${CORPUS}) on ${COMMIT_REF} ended with outcome \`${{ steps.staging_ai_ocr_tests.outcome }}\` and produced no ai_ocr_status output — the corpus step likely hit its own timeout-minutes before reaching any record_and_finish call, so no JUnit/regression detail is available from this run. Widen the step budget or investigate a hang. See common/runtime/ci-cd.md and #1767." \
               || echo "::warning::GitHub-issue alert creation failed (non-fatal)."
           else
             echo "::notice::open staging-ai-ocr gate-timeout issue #${existing} already exists; not duplicating the issue, refreshing its evidence."
             gh issue edit "$existing" \
-              --body "Staging AI/OCR gate run ${{ github.run_id }} (corpus=${{ inputs.corpus }}, blocking=${{ inputs.blocking }}) on ${{ inputs.commit_ref }} ended with outcome \`${{ steps.staging_ai_ocr_tests.outcome }}\` and produced no ai_ocr_status output — the corpus step likely hit its own timeout-minutes before reaching any record_and_finish call, so no JUnit/regression detail is available from this run. Widen the step budget or investigate a hang. See common/runtime/ci-cd.md and #1767." \
+              --body "Staging AI/OCR gate run ${{ github.run_id }} (corpus=${CORPUS}) on ${COMMIT_REF} ended with outcome \`${{ steps.staging_ai_ocr_tests.outcome }}\` and produced no ai_ocr_status output — the corpus step likely hit its own timeout-minutes before reaching any record_and_finish call, so no JUnit/regression detail is available from this run. Widen the step budget or investigate a hang. See common/runtime/ci-cd.md and #1767." \
               || echo "::warning::GitHub-issue gate-timeout refresh failed (non-fatal)."
             gh issue comment "$existing" \
-              --body "Observed again in run ${{ github.run_id }} (version=${{ inputs.commit_ref }}, corpus=${{ inputs.corpus }}, class=gate-timeout)." \
+              --body "Observed again in run ${{ github.run_id }} (version=${COMMIT_REF}, corpus=${CORPUS}, class=gate-timeout)." \
               || echo "::warning::GitHub-issue gate-timeout recurrence comment failed (non-fatal)."
           fi
-          if [ "${{ inputs.blocking }}" = "true" ]; then
-            exit 1
-          fi
-          exit 0
+          # Red means red (#2370): a run with no result is never green.
+          exit 1
 
       - name: Write staging AI/OCR context
         if: ${{ always() }}
         env:
           EXPECTED_SHA: ${{ inputs.expected_sha }}
+          CORPUS: ${{ inputs.corpus }}
         run: |
           mkdir -p ci-context
           {
@@ -445,12 +456,15 @@ jobs:
             echo "vision_model=${STAGING_E2E_VISION_MODEL}"
             echo "ai_ocr_outcome=${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_status || steps.gate_timeout_fallback.outputs.ai_ocr_status || 'not-run' }}"
             echo "ai_ocr_exit_code=${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_exit_code || steps.gate_timeout_fallback.outputs.ai_ocr_exit_code || '0' }}"
-            echo "blocking=${{ inputs.blocking }}"
-            echo "corpus=${{ inputs.corpus }}"
+            # #2370: a staging deploy can land during a long run. The board
+            # marks the record invalidated when the version changed.
+            end_version="$(curl -fsS --max-time 15 "${APP_URL}/api/health" 2>/dev/null | python3 -c 'import json, sys; data = json.load(sys.stdin); print(data.get("git_sha") or data.get("version") or "")' 2>/dev/null || true)"
+            echo "end_version=${end_version}"
+            echo "corpus=${CORPUS}"
             echo "provider_resource_boundary=isolated-users-provider-gate-only"
             echo "provider_replay_cleanup_contract=gate tests must not use shared mutable user fixtures; retries remain scoped to staging AI/OCR relevance"
             echo "strict_e2e_gates=true"
-            echo "marker=llm"
+            echo "marker=llm or journey"
           } > ci-context/staging-ai-ocr-context.txt
 
       - name: Upload staging AI/OCR test context

@@ -51,6 +51,10 @@ CANARY_FILES = [
     "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
 ]
 
+# The journey-board checkpoint map (#2370). Its proof files are the
+# core_journey corpus, so a new core-journey proof needs no second list.
+CORE_JOURNEY_MAP_PATH = ROOT_DIR / "common/testing/data/core-journey-checkpoints.json"
+
 REPLAY_COUNTERS_PATH = (
     ROOT_DIR / "common/testing/data/staging-ai-ocr-replay-counters.json"
 )
@@ -132,11 +136,48 @@ def audit_replay_files() -> list[str]:
     return [path for path in gate_files() if path not in canary]
 
 
+def _counter(test: str) -> dict[str, int]:
+    """Replay counters of a test file or of one ``file::test`` node.
+
+    A node entry wins; a node without its own entry uses its file entry.
+    """
+    if test in REPLAY_COUNTERS:
+        return REPLAY_COUNTERS[test]
+    return REPLAY_COUNTERS[test.split("::", 1)[0]]
+
+
+def core_journey_tests() -> list[str]:
+    """The non-blocking post-deploy core-journey corpus (#2370).
+
+    The ``file::test`` node of each proof in the journey-board checkpoint
+    map, so only the proofs run (not the other tests of a proof's file) and
+    a new proof joins with no second list. It may overlap audit_replay and
+    may hold tests without the llm marker. It blocks nothing.
+    """
+    data = json.loads(CORE_JOURNEY_MAP_PATH.read_text(encoding="utf-8"))
+    tests = sorted(
+        f"{proof['file']}::{proof['test'].split('::', 1)[1]}"
+        for proof in data["proofs"]
+    )
+    missing_counters = [
+        test
+        for test in tests
+        if test not in REPLAY_COUNTERS and test.split("::", 1)[0] not in REPLAY_COUNTERS
+    ]
+    if missing_counters:
+        raise SystemExit(
+            "Missing staging AI/OCR replay counters for: "
+            + ", ".join(sorted(missing_counters))
+        )
+    return tests
+
+
 def corpus_files(corpus: str) -> list[str]:
     selectors = {
         "all": gate_files,
         "canary": canary_files,
         "audit_replay": audit_replay_files,
+        "core_journey": core_journey_tests,
     }
     if corpus not in selectors:
         raise SystemExit(
@@ -147,7 +188,7 @@ def corpus_files(corpus: str) -> list[str]:
 
 def totals(files: list[str]) -> dict[str, int]:
     keys = ("uploads", "parse_completions", "brokerage_imports", "report_verifications")
-    return {key: sum(REPLAY_COUNTERS[path][key] for path in files) for key in keys}
+    return {key: sum(_counter(path)[key] for path in files) for key in keys}
 
 
 def emit_shell(files: list[str] | None = None) -> str:
@@ -583,12 +624,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--shell", action="store_true", help="Emit bash assignments.")
     parser.add_argument(
         "--corpus",
-        choices=("all", "canary", "audit_replay"),
+        choices=("all", "canary", "audit_replay", "core_journey"),
         default="all",
         help=(
             "Which corpus to emit: 'all' (default, full derived corpus), "
-            "'canary' (minimal blocking liveness), or 'audit_replay' "
-            "(comprehensive nightly journeys)."
+            "'canary' (minimal blocking liveness), 'audit_replay' "
+            "(comprehensive weekly journeys), or 'core_journey' (post-deploy "
+            "journey-board proofs)."
         ),
     )
     parser.add_argument(

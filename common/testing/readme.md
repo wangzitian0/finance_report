@@ -387,8 +387,14 @@ blocks nothing. The production approver reads it; no job or ruleset requires it.
   and per-checkpoint status. A missing gate, artifact or JUnit file gives a
   `not-run` or `no-evidence` record; it is never hidden. Records hold no amounts
   and no failure text.
+- **Lanes** — `canary` runs in every staging deploy and blocks it on red.
+  `core_journey` (the proof tests of the checkpoint map, as `file::test` nodes) runs in
+  `audit-replay.yml` after every staging deploy; the deploy does not wait and
+  the lane opens no alert issue. `audit_replay` runs weekly. A failed lane run is
+  red; only the canary has a dependent job (AC-testing.journey-board.7).
 - **Publish** — `.github/workflows/journey-board.yml` runs on `workflow_run` of
-  Deploy and AI/OCR Audit Replay, writes the record under `board/records/<sha>/`
+  Deploy and AI/OCR Audit Replay (an hourly schedule reconciles any run of the
+  last 7 days that has no record), writes the record under `board/records/<sha>/`
   on `gh-pages`, and regenerates `board/index.json` and `board/fragment.html`.
   It is the only board writer; the gate workflows stay read-only.
 - **Read** — `docs/board/index.html` loads the fragment and adds data age. A
