@@ -674,11 +674,11 @@ async def test_AC_extraction_non_pnl_categories_4_prompt_names_the_new_classes(m
 
 
 @pytest.mark.asyncio
-async def test_AC_extraction_accept_ai_suggestions_4_reader_returns_the_latest_draft_per_transaction(
+async def test_AC_extraction_accept_ai_suggestions_4_reader_returns_the_latest_classification_per_transaction(
     db, test_user, enabled_flag
 ):
-    """AC-extraction.accept-ai-suggestions.4: the reader sees drafts only, newest first, and skips untagged rows."""
-    from src.extraction.extension.transaction_classification import draft_suggestions
+    """AC-extraction.accept-ai-suggestions.4: the reader sees applied and draft rows and skips untagged rows."""
+    from src.extraction.extension.transaction_classification import classification_suggestions
 
     txn_draft = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="DRAFT ROW")
     txn_applied = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="APPLIED ROW")
@@ -710,10 +710,12 @@ async def test_AC_extraction_accept_ai_suggestions_4_reader_returns_the_latest_d
     )
     await db.flush()
 
-    found = await draft_suggestions(db, [txn_draft.id, txn_applied.id, txn_untagged.id])
+    found = await classification_suggestions(db, [txn_draft.id, txn_applied.id, txn_untagged.id])
 
-    assert set(found) == {txn_draft.id}
-    assert (found[txn_draft.id].category, found[txn_draft.id].confidence) == ("DINING", 75)
-    assert found[txn_draft.id].account_id is not None
-    assert found[txn_draft.id].non_pnl is False
-    assert await draft_suggestions(db, []) == {}
+    assert set(found) == {txn_draft.id, txn_applied.id}
+    draft = found[txn_draft.id]
+    assert (draft.category, draft.confidence, draft.applied, draft.non_pnl) == ("DINING", 75, False, False)
+    assert draft.account_id is not None
+    applied = found[txn_applied.id]
+    assert (applied.category, applied.confidence, applied.applied) == ("GROCERIES", 95, True)
+    assert await classification_suggestions(db, []) == {}

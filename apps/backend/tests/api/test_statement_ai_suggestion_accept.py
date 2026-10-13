@@ -15,6 +15,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from src.audit.orm.trace_record import TraceRecordRow
 from src.config import settings
 from src.extraction import ClassificationStatus, RuleType
 from src.extraction.extension.transaction_classification import POLICY_RULE_NAME
@@ -34,7 +35,16 @@ async def _category_account(db, user_id, name: str, account_type: AccountType) -
     return account
 
 
-async def _draft(db, user_id, txn, *, category: str, account: Account | None, score: int) -> None:
+async def _draft(
+    db,
+    user_id,
+    txn,
+    *,
+    category: str,
+    account: Account | None,
+    score: int,
+    status: ClassificationStatus = ClassificationStatus.DRAFT,
+) -> None:
     rule = (
         await db.execute(
             select(ClassificationRule)
@@ -62,7 +72,7 @@ async def _draft(db, user_id, txn, *, category: str, account: Account | None, sc
             account_id=account.id if account else None,
             tags={"category": category, "reason": "test"},
             confidence_score=score,
-            status=ClassificationStatus.DRAFT,
+            status=status,
         )
     )
     await db.flush()
@@ -191,3 +201,65 @@ async def test_AC_extraction_accept_ai_suggestions_3_a_suggestion_that_contradic
     assert result.journal_entries_created == 2
     assert await _counter_account_names(db, outgoing, bank.id) == {"General Expense (SGD)"}
     assert await _counter_account_names(db, incoming, bank.id) == {"General Income (SGD)"}
+
+
+async def test_AC_extraction_accept_ai_suggestions_5_applied_rows_keep_their_ai_category(db, test_user, monkeypatch):
+    """AC-extraction.accept-ai-suggestions.5: a row that the classifier applied posts to its AI account, not a general one."""
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    statement, bank = await _statement(db, test_user.id, "hash_accept_ai_5")
+    applied = await add_txn(
+        db, statement, txn_date=date(2025, 1, 2), description="Interest Earned", amount=Decimal("20.00"), direction="IN"
+    )
+    draft = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 3),
+        description="PayNow to MERCHANT HAWKER",
+        amount=Decimal("15.00"),
+        direction="OUT",
+    )
+    opaque = await add_txn(
+        db, statement, txn_date=date(2025, 1, 4), description="Opaque merchant", amount=Decimal("5.00"), direction="OUT"
+    )
+    await db.flush()
+    income_account = await _category_account(db, test_user.id, "Income - Interest", AccountType.INCOME)
+    expense_account = await _category_account(db, test_user.id, "Expense - Dining", AccountType.EXPENSE)
+    await _draft(
+        db,
+        test_user.id,
+        applied,
+        category="INTEREST",
+        account=income_account,
+        score=92,
+        status=ClassificationStatus.APPLIED,
+    )
+    await _draft(db, test_user.id, draft, category="DINING", account=expense_account, score=76)
+    await db.commit()
+
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id,
+        request=Stage1ApprovalRequest(auto_fill_default_categories=True),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result.journal_entries_created == 3
+    assert await _counter_account_names(db, applied, bank.id) == {"Income - Interest"}
+    assert await _counter_account_names(db, draft, bank.id) == {"Expense - Dining"}
+    assert await _counter_account_names(db, opaque, bank.id) == {"General Expense (SGD)"}
+
+    # Provenance: the classifier decided the applied row, so the normal posting records a live-LLM
+    # proposal. The one-click records a person's decision for the draft and the general row only.
+    provenance_by_txn = {
+        row.target_id: row.provenance
+        for row in (
+            await db.execute(
+                select(TraceRecordRow)
+                .where(TraceRecordRow.assertion_kind == "economic_intent")
+                .where(TraceRecordRow.target_id.in_([str(applied.id), str(draft.id), str(opaque.id)]))
+            )
+        ).scalars()
+    }
+    assert provenance_by_txn[str(applied.id)] == "live_llm"
+    assert provenance_by_txn[str(draft.id)] != "live_llm"
+    assert provenance_by_txn[str(opaque.id)] != "live_llm"
