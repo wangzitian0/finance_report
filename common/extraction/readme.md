@@ -100,7 +100,11 @@ economic intent and cash direction never imply either economic meaning or
 authority. Income, expense, refund, and loan-interest may affect P&L; transfer,
 investment purchase/sale, loan principal, and card repayment require their
 matching asset/liability context and cannot be converted into income or expense
-by fallback. `off`, `observe`, and `enforce` calculate the same versioned
+by fallback. An accepted transfer match is a reconciliation fact: it already has
+its Processing entry, so it outranks every model or rule proposal and a second
+income or expense entry for the same leg is never posted (#2410). Only a person
+who adjudicates that one transaction can override it. `off`, `observe`, and
+`enforce` calculate the same versioned
 decision; only `enforce` applies a command. Composition resolves the closed
 `STATEMENT_DISPOSITION_MODE` once; it is not a per-route boolean override.
 Every decision also captures an immutable `StatementDispositionPolicySnapshot`:

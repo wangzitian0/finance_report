@@ -249,6 +249,24 @@ class DispositionPolicy:
         context: DispositionContext,
         mode: DispositionMode = DispositionMode.ENFORCE,
     ) -> DispositionDecision:
+        # Two statements hold the opposite legs of one transfer, and reconciliation has already
+        # posted the Processing entry for this leg. That fact outranks any model or rule proposal:
+        # a second entry from an income or expense category would count the same money twice
+        # (#2410). Only a person who decides this one transaction can override the fact.
+        if context.accepted_transfer_match and (
+            proposal is None or proposal.origin is not IntentProposalOrigin.MANUAL_ADJUDICATION
+        ):
+            return DispositionDecision(
+                transaction.transaction_id,
+                self.version,
+                DispositionStatus.ALREADY_COVERED,
+                EconomicIntent.TRANSFER,
+                None,
+                "accepted_transfer_match",
+                None,
+                False,
+                mode,
+            )
         if proposal is None:
             return self._review(transaction, EconomicIntent.UNKNOWN, "intent_missing", mode=mode)
         if (

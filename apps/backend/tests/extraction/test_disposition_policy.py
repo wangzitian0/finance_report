@@ -245,3 +245,61 @@ def test_AC_extraction_disposition_4_trace_authority_follows_explicit_proposal_o
         ) == expected_authority
         assert guard.authority.tier == "CODE-ONLY"
         assert disposition.authority.tier == "CODE-ONLY"
+
+
+@pytest.mark.parametrize(
+    ("origin", "intent", "direction", "category"),
+    (
+        (IntentProposalOrigin.LIVE_LLM, EconomicIntent.EXPENSE, TransactionDirection.OUT, "OTHER_EXPENSE"),
+        (IntentProposalOrigin.LIVE_LLM, EconomicIntent.INCOME, TransactionDirection.IN, "OTHER_INCOME"),
+        (IntentProposalOrigin.REVIEWED_RULE, EconomicIntent.EXPENSE, TransactionDirection.OUT, "DINING"),
+    ),
+)
+def test_AC_extraction_disposition_transfer_fact_1_accepted_match_outranks_a_non_manual_proposal(
+    origin, intent, direction, category
+):
+    """AC-extraction.disposition-transfer-fact.1: a matched transfer leg gets no second entry (#2410)."""
+    decision = DispositionPolicy().decide(
+        _transaction(direction),
+        proposal=_proposal(intent, category=category, origin=origin, confidence=Decimal("0.95")),
+        context=DispositionContext(accepted_transfer_match=True, counter_account_id=uuid4()),
+    )
+
+    assert decision.status is DispositionStatus.ALREADY_COVERED
+    assert decision.reason_code == "accepted_transfer_match"
+    assert decision.command is None
+    assert decision.pnl_effect is False
+
+
+def test_AC_extraction_disposition_transfer_fact_2_a_person_still_decides_for_the_transaction():
+    """AC-extraction.disposition-transfer-fact.2: manual adjudication of one transaction is not overridden."""
+    decision = DispositionPolicy().decide(
+        _transaction(TransactionDirection.OUT),
+        proposal=_proposal(
+            EconomicIntent.EXPENSE,
+            category="DINING",
+            origin=IntentProposalOrigin.MANUAL_ADJUDICATION,
+            confidence=None,
+        ),
+        context=DispositionContext(accepted_transfer_match=True, counter_account_id=uuid4()),
+    )
+
+    assert decision.status is DispositionStatus.AUTHORITATIVE
+    assert decision.pnl_effect is True
+
+
+def test_AC_extraction_disposition_transfer_fact_3_without_a_match_the_model_proposal_applies():
+    """AC-extraction.disposition-transfer-fact.3: the guard does not block an unmatched row."""
+    decision = DispositionPolicy().decide(
+        _transaction(TransactionDirection.OUT),
+        proposal=_proposal(
+            EconomicIntent.EXPENSE,
+            category="DINING",
+            origin=IntentProposalOrigin.LIVE_LLM,
+            confidence=Decimal("0.95"),
+        ),
+        context=DispositionContext(accepted_transfer_match=False, counter_account_id=uuid4()),
+    )
+
+    assert decision.status is DispositionStatus.AUTHORITATIVE
+    assert decision.pnl_effect is True
