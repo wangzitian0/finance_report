@@ -10,11 +10,11 @@
     {"id": "U6", "title": "Each accepted source transaction has exactly one posted ledger effect"},
     {"id": "U7", "title": "A transfer between two accounts clears through the Processing account"},
     {"id": "U8", "title": "Report totals equal the independent Decimal oracle"},
-    {"id": "U9", "title": "Twelve consecutive months tie out on a deployed revision", "gap": "#2370"},
+    {"id": "U9", "title": "Twelve consecutive months tie out on a deployed revision"},
     {"id": "U10", "title": "The saved package lists, reopens and exports, and stays unchanged after a later posting"},
     {"id": "U11", "title": "A report line traces to its source decision"},
     {"id": "U12", "title": "The test ran against the pinned deployed revision"},
-    {"id": "U13", "title": "The proportion of low-confidence data is measured", "gap": "#2370"}
+    {"id": "U13", "title": "The proportion of low-confidence data is measured"}
   ],
   "proofs": [
     {
@@ -41,6 +41,16 @@
       "test": "test_stage1_routing_journey::test_stage1_accepts_clean_source_and_reviews_broken_source",
       "file": "tests/e2e/test_stage1_routing_journey.py",
       "reaches": ["U12", "U3"]
+    },
+    {
+      "test": "test_twelve_month_journey::test_twelve_consecutive_months_tie_out_on_deployed_revision",
+      "file": "tests/e2e/test_twelve_month_journey.py",
+      "reaches": ["U12", "U9"]
+    },
+    {
+      "test": "test_confidence_metrics_journey::test_proportion_of_low_confidence_data_is_measured",
+      "file": "tests/e2e/test_confidence_metrics_journey.py",
+      "reaches": ["U12", "U13"]
     }
   ]
 }
