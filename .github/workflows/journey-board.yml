@@ -7,6 +7,11 @@ name: Journey Board
 # board record and pushes it to the gh-pages branch under board/. The board
 # page (docs/board/index.html) reads board/fragment.html from there.
 #
+# Two triggers (runtime safety rule): workflow_run publishes each run as it
+# completes; an hourly schedule (and a dispatch without run_id) reconciles
+# recent runs that have no record, for example when a workflow_run event did
+# not fire. A dispatch with run_id publishes that run again.
+#
 # This workflow blocks nothing. No job needs it and no ruleset requires it.
 # The gate workflows stay read-only: only this workflow has contents: write.
 # A red run here means the board did not update. It never means a deploy or a
@@ -16,11 +21,13 @@ on:
   workflow_run:
     workflows: ["Deploy", "AI/OCR Audit Replay"]
     types: [completed]
+  schedule:
+    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       run_id:
-        description: "Deploy or AI/OCR Audit Replay run ID to publish again"
-        required: true
+        description: "Run ID to publish again; empty reconciles recent runs that have no record"
+        required: false
         type: string
 
 permissions:
@@ -31,13 +38,14 @@ jobs:
   publish:
     name: Publish board record
     # Only runs of this repository. The artifact is parsed as data, never run.
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_repository.full_name == github.repository }}
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
-      RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+      EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
+      INPUT_RUN_ID: ${{ inputs.run_id }}
     steps:
       - name: Check out main for the board tooling
         uses: actions/checkout@v7
@@ -49,74 +57,118 @@ jobs:
           path: pages
           fetch-depth: 1
 
-      - name: Build the record of the run
-        id: record
+      - name: Select the runs to publish
+        id: select
         run: |
           set -euo pipefail
-          mkdir -p board-input/artifact
-          gh api "repos/${REPO}/actions/runs/${RUN_ID}" > board-input/run.json
-          gh api --paginate "repos/${REPO}/actions/runs/${RUN_ID}/jobs?per_page=100" \
-            --jq '.jobs[]' | jq -s '{jobs: .}' > board-input/jobs.json
-          # "No artifact" is evidence and gives a not-run or no-evidence record.
-          # Any other download error stops here, so a transient error never
-          # publishes a false no-evidence record.
-          if ! gh run download "${RUN_ID}" -R "${REPO}" -n staging-ai-ocr-test-context \
-              -D board-input/artifact 2> board-input/download.err; then
-            if grep -qi "no artifact" board-input/download.err; then
-              echo "::notice::Run ${RUN_ID} has no staging-ai-ocr-test-context artifact."
+          if [ -n "${EVENT_RUN_ID}" ]; then
+            ids="${EVENT_RUN_ID}"
+          elif [ -n "${INPUT_RUN_ID}" ]; then
+            ids="${INPUT_RUN_ID}"
+          else
+            # Reconcile: completed runs of the last 7 days with no record for
+            # their attempt (artifacts live 14 days, so they still exist).
+            # Image-promotion runs ("Release Images ...") hold no gate.
+            since="$(date -u -d '7 days ago' +%Y-%m-%d)"
+            ids=""
+            for workflow in deploy.yml audit-replay.yml; do
+              while read -r id attempt title; do
+                [ -n "${id}" ] || continue
+                case "${title}" in "Release Images "*) continue ;; esac
+                if compgen -G "pages/board/records/*/*-${id}-${attempt}.json" > /dev/null; then
+                  continue
+                fi
+                ids="${ids} ${id}"
+              done < <(gh api "repos/${REPO}/actions/workflows/${workflow}/runs?status=completed&per_page=30&created=%3E%3D${since}" \
+                --jq '.workflow_runs[] | "\(.id) \(.run_attempt) \(.display_title)"')
+            done
+          fi
+          ids="$(echo "${ids}" | xargs)"
+          echo "Runs to publish: ${ids:-none}"
+          echo "ids=${ids}" >> "$GITHUB_OUTPUT"
+
+      - name: Build the records
+        id: record
+        if: steps.select.outputs.ids != ''
+        env:
+          RUN_IDS: ${{ steps.select.outputs.ids }}
+        run: |
+          set -uo pipefail
+          build_one() {
+            set -euo pipefail
+            local run_id="$1"
+            local input="board-input/${run_id}"
+            mkdir -p "${input}/artifact"
+            gh api "repos/${REPO}/actions/runs/${run_id}" > "${input}/run.json"
+            gh api --paginate "repos/${REPO}/actions/runs/${run_id}/jobs?per_page=100" \
+              --jq '.jobs[]' | jq -s '{jobs: .}' > "${input}/jobs.json"
+            # "No artifact" is evidence and gives a not-run or no-evidence
+            # record. Any other download error fails this run's build, so a
+            # transient error never publishes a false no-evidence record.
+            if ! gh run download "${run_id}" -R "${REPO}" -n staging-ai-ocr-test-context \
+                -D "${input}/artifact" 2> "${input}/download.err"; then
+              if grep -qiE "no artifact|no valid artifacts" "${input}/download.err"; then
+                echo "::notice::Run ${run_id} has no staging-ai-ocr-test-context artifact."
+              else
+                cat "${input}/download.err"
+                echo "::error::Could not download the test context of run ${run_id}."
+                return 1
+              fi
+            fi
+            # The tested SHA: from the test context, else from the deployed
+            # version (the context version, or "Deploy Staging <version>").
+            local resolved_sha="" version=""
+            local context
+            context=$(find "${input}/artifact" -name staging-ai-ocr-context.txt | head -n 1)
+            if [ -n "${context}" ]; then
+              resolved_sha=$(sed -n 's/^tested_sha=\([0-9a-f]\{40\}\)$/\1/p' "${context}")
+              version=$(sed -n 's/^expected_version=//p' "${context}")
             else
-              cat board-input/download.err
-              echo "::error::Could not download the test context of run ${RUN_ID}."
-              exit 1
+              version=$(jq -r '.display_title' "${input}/run.json" | sed -n 's/^Deploy Staging \(v[0-9][0-9.]*\)$/\1/p')
             fi
-          fi
-
-          # The tested SHA: from the test context, else from the deployed
-          # version (the context version, or "Deploy Staging <version>").
-          resolved_sha=""
-          context=$(find board-input/artifact -name staging-ai-ocr-context.txt | head -n 1)
-          if [ -n "${context}" ]; then
-            resolved_sha=$(sed -n 's/^tested_sha=\([0-9a-f]\{40\}\)$/\1/p' "${context}")
-            version=$(sed -n 's/^expected_version=//p' "${context}")
-          else
-            version=$(jq -r '.display_title' board-input/run.json | sed -n 's/^Deploy Staging \(v[0-9][0-9.]*\)$/\1/p')
-          fi
-          if [ -z "${resolved_sha}" ] && [ -n "${version:-}" ]; then
-            resolved_sha=$(gh api "repos/${REPO}/commits/${version}" --jq .sha || true)
-          fi
-
-          # The tests ran from the tested revision, so read its checkpoint map.
-          map_args=()
-          if [ -n "${resolved_sha}" ]; then
-            map_args=(--checkpoint-map board-input/tested-map.json)
-            if git fetch --quiet --depth 1 origin "${resolved_sha}"; then
-              git show "FETCH_HEAD:common/testing/data/core-journey-checkpoints.json" \
-                > board-input/tested-map.json 2>/dev/null || rm -f board-input/tested-map.json
+            if [ -z "${resolved_sha}" ] && [ -n "${version}" ]; then
+              resolved_sha=$(gh api "repos/${REPO}/commits/${version}" --jq .sha || true)
             fi
-          fi
-
-          python3 -I common/testing/journey_board.py build-record \
-            --artifact-dir board-input/artifact \
-            --run-json board-input/run.json \
-            --jobs-json board-input/jobs.json \
-            --board-dir board-new \
-            --repository "${REPO}" \
-            --resolved-sha "${resolved_sha}" \
-            "${map_args[@]}" | tee board-input/result.txt
-          if grep -q '^no-record:' board-input/result.txt; then
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-          else
+            # The tests ran from the tested revision, so read its checkpoint map.
+            local map_args=()
+            if [ -n "${resolved_sha}" ]; then
+              map_args=(--checkpoint-map "${input}/tested-map.json")
+              if git fetch --quiet --depth 1 origin "${resolved_sha}"; then
+                git show "FETCH_HEAD:common/testing/data/core-journey-checkpoints.json" \
+                  > "${input}/tested-map.json" 2>/dev/null || rm -f "${input}/tested-map.json"
+              fi
+            fi
+            python3 -I common/testing/journey_board.py build-record \
+              --artifact-dir "${input}/artifact" \
+              --run-json "${input}/run.json" \
+              --jobs-json "${input}/jobs.json" \
+              --board-dir board-new \
+              --repository "${REPO}" \
+              --resolved-sha "${resolved_sha}" \
+              "${map_args[@]}" | tee -a board-input/result.txt
+          }
+          mkdir -p board-input board-new
+          failed=""
+          for run_id in ${RUN_IDS}; do
+            if ! ( build_one "${run_id}" ); then
+              failed="${failed} ${run_id}"
+            fi
+          done
+          if find board-new -name '*.json' | grep -q .; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
+          echo "failed=$(echo "${failed}" | xargs)" >> "$GITHUB_OUTPUT"
 
-      - name: Push the record and regenerate the board
+      - name: Push the records and regenerate the board
         if: steps.record.outputs.publish == 'true'
         run: |
           set -euo pipefail
           git -C pages config user.name "github-actions[bot]"
           git -C pages config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # No concurrency group: a group drops a pending publish. Each attempt
-          # starts from the newest gh-pages, adds the record file and
+          # starts from the newest gh-pages, adds the record files and
           # regenerates the index from all records, so a lost race only retries.
           for attempt in 1 2 3 4 5; do
             git -C pages fetch --depth 1 origin gh-pages
@@ -126,17 +178,23 @@ jobs:
             python3 -I common/testing/journey_board.py build-index --board-dir pages/board
             git -C pages add board
             if git -C pages diff --cached --quiet; then
-              echo "The board already holds this record."
+              echo "The board already holds these records."
               exit 0
             fi
-            git -C pages commit -q -m "board: record run ${RUN_ID}"
+            git -C pages commit -q -m "board: record runs ${{ steps.select.outputs.ids }}"
             if git -C pages push origin HEAD:gh-pages; then
-              echo "Published run ${RUN_ID} on attempt ${attempt}."
+              echo "Published on attempt ${attempt}."
               exit 0
             fi
             sleep $(( attempt * 3 + RANDOM % 7 ))
           done
-          echo "::error::Could not push the board record after 5 attempts."
+          echo "::error::Could not push the board records after 5 attempts."
+          exit 1
+
+      - name: Fail when a run could not be built
+        if: steps.record.outputs.failed != ''
+        run: |
+          echo "::error::Could not build the board record of runs: ${{ steps.record.outputs.failed }}"
           exit 1
 
       - name: Write the step summary
@@ -145,7 +203,7 @@ jobs:
           {
             echo "### Journey board"
             echo ""
-            echo "- Source run: ${RUN_ID}"
-            echo "- Result: $(cat board-input/result.txt 2>/dev/null || echo 'no result')"
+            echo "- Runs: ${{ steps.select.outputs.ids || 'none' }}"
+            echo "- Result: $(cat board-input/result.txt 2>/dev/null || echo 'no record')"
             echo "- Board: https://wangzitian0.github.io/finance_report/board/"
           } >> "$GITHUB_STEP_SUMMARY"

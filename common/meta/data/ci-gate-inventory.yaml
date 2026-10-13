@@ -648,7 +648,7 @@ gates:
     job: audit-replay
     owner: reusable staging-ai-ocr-gate.yml (audit-replay caller, corpus=audit_replay weekly or core_journey after a staging deploy)
     triggers: [schedule, workflow_dispatch]
-    blocks_workflow: false
+    blocks_workflow: true
     inputs: [staging_environment, provider_credentials, llm_audit_corpus]
     outputs: [ai_ocr_gate_summary, ai_ocr_status]
     artifacts: []
@@ -711,7 +711,7 @@ resolved_duplicate_cleanups:
   - id: staging_ai_ocr_gate_duplicate
     status: removed
     gates: [staging_deploy.ai_ocr_gate, staging_ai_ocr_gate.manual_ai_ocr_gate]
-    command: pytest "${STAGING_AI_OCR_TESTS[@]}" -m "llm"
+    command: pytest "${STAGING_AI_OCR_TESTS[@]}" -m "llm or journey"
     retained_owner: staging_ai_ocr_gate.reusable_run
     removed_from: [staging_deploy.ai_ocr_gate, staging_ai_ocr_gate.manual_ai_ocr_gate]
     final_state: The ~120-line staging AI/OCR corpus gate body lives once in the reusable staging-ai-ocr-gate.yml run job; the inline (deploy.yml ai-ocr-gate) and manual (deploy.yml manual-ai-ocr-gate) jobs are uses; callers that differ only by the corpus input and checkout/expected_sha values (AC8.13.153; the blocking input was removed in #2370).

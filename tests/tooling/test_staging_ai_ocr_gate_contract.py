@@ -658,12 +658,14 @@ def test_AC_testing_deploy_gates_44_existing_alert_is_refreshed() -> None:
     timeout_branch = script[
         script.index('alert_title="[staging-ai-ocr] gate produced no result') :
     ]
+    # Version and corpus reach the refresh through env (#2370 audit: no
+    # inline inputs in bash).
     timeout_refresh_contract = {
         'gh issue edit "$existing"',
         'gh issue comment "$existing"',
         "github.run_id",
-        "inputs.commit_ref",
-        "inputs.corpus",
+        "version=${COMMIT_REF}",
+        "corpus=${CORPUS}",
     }
     assert {
         token for token in timeout_refresh_contract if token in timeout_branch

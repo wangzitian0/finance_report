@@ -707,15 +707,9 @@ def test_AC8_13_157_audit_replay_workflow_is_weekly_and_blocks_nothing() -> None
         assert job["with"]["corpus"] == "${{ inputs.corpus || 'audit_replay' }}"
         assert "blocking" not in job["with"]
         assert job.get("secrets") == "inherit"
-    for workflow_name in ("deploy.yml", "release.yml"):
-        assert "audit-replay" not in str(
-            [
-                job.get("needs")
-                for job in yaml.safe_load(read(f".github/workflows/{workflow_name}"))[
-                    "jobs"
-                ].values()
-            ]
-        )
+    # No release reads the replay: it can never gate production promotion.
+    assert "audit-replay" not in read(".github/workflows/release.yml")
+    assert "audit-replay" not in read("common/runtime/release_evidence.py")
 
     # The production-promotion (deploy) blocking path keeps the heavy corpus OUT:
     # its inline ai-ocr-gate runs only the canary corpus.
@@ -889,8 +883,6 @@ def _run_gate_timeout_fallback(
         {
             "steps.staging_ai_ocr_tests.outcome": outcome,
             "github.run_id": "999",
-            "inputs.corpus": corpus,
-            "inputs.commit_ref": "deadbeef",
         },
     )
 
@@ -920,6 +912,9 @@ def _run_gate_timeout_fallback(
             "GH_TOKEN": "fake-token",
             "GITHUB_OUTPUT": str(github_output),
             "GITHUB_STEP_SUMMARY": str(github_step_summary),
+            # The step passes inputs through env, never inline (#2370 audit).
+            "CORPUS": corpus,
+            "COMMIT_REF": "deadbeef",
         },
         capture_output=True,
         text=True,
@@ -974,6 +969,10 @@ def test_AC8_13_166_gate_timeout_fallback_alerts_when_corpus_step_dies_without_o
     # issues: write permission (#1623) already covers this step's own gh
     # issue create -- no separate permission grant needed.
     assert job["permissions"]["issues"] == "write"
+    # Inputs reach the script through env, never inline in bash (#2370 audit).
+    assert fallback["env"]["CORPUS"] == "${{ inputs.corpus }}"
+    assert fallback["env"]["COMMIT_REF"] == "${{ inputs.commit_ref }}"
+    assert "${{ inputs." not in fallback["run"]
 
     # Behavior 1: no standing alert -> creates exactly one issue, reports the
     # distinct gate-timeout status and fails the job (red means red, #2370).
@@ -1053,7 +1052,7 @@ def test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case() -> None:
     wait_counts = {
         "canary": contract.totals(contract.canary_files())["uploads"],
         "audit_replay": contract.totals(contract.audit_replay_files())["uploads"],
-        "core_journey": contract.totals(contract.core_journey_files())["uploads"],
+        "core_journey": contract.totals(contract.core_journey_tests())["uploads"],
         "all": contract.totals(contract.gate_files())["uploads"],
     }
     for corpus_name, budget in budgets.items():

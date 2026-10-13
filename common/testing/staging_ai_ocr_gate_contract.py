@@ -136,22 +136,40 @@ def audit_replay_files() -> list[str]:
     return [path for path in gate_files() if path not in canary]
 
 
-def core_journey_files() -> list[str]:
+def _counter(test: str) -> dict[str, int]:
+    """Replay counters of a test file or of one ``file::test`` node.
+
+    A node entry wins; a node without its own entry uses its file entry.
+    """
+    if test in REPLAY_COUNTERS:
+        return REPLAY_COUNTERS[test]
+    return REPLAY_COUNTERS[test.split("::", 1)[0]]
+
+
+def core_journey_tests() -> list[str]:
     """The non-blocking post-deploy core-journey corpus (#2370).
 
-    Derived from the proof files of the journey-board checkpoint map. It may
-    overlap audit_replay and may hold tests without the llm marker. It runs
-    after each staging deploy, publishes to the board and blocks nothing.
+    The ``file::test`` node of each proof in the journey-board checkpoint
+    map, so only the proofs run (not the other tests of a proof's file) and
+    a new proof joins with no second list. It may overlap audit_replay and
+    may hold tests without the llm marker. It blocks nothing.
     """
     data = json.loads(CORE_JOURNEY_MAP_PATH.read_text(encoding="utf-8"))
-    files = sorted({proof["file"] for proof in data["proofs"]})
-    missing_counters = [path for path in files if path not in REPLAY_COUNTERS]
+    tests = sorted(
+        f"{proof['file']}::{proof['test'].split('::', 1)[1]}"
+        for proof in data["proofs"]
+    )
+    missing_counters = [
+        test
+        for test in tests
+        if test not in REPLAY_COUNTERS and test.split("::", 1)[0] not in REPLAY_COUNTERS
+    ]
     if missing_counters:
         raise SystemExit(
             "Missing staging AI/OCR replay counters for: "
             + ", ".join(sorted(missing_counters))
         )
-    return files
+    return tests
 
 
 def corpus_files(corpus: str) -> list[str]:
@@ -159,7 +177,7 @@ def corpus_files(corpus: str) -> list[str]:
         "all": gate_files,
         "canary": canary_files,
         "audit_replay": audit_replay_files,
-        "core_journey": core_journey_files,
+        "core_journey": core_journey_tests,
     }
     if corpus not in selectors:
         raise SystemExit(
@@ -170,7 +188,7 @@ def corpus_files(corpus: str) -> list[str]:
 
 def totals(files: list[str]) -> dict[str, int]:
     keys = ("uploads", "parse_completions", "brokerage_imports", "report_verifications")
-    return {key: sum(REPLAY_COUNTERS[path][key] for path in files) for key in keys}
+    return {key: sum(_counter(path)[key] for path in files) for key in keys}
 
 
 def emit_shell(files: list[str] | None = None) -> str:

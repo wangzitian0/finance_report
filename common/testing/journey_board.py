@@ -66,6 +66,7 @@ CHECKPOINT_STATUS_ORDER = (
     "blocked",
     "skipped",
     "passed",
+    "invalidated",
     "not-run",
     "not-covered",
 )
@@ -139,9 +140,7 @@ def parse_junit(path: Path) -> list[Case]:
     cases: list[Case] = []
     for element in root.iter("testcase"):
         classname = element.get("classname", "")
-        # pytest-playwright 0.10 names a browser test "test_x[chromium]". A
-        # proof is one test, so drop a parametrize suffix before matching.
-        name = re.sub(r"\[[^\]]*\]$", "", element.get("name", "<unknown>"))
+        name = element.get("name", "<unknown>")
         reached = [
             prop.get("name", "")[len(CHECKPOINT_PROPERTY_PREFIX) :]
             for prop in element.iter("property")
@@ -150,13 +149,25 @@ def parse_junit(path: Path) -> list[Case]:
         ]
         cases.append(
             Case(
-                test_id=f"{classname}::{name}" if classname else name,
+                test_id=normalize_test_id(
+                    f"{classname}::{name}" if classname else name
+                ),
                 outcome=_case_outcome(element),
                 seconds=round(float(element.get("time") or 0.0), 2),
                 reached=reached,
             )
         )
     return cases
+
+
+def normalize_test_id(test_id: str) -> str:
+    """Drop a trailing parametrize suffix: "m::test_x[chromium]" -> "m::test_x".
+
+    pytest-playwright 0.10 adds the browser name to a browser test (seen in
+    the #2383 run). A proof is one test. The JUnit names and the gate
+    manifest keys both pass through here, so they always agree.
+    """
+    return re.sub(r"\[[^\]]*\]$", "", test_id)
 
 
 def merge_retry(first: list[Case], retry: list[Case]) -> list[Case]:
@@ -363,7 +374,7 @@ def build_record(
     manifest_path = _find(artifact_dir, MANIFEST_FILE)
     if manifest_path:
         classes = {
-            item["test"]: item.get("subtype") or item.get("class")
+            normalize_test_id(item["test"]): item.get("subtype") or item.get("class")
             for item in json.loads(manifest_path.read_text(encoding="utf-8")).get(
                 "cases", []
             )
@@ -373,10 +384,7 @@ def build_record(
                 case.failure_class = classes.get(case.test_id)
     status = context.get("ai_ocr_outcome", "not-run")
     reason = None if gate_xml else "the gate wrote no JUnit file"
-    drift = staging_drift(context.get("expected_version"), context.get("end_version"))
-    if drift:
-        status, reason = "invalidated", drift
-    return _record(
+    record = _record(
         lane=lane,
         status=status,
         reason=reason,
@@ -389,6 +397,25 @@ def build_record(
         recorded_at=recorded_at,
         map_note=map_note,
     )
+    drift = staging_drift(context.get("expected_version"), context.get("end_version"))
+    if drift:
+        invalidate(record, drift)
+    return record
+
+
+def invalidate(record: dict[str, Any], reason: str) -> None:
+    """A staging deploy landed during the run: the evidence proves no revision.
+
+    The lane and every covered checkpoint show ``invalidated``; the original
+    outcomes stay in the record. An invalidated cell never hides another
+    lane's result for the same SHA (it ranks after ``passed``).
+    """
+    record["original_status"] = record["status"]
+    record["status"], record["reason"] = "invalidated", reason
+    for cell in record["checkpoints"].values():
+        if cell["status"] != "not-covered":
+            cell["original"] = cell["status"]
+            cell["status"] = "invalidated"
 
 
 def staging_drift(expected: str | None, end: str | None) -> str | None:

@@ -23,6 +23,12 @@
     "report_verifications": 0,
     "uploads": 4
   },
+  "tests/e2e/test_institution_statement_journeys.py::test_gxs_statement_journey_matches_expected_balances": {
+    "brokerage_imports": 0,
+    "parse_completions": 1,
+    "report_verifications": 1,
+    "uploads": 1
+  },
   "tests/e2e/test_personal_financial_report_package.py": {
     "brokerage_imports": 1,
     "parse_completions": 2,

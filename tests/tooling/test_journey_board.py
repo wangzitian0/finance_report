@@ -340,6 +340,30 @@ def test_AC_testing_journey_board_3_record_reads_the_gate_artifact(
     )
     record = build_record(artifact, _run(), [], MAP)
     assert record["tests"][0]["test"] == "mod_a::test_a"
+    # The gate manifest keeps the suffix; the failure class must still attach.
+    failed_browser = _artifact(
+        tmp_path / "fb", [("mod_b::test_b[chromium]", "failed", [])]
+    )
+    (failed_browser / "test-results" / "staging-ai-ocr-manifest.json").write_text(
+        json.dumps(
+            {
+                "cases": [
+                    {
+                        "test": "mod_b::test_b[chromium]",
+                        "class": "regression",
+                        "subtype": "app-assertion",
+                    }
+                ]
+            }
+        )
+    )
+    browser_record = build_record(failed_browser, _run(), [], MAP)
+    assert browser_record["tests"][0] == {
+        "test": "mod_b::test_b",
+        "outcome": "failed",
+        "seconds": 1.5,
+        "failure_class": "app-assertion",
+    }
     assert record["lane"] == "core_journey"
     assert record["tested_sha"] == "a" * 40
     assert record["expected_version"] == "v9.9.9"
@@ -363,7 +387,27 @@ def test_AC_testing_journey_board_3_staging_change_during_the_run_invalidates_th
     context.write_text(context.read_text() + "end_version=v9.9.10\n")
     record = build_record(artifact, _run(), [], MAP)
     assert record["status"] == "invalidated"
+    assert record["original_status"] == "passed"
     assert record["reason"] == "staging changed from v9.9.9 to v9.9.10 during the run"
+    assert record["checkpoints"]["U4"] == {
+        "status": "invalidated",
+        "original": "passed",
+        "proofs": [{"test": "mod_a::test_a", "status": "passed"}],
+    }
+    assert record["checkpoints"]["U3"]["status"] == "not-covered"
+    # An invalidated record never hides another lane's result for the SHA.
+    other = build_record(
+        _artifact(tmp_path / "other", [("mod_a::test_a", "failed", ["U1"])]),
+        _run(run_id=2),
+        [],
+        MAP,
+    )
+    other["tested_sha"] = record["tested_sha"]
+    other["lane"] = "canary"
+    assert (
+        board.combine_for_sha([record, other], record["tested_sha"])["U2"]["status"]
+        == "failed"
+    )
 
     context.write_text(
         context.read_text().replace("end_version=v9.9.10", "end_version=" + "c" * 40)
@@ -501,6 +545,24 @@ def _checkpoint_sequence(path: Path, function_name: str) -> list[str]:
     return marks
 
 
+def _pytest_markers(path: Path, function_name: str) -> set[str]:
+    """The ``@pytest.mark.<name>`` decorators of one test function."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        and node.name == function_name
+    )
+    return {
+        decorator.attr
+        for decorator in function.decorator_list
+        if isinstance(decorator, ast.Attribute)
+        and isinstance(decorator.value, ast.Attribute)
+        and decorator.value.attr == "mark"
+    }
+
+
 def _function_names(path: Path) -> set[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     return {
@@ -547,6 +609,16 @@ def test_AC_testing_journey_board_6_publisher_wiring_keeps_gates_read_only() -> 
         "AI/OCR Audit Replay",
     }
     assert triggers["workflow_run"]["types"] == ["completed"]
+    # Two triggers: an hourly reconcile publishes runs a workflow_run missed;
+    # a dispatch replays one run, or reconciles when run_id is empty.
+    assert triggers["schedule"] == [{"cron": "17 * * * *"}]
+    assert triggers["workflow_dispatch"]["inputs"]["run_id"]["required"] is False
+    select = next(
+        step
+        for step in publisher["jobs"]["publish"]["steps"]
+        if step.get("id") == "select"
+    )["run"]
+    assert "7 days ago" in select and '"Release Images "*) continue' in select
     assert publisher["permissions"] == {"contents": "write", "actions": "read"}
     assert "concurrency" not in publisher, (
         "a concurrency group cancels pending publishes"
@@ -658,18 +730,42 @@ def test_AC_testing_journey_board_7_core_journey_lane_runs_after_deploy_and_file
     """AC-testing.journey-board.7: the post-deploy core_journey lane is red on failure, files no alert, and blocks nothing."""
     from common.testing import staging_ai_ocr_gate_contract as contract
 
-    proof_files = sorted({proof.file for proof in load_checkpoint_map().proofs})
-    assert contract.core_journey_files() == proof_files
+    proofs = load_checkpoint_map().proofs
+    proof_nodes = sorted(
+        f"{proof.file}::{proof.test.split('::', 1)[1]}" for proof in proofs
+    )
+    assert contract.core_journey_tests() == proof_nodes, (
+        "only the proof tests run, not their whole files"
+    )
+    # Every proof is selectable by the gate marker "llm or journey"; a proof
+    # without either marker would be deselected with no error.
+    for proof in proofs:
+        markers = _pytest_markers(REPO_ROOT / proof.file, proof.test.split("::", 1)[1])
+        assert markers & {"llm", "journey"}, (
+            f"{proof.test} carries neither llm nor journey"
+        )
 
     journey = _run_record_and_finish(tmp_path / "journey", "core_journey")
     assert journey["exit_code"] == 1
     assert journey["gh_calls"] == []
     assert "ai_ocr_status=regression-failed" in journey["output"]
+    # Only audit_replay files the alert issue (the alert set before #2370), so
+    # a corpus-scoped auto-close stays correct (AC-testing.deploy-gates.45).
+    canary = _run_record_and_finish(tmp_path / "canary", "canary")
+    assert canary["exit_code"] == 1
+    assert canary["gh_calls"] == []
     replay = _run_record_and_finish(tmp_path / "replay", "audit_replay")
     assert replay["exit_code"] == 1
     assert any(call[:2] == ["issue", "create"] for call in replay["gh_calls"])
 
     gate = (WORKFLOWS / "staging-ai-ocr-gate.yml").read_text()
+    # Inputs (commit_ref comes from a manual version_ref) reach every gate
+    # script through env, never inline in bash (#2370 audit).
+    gate_steps = yaml.safe_load(gate)["jobs"]["run"]["steps"]
+    inline = [
+        step["name"] for step in gate_steps if "${{ inputs." in step.get("run", "")
+    ]
+    assert inline == [], f"inline inputs in gate scripts: {inline}"
     guard_at = gate.index('if [ "${#STAGING_AI_OCR_TESTS[@]}" -eq 0 ]; then')
     assert (
         gate.index("--preflight")
@@ -692,13 +788,13 @@ def test_AC_testing_journey_board_7_core_journey_lane_runs_after_deploy_and_file
         dispatch["env"]["DEPLOYED_VERSION_REF"]
         == "${{ needs.build-and-deploy.outputs.deployed_version_ref }}"
     )
-    for workflow_name in ("deploy.yml", "release.yml"):
-        needs = [
-            job.get("needs")
-            for job in yaml.safe_load((WORKFLOWS / workflow_name).read_text())[
-                "jobs"
-            ].values()
-        ]
-        assert "audit-replay" not in json.dumps(needs), (
-            "no deploy or release job may wait for the replay"
+    # The deploy does not wait for the replay, and the release never reads it.
+    assert "--watch" not in dispatch["run"]
+    assert "gh run watch" not in dispatch["run"]
+    for path in (
+        WORKFLOWS / "release.yml",
+        REPO_ROOT / "common/runtime/release_evidence.py",
+    ):
+        assert "audit-replay" not in path.read_text(), (
+            f"{path.name} must not depend on the replay"
         )
