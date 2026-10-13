@@ -139,7 +139,9 @@ def parse_junit(path: Path) -> list[Case]:
     cases: list[Case] = []
     for element in root.iter("testcase"):
         classname = element.get("classname", "")
-        name = element.get("name", "<unknown>")
+        # pytest-playwright 0.10 names a browser test "test_x[chromium]". A
+        # proof is one test, so drop a parametrize suffix before matching.
+        name = re.sub(r"\[[^\]]*\]$", "", element.get("name", "<unknown>"))
         reached = [
             prop.get("name", "")[len(CHECKPOINT_PROPERTY_PREFIX) :]
             for prop in element.iter("property")

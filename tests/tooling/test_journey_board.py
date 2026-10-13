@@ -328,12 +328,18 @@ def test_AC_testing_journey_board_3_record_reads_the_gate_artifact(
     tmp_path: Path,
 ) -> None:
     """AC-testing.journey-board.3: a gate artifact becomes one record with retry merged."""
+    # pytest-playwright 0.10 names a browser test "test_a[chromium]" (seen in
+    # the #2383 run); the proof "mod_a::test_a" must still match.
     artifact = _artifact(
         tmp_path,
-        [("mod_a::test_a", "failed", ["U1"]), ("mod_c::test_c", "passed", [])],
-        retry=[("mod_a::test_a", "passed", ["U1", "U2", "U4"])],
+        [
+            ("mod_a::test_a[chromium]", "failed", ["U1"]),
+            ("mod_c::test_c", "passed", []),
+        ],
+        retry=[("mod_a::test_a[chromium]", "passed", ["U1", "U2", "U4"])],
     )
     record = build_record(artifact, _run(), [], MAP)
+    assert record["tests"][0]["test"] == "mod_a::test_a"
     assert record["lane"] == "core_journey"
     assert record["tested_sha"] == "a" * 40
     assert record["expected_version"] == "v9.9.9"
