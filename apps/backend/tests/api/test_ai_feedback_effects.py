@@ -108,6 +108,75 @@ async def test_AC_extraction_classification_hardening_2_accept_keeps_the_draft_f
     assert reloaded.tags["category"] == "DINING"
 
 
+@pytest.mark.parametrize(
+    ("action", "corrected_value", "effect"),
+    [
+        ("accept", None, "accepted"),
+        ("reject", None, "rejected"),
+        ("edit_accept", {"value": "groceries"}, "corrected"),
+    ],
+)
+async def test_AC_extraction_classification_hardening_2_the_response_names_the_effect(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+    action: str,
+    corrected_value: dict | None,
+    effect: str,
+) -> None:
+    """AC-extraction.classification-hardening.2: the page shows what happened, not what the button promised."""
+    draft = await _draft(db, test_user.id)
+
+    response = await _post(client, draft.id, action, corrected_value)
+
+    assert response.status_code == 201
+    assert response.json()["effect"] == effect
+
+
+async def test_AC_extraction_classification_hardening_2_a_second_decision_on_a_rejected_draft_is_only_recorded(
+    client: AsyncClient, db: AsyncSession, test_user: User
+) -> None:
+    """AC-extraction.classification-hardening.2: reject, then accept. The second answer must not claim an effect."""
+    draft = await _draft(db, test_user.id)
+    await _post(client, draft.id, "reject")
+
+    response = await _post(client, draft.id, "accept")
+
+    assert response.status_code == 201
+    assert response.json()["effect"] == "recorded"
+    assert (await _reload(db, draft)).status is ClassificationStatus.SUPERSEDED
+
+
+async def test_AC_extraction_classification_hardening_2_an_unknown_foreign_or_applied_id_is_only_recorded(
+    client: AsyncClient, db: AsyncSession, test_user: User
+) -> None:
+    """AC-extraction.classification-hardening.2: all three get the same answer, so the answer leaks nothing."""
+    other = await UserFactory.create_async(db)
+    foreign = await _draft(db, other.id)
+    applied = await _draft(db, test_user.id, status=ClassificationStatus.APPLIED)
+
+    answers = [
+        (await _post(client, suggestion_id, "reject")).json()["effect"]
+        for suggestion_id in (uuid4(), foreign.id, applied.id)
+    ]
+
+    assert answers == ["recorded", "recorded", "recorded"]
+
+
+async def test_AC_extraction_classification_hardening_2_a_corrected_draft_leaves_the_pending_list(
+    client: AsyncClient, db: AsyncSession, test_user: User
+) -> None:
+    """AC-extraction.classification-hardening.2: a decided suggestion is not pending. An accepted one still is."""
+    corrected = await _draft(db, test_user.id)
+    accepted = await _draft(db, test_user.id)
+    await _post(client, corrected.id, "edit_accept", {"value": "groceries"})
+    await _post(client, accepted.id, "accept")
+
+    listed = {item["suggestion_id"] for item in (await client.get("/ai/suggestions")).json()["items"]}
+
+    assert listed == {str(accepted.id)}
+
+
 async def test_AC_extraction_classification_hardening_2_feedback_on_a_foreign_draft_changes_nothing(
     client: AsyncClient, db: AsyncSession, test_user: User
 ) -> None:

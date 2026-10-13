@@ -175,6 +175,7 @@ from src.extraction.extension.statement_parsing_supervisor import (
 from src.extraction.extension.statement_pipeline import submit_parse_pipeline
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
+    applied_rows_the_policy_accepts,
     auto_create_posted_entries_for_statement,
     resolve_statement_posting_account,
 )
@@ -203,6 +204,7 @@ from src.extraction.extension.transaction_classification import (
     apply_suggestion_feedback,
     backfill_classifications,
     classification_suggestions,
+    settle_drafts_after_posting,
 )
 from src.extraction.extension.transaction_membership import effective_statement_transaction_filter
 from src.extraction.extension.uploaded_document_reads import (
@@ -309,6 +311,7 @@ __all__ = [
     "reject_json_floats",
     "_brokerage_payload_from_persisted_extraction",
     "_brokerage_payload_from_statement",
+    "applied_rows_the_policy_accepts",
     "approve_statement_workflow",
     "auto_create_posted_entries_for_statement",
     "ClassificationSuggestion",
@@ -316,6 +319,7 @@ __all__ = [
     "apply_suggestion_feedback",
     "backfill_classifications",
     "classification_suggestions",
+    "settle_drafts_after_posting",
     "build_csv_mapping_prompt",
     "build_disposition_trace_records",
     "build_statement_ingestion_use_case",

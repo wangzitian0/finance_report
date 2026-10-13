@@ -1579,6 +1579,12 @@ export interface components {
              */
             created_at: string;
             /**
+             * Effect
+             * @description What the decision changed: accepted, rejected or corrected for a pending draft; recorded when the id is not a pending draft of the user, so only the feedback is stored.
+             * @default recorded
+             */
+            effect: string;
+            /**
              * Id
              * Format: uuid
              */

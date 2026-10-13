@@ -51,8 +51,9 @@ def text_money_values(text: str) -> frozenset[Decimal]:
     """Return every number in ``text`` that a layout could print as money.
 
     A run such as ``85.40 4837.55`` yields both numbers. A run such as ``4 837.55``
-    yields 4837.55. The set can hold extra values. A superset only makes a match more
-    likely, so it never raises a false flag.
+    yields 4837.55 and its parts 4 and 837.55. The set can hold extra values. A superset
+    only makes a match more likely, so it never raises a false flag. It can verify a
+    closing balance that equals a part of a spaced number (a known limit, #2419).
     """
     values: set[Decimal] = set()
     for run in _RUN.findall(text):

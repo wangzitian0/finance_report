@@ -199,36 +199,7 @@ async def auto_create_posted_entries_for_statement(
         tuple[AtomicTransaction, IntentProposal | None, DispositionDecision, Account | None, StatementTransaction]
     ] = []
 
-    txn_ids = [txn.id for txn in txns_to_post]
-    classification_by_txn_id: dict[UUID, tuple[TransactionClassification, ClassificationRule]] = {}
-    accounts_by_id: dict[UUID, Account] = {}
-    if txn_ids:
-        rows = (
-            await db.execute(
-                select(TransactionClassification, ClassificationRule)
-                .join(ClassificationRule, TransactionClassification.rule_version_id == ClassificationRule.id)
-                .where(TransactionClassification.atomic_txn_id.in_(txn_ids))
-                .where(TransactionClassification.status == ClassificationStatus.APPLIED)
-                .order_by(
-                    case(
-                        (
-                            ClassificationRule.rule_type.in_((RuleType.KEYWORD_MATCH, RuleType.REGEX_MATCH)),
-                            0,
-                        ),
-                        else_=1,
-                    ),
-                    TransactionClassification.created_at.desc(),
-                )
-            )
-        ).all()
-        for cl, rule in rows:
-            if cl.atomic_txn_id not in classification_by_txn_id:
-                classification_by_txn_id[cl.atomic_txn_id] = (cl, rule)
-
-        needed_account_ids = {cl.account_id for cl, _ in classification_by_txn_id.values() if cl.account_id is not None}
-        if needed_account_ids:
-            accounts_res = await db.execute(select(Account).where(Account.id.in_(needed_account_ids)))
-            accounts_by_id = {acc.id: acc for acc in accounts_res.scalars().all()}
+    classification_by_txn_id, accounts_by_id = await _applied_classifications(db, [txn.id for txn in txns_to_post])
 
     for txn in txns_to_post:
         classification_and_rule = classification_by_txn_id.get(txn.id)
@@ -243,16 +214,7 @@ async def auto_create_posted_entries_for_statement(
             counter_account = accounts_by_id.get(classification.account_id)
             if counter_account is None:
                 raise ValueError("Applied classification references a missing account")
-            intent = _classification_intent(classification, counter_account)
-            proposal = IntentProposal(
-                schema_version="1",
-                policy_version=str(classification.rule_version_id),
-                origin=_classification_proposal_origin(classification_rule.rule_type),
-                intent=intent,
-                category=str((classification.tags or {}).get("category") or "") or None,
-                confidence=Decimal(classification.confidence_score or 0) / Decimal("100"),
-                evidence=(str(classification.id),),
-            )
+            proposal = _applied_proposal(classification, classification_rule, counter_account)
         elif txn.id in transfer_txn_ids:
             proposal = IntentProposal(
                 schema_version="1",
@@ -386,6 +348,106 @@ async def auto_create_posted_entries_for_statement(
             )
 
     return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=created)
+
+
+async def _applied_classifications(
+    db: AsyncSession, txn_ids: Sequence[UUID]
+) -> tuple[dict[UUID, tuple[TransactionClassification, ClassificationRule]], dict[UUID, Account]]:
+    """The applied classification row of each transaction, with the counter accounts that the rows name.
+
+    A reviewed rule (keyword or regex) wins over a model row. Within a producer class the newest row wins.
+    """
+    classification_by_txn_id: dict[UUID, tuple[TransactionClassification, ClassificationRule]] = {}
+    accounts_by_id: dict[UUID, Account] = {}
+    if not txn_ids:
+        return classification_by_txn_id, accounts_by_id
+    rows = (
+        await db.execute(
+            select(TransactionClassification, ClassificationRule)
+            .join(ClassificationRule, TransactionClassification.rule_version_id == ClassificationRule.id)
+            .where(TransactionClassification.atomic_txn_id.in_(list(txn_ids)))
+            .where(TransactionClassification.status == ClassificationStatus.APPLIED)
+            .order_by(
+                case(
+                    (
+                        ClassificationRule.rule_type.in_((RuleType.KEYWORD_MATCH, RuleType.REGEX_MATCH)),
+                        0,
+                    ),
+                    else_=1,
+                ),
+                TransactionClassification.created_at.desc(),
+            )
+        )
+    ).all()
+    for cl, rule in rows:
+        if cl.atomic_txn_id not in classification_by_txn_id:
+            classification_by_txn_id[cl.atomic_txn_id] = (cl, rule)
+
+    needed_account_ids = {cl.account_id for cl, _ in classification_by_txn_id.values() if cl.account_id is not None}
+    if needed_account_ids:
+        accounts_res = await db.execute(select(Account).where(Account.id.in_(needed_account_ids)))
+        accounts_by_id = {acc.id: acc for acc in accounts_res.scalars().all()}
+    return classification_by_txn_id, accounts_by_id
+
+
+def _applied_proposal(
+    classification: TransactionClassification,
+    classification_rule: ClassificationRule,
+    counter_account: Account,
+) -> IntentProposal:
+    """The intent proposal that an applied classification row stands for."""
+    return IntentProposal(
+        schema_version="1",
+        policy_version=str(classification.rule_version_id),
+        origin=_classification_proposal_origin(classification_rule.rule_type),
+        intent=_classification_intent(classification, counter_account),
+        category=str((classification.tags or {}).get("category") or "") or None,
+        confidence=Decimal(classification.confidence_score or 0) / Decimal("100"),
+        evidence=(str(classification.id),),
+    )
+
+
+async def applied_rows_the_policy_accepts(
+    db: AsyncSession,
+    transactions: Sequence[AtomicTransaction],
+    *,
+    mode: DispositionMode,
+) -> set[UUID]:
+    """Ids of the transactions that the posting will post from their applied classification (#2419).
+
+    This asks the disposition policy with the same proposal that the posting builds. A caller that must
+    leave such a row to the posting (the one-click approval) therefore never disagrees with the posting.
+    A transaction without an applied row, or whose row the policy refuses, is not in the result.
+    """
+    classification_by_txn_id, accounts_by_id = await _applied_classifications(db, [txn.id for txn in transactions])
+    policy = DispositionPolicy()
+    accepted: set[UUID] = set()
+    for txn in transactions:
+        pair = classification_by_txn_id.get(txn.id)
+        if pair is None or pair[0].account_id is None:
+            continue
+        counter_account = accounts_by_id.get(pair[0].account_id)
+        if counter_account is None:
+            continue
+        decision = policy.decide(
+            StatementTransaction(
+                transaction_id=txn.id,
+                transaction_date=txn.txn_date,
+                amount=txn.amount,
+                currency=txn.currency,
+                direction=txn.direction,
+                description=txn.description,
+            ),
+            proposal=_applied_proposal(pair[0], pair[1], counter_account),
+            context=DispositionContext(
+                counter_account_id=counter_account.id,
+                counter_account_type=counter_account.type.value,
+            ),
+            mode=mode,
+        )
+        if decision.status is DispositionStatus.AUTHORITATIVE and decision.should_apply:
+            accepted.add(txn.id)
+    return accepted
 
 
 def _classification_intent(

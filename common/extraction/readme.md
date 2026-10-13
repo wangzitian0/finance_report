@@ -114,15 +114,39 @@ snapshot, while reporting receives the same published value object for frozen
 package disclosure instead of rebuilding policy facts from configuration.
 
 The AI category catalog is a versioned, append-only policy (`POLICY_VERSIONS`). Policy v1 holds
-18 income and expense classes and stays frozen. Policy v2 (#2411) adds four balance-sheet
-classes: `TRANSFER`, `CARD_REPAYMENT`, `LOAN_PRINCIPAL` and `INVESTMENT_TRADE`. The model may name
-them so that such a row is not filed under "Other". A proposal in one of them is never applied
-as profit or loss, creates no account and no classification row, and waits for its transfer
-match or for a person. `OTHER_INCOME` and `OTHER_EXPENSE` mean "does not fit": a proposal in
-them is always a draft for a person, whatever its confidence. A draft suggestion (the review
-band, 60 to 84) is not posted by itself. The one-click approval on the statement review page
-accepts it: the row posts to the suggested account and category as a reviewed disposition (#2415).
-A row that the AI named a balance-sheet class is left for a person.
+18 income and expense classes and stays frozen, with its positional prompt. Policy v2 (#2411) adds
+four balance-sheet classes: `TRANSFER`, `CARD_REPAYMENT`, `LOAN_PRINCIPAL` and `INVESTMENT_TRADE`.
+The model may name them so that such a row is not filed under "Other". A proposal in one of them is
+never applied as profit or loss and creates no category account. It is stored as a draft row without
+an account, so that the class is visible. `OTHER_INCOME` and `OTHER_EXPENSE` mean "does not fit": a
+proposal in them is always a draft for a person, whatever its confidence.
+
+**Model call (#2419).** Policy v2 and later send at most 50 rows in one call, with at most four calls
+in flight. Each description is one JSON string. The model echoes the `index` of each row. Code maps the
+answer by that index. A different item count than rows, an index outside the batch or a repeated index
+drops the answer for that batch. A row without a proposal goes to review. The call carries the id of
+the statement owner, so it uses the provider of that user. The echo does not prove that the model
+numbered by the prompt and not by its own output order; a swap with a valid count and valid indexes
+is the residual risk of this design.
+
+**Versions.** A row that gets a live row under a newer policy version loses its older model rows: they
+become `superseded` and point to the newer row. A rule row of the user is never touched.
+
+**Decisions of the user (#2419).** `POST /ai/feedback` changes the draft. A rejection supersedes the
+draft and every other live model row of the transaction. A correction replaces the category and the
+account of the draft, keeps the first original category and appends a `CorrectionLog` entry. An
+acceptance changes nothing. The response names the effect (`accepted`, `rejected`, `corrected` or
+`recorded`). An id that is unknown, belongs to another user or is no longer a draft is `recorded` and
+changes nothing. A decision outlives a later model pass: the sweep of older versions skips a corrected
+row, and a transaction with a rejected or corrected row is not classified again under any version.
+
+**One-click approval (#2415, #2419).** A draft suggestion (the review band, 60 to 84) is not posted by
+itself. The one-click approval on the statement review page accepts it: the row posts to the suggested
+account and category as a reviewed disposition, and the draft becomes `applied`. A row that the posting
+will post from its applied classification is left to the posting. The disposition policy decides this,
+through `applied_rows_the_policy_accepts`, so the approval never disagrees with the posting. A row
+without a usable suggestion posts to the general account of its direction, and its drafts become
+`superseded`. A row that the AI named a balance-sheet class is left for a person.
 
 ## Upload-First Product Contract
 

@@ -5,6 +5,7 @@ Each test pins one finding. The model is a stub that returns fixed JSON, so the 
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import date
 
@@ -31,16 +32,26 @@ def _txns(count: int, description: str = "SHOP {i}") -> list:
 class _Provider:
     """A stand-in for src.llm.stream_ai_json that records each call and answers from a script."""
 
-    def __init__(self, answers: list):
+    def __init__(self, answers: list, delays: list[float] | None = None):
         self.answers = list(answers)
+        self.delays = list(delays or [])
         self.calls: list[dict] = []
+        self.in_flight = 0
+        self.max_in_flight = 0
 
     def __call__(self, **kwargs):
         self.calls.append(kwargs)
         content = self.answers.pop(0)
+        delay = self.delays.pop(0) if self.delays else 0.0
 
         async def stream():
-            yield content if isinstance(content, str) else json.dumps(content)
+            self.in_flight += 1
+            self.max_in_flight = max(self.max_in_flight, self.in_flight)
+            try:
+                await asyncio.sleep(delay)
+                yield content if isinstance(content, str) else json.dumps(content)
+            finally:
+                self.in_flight -= 1
 
         return stream()
 
@@ -92,7 +103,9 @@ async def test_AC_extraction_classification_hardening_1_items_map_by_echoed_inde
         [_item(0), _item(0, "DINING")],  # one index twice
         [_item(0), _item(5, "DINING")],  # index outside the batch
         [_item(0), _item(-1, "DINING")],  # negative index
-        [_item(0), {**_item(1, "DINING"), "index": "1"}],  # index is not an integer
+        [_item(0), {**_item(1, "DINING"), "index": "one"}],  # text that is not a number
+        [_item(0), {**_item(1, "DINING"), "index": 1.5}],  # a fraction
+        [_item(0), {**_item(1, "DINING"), "index": "-1"}],  # a signed string
         [_item(0), {**_item(1, "DINING"), "index": True}],  # a boolean is not an index
     ],
 )
@@ -104,6 +117,30 @@ async def test_AC_extraction_classification_hardening_1_inconsistent_indexes_giv
     proposals = await tc.propose_categories(_txns(2), policy_for(date(2026, 6, 1)))
 
     assert proposals == [None, None]
+
+
+@pytest.mark.parametrize("echoed", ["1", 1.0, 1])
+async def test_AC_extraction_classification_hardening_1_an_index_in_another_number_form_still_maps(monkeypatch, echoed):
+    """AC-extraction.classification-hardening.1: a quoted or float index is unambiguous, so it maps to its row."""
+    provider = _Provider([[_item(0, "SALARY", 95), {**_item(1, "DINING", 70), "index": echoed}]])
+    _install(monkeypatch, provider)
+
+    proposals = await tc.propose_categories(_txns(2), policy_for(date(2026, 6, 1)))
+
+    assert [(p.category, p.confidence) for p in proposals] == [("SALARY", 95), ("DINING", 70)]
+
+
+async def test_AC_extraction_classification_hardening_1_a_non_finite_score_gives_no_proposal_for_that_item(
+    monkeypatch,
+):
+    """AC-extraction.classification-hardening.1: the JSON reader accepts Infinity. It must not fail the whole pass."""
+    provider = _Provider([[_item(0, "SALARY", 95), {**_item(1, "DINING"), "confidence": float("inf")}]])
+    _install(monkeypatch, provider)
+
+    proposals = await tc.propose_categories(_txns(2), policy_for(date(2026, 6, 1)))
+
+    assert proposals[0] is not None and proposals[0].category == "SALARY"
+    assert proposals[1] is None
 
 
 async def test_AC_extraction_classification_hardening_1_an_item_without_an_index_maps_to_no_row(monkeypatch):
@@ -130,7 +167,8 @@ async def test_AC_extraction_classification_hardening_1_prompt_encodes_descripti
 
     prompt = provider.calls[0]["messages"][0]["content"]
     assert json.dumps(hostile, ensure_ascii=False) in prompt
-    assert '"index"' in prompt
+    # The line of the row carries its own index. The instruction text alone holds the word "index" too.
+    assert '{"index": 0, "direction": ' in prompt
 
 
 async def test_AC_extraction_classification_hardening_1_large_statement_is_sent_in_batches(monkeypatch):
@@ -145,6 +183,40 @@ async def test_AC_extraction_classification_hardening_1_large_statement_is_sent_
     assert len(proposals) == 120 and all(p is not None for p in proposals)
     assert '"index": 49' in provider.calls[0]["messages"][0]["content"]
     assert '"index": 19' in provider.calls[2]["messages"][0]["content"]
+
+
+async def test_AC_extraction_classification_hardening_1_batches_run_in_parallel_and_keep_the_row_order(monkeypatch):
+    """AC-extraction.classification-hardening.1: a slow first batch does not move its rows behind the later batches."""
+    rows = 3 * tc.CLASSIFICATION_BATCH_SIZE
+    answers = [
+        [_item(i, "SALARY", 91) for i in range(tc.CLASSIFICATION_BATCH_SIZE)],
+        [_item(i, "DINING", 92) for i in range(tc.CLASSIFICATION_BATCH_SIZE)],
+        [_item(i, "TRANSPORT", 93) for i in range(tc.CLASSIFICATION_BATCH_SIZE)],
+    ]
+    provider = _Provider(answers, delays=[0.15, 0.05, 0.0])
+    _install(monkeypatch, provider)
+
+    proposals = await tc.propose_categories(_txns(rows), policy_for(date(2026, 6, 1)))
+
+    size = tc.CLASSIFICATION_BATCH_SIZE
+    assert [p.category for p in proposals[:size]] == ["SALARY"] * size
+    assert [p.category for p in proposals[size : 2 * size]] == ["DINING"] * size
+    assert [p.category for p in proposals[2 * size :]] == ["TRANSPORT"] * size
+    assert provider.max_in_flight == 3
+
+
+async def test_AC_extraction_classification_hardening_1_at_most_four_model_calls_run_at_once(monkeypatch):
+    """AC-extraction.classification-hardening.1: the number of calls in flight has an upper bound."""
+    batches = tc.CLASSIFICATION_PARALLEL_BATCHES + 3
+    rows = batches * tc.CLASSIFICATION_BATCH_SIZE
+    answers = [[_item(i) for i in range(tc.CLASSIFICATION_BATCH_SIZE)] for _ in range(batches)]
+    provider = _Provider(answers, delays=[0.03] * batches)
+    _install(monkeypatch, provider)
+
+    proposals = await tc.propose_categories(_txns(rows), policy_for(date(2026, 6, 1)))
+
+    assert len(proposals) == rows and all(p is not None for p in proposals)
+    assert provider.max_in_flight == tc.CLASSIFICATION_PARALLEL_BATCHES
 
 
 async def test_AC_extraction_classification_hardening_1_frozen_v1_prompt_keeps_the_positional_format(monkeypatch):

@@ -8,10 +8,12 @@ import type { AiSuggestion } from "@/lib/types";
 
 type FeedbackAction = "accept" | "reject" | "edit_accept";
 
-const DECISION_LABEL: Record<FeedbackAction, string> = {
-  accept: "Accepted. The approval of the statement posts it.",
-  reject: "Rejected. The approval uses the default category.",
-  edit_accept: "Corrected. The approval posts your category.",
+// What the server did with the decision. The label comes from `effect`, never from the button.
+const EFFECT_LABEL: Record<string, string> = {
+  accepted: "Accepted. The one-click approval of the statement posts it.",
+  rejected: "Rejected. The approval uses the default category.",
+  corrected: "Corrected. The one-click approval posts your category.",
+  recorded: "Feedback saved. It did not change the suggestion.",
 };
 
 export default function AiSuggestionsPage() {
@@ -20,6 +22,8 @@ export default function AiSuggestionsPage() {
     Record<string, string>
   >({});
   const [decisions, setDecisions] = useState<Record<string, string>>({});
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,26 +50,32 @@ export default function AiSuggestionsPage() {
     suggestion: AiSuggestion,
     action: FeedbackAction,
   ) => {
-    const corrected = correctedValues[suggestion.suggestion_id]?.trim();
+    const id = suggestion.suggestion_id;
+    const corrected = correctedValues[id]?.trim();
+    setSaving((current) => ({ ...current, [id]: true }));
     try {
-      await apiOperation("create_ai_feedback_ai_feedback_post", {
+      const saved = await apiOperation("create_ai_feedback_ai_feedback_post", {
         body: {
-          suggestion_id: suggestion.suggestion_id,
+          suggestion_id: id,
           action,
           ...(action === "edit_accept" && corrected
             ? { corrected_value: { value: corrected } }
             : {}),
         },
       });
-      setError(null);
+      setRowErrors(({ [id]: _cleared, ...rest }) => rest);
       setDecisions((current) => ({
         ...current,
-        [suggestion.suggestion_id]: DECISION_LABEL[action],
+        [id]: EFFECT_LABEL[saved?.effect ?? "recorded"] ?? EFFECT_LABEL.recorded,
       }));
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to save your decision",
-      );
+      setRowErrors((current) => ({
+        ...current,
+        [id]:
+          err instanceof Error ? err.message : "Failed to save your decision",
+      }));
+    } finally {
+      setSaving(({ [id]: _done, ...rest }) => rest);
     }
   };
 
@@ -104,6 +114,7 @@ export default function AiSuggestionsPage() {
       <button
         type="button"
         className="btn-primary text-xs whitespace-nowrap"
+        disabled={saving[suggestion.suggestion_id]}
         onClick={() => submitFeedback(suggestion, "accept")}
       >
         Accept
@@ -111,6 +122,7 @@ export default function AiSuggestionsPage() {
       <button
         type="button"
         className="btn-secondary text-xs whitespace-nowrap"
+        disabled={saving[suggestion.suggestion_id]}
         onClick={() => submitFeedback(suggestion, "reject")}
       >
         Reject
@@ -118,16 +130,24 @@ export default function AiSuggestionsPage() {
       <button
         type="button"
         className="btn-secondary col-span-2 text-xs whitespace-nowrap"
+        disabled={saving[suggestion.suggestion_id]}
         onClick={() => submitFeedback(suggestion, "edit_accept")}
       >
         Edit-then-Accept
       </button>
-      {decisions[suggestion.suggestion_id] && (
-        <p
-          role="status"
-          className="col-span-2 text-xs text-muted sm:self-center"
-        >
-          {decisions[suggestion.suggestion_id]}
+    </div>
+  );
+
+  const renderOutcome = (suggestion: AiSuggestion) => (
+    <div className="mt-1 min-h-[1rem] text-xs sm:text-right">
+      <p role="status" aria-live="polite" className="text-muted">
+        {saving[suggestion.suggestion_id]
+          ? "Saving..."
+          : (decisions[suggestion.suggestion_id] ?? "")}
+      </p>
+      {rowErrors[suggestion.suggestion_id] && (
+        <p role="alert" className="text-[var(--error)]">
+          {rowErrors[suggestion.suggestion_id]}
         </p>
       )}
     </div>
@@ -211,6 +231,7 @@ export default function AiSuggestionsPage() {
                   <div className="space-y-3">
                     {renderCorrectionInput(suggestion, "mobile")}
                     {renderActionButtons(suggestion)}
+                    {renderOutcome(suggestion)}
                   </div>
                 </article>
               ))}
@@ -248,6 +269,7 @@ export default function AiSuggestionsPage() {
                       </td>
                       <td className="px-4 py-3 min-w-[240px]">
                         {renderActionButtons(suggestion)}
+                        {renderOutcome(suggestion)}
                       </td>
                     </tr>
                   ))}

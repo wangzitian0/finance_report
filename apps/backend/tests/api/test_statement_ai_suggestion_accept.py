@@ -407,3 +407,95 @@ async def test_AC_extraction_classification_hardening_2_the_rationale_names_a_us
     assert from_user is not None and from_model is not None
     assert from_user[3] == "Category corrected by the user: GROCERIES"
     assert from_model[3] == "Accepted AI suggestion GROCERIES (score 76)"
+
+
+async def test_AC_extraction_classification_hardening_4_a_reviewed_rule_row_keeps_its_liability_account(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.classification-hardening.4: the one-click approval asks the disposition policy, not a stand-in.
+
+    A reviewed rule can carry an explicit intent. A card repayment to a liability account is a row that the
+    policy accepts and the posting posts. The stand-in test (income account for money in, expense account for
+    money out) refused it, and the approval then booked a general expense.
+    """
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    statement, bank = await _statement(db, test_user.id, "hash_hardening_4_rule")
+    statement.closing_balance = Decimal("0.00")
+    repayment = await add_txn(
+        db, statement, txn_date=date(2025, 1, 2), description="CARD PAYMENT", amount=Decimal("100.00"), direction="OUT"
+    )
+    await db.flush()
+    card = Account(user_id=test_user.id, name="Visa Card", type=AccountType.LIABILITY, currency="SGD")
+    db.add(card)
+    rule = ClassificationRule(
+        user_id=test_user.id,
+        created_by=test_user.id,
+        rule_name="card repayments",
+        version_number=1,
+        effective_date=date(2020, 1, 1),
+        is_active=True,
+        rule_type=RuleType.KEYWORD_MATCH,
+        rule_config={"keywords": ["card payment"]},
+    )
+    db.add(rule)
+    await db.flush()
+    db.add(
+        TransactionClassification(
+            atomic_txn_id=repayment.id,
+            rule_version_id=rule.id,
+            account_id=card.id,
+            tags={"category": "Card payment", "intent": "card_repayment"},
+            confidence_score=100,
+            status=ClassificationStatus.APPLIED,
+        )
+    )
+    await db.commit()
+
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id,
+        request=Stage1ApprovalRequest(auto_fill_default_categories=True),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result.journal_entries_created == 1
+    assert await _counter_account_names(db, repayment, bank.id) == {"Visa Card"}
+    general = set((await db.execute(select(Account.name).where(Account.name.like("General %")))).scalars())
+    assert general == set()
+
+
+async def test_AC_extraction_classification_hardening_8_the_approval_settles_the_drafts_it_decided(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.classification-hardening.8: a posted row leaves the pending list. A later click cannot edit a posted row."""
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    statement, _bank = await _statement(db, test_user.id, "hash_hardening_2_settle")
+    statement.closing_balance = Decimal("65.00")
+    accepted = await add_txn(
+        db, statement, txn_date=date(2025, 1, 3), description="Lunch", amount=Decimal("15.00"), direction="OUT"
+    )
+    refused = await add_txn(
+        db, statement, txn_date=date(2025, 1, 4), description="Odd label", amount=Decimal("20.00"), direction="OUT"
+    )
+    await db.flush()
+    dining = await _category_account(db, test_user.id, "Expense - Dining", AccountType.EXPENSE)
+    salary = await _category_account(db, test_user.id, "Income - Salary", AccountType.INCOME)
+    await _draft(db, test_user.id, accepted, category="DINING", account=dining, score=76)
+    await _draft(db, test_user.id, refused, category="SALARY", account=salary, score=79)
+    await db.commit()
+
+    await statements_router.approve_statement_stage1(
+        statement_id=statement.id,
+        request=Stage1ApprovalRequest(auto_fill_default_categories=True),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    rows = {
+        row.atomic_txn_id: row
+        for row in (await db.execute(select(TransactionClassification))).scalars().all()
+        if row.atomic_txn_id in (accepted.id, refused.id)
+    }
+    assert rows[accepted.id].status is ClassificationStatus.APPLIED
+    assert rows[accepted.id].tags["accepted_by_user"] is True
+    assert rows[refused.id].status is ClassificationStatus.SUPERSEDED

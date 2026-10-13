@@ -38,7 +38,9 @@ async def create_ai_feedback(
     approval reads the draft, so it then honors the decision (#2419).
     """
     try:
-        await apply_suggestion_feedback(db, user_id, payload.suggestion_id, payload.action, payload.corrected_value)
+        effect = await apply_suggestion_feedback(
+            db, user_id, payload.suggestion_id, payload.action, payload.corrected_value
+        )
     except SuggestionCorrectionError as exc:
         raise_bad_request(str(exc), cause=exc)
     feedback = AiFeedback(
@@ -50,7 +52,9 @@ async def create_ai_feedback(
     db.add(feedback)
     await db.commit()
     await db.refresh(feedback)
-    return AiFeedbackResponse.model_validate(feedback)
+    response = AiFeedbackResponse.model_validate(feedback)
+    response.effect = effect
+    return response
 
 
 @router.get("/suggestions", response_model=AiSuggestionListResponse)
@@ -67,6 +71,8 @@ async def list_ai_suggestions(
         TransactionClassification.status == ClassificationStatus.DRAFT,
         TransactionClassification.confidence_score >= 60,
         TransactionClassification.confidence_score < 85,
+        # A corrected draft is decided. It is not pending.
+        func.coalesce(TransactionClassification.tags["corrected_by_user"].astext, "false") != "true",
     )
     reconciliation_filters = (
         ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW,

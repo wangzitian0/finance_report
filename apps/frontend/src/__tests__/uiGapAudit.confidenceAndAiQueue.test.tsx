@@ -138,9 +138,9 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
         ],
         total: 1,
       } as any)
-      .mockResolvedValueOnce({ id: "feedback-1" } as any)
-      .mockResolvedValueOnce({ id: "feedback-2" } as any)
-      .mockResolvedValueOnce({ id: "feedback-3" } as any);
+      .mockResolvedValueOnce({ id: "feedback-1", effect: "accepted" } as any)
+      .mockResolvedValueOnce({ id: "feedback-2", effect: "rejected" } as any)
+      .mockResolvedValueOnce({ id: "feedback-3", effect: "corrected" } as any);
 
     render(<AiSuggestionsPage />);
 
@@ -148,26 +148,28 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     const mobileCard = screen.getByTestId(
       "ai-suggestion-mobile-card-00000000-0000-0000-0000-000000000012",
     );
+    // One decision at a time: the buttons are locked while a request is in flight.
     fireEvent.click(within(mobileCard).getByRole("button", { name: "Accept" }));
+    await within(mobileCard).findByText(/^Accepted\./);
     fireEvent.click(within(mobileCard).getByRole("button", { name: "Reject" }));
+    await within(mobileCard).findByText(/^Rejected\./);
     fireEvent.change(within(mobileCard).getByLabelText("Corrected value"), {
       target: { value: "Expense - Transport" },
     });
     fireEvent.click(
       within(mobileCard).getByRole("button", { name: "Edit-then-Accept" }),
     );
+    await within(mobileCard).findByText(/^Corrected\./);
 
-    await waitFor(() =>
-      expect(mockedApiOperation).toHaveBeenCalledWith(
-        "create_ai_feedback_ai_feedback_post",
-        {
-          body: {
-            suggestion_id: "00000000-0000-0000-0000-000000000012",
-            action: "edit_accept",
-            corrected_value: { value: "Expense - Transport" },
-          },
+    expect(mockedApiOperation).toHaveBeenCalledWith(
+      "create_ai_feedback_ai_feedback_post",
+      {
+        body: {
+          suggestion_id: "00000000-0000-0000-0000-000000000012",
+          action: "edit_accept",
+          corrected_value: { value: "Expense - Transport" },
         },
-      ),
+      },
     );
   });
 
@@ -186,9 +188,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
         ],
         total: 1,
       } as any)
-      .mockResolvedValueOnce({ id: "feedback-accept" } as any)
-      .mockResolvedValueOnce({ id: "feedback-reject" } as any)
-      .mockResolvedValueOnce({ id: "feedback-edit" } as any);
+      .mockResolvedValueOnce({ id: "feedback-edit", effect: "corrected" } as any);
 
     render(<AiSuggestionsPage />);
 
@@ -203,8 +203,12 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     expect(
       within(mobileCard).getByLabelText("Corrected value"),
     ).toBeInTheDocument();
-    fireEvent.click(within(mobileCard).getByRole("button", { name: "Accept" }));
-    fireEvent.click(within(mobileCard).getByRole("button", { name: "Reject" }));
+    expect(
+      within(mobileCard).getByRole("button", { name: "Accept" }),
+    ).toBeEnabled();
+    expect(
+      within(mobileCard).getByRole("button", { name: "Reject" }),
+    ).toBeEnabled();
     fireEvent.change(within(mobileCard).getByLabelText("Corrected value"), {
       target: { value: "Expense - Transport" },
     });
@@ -227,7 +231,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
   });
 
   // AC-extraction.classification-hardening.6
-  it("AC-extraction.classification-hardening.6 — shows the saved decision and the server refusal", async () => {
+  it("AC-extraction.classification-hardening.6 — shows the effect that the server reports and the server refusal", async () => {
     const suggestion = {
       suggestion_id: "00000000-0000-0000-0000-000000000031",
       transaction: "CARD PURCHASE COFFEE",
@@ -237,7 +241,8 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     };
     mockedApiOperation
       .mockResolvedValueOnce({ items: [suggestion], total: 1 } as any)
-      .mockResolvedValueOnce({ id: "feedback-1" } as any)
+      .mockResolvedValueOnce({ id: "feedback-1", effect: "rejected" } as any)
+      .mockResolvedValueOnce({ id: "feedback-2", effect: "recorded" } as any)
       .mockRejectedValueOnce(
         new Error("The corrected value is not a category. Use one of: SALARY"),
       );
@@ -248,11 +253,21 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     const mobileCard = screen.getByTestId(
       "ai-suggestion-mobile-card-00000000-0000-0000-0000-000000000031",
     );
-    fireEvent.click(within(mobileCard).getByRole("button", { name: "Reject" }));
+    // The live region exists before any decision, so a screen reader announces the first one.
+    expect(within(mobileCard).getByRole("status")).toBeEmptyDOMElement();
 
-    expect(
-      await within(mobileCard).findByRole("status"),
-    ).toHaveTextContent("Rejected. The approval uses the default category.");
+    fireEvent.click(within(mobileCard).getByRole("button", { name: "Reject" }));
+    expect(await within(mobileCard).findByRole("status")).toHaveTextContent(
+      "Rejected. The approval uses the default category.",
+    );
+
+    // The server answers "recorded" when the draft is gone. The label must not claim an effect.
+    fireEvent.click(within(mobileCard).getByRole("button", { name: "Accept" }));
+    await waitFor(() =>
+      expect(within(mobileCard).getByRole("status")).toHaveTextContent(
+        "Feedback saved. It did not change the suggestion.",
+      ),
+    );
 
     fireEvent.change(within(mobileCard).getByLabelText("Corrected value"), {
       target: { value: "Food & Dining" },
@@ -261,11 +276,50 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       within(mobileCard).getByRole("button", { name: "Edit-then-Accept" }),
     );
 
+    expect(await within(mobileCard).findByRole("alert")).toHaveTextContent(
+      "The corrected value is not a category. Use one of: SALARY",
+    );
+  });
+
+  it("AC-extraction.classification-hardening.6 — locks the buttons of a row while its request is in flight", async () => {
+    const suggestion = {
+      suggestion_id: "00000000-0000-0000-0000-000000000032",
+      transaction: "SLOW REQUEST",
+      suggested_category_or_match: "DINING",
+      ai_score: 72,
+      ai_reasoning: "Merchant name indicates dining.",
+    };
+    let finish: (value: unknown) => void = () => {};
+    mockedApiOperation
+      .mockResolvedValueOnce({ items: [suggestion], total: 1 } as any)
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve;
+        }) as any,
+      );
+
+    render(<AiSuggestionsPage />);
+
+    await screen.findAllByText("SLOW REQUEST");
+    const mobileCard = screen.getByTestId(
+      "ai-suggestion-mobile-card-00000000-0000-0000-0000-000000000032",
+    );
+    fireEvent.click(within(mobileCard).getByRole("button", { name: "Reject" }));
+
     expect(
-      await screen.findByText(
-        "The corrected value is not a category. Use one of: SALARY",
-      ),
+      await within(mobileCard).findByText("Saving..."),
     ).toBeInTheDocument();
+    for (const name of ["Accept", "Reject", "Edit-then-Accept"]) {
+      expect(within(mobileCard).getByRole("button", { name })).toBeDisabled();
+    }
+    fireEvent.click(within(mobileCard).getByRole("button", { name: "Reject" }));
+    expect(mockedApiOperation).toHaveBeenCalledTimes(2);
+
+    finish({ id: "feedback-1", effect: "rejected" });
+    await within(mobileCard).findByText(/^Rejected\./);
+    expect(
+      within(mobileCard).getByRole("button", { name: "Accept" }),
+    ).toBeEnabled();
   });
 
   it("test_AC8_13_48 — AI suggestions page renders load errors", async () => {

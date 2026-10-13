@@ -17,6 +17,7 @@ discard a user's already-reviewed economic meaning.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from collections import Counter
@@ -28,12 +29,15 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 import src.config
 from src.extraction.base.source_vocabulary import ClassificationStatus, RuleType, TransactionDirection
 from src.extraction.extension.classification import ClassificationService
+from src.extraction.extension.correction_service import invalidate_correction_cache
+from src.extraction.orm.correction import CorrectionLog
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import Account, AccountType
@@ -267,9 +271,26 @@ def _recover_json_array(content: str) -> list | None:
 #: Rows per model call. A long statement in one prompt makes the answer drift out of order.
 CLASSIFICATION_BATCH_SIZE = 50
 
+#: Model calls in flight at one time for one statement. Batches are independent, so a long statement
+#: does not wait for its batches one by one.
+CLASSIFICATION_PARALLEL_BATCHES = 4
+
 #: The user whose provider the next model call uses. ``classify_transactions`` sets it, so the
 #: ``Proposer`` signature stays ``(transactions, policy)`` (#2419).
 _CLASSIFICATION_USER: ContextVar[UUID | None] = ContextVar("classification_user", default=None)
+
+
+def _item_index(value: object) -> int | None:
+    """Read the index that the model echoed: an integer, an integral float or a string of digits."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str) and value.isascii() and value.isdigit():
+        return int(value)
+    return None
 
 
 def _align_indexed_items(parsed: object, count: int) -> list[dict | None]:
@@ -286,8 +307,8 @@ def _align_indexed_items(parsed: object, count: int) -> list[dict | None]:
     for item in parsed:
         if not isinstance(item, dict) or "index" not in item:
             continue
-        index = item["index"]
-        if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < count or index in by_index:
+        index = _item_index(item["index"])
+        if index is None or not 0 <= index < count or index in by_index:
             return none
         by_index[index] = item
     return [by_index.get(i) for i in range(count)]
@@ -302,7 +323,8 @@ def _proposal_from_item(item: object) -> CategoryProposal | None:
             confidence=max(0, min(100, int(item.get("confidence", 0)))),
             reason=str(item.get("reason", ""))[:500],
         )
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, OverflowError):
+        # OverflowError: the JSON reader accepts the literal Infinity, and int() cannot convert it.
         return None
 
 
@@ -324,11 +346,18 @@ async def propose_categories(
     owner = user_id if user_id is not None else _CLASSIFICATION_USER.get()
     if policy.version == 1:
         return await _propose_batch(transactions, policy, owner, indexed=False)
-    proposals: list[CategoryProposal | None] = []
-    for start in range(0, len(transactions), CLASSIFICATION_BATCH_SIZE):
-        batch = transactions[start : start + CLASSIFICATION_BATCH_SIZE]
-        proposals.extend(await _propose_batch(batch, policy, owner, indexed=True))
-    return proposals
+    batches = [
+        transactions[start : start + CLASSIFICATION_BATCH_SIZE]
+        for start in range(0, len(transactions), CLASSIFICATION_BATCH_SIZE)
+    ]
+    slots = asyncio.Semaphore(CLASSIFICATION_PARALLEL_BATCHES)
+
+    async def run(batch: Sequence[AtomicTransaction]) -> list[CategoryProposal | None]:
+        async with slots:
+            return await _propose_batch(batch, policy, owner, indexed=True)
+
+    answers = await asyncio.gather(*(run(batch) for batch in batches))
+    return [proposal for answer in answers for proposal in answer]
 
 
 async def _propose_batch(
@@ -490,13 +519,27 @@ def summarize_outcomes(outcomes: Sequence[ClassificationOutcome]) -> dict:
 async def _supersede_older_model_rows(
     db: AsyncSession, user_id: UUID, txn_ids: Sequence[UUID], current_version: int
 ) -> None:
-    """Mark the model rows of an older policy version superseded for rows that got a newer one (#2419).
+    """Retire the model rows of older policy versions for rows that have a live row of the current version (#2419).
 
-    Posting reads applied rows of any version, so an older applied row would otherwise beat a
-    newer result for the same transaction.
+    Posting reads applied rows of any version, so an older applied row would otherwise beat the newer
+    result for the same transaction. The older row points to its successor. A row that a user
+    corrected stays, because a later model pass does not undo a user decision.
     """
     if not txn_ids:
         return
+    newer = aliased(TransactionClassification)
+    newer_rule = aliased(ClassificationRule)
+    successor = (
+        select(newer.id)
+        .join(newer_rule, newer.rule_version_id == newer_rule.id)
+        .where(newer.atomic_txn_id == TransactionClassification.atomic_txn_id)
+        .where(newer_rule.user_id == user_id)
+        .where(newer_rule.rule_name == POLICY_RULE_NAME)
+        .where(newer_rule.version_number == current_version)
+        .where(newer.status.in_((ClassificationStatus.APPLIED, ClassificationStatus.DRAFT)))
+        .limit(1)
+        .scalar_subquery()
+    )
     older_rules = (
         select(ClassificationRule.id)
         .where(ClassificationRule.user_id == user_id)
@@ -508,9 +551,30 @@ async def _supersede_older_model_rows(
         .where(TransactionClassification.atomic_txn_id.in_(list(txn_ids)))
         .where(TransactionClassification.rule_version_id.in_(older_rules))
         .where(TransactionClassification.status.in_((ClassificationStatus.APPLIED, ClassificationStatus.DRAFT)))
-        .values(status=ClassificationStatus.SUPERSEDED)
+        .where(func.coalesce(TransactionClassification.tags["corrected_by_user"].astext, "false") != "true")
+        .where(successor.is_not(None))
+        .values(status=ClassificationStatus.SUPERSEDED, superseded_by_id=successor)
         .execution_options(synchronize_session="fetch")
     )
+
+
+async def _user_decided_txn_ids(db: AsyncSession, user_id: UUID, txn_ids: Sequence[UUID]) -> set[UUID]:
+    """Transactions on which the user rejected or corrected a model row, under any policy version (#2419)."""
+    if not txn_ids:
+        return set()
+    decided = or_(
+        TransactionClassification.tags["corrected_by_user"].astext == "true",
+        TransactionClassification.tags["rejected_by_user"].astext == "true",
+    )
+    rows = await db.execute(
+        select(TransactionClassification.atomic_txn_id)
+        .join(ClassificationRule, TransactionClassification.rule_version_id == ClassificationRule.id)
+        .where(ClassificationRule.user_id == user_id)
+        .where(ClassificationRule.rule_name == POLICY_RULE_NAME)
+        .where(TransactionClassification.atomic_txn_id.in_(list(txn_ids)))
+        .where(decided)
+    )
+    return set(rows.scalars().all())
 
 
 async def classify_transactions(
@@ -621,6 +685,9 @@ async def classify_transactions(
                 .scalars()
                 .all()
             }
+    if commit_basis:
+        # A decision of the user outlives a later model pass, whatever its policy version (#2419).
+        already_classified |= await _user_decided_txn_ids(db, user_id, [txn.id for txn in transactions])
     proposal_by_txn = dict(zip(remaining, proposals))
     category_account_cache: dict[tuple[TransactionCategory, str], Account] = {}
     new_row_txn_ids: list[UUID] = []
@@ -726,7 +793,9 @@ async def classify_transactions(
         )
 
     if commit_basis:
-        await _supersede_older_model_rows(db, user_id, new_row_txn_ids, policy.version)
+        # A row that already had its current-version row can still hold an older row from an earlier release.
+        sweep_ids = set(new_row_txn_ids) | {txn.id for txn in transactions if txn.id in already_classified}
+        await _supersede_older_model_rows(db, user_id, sorted(sweep_ids), policy.version)
         await db.flush()
 
     logger.info(
@@ -749,6 +818,7 @@ class ClassificationSuggestion(BaseModel):
     account_id: UUID | None
     applied: bool
     corrected: bool = False
+    classification_id: UUID | None = None
 
     @property
     def non_pnl(self) -> bool:
@@ -785,6 +855,7 @@ async def classification_suggestions(db: AsyncSession, txn_ids: Sequence[UUID]) 
             account_id=row.account_id,
             applied=row.status is ClassificationStatus.APPLIED,
             corrected=tags.get("corrected_by_user") is True,
+            classification_id=row.id,
         )
     return suggestions
 
@@ -830,20 +901,47 @@ def parse_corrected_category(corrected_value: dict | None) -> TransactionCategor
     return category
 
 
+FeedbackEffect = Literal["accepted", "rejected", "corrected", "recorded"]
+
+
+async def _retire_model_rows(db: AsyncSession, user_id: UUID, txn_id: UUID, *, keep: UUID) -> None:
+    """Supersede every other live model row of one transaction, whatever its policy version."""
+    policy_rules = (
+        select(ClassificationRule.id)
+        .where(ClassificationRule.user_id == user_id)
+        .where(ClassificationRule.rule_name == POLICY_RULE_NAME)
+    )
+    await db.execute(
+        update(TransactionClassification)
+        .where(TransactionClassification.atomic_txn_id == txn_id)
+        .where(TransactionClassification.id != keep)
+        .where(TransactionClassification.rule_version_id.in_(policy_rules))
+        .where(TransactionClassification.status.in_((ClassificationStatus.APPLIED, ClassificationStatus.DRAFT)))
+        .values(status=ClassificationStatus.SUPERSEDED)
+        .execution_options(synchronize_session="fetch")
+    )
+
+
 async def apply_suggestion_feedback(
     db: AsyncSession,
     user_id: UUID,
     suggestion_id: UUID,
     action: str,
     corrected_value: dict | None,
-) -> bool:
-    """Apply the decision of a user to a draft AI classification. Return True when the draft changed (#2419).
+) -> FeedbackEffect:
+    """Apply the decision of a user to a draft AI classification and return what happened (#2419).
 
     The one-click approval reads the draft, so the decision must change the draft itself.
-    ``reject`` supersedes the draft. ``edit_accept`` replaces its category and account with the
-    category that the user named. ``accept`` changes nothing: the draft stays for the approval.
-    An id that is unknown, belongs to another user or is no longer a draft changes nothing, and
-    the answer does not tell these cases apart.
+
+    - ``reject`` supersedes the draft and every other live model row of the transaction, and marks
+      the draft as rejected by the user. A later model pass does not bring the suggestion back.
+    - ``edit_accept`` replaces the category and the account of the draft with the category that the
+      user named, keeps the first original category, marks the draft as corrected by the user, and
+      appends the change to the correction log.
+    - ``accept`` changes nothing: the draft stays for the approval.
+
+    An id that is unknown, belongs to another user or is no longer a draft changes nothing. The answer
+    is ``recorded`` for all of these, so it does not tell them apart.
     """
     row = (
         await db.execute(
@@ -856,14 +954,17 @@ async def apply_suggestion_feedback(
         )
     ).first()
     if row is None:
-        return False
+        return "recorded"
     classification, txn = row
+    previous = classification.tags if isinstance(classification.tags, dict) else {}
     if action == "reject":
+        classification.tags = {**previous, "rejected_by_user": True}
         classification.status = ClassificationStatus.SUPERSEDED
+        await _retire_model_rows(db, user_id, txn.id, keep=classification.id)
         await db.flush()
-        return True
+        return "rejected"
     if action != "edit_accept":
-        return False
+        return "accepted"
 
     category = parse_corrected_category(corrected_value)
     if not category_fits_direction(category, txn.direction):
@@ -873,16 +974,55 @@ async def apply_suggestion_feedback(
     account_id = None
     if category in CATEGORY_ACCOUNTS:
         account_id = (await _resolve_category_account(db, user_id, category, txn.currency)).id
-    previous = classification.tags if isinstance(classification.tags, dict) else {}
+    if previous.get("category") != category.value:
+        db.add(
+            CorrectionLog(
+                user_id=user_id,
+                transaction_id=txn.id,
+                original_category=previous.get("category"),
+                corrected_category=category.value,
+                original_account_id=classification.account_id,
+                corrected_account_id=account_id,
+                transaction_description=txn.description,
+            )
+        )
+        invalidate_correction_cache(user_id)
     classification.tags = {
         **previous,
         "category": category.value,
-        "original_category": previous.get("category"),
+        "original_category": previous.get("original_category", previous.get("category")),
         "corrected_by_user": True,
     }
     classification.account_id = account_id
     await db.flush()
-    return True
+    return "corrected"
+
+
+async def settle_drafts_after_posting(db: AsyncSession, txn_id: UUID, *, accepted_id: UUID | None) -> None:
+    """Close the live drafts of a transaction that an approval of the user just posted (#2415).
+
+    The draft that the approval used becomes applied and records the acceptance. Every other live draft is
+    superseded. Neither stays in the pending list, and a later decision cannot edit a posted row.
+    """
+    drafts = (
+        (
+            await db.execute(
+                select(TransactionClassification)
+                .where(TransactionClassification.atomic_txn_id == txn_id)
+                .where(TransactionClassification.status == ClassificationStatus.DRAFT)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for draft in drafts:
+        if draft.id == accepted_id:
+            draft.status = ClassificationStatus.APPLIED
+            draft.tags = {**(draft.tags if isinstance(draft.tags, dict) else {}), "accepted_by_user": True}
+        else:
+            draft.status = ClassificationStatus.SUPERSEDED
+    if drafts:
+        await db.flush()
 
 
 async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:

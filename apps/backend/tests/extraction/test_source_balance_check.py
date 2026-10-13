@@ -158,3 +158,14 @@ def test_AC_extraction_closing_balance_source_3_a_zero_closing_balance_cannot_be
     """AC-extraction.closing-balance-source.3: a zero balance prints as a word or a dash. The text says nothing."""
     text = _statement_text_with_closing_line(printed)
     assert _verdict(text, "0.00") is SourceBalanceVerdict.TEXT_UNUSABLE
+
+
+def test_AC_extraction_closing_balance_source_3_a_part_of_a_spaced_number_can_still_verify():
+    """AC-extraction.closing-balance-source.3: known limit of the superset design, kept on purpose.
+
+    A run such as "4 837.55" yields 4837.55 and also its parts, because "85.40 4837.55" holds two numbers.
+    The check therefore fails open for a closing balance that equals a part of a spaced number. The other
+    direction, a false flag on a good statement, costs more automation than this limit costs safety.
+    """
+    text = _statement_text_with_closing_line("Closing Balance 4\u2009837.55")
+    assert _verdict(text, "837.55") is SourceBalanceVerdict.VERIFIED

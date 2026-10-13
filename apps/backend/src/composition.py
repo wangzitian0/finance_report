@@ -45,10 +45,12 @@ from src.extraction import (
     StatementPostingDependencies,
     StatementSummary,
     TransactionDirection,
+    applied_rows_the_policy_accepts,
     build_statement_ingestion_use_case,
     classification_suggestions,
     effective_statement_transaction_filter,
     extraction_trace_policy_registry,
+    settle_drafts_after_posting,
     snapshot_currencies,
 )
 from src.ledger import (
@@ -264,18 +266,20 @@ async def auto_fill_default_statement_dispositions(
     resolved_count = 0
     accounts_cache: dict[tuple[AccountType, str], Account] = {}
     suggestions = await classification_suggestions(db, [txn.id for txn in unmatched_txns])
+    # The posting that follows posts these rows from their applied classification (85 or more, or a
+    # reviewed rule). The disposition policy decides, as in the posting itself. An applied row that the
+    # policy refuses falls through to the default below, because the posting cannot clear such a row (#2419).
+    left_to_posting = await applied_rows_the_policy_accepts(
+        db, unmatched_txns, mode=DispositionMode(settings.statement_disposition_mode)
+    )
 
     for txn in unmatched_txns:
+        if txn.id in left_to_posting:
+            continue
         suggestion = suggestions.get(txn.id)
         if suggestion is not None and suggestion.non_pnl:
             continue
         accepted = await _accepted_suggestion_for(db, user_id, txn, suggestion)
-        if accepted is not None and suggestion is not None and suggestion.applied:
-            # The classifier applied this row (85 or more, or a reviewed rule) and the policy accepts
-            # its account. The normal posting that follows posts it under the full disposition policy.
-            # An applied row that the policy would refuse falls through to the default below, because
-            # the posting cannot clear such a row (#2419).
-            continue
         if accepted is not None:
             intent, counter_account, category, rationale = accepted
             await submit_reviewed_disposition(
@@ -289,6 +293,9 @@ async def auto_fill_default_statement_dispositions(
                     rationale=rationale,
                 ),
                 dependencies=dependencies,
+            )
+            await settle_drafts_after_posting(
+                db, txn.id, accepted_id=suggestion.classification_id if suggestion else None
             )
             resolved_count += 1
             continue
@@ -323,6 +330,7 @@ async def auto_fill_default_statement_dispositions(
             ),
             dependencies=dependencies,
         )
+        await settle_drafts_after_posting(db, txn.id, accepted_id=None)
         resolved_count += 1
 
     return resolved_count
