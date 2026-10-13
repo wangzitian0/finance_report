@@ -6,7 +6,7 @@
     {"id": "U2", "title": "The live provider parses the statement and its rows equal the independent fixture"},
     {"id": "U3", "title": "Stage 1 auto-accepts a clean source and sends a broken source to review", "gap": "#2370"},
     {"id": "U4", "title": "The user reviews and approves the source through browser actions"},
-    {"id": "U5", "title": "The user records the opening balance through the browser", "gap": "#2370"},
+    {"id": "U5", "title": "The user records the opening balance through the browser"},
     {"id": "U6", "title": "Each accepted source transaction has exactly one posted ledger effect"},
     {"id": "U7", "title": "A transfer between two accounts clears through the Processing account", "gap": "#2370"},
     {"id": "U8", "title": "Report totals equal the independent Decimal oracle"},
@@ -26,6 +26,11 @@
       "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances",
       "file": "tests/e2e/test_institution_statement_journeys.py",
       "reaches": ["U12", "U1", "U2", "U6", "U8", "U11", "U10"]
+    },
+    {
+      "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser",
+      "file": "tests/e2e/test_opening_balance_browser_journey.py",
+      "reaches": ["U12", "U5"]
     }
   ]
 }
