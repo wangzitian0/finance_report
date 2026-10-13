@@ -24,6 +24,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -59,6 +60,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url || steps['deployment-retry'].outputs.page_url || steps['deployment-retry-2'].outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: build
     steps:
       # Pages rejects a new deployment while the previous one is still
