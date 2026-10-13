@@ -136,8 +136,11 @@ async def test_gxs_browser_upload_to_saved_package(
             "The independent generated GXS fixture declares this economic meaning."
         )
         if intent not in created_account_types:
+            # AI classification is on by default (#2405). The classifier then creates its own
+            # category accounts, and the empty-state button "Create counter account" does not
+            # render. The link "+ Create counter account" renders for every intent.
             await page.get_by_role(
-                "button", name="Create counter account", exact=True
+                "button", name="+ Create counter account", exact=True
             ).click()
             account_dialog = page.get_by_role("dialog", name="New Account", exact=True)
             await expect(
