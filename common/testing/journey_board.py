@@ -688,9 +688,6 @@ def render_fragment(index: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-RELEASE_LANES = ("canary", "core_journey", "audit_replay")
-
-
 def _age_days(completed_at: str, now: datetime) -> float | None:
     try:
         at = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
@@ -706,11 +703,14 @@ def render_release_row(
     sha: str | None,
     version_ref: str,
     now: datetime,
+    board_available: bool = True,
 ) -> str:
     """Markdown board row for one release, for the approving owner (#2370).
 
     It shows every lane for the exact release SHA and the age of the newest
-    audit replay. It blocks nothing. A missing record shows as missing.
+    audit replay. It blocks nothing. A missing record shows as missing; a
+    board that could not be read shows as unavailable, never as missing
+    evidence.
     """
     lines = [
         f"### Core journey board: {version_ref} ({sha[:8] if sha else 'unresolved'})",
@@ -719,8 +719,14 @@ def render_release_row(
     if not sha:
         lines.append("Board unavailable: the release SHA could not be resolved.")
         return "\n".join(lines)
+    if not board_available:
+        lines.append(
+            "Board unavailable: no board records could be read from gh-pages. "
+            "This is not evidence about the release."
+        )
+        return "\n".join(lines)
     lines += ["| Lane | Status | Completed | Tests | Run |", "|---|---|---|---|---|"]
-    for lane in RELEASE_LANES:
+    for lane in LANES:
         record = next(
             (r for r in records if r["lane"] == lane and r["tested_sha"] == sha), None
         )
@@ -736,7 +742,13 @@ def render_release_row(
         )
     combined = combine_for_sha(records, sha)
     lines += ["", "| Checkpoint | Status |", "|---|---|"]
-    for checkpoint in checkpoint_map.checkpoints:
+    # A checkpoint that a record holds but the current map dropped still shows.
+    known = {checkpoint.id for checkpoint in checkpoint_map.checkpoints}
+    extra = [
+        Checkpoint(checkpoint_id, "(not in the current checkpoint map)")
+        for checkpoint_id in sorted(set(combined) - known)
+    ]
+    for checkpoint in [*checkpoint_map.checkpoints, *extra]:
         cell = combined.get(checkpoint.id)
         if cell is None:
             label = (
@@ -756,7 +768,7 @@ def render_release_row(
         stale = age is not None and age > AUDIT_REPLAY_STALE_DAYS
         age_text = "unknown age" if age is None else f"{age:.1f} days old"
         lines.append(
-            f"Newest audit replay: {replay['status']} on {(replay['tested_sha'] or 'unknown')[:8]}, "
+            f"Newest audit replay: {_lane_label(replay)} on {(replay['tested_sha'] or 'unknown')[:8]}, "
             f"{age_text}{' (STALE)' if stale else ''}."
         )
     lines += ["", "The board blocks nothing. Read it before you approve this release."]
@@ -844,19 +856,16 @@ def _cmd_build_index(args: argparse.Namespace) -> int:
 
 def _cmd_release_row(args: argparse.Namespace) -> int:
     try:
-        records = (
-            load_records(args.board_dir)
-            if (args.board_dir / "records").is_dir()
-            else []
-        )
+        available = (args.board_dir / "records").is_dir()
         text = render_release_row(
-            records,
+            load_records(args.board_dir) if available else [],
             load_checkpoint_map(),
-            sha=args.sha or None,
+            sha=_valid_sha(args.sha),
             version_ref=args.version_ref,
             now=datetime.now(UTC),
+            board_available=available,
         )
-    except (OSError, ValueError, KeyError) as error:
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         # The release row never fails a release; it reports what it could not read.
         text = (
             f"### Core journey board: {args.version_ref}\n\nBoard unavailable: {error}"

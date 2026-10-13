@@ -856,6 +856,58 @@ def test_AC_testing_journey_board_8_release_shows_the_row_and_true_canary_eviden
     assert "| core_journey | NO RECORD for this revision |" in row
     assert "| U3 route | not-covered #2370 |" in row
     assert "11.0 days old (STALE)" in row
+    # The newest audit replay line uses the evidence rule too (no green while empty).
+    empty_replay = dict(
+        replay,
+        status="passed",
+        junit=False,
+        counts={"total": 0, "passed": 0, "failed": 0, "skipped": 0},
+    )
+    replay_row = board.render_release_row(
+        [canary, empty_replay],
+        MAP,
+        sha=sha,
+        version_ref="v9.9.9",
+        now=datetime(2026, 10, 2, tzinfo=UTC),
+    )
+    assert "Newest audit replay: passed (no test evidence) on" in replay_row
+    assert "1.0 days old." in replay_row and "STALE" not in replay_row, (
+        "a fresh replay is not stale"
+    )
+    # Every lane shows, the manual "all" lane included.
+    all_lane = dict(canary, lane="all", status="regression-failed")
+    assert "| all | regression-failed |" in board.render_release_row(
+        [canary, all_lane],
+        MAP,
+        sha=sha,
+        version_ref="v9.9.9",
+        now=datetime(2026, 10, 12, tzinfo=UTC),
+    )
+    # A checkpoint that the record holds but the map dropped still shows.
+    dropped = dict(
+        canary, checkpoints={**canary["checkpoints"], "U99": {"status": "failed"}}
+    )
+    assert (
+        "| U99 (not in the current checkpoint map) | failed |"
+        in board.render_release_row(
+            [dropped],
+            MAP,
+            sha=sha,
+            version_ref="v9.9.9",
+            now=datetime(2026, 10, 12, tzinfo=UTC),
+        )
+    )
+    # An unreadable board is not missing evidence.
+    outage = board.render_release_row(
+        [],
+        MAP,
+        sha=sha,
+        version_ref="v9.9.9",
+        now=datetime(2026, 10, 12, tzinfo=UTC),
+        board_available=False,
+    )
+    assert "Board unavailable: no board records could be read" in outage
+    assert "NO RECORD" not in outage
     unresolved = board.render_release_row(
         [], MAP, sha=None, version_ref="v9.9.9", now=datetime.now(UTC)
     )
@@ -928,8 +980,56 @@ def test_AC_testing_journey_board_8_release_shows_the_row_and_true_canary_eviden
     assert "Staging AI/OCR Gate / Staging AI/OCR Gate concluded failure" in printed
     assert "concluded skipped" not in printed
 
+    # The CLI never fails a release: a malformed record or a non-SHA argument
+    # still prints a row and exits 0.
+    bad = tmp_path / "bad-board"
+    (bad / "records" / "x").mkdir(parents=True)
+    (bad / "records" / "x" / "r.json").write_text("[]")
+    assert (
+        board.main(
+            [
+                "release-row",
+                "--board-dir",
+                str(bad),
+                "--sha",
+                sha,
+                "--version-ref",
+                "v9.9.9",
+            ]
+        )
+        == 0
+    )
+    assert "Board unavailable" in capsys.readouterr().out
+    assert (
+        board.main(
+            [
+                "release-row",
+                "--board-dir",
+                str(tmp_path / "no-board"),
+                "--sha",
+                "v9.9.9^{commit}",
+                "--version-ref",
+                "v9.9.9",
+            ]
+        )
+        == 0
+    )
+    assert "the release SHA could not be resolved" in capsys.readouterr().out
+
     release = yaml.safe_load((WORKFLOWS / "release.yml").read_text())
     board_job = release["jobs"]["journey-board"]
+    row_step = next(step for step in board_job["steps"] if step.get("id") == "row")
+    assert (
+        'git rev-parse --verify --quiet "refs/tags/${VERSION_REF}^{commit}"'
+        in row_step["run"]
+    )
+    assert board_job["outputs"]["sha"] == "${{ steps.row.outputs.sha }}"
+    warn = next(
+        step
+        for step in release["jobs"]["deploy"]["steps"]
+        if step["name"] == "Warn when the board row described another commit"
+    )
+    assert "exit 1" not in warn["run"] and "::warning::" in warn["run"]
     assert board_job["permissions"] == {"contents": "read"}
     assert "environment" not in board_job
     assert release["jobs"]["deploy"]["needs"] == ["journey-board"]

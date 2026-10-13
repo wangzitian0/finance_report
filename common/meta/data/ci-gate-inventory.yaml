@@ -535,7 +535,7 @@ gates:
     inputs: [version_ref, journey_board_records]
     outputs: [journey_board_release_row]
     artifacts: []
-    failure_semantics: The core-journey board row of this release could not be shown before the approval prompt. It never fails; deploy runs on !cancelled() whatever its result (#2370).
+    failure_semantics: The core-journey board row of this release could not be shown before the approval prompt. Its result never blocks the deploy; deploy runs on !cancelled() whatever the result, and a tag moved during the approval wait only warns (#2370).
     action: keep
   - id: production_release.dry_run
     stage: prod.release_integrity
