@@ -132,8 +132,8 @@
     }
   },
   "counts": {
-    "failed": 1,
-    "passed": 0,
+    "failed": 0,
+    "passed": 1,
     "skipped": 0,
     "total": 1
   },
@@ -142,7 +142,7 @@
   "lane": "canary",
   "map_note": null,
   "reason": null,
-  "recorded_at": "2026-10-13T03:40:12+00:00",
+  "recorded_at": "2026-10-13T04:04:16+00:00",
   "run": {
     "attempt": 2,
     "completed_at": "2026-10-13T03:37:38Z",
@@ -153,13 +153,13 @@
     "workflow": ".github/workflows/deploy.yml"
   },
   "schema": 1,
-  "status": "regression-failed",
+  "status": "passed",
   "tested_sha": "11e25f50c999f098fb9b120593efd1a1648d9cdf",
   "tests": [
     {
-      "failure_class": "extraction",
-      "outcome": "failed",
-      "seconds": 309.32,
+      "failure_class": null,
+      "outcome": "passed",
+      "seconds": 57.6,
       "test": "test_brokerage_upload_to_portfolio_value::test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_portfolio_value"
     }
   ]
