@@ -15,9 +15,11 @@ to 0.001. A gap above 0.10 makes the parser extract the document again, and a ne
 extraction can read a corrected closing balance. That outcome varies from run to
 run. A gap of 0.05 is never extracted again, so it always reaches Stage 1.
 
-Why both documents print total credits and total debits: without them, the model
-sometimes changed one row amount (1.50 became 1.55) to make the figures add up, and
-the product then approved the broken statement. The printed totals pin every row.
+Why both documents print total credits and total debits, and print the closing
+balance twice: without them, the model sometimes changed one row amount (1.50 became
+1.55), or replaced the closing balance with the computed one, to make the figures add
+up. The product then approved the broken statement (#2394). The printed totals pin
+every row. The second closing balance pins the closing figure.
 
 Auto-posting needs economic meaning for every transaction. The product default is
 off. The test sets the user's own ``enable_ai_classification`` setting, as the
@@ -144,6 +146,11 @@ def _render_statement_pdf(
         ),
         Spacer(1, 12),
         Paragraph(
+            f"Statement Summary: Opening Balance {CURRENCY} {OPENING_BALANCE:,.2f}, "
+            f"Closing Balance {CURRENCY} {closing_balance:,.2f}",
+            styles["Normal"],
+        ),
+        Paragraph(
             f"Opening Balance: {CURRENCY} {OPENING_BALANCE:,.2f}", styles["Normal"]
         ),
         Spacer(1, 12),
@@ -254,9 +261,9 @@ async def _wait_for_auto_accept(
                 return statement, posted
         await asyncio.sleep(POLL_SECONDS)
     pytest.fail(
-        "clean statement did not settle as approved with every entry posted within "
-        f"{PARSING_TIMEOUT_MS}ms: status={statement.get('status')} "
-        f"posted_entries={len(posted)}"
+        f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms "
+        "(clean statement: approved with every entry posted): "
+        f"status={statement.get('status')} posted_entries={len(posted)}"
     )
 
 
@@ -270,9 +277,49 @@ async def _wait_for_parse_end(client: httpx.AsyncClient, statement_id: str) -> d
             return statement
         await asyncio.sleep(POLL_SECONDS)
     pytest.fail(
-        f"broken statement stayed in parsing for {PARSING_TIMEOUT_MS}ms: "
-        f"status={statement.get('status')}"
+        f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms "
+        f"(broken statement): status={statement.get('status')}"
     )
+
+
+def _statement_rows(statement: dict) -> list[tuple]:
+    return sorted(
+        (t["txn_date"], Decimal(str(t["amount"])), t["direction"], t["currency"])
+        for t in statement["transactions"]
+    )
+
+
+def _fixture_rows() -> list[tuple]:
+    return sorted(
+        (row.txn_date.isoformat(), row.amount, row.direction, CURRENCY)
+        for row in FIXTURE_ROWS
+    )
+
+
+@dataclass(frozen=True)
+class RecordedRequest:
+    method: str
+    path: str
+
+
+def _recording_hook(requests: list[RecordedRequest]):
+    async def record(request: httpx.Request) -> None:
+        requests.append(RecordedRequest(request.method, request.url.path))
+
+    return record
+
+
+def _review_action_requests(requests: list[RecordedRequest]) -> list[RecordedRequest]:
+    """Requests that act as a person: any approve call, or a write to a review path."""
+    return [
+        request
+        for request in requests
+        if "/review/approve" in request.path
+        or (
+            request.method != "GET"
+            and ("/review/" in request.path or "reviewed-disposition" in request.path)
+        )
+    ]
 
 
 def _bank_side_lines(entries: list[dict], account_id: str) -> Counter:
@@ -293,8 +340,6 @@ def _bank_side_lines(entries: list[dict], account_id: str) -> Counter:
     source_classes=["bank_statement"],
     mirror_proof_id="extraction-corpus-journeys-pr",
     issue="#2392",
-    # No "llm" here on purpose. The audit-replay corpus is at its 110-minute budget.
-    # This proof runs in the core-journey lane through the checkpoint map.
     required_markers=["e2e", "tier3", "critical", "llm"],
 )
 @pytest.mark.e2e
@@ -319,8 +364,12 @@ async def test_stage1_accepts_clean_source_and_reviews_broken_source(
     record_property("expected_commit", expected_commit)
 
     headers = await _auth_headers(authenticated_page_unique)
+    sent_requests: list[RecordedRequest] = []
     async with httpx.AsyncClient(
-        headers=headers, verify=False, timeout=120.0
+        headers=headers,
+        verify=False,
+        timeout=120.0,
+        event_hooks={"request": [_recording_hook(sent_requests)]},
     ) as client:
         health = await client.get(_api_url("/health"))
         assert health.status_code == 200
@@ -361,13 +410,9 @@ async def test_stage1_accepts_clean_source_and_reviews_broken_source(
         assert clean["currency"] == CURRENCY
         assert clean["period_start"] == PERIOD_START.isoformat()
         assert clean["period_end"] == PERIOD_END.isoformat()
-        assert sorted(
-            (t["txn_date"], Decimal(str(t["amount"])), t["direction"], t["currency"])
-            for t in clean["transactions"]
-        ) == sorted(
-            (row.txn_date.isoformat(), row.amount, row.direction, CURRENCY)
-            for row in FIXTURE_ROWS
-        ), "the extracted transactions must equal the fixture rows"
+        assert _statement_rows(clean) == _fixture_rows(), (
+            "the extracted transactions must equal the fixture rows"
+        )
         assert len(posted) == len(FIXTURE_ROWS)
         assert {entry["source_id"] for entry in posted} == {
             transaction["id"] for transaction in clean["transactions"]
@@ -391,8 +436,11 @@ async def test_stage1_accepts_clean_source_and_reviews_broken_source(
         )
         record_property("clean_statement_id", clean_id)
         record_property("clean_confidence_score", clean["confidence_score"])
-        record_property("required_statement_approvals", 0)
-        record_property("statement_approval_api_attempts", 0)
+        review_actions = _review_action_requests(sent_requests)
+        assert review_actions == [], (
+            f"the test must not approve or review the clean statement: {review_actions}"
+        )
+        record_property("statement_approval_api_attempts", len(review_actions))
 
         # Path 2: the broken source. Its printed closing balance is 0.05 too high.
         broken_pdf = _render_statement_pdf(
@@ -407,15 +455,18 @@ async def test_stage1_accepts_clean_source_and_reviews_broken_source(
 
         assert reviewed["status"] == "parsed", (
             "broken statement was not sent to review: "
-            f"status={reviewed['status']} closing_balance={reviewed['closing_balance']} "
+            f"id={broken_id} status={reviewed['status']} "
+            f"opening_balance={reviewed['opening_balance']} "
+            f"closing_balance={reviewed['closing_balance']} "
             f"confidence_score={reviewed['confidence_score']} "
-            f"transactions={len(reviewed['transactions'])} "
+            f"rows={_statement_rows(reviewed)} "
             f"validation_error={reviewed['validation_error']!r}"
         )
+        assert Decimal(str(reviewed["opening_balance"])) == OPENING_BALANCE
         assert Decimal(str(reviewed["closing_balance"])) == BROKEN_CLOSING_BALANCE
         assert (reviewed["validation_error"] or "") == BROKEN_REVIEW_REASON
-        assert len(reviewed["transactions"]) == len(FIXTURE_ROWS), (
-            "the reviewer must see every transaction of the broken statement"
+        assert _statement_rows(reviewed) == _fixture_rows(), (
+            "the reviewer must see the fixture rows of the broken statement"
         )
         review = await client.get(_api_url(f"/statements/{broken_id}/review"))
         assert review.status_code == 200

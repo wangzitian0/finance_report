@@ -4,7 +4,7 @@
   "checkpoints": [
     {"id": "U1", "title": "The user uploads a statement through the product"},
     {"id": "U2", "title": "The live provider parses the statement and its rows equal the independent fixture"},
-    {"id": "U3", "title": "Stage 1 auto-accepts a clean source and sends a broken source to review"},
+    {"id": "U3", "title": "Stage 1 auto-accepts a clean source (AI classification enabled) and sends a broken source to review"},
     {"id": "U4", "title": "The user reviews and approves the source through browser actions"},
     {"id": "U5", "title": "The user records the opening balance through the browser"},
     {"id": "U6", "title": "Each accepted source transaction has exactly one posted ledger effect"},
