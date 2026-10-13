@@ -77,6 +77,9 @@ def _upload_month1_statement(
         f"        M1 parsed: Opening={m1_data['opening_balance']}, "
         f"Closing={m1_data['closing_balance']}, Txns={len(m1_data.get('transactions', []))}"
     )
+    assert Decimal(m1_data["opening_balance"]) == M1_EXPECTED_OPENING, (
+        f"M1 opening balance ({m1_data['opening_balance']}) != expected ({M1_EXPECTED_OPENING})"
+    )
     assert Decimal(m1_data["closing_balance"]) == M1_EXPECTED_CLOSING, (
         f"M1 closing balance ({m1_data['closing_balance']}) != expected ({M1_EXPECTED_CLOSING})"
     )
