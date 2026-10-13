@@ -1038,3 +1038,57 @@ def test_AC_testing_journey_board_8_release_shows_the_row_and_true_canary_eviden
     assert "environment" not in board_job
     assert release["jobs"]["deploy"]["needs"] == ["journey-board"]
     assert release["jobs"]["deploy"]["if"] == "${{ !cancelled() && !inputs.dry_run }}"
+
+
+def test_AC_testing_journey_board_3_rerun_reads_the_artifact_of_its_own_attempt(
+    tmp_path: Path,
+) -> None:
+    """AC-testing.journey-board.3: a rerun record reads its own attempt's artifact, never the earlier one."""
+    # The real shape of run 38341155894: attempt 2 started at 03:35:33 and
+    # both attempts uploaded "staging-ai-ocr-test-context".
+    run = {
+        "id": 38341155894,
+        "run_attempt": 2,
+        "run_started_at": "2026-10-13T03:35:33Z",
+    }
+    artifacts = [
+        {
+            "id": 11787345837,
+            "name": "staging-provider-gate-test-context",
+            "created_at": "2026-10-13T03:24:22Z",
+            "expired": False,
+        },
+        {
+            "id": 11787147257,
+            "name": "staging-ai-ocr-test-context",
+            "created_at": "2026-10-13T03:30:19Z",
+            "expired": False,
+        },
+        {
+            "id": 11787003613,
+            "name": "staging-ai-ocr-test-context",
+            "created_at": "2026-10-13T03:37:19Z",
+            "expired": False,
+        },
+    ]
+    assert board.pick_artifact(artifacts, run)["id"] == 11787003613
+    assert board.pick_artifact(artifacts[:2], run) is None, (
+        "an earlier attempt's artifact is not this attempt's"
+    )
+    expired = [dict(artifacts[2], expired=True)]
+    assert board.pick_artifact(expired, run) is None
+
+    (tmp_path / "artifacts.json").write_text(json.dumps({"artifacts": artifacts}))
+    (tmp_path / "run.json").write_text(json.dumps(run))
+    assert (
+        board.main(
+            [
+                "pick-artifact",
+                "--artifacts-json",
+                str(tmp_path / "artifacts.json"),
+                "--run-json",
+                str(tmp_path / "run.json"),
+            ]
+        )
+        == 0
+    )

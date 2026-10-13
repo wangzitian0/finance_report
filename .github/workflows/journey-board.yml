@@ -102,18 +102,20 @@ jobs:
             gh api "repos/${REPO}/actions/runs/${run_id}" > "${input}/run.json"
             gh api --paginate "repos/${REPO}/actions/runs/${run_id}/jobs?per_page=100" \
               --jq '.jobs[]' | jq -s '{jobs: .}' > "${input}/jobs.json"
+            # A rerun keeps the earlier attempt's artifact under the same name, so
+            # pick the artifact of the current attempt by id (no name lookup).
             # "No artifact" is evidence and gives a not-run or no-evidence
-            # record. Any other download error fails this run's build, so a
-            # transient error never publishes a false no-evidence record.
-            if ! gh run download "${run_id}" -R "${REPO}" -n staging-ai-ocr-test-context \
-                -D "${input}/artifact" 2> "${input}/download.err"; then
-              if grep -qiE "no artifact|no valid artifacts" "${input}/download.err"; then
-                echo "::notice::Run ${run_id} has no staging-ai-ocr-test-context artifact."
-              else
-                cat "${input}/download.err"
-                echo "::error::Could not download the test context of run ${run_id}."
-                return 1
-              fi
+            # record; any API or unzip error fails this run's build.
+            gh api --paginate "repos/${REPO}/actions/runs/${run_id}/artifacts?per_page=100" \
+              --jq '.artifacts[]' | jq -s '{artifacts: .}' > "${input}/artifacts.json"
+            local artifact_id
+            artifact_id=$(python3 -I common/testing/journey_board.py pick-artifact \
+              --artifacts-json "${input}/artifacts.json" --run-json "${input}/run.json")
+            if [ -n "${artifact_id}" ]; then
+              gh api "repos/${REPO}/actions/artifacts/${artifact_id}/zip" > "${input}/artifact.zip"
+              unzip -q "${input}/artifact.zip" -d "${input}/artifact"
+            else
+              echo "::notice::Run ${run_id} has no staging-ai-ocr-test-context artifact for its current attempt."
             fi
             # The tested SHA: from the test context, else from the deployed
             # version (the context version, or "Deploy Staging <version>").
