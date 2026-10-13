@@ -1,0 +1,120 @@
+"""AC-extraction.closing-balance-source.1: check an extracted closing balance against the document text (#2394).
+
+On staging, the model sometimes stored the closing balance that it computed from the rows
+(4837.50) and not the closing balance that the PDF printed (4837.55). The balance chain then
+tied out and the statement was approved. The text layer of a PDF holds the printed numbers.
+The check below fails when the stored closing balance is not one of those numbers.
+"""
+
+from __future__ import annotations
+
+from decimal import Decimal
+
+import pytest
+
+from src.extraction.base.source_balance_check import (
+    SourceBalanceVerdict,
+    check_closing_balance_against_text,
+    text_money_values,
+)
+
+OPENING = Decimal("2000.00")
+AMOUNTS = [Decimal("3000.00"), Decimal("1.50"), Decimal("85.40"), Decimal("23.60"), Decimal("55.00")]
+PRINTED_STATEMENT = """Stage One Routing Bank
+Account 5551-234-7702
+Statement period 2026-05-01 to 2026-05-31
+Opening Balance 2000.00
+2026-05-02 Salary Acme Pte Ltd 3000.00
+2026-05-03 Interest 1.50
+2026-05-10 Grocery Market -85.40
+2026-05-12 Phone Plan -23.60
+2026-05-20 Coffee House -55.00
+Total Credits 3001.50
+Total Debits 164.00
+Closing Balance 4837.55
+Closing Balance 4837.55
+"""
+
+
+def _verdict(text: str | None, closing: str | None, **overrides) -> SourceBalanceVerdict:
+    arguments = {"opening": OPENING, "amounts": AMOUNTS}
+    arguments.update(overrides)
+    return check_closing_balance_against_text(text, closing=None if closing is None else Decimal(closing), **arguments)
+
+
+def test_AC_extraction_closing_balance_source_1_computed_closing_is_flagged():
+    """The #2394 shape: the text prints 4837.55 and the model stored the computed 4837.50."""
+    assert _verdict(PRINTED_STATEMENT, "4837.50") is SourceBalanceVerdict.CLOSING_NOT_IN_TEXT
+
+
+def test_AC_extraction_closing_balance_source_1_printed_closing_is_verified():
+    assert _verdict(PRINTED_STATEMENT, "4837.55") is SourceBalanceVerdict.VERIFIED
+
+
+def test_AC_extraction_closing_balance_source_1_matches_whole_numbers_only():
+    """837.55 is a suffix of 4837.55. A substring test would verify it. A token test must not."""
+    assert _verdict(PRINTED_STATEMENT, "837.55") is SourceBalanceVerdict.CLOSING_NOT_IN_TEXT
+
+
+@pytest.mark.parametrize(
+    ("printed", "closing"),
+    [
+        ("Closing Balance 4,837.55", "4837.55"),
+        ("Closing Balance 4.837,55", "4837.55"),
+        ("Closing Balance 4 837.55", "4837.55"),
+        ("Closing Balance 4 837,55", "4837.55"),
+        ("Closing Balance SGD4837.55", "4837.55"),
+        ("Closing Balance (4,837.55)", "-4837.55"),
+        ("Closing Balance 4837.55-", "-4837.55"),
+        ("Closing Balance 4837.55 CR", "4837.55"),
+    ],
+)
+def test_AC_extraction_closing_balance_source_1_reads_common_number_layouts(printed, closing):
+    text = PRINTED_STATEMENT.replace("Closing Balance 4837.55\nClosing Balance 4837.55\n", printed + "\n")
+    assert "4837.55" not in text.replace(printed, "")
+    assert _verdict(text, closing) is SourceBalanceVerdict.VERIFIED
+
+
+def test_AC_extraction_closing_balance_source_1_amounts_match_by_absolute_value():
+    negative_amounts = [-amount if amount < Decimal("100") else amount for amount in AMOUNTS]
+    assert _verdict(PRINTED_STATEMENT, "4837.55", amounts=negative_amounts) is SourceBalanceVerdict.VERIFIED
+
+
+@pytest.mark.parametrize("text", [None, "", "   \n", "Welcome to your monthly statement. Thank you."])
+def test_AC_extraction_closing_balance_source_1_missing_text_layer_is_unusable(text):
+    assert _verdict(text, "4837.50") is SourceBalanceVerdict.TEXT_UNUSABLE
+
+
+def test_AC_extraction_closing_balance_source_1_text_without_the_amounts_is_unusable():
+    """A text layer that lacks the row amounts says nothing about the closing balance."""
+    text = "Opening Balance 2000.00\nSalary 3000.00\nClosing Balance 4837.55\n"
+    assert _verdict(text, "4837.50") is SourceBalanceVerdict.TEXT_UNUSABLE
+
+
+def test_AC_extraction_closing_balance_source_1_text_without_the_opening_balance_is_unusable():
+    text = PRINTED_STATEMENT.replace("Opening Balance 2000.00\n", "")
+    assert _verdict(text, "4837.50") is SourceBalanceVerdict.TEXT_UNUSABLE
+
+
+def test_AC_extraction_closing_balance_source_1_no_closing_balance_is_unusable():
+    assert _verdict(PRINTED_STATEMENT, None) is SourceBalanceVerdict.TEXT_UNUSABLE
+
+
+def test_AC_extraction_closing_balance_source_1_no_amounts_is_unusable():
+    assert _verdict(PRINTED_STATEMENT, "4837.50", amounts=[]) is SourceBalanceVerdict.TEXT_UNUSABLE
+
+
+def test_AC_extraction_closing_balance_source_1_one_unread_amount_in_five_keeps_the_text_usable():
+    """The text layer must hold at least four of five row amounts. Four of five is enough."""
+    text = PRINTED_STATEMENT.replace("55.00", "fifty-five")
+    assert _verdict(text, "4837.50") is SourceBalanceVerdict.CLOSING_NOT_IN_TEXT
+
+
+def test_AC_extraction_closing_balance_source_1_two_unread_amounts_in_five_make_the_text_unusable():
+    text = PRINTED_STATEMENT.replace("55.00", "fifty-five").replace("23.60", "twenty-three")
+    assert _verdict(text, "4837.50") is SourceBalanceVerdict.TEXT_UNUSABLE
+
+
+def test_AC_extraction_closing_balance_source_1_money_values_include_grouped_and_plain_numbers():
+    values = text_money_values("a 1,234.50 b 99.5 c 7 d 1.234,56 e 12 345.60")
+    assert {Decimal("1234.50"), Decimal("99.5"), Decimal("7"), Decimal("1234.56"), Decimal("12345.60")} <= values
