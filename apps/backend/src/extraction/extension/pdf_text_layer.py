@@ -9,10 +9,11 @@ from __future__ import annotations
 from src.extraction.extension._base import logger
 
 
-def read_pdf_text_layer(file_content: bytes | None, *, max_pages: int) -> str | None:
+def read_pdf_text_layer(file_content: bytes | None, *, max_pages: int | None = None) -> str | None:
     """Return the text layer of a PDF, or None when the PDF has no readable text.
 
-    A PDF above ``max_pages`` returns None: its extraction fails anyway.
+    With ``max_pages`` set, a PDF above that page count returns None. The vision
+    extraction fails above the same count anyway.
     """
     if not file_content:
         return None
@@ -27,7 +28,7 @@ def read_pdf_text_layer(file_content: bytes | None, *, max_pages: int) -> str | 
         logger.info("PDF text layer could not be opened", error_type=type(exc).__name__)
         return None
     try:
-        if len(document) > max_pages:
+        if max_pages is not None and len(document) > max_pages:
             return None
         return "\n".join(page.get_text() or "" for page in document)
     except Exception as exc:

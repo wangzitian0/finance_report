@@ -128,3 +128,28 @@ async def test_AC_extraction_closing_balance_source_2_flag_is_counted(service, t
 
     assert [call.kwargs["kind"] for call in record.call_args_list] == ["closing_balance_not_in_source"]
     assert "closing_balance_not_in_source" in telemetry_metrics.INVARIANT_VIOLATION_KINDS
+
+
+def _two_page_pdf() -> bytes:
+    document = fitz.open()
+    for text in ("first page 100.00", "second page 200.00"):
+        document.new_page().insert_text((72, 72), text)
+    content = document.tobytes()
+    document.close()
+    return content
+
+
+def test_AC_extraction_closing_balance_source_2_text_layer_reader_is_one_helper_for_both_callers():
+    """The brokerage fallback and the closing-balance check read PDF text through one helper."""
+    from src.extraction.extension.pdf_text_layer import read_pdf_text_layer
+
+    content = _two_page_pdf()
+
+    uncapped = read_pdf_text_layer(content)
+    assert uncapped is not None
+    assert "100.00" in uncapped and "200.00" in uncapped
+    assert ExtractionService()._extract_pdf_text_for_brokerage_fallback(content) == uncapped
+    assert read_pdf_text_layer(content, max_pages=2) == uncapped
+    assert read_pdf_text_layer(content, max_pages=1) is None
+    assert read_pdf_text_layer(None) is None
+    assert read_pdf_text_layer(b"not a pdf") is None
