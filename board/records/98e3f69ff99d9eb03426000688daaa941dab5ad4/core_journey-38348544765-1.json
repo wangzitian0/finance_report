@@ -1,0 +1,199 @@
+{
+  "checkpoints": {
+    "U1": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "passed",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        }
+      ],
+      "status": "passed"
+    },
+    "U10": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        }
+      ],
+      "status": "passed"
+    },
+    "U11": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "passed",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        }
+      ],
+      "status": "passed"
+    },
+    "U12": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "passed",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        },
+        {
+          "status": "passed",
+          "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser"
+        },
+        {
+          "status": "passed",
+          "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing"
+        },
+        {
+          "status": "passed",
+          "test": "test_stage1_routing_journey::test_stage1_accepts_clean_source_and_reviews_broken_source"
+        }
+      ],
+      "status": "passed"
+    },
+    "U13": {
+      "gap": "#2370",
+      "status": "not-covered"
+    },
+    "U2": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "passed",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        }
+      ],
+      "status": "passed"
+    },
+    "U3": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_stage1_routing_journey::test_stage1_accepts_clean_source_and_reviews_broken_source"
+        }
+      ],
+      "status": "passed"
+    },
+    "U4": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        }
+      ],
+      "status": "passed"
+    },
+    "U5": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser"
+        }
+      ],
+      "status": "passed"
+    },
+    "U6": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        }
+      ],
+      "status": "passed"
+    },
+    "U7": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing"
+        }
+      ],
+      "status": "passed"
+    },
+    "U8": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "passed",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        }
+      ],
+      "status": "passed"
+    },
+    "U9": {
+      "gap": "#2370",
+      "status": "not-covered"
+    }
+  },
+  "counts": {
+    "failed": 0,
+    "passed": 5,
+    "skipped": 0,
+    "total": 5
+  },
+  "expected_version": "v0.1.77",
+  "junit": true,
+  "lane": "core_journey",
+  "map_note": null,
+  "reason": null,
+  "recorded_at": "2026-10-13T04:59:36+00:00",
+  "run": {
+    "attempt": 1,
+    "completed_at": "2026-10-13T04:59:08Z",
+    "conclusion": "success",
+    "event": "workflow_dispatch",
+    "id": "38348544765",
+    "url": "https://github.com/wangzitian0/finance_report/actions/runs/38348544765",
+    "workflow": ".github/workflows/audit-replay.yml"
+  },
+  "schema": 1,
+  "status": "passed",
+  "tested_sha": "98e3f69ff99d9eb03426000688daaa941dab5ad4",
+  "tests": [
+    {
+      "failure_class": null,
+      "outcome": "passed",
+      "seconds": 91.74,
+      "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+    },
+    {
+      "failure_class": null,
+      "outcome": "passed",
+      "seconds": 77.52,
+      "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+    },
+    {
+      "failure_class": null,
+      "outcome": "passed",
+      "seconds": 16.95,
+      "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser"
+    },
+    {
+      "failure_class": null,
+      "outcome": "passed",
+      "seconds": 97.76,
+      "test": "test_stage1_routing_journey::test_stage1_accepts_clean_source_and_reviews_broken_source"
+    },
+    {
+      "failure_class": null,
+      "outcome": "passed",
+      "seconds": 36.75,
+      "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing"
+    }
+  ]
+}
