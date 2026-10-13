@@ -82,7 +82,10 @@ export interface paths {
         get?: never; put?: never;
         /**
          * Create Ai Feedback
-         * @description Persist user feedback for an AI suggestion.
+         * @description Persist user feedback for an AI suggestion and apply it to the draft classification.
+         *
+         *     A rejected draft is superseded. A corrected draft takes the category of the user. The one-click
+         *     approval reads the draft, so it then honors the decision (#2419).
          */
         post: operations["create_ai_feedback_ai_feedback_post"];
         delete?: never; options?: never; head?: never; patch?: never; trace?: never;

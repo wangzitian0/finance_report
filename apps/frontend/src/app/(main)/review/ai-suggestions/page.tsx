@@ -8,11 +8,18 @@ import type { AiSuggestion } from "@/lib/types";
 
 type FeedbackAction = "accept" | "reject" | "edit_accept";
 
+const DECISION_LABEL: Record<FeedbackAction, string> = {
+  accept: "Accepted. The approval of the statement posts it.",
+  reject: "Rejected. The approval uses the default category.",
+  edit_accept: "Corrected. The approval posts your category.",
+};
+
 export default function AiSuggestionsPage() {
   const [suggestions, setSuggestions] = useState<AiSuggestion[]>([]);
   const [correctedValues, setCorrectedValues] = useState<
     Record<string, string>
   >({});
+  const [decisions, setDecisions] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,15 +47,26 @@ export default function AiSuggestionsPage() {
     action: FeedbackAction,
   ) => {
     const corrected = correctedValues[suggestion.suggestion_id]?.trim();
-    await apiOperation("create_ai_feedback_ai_feedback_post", {
-      body: {
-        suggestion_id: suggestion.suggestion_id,
-        action,
-        ...(action === "edit_accept" && corrected
-          ? { corrected_value: { value: corrected } }
-          : {}),
-      },
-    });
+    try {
+      await apiOperation("create_ai_feedback_ai_feedback_post", {
+        body: {
+          suggestion_id: suggestion.suggestion_id,
+          action,
+          ...(action === "edit_accept" && corrected
+            ? { corrected_value: { value: corrected } }
+            : {}),
+        },
+      });
+      setError(null);
+      setDecisions((current) => ({
+        ...current,
+        [suggestion.suggestion_id]: DECISION_LABEL[action],
+      }));
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to save your decision",
+      );
+    }
   };
 
   const renderCorrectionInput = (
@@ -73,7 +91,7 @@ export default function AiSuggestionsPage() {
               [suggestion.suggestion_id]: event.target.value,
             }))
           }
-          placeholder="Optional correction"
+          placeholder="Category, for example DINING"
         />
       </>
     );
@@ -104,6 +122,14 @@ export default function AiSuggestionsPage() {
       >
         Edit-then-Accept
       </button>
+      {decisions[suggestion.suggestion_id] && (
+        <p
+          role="status"
+          className="col-span-2 text-xs text-muted sm:self-center"
+        >
+          {decisions[suggestion.suggestion_id]}
+        </p>
+      )}
     </div>
   );
 

@@ -199,6 +199,8 @@ from src.extraction.extension.statement_workflow import (
 )
 from src.extraction.extension.transaction_classification import (
     ClassificationSuggestion,
+    SuggestionCorrectionError,
+    apply_suggestion_feedback,
     backfill_classifications,
     classification_suggestions,
 )
@@ -310,6 +312,8 @@ __all__ = [
     "approve_statement_workflow",
     "auto_create_posted_entries_for_statement",
     "ClassificationSuggestion",
+    "SuggestionCorrectionError",
+    "apply_suggestion_feedback",
     "backfill_classifications",
     "classification_suggestions",
     "build_csv_mapping_prompt",

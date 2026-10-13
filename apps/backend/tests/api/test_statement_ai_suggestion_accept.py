@@ -20,8 +20,9 @@ from src.config import settings
 from src.extraction import ClassificationStatus, RuleType
 from src.extraction.extension.transaction_classification import POLICY_RULE_NAME
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
+from src.identity import AiFeedbackRequest
 from src.ledger import Account, AccountType, JournalEntry
-from src.routers import statements as statements_router
+from src.routers import ai_feedback as ai_feedback_router, statements as statements_router
 from src.schemas.review import Stage1ApprovalRequest
 from tests.api._statement_router_fixtures import add_txn, build_statement, create_statement_account
 
@@ -263,3 +264,146 @@ async def test_AC_extraction_accept_ai_suggestions_5_applied_rows_keep_their_ai_
     assert provenance_by_txn[str(applied.id)] == "live_llm"
     assert provenance_by_txn[str(draft.id)] != "live_llm"
     assert provenance_by_txn[str(opaque.id)] != "live_llm"
+
+
+async def _classification_id(db, txn):
+    return (
+        await db.execute(select(TransactionClassification.id).where(TransactionClassification.atomic_txn_id == txn.id))
+    ).scalar_one()
+
+
+async def test_AC_extraction_classification_hardening_2_a_rejected_draft_is_not_booked_by_the_approval(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.classification-hardening.2: the user refused the draft category. The approval uses the default."""
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    statement, bank = await _statement(db, test_user.id, "hash_hardening_2_reject")
+    statement.closing_balance = Decimal("80.00")
+    refused = await add_txn(
+        db, statement, txn_date=date(2025, 1, 3), description="Refused", amount=Decimal("15.00"), direction="OUT"
+    )
+    kept = await add_txn(
+        db, statement, txn_date=date(2025, 1, 4), description="Kept", amount=Decimal("5.00"), direction="OUT"
+    )
+    await db.flush()
+    dining = await _category_account(db, test_user.id, "Expense - Dining", AccountType.EXPENSE)
+    await _draft(db, test_user.id, refused, category="DINING", account=dining, score=76)
+    await _draft(db, test_user.id, kept, category="DINING", account=dining, score=76)
+    await db.commit()
+
+    await ai_feedback_router.create_ai_feedback(
+        AiFeedbackRequest(suggestion_id=await _classification_id(db, refused), action="reject"),
+        db=db,
+        user_id=test_user.id,
+    )
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id,
+        request=Stage1ApprovalRequest(auto_fill_default_categories=True),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result.journal_entries_created == 2
+    assert await _counter_account_names(db, refused, bank.id) == {"General Expense (SGD)"}
+    assert await _counter_account_names(db, kept, bank.id) == {"Expense - Dining"}
+
+
+async def test_AC_extraction_classification_hardening_2_a_corrected_draft_is_booked_with_the_user_category(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.classification-hardening.2: the approval books the category that the user typed."""
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    statement, bank = await _statement(db, test_user.id, "hash_hardening_2_edit")
+    statement.closing_balance = Decimal("85.00")
+    corrected = await add_txn(
+        db, statement, txn_date=date(2025, 1, 3), description="Corrected", amount=Decimal("15.00"), direction="OUT"
+    )
+    await db.flush()
+    dining = await _category_account(db, test_user.id, "Expense - Dining", AccountType.EXPENSE)
+    await _draft(db, test_user.id, corrected, category="DINING", account=dining, score=76)
+    await db.commit()
+
+    await ai_feedback_router.create_ai_feedback(
+        AiFeedbackRequest(
+            suggestion_id=await _classification_id(db, corrected),
+            action="edit_accept",
+            corrected_value={"value": "groceries"},
+        ),
+        db=db,
+        user_id=test_user.id,
+    )
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id,
+        request=Stage1ApprovalRequest(auto_fill_default_categories=True),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result.journal_entries_created == 1
+    assert await _counter_account_names(db, corrected, bank.id) == {"Expense - Groceries"}
+
+
+async def test_AC_extraction_classification_hardening_4_an_applied_row_that_the_policy_refuses_gets_the_default(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.classification-hardening.4: an applied income category on an outgoing row cannot post by itself.
+
+    The one-click approval used to skip every applied row, so this row kept the statement in review for good.
+    """
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    statement, bank = await _statement(db, test_user.id, "hash_hardening_4")
+    statement.closing_balance = Decimal("80.00")
+    contradicted = await add_txn(
+        db, statement, txn_date=date(2025, 1, 2), description="Odd label", amount=Decimal("20.00"), direction="OUT"
+    )
+    await db.flush()
+    salary = await _category_account(db, test_user.id, "Income - Salary", AccountType.INCOME)
+    await _draft(
+        db,
+        test_user.id,
+        contradicted,
+        category="SALARY",
+        account=salary,
+        score=92,
+        status=ClassificationStatus.APPLIED,
+    )
+    await db.commit()
+
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id,
+        request=Stage1ApprovalRequest(auto_fill_default_categories=True),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result.journal_entries_created == 1
+    assert await _counter_account_names(db, contradicted, bank.id) == {"General Expense (SGD)"}
+
+
+async def test_AC_extraction_classification_hardening_2_the_rationale_names_a_user_correction(db, test_user):
+    """AC-extraction.classification-hardening.2: a corrected category is not recorded as an accepted AI suggestion."""
+    from src.composition import _accepted_suggestion_for
+    from src.extraction import ClassificationSuggestion
+
+    statement, _bank = await _statement(db, test_user.id, "hash_hardening_2_rationale")
+    txn = await add_txn(
+        db, statement, txn_date=date(2025, 1, 3), description="Rationale", amount=Decimal("15.00"), direction="OUT"
+    )
+    groceries = await _category_account(db, test_user.id, "Expense - Groceries", AccountType.EXPENSE)
+    corrected = ClassificationSuggestion(
+        atomic_txn_id=txn.id,
+        category="GROCERIES",
+        confidence=76,
+        account_id=groceries.id,
+        applied=False,
+        corrected=True,
+    )
+
+    from_user = await _accepted_suggestion_for(db, test_user.id, txn, corrected)
+    from_model = await _accepted_suggestion_for(
+        db, test_user.id, txn, corrected.model_copy(update={"corrected": False})
+    )
+
+    assert from_user is not None and from_model is not None
+    assert from_user[3] == "Category corrected by the user: GROCERIES"
+    assert from_model[3] == "Accepted AI suggestion GROCERIES (score 76)"

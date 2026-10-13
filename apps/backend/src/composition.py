@@ -232,7 +232,10 @@ async def _accepted_suggestion_for(
         intent = EconomicIntent.EXPENSE
     else:
         return None
-    rationale = f"Accepted AI suggestion {suggestion.category} (score {suggestion.confidence})"
+    if suggestion.corrected:
+        rationale = f"Category corrected by the user: {suggestion.category}"
+    else:
+        rationale = f"Accepted AI suggestion {suggestion.category} (score {suggestion.confidence})"
     return intent, account, suggestion.category, rationale
 
 
@@ -245,11 +248,11 @@ async def auto_fill_default_statement_dispositions(
 
     Submits reviewed dispositions which create posted journal entries for any
     unmatched statement transactions, returning the number of posted entries created.
-    A row that the classifier already applied is left to the normal posting that follows. A row
-    with a usable draft AI suggestion posts to the suggested account and category. A row
-    that the AI named a transfer, a repayment, a loan payment or a trade is left for a person,
-    because a general income or expense would misstate it (#2415). Any other row posts to the
-    general income or expense account of its direction.
+    A row that the classifier already applied, with an account that the policy accepts, is left to
+    the normal posting that follows. A row with a usable draft AI suggestion posts to the
+    suggested account and category. A row that the AI named a transfer, a repayment, a loan
+    payment or a trade is left for a person, because a general income or expense would misstate
+    it (#2415). Any other row posts to the general income or expense account of its direction.
     """
     query = _statement_unmatched_txns_query(statement, user_id)
     result = await db.execute(query)
@@ -264,13 +267,15 @@ async def auto_fill_default_statement_dispositions(
 
     for txn in unmatched_txns:
         suggestion = suggestions.get(txn.id)
-        if suggestion is not None and suggestion.applied and not suggestion.non_pnl:
-            # The classifier applied this row (85 or more, or a reviewed rule). The normal posting
-            # that follows posts it to its own account under the full disposition policy.
-            continue
         if suggestion is not None and suggestion.non_pnl:
             continue
         accepted = await _accepted_suggestion_for(db, user_id, txn, suggestion)
+        if accepted is not None and suggestion is not None and suggestion.applied:
+            # The classifier applied this row (85 or more, or a reviewed rule) and the policy accepts
+            # its account. The normal posting that follows posts it under the full disposition policy.
+            # An applied row that the policy would refuse falls through to the default below, because
+            # the posting cannot clear such a row (#2419).
+            continue
         if accepted is not None:
             intent, counter_account, category, rationale = accepted
             await submit_reviewed_disposition(

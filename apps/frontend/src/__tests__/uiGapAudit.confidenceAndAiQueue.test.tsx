@@ -226,6 +226,48 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     );
   });
 
+  // AC-extraction.classification-hardening.6
+  it("AC-extraction.classification-hardening.6 — shows the saved decision and the server refusal", async () => {
+    const suggestion = {
+      suggestion_id: "00000000-0000-0000-0000-000000000031",
+      transaction: "CARD PURCHASE COFFEE",
+      suggested_category_or_match: "DINING",
+      ai_score: 72,
+      ai_reasoning: "Merchant name indicates dining.",
+    };
+    mockedApiOperation
+      .mockResolvedValueOnce({ items: [suggestion], total: 1 } as any)
+      .mockResolvedValueOnce({ id: "feedback-1" } as any)
+      .mockRejectedValueOnce(
+        new Error("The corrected value is not a category. Use one of: SALARY"),
+      );
+
+    render(<AiSuggestionsPage />);
+
+    await screen.findAllByText("CARD PURCHASE COFFEE");
+    const mobileCard = screen.getByTestId(
+      "ai-suggestion-mobile-card-00000000-0000-0000-0000-000000000031",
+    );
+    fireEvent.click(within(mobileCard).getByRole("button", { name: "Reject" }));
+
+    expect(
+      await within(mobileCard).findByRole("status"),
+    ).toHaveTextContent("Rejected. The approval uses the default category.");
+
+    fireEvent.change(within(mobileCard).getByLabelText("Corrected value"), {
+      target: { value: "Food & Dining" },
+    });
+    fireEvent.click(
+      within(mobileCard).getByRole("button", { name: "Edit-then-Accept" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "The corrected value is not a category. Use one of: SALARY",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("test_AC8_13_48 — AI suggestions page renders load errors", async () => {
     mockedApiOperation.mockRejectedValueOnce(new Error("suggestions unavailable"));
 

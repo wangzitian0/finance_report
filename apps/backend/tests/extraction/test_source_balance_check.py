@@ -118,3 +118,43 @@ def test_AC_extraction_closing_balance_source_1_two_unread_amounts_in_five_make_
 def test_AC_extraction_closing_balance_source_1_money_values_include_grouped_and_plain_numbers():
     values = text_money_values("a 1,234.50 b 99.5 c 7 d 1.234,56 e 12 345.60")
     assert {Decimal("1234.50"), Decimal("99.5"), Decimal("7"), Decimal("1234.56"), Decimal("12345.60")} <= values
+
+
+def _statement_text_with_closing_line(printed: str) -> str:
+    return PRINTED_STATEMENT.replace("Closing Balance 4837.55\nClosing Balance 4837.55\n", printed + "\n")
+
+
+@pytest.mark.parametrize(
+    ("printed", "closing"),
+    [
+        ("Closing Balance 1,03,450.00", "103450.00"),  # Indian grouping: 3 digits, then pairs
+        ("Closing Balance 12,34,567.89", "1234567.89"),
+        ("Closing Balance 4\u2009837.55", "4837.55"),  # thin space as the group separator
+        ("Closing Balance 4\u2019837.55", "4837.55"),  # typographic apostrophe, as in Swiss layouts
+    ],
+)
+def test_AC_extraction_closing_balance_source_3_reads_more_group_separators(printed, closing):
+    """AC-extraction.closing-balance-source.3: a printed closing balance in these layouts is not flagged."""
+    text = _statement_text_with_closing_line(printed)
+    assert _verdict(text, closing) is SourceBalanceVerdict.VERIFIED
+
+
+@pytest.mark.parametrize(
+    ("printed", "closing"),
+    [
+        ("Closing Balance 1,03,450.00", "103450.01"),
+        ("Closing Balance 4\u2009837.55", "4837.50"),
+        ("Closing Balance 4\u2019837.55", "837.55"),
+    ],
+)
+def test_AC_extraction_closing_balance_source_3_new_layouts_still_flag_a_wrong_closing_balance(printed, closing):
+    """AC-extraction.closing-balance-source.3: a wider reader must not verify a number that the text lacks."""
+    text = _statement_text_with_closing_line(printed)
+    assert _verdict(text, closing) is SourceBalanceVerdict.CLOSING_NOT_IN_TEXT
+
+
+@pytest.mark.parametrize("printed", ["Closing Balance NIL", "Closing Balance -", "Closing Balance 0.00"])
+def test_AC_extraction_closing_balance_source_3_a_zero_closing_balance_cannot_be_checked(printed):
+    """AC-extraction.closing-balance-source.3: a zero balance prints as a word or a dash. The text says nothing."""
+    text = _statement_text_with_closing_line(printed)
+    assert _verdict(text, "0.00") is SourceBalanceVerdict.TEXT_UNUSABLE
