@@ -238,6 +238,15 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         reason="Real provider fresh-user browser upload/review/saved-package proof; audit replay only.",
     ),
     E2ERow(
+        "tests/e2e/test_opening_balance_browser_journey.py",
+        needs=(NEEDS_DEPLOYED_ENV,),
+        audited=True,
+        reason=(
+            "Core-journey board proof U5 (#2383): runs only in the post-deploy "
+            "core_journey lane against a pinned staging revision (#2370)."
+        ),
+    ),
+    E2ERow(
         "tests/e2e/test_institution_statement_journeys.py",
         needs=(NEEDS_LLM_PROVIDER,),
         audited=True,
