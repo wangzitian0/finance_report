@@ -16,10 +16,12 @@ extraction can read a corrected closing balance. That outcome varies from run to
 run. A gap of 0.05 is never extracted again, so it always reaches Stage 1.
 
 Why both documents print total credits and total debits, and print the closing
-balance twice: without them, the model sometimes changed one row amount (1.50 became
-1.55), or replaced the closing balance with the computed one, to make the figures add
-up. The product then approved the broken statement (#2394). The printed totals pin
-every row. The second closing balance pins the closing figure.
+balance twice: on an older fixture with one closing line, the model returned the
+computed closing balance, not the printed one, in 2 of 8 staging runs. The product
+then approved the broken statement (#2394). In those runs every row and every posted
+amount was right. This fixture has not been shown to be safer. It was not approved
+in 11 trials, but 11 trials are too few to tell. The numbers and the raw data are in
+#2394. A flaky result of this test is a signal about #2394, not about the board.
 
 Auto-posting needs economic meaning for every transaction. The product default is
 off. The test sets the user's own ``enable_ai_classification`` setting, as the
