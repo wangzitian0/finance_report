@@ -39,10 +39,12 @@ IN_DATE = "2026-03-11"  # The IN leg settles one day after the OUT leg.
 
 # Both legs carry the SAME full description text. The pairing policy scores the
 # memo text of the two legs. For identical text the pair confidence is 87 and
-# the pairing threshold is 85. This test proves the clearing mechanism, so it
-# uses identical text. Realistic descriptions that share only a reference score
-# 81 and do not pair today: see issue #2388. The product adds the prefixes
-# "Transfer OUT: " and "Transfer IN: " to the two ledger memos.
+# the auto-pair threshold is 85. This test proves the clearing mechanism, so it
+# uses identical text. Memos that differ between the two legs score 74 to 80
+# (product code, issue #2388). That is the 60-84 review band of
+# common/ledger/readme.md, and no code implements it: the legs stay in transit.
+# The product adds the prefixes "Transfer OUT: " and "Transfer IN: " to the
+# two ledger memos.
 TRANSFER_DESCRIPTION = (
     "Funds transfer between own accounts Account A to Account B "
     "reference TRF20260310001"
