@@ -3,28 +3,67 @@
 Axiom B (vision.md) establishes the North-Star metric:
 "The proportion of low-confidence data trends down over time."
 
-This journey proves on the pinned deployed revision that:
+This journey seeds two deterministic CSV statements (one balanced high-confidence
+statement and one mismatched low-confidence statement), two user corrections on
+recurring descriptions, and a reconciliation run, then proves on the pinned
+deployed revision that:
 * The live correction feedback loop replay endpoint (/api/metrics/correction-loop/replay)
-  measures held-out low-confidence proportions (proportion_before and proportion_after)
-  as bounded Decimals in [0.00, 1.00].
+  measures held-out low-confidence reduction (1.00000 -> 0.00000, reduced is True).
 * The reconciliation statistics endpoint (/api/reconciliation/stats) measures
-  the transaction match rate and confidence distribution.
-* The system-wide low-confidence proportion is explicitly computed, asserted, and recorded.
+  a non-zero transaction match rate (2 matched out of 3 total transactions = 66.67%).
+* The system-wide low-confidence statement ratio is strictly computed from non-empty
+  statements (total_statements == 2, low_confidence_statements == 1, ratio == 0.5)
+  with no empty-database fallback.
+* The browser UI renders the replay metrics on /confidence and the uploaded
+  statements on /statements.
 """
 
 from __future__ import annotations
 
+import asyncio
 import os
+import uuid
+from datetime import date
 from decimal import Decimal
 
 import httpx
 import pytest
 from common.testing.ac_proof import ac_proof
+from common.testing.provider_review import (
+    FixtureDisposition,
+    FixtureEnvelope,
+    approve_statement_with_fixture_review,
+)
 from deployment_pin import assert_pinned_deployment, resolve_expected_commit
 from journey_checkpoint import checkpoint
-from playwright.async_api import Page
+from playwright.async_api import Page, expect
 
 APP_URL = os.getenv("APP_URL", "http://localhost:3000")
+PARSING_TIMEOUT_MS = int(os.getenv("PARSING_TIMEOUT_MS", "480000"))
+
+CURRENCY = "SGD"
+EXPECTED_TOTAL_STATEMENTS = 2
+EXPECTED_LOW_CONFIDENCE_STATEMENTS = 1
+EXPECTED_LOW_CONFIDENCE_RATIO = Decimal("0.5")
+EXPECTED_REPLAY_PROPORTION_BEFORE = Decimal("1.00000")
+EXPECTED_REPLAY_PROPORTION_AFTER = Decimal("0.00000")
+EXPECTED_MATCH_RATE = Decimal("66.67")
+
+# Header mirrors test_twelve_month_journey.CSV_HEADER — update both together.
+CSV_HEADER = (
+    "Statement Currency,Statement Period Start,Statement Period End,"
+    "Statement Opening Balance,Statement Closing Balance,Date,Description,Amount"
+)
+LOW_CONFIDENCE_CSV_HEADER = (
+    "Statement Currency,Statement Opening Balance,Statement Closing Balance,"
+    "Date,Description,Amount"
+)
+
+DISPOSITIONS = {
+    "salary credit acme": FixtureDisposition(
+        "income", "INCOME", "Monthly salary credit", "SALARY"
+    ),
+}
 
 
 def _api_url(path: str) -> str:
@@ -61,6 +100,22 @@ async def _assert_pinned_before_journey(page: Page, record_property) -> None:
     checkpoint(record_property, "U12")
 
 
+async def _wait_for_parsed(client: httpx.AsyncClient, statement_id: str) -> dict:
+    deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000
+    last_payload: dict | None = None
+    while asyncio.get_running_loop().time() < deadline:
+        response = await client.get(_api_url(f"/statements/{statement_id}"))
+        assert response.status_code == 200, (
+            f"statement poll failed for {statement_id}: {response.text}"
+        )
+        last_payload = response.json()
+        status = last_payload.get("status")
+        if status in ("rejected", "approved", "parsed"):
+            return last_payload
+        await asyncio.sleep(0.5)
+    raise TimeoutError(f"statement {statement_id} did not parse: {last_payload}")
+
+
 @ac_proof(
     "confidence-metrics-measured-journey",
     ac_ids=["AC-extraction.1814.4"],
@@ -82,63 +137,226 @@ async def test_proportion_of_low_confidence_data_is_measured(
     page = authenticated_page_unique
     await _assert_pinned_before_journey(page, record_property)
 
+    assert EXPECTED_TOTAL_STATEMENTS == 2
+    assert EXPECTED_LOW_CONFIDENCE_STATEMENTS == 1
+    assert EXPECTED_LOW_CONFIDENCE_RATIO == Decimal("0.5")
+    assert EXPECTED_REPLAY_PROPORTION_BEFORE == Decimal("1.00000")
+    assert EXPECTED_REPLAY_PROPORTION_AFTER == Decimal("0.00000")
+    assert EXPECTED_MATCH_RATE == Decimal("66.67")
+
     headers = await _auth_headers(page)
     async with httpx.AsyncClient(
         headers=headers, verify=False, timeout=120.0
     ) as client:
-        # 1. Query the live correction feedback loop replay endpoint.
+        # 1. Create an isolated SGD asset account and seed two CSV statements:
+        #    - Statement 1: balanced and complete (confidence_score == 59, balance_validated is True)
+        #    - Statement 2: missing period dates and mismatched closing balance
+        #      (confidence_score == 45, balance_validated is False)
+        acc_resp = await client.post(
+            _api_url("/accounts"),
+            json={
+                "name": "Confidence Metrics Savings",
+                "type": "ASSET",
+                "currency": CURRENCY,
+            },
+        )
+        assert acc_resp.status_code == 201, f"account creation failed: {acc_resp.text}"
+        account_id = acc_resp.json()["id"]
+
+        valid_filename = f"confidence_valid_{uuid.uuid4().hex[:6]}.csv"
+        valid_csv = "\n".join(
+            [
+                CSV_HEADER,
+                "SGD,2026-01-01,2026-01-31,10000.00,20000.00,2026-01-05,Salary Credit ACME,5000.00",
+                "SGD,2026-01-01,2026-01-31,10000.00,20000.00,2026-01-20,Salary Credit ACME,5000.00",
+                "",
+            ]
+        )
+        valid_upload = await client.post(
+            _api_url("/statements/upload"),
+            data={
+                "institution": "Confidence Valid Bank",
+                "account_id": account_id,
+            },
+            files={"file": (valid_filename, valid_csv.encode("utf-8"), "text/csv")},
+        )
+        assert valid_upload.status_code in (200, 201, 202), (
+            f"valid statement upload failed: {valid_upload.text}"
+        )
+        valid_statement_id = valid_upload.json()["id"]
+        valid_parsed = await _wait_for_parsed(client, valid_statement_id)
+        assert valid_parsed["balance_validated"] is True
+        assert valid_parsed["confidence_score"] >= 50
+        assert len(valid_parsed["transactions"]) == 2
+
+        approval = await approve_statement_with_fixture_review(
+            client,
+            api_url=_api_url,
+            statement_id=valid_statement_id,
+            transactions=valid_parsed["transactions"],
+            dispositions=DISPOSITIONS,
+            envelope=FixtureEnvelope(
+                currency=CURRENCY,
+                period_start=date(2026, 1, 1),
+                period_end=date(2026, 1, 31),
+                opening_balance=Decimal("10000.00"),
+                closing_balance=Decimal("20000.00"),
+                rationale="The generated CSV declares these source facts.",
+            ),
+        )
+        assert approval["status"] == "approved", (
+            f"valid statement approval failed: {approval}"
+        )
+
+        reconcile_resp = await client.post(
+            _api_url("/reconciliation/runs"),
+            json={"statement_id": valid_statement_id},
+        )
+        assert reconcile_resp.status_code == 200, (
+            f"reconciliation run failed: {reconcile_resp.text}"
+        )
+        assert reconcile_resp.json()["auto_accepted"] == 2
+
+        for txn in valid_parsed["transactions"]:
+            corr_resp = await client.post(
+                _api_url("/corrections"),
+                json={
+                    "transaction_id": txn["id"],
+                    "corrected_category": "SALARY",
+                },
+            )
+            assert corr_resp.status_code == 201, (
+                f"correction creation failed: {corr_resp.text}"
+            )
+
+        low_conf_filename = f"confidence_low_{uuid.uuid4().hex[:6]}.csv"
+        low_conf_csv = "\n".join(
+            [
+                LOW_CONFIDENCE_CSV_HEADER,
+                "SGD,20000.00,99999.00,2026-02-10,Unverified Expense,-500.00",
+                "",
+            ]
+        )
+        low_conf_upload = await client.post(
+            _api_url("/statements/upload"),
+            data={
+                "institution": "Confidence Low Score Bank",
+                "account_id": account_id,
+            },
+            files={
+                "file": (
+                    low_conf_filename,
+                    low_conf_csv.encode("utf-8"),
+                    "text/csv",
+                )
+            },
+        )
+        assert low_conf_upload.status_code in (200, 201, 202), (
+            f"low-confidence statement upload failed: {low_conf_upload.text}"
+        )
+        low_conf_statement_id = low_conf_upload.json()["id"]
+        low_conf_parsed = await _wait_for_parsed(client, low_conf_statement_id)
+        assert low_conf_parsed["balance_validated"] is False
+        assert low_conf_parsed["confidence_score"] < 50
+        assert len(low_conf_parsed["transactions"]) == 1
+
+        # 2. Query the live correction feedback loop replay endpoint.
         replay_resp = await client.get(_api_url("/metrics/correction-loop/replay"))
         assert replay_resp.status_code == 200, (
             f"correction loop replay failed: {replay_resp.status_code} {replay_resp.text}"
         )
         replay = replay_resp.json()
-        assert "holdout_size" in replay
-        assert "grounded" in replay
-        assert "proportion_before" in replay
-        assert "proportion_after" in replay
-        assert "reduced" in replay
-
+        assert replay["holdout_size"] == 1
+        assert replay["grounded"] == 1
         prop_before = Decimal(str(replay["proportion_before"]))
         prop_after = Decimal(str(replay["proportion_after"]))
-        assert Decimal("0.00") <= prop_before <= Decimal("1.00")
-        assert Decimal("0.00") <= prop_after <= Decimal("1.00")
+        assert prop_before == EXPECTED_REPLAY_PROPORTION_BEFORE
+        assert prop_after == EXPECTED_REPLAY_PROPORTION_AFTER
+        assert prop_after < prop_before
+        assert replay["reduced"] is True
 
-        # 2. Query reconciliation statistics.
+        # 3. Query reconciliation statistics.
         stats_resp = await client.get(_api_url("/reconciliation/stats"))
         assert stats_resp.status_code == 200, (
             f"reconciliation stats failed: {stats_resp.status_code} {stats_resp.text}"
         )
         stats = stats_resp.json()
-        assert "matched_transactions" in stats
-        assert "total_transactions" in stats
-        assert "match_rate" in stats
+        assert stats["total_transactions"] == 3
+        assert stats["matched_transactions"] == 2
+        assert stats["unmatched_transactions"] == 1
+        assert (
+            stats["matched_transactions"] + stats["unmatched_transactions"]
+            == stats["total_transactions"]
+        )
+        match_rate = Decimal(str(stats["match_rate"]))
+        assert match_rate == EXPECTED_MATCH_RATE
 
-        # 3. Query statements to inspect confidence scores.
+        # 4. Query statements to inspect confidence scores without empty-DB fallback.
         stmts_resp = await client.get(_api_url("/statements"))
         assert stmts_resp.status_code == 200, (
             f"statements list failed: {stmts_resp.status_code} {stmts_resp.text}"
         )
-        stmts = stmts_resp.json().get("items", [])
+        stmts = stmts_resp.json()["items"]
+        total_statements = len(stmts)
+        assert total_statements > 0, "statements list must not be empty"
+        assert total_statements == EXPECTED_TOTAL_STATEMENTS
 
-        # 4. Compute and measure the proportion of low-confidence data.
         # Under Axiom B, low-confidence statements have score < 50 or failed balance validation.
         low_confidence_statements = sum(
             1
             for s in stmts
-            if (
-                s.get("confidence_score") is not None and s.get("confidence_score") < 50
-            )
-            or s.get("balance_validated") is False
+            if (s["confidence_score"] is not None and s["confidence_score"] < 50)
+            or s["balance_validated"] is False
         )
-        total_statements = len(stmts)
-        if total_statements > 0:
-            statement_low_confidence_ratio = Decimal(
-                low_confidence_statements
-            ) / Decimal(total_statements)
-        else:
-            statement_low_confidence_ratio = Decimal("0.00")
+        assert low_confidence_statements == EXPECTED_LOW_CONFIDENCE_STATEMENTS
+        statement_low_confidence_ratio = Decimal(low_confidence_statements) / Decimal(
+            total_statements
+        )
+        assert statement_low_confidence_ratio == EXPECTED_LOW_CONFIDENCE_RATIO
 
-        assert Decimal("0.00") <= statement_low_confidence_ratio <= Decimal("1.00")
+        # 5. Verify browser UI rendering on /confidence and /statements.
+        await page.goto(
+            f"{APP_URL.rstrip('/')}/confidence", wait_until="domcontentloaded"
+        )
+        await expect(page.locator("main")).to_contain_text(
+            "Correction Loop Proof", timeout=30000
+        )
+        await expect(page.locator("main")).to_contain_text(
+            "Held-out replay", timeout=30000
+        )
+        await expect(page.locator("main")).to_contain_text(
+            "Improves extraction", timeout=30000
+        )
+        await expect(page.locator("main")).to_contain_text(
+            "Before correction reuse", timeout=30000
+        )
+        await expect(page.locator("main")).to_contain_text("100.0%", timeout=30000)
+        await expect(page.locator("main")).to_contain_text(
+            "After correction reuse", timeout=30000
+        )
+        await expect(page.locator("main")).to_contain_text("0.0%", timeout=30000)
+        await expect(page.locator("main")).to_contain_text(
+            "Held-out items: 1", timeout=30000
+        )
+        await expect(page.locator("main")).to_contain_text(
+            "Grounded by prior fixes: 1", timeout=30000
+        )
+
+        await page.goto(
+            f"{APP_URL.rstrip('/')}/statements", wait_until="domcontentloaded"
+        )
+        await page.locator("main").wait_for(state="visible", timeout=30000)
+        await expect(
+            page.get_by_text(f"{EXPECTED_TOTAL_STATEMENTS} total")
+        ).to_be_visible(timeout=30000)
+        valid_row = page.locator(".relative.block").filter(has_text=valid_filename)
+        await expect(valid_row).to_be_visible(timeout=30000)
+        await expect(valid_row).to_contain_text("Approved")
+        low_conf_row = page.locator(".relative.block").filter(
+            has_text=low_conf_filename
+        )
+        await expect(low_conf_row).to_be_visible(timeout=30000)
+        await expect(low_conf_row).to_contain_text("Ready to review")
 
         # Record metrics as observable JUnit test properties.
         record_property("replay_proportion_before", str(prop_before))
@@ -147,7 +365,7 @@ async def test_proportion_of_low_confidence_data_is_measured(
         record_property(
             "statement_low_confidence_ratio", str(statement_low_confidence_ratio)
         )
-        record_property("reconciliation_match_rate", str(stats.get("match_rate", 0)))
+        record_property("reconciliation_match_rate", str(match_rate))
 
-        # 5. Record checkpoint U13.
+        # 6. Record checkpoint U13.
         checkpoint(record_property, "U13")
