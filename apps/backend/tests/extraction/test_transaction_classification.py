@@ -378,6 +378,7 @@ def test_AC18_15_8_production_consumers_are_the_declared_seams():
                 importers.append(rel_path)
     assert sorted(importers) == [
         "src/extraction/__init__.py",
+        "src/extraction/extension/correction_service.py",
         "src/extraction/extension/statement_posting.py",
     ]
 
@@ -545,7 +546,11 @@ def test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked():
     # The package root re-exports the router-facing seam (#1677: routers import
     # only src.<pkg>), so a root import is the same seam, not a side-door.
     seam_import_paths = (seam_module, "src.extraction")
-    entry_seams = ("classify_by_effective_policy", "backfill_classifications")
+    entry_seams = (
+        "classify_by_effective_policy",
+        "backfill_classifications",
+        "apply_user_transaction_correction",
+    )
 
     def seam_calls(tree: ast.AST) -> set[str]:
         alias_to_seam: dict[str, str] = {}

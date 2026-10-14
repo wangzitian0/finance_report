@@ -202,6 +202,41 @@ describe("LowConfidenceReviewModal", () => {
     expect(mockApiOperation).not.toHaveBeenCalled();
   });
 
+  it("ignores duplicate form submission while saving is already in flight", async () => {
+    let resolveSave!: (value: unknown) => void;
+    mockApiOperation.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    render(
+      <LowConfidenceReviewModal
+        isOpen={true}
+        onClose={vi.fn()}
+        transaction={mockTransaction}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Dining" }));
+    const input = screen.getByLabelText(/Classification Category/i);
+    const form = input.closest("form")!;
+
+    fireEvent.submit(form);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Saving/i })).toBeDisabled();
+    });
+
+    fireEvent.submit(form);
+    expect(mockApiOperation).toHaveBeenCalledTimes(1);
+
+    resolveSave({ id: "corr-1" });
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith('Category updated to "Dining"', "success");
+    });
+  });
+
   it("stores prompt in sessionStorage and navigates to /chat when clicking Ask AI Assistant", () => {
     render(
       <LowConfidenceReviewModal

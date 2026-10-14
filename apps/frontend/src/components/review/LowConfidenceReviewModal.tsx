@@ -77,6 +77,7 @@ export function LowConfidenceReviewModal({
 
   const handleSave = async (e?: React.FormEvent | React.MouseEvent) => {
     e?.preventDefault();
+    if (saving) return;
     const trimmed = category.trim();
     if (!trimmed) {
       setError("Please select or enter a category.");
