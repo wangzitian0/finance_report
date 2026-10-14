@@ -223,14 +223,21 @@ async def test_AC_extraction_auto_accept_9_a_user_who_turned_it_off_gets_no_leg_
     assert (await db.execute(select(Account.id).where(Account.code == PROCESSING_ACCOUNT_CODE))).first() is None
 
 
-async def test_AC_extraction_auto_accept_8_the_policy_threshold_follows_the_setting(db, test_user):
-    """AC-extraction.auto-accept.8: the recorded policy tells the truth about the score that the system accepts."""
+async def test_AC_extraction_auto_accept_8_the_policy_threshold_follows_the_setting(db, test_user, monkeypatch):
+    """AC-extraction.auto-accept.8: the recorded policy tells the truth about the score gate and LLM setting (#2405, #2406)."""
+    from src.config import settings
+    from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
+
+    monkeypatch.setattr(settings, "enable_ai_classification", True)
     on = await statement_disposition_policy_for_user(db, test_user.id)
-    test_user.ai_settings = {"auto_accept_ai_suggestions": False}
+    on_snapshot = current_statement_disposition_policy_snapshot(policy=on)
+    test_user.ai_settings = {"auto_accept_ai_suggestions": False, "enable_ai_classification": False}
     await db.flush()
     off = await statement_disposition_policy_for_user(db, test_user.id)
+    off_snapshot = current_statement_disposition_policy_snapshot(policy=off)
 
     assert (on.authoritative_threshold, off.authoritative_threshold) == (Decimal("0"), Decimal("0.85"))
+    assert (on_snapshot.live_llm_proposals_enabled, off_snapshot.live_llm_proposals_enabled) == (True, False)
 
 
 async def test_AC_extraction_auto_accept_9_transfers_loans_and_trades_post_without_a_click(db, test_user, monkeypatch):

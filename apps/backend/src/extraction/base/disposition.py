@@ -240,6 +240,7 @@ class DispositionPolicy:
 
     version: str = "disposition-v1"
     authoritative_threshold: Decimal = Decimal("0.85")
+    live_llm_proposals_enabled: bool | None = None
 
     def decide(
         self,

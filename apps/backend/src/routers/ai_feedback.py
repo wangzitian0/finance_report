@@ -23,7 +23,12 @@ from src.identity import (
     AiSuggestionResponse,
 )
 from src.platform import raise_bad_request
-from src.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.reconciliation import (
+    ReconciliationError,
+    ReconciliationMatch,
+    ReconciliationStatus,
+    apply_reconciliation_feedback,
+)
 
 router = APIRouter(prefix="/ai", tags=["ai-feedback"])
 
@@ -43,7 +48,9 @@ async def create_ai_feedback(
         effect = await apply_suggestion_feedback(
             db, user_id, payload.suggestion_id, payload.action, payload.corrected_value
         )
-    except SuggestionCorrectionError as exc:
+        if effect == "recorded":
+            effect = await apply_reconciliation_feedback(db, user_id, payload.suggestion_id, payload.action)
+    except (SuggestionCorrectionError, ReconciliationError) as exc:
         raise_bad_request(str(exc), cause=exc)
     feedback = AiFeedback(
         suggestion_id=payload.suggestion_id,
@@ -115,19 +122,9 @@ async def list_ai_suggestions(
         .offset(offset)
     )
     for classification, txn in classification_result.all():
-        category: str | None = None
-        if isinstance(classification.tags, dict):
-            raw = classification.tags.get("category")
-            if isinstance(raw, str) and raw:
-                category = raw
-        # Ensure suggested_category_or_match is a string (account_id may be UUID)
-        suggested = None
-        if category:
-            suggested = category
-        elif classification.account_id:
-            suggested = str(classification.account_id)
-        else:
-            suggested = "AI classification"
+        raw_cat = classification.tags.get("category") if isinstance(classification.tags, dict) else None
+        category = raw_cat if isinstance(raw_cat, str) and raw_cat else None
+        suggested = category or (str(classification.account_id) if classification.account_id else "AI classification")
 
         direction_val = txn.direction.value if hasattr(txn.direction, "value") else txn.direction
         items.append(

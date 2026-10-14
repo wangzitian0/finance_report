@@ -382,11 +382,12 @@ async def auto_create_posted_entries_for_statement(
         try:
             from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 
-            await EvidenceGraphIntegrationService().record_journal_postings_batch(
-                db,
-                user_id=user_id,
-                postings=postings,
-            )
+            async with db.begin_nested():
+                await EvidenceGraphIntegrationService().record_journal_postings_batch(
+                    db,
+                    user_id=user_id,
+                    postings=postings,
+                )
         except Exception as evidence_exc:
             logger.warning(
                 "Evidence-graph journal-posting batch lineage failed (posting continues)",

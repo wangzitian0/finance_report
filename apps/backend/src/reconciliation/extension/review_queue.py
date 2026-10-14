@@ -1,7 +1,7 @@
 """Reconciliation-match review queue: accept/reject/batch-accept + Stage 2 listing."""
 
 from decimal import Decimal
-from typing import cast
+from typing import Literal, cast
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -187,6 +187,42 @@ async def reject_match(
 
     await db.flush()
     return match
+
+
+async def apply_reconciliation_feedback(
+    db: AsyncSession,
+    user_id: UUID,
+    suggestion_id: UUID,
+    action: str,
+) -> Literal["accepted", "rejected", "recorded"]:
+    """Apply user feedback from /ai/feedback to a pending reconciliation match (#2419).
+
+    Delegates to ``reject_match`` for rejections and ``accept_match`` for acceptances when
+    journal entries are linked; if the pending match has no linked journal entries yet,
+    transitions the match directly to ``ACCEPTED`` so the review-band suggestion leaves
+    the pending queue. Unknown, foreign, or already-decided ids return ``"recorded"``.
+    """
+    result = await db.execute(
+        select(ReconciliationMatch)
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+        .where(ReconciliationMatch.id == suggestion_id)
+        .where(AtomicTransaction.user_id == user_id)
+        .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
+        .with_for_update(of=ReconciliationMatch)
+    )
+    match = result.scalar_one_or_none()
+    if match is None:
+        return "recorded"
+    if action == "reject":
+        await reject_match(db, str(match.id), user_id=user_id)
+        return "rejected"
+    try:
+        await accept_match(db, match.id, user_id=user_id)
+    except EntryCreationError:
+        match.status = ReconciliationStatus.ACCEPTED
+        match.version += 1
+        await db.flush()
+    return "accepted"
 
 
 async def batch_accept(

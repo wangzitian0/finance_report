@@ -21,7 +21,7 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.identity import AiFeedback, User
 from src.ledger import Account
-from tests.factories import UserFactory
+from tests.factories import AtomicTransactionFactory, UserFactory
 
 pytestmark = pytest.mark.asyncio
 
@@ -364,3 +364,57 @@ async def test_list_ai_suggestions_includes_direction_and_filters_by_statement_i
     assert len(items2) == 1
     assert items2[0]["suggestion_id"] == str(cls2.id)
     assert items2[0]["direction"] == "IN"
+
+
+async def test_AC_extraction_classification_hardening_2_reconciliation_match_feedback_leaves_pending_list(
+    client: AsyncClient, db: AsyncSession, test_user: User
+) -> None:
+    """AC-extraction.classification-hardening.2: accepting or rejecting a pending ReconciliationMatch updates its status and removes it from /ai/suggestions."""
+    from src.reconciliation import ReconciliationMatch, ReconciliationStatus
+
+    txn_accept = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="Match Accept")
+    txn_reject = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="Match Reject")
+    match_accept = ReconciliationMatch(
+        atomic_txn_id=txn_accept.id,
+        journal_entry_ids=[],
+        status=ReconciliationStatus.PENDING_REVIEW,
+        match_score=74,
+        score_breakdown={"ai_reasoning": "fuzzy match"},
+    )
+    match_reject = ReconciliationMatch(
+        atomic_txn_id=txn_reject.id,
+        journal_entry_ids=[],
+        status=ReconciliationStatus.PENDING_REVIEW,
+        match_score=71,
+        score_breakdown={"ai_reasoning": "fuzzy match"},
+    )
+    db.add_all([match_accept, match_reject])
+    await db.commit()
+
+    accept_res = await _post(client, match_accept.id, "accept")
+    reject_res = await _post(client, match_reject.id, "reject")
+
+    assert accept_res.status_code == 201 and accept_res.json()["effect"] == "accepted"
+    assert reject_res.status_code == 201 and reject_res.json()["effect"] == "rejected"
+    await db.refresh(match_accept)
+    await db.refresh(match_reject)
+    assert match_accept.status is ReconciliationStatus.ACCEPTED
+    assert match_reject.status is ReconciliationStatus.REJECTED
+    listed = {item["suggestion_id"] for item in (await client.get("/ai/suggestions")).json()["items"]}
+    assert str(match_accept.id) not in listed and str(match_reject.id) not in listed
+
+
+async def test_AC_extraction_classification_hardening_2_reconciliation_error_returns_bad_request(
+    client: AsyncClient, db: AsyncSession, test_user: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC-extraction.classification-hardening.2: a ReconciliationError during match acceptance returns HTTP 400 instead of 500."""
+    from src.reconciliation import AmountMismatchError
+    from src.routers import ai_feedback as ai_feedback_router
+
+    async def fail_match(*_args, **_kwargs):
+        raise AmountMismatchError("Amount mismatch: transaction=100.00, entries=50.00, tolerance=1.00")
+
+    monkeypatch.setattr(ai_feedback_router, "apply_reconciliation_feedback", fail_match)
+    res = await _post(client, uuid4(), "accept")
+    assert res.status_code == 400
+    assert "Amount mismatch" in res.json()["detail"]

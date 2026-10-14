@@ -129,29 +129,31 @@ the setting `auto_accept_ai_suggestions` off. With the setting on, the classifie
 
 **Model call (#2419).** Policy v2 and later send at most 50 rows in one call, with at most four calls
 in flight. Each description is one JSON string. The model echoes the `index` of each row. Code maps the
-answer by that index. A different item count than rows, an index outside the batch or a repeated index
-drops the answer for that batch. A row without a proposal goes to review. An item that the parser cannot
-read is no proposal. These items are unreadable: a missing or blank class, a missing or negative
-confidence, a confidence that is a word, and a class outside the catalog. The parser reads case, spaces,
-hyphens, a percent sign and a decimal score, also as a string. It cuts a decimal part and does not round it,
-so that 59.9 stays below the gate 60. A number above 100 counts as 100. When a batch holds a fraction and no
-number above 1, the model used the scale from 0 to 1, and the parser multiplies every number by 100. A batch
-without a fraction stays as it is. A fraction beside larger numbers is ambiguous (half a percent or fifty
-percent), so only that item is no proposal. The call carries
-the id of the statement owner, so it uses the provider of that user. The echo does not prove that the model
-numbered by the prompt and not by its own output order; a swap with a valid count and valid indexes
-is the residual risk of this design.
+answer by that index. A different item count than rows, a non-dict item, an item without an index, an
+index outside the batch or a repeated index drops the answer for that batch. A row without a proposal
+goes to review. An item that the parser cannot read is no proposal. These items are unreadable: a
+missing or blank class, a missing or negative confidence, a confidence that is a word, and a class
+outside the catalog. The parser reads case, spaces, hyphens, a percent sign and a decimal score, also
+as a string. It cuts a decimal part and does not round it, so that 59.9 stays below the gate 60. A
+number above 100 counts as 100. When a batch holds a fraction and no number above 1, the model used
+the scale from 0 to 1, and the parser multiplies every number by 100. A batch without a fraction stays
+as it is. A fraction beside larger numbers is ambiguous (half a percent or fifty percent), so only
+that item is no proposal. The call carries the id of the statement owner, so it uses the provider of
+that user. The echo does not prove that the model numbered by the prompt and not by its own output
+order; a swap with a valid count and valid indexes is the residual risk of this design.
 
 **Versions.** A row that gets a live row under a newer policy version loses its older model rows: they
 become `superseded` and point to the newer row. A rule row of the user is never touched.
 
-**Decisions of the user (#2419).** `POST /ai/feedback` changes the draft. A rejection supersedes the
-draft and every other live model row of the transaction. A correction replaces the category and the
-account of the draft, keeps the first original category and appends a `CorrectionLog` entry. An
-acceptance changes nothing. The response names the effect (`accepted`, `rejected`, `corrected` or
-`recorded`). An id that is unknown, belongs to another user or is no longer a draft is `recorded` and
-changes nothing. A decision outlives a later model pass: the sweep of older versions skips a corrected
-row, and a transaction with a rejected or corrected row is not classified again under any version.
+**Decisions of the user (#2419).** `POST /ai/feedback` changes the draft classification or pending
+reconciliation match. A rejection supersedes the draft and every other live model row of the
+transaction, or marks a pending reconciliation match `rejected`. A correction replaces the category
+and the account of the draft, keeps the first original category and appends a `CorrectionLog` entry.
+An acceptance on a draft leaves it for the approval; an acceptance on a pending reconciliation match
+marks it `accepted`. The response names the effect (`accepted`, `rejected`, `corrected` or `recorded`).
+An id that is unknown, belongs to another user or is no longer pending is `recorded` and changes
+nothing. A decision outlives a later model pass: the sweep of older versions skips a corrected row,
+and a transaction with a rejected or corrected row is not classified again under any version.
 
 **One-click approval (#2415, #2419).** With the setting `auto_accept_ai_suggestions` off, a draft suggestion
 (the review band, 60 to 84) is not posted by itself. The one-click approval on the statement review page
