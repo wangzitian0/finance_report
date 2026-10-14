@@ -13,12 +13,7 @@ from src.extraction import effective_statement_transaction_filter
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry, JournalEntryStatus, JournalLine
 from src.reconciliation.base.repository import ReconciliationRepository
-from src.reconciliation.orm.reconciliation import (
-    DispositionKind,
-    ReconciliationMatch,
-    ReconciliationMatchJournalEntry,
-    ReconciliationStatus,
-)
+from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 
 class SqlReconciliationRepository(ReconciliationRepository):
@@ -56,24 +51,11 @@ class SqlReconciliationRepository(ReconciliationRepository):
         start_date: date,
         end_date: date,
     ) -> list[JournalEntry]:
-        transfer_leg_entries = (
-            select(ReconciliationMatchJournalEntry.journal_entry_id)
-            .join(
-                ReconciliationMatch,
-                ReconciliationMatch.id == ReconciliationMatchJournalEntry.match_id,
-            )
-            .where(
-                ReconciliationMatch.disposition_kind == DispositionKind.TRANSFER_LEG,
-                ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
-                ReconciliationMatch.superseded_by_id.is_(None),
-            )
-        )
         result = await self._db.execute(
             select(JournalEntry)
             .where(JournalEntry.user_id == user_id)
             .where(JournalEntry.entry_date.between(start_date, end_date))
             .where(JournalEntry.status != JournalEntryStatus.VOID)
-            .where(JournalEntry.id.notin_(transfer_leg_entries))
             .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
         )
         return list(result.scalars().all())
