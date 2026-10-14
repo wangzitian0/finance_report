@@ -596,20 +596,40 @@ async def test_AC_extraction_auto_accept_5_the_review_score_itself_books_a_loan_
 
 
 async def test_AC_extraction_auto_accept_3_the_review_score_itself_applies_a_class_and_59_does_not(db, test_user):
-    """AC-extraction.auto-accept.3: the gate is 60. A decimal part is cut, so that 59.9 does not round up to 60."""
+    """AC-extraction.auto-accept.3: the gate is 60. A score of 60 applies the class, and 59 does not."""
     at_gate = await _txn(db, test_user, description="AT GATE")
     below_gate = await _txn(db, test_user, description="BELOW GATE")
-    decimal = await _txn(db, test_user, description="DECIMAL")
-    answers = {at_gate.id: 60, below_gate.id: 59, decimal.id: 59.9}
+    answers = {at_gate.id: 60, below_gate.id: 59}
 
     async def proposer(transactions, _policy):
-        return [CategoryProposal(category="DINING", confidence=int(answers[t.id]), reason="test") for t in transactions]
+        return [CategoryProposal(category="DINING", confidence=answers[t.id], reason="test") for t in transactions]
 
-    await classify_transactions(db, test_user.id, [at_gate, below_gate, decimal], policy=V2, proposer=proposer)
+    await classify_transactions(db, test_user.id, [at_gate, below_gate], policy=V2, proposer=proposer)
 
     assert (await _account(db, await _row(db, at_gate))).name == "Expense - Dining"
     assert (await _account(db, await _row(db, below_gate))).name == "General Expense (SGD)"
-    assert (await _account(db, await _row(db, decimal))).name == "General Expense (SGD)"
+
+
+async def test_AC_extraction_auto_accept_4_a_decimal_part_never_rounds_a_score_up_to_the_gate(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.auto-accept.4: the real parser cuts 59.9 to 59, so the row stays below the gate 60."""
+    below = await _txn(db, test_user, description="ROW A")
+    at_gate = await _txn(db, test_user, description="ROW B")
+    _model_answers(
+        monkeypatch,
+        [
+            {"index": 0, "category": "DINING", "confidence": 59.9},
+            {"index": 1, "category": "DINING", "confidence": 60.4},
+        ],
+    )
+
+    await classify_transactions(db, test_user.id, [below, at_gate], policy=V2)
+
+    assert (await _row(db, below)).tags["original_confidence"] == 59
+    assert (await _account(db, await _row(db, below))).name == "General Expense (SGD)"
+    assert (await _row(db, at_gate)).confidence_score == 60
+    assert (await _account(db, await _row(db, at_gate))).name == "Expense - Dining"
 
 
 async def test_AC_extraction_auto_accept_5_a_suspense_draft_stays_a_draft_when_the_pass_promotes_drafts(db, test_user):
@@ -689,8 +709,10 @@ async def test_AC_extraction_auto_accept_4_a_batch_on_the_scale_from_0_to_1_is_r
     assert (await _row(db, second)).confidence_score == 100
     assert (await _row(db, fourth)).confidence_score == 89, "a decimal part is cut, not rounded"
     assert (await _account(db, await _row(db, second))).name == "Expense - Groceries"
-    # 0.58 is 58, which is below the review score: the general account takes the row.
+    # 0.58 is 58 (not 57, as float multiplication gives), which is below the review score. The general account
+    # takes the row and keeps the score of the model.
     assert (await _account(db, await _row(db, third))).name == "General Expense (SGD)"
+    assert (await _row(db, third)).tags["original_confidence"] == 58
 
 
 async def test_AC_extraction_auto_accept_4_a_fraction_among_larger_numbers_is_no_answer_for_that_item_only(

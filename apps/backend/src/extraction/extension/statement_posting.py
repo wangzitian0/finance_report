@@ -443,8 +443,8 @@ def _applied_proposal(
 
     A row that a person corrected is the decision of that person, not of the model (#2405). An accepted match
     already covers its money. A manual adjudication would bypass that fact and post the movement twice, so a
-    covered row keeps the machine origin and the disposition policy keeps the row covered. A person who
-    disagrees with the match rejects the match first.
+    covered row keeps the machine origin and the disposition policy keeps the row covered. The correction then
+    does not change the ledger. The product has no path to void an accepted match yet (#2423).
     """
     corrected_by_user = (classification.tags or {}).get("corrected_by_user") is True
     if corrected_by_user and covered_by_match:

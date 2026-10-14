@@ -104,9 +104,10 @@ matching asset/liability context and cannot be converted into income or expense
 by fallback. An accepted transfer match is a reconciliation fact: it already has
 its Processing entry, so it outranks every model or rule proposal and a second
 income or expense entry for the same leg is never posted (#2410). Only a person
-who adjudicates that one transaction can override it, and the person first
-rejects the match. The posting keeps a covered row covered, also when the person
-corrected its category (#2405). `off`, `observe`, and
+who adjudicates that one transaction can override it. The posting keeps a covered
+row covered, also when the person corrected its category (#2405). The product has
+no path to void an accepted match yet (#2423), so such a correction does not
+change the ledger. `off`, `observe`, and
 `enforce` calculate the same versioned
 decision; only `enforce` applies a command. Composition resolves the closed
 `STATEMENT_DISPOSITION_MODE` once; it is not a per-route boolean override.
@@ -133,9 +134,10 @@ drops the answer for that batch. A row without a proposal goes to review. An ite
 read is no proposal. These items are unreadable: a missing or blank class, a missing or negative
 confidence, a confidence that is a word, and a class outside the catalog. The parser reads case, spaces,
 hyphens, a percent sign and a decimal score, also as a string. It cuts a decimal part and does not round it,
-so that 59.9 stays below the gate 60. A number above 100 counts as 100. When no number of a batch is above 1,
-the model used the scale from 0 to 1, and the parser multiplies every number by 100. A fraction beside larger
-numbers is ambiguous (half a percent or fifty percent), so only that item is no proposal. The call carries
+so that 59.9 stays below the gate 60. A number above 100 counts as 100. When a batch holds a fraction and no
+number above 1, the model used the scale from 0 to 1, and the parser multiplies every number by 100. A batch
+without a fraction stays as it is. A fraction beside larger numbers is ambiguous (half a percent or fifty
+percent), so only that item is no proposal. The call carries
 the id of the statement owner, so it uses the provider of that user. The echo does not prove that the model
 numbered by the prompt and not by its own output order; a swap with a valid count and valid indexes
 is the residual risk of this design.
@@ -197,10 +199,10 @@ and the default three statements. The system therefore decides every row that th
   rejected draft stays superseded. A draft that the user corrected is applied as the decision of the user. It
   keeps the flag `corrected_by_user` and gets no `auto_accepted` tag, and the posting records the user as the
   decider (source type `user_confirmed`). A person who corrects a suspense draft chooses the class, so the
-  tag `suspense` goes away and the row books to the balance-sheet account. A corrected draft that contradicts
-  its direction stays a draft, and the one-click approval posts that row to the general account. A row that
-  an accepted match covers stays covered, also when the person corrected it. The person rejects the match
-  first.
+  tag `suspense` goes away and the row books to the class that the person chose. A corrected draft that
+  contradicts its direction stays a draft, and the one-click approval posts that row to the general account.
+  A row that an accepted match covers stays covered, also when the person corrected it. The correction does
+  not change the ledger, because the product has no path to void an accepted match yet (#2423).
 - The disposition policy of such a user has the score gate 0 and the version `disposition-v1-accept-any-score`.
   The policy snapshot and the personal report package record it. The entries have the source type
   `auto_parsed`, which is the low confidence tier.
@@ -210,7 +212,8 @@ and the default three statements. The system therefore decides every row that th
   stays a candidate.
 - The classifier asks the model only for the rows that have no row under the current policy version. A row that
   has its row keeps it (the disposition `already_classified`). A retry asks again only for the rows that had no
-  answer, and the one-click approval asks the model once.
+  answer. The one-click approval asks the model once for each row that gets an answer. A row without an answer
+  is asked again by the posting.
 - The classifier and the one-click approval resolve a default account with one resolver
   (`get_or_create_account`, AC `default-account.1`). An inactive account is not the default, because posting
   refuses it. Two active rows with one name resolve to the oldest. The account commits in its own short

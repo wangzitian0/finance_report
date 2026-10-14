@@ -795,10 +795,10 @@ async def classify_transactions(
     confidence gate disposes. With auto-accept off: >= auto threshold => APPLIED onto a real catalog
     account; review band => DRAFT (the existing ai_feedback 60-84 queue); below =>
     an explicit no-authority tail. With auto-accept on (#2405), the review score (60) applies a
-    class. Below it, the general account of the direction takes a P&L class, a loan principal and an
-    investment trade. A transfer and a card repayment stay drafts at any score above 0, because their
-    Processing leg posts them. A score of 0 on one of these four classes is no answer, and so is a row
-    without a readable answer: neither writes anything.
+    class. Below it, the general account of the direction takes a P&L class. A loan principal and an
+    investment trade below it stay drafts with the tag ``suspense``, and so do a transfer and a card
+    repayment at any score above 0: their Processing leg posts them. A score of 0 on one of these four
+    classes is no answer, and so is a row without a readable answer: neither writes anything.
     ``commit_basis=False`` is pro-forma: same verdicts, zero writes.
     """
     if not transactions:
@@ -1158,7 +1158,8 @@ class ClassificationSuggestion(BaseModel):
     """The latest stored classification of a row: applied or draft (#2415).
 
     With auto-accept off, applied means 85 or more and draft means 60 to 84. With it on, applied also covers
-    60 to 84, and a draft is a transfer or a card repayment that waits for its Processing leg.
+    60 to 84. A draft is a transfer or a card repayment that waits for its Processing leg, or a loan or a trade
+    below the review score with the tag ``suspense`` (``suspense`` is true), which waits for its leg too.
     """
 
     model_config = ConfigDict(frozen=True)
