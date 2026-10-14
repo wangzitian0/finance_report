@@ -51,7 +51,6 @@ TRANSFER_KEYWORDS = [
 
 # Confidence thresholds from reconciliation.md.
 AUTO_PAIR_THRESHOLD = 85
-PENDING_REVIEW_THRESHOLD = 60
 
 # Scoring weights from reconciliation.md.
 AMOUNT_WEIGHT = Decimal("0.40")

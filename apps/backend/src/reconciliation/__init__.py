@@ -87,6 +87,9 @@ from src.reconciliation.extension.scoring import (
     score_pattern,
     weighted_total,
 )
+from src.reconciliation.extension.transfer_pairs import (
+    paired_transfer_entry_ids,
+)
 
 # ORM models owned by this package (moved from src/models, #1675); imported
 # eagerly so importing the package registers the mappers on Base.metadata.
@@ -158,6 +161,7 @@ __all__ = [
     "load_reconciliation_config",
     "normalize_text",
     "pair_fx_legs",
+    "paired_transfer_entry_ids",
     "post_named_transfer_legs",
     "prune_candidates",
     "reject_match",

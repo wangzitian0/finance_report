@@ -4,16 +4,31 @@ from uuid import UUID
 
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.extraction import TransactionDirection
 from src.extraction.orm.layer2 import AtomicTransaction
+from src.ledger import (
+    JournalEntry,
+    TransferPair,
+    find_transfer_pairs,
+)
 from src.reconciliation.base.errors import (
     CheckResolutionAction,
     ConsistencyCheckNotFoundError,
     InvalidCheckActionError,
 )
 from src.reconciliation.extension.anomaly import detect_anomalies
+from src.reconciliation.extension.scoring import score_description
+from src.reconciliation.extension.transfer_pairs import persist_transfer_pairs
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+from src.reconciliation.orm.reconciliation import (
+    DispositionKind,
+    ReconciliationMatch,
+    ReconciliationMatchJournalEntry,
+    ReconciliationStatus,
+    TransferPairDecision,
+)
 
 TRANSFER_TOLERANCE = Decimal("0.001")
 TRANSFER_DATE_TOLERANCE_DAYS = 3
@@ -232,6 +247,96 @@ async def run_all_consistency_checks(
     return checks
 
 
+async def _persist_approved_transfer_pair_check(
+    db: AsyncSession,
+    check: ConsistencyCheck,
+    user_id: UUID,
+) -> None:
+    if not check.related_txn_ids or len(check.related_txn_ids) != 2:
+        return
+
+    try:
+        txn_ids = [UUID(tid) for tid in check.related_txn_ids]
+    except (ValueError, TypeError):
+        return
+
+    rows = (
+        await db.execute(
+            select(
+                ReconciliationMatchJournalEntry.journal_entry_id,
+                AtomicTransaction.direction,
+                AtomicTransaction.currency,
+            )
+            .join(
+                ReconciliationMatch,
+                ReconciliationMatch.id == ReconciliationMatchJournalEntry.match_id,
+            )
+            .join(
+                AtomicTransaction,
+                AtomicTransaction.id == ReconciliationMatch.atomic_txn_id,
+            )
+            .where(
+                AtomicTransaction.user_id == user_id,
+                AtomicTransaction.id.in_(txn_ids),
+                ReconciliationMatch.disposition_kind == DispositionKind.TRANSFER_LEG,
+                ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
+                ReconciliationMatch.superseded_by_id.is_(None),
+            )
+        )
+    ).all()
+
+    out_entry_id: UUID | None = None
+    in_entry_id: UUID | None = None
+    currency: str | None = None
+
+    for entry_id, direction, curr in rows:
+        if direction == TransactionDirection.OUT:
+            out_entry_id = entry_id
+            currency = curr
+        elif direction == TransactionDirection.IN:
+            in_entry_id = entry_id
+            if currency is None:
+                currency = curr
+
+    if out_entry_id is None or in_entry_id is None or currency is None:
+        return
+
+    entries_result = await db.execute(
+        select(JournalEntry)
+        .options(selectinload(JournalEntry.lines))
+        .where(
+            JournalEntry.user_id == user_id,
+            JournalEntry.id.in_([out_entry_id, in_entry_id]),
+        )
+    )
+    entries = {entry.id: entry for entry in entries_result.scalars().all()}
+    out_entry = entries.get(out_entry_id)
+    in_entry = entries.get(in_entry_id)
+    if out_entry is None or in_entry is None:
+        return
+
+    candidate_pairs = await find_transfer_pairs(
+        db,
+        user_id,
+        currency=currency,
+        description_scorer=score_description,
+        threshold=0,
+    )
+    matched_pair = next(
+        (p for p in candidate_pairs if p.out_entry.id == out_entry.id and p.in_entry.id == in_entry.id),
+        None,
+    )
+    if matched_pair is None:
+        matched_pair = TransferPair(
+            out_entry=out_entry,
+            in_entry=in_entry,
+            confidence=100,
+            score_breakdown={"reviewer_approved": 100.0},
+        )
+
+    await persist_transfer_pairs(db, [matched_pair], decision=TransferPairDecision.REVIEWER_PAIRED)
+
+
 async def resolve_check(
     db: AsyncSession,
     check_id: UUID,
@@ -251,6 +356,8 @@ async def resolve_check(
 
     if action == CheckResolutionAction.APPROVE:
         check.status = CheckStatus.APPROVED
+        if check.check_type == CheckType.TRANSFER_PAIR:
+            await _persist_approved_transfer_pair_check(db, check, user_id)
     elif action == CheckResolutionAction.REJECT:
         check.status = CheckStatus.REJECTED
     elif action == CheckResolutionAction.FLAG:
