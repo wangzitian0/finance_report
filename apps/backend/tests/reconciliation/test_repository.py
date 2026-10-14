@@ -12,6 +12,7 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.identity import User
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reconciliation.extension.repository import SqlReconciliationRepository
+from src.reconciliation.orm.reconciliation import DispositionKind, ReconciliationMatchJournalEntry
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
@@ -96,6 +97,51 @@ async def test_list_journal_candidates_filters_by_date_range_and_excludes_void(d
     result_ids = {entry.id for entry in results}
     assert in_range.id in result_ids
     assert out_of_range.id not in result_ids
+
+
+async def test_list_journal_candidates_excludes_active_transfer_leg_entries(db: AsyncSession, test_user) -> None:
+    normal_entry = await create_valid_posted_entry(db, test_user.id, entry_date=date(2024, 1, 15), memo="Normal entry")
+    transfer_leg_entry = await create_valid_posted_entry(
+        db,
+        test_user.id,
+        entry_date=date(2024, 1, 15),
+        memo="Transfer OUT: existing transfer",
+    )
+    txn = _atomic_txn(
+        owner_id=test_user.id,
+        txn_date=date(2024, 1, 15),
+        description="existing transfer",
+        amount=Decimal("100.00"),
+        direction="OUT",
+    )
+    db.add(txn)
+    await db.flush()
+    match = ReconciliationMatch(
+        atomic_txn_id=txn.id,
+        journal_entry_ids=[str(transfer_leg_entry.id)],
+        match_score=100,
+        status=ReconciliationStatus.AUTO_ACCEPTED,
+        disposition_kind=DispositionKind.TRANSFER_LEG,
+    )
+    db.add(match)
+    await db.flush()
+    db.add(
+        ReconciliationMatchJournalEntry(
+            match_id=match.id,
+            journal_entry_id=transfer_leg_entry.id,
+        )
+    )
+    await db.commit()
+
+    repo = SqlReconciliationRepository(db)
+    results = await repo.list_journal_candidates(
+        user_id=test_user.id,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 1, 31),
+    )
+    result_ids = {entry.id for entry in results}
+    assert normal_entry.id in result_ids
+    assert transfer_leg_entry.id not in result_ids
 
 
 async def test_get_active_match_excludes_superseded(db: AsyncSession, test_user) -> None:

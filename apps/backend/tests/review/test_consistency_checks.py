@@ -931,6 +931,9 @@ async def test_issue2388_review_band_transfer_pair_approval_persists_pair_and_cl
     # Verify paired_transfer_entry_ids contains both legs
     assert await paired_transfer_entry_ids(db, user_id=user_id) == {out_entry.id, in_entry.id}
 
+    # Verify detect_transfer_pairs skips already-paired transactions
+    assert await detect_transfer_pairs(db, user_id) == []
+
     # Verify /accounts/processing/pending is empty
     resp_after = await client.get("/accounts/processing/pending")
     assert resp_after.status_code == 200

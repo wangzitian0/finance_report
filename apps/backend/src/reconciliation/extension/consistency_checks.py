@@ -27,7 +27,10 @@ from src.reconciliation.orm.reconciliation import (
     ReconciliationMatch,
     ReconciliationMatchJournalEntry,
     ReconciliationStatus,
+    ReconciliationTransferPair,
+    ReconciliationTransferPairLeg,
     TransferPairDecision,
+    TransferPairReviewState,
 )
 
 TRANSFER_TOLERANCE = Decimal("0.001")
@@ -110,7 +113,27 @@ async def detect_transfer_pairs(
     run_id: str | None = None,
 ) -> list[ConsistencyCheck]:
     _ = statement_id
-    base_query = select(AtomicTransaction).where(AtomicTransaction.user_id == user_id)
+    paired_txn_subquery = (
+        select(ReconciliationMatch.atomic_txn_id)
+        .join(
+            ReconciliationTransferPairLeg,
+            ReconciliationTransferPairLeg.disposition_id == ReconciliationMatch.id,
+        )
+        .join(
+            ReconciliationTransferPair,
+            ReconciliationTransferPair.id == ReconciliationTransferPairLeg.pair_id,
+        )
+        .where(
+            ReconciliationMatch.disposition_kind == DispositionKind.TRANSFER_LEG,
+            ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
+            ReconciliationMatch.superseded_by_id.is_(None),
+            ReconciliationTransferPair.review_state == TransferPairReviewState.PAIRED,
+        )
+    )
+    base_query = select(AtomicTransaction).where(
+        AtomicTransaction.user_id == user_id,
+        AtomicTransaction.id.notin_(paired_txn_subquery),
+    )
 
     all_result = await db.execute(base_query)
     all_txns = list(all_result.scalars().all())
