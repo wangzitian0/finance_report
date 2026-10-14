@@ -349,8 +349,11 @@ def test_parse_moomoo_skips_non_position_subscription_events():
             "not a dict",
             {"description": "Money Market Fund rebate", "amount": "UNKNOWN"},
             {"description": "Money Market Fund redemption", "amount": "-10.00"},
+            {"description": "Money Market Fund dividend", "amount": "25.00"},
+            {"description": "Money Market Fund transfer", "amount": "100.00", "direction": "OUT"},
             {"raw_text": ("Subscription 0001 Bad Quantity Fund SGD 2026/05/18 settled 1.0000 UNKNOWN 1250.50")},
-            {"raw_text": ("Subscription 0001 Zero Value Fund SGD 2026/05/18 settled 1.0000 10.00 -10.00")},
+            {"raw_text": ("Subscription 0001 Zero Value Fund SGD 2026/05/18 settled 1.0000 10.00 0.00")},
+            {"raw_text": ("Subscription 0001 Zero Quantity Fund SGD 2026/05/18 settled 1.0000 0.00 10.00")},
             {"description": "Cash transfer", "amount": "100.00"},
         ],
     }
@@ -379,7 +382,9 @@ def test_parse_futu_aggregate_ignores_fee_dividend_and_non_positive_events():
         "events": [
             {"description": "Platform fee", "amount": "-1.41"},
             {"description": "Platform fee", "amount": "1.41", "direction": "OUT"},
+            {"description": "Securities transfer", "amount": "100.00", "direction": "OUT"},
             {"description": "Dividend income", "amount": "50.00", "direction": "IN"},
+            {"description": "腾讯控股 股息", "amount": "120.00", "direction": "IN"},
             {"description": "Brokerage cash interest", "amount": "5.11", "direction": "IN"},
             {"description": "Stock valuation", "amount": "0.00"},
             {"description": "Stock valuation", "amount": "-1.41"},

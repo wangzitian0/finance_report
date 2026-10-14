@@ -305,9 +305,16 @@ def _parse_moomoo_subscription_positions(
         raw_text = str(event.get("raw_text") or "")
         match = _MOOMOO_SUBSCRIPTION_RE.search(raw_text)
         if not match:
+            if str(event.get("direction") or "").strip().upper() == "OUT":
+                continue
             description = str(event.get("description") or "")
             amount = _clean_decimal(event.get("amount"))
-            if "Money Market Fund" not in description or amount is None or amount <= 0:
+            if (
+                "Money Market Fund" not in description
+                or any(token in description.lower() for token in _FUTU_NON_POSITION_EVENT_TOKENS)
+                or amount is None
+                or amount <= 0
+            ):
                 continue
             snapshots.append(
                 BrokeragePositionSnapshot(
@@ -400,11 +407,22 @@ def _parse_moomoo_margin_history_positions(
 _FUTU_NON_POSITION_EVENT_TOKENS: tuple[str, ...] = (
     "cash",
     "現金",
+    "现金",
     "fee",
+    "费用",
+    "費用",
+    "手续费",
+    "手續費",
     "dividend",
+    "股息",
     "interest",
+    "利息",
     "deposit",
+    "入金",
     "withdrawal",
+    "出金",
+    "rebate",
+    "redemption",
 )
 
 
