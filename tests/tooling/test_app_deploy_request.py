@@ -633,3 +633,10 @@ def test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge() -> N
         "tests/tooling/test_infra2_pin_is_release_tag.py",
     )
     assert all(not (ROOT / path).exists() for path in retired_source_readers)
+
+
+def test_canonical_json_is_the_sdk_function_not_a_local_copy() -> None:
+    """One wire serializer: the renderer re-exports `infra2_sdk.deploy.canonical_json` (#2434)."""
+    from infra2_sdk import deploy as sdk_deploy
+
+    assert renderer.canonical_json is sdk_deploy.canonical_json
