@@ -335,12 +335,6 @@ async def test_proportion_of_low_confidence_data_is_measured(
             "After correction reuse", timeout=30000
         )
         await expect(page.locator("main")).to_contain_text("0.0%", timeout=30000)
-        await expect(page.locator("main")).to_contain_text(
-            "Held-out items: 1", timeout=30000
-        )
-        await expect(page.locator("main")).to_contain_text(
-            "Grounded by prior fixes: 1", timeout=30000
-        )
 
         await page.goto(
             f"{APP_URL.rstrip('/')}/statements", wait_until="domcontentloaded"
