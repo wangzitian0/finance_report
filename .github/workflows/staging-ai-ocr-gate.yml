@@ -86,7 +86,7 @@ jobs:
         # Pytest runs single-worker, no -n xdist, so
         # every wait across every file is fully serial, plus checkout/setup
         # overhead, not a per-file or per-journey guess.
-        timeout-minutes: ${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 140 || 125) }}
+        timeout-minutes: ${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 145 || 130) }}
         env:
           EXPECTED_SHA_RAW: ${{ inputs.expected_sha }}
           CORPUS: ${{ inputs.corpus }}

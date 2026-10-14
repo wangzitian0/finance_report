@@ -51,6 +51,11 @@
       "test": "test_confidence_metrics_journey::test_proportion_of_low_confidence_data_is_measured",
       "file": "tests/e2e/test_confidence_metrics_journey.py",
       "reaches": ["U12", "U13"]
+    },
+    {
+      "test": "test_zero_click_statement_journey::test_upload_alone_produces_the_base_tables_and_the_three_statements",
+      "file": "tests/e2e/test_zero_click_statement_journey.py",
+      "reaches": ["U12", "U1", "U2", "U6"]
     }
   ]
 }
