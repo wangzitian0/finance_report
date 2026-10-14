@@ -145,8 +145,9 @@ acceptance changes nothing. The response names the effect (`accepted`, `rejected
 changes nothing. A decision outlives a later model pass: the sweep of older versions skips a corrected
 row, and a transaction with a rejected or corrected row is not classified again under any version.
 
-**One-click approval (#2415, #2419).** A draft suggestion (the review band, 60 to 84) is not posted by
-itself. The one-click approval on the statement review page accepts it: the row posts to the suggested
+**One-click approval (#2415, #2419).** With the setting `auto_accept_ai_suggestions` off, a draft suggestion
+(the review band, 60 to 84) is not posted by itself. The one-click approval on the statement review page
+accepts it: the row posts to the suggested
 account and category as a reviewed disposition, and the draft becomes `applied`. A row that the posting
 will post from its applied classification is left to the posting. The disposition policy decides this,
 through `applied_rows_the_policy_accepts`, so the approval never disagrees with the posting. A row
@@ -167,35 +168,53 @@ also has AI classification on. The owner rule is: the user uploads, and the syst
 and the default three statements. The system therefore decides every row that the model answered:
 
 - A suggestion at the review score (60) or above is applied, including `OTHER_INCOME` and `OTHER_EXPENSE`.
-  An applied row below the manual gate (85) carries the tag `auto_accepted`.
+  An applied row that the review path would have held for a person (a score below 85, or an Other class)
+  carries the tag `auto_accepted`.
 - A row that the model answered but could not place goes to `General Income (CUR)` or `General Expense (CUR)`
   by direction, with the category `UNCLASSIFIED` and the score 0. This covers a P&L class with a score below
-  60 and a class whose account side contradicts the direction. The row keeps the class and the score of the
-  model in `original_category` and `original_confidence`.
+  60, a class whose account side contradicts the direction, and a loan principal or an investment trade
+  below 60. The row keeps the class and the score of the model in `original_category` and
+  `original_confidence`.
 - A row that the model did not answer gets no row and no general account. The statement waits and the next
-  pass classifies the row. This covers an outage, a dropped batch, an item that the parser cannot read and a
-  class outside the catalog. An outage or a model that ignores the schema must not turn a statement into
-  general entries. A dry run writes nothing.
-- A loan principal and an investment trade are applied to `Loans Payable (CUR)` and `Investments (CUR)` with an
-  explicit intent, at any score. A transfer and a card repayment stay drafts at any score, and the posting
-  posts them as Processing legs (base currency only, enforce mode only). The leg has the status
-  `auto_accepted`, or `accepted` when the user chose the class. A weak transfer is still a transfer, and the
-  two sides of one transfer land in the same place.
-- The next pass applies the drafts that the review path left. A decision of the user outranks the setting:
-  a rejected draft stays superseded, and a corrected draft stays a draft for the one-click approval, which
-  posts it as the decision of the user.
+  pass classifies the row. This covers an outage, a dropped batch, an item that the parser cannot read, a
+  class outside the catalog, a score of 0 on a transfer, a card repayment, a loan or a trade, and every row
+  of a batch in which one confidence is a fraction below 1 (the model used the scale from 0 to 1). An outage
+  or a model that ignores the schema must not turn a statement into general entries. A dry run writes
+  nothing.
+- A loan principal and an investment trade at the review score or above are applied to `Loans Payable (CUR)`
+  and `Investments (CUR)` with an explicit intent. A transfer and a card repayment stay drafts at any score
+  above 0, and the posting posts them as Processing legs (base currency only, enforce mode only). The leg has
+  the status `auto_accepted`, or `accepted` when the user chose the class, and its draft has the tag of the
+  same name. A weak transfer is still a transfer, and the two sides of one transfer land in the same place.
+- The next pass applies the drafts that the review path left. A decision of the user outranks the setting: a
+  rejected draft stays superseded. A draft that the user corrected is applied as the decision of the user. It
+  keeps the flag `corrected_by_user` and gets no `auto_accepted` tag, and the posting records the user as the
+  decider (source type `user_confirmed`). A corrected draft that contradicts its direction stays a draft, and
+  the one-click approval asks again.
 - The disposition policy of such a user has the score gate 0 and the version `disposition-v1-accept-any-score`.
   The policy snapshot and the personal report package record it. The entries have the source type
   `auto_parsed`, which is the low confidence tier.
+- The one-click approval classifies the rows that have no classification before it reads the suggestions. A
+  statement that never ran through the classifier does not fall to the general account.
+- The classification backfill counts the candidates that got a row in the run. A row without a readable answer
+  stays a candidate.
 - The classifier and the one-click approval resolve a default account with one resolver
   (`get_or_create_account`, AC `default-account.1`). An inactive account is not the default, because posting
   refuses it. Two active rows with one name resolve to the oldest. The account commits in its own short
   transaction, so several workers of one user never create two rows and never wait for each other.
 - The process flag `AUTO_ACCEPT_AI_SUGGESTIONS` is a ceiling. With the flag false, no user gets the automatic
-  path, whatever a stored preference says. With the flag true, a user can turn the setting off.
+  path, whatever a stored choice says. With the flag true, a user can turn the setting off.
+- `GET /users/me/settings` shows two values. `auto_accept_ai_suggestions` is the choice of the user, and it is
+  true for a user who made no choice. `auto_accept_ai_suggestions_active` is the value that the system uses.
+  The settings panel saves only the choices that the user changed, so a save never stores a choice that the
+  user did not make.
 
-The rollback path is the setting. With it off, the score gates (60 and 85), the draft rows and the one-click
-approval described above apply.
+**Rollback.** A user turns the setting off in the AI settings, and the next pass of that user uses the review
+path. A rollback for all users is a production change that needs the approval of the owner. It has two
+ways: a release that changes the code default, or the variable `AUTO_ACCEPT_AI_SUGGESTIONS=false` in the
+compose environment of the deployment. The deployment sets the variable only when infra2 adds it to that
+environment. Without it, the code default applies. With the setting off, the score gates (60 and 85), the
+draft rows and the one-click approval described above apply. The entries already posted stay.
 
 ## Upload-First Product Contract
 

@@ -25,15 +25,27 @@ def effective_classification(overrides: Mapping[str, object] | None) -> bool:
     return bool((overrides or {}).get("enable_ai_classification", settings.enable_ai_classification))
 
 
+def auto_accept_preference(overrides: Mapping[str, object] | None) -> bool:
+    """What the user chose for ``auto_accept_ai_suggestions`` (#2405). A user without a choice wants it on.
+
+    The settings panel shows and saves this value. It is not the value that the system uses: the process flag
+    and AI classification can switch the automatic path off whatever the user chose.
+    """
+    return bool((overrides or {}).get("auto_accept_ai_suggestions", True))
+
+
 def effective_auto_accept(overrides: Mapping[str, object] | None) -> bool:
-    """The setting ``auto_accept_ai_suggestions`` (#2405) as the user sees it.
+    """The value that the system uses (#2405).
 
     The process flag is a ceiling: when the operator sets ``AUTO_ACCEPT_AI_SUGGESTIONS=false``, no user gets the
     automatic path, whatever a stored preference says. When the flag is on, the user can still turn it off.
     The setting needs AI classification: without proposals there is nothing to accept.
     """
-    wanted = bool((overrides or {}).get("auto_accept_ai_suggestions", True))
-    return settings.auto_accept_ai_suggestions and wanted and effective_classification(overrides)
+    return (
+        settings.auto_accept_ai_suggestions
+        and auto_accept_preference(overrides)
+        and effective_classification(overrides)
+    )
 
 
 async def classification_enabled(db: AsyncSession, user_id: UUID) -> bool:

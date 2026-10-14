@@ -71,6 +71,30 @@ async def test_AC_extraction_auto_accept_2_a_review_band_proposal_is_applied(db,
     assert row.status is ClassificationStatus.APPLIED
     assert (await _account(db, row)).name == "Expense - Dining"
     assert outcomes[0].disposition == "applied"
+    assert row.tags["auto_accepted"] is True
+
+
+@pytest.mark.parametrize(
+    ("category", "confidence", "direction", "tagged"),
+    [
+        ("DINING", 70, TransactionDirection.OUT, True),  # the review path would hold this row as a draft
+        ("DINING", 84, TransactionDirection.OUT, True),  # one point below the manual gate
+        ("DINING", 85, TransactionDirection.OUT, False),  # the review path applies this row too
+        ("OTHER_EXPENSE", 95, TransactionDirection.OUT, True),  # the review path never applies "Other"
+        ("OTHER_INCOME", 95, TransactionDirection.IN, True),
+    ],
+)
+async def test_AC_extraction_auto_accept_2_only_a_row_that_the_review_path_would_hold_gets_the_tag(
+    db, test_user, category, confidence, direction, tagged
+):
+    """AC-extraction.auto-accept.2: the tag marks the rows that a person would have approved."""
+    txn = await _txn(db, test_user, direction=direction)
+
+    await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, confidence))
+
+    row = await _row(db, txn)
+    assert row.status is ClassificationStatus.APPLIED
+    assert row.tags.get("auto_accepted", False) is tagged
 
 
 async def test_AC_extraction_auto_accept_2_other_income_is_applied_to_the_other_account(db, test_user):
@@ -376,6 +400,9 @@ async def _general_account_count(db) -> int:
         pytest.param({"index": 0, "category": "DINING", "confidence": None}, id="null-confidence"),
         pytest.param({"index": 0, "category": "DINING", "confidence": True}, id="boolean-confidence"),
         pytest.param({"index": 0, "category": 7, "confidence": 90}, id="number-category"),
+        pytest.param({"index": 0, "category": "DINING", "confidence": -5}, id="negative-score"),
+        pytest.param({"index": 0, "category": "DINING", "confidence": "-5"}, id="negative-string-score"),
+        pytest.param({"index": 0, "category": "DINING", "confidence": "1e3"}, id="exponent-string-score"),
     ],
 )
 async def test_AC_extraction_auto_accept_4_an_unreadable_answer_writes_nothing(db, test_user, monkeypatch, answer):
@@ -412,6 +439,8 @@ async def test_AC_extraction_auto_accept_4_a_class_outside_the_catalog_writes_no
         pytest.param({"category": " Dining ", "confidence": "90%"}, "Expense - Dining", 90, id="spaces-and-percent"),
         pytest.param({"category": "DINING", "confidence": 87.6}, "Expense - Dining", 88, id="decimal-score"),
         pytest.param({"category": "dining", "confidence": 250}, "Expense - Dining", 100, id="score-above-100"),
+        pytest.param({"category": "DINING", "confidence": "87.0"}, "Expense - Dining", 87, id="decimal-string"),
+        pytest.param({"category": "DINING", "confidence": 87.0}, "Expense - Dining", 87, id="whole-float"),
     ],
 )
 async def test_AC_extraction_auto_accept_4_a_readable_answer_is_normalized(
@@ -466,45 +495,138 @@ async def test_AC_extraction_auto_accept_4_a_dry_run_writes_nothing_and_creates_
     assert (await db.execute(select(func.count(Account.id)))).scalar_one() == accounts_before
 
 
+async def test_AC_extraction_auto_accept_6_a_dry_run_promotes_no_draft(db, test_user):
+    """AC-extraction.auto-accept.6: a dry run changes nothing, also not the drafts that the review path left."""
+    txn = await _txn(db, test_user)
+    draft = await _draft_from_the_review_path(db, test_user, txn, "DINING", 70)
+
+    outcomes = await classify_transactions(
+        db, test_user.id, [txn], policy=V2, proposer=_answer("DINING", 70), commit_basis=False
+    )
+
+    await db.refresh(draft)
+    assert draft.status is ClassificationStatus.DRAFT
+    assert "auto_accepted" not in draft.tags
+    assert outcomes[0].disposition == "applied"
+
+
 # --- balance-sheet classes are accepted at any score (finding 4) ---
 
 
-@pytest.mark.parametrize(
-    ("category", "status", "account_name"),
-    [
-        ("LOAN_PRINCIPAL", ClassificationStatus.APPLIED, "Loans Payable (SGD)"),
-        ("INVESTMENT_TRADE", ClassificationStatus.APPLIED, "Investments (SGD)"),
-        ("TRANSFER", ClassificationStatus.DRAFT, None),
-        ("CARD_REPAYMENT", ClassificationStatus.DRAFT, None),
-    ],
-)
-async def test_AC_extraction_auto_accept_5_a_balance_sheet_class_is_accepted_below_the_review_score(
-    db, test_user, category, status, account_name
-):
+@pytest.mark.parametrize("category", ["TRANSFER", "CARD_REPAYMENT"])
+async def test_AC_extraction_auto_accept_5_a_transfer_is_accepted_below_the_review_score(db, test_user, category):
     """AC-extraction.auto-accept.5: a weak transfer is still a transfer, not an expense.
 
-    The model named a movement of money, and a General Expense row would count that money as spending. The
-    two sides of one transfer must also land in the same place, whatever score each side got.
+    The two sides of one transfer sit in two statements and get two scores. They must land in the same place, or
+    the Processing account does not net them. A Processing leg is also a suspense entry that stays visible.
     """
     txn = await _txn(db, test_user)
 
     outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 55))
 
     row = await _row(db, txn)
-    assert row.status is status
+    assert row.status is ClassificationStatus.DRAFT
+    assert row.account_id is None
     assert row.tags["category"] == category
-    assert (await _account(db, row)).name == account_name if account_name else row.account_id is None
-    assert outcomes[0].disposition != "fallback"
+    assert outcomes[0].disposition == "non_pnl"
     assert await _general_account_count(db) == 0
+
+
+@pytest.mark.parametrize(
+    ("category", "direction"),
+    [
+        ("LOAN_PRINCIPAL", TransactionDirection.IN),
+        ("LOAN_PRINCIPAL", TransactionDirection.OUT),
+        ("INVESTMENT_TRADE", TransactionDirection.OUT),
+        ("INVESTMENT_TRADE", TransactionDirection.IN),
+    ],
+)
+async def test_AC_extraction_auto_accept_5_a_loan_or_a_trade_below_the_review_score_goes_to_the_general_account(
+    db, test_user, category, direction
+):
+    """AC-extraction.auto-accept.5: a loan or a trade has no counterpart leg, so it needs the review score.
+
+    Below it, the model is not sure that money was borrowed, repaid, invested or sold. The row books to the general
+    account of its direction, and the record keeps what the model said.
+    """
+    txn = await _txn(db, test_user, direction=direction)
+
+    outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 59))
+
+    row = await _row(db, txn)
+    assert row.status is ClassificationStatus.APPLIED
+    assert (await _account(db, row)).name.startswith("General ")
+    assert row.tags["original_category"] == category
+    assert row.tags["original_confidence"] == 59
+    assert outcomes[0].disposition == "fallback"
+
+
+@pytest.mark.parametrize("category", ["LOAN_PRINCIPAL", "INVESTMENT_TRADE", "TRANSFER", "CARD_REPAYMENT"])
+async def test_AC_extraction_auto_accept_5_a_balance_sheet_class_at_a_score_of_zero_is_no_answer(
+    db, test_user, category
+):
+    """AC-extraction.auto-accept.5: a score of 0 says that the model cannot place the row.
+
+    The four classes skip or lower the score gate. A zero must not pass as a class that books to the balance sheet.
+    """
+    txn = await _txn(db, test_user)
+
+    outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 0))
+
+    assert await _row(db, txn) is None
+    assert await _general_account_count(db) == 0
+    assert outcomes[0].disposition == "no_proposal"
+
+
+async def test_AC_extraction_auto_accept_4_a_batch_on_a_unit_scale_is_no_answer(db, test_user, monkeypatch):
+    """AC-extraction.auto-accept.4: a model that writes 0.9 and 1.0 means 90 and 100, and 1.0 must not become a score of 1.
+
+    One fraction in the batch shows the scale. The whole batch is no answer, so no row goes to a general account.
+    """
+    first = await _txn(db, test_user, description="ROW A")
+    second = await _txn(db, test_user, description="ROW B")
+    _model_answers(
+        monkeypatch,
+        [
+            {"index": 0, "category": "DINING", "confidence": 0.9},
+            {"index": 1, "category": "GROCERIES", "confidence": 1.0},
+        ],
+    )
+
+    outcomes = await classify_transactions(db, test_user.id, [first, second], policy=V2)
+
+    assert await _row(db, first) is None and await _row(db, second) is None
+    assert await _general_account_count(db) == 0
+    assert {outcome.disposition for outcome in outcomes} == {"no_proposal"}
+
+
+async def test_AC_extraction_auto_accept_4_whole_numbers_in_a_batch_without_a_fraction_are_scores(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.auto-accept.4: 1.0 beside a score of 90 is a score of 1, which the answer to 'cannot place' means."""
+    first = await _txn(db, test_user, description="ROW A")
+    second = await _txn(db, test_user, description="ROW B")
+    _model_answers(
+        monkeypatch,
+        [
+            {"index": 0, "category": "DINING", "confidence": 90},
+            {"index": 1, "category": "GROCERIES", "confidence": 1.0},
+        ],
+    )
+
+    await classify_transactions(db, test_user.id, [first, second], policy=V2)
+
+    assert (await _account(db, await _row(db, first))).name == "Expense - Dining"
+    assert (await _account(db, await _row(db, second))).name.startswith("General ")
 
 
 # --- a person's correction outranks the setting (finding 6) ---
 
 
-async def test_AC_extraction_auto_accept_6_a_corrected_draft_stays_a_draft(db, test_user):
-    """AC-extraction.auto-accept.6: the one-click approval posts a corrected draft as the decision of the person.
+async def test_AC_extraction_auto_accept_6_a_corrected_draft_is_applied_as_the_decision_of_the_person(db, test_user):
+    """AC-extraction.auto-accept.6: the correction of a person is applied, and the row stays marked as that decision.
 
-    The promotion would record the model as the decider and the confidence tier of the model.
+    The row gets no `auto_accepted` tag. The posting then records the person as the decider.
     """
     txn = await _txn(db, test_user)
     draft = await _draft_from_the_review_path(db, test_user, txn, "DINING", 70)
@@ -514,8 +636,24 @@ async def test_AC_extraction_auto_accept_6_a_corrected_draft_stays_a_draft(db, t
     await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer("DINING", 70))
 
     await db.refresh(draft)
-    assert draft.status is ClassificationStatus.DRAFT
+    assert draft.status is ClassificationStatus.APPLIED
+    assert draft.tags["corrected_by_user"] is True
     assert "auto_accepted" not in draft.tags
+    assert (await _account(db, draft)).name == "Expense - Dining"
+
+
+async def test_AC_extraction_auto_accept_6_a_corrected_draft_against_the_direction_stays_a_draft(db, test_user):
+    """AC-extraction.auto-accept.6: the system does not replace a class that a person chose with the general account."""
+    txn = await _txn(db, test_user, direction=TransactionDirection.OUT)
+    draft = await _draft_from_the_review_path(db, test_user, txn, "SALARY", 70)
+    draft.tags = {**draft.tags, "corrected_by_user": True}
+    await db.flush()
+
+    await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer("SALARY", 70))
+
+    await db.refresh(draft)
+    assert draft.status is ClassificationStatus.DRAFT
+    assert (await _account(db, draft)).name == "Income - Salary"
 
 
 # --- the process flag is a ceiling (finding 5) ---

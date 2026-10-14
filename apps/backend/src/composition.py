@@ -50,6 +50,7 @@ from src.extraction import (
     balance_sheet_booking,
     build_statement_ingestion_use_case,
     classification_suggestions,
+    classify_by_effective_policy,
     effective_statement_transaction_filter,
     extraction_trace_policy_registry,
     general_account_name,
@@ -153,9 +154,14 @@ async def _post_named_transfers_for_user(
         return 0
     legs = await post_named_transfer_legs(db, user_id=user_id, named=named, accepted_by="system")
     classification_ids = {item.transaction.id: suggestions[item.transaction.id].classification_id for item in named}
+    chosen_by_user = {item.transaction.id for item in named if item.decided_by_user}
     for leg in legs:
+        # The draft gets the same name as its leg: a class that the user chose is a decision of the user.
         await settle_drafts_after_posting(
-            db, leg.atomic_txn_id, accepted_id=classification_ids.get(leg.atomic_txn_id), accepted_by="system"
+            db,
+            leg.atomic_txn_id,
+            accepted_id=classification_ids.get(leg.atomic_txn_id),
+            accepted_by="user" if leg.atomic_txn_id in chosen_by_user else "system",
         )
     return len(legs)
 
@@ -300,6 +306,10 @@ async def auto_fill_default_statement_dispositions(
     dependencies = compose_reviewed_disposition_dependencies(db)
     resolved_count = 0
     accounts_cache: dict[tuple[AccountType, str], Account] = {}
+    # A statement that was never classified (a parse that did not post by itself) has no suggestion yet. The
+    # classifier runs first, so a row does not fall to the general account while the model could place it (#2405).
+    # A row that already has a classification keeps it.
+    await classify_by_effective_policy(db, user_id, unmatched_txns)
     suggestions = await classification_suggestions(db, [txn.id for txn in unmatched_txns])
     # The posting that follows posts these rows from their applied classification (the score gate of the
     # policy of the user, or a reviewed rule). The disposition policy decides, as in the posting itself. An applied row that the

@@ -48,7 +48,10 @@ class UserAiSettingsResponse(BaseModel):
 
     enable_ai_reconciliation: bool
     enable_ai_classification: bool
+    #: What the user chose. A user without a choice gets True.
     auto_accept_ai_suggestions: bool
+    #: What the system uses: the choice, AI classification, and the process flag of the operator together.
+    auto_accept_ai_suggestions_active: bool
 
 
 __all__ = [

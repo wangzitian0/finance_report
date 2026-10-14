@@ -24,12 +24,14 @@ in 11 trials, but 11 trials are too few to tell. The numbers and the raw data ar
 #2394. A flaky result of this test is a signal about #2394, not about the board.
 
 Auto-posting needs economic meaning for every transaction. The product default is
-on (#2405). The test changes no setting. It reads the ``enable_ai_classification`` and
-``auto_accept_ai_suggestions`` settings of the new user and asserts that both are on. It
-also asserts that it sent no settings write. The test carries the marker
-``product_defaults``, so the fixture does not move the new user to the review path. The classifier proposes a category for each transaction. The 0.85
-confidence gate decides. Each description names a merchant or an income source, so
-each proposal is clear.
+on (#2405). The test changes no setting. It reads the settings of the new user. It
+asserts that AI classification is on, that the user made no choice against the
+automatic acceptance, and that the system uses the automatic acceptance. It also
+asserts that it sent no settings write. The test carries the marker
+``product_defaults``, so the fixture does not move the new user to the review path.
+The classifier proposes a category for each transaction. The system accepts each
+proposal that the model answers. Each description names a merchant or an income
+source, so each proposal is clear.
 
 No CSV can reach auto-accept. The CSV parser always marks its balances as missing,
 and that caps the confidence at 59. Only live OCR plus live classification reaches
@@ -403,6 +405,9 @@ async def test_stage1_accepts_clean_source_and_reviews_broken_source(
             "a new user must have AI classification on by default (#2405)"
         )
         assert settings.json()["auto_accept_ai_suggestions"] is True, (
+            "a new user must not hold a choice against the automatic acceptance (#2405)"
+        )
+        assert settings.json()["auto_accept_ai_suggestions_active"] is True, (
             "a new user must have the system accept the AI suggestions by default (#2405)"
         )
 

@@ -19,9 +19,10 @@ from sqlalchemy.orm import selectinload
 from src.audit import JournalEntrySourceType
 from src.composition import compose_statement_posting_dependencies
 from src.config import settings
-from src.extraction import BankStatementStatus
+from src.extraction import BankStatementStatus, ClassificationStatus
 from src.extraction.extension.disposition_policy import statement_disposition_policy_for_user
 from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
+from src.extraction.orm.layer3 import TransactionClassification
 from src.ledger import PROCESSING_ACCOUNT_CODE, Account, Direction, JournalEntry
 from src.llm import AIStreamError
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
@@ -253,6 +254,12 @@ async def test_AC_extraction_auto_accept_9_transfers_loans_and_trades_post_witho
         await db.execute(select(ReconciliationMatch).where(ReconciliationMatch.atomic_txn_id == wallet.id))
     ).scalar_one()
     assert leg.status is ReconciliationStatus.AUTO_ACCEPTED  # the system accepted it, not a person
+    draft = (
+        await db.execute(select(TransactionClassification).where(TransactionClassification.atomic_txn_id == wallet.id))
+    ).scalar_one()
+    assert draft.status is ClassificationStatus.APPLIED
+    assert draft.tags["auto_accepted"] is True  # the draft has the same name as its leg
+    assert "accepted_by_user" not in draft.tags
     processing = (await db.execute(select(Account).where(Account.code == PROCESSING_ACCOUNT_CODE))).scalar_one()
     entry = (
         await db.execute(
@@ -397,3 +404,178 @@ async def test_AC_extraction_auto_accept_9_a_second_approval_posts_nothing_more(
     assert second.journal_entries_created == 0
     assert (await db.execute(select(func.count(JournalEntry.id)))).scalar_one() == entries_after_first
     assert (await db.execute(select(func.count(ReconciliationMatch.id)))).scalar_one() == 1
+
+
+async def test_AC_extraction_auto_accept_6_a_corrected_suggestion_posts_as_the_decision_of_the_person(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.auto-accept.6: the plain approval posts a row that the user corrected, and names the user.
+
+    The correction is the decision of the person. The entry gets the confidence tier of a person, and the trace
+    names a manual decision. Before this, the plain approval answered 409 for the row that the user just decided.
+
+    Opening 100.00; -15 gives a closing balance of 85.00.
+    """
+    from sqlalchemy import select as _select
+
+    from src.audit.orm.trace_record import TraceRecordRow
+    from src.extraction import apply_suggestion_feedback
+    from src.extraction.extension import transaction_classification as tc
+    from src.extraction.orm.layer3 import TransactionClassification
+
+    statement, bank = await _statement(db, test_user.id, "auto_corrected", closing="85.00")
+    lunch = await add_txn(
+        db, statement, txn_date=date(2025, 1, 4), description="Lunch", amount=Decimal("15.00"), direction="OUT"
+    )
+    test_user.ai_settings = {"auto_accept_ai_suggestions": False}  # the review path writes the draft
+    await db.flush()
+    from src.extraction.extension.transaction_classification import CategoryProposal, classify_transactions
+
+    async def proposer(transactions, _policy):
+        return [CategoryProposal(category="DINING", confidence=70, reason="test") for _ in transactions]
+
+    await classify_transactions(db, test_user.id, [lunch], policy=tc.POLICY_VERSIONS[1], proposer=proposer)
+    draft_id = (await db.execute(_select(TransactionClassification.id))).scalar_one()
+    await apply_suggestion_feedback(db, test_user.id, draft_id, "edit_accept", {"value": "groceries"})
+    test_user.ai_settings = {}  # the product default again
+    await db.commit()
+    _install(monkeypatch, _Model({"Lunch": ("DINING", 66)}))
+
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id, request=None, db=db, user_id=test_user.id
+    )
+
+    assert result.status == BankStatementStatus.APPROVED
+    assert await _counter_names(db, lunch, bank.id) == {"Expense - Groceries"}
+    entry = (await db.execute(select(JournalEntry).where(JournalEntry.source_id == lunch.id))).scalar_one()
+    assert entry.source_type is JournalEntrySourceType.USER_CONFIRMED
+    candidate = (
+        await db.execute(
+            select(TraceRecordRow).where(
+                TraceRecordRow.target_id == str(lunch.id), TraceRecordRow.assertion_kind == "economic_intent"
+            )
+        )
+    ).scalar_one()
+    assert candidate.provenance == "manual"
+
+
+async def test_AC_extraction_auto_accept_9_a_leg_that_the_user_chose_is_accepted_and_its_draft_names_the_user(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.auto-accept.9: the correction of a person to a transfer posts a leg that a person accepted.
+
+    The leg has the status accepted, and the draft has the tag accepted_by_user and not auto_accepted.
+    Opening 100.00; -40 gives a closing balance of 60.00.
+    """
+    from src.extraction import apply_suggestion_feedback
+    from src.extraction.extension import transaction_classification as tc
+    from src.extraction.extension.transaction_classification import CategoryProposal, classify_transactions
+
+    statement, bank = await _statement(db, test_user.id, "auto_user_leg", closing="60.00")
+    wallet = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 4),
+        description="Payment to GrabPay Wallet",
+        amount=Decimal("40.00"),
+        direction="OUT",
+    )
+    test_user.ai_settings = {"auto_accept_ai_suggestions": False}  # the review path writes the draft
+    await db.flush()
+
+    async def proposer(transactions, _policy):
+        return [CategoryProposal(category="DINING", confidence=70, reason="test") for _ in transactions]
+
+    await classify_transactions(db, test_user.id, [wallet], policy=tc.POLICY_VERSIONS[1], proposer=proposer)
+    draft_id = (await db.execute(select(TransactionClassification.id))).scalar_one()
+    await apply_suggestion_feedback(db, test_user.id, draft_id, "edit_accept", {"value": "transfer"})
+    test_user.ai_settings = {}  # the product default again
+    await db.commit()
+    _install(monkeypatch, _Model({"Payment to GrabPay Wallet": ("DINING", 66)}))
+
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id, request=None, db=db, user_id=test_user.id
+    )
+
+    assert result.status == BankStatementStatus.APPROVED
+    leg = (
+        await db.execute(select(ReconciliationMatch).where(ReconciliationMatch.atomic_txn_id == wallet.id))
+    ).scalar_one()
+    assert leg.status is ReconciliationStatus.ACCEPTED
+    draft = (
+        await db.execute(select(TransactionClassification).where(TransactionClassification.id == draft_id))
+    ).scalar_one()
+    assert draft.status is ClassificationStatus.APPLIED
+    assert draft.tags["accepted_by_user"] is True
+    assert draft.tags["corrected_by_user"] is True
+    assert "auto_accepted" not in draft.tags
+
+
+async def test_AC_extraction_auto_accept_8_the_posted_trace_names_the_accept_any_score_policy(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.auto-accept.8: the recorded policy version tells which score gate ran.
+
+    The default policy keeps `disposition-v1` and the gate 0.85. The policy of a user who lets the system accept
+    suggestions has its own version and the gate 0.
+    """
+    from src.audit.orm.trace_record import TraceRecordRow
+    from src.extraction.extension.disposition_policy import AUTO_ACCEPT_POLICY_VERSION, statement_disposition_policy
+
+    assert statement_disposition_policy(auto_accept=False).version == "disposition-v1"
+    assert statement_disposition_policy(auto_accept=True).version == AUTO_ACCEPT_POLICY_VERSION
+    statement, _bank = await _statement(db, test_user.id, "auto_trace_version", closing="85.00")
+    lunch = await add_txn(
+        db, statement, txn_date=date(2025, 1, 4), description="Lunch", amount=Decimal("15.00"), direction="OUT"
+    )
+    await db.commit()
+    _install(monkeypatch, _Model({"Lunch": ("DINING", 66)}))
+
+    await statements_router.approve_statement_stage1(
+        statement_id=statement.id, request=None, db=db, user_id=test_user.id
+    )
+
+    versions = {
+        row.assertion_version
+        for row in (
+            await db.execute(
+                select(TraceRecordRow).where(
+                    TraceRecordRow.target_id == str(lunch.id), TraceRecordRow.assertion_kind == "economic_intent"
+                )
+            )
+        )
+        .scalars()
+        .all()
+    }
+    assert len(versions) == 1
+    assert f"|{AUTO_ACCEPT_POLICY_VERSION}|enforce|machine:0|" in next(iter(versions))
+
+
+async def test_AC_extraction_auto_accept_8_the_one_click_approval_leaves_an_accepted_row_to_the_posting(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.auto-accept.8: the one-click approval asks the policy of the user, so it agrees with the posting.
+
+    A row that the classifier applied at 70 posts to its category. With the default gate 0.85, the one-click
+    approval would book that row to the general account instead.
+
+    Opening 100.00; -15 gives a closing balance of 85.00.
+    """
+    from src.schemas.review import Stage1ApprovalRequest
+
+    statement, bank = await _statement(db, test_user.id, "auto_oneclick_policy", closing="85.00")
+    lunch = await add_txn(
+        db, statement, txn_date=date(2025, 1, 4), description="Lunch", amount=Decimal("15.00"), direction="OUT"
+    )
+    await db.commit()
+    _install(monkeypatch, _Model({"Lunch": ("DINING", 70)}))
+
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id,
+        request=Stage1ApprovalRequest(auto_fill_default_categories=True),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    assert result.status == BankStatementStatus.APPROVED
+    assert await _counter_names(db, lunch, bank.id) == {"Expense - Dining"}

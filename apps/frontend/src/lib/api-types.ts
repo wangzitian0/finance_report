@@ -6026,6 +6026,8 @@ export interface components {
         UserAiSettingsResponse: {
             /** Auto Accept Ai Suggestions */
             auto_accept_ai_suggestions: boolean;
+            /** Auto Accept Ai Suggestions Active */
+            auto_accept_ai_suggestions_active: boolean;
             /** Enable Ai Classification */
             enable_ai_classification: boolean;
             /** Enable Ai Reconciliation */

@@ -331,7 +331,7 @@ async def auto_create_posted_entries_for_statement(
 
     created = legs_posted
     postings: list[tuple[JournalEntry, AtomicTransaction]] = []
-    for txn, _proposal, decision, counter_account, _transaction in planned:
+    for txn, proposal, decision, counter_account, _transaction in planned:
         if decision.status is DispositionStatus.ALREADY_COVERED:
             continue
         if not decision.should_apply:
@@ -346,7 +346,12 @@ async def auto_create_posted_entries_for_statement(
             user_id=user_id,
             base_currency=base_currency,
             auto_post=True,
-            source_type=JournalEntrySourceType.AUTO_PARSED,
+            # The decision of a person gets the confidence tier of a person.
+            source_type=(
+                JournalEntrySourceType.USER_CONFIRMED
+                if proposal is not None and proposal.origin is IntentProposalOrigin.MANUAL_ADJUDICATION
+                else JournalEntrySourceType.AUTO_PARSED
+            ),
             preloaded_bank_account=preloaded_bank_account,
             preloaded_statement=statement,
             fx_rate_provider=dependencies.fx_rate_provider,
@@ -429,14 +434,23 @@ def _applied_proposal(
     classification_rule: ClassificationRule,
     counter_account: Account,
 ) -> IntentProposal:
-    """The intent proposal that an applied classification row stands for."""
+    """The intent proposal that an applied classification row stands for.
+
+    A row that a person corrected is the decision of that person, not of the model (#2405).
+    """
+    corrected_by_user = (classification.tags or {}).get("corrected_by_user") is True
     return IntentProposal(
         schema_version="1",
         policy_version=str(classification.rule_version_id),
-        origin=_classification_proposal_origin(classification_rule.rule_type),
+        origin=(
+            IntentProposalOrigin.MANUAL_ADJUDICATION
+            if corrected_by_user
+            else _classification_proposal_origin(classification_rule.rule_type)
+        ),
         intent=_classification_intent(classification, counter_account),
         category=str((classification.tags or {}).get("category") or "") or None,
-        confidence=Decimal(classification.confidence_score or 0) / Decimal("100"),
+        # A manual adjudication claims no machine confidence.
+        confidence=None if corrected_by_user else Decimal(classification.confidence_score or 0) / Decimal("100"),
         evidence=(str(classification.id),),
     )
 
