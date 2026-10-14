@@ -690,3 +690,101 @@ def test_AC_reconciliation_named_transfer_legs_5_the_memo_limit_equals_the_colum
     from src.ledger.orm.journal import JournalEntry
 
     assert processing._MEMO_MAX_LENGTH == JournalEntry.__table__.c.memo.type.length == 500
+
+
+async def test_AC_ledger_74_4_find_transfer_pairs_orders_and_excludes_paired_before_limit(
+    db: AsyncSession, test_user
+) -> None:
+    """AC-ledger.74.4: find_transfer_pairs orders by (entry_date DESC, created_at DESC, id DESC) and excludes paired entry IDs before the limit."""
+    from unittest.mock import AsyncMock
+
+    user_id = test_user.id
+    bank_a = await _make_account(db, user_id, "Bank A", "1001")
+    bank_b = await _make_account(db, user_id, "Bank B", "1002")
+
+    # Older unpaired transfer legs (2025-03-01) that match each other.
+    unpaired_out = await create_transfer_out_entry(
+        db,
+        user_id=user_id,
+        source_account_id=bank_a.id,
+        amount=Decimal("400.00"),
+        txn_date=date(2025, 3, 1),
+        description="Older transfer to Bank B",
+        currency="SGD",
+    )
+    unpaired_in = await create_transfer_in_entry(
+        db,
+        user_id=user_id,
+        dest_account_id=bank_b.id,
+        amount=Decimal("400.00"),
+        txn_date=date(2025, 3, 1),
+        description="Older transfer to Bank B",
+        currency="SGD",
+    )
+
+    # Newer already-paired transfer legs (2025-03-05) with distinct amounts so they occupy
+    # the top of the newest-first window without pairing with each other in the control run.
+    paired_out = await create_transfer_out_entry(
+        db,
+        user_id=user_id,
+        source_account_id=bank_a.id,
+        amount=Decimal("250.00"),
+        txn_date=date(2025, 3, 5),
+        description="Already paired transfer A",
+        currency="SGD",
+    )
+    paired_in = await create_transfer_in_entry(
+        db,
+        user_id=user_id,
+        dest_account_id=bank_b.id,
+        amount=Decimal("999.00"),
+        txn_date=date(2025, 3, 5),
+        description="Already paired transfer B",
+        currency="SGD",
+    )
+
+    # Control: with max_entries=1 and no exclusion, the newer paired legs fill the 1-per-side
+    # window and crowd out the older unpaired legs.
+    control_pairs = await find_transfer_pairs(
+        db,
+        user_id,
+        currency="SGD",
+        description_scorer=score_description,
+        threshold=85,
+        max_entries=1,
+    )
+    assert control_pairs == []
+
+    captured_statements = []
+    real_execute = db.execute
+
+    async def spy_execute(statement, *args, **kwargs):
+        captured_statements.append(statement)
+        return await real_execute(statement, *args, **kwargs)
+
+    db.execute = AsyncMock(side_effect=spy_execute)
+    try:
+        pairs = await find_transfer_pairs(
+            db,
+            user_id,
+            currency="SGD",
+            description_scorer=score_description,
+            threshold=85,
+            max_entries=1,
+            exclude_entry_ids={paired_out.id, paired_in.id},
+        )
+    finally:
+        db.execute = real_execute
+
+    assert len(pairs) == 1
+    assert pairs[0].out_entry.id == unpaired_out.id
+    assert pairs[0].in_entry.id == unpaired_in.id
+
+    entry_stmt = captured_statements[-1]
+    compiled_sql = str(entry_stmt.compile(compile_kwargs={"literal_binds": False}))
+    assert (
+        "ORDER BY journal_entries.entry_date DESC, journal_entries.created_at DESC, journal_entries.id DESC"
+        in compiled_sql
+    )
+    assert "journal_entries.id NOT IN" in compiled_sql
+    assert "LIMIT" in compiled_sql

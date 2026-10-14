@@ -571,3 +571,140 @@ async def test_AC_reporting_cash_events_8_event_lineage_exposes_ledger_and_decis
     assert report["event_lineage"][0]["decision_anchor_id"] is None
     assert report["event_lineage"][0]["decision_authority_state"] == "legacy_unproven"
     assert report["event_lineage"][0]["event_types"] == []
+
+
+@pytest.mark.asyncio
+@ac_proof(
+    "cash-event-statement-balance-sheet-categories",
+    ac_ids=["AC-reporting.cash-events.12"],
+    ci_tier="pr_ci",
+    scenario_id="AC-reporting.cash-events.12",
+    oracle_kind="statement_balance_sheet_classification",
+    governance_strength="exact",
+)
+async def test_AC_reporting_cash_events_12_statement_balance_sheet_categories_classify(db: AsyncSession, test_user):
+    """AC-reporting.cash-events.12: statement-posted LOAN_PRINCIPAL and INVESTMENT_TRADE classify while INVESTMENT_SALE stays unclassified."""
+    from src.audit import JournalEntrySourceType
+    from src.ledger import submit_system_journal_entry
+
+    cash = await _account(db, test_user.id, "Main Checking", AccountType.ASSET)
+    loans_payable = await _account(db, test_user.id, "Loans Payable", AccountType.LIABILITY)
+    investments = await _account(db, test_user.id, "Investments", AccountType.ASSET)
+    brokerage_cash = await _account(db, test_user.id, "Brokerage Custody Cash", AccountType.ASSET)
+
+    async def _post_statement_entry(
+        *,
+        entry_date: date,
+        memo: str,
+        debit_account: Account,
+        credit_account: Account,
+        amount: str,
+        category: str,
+        source_type: JournalEntrySourceType,
+        operation: str,
+    ) -> JournalEntry:
+        return await submit_system_journal_entry(
+            db,
+            user_id=test_user.id,
+            entry_date=entry_date,
+            memo=memo,
+            lines_data=[
+                {
+                    "account_id": debit_account.id,
+                    "direction": Direction.DEBIT,
+                    "amount": Decimal(amount),
+                    "currency": "SGD",
+                    "event_type": "bank_txn",
+                    "tags": {"economic_category": category} if debit_account.id != cash.id else None,
+                },
+                {
+                    "account_id": credit_account.id,
+                    "direction": Direction.CREDIT,
+                    "amount": Decimal(amount),
+                    "currency": "SGD",
+                    "event_type": "bank_txn",
+                    "tags": {"economic_category": category} if credit_account.id != cash.id else None,
+                },
+            ],
+            base_currency="SGD",
+            operation=operation,
+            source_type=source_type,
+        )
+
+    loan_repayment = await _post_statement_entry(
+        entry_date=date(2026, 1, 10),
+        memo="Loan principal repayment",
+        debit_account=loans_payable,
+        credit_account=cash,
+        amount="400.00",
+        category="LOAN_PRINCIPAL",
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+        operation="statement-loan-repayment",
+    )
+
+    investment_purchase = await _post_statement_entry(
+        entry_date=date(2026, 1, 12),
+        memo="Securities purchase",
+        debit_account=investments,
+        credit_account=cash,
+        amount="600.00",
+        category="INVESTMENT_TRADE",
+        source_type=JournalEntrySourceType.USER_CONFIRMED,
+        operation="statement-investment-trade",
+    )
+
+    # INVESTMENT_SALE books proceeds against Brokerage Custody Cash (ASSET) and must stay
+    # in unclassified_cash so it never double-counts against investment_sell cost + P&L.
+    brokerage_sale = await _post_statement_entry(
+        entry_date=date(2026, 1, 14),
+        memo="Brokerage sale proceeds",
+        debit_account=cash,
+        credit_account=brokerage_cash,
+        amount="250.00",
+        category="INVESTMENT_SALE",
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+        operation="statement-investment-sale",
+    )
+
+    # Mismatched counter-account type (LOAN_PRINCIPAL on an ASSET account) must fail closed.
+    mismatched_loan = await _post_statement_entry(
+        entry_date=date(2026, 1, 16),
+        memo="Spoofed loan category on asset account",
+        debit_account=investments,
+        credit_account=cash,
+        amount="50.00",
+        category="LOAN_PRINCIPAL",
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+        operation="statement-mismatched-loan",
+    )
+    await db.flush()
+
+    report = await _report(db, test_user.id, {cash.id})
+
+    assert report["operating"] == []
+    assert [(item["subcategory"], item["amount"]) for item in report["investing"]] == [
+        ("Investments", Decimal("-600.00")),
+    ]
+    assert [(item["subcategory"], item["amount"]) for item in report["financing"]] == [
+        ("Loans Payable", Decimal("-400.00")),
+    ]
+    assert report["summary"]["operating_activities"] == Decimal("0.00")
+    assert report["summary"]["investing_activities"] == Decimal("-600.00")
+    assert report["summary"]["financing_activities"] == Decimal("-400.00")
+    assert report["summary"]["net_cash_flow"] == Decimal("-800.00")
+    assert report["cash_bridge"]["classified_activity"] == Decimal("-1000.00")
+    assert report["cash_bridge"]["unclassified_cash"] == Decimal("200.00")
+    assert report["cash_bridge"]["reconciles"] is True
+
+    assert len(report["event_lineage"]) == 4
+    lineage_by_entry = {item["journal_entry_id"]: item for item in report["event_lineage"]}
+    assert set(lineage_by_entry) == {
+        loan_repayment.id,
+        investment_purchase.id,
+        brokerage_sale.id,
+        mismatched_loan.id,
+    }
+    assert lineage_by_entry[loan_repayment.id]["activity"] == "Financing"
+    assert lineage_by_entry[investment_purchase.id]["activity"] == "Investing"
+    assert lineage_by_entry[brokerage_sale.id]["activity"] is None
+    assert lineage_by_entry[mismatched_loan.id]["activity"] is None

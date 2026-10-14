@@ -99,7 +99,13 @@ from src.extraction.base.validation import (
     detect_balance_chain_break,
     validate_balance,
 )
-from src.extraction.extension.ai_settings import auto_accept_preference, effective_auto_accept, effective_classification
+from src.extraction.extension.ai_settings import (
+    auto_accept_preference,
+    effective_auto_accept,
+    effective_classification,
+    effective_reconciliation,
+    reconciliation_enabled,
+)
 from src.extraction.extension.brokerage_positions import (
     BrokeragePositionImportService,
     looks_like_brokerage_document,
@@ -332,7 +338,9 @@ __all__ = [
     "classify_by_effective_policy",
     "effective_auto_accept",
     "effective_classification",
+    "effective_reconciliation",
     "general_account_name",
+    "reconciliation_enabled",
     "settle_drafts_after_posting",
     "statement_disposition_policy_for_user",
     "build_csv_mapping_prompt",

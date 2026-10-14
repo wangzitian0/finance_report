@@ -205,11 +205,15 @@ only how the resulting positions present in the balance sheet.
 statement** — cash flow is a journal-entry event projection, not a projection
 of every account's period movement. An activity exists only when an eligible
 entry touches an exact cash identity. Income/expense counterparts are exact
-operating evidence; non-operating activity requires an explicit, supported
-event semantic carried consistently by a deterministic SYSTEM journal event.
-Caller-supplied event strings on manual or statement-derived entries have no
-classification authority. Broad asset, liability, and equity types do not
-authorize a category because they cannot distinguish an investment from
+operating evidence. Non-operating activity requires a supported event semantic
+on an anchored `SYSTEM` journal event or a 2-line anchored `bank_txn` event.
+For `bank_txn` events, `LOAN_PRINCIPAL` on a `LIABILITY` account maps to
+`Financing`, and `INVESTMENT_TRADE` on an `ASSET` account maps to `Investing`.
+`INVESTMENT_SALE` stays in `unclassified_cash` because statement sale proceeds
+book against Brokerage Custody Cash (`ASSET`) and must not double-count
+`investment_sell` entries. Caller-supplied event strings on manual entries have
+no classification authority. Broad asset, liability, and equity types do not
+authorize a category because they cannot distinguish investments from
 receivable settlement or financing from payable settlement. Unsupported and
 mixed events remain in `unclassified_cash` with an explicit unproven reason
 instead of being guessed. Non-cash accruals and liability-financed asset

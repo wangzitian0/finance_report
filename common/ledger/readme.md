@@ -508,6 +508,7 @@ JournalEntry(
   - Same amount within 0.5%
   - Date within 7 days
   - Description keywords match
+  - `find_transfer_pairs` excludes paired `JournalEntry.id` rows (`exclude_entry_ids`) and orders candidates by `(entry_date DESC, created_at DESC, id DESC)` before the `max_entries` limit (`AC-ledger.74.4`)
   
 - **Pattern C**: One Processing account per user
   - Several requests of one user can create it together, for example when the user uploads several statements

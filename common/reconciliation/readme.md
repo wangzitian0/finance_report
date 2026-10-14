@@ -103,8 +103,12 @@ The deterministic scoring and candidate selection rules live in
 I/O, threshold routing, and phase orchestration.
 Environment overrides are applied by `load_reconciliation_config()`:
 `RECONCILIATION_AUTO_ACCEPT_THRESHOLD`, `RECONCILIATION_REVIEW_THRESHOLD`, and
-`ENABLE_AI_RECONCILIATION`. Matching/scoring bodies never read the environment;
-they receive the fully resolved `ReconciliationConfig` value.
+`ENABLE_AI_RECONCILIATION`. `execute_matching` resolves the per-user
+`enable_ai_reconciliation` override via `reconciliation_enabled(db, user_id)`
+and applies `dataclasses.replace(base_config, enable_ai_reconciliation=...)`
+before invoking matching phases (`AC-reconciliation.1803.3`). Matching/scoring
+bodies never read the environment; they receive the fully resolved
+`ReconciliationConfig` value.
 Update the config/code and tests first when changing values — this doc
 describes the default routing semantics, it doesn't own them.
 

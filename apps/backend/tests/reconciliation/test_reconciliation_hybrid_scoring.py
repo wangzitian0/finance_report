@@ -104,3 +104,123 @@ async def test_calculate_match_score_flag_off_skips_ai_scoring(db) -> None:
     assert candidate.score == 69
     assert "hybrid_applied" not in candidate.breakdown
     assert "ai_semantic" not in candidate.breakdown
+
+
+async def test_AC_reconciliation_1803_3_execute_matching_uses_per_user_ai_reconciliation_override(
+    db, test_user, monkeypatch
+) -> None:
+    """AC-reconciliation.1803.3: execute_matching honors the per-user enable_ai_reconciliation override in both directions (#2417)."""
+    from dataclasses import replace
+
+    from src.audit import Money
+    from src.config import settings
+    from src.extraction.orm.layer2 import TransactionDirection
+    from src.ledger import Account, AccountType, Entry, post_entry
+    from src.reconciliation import execute_matching
+
+    bank = Account(user_id=test_user.id, name="Checking", type=AccountType.ASSET, currency="SGD")
+    expense = Account(user_id=test_user.id, name="General Expense", type=AccountType.EXPENSE, currency="SGD")
+    db.add_all([bank, expense])
+    await db.flush()
+
+    txn_1 = AtomicTransaction(
+        user_id=test_user.id,
+        txn_date=date(2024, 6, 10),
+        description="ZQXW MERCHANT PURCHASE",
+        amount=Decimal("100.00"),
+        direction=TransactionDirection.IN,
+        currency="SGD",
+        dedup_hash="hybrid-override-txn-1",
+        source_documents=[{"doc_id": str(uuid4())}],
+    )
+    db.add(txn_1)
+    await db.flush()
+
+    await post_entry(
+        db,
+        user_id=test_user.id,
+        entry_date=date(2024, 6, 10),
+        memo="Unrelated memo",
+        entry=Entry.transfer(
+            debit=bank.id,
+            credit=expense.id,
+            money=Money(Decimal("100.00"), "SGD"),
+        ),
+        base_currency="SGD",
+        operation="hybrid-override-fixture-1",
+    )
+    await db.commit()
+
+    # Direction 1: base config OFF, user override ON -> AI scorer runs on txn_1.
+    monkeypatch.setattr(settings, "enable_ai_reconciliation", False)
+    test_user.ai_settings = {"enable_ai_reconciliation": True}
+    await db.commit()
+
+    mock_ai_on = AsyncMock(return_value=95)
+    with (
+        patch(
+            "src.reconciliation.extension.matching.load_reconciliation_config",
+            return_value=replace(DEFAULT_CONFIG, enable_ai_reconciliation=False),
+        ),
+        patch("src.reconciliation.extension.matching.ai_semantic_score", mock_ai_on),
+        patch("src.reconciliation.extension.phases.transfer_detection.detect_transfer_pattern", return_value=False),
+        patch("src.reconciliation.extension.matching.score_pattern", new_callable=AsyncMock, return_value=0.0),
+    ):
+        matches_on = await execute_matching(db, user_id=test_user.id, currency="SGD")
+
+    assert len(matches_on) == 1
+    assert matches_on[0].atomic_txn_id == txn_1.id
+    assert matches_on[0].match_score == 78
+    assert matches_on[0].score_breakdown.get("hybrid_applied") == 1.0
+    assert matches_on[0].score_breakdown.get("ai_semantic") == 95.0
+    mock_ai_on.assert_awaited_once()
+
+    # Direction 2: seed a fresh pending transaction; base config ON, user override OFF -> AI scorer is skipped.
+    txn_2 = AtomicTransaction(
+        user_id=test_user.id,
+        txn_date=date(2024, 6, 20),
+        description="ZQXW MERCHANT PURCHASE",
+        amount=Decimal("200.00"),
+        direction=TransactionDirection.IN,
+        currency="SGD",
+        dedup_hash="hybrid-override-txn-2",
+        source_documents=[{"doc_id": str(uuid4())}],
+    )
+    db.add(txn_2)
+    await db.flush()
+
+    await post_entry(
+        db,
+        user_id=test_user.id,
+        entry_date=date(2024, 6, 20),
+        memo="Unrelated memo",
+        entry=Entry.transfer(
+            debit=bank.id,
+            credit=expense.id,
+            money=Money(Decimal("200.00"), "SGD"),
+        ),
+        base_currency="SGD",
+        operation="hybrid-override-fixture-2",
+    )
+    monkeypatch.setattr(settings, "enable_ai_reconciliation", True)
+    test_user.ai_settings = {"enable_ai_reconciliation": False}
+    await db.commit()
+
+    mock_ai_off = AsyncMock(return_value=95)
+    with (
+        patch(
+            "src.reconciliation.extension.matching.load_reconciliation_config",
+            return_value=replace(DEFAULT_CONFIG, enable_ai_reconciliation=True),
+        ),
+        patch("src.reconciliation.extension.matching.ai_semantic_score", mock_ai_off),
+        patch("src.reconciliation.extension.phases.transfer_detection.detect_transfer_pattern", return_value=False),
+        patch("src.reconciliation.extension.matching.score_pattern", new_callable=AsyncMock, return_value=0.0),
+    ):
+        matches_off = await execute_matching(db, user_id=test_user.id, currency="SGD")
+
+    assert len(matches_off) == 1
+    assert matches_off[0].atomic_txn_id == txn_2.id
+    assert matches_off[0].match_score == 71
+    assert "hybrid_applied" not in matches_off[0].score_breakdown
+    assert "ai_semantic" not in matches_off[0].score_breakdown
+    mock_ai_off.assert_not_called()

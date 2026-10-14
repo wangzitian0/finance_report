@@ -19,7 +19,7 @@ interface (by id/event), never via a shared cross-domain transaction or FK.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -121,6 +121,7 @@ async def find_transfer_pairs(
     description_scorer: Callable[[str | None, str | None], float],
     threshold: int = AUTO_PAIR_THRESHOLD,
     max_entries: int = 500,
+    exclude_entry_ids: Collection[UUID] | None = None,
 ) -> list[TransferPair[JournalEntry]]:
     """Find matching transfer pairs based on confidence scoring.
     and attempts to match them based on amount, description, and date proximity.
@@ -133,6 +134,7 @@ async def find_transfer_pairs(
         user_id: User ID to search transfers for
         threshold: Minimum confidence score (default: 85)
         max_entries: Maximum number of entries to process per side (default: 500)
+        exclude_entry_ids: Optional set of already-paired entry IDs to exclude before applying the window
     Returns:
         List of TransferPair objects with confidence >= threshold
     """
@@ -141,8 +143,8 @@ async def find_transfer_pairs(
     if processing_account is None:
         return []
 
-    # Find all journal entries involving Processing account
-    result = await db.execute(
+    # Find journal entries involving Processing account in deterministic newest-first order
+    entry_stmt = (
         select(JournalEntry)
         .options(selectinload(JournalEntry.lines))
         .join(JournalLine, JournalEntry.id == JournalLine.journal_entry_id)
@@ -151,6 +153,14 @@ async def find_transfer_pairs(
         .where(JournalEntry.source_type == JournalEntrySourceType.SYSTEM)
         .where(JournalLine.account_id == processing_account.id)
     )
+    if exclude_entry_ids:
+        entry_stmt = entry_stmt.where(JournalEntry.id.notin_(exclude_entry_ids))
+    entry_stmt = entry_stmt.order_by(
+        JournalEntry.entry_date.desc(),
+        JournalEntry.created_at.desc(),
+        JournalEntry.id.desc(),
+    ).limit(max_entries * 2)
+    result = await db.execute(entry_stmt)
     entries = result.scalars().unique().all()
 
     # Separate OUT and IN entries
