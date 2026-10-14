@@ -187,6 +187,10 @@ and the default three statements. The system therefore decides every row that th
 - The disposition policy of such a user has the score gate 0 and the version `disposition-v1-accept-any-score`.
   The policy snapshot and the personal report package record it. The entries have the source type
   `auto_parsed`, which is the low confidence tier.
+- The classifier and the one-click approval resolve a default account with one resolver
+  (`get_or_create_account`, AC `default-account.1`). An inactive account is not the default, because posting
+  refuses it. Two active rows with one name resolve to the oldest. The account commits in its own short
+  transaction, so several workers of one user never create two rows and never wait for each other.
 - The process flag `AUTO_ACCEPT_AI_SUGGESTIONS` is a ceiling. With the flag false, no user gets the automatic
   path, whatever a stored preference says. With the flag true, a user can turn the setting off.
 
