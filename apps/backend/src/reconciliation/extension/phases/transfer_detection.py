@@ -131,6 +131,7 @@ async def post_transfer_leg(
             txn_date=txn.txn_date,
             description=txn.description,
             currency=txn.currency,
+            source_id=txn.id,
         )
     else:
         transfer_entry = await create_transfer_in_entry(
@@ -141,6 +142,7 @@ async def post_transfer_leg(
             txn_date=txn.txn_date,
             description=txn.description,
             currency=txn.currency,
+            source_id=txn.id,
         )
     match = ReconciliationMatch(
         atomic_txn_id=txn.id,

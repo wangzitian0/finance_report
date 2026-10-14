@@ -149,8 +149,10 @@ async def _get_or_create_default_counter_account(
     user_id: UUID,
     account_type: AccountType,
     currency: str,
+    *,
+    name: str | None = None,
 ) -> Account:
-    expected_name = f"General {account_type.value.capitalize()} ({currency})"
+    expected_name = name or f"General {account_type.value.capitalize()} ({currency})"
     cache = db.info.setdefault("_default_account_cache", {})
     cache_key = (user_id, expected_name, account_type, currency)
     if cache_key in cache:
@@ -213,6 +215,40 @@ def _statement_unmatched_txns_query(statement: StatementSummary, user_id: UUID):
     )
 
 
+def _suggestion_rationale(suggestion: ClassificationSuggestion) -> str:
+    if suggestion.corrected:
+        return f"Category corrected by the user: {suggestion.category}"
+    return f"Accepted AI suggestion {suggestion.category} (score {suggestion.confidence})"
+
+
+async def _balance_sheet_disposition_for(
+    db: AsyncSession, user_id: UUID, txn: AtomicTransaction, suggestion: ClassificationSuggestion
+) -> tuple[EconomicIntent, Account, str, str] | None:
+    """The reviewed disposition for a loan principal or an investment trade (#2415).
+
+    The row posts to a default balance-sheet account: a liability for a loan, an asset for an investment.
+    Neither is income or expense. A loan repayment lowers the liability. A drawdown raises it. A purchase
+    raises the asset. A sale lowers it. Returns None for any other class.
+    """
+    if suggestion.booking == "loan_principal":
+        intent = EconomicIntent.LOAN_PRINCIPAL
+        account = await _get_or_create_default_counter_account(
+            db, user_id, AccountType.LIABILITY, txn.currency, name=f"Loans Payable ({txn.currency})"
+        )
+    elif suggestion.booking == "investment_trade":
+        intent = (
+            EconomicIntent.INVESTMENT_PURCHASE
+            if txn.direction == TransactionDirection.OUT
+            else EconomicIntent.INVESTMENT_SALE
+        )
+        account = await _get_or_create_default_counter_account(
+            db, user_id, AccountType.ASSET, txn.currency, name=f"Investments ({txn.currency})"
+        )
+    else:
+        return None
+    return intent, account, suggestion.category, _suggestion_rationale(suggestion)
+
+
 async def _accepted_suggestion_for(
     db: AsyncSession,
     user_id: UUID,
@@ -236,11 +272,7 @@ async def _accepted_suggestion_for(
         intent = EconomicIntent.EXPENSE
     else:
         return None
-    if suggestion.corrected:
-        rationale = f"Category corrected by the user: {suggestion.category}"
-    else:
-        rationale = f"Accepted AI suggestion {suggestion.category} (score {suggestion.confidence})"
-    return intent, account, suggestion.category, rationale
+    return intent, account, suggestion.category, _suggestion_rationale(suggestion)
 
 
 async def auto_fill_default_statement_dispositions(
@@ -282,7 +314,7 @@ async def auto_fill_default_statement_dispositions(
         if txn.id in left_to_posting:
             continue
         suggestion = suggestions.get(txn.id)
-        if suggestion is not None and suggestion.non_pnl:
+        if suggestion is not None and suggestion.booking == "processing_leg":
             named_transfers.append(
                 NamedTransfer(
                     transaction=txn,
@@ -292,7 +324,10 @@ async def auto_fill_default_statement_dispositions(
                 )
             )
             continue
-        accepted = await _accepted_suggestion_for(db, user_id, txn, suggestion)
+        if suggestion is not None and suggestion.non_pnl:
+            accepted = await _balance_sheet_disposition_for(db, user_id, txn, suggestion)
+        else:
+            accepted = await _accepted_suggestion_for(db, user_id, txn, suggestion)
         if accepted is not None:
             intent, counter_account, category, rationale = accepted
             await submit_reviewed_disposition(

@@ -146,10 +146,13 @@ account and category as a reviewed disposition, and the draft becomes `applied`.
 will post from its applied classification is left to the posting. The disposition policy decides this,
 through `applied_rows_the_policy_accepts`, so the approval never disagrees with the posting. A row
 without a usable suggestion posts to the general account of its direction, and its drafts become
-`superseded`. A row that the AI named a balance-sheet class posts as a Processing transfer leg through
-reconciliation's `post_named_transfer_legs`, and its drafts are settled in the same way. It stays for a
-person only when that leg cannot post. Posting clears the note "Economic review required: ..." once
-every row has an entry.
+`superseded`. The approval decides every balance-sheet class itself (#2415). A transfer or a card repayment
+posts as a Processing transfer leg through reconciliation's `post_named_transfer_legs`, because it moves
+money between own accounts and the other side clears it. A loan principal posts to the liability
+`Loans Payable (CUR)`, and an investment trade posts to the asset `Investments (CUR)`, by a reviewed
+disposition. Their drafts are settled like the others. A leg posts only for a row in the effective base
+currency; a row in another currency, a row without a linked account and a row with an active match stay for
+a person. Posting clears the note "Economic review required: ..." once every row has an entry.
 
 ## Upload-First Product Contract
 

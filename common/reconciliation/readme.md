@@ -223,10 +223,12 @@ run before keyword-based transfer fallback. Transfer fallback uses only ledger's
 typed Processing commands and the transaction's own currency. Once both legs
 exist, reconciliation persists their pair; logs and ledger inference are not
 authoritative pair state.
-A transaction that the AI classification named a movement between accounts (a wallet payment, a
-card repayment, a loan payment or a trade) gets the same Processing leg through
-`post_named_transfer_legs`, without a transfer keyword (#2415). That match is `accepted`, carries
-the AI score, and records the AI class in its score breakdown. It enters the same pairing.
+A transaction that the AI classification named a transfer or a card repayment gets the same Processing
+leg through `post_named_transfer_legs`, without a transfer keyword (#2415). That match is `accepted`,
+carries the AI score (100 when the user chose the class), and records the class in its score breakdown.
+Every leg carries the id of its source transaction, so two rows with the same date, text and amount
+get two entries. The function posts only in the effective base currency and never creates the Processing
+account for a skipped row. It does not pair; the pairing step of the next reconciliation run does.
 The pair command validates its own aggregate boundary: the two distinct
 dispositions must belong to the same tenant and currency and must carry OUT
 and IN source directions respectively. Ledger discovery narrows candidates,

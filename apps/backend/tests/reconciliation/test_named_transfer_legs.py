@@ -17,14 +17,17 @@ from sqlalchemy.orm import selectinload
 
 from src.audit import JournalEntrySourceType
 from src.ledger import (
+    PROCESSING_ACCOUNT_CODE,
     Account,
     AccountType,
     Direction,
     JournalEntry,
     JournalEntryStatus,
+    find_transfer_pairs,
     get_or_create_processing_account,
 )
-from src.reconciliation import NamedTransfer, post_named_transfer_legs
+from src.reconciliation import NamedTransfer, post_named_transfer_legs, score_description
+from src.reconciliation.extension.transfer_pairs import persist_transfer_pairs
 from src.reconciliation.orm.reconciliation import (
     DispositionKind,
     ReconciliationMatch,
@@ -79,7 +82,9 @@ async def test_AC_reconciliation_named_transfer_legs_1_an_outgoing_row_posts_dr_
     processing = await get_or_create_processing_account(db, test_user.id, currency="SGD")
     entry = await _entry(db, match.journal_entry_ids[0])
     assert entry.source_type is JournalEntrySourceType.SYSTEM
+    assert entry.source_id == txn.id
     assert entry.status is JournalEntryStatus.RECONCILED
+    assert match.score_breakdown["ai_score"] == 92.0
     assert {(line.account_id, line.direction, line.amount) for line in entry.lines} == {
         (processing.id, Direction.DEBIT, Decimal("1200.00")),
         (bank.id, Direction.CREDIT, Decimal("1200.00")),
@@ -143,10 +148,12 @@ async def test_AC_reconciliation_named_transfer_legs_2_a_statement_without_an_ac
     assert (await db.execute(select(func.count(JournalEntry.id)))).scalar_one() == 0
 
 
-async def test_AC_reconciliation_named_transfer_legs_2_a_currency_that_does_not_fit_posts_nothing(db, test_user):
-    """AC-reconciliation.named-transfer-legs.2: the Processing account has one currency. A row in another one waits."""
-    statement, _bank = await _statement(db, test_user.id, "named_leg_currency")
-    await get_or_create_processing_account(db, test_user.id, currency="CNY")
+async def test_AC_reconciliation_named_transfer_legs_2_a_processing_account_in_another_currency_blocks_every_row(
+    db, test_user
+):
+    """AC-reconciliation.named-transfer-legs.2: Processing holds one currency. A row in the base currency waits."""
+    statement, _bank = await _statement(db, test_user.id, "named_leg_processing_currency")
+    cny = await get_or_create_processing_account(db, test_user.id, currency="CNY")
     txn = await add_txn(
         db, statement, txn_date=date(2025, 1, 11), description="Wallet", amount=Decimal("80.00"), direction="OUT"
     )
@@ -158,10 +165,141 @@ async def test_AC_reconciliation_named_transfer_legs_2_a_currency_that_does_not_
     assert matches == []
     assert (await db.execute(select(func.count(ReconciliationMatch.id)))).scalar_one() == 0
     assert (await db.execute(select(func.count(JournalEntry.id)))).scalar_one() == 0
+    assert (await db.get(Account, cny.id)).currency == "CNY"
 
 
-async def test_AC_reconciliation_named_transfer_legs_3_the_two_legs_of_one_transfer_are_paired(db, test_user):
-    """AC-reconciliation.named-transfer-legs.3: the new legs enter the same pairing as the keyword legs."""
+@pytest.mark.parametrize("currency", ["CNY", "XXX", ""])
+async def test_AC_reconciliation_named_transfer_legs_2_a_row_outside_the_base_currency_creates_no_account(
+    db, test_user, currency
+):
+    """AC-reconciliation.named-transfer-legs.2: a skipped row leaves no Processing account behind.
+
+    The ledger posts a leg in the Processing currency, and a later posting resets the base currency of the
+    transaction. A leg in a foreign currency then fails at commit. The function therefore refuses the row
+    before any ledger call.
+    """
+    statement, _bank = await _statement(db, test_user.id, f"named_leg_foreign_{currency or 'blank'}")
+    statement.currency = currency or "SGD"
+    txn = await add_txn(
+        db, statement, txn_date=date(2025, 1, 11), description="Wallet", amount=Decimal("80.00"), direction="OUT"
+    )
+    txn.currency = currency
+
+    matches = await post_named_transfer_legs(
+        db, user_id=test_user.id, named=[NamedTransfer(transaction=txn, category="TRANSFER", score=88)]
+    )
+
+    assert matches == []
+    assert (
+        await db.execute(select(func.count(Account.id)).where(Account.code == PROCESSING_ACCOUNT_CODE))
+    ).scalar_one() == 0
+    assert (await db.execute(select(func.count(JournalEntry.id)))).scalar_one() == 0
+
+
+async def test_AC_reconciliation_named_transfer_legs_2_a_custody_account_in_another_currency_creates_no_account(
+    db, test_user
+):
+    """AC-reconciliation.named-transfer-legs.2: the leg needs a custody account in the base currency too."""
+    statement, bank = await _statement(db, test_user.id, "named_leg_custody_currency")
+    bank.currency = "CNY"
+    txn = await add_txn(
+        db, statement, txn_date=date(2025, 1, 11), description="Wallet", amount=Decimal("80.00"), direction="OUT"
+    )
+
+    matches = await post_named_transfer_legs(
+        db, user_id=test_user.id, named=[NamedTransfer(transaction=txn, category="TRANSFER", score=88)]
+    )
+
+    assert matches == []
+    assert (
+        await db.execute(select(func.count(Account.id)).where(Account.code == PROCESSING_ACCOUNT_CODE))
+    ).scalar_one() == 0
+
+
+async def test_AC_reconciliation_named_transfer_legs_2_a_ledger_refusal_skips_one_row_and_keeps_the_others(
+    db, test_user, monkeypatch
+):
+    """AC-reconciliation.named-transfer-legs.2: each leg has its own savepoint.
+
+    The pre-checks make a ledger refusal rare. When one happens, the failed leg leaves no trace and the
+    next row still posts.
+    """
+    from src.ledger import TransferAccountCurrencyMismatchError
+    from src.reconciliation.extension import named_transfers
+
+    statement, _bank = await _statement(db, test_user.id, "named_leg_refusal")
+    first = await add_txn(
+        db, statement, txn_date=date(2025, 1, 5), description="Wallet A", amount=Decimal("10.00"), direction="OUT"
+    )
+    second = await add_txn(
+        db, statement, txn_date=date(2025, 1, 6), description="Wallet B", amount=Decimal("20.00"), direction="OUT"
+    )
+    real = named_transfers.post_transfer_leg
+
+    async def refuse_the_first(db_, **kwargs):
+        if kwargs["txn"].id == first.id:
+            await get_or_create_processing_account(db_, kwargs["user_id"], currency="SGD")
+            raise TransferAccountCurrencyMismatchError("refused")
+        return await real(db_, **kwargs)
+
+    monkeypatch.setattr(named_transfers, "post_transfer_leg", refuse_the_first)
+
+    matches = await post_named_transfer_legs(
+        db,
+        user_id=test_user.id,
+        named=[
+            NamedTransfer(transaction=first, category="TRANSFER", score=90),
+            NamedTransfer(transaction=second, category="TRANSFER", score=90),
+        ],
+    )
+
+    assert [match.atomic_txn_id for match in matches] == [second.id]
+    assert (await db.execute(select(func.count(JournalEntry.id)))).scalar_one() == 1
+
+
+async def test_AC_reconciliation_named_transfer_legs_3_two_identical_rows_post_two_legs(db, test_user):
+    """AC-reconciliation.named-transfer-legs.3: two top-ups of the same amount on one day are two payments.
+
+    Without the source id, the ledger takes the second command for a retry of the first and returns the
+    first entry. The bank is then credited once, and the statement still reaches approved.
+    """
+    statement, bank = await _statement(db, test_user.id, "named_leg_identical")
+    rows = [
+        await add_txn(
+            db,
+            statement,
+            txn_date=date(2025, 1, 5),
+            description="Payment to GrabPay Wallet",
+            amount=Decimal("50.00"),
+            direction="OUT",
+        )
+        for _ in range(2)
+    ]
+
+    matches = await post_named_transfer_legs(
+        db,
+        user_id=test_user.id,
+        named=[NamedTransfer(transaction=row, category="TRANSFER", score=90) for row in rows],
+    )
+
+    assert len(matches) == 2
+    assert matches[0].journal_entry_ids != matches[1].journal_entry_ids
+    entries = [await _entry(db, match.journal_entry_ids[0]) for match in matches]
+    credited = sum(
+        line.amount
+        for entry in entries
+        for line in entry.lines
+        if line.account_id == bank.id and line.direction is Direction.CREDIT
+    )
+    assert credited == Decimal("100.00")
+
+
+async def test_AC_reconciliation_named_transfer_legs_4_the_legs_pair_in_the_next_reconciliation_run(db, test_user):
+    """AC-reconciliation.named-transfer-legs.4: the legs carry anchors, so the run pairs them with the other side.
+
+    The function posts the legs and does not pair them. The run pairs all open legs of the user with the
+    step below. The pair count is read before and after that step.
+    """
     statement_a, _bank_a = await _statement(db, test_user.id, "named_leg_pair_a", account_name="Bank A")
     statement_b, _bank_b = await _statement(db, test_user.id, "named_leg_pair_b", account_name="Bank B")
     description = "Funds moved between own accounts, reference NAMED20250110001"
@@ -180,9 +318,14 @@ async def test_AC_reconciliation_named_transfer_legs_3_the_two_legs_of_one_trans
             NamedTransfer(transaction=in_txn, category="TRANSFER", score=90),
         ],
     )
+    pairs_before = (await db.execute(select(func.count(ReconciliationTransferPair.id)))).scalar_one()
+    found = await find_transfer_pairs(
+        db, test_user.id, currency="SGD", description_scorer=score_description, threshold=85
+    )
+    await persist_transfer_pairs(db, found)
+    pairs_after = (await db.execute(select(func.count(ReconciliationTransferPair.id)))).scalar_one()
 
     assert len(matches) == 2
-    pairs = (await db.execute(select(func.count(ReconciliationTransferPair.id)))).scalar_one()
-    assert pairs == 1
+    assert (pairs_before, pairs_after) == (0, 1)
     processing = await db.scalar(select(Account).where(Account.user_id == test_user.id, Account.is_system.is_(True)))
     assert processing is not None and processing.type is AccountType.ASSET
