@@ -159,3 +159,66 @@ async def test_AC_extraction_auto_accept_11_backfill_retries_a_row_without_an_an
     assert second.json() == {"classified": 0, "candidates": 1}
     assert third.json() == {"classified": 1, "candidates": 1}
     assert len((await db.execute(select(TransactionClassification))).scalars().all()) == 1
+
+
+async def _keyword_rule(db, user, keyword: str):
+    from datetime import date
+
+    from src.extraction import RuleType
+    from src.extraction.orm.layer3 import ClassificationRule
+
+    rule = ClassificationRule(
+        user_id=user.id,
+        created_by=user.id,
+        rule_name=f"rule-{keyword}",
+        version_number=1,
+        effective_date=date(2020, 1, 1),
+        is_active=True,
+        rule_type=RuleType.KEYWORD_MATCH,
+        rule_config={"keywords": [keyword]},
+        tag_mappings={"category": "user-coffee"},
+    )
+    db.add(rule)
+    await db.flush()
+    return rule
+
+
+@pytest.mark.asyncio
+async def test_AC_extraction_auto_accept_11_backfill_counts_rule_rows_with_and_without_ai_classification(
+    client: AsyncClient, db, test_user, enabled_flag, monkeypatch
+):
+    """AC-extraction.auto-accept.11: a row that a rule of the user classified counts as a classified row.
+
+    With AI classification off, only the rule rows get a row. With it on, the model rows count too.
+    """
+    from src.config import settings
+
+    await _keyword_rule(db, test_user, "coffee")
+    await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="COFFEE SHOP")
+    await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="ACME PAYROLL")
+    await db.commit()
+    _answers(monkeypatch, "SALARY", 95)
+
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    without_ai = await client.post("/classifications/backfill")
+    monkeypatch.setattr(settings, "enable_ai_classification", True)
+    with_ai = await client.post("/classifications/backfill")
+
+    assert without_ai.json() == {"classified": 1, "candidates": 2}
+    assert with_ai.json() == {"classified": 1, "candidates": 1}
+
+
+@pytest.mark.asyncio
+async def test_AC_extraction_auto_accept_11_backfill_with_ai_counts_the_rule_row_and_the_model_row(
+    client: AsyncClient, db, test_user, enabled_flag, monkeypatch
+):
+    """AC-extraction.auto-accept.11: both kinds of row count in one run."""
+    await _keyword_rule(db, test_user, "coffee")
+    await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="COFFEE SHOP")
+    await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="ACME PAYROLL")
+    await db.commit()
+    _answers(monkeypatch, "SALARY", 95)
+
+    response = await client.post("/classifications/backfill")
+
+    assert response.json() == {"classified": 2, "candidates": 2}

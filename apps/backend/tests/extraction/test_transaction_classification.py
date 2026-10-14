@@ -451,11 +451,22 @@ async def test_AC18_15_2_committed_rerun_is_idempotent_not_integrityerror(db, te
     )
     policy = _policy()
 
-    first = await classify_transactions(db, test_user.id, [txn], policy=policy, proposer=proposer, commit_basis=True)
-    second = await classify_transactions(db, test_user.id, [txn], policy=policy, proposer=proposer, commit_basis=True)
+    asked: list[int] = []
+
+    async def counting_proposer(transactions, policy_):
+        asked.append(len(transactions))
+        return await proposer(transactions, policy_)
+
+    first = await classify_transactions(
+        db, test_user.id, [txn], policy=policy, proposer=counting_proposer, commit_basis=True
+    )
+    second = await classify_transactions(
+        db, test_user.id, [txn], policy=policy, proposer=counting_proposer, commit_basis=True
+    )
 
     assert first[0].disposition == "applied"
-    assert second[0].disposition == "applied"  # same verdict, reported again
+    assert second[0].disposition == "already_classified"  # the row stays, and the model is not asked again (#2405)
+    assert asked == [1]
     rows = (
         (await db.execute(select(TransactionClassification).where(TransactionClassification.atomic_txn_id == txn.id)))
         .scalars()

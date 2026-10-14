@@ -247,7 +247,9 @@ async def auto_create_posted_entries_for_statement(
             counter_account = accounts_by_id.get(classification.account_id)
             if counter_account is None:
                 raise ValueError("Applied classification references a missing account")
-            proposal = _applied_proposal(classification, classification_rule, counter_account)
+            proposal = _applied_proposal(
+                classification, classification_rule, counter_account, covered_by_match=txn.id in transfer_txn_ids
+            )
         elif txn.id in transfer_txn_ids:
             proposal = IntentProposal(
                 schema_version="1",
@@ -434,12 +436,23 @@ def _applied_proposal(
     classification: TransactionClassification,
     classification_rule: ClassificationRule,
     counter_account: Account,
+    *,
+    covered_by_match: bool = False,
 ) -> IntentProposal:
     """The intent proposal that an applied classification row stands for.
 
-    A row that a person corrected is the decision of that person, not of the model (#2405).
+    A row that a person corrected is the decision of that person, not of the model (#2405). An accepted match
+    already covers its money. A manual adjudication would bypass that fact and post the movement twice, so a
+    covered row keeps the machine origin and the disposition policy keeps the row covered. A person who
+    disagrees with the match rejects the match first.
     """
     corrected_by_user = (classification.tags or {}).get("corrected_by_user") is True
+    if corrected_by_user and covered_by_match:
+        logger.warning(
+            "A correction of the user conflicts with an accepted match; the match stays",
+            classification_id=str(classification.id),
+        )
+        corrected_by_user = False
     return IntentProposal(
         schema_version="1",
         policy_version=str(classification.rule_version_id),

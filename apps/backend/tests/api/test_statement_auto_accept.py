@@ -305,6 +305,53 @@ async def test_AC_extraction_auto_accept_9_transfers_loans_and_trades_post_witho
     }
 
 
+async def test_AC_extraction_auto_accept_5_a_weak_loan_posts_to_suspense_and_never_to_income_or_expense(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.auto-accept.5: the model named a loan repayment at 55, which is below the review score.
+
+    The statement posts without a click. The row becomes a Processing leg, so net worth does not move by a guess.
+    No general account is created, and the leg keeps the class and the score of the model.
+    Opening 100.00; -30 gives a closing balance of 70.00.
+    """
+    statement, bank = await _statement(db, test_user.id, "auto_weak_loan", closing="70.00")
+    loan = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 6),
+        description="Loan repayment",
+        amount=Decimal("30.00"),
+        direction="OUT",
+    )
+    await db.commit()
+    _install(monkeypatch, _Model({"Loan repayment": ("LOAN_PRINCIPAL", 55)}))
+
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id, request=None, db=db, user_id=test_user.id
+    )
+
+    assert result.status == BankStatementStatus.APPROVED
+    assert result.journal_entries_created == 1
+    leg = (
+        await db.execute(select(ReconciliationMatch).where(ReconciliationMatch.atomic_txn_id == loan.id))
+    ).scalar_one()
+    assert leg.status is ReconciliationStatus.AUTO_ACCEPTED
+    assert leg.match_score == 55
+    assert leg.score_breakdown["ai_category"] == "LOAN_PRINCIPAL"
+    processing = (await db.execute(select(Account).where(Account.code == PROCESSING_ACCOUNT_CODE))).scalar_one()
+    entry = (
+        await db.execute(
+            select(JournalEntry).where(JournalEntry.source_id == loan.id).options(selectinload(JournalEntry.lines))
+        )
+    ).scalar_one()
+    assert {(line.account_id, line.direction) for line in entry.lines} == {
+        (processing.id, Direction.DEBIT),
+        (bank.id, Direction.CREDIT),
+    }
+    assert (await db.execute(select(Account.id).where(Account.name.like("General %")))).first() is None
+    assert (await db.execute(select(Account.id).where(Account.name.like("Loans Payable%")))).first() is None
+
+
 async def test_AC_extraction_auto_accept_10_a_high_confidence_statement_posts_when_it_is_parsed(
     db, test_user, monkeypatch
 ):
@@ -577,6 +624,60 @@ async def test_AC_extraction_auto_accept_9_a_leg_that_the_user_chose_is_accepted
     assert "auto_accepted" not in draft.tags
 
 
+async def test_AC_extraction_auto_accept_6_a_corrected_row_that_a_transfer_match_covers_posts_no_second_entry(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.auto-accept.6: the Processing leg of an accepted match is a fact. A correction does not post it twice.
+
+    The user corrected the draft of the row to groceries, and a match had posted the leg before. The row stays
+    covered by the leg. A person who disagrees with the leg rejects the match first.
+    Opening 100.00; -40 gives a closing balance of 60.00.
+    """
+    from src.extraction import apply_suggestion_feedback
+    from src.extraction.extension import transaction_classification as tc
+    from src.extraction.extension.transaction_classification import CategoryProposal, classify_transactions
+    from src.reconciliation.extension.named_transfers import NamedTransfer, post_named_transfer_legs
+
+    statement, _bank = await _statement(db, test_user.id, "auto_corrected_match", closing="60.00")
+    payment = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 4),
+        description="PAYNOW TRANSFER TO ALICE",
+        amount=Decimal("40.00"),
+        direction="OUT",
+    )
+    test_user.ai_settings = {"auto_accept_ai_suggestions": False}  # the review path writes the draft
+    await db.flush()
+
+    async def proposer(transactions, _policy):
+        return [CategoryProposal(category="DINING", confidence=70, reason="test") for _ in transactions]
+
+    await classify_transactions(db, test_user.id, [payment], policy=tc.POLICY_VERSIONS[1], proposer=proposer)
+    draft_id = (await db.execute(select(TransactionClassification.id))).scalar_one()
+    await apply_suggestion_feedback(db, test_user.id, draft_id, "edit_accept", {"value": "groceries"})
+    legs = await post_named_transfer_legs(
+        db,
+        user_id=test_user.id,
+        named=[NamedTransfer(transaction=payment, category="TRANSFER", score=90)],
+        accepted_by="system",
+    )
+    assert len(legs) == 1
+    test_user.ai_settings = {}  # the product default again
+    await db.commit()
+    _install(monkeypatch, _Model({"PAYNOW TRANSFER TO ALICE": ("DINING", 66)}))
+
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id, request=None, db=db, user_id=test_user.id
+    )
+
+    assert result.status == BankStatementStatus.APPROVED
+    entries = (await db.execute(select(JournalEntry).where(JournalEntry.source_id == payment.id))).scalars().all()
+    assert sorted(str(entry.id) for entry in entries) == sorted(legs[0].journal_entry_ids), (
+        "only the leg posts this movement"
+    )
+
+
 async def test_AC_extraction_auto_accept_8_the_posted_trace_names_the_accept_any_score_policy(
     db, test_user, monkeypatch
 ):
@@ -622,8 +723,9 @@ async def test_AC_extraction_auto_accept_8_the_one_click_approval_leaves_an_acce
 ):
     """AC-extraction.auto-accept.8: the one-click approval asks the policy of the user, so it agrees with the posting.
 
-    A row that the classifier applied at 70 posts to its category. With the default gate 0.85, the one-click
-    approval would book that row to the general account instead.
+    A row that the classifier applied at 70 posts to its category from the applied row, as an automatic entry.
+    With the default gate 0.85, the one-click approval would take the row itself, as a reviewed disposition of
+    the user (source type `user_confirmed`), to the same account. The source type tells the two apart.
 
     Opening 100.00; -15 gives a closing balance of 85.00.
     """
@@ -634,7 +736,8 @@ async def test_AC_extraction_auto_accept_8_the_one_click_approval_leaves_an_acce
         db, statement, txn_date=date(2025, 1, 4), description="Lunch", amount=Decimal("15.00"), direction="OUT"
     )
     await db.commit()
-    _install(monkeypatch, _Model({"Lunch": ("DINING", 70)}))
+    model = _Model({"Lunch": ("DINING", 70)})
+    _install(monkeypatch, model)
 
     result = await statements_router.approve_statement_stage1(
         statement_id=statement.id,
@@ -644,4 +747,7 @@ async def test_AC_extraction_auto_accept_8_the_one_click_approval_leaves_an_acce
     )
 
     assert result.status == BankStatementStatus.APPROVED
+    assert model.calls == 1, "the one-click approval classifies first, and the posting does not ask again"
     assert await _counter_names(db, lunch, bank.id) == {"Expense - Dining"}
+    entry = (await db.execute(select(JournalEntry).where(JournalEntry.source_id == lunch.id))).scalar_one()
+    assert entry.source_type is JournalEntrySourceType.AUTO_PARSED

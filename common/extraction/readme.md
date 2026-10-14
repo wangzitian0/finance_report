@@ -94,8 +94,9 @@ test-node coverage belongs to `common/testing`.
 boundary. It consumes one typed `IntentProposal`, a reviewed counter-account,
 and accepted-transfer context, then returns either a balanced command, an
 already-covered transfer decision, or a review reason. Each proposal records
-its closed origin: a reviewed deterministic rule, a live LLM proposal, or an
-accepted reconciliation fact. Trace authority derives only from that origin;
+its closed origin: a reviewed deterministic rule, a live LLM proposal, an
+accepted reconciliation fact, or the manual adjudication of a person (the
+correction of a draft, #2405). Trace authority derives only from that origin;
 economic intent and cash direction never imply either economic meaning or
 authority. Income, expense, refund, and loan-interest may affect P&L; transfer,
 investment purchase/sale, loan principal, and card repayment require their
@@ -103,7 +104,9 @@ matching asset/liability context and cannot be converted into income or expense
 by fallback. An accepted transfer match is a reconciliation fact: it already has
 its Processing entry, so it outranks every model or rule proposal and a second
 income or expense entry for the same leg is never posted (#2410). Only a person
-who adjudicates that one transaction can override it. `off`, `observe`, and
+who adjudicates that one transaction can override it, and the person first
+rejects the match. The posting keeps a covered row covered, also when the person
+corrected its category (#2405). `off`, `observe`, and
 `enforce` calculate the same versioned
 decision; only `enforce` applies a command. Composition resolves the closed
 `STATEMENT_DISPOSITION_MODE` once; it is not a per-route boolean override.
@@ -128,9 +131,11 @@ in flight. Each description is one JSON string. The model echoes the `index` of 
 answer by that index. A different item count than rows, an index outside the batch or a repeated index
 drops the answer for that batch. A row without a proposal goes to review. An item that the parser cannot
 read is no proposal. These items are unreadable: a missing or blank class, a missing or negative
-confidence, a confidence that is a word, and a class outside the catalog. A fraction below 1 makes the
-whole batch no proposal, because a scale from 0 to 1 is ambiguous. The parser reads case, spaces, hyphens,
-a percent sign and a decimal score, also as a string. A number above 100 counts as 100. The call carries
+confidence, a confidence that is a word, and a class outside the catalog. The parser reads case, spaces,
+hyphens, a percent sign and a decimal score, also as a string. It cuts a decimal part and does not round it,
+so that 59.9 stays below the gate 60. A number above 100 counts as 100. When no number of a batch is above 1,
+the model used the scale from 0 to 1, and the parser multiplies every number by 100. A fraction beside larger
+numbers is ambiguous (half a percent or fifty percent), so only that item is no proposal. The call carries
 the id of the statement owner, so it uses the provider of that user. The echo does not prove that the model
 numbered by the prompt and not by its own output order; a swap with a valid count and valid indexes
 is the residual risk of this design.
@@ -173,25 +178,29 @@ and the default three statements. The system therefore decides every row that th
   carries the tag `auto_accepted`.
 - A row that the model answered but could not place goes to `General Income (CUR)` or `General Expense (CUR)`
   by direction, with the category `UNCLASSIFIED` and the score 0. This covers a P&L class with a score below
-  60, a class whose account side contradicts the direction, and a loan principal or an investment trade
-  below 60. The row keeps the class and the score of the model in `original_category` and
-  `original_confidence`.
+  60 and a class whose account side contradicts the direction. The row keeps the class and the score of the
+  model in `original_category` and `original_confidence`.
 - A row that the model did not answer gets no row and no general account. The statement waits, and the next
   pass classifies the row. These cases are no answer: an outage or a dropped batch; an item that the parser
   cannot read; a class outside the catalog; a score of 0 on a transfer, a card repayment, a loan or a trade;
-  every row of a batch in which one confidence is a fraction below 1 (the model used the scale from 0 to 1).
-  An outage, or a model that ignores the schema, must not turn a statement into general entries. A dry run
-  writes nothing.
+  a fraction beside larger numbers in the same batch. An outage, or a model that ignores the schema, must not
+  turn a statement into general entries. A dry run writes nothing.
 - A loan principal and an investment trade at the review score or above are applied to `Loans Payable (CUR)`
-  and `Investments (CUR)` with an explicit intent. A transfer and a card repayment stay drafts at any score
-  above 0, and the posting posts them as Processing legs (base currency only, enforce mode only). The leg has
+  and `Investments (CUR)` with an explicit intent. Below the review score they wait in suspense: the draft
+  has no account and the tag `suspense`, and the posting books it as a Processing leg. A guess below the
+  review score cannot move net worth, and the row stays visible in the Processing account. It never becomes
+  income or expense. A transfer and a card repayment stay drafts at any score above 0. The posting posts
+  all of these drafts as Processing legs (base currency only, enforce mode only). The leg has
   the status `auto_accepted`, or `accepted` when the user chose the class, and its draft has the tag of the
   same name. A weak transfer is still a transfer, and the two sides of one transfer land in the same place.
 - The next pass applies the drafts that the review path left. A decision of the user outranks the setting: a
   rejected draft stays superseded. A draft that the user corrected is applied as the decision of the user. It
   keeps the flag `corrected_by_user` and gets no `auto_accepted` tag, and the posting records the user as the
-  decider (source type `user_confirmed`). A corrected draft that contradicts its direction stays a draft, and
-  the one-click approval asks again.
+  decider (source type `user_confirmed`). A person who corrects a suspense draft chooses the class, so the
+  tag `suspense` goes away and the row books to the balance-sheet account. A corrected draft that contradicts
+  its direction stays a draft, and the one-click approval posts that row to the general account. A row that
+  an accepted match covers stays covered, also when the person corrected it. The person rejects the match
+  first.
 - The disposition policy of such a user has the score gate 0 and the version `disposition-v1-accept-any-score`.
   The policy snapshot and the personal report package record it. The entries have the source type
   `auto_parsed`, which is the low confidence tier.
@@ -199,6 +208,9 @@ and the default three statements. The system therefore decides every row that th
   statement that never ran through the classifier does not fall to the general account.
 - The classification backfill counts the candidates that got a row in the run. A row without a readable answer
   stays a candidate.
+- The classifier asks the model only for the rows that have no row under the current policy version. A row that
+  has its row keeps it (the disposition `already_classified`). A retry asks again only for the rows that had no
+  answer, and the one-click approval asks the model once.
 - The classifier and the one-click approval resolve a default account with one resolver
   (`get_or_create_account`, AC `default-account.1`). An inactive account is not the default, because posting
   refuses it. Two active rows with one name resolve to the oldest. The account commits in its own short
