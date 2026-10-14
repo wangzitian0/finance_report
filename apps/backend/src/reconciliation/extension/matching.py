@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -12,6 +12,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType, promote_entry_source_type
+from src.extraction import reconciliation_enabled
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import (
     JournalEntry,
@@ -30,7 +31,7 @@ from src.reconciliation.extension.candidate_policy import _score_rule_candidate
 from src.reconciliation.extension.config import load_reconciliation_config
 from src.reconciliation.extension.repository import SqlReconciliationRepository
 from src.reconciliation.extension.scoring import extract_merchant_tokens, score_description, score_pattern
-from src.reconciliation.extension.transfer_pairs import persist_transfer_pairs
+from src.reconciliation.extension.transfer_pairs import paired_transfer_entry_ids, persist_transfer_pairs
 from src.reconciliation.orm.reconciliation import (
     ReconciliationMatch,
     ReconciliationMatchJournalEntry,
@@ -229,7 +230,13 @@ async def execute_matching(
     repository: ReconciliationRepository | None = None,
 ) -> list[ReconciliationMatch]:
     """Execute reconciliation matching for pending transactions."""
-    config = load_reconciliation_config()
+    base_config = load_reconciliation_config()
+    config = replace(
+        base_config,
+        enable_ai_reconciliation=await reconciliation_enabled(
+            db, user_id, default=base_config.enable_ai_reconciliation
+        ),
+    )
     repo = repository if repository is not None else SqlReconciliationRepository(db)
 
     # Read pending transactions from Layer 2 (atomic_transactions).
@@ -345,12 +352,14 @@ async def execute_matching(
     # the transaction. Pair persistence is idempotent under unique leg indexes.
     # Find and pair transfers automatically per common/ledger/readme.md
     try:
+        paired_ids = await paired_transfer_entry_ids(db, user_id=user_id)
         transfer_pairs = await find_transfer_pairs(
             db,
             user_id,
             currency=currency,
             description_scorer=score_description,
             threshold=85,
+            exclude_entry_ids=paired_ids,
         )
     except Exception as e:
         logger.error(

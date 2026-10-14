@@ -3,9 +3,13 @@
 from fastapi import APIRouter
 from sqlalchemy import select
 
-from src.config import settings
 from src.deps import CurrentUserId, DbSession
-from src.extraction import auto_accept_preference, effective_auto_accept, effective_classification
+from src.extraction import (
+    auto_accept_preference,
+    effective_auto_accept,
+    effective_classification,
+    effective_reconciliation,
+)
 from src.identity import User
 from src.platform import raise_not_found
 from src.schemas.user import UserAiSettingsResponse, UserAiSettingsUpdate
@@ -16,7 +20,7 @@ router = APIRouter(prefix="/users/me/settings", tags=["user-settings"])
 def _effective_settings(ai_settings: dict[str, bool] | None) -> UserAiSettingsResponse:
     overrides = ai_settings or {}
     return UserAiSettingsResponse(
-        enable_ai_reconciliation=overrides.get("enable_ai_reconciliation", settings.enable_ai_reconciliation),
+        enable_ai_reconciliation=effective_reconciliation(overrides),
         enable_ai_classification=effective_classification(overrides),
         # The panel edits the preference. It must not read back the effective value, or a save would store
         # "off" for a user who never chose it (AI classification off, or the operator flag off).

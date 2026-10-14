@@ -20,7 +20,7 @@ from src.reconciliation.base.errors import (
 )
 from src.reconciliation.extension.anomaly import detect_anomalies
 from src.reconciliation.extension.scoring import score_description
-from src.reconciliation.extension.transfer_pairs import persist_transfer_pairs
+from src.reconciliation.extension.transfer_pairs import paired_transfer_entry_ids, persist_transfer_pairs
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
 from src.reconciliation.orm.reconciliation import (
     DispositionKind,
@@ -338,12 +338,14 @@ async def _persist_approved_transfer_pair_check(
     if out_entry is None or in_entry is None:
         return
 
+    paired_ids = await paired_transfer_entry_ids(db, user_id=user_id) - {out_entry.id, in_entry.id}
     candidate_pairs = await find_transfer_pairs(
         db,
         user_id,
         currency=currency,
         description_scorer=score_description,
         threshold=0,
+        exclude_entry_ids=paired_ids,
     )
     matched_pair = next(
         (p for p in candidate_pairs if p.out_entry.id == out_entry.id and p.in_entry.id == in_entry.id),

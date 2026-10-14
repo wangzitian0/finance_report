@@ -251,3 +251,27 @@ async def test_ac18_5_5_get_ai_settings_reflects_persisted_overrides(
         # With AI classification off there is nothing to accept, so the value in use is off. The choice stays on.
         "auto_accept_ai_suggestions_active": False,
     }
+
+
+async def test_effective_reconciliation_and_reconciliation_enabled_honor_bool_overrides(
+    db: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """effective_reconciliation and reconciliation_enabled read strict bool overrides and fall back to settings (#2417)."""
+    from src.extraction import effective_reconciliation, reconciliation_enabled
+
+    monkeypatch.setattr(settings, "enable_ai_reconciliation", False)
+    assert effective_reconciliation(None) is False
+    assert effective_reconciliation({}) is False
+    assert effective_reconciliation({"enable_ai_reconciliation": "yes"}) is False
+    assert effective_reconciliation({"enable_ai_reconciliation": True}) is True
+
+    test_user.ai_settings = {"enable_ai_reconciliation": True}
+    await db.commit()
+    assert await reconciliation_enabled(db, test_user.id) is True
+
+    monkeypatch.setattr(settings, "enable_ai_reconciliation", True)
+    test_user.ai_settings = {"enable_ai_reconciliation": False}
+    await db.commit()
+    assert await reconciliation_enabled(db, test_user.id) is False

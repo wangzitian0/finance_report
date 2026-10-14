@@ -150,17 +150,15 @@ async def get_processing_summary(
     # base currency of that moment. A user without legs sees zeros in the base currency (#2415).
     processing_account = await find_processing_account(db, user_id)
     currency = processing_account.currency if processing_account else await get_effective_base_currency(db)
+    persisted_paired_ids = await paired_transfer_entry_ids(db, user_id=user_id)
     pairs = await find_transfer_pairs(
         db,
         user_id,
         currency=currency,
         description_scorer=score_description,
+        exclude_entry_ids=persisted_paired_ids,
     )
-    paired_ids = (
-        {pair.out_entry.id for pair in pairs}
-        | {pair.in_entry.id for pair in pairs}
-        | await paired_transfer_entry_ids(db, user_id=user_id)
-    )
+    paired_ids = {pair.out_entry.id for pair in pairs} | {pair.in_entry.id for pair in pairs} | persisted_paired_ids
     unpaired = [
         item
         for item in await get_unpaired_transfers(db, user_id, currency=currency)
@@ -190,17 +188,15 @@ async def list_processing_pending(
     # base currency of that moment. A user without legs sees zeros in the base currency (#2415).
     processing_account = await find_processing_account(db, user_id)
     currency = processing_account.currency if processing_account else await get_effective_base_currency(db)
+    persisted_paired_ids = await paired_transfer_entry_ids(db, user_id=user_id)
     pairs = await find_transfer_pairs(
         db,
         user_id,
         currency=currency,
         description_scorer=score_description,
+        exclude_entry_ids=persisted_paired_ids,
     )
-    paired_ids = (
-        {pair.out_entry.id for pair in pairs}
-        | {pair.in_entry.id for pair in pairs}
-        | await paired_transfer_entry_ids(db, user_id=user_id)
-    )
+    paired_ids = {pair.out_entry.id for pair in pairs} | {pair.in_entry.id for pair in pairs} | persisted_paired_ids
     legs = [
         leg
         for leg in await list_processing_transfer_legs(db, user_id, currency=currency)

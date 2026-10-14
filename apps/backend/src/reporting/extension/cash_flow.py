@@ -36,24 +36,21 @@ CashActivity = Literal["Operating", "Investing", "Financing"]
 _EXPLICIT_EVENT_ACTIVITIES: dict[str, CashActivity] = {
     "investment_buy": "Investing",
     "investment_sell": "Investing",
-    "loan_borrow": "Financing",
-    "loan_repay": "Financing",
-    "loan_drawdown": "Financing",
-    "loan_repayment": "Financing",
-    "loan_principal": "Financing",
-    "financing_borrow": "Financing",
-    "financing_repay": "Financing",
 }
 _EXPLICIT_EVENT_COMPANIONS: dict[str, frozenset[str]] = {
     "investment_buy": frozenset({"investment_buy"}),
     "investment_sell": frozenset({"investment_sell", "investment_realized_pnl"}),
-    "loan_borrow": frozenset({"loan_borrow"}),
-    "loan_repay": frozenset({"loan_repay"}),
-    "loan_drawdown": frozenset({"loan_drawdown"}),
-    "loan_repayment": frozenset({"loan_repayment"}),
-    "loan_principal": frozenset({"loan_principal"}),
-    "financing_borrow": frozenset({"financing_borrow"}),
-    "financing_repay": frozenset({"financing_repay"}),
+}
+_STATEMENT_SOURCE_TYPES: frozenset[JournalEntrySourceType] = frozenset(
+    {
+        JournalEntrySourceType.AUTO_PARSED,
+        JournalEntrySourceType.USER_CONFIRMED,
+        JournalEntrySourceType.SYSTEM,
+    }
+)
+_STATEMENT_CATEGORY_ACTIVITIES: dict[str, tuple[CashActivity, AccountType]] = {
+    "LOAN_PRINCIPAL": ("Financing", AccountType.LIABILITY),
+    "INVESTMENT_TRADE": ("Investing", AccountType.ASSET),
 }
 
 
@@ -86,6 +83,24 @@ class _CashEvent:
                 counterpart_event_types = {line.event_type for line, _account in self.counterpart_lines}
                 if explicit_activity is not None and counterpart_event_types <= allowed_companions:
                     return explicit_activity
+
+        if (
+            self.entry.source_type in _STATEMENT_SOURCE_TYPES
+            and self.has_authoritative_decision
+            and len(self.cash_lines) == 1
+            and len(self.counterpart_lines) == 1
+        ):
+            cash_line, _cash_account = self.cash_lines[0]
+            counter_line, counter_account = self.counterpart_lines[0]
+            category = (counter_line.tags or {}).get("economic_category")
+            if (
+                cash_line.event_type == "bank_txn"
+                and counter_line.event_type == "bank_txn"
+                and isinstance(category, str)
+            ):
+                expected = _STATEMENT_CATEGORY_ACTIVITIES.get(category)
+                if expected is not None and counter_account.type == expected[1]:
+                    return expected[0]
 
         counterpart_types = {account.type for _line, account in self.counterpart_lines}
         if counterpart_types and counterpart_types <= {AccountType.INCOME, AccountType.EXPENSE}:

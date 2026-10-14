@@ -590,6 +590,7 @@ CONTRACT = PackageContract(
         # unrelated and untouched — see docs/project/EPIC-018.ai-driven-pipeline.md) ──
         ac('AC-reconciliation.1803.1', 'Hybrid scoring: calculate_match_score blends 0.7 * algorithmic + 0.3 * AI semantic score, applied only when the pre-AI weighted total is in the 60-84 review band.', 'apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py::test_calculate_match_score_applies_hybrid_ai_scoring', priority='P1'),
         ac('AC-reconciliation.1803.2', 'Feature flag ENABLE_AI_RECONCILIATION gates the hybrid-AI branch: when off, calculate_match_score never calls the AI semantic scorer, even for a pre-AI total in the 60-84 band.', 'apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py::test_calculate_match_score_flag_off_skips_ai_scoring', priority='P1'),
+        ac('AC-reconciliation.1803.3', 'execute_matching resolves enable_ai_reconciliation from the per-user ai_settings override before it applies the base configuration (#2417).', 'apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py::test_AC_reconciliation_1803_3_execute_matching_uses_per_user_ai_reconciliation_override', priority='P1'),
         # #1866 PR-A: reconciliation/ledger signature surgery.  The split is
         # intentionally package-local: reconciliation owns orchestration,
         # errors, and the similarity policy; ledger separately owns posting

@@ -798,6 +798,7 @@ CONTRACT = PackageContract(
         ac('AC-reporting.cash-events.9', 'Package governance detail projects the exact detector, proof strength, target SHA, issue, and existing enforcing gate for every cash-event guarantee.', 'apps/backend/tests/reporting/test_cash_event_governance.py::test_AC_reporting_cash_events_9_governance_detail_is_package_owned_and_enforced', proof_kind='exact'),
         ac('AC-reporting.cash-events.10', 'The adversarial cash-event matrix locks non-cash, settlement, transfer, FX, void, and hostile-tenant counterfactuals against regression.', 'apps/backend/tests/reporting/test_cash_event_governance.py::test_AC_reporting_cash_events_10_counterfactual_matrix_is_locked', proof_kind='exact'),
         ac('AC-reporting.cash-events.11', 'Cash flow bridge fx_effect is calculated independently from foreign-currency cash rate variances without circular plugging, exposing discrepancy and failing reconciliation when cash activities are omitted or corrupted.', 'apps/backend/tests/reporting/test_falsifiable_cash_flow.py::test_multicurrency_cash_bridge_exposes_discrepancy_on_missing_activity', priority='P1'),
+        ac('AC-reporting.cash-events.12', 'Anchored statement cash events map LOAN_PRINCIPAL on liabilities to Financing and INVESTMENT_TRADE on assets to Investing. INVESTMENT_SALE stays in unclassified_cash (#2427).', 'apps/backend/tests/reporting/test_cash_event_projection.py::test_AC_reporting_cash_events_12_statement_balance_sheet_categories_classify', proof_kind='exact'),
     ],
     governance=[
         GovernanceInitiative(
