@@ -39,12 +39,14 @@ from common.testing.provider_review import (
 )
 from deployment_pin import assert_pinned_deployment, resolve_expected_commit
 from journey_checkpoint import checkpoint
-from playwright.async_api import Page
+from playwright.async_api import Page, expect
 
 APP_URL = os.getenv("APP_URL", "http://localhost:3000")
 PARSING_TIMEOUT_MS = int(os.getenv("PARSING_TIMEOUT_MS", "480000"))
 
 CURRENCY = "SGD"
+YEAR_START = "2026-01-01"
+YEAR_END = "2026-12-31"
 INITIAL_OPENING_BALANCE = Decimal("10000.00")
 MONTHLY_SALARY = Decimal("5000.00")
 MONTHLY_RENT = Decimal("1500.00")
@@ -199,8 +201,15 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
             f"opening balance failed: {opening_resp.status_code} {opening_resp.text}"
         )
 
+        assert EXPECTED_TOTAL_INCOME == Decimal("60000.00")
+        assert EXPECTED_TOTAL_EXPENSES == Decimal("18000.00")
+        assert EXPECTED_NET_INCOME == Decimal("42000.00")
+        assert EXPECTED_ENDING_CASH == Decimal("52000.00")
+        assert EXPECTED_TOTAL_ASSETS == Decimal("52000.00")
+
         # 3. Sequentially ingest 12 consecutive months.
         running_balance = INITIAL_OPENING_BALANCE
+        uploaded_filenames: list[str] = []
         for month_idx in range(1, TOTAL_MONTHS + 1):
             days_in_month = calendar.monthrange(2026, month_idx)[1]
             period_start = date(2026, month_idx, 1)
@@ -215,6 +224,7 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
                 closing=month_closing,
             )
             filename = f"statement_2026_{month_idx:02d}_{uuid.uuid4().hex[:6]}.csv"
+            uploaded_filenames.append(filename)
             upload_resp = await client.post(
                 _api_url("/statements/upload"),
                 data={
@@ -229,7 +239,7 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
             statement_id = upload_resp.json()["id"]
 
             parsed = await _wait_for_parsed(client, statement_id)
-            assert len(parsed.get("transactions") or []) == 2
+            assert len(parsed["transactions"]) == 2
 
             approval = await approve_statement_with_fixture_review(
                 client,
@@ -246,7 +256,7 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
                     rationale="The generated monthly CSV declares these source facts.",
                 ),
             )
-            assert approval.get("status") == "approved", (
+            assert approval["status"] == "approved", (
                 f"month {month_idx} approval failed: {approval}"
             )
             running_balance = month_closing
@@ -254,70 +264,131 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
         # 4. Verify the annual balance sheet as of 2026-12-31.
         bs_resp = await client.get(
             _api_url("/reports/balance-sheet"),
-            params={"as_of_date": "2026-12-31", "currency": CURRENCY},
+            params={"as_of_date": YEAR_END, "currency": CURRENCY},
         )
         assert bs_resp.status_code == 200, f"balance sheet failed: {bs_resp.text}"
         bs = bs_resp.json()
-        assert bs.get("is_balanced") is True, f"balance sheet not balanced: {bs}"
-        assert Decimal(str(bs.get("equation_delta", "1"))) == Decimal("0.00")
-        assert Decimal(str(bs.get("total_assets", "0"))) == EXPECTED_TOTAL_ASSETS
+        assert bs["is_balanced"] is True, f"balance sheet not balanced: {bs}"
+        assert Decimal(str(bs["equation_delta"])) == Decimal("0.00")
+        assert Decimal(str(bs["total_assets"])) == EXPECTED_TOTAL_ASSETS
+        assert (
+            Decimal(str(bs["total_equity"])) + Decimal(str(bs["net_income"]))
+            == EXPECTED_TOTAL_ASSETS
+        )
 
         # 5. Verify the annual income statement for 2026.
         inc_resp = await client.get(
             _api_url("/reports/income-statement"),
             params={
-                "start_date": "2026-01-01",
-                "end_date": "2026-12-31",
+                "start_date": YEAR_START,
+                "end_date": YEAR_END,
                 "currency": CURRENCY,
             },
         )
         assert inc_resp.status_code == 200, f"income statement failed: {inc_resp.text}"
         inc = inc_resp.json()
-        assert Decimal(str(inc.get("total_income", "0"))) == EXPECTED_TOTAL_INCOME
-        assert Decimal(str(inc.get("total_expenses", "0"))) == EXPECTED_TOTAL_EXPENSES
-        assert Decimal(str(inc.get("net_income", "0"))) == EXPECTED_NET_INCOME
+        assert Decimal(str(inc["total_income"])) == EXPECTED_TOTAL_INCOME
+        assert Decimal(str(inc["total_expenses"])) == EXPECTED_TOTAL_EXPENSES
+        assert Decimal(str(inc["net_income"])) == EXPECTED_NET_INCOME
 
         # 6. Verify the annual cash flow statement for 2026.
         cf_resp = await client.get(
             _api_url("/reports/cash-flow"),
             params={
-                "start_date": "2026-01-01",
-                "end_date": "2026-12-31",
+                "start_date": YEAR_START,
+                "end_date": YEAR_END,
                 "currency": CURRENCY,
             },
         )
         assert cf_resp.status_code == 200, f"cash flow failed: {cf_resp.text}"
         cf = cf_resp.json()
-        ending_cash = Decimal(str(cf.get("summary", {}).get("ending_cash", "0")))
+        cf_summary = cf["summary"]
+        beginning_cash = Decimal(str(cf_summary["beginning_cash"]))
+        net_cash_flow = Decimal(str(cf_summary["net_cash_flow"]))
+        ending_cash = Decimal(str(cf_summary["ending_cash"]))
+        assert beginning_cash == INITIAL_OPENING_BALANCE
+        assert net_cash_flow == EXPECTED_NET_INCOME
         assert ending_cash == EXPECTED_ENDING_CASH
+        assert Decimal(str(bs["total_assets"])) == ending_cash
 
-        # 7. Generate annual report package and verify trusted status.
+        # 7. Generate annual report package and verify trusted status, and check 12 approved statements.
         pkg_resp = await client.post(
             _api_url("/reports/package/generate"),
             json={
-                "start_date": "2026-01-01",
-                "end_date": "2026-12-31",
-                "as_of_date": "2026-12-31",
+                "start_date": YEAR_START,
+                "end_date": YEAR_END,
+                "as_of_date": YEAR_END,
                 "currency": CURRENCY,
             },
         )
         assert pkg_resp.status_code == 200, f"package generate failed: {pkg_resp.text}"
         pkg = pkg_resp.json()
-        assert pkg.get("status") == "trusted", f"package not trusted: {pkg}"
+        assert pkg["status"] == "trusted", f"package not trusted: {pkg}"
+
+        stmts_resp = await client.get(_api_url("/statements"))
+        assert stmts_resp.status_code == 200, (
+            f"statements list failed: {stmts_resp.text}"
+        )
+        items = stmts_resp.json()["items"]
+        approved_items = [s for s in items if s["status"] == "approved"]
+        assert len(approved_items) == TOTAL_MONTHS, (
+            f"expected {TOTAL_MONTHS} approved statements, got {len(approved_items)}"
+        )
 
         # 8. Verify reports and statements in the real browser UI.
-        await page.goto(f"{APP_URL.rstrip('/')}/reports", wait_until="domcontentloaded")
-        await page.locator("main").wait_for(state="visible", timeout=30000)
-        reports_content = await page.locator("main").inner_text()
-        assert (
-            "52,000" in reports_content
-            or "52000" in reports_content
-            or "Reports" in reports_content
-        ), "reports UI must show ending cash or report heading"
+        await page.goto(
+            f"{APP_URL.rstrip('/')}/reports/balance-sheet?as_of_date={YEAR_END}&currency={CURRENCY}",
+            wait_until="domcontentloaded",
+        )
+        await expect(page.locator("#assets")).to_contain_text(
+            f"{EXPECTED_TOTAL_ASSETS:,.2f}", timeout=30000
+        )
+        await expect(page.locator("#equity")).to_contain_text(
+            f"{EXPECTED_TOTAL_ASSETS:,.2f}", timeout=30000
+        )
+
+        await page.goto(
+            f"{APP_URL.rstrip('/')}/reports/income-statement?start_date={YEAR_START}&end_date={YEAR_END}&currency={CURRENCY}",
+            wait_until="domcontentloaded",
+        )
+        await expect(
+            page.locator(".card").filter(has_text="Total Income")
+        ).to_contain_text(f"{EXPECTED_TOTAL_INCOME:,.2f}", timeout=30000)
+        await expect(
+            page.locator(".card").filter(has_text="Total Expenses")
+        ).to_contain_text(f"{EXPECTED_TOTAL_EXPENSES:,.2f}", timeout=30000)
+        await expect(
+            page.locator(".card").filter(has_text="Net Income")
+        ).to_contain_text(f"{EXPECTED_NET_INCOME:,.2f}", timeout=30000)
+
+        await page.goto(
+            f"{APP_URL.rstrip('/')}/reports/cash-flow?start_date={YEAR_START}&end_date={YEAR_END}&currency={CURRENCY}",
+            wait_until="domcontentloaded",
+        )
+        await expect(
+            page.locator(".card").filter(has_text="Net Cash Flow")
+        ).to_contain_text(f"{EXPECTED_NET_INCOME:,.2f}", timeout=30000)
+        await expect(
+            page.locator(".card").filter(has_text="Ending Cash")
+        ).to_contain_text(f"{EXPECTED_ENDING_CASH:,.2f}", timeout=30000)
+        await expect(page.get_by_label("Cash reconciliation")).to_contain_text(
+            f"{EXPECTED_NET_INCOME:,.2f}", timeout=30000
+        )
+        await expect(page.get_by_label("Cash reconciliation")).to_contain_text(
+            f"{EXPECTED_ENDING_CASH:,.2f}", timeout=30000
+        )
+
         await page.goto(
             f"{APP_URL.rstrip('/')}/statements", wait_until="domcontentloaded"
         )
         await page.locator("main").wait_for(state="visible", timeout=30000)
+        await expect(page.get_by_text(f"{TOTAL_MONTHS} total")).to_be_visible(
+            timeout=30000
+        )
+        for expected_filename in uploaded_filenames:
+            row = page.locator(".relative.block").filter(has_text=expected_filename)
+            await expect(row).to_be_visible(timeout=30000)
+            await expect(row).to_contain_text("Approved")
 
         # 9. Record checkpoint U9.
         checkpoint(record_property, "U9")
