@@ -358,6 +358,7 @@ def _bank_side_lines(entries: list[dict], account_id: str) -> Counter:
 @pytest.mark.tier3
 @pytest.mark.critical
 @pytest.mark.llm
+@pytest.mark.product_defaults
 async def test_stage1_accepts_clean_source_and_reviews_broken_source(
     authenticated_page_unique: Page, tmp_path: Path, record_property
 ) -> None:

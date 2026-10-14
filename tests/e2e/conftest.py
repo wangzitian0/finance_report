@@ -458,6 +458,7 @@ async def authenticated_page(
 @pytest.fixture
 async def authenticated_page_unique(
     context: BrowserContext,
+    request: pytest.FixtureRequest,
 ) -> AsyncGenerator[Page, None]:
     """Create browser page with UNIQUE test user (for isolation-critical tests).
 
@@ -465,6 +466,12 @@ async def authenticated_page_unique(
     complete isolation (e.g., testing user deletion, user-specific data).
 
     For most tests, use authenticated_page instead (10x faster).
+
+    The product default accepts the AI suggestions by itself (#2405). The deterministic fixture journeys
+    grade the manual review path: a person decides each row from the independent fixture, and the exact
+    totals follow from those decisions. The model would post the rows before the journey reviews them. So
+    the new user starts on the review path. A test of the product default carries the marker
+    ``product_defaults``.
     """
     import httpx
 
@@ -514,6 +521,17 @@ async def authenticated_page_unique(
                 )
 
             logger.info(f"User registered successfully: {user_id}")
+
+            if request.node.get_closest_marker("product_defaults") is None:
+                review_path = await client.patch(
+                    f"{api_url}/api/users/me/settings",
+                    json={"auto_accept_ai_suggestions": False},
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                if review_path.status_code != 200:
+                    pytest.fail(
+                        f"Failed to put the test user on the review path: {review_path.status_code} - {review_path.text}"
+                    )
 
     except httpx.RequestError as e:
         pytest.fail(f"Failed to connect to backend for user registration: {e}")
