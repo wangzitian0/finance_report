@@ -324,7 +324,7 @@ def _parse_moomoo_subscription_positions(
 
         quantity = _clean_decimal(match.group("quantity"))
         market_value = _clean_decimal(match.group("value"))
-        if quantity is None or market_value is None:
+        if quantity is None or market_value is None or quantity <= 0 or market_value <= 0:
             continue
         snapshots.append(
             BrokeragePositionSnapshot(
@@ -397,6 +397,17 @@ def _parse_moomoo_margin_history_positions(
     ]
 
 
+_FUTU_NON_POSITION_EVENT_TOKENS: tuple[str, ...] = (
+    "cash",
+    "現金",
+    "fee",
+    "dividend",
+    "interest",
+    "deposit",
+    "withdrawal",
+)
+
+
 def _parse_futu_aggregate_position(
     payload: dict[str, Any], broker: str, snapshot_date: date | None
 ) -> list[BrokeragePositionSnapshot]:
@@ -404,11 +415,13 @@ def _parse_futu_aggregate_position(
     for event in payload.get("events") or payload.get("transactions") or []:
         if not isinstance(event, dict):
             continue
+        if str(event.get("direction") or "").strip().upper() == "OUT":
+            continue
         description = str(event.get("description") or "").lower()
-        if "cash" in description or "現金" in description:
+        if any(token in description for token in _FUTU_NON_POSITION_EVENT_TOKENS):
             continue
         value = _clean_decimal(event.get("amount"))
-        if value is None:
+        if value is None or value <= 0:
             continue
         if "valuation" in description or best_value is None or value > best_value:
             best_value = value

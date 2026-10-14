@@ -96,6 +96,24 @@ SGD
     ]
 
 
+FUTU_GENERATED_TEXT = """
+Futu Securities - Monthly Statement
+Statement Period: June 2026
+Account: ****6688
+Activity and Valuation
+Date
+Type
+Description
+Amount
+Currency
+2026-05-21
+VALUATION
+Stock and options valuation
+323,730.00
+SGD
+"""
+
+
 async def test_parse_document_backfills_generated_brokerage_positions_from_pdf_text(monkeypatch):
     """AC-extraction.813.10/AC-extraction.304.12: Generated brokerage PDFs do not fail open when the model emits empty positions."""
     service = ExtractionService()
@@ -136,6 +154,114 @@ async def test_parse_document_backfills_generated_brokerage_positions_from_pdf_t
     assert result.positions[0].market_value == Decimal("1250.50")
     assert result.positions[0].currency == "SGD"
     assert result.positions[0].asset_type == "mutual_fund"
+
+
+async def test_parse_document_backfills_futu_valuation_when_model_emits_only_cash_activity(monkeypatch):
+    """AC-extraction.813.10/Issue #2422: Fee or dividend transactions must not short-circuit generated Futu valuation backfill."""
+    service = ExtractionService()
+
+    async def fee_only_model_payload(*args, **kwargs):
+        return {
+            "institution": "Futu",
+            "account_last4": "6688",
+            "currency": "SGD",
+            "period_start": "2026-06-01",
+            "period_end": "2026-06-30",
+            "positions": [],
+            "transactions": [
+                {
+                    "date": "2026-06-04",
+                    "description": "Platform fee",
+                    "amount": "-1.41",
+                    "direction": "OUT",
+                    "currency": "SGD",
+                },
+                {
+                    "date": "2026-06-05",
+                    "description": "Dividend income",
+                    "amount": "50.00",
+                    "direction": "IN",
+                    "currency": "SGD",
+                },
+                {
+                    "date": "2026-06-06",
+                    "description": "Brokerage cash interest",
+                    "amount": "5.11",
+                    "direction": "IN",
+                    "currency": "SGD",
+                },
+            ],
+        }
+
+    monkeypatch.setattr(service, "_extract_with_balance_retry", fee_only_model_payload)
+    monkeypatch.setattr(
+        service,
+        "_extract_pdf_text_for_brokerage_fallback",
+        lambda _content: FUTU_GENERATED_TEXT,
+    )
+
+    result = await service.parse_document(
+        DocumentSource.resolve(
+            path=Path("test_futu_2606_24697.pdf"),
+            content=b"%PDF-1.7",
+            filename="test_futu_2606_24697.pdf",
+        ),
+        user_id=uuid4(),
+        file_type="pdf",
+        institution="Futu E2E Portfolio",
+    )
+
+    assert len(result.positions) == 1
+    assert result.positions[0].symbol == "FUTU_STOCK_AND_OPTIONS"
+    assert result.positions[0].quantity == Decimal("1")
+    assert result.positions[0].market_value == Decimal("323730.00")
+    assert result.positions[0].currency == "SGD"
+
+
+async def test_parse_document_replaces_non_positive_generated_brokerage_position_with_pdf_text(monkeypatch):
+    """AC-extraction.813.10/Issue #2422: Non-positive model positions on generated Futu PDFs are replaced by PDF text valuation."""
+    service = ExtractionService()
+
+    async def negative_position_payload(*args, **kwargs):
+        return {
+            "institution": "Futu",
+            "account_last4": "6688",
+            "currency": "SGD",
+            "period_start": "2026-06-01",
+            "period_end": "2026-06-30",
+            "positions": [
+                {
+                    "symbol": "FUTU_STOCK_AND_OPTIONS",
+                    "quantity": "1",
+                    "market_value": "-1.41",
+                    "currency": "SGD",
+                    "asset_type": "other",
+                }
+            ],
+            "transactions": [],
+        }
+
+    monkeypatch.setattr(service, "_extract_with_balance_retry", negative_position_payload)
+    monkeypatch.setattr(
+        service,
+        "_extract_pdf_text_for_brokerage_fallback",
+        lambda _content: FUTU_GENERATED_TEXT,
+    )
+
+    result = await service.parse_document(
+        DocumentSource.resolve(
+            path=Path("test_futu_2606_24697.pdf"),
+            content=b"%PDF-1.7",
+            filename="test_futu_2606_24697.pdf",
+        ),
+        user_id=uuid4(),
+        file_type="pdf",
+        institution="Futu E2E Portfolio",
+    )
+
+    assert len(result.positions) == 1
+    assert result.positions[0].symbol == "FUTU_STOCK_AND_OPTIONS"
+    assert result.positions[0].market_value == Decimal("323730.00")
 
 
 def test_pdf_text_fallback_closes_pymupdf_document(monkeypatch):
