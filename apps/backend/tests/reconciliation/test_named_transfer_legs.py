@@ -196,10 +196,20 @@ async def test_AC_reconciliation_named_transfer_legs_2_a_row_outside_the_base_cu
     assert (await db.execute(select(func.count(JournalEntry.id)))).scalar_one() == 0
 
 
-async def test_AC_reconciliation_named_transfer_legs_2_a_custody_account_in_another_currency_creates_no_account(
-    db, test_user
+async def test_AC_reconciliation_named_transfer_legs_2_a_custody_account_in_another_currency_makes_no_ledger_call(
+    db, test_user, monkeypatch
 ):
-    """AC-reconciliation.named-transfer-legs.2: the leg needs a custody account in the base currency too."""
+    """AC-reconciliation.named-transfer-legs.2: the leg needs a custody account in the base currency too.
+
+    The check runs before any ledger call. The ledger would refuse the leg as well, but only after it had
+    created the Processing account, and the savepoint would have to undo that.
+    """
+    from src.reconciliation.extension import named_transfers
+
+    async def must_not_run(*_args, **_kwargs):
+        raise AssertionError("the ledger must not be called for this row")
+
+    monkeypatch.setattr(named_transfers, "post_transfer_leg", must_not_run)
     statement, bank = await _statement(db, test_user.id, "named_leg_custody_currency")
     bank.currency = "CNY"
     txn = await add_txn(
@@ -255,6 +265,34 @@ async def test_AC_reconciliation_named_transfer_legs_2_a_ledger_refusal_skips_on
 
     assert [match.atomic_txn_id for match in matches] == [second.id]
     assert (await db.execute(select(func.count(JournalEntry.id)))).scalar_one() == 1
+
+
+async def test_AC_reconciliation_named_transfer_legs_2_a_ledger_refusal_leaves_no_processing_account_behind(
+    db, test_user, monkeypatch
+):
+    """AC-reconciliation.named-transfer-legs.2: the savepoint undoes the account that the refused leg created."""
+    from src.ledger import TransferAccountCurrencyMismatchError
+    from src.reconciliation.extension import named_transfers
+
+    statement, _bank = await _statement(db, test_user.id, "named_leg_refusal_alone")
+    txn = await add_txn(
+        db, statement, txn_date=date(2025, 1, 5), description="Wallet A", amount=Decimal("10.00"), direction="OUT"
+    )
+
+    async def refuse(db_, **kwargs):
+        await get_or_create_processing_account(db_, kwargs["user_id"], currency="SGD")
+        raise TransferAccountCurrencyMismatchError("refused")
+
+    monkeypatch.setattr(named_transfers, "post_transfer_leg", refuse)
+
+    matches = await post_named_transfer_legs(
+        db, user_id=test_user.id, named=[NamedTransfer(transaction=txn, category="TRANSFER", score=90)]
+    )
+
+    assert matches == []
+    assert (
+        await db.execute(select(func.count(Account.id)).where(Account.code == PROCESSING_ACCOUNT_CODE))
+    ).scalar_one() == 0
 
 
 async def test_AC_reconciliation_named_transfer_legs_3_two_identical_rows_post_two_legs(db, test_user):
