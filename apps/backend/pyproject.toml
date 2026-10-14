@@ -47,7 +47,7 @@ dependencies = [
     # opentelemetry-exporter-otlp-proto-http (SDK `otel`). The app does NOT install `psycopg`
     # (SDK `postgres`) or `opentelemetry-instrumentation-logging` (SDK `otel`). So
     # `probe_postgres` and `configure_telemetry(set_global=True)` cannot run here.
-    "infra2-sdk @ https://github.com/wangzitian0/infra2-sdk/releases/download/v3.3.0/infra2_sdk-3.3.0-py3-none-any.whl",
+    "infra2-sdk @ https://github.com/wangzitian0/infra2-sdk/releases/download/v3.5.0/infra2_sdk-3.5.0-py3-none-any.whl",
 ]
 
 [dependency-groups]
