@@ -323,9 +323,10 @@ async def auto_create_posted_entries_for_statement(
         normalized_reasons = tuple(sorted(set(review_reasons)))
         statement.validation_error = f"{ECONOMIC_REVIEW_NOTICE} {', '.join(normalized_reasons)}"[:500]
         await db.flush()
+        # The legs are committed entries. The count tells the truth about them, also when the statement waits.
         return StatementPostingOutcome(
             status=StatementPostingStatus.REVIEW_REQUIRED,
-            created_count=0,
+            created_count=legs_posted,
             review_reasons=normalized_reasons,
         )
 
@@ -747,6 +748,4 @@ async def try_auto_approve_high_confidence_statement(
     # account), and its opening balance still needs posting (#1833, PR #1842
     # review). Idempotency lives in try_auto_post_statement_opening_balance
     # in the per-account initialization evidence and its database lock.
-    if outcome.status is StatementPostingStatus.REVIEW_REQUIRED:
-        return 0
     return outcome.created_count

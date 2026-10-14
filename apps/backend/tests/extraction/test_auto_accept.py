@@ -402,7 +402,10 @@ async def _general_account_count(db) -> int:
         pytest.param({"index": 0, "category": 7, "confidence": 90}, id="number-category"),
         pytest.param({"index": 0, "category": "DINING", "confidence": -5}, id="negative-score"),
         pytest.param({"index": 0, "category": "DINING", "confidence": "-5"}, id="negative-string-score"),
+        pytest.param({"index": 0, "category": "DINING", "confidence": -5.5}, id="negative-float-score"),
         pytest.param({"index": 0, "category": "DINING", "confidence": "1e3"}, id="exponent-string-score"),
+        pytest.param({"index": 0, "category": "DINING", "confidence": -(10**400)}, id="huge-negative-integer"),
+        pytest.param({"index": 0, "category": "DINING", "confidence": "9" * 400}, id="huge-digit-string"),
     ],
 )
 async def test_AC_extraction_auto_accept_4_an_unreadable_answer_writes_nothing(db, test_user, monkeypatch, answer):
@@ -441,6 +444,7 @@ async def test_AC_extraction_auto_accept_4_a_class_outside_the_catalog_writes_no
         pytest.param({"category": "dining", "confidence": 250}, "Expense - Dining", 100, id="score-above-100"),
         pytest.param({"category": "DINING", "confidence": "87.0"}, "Expense - Dining", 87, id="decimal-string"),
         pytest.param({"category": "DINING", "confidence": 87.0}, "Expense - Dining", 87, id="whole-float"),
+        pytest.param({"category": "DINING", "confidence": 10**400}, "Expense - Dining", 100, id="huge-integer"),
     ],
 )
 async def test_AC_extraction_auto_accept_4_a_readable_answer_is_normalized(
@@ -618,6 +622,28 @@ async def test_AC_extraction_auto_accept_4_whole_numbers_in_a_batch_without_a_fr
 
     assert (await _account(db, await _row(db, first))).name == "Expense - Dining"
     assert (await _account(db, await _row(db, second))).name.startswith("General ")
+
+
+async def test_AC_extraction_auto_accept_4_a_float_zero_does_not_show_a_unit_scale(db, test_user, monkeypatch):
+    """AC-extraction.auto-accept.4: 0.0 beside a score of 90 is the answer "cannot place" on the scale from 0 to 100.
+
+    The batch stays. The row with the score 0 is no answer, and the other row is applied.
+    """
+    first = await _txn(db, test_user, description="ROW A")
+    second = await _txn(db, test_user, description="ROW B")
+    _model_answers(
+        monkeypatch,
+        [
+            {"index": 0, "category": "DINING", "confidence": 90},
+            {"index": 1, "category": "TRANSFER", "confidence": 0.0},
+        ],
+    )
+
+    outcomes = await classify_transactions(db, test_user.id, [first, second], policy=V2)
+
+    assert (await _account(db, await _row(db, first))).name == "Expense - Dining"
+    assert await _row(db, second) is None
+    assert [outcome.disposition for outcome in outcomes] == ["applied", "no_proposal"]
 
 
 # --- a person's correction outranks the setting (finding 6) ---

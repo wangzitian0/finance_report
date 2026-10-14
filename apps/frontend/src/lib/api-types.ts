@@ -286,7 +286,7 @@ export interface paths {
         get?: never; put?: never;
         /**
          * Backfill Transaction Classifications
-         * @description Classify the caller's not-yet-classified transactions (duplicate-free; the tail is re-attempted).
+         * @description Classify the caller's not-yet-classified transactions (duplicate-free; a transaction without a row is re-attempted).
          */
         post: operations["backfill_transaction_classifications_classifications_backfill_post"];
         delete?: never; options?: never; head?: never; patch?: never; trace?: never;

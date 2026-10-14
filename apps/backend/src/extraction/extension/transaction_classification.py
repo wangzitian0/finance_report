@@ -369,41 +369,43 @@ def _item_category(value: object) -> str | None:
     return re.sub(r"[\s\-]+", "_", value.strip()).upper()
 
 
+_PLAIN_NUMBER = re.compile(r"\d+(\.\d+)?")
+
+
+def _read_number(value: object) -> int | float | None:
+    """The number in a raw confidence: a number, or a string with an optional percent sign. Anything else is ``None``."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return value
+    if isinstance(value, str):
+        text = value.strip().rstrip("%").strip()
+        return float(text) if _PLAIN_NUMBER.fullmatch(text) else None
+    return None
+
+
 def _item_score(value: object) -> int | None:
     """Read the confidence of one answer: a number from 0 to 100, with an optional decimal part or percent sign.
 
-    A missing value, a word, a negative number and a fraction such as 0.95 are no answer: a fraction is a
-    probability on a scale from 0 to 1, and the system cannot tell what the model meant. An explicit 0 is an
-    answer. The model says that it cannot place the row.
+    A missing value, a word and a negative number are no answer. An explicit 0 is an answer: the model says
+    that it cannot place the row. A number above 100 counts as 100. A fraction such as 0.95 is a probability
+    on a scale from 0 to 1, and the system cannot tell what the model meant. A batch with a fraction is
+    dropped as a whole before this function runs (``_uses_unit_scale``).
     """
-    if isinstance(value, bool):
+    number = _read_number(value)
+    if number is None:
         return None
-    if isinstance(value, str):
-        text = value.strip().rstrip("%").strip()
-        if not re.fullmatch(r"\d+(\.\d+)?", text):
-            return None
-        number = float(text)
-    elif isinstance(value, int | float):
-        number = float(value)
-    else:
-        return None
+    if isinstance(number, int):
+        return None if number < 0 else min(100, number)
     if not math.isfinite(number) or number < 0:
-        return None
-    if 0 < number < 1:
         return None
     return min(100, round(number))
 
 
 def _is_fraction_score(value: object) -> bool:
     """True when the raw confidence is a fraction between 0 and 1, which a model on a unit scale writes."""
-    if isinstance(value, bool):
-        return False
-    if isinstance(value, str):
-        text = value.strip().rstrip("%").strip()
-        if not re.fullmatch(r"\d+(\.\d+)?", text):
-            return False
-        value = float(text)
-    return isinstance(value, int | float) and math.isfinite(value) and 0 < value < 1
+    number = _read_number(value)
+    return isinstance(number, float) and math.isfinite(number) and 0 < number < 1
 
 
 def _uses_unit_scale(items: Sequence[object]) -> bool:

@@ -192,6 +192,37 @@ async def test_AC_extraction_auto_accept_1_with_the_setting_off_the_same_stateme
     assert error.value.detail == "Economic review required: intent_missing"
 
 
+async def test_AC_extraction_auto_accept_9_a_user_who_turned_it_off_gets_no_leg_from_the_plain_approval(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.auto-accept.9: on the review path a transfer draft waits for the person.
+
+    The plain approval posts no Processing leg and creates no Processing account.
+    Opening 100.00; -20 gives a closing balance of 80.00.
+    """
+    test_user.ai_settings = {"auto_accept_ai_suggestions": False}
+    statement, _bank = await _statement(db, test_user.id, "auto_off_leg", closing="80.00")
+    await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 5),
+        description="Payment to GrabPay Wallet",
+        amount=Decimal("20.00"),
+        direction="OUT",
+    )
+    await db.commit()
+    _install(monkeypatch, _Model({"Payment to GrabPay Wallet": ("TRANSFER", 90)}))
+
+    with pytest.raises(HTTPException) as error:
+        await statements_router.approve_statement_stage1(
+            statement_id=statement.id, request=None, db=db, user_id=test_user.id
+        )
+
+    assert error.value.status_code == 409
+    assert (await db.execute(select(func.count(ReconciliationMatch.id)))).scalar_one() == 0
+    assert (await db.execute(select(Account.id).where(Account.code == PROCESSING_ACCOUNT_CODE))).first() is None
+
+
 async def test_AC_extraction_auto_accept_8_the_policy_threshold_follows_the_setting(db, test_user):
     """AC-extraction.auto-accept.8: the recorded policy tells the truth about the score that the system accepts."""
     on = await statement_disposition_policy_for_user(db, test_user.id)
@@ -373,6 +404,41 @@ async def test_AC_extraction_auto_accept_9_a_leg_survives_a_review_stop_and_the_
     )
     assert sorted(sources) == sorted([wallet.id, lunch.id])
     assert await _counter_names(db, lunch, bank.id) == {"Expense - Dining"}
+
+
+async def test_AC_extraction_auto_accept_9_the_parse_time_count_includes_a_leg_that_survives_a_review_stop(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.auto-accept.9: the parse log counts the committed leg, also when the statement waits.
+
+    Opening 100.00; -20 -15 gives a closing balance of 65.00.
+    """
+    statement, _bank = await _statement(db, test_user.id, "auto_parse_leg_stop", closing="65.00", confidence=95)
+    statement.status = BankStatementStatus.APPROVED
+    statement.balance_validated = True
+    await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 5),
+        description="Payment to GrabPay Wallet",
+        amount=Decimal("20.00"),
+        direction="OUT",
+    )
+    await add_txn(
+        db, statement, txn_date=date(2025, 1, 6), description="Lunch", amount=Decimal("15.00"), direction="OUT"
+    )
+    await db.commit()
+    _install(monkeypatch, _Model({"Payment to GrabPay Wallet": ("TRANSFER", 90), "Lunch": None}))
+
+    created = await try_auto_approve_high_confidence_statement(
+        db, statement.id, test_user.id, dependencies=compose_statement_posting_dependencies()
+    )
+
+    assert created == 1  # the leg
+    assert (await db.execute(select(func.count(ReconciliationMatch.id)))).scalar_one() == 1
+    await db.refresh(statement)
+    assert statement.status == BankStatementStatus.PARSED  # the statement waits for the row without an answer
+    assert statement.validation_error.startswith("Economic review required")
 
 
 async def test_AC_extraction_auto_accept_9_a_second_approval_posts_nothing_more(db, test_user, monkeypatch):
