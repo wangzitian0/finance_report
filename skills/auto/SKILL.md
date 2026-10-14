@@ -7,10 +7,12 @@ description: Step 5 of the five-step flow. Drive a verified change to a merge on
 
 Run this after `smoke` passes. Use `prr` for the review and gate mechanics.
 
-## Definition of done
+## Definition of Stage 1 (Code Landed)
 
-**Done means merged on main.** The owner corrected "done" claims for unmerged work many times:
+**Merge to main is Stage 1 (Code Landed), not task completion.** The owner corrected "done" claims for unmerged work many times:
 "If you did not open the PR and merge it, it is not done."
+Landing on main is a physical prerequisite for Stage 2 (Staging) and Stage 3 (Prod).
+Task completion requires both code landing and physical reality verification.
 
 - Merge only through a PR. The owner grants merge authority when every gate passes.
 - Merge when ready. Then continue from the latest main. Do not pile up divergent branches.
@@ -28,12 +30,13 @@ Run this after `smoke` passes. Use `prr` for the review and gate mechanics.
    - Exit 3 (Action required): Resolve findings or fix conflicts, push, and re-run. If unresolved after two rounds, escalate to Senior or Suspend.
    - Exit 4 (Could not evaluate): Pull main or retry after rate limits settle.
 4. A change with no side effect needs no question to the owner. Fix it and merge it.
-5. Merge. Verify with `ws-delivery-status` that the commit is merged on `origin/main` (exit code 0).
+5. Merge. Verify with `ws-delivery-status` that the commit is merged on `origin/main` (exit code 0, `CODE_LANDED_STAGE1`).
+   Transition to Reality Probe or deployment verification before declaring task complete.
 6. Execute the post-delivery retrospective checks before closing the delivery.
 
-## Post-delivery retrospective (three principles via Retrospective Swarm)
+## Post-delivery retrospective (Retrospective Swarm: M=3)
 
-Do not stop immediately after `git merge`. Execute three physical retrospective checks before concluding the delivery, optionally dispatching a quick 3-Intern batch via `subagent_batch`:
+Do not stop immediately after `git merge`. Dispatch 1 Retrospective Swarm (M=3 Interns via `subagent_batch`) before concluding the delivery:
 
 1. **Intern 1: Recurring mistake and harness constraint check**:
    - Check if any review comment, gate rejection, or CI retry occurred during this delivery.
