@@ -1144,7 +1144,6 @@ CONTRACT = PackageContract(
 # Test roots folded in from the `coverage` package (now common/testing/coverage/).
 TEST_ROOTS: tuple[str, ...] = (
     "tests/tooling/test_coverage_policy.py",
-    "tests/tooling/test_coverage_analyzer.py",
     "tests/tooling/test_calculate_unified_coverage.py",
     "tests/tooling/test_coverage_artifact_preflight.py",
     "tests/tooling/test_diff_coverage.py",

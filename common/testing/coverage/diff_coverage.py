@@ -45,6 +45,7 @@ from common.meta.extension.coverage.policy import (
     CoverageComponent,
     get_component,
 )
+from common.testing.coverage.lcov import parse_line_hits
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
 
@@ -135,29 +136,11 @@ def parse_lcov_line_hits(
     shards), mirroring the flush/accumulate semantics of
     ``calculate_unified_coverage.parse_lcov_records``.
     """
-    if not lcov_path.exists():
-        return {}
-
-    hits: dict[str, dict[int, int]] = {}
-    current_source = ""
-    with open(lcov_path, "r", encoding="utf-8") as f:
-        for raw_line in f:
-            line = raw_line.strip()
-            if line.startswith("SF:"):
-                current_source = component.normalize_lcov_source(line[3:], repo_root)
-                hits.setdefault(current_source, {})
-            elif line.startswith("DA:") and current_source:
-                fields = line[3:].split(",")
-                try:
-                    line_no = int(fields[0])
-                    hit_count = int(fields[1])
-                except (IndexError, ValueError):
-                    continue
-                file_hits = hits[current_source]
-                file_hits[line_no] = file_hits.get(line_no, 0) + hit_count
-            elif line == "end_of_record":
-                current_source = ""
-    return hits
+    return parse_line_hits(
+        lcov_path,
+        normalize_source=lambda src: component.normalize_lcov_source(src, repo_root),
+        accumulate="sum",
+    )
 
 
 def _significant_lines(file_path: Path, line_numbers: set[int]) -> tuple[int, ...]:

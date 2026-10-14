@@ -129,6 +129,12 @@ MARIBANK_DISPOSITIONS = {
 }
 
 PINGAN_DISPOSITIONS = {
+    "Unknown": FixtureDisposition(
+        "expense",
+        "EXPENSE",
+        "The Pingan fixture declares a fallback disposition for a null description normalized to Unknown.",
+        "SHOPPING",
+    ),
     "交易": FixtureDisposition(
         "expense", "EXPENSE", "Pingan generic transaction", "SHOPPING"
     ),

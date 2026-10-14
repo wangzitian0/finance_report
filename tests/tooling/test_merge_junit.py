@@ -182,3 +182,47 @@ def test_tools_merge_junit_shim(tmp_path: Path) -> None:
     )
     assert res.returncode == 0
     assert out.is_file()
+
+
+class TestSharedJunitHelper:
+    """Validate common.testing.coverage.junit helper functions."""
+
+    def test_parse_junit_root_handles_missing_and_corrupt(self, tmp_path: Path) -> None:
+        from common.testing.coverage import junit
+
+        missing = tmp_path / "missing.xml"
+        assert junit.parse_junit_root(missing) is None
+
+        corrupt = tmp_path / "corrupt.xml"
+        corrupt.write_text("<invalid-xml>", encoding="utf-8")
+        assert junit.parse_junit_root(corrupt) is None
+
+        valid = tmp_path / "valid.xml"
+        valid.write_text(SAMPLE_XML_1, encoding="utf-8")
+        root = junit.parse_junit_root(valid)
+        assert root is not None
+        assert root.tag == "testsuite"
+
+    def test_extract_testsuites(self, tmp_path: Path) -> None:
+        from common.testing.coverage import junit
+
+        f1 = tmp_path / "s1.xml"
+        f1.write_text(SAMPLE_XML_1, encoding="utf-8")
+        suites = junit.extract_testsuites(f1)
+        assert len(suites) == 1
+        assert suites[0].attrib.get("name") == "shard-1"
+
+        f2 = tmp_path / "s2.xml"
+        f2.write_text(SAMPLE_XML_TESTSUITES_ROOT, encoding="utf-8")
+        suites2 = junit.extract_testsuites(f2)
+        assert len(suites2) == 2
+
+    def test_iter_testcases(self, tmp_path: Path) -> None:
+        from common.testing.coverage import junit
+
+        f = tmp_path / "s.xml"
+        f.write_text(SAMPLE_XML_1, encoding="utf-8")
+        cases = junit.iter_testcases(f)
+        assert len(cases) == 2
+        names = [case.attrib.get("name") for case in cases]
+        assert names == ["test_one", "test_two"]

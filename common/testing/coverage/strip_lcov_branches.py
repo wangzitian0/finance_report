@@ -4,37 +4,21 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from common.testing.coverage.lcov import (
+    BRANCH_RECORD_PREFIXES,
+    is_branch_record,
+    strip_branches,
+)
 
-BRANCH_RECORD_PREFIXES = ("BRDA:", "BRF:", "BRH:")
-
-
-def is_branch_record(line: str) -> bool:
-    """Return True for LCOV branch detail or branch summary records."""
-    return line.startswith(BRANCH_RECORD_PREFIXES)
+__all__ = ["BRANCH_RECORD_PREFIXES", "is_branch_record", "strip_lcov_branches"]
 
 
 def strip_lcov_branches(input_path: Path, output_path: Path) -> int:
     """Copy LCOV input to output without branch coverage records."""
-    if not input_path.exists():
-        print(f"LCOV input not found: {input_path}", file=sys.stderr)
-        return 1
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with (
-        open(input_path, "r", encoding="utf-8") as source,
-        open(output_path, "w", encoding="utf-8") as target,
-    ):
-        for line in source:
-            if is_branch_record(line):
-                continue
-            target.write(line)
-
-    print(f"Wrote line-only LCOV to {output_path}")
-    return 0
+    return strip_branches(input_path, output_path)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:

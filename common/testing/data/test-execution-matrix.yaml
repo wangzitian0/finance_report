@@ -34,8 +34,6 @@ ownership:
     package: ledger
   - path: tests/tooling/test_calculate_unified_coverage.py
     package: testing
-  - path: tests/tooling/test_coverage_analyzer.py
-    package: testing
   - path: tests/tooling/test_coverage_artifact_preflight.py
     package: testing
   - path: tests/tooling/test_coverage_policy.py

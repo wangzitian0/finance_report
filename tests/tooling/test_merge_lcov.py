@@ -219,3 +219,46 @@ class TestMain:
 
     def test_main_exits_on_no_args(self):
         assert ml.main([]) == 2
+
+
+class TestSharedLcovHelper:
+    """Validate common.testing.coverage.lcov helper functions."""
+
+    def test_is_branch_record(self) -> None:
+        from common.testing.coverage import lcov
+
+        assert lcov.is_branch_record("BRDA:1,0,0,1") is True
+        assert lcov.is_branch_record("BRF:2") is True
+        assert lcov.is_branch_record("BRH:1") is True
+        assert lcov.is_branch_record("DA:1,1") is False
+        assert lcov.is_branch_record("SF:src/main.py") is False
+
+    def test_parse_line_hits_accumulate_sum(self, tmp_path: Path) -> None:
+        from common.testing.coverage import lcov
+
+        f = tmp_path / "shard.lcov"
+        f.write_text(
+            "SF:src/app.py\nDA:1,2\nDA:2,0\nend_of_record\nSF:src/app.py\nDA:1,3\nend_of_record\n"
+        )
+        hits = lcov.parse_line_hits(f, accumulate="sum")
+        assert hits["src/app.py"][1] == 5
+        assert hits["src/app.py"][2] == 0
+
+    def test_parse_lcov_summaries(self, tmp_path: Path) -> None:
+        from common.testing.coverage import lcov
+
+        f = tmp_path / "summary.lcov"
+        f.write_text("SF:src/x.py\nLH:5\nLF:10\nend_of_record\n")
+        summaries = lcov.parse_lcov_summaries(f)
+        assert summaries["src/x.py"] == {"covered_lines": 5, "total_lines": 10}
+
+    def test_strip_branches(self, tmp_path: Path) -> None:
+        from common.testing.coverage import lcov
+
+        src = tmp_path / "in.lcov"
+        out = tmp_path / "out.lcov"
+        src.write_text("SF:src/x.py\nBRDA:1,0,0,1\nDA:1,1\nend_of_record\n")
+        assert lcov.strip_branches(src, out) == 0
+        content = out.read_text()
+        assert "BRDA:" not in content
+        assert "DA:1,1" in content

@@ -13,7 +13,7 @@ from common.meta.extension.coverage.policy import (
     ROOT_DIR,
     CoverageComponent,
 )
-from common.testing.coverage.strip_lcov_branches import is_branch_record
+from common.testing.coverage.lcov import is_branch_record
 
 
 def repo_relative_source(
