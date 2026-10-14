@@ -111,10 +111,17 @@ async def _assert_pinned_before_upload(page: Page, record_property) -> None:
     checkpoint(record_property, "U12")
 
 
-def _statement_csv(*, opening: Decimal, closing: Decimal, day: str, amount: str) -> str:
+def _statement_csv(
+    *,
+    opening: Decimal,
+    closing: Decimal,
+    day: str,
+    amount: str,
+    description: str = TRANSFER_DESCRIPTION,
+) -> str:
     row = (
         f"{CURRENCY},{PERIOD_START},{PERIOD_END},{opening},{closing},"
-        f"{day},{TRANSFER_DESCRIPTION},{amount}"
+        f"{day},{description},{amount}"
     )
     return "\n".join([CSV_HEADER, row, ""])
 
@@ -375,4 +382,114 @@ async def test_transfer_between_accounts_clears_through_processing(
             f"/reports/balance-sheet?as_of_date={PERIOD_END}&currency={CURRENCY}",
         )
         assert Decimal(balance_sheet["total_assets"]) == EXPECTED_TOTAL_ASSETS
+
+        # Realistic different-memo scenario (issue #2388):
+        # "TRANSFER TO SAVINGS ACCOUNT" on OUT leg and "TRANSFER FROM CURRENT ACCOUNT" on IN leg.
+        # These memos score 74 in the 60-84 review band and generate a TRANSFER_PAIR consistency check.
+        account_rev_a = await _create_asset_account(client, "Transfer Review A")
+        account_rev_b = await _create_asset_account(client, "Transfer Review B")
+        desc_rev_out = "TRANSFER TO SAVINGS ACCOUNT"
+        desc_rev_in = "TRANSFER FROM CURRENT ACCOUNT"
+
+        statement_rev_a = await _upload_csv(
+            client,
+            institution="Transfer Review Bank A",
+            account_id=account_rev_a,
+            content=_statement_csv(
+                opening=A_OPENING,
+                closing=A_CLOSING,
+                day=OUT_DATE,
+                amount=f"-{A_OUT_AMOUNT}",
+                description=desc_rev_out,
+            ),
+        )
+        statement_rev_b = await _upload_csv(
+            client,
+            institution="Transfer Review Bank B",
+            account_id=account_rev_b,
+            content=_statement_csv(
+                opening=B_OPENING,
+                closing=B_CLOSING,
+                day=IN_DATE,
+                amount=f"{B_IN_AMOUNT}",
+                description=desc_rev_in,
+            ),
+        )
+        parsed_rev_a = await _wait_for_parsed(client, statement_rev_a)
+        parsed_rev_b = await _wait_for_parsed(client, statement_rev_b)
+        assert len(parsed_rev_a["transactions"]) == 1
+        assert len(parsed_rev_b["transactions"]) == 1
+
+        matching_rev = await client.post(_api_url("/reconciliation/runs"), json={})
+        assert matching_rev.status_code == 200
+
+        for statement_id, parsed, opening, closing in (
+            (statement_rev_a, parsed_rev_a, A_OPENING, A_CLOSING),
+            (statement_rev_b, parsed_rev_b, B_OPENING, B_CLOSING),
+        ):
+            approval = await approve_statement_with_fixture_review(
+                client,
+                api_url=_api_url,
+                statement_id=statement_id,
+                transactions=parsed["transactions"],
+                dispositions={},
+                envelope=FixtureEnvelope(
+                    currency=CURRENCY,
+                    period_start=date.fromisoformat(PERIOD_START),
+                    period_end=date.fromisoformat(PERIOD_END),
+                    opening_balance=opening,
+                    closing_balance=closing,
+                    rationale="The generated CSV header declares these source facts.",
+                ),
+            )
+            assert approval.get("status") == "approved"
+
+        # Verify /accounts/processing/pending initially lists the 2 legs
+        pending_rev_before = await _get_json(client, "/accounts/processing/pending")
+        assert pending_rev_before["total"] == 2
+        assert len(pending_rev_before["items"]) == 2
+
+        # Run consistency checks for statement A
+        run_checks_resp = await client.post(
+            _api_url(f"/statements/{statement_rev_a}/stage2/run-checks")
+        )
+        assert run_checks_resp.status_code == 200, (
+            f"run-checks failed: {run_checks_resp.text}"
+        )
+        checks_data = run_checks_resp.json()
+        transfer_pair_check = next(
+            (
+                c
+                for c in checks_data.get("items", [])
+                if c.get("check_type") == "transfer_pair"
+            ),
+            None,
+        )
+        assert transfer_pair_check is not None, (
+            f"expected transfer_pair check, got: {checks_data}"
+        )
+
+        # Resolve check with approve action
+        check_id = transfer_pair_check["id"]
+        resolve_resp = await client.post(
+            _api_url(f"/statements/consistency-checks/{check_id}/resolve"),
+            json={"action": "approve"},
+        )
+        assert resolve_resp.status_code == 200, (
+            f"resolve check failed: {resolve_resp.text}"
+        )
+
+        # Verify /accounts/processing/pending is now empty
+        pending_rev_after = await _get_json(client, "/accounts/processing/pending")
+        assert pending_rev_after["items"] == []
+        assert pending_rev_after["total"] == 0
+
+        # Verify /accounts/processing/summary reports pending_count == 0 and current_balance == "0.00"
+        summary_rev_after = await _get_json(client, "/accounts/processing/summary")
+        assert summary_rev_after["pending_count"] == 0
+        assert (
+            Decimal(summary_rev_after["current_balance"]) == EXPECTED_PROCESSING_BALANCE
+        )
+        assert Decimal(summary_rev_after["pending_total"]) == Decimal("0.00")
+
         checkpoint(record_property, "U7")

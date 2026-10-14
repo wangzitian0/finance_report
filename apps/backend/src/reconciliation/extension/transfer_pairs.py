@@ -34,6 +34,8 @@ class InvalidTransferPairError(ValueError):
 async def persist_transfer_pairs(
     db: AsyncSession,
     pairs: Sequence[TransferPair],
+    *,
+    decision: TransferPairDecision = TransferPairDecision.AUTO_PAIRED,
 ) -> list[ReconciliationTransferPair]:
     """Persist discovered ledger pairs against their current dispositions."""
     if not pairs:
@@ -97,7 +99,7 @@ async def persist_transfer_pairs(
         pair_id = uuid4()
         persisted_pair = ReconciliationTransferPair(
             id=pair_id,
-            decision=TransferPairDecision.AUTO_PAIRED,
+            decision=decision,
             review_state=TransferPairReviewState.PAIRED,
             confidence=pair.confidence,
             score_breakdown=pair.score_breakdown,
@@ -131,6 +133,42 @@ async def persist_transfer_pairs(
     return persisted
 
 
+async def paired_transfer_entry_ids(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+) -> set[UUID]:
+    """Return journal entry IDs for paired transfer legs of the given user."""
+    stmt = (
+        select(ReconciliationMatchJournalEntry.journal_entry_id)
+        .join(
+            ReconciliationMatch,
+            ReconciliationMatch.id == ReconciliationMatchJournalEntry.match_id,
+        )
+        .join(
+            AtomicTransaction,
+            AtomicTransaction.id == ReconciliationMatch.atomic_txn_id,
+        )
+        .join(
+            ReconciliationTransferPairLeg,
+            ReconciliationTransferPairLeg.disposition_id == ReconciliationMatch.id,
+        )
+        .join(
+            ReconciliationTransferPair,
+            ReconciliationTransferPair.id == ReconciliationTransferPairLeg.pair_id,
+        )
+        .where(
+            AtomicTransaction.user_id == user_id,
+            ReconciliationMatch.disposition_kind == DispositionKind.TRANSFER_LEG,
+            ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED,
+            ReconciliationMatch.superseded_by_id.is_(None),
+            ReconciliationTransferPair.review_state == TransferPairReviewState.PAIRED,
+        )
+    )
+    result = await db.execute(stmt)
+    return set(result.scalars().all())
+
+
 async def list_unpaired_transfer_dispositions(
     db: AsyncSession,
     *,
@@ -156,4 +194,9 @@ async def list_unpaired_transfer_dispositions(
     return list(result.scalars().all())
 
 
-__all__ = ["InvalidTransferPairError", "list_unpaired_transfer_dispositions", "persist_transfer_pairs"]
+__all__ = [
+    "InvalidTransferPairError",
+    "list_unpaired_transfer_dispositions",
+    "paired_transfer_entry_ids",
+    "persist_transfer_pairs",
+]

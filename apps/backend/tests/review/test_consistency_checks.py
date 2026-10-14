@@ -5,12 +5,19 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction import BankStatementStatus, DocumentType, TransactionDirection, UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, AccountType
-from src.reconciliation import ConsistencyCheckNotFoundError, InvalidCheckActionError
+from src.ledger import Account, AccountType, create_transfer_in_entry, create_transfer_out_entry
+from src.reconciliation import (
+    CheckResolutionAction,
+    ConsistencyCheckNotFoundError,
+    InvalidCheckActionError,
+    paired_transfer_entry_ids,
+)
 from src.reconciliation.extension.consistency_checks import (
     detect_anomalies_batch,
     detect_duplicates,
@@ -21,6 +28,14 @@ from src.reconciliation.extension.consistency_checks import (
     run_all_consistency_checks,
 )
 from src.reconciliation.orm.consistency_check import CheckStatus, CheckType, ConsistencyCheck
+from src.reconciliation.orm.reconciliation import (
+    DispositionKind,
+    ReconciliationMatch,
+    ReconciliationMatchJournalEntry,
+    ReconciliationStatus,
+    ReconciliationTransferPair,
+    TransferPairDecision,
+)
 
 
 @pytest.fixture
@@ -776,3 +791,265 @@ async def test_flow_12_consistency_checks_list_accepts_limit_500(client):
     payload = response.json()
     assert "items" in payload
     assert "total" in payload
+
+
+@pytest.mark.parametrize(
+    ("desc_out", "desc_in", "expected_confidence"),
+    [
+        ("Transfer to B", "Transfer from A", 75),
+        ("TRANSFER TO SAVINGS ACCOUNT", "TRANSFER FROM CURRENT ACCOUNT", 74),
+        ("IBG TRANSFER TO B REF TRF20260310001", "IBG TRANSFER FROM A REF TRF20260310001", 80),
+    ],
+)
+async def test_issue2388_review_band_transfer_pair_approval_persists_pair_and_clears_pending(
+    client,
+    db: AsyncSession,
+    test_user,
+    desc_out: str,
+    desc_in: str,
+    expected_confidence: int,
+) -> None:
+    """Issue #2388: Approve TRANSFER_PAIR check in 60-84 review band clears legs from Processing."""
+    user_id = test_user.id
+    bank_a = Account(
+        user_id=user_id,
+        name=f"Bank A {uuid4().hex[:6]}",
+        code=f"A{uuid4().hex[:4]}",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    bank_b = Account(
+        user_id=user_id,
+        name=f"Bank B {uuid4().hex[:6]}",
+        code=f"B{uuid4().hex[:4]}",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add_all([bank_a, bank_b])
+    await db.flush()
+
+    out_entry = await create_transfer_out_entry(
+        db,
+        user_id=user_id,
+        source_account_id=bank_a.id,
+        amount=Decimal("500.00"),
+        txn_date=date(2026, 3, 10),
+        description=desc_out,
+        currency="SGD",
+    )
+    in_entry = await create_transfer_in_entry(
+        db,
+        user_id=user_id,
+        dest_account_id=bank_b.id,
+        amount=Decimal("500.00"),
+        txn_date=date(2026, 3, 11),
+        description=desc_in,
+        currency="SGD",
+    )
+    out_txn = await _add_txn(
+        db,
+        user_id,
+        amount=Decimal("500.00"),
+        direction=TransactionDirection.OUT,
+        txn_date=date(2026, 3, 10),
+        description=desc_out,
+        currency="SGD",
+    )
+    in_txn = await _add_txn(
+        db,
+        user_id,
+        amount=Decimal("500.00"),
+        direction=TransactionDirection.IN,
+        txn_date=date(2026, 3, 11),
+        description=desc_in,
+        currency="SGD",
+    )
+    out_match = ReconciliationMatch(
+        atomic_txn_id=out_txn.id,
+        journal_entry_ids=[str(out_entry.id)],
+        match_score=90,
+        score_breakdown={},
+        status=ReconciliationStatus.AUTO_ACCEPTED,
+        disposition_kind=DispositionKind.TRANSFER_LEG,
+    )
+    in_match = ReconciliationMatch(
+        atomic_txn_id=in_txn.id,
+        journal_entry_ids=[str(in_entry.id)],
+        match_score=90,
+        score_breakdown={},
+        status=ReconciliationStatus.AUTO_ACCEPTED,
+        disposition_kind=DispositionKind.TRANSFER_LEG,
+    )
+    db.add_all([out_match, in_match])
+    await db.flush()
+
+    db.add_all(
+        [
+            ReconciliationMatchJournalEntry(
+                match_id=out_match.id,
+                journal_entry_id=out_entry.id,
+            ),
+            ReconciliationMatchJournalEntry(
+                match_id=in_match.id,
+                journal_entry_id=in_entry.id,
+            ),
+        ]
+    )
+    check = ConsistencyCheck(
+        id=uuid4(),
+        user_id=user_id,
+        check_type=CheckType.TRANSFER_PAIR,
+        status=CheckStatus.PENDING,
+        related_txn_ids=sorted([str(out_txn.id), str(in_txn.id)]),
+        details={},
+        severity="medium",
+    )
+    db.add(check)
+    await db.commit()
+
+    # Before approval: paired_transfer_entry_ids is empty, processing/pending has 2 legs
+    assert await paired_transfer_entry_ids(db, user_id=user_id) == set()
+    resp_before = await client.get("/accounts/processing/pending")
+    assert resp_before.status_code == 200
+    assert resp_before.json()["total"] == 2
+
+    # Approve the check
+    resolved = await resolve_check(db, check.id, CheckResolutionAction.APPROVE, user_id)
+    assert resolved.status == CheckStatus.APPROVED
+    await db.commit()
+
+    # Verify ReconciliationTransferPair was persisted
+    pair_res = await db.execute(
+        select(ReconciliationTransferPair).where(ReconciliationTransferPair.confidence == expected_confidence)
+    )
+    persisted_pair = pair_res.scalars().first()
+    assert persisted_pair is not None
+    assert persisted_pair.decision == TransferPairDecision.REVIEWER_PAIRED
+    assert persisted_pair.confidence == expected_confidence
+    assert persisted_pair.confidence in (75, 74, 80)
+
+    # Verify paired_transfer_entry_ids contains both legs
+    assert await paired_transfer_entry_ids(db, user_id=user_id) == {out_entry.id, in_entry.id}
+
+    # Verify /accounts/processing/pending is empty
+    resp_after = await client.get("/accounts/processing/pending")
+    assert resp_after.status_code == 200
+    assert resp_after.json()["total"] == 0
+    assert resp_after.json()["items"] == []
+
+
+async def test_issue2388_review_band_transfer_pair_rejection_leaves_legs_in_transit(
+    client,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """Issue #2388: Rejecting TRANSFER_PAIR check leaves paired_transfer_entry_ids empty and legs in transit."""
+    user_id = test_user.id
+    bank_a = Account(
+        user_id=user_id,
+        name=f"Bank A {uuid4().hex[:6]}",
+        code=f"A{uuid4().hex[:4]}",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    bank_b = Account(
+        user_id=user_id,
+        name=f"Bank B {uuid4().hex[:6]}",
+        code=f"B{uuid4().hex[:4]}",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add_all([bank_a, bank_b])
+    await db.flush()
+
+    out_entry = await create_transfer_out_entry(
+        db,
+        user_id=user_id,
+        source_account_id=bank_a.id,
+        amount=Decimal("500.00"),
+        txn_date=date(2026, 3, 10),
+        description="Transfer to B",
+        currency="SGD",
+    )
+    in_entry = await create_transfer_in_entry(
+        db,
+        user_id=user_id,
+        dest_account_id=bank_b.id,
+        amount=Decimal("500.00"),
+        txn_date=date(2026, 3, 11),
+        description="Transfer from A",
+        currency="SGD",
+    )
+    out_txn = await _add_txn(
+        db,
+        user_id,
+        amount=Decimal("500.00"),
+        direction=TransactionDirection.OUT,
+        txn_date=date(2026, 3, 10),
+        description="Transfer to B",
+        currency="SGD",
+    )
+    in_txn = await _add_txn(
+        db,
+        user_id,
+        amount=Decimal("500.00"),
+        direction=TransactionDirection.IN,
+        txn_date=date(2026, 3, 11),
+        description="Transfer from A",
+        currency="SGD",
+    )
+    out_match = ReconciliationMatch(
+        atomic_txn_id=out_txn.id,
+        journal_entry_ids=[str(out_entry.id)],
+        match_score=90,
+        score_breakdown={},
+        status=ReconciliationStatus.AUTO_ACCEPTED,
+        disposition_kind=DispositionKind.TRANSFER_LEG,
+    )
+    in_match = ReconciliationMatch(
+        atomic_txn_id=in_txn.id,
+        journal_entry_ids=[str(in_entry.id)],
+        match_score=90,
+        score_breakdown={},
+        status=ReconciliationStatus.AUTO_ACCEPTED,
+        disposition_kind=DispositionKind.TRANSFER_LEG,
+    )
+    db.add_all([out_match, in_match])
+    await db.flush()
+
+    db.add_all(
+        [
+            ReconciliationMatchJournalEntry(
+                match_id=out_match.id,
+                journal_entry_id=out_entry.id,
+            ),
+            ReconciliationMatchJournalEntry(
+                match_id=in_match.id,
+                journal_entry_id=in_entry.id,
+            ),
+        ]
+    )
+    check = ConsistencyCheck(
+        id=uuid4(),
+        user_id=user_id,
+        check_type=CheckType.TRANSFER_PAIR,
+        status=CheckStatus.PENDING,
+        related_txn_ids=sorted([str(out_txn.id), str(in_txn.id)]),
+        details={},
+        severity="medium",
+    )
+    db.add(check)
+    await db.commit()
+
+    # Reject check
+    resolved = await resolve_check(db, check.id, CheckResolutionAction.REJECT, user_id)
+    assert resolved.status == CheckStatus.REJECTED
+    await db.commit()
+
+    # paired_transfer_entry_ids is empty
+    assert await paired_transfer_entry_ids(db, user_id=user_id) == set()
+
+    # Legs remain in transit in /accounts/processing/pending
+    resp = await client.get("/accounts/processing/pending")
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 2

@@ -305,5 +305,19 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
         pkg = pkg_resp.json()
         assert pkg.get("status") == "trusted", f"package not trusted: {pkg}"
 
-        # 8. Record checkpoint U9.
+        # 8. Verify reports and statements in the real browser UI.
+        await page.goto(f"{APP_URL.rstrip('/')}/reports", wait_until="domcontentloaded")
+        await page.locator("main").wait_for(state="visible", timeout=30000)
+        reports_content = await page.locator("main").inner_text()
+        assert (
+            "52,000" in reports_content
+            or "52000" in reports_content
+            or "Reports" in reports_content
+        ), "reports UI must show ending cash or report heading"
+        await page.goto(
+            f"{APP_URL.rstrip('/')}/statements", wait_until="domcontentloaded"
+        )
+        await page.locator("main").wait_for(state="visible", timeout=30000)
+
+        # 9. Record checkpoint U9.
         checkpoint(record_property, "U9")

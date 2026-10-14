@@ -235,6 +235,11 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/reviewed_disposition.py",
         ),
+        Unit(
+            name="paired_transfer_entry_ids",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/transfer_pairs.py",
+        ),
     ],
     implementations={"be": "apps/backend/src/reconciliation", "fe": None},
     interface=[
@@ -298,6 +303,7 @@ CONTRACT = PackageContract(
         "load_reconciliation_config",
         "normalize_text",
         "pair_fx_legs",
+        "paired_transfer_entry_ids",
         "post_named_transfer_legs",
         "prune_candidates",
         "reject_match",

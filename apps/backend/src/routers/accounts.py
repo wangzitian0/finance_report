@@ -31,7 +31,7 @@ from src.ledger import (
 from src.observability import get_logger
 from src.platform import raise_bad_request, raise_not_found
 from src.pricing import PricingError
-from src.reconciliation import score_description
+from src.reconciliation import paired_transfer_entry_ids, score_description
 from src.schemas import (
     AccountCoverageListResponse,
     AccountCreate,
@@ -159,7 +159,11 @@ async def get_processing_summary(
         currency=currency,
         description_scorer=score_description,
     )
-    paired_ids = {pair.out_entry.id for pair in pairs} | {pair.in_entry.id for pair in pairs}
+    paired_ids = (
+        {pair.out_entry.id for pair in pairs}
+        | {pair.in_entry.id for pair in pairs}
+        | await paired_transfer_entry_ids(db, user_id=user_id)
+    )
     unpaired = [
         item
         for item in await get_unpaired_transfers(db, user_id, currency=currency)
@@ -198,7 +202,11 @@ async def list_processing_pending(
         currency=currency,
         description_scorer=score_description,
     )
-    paired_ids = {pair.out_entry.id for pair in pairs} | {pair.in_entry.id for pair in pairs}
+    paired_ids = (
+        {pair.out_entry.id for pair in pairs}
+        | {pair.in_entry.id for pair in pairs}
+        | await paired_transfer_entry_ids(db, user_id=user_id)
+    )
     legs = [
         leg
         for leg in await list_processing_transfer_legs(db, user_id, currency=currency)
