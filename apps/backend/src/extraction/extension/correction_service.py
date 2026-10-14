@@ -64,12 +64,22 @@ async def record_correction(
         if account_result.scalar_one_or_none() is None:
             raise ValueError(f"Account {corrected_account_id} not found")
 
+    from src.extraction.extension.transaction_classification import apply_user_transaction_correction
+
+    original_category, resolved_account_id = await apply_user_transaction_correction(
+        db,
+        user_id=user_id,
+        txn=txn,
+        corrected_category=corrected_category,
+        corrected_account_id=corrected_account_id,
+    )
+
     correction = CorrectionLog(
         user_id=user_id,
         transaction_id=transaction_id,
-        original_category=None,
+        original_category=original_category,
         corrected_category=corrected_category,
-        corrected_account_id=corrected_account_id,
+        corrected_account_id=resolved_account_id,
         transaction_description=txn.description,
     )
     db.add(correction)
@@ -125,18 +135,18 @@ async def get_correction_stats(
 
     top_corrections = [
         {
-            "original_category": row.original_category,
-            "corrected_category": row.corrected_category,
-            "count": row.count,
+            "original_category": orig_cat,
+            "corrected_category": corr_cat,
+            "count": int(row_count),
         }
-        for row in patterns
+        for orig_cat, corr_cat, row_count in patterns
     ]
 
     # Correction rate by original category: how many times each category was corrected
     category_totals: dict[str, int] = {}
-    for row in patterns:
-        cat = row.original_category or "None"
-        category_totals[cat] = category_totals.get(cat, 0) + row.count
+    for orig_cat, _corr_cat, row_count in patterns:
+        cat = orig_cat or "None"
+        category_totals[cat] = category_totals.get(cat, 0) + int(row_count)
 
     correction_rate_by_category = {cat: round(count / total * 100, 1) for cat, count in category_totals.items()}
 

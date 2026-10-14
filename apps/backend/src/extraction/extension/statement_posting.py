@@ -67,7 +67,10 @@ from src.extraction.extension.statement_validation import (
     approve_statement_with_transactions,
     resolve_statement_transactions,
 )
-from src.extraction.extension.transaction_classification import classify_by_effective_policy
+from src.extraction.extension.transaction_classification import (
+    classification_suggestions,
+    classify_by_effective_policy,
+)
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
@@ -212,16 +215,23 @@ async def auto_create_posted_entries_for_statement(
     # can turn that proposal plus reconciliation/account context into a command.
     await classify_by_effective_policy(db, user_id, txns_to_post)
     legs_posted = 0
-    if (
-        dependencies.post_named_transfers is not None
-        and dependencies.disposition_mode is DispositionMode.ENFORCE
-        and await auto_accept_enabled(db, user_id)
-    ):
-        # A transfer or a card repayment posts as a Processing leg. The rows are then covered, as if
-        # reconciliation had matched them, so the plan below does not post them a second time. A leg is a
-        # command: only the mode that applies commands posts it.
-        legs_posted = await dependencies.post_named_transfers(db, user_id, txns_to_post)
-        transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
+    if dependencies.post_named_transfers is not None and dependencies.disposition_mode is DispositionMode.ENFORCE:
+        if await auto_accept_enabled(db, user_id):
+            # A transfer or a card repayment posts as a Processing leg. The rows are then covered, as if
+            # reconciliation had matched them, so the plan below does not post them a second time. A leg is a
+            # command: only the mode that applies commands posts it.
+            legs_posted = await dependencies.post_named_transfers(db, user_id, txns_to_post)
+            transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
+        else:
+            suggestions = await classification_suggestions(db, [txn.id for txn in txns_to_post])
+            user_transfer_txns = [
+                txn
+                for txn in txns_to_post
+                if (s := suggestions.get(txn.id)) is not None and s.corrected and s.booking == "processing_leg"
+            ]
+            if user_transfer_txns:
+                legs_posted = await dependencies.post_named_transfers(db, user_id, user_transfer_txns)
+                transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
     base_currency = await get_effective_base_currency(db)
     policy = await statement_disposition_policy_for_user(db, user_id)
     policy_snapshot = current_statement_disposition_policy_snapshot(

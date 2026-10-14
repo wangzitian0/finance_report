@@ -68,6 +68,8 @@ function mapOperationToLegacy(operationId: string, req: any = {}): [string, Requ
             return [`/api/statements/${req?.path?.statement_id ?? "s1"}/retry`, { method: "POST" }];
         case "confirm_statement_review_envelope_statements__statement_id__review_envelope_post":
             return [`/api/statements/${req?.path?.statement_id ?? "s1"}/review/envelope`, { method: "POST", body: JSON.stringify(req?.body) }];
+        case "create_correction_corrections_post":
+            return ["/api/corrections", { method: "POST", body: JSON.stringify(req?.body) }];
         default:
             return [operationId, req];
     }
@@ -519,6 +521,13 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         "href",
         "/reconciliation/unmatched?statement_id=s1&return_to=%2Fstatements%2Fs1%2Freview",
       );
+      const aiAction = screen.getByRole("link", {
+        name: "Review AI suggestions",
+      });
+      expect(aiAction).toHaveAttribute(
+        "href",
+        "/review/ai-suggestions?statement_id=s1&return_to=%2Fstatements%2Fs1%2Freview",
+      );
       expect(
         screen.getByText(
           /These transactions need your confirmation before they can be posted/i,
@@ -941,7 +950,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
         expect(await screen.findByText("Review Low-Confidence Transaction")).toBeInTheDocument();
     });
 
-    it("Flow 7: edit-and-approve attempt receives 400 from immutable Layer-2, shows error toast, reject path remains available", async () => {
+    it("Flow 7: balance mismatch keeps Approve disabled after category review and preserves Reject / Re-parse recovery", async () => {
         const mismatchedStatement = {
             ...baseStatement,
             closing_balance: 130,
@@ -957,7 +966,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
             },
         };
 
-        mockedApi.mockImplementation((path: any, options?: any) => {
+        mockedApi.mockImplementation((path: any) => {
             if (path === "/api/statements/s1/review") {
                 return Promise.resolve(mismatchedStatement);
             }
@@ -967,50 +976,101 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
             if (path === "/api/review/conflicts/s1") {
                 return Promise.resolve(emptyConflicts);
             }
-            // Backend unconditionally rejects in-place edits (Layer-2 immutability)
-            if (path === "/api/statements/s1/review/edit") {
-                return Promise.reject(
-                    new ApiError("Editing parsed transactions is unsupported; reject and re-parse the statement instead.", 400),
-                );
+            if (path === "/api/corrections") {
+                return Promise.resolve({
+                    id: "corr-1",
+                    transaction_id: "txn-1",
+                    corrected_category: "SALARY",
+                });
             }
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
         renderReviewComponent(<StatementReviewPage /> as never);
 
-        // 1. Initial state: Closing Mismatch, Approve disabled
         expect(await screen.findByText("Closing Mismatch")).toBeInTheDocument();
         expect(screen.getByText("Closing Δ: -10.00")).toBeInTheDocument();
-        const approveBtn = screen.getByRole("button", { name: "Approve" });
-        expect(approveBtn).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
 
-        // 2. Open review modal and make a local correction
-        const reviewBtn = screen.getByRole("button", { name: "Review" });
-        fireEvent.click(reviewBtn);
+        fireEvent.click(screen.getByRole("button", { name: "Review" }));
         expect(await screen.findByText("Review Low-Confidence Transaction")).toBeInTheDocument();
+        expect(screen.queryByLabelText(/transaction amount/i)).toBeNull();
+        expect(screen.queryByLabelText(/transaction direction/i)).toBeNull();
 
-        const amountInput = screen.getByLabelText(/transaction amount/i);
-        fireEvent.change(amountInput, { target: { value: "30" } });
+        fireEvent.click(screen.getByRole("button", { name: "Salary" }));
+        fireEvent.click(screen.getByRole("button", { name: /save correction/i }));
 
-        const saveBtn = screen.getByRole("button", { name: /save correction/i });
-        fireEvent.click(saveBtn);
-
-        // 3. Local recalculation makes Approve enabled (client-side only)
         await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-        expect(screen.getByText("Closing Valid")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
+        expect(screen.getByText("Closing Mismatch")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: /reject/i })).toBeInTheDocument();
+    });
 
-        // 4. Clicking Approve triggers confirmation, which calls /review/edit -> 400
-        fireEvent.click(screen.getByRole("button", { name: "Approve" }));
-        const confirmBtn = await screen.findByRole("button", { name: "Confirm & Post Entries" });
-        fireEvent.click(confirmBtn);
-
-        // 5. Error toast surfaces the backend rejection message
-        await waitFor(() => {
-            expect(screen.getByText(/Editing parsed transactions is unsupported/i)).toBeInTheDocument();
+    it("saves category correction in LowConfidenceReviewModal via POST /api/corrections and approves via POST /api/statements/s1/review/approve", async () => {
+        let currentCategory: string | null = null;
+        mockedApi.mockImplementation((path: any, options?: any) => {
+            if (path === "/api/statements/s1/review") {
+                return Promise.resolve({
+                    ...baseStatement,
+                    transactions: [
+                        {
+                            ...baseStatement.transactions[0],
+                            proposed_category: currentCategory,
+                            confidence_tier: currentCategory ? "HIGH" : "LOW",
+                        },
+                    ],
+                });
+            }
+            if (path === "/api/statements/pending-review") {
+                return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+            }
+            if (path === "/api/review/conflicts/s1") {
+                return Promise.resolve(emptyConflicts);
+            }
+            if (path === "/api/corrections") {
+                const body = JSON.parse(String(options?.body));
+                currentCategory = body.corrected_category;
+                return Promise.resolve({
+                    id: "corr-1",
+                    transaction_id: body.transaction_id,
+                    corrected_category: body.corrected_category,
+                });
+            }
+            if (path === "/api/statements/s1/review/approve") {
+                return Promise.resolve({ journal_entries_created: 1 });
+            }
+            return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
-        // 6. Reject button remains available as the correct recovery path
-        expect(screen.getByRole("button", { name: /reject/i })).toBeInTheDocument();
+        renderReviewComponent(<StatementReviewPage /> as never);
+
+        fireEvent.click(await screen.findByRole("button", { name: "Review" }));
+        expect(await screen.findByText("Review Low-Confidence Transaction")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Salary" }));
+        fireEvent.click(screen.getByRole("button", { name: /save correction/i }));
+
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+        expect(mockedApi).toHaveBeenCalledWith(
+            "create_correction_corrections_post",
+            expect.objectContaining({
+                body: { transaction_id: "txn-1", corrected_category: "SALARY" },
+            }),
+        );
+
+        fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+        const approveDialog = await screen.findByRole("dialog", { name: "Approve Statement" });
+        fireEvent.click(within(approveDialog).getByRole("button", { name: "Approve" }));
+
+        await waitFor(() => {
+            expect(mockedApi).toHaveBeenCalledWith(
+                "approve_statement_stage1_statements__statement_id__review_approve_post",
+                expect.objectContaining({ path: { statement_id: "s1" } }),
+            );
+            expect(pushMock).toHaveBeenCalledWith("/statements/s1?approved=1&entriesCreated=1");
+        });
+        expect(
+            mockedApi.mock.calls.some((call) => String(call[0]).includes("review_edit")),
+        ).toBe(false);
     });
 });

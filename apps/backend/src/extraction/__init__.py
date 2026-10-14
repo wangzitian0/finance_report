@@ -212,6 +212,7 @@ from src.extraction.extension.statement_workflow import (
 from src.extraction.extension.transaction_classification import (
     ClassificationSuggestion,
     SuggestionCorrectionError,
+    TransactionCategory,
     apply_suggestion_feedback,
     backfill_classifications,
     balance_sheet_booking,
@@ -318,6 +319,7 @@ __all__ = [
     "StatementTransaction",
     "StatementEventSource",
     "StatementSummary",
+    "TransactionCategory",
     "TransactionClassification",
     "TransactionDirection",
     "UploadedDocument",

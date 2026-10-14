@@ -115,18 +115,18 @@ describe("LowConfidenceReviewModal", () => {
     fireEvent.click(diningChip);
 
     const input = screen.getByLabelText(/Classification Category/i) as HTMLInputElement;
-    expect(input.value).toBe("Dining");
+    expect(input.value).toBe("DINING");
 
     await userEvent.clear(input);
-    await userEvent.type(input, "Coffee Expenses");
-    expect(input.value).toBe("Coffee Expenses");
+    await userEvent.type(input, "TRANSPORT");
+    expect(input.value).toBe("TRANSPORT");
   });
 
   it("submits correction via apiOperation on save", async () => {
     mockApiOperation.mockResolvedValueOnce({
       id: "corr-1",
       transaction_id: "txn-123",
-      corrected_category: "Dining",
+      corrected_category: "DINING",
     });
 
     const onClose = vi.fn();
@@ -151,7 +151,7 @@ describe("LowConfidenceReviewModal", () => {
       expect(mockApiOperation).toHaveBeenCalledWith("create_correction_corrections_post", {
         body: {
           transaction_id: "txn-123",
-          corrected_category: "Dining",
+          corrected_category: "DINING",
         },
       });
       expect(mockShowToast).toHaveBeenCalledWith('Category updated to "Dining"', "success");
@@ -202,6 +202,41 @@ describe("LowConfidenceReviewModal", () => {
     expect(mockApiOperation).not.toHaveBeenCalled();
   });
 
+  it("ignores duplicate form submission while saving is already in flight", async () => {
+    let resolveSave!: (value: unknown) => void;
+    mockApiOperation.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    render(
+      <LowConfidenceReviewModal
+        isOpen={true}
+        onClose={vi.fn()}
+        transaction={mockTransaction}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Dining" }));
+    const input = screen.getByLabelText(/Classification Category/i);
+    const form = input.closest("form")!;
+
+    fireEvent.submit(form);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Saving/i })).toBeDisabled();
+    });
+
+    fireEvent.submit(form);
+    expect(mockApiOperation).toHaveBeenCalledTimes(1);
+
+    resolveSave({ id: "corr-1" });
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith('Category updated to "Dining"', "success");
+    });
+  });
+
   it("stores prompt in sessionStorage and navigates to /chat when clicking Ask AI Assistant", () => {
     render(
       <LowConfidenceReviewModal
@@ -246,35 +281,32 @@ describe("LowConfidenceReviewModal", () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
-  it("calls onSaveCorrection with edited amount and direction", async () => {
-    const onSaveCorrection = vi.fn();
-    const onClose = vi.fn();
-    render(
+  it("does not render mutable amount or direction inputs and filters category chips by direction", () => {
+    const { rerender } = render(
       <LowConfidenceReviewModal
         isOpen={true}
-        onClose={onClose}
+        onClose={vi.fn()}
         transaction={mockTransaction}
-        onSaveCorrection={onSaveCorrection}
       />
     );
 
-    const amountInput = screen.getByLabelText(/Transaction Amount/i);
-    fireEvent.change(amountInput, { target: { value: "42.50" } });
+    expect(screen.queryByLabelText(/Transaction Amount/i)).toBeNull();
+    expect(screen.queryByLabelText(/Transaction Direction/i)).toBeNull();
+    expect(screen.getByRole("button", { name: "Dining" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Transfer" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Salary" })).toBeNull();
 
-    const dirSelect = screen.getByLabelText(/Transaction Direction/i);
-    fireEvent.change(dirSelect, { target: { value: "IN" } });
+    rerender(
+      <LowConfidenceReviewModal
+        isOpen={true}
+        onClose={vi.fn()}
+        transaction={{ ...mockTransaction, direction: "IN", proposed_category: "SALARY" }}
+      />
+    );
 
-    const saveButton = screen.getByRole("button", { name: /Save Correction/i });
-    fireEvent.click(saveButton);
-
-    await waitFor(() => {
-      expect(onSaveCorrection).toHaveBeenCalledWith({
-        txn_id: "txn-123",
-        amount: "42.50",
-        direction: "IN",
-        category: undefined,
-      });
-      expect(onClose).toHaveBeenCalled();
-    });
+    expect(screen.getByRole("button", { name: "Salary" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Transfer" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Dining" })).toBeNull();
+    expect(screen.getByLabelText(/Classification Category/i)).toHaveValue("SALARY");
   });
 });

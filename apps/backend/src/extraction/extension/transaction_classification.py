@@ -1363,6 +1363,101 @@ async def apply_suggestion_feedback(
     return "corrected"
 
 
+async def apply_user_transaction_correction(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    txn: AtomicTransaction,
+    corrected_category: str,
+    corrected_account_id: UUID | None = None,
+) -> tuple[str | None, UUID | None]:
+    """Persist a user category correction onto the transaction's classification basis.
+
+    Returns ``(original_category, resolved_account_id)`` when ``corrected_category``
+    maps to the canonical ``TransactionCategory`` catalog. Legacy free-text labels
+    outside the catalog leave ``TransactionClassification`` untouched.
+    """
+    try:
+        category = parse_corrected_category({"value": corrected_category})
+    except SuggestionCorrectionError:
+        return None, corrected_account_id
+
+    if not category_fits_direction(category, txn.direction):
+        raise SuggestionCorrectionError(
+            f"{category.value} does not fit a transaction with direction {txn.direction.value}"
+        )
+
+    policy = policy_for(txn.txn_date)
+    rule = await _ensure_policy_rule(db, user_id, policy)
+
+    existing_suggestions = await classification_suggestions(db, [txn.id])
+    prior_suggestion = existing_suggestions.get(txn.id)
+    original_category = prior_suggestion.category if prior_suggestion is not None else None
+
+    classification = (
+        await db.execute(
+            select(TransactionClassification)
+            .where(TransactionClassification.atomic_txn_id == txn.id)
+            .where(TransactionClassification.rule_version_id == rule.id)
+            .with_for_update(of=TransactionClassification)
+        )
+    ).scalar_one_or_none()
+
+    account_id = corrected_account_id
+    if account_id is None:
+        if category in CATEGORY_ACCOUNTS:
+            account_id = (await _resolve_category_account(db, user_id, category, txn.currency)).id
+        elif category in BALANCE_SHEET_ACCOUNTS:
+            account_id = (await _balance_sheet_account(db, user_id, category, txn.currency)).id
+
+    target_status = (
+        ClassificationStatus.DRAFT
+        if category in PROCESSING_LEG_CATEGORIES and corrected_account_id is None
+        else ClassificationStatus.APPLIED
+    )
+
+    previous_tags = (
+        dict(classification.tags) if classification is not None and isinstance(classification.tags, dict) else {}
+    )
+    tags: dict[str, object] = {
+        **{
+            key: value
+            for key, value in previous_tags.items()
+            if key not in (SUSPENSE_TAG, "rejected_by_user", "auto_accepted")
+        },
+        "category": category.value,
+        "corrected_by_user": True,
+    }
+    if original_category and "original_category" not in tags:
+        tags["original_category"] = original_category
+    if category in BALANCE_SHEET_ACCOUNTS:
+        tags["intent"] = balance_sheet_intent(category, txn.direction).value
+    else:
+        tags.pop("intent", None)
+
+    if classification is None:
+        classification = TransactionClassification(
+            atomic_txn_id=txn.id,
+            rule_version_id=rule.id,
+            account_id=account_id,
+            tags=tags,
+            confidence_score=100,
+            status=target_status,
+        )
+        db.add(classification)
+        await db.flush()
+    else:
+        classification.account_id = account_id
+        classification.tags = tags
+        classification.status = target_status
+        classification.confidence_score = 100
+        await db.flush()
+
+    await _retire_model_rows(db, user_id, txn.id, keep=classification.id)
+    await db.flush()
+    return original_category, account_id
+
+
 async def settle_drafts_after_posting(
     db: AsyncSession, txn_id: UUID, *, accepted_id: UUID | None, accepted_by: Literal["user", "system"] = "user"
 ) -> None:

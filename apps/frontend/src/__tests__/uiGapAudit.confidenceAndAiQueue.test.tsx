@@ -154,7 +154,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     fireEvent.click(within(mobileCard).getByRole("button", { name: "Reject" }));
     await within(mobileCard).findByText(/^Rejected\./);
     fireEvent.change(within(mobileCard).getByLabelText("Corrected value"), {
-      target: { value: "Expense - Transport" },
+      target: { value: "TRANSPORT" },
     });
     fireEvent.click(
       within(mobileCard).getByRole("button", { name: "Edit-then-Accept" }),
@@ -167,7 +167,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
         body: {
           suggestion_id: "00000000-0000-0000-0000-000000000012",
           action: "edit_accept",
-          corrected_value: { value: "Expense - Transport" },
+          corrected_value: { value: "TRANSPORT" },
         },
       },
     );
@@ -181,6 +181,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
             suggestion_id: "00000000-0000-0000-0000-000000000025",
             transaction: "MOBILE CARD PURCHASE",
             suggested_category_or_match: "Expense - Food & Dining",
+            direction: "OUT",
             ai_score: 72,
             ai_reasoning:
               "Merchant category and prior corrections match dining.",
@@ -200,17 +201,20 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     expect(
       within(mobileCard).getByText("MOBILE CARD PURCHASE"),
     ).toBeInTheDocument();
-    expect(
-      within(mobileCard).getByLabelText("Corrected value"),
-    ).toBeInTheDocument();
+    const select = within(mobileCard).getByLabelText("Corrected value") as HTMLSelectElement;
+    expect(select).toBeInTheDocument();
+    const optionValues = Array.from(select.options).map((o) => o.value);
+    expect(optionValues).toContain("DINING");
+    expect(optionValues).toContain("TRANSFER");
+    expect(optionValues).not.toContain("SALARY");
     expect(
       within(mobileCard).getByRole("button", { name: "Accept" }),
     ).toBeEnabled();
     expect(
       within(mobileCard).getByRole("button", { name: "Reject" }),
     ).toBeEnabled();
-    fireEvent.change(within(mobileCard).getByLabelText("Corrected value"), {
-      target: { value: "Expense - Transport" },
+    fireEvent.change(select, {
+      target: { value: "TRANSPORT" },
     });
     fireEvent.click(
       within(mobileCard).getByRole("button", { name: "Edit-then-Accept" }),
@@ -223,7 +227,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
           body: {
             suggestion_id: "00000000-0000-0000-0000-000000000025",
             action: "edit_accept",
-            corrected_value: { value: "Expense - Transport" },
+            corrected_value: { value: "TRANSPORT" },
           },
         },
       ),
@@ -270,7 +274,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
     );
 
     fireEvent.change(within(mobileCard).getByLabelText("Corrected value"), {
-      target: { value: "Food & Dining" },
+      target: { value: "SALARY" },
     });
     fireEvent.click(
       within(mobileCard).getByRole("button", { name: "Edit-then-Accept" }),

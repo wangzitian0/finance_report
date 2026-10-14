@@ -35,6 +35,7 @@ from src.extraction import (
     _brokerage_payload_from_statement,
     approve_statement_workflow,
     auto_create_posted_entries_for_statement,
+    classification_suggestions,
     confirm_reviewed_statement_envelope,
     current_reviewed_statement_envelope,
     edit_and_approve,
@@ -813,6 +814,8 @@ async def get_statement_for_review(
         source_missing_facts = list(source_result.missing_required_facts)
         source_envelope_reviewable = supports_reviewed_statement_envelope(source_result)
 
+    suggestions = await classification_suggestions(db, [t.id for t in transactions])
+
     response_data = {
         "id": statement.id,
         "user_id": statement.user_id,
@@ -855,7 +858,9 @@ async def get_statement_for_review(
         ),
         "created_at": statement.created_at,
         "updated_at": statement.updated_at,
-        "transactions": [AtomicTransactionResponse.from_atomic(t, statement.id) for t in transactions],
+        "transactions": [
+            AtomicTransactionResponse.from_atomic(t, statement.id, suggestions.get(t.id)) for t in transactions
+        ],
         "pdf_url": pdf_url,
         "balance_validation_result": BalanceValidationResult(
             opening_balance=validation_result["opening_balance"],

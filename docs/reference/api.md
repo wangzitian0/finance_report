@@ -7,7 +7,7 @@
 - API title: `Finance Report API`
 - API version: `0.1.0`
 - Endpoint count: `136`
-- Schema count: `266`
+- Schema count: `267`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -63,7 +63,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
 | `POST` | `/ai/feedback` | yes | - | `AiFeedbackRequest` | `201` `AiFeedbackResponse` | Create Ai Feedback |
-| `GET` | `/ai/suggestions` | yes | `limit` (query), `offset` (query) | - | `200` `AiSuggestionListResponse` | List Ai Suggestions |
+| `GET` | `/ai/suggestions` | yes | `limit` (query), `offset` (query), `statement_id` (query) | - | `200` `AiSuggestionListResponse` | List Ai Suggestions |
 
 ### app-config
 

@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { apiOperation } from "@/lib/api-client";
+import { getCategoriesForDirection } from "@/lib/categories";
 import { BackLink } from "@/components/ui/BackLink";
 import type { AiSuggestion } from "@/lib/types";
 
@@ -17,6 +19,8 @@ const EFFECT_LABEL: Record<string, string> = {
 };
 
 export default function AiSuggestionsPage() {
+  const searchParams = useSearchParams();
+  const statementId = searchParams?.get("statement_id")?.trim() || undefined;
   const [suggestions, setSuggestions] = useState<AiSuggestion[]>([]);
   const [correctedValues, setCorrectedValues] = useState<
     Record<string, string>
@@ -30,7 +34,11 @@ export default function AiSuggestionsPage() {
   const fetchSuggestions = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiOperation("list_ai_suggestions_ai_suggestions_get");
+      const data = statementId
+        ? await apiOperation("list_ai_suggestions_ai_suggestions_get", {
+            query: { statement_id: statementId },
+          })
+        : await apiOperation("list_ai_suggestions_ai_suggestions_get");
       setSuggestions(data.items);
       setError(null);
     } catch (err) {
@@ -40,7 +48,7 @@ export default function AiSuggestionsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [statementId]);
 
   useEffect(() => {
     fetchSuggestions();
@@ -84,13 +92,14 @@ export default function AiSuggestionsPage() {
     surface: "mobile" | "table",
   ) => {
     const inputId = `corrected-${surface}-${suggestion.suggestion_id}`;
+    const options = getCategoriesForDirection(suggestion.direction);
 
     return (
       <>
         <label className="sr-only" htmlFor={inputId}>
           Corrected value
         </label>
-        <input
+        <select
           id={inputId}
           aria-label="Corrected value"
           className="input py-2 text-sm"
@@ -101,8 +110,14 @@ export default function AiSuggestionsPage() {
               [suggestion.suggestion_id]: event.target.value,
             }))
           }
-          placeholder="Category, for example DINING"
-        />
+        >
+          <option value="">Select category...</option>
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </>
     );
   };
