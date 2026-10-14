@@ -143,15 +143,21 @@ async def test_AC_extraction_classification_hardening_1_a_non_finite_score_gives
     assert proposals[1] is None
 
 
-async def test_AC_extraction_classification_hardening_1_an_item_without_an_index_maps_to_no_row(monkeypatch):
-    """AC-extraction.classification-hardening.1: position never decides. The item without an index is dropped, the indexed item stays."""
-    provider = _Provider([[_item(0, "SALARY", 95), _item(None, "DINING", 95)]])
+@pytest.mark.parametrize(
+    "answer",
+    [
+        [_item(0, "SALARY", 95), _item(None, "DINING", 95)],  # one item omits "index"
+        [_item(0, "SALARY", 95), "not-a-dict"],  # one item is not a dict
+    ],
+)
+async def test_AC_extraction_classification_hardening_1_an_item_without_an_index_maps_to_no_row(monkeypatch, answer):
+    """AC-extraction.classification-hardening.1: if any item is not a dict or lacks index, the whole batch is dropped."""
+    provider = _Provider([answer])
     _install(monkeypatch, provider)
 
     proposals = await tc.propose_categories(_txns(2), policy_for(date(2026, 6, 1)))
 
-    assert proposals[0] is not None and proposals[0].category == "SALARY"
-    assert proposals[1] is None
+    assert proposals == [None, None]
 
 
 async def test_AC_extraction_classification_hardening_1_prompt_encodes_descriptions_and_asks_for_the_index(
@@ -228,6 +234,25 @@ async def test_AC_extraction_classification_hardening_1_frozen_v1_prompt_keeps_t
 
     assert [p.category for p in proposals] == ["GROCERIES", "DINING"]
     assert '"index"' not in provider.calls[0]["messages"][0]["content"]
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        [_item(None, "SALARY", 95)],  # fewer items than transactions
+        [_item(None, "SALARY", 95), _item(None, "DINING", 90), _item(None, "GROCERIES", 85)],  # more items
+    ],
+)
+async def test_AC_extraction_classification_hardening_1_frozen_v1_wrong_item_count_gives_no_proposal(
+    monkeypatch, answer
+):
+    """AC-extraction.classification-hardening.1: positional v1 also drops the batch when len(parsed) != len(transactions)."""
+    provider = _Provider([answer])
+    _install(monkeypatch, provider)
+
+    proposals = await tc.propose_categories(_txns(2), tc.POLICY_VERSIONS[0])
+
+    assert proposals == [None, None]
 
 
 async def test_AC_extraction_classification_hardening_3_a_newer_policy_supersedes_older_model_rows(
@@ -321,3 +346,161 @@ async def test_AC_extraction_classification_hardening_5_the_provider_call_carrie
     await classify_transactions(db, test_user.id, [txn], policy=policy_for(date(2026, 6, 1)))
 
     assert provider.calls[0]["user_id"] == test_user.id
+
+
+async def test_AC_extraction_classification_hardening_2_reconciliation_match_feedback_transitions_state(db, test_user):
+    """AC-extraction.classification-hardening.2: /ai/feedback transitions a pending ReconciliationMatch to ACCEPTED or REJECTED."""
+    from src.identity import AiFeedbackRequest
+    from src.reconciliation import ReconciliationMatch, ReconciliationStatus
+    from src.routers.ai_feedback import create_ai_feedback
+
+    txn_accept = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="RECON ACCEPT")
+    txn_reject = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="RECON REJECT")
+    match_accept = ReconciliationMatch(
+        atomic_txn_id=txn_accept.id,
+        journal_entry_ids=[],
+        status=ReconciliationStatus.PENDING_REVIEW,
+        match_score=75,
+        score_breakdown={"ai_reasoning": "fuzzy match"},
+    )
+    match_reject = ReconciliationMatch(
+        atomic_txn_id=txn_reject.id,
+        journal_entry_ids=[],
+        status=ReconciliationStatus.PENDING_REVIEW,
+        match_score=72,
+        score_breakdown={"ai_reasoning": "fuzzy match"},
+    )
+    db.add_all([match_accept, match_reject])
+    await db.commit()
+
+    accepted_resp = await create_ai_feedback(
+        payload=AiFeedbackRequest(suggestion_id=match_accept.id, action="accept"),
+        db=db,
+        user_id=test_user.id,
+    )
+    rejected_resp = await create_ai_feedback(
+        payload=AiFeedbackRequest(suggestion_id=match_reject.id, action="reject"),
+        db=db,
+        user_id=test_user.id,
+    )
+    repeat_resp = await create_ai_feedback(
+        payload=AiFeedbackRequest(suggestion_id=match_accept.id, action="reject"),
+        db=db,
+        user_id=test_user.id,
+    )
+
+    await db.refresh(match_accept)
+    await db.refresh(match_reject)
+    assert accepted_resp.effect == "accepted"
+    assert match_accept.status == ReconciliationStatus.ACCEPTED
+    assert match_accept.version == 2
+    assert rejected_resp.effect == "rejected"
+    assert match_reject.status == ReconciliationStatus.REJECTED
+    assert match_reject.version == 2
+    assert repeat_resp.effect == "recorded"
+    assert match_accept.status == ReconciliationStatus.ACCEPTED
+
+
+async def test_AC_extraction_classification_hardening_3_ensure_policy_rule_acquires_advisory_lock_and_recovers_after_rollback(
+    db, test_user
+):
+    """AC-extraction.classification-hardening.3: _ensure_policy_rule locks on (user, rule_name, version) and invalidates detached cache on rollback."""
+    user_id = test_user.id
+    policy = policy_for(date(2026, 6, 1))
+    executed_sql: list[str] = []
+    orig_execute = db.execute
+
+    async def spy_execute(statement, *args, **kwargs):
+        executed_sql.append(str(statement))
+        return await orig_execute(statement, *args, **kwargs)
+
+    nested = await db.begin_nested()
+    db.execute = spy_execute  # type: ignore[method-assign]
+    try:
+        first = await tc._ensure_policy_rule(db, user_id, policy)
+    finally:
+        db.execute = orig_execute  # type: ignore[method-assign]
+
+    assert any("pg_advisory_xact_lock" in sql for sql in executed_sql)
+    assert first in db
+
+    await nested.rollback()
+    assert first not in db
+
+    refreshed = await tc._ensure_policy_rule(db, user_id, policy)
+    assert refreshed in db
+    assert refreshed.rule_name == tc.POLICY_RULE_NAME
+    assert refreshed.version_number == policy.version
+
+
+async def test_AC_extraction_classification_hardening_4_evidence_graph_db_failure_rolls_back_savepoint_only(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.classification-hardening.4: a database failure inside record_journal_postings_batch rolls back only the savepoint."""
+    from decimal import Decimal
+
+    from sqlalchemy import text
+
+    from src.composition import compose_statement_posting_dependencies
+    from src.config import settings
+    from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
+    from src.extraction.extension.statement_posting import (
+        StatementPostingStatus,
+        auto_create_posted_entries_for_statement,
+    )
+    from src.ledger import JournalEntry
+    from tests.api._statement_router_fixtures import add_txn, build_statement, create_statement_account
+
+    monkeypatch.setattr(settings, "enable_ai_classification", True)
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", True)
+    monkeypatch.setattr(settings, "ai_api_key", "test-key")
+
+    bank = await create_statement_account(db, test_user.id, "Savepoint Bank")
+    statement = build_statement(test_user.id, "savepoint_hash", confidence_score=95)
+    statement.account_id = bank.id
+    statement.opening_balance = Decimal("100.00")
+    statement.closing_balance = Decimal("80.00")
+    db.add(statement)
+    await db.flush()
+
+    txn = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 5),
+        description="Coffee Shop",
+        amount=Decimal("20.00"),
+        direction="OUT",
+    )
+
+    async def proposer(txns, _pol):
+        return [CategoryProposal(category="DINING", confidence=92) for _ in txns]
+
+    await classify_transactions(
+        db,
+        test_user.id,
+        [txn],
+        policy=policy_for(date(2025, 1, 5)),
+        proposer=proposer,
+    )
+    await db.commit()
+
+    async def failing_batch(self, session, *, user_id, postings):
+        # Trigger a real PostgreSQL SQL error inside the session so removing db.begin_nested()
+        # aborts the outer transaction and fails db.commit() with PendingRollbackError.
+        await session.execute(text("SELECT 1 / 0"))
+
+    monkeypatch.setattr(EvidenceGraphIntegrationService, "record_journal_postings_batch", failing_batch)
+
+    outcome = await auto_create_posted_entries_for_statement(
+        db,
+        statement,
+        test_user.id,
+        dependencies=compose_statement_posting_dependencies(),
+        transactions=[txn],
+    )
+    await db.commit()
+
+    assert outcome.status is StatementPostingStatus.POSTED
+    assert outcome.created_count == 1
+    entries = (await db.execute(select(JournalEntry).where(JournalEntry.source_id == txn.id))).scalars().all()
+    assert len(entries) == 1

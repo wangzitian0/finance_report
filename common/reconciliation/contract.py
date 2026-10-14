@@ -278,6 +278,7 @@ CONTRACT = PackageContract(
         "_within_combination_tolerance",
         "accept_match",
         "accepted_transfer_txn_ids",
+        "apply_reconciliation_feedback",
         "auto_accept",
         "batch_accept",
         "build_many_to_one_groups",

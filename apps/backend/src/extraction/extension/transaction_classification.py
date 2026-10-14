@@ -355,8 +355,8 @@ def _align_indexed_items(parsed: object, count: int) -> list[dict | None]:
     """Give each row the model item that echoes its own index; never trust the position.
 
     An answer is dropped for every row when it cannot be trusted: a different number of items than
-    rows (the model lost track of the list, so its indexes are not safe either), an index outside
-    the batch, or one index used twice. An item without an index maps to no row.
+    rows (the model lost track of the list, so its indexes are not safe either), a non-dict item or an
+    item without an index, an index outside the batch, or one index used twice.
     """
     none: list[dict | None] = [None] * count
     if not isinstance(parsed, list) or len(parsed) != count:
@@ -364,7 +364,7 @@ def _align_indexed_items(parsed: object, count: int) -> list[dict | None]:
     by_index: dict[int, dict] = {}
     for item in parsed:
         if not isinstance(item, dict) or "index" not in item:
-            continue
+            return none
         index = _item_index(item["index"])
         if index is None or not 0 <= index < count or index in by_index:
             return none
@@ -560,7 +560,7 @@ async def _propose_batch(
                 items=len(parsed),
             )
     else:
-        items = [parsed[i] if i < len(parsed) else None for i in range(len(transactions))]
+        items = list(parsed) if len(parsed) == len(transactions) else [None] * len(transactions)
     return [_proposal_from_item(item) for item in _normalize_scale(items)]
 
 
@@ -574,8 +574,12 @@ async def _ensure_policy_rule(db: AsyncSession, user_id: UUID, policy: Classific
     """
     cache = db.info.setdefault("_policy_rule_cache", {})
     cache_key = (user_id, policy.version)
-    if cache_key in cache:
-        return cache[cache_key]
+    cached = cache.get(cache_key)
+    if cached is not None and cached in db:
+        return cached
+
+    lock_key = f"policy_rule:{user_id}:{POLICY_RULE_NAME}:{policy.version}"
+    await db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0))))
 
     existing = (
         await db.execute(
@@ -583,6 +587,8 @@ async def _ensure_policy_rule(db: AsyncSession, user_id: UUID, policy: Classific
             .where(ClassificationRule.user_id == user_id)
             .where(ClassificationRule.rule_name == POLICY_RULE_NAME)
             .where(ClassificationRule.version_number == policy.version)
+            .order_by(ClassificationRule.created_at, ClassificationRule.id)
+            .limit(1)
         )
     ).scalar_one_or_none()
     if existing is not None:
@@ -867,27 +873,23 @@ async def classify_transactions(
     # versions is #1545's migration seam.
     already_classified: set[UUID] = set()
     if commit_basis:
-        existing_rule = (
-            await db.execute(
-                select(ClassificationRule.id)
-                .where(ClassificationRule.user_id == user_id)
-                .where(ClassificationRule.rule_name == POLICY_RULE_NAME)
-                .where(ClassificationRule.version_number == policy.version)
-            )
-        ).scalar_one_or_none()
-        if existing_rule is not None:
-            already_classified = {
-                row
-                for row in (
-                    await db.execute(
-                        select(TransactionClassification.atomic_txn_id).where(
-                            TransactionClassification.rule_version_id == existing_rule
-                        )
-                    )
+        current_policy_rules = (
+            select(ClassificationRule.id)
+            .where(ClassificationRule.user_id == user_id)
+            .where(ClassificationRule.rule_name == POLICY_RULE_NAME)
+            .where(ClassificationRule.version_number == policy.version)
+        )
+        already_classified = set(
+            (
+                await db.execute(
+                    select(TransactionClassification.atomic_txn_id)
+                    .where(TransactionClassification.atomic_txn_id.in_([txn.id for txn in transactions]))
+                    .where(TransactionClassification.rule_version_id.in_(current_policy_rules))
                 )
-                .scalars()
-                .all()
-            }
+            )
+            .scalars()
+            .all()
+        )
         # A decision of the user outlives a later model pass, whatever its policy version (#2419).
         already_classified |= await _user_decided_txn_ids(db, user_id, [txn.id for txn in transactions])
 
@@ -1039,12 +1041,11 @@ async def classify_transactions(
             writes_draft = auto_accept or proposal.confidence >= policy.review_threshold
             suspense = auto_accept and category in BALANCE_SHEET_ACCOUNTS
             if commit_basis and writes_draft:
-                if policy_rule is None:
-                    policy_rule = await _ensure_policy_rule(db, user_id, policy)
+                rule = await ensure_rule()
                 db.add(
                     TransactionClassification(
                         atomic_txn_id=txn.id,
-                        rule_version_id=policy_rule.id,
+                        rule_version_id=rule.id,
                         account_id=None,
                         tags={
                             "category": category.value,
@@ -1094,8 +1095,7 @@ async def classify_transactions(
             disposition = "tail"
 
         if commit_basis and disposition in ("applied", "review"):
-            if policy_rule is None:
-                policy_rule = await _ensure_policy_rule(db, user_id, policy)
+            rule = await ensure_rule()
             acc_key = (category, txn.currency)
             if acc_key not in category_account_cache:
                 category_account_cache[acc_key] = await _resolve_category_account(db, user_id, category, txn.currency)
@@ -1103,7 +1103,7 @@ async def classify_transactions(
             db.add(
                 TransactionClassification(
                     atomic_txn_id=txn.id,
-                    rule_version_id=policy_rule.id,
+                    rule_version_id=rule.id,
                     account_id=account.id,
                     tags={
                         "category": category.value,

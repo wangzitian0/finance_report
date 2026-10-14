@@ -408,7 +408,7 @@ async def test_AC18_15_3_proposer_parses_and_clamps_model_json(monkeypatch):
     content = json.dumps(
         [
             {"index": 0, "category": "SALARY", "confidence": 250, "reason": "payroll"},  # clamped to 100
-            "not-a-dict",  # -> None
+            {"index": 1},  # -> None
         ]
     )
     monkeypatch.setattr(tc, "stream_ai_json", lambda **kw: _fake_stream(content), raising=False)

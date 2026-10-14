@@ -303,3 +303,25 @@ def test_AC_extraction_disposition_transfer_fact_3_without_a_match_the_model_pro
 
     assert decision.status is DispositionStatus.AUTHORITATIVE
     assert decision.pnl_effect is True
+
+
+@pytest.mark.asyncio
+async def test_AC_extraction_auto_accept_8_snapshot_records_user_classification_setting(db, test_user, monkeypatch):
+    """AC-extraction.auto-accept.8: StatementDispositionPolicySnapshot.live_llm_proposals_enabled records the user setting (#2406)."""
+    from src.config import settings
+    from src.extraction.extension.disposition_policy import statement_disposition_policy_for_user
+
+    monkeypatch.setattr(settings, "enable_ai_classification", True)
+    test_user.ai_settings = {"enable_ai_classification": False}
+    await db.flush()
+
+    disabled_policy = await statement_disposition_policy_for_user(db, test_user.id)
+    disabled_snapshot = current_statement_disposition_policy_snapshot(policy=disabled_policy)
+    assert disabled_snapshot.live_llm_proposals_enabled is False
+
+    test_user.ai_settings = {"enable_ai_classification": True}
+    await db.flush()
+
+    enabled_policy = await statement_disposition_policy_for_user(db, test_user.id)
+    enabled_snapshot = current_statement_disposition_policy_snapshot(policy=enabled_policy)
+    assert enabled_snapshot.live_llm_proposals_enabled is True

@@ -65,6 +65,7 @@ from src.reconciliation.extension.matching import (
 from src.reconciliation.extension.named_transfers import NamedTransfer, post_named_transfer_legs
 from src.reconciliation.extension.review_queue import (
     accept_match,
+    apply_reconciliation_feedback,
     batch_accept,
     count_pending_review_items,
     get_pending_items,
@@ -136,6 +137,7 @@ __all__ = [
     "_within_combination_tolerance",
     "accept_match",
     "accepted_transfer_txn_ids",
+    "apply_reconciliation_feedback",
     "auto_accept",
     "batch_accept",
     "build_many_to_one_groups",
