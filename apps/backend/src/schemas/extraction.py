@@ -4,16 +4,16 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.extraction import BankStatementStatus
+from src.extraction import BankStatementStatus, TransactionCategory
 from src.schemas.base import CurrencyCode, ListResponse
 
 if TYPE_CHECKING:
-    from src.extraction import AtomicTransaction, StatementSummary, UploadedDocument
+    from src.extraction import AtomicTransaction, ClassificationSuggestion, StatementSummary, UploadedDocument
 
 # Re-export the statement lifecycle status enum with a schema-friendly name.
 BankStatementStatusEnum = BankStatementStatus
@@ -81,13 +81,36 @@ class AtomicTransactionResponse(BaseModel):
     reference: str | None = None
     currency: str | None = None
     balance_after: Decimal | None = None
+    proposed_category: TransactionCategory | None = None
+    confidence_score: int | None = None
+    confidence_tier: Literal["HIGH", "MEDIUM", "LOW"] | None = None
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
     @classmethod
-    def from_atomic(cls, txn: AtomicTransaction, statement_id: UUID | None = None) -> AtomicTransactionResponse:
+    def from_atomic(
+        cls,
+        txn: AtomicTransaction,
+        statement_id: UUID | None = None,
+        suggestion: ClassificationSuggestion | None = None,
+    ) -> AtomicTransactionResponse:
+        proposed_category: TransactionCategory | None = None
+        confidence_score: int | None = None
+        confidence_tier: Literal["HIGH", "MEDIUM", "LOW"] | None = None
+        if suggestion is not None:
+            try:
+                proposed_category = TransactionCategory(suggestion.category)
+            except ValueError:
+                proposed_category = None
+            confidence_score = 100 if suggestion.corrected else suggestion.confidence
+            if suggestion.corrected or suggestion.applied or confidence_score >= 85:
+                confidence_tier = "HIGH"
+            elif confidence_score >= 60:
+                confidence_tier = "MEDIUM"
+            else:
+                confidence_tier = "LOW"
         return cls(
             id=txn.id,
             statement_id=statement_id,
@@ -98,6 +121,9 @@ class AtomicTransactionResponse(BaseModel):
             reference=txn.reference,
             currency=txn.currency,
             balance_after=txn.balance_after,
+            proposed_category=proposed_category,
+            confidence_score=confidence_score,
+            confidence_tier=confidence_tier,
             created_at=txn.created_at,
             updated_at=txn.updated_at,
         )

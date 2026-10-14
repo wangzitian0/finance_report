@@ -1,6 +1,7 @@
 "use client";
 
 import { formatCurrencyLocale } from "@/lib/audit/money";
+import { formatCategoryLabel } from "@/lib/categories";
 import type { BankStatementTransaction } from "@/lib/types";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
 
@@ -32,80 +33,90 @@ export function TransactionTable({
         data-testid="stage1-mobile-transaction-list"
         className="min-w-0 flex-1 divide-y divide-[var(--border)] overflow-y-auto md:hidden"
       >
-        {transactionRows.map((txn) => (
-          <article
-            key={txn.id}
-            data-testid={`stage1-mobile-transaction-card-${txn.id}`}
-            className="min-w-0 space-y-4 p-4"
-          >
-            <div className="flex min-w-0 items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium uppercase text-muted">
-                  Transaction
-                </p>
-                <p className="mt-1 break-words font-medium">
-                  {txn.description}
-                </p>
+        {transactionRows.map((txn) => {
+          const categoryLabel = formatCategoryLabel(
+            txn.category ?? txn.proposed_category,
+          );
+          return (
+            <article
+              key={txn.id}
+              data-testid={`stage1-mobile-transaction-card-${txn.id}`}
+              className="min-w-0 space-y-4 p-4"
+            >
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium uppercase text-muted">
+                    Transaction
+                  </p>
+                  <p className="mt-1 break-words font-medium">
+                    {txn.description}
+                  </p>
+                  {categoryLabel && (
+                    <span className="mt-1 inline-block rounded-full bg-[var(--background-muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">
+                      {categoryLabel}
+                    </span>
+                  )}
+                </div>
+                <div className="flex-shrink-0">
+                  {txn.confidence_tier ? (
+                    <ConfidenceBadge tier={txn.confidence_tier} />
+                  ) : (
+                    <span
+                      className={`badge ${
+                        txn.confidence === "high"
+                          ? "badge-success"
+                          : txn.confidence === "medium"
+                            ? "badge-warning"
+                            : "badge-error"
+                      }`}
+                    >
+                      {txn.confidence ?? "unavailable"}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="flex-shrink-0">
-                {txn.confidence_tier ? (
-                  <ConfidenceBadge tier={txn.confidence_tier} />
-                ) : (
-                  <span
-                    className={`badge ${
-                      txn.confidence === "high"
-                        ? "badge-success"
-                        : txn.confidence === "medium"
-                          ? "badge-warning"
-                          : "badge-error"
-                    }`}
-                  >
-                    {txn.confidence ?? "unavailable"}
+
+              <div className="grid grid-cols-1 gap-3">
+                <div className="space-y-1.5 text-sm">
+                  <span className="block text-xs font-medium uppercase text-muted">
+                    Date
                   </span>
-                )}
-              </div>
-            </div>
+                  <p>{txn.txn_date}</p>
+                </div>
 
-            <div className="grid grid-cols-1 gap-3">
-              <div className="space-y-1.5 text-sm">
-                <span className="block text-xs font-medium uppercase text-muted">
-                  Date
-                </span>
-                <p>{txn.txn_date}</p>
-              </div>
+                <div className="space-y-1.5 text-sm">
+                  <span className="block text-xs font-medium uppercase text-muted">
+                    Direction
+                  </span>
+                  <p>{txn.direction}</p>
+                </div>
 
-              <div className="space-y-1.5 text-sm">
-                <span className="block text-xs font-medium uppercase text-muted">
-                  Direction
-                </span>
-                <p>{txn.direction}</p>
-              </div>
-
-              <p
-                className={`min-w-0 break-words text-right text-sm font-semibold ${
-                  txn.direction === "IN"
-                    ? "text-[var(--success)]"
-                    : "text-[var(--error)]"
-                }`}
-              >
-                {txn.direction === "IN" ? "+" : "-"}
-                {formatCurrencyLocale(txn.amount, txn.currency || currency)}
-              </p>
-            </div>
-
-            {onSelectTransaction && (
-              <div className="pt-2 border-t border-[var(--border)]/50">
-                <button
-                  type="button"
-                  onClick={() => onSelectTransaction(txn)}
-                  className="btn-secondary btn-sm w-full text-xs"
+                <p
+                  className={`min-w-0 break-words text-right text-sm font-semibold ${
+                    txn.direction === "IN"
+                      ? "text-[var(--success)]"
+                      : "text-[var(--error)]"
+                  }`}
                 >
-                  Review / Fix
-                </button>
+                  {txn.direction === "IN" ? "+" : "-"}
+                  {formatCurrencyLocale(txn.amount, txn.currency || currency)}
+                </p>
               </div>
-            )}
-          </article>
-        ))}
+
+              {onSelectTransaction && (
+                <div className="pt-2 border-t border-[var(--border)]/50">
+                  <button
+                    type="button"
+                    onClick={() => onSelectTransaction(txn)}
+                    className="btn-secondary btn-sm w-full text-xs"
+                  >
+                    Review / Fix
+                  </button>
+                </div>
+              )}
+            </article>
+          );
+        })}
       </div>
 
       <div
@@ -132,17 +143,26 @@ export function TransactionTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border)]">
-            {transactionRows.map((txn) => (
-              <tr
-                key={txn.id}
-                className="hover:bg-[var(--background-muted)]/50 group"
-              >
-                <td className="px-4 py-2 whitespace-nowrap">{txn.txn_date}</td>
-                <td className="px-4 py-2">
-                  <div className="max-w-xs truncate" title={txn.description}>
-                    {txn.description}
-                  </div>
-                </td>
+            {transactionRows.map((txn) => {
+              const categoryLabel = formatCategoryLabel(
+                txn.category ?? txn.proposed_category,
+              );
+              return (
+                <tr
+                  key={txn.id}
+                  className="hover:bg-[var(--background-muted)]/50 group"
+                >
+                  <td className="px-4 py-2 whitespace-nowrap">{txn.txn_date}</td>
+                  <td className="px-4 py-2">
+                    <div className="max-w-xs truncate" title={txn.description}>
+                      {txn.description}
+                    </div>
+                    {categoryLabel && (
+                      <span className="mt-0.5 inline-block rounded-full bg-[var(--background-muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">
+                        {categoryLabel}
+                      </span>
+                    )}
+                  </td>
                 <td
                   className={`px-4 py-2 text-right font-medium whitespace-nowrap ${
                     txn.direction === "IN"
@@ -182,7 +202,8 @@ export function TransactionTable({
                   </td>
                 )}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

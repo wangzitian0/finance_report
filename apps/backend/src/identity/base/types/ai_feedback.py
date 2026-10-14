@@ -45,6 +45,7 @@ class AiSuggestionResponse(BaseModel):
     suggested_category_or_match: str
     ai_score: int = Field(..., ge=60, le=84)
     ai_reasoning: str
+    direction: Literal["IN", "OUT"] | None = None
 
 
 class AiSuggestionListResponse(BaseModel):

@@ -6,6 +6,10 @@ import { MessageSquareText, AlertTriangle, Check, X } from "lucide-react";
 
 import { apiOperation } from "@/lib/api-client";
 import { formatCurrencyLocale } from "@/lib/audit/money";
+import {
+  formatCategoryLabel,
+  getCategoriesForDirection,
+} from "@/lib/categories";
 import { useToast } from "@/components/ui/Toast";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
@@ -19,25 +23,7 @@ export interface LowConfidenceReviewModalProps {
   transaction: BankStatementTransaction | null;
   currency?: string;
   onSuccess?: () => void;
-  onSaveCorrection?: (edit: {
-    txn_id: string;
-    amount: string;
-    direction: "IN" | "OUT";
-    category?: string;
-  }) => void;
 }
-
-const QUICK_CATEGORIES = [
-  "Dining",
-  "Groceries",
-  "Transport",
-  "Utilities",
-  "Salary",
-  "Shopping",
-  "Entertainment",
-  "Healthcare",
-  "Transfer",
-];
 
 export function LowConfidenceReviewModal({
   isOpen,
@@ -45,27 +31,23 @@ export function LowConfidenceReviewModal({
   transaction,
   currency = "SGD",
   onSuccess,
-  onSaveCorrection,
 }: LowConfidenceReviewModalProps) {
   const router = useRouter();
   const { showToast } = useToast();
   const [category, setCategory] = useState("");
-  const [amount, setAmount] = useState("");
-  const [direction, setDirection] = useState<"IN" | "OUT">("OUT");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const categoryInputRef = useRef<HTMLInputElement>(null);
-
 
   useFocusTrap(dialogRef, isOpen);
   useBodyScrollLock(isOpen);
 
   useEffect(() => {
     if (isOpen && transaction) {
-      setCategory("");
-      setAmount(String(transaction.amount ?? ""));
-      setDirection(transaction.direction === "IN" ? "IN" : "OUT");
+      setCategory(
+        String(transaction.proposed_category ?? transaction.category ?? ""),
+      );
       setError(null);
       setSaving(false);
       setTimeout(() => {
@@ -91,12 +73,12 @@ export function LowConfidenceReviewModal({
     return null;
   }
 
+  const availableCategories = getCategoriesForDirection(transaction.direction);
+
   const handleSave = async (e?: React.FormEvent | React.MouseEvent) => {
     e?.preventDefault();
-    if (saving) return;
     const trimmed = category.trim();
-    const amountTrimmed = amount.trim();
-    if (!trimmed && (!onSaveCorrection || !amountTrimmed)) {
+    if (!trimmed) {
       setError("Please select or enter a category.");
       return;
     }
@@ -104,27 +86,21 @@ export function LowConfidenceReviewModal({
     setSaving(true);
     setError(null);
     try {
-      if (trimmed) {
-        await apiOperation("create_correction_corrections_post", {
-          body: {
-            transaction_id: transaction.id,
-            corrected_category: trimmed,
-          },
-        });
-        showToast(`Category updated to "${trimmed}"`, "success");
-      }
-      if (onSaveCorrection && amountTrimmed) {
-        onSaveCorrection({
-          txn_id: transaction.id,
-          amount: amountTrimmed,
-          direction,
-          category: trimmed || undefined,
-        });
-      }
+      await apiOperation("create_correction_corrections_post", {
+        body: {
+          transaction_id: transaction.id,
+          corrected_category: trimmed,
+        },
+      });
+      showToast(
+        `Category updated to "${formatCategoryLabel(trimmed)}"`,
+        "success",
+      );
       onSuccess?.();
       onClose();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to record correction.";
+      const msg =
+        err instanceof Error ? err.message : "Failed to record correction.";
       setError(msg);
       showToast(msg, "error");
     } finally {
@@ -218,43 +194,11 @@ export function LowConfidenceReviewModal({
 
         {/* Form */}
         <form onSubmit={handleSave} className="mt-4 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="corrected-amount-input" className="block text-xs font-semibold uppercase text-muted mb-1.5">
-                Transaction Amount
-              </label>
-              <input
-                id="corrected-amount-input"
-                aria-label="Transaction Amount"
-                type="number"
-                step="0.01"
-                className="input w-full text-sm"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-                disabled={saving}
-              />
-            </div>
-            <div>
-              <label htmlFor="corrected-direction-select" className="block text-xs font-semibold uppercase text-muted mb-1.5">
-                Direction
-              </label>
-              <select
-                id="corrected-direction-select"
-                aria-label="Transaction Direction"
-                className="input w-full text-sm"
-                value={direction}
-                onChange={(e) => setDirection(e.target.value as "IN" | "OUT")}
-                disabled={saving}
-              >
-                <option value="IN">Inflow (+)</option>
-                <option value="OUT">Outflow (-)</option>
-              </select>
-            </div>
-          </div>
-
           <div>
-            <label htmlFor="corrected-category-input" className="block text-xs font-semibold uppercase text-muted mb-1.5">
+            <label
+              htmlFor="corrected-category-input"
+              className="block text-xs font-semibold uppercase text-muted mb-1.5"
+            >
               Classification Category
             </label>
             <input
@@ -263,11 +207,11 @@ export function LowConfidenceReviewModal({
               type="text"
               maxLength={100}
               className="input w-full text-sm"
-              placeholder="e.g. Dining, Utilities, Software..."
+              placeholder="e.g. DINING, UTILITIES, SALARY..."
               value={category}
               onChange={(e) => {
                 setCategory(e.target.value);
-                if (error) setError(null);
+                setError(null);
               }}
               disabled={saving}
             />
@@ -282,15 +226,17 @@ export function LowConfidenceReviewModal({
           <div>
             <p className="text-xs text-muted mb-1.5">Suggested categories:</p>
             <div className="flex flex-wrap gap-1.5">
-              {QUICK_CATEGORIES.map((cat) => {
-                const isSelected = category.toLowerCase() === cat.toLowerCase();
+              {availableCategories.map((opt) => {
+                const isSelected =
+                  category.trim().toUpperCase() === opt.value ||
+                  category.trim().toLowerCase() === opt.label.toLowerCase();
                 return (
                   <button
-                    key={cat}
+                    key={opt.value}
                     type="button"
                     onClick={() => {
-                      setCategory(cat);
-                      if (error) setError(null);
+                      setCategory(opt.value);
+                      setError(null);
                     }}
                     className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
                       isSelected
@@ -298,7 +244,7 @@ export function LowConfidenceReviewModal({
                         : "bg-[var(--background-muted)] text-[var(--foreground)] hover:bg-[var(--border)]"
                     }`}
                   >
-                    {cat}
+                    {opt.label}
                   </button>
                 );
               })}
@@ -329,7 +275,7 @@ export function LowConfidenceReviewModal({
               <button
                 type="submit"
                 onClick={handleSave}
-                disabled={saving || (!category.trim() && !amount.trim())}
+                disabled={saving || !category.trim()}
                 className="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5 disabled:opacity-50"
               >
                 {saving ? (

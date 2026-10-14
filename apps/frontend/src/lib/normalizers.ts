@@ -24,8 +24,11 @@ export interface BankStatementTransactionViewModel {
   balance_after?: MoneyValue | null;
   status?: "pending" | "matched" | "unmatched";
   confidence?: "high" | "medium" | "low";
-  confidence_tier?: "TRUSTED" | "HIGH" | "MEDIUM" | "LOW";
+  confidence_tier?: "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | null;
+  confidence_score?: number | null;
   confidence_reason?: string | null;
+  proposed_category?: Schemas["TransactionCategory"] | string | null;
+  category?: string | null;
   raw_text?: string | null;
   created_at: string;
   updated_at: string;
@@ -43,6 +46,14 @@ export function toTransactionViewModel(
 ): BankStatementTransactionViewModel {
   const isAtomic = "created_at" in raw;
   const rawConfidence = "confidence_tier" in raw ? raw.confidence_tier : undefined;
+  const rawConfidenceScore =
+    "confidence_score" in raw ? raw.confidence_score : undefined;
+  const rawProposedCategory =
+    "proposed_category" in raw ? raw.proposed_category : undefined;
+  const rawCategory =
+    "category" in raw
+      ? (raw as { category?: string | null }).category
+      : undefined;
   const derivedConfidence: "high" | "medium" | "low" | undefined =
     rawConfidence === "HIGH" || rawConfidence === "TRUSTED"
       ? "high"
@@ -69,9 +80,15 @@ export function toTransactionViewModel(
     confidence: overrides?.confidence ?? derivedConfidence ?? "low",
     confidence_tier:
       overrides?.confidence_tier ??
-      (rawConfidence as "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | undefined) ??
+      (rawConfidence as "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | null | undefined) ??
       "LOW",
+    confidence_score:
+      overrides?.confidence_score ?? rawConfidenceScore ?? null,
     confidence_reason: overrides?.confidence_reason ?? null,
+    proposed_category:
+      overrides?.proposed_category ?? rawProposedCategory ?? null,
+    category:
+      overrides?.category ?? rawCategory ?? rawProposedCategory ?? null,
     raw_text: overrides?.raw_text ?? null,
     created_at: isAtomic
       ? (raw as Schemas["AtomicTransactionResponse"]).created_at

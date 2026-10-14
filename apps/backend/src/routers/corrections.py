@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from src.deps import CurrentUserId, DbSession
-from src.extraction import get_correction_stats, record_correction
+from src.extraction import SuggestionCorrectionError, get_correction_stats, record_correction
 from src.observability import get_logger
 
 router = APIRouter(prefix="/corrections", tags=["corrections"])
@@ -76,6 +76,8 @@ async def create_correction(
             original_category=correction.original_category,
             corrected_category=correction.corrected_category,
         )
+    except SuggestionCorrectionError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 

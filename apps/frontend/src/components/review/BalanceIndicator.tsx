@@ -1,9 +1,7 @@
 "use client";
 
 import { formatCurrencyLocale } from "@/lib/audit/money";
-import type { MoneyValue } from "@/lib/types";
-
-import type { BalanceValidationResult } from "./statementReviewBalance";
+import type { BalanceValidationResult, MoneyValue } from "@/lib/types";
 
 interface BalanceIndicatorProps {
     openingBalance: MoneyValue | null;

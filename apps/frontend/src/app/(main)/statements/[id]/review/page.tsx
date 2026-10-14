@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,7 +11,6 @@ import { useToast } from "@/components/ui/Toast";
 import { ApiError, apiOperation } from "@/lib/api-client";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 import { confirmStatementReviewEnvelope } from "@/lib/statementReviewApi";
-import type { MoneyValue } from "@/lib/types";
 import type { Schemas } from "@/lib/api-schema";
 
 import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
@@ -27,7 +26,6 @@ import { StatementAiAssistantButton } from "@/components/statements/StatementAiA
 import { ConflictResolutionDialog } from "@/components/review/ConflictResolutionDialog";
 import {
   SourceEnvelopeConfirmation,
-  type CustodyAccount,
   type EnvelopeDraft,
 } from "@/components/review/SourceEnvelopeConfirmation";
 import {
@@ -36,11 +34,6 @@ import {
   isAttentionOrigin,
   withAttentionSource,
 } from "@/lib/attentionNavigation";
-
-import {
-  calculateEffectiveBalanceValidation,
-  type BalanceValidationResult,
-} from "@/components/review/statementReviewBalance";
 
 type Stage1ApprovalResponse = Schemas["Stage1ApprovalResponse"];
 
@@ -75,11 +68,13 @@ export default function StatementReviewPage() {
     closingBalance: "",
     rationale: "",
   });
-  const [localEdits, setLocalEdits] = useState<
-    Record<string, { txn_id: string; amount: string; direction: "IN" | "OUT" }>
-  >({});
   const queryClient = useQueryClient();
-  const hasCorrections = Object.keys(localEdits).length > 0;
+
+  useEffect(() => {
+    setEconomicReviewRequired(false);
+    setConflictsResolved(false);
+    setReviewingTxn(null);
+  }, [statementId]);
 
   // Queries
   const {
@@ -136,21 +131,6 @@ export default function StatementReviewPage() {
   // Mutations
   const approveMutation = useMutation({
     mutationFn: (variables: { autoFill?: boolean } | void) => {
-      if (hasCorrections) {
-        return apiOperation(
-          "edit_and_approve_statement_statements__statement_id__review_edit_post",
-          {
-            path: { statement_id: statementId },
-            body: {
-              edits: Object.values(localEdits).map((e) => ({
-                txn_id: e.txn_id,
-                amount: e.amount,
-                direction: e.direction,
-              })),
-            },
-          },
-        );
-      }
       const body = {
         create_account_if_missing: !data?.account_id,
         auto_fill_default_categories: Boolean(variables?.autoFill),
@@ -338,30 +318,6 @@ export default function StatementReviewPage() {
     });
   }, [data, requiresEnvelopeConfirmation]);
 
-  const effectiveTransactions: Transaction[] = useMemo(() => {
-    return (data?.transactions ?? []).map((txn) => {
-      const edit = localEdits[txn.id];
-      if (!edit) return txn;
-      return {
-        ...txn,
-        amount: edit.amount,
-        direction: edit.direction,
-      };
-    });
-  }, [data?.transactions, localEdits]);
-
-  const effectiveValidationResult: BalanceValidationResult | null = useMemo(() => {
-    if (!data?.balance_validation_result) return null;
-    if (!hasCorrections) return data.balance_validation_result;
-
-    return calculateEffectiveBalanceValidation(
-      data.balance_validation_result,
-      data.opening_balance,
-      data.closing_balance,
-      effectiveTransactions,
-    );
-  }, [data, hasCorrections, effectiveTransactions]);
-
   if (loading) {
     return (
       <div className="p-6">
@@ -414,9 +370,9 @@ export default function StatementReviewPage() {
     );
   }
 
+  const validationResult = data.balance_validation_result ?? null;
   const balanceValid = Boolean(
-    effectiveValidationResult?.opening_match &&
-    effectiveValidationResult?.closing_match,
+    validationResult?.opening_match && validationResult?.closing_match,
   );
   // Honor the server-persisted resolution marker so a refresh (or a resolution
   // from another tab/session) keeps approval unblocked, not just this session's
@@ -519,6 +475,12 @@ export default function StatementReviewPage() {
                 : "Auto-Fill Default Categories & Approve"}
             </button>
             <Link
+              href={`/review/ai-suggestions?statement_id=${encodeURIComponent(statementId)}&return_to=${encodeURIComponent(`/statements/${statementId}/review`)}`}
+              className="btn-secondary inline-flex"
+            >
+              Review AI suggestions
+            </Link>
+            <Link
               href={`/reconciliation/unmatched?statement_id=${encodeURIComponent(statementId)}&return_to=${encodeURIComponent(`/statements/${statementId}/review`)}`}
               className="btn-secondary inline-flex"
             >
@@ -569,7 +531,7 @@ export default function StatementReviewPage() {
       <BalanceIndicator
         openingBalance={data.opening_balance}
         closingBalance={data.closing_balance}
-        validationResult={effectiveValidationResult}
+        validationResult={validationResult}
         currency={data.currency || "SGD"}
       />
 
@@ -593,7 +555,7 @@ export default function StatementReviewPage() {
         />
 
         <TransactionTable
-          transactions={effectiveTransactions}
+          transactions={data.transactions ?? []}
           currency={data.currency || "SGD"}
           onSelectTransaction={(txn) => setReviewingTxn(txn)}
         />
@@ -604,16 +566,6 @@ export default function StatementReviewPage() {
         onClose={() => setReviewingTxn(null)}
         transaction={reviewingTxn}
         currency={data.currency || "SGD"}
-        onSaveCorrection={(correction) => {
-          setLocalEdits((prev) => ({
-            ...prev,
-            [correction.txn_id]: {
-              txn_id: correction.txn_id,
-              amount: correction.amount,
-              direction: correction.direction,
-            },
-          }));
-        }}
         onSuccess={() => {
           void refetch();
         }}
@@ -636,13 +588,11 @@ export default function StatementReviewPage() {
         onConfirm={() => approveMutation.mutate()}
         title="Approve Statement"
         message={
-          hasCorrections
-            ? `You have corrected ${Object.keys(localEdits).length} transaction(s). This will apply the corrections and approve the statement with balance validation. Proceed?`
-            : data.account_id
-              ? "This will approve the statement with balance validation. Proceed?"
-              : "This will create and map an asset account for this statement, then approve it with balance validation. Proceed?"
+          data.account_id
+            ? "This will approve the statement with balance validation. Proceed?"
+            : "This will create and map an asset account for this statement, then approve it with balance validation. Proceed?"
         }
-        confirmLabel={hasCorrections ? "Confirm & Post Entries" : "Approve"}
+        confirmLabel="Approve"
         loading={approveMutation.isPending}
       />
 

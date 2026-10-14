@@ -1613,6 +1613,8 @@ export interface components {
             ai_reasoning: string;
             /** Ai Score */
             ai_score: number;
+            /** Direction */
+            direction?: ("IN" | "OUT") | null;
             /** Suggested Category Or Match */
             suggested_category_or_match: string;
             /**
@@ -1799,6 +1801,10 @@ export interface components {
             amount: string;
             /** Balance After */
             balance_after?: string | null;
+            /** Confidence Score */
+            confidence_score?: number | null;
+            /** Confidence Tier */
+            confidence_tier?: ("HIGH" | "MEDIUM" | "LOW") | null;
             /**
              * Created At
              * Format: date-time
@@ -1815,6 +1821,7 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            proposed_category?: components["schemas"]["TransactionCategory"] | null;
             /** Reference */
             reference?: string | null;
             /** Statement Id */
@@ -5995,6 +6002,12 @@ export interface components {
             /** Original Category */
             original_category: string | null;
         };
+        /**
+         * TransactionCategory
+         * @description The fixed, closed category catalog (v1). The model may only propose these.
+         * @enum {string}
+         */
+        TransactionCategory: "SALARY" | "INTEREST" | "INVESTMENT_INCOME" | "REFUND" | "OTHER_INCOME" | "DINING" | "GROCERIES" | "TRANSPORT" | "HOUSING" | "UTILITIES" | "SHOPPING" | "HEALTHCARE" | "ENTERTAINMENT" | "TRAVEL" | "EDUCATION" | "INSURANCE" | "FEES" | "OTHER_EXPENSE" | "TRANSFER" | "CARD_REPAYMENT" | "LOAN_PRINCIPAL" | "INVESTMENT_TRADE";
         /** TransactionEditRequest */
         TransactionEditRequest: {
             /** Amount */
@@ -6675,6 +6688,8 @@ export interface operations {
                 /** @description Maximum items to return */
                 limit?: number;
                 offset?: number;
+                /** @description Optional statement ID filter */
+                statement_id?: string | null;
             };
             header?: never; path?: never; cookie?: never;
         };

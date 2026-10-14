@@ -468,6 +468,7 @@ CONTRACT = PackageContract(
         "StatementTransaction",
         "StatementEventSource",
         "StatementSummary",
+        "TransactionCategory",
         "TransactionClassification",
         "TransactionDirection",
         "UploadedDocument",

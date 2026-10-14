@@ -293,3 +293,74 @@ async def test_AC_extraction_classification_hardening_2_an_income_correction_fit
     assert reloaded.tags["category"] == "SALARY"
     account = await db.get(Account, reloaded.account_id)
     assert account is not None and account.name == "Income - Salary"
+
+
+async def test_list_ai_suggestions_includes_direction_and_filters_by_statement_id(
+    client: AsyncClient, db: AsyncSession, test_user: User
+) -> None:
+    """GET /ai/suggestions returns direction and filters by statement_id when provided."""
+    from tests.api._statement_router_fixtures import (
+        add_txn,
+        build_statement,
+        create_statement_account,
+    )
+
+    bank = await create_statement_account(db, test_user.id, "DBS Suggestions Filter")
+    stmt1 = build_statement(test_user.id, "hash_sugg_filter_1", 88)
+    stmt1.account_id = bank.id
+    stmt2 = build_statement(test_user.id, "hash_sugg_filter_2", 88)
+    stmt2.account_id = bank.id
+    db.add_all([stmt1, stmt2])
+    await db.flush()
+
+    txn1 = await add_txn(
+        db, stmt1, txn_date=date(2025, 3, 1), description="Coffee", amount=Decimal("10.00"), direction="OUT"
+    )
+    txn2 = await add_txn(
+        db, stmt2, txn_date=date(2025, 3, 2), description="Bonus", amount=Decimal("500.00"), direction="IN"
+    )
+
+    rule = ClassificationRule(
+        user_id=test_user.id,
+        created_by=test_user.id,
+        rule_name=f"rule-{uuid4()}",
+        version_number=1,
+        effective_date=date(2025, 1, 1),
+        rule_type=RuleType.ML_MODEL,
+        rule_config={},
+    )
+    db.add(rule)
+    await db.flush()
+
+    cls1 = TransactionClassification(
+        atomic_txn_id=txn1.id,
+        rule_version_id=rule.id,
+        account_id=None,
+        tags={"category": "DINING", "reason": "test"},
+        confidence_score=75,
+        status=ClassificationStatus.DRAFT,
+    )
+    cls2 = TransactionClassification(
+        atomic_txn_id=txn2.id,
+        rule_version_id=rule.id,
+        account_id=None,
+        tags={"category": "OTHER_INCOME", "reason": "test"},
+        confidence_score=72,
+        status=ClassificationStatus.DRAFT,
+    )
+    db.add_all([cls1, cls2])
+    await db.commit()
+
+    resp_stmt1 = await client.get(f"/ai/suggestions?statement_id={stmt1.id}")
+    assert resp_stmt1.status_code == 200
+    items1 = resp_stmt1.json()["items"]
+    assert len(items1) == 1
+    assert items1[0]["suggestion_id"] == str(cls1.id)
+    assert items1[0]["direction"] == "OUT"
+
+    resp_stmt2 = await client.get(f"/ai/suggestions?statement_id={stmt2.id}")
+    assert resp_stmt2.status_code == 200
+    items2 = resp_stmt2.json()["items"]
+    assert len(items2) == 1
+    assert items2[0]["suggestion_id"] == str(cls2.id)
+    assert items2[0]["direction"] == "IN"

@@ -72,4 +72,23 @@ describe("Review surfaces back-link + plain copy (EPIC-022 AC22.5.3, AC22.5.4)",
         expect(screen.queryByText(/Stage 2/i)).not.toBeInTheDocument();
         expect(screen.queryByText(/60-84 score band/i)).not.toBeInTheDocument();
     });
+
+    it("forwards statement_id query parameter and honors safe internal return_to in BackLink", async () => {
+        navigationState.searchParams = new URLSearchParams(
+            "statement_id=s1&return_to=%2Fstatements%2Fs1%2Freview",
+        );
+        vi.mocked(apiOperation).mockResolvedValue({ items: [] } as any);
+
+        render(<AiSuggestionsPage />);
+
+        await waitFor(() =>
+            expect(vi.mocked(apiOperation)).toHaveBeenCalledWith(
+                "list_ai_suggestions_ai_suggestions_get",
+                { query: { statement_id: "s1" } },
+            ),
+        );
+        expect(
+            screen.getByRole("link", { name: /Back to Statement Review/i }),
+        ).toHaveAttribute("href", "/statements/s1/review");
+    });
 });

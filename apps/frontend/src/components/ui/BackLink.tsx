@@ -17,8 +17,19 @@ import {
 export function BackLink({ href = "/notifications", children }: { href?: string; children: ReactNode }) {
     const searchParams = useSearchParams();
     const attentionOrigin = isAttentionOrigin(searchParams);
-    const targetHref = attentionOrigin ? ATTENTION_RETURN_HREF : href;
-    const label = attentionOrigin ? ATTENTION_RETURN_LABEL : children;
+    const rawReturnTo = searchParams?.get("return_to")?.trim() ?? "";
+    const safeReturnTo =
+        rawReturnTo.startsWith("/") && !rawReturnTo.startsWith("//")
+            ? rawReturnTo
+            : null;
+    const targetHref = attentionOrigin
+        ? ATTENTION_RETURN_HREF
+        : (safeReturnTo ?? href);
+    const label = attentionOrigin
+        ? ATTENTION_RETURN_LABEL
+        : safeReturnTo?.includes("/statements/")
+          ? "Back to Statement Review"
+          : children;
 
     return (
         <Link
