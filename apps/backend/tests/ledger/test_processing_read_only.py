@@ -8,7 +8,7 @@ would then block every transfer leg, and the product has no way to repair the ac
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock
 from uuid import uuid4
@@ -23,7 +23,6 @@ from src.ledger import (
     create_transfer_out_entry,
     find_processing_account,
     find_transfer_pairs,
-    get_or_create_processing_account,
     get_processing_balance,
     get_unpaired_transfers,
     list_processing_transfer_legs,
@@ -93,8 +92,10 @@ async def test_AC_ledger_71_6_a_view_does_not_fix_the_currency_before_the_first_
 async def test_AC_ledger_71_6_two_processing_accounts_resolve_to_the_oldest_and_say_so(db, test_user, monkeypatch):
     """AC-ledger.71.6: legs on the newer account never pair, so the lookup must not hide the second account."""
     user = await UserFactory.create_async(db, email=f"dup-{uuid4()}@example.invalid")
-    older = await get_or_create_processing_account(db, user.id, currency="SGD")
-    db.add(
+    # The newer row is inserted first. A table returns rows in insertion order, so only the ORDER BY of the
+    # lookup can pick the older one.
+    now = datetime.now(UTC)
+    rows = [
         Account(
             user_id=user.id,
             name="Processing",
@@ -102,9 +103,13 @@ async def test_AC_ledger_71_6_two_processing_accounts_resolve_to_the_oldest_and_
             type=AccountType.ASSET,
             currency="SGD",
             is_system=True,
+            created_at=created_at,
         )
-    )
+        for created_at in (now - timedelta(days=1), now - timedelta(days=10))
+    ]
+    db.add_all(rows)
     await db.flush()
+    older = rows[1]
     error = Mock()
     monkeypatch.setattr(processing.logger, "error", error)
 

@@ -21,17 +21,16 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config_app import get_effective_base_currency
 from src.extraction.extension.statement_summary import resolve_custody_account_id
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import (
-    PROCESSING_ACCOUNT_CODE,
     Account,
     ProcessingCurrencyConflictError,
     TransferAccountCurrencyMismatchError,
+    find_processing_account,
 )
 from src.observability import get_logger
 from src.reconciliation.base.repository import ReconciliationRepository
@@ -82,15 +81,7 @@ async def post_named_transfer_legs(
     """
     repo = repository if repository is not None else SqlReconciliationRepository(db)
     base_currency = (await get_effective_base_currency(db)).upper()
-    processing = (
-        await db.execute(
-            select(Account)
-            .where(Account.user_id == user_id)
-            .where(Account.is_system.is_(True))
-            .where(Account.code == PROCESSING_ACCOUNT_CODE)
-            .limit(1)
-        )
-    ).scalar_one_or_none()
+    processing = await find_processing_account(db, user_id)
     if processing is not None and processing.currency.upper() != base_currency:
         logger.info(
             "Named transfers skipped: the Processing account holds another currency",

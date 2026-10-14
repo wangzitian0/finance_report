@@ -51,8 +51,10 @@ async def test_AC_extraction_default_account_1_an_inactive_default_account_is_no
 
 async def test_AC_extraction_default_account_1_two_active_rows_resolve_to_the_oldest(db, test_user):
     """AC-extraction.default-account.1: duplicates must not turn every approval into an error."""
-    older = await _account(db, test_user.id, active=True, age_days=10)
+    # The newer row is inserted first. A table returns rows in insertion order, so only the ORDER BY of the
+    # lookup can pick the older one.
     await _account(db, test_user.id, active=True, age_days=1)
+    older = await _account(db, test_user.id, active=True, age_days=10)
 
     found = await get_or_create_account(
         db, name=NAME, account_type=AccountType.EXPENSE, currency="SGD", user_id=test_user.id
