@@ -37,6 +37,7 @@ from src.ledger.extension.post import post_entry
 from src.ledger.extension.processing import (
     create_transfer_in_entry,
     create_transfer_out_entry,
+    find_processing_account,
     find_transfer_pairs,
     get_or_create_processing_account,
     get_processing_balance,
@@ -62,6 +63,7 @@ __all__ = [
     "calculate_unrealized_fx_gains",
     "create_transfer_in_entry",
     "create_transfer_out_entry",
+    "find_processing_account",
     "find_transfer_pairs",
     "get_opening_balance_readiness",
     "get_or_create_processing_account",

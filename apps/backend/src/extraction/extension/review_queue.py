@@ -34,6 +34,7 @@ from src.ledger import (
     Direction,
     JournalEntry,
     ValidationError,
+    account_service,
     submit_anchored_journal_entry_v2,
 )
 from src.observability import get_logger
@@ -135,33 +136,47 @@ async def get_or_create_account(
     currency: str,
     user_id: UUID,
 ) -> Account:
-    """Fetch or create a default account."""
+    """Fetch or create a default account.
+
+    The classifier and the one-click approval both resolve their default accounts here. An inactive account is
+    not the default, because posting refuses it. Two active rows with one name (a race of an older release)
+    resolve to the oldest one, not to an error. The creation commits in its own short transaction
+    (``find_or_create_account``), so several workers of one user never create two rows and never wait for each
+    other (#2415).
+    """
     cache = db.info.setdefault("_default_account_cache", {})
     cache_key = (user_id, name, account_type, currency)
     if cache_key in cache:
         return cache[cache_key]
 
-    result = await db.execute(
-        select(Account)
-        .where(Account.name == name)
-        .where(Account.type == account_type)
-        .where(Account.currency == currency)
-        .where(Account.user_id == user_id)
-    )
-    account = result.scalar_one_or_none()
-    if account:
-        cache[cache_key] = account
-        return account
+    async def find(session: AsyncSession) -> Account | None:
+        result = await session.execute(
+            select(Account)
+            .where(Account.name == name)
+            .where(Account.type == account_type)
+            .where(Account.currency == currency)
+            .where(Account.user_id == user_id)
+            .where(Account.is_active.is_(True))
+            .order_by(Account.created_at, Account.id)
+            .limit(2)
+        )
+        accounts = list(result.scalars().all())
+        if len(accounts) > 1:
+            # A race of an older release. The oldest account is the one that every request uses from now on.
+            logger.error(
+                "A user holds more than one default account with one name; the oldest is used",
+                user_id=str(user_id),
+                account_name=name,
+                account_ids=[str(account.id) for account in accounts],
+            )
+        return accounts[0] if accounts else None
 
-    account = Account(
+    account = await account_service.find_or_create_account(
+        db,
         user_id=user_id,
-        name=name,
-        type=account_type,
-        currency=currency,
+        find=find,
+        build=lambda: Account(user_id=user_id, name=name, type=account_type, currency=currency),
     )
-    db.add(account)
-    await db.flush()
-    await db.refresh(account)
     cache[cache_key] = account
     return account
 

@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import STATEMENT_SOURCE_TYPES
+from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
 from src.extraction.base.source_vocabulary import DocumentStatus, DocumentType, TransactionDirection
 from src.extraction.base.types import ExtractedTransactionRow
 from src.extraction.extension.source_lifecycle import SourceIdentityCommand, resolve_source_identity
@@ -689,9 +689,11 @@ async def _check_reparse_identity_conflicts(
         select(JournalEntry.id)
         .where(
             JournalEntry.user_id == user_id,
-            JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES),
+            # A Processing leg is a SYSTEM entry that carries the id of its source transaction (#2415).
+            JournalEntry.source_type.in_((*STATEMENT_SOURCE_TYPES, JournalEntrySourceType.SYSTEM)),
             JournalEntry.source_id.in_(prior_ids),
-            JournalEntry.status == JournalEntryStatus.POSTED,
+            # A leg is reconciled from the moment that it exists.
+            JournalEntry.status.in_((JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)),
         )
         .limit(1)
     )

@@ -20,10 +20,10 @@ from src.ledger import (
     account_service,
     calculate_account_balance,
     calculate_account_balances,
+    find_processing_account,
     find_transfer_pairs,
     get_account_statement_coverage,
     get_opening_balance_readiness,
-    get_or_create_processing_account,
     get_processing_balance,
     get_unpaired_transfers,
     list_processing_transfer_legs,
@@ -146,13 +146,10 @@ async def get_processing_summary(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ProcessingSummaryResponse:
-    requested_currency = await get_effective_base_currency(db)
-    processing_account = await get_or_create_processing_account(
-        db,
-        user_id,
-        currency=requested_currency,
-    )
-    currency = processing_account.currency
+    # A page view reads the Processing account and never creates it. The first transfer leg creates it, in the
+    # base currency of that moment. A user without legs sees zeros in the base currency (#2415).
+    processing_account = await find_processing_account(db, user_id)
+    currency = processing_account.currency if processing_account else await get_effective_base_currency(db)
     pairs = await find_transfer_pairs(
         db,
         user_id,
@@ -189,13 +186,10 @@ async def list_processing_pending(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ProcessingPendingListResponse:
-    requested_currency = await get_effective_base_currency(db)
-    processing_account = await get_or_create_processing_account(
-        db,
-        user_id,
-        currency=requested_currency,
-    )
-    currency = processing_account.currency
+    # A page view reads the Processing account and never creates it. The first transfer leg creates it, in the
+    # base currency of that moment. A user without legs sees zeros in the base currency (#2415).
+    processing_account = await find_processing_account(db, user_id)
+    currency = processing_account.currency if processing_account else await get_effective_base_currency(db)
     pairs = await find_transfer_pairs(
         db,
         user_id,

@@ -341,7 +341,13 @@ async def test_AC_extraction_accept_ai_suggestions_2_a_class_that_the_user_chose
 
 
 async def test_AC_extraction_accept_ai_suggestions_2_only_a_posted_leg_settles_its_draft(db, test_user, monkeypatch):
-    """AC-extraction.accept-ai-suggestions.2: a skipped row keeps its draft, so a person can still decide it."""
+    """AC-extraction.accept-ai-suggestions.2: a skipped row keeps its draft, so a person can still decide it.
+
+    The ledger refuses the leg of the second row. The function skips that row and keeps the first leg.
+    """
+    from src.ledger import TransferAccountCurrencyMismatchError
+    from src.reconciliation.extension import named_transfers
+
     monkeypatch.setattr(settings, "enable_ai_classification", False)
     statement, _bank = await _statement(db, test_user.id, "hash_bs_partial", closing="60.00")
     posted = await add_txn(
@@ -350,20 +356,16 @@ async def test_AC_extraction_accept_ai_suggestions_2_only_a_posted_leg_settles_i
     skipped = await add_txn(
         db, statement, txn_date=date(2025, 1, 6), description="Wallet B", amount=Decimal("25.00"), direction="OUT"
     )
-    await db.flush()
+    real = named_transfers.post_transfer_leg
+
+    async def refuse_the_second_row(db_, **kwargs):
+        if kwargs["txn"].id == skipped.id:
+            raise TransferAccountCurrencyMismatchError("refused")
+        return await real(db_, **kwargs)
+
+    monkeypatch.setattr(named_transfers, "post_transfer_leg", refuse_the_second_row)
     await _classification(db, test_user.id, posted, category="TRANSFER", account=None, score=90)
     await _classification(db, test_user.id, skipped, category="TRANSFER", account=None, score=90)
-    # A person rejected a match for the second row earlier. The row has an active head, so no leg posts for it.
-    db.add(
-        ReconciliationMatch(
-            atomic_txn_id=skipped.id,
-            journal_entry_ids=[],
-            match_score=0,
-            score_breakdown={},
-            status=ReconciliationStatus.REJECTED,
-            disposition_kind=DispositionKind.REVIEWED_UNMATCHED,
-        )
-    )
     await db.commit()
 
     with pytest.raises(HTTPException) as error:
@@ -377,6 +379,69 @@ async def test_AC_extraction_accept_ai_suggestions_2_only_a_posted_leg_settles_i
     }
     assert drafts[posted.id] is ClassificationStatus.APPLIED
     assert drafts[skipped.id] is ClassificationStatus.DRAFT
+
+
+async def test_AC_extraction_accept_ai_suggestions_2_a_rejected_match_suggestion_does_not_block_the_approval(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.accept-ai-suggestions.2: a rejected suggestion is history. The row is unmatched and gets its leg.
+
+    Before the fix, the leg function counted the rejected suggestion as the owner of the row. The approval
+    answered 409 on every attempt, and no other action in the product could book the row as a transfer.
+    """
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    statement, bank = await _statement(db, test_user.id, "hash_bs_rejected", closing="20.00")
+    txn = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 6),
+        description="Payment to GrabPay Wallet",
+        amount=Decimal("80.00"),
+        direction="OUT",
+    )
+    await _classification(db, test_user.id, txn, category="TRANSFER", account=None, score=90)
+    db.add(
+        ReconciliationMatch(
+            atomic_txn_id=txn.id,
+            journal_entry_ids=[],
+            match_score=0,
+            score_breakdown={},
+            status=ReconciliationStatus.REJECTED,
+            disposition_kind=DispositionKind.REVIEWED_UNMATCHED,
+        )
+    )
+    await db.commit()
+
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id, request=CLICK, db=db, user_id=test_user.id
+    )
+
+    assert result.status == BankStatementStatus.APPROVED
+    live = (
+        (
+            await db.execute(
+                select(ReconciliationMatch).where(
+                    ReconciliationMatch.atomic_txn_id == txn.id,
+                    ReconciliationMatch.status != ReconciliationStatus.REJECTED,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(live) == 1 and live[0].disposition_kind is DispositionKind.TRANSFER_LEG
+    processing = (await db.execute(select(Account).where(Account.code == PROCESSING_ACCOUNT_CODE))).scalar_one()
+    entry = (
+        await db.execute(
+            select(JournalEntry)
+            .where(JournalEntry.id == live[0].journal_entry_ids[0])
+            .options(selectinload(JournalEntry.lines))
+        )
+    ).scalar_one()
+    assert {(line.account_id, line.direction) for line in entry.lines} == {
+        (processing.id, Direction.DEBIT),
+        (bank.id, Direction.CREDIT),
+    }
 
 
 async def test_AC_extraction_accept_ai_suggestions_6_a_statement_without_rows_loses_its_review_note(

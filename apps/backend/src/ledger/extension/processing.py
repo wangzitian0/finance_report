@@ -45,9 +45,16 @@ from src.ledger.base.processing import (
 )
 from src.ledger.base.types.entry import Entry
 from src.ledger.base.validators import ValidationError
+from src.ledger.extension import account_service
 from src.ledger.extension.post import post_entry
 from src.ledger.orm.account import Account
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.observability import get_logger
+
+logger = get_logger(__name__)
+
+#: The size of the column ``journal_entries.memo``. A test pins this value to the column.
+_MEMO_MAX_LENGTH = 500
 
 
 async def get_or_create_processing_account(
@@ -56,19 +63,16 @@ async def get_or_create_processing_account(
     *,
     currency: str,
 ) -> Account:
-    """Get or create the Processing virtual account for a user."""
-    result = await db.execute(
-        select(Account).where(
-            Account.user_id == user_id,
-            Account.is_system == True,  # noqa: E712
-            Account.code == PROCESSING_ACCOUNT_CODE,
-        )
-    )
-    account = result.scalar_one_or_none()
+    """Get or create the Processing virtual account for a user.
 
-    if not account:
-        # Create Processing account
-        account = Account(
+    The creation commits in its own short transaction (``find_or_create_account``), so two requests of one user
+    never create two accounts and never wait for each other (#2415).
+    """
+    return await account_service.find_or_create_account(
+        db,
+        user_id=user_id,
+        find=lambda session: find_processing_account(session, user_id),
+        build=lambda: Account(
             user_id=user_id,
             name=PROCESSING_ACCOUNT_NAME,
             code=PROCESSING_ACCOUNT_CODE,
@@ -76,12 +80,37 @@ async def get_or_create_processing_account(
             currency=currency,
             is_system=True,
             description=PROCESSING_ACCOUNT_DESCRIPTION,
-        )
-        db.add(account)
-        await db.flush()
-        await db.refresh(account)
+        ),
+    )
 
-    return account
+
+async def find_processing_account(db: AsyncSession, user_id: UUID) -> Account | None:
+    """The Processing account of a user, or ``None``. A read never creates the account.
+
+    The account fixes the currency of the Processing balance. The first transfer leg creates it, in the base
+    currency of that moment. A page view must not create it: a later change of the base currency would then
+    block every leg of the user (#2415).
+    """
+    result = await db.execute(
+        select(Account)
+        .where(
+            Account.user_id == user_id,
+            Account.is_system == True,  # noqa: E712
+            Account.code == PROCESSING_ACCOUNT_CODE,
+        )
+        .order_by(Account.created_at, Account.id)
+        .limit(2)
+    )
+    accounts = list(result.scalars().all())
+    if len(accounts) > 1:
+        # A race of an older release. The oldest account is the one that every request uses from now on.
+        # Legs on the other account never pair and never reach the Processing card, so say it loudly.
+        logger.error(
+            "A user holds more than one Processing account; the oldest is used",
+            user_id=str(user_id),
+            account_ids=[str(account.id) for account in accounts],
+        )
+    return accounts[0] if accounts else None
 
 
 async def find_transfer_pairs(
@@ -107,8 +136,10 @@ async def find_transfer_pairs(
     Returns:
         List of TransferPair objects with confidence >= threshold
     """
-    # Get Processing account
-    processing_account = await get_or_create_processing_account(db, user_id, currency=currency)
+    # Get Processing account. Without one, the user has no leg to pair.
+    processing_account = await find_processing_account(db, user_id)
+    if processing_account is None:
+        return []
 
     # Find all journal entries involving Processing account
     result = await db.execute(
@@ -310,7 +341,8 @@ async def _create_transfer_entry(
         db,
         user_id=user_id,
         entry_date=txn_date,
-        memo=f"Transfer {direction}: {description}",
+        # The description of a transaction can use the whole column. The prefix must not overflow it.
+        memo=f"Transfer {direction}: {description}"[:_MEMO_MAX_LENGTH],
         entry=entry,
         base_currency=processing_currency,
         source_id=source_id,
@@ -333,7 +365,9 @@ async def get_processing_balance(
     Returns:
         Processing account balance (Decimal)
     """
-    processing_account = await get_or_create_processing_account(db, user_id, currency=currency)
+    processing_account = await find_processing_account(db, user_id)
+    if processing_account is None:
+        return Decimal("0")
 
     # Get all journal lines for Processing account
     result = await db.execute(
@@ -371,7 +405,9 @@ async def get_unpaired_transfers(
         List of dicts with keys: entry_id, direction, amount, date, description
     """
     _ = days_threshold
-    processing_account = await get_or_create_processing_account(db, user_id, currency=currency)
+    processing_account = await find_processing_account(db, user_id)
+    if processing_account is None:
+        return []
     # Get all journal lines for Processing account
     result = await db.execute(
         select(JournalLine, JournalEntry)
@@ -406,7 +442,9 @@ async def list_processing_transfer_legs(
     *,
     currency: str,
 ) -> list[dict]:
-    processing_account = await get_or_create_processing_account(db, user_id, currency=currency)
+    processing_account = await find_processing_account(db, user_id)
+    if processing_account is None:
+        return []
 
     result = await db.execute(
         select(JournalEntry)

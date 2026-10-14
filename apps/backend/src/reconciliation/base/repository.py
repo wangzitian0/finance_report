@@ -31,4 +31,11 @@ class ReconciliationRepository(Protocol):
         """Serialize disposition selection and return an existing active winner."""
         ...
 
+    async def claim_transaction_for_decision(self, txn_id: UUID) -> ReconciliationMatch | None:
+        """Serialize disposition selection and return the match that owns the row for a person's decision.
+
+        A rejected suggestion is history and does not own the row.
+        """
+        ...
+
     async def add_match(self, match: ReconciliationMatch) -> None: ...

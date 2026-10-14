@@ -1,14 +1,24 @@
 """Account management service."""
 
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import Currency
+from src.database import create_session_maker_from_db
 from src.ledger.base.validators import ValidationError
 from src.ledger.orm.account import Account, AccountType
 from src.schemas.account import AccountCreate, AccountUpdate
+
+#: Returns the account that a lookup names, or ``None``. It runs on the session that it gets.
+AccountFinder = Callable[[AsyncSession], Awaitable[Account | None]]
+
+_ACCOUNT_CREATION_LOCK = text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))")
+
+#: How long the own transaction waits for any lock. The lock of another creator lasts milliseconds.
+ACCOUNT_CREATION_LOCK_TIMEOUT = "5s"
 
 
 class AccountServiceError(Exception):
@@ -50,6 +60,70 @@ async def create_account(db: AsyncSession, user_id: UUID, account_data: AccountC
     await db.flush()
     await db.refresh(account)
     return account
+
+
+async def find_or_create_account(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    find: AccountFinder,
+    build: Callable[[], Account],
+) -> Account:
+    """Return the account that ``find`` names. When none exists, create it so that the creation commits at once.
+
+    No unique index protects a default account or the Processing account. Several requests of one user can
+    create the same account together, for example when a user uploads several statements at once. A second row
+    breaks the balances of the account and the netting of the Processing account.
+
+    The creation therefore runs in its own short transaction, under a lock that lasts a few milliseconds. The
+    new row is visible to every request at once. No request waits for the long transaction of another request.
+    A lock that lasted to the end of the caller's transaction would let two requests wait for each other (#2415).
+    The account stays when the caller rolls back. An account without entries changes no balance.
+
+    The own transaction cannot see a user row that the caller has not committed (the registration flow). Then
+    the caller's session creates the account under the same lock, because nobody else knows that user yet.
+    """
+    account = await find(db)
+    if account is not None:
+        return account
+    if await _ensure_in_own_transaction(db, user_id=user_id, find=find, build=build):
+        account = await find(db)
+        if account is not None:
+            return account
+    await db.execute(_ACCOUNT_CREATION_LOCK, {"key": f"account-creation:{user_id}"})
+    account = await find(db)
+    if account is None:
+        account = build()
+        db.add(account)
+        await db.flush()
+        await db.refresh(account)
+    return account
+
+
+async def _ensure_in_own_transaction(
+    db: AsyncSession, *, user_id: UUID, find: AccountFinder, build: Callable[[], Account]
+) -> bool:
+    """Create the account in a transaction of its own. ``False`` means that the caller has to create it."""
+    try:
+        session_maker = create_session_maker_from_db(db)
+    except RuntimeError:
+        return False
+    async with session_maker() as own, own.begin():
+        # The caller waits for this transaction. A lock that the caller holds would block it for good, and the
+        # database cannot see that cycle. The timeout turns that case into an error.
+        await own.execute(
+            text("SELECT set_config('lock_timeout', :timeout, true)"), {"timeout": ACCOUNT_CREATION_LOCK_TIMEOUT}
+        )
+        user_is_visible = (
+            await own.execute(text("SELECT 1 FROM users WHERE id = :user_id"), {"user_id": user_id})
+        ).first() is not None
+        if not user_is_visible:
+            return False
+        await own.execute(_ACCOUNT_CREATION_LOCK, {"key": f"account-creation:{user_id}"})
+        if await find(own) is None:
+            own.add(build())
+            await own.flush()
+        return True
 
 
 async def get_or_create_opening_balance_equity_account(

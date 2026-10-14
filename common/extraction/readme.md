@@ -150,9 +150,12 @@ without a usable suggestion posts to the general account of its direction, and i
 posts as a Processing transfer leg through reconciliation's `post_named_transfer_legs`, because it moves
 money between own accounts and the other side clears it. A loan principal posts to the liability
 `Loans Payable (CUR)`, and an investment trade posts to the asset `Investments (CUR)`, by a reviewed
-disposition. Their drafts are settled like the others. A leg posts only for a row in the effective base
-currency; a row in another currency, a row without a linked account and a row with an active match stay for
-a person. Posting clears the note "Economic review required: ..." once every row has an entry.
+disposition. These two accounts hold flows only: they have no opening balance and no cost basis. A sale
+credits `Investments (CUR)` with the proceeds, so the gain is not recorded and the account can show a credit
+balance. A loan instalment posts to `Loans Payable (CUR)` as principal. Their drafts are settled like the
+others. A leg posts only for a row in the effective base
+currency; a row in another currency, a row whose leg the ledger refuses and a row with an active match stay for
+a person. A statement without a linked account answers 400 before any row is read. Posting clears the note "Economic review required: ..." once every row has an entry.
 
 ## Upload-First Product Contract
 

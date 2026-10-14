@@ -682,3 +682,11 @@ class TestPairConfidenceEdgeCases:
             out_entry, in_entry, processing_account_id=None, description_scorer=score_description
         )
         assert breakdown["amount"] == 0.0
+
+
+def test_AC_reconciliation_named_transfer_legs_5_the_memo_limit_equals_the_column_size():
+    """AC-reconciliation.named-transfer-legs.5: the constant that bounds the memo is the size of the column."""
+    from src.ledger.extension import processing
+    from src.ledger.orm.journal import JournalEntry
+
+    assert processing._MEMO_MAX_LENGTH == JournalEntry.__table__.c.memo.type.length == 500

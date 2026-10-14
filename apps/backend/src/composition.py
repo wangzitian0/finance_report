@@ -50,6 +50,7 @@ from src.extraction import (
     classification_suggestions,
     effective_statement_transaction_filter,
     extraction_trace_policy_registry,
+    get_or_create_account,
     settle_drafts_after_posting,
     snapshot_currencies,
 )
@@ -152,40 +153,14 @@ async def _get_or_create_default_counter_account(
     *,
     name: str | None = None,
 ) -> Account:
-    expected_name = name or f"General {account_type.value.capitalize()} ({currency})"
-    cache = db.info.setdefault("_default_account_cache", {})
-    cache_key = (user_id, expected_name, account_type, currency)
-    if cache_key in cache:
-        return cache[cache_key]
-
-    result = await db.execute(
-        select(Account)
-        .where(
-            Account.user_id == user_id,
-            Account.type == account_type,
-            Account.currency == currency,
-            Account.name == expected_name,
-            Account.is_active == True,  # noqa: E712
-        )
-        .limit(1)
-    )
-    account = result.scalar_one_or_none()
-    if account is not None:
-        cache[cache_key] = account
-        return account
-
-    account = Account(
-        user_id=user_id,
-        name=expected_name,
-        type=account_type,
+    """The default counter account of a type and a currency. The classifier uses the same resolver (#2415)."""
+    return await get_or_create_account(
+        db,
+        name=name or f"General {account_type.value.capitalize()} ({currency})",
+        account_type=account_type,
         currency=currency,
-        is_active=True,
+        user_id=user_id,
     )
-    db.add(account)
-    await db.flush()
-    await db.refresh(account)
-    cache[cache_key] = account
-    return account
 
 
 def _statement_unmatched_txns_query(statement: StatementSummary, user_id: UUID):

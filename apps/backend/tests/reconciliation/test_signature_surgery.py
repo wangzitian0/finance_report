@@ -203,12 +203,13 @@ async def test_transfer_detection_surfaces_processing_currency_conflicts(monkeyp
         direction="OUT",
         amount=Decimal("25.00"),
         txn_date=date(2026, 1, 1),
-        currency="USD",
+        currency="SGD",
     )
     repository = SimpleNamespace(
         claim_transaction=AsyncMock(return_value=None),
         add_match=AsyncMock(),
     )
+    monkeypatch.setattr(transfer_detection, "get_effective_base_currency", AsyncMock(return_value="SGD"))
     monkeypatch.setattr(
         transfer_detection,
         "resolve_custody_account_id",
@@ -218,18 +219,18 @@ async def test_transfer_detection_surfaces_processing_currency_conflicts(monkeyp
         transfer_detection,
         "create_transfer_out_entry",
         AsyncMock(
-            side_effect=ProcessingCurrencyConflictError("Processing account currency is SGD; got transfer currency USD")
+            side_effect=ProcessingCurrencyConflictError("Processing account currency is USD; got transfer currency SGD")
         ),
     )
 
-    with pytest.raises(ProcessingCurrencyConflictError, match="Processing account currency is SGD"):
+    with pytest.raises(ProcessingCurrencyConflictError, match="Processing account currency is USD"):
         await transfer_detection.run_transfer_detection_phase(
             SimpleNamespace(),
             transactions=[transaction],
             matched_txn_ids=set(),
             repository=repository,
             user_id=uuid4(),
-            currency="USD",
+            currency="SGD",
         )
 
 
@@ -250,6 +251,7 @@ async def test_transfer_detection_logs_context_before_propagating(monkeypatch) -
     )
     failure = RuntimeError("ledger unavailable")
     log_exception = Mock()
+    monkeypatch.setattr(transfer_detection, "get_effective_base_currency", AsyncMock(return_value="SGD"))
     monkeypatch.setattr(transfer_detection, "resolve_custody_account_id", AsyncMock(return_value=uuid4()))
     monkeypatch.setattr(transfer_detection, "create_transfer_out_entry", AsyncMock(side_effect=failure))
     monkeypatch.setattr(transfer_detection.logger, "exception", log_exception)
@@ -273,19 +275,23 @@ async def test_transfer_detection_logs_context_before_propagating(monkeypatch) -
 
 @pytest.mark.asyncio
 async def test_transfer_detection_leaves_foreign_account_candidate_unmatched(monkeypatch) -> None:
-    """AC-reconciliation.signature-surgery.7: unsupported foreign legs remain candidates."""
+    """AC-reconciliation.signature-surgery.7: unsupported foreign legs remain candidates.
+
+    The row is in the base currency and its custody account is not. The ledger refuses the leg.
+    """
     transaction = SimpleNamespace(
         id=uuid4(),
         description="Transfer to USD savings",
         direction="OUT",
         amount=Decimal("25.00"),
         txn_date=date(2026, 1, 1),
-        currency="USD",
+        currency="SGD",
     )
     repository = SimpleNamespace(
         claim_transaction=AsyncMock(return_value=None),
         add_match=AsyncMock(),
     )
+    monkeypatch.setattr(transfer_detection, "get_effective_base_currency", AsyncMock(return_value="SGD"))
     monkeypatch.setattr(
         transfer_detection,
         "resolve_custody_account_id",

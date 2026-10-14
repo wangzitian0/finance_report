@@ -282,6 +282,7 @@ CONTRACT = PackageContract(
         "calculate_reconciliation_adjustment",
         "calculate_unrealized_fx_gains",
         "current_anchored_journal_entries",
+        "find_processing_account",
         "create_transfer_in_entry",
         "create_transfer_out_entry",
         "derive_confidence_tier",
@@ -528,6 +529,8 @@ CONTRACT = PackageContract(
         ac('AC-ledger.71.2', 'Processing-account creation is idempotent: repeated get_or_create calls return the same account. Was EPIC-015 AC15.1.2.', 'apps/backend/tests/ledger/test_processing_account.py::test_processing_account_idempotent'),
         ac('AC-ledger.71.3', 'The Processing account is a system account hidden from list_accounts (is_system=true). Was EPIC-015 AC15.1.3.', 'apps/backend/tests/ledger/test_processing_account.py::test_processing_account_hidden_from_list'),
         ac('AC-ledger.71.4', 'Each user gets their own isolated Processing account. Was EPIC-015 AC15.1.4.', 'apps/backend/tests/ledger/test_processing_account.py::test_processing_account_per_user'),
+        ac('AC-ledger.71.5', 'The Processing account and every default account of a user are created once, however many requests of that user create them together. The creation commits in its own short transaction under a lock that lasts milliseconds, so a second request neither waits for the open transaction of the first nor creates a second row, and two requests that create two accounts in opposite order never wait for each other. A user row that the caller has not committed (registration) gets the account in the transaction of the caller. The account stays when the caller rolls back. The own transaction waits at most five seconds for any lock, so a lock of the caller turns into an error and not into a hang.', 'apps/backend/tests/ledger/test_default_account_race.py::test_AC_ledger_71_5_a_second_request_neither_waits_for_the_open_transaction_nor_creates_a_row'),
+        ac('AC-ledger.71.6', 'A read never creates the Processing account. GET /accounts/processing/summary and /pending, get_processing_balance, get_unpaired_transfers, list_processing_transfer_legs and find_transfer_pairs answer zeros or empty lists for a user without the account. The first transfer leg creates it, in the base currency of that moment, so a view of the home page cannot fix the currency before a change of the base currency. Two accounts resolve to the oldest and the lookup logs an error that names both ids.', 'apps/backend/tests/ledger/test_processing_read_only.py::test_AC_ledger_71_6_a_page_view_creates_no_processing_account'),
         # ── group 72: Transfer entry creation (was EPIC-015 AC15.2.*) ──
         ac('AC-ledger.72.1', 'A transfer-OUT entry debits Processing and credits the source account (balanced double-entry); non-positive amounts and empty/whitespace descriptions are rejected. Was EPIC-015 AC15.2.1.', 'apps/backend/tests/ledger/test_processing_account.py::test_transfer_out_to_processing'),
         ac('AC-ledger.72.2', 'A transfer-IN entry debits the destination account and credits Processing (balanced double-entry); non-positive amounts and empty descriptions are rejected. Was EPIC-015 AC15.2.2.', 'apps/backend/tests/ledger/test_processing_account.py::test_transfer_in_from_processing'),
