@@ -1385,15 +1385,15 @@ async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:
     carry a classification row are never candidates again, so a re-run cannot
     rewrite or duplicate anything. A transaction that gets NO row is attempted
     again on the next run — deliberately: the answer may resolve under a better
-    model or a new policy version (the edit-tags → re-extract direction). Which
-    transactions get no row depends on the setting ``auto_accept_ai_suggestions``
-    (#2405). With the setting on, only a transaction without a readable answer
-    gets no row: an outage, a dropped batch, an answer that the parser cannot
-    read, a class outside the catalog, or a score of 0 on a transfer, a card
-    repayment, a loan or a trade. With the setting off, a P&L answer below the
-    review score (a tail) gets no row either. ``classified`` is the number of
-    candidates that got a row in this run. Entry point: the
-    /classifications/backfill router (#1546).
+    model or a new policy version (the edit-tags → re-extract direction).
+
+    The setting ``auto_accept_ai_suggestions`` (#2405) decides which transactions
+    get no row. With the setting on, these get no row: an outage, a dropped
+    batch, an answer that the parser cannot read, a class outside the catalog,
+    and a score of 0 on a transfer, a card repayment, a loan or a trade. With
+    the setting off, a P&L answer below the review score (a tail) gets no row
+    either. ``classified`` is the number of candidates that got a row in this
+    run. Entry point: the /classifications/backfill router (#1546).
     """
     candidates = (
         (await db.execute(_unclassified_transactions(user_id).order_by(AtomicTransaction.txn_date))).scalars().all()

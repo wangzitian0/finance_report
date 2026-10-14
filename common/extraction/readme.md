@@ -127,10 +127,11 @@ the setting `auto_accept_ai_suggestions` off. With the setting on, the classifie
 in flight. Each description is one JSON string. The model echoes the `index` of each row. Code maps the
 answer by that index. A different item count than rows, an index outside the batch or a repeated index
 drops the answer for that batch. A row without a proposal goes to review. An item that the parser cannot
-read is no proposal: a missing or blank class, a missing confidence, a confidence that is a word or a
-fraction below 1 (a scale from 0 to 1 is ambiguous), or a class outside the catalog. The parser reads case,
-spaces, hyphens, a percent sign and a decimal score. The call carries the id of
-the statement owner, so it uses the provider of that user. The echo does not prove that the model
+read is no proposal. These items are unreadable: a missing or blank class, a missing or negative
+confidence, a confidence that is a word, and a class outside the catalog. A fraction below 1 makes the
+whole batch no proposal, because a scale from 0 to 1 is ambiguous. The parser reads case, spaces, hyphens,
+a percent sign and a decimal score, also as a string. A number above 100 counts as 100. The call carries
+the id of the statement owner, so it uses the provider of that user. The echo does not prove that the model
 numbered by the prompt and not by its own output order; a swap with a valid count and valid indexes
 is the residual risk of this design.
 
@@ -175,12 +176,12 @@ and the default three statements. The system therefore decides every row that th
   60, a class whose account side contradicts the direction, and a loan principal or an investment trade
   below 60. The row keeps the class and the score of the model in `original_category` and
   `original_confidence`.
-- A row that the model did not answer gets no row and no general account. The statement waits and the next
-  pass classifies the row. This covers an outage, a dropped batch, an item that the parser cannot read, a
-  class outside the catalog, a score of 0 on a transfer, a card repayment, a loan or a trade, and every row
-  of a batch in which one confidence is a fraction below 1 (the model used the scale from 0 to 1). An outage
-  or a model that ignores the schema must not turn a statement into general entries. A dry run writes
-  nothing.
+- A row that the model did not answer gets no row and no general account. The statement waits, and the next
+  pass classifies the row. These cases are no answer: an outage or a dropped batch; an item that the parser
+  cannot read; a class outside the catalog; a score of 0 on a transfer, a card repayment, a loan or a trade;
+  every row of a batch in which one confidence is a fraction below 1 (the model used the scale from 0 to 1).
+  An outage, or a model that ignores the schema, must not turn a statement into general entries. A dry run
+  writes nothing.
 - A loan principal and an investment trade at the review score or above are applied to `Loans Payable (CUR)`
   and `Investments (CUR)` with an explicit intent. A transfer and a card repayment stay drafts at any score
   above 0, and the posting posts them as Processing legs (base currency only, enforce mode only). The leg has

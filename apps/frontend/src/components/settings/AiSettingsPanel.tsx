@@ -37,10 +37,7 @@ export default function AiSettingsPanel() {
     load: () => apiOperation("get_current_user_settings_users_me_settings_get"),
     save: (next, previous) =>
       apiOperation("patch_current_user_settings_users_me_settings_patch", { body: changedChoices(previous, next) }),
-    isEqual: (a, b) =>
-      a.enable_ai_reconciliation === b.enable_ai_reconciliation &&
-      a.enable_ai_classification === b.enable_ai_classification &&
-      a.auto_accept_ai_suggestions === b.auto_accept_ai_suggestions,
+    isEqual: (a, b) => CHOICES.every((key) => a[key] === b[key]),
     loadErrorMessage: "Failed to load AI settings",
     saveErrorMessage: "Failed to save AI settings",
   });
@@ -53,7 +50,7 @@ export default function AiSettingsPanel() {
     saved.auto_accept_ai_suggestions &&
     !saved.auto_accept_ai_suggestions_active;
 
-  const setField = (key: "enable_ai_reconciliation" | "enable_ai_classification" | "auto_accept_ai_suggestions", value: boolean) => {
+  const setField = (key: (typeof CHOICES)[number], value: boolean) => {
     setDraft((prev) => ({ ...(prev ?? DEFAULT_SETTINGS), [key]: value }));
   };
 
