@@ -5,9 +5,10 @@ transactions — the seed of the "edit tags → re-extract categories" capabilit
 Each transaction classifies under the policy in effect on its OWN txn_date, so
 this can never restate an already-covered period (the AC18.16.1 invariant). The
 pass is append-only and duplicate-free: already-classified transactions are
-never touched again; tail transactions (low-confidence / no-proposal) carry no
-row and are re-attempted on the next run BY DESIGN (re-extract semantics).
-Flag-gated by ``enable_ai_classification`` (+ the per-user override).
+never touched again; a transaction without a readable model answer carries no
+row and is re-attempted on the next run BY DESIGN (re-extract semantics). With
+the setting ``auto_accept_ai_suggestions`` off, a low-confidence answer carries
+no row either. Flag-gated by ``enable_ai_classification`` (+ the per-user override).
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ async def backfill_transaction_classifications(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> BackfillClassificationsResponse:
-    """Classify the caller's not-yet-classified transactions (duplicate-free; the tail is re-attempted)."""
+    """Classify the caller's not-yet-classified transactions (duplicate-free; a transaction without a row is re-attempted)."""
     result = await backfill_classifications(db, user_id)
     await db.commit()
     return BackfillClassificationsResponse(classified=result["classified"], candidates=result["candidates"])

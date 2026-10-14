@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,6 +68,7 @@ async def post_named_transfer_legs(
     user_id: UUID,
     named: Sequence[NamedTransfer],
     repository: ReconciliationRepository | None = None,
+    accepted_by: Literal["user", "system"] = "user",
 ) -> list[ReconciliationMatch]:
     """Post a Processing leg for each named transaction and return the matches that it created.
 
@@ -75,7 +77,8 @@ async def post_named_transfer_legs(
     linked account, when its currency is not the effective base currency, or when the Processing account
     of the user holds another currency. The caller owns the database transaction.
 
-    The match is ``accepted`` because a person asked for it. Its score is the AI score, and its
+    The match is ``accepted`` when a person asked for it or chose the class. It is ``auto_accepted`` when the
+    system accepted the suggestion for a user who allows that (#2405). Its score is the AI score, and its
     breakdown records the class that the AI named. When the user chose the class, the score is 100 and
     the breakdown says so. Each leg has its own savepoint, so a failure in one leg leaves the others.
     """
@@ -114,7 +117,10 @@ async def post_named_transfer_legs(
                     user_id=user_id,
                     txn=txn,
                     custody_account_id=custody_account_id,
-                    status=ReconciliationStatus.ACCEPTED,
+                    # A person decided when the person asked for the leg or chose the class.
+                    status=ReconciliationStatus.ACCEPTED
+                    if accepted_by == "user" or item.decided_by_user
+                    else ReconciliationStatus.AUTO_ACCEPTED,
                     match_score=100 if item.decided_by_user else item.score,
                     extra_breakdown=(
                         {"user_category": item.category}

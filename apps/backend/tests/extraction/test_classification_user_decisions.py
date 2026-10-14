@@ -195,6 +195,7 @@ async def test_AC_extraction_classification_hardening_7_the_reader_reports_a_cor
     assert (after.category, after.corrected) == ("GROCERIES", True)
 
 
+@pytest.mark.usefixtures("review_path")
 async def test_AC_extraction_classification_hardening_3_a_pair_left_by_an_earlier_release_is_repaired(db, test_user):
     """AC-extraction.classification-hardening.3: a row that has both a v1 and a v2 row keeps only the newer one."""
     txn = await _txn(db, test_user)
@@ -263,6 +264,7 @@ async def test_AC_extraction_classification_hardening_3_the_sweep_leaves_rows_of
 async def test_AC_extraction_classification_hardening_5_the_user_context_is_cleared_after_every_pass(db, test_user):
     """AC-extraction.classification-hardening.5: the user id must not leak into the next call of the same task."""
     txn = await _txn(db, test_user)
+    unasked = await _txn(db, test_user)  # a row without a row is asked, so the failing provider runs
 
     async def failing(_transactions, _policy):
         raise RuntimeError("provider down")
@@ -270,5 +272,5 @@ async def test_AC_extraction_classification_hardening_5_the_user_context_is_clea
     await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=await _propose("SHOPPING", 75))
     assert tc._CLASSIFICATION_USER.get() is None
     with pytest.raises(RuntimeError):
-        await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=failing)
+        await classify_transactions(db, test_user.id, [txn, unasked], policy=V2, proposer=failing)
     assert tc._CLASSIFICATION_USER.get() is None

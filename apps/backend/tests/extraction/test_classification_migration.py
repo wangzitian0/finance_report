@@ -241,6 +241,7 @@ async def test_AC18_16_3_flag_off_routes_unknown_meaning_to_review(db, test_user
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("review_path")
 async def test_AC18_16_4_backfill_is_idempotent_dated_append_only(db, test_user, enabled_flag, stub_proposer):
     """AC-extraction.1816.4: AC18.16.4: backfilling historical transactions classifies once under the
     effective policy; a second run is a no-op (append-only, never rewrites)."""

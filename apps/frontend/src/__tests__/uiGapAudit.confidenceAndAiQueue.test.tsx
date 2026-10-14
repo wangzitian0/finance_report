@@ -339,12 +339,16 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
         return {
           enable_ai_reconciliation: true,
           enable_ai_classification: false,
+          auto_accept_ai_suggestions: true,
+          auto_accept_ai_suggestions_active: false,
         } as any;
       }
       if (op === "patch_current_user_settings_users_me_settings_patch") {
         return {
           enable_ai_reconciliation: true,
           enable_ai_classification: true,
+          auto_accept_ai_suggestions: true,
+          auto_accept_ai_suggestions_active: true,
         } as any;
       }
       return {} as any;
@@ -366,10 +370,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
 
     await waitFor(() =>
       expect(mockedApiOperation).toHaveBeenCalledWith("patch_current_user_settings_users_me_settings_patch", {
-        body: {
-          enable_ai_reconciliation: true,
-          enable_ai_classification: true,
-        },
+        body: { enable_ai_classification: true },
       }),
     );
   });
@@ -405,6 +406,8 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
         return {
           enable_ai_reconciliation: false,
           enable_ai_classification: true,
+          auto_accept_ai_suggestions: true,
+          auto_accept_ai_suggestions_active: true,
         } as any;
       }
       return {} as any;
@@ -435,6 +438,8 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
         return {
           enable_ai_reconciliation: false,
           enable_ai_classification: true,
+          auto_accept_ai_suggestions: true,
+          auto_accept_ai_suggestions_active: true,
         } as any;
       }
       if (op === "patch_current_user_settings_users_me_settings_patch") {
@@ -453,10 +458,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
 
     await waitFor(() =>
       expect(mockedApiOperation).toHaveBeenCalledWith("patch_current_user_settings_users_me_settings_patch", {
-        body: {
-          enable_ai_reconciliation: true,
-          enable_ai_classification: true,
-        },
+        body: { enable_ai_reconciliation: true },
       }),
     );
     expect(await screen.findByText("update failed")).toBeInTheDocument();

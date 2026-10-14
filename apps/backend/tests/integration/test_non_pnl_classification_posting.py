@@ -75,6 +75,7 @@ async def _load_statement(db, user_id, monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("review_path")
 async def test_AC_extraction_non_pnl_categories_5_unmatched_transfer_waits_for_review(
     db, test_user, monkeypatch
 ) -> None:
@@ -110,6 +111,7 @@ async def test_AC_extraction_non_pnl_categories_5_unmatched_transfer_waits_for_r
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("review_path")
 async def test_AC_extraction_non_pnl_categories_5_matched_transfer_stays_covered(db, test_user, monkeypatch) -> None:
     """AC-extraction.non-pnl-categories.5: a matched TRANSFER row posts nothing; the ordinary row posts."""
     statement, transfer_ids = await _load_statement(db, test_user.id, monkeypatch)

@@ -199,6 +199,16 @@ def disable_external_market_data_fetch(monkeypatch):
     monkeypatch.setattr(settings, "market_data_lazy_fetch_enabled", False, raising=False)
 
 
+@pytest.fixture
+def review_path(monkeypatch):
+    """The review path of AI classification: drafts for the review band, no general-account fallback.
+
+    The code default of ``auto_accept_ai_suggestions`` is on, and the suite runs with it on. A test that
+    describes the review path (the setting off) asks for this fixture by name.
+    """
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", False, raising=False)
+
+
 # --- Advisor app-remainder read ports (#1671 Wave B) ---
 @pytest.fixture(autouse=True)
 def wire_advisor_app_reads():

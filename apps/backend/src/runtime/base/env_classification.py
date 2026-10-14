@@ -49,6 +49,7 @@ NON_DEPENDENCY_ENV_FIELDS: dict[str, str] = {
     # ── feature — on/off toggles ──
     "enable_ai_reconciliation": "feature",
     "enable_ai_classification": "feature",
+    "auto_accept_ai_suggestions": "feature",
     "enable_storage_sweep": "feature",
     "market_data_lazy_fetch_enabled": "feature",
     "statement_disposition_mode": "feature",

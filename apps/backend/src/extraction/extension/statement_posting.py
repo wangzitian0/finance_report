@@ -53,8 +53,12 @@ from src.extraction.base.validation import (
     HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD,
     STATEMENT_RESOLVED_TRANSACTIONS_ATTR,
 )
+from src.extraction.extension.ai_settings import auto_accept_enabled
 from src.extraction.extension.custody_binding import is_bank_custody_source, resolve_bank_custody_account
-from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
+from src.extraction.extension.disposition_policy import (
+    current_statement_disposition_policy_snapshot,
+    statement_disposition_policy_for_user,
+)
 from src.extraction.extension.disposition_trace import emit_disposition_trace_records
 from src.extraction.extension.review_queue import FxRateProvider, create_entry_from_txn
 from src.extraction.extension.reviewed_statement_envelope import get_current_statement_extraction_result
@@ -92,6 +96,10 @@ logger = get_logger(__name__)
 # never consults worker-process startup state.
 TransferExclusionsProvider = Callable[[AsyncSession, Sequence[UUID]], Awaitable[set[UUID]]]
 TraceEmitterFactory = Callable[[AsyncSession], TraceEmitter]
+#: Posts the rows that the AI named a transfer or a card repayment as Processing legs, for a user who lets the
+#: system accept the suggestions (#2405). It returns the number of legs. Reconciliation owns the leg, so
+#: composition supplies this port.
+NamedTransferPoster = Callable[[AsyncSession, UUID, Sequence[AtomicTransaction]], Awaitable[int]]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -103,6 +111,7 @@ class StatementPostingDependencies:
     fx_rate_error: type[Exception]
     trace_emitter_factory: TraceEmitterFactory
     disposition_mode: DispositionMode
+    post_named_transfers: NamedTransferPoster | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -202,8 +211,19 @@ async def auto_create_posted_entries_for_statement(
     # Classification proposes P&L meaning. Disposition is the sole authority that
     # can turn that proposal plus reconciliation/account context into a command.
     await classify_by_effective_policy(db, user_id, txns_to_post)
+    legs_posted = 0
+    if (
+        dependencies.post_named_transfers is not None
+        and dependencies.disposition_mode is DispositionMode.ENFORCE
+        and await auto_accept_enabled(db, user_id)
+    ):
+        # A transfer or a card repayment posts as a Processing leg. The rows are then covered, as if
+        # reconciliation had matched them, so the plan below does not post them a second time. A leg is a
+        # command: only the mode that applies commands posts it.
+        legs_posted = await dependencies.post_named_transfers(db, user_id, txns_to_post)
+        transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
     base_currency = await get_effective_base_currency(db)
-    policy = DispositionPolicy()
+    policy = await statement_disposition_policy_for_user(db, user_id)
     policy_snapshot = current_statement_disposition_policy_snapshot(
         mode=dependencies.disposition_mode,
         policy=policy,
@@ -227,7 +247,9 @@ async def auto_create_posted_entries_for_statement(
             counter_account = accounts_by_id.get(classification.account_id)
             if counter_account is None:
                 raise ValueError("Applied classification references a missing account")
-            proposal = _applied_proposal(classification, classification_rule, counter_account)
+            proposal = _applied_proposal(
+                classification, classification_rule, counter_account, covered_by_match=txn.id in transfer_txn_ids
+            )
         elif txn.id in transfer_txn_ids:
             proposal = IntentProposal(
                 schema_version="1",
@@ -303,15 +325,16 @@ async def auto_create_posted_entries_for_statement(
         normalized_reasons = tuple(sorted(set(review_reasons)))
         statement.validation_error = f"{ECONOMIC_REVIEW_NOTICE} {', '.join(normalized_reasons)}"[:500]
         await db.flush()
+        # The legs are committed entries. The count tells the truth about them, also when the statement waits.
         return StatementPostingOutcome(
             status=StatementPostingStatus.REVIEW_REQUIRED,
-            created_count=0,
+            created_count=legs_posted,
             review_reasons=normalized_reasons,
         )
 
-    created = 0
+    created = legs_posted
     postings: list[tuple[JournalEntry, AtomicTransaction]] = []
-    for txn, _proposal, decision, counter_account, _transaction in planned:
+    for txn, proposal, decision, counter_account, _transaction in planned:
         if decision.status is DispositionStatus.ALREADY_COVERED:
             continue
         if not decision.should_apply:
@@ -326,7 +349,12 @@ async def auto_create_posted_entries_for_statement(
             user_id=user_id,
             base_currency=base_currency,
             auto_post=True,
-            source_type=JournalEntrySourceType.AUTO_PARSED,
+            # The decision of a person gets the confidence tier of a person.
+            source_type=(
+                JournalEntrySourceType.USER_CONFIRMED
+                if proposal is not None and proposal.origin is IntentProposalOrigin.MANUAL_ADJUDICATION
+                else JournalEntrySourceType.AUTO_PARSED
+            ),
             preloaded_bank_account=preloaded_bank_account,
             preloaded_statement=statement,
             fx_rate_provider=dependencies.fx_rate_provider,
@@ -408,15 +436,35 @@ def _applied_proposal(
     classification: TransactionClassification,
     classification_rule: ClassificationRule,
     counter_account: Account,
+    *,
+    covered_by_match: bool = False,
 ) -> IntentProposal:
-    """The intent proposal that an applied classification row stands for."""
+    """The intent proposal that an applied classification row stands for.
+
+    A row that a person corrected is the decision of that person, not of the model (#2405). An accepted match
+    already covers its money. A manual adjudication would bypass that fact and post the movement twice, so a
+    covered row keeps the machine origin and the disposition policy keeps the row covered. The correction then
+    does not change the ledger. The product has no path to void an accepted match yet (#2423).
+    """
+    corrected_by_user = (classification.tags or {}).get("corrected_by_user") is True
+    if corrected_by_user and covered_by_match:
+        logger.warning(
+            "A correction of the user conflicts with an accepted match; the match stays",
+            classification_id=str(classification.id),
+        )
+        corrected_by_user = False
     return IntentProposal(
         schema_version="1",
         policy_version=str(classification.rule_version_id),
-        origin=_classification_proposal_origin(classification_rule.rule_type),
+        origin=(
+            IntentProposalOrigin.MANUAL_ADJUDICATION
+            if corrected_by_user
+            else _classification_proposal_origin(classification_rule.rule_type)
+        ),
         intent=_classification_intent(classification, counter_account),
         category=str((classification.tags or {}).get("category") or "") or None,
-        confidence=Decimal(classification.confidence_score or 0) / Decimal("100"),
+        # A manual adjudication claims no machine confidence.
+        confidence=None if corrected_by_user else Decimal(classification.confidence_score or 0) / Decimal("100"),
         evidence=(str(classification.id),),
     )
 
@@ -426,6 +474,7 @@ async def applied_rows_the_policy_accepts(
     transactions: Sequence[AtomicTransaction],
     *,
     mode: DispositionMode,
+    policy: DispositionPolicy | None = None,
 ) -> set[UUID]:
     """Ids of the transactions that the posting will post from their applied classification (#2419).
 
@@ -434,7 +483,7 @@ async def applied_rows_the_policy_accepts(
     A transaction without an applied row, or whose row the policy refuses, is not in the result.
     """
     classification_by_txn_id, accounts_by_id = await _applied_classifications(db, [txn.id for txn in transactions])
-    policy = DispositionPolicy()
+    policy = policy or DispositionPolicy()
     accepted: set[UUID] = set()
     for txn in transactions:
         pair = classification_by_txn_id.get(txn.id)
@@ -712,6 +761,4 @@ async def try_auto_approve_high_confidence_statement(
     # account), and its opening balance still needs posting (#1833, PR #1842
     # review). Idempotency lives in try_auto_post_statement_opening_balance
     # in the per-account initialization evidence and its database lock.
-    if outcome.status is StatementPostingStatus.REVIEW_REQUIRED:
-        return 0
     return outcome.created_count

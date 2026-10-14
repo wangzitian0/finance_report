@@ -99,6 +99,7 @@ from src.extraction.base.validation import (
     detect_balance_chain_break,
     validate_balance,
 )
+from src.extraction.extension.ai_settings import auto_accept_preference, effective_auto_accept, effective_classification
 from src.extraction.extension.brokerage_positions import (
     BrokeragePositionImportService,
     looks_like_brokerage_document,
@@ -128,7 +129,10 @@ from src.extraction.extension.deduplication import (
     DeduplicationService,
     dual_write_layer2,
 )
-from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
+from src.extraction.extension.disposition_policy import (
+    current_statement_disposition_policy_snapshot,
+    statement_disposition_policy_for_user,
+)
 from src.extraction.extension.disposition_trace import (
     build_disposition_trace_records,
     emit_disposition_trace_records,
@@ -204,7 +208,10 @@ from src.extraction.extension.transaction_classification import (
     SuggestionCorrectionError,
     apply_suggestion_feedback,
     backfill_classifications,
+    balance_sheet_booking,
     classification_suggestions,
+    classify_by_effective_policy,
+    general_account_name,
     settle_drafts_after_posting,
 )
 from src.extraction.extension.transaction_membership import effective_statement_transaction_filter
@@ -318,9 +325,16 @@ __all__ = [
     "ClassificationSuggestion",
     "SuggestionCorrectionError",
     "apply_suggestion_feedback",
+    "auto_accept_preference",
     "backfill_classifications",
+    "balance_sheet_booking",
     "classification_suggestions",
+    "classify_by_effective_policy",
+    "effective_auto_accept",
+    "effective_classification",
+    "general_account_name",
     "settle_drafts_after_posting",
+    "statement_disposition_policy_for_user",
     "build_csv_mapping_prompt",
     "build_disposition_trace_records",
     "build_statement_ingestion_use_case",

@@ -5,8 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 interface UseSettingsFormOptions<T> {
   /** Load the persisted value (on mount and on `reload`). */
   load: () => Promise<T>;
-  /** Persist the current draft; returns the new persisted value. */
-  save: (draft: T) => Promise<T>;
+  /** Persist the current draft; returns the new persisted value. `saved` is the value that the draft started from. */
+  save: (draft: T, saved: T | null) => Promise<T>;
   /** Dirty comparison; defaults to identity (`saved !== draft`). */
   isEqual?: (saved: T, draft: T) => boolean;
   loadErrorMessage?: string;
@@ -69,7 +69,7 @@ export function useSettingsForm<T>({
     setSubmitting(true);
     setError(null);
     try {
-      const updated = await saveRef.current(draft);
+      const updated = await saveRef.current(draft, saved);
       setSaved(updated);
       setDraft(updated);
       return updated;
@@ -79,7 +79,7 @@ export function useSettingsForm<T>({
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, isDirty, draft, saveErrorMessage]);
+  }, [submitting, isDirty, draft, saved, saveErrorMessage]);
 
   const reset = useCallback(() => {
     setDraft(saved);

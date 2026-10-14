@@ -22,6 +22,8 @@ async def test_ac18_5_5_get_ai_settings_returns_config_defaults(
     assert response.json() == {
         "enable_ai_reconciliation": settings.enable_ai_reconciliation,
         "enable_ai_classification": settings.enable_ai_classification,
+        "auto_accept_ai_suggestions": True,
+        "auto_accept_ai_suggestions_active": settings.auto_accept_ai_suggestions and settings.enable_ai_classification,
     }
 
 
@@ -35,11 +37,17 @@ async def test_AC_extraction_ai_classification_default_1_new_user_settings_show_
     code_defaults = Settings(_env_file=None)
     monkeypatch.setattr(settings, "enable_ai_classification", code_defaults.enable_ai_classification)
     monkeypatch.setattr(settings, "enable_ai_reconciliation", code_defaults.enable_ai_reconciliation)
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", code_defaults.auto_accept_ai_suggestions)
 
     response = await client.get("/users/me/settings")
 
     assert response.status_code == 200
-    assert response.json() == {"enable_ai_reconciliation": False, "enable_ai_classification": True}
+    assert response.json() == {
+        "enable_ai_reconciliation": False,
+        "enable_ai_classification": True,
+        "auto_accept_ai_suggestions": True,
+        "auto_accept_ai_suggestions_active": True,
+    }
 
 
 async def test_ac18_5_5_patch_ai_settings_persists_user_overrides(
@@ -54,14 +62,24 @@ async def test_ac18_5_5_patch_ai_settings_persists_user_overrides(
     )
 
     assert response.status_code == 200
-    assert response.json() == {"enable_ai_reconciliation": True, "enable_ai_classification": True}
+    assert response.json() == {
+        "enable_ai_reconciliation": True,
+        "enable_ai_classification": True,
+        "auto_accept_ai_suggestions": True,
+        "auto_accept_ai_suggestions_active": settings.auto_accept_ai_suggestions,
+    }
 
     await db.refresh(test_user)
     assert test_user.ai_settings == {"enable_ai_reconciliation": True, "enable_ai_classification": True}
 
     followup = await client.get("/users/me/settings")
     assert followup.status_code == 200
-    assert followup.json() == {"enable_ai_reconciliation": True, "enable_ai_classification": True}
+    assert followup.json() == {
+        "enable_ai_reconciliation": True,
+        "enable_ai_classification": True,
+        "auto_accept_ai_suggestions": True,
+        "auto_accept_ai_suggestions_active": settings.auto_accept_ai_suggestions,
+    }
 
 
 async def test_ac18_5_5_patch_ai_settings_preserves_unspecified_values(
@@ -73,7 +91,105 @@ async def test_ac18_5_5_patch_ai_settings_preserves_unspecified_values(
 
     second = await client.patch("/users/me/settings", json={"enable_ai_classification": True})
     assert second.status_code == 200
-    assert second.json() == {"enable_ai_reconciliation": True, "enable_ai_classification": True}
+    assert second.json() == {
+        "enable_ai_reconciliation": True,
+        "enable_ai_classification": True,
+        "auto_accept_ai_suggestions": True,
+        "auto_accept_ai_suggestions_active": settings.auto_accept_ai_suggestions,
+    }
+
+
+async def test_AC_extraction_auto_accept_1_the_code_default_is_on_and_a_user_can_turn_it_off(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-extraction.auto-accept.1: the system accepts the AI suggestions unless the user says no."""
+    monkeypatch.delenv("AUTO_ACCEPT_AI_SUGGESTIONS", raising=False)
+    assert Settings(_env_file=None).auto_accept_ai_suggestions is True
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", True)
+
+    default = await client.get("/users/me/settings")
+    turned_off = await client.patch("/users/me/settings", json={"auto_accept_ai_suggestions": False})
+    followup = await client.get("/users/me/settings")
+
+    assert default.json()["auto_accept_ai_suggestions"] is True
+    assert turned_off.status_code == 200
+    assert turned_off.json()["auto_accept_ai_suggestions"] is False
+    assert followup.json()["auto_accept_ai_suggestions"] is False
+    await db.refresh(test_user)
+    assert test_user.ai_settings == {"auto_accept_ai_suggestions": False}
+
+
+async def test_AC_extraction_auto_accept_1_the_settings_show_the_choice_and_the_value_that_the_system_uses(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-extraction.auto-accept.1: GET shows the stored choice and, apart from it, the value in use.
+
+    The operator flag is a ceiling, and the setting needs AI classification. Neither one changes the choice.
+    """
+    cases = [
+        # (operator flag, stored settings, choice, in use)
+        ("operator flag off", False, {"auto_accept_ai_suggestions": True}, True, False),
+        (
+            "classification off",
+            True,
+            {"auto_accept_ai_suggestions": True, "enable_ai_classification": False},
+            True,
+            False,
+        ),
+        ("no stored choice, classification off", True, {"enable_ai_classification": False}, True, False),
+        ("both on", True, {"auto_accept_ai_suggestions": True}, True, True),
+        ("no stored choice", True, {}, True, True),
+        ("user turned it off", True, {"auto_accept_ai_suggestions": False}, False, False),
+    ]
+    seen = {}
+    for label, operator_flag, stored, _choice, _in_use in cases:
+        monkeypatch.setattr(settings, "auto_accept_ai_suggestions", operator_flag)
+        test_user.ai_settings = stored
+        await db.commit()
+        body = (await client.get("/users/me/settings")).json()
+        seen[label] = (body["auto_accept_ai_suggestions"], body["auto_accept_ai_suggestions_active"])
+
+    assert seen == {label: (choice, in_use) for label, _flag, _stored, choice, in_use in cases}
+
+
+async def test_AC_extraction_auto_accept_1_a_save_of_the_panel_never_stores_a_choice_that_the_user_did_not_make(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-extraction.auto-accept.1: the settings panel saves what GET shows, so GET must show the choice.
+
+    A user who turned AI classification off never chose to turn the automatic acceptance off. The panel reads the
+    three editable values and saves them all. The saved value of the automatic acceptance must stay on, so
+    that the user gets it back when AI classification is on again.
+    """
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", True)
+    test_user.ai_settings = {"enable_ai_classification": False}
+    await db.commit()
+
+    shown = (await client.get("/users/me/settings")).json()
+    editable = {
+        key: shown[key]
+        for key in ("enable_ai_reconciliation", "enable_ai_classification", "auto_accept_ai_suggestions")
+    }
+    editable["enable_ai_reconciliation"] = True
+    first_save = await client.patch("/users/me/settings", json=editable)
+    turned_on = await client.patch("/users/me/settings", json={**editable, "enable_ai_classification": True})
+
+    assert first_save.status_code == 200
+    assert first_save.json()["auto_accept_ai_suggestions"] is True
+    assert first_save.json()["auto_accept_ai_suggestions_active"] is False
+    assert turned_on.json()["auto_accept_ai_suggestions"] is True
+    assert turned_on.json()["auto_accept_ai_suggestions_active"] is True
+    await db.refresh(test_user)
+    assert test_user.ai_settings["auto_accept_ai_suggestions"] is True
 
 
 async def test_ac18_5_5_get_ai_settings_returns_404_for_missing_user(
@@ -128,4 +244,10 @@ async def test_ac18_5_5_get_ai_settings_reflects_persisted_overrides(
 
     response = await client.get("/users/me/settings")
     assert response.status_code == 200
-    assert response.json() == {"enable_ai_reconciliation": True, "enable_ai_classification": False}
+    assert response.json() == {
+        "enable_ai_reconciliation": True,
+        "enable_ai_classification": False,
+        "auto_accept_ai_suggestions": True,
+        # With AI classification off there is nothing to accept, so the value in use is off. The choice stays on.
+        "auto_accept_ai_suggestions_active": False,
+    }

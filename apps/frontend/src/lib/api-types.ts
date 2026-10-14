@@ -286,7 +286,7 @@ export interface paths {
         get?: never; put?: never;
         /**
          * Backfill Transaction Classifications
-         * @description Classify the caller's not-yet-classified transactions (duplicate-free; the tail is re-attempted).
+         * @description Classify the caller's not-yet-classified transactions (duplicate-free; a transaction without a row is re-attempted).
          */
         post: operations["backfill_transaction_classifications_classifications_backfill_post"];
         delete?: never; options?: never; head?: never; patch?: never; trace?: never;
@@ -6024,6 +6024,10 @@ export interface components {
          * @description Effective AI feature settings for the current user.
          */
         UserAiSettingsResponse: {
+            /** Auto Accept Ai Suggestions */
+            auto_accept_ai_suggestions: boolean;
+            /** Auto Accept Ai Suggestions Active */
+            auto_accept_ai_suggestions_active: boolean;
             /** Enable Ai Classification */
             enable_ai_classification: boolean;
             /** Enable Ai Reconciliation */
@@ -6034,6 +6038,8 @@ export interface components {
          * @description AI feature flag settings that can be overridden per user.
          */
         UserAiSettingsUpdate: {
+            /** Auto Accept Ai Suggestions */
+            auto_accept_ai_suggestions?: boolean | null;
             /** Enable Ai Classification */
             enable_ai_classification?: boolean | null;
             /** Enable Ai Reconciliation */

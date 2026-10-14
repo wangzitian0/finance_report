@@ -691,6 +691,18 @@ class Settings(BaseSettings):
         validation_alias="ENABLE_AI_CLASSIFICATION",
         json_schema_extra={"group": "Feature Flags"},
     )
+    auto_accept_ai_suggestions: bool = Field(
+        default=True,
+        description=(
+            "Post every row of a statement without a person: the system accepts the AI suggestions at "
+            "or above the review score, and a general account takes a row that the AI could not place "
+            "(default true). A user can turn it off in the AI settings. Set false to turn it off for all "
+            "users: this flag is a ceiling over the setting of each user. A compose file that does not set "
+            "this variable keeps the code default. Needs enable_ai_classification."
+        ),
+        validation_alias="AUTO_ACCEPT_AI_SUGGESTIONS",
+        json_schema_extra={"group": "Feature Flags"},
+    )
     statement_disposition_mode: Literal["off", "observe", "enforce"] = Field(
         default="enforce",
         validation_alias="STATEMENT_DISPOSITION_MODE",

@@ -30,6 +30,7 @@ def stub_proposer(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("review_path")
 async def test_AC18_17_2_backfill_endpoint_classifies_then_is_idempotent(
     client: AsyncClient, db, test_user, enabled_flag, stub_proposer
 ):
@@ -69,6 +70,7 @@ async def test_AC18_17_2_backfill_endpoint_is_flag_gated(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("review_path")
 async def test_AC18_17_2_tail_txns_are_reattempted_without_duplication(
     client: AsyncClient, db, test_user, enabled_flag, monkeypatch
 ):
@@ -90,3 +92,133 @@ async def test_AC18_17_2_tail_txns_are_reattempted_without_duplication(
 
     rows = (await db.execute(select(TransactionClassification))).scalars().all()
     assert rows == []
+
+
+def _answers(monkeypatch, category: str | None, confidence: int = 70) -> None:
+    async def proposer(transactions, policy):
+        if category is None:
+            return [None for _ in transactions]
+        return [CategoryProposal(category=category, confidence=confidence) for _ in transactions]
+
+    monkeypatch.setattr("src.extraction.extension.transaction_classification.propose_categories", proposer)
+
+
+@pytest.mark.asyncio
+async def test_AC_extraction_auto_accept_11_backfill_counts_the_rows_it_wrote_and_does_not_retry_them(
+    client: AsyncClient, db, test_user, enabled_flag, monkeypatch
+):
+    """AC-extraction.auto-accept.11: with the setting on, a low score gets a row on the general account.
+
+    The row counts in `classified`, and the next run has no candidate left. A transfer draft counts too.
+    """
+    from src.ledger import Account
+
+    low = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="Mystery payment")
+    await db.commit()
+    _answers(monkeypatch, "DINING", 10)
+
+    first = await client.post("/classifications/backfill")
+    second = await client.post("/classifications/backfill")
+
+    assert first.json() == {"classified": 1, "candidates": 1}
+    assert second.json() == {"classified": 0, "candidates": 0}
+    row = (await db.execute(select(TransactionClassification))).scalar_one()
+    assert row.atomic_txn_id == low.id
+    assert (await db.get(Account, row.account_id)).name == "General Expense (SGD)"
+
+    transfer = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="Wallet top up")
+    await db.commit()
+    _answers(monkeypatch, "TRANSFER", 70)
+
+    third = await client.post("/classifications/backfill")
+
+    assert third.json() == {"classified": 1, "candidates": 1}
+    draft = (
+        await db.execute(
+            select(TransactionClassification).where(TransactionClassification.atomic_txn_id == transfer.id)
+        )
+    ).scalar_one()
+    assert draft.tags["category"] == "TRANSFER"
+
+
+@pytest.mark.asyncio
+async def test_AC_extraction_auto_accept_11_backfill_retries_a_row_without_an_answer(
+    client: AsyncClient, db, test_user, enabled_flag, monkeypatch
+):
+    """AC-extraction.auto-accept.11: an outage writes no row, so the next run tries the row again."""
+    await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="Mystery payment")
+    await db.commit()
+    _answers(monkeypatch, None)
+
+    first = await client.post("/classifications/backfill")
+    second = await client.post("/classifications/backfill")
+    _answers(monkeypatch, "DINING", 90)
+    third = await client.post("/classifications/backfill")
+
+    assert first.json() == {"classified": 0, "candidates": 1}
+    assert second.json() == {"classified": 0, "candidates": 1}
+    assert third.json() == {"classified": 1, "candidates": 1}
+    assert len((await db.execute(select(TransactionClassification))).scalars().all()) == 1
+
+
+async def _keyword_rule(db, user, keyword: str):
+    from datetime import date
+
+    from src.extraction import RuleType
+    from src.extraction.orm.layer3 import ClassificationRule
+
+    rule = ClassificationRule(
+        user_id=user.id,
+        created_by=user.id,
+        rule_name=f"rule-{keyword}",
+        version_number=1,
+        effective_date=date(2020, 1, 1),
+        is_active=True,
+        rule_type=RuleType.KEYWORD_MATCH,
+        rule_config={"keywords": [keyword]},
+        tag_mappings={"category": "user-coffee"},
+    )
+    db.add(rule)
+    await db.flush()
+    return rule
+
+
+@pytest.mark.asyncio
+async def test_AC_extraction_auto_accept_11_backfill_counts_rule_rows_with_and_without_ai_classification(
+    client: AsyncClient, db, test_user, enabled_flag, monkeypatch
+):
+    """AC-extraction.auto-accept.11: a row that a rule of the user classified counts as a classified row.
+
+    With AI classification off, only the rule rows get a row. With it on, the model rows count too.
+    """
+    from src.config import settings
+
+    await _keyword_rule(db, test_user, "coffee")
+    await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="COFFEE SHOP")
+    await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="ACME PAYROLL")
+    await db.commit()
+    _answers(monkeypatch, "SALARY", 95)
+
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    without_ai = await client.post("/classifications/backfill")
+    monkeypatch.setattr(settings, "enable_ai_classification", True)
+    with_ai = await client.post("/classifications/backfill")
+
+    assert without_ai.json() == {"classified": 1, "candidates": 2}
+    assert with_ai.json() == {"classified": 1, "candidates": 1}
+
+
+@pytest.mark.asyncio
+async def test_AC_extraction_auto_accept_11_backfill_with_ai_counts_the_rule_row_and_the_model_row(
+    client: AsyncClient, db, test_user, enabled_flag, monkeypatch
+):
+    """AC-extraction.auto-accept.11: both kinds of row count in one run."""
+    await _keyword_rule(db, test_user, "coffee")
+    await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="COFFEE SHOP")
+    await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="ACME PAYROLL")
+    await db.commit()
+    _answers(monkeypatch, "SALARY", 95)
+
+    response = await client.post("/classifications/backfill")
+
+    assert response.json() == {"classified": 2, "candidates": 2}

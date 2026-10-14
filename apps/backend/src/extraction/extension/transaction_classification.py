@@ -19,11 +19,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import re
 from collections import Counter
 from collections.abc import Awaitable, Callable, Sequence
 from contextvars import ContextVar
 from datetime import date
+from decimal import Decimal
 from enum import Enum
 from typing import Literal
 from uuid import UUID
@@ -34,7 +36,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 import src.config
+from src.extraction.base.disposition import EconomicIntent
 from src.extraction.base.source_vocabulary import ClassificationStatus, RuleType, TransactionDirection
+from src.extraction.extension.ai_settings import auto_accept_enabled, classification_enabled
 from src.extraction.extension.classification import ClassificationService
 from src.extraction.extension.correction_service import invalidate_correction_cache
 from src.extraction.orm.correction import CorrectionLog
@@ -96,7 +100,51 @@ NON_PNL_CATEGORIES = frozenset(
 #: post to a default balance-sheet account (#2415).
 PROCESSING_LEG_CATEGORIES = frozenset({TransactionCategory.TRANSFER, TransactionCategory.CARD_REPAYMENT})
 
-#: "Other" means "does not fit any class". A proposal in these classes always waits for a person.
+#: Tag of a draft for a loan or a trade that the model named below the review score. The draft posts as a
+#: Processing leg (suspense) and not to a default balance-sheet account (#2405).
+SUSPENSE_TAG = "suspense"
+
+#: Default balance-sheet accounts for the classes that the system books to a balance-sheet account, not to a
+#: Processing leg (#2415, #2405). The name takes the currency of the row.
+BALANCE_SHEET_ACCOUNTS: dict[TransactionCategory, tuple[str, AccountType]] = {
+    TransactionCategory.LOAN_PRINCIPAL: ("Loans Payable ({currency})", AccountType.LIABILITY),
+    TransactionCategory.INVESTMENT_TRADE: ("Investments ({currency})", AccountType.ASSET),
+}
+
+
+def general_account_name(account_type: AccountType, currency: str) -> str:
+    """The name of the general account that takes a row nobody could place: income or expense by direction."""
+    return f"General {account_type.value.capitalize()} ({currency})"
+
+
+def balance_sheet_booking(
+    category: str, direction: TransactionDirection, currency: str
+) -> tuple[EconomicIntent, AccountType, str] | None:
+    """The intent, the account type and the account name for a loan principal or an investment trade.
+
+    None for any other class. The one-click approval and the automatic path both book through this answer.
+    """
+    try:
+        known = TransactionCategory(category)
+    except ValueError:
+        return None
+    if known not in BALANCE_SHEET_ACCOUNTS:
+        return None
+    template, account_type = BALANCE_SHEET_ACCOUNTS[known]
+    return balance_sheet_intent(known, direction), account_type, template.format(currency=currency)
+
+
+def balance_sheet_intent(category: TransactionCategory, direction: TransactionDirection) -> EconomicIntent:
+    """The economic intent of a loan principal or an investment trade, by the direction of the money."""
+    if category is TransactionCategory.LOAN_PRINCIPAL:
+        return EconomicIntent.LOAN_PRINCIPAL
+    return (
+        EconomicIntent.INVESTMENT_PURCHASE if direction is TransactionDirection.OUT else EconomicIntent.INVESTMENT_SALE
+    )
+
+
+#: "Other" means "does not fit any class". With auto-accept off, a proposal in these classes always waits for a
+#: person. With it on, the system applies the class from the review score (60) up.
 REVIEW_ONLY_CATEGORIES = frozenset({TransactionCategory.OTHER_INCOME, TransactionCategory.OTHER_EXPENSE})
 
 #: What each non-P&L class means, for the model prompt (the closed list alone is not enough).
@@ -199,7 +247,9 @@ class CategoryProposal(BaseModel):
     reason: str = ""
 
 
-Disposition = Literal["rule", "applied", "review", "tail", "off_catalog", "no_proposal", "non_pnl"]
+Disposition = Literal[
+    "rule", "applied", "review", "tail", "off_catalog", "no_proposal", "non_pnl", "fallback", "already_classified"
+]
 
 
 class ClassificationOutcome(BaseModel):
@@ -212,6 +262,9 @@ class ClassificationOutcome(BaseModel):
     # Deterministic rules carry their own rule version. Unmatched transactions
     # with the LLM proposer disabled intentionally have no model policy basis.
     policy_version: int | None
+    # True when this pass wrote a classification row for the transaction (a rule match counts when the
+    # pass asked the rule service to write it). A dry run and a transaction that kept its row say False.
+    wrote_row: bool = False
 
 
 Proposer = Callable[
@@ -319,18 +372,84 @@ def _align_indexed_items(parsed: object, count: int) -> list[dict | None]:
     return [by_index.get(i) for i in range(count)]
 
 
+def _item_category(value: object) -> str | None:
+    """Read the class that the model named: a name of the catalog in any case, with spaces or hyphens."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return re.sub(r"[\s\-]+", "_", value.strip()).upper()
+
+
+_PLAIN_NUMBER = re.compile(r"\d+(\.\d+)?")
+
+
+def _read_number(value: object) -> int | float | None:
+    """The number in a raw confidence: a number, or a string with an optional percent sign. Anything else is ``None``."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return value
+    if isinstance(value, str):
+        text = value.strip().rstrip("%").strip()
+        return float(text) if _PLAIN_NUMBER.fullmatch(text) else None
+    return None
+
+
+def _item_score(value: object) -> int | None:
+    """Read the confidence of one answer: a number from 0 to 100, with an optional decimal part or percent sign.
+
+    A missing value, a word and a negative number are no answer. An explicit 0 is an answer: the model says
+    that it cannot place the row. A number above 100 counts as 100. A decimal part is cut, not rounded, so
+    that a score never crosses a gate by rounding (59.9 stays below 60). A fraction between 0 and 1 has
+    already gone through ``_normalize_scale`` when this function runs.
+    """
+    number = _read_number(value)
+    if number is None:
+        return None
+    if isinstance(number, int):
+        return None if number < 0 else min(100, number)
+    if not math.isfinite(number) or number < 0:
+        return None
+    return min(100, math.floor(number))
+
+
+def _is_fraction(number: int | float | None) -> bool:
+    """True for a number strictly between 0 and 1, which a model on a scale from 0 to 1 writes."""
+    return isinstance(number, float) and math.isfinite(number) and 0 < number < 1
+
+
+def _normalize_scale(items: Sequence[object]) -> list[object]:
+    """Read the scale of one batch. The prompt asks for 0 to 100.
+
+    A fraction between 0 and 1 shows another scale. When no number of the batch is above 1, the model used the
+    scale from 0 to 1, and every number is multiplied by 100 (0.9 is 90, 1.0 is 100). When the batch mixes a
+    fraction with larger numbers, the fraction is ambiguous (half a percent or fifty percent). That item is no
+    answer, and the other items stay. A batch without a fraction stays as it is.
+    """
+    numbers = [_read_number(item.get("confidence")) if isinstance(item, dict) else None for item in items]
+    fractional = [_is_fraction(number) for number in numbers]
+    if not any(fractional):
+        return list(items)
+    if all(number <= 1 for number in numbers if number is not None):
+        logger.warning("transaction classification scale from 0 to 1 read", rows=len(items))
+        return [
+            {**item, "confidence": math.floor(Decimal(str(number)) * 100)}
+            if isinstance(item, dict) and number is not None
+            else item
+            for item, number in zip(items, numbers, strict=True)
+        ]
+    logger.warning("transaction classification fractions dropped", rows=len(items), dropped=sum(fractional))
+    return [None if is_fraction else item for item, is_fraction in zip(items, fractional, strict=True)]
+
+
 def _proposal_from_item(item: object) -> CategoryProposal | None:
+    """One model answer, or ``None`` when the answer cannot be read. A row without an answer writes nothing."""
     if not isinstance(item, dict):
         return None
-    try:
-        return CategoryProposal(
-            category=str(item.get("category", "")),
-            confidence=max(0, min(100, int(item.get("confidence", 0)))),
-            reason=str(item.get("reason", ""))[:500],
-        )
-    except (ValueError, TypeError, OverflowError):
-        # OverflowError: the JSON reader accepts the literal Infinity, and int() cannot convert it.
+    category = _item_category(item.get("category"))
+    confidence = _item_score(item.get("confidence"))
+    if category is None or confidence is None:
         return None
+    return CategoryProposal(category=category, confidence=confidence, reason=str(item.get("reason", ""))[:500])
 
 
 async def propose_categories(
@@ -442,16 +561,7 @@ async def _propose_batch(
             )
     else:
         items = [parsed[i] if i < len(parsed) else None for i in range(len(transactions))]
-    return [_proposal_from_item(item) for item in items]
-
-
-async def _classification_enabled(db: AsyncSession, user_id: UUID) -> bool:
-    """The EPIC-018 flag, with the per-user ``ai_settings`` override on top."""
-    from src.identity import User
-
-    user = await db.get(User, user_id)
-    overrides = user.ai_settings if user is not None and isinstance(user.ai_settings, dict) else {}
-    return bool(overrides.get("enable_ai_classification", settings.enable_ai_classification))
+    return [_proposal_from_item(item) for item in _normalize_scale(items)]
 
 
 async def _ensure_policy_rule(db: AsyncSession, user_id: UUID, policy: ClassificationPolicy) -> ClassificationRule:
@@ -508,6 +618,94 @@ async def _resolve_category_account(db: AsyncSession, user_id: UUID, category: T
 
     name, account_type = CATEGORY_ACCOUNTS[category]
     return await get_or_create_account(db, name=name, account_type=account_type, currency=currency, user_id=user_id)
+
+
+#: The category of a row that the system booked to a general account because nobody could place it (#2405).
+UNCLASSIFIED = "UNCLASSIFIED"
+
+
+async def _general_account(db: AsyncSession, user_id: UUID, txn: AtomicTransaction) -> Account:
+    """The general income or expense account of the direction and the currency of a row."""
+    from src.extraction.extension.review_queue import get_or_create_account
+
+    account_type = AccountType.EXPENSE if txn.direction is TransactionDirection.OUT else AccountType.INCOME
+    return await get_or_create_account(
+        db,
+        name=general_account_name(account_type, txn.currency),
+        account_type=account_type,
+        currency=txn.currency,
+        user_id=user_id,
+    )
+
+
+async def _balance_sheet_account(
+    db: AsyncSession, user_id: UUID, category: TransactionCategory, currency: str
+) -> Account:
+    from src.extraction.extension.review_queue import get_or_create_account
+
+    template, account_type = BALANCE_SHEET_ACCOUNTS[category]
+    return await get_or_create_account(
+        db, name=template.format(currency=currency), account_type=account_type, currency=currency, user_id=user_id
+    )
+
+
+async def _promote_drafts(
+    db: AsyncSession, user_id: UUID, policy: ClassificationPolicy, transactions: Sequence[AtomicTransaction]
+) -> None:
+    """Apply the drafts that the review path left, now that the user accepts suggestions (#2405).
+
+    A draft that fits its row becomes applied. A loan or a trade gets its balance-sheet account and its
+    intent. A draft that contradicts the direction of its row goes to the general account. A transfer or a
+    card repayment stays a draft: its Processing leg posts it. A rejected draft is superseded, so it stays.
+    A draft that a person corrected becomes applied too, and it keeps the flag ``corrected_by_user`` and gets no
+    ``auto_accepted`` tag. The posting then records the person as the decider. A corrected draft that
+    contradicts the direction stays a draft, and the one-click approval asks again.
+    """
+    by_id = {txn.id: txn for txn in transactions}
+    if not by_id:
+        return
+    drafts = (
+        (
+            await db.execute(
+                select(TransactionClassification)
+                .join(ClassificationRule, TransactionClassification.rule_version_id == ClassificationRule.id)
+                .where(ClassificationRule.user_id == user_id)
+                .where(ClassificationRule.rule_name == POLICY_RULE_NAME)
+                .where(ClassificationRule.version_number == policy.version)
+                .where(TransactionClassification.atomic_txn_id.in_(list(by_id)))
+                .where(TransactionClassification.status == ClassificationStatus.DRAFT)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for draft in drafts:
+        txn = by_id[draft.atomic_txn_id]
+        tags = dict(draft.tags) if isinstance(draft.tags, dict) else {}
+        corrected = tags.get("corrected_by_user") is True
+        if tags.get(SUSPENSE_TAG) is True:
+            continue  # the Processing leg posts it
+        try:
+            category = TransactionCategory(str(tags.get("category")))
+        except ValueError:
+            continue
+        if category in BALANCE_SHEET_ACCOUNTS:
+            draft.account_id = (await _balance_sheet_account(db, user_id, category, txn.currency)).id
+            tags["intent"] = balance_sheet_intent(category, txn.direction).value
+        elif category in NON_PNL_CATEGORIES:
+            continue
+        elif draft.account_id is None or not category_fits_direction(category, txn.direction):
+            if corrected:
+                continue
+            draft.account_id = (await _general_account(db, user_id, txn)).id
+            tags["original_category"] = tags.get("original_category", category.value)
+            tags["category"] = UNCLASSIFIED
+            draft.confidence_score = 0
+        if not corrected:
+            tags["auto_accepted"] = True
+        draft.tags = tags
+        draft.status = ClassificationStatus.APPLIED
+    await db.flush()
 
 
 def summarize_outcomes(outcomes: Sequence[ClassificationOutcome]) -> dict:
@@ -594,10 +792,14 @@ async def classify_transactions(
     """Classify ``transactions`` under an optional model ``policy``.
 
     Deterministic user rules win first; the model proposes for the rest; the
-    confidence gate disposes: >= auto threshold => APPLIED onto a real catalog
+    confidence gate disposes. With auto-accept off: >= auto threshold => APPLIED onto a real catalog
     account; review band => DRAFT (the existing ai_feedback 60-84 queue); below =>
-    an explicit no-authority tail. ``commit_basis=False`` is pro-forma: same
-    verdicts, zero writes.
+    an explicit no-authority tail. With auto-accept on (#2405), the review score (60) applies a
+    class. Below it, the general account of the direction takes a P&L class. A loan principal and an
+    investment trade below it stay drafts with the tag ``suspense``, and so do a transfer and a card
+    repayment at any score above 0: their Processing leg posts them. A score of 0 on one of these four
+    classes is no answer, and so is a row without a readable answer: neither writes anything.
+    ``commit_basis=False`` is pro-forma: same verdicts, zero writes.
     """
     if not transactions:
         return []
@@ -623,12 +825,13 @@ async def classify_transactions(
     # The toggle controls only the optional LLM proposer. User-authored
     # deterministic rules remain a valid source of reviewed intent when AI is
     # disabled or unavailable.
-    if not await _classification_enabled(db, user_id):
+    if not await classification_enabled(db, user_id):
         disabled_outcomes = [
             ClassificationOutcome(
                 atomic_txn_id=txn.id,
                 disposition="rule",
                 policy_version=ruled[txn.id].version_number,
+                wrote_row=commit_basis,
             )
             if txn.id in ruled
             else ClassificationOutcome(
@@ -653,16 +856,11 @@ async def classify_transactions(
 
     propose = proposer or propose_categories
     outcomes: list[ClassificationOutcome] = []
+    # The system accepts every suggestion at the review score or above, and a row that the model could not
+    # place goes to the general account (#2405). A person who turned it off keeps the review path.
+    auto_accept = await auto_accept_enabled(db, user_id)
+    apply_threshold = policy.review_threshold if auto_accept else policy.auto_apply_threshold
 
-    # 2) the model proposes for the rest
-    token = _CLASSIFICATION_USER.set(user_id)
-    try:
-        proposals = await propose(remaining, policy) if remaining else []
-    finally:
-        _CLASSIFICATION_USER.reset(token)
-
-    # 3) deterministic disposal under the confidence gate
-    policy_rule: ClassificationRule | None = None
     # Idempotent re-run: classification is a recomputable pass. A txn already
     # classified under THIS policy version keeps its row (no duplicate
     # (atomic_txn_id, rule_version_id) insert); superseding across policy
@@ -690,12 +888,55 @@ async def classify_transactions(
                 .scalars()
                 .all()
             }
-    if commit_basis:
         # A decision of the user outlives a later model pass, whatever its policy version (#2419).
         already_classified |= await _user_decided_txn_ids(db, user_id, [txn.id for txn in transactions])
-    proposal_by_txn = dict(zip(remaining, proposals))
+
+    # 2) the model proposes for the rows that have no row of this policy version. A row that has one keeps it,
+    # so the model is not asked again: a retry of a statement asks only for the rows that had no answer, and
+    # the one-click approval does not ask twice (#2405).
+    to_propose = [txn for txn in remaining if txn.id not in already_classified]
+    token = _CLASSIFICATION_USER.set(user_id)
+    try:
+        proposals = await propose(to_propose, policy) if to_propose else []
+    finally:
+        _CLASSIFICATION_USER.reset(token)
+
+    # 3) deterministic disposal under the confidence gate
+    policy_rule: ClassificationRule | None = None
+    proposal_by_txn = dict(zip(to_propose, proposals))
     category_account_cache: dict[tuple[TransactionCategory, str], Account] = {}
     new_row_txn_ids: list[UUID] = []
+    if auto_accept and commit_basis:
+        await _promote_drafts(db, user_id, policy, transactions)
+
+    async def ensure_rule() -> ClassificationRule:
+        nonlocal policy_rule
+        if policy_rule is None:
+            policy_rule = await _ensure_policy_rule(db, user_id, policy)
+        return policy_rule
+
+    async def write_fallback(txn: AtomicTransaction, proposal: CategoryProposal, reason: str) -> None:
+        rule = await ensure_rule()
+        account = await _general_account(db, user_id, txn)
+        db.add(
+            TransactionClassification(
+                atomic_txn_id=txn.id,
+                rule_version_id=rule.id,
+                account_id=account.id,
+                tags={
+                    "category": UNCLASSIFIED,
+                    "reason": reason[:200],
+                    "auto_accepted": True,
+                    # The answer of the model stays on the row, so the record tells what the model said.
+                    "original_category": proposal.category,
+                    "original_confidence": proposal.confidence,
+                },
+                confidence_score=0,
+                status=ClassificationStatus.APPLIED,
+            )
+        )
+        new_row_txn_ids.append(txn.id)
+
     for txn in transactions:
         if txn.id in ruled:
             outcomes.append(
@@ -703,6 +944,14 @@ async def classify_transactions(
                     atomic_txn_id=txn.id,
                     disposition="rule",
                     policy_version=ruled[txn.id].version_number,
+                )
+            )
+            continue
+
+        if txn.id in already_classified:
+            outcomes.append(
+                ClassificationOutcome(
+                    atomic_txn_id=txn.id, disposition="already_classified", policy_version=policy.version
                 )
             )
             continue
@@ -719,6 +968,8 @@ async def classify_transactions(
         except ValueError:
             category = None
         if category is None or category not in policy.catalog:
+            # A name outside the catalog is not an answer that the system can use. The model did not follow
+            # the schema, so the row writes nothing and a later pass asks again.
             outcomes.append(
                 ClassificationOutcome(
                     atomic_txn_id=txn.id,
@@ -730,13 +981,64 @@ async def classify_transactions(
             )
             continue
 
+        if category in NON_PNL_CATEGORIES and auto_accept and proposal.confidence <= 0:
+            # A score of 0 says that the model cannot place the row. It must not pass as a transfer, a repayment,
+            # a loan or a trade. The row writes nothing, and a later pass asks again.
+            outcomes.append(
+                ClassificationOutcome(
+                    atomic_txn_id=txn.id,
+                    disposition="no_proposal",
+                    category=category.value,
+                    confidence=proposal.confidence,
+                    policy_version=policy.version,
+                )
+            )
+            continue
+
+        if category in BALANCE_SHEET_ACCOUNTS and auto_accept and proposal.confidence >= policy.review_threshold:
+            # A loan principal or an investment trade books to a default balance-sheet account with an
+            # explicit intent, so the normal posting posts it (#2415, #2405). Below the review score the
+            # row goes to suspense (see the draft below), and never to income or expense.
+            if commit_basis:
+                rule = await ensure_rule()
+                account = await _balance_sheet_account(db, user_id, category, txn.currency)
+                db.add(
+                    TransactionClassification(
+                        atomic_txn_id=txn.id,
+                        rule_version_id=rule.id,
+                        account_id=account.id,
+                        tags={
+                            "category": category.value,
+                            "reason": proposal.reason,
+                            "intent": balance_sheet_intent(category, txn.direction).value,
+                            "auto_accepted": True,
+                        },
+                        confidence_score=proposal.confidence,
+                        status=ClassificationStatus.APPLIED,
+                    )
+                )
+                new_row_txn_ids.append(txn.id)
+            outcomes.append(
+                ClassificationOutcome(
+                    atomic_txn_id=txn.id,
+                    disposition="applied",
+                    category=category.value,
+                    confidence=proposal.confidence,
+                    policy_version=policy.version,
+                )
+            )
+            continue
+
         if category in NON_PNL_CATEGORIES:
-            # Named, never posted as profit or loss. The row gets no account and no applied row:
-            # it waits for its transfer match or for a person (intent_missing), as before AI.
-            # A draft row without an account records the class, so the one-click approval and the
-            # suggestion list can see that the AI named this row a transfer, a repayment, a loan
-            # payment or a trade (#2415).
-            if commit_basis and proposal.confidence >= policy.review_threshold and txn.id not in already_classified:
+            # Named, never posted as profit or loss. The row gets no account and no applied row. With the
+            # setting off, it waits for a person (intent_missing), as before AI. With the setting on, a
+            # transfer or a card repayment gets its Processing leg at posting. A loan or a trade below the
+            # review score gets that leg too: Processing is a suspense account, so the guess cannot move net
+            # worth, and the row stays visible there. The draft records the class, so the one-click approval
+            # and the suggestion list can see what the AI named (#2415, #2405).
+            writes_draft = auto_accept or proposal.confidence >= policy.review_threshold
+            suspense = auto_accept and category in BALANCE_SHEET_ACCOUNTS
+            if commit_basis and writes_draft:
                 if policy_rule is None:
                     policy_rule = await _ensure_policy_rule(db, user_id, policy)
                 db.add(
@@ -744,7 +1046,11 @@ async def classify_transactions(
                         atomic_txn_id=txn.id,
                         rule_version_id=policy_rule.id,
                         account_id=None,
-                        tags={"category": category.value, "reason": proposal.reason},
+                        tags={
+                            "category": category.value,
+                            "reason": proposal.reason,
+                            **({SUSPENSE_TAG: True} if suspense else {}),
+                        },
                         confidence_score=proposal.confidence,
                         status=ClassificationStatus.DRAFT,
                     )
@@ -761,14 +1067,33 @@ async def classify_transactions(
             )
             continue
 
-        if proposal.confidence >= policy.auto_apply_threshold and category not in REVIEW_ONLY_CATEGORIES:
+        usable = category_fits_direction(category, txn.direction)
+        if auto_accept and (not usable or proposal.confidence < policy.review_threshold):
+            # The model answered, but the answer cannot post: the account side contradicts the money flow,
+            # or the score is below the review score. The general account of the direction takes the row.
+            if commit_basis:
+                await write_fallback(
+                    txn, proposal, "the suggestion does not fit the direction" if not usable else "low confidence"
+                )
+            outcomes.append(
+                ClassificationOutcome(
+                    atomic_txn_id=txn.id,
+                    disposition="fallback",
+                    category=category.value,
+                    confidence=proposal.confidence,
+                    policy_version=policy.version,
+                )
+            )
+            continue
+
+        if proposal.confidence >= apply_threshold and (auto_accept or category not in REVIEW_ONLY_CATEGORIES):
             disposition: Disposition = "applied"
         elif proposal.confidence >= policy.review_threshold:
             disposition = "review"
         else:
             disposition = "tail"
 
-        if commit_basis and disposition in ("applied", "review") and txn.id not in already_classified:
+        if commit_basis and disposition in ("applied", "review"):
             if policy_rule is None:
                 policy_rule = await _ensure_policy_rule(db, user_id, policy)
             acc_key = (category, txn.currency)
@@ -780,7 +1105,19 @@ async def classify_transactions(
                     atomic_txn_id=txn.id,
                     rule_version_id=policy_rule.id,
                     account_id=account.id,
-                    tags={"category": category.value, "reason": proposal.reason},
+                    tags={
+                        "category": category.value,
+                        "reason": proposal.reason,
+                        # The system accepted a suggestion that the review path would have left to a person.
+                        **(
+                            {"auto_accepted": True}
+                            if auto_accept
+                            and (
+                                proposal.confidence < policy.auto_apply_threshold or category in REVIEW_ONLY_CATEGORIES
+                            )
+                            else {}
+                        ),
+                    },
                     confidence_score=proposal.confidence,
                     status=(ClassificationStatus.APPLIED if disposition == "applied" else ClassificationStatus.DRAFT),
                 )
@@ -802,6 +1139,11 @@ async def classify_transactions(
         sweep_ids = set(new_row_txn_ids) | {txn.id for txn in transactions if txn.id in already_classified}
         await _supersede_older_model_rows(db, user_id, sorted(sweep_ids), policy.version)
         await db.flush()
+        written = set(new_row_txn_ids) | set(ruled)
+        outcomes = [
+            outcome.model_copy(update={"wrote_row": True}) if outcome.atomic_txn_id in written else outcome
+            for outcome in outcomes
+        ]
 
     logger.info(
         "transaction classification pass",
@@ -813,7 +1155,12 @@ async def classify_transactions(
 
 
 class ClassificationSuggestion(BaseModel):
-    """The latest stored classification of a row: applied (85 or more) or draft (60 to 84) (#2415)."""
+    """The latest stored classification of a row: applied or draft (#2415).
+
+    With auto-accept off, applied means 85 or more and draft means 60 to 84. With it on, applied also covers
+    60 to 84. A draft is a transfer or a card repayment that waits for its Processing leg, or a loan or a trade
+    below the review score with the tag ``suspense`` (``suspense`` is true), which waits for its leg too.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -824,6 +1171,7 @@ class ClassificationSuggestion(BaseModel):
     applied: bool
     corrected: bool = False
     classification_id: UUID | None = None
+    suspense: bool = False
 
     @property
     def non_pnl(self) -> bool:
@@ -833,7 +1181,7 @@ class ClassificationSuggestion(BaseModel):
     @property
     def booking(self) -> Literal["processing_leg", "loan_principal", "investment_trade"] | None:
         """How the one-click approval books a balance-sheet suggestion. None for income and expense."""
-        if self.category in {c.value for c in PROCESSING_LEG_CATEGORIES}:
+        if self.suspense or self.category in {c.value for c in PROCESSING_LEG_CATEGORIES}:
             return "processing_leg"
         if self.category == TransactionCategory.LOAN_PRINCIPAL.value:
             return "loan_principal"
@@ -872,6 +1220,7 @@ async def classification_suggestions(db: AsyncSession, txn_ids: Sequence[UUID]) 
             applied=row.status is ClassificationStatus.APPLIED,
             corrected=tags.get("corrected_by_user") is True,
             classification_id=row.id,
+            suspense=tags.get(SUSPENSE_TAG) is True,
         )
     return suggestions
 
@@ -1004,7 +1353,7 @@ async def apply_suggestion_feedback(
         )
         invalidate_correction_cache(user_id)
     classification.tags = {
-        **previous,
+        **{key: value for key, value in previous.items() if key != SUSPENSE_TAG},
         "category": category.value,
         "original_category": previous.get("original_category", previous.get("category")),
         "corrected_by_user": True,
@@ -1014,10 +1363,13 @@ async def apply_suggestion_feedback(
     return "corrected"
 
 
-async def settle_drafts_after_posting(db: AsyncSession, txn_id: UUID, *, accepted_id: UUID | None) -> None:
+async def settle_drafts_after_posting(
+    db: AsyncSession, txn_id: UUID, *, accepted_id: UUID | None, accepted_by: Literal["user", "system"] = "user"
+) -> None:
     """Close the live drafts of a transaction that an approval of the user just posted (#2415).
 
-    The draft that the approval used becomes applied and records the acceptance. Every other live draft is
+    The draft that the approval used becomes applied and records the acceptance: the tag ``accepted_by_user``
+    for a decision of a person, the tag ``auto_accepted`` for the system. Every other live draft is
     superseded. Neither stays in the pending list, and a later decision cannot edit a posted row.
     """
     drafts = (
@@ -1034,7 +1386,8 @@ async def settle_drafts_after_posting(db: AsyncSession, txn_id: UUID, *, accepte
     for draft in drafts:
         if draft.id == accepted_id:
             draft.status = ClassificationStatus.APPLIED
-            draft.tags = {**(draft.tags if isinstance(draft.tags, dict) else {}), "accepted_by_user": True}
+            mark = "accepted_by_user" if accepted_by == "user" else "auto_accepted"
+            draft.tags = {**(draft.tags if isinstance(draft.tags, dict) else {}), mark: True}
         else:
             draft.status = ClassificationStatus.SUPERSEDED
     if drafts:
@@ -1047,11 +1400,17 @@ async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:
 
     Append-only and duplicate-free by construction: transactions that already
     carry a classification row are never candidates again, so a re-run cannot
-    rewrite or duplicate anything. Transactions still in the tail (low-confidence,
-    no-proposal, off-catalog) get NO row and therefore ARE re-attempted on the
-    next run — deliberately: the tail may resolve under a better model or a new
-    policy version (the edit-tags → re-extract direction). Entry point: the
-    /classifications/backfill router (#1546).
+    rewrite or duplicate anything. A transaction that gets NO row is attempted
+    again on the next run — deliberately: the answer may resolve under a better
+    model or a new policy version (the edit-tags → re-extract direction).
+
+    The setting ``auto_accept_ai_suggestions`` (#2405) decides which transactions
+    get no row. With the setting on, these get no row: an outage, a dropped
+    batch, an answer that the parser cannot read, a class outside the catalog,
+    and a score of 0 on a transfer, a card repayment, a loan or a trade. With
+    the setting off, a P&L answer below the review score (a tail) gets no row
+    either. ``classified`` is the number of candidates that got a row in this
+    run. Entry point: the /classifications/backfill router (#1546).
     """
     classified_txn_ids = select(TransactionClassification.atomic_txn_id)
     candidates = (
@@ -1069,10 +1428,10 @@ async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:
     if not candidates:
         return {"classified": 0, "candidates": 0}
 
-    if not await _classification_enabled(db, user_id):
+    if not await classification_enabled(db, user_id):
         outcomes = await classify_transactions(db, user_id, candidates, policy=None)
         return {
-            "classified": sum(1 for outcome in outcomes if outcome.disposition == "rule"),
+            "classified": sum(1 for outcome in outcomes if outcome.wrote_row),
             "candidates": len(candidates),
             "runs": [{"policy_version": None, **summarize_outcomes(outcomes)}],
         }
@@ -1090,7 +1449,7 @@ async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:
     summaries = []
     for version, txns in sorted(by_version.items()):
         outcomes = await classify_transactions(db, user_id, txns, policy=policies[version])
-        written += sum(1 for o in outcomes if o.disposition in ("applied", "review"))
+        written += sum(1 for outcome in outcomes if outcome.wrote_row)
         summaries.append({"policy_version": version, **summarize_outcomes(outcomes)})
 
     return {"classified": written, "candidates": len(candidates), "runs": summaries}
@@ -1112,7 +1471,7 @@ async def classify_by_effective_policy(
     if not transactions:
         return []
 
-    if not await _classification_enabled(db, user_id):
+    if not await classification_enabled(db, user_id):
         return await classify_transactions(db, user_id, transactions, policy=None)
 
     by_version: dict[int, list[AtomicTransaction]] = {}
