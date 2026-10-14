@@ -24,9 +24,10 @@ in 11 trials, but 11 trials are too few to tell. The numbers and the raw data ar
 #2394. A flaky result of this test is a signal about #2394, not about the board.
 
 Auto-posting needs economic meaning for every transaction. The product default is
-on (#2405). The test changes no setting. It reads the ``enable_ai_classification``
-setting of the new user and asserts that it is on. It also asserts that it sent no
-settings write. The classifier proposes a category for each transaction. The 0.85
+on (#2405). The test changes no setting. It reads the ``enable_ai_classification`` and
+``auto_accept_ai_suggestions`` settings of the new user and asserts that both are on. It
+also asserts that it sent no settings write. The test carries the marker
+``product_defaults``, so the fixture does not move the new user to the review path. The classifier proposes a category for each transaction. The 0.85
 confidence gate decides. Each description names a merchant or an income source, so
 each proposal is clear.
 
@@ -400,6 +401,9 @@ async def test_stage1_accepts_clean_source_and_reviews_broken_source(
         )
         assert settings.json()["enable_ai_classification"] is True, (
             "a new user must have AI classification on by default (#2405)"
+        )
+        assert settings.json()["auto_accept_ai_suggestions"] is True, (
+            "a new user must have the system accept the AI suggestions by default (#2405)"
         )
 
         model = await _default_image_model(client)
