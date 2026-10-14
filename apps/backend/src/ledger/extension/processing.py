@@ -24,7 +24,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -45,6 +45,7 @@ from src.ledger.base.processing import (
 )
 from src.ledger.base.types.entry import Entry
 from src.ledger.base.validators import ValidationError
+from src.ledger.extension import account_service
 from src.ledger.extension.post import post_entry
 from src.ledger.orm.account import Account
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
@@ -61,23 +62,14 @@ async def get_or_create_processing_account(
 ) -> Account:
     """Get or create the Processing virtual account for a user.
 
-    No unique index protects this account. Two requests of one user can reach the insert together,
-    for example when a user uploads several statements at once. The first lookup stays lock-free.
-    A missing account takes a lock that lasts to the end of the transaction, and a second lookup
-    then sees the account of the request that created it first (#2415). All account creators of one
-    user share one lock key, so two requests cannot wait for each other in a circle.
+    The creation commits in its own short transaction (``find_or_create_account``), so two requests of one user
+    never create two accounts and never wait for each other (#2415).
     """
-    account = await _find_processing_account(db, user_id)
-    if account is None:
-        await db.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-            {"key": f"account-creation:{user_id}"},
-        )
-        account = await _find_processing_account(db, user_id)
-
-    if not account:
-        # Create Processing account
-        account = Account(
+    return await account_service.find_or_create_account(
+        db,
+        user_id=user_id,
+        find=lambda session: _find_processing_account(session, user_id),
+        build=lambda: Account(
             user_id=user_id,
             name=PROCESSING_ACCOUNT_NAME,
             code=PROCESSING_ACCOUNT_CODE,
@@ -85,21 +77,21 @@ async def get_or_create_processing_account(
             currency=currency,
             is_system=True,
             description=PROCESSING_ACCOUNT_DESCRIPTION,
-        )
-        db.add(account)
-        await db.flush()
-        await db.refresh(account)
-
-    return account
+        ),
+    )
 
 
 async def _find_processing_account(db: AsyncSession, user_id: UUID) -> Account | None:
+    # Two rows (a race of an older release) resolve to the oldest one, not to an error.
     result = await db.execute(
-        select(Account).where(
+        select(Account)
+        .where(
             Account.user_id == user_id,
             Account.is_system == True,  # noqa: E712
             Account.code == PROCESSING_ACCOUNT_CODE,
         )
+        .order_by(Account.created_at, Account.id)
+        .limit(1)
     )
     return result.scalar_one_or_none()
 

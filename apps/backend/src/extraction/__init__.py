@@ -149,6 +149,7 @@ from src.extraction.extension.prompts.csv_mapping import build_csv_mapping_promp
 from src.extraction.extension.prompts.statement import SYSTEM_PROMPT, get_parsing_prompt
 from src.extraction.extension.review_queue import (
     create_entry_from_txn,
+    get_or_create_account,
     register_fx_rate_provider,
 )
 from src.extraction.extension.reviewed_statement_envelope import (
@@ -326,6 +327,7 @@ __all__ = [
     "compute_confidence_score",
     "confirm_reviewed_statement_envelope",
     "create_entry_from_txn",
+    "get_or_create_account",
     "current_reviewed_statement_envelope",
     "current_statement_disposition_policy_snapshot",
     "detect_balance_chain_break",

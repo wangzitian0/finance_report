@@ -36,6 +36,7 @@ from src.reconciliation.orm.reconciliation import (
     ReconciliationTransferPair,
 )
 from tests.api._statement_router_fixtures import add_txn, build_statement, create_statement_account
+from tests.db_lock_probe import a_session_waits_for_a_lock
 
 pytestmark = pytest.mark.asyncio
 
@@ -283,10 +284,14 @@ async def test_AC_reconciliation_named_transfer_legs_2_a_ledger_refusal_skips_on
     assert (await db.execute(select(func.count(JournalEntry.id)))).scalar_one() == 1
 
 
-async def test_AC_reconciliation_named_transfer_legs_2_a_ledger_refusal_leaves_no_processing_account_behind(
+async def test_AC_reconciliation_named_transfer_legs_2_a_ledger_refusal_leaves_no_entry_and_no_match_behind(
     db, test_user, monkeypatch
 ):
-    """AC-reconciliation.named-transfer-legs.2: the savepoint undoes the account that the refused leg created."""
+    """AC-reconciliation.named-transfer-legs.2: the savepoint undoes the entry and the match of the refused leg.
+
+    The Processing account commits in its own transaction (`find_or_create_account`) and stays. An account
+    without entries changes no balance, and the next leg uses it.
+    """
     from src.ledger import TransferAccountCurrencyMismatchError
     from src.reconciliation.extension import named_transfers
 
@@ -294,21 +299,21 @@ async def test_AC_reconciliation_named_transfer_legs_2_a_ledger_refusal_leaves_n
     txn = await add_txn(
         db, statement, txn_date=date(2025, 1, 5), description="Wallet A", amount=Decimal("10.00"), direction="OUT"
     )
+    real = named_transfers.post_transfer_leg
 
-    async def refuse(db_, **kwargs):
-        await get_or_create_processing_account(db_, kwargs["user_id"], currency="SGD")
-        raise TransferAccountCurrencyMismatchError("refused")
+    async def post_then_refuse(db_, **kwargs):
+        await real(db_, **kwargs)
+        raise TransferAccountCurrencyMismatchError("refused after the entry exists")
 
-    monkeypatch.setattr(named_transfers, "post_transfer_leg", refuse)
+    monkeypatch.setattr(named_transfers, "post_transfer_leg", post_then_refuse)
 
     matches = await post_named_transfer_legs(
         db, user_id=test_user.id, named=[NamedTransfer(transaction=txn, category="TRANSFER", score=90)]
     )
 
     assert matches == []
-    assert (
-        await db.execute(select(func.count(Account.id)).where(Account.code == PROCESSING_ACCOUNT_CODE))
-    ).scalar_one() == 0
+    assert (await db.execute(select(func.count(JournalEntry.id)))).scalar_one() == 0
+    assert (await db.execute(select(func.count(ReconciliationMatch.id)))).scalar_one() == 0
 
 
 async def test_AC_reconciliation_named_transfer_legs_3_two_identical_rows_post_two_legs(db, test_user):
@@ -499,23 +504,37 @@ async def test_AC_reconciliation_named_transfer_legs_5_a_long_description_posts_
 ):
     """AC-reconciliation.named-transfer-legs.5: the memo column holds 500 characters, and the memo adds a prefix.
 
-    A description of 495 characters is valid for the transaction. The leg must post, and a second call must
-    find the same entry.
+    A description of 495 characters is valid for the transaction. The leg must post. A retry of the same command
+    must find the same entry, because the cut is the same each time.
     """
-    statement, _bank = await _statement(db, test_user.id, "named_leg_long_memo")
+    from src.ledger import create_transfer_out_entry
+
+    statement, bank = await _statement(db, test_user.id, "named_leg_long_memo")
     description = "W" * 495
     txn = await add_txn(
         db, statement, txn_date=date(2025, 1, 11), description=description, amount=Decimal("80.00"), direction="OUT"
     )
-    named = [NamedTransfer(transaction=txn, category="TRANSFER", score=88)]
 
-    matches = await post_named_transfer_legs(db, user_id=test_user.id, named=named)
+    matches = await post_named_transfer_legs(
+        db, user_id=test_user.id, named=[NamedTransfer(transaction=txn, category="TRANSFER", score=88)]
+    )
     await db.flush()
 
     assert len(matches) == 1
     entry = await _entry(db, matches[0].journal_entry_ids[0])
     assert len(entry.memo) == 500
     assert entry.memo.startswith("Transfer OUT: WWW")
+    retry = await create_transfer_out_entry(
+        db,
+        user_id=test_user.id,
+        source_account_id=bank.id,
+        amount=txn.amount,
+        txn_date=txn.txn_date,
+        description=txn.description,
+        currency=txn.currency,
+        source_id=txn.id,
+    )
+    assert retry.id == entry.id
     assert (await db.execute(select(func.count(JournalEntry.id)))).scalar_one() == 1
 
 
@@ -541,12 +560,10 @@ async def test_AC_reconciliation_named_transfer_legs_2_the_claim_for_a_decision_
     try:
         assert await SqlReconciliationRepository(first).claim_transaction_for_decision(txn.id) is None
         waiting = asyncio.create_task(SqlReconciliationRepository(second).claim_transaction_for_decision(txn.id))
-        await asyncio.sleep(0.5)
-        still_waiting = not waiting.done()
+        # The database must report the wait. A sleep would pass when the second session is merely slow.
+        assert await a_session_waits_for_a_lock(db_engine), "the second claim must wait for the row lock"
         await first.commit()
         assert await asyncio.wait_for(waiting, timeout=15) is None
     finally:
         await first.close()
         await second.close()
-
-    assert still_waiting

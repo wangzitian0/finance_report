@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -34,6 +34,7 @@ from src.ledger import (
     Direction,
     JournalEntry,
     ValidationError,
+    account_service,
     submit_anchored_journal_entry_v2,
 )
 from src.observability import get_logger
@@ -137,46 +138,36 @@ async def get_or_create_account(
 ) -> Account:
     """Fetch or create a default account.
 
-    No unique index protects a default account. Several workers of one user can create the same account
-    together. A missing account takes a lock that lasts to the end of the transaction, and a second lookup
-    then sees the account of the worker that created it first (#2415). All account creators of one user
-    share one lock key, so two workers cannot wait for each other in a circle.
+    The classifier and the one-click approval both resolve their default accounts here. An inactive account is
+    not the default, because posting refuses it. Two active rows with one name (a race of an older release)
+    resolve to the oldest one, not to an error. The creation commits in its own short transaction
+    (``find_or_create_account``), so several workers of one user never create two rows and never wait for each
+    other (#2415).
     """
     cache = db.info.setdefault("_default_account_cache", {})
     cache_key = (user_id, name, account_type, currency)
     if cache_key in cache:
         return cache[cache_key]
 
-    async def find() -> Account | None:
-        result = await db.execute(
+    async def find(session: AsyncSession) -> Account | None:
+        result = await session.execute(
             select(Account)
             .where(Account.name == name)
             .where(Account.type == account_type)
             .where(Account.currency == currency)
             .where(Account.user_id == user_id)
+            .where(Account.is_active.is_(True))
+            .order_by(Account.created_at, Account.id)
+            .limit(1)
         )
         return result.scalar_one_or_none()
 
-    account = await find()
-    if account is None:
-        await db.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-            {"key": f"account-creation:{user_id}"},
-        )
-        account = await find()
-    if account:
-        cache[cache_key] = account
-        return account
-
-    account = Account(
+    account = await account_service.find_or_create_account(
+        db,
         user_id=user_id,
-        name=name,
-        type=account_type,
-        currency=currency,
+        find=find,
+        build=lambda: Account(user_id=user_id, name=name, type=account_type, currency=currency),
     )
-    db.add(account)
-    await db.flush()
-    await db.refresh(account)
     cache[cache_key] = account
     return account
 

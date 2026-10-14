@@ -510,9 +510,13 @@ JournalEntry(
   - Description keywords match
   
 - **Pattern C**: One Processing account per user
-  - Two requests of one user can create it together. `get_or_create_processing_account` and the default account
-    helper of extraction take the lock `account-creation:<user_id>` before the second lookup. The lock lasts to the
-    end of the transaction. All creators share one key, so two requests cannot wait for each other in a circle.
+  - Several requests of one user can create it together, for example when the user uploads several statements
+    at once. `get_or_create_processing_account` and the default account resolver of extraction call
+    `account_service.find_or_create_account`. The creation commits in its own short transaction, under the lock
+    `account-creation:<user_id>` that lasts milliseconds. A second request sees the row at once. It neither waits
+    for the open transaction of the first nor creates a second row, and two requests cannot wait for each other.
+    The account stays when the caller rolls back. A user row that the caller has not committed (registration)
+    gets the account in the transaction of the caller.
   - Simplifies balance tracking
   - Clear ownership for multi-user scenarios
 

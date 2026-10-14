@@ -484,6 +484,7 @@ CONTRACT = PackageContract(
         "compute_confidence_score",
         "confirm_reviewed_statement_envelope",
         "create_entry_from_txn",
+        "get_or_create_account",
         "current_reviewed_statement_envelope",
         "current_statement_disposition_policy_snapshot",
         "detect_balance_chain_break",
@@ -630,6 +631,8 @@ CONTRACT = PackageContract(
         ac('AC-extraction.transaction-identity.3', 'An ambiguous historical identity is explicitly reviewable while a novel transaction without custody remains source-isolated.', 'apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_ambiguous_legacy_identity_is_reviewable', priority='P1', proof_kind='property'),
         ac('AC-extraction.transaction-identity.4', 'Concurrent equal identities resolve to one atomic fact and source lineage remains complete.', 'apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_concurrent_identity_upsert', priority='P1', proof_kind='property'),
         ac('AC-extraction.transaction-identity.6', 'A changed re-parse of a statement raises the review error when a posted or reconciled entry exists for one of its transactions. The entry can be a statement-source entry or a Processing leg. An identical re-parse and a statement without entries pass.', 'apps/backend/tests/extraction/test_reparse_guard_legs.py::test_AC_extraction_transaction_identity_6_a_changed_reparse_after_a_leg_needs_review'),
+        # ── group default-account: one resolver finds the default account of a user (#2415) ──
+        ac('AC-extraction.default-account.1', 'The classifier and the one-click approval resolve a default account (General Income/Expense, Loans Payable, Investments, a category account) with one resolver, get_or_create_account. An inactive account is not the default, because posting refuses it, so the resolver makes a new active account. Two active rows with one name resolve to the oldest, not to an error. The creation commits in its own short transaction (AC-ledger.71.5).', 'apps/backend/tests/extraction/test_default_account_resolution.py::test_AC_extraction_default_account_1_an_inactive_default_account_is_not_the_default', priority='P1', proof_kind='property'),
         ac('AC-extraction.retry-identity.1', 'Retry after failed institution detection uses the recovered source institution rather than the provisional upload placeholder.', 'apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_retry_discards_provisional_institution', priority='P1', proof_kind='property'),
         ac('AC-extraction.source-routing.1', 'A typed bank extraction with an empty positions array remains a bank transaction ledger through metadata recovery.', 'apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_bank_result_never_routes_as_brokerage', priority='P1', proof_kind='property'),
         ac('AC-extraction.source-routing.2', 'An explicitly typed brokerage snapshot with zero positions still routes to brokerage review.', 'apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_empty_brokerage_snapshot_remains_reviewable', priority='P1', proof_kind='property'),
