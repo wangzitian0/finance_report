@@ -59,6 +59,7 @@ from src.extraction.extension.disposition_trace import emit_disposition_trace_re
 from src.extraction.extension.review_queue import FxRateProvider, create_entry_from_txn
 from src.extraction.extension.reviewed_statement_envelope import get_current_statement_extraction_result
 from src.extraction.extension.statement_validation import (
+    BalanceChainValidationError,
     approve_statement_with_transactions,
     resolve_statement_transactions,
 )
@@ -701,6 +702,8 @@ async def try_auto_approve_high_confidence_statement(
             refreshed.status = BankStatementStatus.PARSED
             refreshed.stage1_status = Stage1Status.PENDING_REVIEW
             refreshed.validation_error = str(exc)[:500]
+            if isinstance(exc, BalanceChainValidationError):
+                refreshed.balance_validated = False
             await db.flush()
         return 0
 
