@@ -8,15 +8,27 @@ The check below fails when the stored closing balance is not one of those number
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 import pytest
 
+from src.extraction import BankStatementStatus, Stage1Status
 from src.extraction.base.source_balance_check import (
     SourceBalanceVerdict,
     check_closing_balance_against_text,
     text_money_values,
 )
+from src.extraction.extension.statement_posting import (
+    try_auto_approve_high_confidence_statement,
+)
+from src.extraction.orm.statement_summary import StatementSummary
+from tests.api._statement_router_fixtures import (
+    add_txn,
+    build_statement,
+    create_statement_account,
+)
+from tests.statement_ingestion import posting_dependencies
 
 OPENING = Decimal("2000.00")
 AMOUNTS = [Decimal("3000.00"), Decimal("1.50"), Decimal("85.40"), Decimal("23.60"), Decimal("55.00")]
@@ -169,3 +181,39 @@ def test_AC_extraction_closing_balance_source_3_a_part_of_a_spaced_number_can_st
     """
     text = _statement_text_with_closing_line("Closing Balance 4\u2009837.55")
     assert _verdict(text, "837.55") is SourceBalanceVerdict.VERIFIED
+
+
+async def test_auto_approve_balance_mismatch_clears_balance_validated_flag(db, test_user):
+    """AC-extraction.stage1-routing.1: auto-approve clears balance_validated flag when closing balance mismatches (#2397)."""
+    custody_account = await create_statement_account(db, test_user.id, "DBS Validation Test Account")
+    statement = build_statement(test_user.id, "hash_balance_mismatch_clears_flag", 90)
+    statement.status = BankStatementStatus.APPROVED
+    statement.balance_validated = True
+    statement.account_id = custody_account.id
+    statement.opening_balance = Decimal("2000.00")
+    statement.closing_balance = Decimal("4837.55")
+    statement.currency = "SGD"
+    db.add(statement)
+    await db.flush()
+
+    await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 10),
+        description="Payment received",
+        amount=Decimal("2837.50"),
+        direction="IN",
+    )
+    await db.commit()
+
+    created_count = await try_auto_approve_high_confidence_statement(
+        db, statement.id, test_user.id, dependencies=posting_dependencies()
+    )
+
+    assert created_count == 0
+    refreshed = await db.get(StatementSummary, statement.id)
+    assert refreshed is not None
+    assert refreshed.status == BankStatementStatus.PARSED
+    assert refreshed.stage1_status == Stage1Status.PENDING_REVIEW
+    assert refreshed.balance_validated is False
+    assert refreshed.validation_error == "Balance mismatch: delta=0.05 exceeds tolerance 0.001"

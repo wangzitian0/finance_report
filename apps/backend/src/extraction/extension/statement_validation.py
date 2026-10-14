@@ -33,6 +33,10 @@ from src.extraction.orm.statement_summary import StatementSummary
 BALANCE_TOLERANCE = STATEMENT_BALANCE_TOLERANCE
 
 
+class BalanceChainValidationError(ValueError):
+    """Raise when statement balance-chain validation fails."""
+
+
 def pending_stage1_review_filter():
     """Return the shared Stage 1 pending-review predicate for PARSED statements."""
     return or_(
@@ -359,7 +363,7 @@ def _raise_if_balance_chain_invalid(validation_result: dict, *, after_edits: boo
     per_currency = validation_result.get("per_currency", [])
     failed_currencies = [row["currency"] for row in per_currency if not row["closing_match"]]
     if failed_currencies:
-        raise ValueError(f"Balance mismatch for currency: {', '.join(failed_currencies)}")
+        raise BalanceChainValidationError(f"Balance mismatch for currency: {', '.join(failed_currencies)}")
 
     # Route the Stage-1 approval decision through the promotion gate: the
     # balance-chain checks are the deterministic invariants, with no confidence
@@ -392,14 +396,16 @@ def _raise_if_balance_chain_invalid(validation_result: dict, *, after_edits: boo
 
     if verdict.failed_invariant == "opening_balance_chain":
         suffix = " after edits" if after_edits else ""
-        raise ValueError(
+        raise BalanceChainValidationError(
             f"Opening balance mismatch{suffix}: delta={validation_result['opening_delta']} exceeds tolerance "
             f"{BALANCE_TOLERANCE}"
         )
 
     if after_edits:
-        raise ValueError(f"Balance still invalid after edits: delta={validation_result['closing_delta']}")
-    raise ValueError(
+        raise BalanceChainValidationError(
+            f"Balance still invalid after edits: delta={validation_result['closing_delta']}"
+        )
+    raise BalanceChainValidationError(
         f"Balance mismatch: delta={validation_result['closing_delta']} exceeds tolerance {BALANCE_TOLERANCE}"
     )
 

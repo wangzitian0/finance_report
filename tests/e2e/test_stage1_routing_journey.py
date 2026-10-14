@@ -480,6 +480,7 @@ async def test_stage1_accepts_clean_source_and_reviews_broken_source(
         )
         assert Decimal(str(reviewed["opening_balance"])) == OPENING_BALANCE
         assert Decimal(str(reviewed["closing_balance"])) == BROKEN_CLOSING_BALANCE
+        assert reviewed["balance_validated"] is False
         assert (reviewed["validation_error"] or "") == BROKEN_REVIEW_REASON
         assert _statement_rows(reviewed) == _fixture_rows(), (
             "the reviewer must see the fixture rows of the broken statement"
@@ -487,6 +488,7 @@ async def test_stage1_accepts_clean_source_and_reviews_broken_source(
         review = await client.get(_api_url(f"/statements/{broken_id}/review"))
         assert review.status_code == 200
         assert review.json()["stage1_status"] == "pending_review"
+        assert review.json()["balance_validated"] is False
         entries_after_broken = await _get_journal_entries(client)
         assert _posted_entries_for(entries_after_broken, reviewed) == [], (
             "the broken statement must post no ledger entry"
