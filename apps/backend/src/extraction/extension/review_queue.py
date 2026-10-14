@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -135,20 +135,35 @@ async def get_or_create_account(
     currency: str,
     user_id: UUID,
 ) -> Account:
-    """Fetch or create a default account."""
+    """Fetch or create a default account.
+
+    No unique index protects a default account. Several workers of one user can create the same account
+    together. A missing account takes a lock that lasts to the end of the transaction, and a second lookup
+    then sees the account of the worker that created it first (#2415). All account creators of one user
+    share one lock key, so two workers cannot wait for each other in a circle.
+    """
     cache = db.info.setdefault("_default_account_cache", {})
     cache_key = (user_id, name, account_type, currency)
     if cache_key in cache:
         return cache[cache_key]
 
-    result = await db.execute(
-        select(Account)
-        .where(Account.name == name)
-        .where(Account.type == account_type)
-        .where(Account.currency == currency)
-        .where(Account.user_id == user_id)
-    )
-    account = result.scalar_one_or_none()
+    async def find() -> Account | None:
+        result = await db.execute(
+            select(Account)
+            .where(Account.name == name)
+            .where(Account.type == account_type)
+            .where(Account.currency == currency)
+            .where(Account.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
+
+    account = await find()
+    if account is None:
+        await db.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"account-creation:{user_id}"},
+        )
+        account = await find()
     if account:
         cache[cache_key] = account
         return account

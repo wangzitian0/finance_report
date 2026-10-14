@@ -24,7 +24,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -49,6 +49,9 @@ from src.ledger.extension.post import post_entry
 from src.ledger.orm.account import Account
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
 
+#: The size of the column ``journal_entries.memo``. A test pins this value to the column.
+_MEMO_MAX_LENGTH = 500
+
 
 async def get_or_create_processing_account(
     db: AsyncSession,
@@ -56,15 +59,21 @@ async def get_or_create_processing_account(
     *,
     currency: str,
 ) -> Account:
-    """Get or create the Processing virtual account for a user."""
-    result = await db.execute(
-        select(Account).where(
-            Account.user_id == user_id,
-            Account.is_system == True,  # noqa: E712
-            Account.code == PROCESSING_ACCOUNT_CODE,
+    """Get or create the Processing virtual account for a user.
+
+    No unique index protects this account. Two requests of one user can reach the insert together,
+    for example when a user uploads several statements at once. The first lookup stays lock-free.
+    A missing account takes a lock that lasts to the end of the transaction, and a second lookup
+    then sees the account of the request that created it first (#2415). All account creators of one
+    user share one lock key, so two requests cannot wait for each other in a circle.
+    """
+    account = await _find_processing_account(db, user_id)
+    if account is None:
+        await db.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"account-creation:{user_id}"},
         )
-    )
-    account = result.scalar_one_or_none()
+        account = await _find_processing_account(db, user_id)
 
     if not account:
         # Create Processing account
@@ -82,6 +91,17 @@ async def get_or_create_processing_account(
         await db.refresh(account)
 
     return account
+
+
+async def _find_processing_account(db: AsyncSession, user_id: UUID) -> Account | None:
+    result = await db.execute(
+        select(Account).where(
+            Account.user_id == user_id,
+            Account.is_system == True,  # noqa: E712
+            Account.code == PROCESSING_ACCOUNT_CODE,
+        )
+    )
+    return result.scalar_one_or_none()
 
 
 async def find_transfer_pairs(
@@ -310,7 +330,8 @@ async def _create_transfer_entry(
         db,
         user_id=user_id,
         entry_date=txn_date,
-        memo=f"Transfer {direction}: {description}",
+        # The description of a transaction can use the whole column. The prefix must not overflow it.
+        memo=f"Transfer {direction}: {description}"[:_MEMO_MAX_LENGTH],
         entry=entry,
         base_currency=processing_currency,
         source_id=source_id,

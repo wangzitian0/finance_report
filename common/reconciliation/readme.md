@@ -38,7 +38,8 @@ either side.
   the explicit `score_single` or `score_group` entry point;
   `calculate_match_score` remains the compatibility name for single scoring).
   Scores at or above the auto-accept threshold auto-accept; the review band
-  routes to `PENDING_REVIEW`.
+  routes to `PENDING_REVIEW`. A Processing leg that follows an AI classification stores the AI
+  score instead (100 when the user chose the class); the leg is not a matcher result.
 - **`TransferLeg`** — one side of an internal transfer between the user's own
   accounts; `pair_fx_legs`/`discover_fx_conversions` pair cross-currency
   transfer legs within a rate/time tolerance.
@@ -220,15 +221,18 @@ and linking older active rows to it as superseded before installing the index.
 
 Matching priority is evidence-first: many-to-one and normal journal candidates
 run before keyword-based transfer fallback. Transfer fallback uses only ledger's
-typed Processing commands and the transaction's own currency. Once both legs
-exist, reconciliation persists their pair; logs and ledger inference are not
-authoritative pair state.
+typed Processing commands and posts a leg only for a transaction in the effective
+base currency. Once both legs exist, reconciliation persists their pair; logs and
+ledger inference are not authoritative pair state.
 A transaction that the AI classification named a transfer or a card repayment gets the same Processing
 leg through `post_named_transfer_legs`, without a transfer keyword (#2415). That match is `accepted`,
 carries the AI score (100 when the user chose the class), and records the class in its score breakdown.
 Every leg carries the id of its source transaction, so two rows with the same date, text and amount
 get two entries. The function posts only in the effective base currency and never creates the Processing
-account for a skipped row. It does not pair; the pairing step of the next reconciliation run does.
+account for a skipped row. A rejected suggestion is history and does not own the row; a pending or accepted
+match does (`claim_transaction_for_decision`). The background run keeps the stricter `claim_transaction`.
+The memo of a leg holds at most 500 characters. The function does not pair; the pairing step of the next
+reconciliation run does.
 The pair command validates its own aggregate boundary: the two distinct
 dispositions must belong to the same tenant and currency and must carry OUT
 and IN source directions respectively. Ledger discovery narrows candidates,

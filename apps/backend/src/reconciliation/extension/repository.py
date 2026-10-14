@@ -70,10 +70,31 @@ class SqlReconciliationRepository(ReconciliationRepository):
         )
         return result.scalar_one_or_none()
 
+    async def _lock_transaction(self, txn_id: UUID) -> None:
+        """Lock the immutable source row. A second request waits until the first request ends."""
+        await self._db.execute(select(AtomicTransaction.id).where(AtomicTransaction.id == txn_id).with_for_update())
+
     async def claim_transaction(self, txn_id: UUID) -> ReconciliationMatch | None:
         """Lock the immutable source row before selecting its disposition head."""
-        await self._db.execute(select(AtomicTransaction.id).where(AtomicTransaction.id == txn_id).with_for_update())
+        await self._lock_transaction(txn_id)
         return await self.get_active_match(txn_id)
+
+    async def claim_transaction_for_decision(self, txn_id: UUID) -> ReconciliationMatch | None:
+        """Lock the source row, then return the match that owns it for a decision of a person.
+
+        The background run keeps the stricter ``claim_transaction``: it must not overturn a rejection.
+        A person asks for a new disposition on purpose. A rejected suggestion is history then, as in the
+        active match index and in ``submit_reviewed_disposition``.
+        """
+        await self._lock_transaction(txn_id)
+        result = await self._db.execute(
+            select(ReconciliationMatch).where(
+                ReconciliationMatch.atomic_txn_id == txn_id,
+                ReconciliationMatch.status.notin_((ReconciliationStatus.REJECTED, ReconciliationStatus.SUPERSEDED)),
+                ReconciliationMatch.superseded_by_id.is_(None),
+            )
+        )
+        return result.scalar_one_or_none()
 
     async def add_match(self, match: ReconciliationMatch) -> None:
         self._db.add(match)

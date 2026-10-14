@@ -1,8 +1,9 @@
-"""AC-reconciliation.named-transfer-legs: a row that the AI named a movement between accounts posts a Processing leg (#2415).
+"""AC-reconciliation.named-transfer-legs: a row that the AI named a movement between own accounts posts a Processing leg (#2415).
 
 The keyword fallback of the reconciliation run posts a transfer leg only when the description holds a
-transfer keyword. The AI classification names a wallet payment, a card repayment, a loan payment or a
-trade without such a keyword. `post_named_transfer_legs` posts the same leg for those rows.
+transfer keyword. The AI classification names a wallet payment or a card repayment without such a keyword.
+`post_named_transfer_legs` posts the same leg for those rows. A loan principal and an investment trade do not
+use a leg: the approval books them to a default balance-sheet account.
 """
 
 from __future__ import annotations
@@ -98,13 +99,13 @@ async def test_AC_reconciliation_named_transfer_legs_1_an_incoming_row_posts_dr_
         db,
         statement,
         txn_date=date(2025, 1, 12),
-        description="Loan drawdown",
+        description="Wallet refund",
         amount=Decimal("5000.00"),
         direction="IN",
     )
 
     matches = await post_named_transfer_legs(
-        db, user_id=test_user.id, named=[NamedTransfer(transaction=txn, category="LOAN_PRINCIPAL", score=70)]
+        db, user_id=test_user.id, named=[NamedTransfer(transaction=txn, category="TRANSFER", score=70)]
     )
 
     processing = await get_or_create_processing_account(db, test_user.id, currency="SGD")
@@ -148,10 +149,24 @@ async def test_AC_reconciliation_named_transfer_legs_2_a_statement_without_an_ac
     assert (await db.execute(select(func.count(JournalEntry.id)))).scalar_one() == 0
 
 
+def _ledger_must_not_run(monkeypatch) -> None:
+    """Replace the ledger call of the leg function with a call that fails the test."""
+    from src.reconciliation.extension import named_transfers
+
+    async def must_not_run(*_args, **_kwargs):
+        raise AssertionError("the ledger must not be called for this row")
+
+    monkeypatch.setattr(named_transfers, "post_transfer_leg", must_not_run)
+
+
 async def test_AC_reconciliation_named_transfer_legs_2_a_processing_account_in_another_currency_blocks_every_row(
-    db, test_user
+    db, test_user, monkeypatch
 ):
-    """AC-reconciliation.named-transfer-legs.2: Processing holds one currency. A row in the base currency waits."""
+    """AC-reconciliation.named-transfer-legs.2: Processing holds one currency. A row in the base currency waits.
+
+    The check runs before any ledger call. The ledger would refuse the leg as well, so the spy proves the order.
+    """
+    _ledger_must_not_run(monkeypatch)
     statement, _bank = await _statement(db, test_user.id, "named_leg_processing_currency")
     cny = await get_or_create_processing_account(db, test_user.id, currency="CNY")
     txn = await add_txn(
@@ -170,7 +185,7 @@ async def test_AC_reconciliation_named_transfer_legs_2_a_processing_account_in_a
 
 @pytest.mark.parametrize("currency", ["CNY", "XXX", ""])
 async def test_AC_reconciliation_named_transfer_legs_2_a_row_outside_the_base_currency_creates_no_account(
-    db, test_user, currency
+    db, test_user, currency, monkeypatch
 ):
     """AC-reconciliation.named-transfer-legs.2: a skipped row leaves no Processing account behind.
 
@@ -178,6 +193,7 @@ async def test_AC_reconciliation_named_transfer_legs_2_a_row_outside_the_base_cu
     transaction. A leg in a foreign currency then fails at commit. The function therefore refuses the row
     before any ledger call.
     """
+    _ledger_must_not_run(monkeypatch)
     statement, _bank = await _statement(db, test_user.id, f"named_leg_foreign_{currency or 'blank'}")
     statement.currency = currency or "SGD"
     txn = await add_txn(
@@ -367,3 +383,170 @@ async def test_AC_reconciliation_named_transfer_legs_4_the_legs_pair_in_the_next
     assert (pairs_before, pairs_after) == (0, 1)
     processing = await db.scalar(select(Account).where(Account.user_id == test_user.id, Account.is_system.is_(True)))
     assert processing is not None and processing.type is AccountType.ASSET
+
+
+@pytest.mark.parametrize("history", [ReconciliationStatus.REJECTED, ReconciliationStatus.SUPERSEDED])
+async def test_AC_reconciliation_named_transfer_legs_2_a_rejected_suggestion_does_not_own_the_row(
+    db, test_user, history
+):
+    """AC-reconciliation.named-transfer-legs.2: a rejected or superseded match is history, as in the active index.
+
+    The readme says that a rejected suggestion does not own the manual workflow. The unmatched query of the
+    approval already lists such a row. The leg must post for it, or the statement can never be approved.
+    """
+    statement, _bank = await _statement(db, test_user.id, f"named_leg_{history.value}")
+    txn = await add_txn(
+        db, statement, txn_date=date(2025, 1, 11), description="Wallet", amount=Decimal("80.00"), direction="OUT"
+    )
+    db.add(
+        ReconciliationMatch(
+            atomic_txn_id=txn.id,
+            journal_entry_ids=[],
+            match_score=0,
+            score_breakdown={},
+            status=history,
+            disposition_kind=DispositionKind.REVIEWED_UNMATCHED,
+        )
+    )
+    await db.flush()
+
+    matches = await post_named_transfer_legs(
+        db, user_id=test_user.id, named=[NamedTransfer(transaction=txn, category="TRANSFER", score=88)]
+    )
+
+    assert len(matches) == 1
+    assert matches[0].disposition_kind is DispositionKind.TRANSFER_LEG
+    current = (
+        (
+            await db.execute(
+                select(ReconciliationMatch).where(
+                    ReconciliationMatch.atomic_txn_id == txn.id,
+                    ReconciliationMatch.status != history,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert [match.id for match in current] == [matches[0].id]
+
+
+@pytest.mark.parametrize(
+    "status",
+    [ReconciliationStatus.PENDING_REVIEW, ReconciliationStatus.ACCEPTED, ReconciliationStatus.AUTO_ACCEPTED],
+)
+async def test_AC_reconciliation_named_transfer_legs_2_a_current_match_still_owns_the_row(db, test_user, status):
+    """AC-reconciliation.named-transfer-legs.2: a pending or accepted match blocks the leg, as the active index does."""
+    statement, _bank = await _statement(db, test_user.id, f"named_leg_owned_{status.value}")
+    txn = await add_txn(
+        db, statement, txn_date=date(2025, 1, 11), description="Wallet", amount=Decimal("80.00"), direction="OUT"
+    )
+    db.add(
+        ReconciliationMatch(
+            atomic_txn_id=txn.id,
+            journal_entry_ids=[],
+            match_score=70,
+            score_breakdown={},
+            status=status,
+            disposition_kind=DispositionKind.JOURNAL_MATCH,
+        )
+    )
+    await db.flush()
+
+    matches = await post_named_transfer_legs(
+        db, user_id=test_user.id, named=[NamedTransfer(transaction=txn, category="TRANSFER", score=88)]
+    )
+
+    assert matches == []
+    assert (await db.execute(select(func.count(JournalEntry.id)))).scalar_one() == 0
+
+
+async def test_AC_reconciliation_named_transfer_legs_3_two_identical_incoming_rows_post_two_legs(db, test_user):
+    """AC-reconciliation.named-transfer-legs.3: the source id also separates two incoming rows."""
+    statement, bank = await _statement(db, test_user.id, "named_leg_identical_in")
+    rows = [
+        await add_txn(
+            db,
+            statement,
+            txn_date=date(2025, 1, 5),
+            description="Wallet top-up refund",
+            amount=Decimal("50.00"),
+            direction="IN",
+        )
+        for _ in range(2)
+    ]
+
+    matches = await post_named_transfer_legs(
+        db,
+        user_id=test_user.id,
+        named=[NamedTransfer(transaction=row, category="TRANSFER", score=90) for row in rows],
+    )
+
+    assert len(matches) == 2
+    entries = [await _entry(db, match.journal_entry_ids[0]) for match in matches]
+    assert {entry.source_id for entry in entries} == {row.id for row in rows}
+    debited = sum(
+        line.amount
+        for entry in entries
+        for line in entry.lines
+        if line.account_id == bank.id and line.direction is Direction.DEBIT
+    )
+    assert debited == Decimal("100.00")
+
+
+async def test_AC_reconciliation_named_transfer_legs_5_a_long_description_posts_a_leg_with_a_bounded_memo(
+    db, test_user
+):
+    """AC-reconciliation.named-transfer-legs.5: the memo column holds 500 characters, and the memo adds a prefix.
+
+    A description of 495 characters is valid for the transaction. The leg must post, and a second call must
+    find the same entry.
+    """
+    statement, _bank = await _statement(db, test_user.id, "named_leg_long_memo")
+    description = "W" * 495
+    txn = await add_txn(
+        db, statement, txn_date=date(2025, 1, 11), description=description, amount=Decimal("80.00"), direction="OUT"
+    )
+    named = [NamedTransfer(transaction=txn, category="TRANSFER", score=88)]
+
+    matches = await post_named_transfer_legs(db, user_id=test_user.id, named=named)
+    await db.flush()
+
+    assert len(matches) == 1
+    entry = await _entry(db, matches[0].journal_entry_ids[0])
+    assert len(entry.memo) == 500
+    assert entry.memo.startswith("Transfer OUT: WWW")
+    assert (await db.execute(select(func.count(JournalEntry.id)))).scalar_one() == 1
+
+
+async def test_AC_reconciliation_named_transfer_legs_2_the_claim_for_a_decision_locks_the_row(db, test_user, db_engine):
+    """AC-reconciliation.named-transfer-legs.2: a second request waits until the first request ends.
+
+    Without the row lock, two approvals post two legs for one row. The unique index on active matches then
+    makes the second request fail with an integrity error.
+    """
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from src.reconciliation.extension.repository import SqlReconciliationRepository
+
+    statement, _bank = await _statement(db, test_user.id, "named_leg_claim_lock")
+    txn = await add_txn(
+        db, statement, txn_date=date(2025, 1, 11), description="Wallet", amount=Decimal("80.00"), direction="OUT"
+    )
+    await db.commit()
+    sessions = async_sessionmaker(db_engine, expire_on_commit=False)
+    first, second = sessions(), sessions()
+    try:
+        assert await SqlReconciliationRepository(first).claim_transaction_for_decision(txn.id) is None
+        waiting = asyncio.create_task(SqlReconciliationRepository(second).claim_transaction_for_decision(txn.id))
+        await asyncio.sleep(0.5)
+        still_waiting = not waiting.done()
+        await first.commit()
+        assert await asyncio.wait_for(waiting, timeout=15) is None
+    finally:
+        await first.close()
+        await second.close()
+
+    assert still_waiting

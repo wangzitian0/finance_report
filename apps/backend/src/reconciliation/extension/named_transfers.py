@@ -7,7 +7,7 @@ all or nothing per statement.
 
 ``post_named_transfer_legs`` posts the same leg for those rows. The legs carry the normalized anchors, so
 the next reconciliation run pairs them with the other side of the movement and clears the Processing
-account. The function does not pair: pairing is quadratic in the number of open legs, and it only
+account. The function does not pair: pairing is quadratic in the number of legs of the user, and it only
 labels legs without changing the balance.
 
 The Processing account holds the effective base currency (``common/ledger/readme.md``). A row in
@@ -72,9 +72,9 @@ async def post_named_transfer_legs(
     """Post a Processing leg for each named transaction and return the matches that it created.
 
     A transaction is skipped, without an error and without a ledger effect, when it already has a live
-    match, when its statement has no linked account, when its currency is not the effective base
-    currency, or when the Processing account of the user holds another currency. The caller owns the
-    database transaction.
+    match (pending or accepted; a rejected or superseded match is history), when its statement has no
+    linked account, when its currency is not the effective base currency, or when the Processing account
+    of the user holds another currency. The caller owns the database transaction.
 
     The match is ``accepted`` because a person asked for it. Its score is the AI score, and its
     breakdown records the class that the AI named. When the user chose the class, the score is 100 and
@@ -102,7 +102,7 @@ async def post_named_transfer_legs(
     matches: list[ReconciliationMatch] = []
     for item in named:
         txn = item.transaction
-        if await repo.claim_transaction(txn.id) is not None:
+        if await repo.claim_transaction_for_decision(txn.id) is not None:
             continue
         if (txn.currency or "").upper() != base_currency:
             logger.info("Named transfer skipped: the row is not in the base currency", txn_id=str(txn.id))

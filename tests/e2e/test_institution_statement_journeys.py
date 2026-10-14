@@ -816,11 +816,11 @@ async def _post_later_gxs_income(
             ],
         },
     )
-    assert draft.status_code == 201
+    assert draft.status_code == 201, draft.text
     posted = await client.post(
         _api_url(f"/journal-entries/{draft.json()['id']}/postings")
     )
-    assert posted.status_code == 200
+    assert posted.status_code == 200, posted.text
     live = await client.get(
         _api_url("/reports/income-statement"),
         params={

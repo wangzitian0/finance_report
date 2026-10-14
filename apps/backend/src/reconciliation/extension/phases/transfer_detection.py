@@ -6,6 +6,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config_app import get_effective_base_currency
 from src.extraction.extension.statement_summary import resolve_custody_account_id
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import (
@@ -36,11 +37,25 @@ async def run_transfer_detection_phase(
     created_matches: list[ReconciliationMatch] = []
     # Kept for call compatibility; AtomicTransaction.currency is authoritative.
     del currency
+    base_currency: str | None = None
     for txn in transactions:
         if txn.id in matched_txn_ids:
             continue
 
         if not detect_transfer_pattern(txn.description):
+            continue
+
+        # The Processing account holds the effective base currency. A row in another currency needs the
+        # FX-aware path, and a leg in its currency would fix the Processing currency of the user (#2415).
+        if base_currency is None:
+            base_currency = (await get_effective_base_currency(db)).upper()
+        if (txn.currency or "").upper() != base_currency:
+            logger.info(
+                "Transfer detected in another currency - skipping Processing entry",
+                txn_id=str(txn.id),
+                txn_currency=txn.currency,
+                base_currency=base_currency,
+            )
             continue
 
         try:

@@ -240,7 +240,10 @@ async def test_AC_extraction_classification_hardening_2_edit_accept_replaces_cat
 async def test_AC_extraction_classification_hardening_2_edit_accept_to_a_transfer_leaves_no_account(
     client: AsyncClient, db: AsyncSession, test_user: User
 ) -> None:
-    """A class that is not income or expense has no category account. The row waits for a person."""
+    """A class that is not income or expense has no category account. The draft keeps no account.
+
+    The one-click approval then books a transfer as a Processing leg.
+    """
     draft = await _draft(db, test_user.id)
 
     response = await _post(client, draft.id, "edit_accept", {"value": "transfer"})

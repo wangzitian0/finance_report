@@ -655,6 +655,7 @@ async def test_AC_reconciliation_economic_disposition_7_processing_uses_typed_le
     repository.claim_transaction = AsyncMock(side_effect=claim_transaction)
     repository.add_match = AsyncMock(side_effect=add_match)
     monkeypatch.setattr(transfer_detection, "detect_transfer_pattern", lambda _description: True)
+    monkeypatch.setattr(transfer_detection, "get_effective_base_currency", AsyncMock(return_value="SGD"))
     monkeypatch.setattr(
         transfer_detection,
         "resolve_custody_account_id",
