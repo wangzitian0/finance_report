@@ -195,6 +195,7 @@ async def test_AC_extraction_classification_hardening_7_the_reader_reports_a_cor
     assert (after.category, after.corrected) == ("GROCERIES", True)
 
 
+@pytest.mark.usefixtures("review_path")
 async def test_AC_extraction_classification_hardening_3_a_pair_left_by_an_earlier_release_is_repaired(db, test_user):
     """AC-extraction.classification-hardening.3: a row that has both a v1 and a v2 row keeps only the newer one."""
     txn = await _txn(db, test_user)

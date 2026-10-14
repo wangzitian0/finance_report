@@ -9,9 +9,12 @@ nothing, so a later pass can still classify it.
 
 from __future__ import annotations
 
-import pytest
-from sqlalchemy import select
+import json
 
+import pytest
+from sqlalchemy import func, select
+
+from src.config import settings
 from src.extraction import ClassificationStatus, TransactionDirection
 from src.extraction.extension import transaction_classification as tc
 from src.extraction.extension.transaction_classification import (
@@ -29,8 +32,6 @@ V2 = tc.POLICY_VERSIONS[1]
 
 @pytest.fixture(autouse=True)
 def _automatic_path(monkeypatch):
-    from src.config import settings
-
     monkeypatch.setattr(settings, "enable_ai_classification", True)
     monkeypatch.setattr(settings, "auto_accept_ai_suggestions", True)
 
@@ -87,7 +88,7 @@ async def test_AC_extraction_auto_accept_2_other_income_is_applied_to_the_other_
     ("category", "confidence", "reason"),
     [
         ("DINING", 40, "below the review score"),
-        ("NOT_IN_THE_CATALOG", 90, "off the catalog"),
+        ("DINING", 0, "an explicit zero: the model says that it cannot place the row"),
         ("SALARY", 95, "an income category for money out"),
     ],
 )
@@ -105,6 +106,9 @@ async def test_AC_extraction_auto_accept_3_a_row_that_the_model_cannot_place_get
     assert (await _account(db, row)).type is AccountType.EXPENSE
     assert row.tags["category"] == "UNCLASSIFIED"
     assert row.confidence_score == 0
+    # The record keeps what the model said, so a reader can tell a guess from a missing answer.
+    assert row.tags["original_category"] == category
+    assert row.tags["original_confidence"] == confidence
     assert outcomes[0].disposition == "fallback"
 
 
@@ -180,12 +184,13 @@ async def test_AC_extraction_auto_accept_5_a_transfer_stays_a_draft_for_the_leg(
 
 
 async def test_AC_extraction_auto_accept_6_existing_drafts_are_promoted(db, test_user):
-    """AC-extraction.auto-accept.6: turning the setting on also settles the drafts that the review path left."""
+    """AC-extraction.auto-accept.6: turning the setting on also settles the drafts that the review path left.
+
+    The first pass runs with the setting off, so no row holds the tag yet. Only the promotion can add it.
+    """
     txn = await _txn(db, test_user)
-    await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer("DINING", 70))
-    row = await _row(db, txn)
-    row.status = ClassificationStatus.DRAFT  # what the review path would have written
-    await db.flush()
+    row = await _draft_from_the_review_path(db, test_user, txn, "DINING", 70)
+    assert "auto_accepted" not in row.tags
 
     await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer("DINING", 70))
 
@@ -333,10 +338,213 @@ async def test_AC_extraction_auto_accept_1_the_process_default_of_classification
     db, test_user, monkeypatch
 ):
     """AC-extraction.auto-accept.1: a user without an override follows the process default of AI classification."""
-    from src.config import settings
     from src.extraction.extension.ai_settings import auto_accept_enabled, classification_enabled
 
     monkeypatch.setattr(settings, "enable_ai_classification", False)
 
     assert await classification_enabled(db, test_user.id) is False
     assert await auto_accept_enabled(db, test_user.id) is False
+
+
+# --- the parser: a malformed answer is no answer (audit of #2424, finding 2) ---
+
+
+def _model_answers(monkeypatch, items: list[dict]) -> None:
+    """Put a stub in place of the provider. The real parser reads what the stub returns."""
+
+    async def stream():
+        yield json.dumps(items)
+
+    monkeypatch.setattr("src.llm.stream_ai_json", lambda **_kwargs: stream())
+    monkeypatch.setattr(settings, "ai_api_key", "test-key")
+
+
+async def _general_account_count(db) -> int:
+    return (await db.execute(select(func.count(Account.id)).where(Account.name.like("General %")))).scalar_one()
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        pytest.param({"index": 0}, id="no-category-no-confidence"),
+        pytest.param({"index": 0, "category": "DINING"}, id="no-confidence"),
+        pytest.param({"index": 0, "confidence": 90}, id="no-category"),
+        pytest.param({"index": 0, "category": None, "confidence": 90}, id="null-category"),
+        pytest.param({"index": 0, "category": "  ", "confidence": 90}, id="blank-category"),
+        pytest.param({"index": 0, "category": "DINING", "confidence": 0.95}, id="fraction-scale"),
+        pytest.param({"index": 0, "category": "DINING", "confidence": "high"}, id="word"),
+        pytest.param({"index": 0, "category": "DINING", "confidence": None}, id="null-confidence"),
+        pytest.param({"index": 0, "category": "DINING", "confidence": True}, id="boolean-confidence"),
+        pytest.param({"index": 0, "category": 7, "confidence": 90}, id="number-category"),
+    ],
+)
+async def test_AC_extraction_auto_accept_4_an_unreadable_answer_writes_nothing(db, test_user, monkeypatch, answer):
+    """AC-extraction.auto-accept.4: the real parser turns an answer that it cannot read into no answer.
+
+    The row gets no classification and no general account. A later pass asks the model again.
+    """
+    txn = await _txn(db, test_user)
+    _model_answers(monkeypatch, [answer])
+
+    outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2)
+
+    assert await _row(db, txn) is None
+    assert await _general_account_count(db) == 0
+    assert outcomes[0].disposition == "no_proposal"
+
+
+async def test_AC_extraction_auto_accept_4_a_class_outside_the_catalog_writes_nothing(db, test_user, monkeypatch):
+    """AC-extraction.auto-accept.4: a name that the catalog does not hold means the model ignored the schema."""
+    txn = await _txn(db, test_user)
+    _model_answers(monkeypatch, [{"index": 0, "category": "FOOD_AND_DRINK", "confidence": 95}])
+
+    outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2)
+
+    assert await _row(db, txn) is None
+    assert await _general_account_count(db) == 0
+    assert outcomes[0].disposition == "off_catalog"
+
+
+@pytest.mark.parametrize(
+    ("answer", "account_name", "score"),
+    [
+        pytest.param({"category": "dining", "confidence": 90}, "Expense - Dining", 90, id="lower-case"),
+        pytest.param({"category": " Dining ", "confidence": "90%"}, "Expense - Dining", 90, id="spaces-and-percent"),
+        pytest.param({"category": "DINING", "confidence": 87.6}, "Expense - Dining", 88, id="decimal-score"),
+        pytest.param({"category": "dining", "confidence": 250}, "Expense - Dining", 100, id="score-above-100"),
+    ],
+)
+async def test_AC_extraction_auto_accept_4_a_readable_answer_is_normalized(
+    db, test_user, monkeypatch, answer, account_name, score
+):
+    """AC-extraction.auto-accept.4: case, spaces and a percent sign do not make an answer unreadable."""
+    txn = await _txn(db, test_user)
+    _model_answers(monkeypatch, [{"index": 0, **answer}])
+
+    await classify_transactions(db, test_user.id, [txn], policy=V2)
+
+    row = await _row(db, txn)
+    assert (await _account(db, row)).name == account_name
+    assert row.confidence_score == score
+
+
+async def test_AC_extraction_auto_accept_4_a_mixed_case_class_with_a_hyphen_is_read(db, test_user, monkeypatch):
+    """AC-extraction.auto-accept.4: the user path accepts `other income`; the model path accepts it too."""
+    txn = await _txn(db, test_user, direction=TransactionDirection.IN)
+    _model_answers(monkeypatch, [{"index": 0, "category": "Other-Income", "confidence": 70}])
+
+    await classify_transactions(db, test_user.id, [txn], policy=V2)
+
+    assert (await _account(db, await _row(db, txn))).name == "Income - Other"
+
+
+# --- a dry run writes nothing, with the setting on (finding 7) ---
+
+
+async def test_AC_extraction_auto_accept_4_a_dry_run_writes_nothing_and_creates_no_account(db, test_user):
+    """AC-extraction.auto-accept.4: `commit_basis=False` gives the verdicts and no write, on every new route."""
+    cases = {
+        "low": (await _txn(db, test_user), ("DINING", 40)),
+        "against": (await _txn(db, test_user, direction=TransactionDirection.OUT), ("SALARY", 95)),
+        "loan": (await _txn(db, test_user), ("LOAN_PRINCIPAL", 66)),
+        "trade": (await _txn(db, test_user), ("INVESTMENT_TRADE", 66)),
+        "transfer": (await _txn(db, test_user), ("TRANSFER", 66)),
+        "applied": (await _txn(db, test_user), ("DINING", 70)),
+    }
+    by_txn = {txn.id: answer for txn, answer in cases.values()}
+    accounts_before = (await db.execute(select(func.count(Account.id)))).scalar_one()
+
+    async def proposer(transactions, _policy):
+        return [CategoryProposal(category=by_txn[t.id][0], confidence=by_txn[t.id][1]) for t in transactions]
+
+    outcomes = await classify_transactions(
+        db, test_user.id, [txn for txn, _ in cases.values()], policy=V2, proposer=proposer, commit_basis=False
+    )
+
+    assert {outcome.disposition for outcome in outcomes} == {"fallback", "applied", "non_pnl"}
+    assert (await db.execute(select(func.count(TransactionClassification.id)))).scalar_one() == 0
+    assert (await db.execute(select(func.count(Account.id)))).scalar_one() == accounts_before
+
+
+# --- balance-sheet classes are accepted at any score (finding 4) ---
+
+
+@pytest.mark.parametrize(
+    ("category", "status", "account_name"),
+    [
+        ("LOAN_PRINCIPAL", ClassificationStatus.APPLIED, "Loans Payable (SGD)"),
+        ("INVESTMENT_TRADE", ClassificationStatus.APPLIED, "Investments (SGD)"),
+        ("TRANSFER", ClassificationStatus.DRAFT, None),
+        ("CARD_REPAYMENT", ClassificationStatus.DRAFT, None),
+    ],
+)
+async def test_AC_extraction_auto_accept_5_a_balance_sheet_class_is_accepted_below_the_review_score(
+    db, test_user, category, status, account_name
+):
+    """AC-extraction.auto-accept.5: a weak transfer is still a transfer, not an expense.
+
+    The model named a movement of money, and a General Expense row would count that money as spending. The
+    two sides of one transfer must also land in the same place, whatever score each side got.
+    """
+    txn = await _txn(db, test_user)
+
+    outcomes = await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer(category, 55))
+
+    row = await _row(db, txn)
+    assert row.status is status
+    assert row.tags["category"] == category
+    assert (await _account(db, row)).name == account_name if account_name else row.account_id is None
+    assert outcomes[0].disposition != "fallback"
+    assert await _general_account_count(db) == 0
+
+
+# --- a person's correction outranks the setting (finding 6) ---
+
+
+async def test_AC_extraction_auto_accept_6_a_corrected_draft_stays_a_draft(db, test_user):
+    """AC-extraction.auto-accept.6: the one-click approval posts a corrected draft as the decision of the person.
+
+    The promotion would record the model as the decider and the confidence tier of the model.
+    """
+    txn = await _txn(db, test_user)
+    draft = await _draft_from_the_review_path(db, test_user, txn, "DINING", 70)
+    draft.tags = {**draft.tags, "corrected_by_user": True}
+    await db.flush()
+
+    await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_answer("DINING", 70))
+
+    await db.refresh(draft)
+    assert draft.status is ClassificationStatus.DRAFT
+    assert "auto_accepted" not in draft.tags
+
+
+# --- the process flag is a ceiling (finding 5) ---
+
+
+@pytest.mark.parametrize(
+    ("process_flag", "stored", "expected"),
+    [
+        (True, None, True),
+        (True, True, True),
+        (True, False, False),
+        (False, None, False),
+        (False, True, False),
+        (False, False, False),
+    ],
+)
+async def test_AC_extraction_auto_accept_1_the_process_flag_is_a_ceiling(
+    db, test_user, monkeypatch, process_flag, stored, expected
+):
+    """AC-extraction.auto-accept.1: the operator rollback `AUTO_ACCEPT_AI_SUGGESTIONS=false` reaches every user.
+
+    A user who saved the settings panel once holds a stored `true`. That value must not outvote the operator.
+    """
+    from src.extraction import effective_auto_accept
+    from src.extraction.extension.ai_settings import auto_accept_enabled
+
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", process_flag)
+    test_user.ai_settings = {} if stored is None else {"auto_accept_ai_suggestions": stored}
+    await db.flush()
+
+    assert await auto_accept_enabled(db, test_user.id) is expected
+    assert effective_auto_accept(test_user.ai_settings) is expected

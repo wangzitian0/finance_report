@@ -568,3 +568,34 @@ async def test_AC_reconciliation_named_transfer_legs_2_the_claim_for_a_decision_
     finally:
         await first.close()
         await second.close()
+
+
+@pytest.mark.parametrize(
+    ("accepted_by", "decided_by_user", "expected"),
+    [
+        ("user", False, ReconciliationStatus.ACCEPTED),
+        ("user", True, ReconciliationStatus.ACCEPTED),
+        ("system", False, ReconciliationStatus.AUTO_ACCEPTED),
+        ("system", True, ReconciliationStatus.ACCEPTED),
+    ],
+)
+async def test_AC_reconciliation_named_transfer_legs_1_the_status_names_who_decided(
+    db, test_user, accepted_by, decided_by_user, expected
+):
+    """AC-reconciliation.named-transfer-legs.1: a class that the user chose is a decision of the user.
+
+    The system accepts a suggestion on its own only when nobody chose the class.
+    """
+    statement, _bank = await _statement(db, test_user.id, f"named_leg_status_{accepted_by}_{decided_by_user}")
+    txn = await add_txn(
+        db, statement, txn_date=date(2025, 1, 11), description="Wallet", amount=Decimal("80.00"), direction="OUT"
+    )
+
+    matches = await post_named_transfer_legs(
+        db,
+        user_id=test_user.id,
+        named=[NamedTransfer(transaction=txn, category="TRANSFER", score=80, decided_by_user=decided_by_user)],
+        accepted_by=accepted_by,
+    )
+
+    assert [match.status for match in matches] == [expected]

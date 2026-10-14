@@ -117,6 +117,35 @@ async def test_AC_extraction_auto_accept_1_the_code_default_is_on_and_a_user_can
     assert test_user.ai_settings == {"auto_accept_ai_suggestions": False}
 
 
+async def test_AC_extraction_auto_accept_1_the_settings_show_the_value_that_the_system_uses(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-extraction.auto-accept.1: GET shows the effective value, not the stored preference.
+
+    The operator flag is a ceiling, and the setting needs AI classification.
+    """
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", False)
+    test_user.ai_settings = {"auto_accept_ai_suggestions": True}
+    await db.commit()
+    ceiling = await client.get("/users/me/settings")
+
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", True)
+    test_user.ai_settings = {"auto_accept_ai_suggestions": True, "enable_ai_classification": False}
+    await db.commit()
+    without_classification = await client.get("/users/me/settings")
+
+    test_user.ai_settings = {"auto_accept_ai_suggestions": True}
+    await db.commit()
+    both_on = await client.get("/users/me/settings")
+
+    assert ceiling.json()["auto_accept_ai_suggestions"] is False
+    assert without_classification.json()["auto_accept_ai_suggestions"] is False
+    assert both_on.json()["auto_accept_ai_suggestions"] is True
+
+
 async def test_ac18_5_5_get_ai_settings_returns_404_for_missing_user(
     public_client: AsyncClient,
 ) -> None:
@@ -172,5 +201,6 @@ async def test_ac18_5_5_get_ai_settings_reflects_persisted_overrides(
     assert response.json() == {
         "enable_ai_reconciliation": True,
         "enable_ai_classification": False,
-        "auto_accept_ai_suggestions": settings.auto_accept_ai_suggestions,
+        # With AI classification off there is nothing to accept, so the effective value is off.
+        "auto_accept_ai_suggestions": False,
     }

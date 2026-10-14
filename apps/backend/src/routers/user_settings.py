@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
+from src.extraction import effective_auto_accept, effective_classification
 from src.identity import User
 from src.platform import raise_not_found
 from src.schemas.user import UserAiSettingsResponse, UserAiSettingsUpdate
@@ -16,8 +17,8 @@ def _effective_settings(ai_settings: dict[str, bool] | None) -> UserAiSettingsRe
     overrides = ai_settings or {}
     return UserAiSettingsResponse(
         enable_ai_reconciliation=overrides.get("enable_ai_reconciliation", settings.enable_ai_reconciliation),
-        enable_ai_classification=overrides.get("enable_ai_classification", settings.enable_ai_classification),
-        auto_accept_ai_suggestions=overrides.get("auto_accept_ai_suggestions", settings.auto_accept_ai_suggestions),
+        enable_ai_classification=effective_classification(overrides),
+        auto_accept_ai_suggestions=effective_auto_accept(overrides),
     )
 
 

@@ -13,7 +13,7 @@ from decimal import Decimal
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from src.audit import JournalEntrySourceType
@@ -34,7 +34,7 @@ pytestmark = pytest.mark.asyncio
 class _Model:
     """A stand-in for `src.llm.stream_ai_json`: it answers each indexed row from a table by description."""
 
-    def __init__(self, answers: dict[str, tuple[str, int]], *, fail: bool = False):
+    def __init__(self, answers: dict[str, tuple[str, int] | None], *, fail: bool = False):
         self.answers = answers
         self.fail = fail
         self.calls = 0
@@ -46,7 +46,9 @@ class _Model:
         content = kwargs["messages"][0]["content"]
         rows = [json.loads(line) for line in content.splitlines() if line.startswith('{"index"')]
         items = [
-            {
+            {"index": row["index"]}
+            if self.answers[row["description"]] is None
+            else {
                 "index": row["index"],
                 "category": self.answers[row["description"]][0],
                 "confidence": self.answers[row["description"]][1],
@@ -244,6 +246,7 @@ async def test_AC_extraction_auto_accept_9_transfers_loans_and_trades_post_witho
     )
 
     assert result.status == BankStatementStatus.APPROVED
+    assert result.journal_entries_created == 3  # one leg, one loan entry, one trade entry
     assert await _counter_names(db, loan, bank.id) == {"Loans Payable (SGD)"}
     assert await _counter_names(db, trade, bank.id) == {"Investments (SGD)"}
     leg = (
@@ -288,3 +291,109 @@ async def test_AC_extraction_auto_accept_10_a_high_confidence_statement_posts_wh
     assert await _counter_names(db, lunch, bank.id) == {"Expense - Dining"}
     await db.refresh(statement)
     assert statement.status == BankStatementStatus.APPROVED
+
+
+async def test_AC_extraction_auto_accept_9_the_observe_mode_posts_no_leg(db, test_user, monkeypatch):
+    """AC-extraction.auto-accept.9: a leg is a command, and only the mode that applies commands may post it."""
+    monkeypatch.setattr(settings, "statement_disposition_mode", "observe")
+    statement, _bank = await _statement(db, test_user.id, "auto_observe", closing="80.00")
+    await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 5),
+        description="Payment to GrabPay Wallet",
+        amount=Decimal("20.00"),
+        direction="OUT",
+    )
+    await db.commit()
+    _install(monkeypatch, _Model({"Payment to GrabPay Wallet": ("TRANSFER", 90)}))
+
+    with pytest.raises(HTTPException) as error:
+        await statements_router.approve_statement_stage1(
+            statement_id=statement.id, request=None, db=db, user_id=test_user.id
+        )
+
+    assert error.value.status_code == 409
+    assert (await db.execute(select(ReconciliationMatch.id))).first() is None
+    assert (await db.execute(select(JournalEntry.id).where(JournalEntry.source_id.is_not(None)))).first() is None
+    assert (await db.execute(select(Account.id).where(Account.code == PROCESSING_ACCOUNT_CODE))).first() is None
+
+
+async def test_AC_extraction_auto_accept_9_a_leg_survives_a_review_stop_and_the_retry_posts_the_rest(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.auto-accept.9: the first approval stops at a row without an answer, and the second finishes.
+
+    The leg of the wallet row is committed by the first approval. The second approval must not post it again.
+    Opening 100.00; -20 -15 gives a closing balance of 65.00.
+    """
+    statement, bank = await _statement(db, test_user.id, "auto_leg_then_retry", closing="65.00")
+    wallet = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 5),
+        description="Payment to GrabPay Wallet",
+        amount=Decimal("20.00"),
+        direction="OUT",
+    )
+    lunch = await add_txn(
+        db, statement, txn_date=date(2025, 1, 6), description="Lunch", amount=Decimal("15.00"), direction="OUT"
+    )
+    await db.commit()
+    _install(monkeypatch, _Model({"Payment to GrabPay Wallet": ("TRANSFER", 90), "Lunch": None}))
+
+    with pytest.raises(HTTPException) as first:
+        await statements_router.approve_statement_stage1(
+            statement_id=statement.id, request=None, db=db, user_id=test_user.id
+        )
+
+    assert first.value.status_code == 409
+    assert (await db.execute(select(func.count(ReconciliationMatch.id)))).scalar_one() == 1
+    assert (
+        await db.execute(select(JournalEntry.source_id).where(JournalEntry.source_id.is_not(None)))
+    ).scalars().all() == [wallet.id]
+
+    _install(monkeypatch, _Model({"Payment to GrabPay Wallet": ("TRANSFER", 90), "Lunch": ("DINING", 66)}))
+    result = await statements_router.approve_statement_stage1(
+        statement_id=statement.id, request=None, db=db, user_id=test_user.id
+    )
+
+    assert result.status == BankStatementStatus.APPROVED
+    assert result.journal_entries_created == 1  # the lunch entry; the leg exists already
+    assert (await db.execute(select(func.count(ReconciliationMatch.id)))).scalar_one() == 1
+    sources = (
+        (await db.execute(select(JournalEntry.source_id).where(JournalEntry.source_id.is_not(None)))).scalars().all()
+    )
+    assert sorted(sources) == sorted([wallet.id, lunch.id])
+    assert await _counter_names(db, lunch, bank.id) == {"Expense - Dining"}
+
+
+async def test_AC_extraction_auto_accept_9_a_second_approval_posts_nothing_more(db, test_user, monkeypatch):
+    """AC-extraction.auto-accept.9: approving twice gives one entry per row and one leg per wallet row."""
+    statement, _bank = await _statement(db, test_user.id, "auto_twice", closing="65.00")
+    await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 5),
+        description="Payment to GrabPay Wallet",
+        amount=Decimal("20.00"),
+        direction="OUT",
+    )
+    await add_txn(
+        db, statement, txn_date=date(2025, 1, 6), description="Lunch", amount=Decimal("15.00"), direction="OUT"
+    )
+    await db.commit()
+    _install(monkeypatch, _Model({"Payment to GrabPay Wallet": ("TRANSFER", 90), "Lunch": ("DINING", 66)}))
+
+    first = await statements_router.approve_statement_stage1(
+        statement_id=statement.id, request=None, db=db, user_id=test_user.id
+    )
+    entries_after_first = (await db.execute(select(func.count(JournalEntry.id)))).scalar_one()
+    second = await statements_router.approve_statement_stage1(
+        statement_id=statement.id, request=None, db=db, user_id=test_user.id
+    )
+
+    assert first.journal_entries_created == 2
+    assert second.journal_entries_created == 0
+    assert (await db.execute(select(func.count(JournalEntry.id)))).scalar_one() == entries_after_first
+    assert (await db.execute(select(func.count(ReconciliationMatch.id)))).scalar_one() == 1

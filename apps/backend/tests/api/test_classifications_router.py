@@ -30,6 +30,7 @@ def stub_proposer(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("review_path")
 async def test_AC18_17_2_backfill_endpoint_classifies_then_is_idempotent(
     client: AsyncClient, db, test_user, enabled_flag, stub_proposer
 ):
@@ -69,6 +70,7 @@ async def test_AC18_17_2_backfill_endpoint_is_flag_gated(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("review_path")
 async def test_AC18_17_2_tail_txns_are_reattempted_without_duplication(
     client: AsyncClient, db, test_user, enabled_flag, monkeypatch
 ):

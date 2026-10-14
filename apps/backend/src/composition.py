@@ -132,7 +132,7 @@ async def post_guided_opening_balances(
 
 async def _post_named_transfers_for_user(
     db: AsyncSession, user_id: UUID, transactions: Sequence[AtomicTransaction]
-) -> None:
+) -> int:
     """Post the Processing legs of the rows that the AI named a transfer or a card repayment (#2405).
 
     The posting calls this for a user who lets the system accept the suggestions. The legs belong to
@@ -150,13 +150,14 @@ async def _post_named_transfers_for_user(
         if (suggestion := suggestions.get(txn.id)) is not None and suggestion.booking == "processing_leg"
     ]
     if not named:
-        return
+        return 0
     legs = await post_named_transfer_legs(db, user_id=user_id, named=named, accepted_by="system")
     classification_ids = {item.transaction.id: suggestions[item.transaction.id].classification_id for item in named}
     for leg in legs:
         await settle_drafts_after_posting(
             db, leg.atomic_txn_id, accepted_id=classification_ids.get(leg.atomic_txn_id), accepted_by="system"
         )
+    return len(legs)
 
 
 def compose_statement_posting_dependencies() -> StatementPostingDependencies:
@@ -300,8 +301,8 @@ async def auto_fill_default_statement_dispositions(
     resolved_count = 0
     accounts_cache: dict[tuple[AccountType, str], Account] = {}
     suggestions = await classification_suggestions(db, [txn.id for txn in unmatched_txns])
-    # The posting that follows posts these rows from their applied classification (85 or more, or a
-    # reviewed rule). The disposition policy decides, as in the posting itself. An applied row that the
+    # The posting that follows posts these rows from their applied classification (the score gate of the
+    # policy of the user, or a reviewed rule). The disposition policy decides, as in the posting itself. An applied row that the
     # policy refuses falls through to the default below, because the posting cannot clear such a row (#2419).
     left_to_posting = await applied_rows_the_policy_accepts(
         db,

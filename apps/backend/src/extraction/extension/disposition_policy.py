@@ -15,6 +15,9 @@ from src.extraction.base.disposition import (
 )
 from src.extraction.extension.ai_settings import auto_accept_enabled
 
+#: The version of the policy that accepts a suggestion at any score. The default policy keeps ``disposition-v1``.
+AUTO_ACCEPT_POLICY_VERSION = "disposition-v1-accept-any-score"
+
 
 def statement_disposition_policy(*, auto_accept: bool) -> DispositionPolicy:
     """The policy for one user. A user who lets the system accept the AI suggestions accepts them at any score (#2405).
@@ -22,7 +25,10 @@ def statement_disposition_policy(*, auto_accept: bool) -> DispositionPolicy:
     The classifier already refused a suggestion that cannot post, and it writes a general-account row for a
     row that it could not place. The score gate is therefore open. The snapshot records the threshold that ran.
     """
-    return DispositionPolicy(authoritative_threshold=Decimal("0")) if auto_accept else DispositionPolicy()
+    if not auto_accept:
+        return DispositionPolicy()
+    # One version string names one threshold: the recorded version tells which gate ran.
+    return DispositionPolicy(version=AUTO_ACCEPT_POLICY_VERSION, authoritative_threshold=Decimal("0"))
 
 
 async def statement_disposition_policy_for_user(db: AsyncSession, user_id: UUID) -> DispositionPolicy:

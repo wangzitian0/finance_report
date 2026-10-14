@@ -133,6 +133,7 @@ async def test_AC18_15_3_off_catalog_proposal_is_rejected_never_applied(db, test
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("review_path")
 async def test_AC18_15_4_confidence_gate_applies_reviews_or_tails(db, test_user, enabled_flag):
     """AC-extraction.1815.4: AC18.15.4: >=85 auto-APPLIED onto a real catalog account; 60-84 DRAFT for the
     ai_feedback review band; <60 stays in the genuine Uncategorized tail."""
@@ -201,6 +202,7 @@ async def test_AC18_15_5_model_never_touches_money(db, test_user, enabled_flag):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("review_path")
 async def test_AC18_15_6_pro_forma_writes_nothing(db, test_user, enabled_flag):
     """AC-extraction.1815.6: AC18.15.6: commit_basis=False classifies under a candidate policy without
     writing the basis-of-record (no classifications, no policy rules, no accounts)."""
@@ -231,6 +233,7 @@ async def test_AC18_15_6_pro_forma_writes_nothing(db, test_user, enabled_flag):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("review_path")
 async def test_AC18_15_7_user_rule_prepass_wins_over_model(db, test_user, enabled_flag):
     """AC-extraction.1815.7: AC18.15.7: a user's deterministic rule wins; the model is not consulted for it."""
     rule = ClassificationRule(
@@ -265,6 +268,7 @@ async def test_AC18_15_7_user_rule_prepass_wins_over_model(db, test_user, enable
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("review_path")
 async def test_AC18_15_7_no_rules_is_a_noop_prepass_not_an_error(db, test_user, enabled_flag):
     txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="ACME PAYROLL")
     proposer = _stub_proposer(
@@ -330,6 +334,7 @@ def test_AC_extraction_ai_classification_default_1_code_default_is_on(monkeypatc
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("review_path")
 async def test_AC_extraction_ai_classification_default_1_new_user_gets_model_proposals(db, test_user, monkeypatch):
     """AC-extraction.ai-classification-default.1: a user with no override reaches the model proposer."""
     from src.config import Settings, settings
@@ -435,6 +440,7 @@ async def test_AC18_15_3_proposer_fails_safe_to_none(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("review_path")
 async def test_AC18_15_2_committed_rerun_is_idempotent_not_integrityerror(db, test_user, enabled_flag):
     """AC18.15.2: re-running the pass under the SAME policy is idempotent — the
     existing classification is kept (no duplicate (txn, policy-rule) row, no
@@ -597,6 +603,7 @@ def _pnl_account_names(accounts) -> set[str]:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("category", NON_PNL_NAMES)
+@pytest.mark.usefixtures("review_path")
 async def test_AC_extraction_non_pnl_categories_1_balance_sheet_class_is_never_applied(
     db, test_user, enabled_flag, category
 ):
@@ -621,6 +628,7 @@ async def test_AC_extraction_non_pnl_categories_1_balance_sheet_class_is_never_a
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("category", ("OTHER_INCOME", "OTHER_EXPENSE"))
+@pytest.mark.usefixtures("review_path")
 async def test_AC_extraction_non_pnl_categories_2_other_buckets_never_auto_apply(db, test_user, enabled_flag, category):
     """AC-extraction.non-pnl-categories.2: 'Other' means 'does not fit', so it always waits for a person."""
     txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="UNCLEAR PAYMENT")
@@ -676,6 +684,7 @@ async def test_AC_extraction_non_pnl_categories_4_prompt_names_the_new_classes(m
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("review_path")
 async def test_AC_extraction_accept_ai_suggestions_4_reader_returns_the_latest_classification_per_transaction(
     db, test_user, enabled_flag
 ):

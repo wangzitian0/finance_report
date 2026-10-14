@@ -199,11 +199,12 @@ def disable_external_market_data_fetch(monkeypatch):
     monkeypatch.setattr(settings, "market_data_lazy_fetch_enabled", False, raising=False)
 
 
-@pytest.fixture(autouse=True)
-def auto_accept_is_off_unless_a_test_turns_it_on(monkeypatch):
-    """The review path (draft rows, one-click approval) is what the older tests describe.
+@pytest.fixture
+def review_path(monkeypatch):
+    """The review path of AI classification: drafts for the review band, no general-account fallback.
 
-    The code default of ``auto_accept_ai_suggestions`` is on. A test of the automatic path turns it on.
+    The code default of ``auto_accept_ai_suggestions`` is on, and the suite runs with it on. A test that
+    describes the review path (the setting off) asks for this fixture by name.
     """
     monkeypatch.setattr(settings, "auto_accept_ai_suggestions", False, raising=False)
 

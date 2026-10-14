@@ -137,7 +137,8 @@ async def _package_statement_disposition_policy(
     """Adapt extraction's published snapshot without reconstructing policy semantics here.
 
     The score gate depends on the setting ``auto_accept_ai_suggestions`` of the user (#2405). The package
-    discloses the gate of the user, so a reader sees that the system accepted suggestions at any score.
+    discloses the gate that is in force when the package is generated. An entry that was posted under another
+    setting keeps its own policy version in its decision record.
     """
     snapshot = current_statement_disposition_policy_snapshot(
         policy=await statement_disposition_policy_for_user(db, user_id)
@@ -171,8 +172,10 @@ def _package_notes(
                 f"route to review. Live LLM proposals are "
                 f"{'enabled' if statement_disposition_policy.live_llm_proposals_enabled else 'disabled'}. "
                 + (
-                    "The system accepts AI suggestions at any score for this user: such entries carry a low "
-                    "confidence tier, and a row that the AI could not place sits in a general account. "
+                    "At the time of this package the system accepts AI suggestions at any score for this user. "
+                    "Entries posted under that setting carry a low confidence tier, and a row that the AI could "
+                    "not place sits in a general account. The decision record of each entry names the policy "
+                    "version that ran. "
                     if statement_disposition_policy.machine_confidence_threshold == 0
                     else ""
                 )

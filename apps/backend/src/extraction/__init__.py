@@ -99,6 +99,7 @@ from src.extraction.base.validation import (
     detect_balance_chain_break,
     validate_balance,
 )
+from src.extraction.extension.ai_settings import effective_auto_accept, effective_classification
 from src.extraction.extension.brokerage_positions import (
     BrokeragePositionImportService,
     looks_like_brokerage_document,
@@ -326,6 +327,8 @@ __all__ = [
     "backfill_classifications",
     "balance_sheet_booking",
     "classification_suggestions",
+    "effective_auto_accept",
+    "effective_classification",
     "general_account_name",
     "settle_drafts_after_posting",
     "statement_disposition_policy_for_user",

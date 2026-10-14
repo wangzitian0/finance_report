@@ -57,9 +57,16 @@ def test_user_ai_settings_response_required_booleans():
     r = UserAiSettingsResponse(
         enable_ai_reconciliation=True,
         enable_ai_classification=False,
+        auto_accept_ai_suggestions=True,
     )
     assert r.enable_ai_reconciliation is True
     assert r.enable_ai_classification is False
+    assert r.auto_accept_ai_suggestions is True
+
+
+def test_user_ai_settings_response_without_auto_accept_is_rejected():
+    with pytest.raises(ValidationError):
+        UserAiSettingsResponse(enable_ai_reconciliation=True, enable_ai_classification=False)
 
 
 def test_user_ai_settings_response_missing_field_rejected():

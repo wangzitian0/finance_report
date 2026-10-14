@@ -97,8 +97,9 @@ logger = get_logger(__name__)
 TransferExclusionsProvider = Callable[[AsyncSession, Sequence[UUID]], Awaitable[set[UUID]]]
 TraceEmitterFactory = Callable[[AsyncSession], TraceEmitter]
 #: Posts the rows that the AI named a transfer or a card repayment as Processing legs, for a user who lets the
-#: system accept the suggestions (#2405). Reconciliation owns the leg, so composition supplies this port.
-NamedTransferPoster = Callable[[AsyncSession, UUID, Sequence[AtomicTransaction]], Awaitable[None]]
+#: system accept the suggestions (#2405). It returns the number of legs. Reconciliation owns the leg, so
+#: composition supplies this port.
+NamedTransferPoster = Callable[[AsyncSession, UUID, Sequence[AtomicTransaction]], Awaitable[int]]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -210,10 +211,16 @@ async def auto_create_posted_entries_for_statement(
     # Classification proposes P&L meaning. Disposition is the sole authority that
     # can turn that proposal plus reconciliation/account context into a command.
     await classify_by_effective_policy(db, user_id, txns_to_post)
-    if dependencies.post_named_transfers is not None and await auto_accept_enabled(db, user_id):
+    legs_posted = 0
+    if (
+        dependencies.post_named_transfers is not None
+        and dependencies.disposition_mode is DispositionMode.ENFORCE
+        and await auto_accept_enabled(db, user_id)
+    ):
         # A transfer or a card repayment posts as a Processing leg. The rows are then covered, as if
-        # reconciliation had matched them, so the plan below does not post them a second time.
-        await dependencies.post_named_transfers(db, user_id, txns_to_post)
+        # reconciliation had matched them, so the plan below does not post them a second time. A leg is a
+        # command: only the mode that applies commands posts it.
+        legs_posted = await dependencies.post_named_transfers(db, user_id, txns_to_post)
         transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
     base_currency = await get_effective_base_currency(db)
     policy = await statement_disposition_policy_for_user(db, user_id)
@@ -322,7 +329,7 @@ async def auto_create_posted_entries_for_statement(
             review_reasons=normalized_reasons,
         )
 
-    created = 0
+    created = legs_posted
     postings: list[tuple[JournalEntry, AtomicTransaction]] = []
     for txn, _proposal, decision, counter_account, _transaction in planned:
         if decision.status is DispositionStatus.ALREADY_COVERED:

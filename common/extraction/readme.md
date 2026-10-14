@@ -119,12 +119,17 @@ four balance-sheet classes: `TRANSFER`, `CARD_REPAYMENT`, `LOAN_PRINCIPAL` and `
 The model may name them so that such a row is not filed under "Other". A proposal in one of them is
 never applied as profit or loss and creates no category account. It is stored as a draft row without
 an account, so that the class is visible. `OTHER_INCOME` and `OTHER_EXPENSE` mean "does not fit": a
-proposal in them is always a draft for a person, whatever its confidence.
+proposal in them is always a draft for a person, whatever its confidence. This describes the review path,
+the setting `auto_accept_ai_suggestions` off. With the setting on, the classifier applies these classes
+(see "Automatic acceptance").
 
 **Model call (#2419).** Policy v2 and later send at most 50 rows in one call, with at most four calls
 in flight. Each description is one JSON string. The model echoes the `index` of each row. Code maps the
 answer by that index. A different item count than rows, an index outside the batch or a repeated index
-drops the answer for that batch. A row without a proposal goes to review. The call carries the id of
+drops the answer for that batch. A row without a proposal goes to review. An item that the parser cannot
+read is no proposal: a missing or blank class, a missing confidence, a confidence that is a word or a
+fraction below 1 (a scale from 0 to 1 is ambiguous), or a class outside the catalog. The parser reads case,
+spaces, hyphens, a percent sign and a decimal score. The call carries the id of
 the statement owner, so it uses the provider of that user. The echo does not prove that the model
 numbered by the prompt and not by its own output order; a swap with a valid count and valid indexes
 is the residual risk of this design.
@@ -164,16 +169,26 @@ and the default three statements. The system therefore decides every row that th
 - A suggestion at the review score (60) or above is applied, including `OTHER_INCOME` and `OTHER_EXPENSE`.
   An applied row below the manual gate (85) carries the tag `auto_accepted`.
 - A row that the model answered but could not place goes to `General Income (CUR)` or `General Expense (CUR)`
-  by direction, with the category `UNCLASSIFIED` and the score 0. This covers a score below 60, a class
-  outside the catalog and a class whose account side contradicts the direction.
-- A row that the model did not answer (an outage, an unreadable answer, a dropped batch) gets no row. The
-  statement waits and the next pass classifies the row. An outage must not turn a statement into general entries.
+  by direction, with the category `UNCLASSIFIED` and the score 0. This covers a P&L class with a score below
+  60 and a class whose account side contradicts the direction. The row keeps the class and the score of the
+  model in `original_category` and `original_confidence`.
+- A row that the model did not answer gets no row and no general account. The statement waits and the next
+  pass classifies the row. This covers an outage, a dropped batch, an item that the parser cannot read and a
+  class outside the catalog. An outage or a model that ignores the schema must not turn a statement into
+  general entries. A dry run writes nothing.
 - A loan principal and an investment trade are applied to `Loans Payable (CUR)` and `Investments (CUR)` with an
-  explicit intent. A transfer and a card repayment stay drafts, and the posting posts them as Processing legs
-  with the status `auto_accepted` (base currency only).
-- The next pass applies the drafts that the review path left. A decision of the user outranks the setting.
-- The disposition policy of such a user has the score gate 0, and the policy snapshot and the personal report
-  package record it. The entries have the source type `auto_parsed`, which is the low confidence tier.
+  explicit intent, at any score. A transfer and a card repayment stay drafts at any score, and the posting
+  posts them as Processing legs (base currency only, enforce mode only). The leg has the status
+  `auto_accepted`, or `accepted` when the user chose the class. A weak transfer is still a transfer, and the
+  two sides of one transfer land in the same place.
+- The next pass applies the drafts that the review path left. A decision of the user outranks the setting:
+  a rejected draft stays superseded, and a corrected draft stays a draft for the one-click approval, which
+  posts it as the decision of the user.
+- The disposition policy of such a user has the score gate 0 and the version `disposition-v1-accept-any-score`.
+  The policy snapshot and the personal report package record it. The entries have the source type
+  `auto_parsed`, which is the low confidence tier.
+- The process flag `AUTO_ACCEPT_AI_SUGGESTIONS` is a ceiling. With the flag false, no user gets the automatic
+  path, whatever a stored preference says. With the flag true, a user can turn the setting off.
 
 The rollback path is the setting. With it off, the score gates (60 and 85), the draft rows and the one-click
 approval described above apply.
