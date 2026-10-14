@@ -33,9 +33,10 @@ class _BrokerageMixin:
             institution=institution or extracted.get("institution"),
         ):
             return extracted
-        if parse_brokerage_positions(
+        existing_positions = parse_brokerage_positions(
             extracted, filename=filename, institution=institution or extracted.get("institution")
-        ):
+        )
+        if existing_positions and all(pos.quantity > 0 and pos.market_value > 0 for pos in existing_positions):
             return extracted
 
         pdf_text = self._extract_pdf_text_for_brokerage_fallback(file_content)

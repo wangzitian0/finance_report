@@ -350,6 +350,7 @@ def test_parse_moomoo_skips_non_position_subscription_events():
             {"description": "Money Market Fund rebate", "amount": "UNKNOWN"},
             {"description": "Money Market Fund redemption", "amount": "-10.00"},
             {"raw_text": ("Subscription 0001 Bad Quantity Fund SGD 2026/05/18 settled 1.0000 UNKNOWN 1250.50")},
+            {"raw_text": ("Subscription 0001 Zero Value Fund SGD 2026/05/18 settled 1.0000 10.00 -10.00")},
             {"description": "Cash transfer", "amount": "100.00"},
         ],
     }
@@ -371,6 +372,23 @@ def test_parse_futu_cash_only_and_unknown_broker_payloads_return_no_positions():
     assert parse_brokerage_positions(unknown_payload, filename="unknown.pdf") == []
 
 
+def test_parse_futu_aggregate_ignores_fee_dividend_and_non_positive_events():
+    """AC-portfolio.brokerage-import.2/Issue #2422: Futu fallback ignores fees, dividends, outflows, and non-positive values."""
+    fee_and_dividend_only = {
+        "statement": {"period_end": "2026-05-18", "currency": "SGD"},
+        "events": [
+            {"description": "Platform fee", "amount": "-1.41"},
+            {"description": "Platform fee", "amount": "1.41", "direction": "OUT"},
+            {"description": "Dividend income", "amount": "50.00", "direction": "IN"},
+            {"description": "Brokerage cash interest", "amount": "5.11", "direction": "IN"},
+            {"description": "Stock valuation", "amount": "0.00"},
+            {"description": "Stock valuation", "amount": "-1.41"},
+        ],
+    }
+
+    assert parse_brokerage_positions(fee_and_dividend_only, filename="futu.pdf") == []
+
+
 def test_parse_futu_aggregate_ignores_invalid_events_and_uses_best_value():
     """AC17.4.2: Futu aggregate fallback ignores invalid rows and keeps best securities value."""
     payload = {
@@ -380,6 +398,7 @@ def test_parse_futu_aggregate_ignores_invalid_events_and_uses_best_value():
             {"description": "Cash balance", "amount": "9999.00"},
             {"description": "Stock valuation", "amount": "UNKNOWN"},
             {"description": "Stock valuation", "amount": "100.00"},
+            {"description": "Stock valuation", "amount": "-1.41"},
             {"description": "Stock and options value", "amount": "250.00"},
         ],
     }
