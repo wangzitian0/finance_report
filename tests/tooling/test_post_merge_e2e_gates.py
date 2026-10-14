@@ -1032,7 +1032,7 @@ def test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case() -> None:
     corpus_step = next(s for s in job["steps"] if s.get("id") == "staging_ai_ocr_tests")
 
     assert corpus_step["timeout-minutes"] == (
-        "${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 140 || 125) }}"
+        "${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 145 || 130) }}"
     )
     # 8-min parse ceiling that the budgets below are computed against, read as
     # a structured env value rather than grepped text.
@@ -1050,7 +1050,9 @@ def test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case() -> None:
     overhead_minutes = 6
     # #2392 added the Stage-1 routing proof (2 uploads) to the llm corpus:
     # audit_replay 14 waits = 118 min, all 16 waits = 134 min worst case.
-    budgets = {"canary": 25, "audit_replay": 125, "core_journey": 125, "all": 140}
+    # #2405 added the zero-click proof (1 upload): audit_replay 15 waits = 126 min,
+    # all 17 waits = 142 min worst case.
+    budgets = {"canary": 25, "audit_replay": 130, "core_journey": 130, "all": 145}
     wait_counts = {
         "canary": contract.totals(contract.canary_files())["uploads"],
         "audit_replay": contract.totals(contract.audit_replay_files())["uploads"],
@@ -1140,8 +1142,9 @@ def test_AC8_13_49_staging_ai_ocr_contract_outputs_files_and_counts() -> None:
         "tests/e2e/test_gxs_browser_journey.py",
         "tests/e2e/test_institution_statement_journeys.py",
         "tests/e2e/test_stage1_routing_journey.py",
-        "STAGING_AI_OCR_EXPECTED_UPLOADS=16",
-        "STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS=16",
+        "tests/e2e/test_zero_click_statement_journey.py",
+        "STAGING_AI_OCR_EXPECTED_UPLOADS=17",
+        "STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS=17",
         "STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS=4",
         "STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS=3",
     )
@@ -1161,6 +1164,7 @@ def test_AC8_13_50_critical_llm_post_merge_proofs_are_in_ai_ocr_gates() -> None:
         "tests/e2e/test_personal_financial_report_package.py",
         "tests/e2e/test_stage1_routing_journey.py",
         "tests/e2e/test_statement_full_journey.py",
+        "tests/e2e/test_zero_click_statement_journey.py",
     ]
 
     # Both entrances (inline + manual) share the reusable gate body.

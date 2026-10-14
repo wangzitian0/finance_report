@@ -280,6 +280,12 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         reason="Real provider Stage 1 routing proof U3 (#2392); audit replay and core-journey lane.",
     ),
     E2ERow(
+        "tests/e2e/test_zero_click_statement_journey.py",
+        needs=(NEEDS_LLM_PROVIDER,),
+        audited=True,
+        reason="Real provider zero-click proof (#2405): an upload alone posts every row and the three statements tie.",
+    ),
+    E2ERow(
         "tests/e2e/test_institution_statement_journeys.py",
         needs=(NEEDS_LLM_PROVIDER,),
         audited=True,
