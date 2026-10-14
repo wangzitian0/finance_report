@@ -72,3 +72,26 @@ async def test_AC_extraction_default_account_1_the_one_click_approval_uses_the_s
 
     assert from_approval.id == from_classifier.id
     assert (await db.execute(select(func.count(Account.id)).where(Account.name == NAME))).scalar_one() == 1
+
+
+async def test_AC_extraction_default_account_1_two_active_rows_are_reported(db, test_user, monkeypatch):
+    """AC-extraction.default-account.1: the oldest row wins, and the log names both ids.
+
+    Entries on the newer row would stay out of the balance of the oldest row without any sign of it.
+    """
+    from unittest.mock import Mock
+
+    from src.extraction.extension import review_queue
+
+    older = await _account(db, test_user.id, active=True, age_days=10)
+    newer = await _account(db, test_user.id, active=True, age_days=1)
+    error = Mock()
+    monkeypatch.setattr(review_queue.logger, "error", error)
+
+    found = await get_or_create_account(
+        db, name=NAME, account_type=AccountType.EXPENSE, currency="SGD", user_id=test_user.id
+    )
+
+    assert found.id == older.id
+    error.assert_called_once()
+    assert set(error.call_args.kwargs["account_ids"]) == {str(older.id), str(newer.id)}

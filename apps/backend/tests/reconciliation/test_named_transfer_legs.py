@@ -36,7 +36,7 @@ from src.reconciliation.orm.reconciliation import (
     ReconciliationTransferPair,
 )
 from tests.api._statement_router_fixtures import add_txn, build_statement, create_statement_account
-from tests.db_lock_probe import a_session_waits_for_a_lock
+from tests.db_lock_probe import backend_pid, backend_waits_for_a_lock
 
 pytestmark = pytest.mark.asyncio
 
@@ -559,9 +559,10 @@ async def test_AC_reconciliation_named_transfer_legs_2_the_claim_for_a_decision_
     first, second = sessions(), sessions()
     try:
         assert await SqlReconciliationRepository(first).claim_transaction_for_decision(txn.id) is None
+        second_pid = await backend_pid(second)  # opens the connection of the second session first
         waiting = asyncio.create_task(SqlReconciliationRepository(second).claim_transaction_for_decision(txn.id))
         # The database must report the wait. A sleep would pass when the second session is merely slow.
-        assert await a_session_waits_for_a_lock(db_engine), "the second claim must wait for the row lock"
+        assert await backend_waits_for_a_lock(db_engine, second_pid), "the second claim must wait for the row lock"
         await first.commit()
         assert await asyncio.wait_for(waiting, timeout=15) is None
     finally:

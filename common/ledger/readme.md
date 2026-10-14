@@ -516,7 +516,9 @@ JournalEntry(
     `account-creation:<user_id>` that lasts milliseconds. A second request sees the row at once. It neither waits
     for the open transaction of the first nor creates a second row, and two requests cannot wait for each other.
     The account stays when the caller rolls back. A user row that the caller has not committed (registration)
-    gets the account in the transaction of the caller.
+    gets the account in the transaction of the caller. A read never creates the account (`find_processing_account`):
+    the first transfer leg creates it, in the base currency of that moment, and a page view must not fix that
+    currency.
   - Simplifies balance tracking
   - Clear ownership for multi-user scenarios
 

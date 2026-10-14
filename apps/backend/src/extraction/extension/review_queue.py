@@ -158,9 +158,18 @@ async def get_or_create_account(
             .where(Account.user_id == user_id)
             .where(Account.is_active.is_(True))
             .order_by(Account.created_at, Account.id)
-            .limit(1)
+            .limit(2)
         )
-        return result.scalar_one_or_none()
+        accounts = list(result.scalars().all())
+        if len(accounts) > 1:
+            # A race of an older release. The oldest account is the one that every request uses from now on.
+            logger.error(
+                "A user holds more than one default account with one name; the oldest is used",
+                user_id=str(user_id),
+                account_name=name,
+                account_ids=[str(account.id) for account in accounts],
+            )
+        return accounts[0] if accounts else None
 
     account = await account_service.find_or_create_account(
         db,

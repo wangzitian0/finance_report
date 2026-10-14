@@ -229,7 +229,7 @@ leg through `post_named_transfer_legs`, without a transfer keyword (#2415). That
 carries the AI score (100 when the user chose the class), and records the class in its score breakdown.
 Every leg carries the id of its source transaction, so two rows with the same date, text and amount
 get two entries. The function posts only in the effective base currency and never creates the Processing
-account for a skipped row. A rejected suggestion is history and does not own the row; a pending or accepted
+account for a row that a pre-check skips. A rejected suggestion is history and does not own the row; a pending or accepted
 match does (`claim_transaction_for_decision`). The background run keeps the stricter `claim_transaction`.
 The memo of a leg holds at most 500 characters. The function does not pair; the pairing step of the next
 reconciliation run does.

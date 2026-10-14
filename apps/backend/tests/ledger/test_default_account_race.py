@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from src.extraction.extension.review_queue import get_or_create_account
 from src.ledger import PROCESSING_ACCOUNT_CODE, Account, AccountType, get_or_create_processing_account
-from tests.db_lock_probe import a_session_waits_for_a_lock
+from tests.db_lock_probe import backend_pid, backend_waits_for_a_lock
 from tests.factories import UserFactory
 
 pytestmark = pytest.mark.asyncio
@@ -49,11 +49,19 @@ def _general_expense(session, user_id):
     )
 
 
+def _one_click_general_expense(session, user_id):
+    """The helper of the one-click approval. It must create the same default account with the same safety."""
+    from src.composition import _get_or_create_default_counter_account
+
+    return _get_or_create_default_counter_account(session, user_id, AccountType.EXPENSE, "SGD")
+
+
 @pytest.mark.parametrize(
     ("create", "count_filter"),
     [
         pytest.param(_processing, Account.code == PROCESSING_ACCOUNT_CODE, id="processing"),
         pytest.param(_general_expense, Account.name == "General Expense (SGD)", id="default-account"),
+        pytest.param(_one_click_general_expense, Account.name == "General Expense (SGD)", id="one-click-default"),
     ],
 )
 async def test_AC_ledger_71_5_a_second_request_neither_waits_for_the_open_transaction_nor_creates_a_row(
@@ -83,6 +91,7 @@ async def test_AC_ledger_71_5_a_second_request_neither_waits_for_the_open_transa
     [
         pytest.param(_processing, Account.code == PROCESSING_ACCOUNT_CODE, id="processing"),
         pytest.param(_general_expense, Account.name == "General Expense (SGD)", id="default-account"),
+        pytest.param(_one_click_general_expense, Account.name == "General Expense (SGD)", id="one-click-default"),
     ],
 )
 async def test_AC_ledger_71_5_eight_requests_at_once_create_one_account(db_engine, create, count_filter):
@@ -108,8 +117,14 @@ async def test_AC_ledger_71_5_eight_requests_at_once_create_one_account(db_engin
 
 
 async def test_AC_ledger_71_5_two_requests_that_create_two_accounts_in_opposite_order_never_wait(db_engine):
-    """AC-ledger.71.5: each creation commits at once, so no request holds one account while it waits for another."""
+    """AC-ledger.71.5: each creation commits at once, so no request holds one account while it waits for another.
+
+    Each worker creates its first account and keeps its transaction open. Both must reach that point before
+    either creates its second account. A creator that held a lock until the end of the transaction would block
+    the second worker at its first creation, and the barrier would never open.
+    """
     sessions, user_id = await _committed_user(db_engine)
+    first_done = {"Account A": asyncio.Event(), "Account B": asyncio.Event()}
 
     async def create(session, name):
         return await get_or_create_account(
@@ -119,12 +134,14 @@ async def test_AC_ledger_71_5_two_requests_that_create_two_accounts_in_opposite_
     async def worker(first_name, second_name):
         async with sessions() as session:
             await create(session, first_name)
-            await asyncio.sleep(0.2)
+            first_done[first_name].set()
+            await asyncio.wait_for(first_done[second_name].wait(), timeout=NO_WAIT_SECONDS)  # the other worker is there
             await create(session, second_name)
             await session.commit()
 
     await asyncio.wait_for(
-        asyncio.gather(worker("Account A", "Account B"), worker("Account B", "Account A")), timeout=NO_WAIT_SECONDS
+        asyncio.gather(worker("Account A", "Account B"), worker("Account B", "Account A")),
+        timeout=NO_WAIT_SECONDS * 2,
     )
 
     async with sessions() as check:
@@ -184,8 +201,9 @@ async def test_AC_ledger_71_5_without_an_own_session_the_caller_creates_the_acco
     first, second = sessions(), sessions()
     try:
         first_account = await _processing(first, user_id)  # holds the lock until its transaction ends
+        second_pid = await backend_pid(second)  # opens the connection of the second session first
         waiting = asyncio.create_task(_processing(second, user_id))
-        assert await a_session_waits_for_a_lock(db_engine), "the second caller must wait for the lock"
+        assert await backend_waits_for_a_lock(db_engine, second_pid), "the second caller must wait for the lock"
         await first.commit()
         second_account = await asyncio.wait_for(waiting, timeout=NO_WAIT_SECONDS)
         await second.commit()
@@ -199,3 +217,25 @@ async def test_AC_ledger_71_5_without_an_own_session_the_caller_creates_the_acco
             select(func.count(Account.id)).where(Account.user_id == user_id, Account.code == PROCESSING_ACCOUNT_CODE)
         )
     assert count == 1
+
+
+async def test_AC_ledger_71_5_a_lock_that_the_caller_holds_makes_the_creation_fail_instead_of_hang(
+    db_engine, monkeypatch
+):
+    """AC-ledger.71.5: the caller waits for the own transaction. A lock of the caller would block it for good.
+
+    The database cannot see that cycle, because the caller waits in Python. The lock timeout turns it into an error.
+    """
+    from src.ledger.extension import account_service
+
+    monkeypatch.setattr(account_service, "ACCOUNT_CREATION_LOCK_TIMEOUT", "300ms")
+    sessions, user_id = await _committed_user(db_engine)
+    caller = sessions()
+    try:
+        await caller.execute(account_service._ACCOUNT_CREATION_LOCK, {"key": f"account-creation:{user_id}"})
+
+        with pytest.raises(Exception, match="lock timeout"):
+            await asyncio.wait_for(_processing(caller, user_id), timeout=NO_WAIT_SECONDS)
+    finally:
+        await caller.rollback()
+        await caller.close()

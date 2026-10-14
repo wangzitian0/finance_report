@@ -17,6 +17,9 @@ AccountFinder = Callable[[AsyncSession], Awaitable[Account | None]]
 
 _ACCOUNT_CREATION_LOCK = text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))")
 
+#: How long the own transaction waits for any lock. The lock of another creator lasts milliseconds.
+ACCOUNT_CREATION_LOCK_TIMEOUT = "5s"
+
 
 class AccountServiceError(Exception):
     """Base exception for account service errors."""
@@ -106,6 +109,11 @@ async def _ensure_in_own_transaction(
     except RuntimeError:
         return False
     async with session_maker() as own, own.begin():
+        # The caller waits for this transaction. A lock that the caller holds would block it for good, and the
+        # database cannot see that cycle. The timeout turns that case into an error.
+        await own.execute(
+            text("SELECT set_config('lock_timeout', :timeout, true)"), {"timeout": ACCOUNT_CREATION_LOCK_TIMEOUT}
+        )
         user_is_visible = (
             await own.execute(text("SELECT 1 FROM users WHERE id = :user_id"), {"user_id": user_id})
         ).first() is not None

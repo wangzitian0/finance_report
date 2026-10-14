@@ -11,8 +11,8 @@ account. The function does not pair: pairing is quadratic in the number of legs 
 labels legs without changing the balance.
 
 The Processing account holds the effective base currency (``common/ledger/readme.md``). A row in
-another currency waits for a person. The function checks this before any ledger call, so a skipped
-row never creates the Processing account.
+another currency waits for a person. The function checks this before any ledger call, so a row
+that a pre-check skips never creates the Processing account.
 """
 
 from __future__ import annotations

@@ -49,6 +49,9 @@ from src.ledger.extension import account_service
 from src.ledger.extension.post import post_entry
 from src.ledger.orm.account import Account
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.observability import get_logger
+
+logger = get_logger(__name__)
 
 #: The size of the column ``journal_entries.memo``. A test pins this value to the column.
 _MEMO_MAX_LENGTH = 500
@@ -68,7 +71,7 @@ async def get_or_create_processing_account(
     return await account_service.find_or_create_account(
         db,
         user_id=user_id,
-        find=lambda session: _find_processing_account(session, user_id),
+        find=lambda session: find_processing_account(session, user_id),
         build=lambda: Account(
             user_id=user_id,
             name=PROCESSING_ACCOUNT_NAME,
@@ -81,8 +84,13 @@ async def get_or_create_processing_account(
     )
 
 
-async def _find_processing_account(db: AsyncSession, user_id: UUID) -> Account | None:
-    # Two rows (a race of an older release) resolve to the oldest one, not to an error.
+async def find_processing_account(db: AsyncSession, user_id: UUID) -> Account | None:
+    """The Processing account of a user, or ``None``. A read never creates the account.
+
+    The account fixes the currency of the Processing balance. The first transfer leg creates it, in the base
+    currency of that moment. A page view must not create it: a later change of the base currency would then
+    block every leg of the user (#2415).
+    """
     result = await db.execute(
         select(Account)
         .where(
@@ -91,9 +99,18 @@ async def _find_processing_account(db: AsyncSession, user_id: UUID) -> Account |
             Account.code == PROCESSING_ACCOUNT_CODE,
         )
         .order_by(Account.created_at, Account.id)
-        .limit(1)
+        .limit(2)
     )
-    return result.scalar_one_or_none()
+    accounts = list(result.scalars().all())
+    if len(accounts) > 1:
+        # A race of an older release. The oldest account is the one that every request uses from now on.
+        # Legs on the other account never pair and never reach the Processing card, so say it loudly.
+        logger.error(
+            "A user holds more than one Processing account; the oldest is used",
+            user_id=str(user_id),
+            account_ids=[str(account.id) for account in accounts],
+        )
+    return accounts[0] if accounts else None
 
 
 async def find_transfer_pairs(
@@ -119,8 +136,10 @@ async def find_transfer_pairs(
     Returns:
         List of TransferPair objects with confidence >= threshold
     """
-    # Get Processing account
-    processing_account = await get_or_create_processing_account(db, user_id, currency=currency)
+    # Get Processing account. Without one, the user has no leg to pair.
+    processing_account = await find_processing_account(db, user_id)
+    if processing_account is None:
+        return []
 
     # Find all journal entries involving Processing account
     result = await db.execute(
@@ -346,7 +365,9 @@ async def get_processing_balance(
     Returns:
         Processing account balance (Decimal)
     """
-    processing_account = await get_or_create_processing_account(db, user_id, currency=currency)
+    processing_account = await find_processing_account(db, user_id)
+    if processing_account is None:
+        return Decimal("0")
 
     # Get all journal lines for Processing account
     result = await db.execute(
@@ -384,7 +405,9 @@ async def get_unpaired_transfers(
         List of dicts with keys: entry_id, direction, amount, date, description
     """
     _ = days_threshold
-    processing_account = await get_or_create_processing_account(db, user_id, currency=currency)
+    processing_account = await find_processing_account(db, user_id)
+    if processing_account is None:
+        return []
     # Get all journal lines for Processing account
     result = await db.execute(
         select(JournalLine, JournalEntry)
@@ -419,7 +442,9 @@ async def list_processing_transfer_legs(
     *,
     currency: str,
 ) -> list[dict]:
-    processing_account = await get_or_create_processing_account(db, user_id, currency=currency)
+    processing_account = await find_processing_account(db, user_id)
+    if processing_account is None:
+        return []
 
     result = await db.execute(
         select(JournalEntry)
