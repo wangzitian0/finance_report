@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import sys
 from collections.abc import Mapping, Sequence
@@ -19,6 +18,7 @@ from infra2_sdk.deploy import (  # noqa: E402
     DeployOperation,
     DeployRequest,
     DeployType,
+    canonical_json,
     validate_wire_shape,
 )
 
@@ -72,19 +72,6 @@ def render_request(
                 "reviewed_change_url": reviewed_change_url,
             },
         }
-    )
-
-
-def canonical_json(request: DeployRequest) -> str:
-    """Return stable wire bytes for a separately authorized transport."""
-    return (
-        json.dumps(
-            request.to_dict(),
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=True,
-        )
-        + "\n"
     )
 
 
