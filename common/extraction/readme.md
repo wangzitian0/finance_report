@@ -157,6 +157,27 @@ others. A leg posts only for a row in the effective base
 currency; a row in another currency, a row whose leg the ledger refuses and a row with an active match stay for
 a person. A statement without a linked account answers 400 before any row is read. Posting clears the note "Economic review required: ..." once every row has an entry.
 
+**Automatic acceptance (#2405).** The setting `auto_accept_ai_suggestions` is on by default, for a user who
+also has AI classification on. The owner rule is: the user uploads, and the system produces the base tables
+and the default three statements. The system therefore decides every row that the model answered:
+
+- A suggestion at the review score (60) or above is applied, including `OTHER_INCOME` and `OTHER_EXPENSE`.
+  An applied row below the manual gate (85) carries the tag `auto_accepted`.
+- A row that the model answered but could not place goes to `General Income (CUR)` or `General Expense (CUR)`
+  by direction, with the category `UNCLASSIFIED` and the score 0. This covers a score below 60, a class
+  outside the catalog and a class whose account side contradicts the direction.
+- A row that the model did not answer (an outage, an unreadable answer, a dropped batch) gets no row. The
+  statement waits and the next pass classifies the row. An outage must not turn a statement into general entries.
+- A loan principal and an investment trade are applied to `Loans Payable (CUR)` and `Investments (CUR)` with an
+  explicit intent. A transfer and a card repayment stay drafts, and the posting posts them as Processing legs
+  with the status `auto_accepted` (base currency only).
+- The next pass applies the drafts that the review path left. A decision of the user outranks the setting.
+- The disposition policy of such a user has the score gate 0, and the policy snapshot and the personal report
+  package record it. The entries have the source type `auto_parsed`, which is the low confidence tier.
+
+The rollback path is the setting. With it off, the score gates (60 and 85), the draft rows and the one-click
+approval described above apply.
+
 ## Upload-First Product Contract
 
 The user-facing input model is upload-first: users provide source documents and

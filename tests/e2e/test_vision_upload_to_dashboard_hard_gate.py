@@ -74,6 +74,13 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
     page = authenticated_page_unique
     fixture_path = _require_fixture_path()
 
+    # The boundary under test is "no source of economic meaning, no entry". The product default lets the
+    # classifier supply meaning and accepts its suggestions (#2405), so this user has no classifier.
+    no_classifier = await page.request.patch(
+        _get_url("/api/users/me/settings"), data={"enable_ai_classification": False}
+    )
+    assert no_classifier.status == 200, await no_classifier.text()
+
     await page.goto(_get_url("/statements"), wait_until="domcontentloaded")
     csv_section = page.locator("details").filter(has_text="CSV import")
     await csv_section.locator("summary").click()

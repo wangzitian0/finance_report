@@ -10,6 +10,7 @@ import type { UserAiSettings } from "@/lib/types";
 const DEFAULT_SETTINGS: UserAiSettings = {
   enable_ai_reconciliation: false,
   enable_ai_classification: true,
+  auto_accept_ai_suggestions: true,
 };
 
 export default function AiSettingsPanel() {
@@ -21,7 +22,8 @@ export default function AiSettingsPanel() {
     save: (next) => apiOperation("patch_current_user_settings_users_me_settings_patch", { body: next }),
     isEqual: (a, b) =>
       a.enable_ai_reconciliation === b.enable_ai_reconciliation &&
-      a.enable_ai_classification === b.enable_ai_classification,
+      a.enable_ai_classification === b.enable_ai_classification &&
+      a.auto_accept_ai_suggestions === b.auto_accept_ai_suggestions,
     loadErrorMessage: "Failed to load AI settings",
     saveErrorMessage: "Failed to save AI settings",
   });
@@ -58,7 +60,7 @@ export default function AiSettingsPanel() {
     <div className="p-6 max-w-3xl">
       <div className="page-header">
         <h1 className="page-title">AI Settings</h1>
-        <p className="page-description">Control AI-assisted reconciliation and classification feature flags.</p>
+        <p className="page-description">Control AI-assisted reconciliation, classification and automatic acceptance.</p>
       </div>
 
       <div className="mb-4">
@@ -100,6 +102,24 @@ export default function AiSettingsPanel() {
               checked={draft.enable_ai_classification}
               disabled={submitting}
               onChange={(event) => setField("enable_ai_classification", event.target.checked)}
+              className="h-5 w-5 rounded"
+            />
+          </label>
+          <label className="p-5 flex items-center justify-between gap-4 cursor-pointer">
+            <div>
+              <div className="font-medium">Auto-accept AI suggestions</div>
+              <p className="text-sm text-muted">
+                The system accepts the AI suggestion for each transaction, so a statement posts without a click. A row
+                that the AI cannot place goes to a general account. These entries show a low confidence tier. Turn this
+                off to approve the uncertain rows yourself. It needs AI classification.
+              </p>
+            </div>
+            <input
+              aria-label="Auto-accept AI suggestions"
+              type="checkbox"
+              checked={draft.auto_accept_ai_suggestions && draft.enable_ai_classification}
+              disabled={submitting || !draft.enable_ai_classification}
+              onChange={(event) => setField("auto_accept_ai_suggestions", event.target.checked)}
               className="h-5 w-5 rounded"
             />
           </label>

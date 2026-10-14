@@ -128,7 +128,10 @@ from src.extraction.extension.deduplication import (
     DeduplicationService,
     dual_write_layer2,
 )
-from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
+from src.extraction.extension.disposition_policy import (
+    current_statement_disposition_policy_snapshot,
+    statement_disposition_policy_for_user,
+)
 from src.extraction.extension.disposition_trace import (
     build_disposition_trace_records,
     emit_disposition_trace_records,
@@ -204,7 +207,9 @@ from src.extraction.extension.transaction_classification import (
     SuggestionCorrectionError,
     apply_suggestion_feedback,
     backfill_classifications,
+    balance_sheet_booking,
     classification_suggestions,
+    general_account_name,
     settle_drafts_after_posting,
 )
 from src.extraction.extension.transaction_membership import effective_statement_transaction_filter
@@ -319,8 +324,11 @@ __all__ = [
     "SuggestionCorrectionError",
     "apply_suggestion_feedback",
     "backfill_classifications",
+    "balance_sheet_booking",
     "classification_suggestions",
+    "general_account_name",
     "settle_drafts_after_posting",
+    "statement_disposition_policy_for_user",
     "build_csv_mapping_prompt",
     "build_disposition_trace_records",
     "build_statement_ingestion_use_case",

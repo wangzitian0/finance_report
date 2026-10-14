@@ -16,6 +16,7 @@ provider-port registrations in ``main.py`` (#1762/#1768 precedents).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -46,13 +47,16 @@ from src.extraction import (
     StatementSummary,
     TransactionDirection,
     applied_rows_the_policy_accepts,
+    balance_sheet_booking,
     build_statement_ingestion_use_case,
     classification_suggestions,
     effective_statement_transaction_filter,
     extraction_trace_policy_registry,
+    general_account_name,
     get_or_create_account,
     settle_drafts_after_posting,
     snapshot_currencies,
+    statement_disposition_policy_for_user,
 )
 from src.ledger import (
     Account,
@@ -126,6 +130,35 @@ async def post_guided_opening_balances(
     )
 
 
+async def _post_named_transfers_for_user(
+    db: AsyncSession, user_id: UUID, transactions: Sequence[AtomicTransaction]
+) -> None:
+    """Post the Processing legs of the rows that the AI named a transfer or a card repayment (#2405).
+
+    The posting calls this for a user who lets the system accept the suggestions. The legs belong to
+    reconciliation, so this adapter reads the drafts that extraction wrote and hands them over.
+    """
+    suggestions = await classification_suggestions(db, [txn.id for txn in transactions])
+    named = [
+        NamedTransfer(
+            transaction=txn,
+            category=suggestion.category,
+            score=suggestion.confidence,
+            decided_by_user=suggestion.corrected,
+        )
+        for txn in transactions
+        if (suggestion := suggestions.get(txn.id)) is not None and suggestion.booking == "processing_leg"
+    ]
+    if not named:
+        return
+    legs = await post_named_transfer_legs(db, user_id=user_id, named=named, accepted_by="system")
+    classification_ids = {item.transaction.id: suggestions[item.transaction.id].classification_id for item in named}
+    for leg in legs:
+        await settle_drafts_after_posting(
+            db, leg.atomic_txn_id, accepted_id=classification_ids.get(leg.atomic_txn_id), accepted_by="system"
+        )
+
+
 def compose_statement_posting_dependencies() -> StatementPostingDependencies:
     """Bind statement posting to reconciliation and pricing owner ports."""
     return StatementPostingDependencies(
@@ -134,6 +167,7 @@ def compose_statement_posting_dependencies() -> StatementPostingDependencies:
         fx_rate_error=PricingError,
         trace_emitter_factory=compose_financial_trace_emitter,
         disposition_mode=DispositionMode(settings.statement_disposition_mode),
+        post_named_transfers=_post_named_transfers_for_user,
     )
 
 
@@ -156,7 +190,7 @@ async def _get_or_create_default_counter_account(
     """The default counter account of a type and a currency. The classifier uses the same resolver (#2415)."""
     return await get_or_create_account(
         db,
-        name=name or f"General {account_type.value.capitalize()} ({currency})",
+        name=name or general_account_name(account_type, currency),
         account_type=account_type,
         currency=currency,
         user_id=user_id,
@@ -205,22 +239,11 @@ async def _balance_sheet_disposition_for(
     Neither is income or expense. A loan repayment lowers the liability. A drawdown raises it. A purchase
     raises the asset. A sale lowers it. Returns None for any other class.
     """
-    if suggestion.booking == "loan_principal":
-        intent = EconomicIntent.LOAN_PRINCIPAL
-        account = await _get_or_create_default_counter_account(
-            db, user_id, AccountType.LIABILITY, txn.currency, name=f"Loans Payable ({txn.currency})"
-        )
-    elif suggestion.booking == "investment_trade":
-        intent = (
-            EconomicIntent.INVESTMENT_PURCHASE
-            if txn.direction == TransactionDirection.OUT
-            else EconomicIntent.INVESTMENT_SALE
-        )
-        account = await _get_or_create_default_counter_account(
-            db, user_id, AccountType.ASSET, txn.currency, name=f"Investments ({txn.currency})"
-        )
-    else:
+    booking = balance_sheet_booking(suggestion.category, txn.direction, txn.currency)
+    if booking is None:
         return None
+    intent, account_type, name = booking
+    account = await _get_or_create_default_counter_account(db, user_id, account_type, txn.currency, name=name)
     return intent, account, suggestion.category, _suggestion_rationale(suggestion)
 
 
@@ -281,7 +304,10 @@ async def auto_fill_default_statement_dispositions(
     # reviewed rule). The disposition policy decides, as in the posting itself. An applied row that the
     # policy refuses falls through to the default below, because the posting cannot clear such a row (#2419).
     left_to_posting = await applied_rows_the_policy_accepts(
-        db, unmatched_txns, mode=DispositionMode(settings.statement_disposition_mode)
+        db,
+        unmatched_txns,
+        mode=DispositionMode(settings.statement_disposition_mode),
+        policy=await statement_disposition_policy_for_user(db, user_id),
     )
     named_transfers: list[NamedTransfer] = []
 

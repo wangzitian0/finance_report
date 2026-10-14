@@ -17,6 +17,7 @@ def _effective_settings(ai_settings: dict[str, bool] | None) -> UserAiSettingsRe
     return UserAiSettingsResponse(
         enable_ai_reconciliation=overrides.get("enable_ai_reconciliation", settings.enable_ai_reconciliation),
         enable_ai_classification=overrides.get("enable_ai_classification", settings.enable_ai_classification),
+        auto_accept_ai_suggestions=overrides.get("auto_accept_ai_suggestions", settings.auto_accept_ai_suggestions),
     )
 
 

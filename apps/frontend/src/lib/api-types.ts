@@ -6024,6 +6024,8 @@ export interface components {
          * @description Effective AI feature settings for the current user.
          */
         UserAiSettingsResponse: {
+            /** Auto Accept Ai Suggestions */
+            auto_accept_ai_suggestions: boolean;
             /** Enable Ai Classification */
             enable_ai_classification: boolean;
             /** Enable Ai Reconciliation */
@@ -6034,6 +6036,8 @@ export interface components {
          * @description AI feature flag settings that can be overridden per user.
          */
         UserAiSettingsUpdate: {
+            /** Auto Accept Ai Suggestions */
+            auto_accept_ai_suggestions?: boolean | null;
             /** Enable Ai Classification */
             enable_ai_classification?: boolean | null;
             /** Enable Ai Reconciliation */

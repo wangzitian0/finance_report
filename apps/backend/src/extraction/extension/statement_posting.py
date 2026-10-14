@@ -54,7 +54,10 @@ from src.extraction.base.validation import (
     STATEMENT_RESOLVED_TRANSACTIONS_ATTR,
 )
 from src.extraction.extension.custody_binding import is_bank_custody_source, resolve_bank_custody_account
-from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
+from src.extraction.extension.disposition_policy import (
+    current_statement_disposition_policy_snapshot,
+    statement_disposition_policy_for_user,
+)
 from src.extraction.extension.disposition_trace import emit_disposition_trace_records
 from src.extraction.extension.review_queue import FxRateProvider, create_entry_from_txn
 from src.extraction.extension.reviewed_statement_envelope import get_current_statement_extraction_result
@@ -63,7 +66,7 @@ from src.extraction.extension.statement_validation import (
     approve_statement_with_transactions,
     resolve_statement_transactions,
 )
-from src.extraction.extension.transaction_classification import classify_by_effective_policy
+from src.extraction.extension.transaction_classification import auto_accept_enabled, classify_by_effective_policy
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
@@ -92,6 +95,9 @@ logger = get_logger(__name__)
 # never consults worker-process startup state.
 TransferExclusionsProvider = Callable[[AsyncSession, Sequence[UUID]], Awaitable[set[UUID]]]
 TraceEmitterFactory = Callable[[AsyncSession], TraceEmitter]
+#: Posts the rows that the AI named a transfer or a card repayment as Processing legs, for a user who lets the
+#: system accept the suggestions (#2405). Reconciliation owns the leg, so composition supplies this port.
+NamedTransferPoster = Callable[[AsyncSession, UUID, Sequence[AtomicTransaction]], Awaitable[None]]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -103,6 +109,7 @@ class StatementPostingDependencies:
     fx_rate_error: type[Exception]
     trace_emitter_factory: TraceEmitterFactory
     disposition_mode: DispositionMode
+    post_named_transfers: NamedTransferPoster | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -202,8 +209,13 @@ async def auto_create_posted_entries_for_statement(
     # Classification proposes P&L meaning. Disposition is the sole authority that
     # can turn that proposal plus reconciliation/account context into a command.
     await classify_by_effective_policy(db, user_id, txns_to_post)
+    if dependencies.post_named_transfers is not None and await auto_accept_enabled(db, user_id):
+        # A transfer or a card repayment posts as a Processing leg. The rows are then covered, as if
+        # reconciliation had matched them, so the plan below does not post them a second time.
+        await dependencies.post_named_transfers(db, user_id, txns_to_post)
+        transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
     base_currency = await get_effective_base_currency(db)
-    policy = DispositionPolicy()
+    policy = await statement_disposition_policy_for_user(db, user_id)
     policy_snapshot = current_statement_disposition_policy_snapshot(
         mode=dependencies.disposition_mode,
         policy=policy,
@@ -426,6 +438,7 @@ async def applied_rows_the_policy_accepts(
     transactions: Sequence[AtomicTransaction],
     *,
     mode: DispositionMode,
+    policy: DispositionPolicy | None = None,
 ) -> set[UUID]:
     """Ids of the transactions that the posting will post from their applied classification (#2419).
 
@@ -434,7 +447,7 @@ async def applied_rows_the_policy_accepts(
     A transaction without an applied row, or whose row the policy refuses, is not in the result.
     """
     classification_by_txn_id, accounts_by_id = await _applied_classifications(db, [txn.id for txn in transactions])
-    policy = DispositionPolicy()
+    policy = policy or DispositionPolicy()
     accepted: set[UUID] = set()
     for txn in transactions:
         pair = classification_by_txn_id.get(txn.id)

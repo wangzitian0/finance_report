@@ -691,3 +691,32 @@ def test_AC_reporting_package_document_10_reconstructs_exact_decision_coordinate
     assembler_source = (REPOSITORY_ROOT / "apps/backend/src/reporting/extension/package_document.py").read_text()
     assert "personal_report_package_target(" in assembler_source
     assert "semantic_payload =" not in assembler_source
+
+
+@pytest.mark.asyncio
+async def test_AC_extraction_auto_accept_8_the_package_discloses_the_score_gate_of_the_user(db, test_user, monkeypatch):
+    """AC-extraction.auto-accept.8: a frozen package says that the system accepted suggestions at any score.
+
+    The policy snapshot and the note use the gate of the user, so the disclosure matches the entries.
+    """
+    from src.config import settings
+    from src.reporting.extension.package_document import _package_notes, _package_statement_disposition_policy
+
+    monkeypatch.setattr(settings, "enable_ai_classification", True)
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", True)
+
+    automatic = await _package_statement_disposition_policy(db, test_user.id)
+    test_user.ai_settings = {"auto_accept_ai_suggestions": False}
+    await db.flush()
+    manual = await _package_statement_disposition_policy(db, test_user.id)
+
+    assert str(automatic.machine_confidence_threshold) == "0"
+    assert str(manual.machine_confidence_threshold) == "0.85"
+    assert automatic.semantic_digest != manual.semantic_digest
+    note = lambda policy: next(  # noqa: E731
+        item["disclosure"]
+        for item in _package_notes(policy).model_dump()["notes"]
+        if item["note_id"] == "statement-disposition-policy"
+    )
+    assert "accepts AI suggestions at any score" in note(automatic)
+    assert "accepts AI suggestions at any score" not in note(manual)

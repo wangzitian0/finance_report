@@ -40,6 +40,7 @@ class UserAiSettingsUpdate(BaseModel):
 
     enable_ai_reconciliation: bool | None = None
     enable_ai_classification: bool | None = None
+    auto_accept_ai_suggestions: bool | None = None
 
 
 class UserAiSettingsResponse(BaseModel):
@@ -47,6 +48,7 @@ class UserAiSettingsResponse(BaseModel):
 
     enable_ai_reconciliation: bool
     enable_ai_classification: bool
+    auto_accept_ai_suggestions: bool
 
 
 __all__ = [

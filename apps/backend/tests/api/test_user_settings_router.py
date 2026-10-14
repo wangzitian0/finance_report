@@ -22,6 +22,7 @@ async def test_ac18_5_5_get_ai_settings_returns_config_defaults(
     assert response.json() == {
         "enable_ai_reconciliation": settings.enable_ai_reconciliation,
         "enable_ai_classification": settings.enable_ai_classification,
+        "auto_accept_ai_suggestions": settings.auto_accept_ai_suggestions,
     }
 
 
@@ -39,7 +40,11 @@ async def test_AC_extraction_ai_classification_default_1_new_user_settings_show_
     response = await client.get("/users/me/settings")
 
     assert response.status_code == 200
-    assert response.json() == {"enable_ai_reconciliation": False, "enable_ai_classification": True}
+    assert response.json() == {
+        "enable_ai_reconciliation": False,
+        "enable_ai_classification": True,
+        "auto_accept_ai_suggestions": True,
+    }
 
 
 async def test_ac18_5_5_patch_ai_settings_persists_user_overrides(
@@ -54,14 +59,22 @@ async def test_ac18_5_5_patch_ai_settings_persists_user_overrides(
     )
 
     assert response.status_code == 200
-    assert response.json() == {"enable_ai_reconciliation": True, "enable_ai_classification": True}
+    assert response.json() == {
+        "enable_ai_reconciliation": True,
+        "enable_ai_classification": True,
+        "auto_accept_ai_suggestions": True,
+    }
 
     await db.refresh(test_user)
     assert test_user.ai_settings == {"enable_ai_reconciliation": True, "enable_ai_classification": True}
 
     followup = await client.get("/users/me/settings")
     assert followup.status_code == 200
-    assert followup.json() == {"enable_ai_reconciliation": True, "enable_ai_classification": True}
+    assert followup.json() == {
+        "enable_ai_reconciliation": True,
+        "enable_ai_classification": True,
+        "auto_accept_ai_suggestions": True,
+    }
 
 
 async def test_ac18_5_5_patch_ai_settings_preserves_unspecified_values(
@@ -73,7 +86,34 @@ async def test_ac18_5_5_patch_ai_settings_preserves_unspecified_values(
 
     second = await client.patch("/users/me/settings", json={"enable_ai_classification": True})
     assert second.status_code == 200
-    assert second.json() == {"enable_ai_reconciliation": True, "enable_ai_classification": True}
+    assert second.json() == {
+        "enable_ai_reconciliation": True,
+        "enable_ai_classification": True,
+        "auto_accept_ai_suggestions": True,
+    }
+
+
+async def test_AC_extraction_auto_accept_1_the_code_default_is_on_and_a_user_can_turn_it_off(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-extraction.auto-accept.1: the system accepts the AI suggestions unless the user says no."""
+    monkeypatch.delenv("AUTO_ACCEPT_AI_SUGGESTIONS", raising=False)
+    assert Settings(_env_file=None).auto_accept_ai_suggestions is True
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", True)
+
+    default = await client.get("/users/me/settings")
+    turned_off = await client.patch("/users/me/settings", json={"auto_accept_ai_suggestions": False})
+    followup = await client.get("/users/me/settings")
+
+    assert default.json()["auto_accept_ai_suggestions"] is True
+    assert turned_off.status_code == 200
+    assert turned_off.json()["auto_accept_ai_suggestions"] is False
+    assert followup.json()["auto_accept_ai_suggestions"] is False
+    await db.refresh(test_user)
+    assert test_user.ai_settings == {"auto_accept_ai_suggestions": False}
 
 
 async def test_ac18_5_5_get_ai_settings_returns_404_for_missing_user(
@@ -128,4 +168,8 @@ async def test_ac18_5_5_get_ai_settings_reflects_persisted_overrides(
 
     response = await client.get("/users/me/settings")
     assert response.status_code == 200
-    assert response.json() == {"enable_ai_reconciliation": True, "enable_ai_classification": False}
+    assert response.json() == {
+        "enable_ai_reconciliation": True,
+        "enable_ai_classification": False,
+        "auto_accept_ai_suggestions": settings.auto_accept_ai_suggestions,
+    }

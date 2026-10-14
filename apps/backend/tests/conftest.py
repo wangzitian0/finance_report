@@ -199,6 +199,15 @@ def disable_external_market_data_fetch(monkeypatch):
     monkeypatch.setattr(settings, "market_data_lazy_fetch_enabled", False, raising=False)
 
 
+@pytest.fixture(autouse=True)
+def auto_accept_is_off_unless_a_test_turns_it_on(monkeypatch):
+    """The review path (draft rows, one-click approval) is what the older tests describe.
+
+    The code default of ``auto_accept_ai_suggestions`` is on. A test of the automatic path turns it on.
+    """
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", False, raising=False)
+
+
 # --- Advisor app-remainder read ports (#1671 Wave B) ---
 @pytest.fixture(autouse=True)
 def wire_advisor_app_reads():

@@ -73,6 +73,13 @@ async def test_gxs_browser_upload_to_saved_package(
         record_property(path, payload["git_sha"])
     checkpoint(record_property, "U12")
 
+    # This journey proves the manual review path. The product default accepts the AI suggestions by
+    # itself (#2405), so the isolated user turns that off first. The zero-click path has its own journey.
+    review_path = await page.request.patch(
+        f"{APP_URL}/api/users/me/settings", data={"auto_accept_ai_suggestions": False}
+    )
+    assert review_path.status == 200, await review_path.text()
+
     await page.goto(f"{APP_URL}/upload")
     await page.locator('[data-testid="uploader-institution-statement"]').fill(
         "GXS Generated Browser Proof"

@@ -25,7 +25,7 @@ beforeEach(() => {
   mockedApiOperation.mockReset()
   mockedApiOperation.mockImplementation(async (op: any) => {
     if (op === "get_current_user_settings_users_me_settings_get") {
-      return { enable_ai_reconciliation: true, enable_ai_classification: false } as any
+      return { enable_ai_reconciliation: true, enable_ai_classification: false, auto_accept_ai_suggestions: true } as any
     }
     return {} as any
   })
@@ -55,10 +55,10 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
   it("AC22.15.2 submits edited flags via patchUserSettings and shows success", async () => {
     mockedApiOperation.mockImplementation(async (op: any) => {
       if (op === "get_current_user_settings_users_me_settings_get") {
-        return { enable_ai_reconciliation: true, enable_ai_classification: false } as any
+        return { enable_ai_reconciliation: true, enable_ai_classification: false, auto_accept_ai_suggestions: true } as any
       }
       if (op === "patch_current_user_settings_users_me_settings_patch") {
-        return { enable_ai_reconciliation: true, enable_ai_classification: true } as any
+        return { enable_ai_reconciliation: true, enable_ai_classification: true, auto_accept_ai_suggestions: true } as any
       }
       return {} as any
     })
@@ -75,6 +75,7 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
         body: {
           enable_ai_reconciliation: true,
           enable_ai_classification: true,
+          auto_accept_ai_suggestions: true,
         },
       }),
     )
@@ -83,10 +84,48 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /Save changes/i })).toBeDisabled())
   })
 
+  // AC-extraction.auto-accept.1
+  it("AC-extraction.auto-accept.1 — turns the automatic acceptance off and sends only that change", async () => {
+    mockedApiOperation.mockImplementation(async (op: any) => {
+      if (op === "get_current_user_settings_users_me_settings_get") {
+        return { enable_ai_reconciliation: false, enable_ai_classification: true, auto_accept_ai_suggestions: true } as any
+      }
+      if (op === "patch_current_user_settings_users_me_settings_patch") {
+        return { enable_ai_reconciliation: false, enable_ai_classification: true, auto_accept_ai_suggestions: false } as any
+      }
+      return {} as any
+    })
+    render(<AiSettingsPage />)
+    await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
+
+    expect(screen.getByLabelText("Auto-accept AI suggestions")).toBeChecked()
+    fireEvent.click(screen.getByLabelText("Auto-accept AI suggestions"))
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/i }))
+
+    await waitFor(() =>
+      expect(mockedApiOperation).toHaveBeenCalledWith("patch_current_user_settings_users_me_settings_patch", {
+        body: {
+          enable_ai_reconciliation: false,
+          enable_ai_classification: true,
+          auto_accept_ai_suggestions: false,
+        },
+      }),
+    )
+  })
+
+  it("AC-extraction.auto-accept.1 — the switch is off and locked while AI classification is off", async () => {
+    render(<AiSettingsPage />)
+    await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
+
+    // The mock loads enable_ai_classification = false and auto_accept_ai_suggestions = true.
+    expect(screen.getByLabelText("Auto-accept AI suggestions")).not.toBeChecked()
+    expect(screen.getByLabelText("Auto-accept AI suggestions")).toBeDisabled()
+  })
+
   it("AC22.15.2 surfaces an error and keeps the draft when the PATCH fails", async () => {
     mockedApiOperation.mockImplementation(async (op: any) => {
       if (op === "get_current_user_settings_users_me_settings_get") {
-        return { enable_ai_reconciliation: true, enable_ai_classification: false } as any
+        return { enable_ai_reconciliation: true, enable_ai_classification: false, auto_accept_ai_suggestions: true } as any
       }
       if (op === "patch_current_user_settings_users_me_settings_patch") {
         throw new Error("Save failed")

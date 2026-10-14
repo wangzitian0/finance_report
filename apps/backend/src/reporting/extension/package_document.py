@@ -28,6 +28,7 @@ from src.extraction import (
     StatementSourceType,
     current_statement_disposition_policy_snapshot,
     list_statement_contributions,
+    statement_disposition_policy_for_user,
 )
 from src.extraction.extension.extraction_trace import extraction_trace_policy_registry
 from src.ledger import ledger_trace_policy_registry, list_journal_contributions
@@ -130,9 +131,17 @@ def _contract(framework_id: PersonalReportingFrameworkId) -> PersonalReportPacka
     return PersonalReportPackageContractResponse.model_validate(payload)
 
 
-def _package_statement_disposition_policy() -> PersonalReportPackageStatementDispositionPolicy:
-    """Adapt extraction's published snapshot without reconstructing policy semantics here."""
-    snapshot = current_statement_disposition_policy_snapshot()
+async def _package_statement_disposition_policy(
+    db: AsyncSession, user_id: UUID
+) -> PersonalReportPackageStatementDispositionPolicy:
+    """Adapt extraction's published snapshot without reconstructing policy semantics here.
+
+    The score gate depends on the setting ``auto_accept_ai_suggestions`` of the user (#2405). The package
+    discloses the gate of the user, so a reader sees that the system accepted suggestions at any score.
+    """
+    snapshot = current_statement_disposition_policy_snapshot(
+        policy=await statement_disposition_policy_for_user(db, user_id)
+    )
     return PersonalReportPackageStatementDispositionPolicy.model_validate(
         {
             **snapshot.semantic_payload(),
@@ -161,7 +170,13 @@ def _package_notes(
                 f"{statement_disposition_policy.pnl_effect_confidence_threshold}. Unknown and ambiguous intent "
                 f"route to review. Live LLM proposals are "
                 f"{'enabled' if statement_disposition_policy.live_llm_proposals_enabled else 'disabled'}. "
-                f"Deployment commit: {statement_disposition_policy.deployment_git_sha}."
+                + (
+                    "The system accepts AI suggestions at any score for this user: such entries carry a low "
+                    "confidence tier, and a row that the AI could not place sits in a general account. "
+                    if statement_disposition_policy.machine_confidence_threshold == 0
+                    else ""
+                )
+                + f"Deployment commit: {statement_disposition_policy.deployment_git_sha}."
             ),
         },
     ]
@@ -493,7 +508,7 @@ class PackageAssembler:
     ) -> PersonalReportPackageDocument:
         """Assemble the document and fail closed on unanchored contributing inputs."""
         contract = _contract(framework_id)
-        statement_disposition_policy = _package_statement_disposition_policy()
+        statement_disposition_policy = await _package_statement_disposition_policy(db, user_id)
         policy = await derive_user_framework_policy_result(
             db,
             user_id,
