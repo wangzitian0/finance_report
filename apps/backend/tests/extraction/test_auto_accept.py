@@ -307,3 +307,36 @@ async def test_AC_extraction_auto_accept_6_promotion_touches_only_the_rows_of_th
     await db.refresh(elsewhere_draft)
     assert in_call_draft.status is ClassificationStatus.APPLIED
     assert elsewhere_draft.status is ClassificationStatus.DRAFT
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({}, True),
+        ({"auto_accept_ai_suggestions": False}, False),
+        ({"enable_ai_classification": False}, False),
+        ({"enable_ai_classification": False, "auto_accept_ai_suggestions": True}, False),
+        ({"enable_ai_classification": True, "auto_accept_ai_suggestions": True}, True),
+    ],
+)
+async def test_AC_extraction_auto_accept_1_the_setting_needs_ai_classification(db, test_user, overrides, expected):
+    """AC-extraction.auto-accept.1: with AI classification off there is nothing to accept, whatever the setting says."""
+    from src.extraction.extension.ai_settings import auto_accept_enabled
+
+    test_user.ai_settings = overrides
+    await db.flush()
+
+    assert await auto_accept_enabled(db, test_user.id) is expected
+
+
+async def test_AC_extraction_auto_accept_1_the_process_default_of_classification_applies_without_an_override(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.auto-accept.1: a user without an override follows the process default of AI classification."""
+    from src.config import settings
+    from src.extraction.extension.ai_settings import auto_accept_enabled, classification_enabled
+
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+
+    assert await classification_enabled(db, test_user.id) is False
+    assert await auto_accept_enabled(db, test_user.id) is False

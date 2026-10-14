@@ -53,6 +53,7 @@ from src.extraction.base.validation import (
     HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD,
     STATEMENT_RESOLVED_TRANSACTIONS_ATTR,
 )
+from src.extraction.extension.ai_settings import auto_accept_enabled
 from src.extraction.extension.custody_binding import is_bank_custody_source, resolve_bank_custody_account
 from src.extraction.extension.disposition_policy import (
     current_statement_disposition_policy_snapshot,
@@ -66,7 +67,7 @@ from src.extraction.extension.statement_validation import (
     approve_statement_with_transactions,
     resolve_statement_transactions,
 )
-from src.extraction.extension.transaction_classification import auto_accept_enabled, classify_by_effective_policy
+from src.extraction.extension.transaction_classification import classify_by_effective_policy
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification

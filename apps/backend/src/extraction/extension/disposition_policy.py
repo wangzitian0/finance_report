@@ -13,6 +13,7 @@ from src.extraction.base.disposition import (
     DispositionPolicy,
     StatementDispositionPolicySnapshot,
 )
+from src.extraction.extension.ai_settings import auto_accept_enabled
 
 
 def statement_disposition_policy(*, auto_accept: bool) -> DispositionPolicy:
@@ -26,8 +27,6 @@ def statement_disposition_policy(*, auto_accept: bool) -> DispositionPolicy:
 
 async def statement_disposition_policy_for_user(db: AsyncSession, user_id: UUID) -> DispositionPolicy:
     """The policy that posting uses for this user: the setting ``auto_accept_ai_suggestions`` decides the score gate."""
-    from src.extraction.extension.transaction_classification import auto_accept_enabled
-
     return statement_disposition_policy(auto_accept=await auto_accept_enabled(db, user_id))
 
 

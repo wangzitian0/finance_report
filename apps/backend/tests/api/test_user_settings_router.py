@@ -36,6 +36,7 @@ async def test_AC_extraction_ai_classification_default_1_new_user_settings_show_
     code_defaults = Settings(_env_file=None)
     monkeypatch.setattr(settings, "enable_ai_classification", code_defaults.enable_ai_classification)
     monkeypatch.setattr(settings, "enable_ai_reconciliation", code_defaults.enable_ai_reconciliation)
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", code_defaults.auto_accept_ai_suggestions)
 
     response = await client.get("/users/me/settings")
 
@@ -62,7 +63,7 @@ async def test_ac18_5_5_patch_ai_settings_persists_user_overrides(
     assert response.json() == {
         "enable_ai_reconciliation": True,
         "enable_ai_classification": True,
-        "auto_accept_ai_suggestions": True,
+        "auto_accept_ai_suggestions": settings.auto_accept_ai_suggestions,
     }
 
     await db.refresh(test_user)
@@ -73,7 +74,7 @@ async def test_ac18_5_5_patch_ai_settings_persists_user_overrides(
     assert followup.json() == {
         "enable_ai_reconciliation": True,
         "enable_ai_classification": True,
-        "auto_accept_ai_suggestions": True,
+        "auto_accept_ai_suggestions": settings.auto_accept_ai_suggestions,
     }
 
 
@@ -89,7 +90,7 @@ async def test_ac18_5_5_patch_ai_settings_preserves_unspecified_values(
     assert second.json() == {
         "enable_ai_reconciliation": True,
         "enable_ai_classification": True,
-        "auto_accept_ai_suggestions": True,
+        "auto_accept_ai_suggestions": settings.auto_accept_ai_suggestions,
     }
 
 

@@ -36,6 +36,7 @@ from sqlalchemy.orm import aliased
 import src.config
 from src.extraction.base.disposition import EconomicIntent
 from src.extraction.base.source_vocabulary import ClassificationStatus, RuleType, TransactionDirection
+from src.extraction.extension.ai_settings import auto_accept_enabled, classification_enabled
 from src.extraction.extension.classification import ClassificationService
 from src.extraction.extension.correction_service import invalidate_correction_cache
 from src.extraction.orm.correction import CorrectionLog
@@ -485,28 +486,6 @@ async def _propose_batch(
     return [_proposal_from_item(item) for item in items]
 
 
-async def _classification_enabled(db: AsyncSession, user_id: UUID) -> bool:
-    """The EPIC-018 flag, with the per-user ``ai_settings`` override on top."""
-    from src.identity import User
-
-    user = await db.get(User, user_id)
-    overrides = user.ai_settings if user is not None and isinstance(user.ai_settings, dict) else {}
-    return bool(overrides.get("enable_ai_classification", settings.enable_ai_classification))
-
-
-async def auto_accept_enabled(db: AsyncSession, user_id: UUID) -> bool:
-    """The setting ``auto_accept_ai_suggestions`` (#2405): the user override on top of the process default.
-
-    It needs AI classification: without proposals there is nothing to accept.
-    """
-    from src.identity import User
-
-    user = await db.get(User, user_id)
-    overrides = user.ai_settings if user is not None and isinstance(user.ai_settings, dict) else {}
-    wanted = bool(overrides.get("auto_accept_ai_suggestions", settings.auto_accept_ai_suggestions))
-    return wanted and await _classification_enabled(db, user_id)
-
-
 async def _ensure_policy_rule(db: AsyncSession, user_id: UUID, policy: ClassificationPolicy) -> ClassificationRule:
     """Materialize the policy version as its append-only ``ClassificationRule`` anchor.
 
@@ -755,7 +734,7 @@ async def classify_transactions(
     # The toggle controls only the optional LLM proposer. User-authored
     # deterministic rules remain a valid source of reviewed intent when AI is
     # disabled or unavailable.
-    if not await _classification_enabled(db, user_id):
+    if not await classification_enabled(db, user_id):
         disabled_outcomes = [
             ClassificationOutcome(
                 atomic_txn_id=txn.id,
@@ -1313,7 +1292,7 @@ async def backfill_classifications(db: AsyncSession, user_id: UUID) -> dict:
     if not candidates:
         return {"classified": 0, "candidates": 0}
 
-    if not await _classification_enabled(db, user_id):
+    if not await classification_enabled(db, user_id):
         outcomes = await classify_transactions(db, user_id, candidates, policy=None)
         return {
             "classified": sum(1 for outcome in outcomes if outcome.disposition == "rule"),
@@ -1356,7 +1335,7 @@ async def classify_by_effective_policy(
     if not transactions:
         return []
 
-    if not await _classification_enabled(db, user_id):
+    if not await classification_enabled(db, user_id):
         return await classify_transactions(db, user_id, transactions, policy=None)
 
     by_version: dict[int, list[AtomicTransaction]] = {}
