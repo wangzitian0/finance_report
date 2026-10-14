@@ -62,64 +62,18 @@ async def run_transfer_detection_phase(
                 )
                 continue
 
-            if txn.direction == "OUT":
-                transfer_entry = await create_transfer_out_entry(
-                    db=db,
+            if txn.direction in ("OUT", "IN"):
+                match = await post_transfer_leg(
+                    db,
+                    repository=repository,
                     user_id=user_id,
-                    source_account_id=source_account_id,
-                    amount=txn.amount,
-                    txn_date=txn.txn_date,
-                    description=txn.description,
-                    currency=txn.currency,
+                    txn=txn,
+                    custody_account_id=source_account_id,
+                    status=ReconciliationStatus.AUTO_ACCEPTED,
+                    match_score=100,
                 )
                 matched_txn_ids.add(txn.id)
-                match = ReconciliationMatch(
-                    atomic_txn_id=txn.id,
-                    journal_entry_ids=[str(transfer_entry.id)],
-                    match_score=100,
-                    score_breakdown={"transfer_out": 100.0},
-                    status=ReconciliationStatus.AUTO_ACCEPTED,
-                    disposition_kind=DispositionKind.TRANSFER_LEG,
-                )
-                await repository.add_match(match)
                 created_matches.append(match)
-                if transfer_entry.status != JournalEntryStatus.VOID:
-                    transfer_entry.status = JournalEntryStatus.RECONCILED
-                logger.debug(
-                    "Transfer OUT detected and Processing entry created",
-                    txn_id=str(txn.id),
-                    entry_id=str(transfer_entry.id),
-                    amount=str(txn.amount),
-                )
-            elif txn.direction == "IN":
-                transfer_entry = await create_transfer_in_entry(
-                    db=db,
-                    user_id=user_id,
-                    dest_account_id=source_account_id,
-                    amount=txn.amount,
-                    txn_date=txn.txn_date,
-                    description=txn.description,
-                    currency=txn.currency,
-                )
-                matched_txn_ids.add(txn.id)
-                match = ReconciliationMatch(
-                    atomic_txn_id=txn.id,
-                    journal_entry_ids=[str(transfer_entry.id)],
-                    match_score=100,
-                    score_breakdown={"transfer_in": 100.0},
-                    status=ReconciliationStatus.AUTO_ACCEPTED,
-                    disposition_kind=DispositionKind.TRANSFER_LEG,
-                )
-                await repository.add_match(match)
-                created_matches.append(match)
-                if transfer_entry.status != JournalEntryStatus.VOID:
-                    transfer_entry.status = JournalEntryStatus.RECONCILED
-                logger.debug(
-                    "Transfer IN detected and Processing entry created",
-                    txn_id=str(txn.id),
-                    entry_id=str(transfer_entry.id),
-                    amount=str(txn.amount),
-                )
         except ProcessingCurrencyConflictError:
             raise
         except TransferAccountCurrencyMismatchError as exc:
@@ -147,3 +101,65 @@ async def run_transfer_detection_phase(
             user_id=str(user_id),
         )
     return created_matches
+
+
+async def post_transfer_leg(
+    db: AsyncSession,
+    *,
+    repository: ReconciliationRepository,
+    user_id: UUID,
+    txn: AtomicTransaction,
+    custody_account_id: UUID,
+    status: ReconciliationStatus,
+    match_score: int,
+    extra_breakdown: dict[str, float | str] | None = None,
+) -> ReconciliationMatch:
+    """Post one Processing leg for a statement transaction and record it as a transfer-leg match.
+
+    An outgoing row debits Processing and credits the custody account. An incoming row debits the
+    custody account and credits Processing. The caller claims the transaction first
+    (``repository.claim_transaction``) and owns the database transaction and the error policy:
+    a currency problem raises before any entry exists.
+    """
+    leg_key = "transfer_out" if txn.direction == "OUT" else "transfer_in"
+    if txn.direction == "OUT":
+        transfer_entry = await create_transfer_out_entry(
+            db=db,
+            user_id=user_id,
+            source_account_id=custody_account_id,
+            amount=txn.amount,
+            txn_date=txn.txn_date,
+            description=txn.description,
+            currency=txn.currency,
+            source_id=txn.id,
+        )
+    else:
+        transfer_entry = await create_transfer_in_entry(
+            db=db,
+            user_id=user_id,
+            dest_account_id=custody_account_id,
+            amount=txn.amount,
+            txn_date=txn.txn_date,
+            description=txn.description,
+            currency=txn.currency,
+            source_id=txn.id,
+        )
+    match = ReconciliationMatch(
+        atomic_txn_id=txn.id,
+        journal_entry_ids=[str(transfer_entry.id)],
+        match_score=match_score,
+        score_breakdown={leg_key: 100.0, **(extra_breakdown or {})},
+        status=status,
+        disposition_kind=DispositionKind.TRANSFER_LEG,
+    )
+    await repository.add_match(match)
+    if transfer_entry.status != JournalEntryStatus.VOID:
+        transfer_entry.status = JournalEntryStatus.RECONCILED
+    logger.debug(
+        "Transfer leg posted to the Processing account",
+        txn_id=str(txn.id),
+        entry_id=str(transfer_entry.id),
+        direction=str(txn.direction),
+        amount=str(txn.amount),
+    )
+    return match

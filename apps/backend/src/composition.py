@@ -67,11 +67,13 @@ from src.ledger import (
 from src.portfolio import active_stock_symbols, position_currencies
 from src.pricing import MarketDataScopes, PricingError, get_exchange_rate
 from src.reconciliation import (
+    NamedTransfer,
     ReconciliationMatch,
     ReconciliationStatus,
     ReviewedDispositionCommand,
     ReviewedDispositionDependencies,
     accepted_transfer_txn_ids,
+    post_named_transfer_legs,
     submit_reviewed_disposition,
 )
 from src.runtime import StorageService
@@ -147,8 +149,10 @@ async def _get_or_create_default_counter_account(
     user_id: UUID,
     account_type: AccountType,
     currency: str,
+    *,
+    name: str | None = None,
 ) -> Account:
-    expected_name = f"General {account_type.value.capitalize()} ({currency})"
+    expected_name = name or f"General {account_type.value.capitalize()} ({currency})"
     cache = db.info.setdefault("_default_account_cache", {})
     cache_key = (user_id, expected_name, account_type, currency)
     if cache_key in cache:
@@ -211,6 +215,40 @@ def _statement_unmatched_txns_query(statement: StatementSummary, user_id: UUID):
     )
 
 
+def _suggestion_rationale(suggestion: ClassificationSuggestion) -> str:
+    if suggestion.corrected:
+        return f"Category corrected by the user: {suggestion.category}"
+    return f"Accepted AI suggestion {suggestion.category} (score {suggestion.confidence})"
+
+
+async def _balance_sheet_disposition_for(
+    db: AsyncSession, user_id: UUID, txn: AtomicTransaction, suggestion: ClassificationSuggestion
+) -> tuple[EconomicIntent, Account, str, str] | None:
+    """The reviewed disposition for a loan principal or an investment trade (#2415).
+
+    The row posts to a default balance-sheet account: a liability for a loan, an asset for an investment.
+    Neither is income or expense. A loan repayment lowers the liability. A drawdown raises it. A purchase
+    raises the asset. A sale lowers it. Returns None for any other class.
+    """
+    if suggestion.booking == "loan_principal":
+        intent = EconomicIntent.LOAN_PRINCIPAL
+        account = await _get_or_create_default_counter_account(
+            db, user_id, AccountType.LIABILITY, txn.currency, name=f"Loans Payable ({txn.currency})"
+        )
+    elif suggestion.booking == "investment_trade":
+        intent = (
+            EconomicIntent.INVESTMENT_PURCHASE
+            if txn.direction == TransactionDirection.OUT
+            else EconomicIntent.INVESTMENT_SALE
+        )
+        account = await _get_or_create_default_counter_account(
+            db, user_id, AccountType.ASSET, txn.currency, name=f"Investments ({txn.currency})"
+        )
+    else:
+        return None
+    return intent, account, suggestion.category, _suggestion_rationale(suggestion)
+
+
 async def _accepted_suggestion_for(
     db: AsyncSession,
     user_id: UUID,
@@ -234,11 +272,7 @@ async def _accepted_suggestion_for(
         intent = EconomicIntent.EXPENSE
     else:
         return None
-    if suggestion.corrected:
-        rationale = f"Category corrected by the user: {suggestion.category}"
-    else:
-        rationale = f"Accepted AI suggestion {suggestion.category} (score {suggestion.confidence})"
-    return intent, account, suggestion.category, rationale
+    return intent, account, suggestion.category, _suggestion_rationale(suggestion)
 
 
 async def auto_fill_default_statement_dispositions(
@@ -251,10 +285,12 @@ async def auto_fill_default_statement_dispositions(
     Submits reviewed dispositions which create posted journal entries for any
     unmatched statement transactions, returning the number of posted entries created.
     A row that the classifier already applied, with an account that the policy accepts, is left to
-    the normal posting that follows. A row with a usable draft AI suggestion posts to the
-    suggested account and category. A row that the AI named a transfer, a repayment, a loan
-    payment or a trade is left for a person, because a general income or expense would misstate
-    it (#2415). Any other row posts to the general income or expense account of its direction.
+    the normal posting that follows. A row with a usable draft AI suggestion posts to the suggested
+    account and category. A row that the AI named a transfer, a card repayment, a loan payment or a
+    trade is not income or expense: it posts as a Processing transfer leg, like the keyword fallback
+    of the reconciliation run, and the other side of the movement clears it later. Such a row stays
+    for a person when its leg cannot post (#2415). Any other row posts to the general income or
+    expense account of its direction.
     """
     query = _statement_unmatched_txns_query(statement, user_id)
     result = await db.execute(query)
@@ -272,14 +308,26 @@ async def auto_fill_default_statement_dispositions(
     left_to_posting = await applied_rows_the_policy_accepts(
         db, unmatched_txns, mode=DispositionMode(settings.statement_disposition_mode)
     )
+    named_transfers: list[NamedTransfer] = []
 
     for txn in unmatched_txns:
         if txn.id in left_to_posting:
             continue
         suggestion = suggestions.get(txn.id)
-        if suggestion is not None and suggestion.non_pnl:
+        if suggestion is not None and suggestion.booking == "processing_leg":
+            named_transfers.append(
+                NamedTransfer(
+                    transaction=txn,
+                    category=suggestion.category,
+                    score=suggestion.confidence,
+                    decided_by_user=suggestion.corrected,
+                )
+            )
             continue
-        accepted = await _accepted_suggestion_for(db, user_id, txn, suggestion)
+        if suggestion is not None and suggestion.non_pnl:
+            accepted = await _balance_sheet_disposition_for(db, user_id, txn, suggestion)
+        else:
+            accepted = await _accepted_suggestion_for(db, user_id, txn, suggestion)
         if accepted is not None:
             intent, counter_account, category, rationale = accepted
             await submit_reviewed_disposition(
@@ -332,6 +380,17 @@ async def auto_fill_default_statement_dispositions(
         )
         await settle_drafts_after_posting(db, txn.id, accepted_id=None)
         resolved_count += 1
+
+    if named_transfers:
+        legs = await post_named_transfer_legs(db, user_id=user_id, named=named_transfers)
+        classification_ids = {
+            item.transaction.id: suggestions[item.transaction.id].classification_id for item in named_transfers
+        }
+        for leg in legs:
+            await settle_drafts_after_posting(
+                db, leg.atomic_txn_id, accepted_id=classification_ids.get(leg.atomic_txn_id)
+            )
+        resolved_count += len(legs)
 
     return resolved_count
 

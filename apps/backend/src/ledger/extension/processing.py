@@ -182,6 +182,7 @@ async def create_transfer_out_entry(
     description: str,
     *,
     currency: str,
+    source_id: UUID | None = None,
 ) -> JournalEntry:
     """Create a Transfer OUT journal entry.
 
@@ -197,6 +198,8 @@ async def create_transfer_out_entry(
         amount: Transfer amount
         txn_date: Transaction date
         description: Transfer description
+        source_id: Id of the source transaction. Two transactions with the same date, text and
+            amount then get two entries; without it they share one entry (#2415).
 
     Returns:
         Created JournalEntry (not yet committed)
@@ -210,6 +213,7 @@ async def create_transfer_out_entry(
         description=description,
         currency=currency,
         direction="OUT",
+        source_id=source_id,
     )
 
 
@@ -222,6 +226,7 @@ async def create_transfer_in_entry(
     description: str,
     *,
     currency: str,
+    source_id: UUID | None = None,
 ) -> JournalEntry:
     """Create a Transfer IN journal entry.
 
@@ -237,6 +242,8 @@ async def create_transfer_in_entry(
         amount: Transfer amount
         txn_date: Transaction date
         description: Transfer description
+        source_id: Id of the source transaction. Two transactions with the same date, text and
+            amount then get two entries; without it they share one entry (#2415).
 
     Returns:
         Created JournalEntry (not yet committed)
@@ -250,6 +257,7 @@ async def create_transfer_in_entry(
         description=description,
         currency=currency,
         direction="IN",
+        source_id=source_id,
     )
 
 
@@ -263,6 +271,7 @@ async def _create_transfer_entry(
     description: str,
     currency: str,
     direction: str,
+    source_id: UUID | None = None,
 ) -> JournalEntry:
     """Build one transfer leg and route persistence through ledger's front door."""
     _validate_transfer_params(amount, description)
@@ -304,6 +313,7 @@ async def _create_transfer_entry(
         memo=f"Transfer {direction}: {description}",
         entry=entry,
         base_currency=processing_currency,
+        source_id=source_id,
         operation=f"processing-transfer-{direction.lower()}",
     )
 

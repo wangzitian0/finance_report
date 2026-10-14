@@ -91,6 +91,11 @@ NON_PNL_CATEGORIES = frozenset(
     }
 )
 
+#: The balance-sheet classes that move money between the user's own accounts. The one-click approval posts
+#: them as Processing legs, and the other side of the movement clears them. The other balance-sheet classes
+#: post to a default balance-sheet account (#2415).
+PROCESSING_LEG_CATEGORIES = frozenset({TransactionCategory.TRANSFER, TransactionCategory.CARD_REPAYMENT})
+
 #: "Other" means "does not fit any class". A proposal in these classes always waits for a person.
 REVIEW_ONLY_CATEGORIES = frozenset({TransactionCategory.OTHER_INCOME, TransactionCategory.OTHER_EXPENSE})
 
@@ -824,6 +829,17 @@ class ClassificationSuggestion(BaseModel):
     def non_pnl(self) -> bool:
         """True when the AI named a movement that is not income or expense."""
         return self.category in {c.value for c in NON_PNL_CATEGORIES}
+
+    @property
+    def booking(self) -> Literal["processing_leg", "loan_principal", "investment_trade"] | None:
+        """How the one-click approval books a balance-sheet suggestion. None for income and expense."""
+        if self.category in {c.value for c in PROCESSING_LEG_CATEGORIES}:
+            return "processing_leg"
+        if self.category == TransactionCategory.LOAN_PRINCIPAL.value:
+            return "loan_principal"
+        if self.category == TransactionCategory.INVESTMENT_TRADE.value:
+            return "investment_trade"
+        return None
 
 
 async def classification_suggestions(db: AsyncSession, txn_ids: Sequence[UUID]) -> dict[UUID, ClassificationSuggestion]:

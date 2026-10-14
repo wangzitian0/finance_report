@@ -127,6 +127,16 @@ def is_high_confidence_auto_approve_candidate(statement: StatementSummary) -> bo
     )
 
 
+#: Prefix of the validation note that posting writes when a row has no authoritative decision.
+ECONOMIC_REVIEW_NOTICE = "Economic review required:"
+
+
+def _clear_economic_review_notice(statement: StatementSummary) -> None:
+    """Remove the review note once every row has an entry. Other validation notes stay (#2415)."""
+    if statement.validation_error and statement.validation_error.startswith(ECONOMIC_REVIEW_NOTICE):
+        statement.validation_error = None
+
+
 async def auto_create_posted_entries_for_statement(
     db: AsyncSession,
     statement: StatementSummary,
@@ -142,6 +152,7 @@ async def auto_create_posted_entries_for_statement(
         transactions = await resolve_statement_transactions(db, statement)
     txn_ids = [txn.id for txn in transactions]
     if not txn_ids:
+        _clear_economic_review_notice(statement)
         return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=0)
 
     statement_target_ids = {f"statement-transaction:{txn_id}" for txn_id in txn_ids}
@@ -170,7 +181,7 @@ async def auto_create_posted_entries_for_statement(
     if legacy_result.scalar_one_or_none() is not None:
         statement.status = BankStatementStatus.PARSED
         statement.stage1_status = Stage1Status.PENDING_REVIEW
-        statement.validation_error = "Economic review required: legacy_unanchored_source_entry"
+        statement.validation_error = f"{ECONOMIC_REVIEW_NOTICE} legacy_unanchored_source_entry"
         await db.flush()
         return StatementPostingOutcome(
             status=StatementPostingStatus.REVIEW_REQUIRED,
@@ -181,6 +192,7 @@ async def auto_create_posted_entries_for_statement(
     transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
     txns_to_post = [txn for txn in transactions if txn.id not in existing_entry_txn_ids]
     if not txns_to_post:
+        _clear_economic_review_notice(statement)
         return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=0)
 
     preloaded_bank_account = await resolve_statement_posting_account(db, statement, user_id)
@@ -288,7 +300,7 @@ async def auto_create_posted_entries_for_statement(
         statement.status = BankStatementStatus.PARSED
         statement.stage1_status = Stage1Status.PENDING_REVIEW
         normalized_reasons = tuple(sorted(set(review_reasons)))
-        statement.validation_error = f"Economic review required: {', '.join(normalized_reasons)}"[:500]
+        statement.validation_error = f"{ECONOMIC_REVIEW_NOTICE} {', '.join(normalized_reasons)}"[:500]
         await db.flush()
         return StatementPostingOutcome(
             status=StatementPostingStatus.REVIEW_REQUIRED,
@@ -347,6 +359,7 @@ async def auto_create_posted_entries_for_statement(
                 },
             )
 
+    _clear_economic_review_notice(statement)
     return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=created)
 
 
