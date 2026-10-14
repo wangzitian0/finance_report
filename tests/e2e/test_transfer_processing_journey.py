@@ -118,9 +118,11 @@ def _statement_csv(
     day: str,
     amount: str,
     description: str = TRANSFER_DESCRIPTION,
+    period_start: str = PERIOD_START,
+    period_end: str = PERIOD_END,
 ) -> str:
     row = (
-        f"{CURRENCY},{PERIOD_START},{PERIOD_END},{opening},{closing},"
+        f"{CURRENCY},{period_start},{period_end},{opening},{closing},"
         f"{day},{description},{amount}"
     )
     return "\n".join([CSV_HEADER, row, ""])
@@ -390,17 +392,29 @@ async def test_transfer_between_accounts_clears_through_processing(
         account_rev_b = await _create_asset_account(client, "Transfer Review B")
         desc_rev_out = "TRANSFER TO SAVINGS ACCOUNT"
         desc_rev_in = "TRANSFER FROM CURRENT ACCOUNT"
+        rev_period_start = "2026-04-01"
+        rev_period_end = "2026-04-30"
+        rev_out_date = "2026-04-10"
+        rev_in_date = "2026-04-11"
+        rev_a_opening = Decimal("1000.00")
+        rev_out_amount = Decimal("300.00")
+        rev_a_closing = Decimal("700.00")
+        rev_b_opening = Decimal("200.00")
+        rev_in_amount = Decimal("300.00")
+        rev_b_closing = Decimal("500.00")
 
         statement_rev_a = await _upload_csv(
             client,
             institution="Transfer Review Bank A",
             account_id=account_rev_a,
             content=_statement_csv(
-                opening=A_OPENING,
-                closing=A_CLOSING,
-                day=OUT_DATE,
-                amount=f"-{A_OUT_AMOUNT}",
+                opening=rev_a_opening,
+                closing=rev_a_closing,
+                day=rev_out_date,
+                amount=f"-{rev_out_amount}",
                 description=desc_rev_out,
+                period_start=rev_period_start,
+                period_end=rev_period_end,
             ),
         )
         statement_rev_b = await _upload_csv(
@@ -408,24 +422,30 @@ async def test_transfer_between_accounts_clears_through_processing(
             institution="Transfer Review Bank B",
             account_id=account_rev_b,
             content=_statement_csv(
-                opening=B_OPENING,
-                closing=B_CLOSING,
-                day=IN_DATE,
-                amount=f"{B_IN_AMOUNT}",
+                opening=rev_b_opening,
+                closing=rev_b_closing,
+                day=rev_in_date,
+                amount=f"{rev_in_amount}",
                 description=desc_rev_in,
+                period_start=rev_period_start,
+                period_end=rev_period_end,
             ),
         )
         parsed_rev_a = await _wait_for_parsed(client, statement_rev_a)
         parsed_rev_b = await _wait_for_parsed(client, statement_rev_b)
         assert len(parsed_rev_a["transactions"]) == 1
         assert len(parsed_rev_b["transactions"]) == 1
+        rev_txn_ids = {
+            str(parsed_rev_a["transactions"][0]["id"]),
+            str(parsed_rev_b["transactions"][0]["id"]),
+        }
 
         matching_rev = await client.post(_api_url("/reconciliation/runs"), json={})
         assert matching_rev.status_code == 200
 
         for statement_id, parsed, opening, closing in (
-            (statement_rev_a, parsed_rev_a, A_OPENING, A_CLOSING),
-            (statement_rev_b, parsed_rev_b, B_OPENING, B_CLOSING),
+            (statement_rev_a, parsed_rev_a, rev_a_opening, rev_a_closing),
+            (statement_rev_b, parsed_rev_b, rev_b_opening, rev_b_closing),
         ):
             approval = await approve_statement_with_fixture_review(
                 client,
@@ -435,8 +455,8 @@ async def test_transfer_between_accounts_clears_through_processing(
                 dispositions={},
                 envelope=FixtureEnvelope(
                     currency=CURRENCY,
-                    period_start=date.fromisoformat(PERIOD_START),
-                    period_end=date.fromisoformat(PERIOD_END),
+                    period_start=date.fromisoformat(rev_period_start),
+                    period_end=date.fromisoformat(rev_period_end),
                     opening_balance=opening,
                     closing_balance=closing,
                     rationale="The generated CSV header declares these source facts.",
@@ -462,6 +482,7 @@ async def test_transfer_between_accounts_clears_through_processing(
                 c
                 for c in checks_data.get("items", [])
                 if c.get("check_type") == "transfer_pair"
+                and set(c.get("related_txn_ids") or []) == rev_txn_ids
             ),
             None,
         )
