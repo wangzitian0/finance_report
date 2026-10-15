@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 
 export interface EnvelopeDraft {
   accountId: string;
@@ -30,6 +31,10 @@ interface SourceEnvelopeConfirmationProps {
   onConfirm: () => void;
   isPending: boolean;
   reviewedEnvelope?: unknown | null;
+  /** Creates an asset account when the user has none (#2477). */
+  onCreateAccount?: (name: string) => void;
+  isCreatingAccount?: boolean;
+  defaultAccountName?: string;
 }
 
 export function SourceEnvelopeConfirmation({
@@ -43,7 +48,12 @@ export function SourceEnvelopeConfirmation({
   onConfirm,
   isPending,
   reviewedEnvelope,
+  onCreateAccount,
+  isCreatingAccount = false,
+  defaultAccountName = "",
 }: SourceEnvelopeConfirmationProps) {
+  const [newAccountName, setNewAccountName] = useState(defaultAccountName);
+  const canCreateAccount = Boolean(onCreateAccount) && custodyAccounts.length === 0;
   const isComplete = Boolean(
     envelopeDraft.accountId &&
       envelopeDraft.currency &&
@@ -109,6 +119,32 @@ export function SourceEnvelopeConfirmation({
                 ))}
               </select>
             </label>
+            {canCreateAccount && (
+              <div className="rounded-md border border-[var(--border)] p-2 text-sm md:col-span-2">
+                <span className="block text-xs text-muted">
+                  You have no asset account yet. Create one for this
+                  statement{envelopeDraft.currency ? ` in ${envelopeDraft.currency}` : ""}.
+                </span>
+                <span className="mt-2 flex gap-2">
+                  <input
+                    id="new-custody-account-name"
+                    aria-label="New account name"
+                    value={newAccountName}
+                    onChange={(event) => setNewAccountName(event.target.value)}
+                    className="input w-full"
+                    placeholder="e.g., DBS Savings"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onCreateAccount?.(newAccountName.trim())}
+                    disabled={isCreatingAccount || !newAccountName.trim() || !envelopeDraft.currency}
+                    className="btn-secondary whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isCreatingAccount ? "Creating..." : "Create account"}
+                  </button>
+                </span>
+              </div>
+            )}
             <label className="text-sm font-medium" htmlFor="statement-currency">
               Statement currency
               <input

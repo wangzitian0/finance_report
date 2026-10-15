@@ -5,12 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import distinct, func, select
+from sqlalchemy import Select, distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE
+from src.audit import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE, STATEMENT_SOURCE_TYPES
 from src.audit.ratio import Ratio
 from src.extraction.orm.layer2 import AtomicTransaction
+from src.ledger import JournalEntry, JournalEntryStatus, current_anchored_journal_entries
 from src.observability import get_logger
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
@@ -21,7 +22,27 @@ __all__ = [
     "RECONCILIATION_REVIEW_SCORE",
     "ReconciliationStats",
     "get_reconciliation_stats",
+    "posted_statement_source_ids",
 ]
+
+
+def posted_statement_source_ids(user_id: UUID) -> Select:
+    """Select the ids of statement transactions that have a live posted entry from their own statement.
+
+    Such a row is reconciled by construction (#2465): the system posted it from
+    the source, so it needs no separate reconciliation match. The unmatched list
+    and the statistics both use this one definition.
+    """
+    return (
+        current_anchored_journal_entries(
+            user_id=user_id,
+            target_kind="journal_command",
+            target_id=func.concat("statement-transaction:", JournalEntry.source_id),
+        )
+        .with_only_columns(JournalEntry.source_id)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
+        .where(JournalEntry.status != JournalEntryStatus.VOID)
+    )
 
 
 @dataclass(frozen=True)
@@ -63,14 +84,11 @@ async def get_reconciliation_stats(
         .where(ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED)
     )
 
-    # Count DISTINCT atomic transactions that have an accepted/auto-accepted
-    # match. A single atomic transaction can carry multiple active accepted
-    # matches; counting rows would inflate `matched` and let match_rate exceed
-    # 100%.
-    matched_result = await db.execute(
-        select(func.count(distinct(ReconciliationMatch.atomic_txn_id)))
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(AtomicTransaction.user_id == user_id)
+    # Count DISTINCT atomic transactions that are reconciled: they carry an
+    # accepted/auto-accepted match, or the system posted them from their own
+    # statement (#2465). Counting distinct ids keeps match_rate at most 100%.
+    accepted_match_ids = (
+        select(ReconciliationMatch.atomic_txn_id)
         .where(ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED)
         .where(
             ReconciliationMatch.status.in_(
@@ -78,6 +96,16 @@ async def get_reconciliation_stats(
                     ReconciliationStatus.ACCEPTED,
                     ReconciliationStatus.AUTO_ACCEPTED,
                 ]
+            )
+        )
+    )
+    matched_result = await db.execute(
+        select(func.count(distinct(AtomicTransaction.id)))
+        .where(AtomicTransaction.user_id == user_id)
+        .where(
+            or_(
+                AtomicTransaction.id.in_(accepted_match_ids),
+                AtomicTransaction.id.in_(posted_statement_source_ids(user_id)),
             )
         )
     )

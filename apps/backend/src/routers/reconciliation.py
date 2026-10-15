@@ -10,7 +10,6 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
-from src.audit import STATEMENT_SOURCE_TYPES
 from src.composition import compose_reviewed_disposition_dependencies
 from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession, Pagination
@@ -25,10 +24,8 @@ from src.ledger import (
     AccountingError,
     AccountType,
     JournalEntry,
-    JournalEntryStatus,
     ValidationError,
     calculate_reconciliation_adjustment,
-    current_anchored_journal_entries,
     submit_system_journal_entry,
 )
 from src.observability import ensure_request_id, get_logger, log_financial_mutation, safe_error_message
@@ -47,6 +44,7 @@ from src.reconciliation import (
     execute_matching,
     get_pending_items,
     get_reconciliation_stats,
+    posted_statement_source_ids,
     reject_match as reject_match_service,
     submit_reviewed_disposition,
 )
@@ -87,20 +85,10 @@ def _unmatched_atomic_txn_query(user_id: UUID):
         .where(ReconciliationMatch.superseded_by_id.is_(None))
         .where(ReconciliationMatch.atomic_txn_id.is_not(None))
     )
-    posted_source_subquery = (
-        current_anchored_journal_entries(
-            user_id=user_id,
-            target_kind="journal_command",
-            target_id=func.concat("statement-transaction:", JournalEntry.source_id),
-        )
-        .with_only_columns(JournalEntry.source_id)
-        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-        .where(JournalEntry.status != JournalEntryStatus.VOID)
-    )
     return select(AtomicTransaction).where(
         effective_statement_transaction_filter(user_id),
         AtomicTransaction.id.notin_(matched_subquery),
-        AtomicTransaction.id.notin_(posted_source_subquery),
+        AtomicTransaction.id.notin_(posted_statement_source_ids(user_id)),
     )
 
 

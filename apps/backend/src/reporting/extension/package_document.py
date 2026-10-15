@@ -55,7 +55,7 @@ from src.reporting.base.report_package_contract import (
 from src.reporting.base.types import PersonalReportingFrameworkId
 from src.reporting.extension._core import _aggregate_net_income_sql, _quantize_money
 from src.reporting.extension.annualized_income import generate_annualized_income_schedule
-from src.reporting.extension.cash_flow import generate_cash_flow
+from src.reporting.extension.cash_flow import cash_flow_proof_reason_text, generate_cash_flow
 from src.reporting.extension.framework_policy import derive_user_framework_policy_result
 from src.reporting.extension.framework_report import (
     assemble_framework_balance_sheet,
@@ -420,7 +420,7 @@ def _section_invariant_blockers(
         blockers.append(
             _section_blocker(
                 reason_code,
-                "Cash-flow event classification or lineage is unproven and cannot authorize a package.",
+                cash_flow_proof_reason_text(reason_code),
             )
         )
     # Once any package input exists, a zero cash balance also requires exact

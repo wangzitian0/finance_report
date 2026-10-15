@@ -218,6 +218,27 @@ export default function StatementReviewPage() {
       ),
   });
 
+  // #2477: a new user has no asset account. Create one inline and select it,
+  // so the source envelope can be confirmed without leaving the review.
+  const createCustodyAccountMutation = useMutation({
+    mutationFn: (name: string) =>
+      apiOperation("create_account_accounts_post", {
+        body: { name, type: "ASSET", currency: envelopeDraft.currency },
+      }),
+    onSuccess: async (account) => {
+      await queryClient.invalidateQueries({
+        queryKey: ["statement-review-custody-accounts", statementId],
+      });
+      setEnvelopeDraft((current) => ({ ...current, accountId: account.id }));
+      showToast(`Account "${account.name}" created and selected.`, "success");
+    },
+    onError: (err) =>
+      showToast(
+        err instanceof Error ? err.message : "Failed to create account",
+        "error",
+      ),
+  });
+
   const rejectMutation = useMutation({
     mutationFn: (notes?: string) =>
       apiOperation(
@@ -546,6 +567,9 @@ export default function StatementReviewPage() {
         onConfirm={() => envelopeMutation.mutate()}
         isPending={envelopeMutation.isPending}
         reviewedEnvelope={data.reviewed_envelope}
+        onCreateAccount={(name) => createCustodyAccountMutation.mutate(name)}
+        isCreatingAccount={createCustodyAccountMutation.isPending}
+        defaultAccountName={data.institution ? `${data.institution} account` : ""}
       />
 
       <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 2xl:min-h-0 2xl:grid-cols-2">

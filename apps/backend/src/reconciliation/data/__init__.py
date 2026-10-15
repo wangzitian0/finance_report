@@ -5,6 +5,7 @@ from src.reconciliation.data.stats import (
     RECONCILIATION_REVIEW_SCORE,
     ReconciliationStats,
     get_reconciliation_stats,
+    posted_statement_source_ids,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "RECONCILIATION_REVIEW_SCORE",
     "ReconciliationStats",
     "get_reconciliation_stats",
+    "posted_statement_source_ids",
 ]

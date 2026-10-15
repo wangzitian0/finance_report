@@ -326,6 +326,56 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
     )
     assert "cash_event_classification_ambiguous" in {blocker.code for blocker in proof_blockers}
 
+    sections.cash_flow.proof_reasons = ["opening_coverage_starts_after_period"]
+    coverage_blockers = _section_invariant_blockers(
+        sections,
+        cumulative_net_income=Decimal("25.00"),
+        period_net_income=Decimal("25.00"),
+        start_date=period_start,
+        end_date=period_end,
+        as_of_date=period_end,
+        currency="SGD",
+        contributions=(SimpleNamespace(is_authoritative=True, section_ids=("cash_flow",)),),
+        cash_inputs=PackageCashInputs.missing(),
+    )
+    coverage_blocker = next(b for b in coverage_blockers if b.code == "opening_coverage_starts_after_period")
+    assert coverage_blocker.reason.startswith("Your statements start after the first day of this period.")
+
+
+def test_AC_reporting_2466_1_every_cash_flow_proof_reason_has_its_own_text() -> None:
+    """AC-reporting.2466.1: each proof reason that cash_flow.py emits maps to its own cause text.
+
+    The generic text stays only for an unknown code. A new reason without a
+    text fails this test.
+    """
+    import ast
+
+    from src.reporting.extension import cash_flow as cash_flow_module
+    from src.reporting.extension.cash_flow import (
+        CASH_FLOW_PROOF_REASON_TEXT,
+        CASH_FLOW_UNPROVEN_FALLBACK_TEXT,
+        cash_flow_proof_reason_text,
+    )
+
+    tree = ast.parse(Path(cash_flow_module.__file__).read_text(encoding="utf-8"))
+    emitted = {
+        node.args[0].value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "add"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "proof_reasons"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+    }
+    assert len(emitted) >= 6, emitted
+    assert emitted == set(CASH_FLOW_PROOF_REASON_TEXT)
+    texts = [cash_flow_proof_reason_text(code) for code in sorted(emitted)]
+    assert CASH_FLOW_UNPROVEN_FALLBACK_TEXT not in texts
+    assert len(set(texts)) == len(texts)
+    assert cash_flow_proof_reason_text("unknown_reason") == CASH_FLOW_UNPROVEN_FALLBACK_TEXT
+
 
 def test_AC_reporting_package_document_8_missing_cash_inputs_block_trust() -> None:
     """AC-reporting.package-document.8: absence is explicit, never a lexical fallback."""

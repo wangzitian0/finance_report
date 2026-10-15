@@ -110,7 +110,10 @@ export function StatementTransactionsTable({
                   </td>
                   <td className="px-4 py-3 text-center">
                     <StatusBadge
-                      status={txn.status ?? "pending"}
+                      status={
+                        txn.status ??
+                        (statement.status === "approved" ? "matched" : "pending")
+                      }
                       variants={{ pending: "warning", matched: "success", unmatched: "error" }}
                     />
                   </td>
