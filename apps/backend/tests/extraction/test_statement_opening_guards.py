@@ -117,11 +117,6 @@ async def test_statement_opening_contiguous_reverse_upload_supersedes_later_open
     assert asset_line["amount"] == Decimal("200")
 
 
-test_statement_opening_allows_continuous_out_of_order_upload = (
-    test_statement_opening_contiguous_reverse_upload_supersedes_later_opening
-)
-
-
 async def test_statement_opening_non_contiguous_reverse_upload_supersedes_later_opening(db, test_user):
     """Non-contiguous reverse upload (Dec then Jan, Jan.closing != Dec.opening) auto-posts cleanly, voiding Dec entry."""
     account = Account(user_id=test_user.id, name="SGD Checking", type=AccountType.ASSET, currency="SGD")
