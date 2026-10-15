@@ -9,14 +9,7 @@ from sqlalchemy import func, select
 from src.audit import to_money
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
-from src.ledger import (
-    Account,
-    AccountType,
-    Direction,
-    JournalEntry,
-    JournalLine,
-    active_journal_entry_filter,
-)
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine, active_journal_entry_filter
 from src.platform import raise_bad_request
 from src.pricing import PricingError, convert_amount
 from src.reporting import AnnualizedIncomeTotals, income_bucket, resolve_line_currency

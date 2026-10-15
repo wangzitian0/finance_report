@@ -32,8 +32,21 @@ from src.audit.base.trace_repository import TraceRecordRepository
 from src.audit.extension.trace_emitter import TraceEmitter
 from src.audit.extension.trace_repository import SqlTraceRecordRepository
 from src.ledger.base.decision_anchor import DecisionAnchor, DecisionAnchorError, journal_command_target
-from src.ledger.extension.repository import _create_anchored_journal_entry, post_journal_entry
+from src.ledger.extension.repository import _create_anchored_journal_entry, post_journal_entry, void_journal_entry
 from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryAuthorityState
+
+__all__ = [
+    "AnchoredJournalCommand",
+    "AnchoredJournalCommandV2",
+    "current_anchored_journal_entries",
+    "ledger_trace_policy_registry",
+    "submit_anchored_journal_entry",
+    "submit_anchored_journal_entry_v2",
+    "submit_manual_journal_entry",
+    "submit_system_journal_entry",
+    "validate_manual_journal_entry_for_post",
+    "void_journal_entry",
+]
 
 
 @dataclass(frozen=True, slots=True)

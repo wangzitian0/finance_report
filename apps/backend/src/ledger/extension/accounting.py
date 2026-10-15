@@ -12,7 +12,7 @@ from src.audit import TraceEmitter, TraceScope, current_authoritative_trace_deci
 from src.audit.money import to_money
 from src.audit.money.currency import normalize_currency_code
 from src.ledger.base.validators import ValidationError
-from src.ledger.extension.anchored_posting import submit_system_journal_entry
+from src.ledger.extension.anchored_posting import submit_system_journal_entry, void_journal_entry
 from src.ledger.extension.opening_positions import list_opening_positions, record_opening_position
 from src.ledger.orm.account import Account, AccountType
 from src.ledger.orm.journal import (
@@ -140,8 +140,6 @@ async def initialize_opening_positions(
                 continue
             if entry_date < previous.effective_date:
                 if previous.journal_entry_id:
-                    from src.ledger.extension.repository import void_journal_entry
-
                     await void_journal_entry(
                         db,
                         entry_id=previous.journal_entry_id,
