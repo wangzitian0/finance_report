@@ -2,28 +2,53 @@
   "suite": "financial_reporting_temporal_scenarios",
   "version_ref": "v0.2.3",
   "app_url": "https://report-staging.zitian.party",
-  "run_at": "2026-10-15T09:08:33.283976+00:00",
+  "run_at": "2026-10-15T10:19:07.077936+00:00",
   "summary": {
     "total": 7,
-    "passed": 5,
+    "passed": 7,
     "skipped": 0,
-    "failed": 2,
-    "success": false
+    "failed": 0,
+    "success": true
   },
   "results": [
     {
       "case_id": "case_1",
       "case_name": "Case 1: Consecutive 4-Month Rollforward & Q1 Articulation",
-      "status": "FAIL",
-      "duration_seconds": 26.039682388305664,
-      "details": {},
-      "error_message": "Statement 1fbb85f8-aa1b-4d69-9bc3-7c10d525e975 entered terminal failure state 'rejected': AI provider API key not configured"
+      "status": "PASS",
+      "duration_seconds": 188.36299681663513,
+      "details": {
+        "m1_closing_balance": "15271.23",
+        "month_1_ending_balance": "15271.23",
+        "m2_opening_balance": "15271.23",
+        "month_2_opening_cash": "15271.23",
+        "m2_closing_balance": "18250.00",
+        "month_2_ending_balance": "18250.00",
+        "m3_opening_balance": "18250.00",
+        "month_3_opening_cash": "18250.00",
+        "m3_closing_balance": "21300.00",
+        "month_3_ending_balance": "21300.00",
+        "m4_opening_balance": "21300.00",
+        "month_4_opening_cash": "21300.00",
+        "m4_closing_balance": "24200.00",
+        "month_4_ending_balance": "24200.00",
+        "q1_net_income": "5849.25",
+        "q1_assets": "21300.00",
+        "total_assets": "24200.00",
+        "month_4_assets": "24200.00",
+        "total_equity": "15450.75",
+        "cumulative_net_income": "8749.25",
+        "beginning_cash": "15450.75",
+        "ending_cash": "24200.00",
+        "equation_delta": "0.00",
+        "is_balanced": true
+      },
+      "error_message": null
     },
     {
       "case_id": "case_2",
       "case_name": "Case 2: Multi-PII Household Operations & Category Reconciliation",
       "status": "PASS",
-      "duration_seconds": 63.20651078224182,
+      "duration_seconds": 44.28248596191406,
       "details": {
         "household_husband_cash": "12800.00",
         "household_wife_cash": "8100.00",
@@ -44,16 +69,29 @@
     {
       "case_id": "case_3",
       "case_name": "Case 3: Credit Card Liability & Non-P&L Repayment Clearance",
-      "status": "FAIL",
-      "duration_seconds": 23.983237743377686,
-      "details": {},
-      "error_message": "Statement bedb6761-2d00-443b-93ed-24f95c7650a8 entered terminal failure state 'rejected': AI provider API key not configured"
+      "status": "PASS",
+      "duration_seconds": 41.93605160713196,
+      "details": {
+        "card_spend_recorded": "1200.00",
+        "bank_repayment": "1200.00",
+        "ending_bank_cash": "8800.00",
+        "credit_card_liability_cleared": "0.00",
+        "total_assets": "8800.00",
+        "total_equity": "10000.00",
+        "total_liabilities": "0.00",
+        "total_income": "0.00",
+        "total_expenses": "1200.00",
+        "net_income": "-1200.00",
+        "equation_delta": "0.00",
+        "is_balanced": true
+      },
+      "error_message": null
     },
     {
       "case_id": "case_4",
       "case_name": "Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet",
       "status": "PASS",
-      "duration_seconds": 79.49620175361633,
+      "duration_seconds": 61.788081645965576,
       "details": {
         "currencies_consolidated": "SGD, USD, HKD",
         "sgd_closing_balance": "12800.00",
@@ -75,7 +113,7 @@
       "case_id": "case_5",
       "case_name": "Case 5: Holistic Multi-Asset & Tax Ecosystem",
       "status": "PASS",
-      "duration_seconds": 10.644771099090576,
+      "duration_seconds": 6.886851787567139,
       "details": {
         "holdings_count": 2,
         "symbols": "AAPL, VT",
@@ -98,7 +136,7 @@
       "case_id": "case_6",
       "case_name": "Case 6: Bank Overdraft & Capital Gain Disposal",
       "status": "PASS",
-      "duration_seconds": 7.723170280456543,
+      "duration_seconds": 6.844270706176758,
       "details": {
         "overdraft_cash": "-1500.00",
         "ending_cash": "11000.00",
@@ -115,7 +153,7 @@
       "case_id": "case_ui",
       "case_name": "Case UI: Browser Zero-Console-Error & DOM Hygiene Oracle",
       "status": "PASS",
-      "duration_seconds": 57.57047414779663,
+      "duration_seconds": 37.61226511001587,
       "details": {
         "status": "PASS",
         "visited_routes": [
