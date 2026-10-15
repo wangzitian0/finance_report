@@ -170,13 +170,6 @@ def build_preview_env(
     env_suffix = preview_env_suffix(pr_number, commit_sha)
     app_url = preview_app_url(pr_number, commit_sha, internal_domain)
     return {
-        "PR_PREVIEW_PR_NUMBER": str(pr_number),
-        "PR_PREVIEW_COMPOSE_NAME": f"pr-{pr_number}",
-        # Informational label only. The real docker compose project is Dokploy's
-        # appName (set via the `-p` flag in preview_compose_command); this stable
-        # per-PR identifier is NOT wired to COMPOSE_PROJECT_NAME anymore.
-        "PR_PREVIEW_COMPOSE_PROJECT": preview_compose_project(pr_number),
-        "PR_PREVIEW_CREATED_BY": "github-actions",
         "GIT_COMMIT_SHA": commit_sha,
         "REGISTRY": registry,
         "IMAGE_PREFIX": image_prefix,
@@ -197,7 +190,7 @@ def build_preview_env(
         "AI_BASE_URL": "https://api.z.ai/api/coding/paas/v4",
         "AI_CHAT_COMPLETIONS_PATH": "/chat/completions",
         "AI_LAYOUT_PARSING_PATH": "/layout_parsing",
-        "PRIMARY_MODEL": "glm-5.1",
+        "PRIMARY_MODEL": "glm-5.3-flash",
         "OCR_MODEL": "glm-4.6v",
         "VISION_MODEL": "glm-4.6v",
         "FALLBACK_MODELS": "glm-5-turbo,glm-5",

@@ -85,7 +85,7 @@ detect_host_environment() {
 
 configure_host_environment() {
   local host_environment
-  host_environment="${FINANCE_REPORT_HOST_ENV:-$(detect_host_environment)}"
+  host_environment="$(detect_host_environment)"
 
   case "$host_environment" in
     wsl)

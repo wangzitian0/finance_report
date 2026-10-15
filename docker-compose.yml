@@ -137,7 +137,7 @@ services:
       # knobs (dropped per common/llm/contract.py AC-llm.2.6 / AC-llm.4.6) are gone too.
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
       DEBUG: ${DEBUG:-false}
-      GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}
+      GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-finance-report-backend}
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-deployment.environment=development}
@@ -178,7 +178,7 @@ services:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
-      GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}
+      GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
     networks:
       - internal
       - dokploy-network

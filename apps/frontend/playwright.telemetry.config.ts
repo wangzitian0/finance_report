@@ -13,7 +13,7 @@ import { defineConfig, devices } from '@playwright/test';
  * passing them through `webServer.env` (rather than baking them into the build)
  * is sufficient.
  */
-const PORT = process.env.TELEMETRY_E2E_PORT || '3210';
+const PORT = '3210';
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 // Fake, never-contacted endpoints — all SAME-ORIGIN as the app so the
