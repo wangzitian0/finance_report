@@ -25,7 +25,12 @@ from src.audit.money import Currency, Money
 from src.ledger import Entry, Leg
 from src.ledger.extension.anchored_posting import submit_system_journal_entry
 from src.ledger.orm.account import Account, AccountType
-from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger.orm.journal import (
+    Direction,
+    JournalEntry,
+    JournalLine,
+    active_journal_entry_filter,
+)
 from src.observability import get_logger
 
 
@@ -153,7 +158,7 @@ async def calculate_account_balance_in_currency(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(JournalLine.account_id == account.id)
         .where(JournalLine.currency == account.currency)
-        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
         .group_by(JournalLine.direction)
     )
@@ -200,7 +205,7 @@ async def calculate_account_historical_cost(
         .where(JournalLine.account_id == account.id)
         .where(JournalLine.currency == account.currency)
         .where(JournalEntry.entry_date <= as_of_date)
-        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
     )
 

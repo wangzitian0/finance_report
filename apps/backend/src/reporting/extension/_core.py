@@ -21,6 +21,7 @@ from src.ledger import (
     JournalEntryStatus,
     JournalLine,
 )
+from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
 from src.pricing import ManualValuationLiquidityClass
 from src.reporting.extension import fx_gateway
@@ -179,7 +180,7 @@ async def _aggregate_balances_sql(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
         .where(Account.type.in_(account_types))
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
         .where(JournalEntry.entry_date <= as_of_date)
     )
@@ -237,7 +238,7 @@ async def _aggregate_balances_sql(
         .where(Account.user_id == user_id)
         .where(Account.type.in_(account_types))
         .where(JournalLine.currency.in_(list(fx_rates.keys())))
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
         .where(JournalEntry.entry_date <= as_of_date)
         .group_by(Account.id)
@@ -270,7 +271,7 @@ async def _aggregate_account_provenance(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
         .where(Account.type.in_(account_types))
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
         .where(JournalEntry.entry_date <= as_of_date)
     )
@@ -362,7 +363,7 @@ async def _aggregate_net_income_sql(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
         .where(Account.type.in_((AccountType.INCOME, AccountType.EXPENSE)))
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
         .where(JournalEntry.entry_date <= as_of_date)
     )
@@ -428,7 +429,7 @@ async def _aggregate_net_income_sql(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
         .where(Account.type.in_((AccountType.INCOME, AccountType.EXPENSE)))
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
         .where(JournalEntry.entry_date <= as_of_date)
         .group_by(JournalLine.currency, Account.type, JournalLine.direction)
@@ -497,7 +498,7 @@ async def _aggregate_equity_translation_variance_sql(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
         .where(Account.type == AccountType.EQUITY)
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
         .where(JournalEntry.entry_date <= as_of_date)
     )
@@ -520,7 +521,7 @@ async def _aggregate_equity_translation_variance_sql(
         .where(JournalEntry.id.in_(equity_entry_ids))
         .where(Account.type.in_((AccountType.ASSET, AccountType.LIABILITY)))
         .where(JournalLine.currency != target)
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
         .where(JournalEntry.entry_date <= as_of_date)
     )

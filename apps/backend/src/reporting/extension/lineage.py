@@ -11,8 +11,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import Account, JournalEntry, JournalLine
+from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import get_logger
-from src.reporting.extension._core import _REPORT_STATUSES, _get_fx_rates_map
+from src.reporting.extension._core import _get_fx_rates_map
 from src.reporting.extension.reporting_calc import (
     ReportError,
     _normalize_currency,
@@ -50,7 +51,7 @@ async def get_account_lineage(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(JournalLine.account_id == account_id)
         .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.entry_date <= as_of_date)
         .order_by(JournalEntry.entry_date.desc(), JournalLine.created_at.desc())
     )

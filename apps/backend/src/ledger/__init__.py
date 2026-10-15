@@ -60,6 +60,7 @@ if TYPE_CHECKING:
         AnchoredJournalCommand,
         AnchoredJournalCommandV2,
         RevaluationError,
+        active_journal_entry_filter,
         calculate_unrealized_fx_gains,
         create_transfer_in_entry,
         create_transfer_out_entry,
@@ -143,6 +144,7 @@ __all__ = [
     "UnbalancedEntryError",
     "ValidationError",
     "account_service",
+    "active_journal_entry_filter",
     "calculate_account_balance",
     "calculate_account_balances",
     "calculate_account_balances_in_base_currency",
@@ -212,6 +214,7 @@ _BASE_NAMES = {
     "validate_journal_posting_invariants",
 }
 _EXTENSION_NAMES = {
+    "active_journal_entry_filter",
     "list_opening_positions",
     "AccountNotFoundError",
     "AnchoredJournalCommand",

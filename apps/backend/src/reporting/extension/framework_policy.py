@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.orm.layer2 import AssetType, AtomicPosition
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryAuthorityState, JournalLine, ProcessingAccount
+from src.ledger.orm.journal import active_journal_entry_filter
 from src.portfolio import DividendIncome
 from src.pricing import (
     ManualValuationComponentType,
@@ -24,7 +25,6 @@ from src.pricing import (
 from src.pricing.orm.market_data import StockPrice
 from src.reporting.base.l1_registry import EXPENSE_CATEGORY_LINES, INCOME_CATEGORY_LINES, L1_REGISTRY
 from src.reporting.base.types import PersonalReportingFrameworkId, PolicyDimension
-from src.reporting.extension._core import _REPORT_STATUSES
 from src.schemas.reporting import (
     FrameworkPolicyDecision,
     FrameworkPolicyEvidenceAnchor,
@@ -551,7 +551,7 @@ async def framework_policy_facts_for_user(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .join(Account, JournalLine.account_id == Account.id)
         .where(JournalEntry.user_id == user_id, Account.user_id == user_id)
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(
             JournalEntry.decision_authority_state == JournalEntryAuthorityState.ANCHORED,
             JournalEntry.decision_anchor_id.is_not(None),

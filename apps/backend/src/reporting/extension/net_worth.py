@@ -12,10 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.ratio import Ratio
 from src.ledger import Account, AccountType, JournalEntry, JournalLine
+from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
 from src.pricing import ManualValuationLiquidityClass
 from src.reporting.extension import fx_gateway
-from src.reporting.extension._core import _REPORT_STATUSES, _load_accounts, _single_source_currency
+from src.reporting.extension._core import _load_accounts, _single_source_currency
 from src.reporting.extension.balance_sheet import generate_balance_sheet
 from src.reporting.extension.portfolio_market import _portfolio_market_basis_by_account
 from src.reporting.extension.reporting_calc import (
@@ -321,7 +322,7 @@ async def get_account_trend(
         )
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(JournalLine.account_id == account_id)
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.entry_date >= start_date)
         .where(JournalEntry.entry_date <= today)
         .group_by(JournalLine.currency, JournalEntry.entry_date, JournalLine.direction)
@@ -468,7 +469,7 @@ async def get_category_breakdown(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
         .where(Account.type == breakdown_type)
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.entry_date >= start_date)
         .where(JournalEntry.entry_date <= today)
         .group_by(Account.id, JournalLine.currency, JournalLine.direction)
