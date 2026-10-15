@@ -39,6 +39,8 @@ EMPTY_FALLBACK_FIELDS = frozenset(
         "llm_encryption_keys",
         "s3_public_access_key",
         "s3_public_secret_key",
+        "reconciliation_auto_accept_threshold",
+        "reconciliation_review_threshold",
     }
 )
 
@@ -553,13 +555,18 @@ class Settings(BaseSettings):
             return value.strip().upper()
         return value
 
-    @field_validator("ai_json_seed", mode="before")
+    @field_validator(
+        "ai_json_seed",
+        "reconciliation_auto_accept_threshold",
+        "reconciliation_review_threshold",
+        mode="before",
+    )
     @classmethod
     def _empty_seed_is_none(cls, value: object) -> object:
-        """Treat an empty/whitespace AI_JSON_SEED as omitted (None).
+        """Treat an empty/whitespace optional integer env value as omitted (None).
 
         Pydantic cannot parse "" as int, so an empty env value would otherwise
-        raise at startup and the seed could never actually be omitted via env.
+        raise at startup and the optional field could never actually be omitted via env.
         """
         if isinstance(value, str) and not value.strip():
             return None

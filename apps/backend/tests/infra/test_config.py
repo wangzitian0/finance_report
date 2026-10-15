@@ -148,6 +148,24 @@ def test_runtime_declared_env_variables(monkeypatch) -> None:
     assert settings.reconciliation_review_threshold == 75
 
 
+def test_empty_reconciliation_thresholds_resolve_to_none(monkeypatch) -> None:
+    """Empty reconciliation threshold environment variables resolve safely to None."""
+    monkeypatch.setenv("RECONCILIATION_AUTO_ACCEPT_THRESHOLD", "")
+    monkeypatch.setenv("RECONCILIATION_REVIEW_THRESHOLD", "   ")
+
+    settings = Settings(_env_file=None)
+    assert settings.reconciliation_auto_accept_threshold is None
+    assert settings.reconciliation_review_threshold is None
+
+    direct = Settings(
+        _env_file=None,
+        reconciliation_auto_accept_threshold="",  # type: ignore[arg-type]
+        reconciliation_review_threshold="  ",  # type: ignore[arg-type]
+    )
+    assert direct.reconciliation_auto_accept_threshold is None
+    assert direct.reconciliation_review_threshold is None
+
+
 def test_settings_infra2_builders() -> None:
     """Settings exports builders for LlmSettings, S3Settings, and PostgresSettings."""
     settings = Settings(_env_file=None)

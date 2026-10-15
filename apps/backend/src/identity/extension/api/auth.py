@@ -10,8 +10,6 @@ pre-migration ``src/routers/auth.py`` into the package's single home.
 
 from __future__ import annotations
 
-import os
-
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -38,7 +36,7 @@ logger = get_logger(__name__)
 
 # SECURITY: Only trust X-Forwarded-For from known proxies
 # Set TRUST_PROXY=true when behind a trusted reverse proxy (nginx, cloudflare, etc.)
-TRUST_PROXY = src.config.settings.trust_proxy or os.getenv("TRUST_PROXY", "false").lower() in ("true", "1", "yes")
+TRUST_PROXY = src.config.settings.trust_proxy
 COOKIE_SAFE_DEVELOPMENT_ENVS = {"development", "test", "ci"}
 
 
