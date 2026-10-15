@@ -14,6 +14,7 @@ from src.config import settings
 from src.ledger import AccountType, RevaluationError, calculate_unrealized_fx_gains
 from src.observability import ErrorIds, get_logger
 from src.reporting.base.balance_sheet_calculator import (
+    absorb_translation_rounding,
     calculate_balance_sheet_equation,
     calculate_currency_translation_adjustment,
 )
@@ -301,6 +302,24 @@ async def generate_balance_sheet(
             unrealized_fx=unrealized_fx,
             equity_translation_variance=equity_translation_variance,
         )
+        if cta_adjustment != Decimal("0.00") or unrealized_fx != Decimal("0.00"):
+            # Lines round one by one and the translation figures round from unrounded
+            # sums, so the sides can differ by a cent (#2473). The CTA reserve takes
+            # a residual inside the rounding bound. A larger one stays visible.
+            rounding_residual = calculate_balance_sheet_equation(
+                total_assets=total_assets,
+                total_liabilities=total_liabilities,
+                total_equity=total_equity,
+                net_income=net_income,
+                unrealized_fx=unrealized_fx,
+                net_worth_adjustment=net_worth_adjustment,
+                cta_adjustment=cta_adjustment,
+            ).equation_delta
+            cta_adjustment = absorb_translation_rounding(
+                cta_adjustment=cta_adjustment,
+                residual=rounding_residual,
+                rounded_figure_count=len(assets) + len(liabilities) + len(equity) + 4,
+            )
     else:
         equity_translation_variance = Decimal("0.00")
         cta_adjustment = Decimal("0.00")

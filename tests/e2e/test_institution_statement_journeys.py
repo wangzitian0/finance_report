@@ -45,7 +45,7 @@ from common.testing.provider_review import (
 from conftest import fail_or_skip_ai_ocr_gate
 from deployment_pin import assert_pinned_deployment, resolve_expected_commit
 from journey_checkpoint import checkpoint
-from pdf_fixture_paths import committed_fixture_pdf, generated_pdf_path
+from pdf_fixture_paths import committed_fixture_pdf
 from playwright.async_api import Page, expect
 
 APP_URL = os.getenv("APP_URL", "http://localhost:3000")
@@ -62,6 +62,7 @@ GXS_EXPECTED = (
 )
 MARIBANK_EXPECTED = GXS_EXPECTED.with_name("maribank_statement_fixture_expected.json")
 CMB_EXPECTED = GXS_EXPECTED.with_name("cmb_statement_fixture_expected.json")
+PINGAN_EXPECTED = GXS_EXPECTED.with_name("pingan_statement_fixture_expected.json")
 
 CMB_DISPOSITIONS = {
     "工资入账": FixtureDisposition(
@@ -129,15 +130,6 @@ MARIBANK_DISPOSITIONS = {
 }
 
 PINGAN_DISPOSITIONS = {
-    "Unknown": FixtureDisposition(
-        "expense",
-        "EXPENSE",
-        "The Pingan fixture declares a fallback disposition for a null description normalized to Unknown.",
-        "SHOPPING",
-    ),
-    "交易": FixtureDisposition(
-        "expense", "EXPENSE", "Pingan generic transaction", "SHOPPING"
-    ),
     "工资代发": FixtureDisposition(
         "income", "INCOME", "The Pingan fixture declares salary income.", "SALARY"
     ),
@@ -475,13 +467,22 @@ async def test_maribank_statement_journey(authenticated_page_unique: Page) -> No
 @pytest.mark.critical
 @pytest.mark.llm
 async def test_pingan_statement_journey(authenticated_page_unique: Page) -> None:
-    """EPIC-003 EPIC-008 / AC-llm.12.3: 平安银行 (Chinese layout) journey."""
+    """EPIC-003 EPIC-008 / AC-llm.12.3: 平安银行 (Chinese layout) journey.
+
+    Pingan ships as a committed PDF + expected-JSON pair, like CMB. A PDF built at run
+    time has no Chinese glyphs on a runner without a CJK font. The OCR then returns no
+    description, and the disposition for that row conflicts with its direction (#2473).
+    """
+    expected = json.loads(PINGAN_EXPECTED.read_text())
     await _run_institution_journey(
         authenticated_page_unique,
-        pdf_path=generated_pdf_path("pingan"),
+        pdf_path=committed_fixture_pdf("pingan_statement_fixture.pdf"),
         institution="Pingan E2E Institution Journey",
-        min_transactions=1,
+        min_transactions=len(expected["events"]),
         dispositions=PINGAN_DISPOSITIONS,
+        envelope=_fixture_envelope(
+            expected, "The Pingan fixture JSON declares these source facts."
+        ),
     )
 
 

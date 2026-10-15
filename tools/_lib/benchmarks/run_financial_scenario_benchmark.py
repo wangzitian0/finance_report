@@ -96,12 +96,38 @@ class ScenarioBenchmarkRunner:
             raise RuntimeError(f"No access token returned: {user_data}")
 
         client.headers.update({"Authorization": f"Bearer {token}"})
+        self.pin_explicit_review_path(client)
         self.last_auth_context = {
             "client": client,
             "user_email": user_email,
             "user_data": user_data,
         }
         return client, user_email, user_data
+
+    def pin_explicit_review_path(self, client: httpx.Client) -> None:
+        """Turn off AI classification and auto-accept for the benchmark user (#2473).
+
+        Since #2405 both settings default to on. A high-confidence PDF statement then
+        posts by itself and stays "approved". The benchmark cases adjudicate each
+        item to a chosen account, so they need the statement in "parsed" status.
+        """
+        resp = client.patch(
+            "/api/users/me/settings",
+            json={
+                "enable_ai_classification": False,
+                "auto_accept_ai_suggestions": False,
+            },
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Pinning explicit review path failed: {resp.status_code} {resp.text}"
+            )
+        settings = resp.json()
+        if (
+            settings.get("enable_ai_classification") is not False
+            or settings.get("auto_accept_ai_suggestions_active") is not False
+        ):
+            raise RuntimeError(f"Explicit review path not in effect: {settings}")
 
     def upload_statement(
         self,
@@ -145,7 +171,11 @@ class ScenarioBenchmarkRunner:
         max_wait_seconds: int = 150,
         poll_interval: int = 3,
     ) -> dict[str, Any]:
-        """Poll statement status until terminal state ('parsed', 'rejected', 'failed')."""
+        """Poll statement status until a settled state.
+
+        'parsed' and 'approved' both mean parsing is done. 'rejected' and 'failed'
+        raise. A statement can be 'approved' when the user accepts AI suggestions (#2405).
+        """
         start = time.time()
         while time.time() - start < max_wait_seconds:
             resp = client.get(f"/api/statements/{statement_id}")
@@ -155,7 +185,7 @@ class ScenarioBenchmarkRunner:
                 )
             data = resp.json()
             status = data.get("status")
-            if status == "parsed":
+            if status in ("parsed", "approved"):
                 return data
             if status in ("rejected", "failed"):
                 err = data.get("validation_error") or "Unknown validation error"
@@ -165,7 +195,7 @@ class ScenarioBenchmarkRunner:
             time.sleep(poll_interval)
 
         raise TimeoutError(
-            f"Statement {statement_id} did not reach parsed status within {max_wait_seconds}s"
+            f"Statement {statement_id} did not reach parsed or approved status within {max_wait_seconds}s"
         )
 
     def adjudicate_unmatched_items(
@@ -255,7 +285,14 @@ class ScenarioBenchmarkRunner:
     def approve_statement(
         self, client: httpx.Client, statement_id: str
     ) -> dict[str, Any]:
-        """Approve statement to post ledger entries."""
+        """Approve statement to post ledger entries.
+
+        A statement that is already approved is returned as is, so a repeat call does
+        not fail on a settled statement.
+        """
+        current = client.get(f"/api/statements/{statement_id}")
+        if current.status_code == 200 and current.json().get("status") == "approved":
+            return current.json()
         resp = client.post(
             f"/api/statements/{statement_id}/review/approve",
             json={"create_account_if_missing": True},
