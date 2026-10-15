@@ -243,6 +243,7 @@ async def test_post_correction_reclassifies_posted_entry_on_approved_statement(
 
     from src.config import settings
     from src.ledger import JournalEntry, JournalEntryStatus
+    from src.reconciliation import ReconciliationMatch, ReconciliationStatus
     from tests.api._statement_router_fixtures import (
         add_txn,
         build_statement,
@@ -339,6 +340,7 @@ async def test_post_correction_reclassifies_posted_entry_on_approved_statement(
             select(JournalEntry)
             .where(
                 JournalEntry.user_id == user_id,
+                JournalEntry.source_id == txn_id,
             )
             .options(selectinload(JournalEntry.lines))
         )
@@ -347,3 +349,63 @@ async def test_post_correction_reclassifies_posted_entry_on_approved_statement(
     # The shopping entry is now voided
     refreshed_shopping = next(e for e in all_entries if e.id == new_entry.id)
     assert refreshed_shopping.status == JournalEntryStatus.VOID
+
+    # Step 3 assertions: Processing transfer leg created as RECONCILED and match is ACCEPTED
+    processing_leg = next(
+        e
+        for e in all_entries
+        if e.id not in (initial_entry_id, new_entry.id) and e.status == JournalEntryStatus.RECONCILED
+    )
+    assert processing_leg is not None
+    assert processing_leg.status == JournalEntryStatus.RECONCILED
+    processing_leg_id = processing_leg.id
+
+    rec_matches = (
+        await db.scalars(
+            select(ReconciliationMatch).where(
+                ReconciliationMatch.atomic_txn_id == txn_id,
+            )
+        )
+    ).all()
+    assert len(rec_matches) >= 1
+    active_match = next(m for m in rec_matches if m.status == ReconciliationStatus.ACCEPTED)
+    assert str(processing_leg_id) in active_match.journal_entry_ids
+    active_match_id = active_match.id
+
+    # Step 4: User changes category back to DINING
+    corr4 = await client.post(
+        "/corrections",
+        json={"transaction_id": str(txn_id), "corrected_category": "DINING"},
+    )
+    assert corr4.status_code == 201
+
+    await db.rollback()
+    entries4 = (
+        await db.scalars(
+            select(JournalEntry)
+            .where(
+                JournalEntry.user_id == user_id,
+                JournalEntry.source_id == txn_id,
+            )
+            .options(selectinload(JournalEntry.lines))
+        )
+    ).all()
+
+    # The RECONCILED Processing leg is now VOID
+    refreshed_leg = next(e for e in entries4 if e.id == processing_leg_id)
+    assert refreshed_leg.status == JournalEntryStatus.VOID
+
+    # The ReconciliationMatch is now SUPERSEDED
+    refreshed_match = await db.get(ReconciliationMatch, active_match_id)
+    assert refreshed_match is not None
+    assert refreshed_match.status == ReconciliationStatus.SUPERSEDED
+
+    # A new POSTED DINING JournalEntry exists
+    dining_entry = next(
+        e
+        for e in entries4
+        if e.id not in (initial_entry_id, new_entry.id, processing_leg_id) and e.status == JournalEntryStatus.POSTED
+    )
+    assert dining_entry is not None
+    assert dining_entry.status == JournalEntryStatus.POSTED
+    assert dining_entry.memo == "Business meal"
