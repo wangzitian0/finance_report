@@ -303,7 +303,7 @@ class Settings(BaseSettings):
         # production (#2487). Remove it when infra2 supplies AI_API_KEY in production for the
         # last three production releases.
         validation_alias=AliasChoices("AI_API_KEY", "ZAI_API_KEY"),
-        description="AI provider API key (empty key = AI features disabled). The old name ZAI_API_KEY also works.",
+        description="AI provider API key (empty key = AI features disabled). Settings also reads the old name ZAI_API_KEY.",
         json_schema_extra={
             "group": "AI Provider",
             "vault": True,

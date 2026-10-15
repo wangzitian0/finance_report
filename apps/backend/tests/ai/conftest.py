@@ -12,9 +12,8 @@ from src.config import settings
 def pin_ai_key_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pin the env AI-provider key to "unconfigured" for every advisor test.
 
-    ``settings.ai_api_key`` is aliased to five env vars (ZAI_API_KEY,
-    GLM_API_KEY, AI_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY). A developer
-    machine that exports any of them silently flips
+    ``settings.ai_api_key`` is read from two env vars (AI_API_KEY and
+    ZAI_API_KEY, #2487). A developer machine that exports either of them silently flips
     ``EnvConfigSource.is_configured()`` to True, so tests asserting
     unconfigured-provider behaviour pass in CI (which exports none) but fail
     locally — the class of drift behind issue #1804. Pinning the key to ""
