@@ -1,13 +1,13 @@
 [
   {
     "version": "v0.2.2",
-    "run_at": "2026-10-15T05:34:08.841647+00:00",
+    "run_at": "2026-10-15T08:30:10.150722+00:00",
     "app_url": "https://report-staging.zitian.party",
     "status": "FAIL",
     "cases_total": 7,
     "cases_passed": 3,
     "cases_failed": 4,
-    "duration_seconds": 508.79,
+    "duration_seconds": 559.2,
     "max_equation_delta": "0.00",
     "zero_pnl_contamination": false,
     "rollforward_balanced": false,

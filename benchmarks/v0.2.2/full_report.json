@@ -2,7 +2,7 @@
   "suite": "financial_reporting_temporal_scenarios",
   "version_ref": "v0.2.2",
   "app_url": "https://report-staging.zitian.party",
-  "run_at": "2026-10-15T05:34:08.841647+00:00",
+  "run_at": "2026-10-15T08:30:10.150722+00:00",
   "summary": {
     "total": 7,
     "passed": 3,
@@ -15,15 +15,15 @@
       "case_id": "case_1",
       "case_name": "Case 1: Consecutive 4-Month Rollforward & Q1 Articulation",
       "status": "FAIL",
-      "duration_seconds": 152.5885283946991,
+      "duration_seconds": 154.65615344047546,
       "details": {},
-      "error_message": "Statement 41a40791-091e-437c-a1fa-5ae3ebee95fc did not reach parsed status within 150s"
+      "error_message": "Statement 1d988d24-ec16-4dc0-858e-5f35a96268d6 did not reach parsed status within 150s"
     },
     {
       "case_id": "case_2",
       "case_name": "Case 2: Multi-PII Household Operations & Category Reconciliation",
       "status": "PASS",
-      "duration_seconds": 65.37179732322693,
+      "duration_seconds": 56.637311935424805,
       "details": {
         "household_husband_cash": "12800.00",
         "household_wife_cash": "8100.00",
@@ -45,15 +45,15 @@
       "case_id": "case_3",
       "case_name": "Case 3: Credit Card Liability & Non-P&L Repayment Clearance",
       "status": "FAIL",
-      "duration_seconds": 156.55412006378174,
+      "duration_seconds": 155.6480848789215,
       "details": {},
-      "error_message": "Statement dbb6ae30-84d2-4e93-a022-b9d5ef05b962 did not reach parsed status within 150s"
+      "error_message": "Statement ed42b489-6deb-423b-a47b-2e3d1851a5a1 did not reach parsed status within 150s"
     },
     {
       "case_id": "case_4",
       "case_name": "Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet",
       "status": "FAIL",
-      "duration_seconds": 80.31499338150024,
+      "duration_seconds": 105.94844150543213,
       "details": {},
       "error_message": "SGD equation delta must be exactly zero: 0.01"
     },
@@ -61,7 +61,7 @@
       "case_id": "case_5",
       "case_name": "Case 5: Holistic Multi-Asset & Tax Ecosystem",
       "status": "PASS",
-      "duration_seconds": 6.641334056854248,
+      "duration_seconds": 11.860417604446411,
       "details": {
         "holdings_count": 2,
         "symbols": "AAPL, VT",
@@ -84,7 +84,7 @@
       "case_id": "case_6",
       "case_name": "Case 6: Bank Overdraft & Capital Gain Disposal",
       "status": "PASS",
-      "duration_seconds": 6.774031639099121,
+      "duration_seconds": 16.079216480255127,
       "details": {
         "overdraft_cash": "-1500.00",
         "ending_cash": "11000.00",
@@ -101,7 +101,7 @@
       "case_id": "case_ui",
       "case_name": "Case UI: Browser Zero-Console-Error & DOM Hygiene Oracle",
       "status": "FAIL",
-      "duration_seconds": 40.546541690826416,
+      "duration_seconds": 58.370988845825195,
       "details": {},
       "error_message": "Pillar 2 Invariant Failure: Browser console errors detected: ['[https://report-staging.zitian.party/] Failed to fetch trend data: TypeError: Failed to fetch\\n    at https://report-staging.zitian.party/_next/static/chunks/3680-e77dffcf017d0e86.js:3:10638\\n    at ec.with (https://report-staging.zitian.party/_next/static/chunks/3680-e77dffcf017d0e86.js:3:36945)\\n    at l.with (https://report-staging.zitian.party/_next/static/chunks/3680-e77dffcf017d0e86.js:3:43403)\\n    at https://report-staging.zitian.party/_next/static/chunks/3680-e77dffcf017d0e86.js:3:10543\\n    at c (https://report-staging.zitian.party/_next/static/chunks/7805-70e438f0ca3f9982.js:1:15271)\\n    at l (https://report-staging.zitian.party/_next/static/chunks/7805-70e438f0ca3f9982.js:1:16083)\\n    at https://report-staging.zitian.party/_next/static/chunks/app/(main)/page-554eee95ba2fc88a.js:1:48936\\n    at https://report-staging.zitian.party/_next/static/chunks/app/(main)/page-554eee95ba2fc88a.js:1:49142\\n    at o1 (https://report-staging.zitian.party/_next/static/chunks/4bd1b696-100b9d70ed4e49c1.js:1:88957)\\n    at uE (https://report-staging.zitian.party/_next/static/chunks/4bd1b696-100b9d70ed4e49c1.js:1:104849)']"
     }
