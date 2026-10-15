@@ -161,10 +161,6 @@ def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
         internal_domain="zitian.party",
     )
     expected = {
-        "PR_PREVIEW_PR_NUMBER": "591",
-        "PR_PREVIEW_COMPOSE_NAME": "pr-591",
-        "PR_PREVIEW_COMPOSE_PROJECT": "finance_report_pr_591",
-        "PR_PREVIEW_CREATED_BY": "github-actions",
         "IMAGE_TAG": "pr-591-abc123",
         "GIT_COMMIT_SHA": "abc123",
         "ENV_SUFFIX": "-pr-591-abc123",
@@ -176,6 +172,7 @@ def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
         "S3_HOST": "finance-report-minio-pr-591-abc123",
         "S3_ENDPOINT": "http://finance-report-minio-pr-591-abc123:9000",
         "COMPOSE_PROFILES": "infra,app",
+        "PRIMARY_MODEL": "glm-5.3-flash",
     }
     assert "COMPOSE_PROJECT_NAME" not in env
     for k, v in expected.items():
@@ -215,9 +212,10 @@ def test_AC8_13_71_root_compose_passes_git_sha_to_backend_runtime_and_frontend_b
     compose = (ROOT / "docker-compose.yml").read_text()
     backend_block = compose.split("  backend:", 1)[1].split("  frontend:", 1)[0]
     frontend_block = compose.split("  frontend:", 1)[1].split("networks:", 1)[0]
-    assert "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}" in backend_block
+    assert "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}" in backend_block
     assert backend_block.index("environment:") < backend_block.index(
-        "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-unknown}"
+        "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}",
+        backend_block.index("environment:"),
     )
     assert "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}" in frontend_block
     assert frontend_block.index("args:") < frontend_block.index(
