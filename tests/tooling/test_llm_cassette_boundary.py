@@ -32,6 +32,9 @@ _ALLOWED = (
     # facade->litellm WIRE-integration tests (mock below the transport; use the
     # layer's LIVE seam to reach their stubs).
     "apps/backend/tests/ai/test_ai_streaming.py",
+    # the application configuration schema and tests declare runtime environment variables.
+    "apps/backend/src/config.py",
+    "apps/backend/tests/infra/test_config.py",
     # this gate itself names the banned tokens.
     "tests/tooling/test_llm_cassette_boundary.py",
 )

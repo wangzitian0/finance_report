@@ -53,7 +53,7 @@ def test_reference_doc_splits_default_example_and_lists_aliases():
     fields = gen.collect_backend_fields()
     doc = gen.render_reference_doc(fields)
     assert "| Key | Default | Example | Vault | Group | Description |" in doc
-    # Alias keys are surfaced (e.g. ENV alias of ENVIRONMENT, AI_API_KEY of ZAI_API_KEY).
+    # Alias keys are surfaced (e.g. ENV alias of ENVIRONMENT).
     assert "Alias of" in doc
 
 
@@ -62,15 +62,28 @@ def test_alias_chain_field_without_a_value_is_rendered_as_one_commented_example(
     is empty is emitted as a single commented canonical line, and its alias keys
     are not emitted at all — an assignment to empty is a value, not "unset", and
     would shadow the rest of the chain."""
-    block = gen.render_backend_block(gen.collect_backend_fields())
+    synthetic = [
+        {
+            "field": "test_empty_chain",
+            "key": "TEST_EMPTY_CHAIN",
+            "value": "",
+            "description": "Test field with empty alias chain",
+            "group": "App Settings",
+            "vault": False,
+            "extra_keys": [],
+            "aliases": ["TEST_EMPTY_ALIAS"],
+        }
+    ]
+    block = gen.render_backend_block(synthetic)
 
-    assert "\n# ZAI_API_KEY=\n" in block
+    assert "# TEST_EMPTY_CHAIN=" in block
     assert gen.ALIAS_CHAIN_EMPTY_NOTE in block
-    for shadowed in ("\nZAI_API_KEY=", "\nAI_API_KEY=", "\nGEMINI_API_KEY="):
+    for shadowed in ("\nTEST_EMPTY_CHAIN=", "\nTEST_EMPTY_ALIAS="):
         assert shadowed not in block
     # A chain whose value is NOT empty keeps its plain assignment + alias lines.
-    assert "\nENVIRONMENT=development\n" in block
-    assert "\nENV=development\n" in block
+    real_block = gen.render_backend_block(gen.collect_backend_fields())
+    assert "\nENVIRONMENT=development\n" in real_block
+    assert "\nENV=development\n" in real_block
 
 
 def test_alias_names_reads_the_alias_choices_chain():
@@ -78,12 +91,10 @@ def test_alias_names_reads_the_alias_choices_chain():
     a field with a single string alias, or none, has no chain."""
     by_field = {f["field"]: f for f in gen.collect_backend_fields()}
 
-    assert by_field["ai_api_key"]["aliases"] == [
-        "GLM_API_KEY",
-        "AI_API_KEY",
-        "OPENROUTER_API_KEY",
-        "GEMINI_API_KEY",
-    ]
+    assert by_field["environment"]["aliases"] == ["ENV"]
+    assert by_field["ai_api_key"]["aliases"] == []
+    assert by_field["ai_base_url"]["aliases"] == []
+    assert by_field["llm_encryption_keys"]["aliases"] == []
     assert by_field["ai_provider"]["aliases"] == []  # plain string validation_alias
     assert by_field["debug"]["aliases"] == []  # no validation_alias at all
 

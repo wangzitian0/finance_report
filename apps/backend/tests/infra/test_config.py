@@ -37,8 +37,6 @@ def test_environment_alias_reads_deployment_environment(monkeypatch) -> None:
 
 def test_ai_base_url_defaults_to_zai_coding_endpoint(monkeypatch) -> None:
     monkeypatch.delenv("AI_BASE_URL", raising=False)
-    monkeypatch.delenv("ZAI_BASE_URL", raising=False)
-    monkeypatch.delenv("OPENROUTER_BASE_URL", raising=False)
     settings = Settings(_env_file=None)
     assert settings.ai_base_url == "https://api.z.ai/api/coding/paas/v4"
 
@@ -70,33 +68,29 @@ def test_cors_origin_regex_defaults_to_match_nothing(monkeypatch) -> None:
 )
 def test_AC_runtime_env_empty_values_2_settings_empty_env_resolution(monkeypatch, tmp_path) -> None:
     """AC-runtime.env-empty-values.2: Settings resolves empty environment strings safely across alias chains."""
-    # 1. Process environment: ZAI_API_KEY="" does not mask GEMINI_API_KEY="real-gemini-key"
-    for k in ("GLM_API_KEY", "AI_API_KEY", "OPENROUTER_API_KEY"):
-        monkeypatch.delenv(k, raising=False)
-    monkeypatch.setenv("ZAI_API_KEY", "")
-    monkeypatch.setenv("GEMINI_API_KEY", "real-gemini-key")
+    # 1. Process environment: empty values fall back safely to defaults
+    monkeypatch.setenv("AI_API_KEY", "")
     monkeypatch.setenv("CORS_ORIGINS", "")
     monkeypatch.setenv("API_RATE_LIMIT_REQUESTS", "")
 
     settings = Settings(_env_file=None)
-    assert settings.ai_api_key == "real-gemini-key"
+    assert settings.ai_api_key == ""
     assert "http://localhost:3000" in settings.cors_origins
     assert settings.api_rate_limit_requests == 300
 
-    # 2. Dotenv file source: ZAI_API_KEY= with fallback GEMINI_API_KEY=real-dotenv-key
-    monkeypatch.delenv("ZAI_API_KEY", raising=False)
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    # 2. Dotenv file source: empty values fall back safely to defaults
+    monkeypatch.delenv("AI_API_KEY", raising=False)
     monkeypatch.delenv("CORS_ORIGINS", raising=False)
     monkeypatch.delenv("API_RATE_LIMIT_REQUESTS", raising=False)
 
     env_file = tmp_path / "test.env"
     env_file.write_text(
-        "ZAI_API_KEY=\nGEMINI_API_KEY=real-dotenv-key\nCORS_ORIGINS=\nAPI_RATE_LIMIT_REQUESTS=\n",
+        "AI_API_KEY=\nCORS_ORIGINS=\nAPI_RATE_LIMIT_REQUESTS=\n",
         encoding="utf-8",
     )
 
     settings_dotenv = Settings(_env_file=str(env_file))
-    assert settings_dotenv.ai_api_key == "real-dotenv-key"
+    assert settings_dotenv.ai_api_key == ""
     assert "http://localhost:3000" in settings_dotenv.cors_origins
     assert settings_dotenv.api_rate_limit_requests == 300
 
@@ -140,3 +134,40 @@ def test_explicit_empty_cors_and_rate_limits() -> None:
     settings = Settings(_env_file=None, cors_origins_str="   ", api_rate_limit_requests="  ")
     assert "http://localhost:3000" in settings.cors_origins
     assert settings.api_rate_limit_requests == 300
+
+
+def test_runtime_declared_env_variables(monkeypatch) -> None:
+    """Category 2 environment variables are declared as typed Settings fields."""
+    monkeypatch.setenv("TRUST_PROXY", "true")
+    monkeypatch.setenv("RECONCILIATION_AUTO_ACCEPT_THRESHOLD", "92")
+    monkeypatch.setenv("RECONCILIATION_REVIEW_THRESHOLD", "75")
+    monkeypatch.setenv("LLM_CASSETTE_ENGAGE", "true")
+    monkeypatch.setenv("LLM_CASSETTE_REFRESH", "true")
+    monkeypatch.setenv("LLM_LIVE", "true")
+
+    settings = Settings(_env_file=None)
+    assert settings.trust_proxy is True
+    assert settings.reconciliation_auto_accept_threshold == 92
+    assert settings.reconciliation_review_threshold == 75
+    assert settings.llm_cassette_engage is True
+    assert settings.llm_cassette_refresh is True
+    assert settings.llm_live is True
+
+
+def test_settings_infra2_builders() -> None:
+    """Settings exports builders for LlmSettings, S3Settings, and PostgresSettings."""
+    settings = Settings(_env_file=None)
+
+    llm = settings.to_llm_settings()
+    assert llm.provider == settings.ai_provider
+    assert llm.base_url == settings.ai_base_url
+    assert llm.primary_model == settings.primary_model
+
+    s3 = settings.to_s3_settings()
+    assert s3.bucket == settings.s3_bucket
+    assert s3.endpoint_url == settings.s3_endpoint
+    assert s3.presign_expiry_seconds == settings.s3_presign_expiry_seconds
+
+    pg = settings.to_postgres_settings()
+    assert pg.pool_size == settings.db_pool_size
+    assert pg.pool_max_overflow == settings.db_pool_max_overflow
