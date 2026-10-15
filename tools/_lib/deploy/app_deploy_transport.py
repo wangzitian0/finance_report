@@ -18,7 +18,13 @@ ROOT_DIR = Path(__file__).resolve().parents[3]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from infra2_sdk.deploy import Api, LogFetcher, ReceiverRun, github_api_client  # noqa: E402
+from infra2_sdk.deploy import (  # noqa: E402
+    PRODUCTION_REQUEST_MAX_AGE_SECONDS,
+    Api,
+    LogFetcher,
+    ReceiverRun,
+    github_api_client,
+)
 from infra2_sdk.deploy import dispatch_and_wait as _sdk_dispatch_and_wait  # noqa: E402
 
 from common.runtime.github_api import write_github_output  # noqa: E402
@@ -26,9 +32,8 @@ from tools.app_deploy_request import request_from_mapping  # noqa: E402
 
 
 # The infra2 receiver refuses a Production request that is older than this age.
-# The value is PRODUCTION_REQUEST_MAX_AGE_SECONDS in infra2 libs/deploy/app_deploy_request.py.
-# infra2_sdk does not export it, so this module holds a copy (wangzitian0/infra2#1253).
-PRODUCTION_APPROVAL_WINDOW_SECONDS = 24 * 60
+# Exported by infra2_sdk.deploy so sender and receiver share one source of truth (infra2#1253).
+PRODUCTION_APPROVAL_WINDOW_SECONDS = PRODUCTION_REQUEST_MAX_AGE_SECONDS
 # The receiver checks the age after the approval, the runner start and the Python setup.
 # That took 31 s in the refused run 38549605696 of 2026-10-14. The margin keeps the deadline early.
 PRODUCTION_APPROVAL_MARGIN_SECONDS = 120
