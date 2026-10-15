@@ -4,7 +4,7 @@
   "inputs": {
     "repo": "182566bf3f7a8f2803c5d7234d5db86e74847db756735efd3e84392ff7a7105d",
     "root": "749e6cf6cfb5e18b32675996d0ddd5055f3583ff433e3c0aaa4cbf63b1805eaa",
-    "skills": "56471f28d955a2bf707eb85be65f2b57da4a2a14c7902da767c66dd7ea339fd8"
+    "skills": "361b821438e6e83b126770cbd01cf6a3bd1f37bace3aac6a15158f1be32aeab0"
   },
   "language": "en",
   "outputs": {
@@ -32,7 +32,7 @@
       ".agents/skills/secrets-management/SKILL.md": "aed5970028e470e99097f0dc89000a31a010aca6d3985a1c9048b80bdd1ff201",
       ".agents/skills/smoke/SKILL.md": "b8d6c1f868edf776c395a13fc3e4f86e1ce8eb2e745d313b690f42fff7a3959a",
       ".agents/skills/ssot/SKILL.md": "8b37c5a751507715a2b5c01c474056de8d57946ceebff9525fafb02a6bc6244b",
-      ".agents/skills/swarm/SKILL.md": "60d1180555e2e09e51b1a929271de6f8536076e7c67867163f95bb94c94a368f",
+      ".agents/skills/swarm/SKILL.md": "3c29dfe669953f7e3283d04dea88b5fd47ab698d91bef631158e695d067db706",
       ".agents/skills/ux-review/SKILL.md": "851c0bfe841b2ff395c0c0e0e4991464e5b0d692dd59ce357933670c7d684086",
       ".agents/skills/z/SKILL.md": "658e2d4c99b715ffb4de466d3819018f717155e280e5cc98c654c2a6db625bb9",
       ".claude/skills/ac-workflow/SKILL.md": "7a07c8deb4de222c69433b6e9a8b434e43e0c7ac6ef5066f5cc0b978713c5cb2",
@@ -48,7 +48,7 @@
       ".claude/skills/secrets-management/SKILL.md": "aed5970028e470e99097f0dc89000a31a010aca6d3985a1c9048b80bdd1ff201",
       ".claude/skills/smoke/SKILL.md": "b8d6c1f868edf776c395a13fc3e4f86e1ce8eb2e745d313b690f42fff7a3959a",
       ".claude/skills/ssot/SKILL.md": "8b37c5a751507715a2b5c01c474056de8d57946ceebff9525fafb02a6bc6244b",
-      ".claude/skills/swarm/SKILL.md": "60d1180555e2e09e51b1a929271de6f8536076e7c67867163f95bb94c94a368f",
+      ".claude/skills/swarm/SKILL.md": "3c29dfe669953f7e3283d04dea88b5fd47ab698d91bef631158e695d067db706",
       ".claude/skills/ux-review/SKILL.md": "851c0bfe841b2ff395c0c0e0e4991464e5b0d692dd59ce357933670c7d684086",
       ".claude/skills/z/SKILL.md": "658e2d4c99b715ffb4de466d3819018f717155e280e5cc98c654c2a6db625bb9",
       ".codex/skills/ac-workflow/SKILL.md": "7a07c8deb4de222c69433b6e9a8b434e43e0c7ac6ef5066f5cc0b978713c5cb2",
@@ -64,7 +64,7 @@
       ".codex/skills/secrets-management/SKILL.md": "aed5970028e470e99097f0dc89000a31a010aca6d3985a1c9048b80bdd1ff201",
       ".codex/skills/smoke/SKILL.md": "b8d6c1f868edf776c395a13fc3e4f86e1ce8eb2e745d313b690f42fff7a3959a",
       ".codex/skills/ssot/SKILL.md": "8b37c5a751507715a2b5c01c474056de8d57946ceebff9525fafb02a6bc6244b",
-      ".codex/skills/swarm/SKILL.md": "60d1180555e2e09e51b1a929271de6f8536076e7c67867163f95bb94c94a368f",
+      ".codex/skills/swarm/SKILL.md": "3c29dfe669953f7e3283d04dea88b5fd47ab698d91bef631158e695d067db706",
       ".codex/skills/ux-review/SKILL.md": "851c0bfe841b2ff395c0c0e0e4991464e5b0d692dd59ce357933670c7d684086",
       ".codex/skills/z/SKILL.md": "658e2d4c99b715ffb4de466d3819018f717155e280e5cc98c654c2a6db625bb9",
       "skills/ac-workflow/SKILL.md": "7a07c8deb4de222c69433b6e9a8b434e43e0c7ac6ef5066f5cc0b978713c5cb2",
@@ -80,7 +80,7 @@
       "skills/secrets-management/SKILL.md": "aed5970028e470e99097f0dc89000a31a010aca6d3985a1c9048b80bdd1ff201",
       "skills/smoke/SKILL.md": "b8d6c1f868edf776c395a13fc3e4f86e1ce8eb2e745d313b690f42fff7a3959a",
       "skills/ssot/SKILL.md": "8b37c5a751507715a2b5c01c474056de8d57946ceebff9525fafb02a6bc6244b",
-      "skills/swarm/SKILL.md": "60d1180555e2e09e51b1a929271de6f8536076e7c67867163f95bb94c94a368f",
+      "skills/swarm/SKILL.md": "3c29dfe669953f7e3283d04dea88b5fd47ab698d91bef631158e695d067db706",
       "skills/ux-review/SKILL.md": "851c0bfe841b2ff395c0c0e0e4991464e5b0d692dd59ce357933670c7d684086",
       "skills/z/SKILL.md": "658e2d4c99b715ffb4de466d3819018f717155e280e5cc98c654c2a6db625bb9"
     },
@@ -92,7 +92,7 @@
     "links": {},
     "root": "skills"
   },
-  "source_revision": "683f6f8ff6ce55e4256efd9fbee1722babb438e1",
+  "source_revision": "9b62272a71c338a3fa72f93c8e53016080108441",
   "target": {
     "remote": "github.com/wangzitian0/finance_report",
     "repo": "finance_report",
