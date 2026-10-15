@@ -215,8 +215,9 @@ the approval. The refusal reads `request expired: created <time>, now <time>, li
 the approval deadline. The deadline keeps a margin for the start of the check.
 `tools/_lib/deploy/app_deploy_transport.py` holds a copy of the limit, because
 `infra2_sdk` does not export it. After a refusal, dispatch the release again for
-the version in the notice. A new request starts a new age. A rollback request can
-outlive the 30-minute job of the release workflow (#2452).
+the version in the notice. A new request starts a new age. The job limit of the
+release workflow covers the wait of the request and the wait of its rollback
+request (#2452).
 
 Production app deploys must keep the image tag, Dokploy runtime
 `GIT_COMMIT_SHA`, and `/api/health.git_sha` aligned. The release workflow bakes
