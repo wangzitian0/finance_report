@@ -124,11 +124,12 @@ override. The write path derives that basis from the original line currency/FX
 metadata and fails closed when no FX-free line identifies the historical base,
 or when multiple FX-free currencies make it ambiguous.
 
-The memo column holds `JOURNAL_MEMO_MAX_LENGTH` (500) characters. A caller that builds a
-memo from outside text, such as a statement description, passes the text through
-`fit_journal_memo` once. It gives that one value to the decision anchor and to the
-command, so that the digest of a retry is the same. The Processing legs and the
-statement posting both use it.
+The memo column holds `JOURNAL_MEMO_MAX_LENGTH` (500) characters. Text without a limit,
+such as a statement description, goes through `fit_journal_memo` before it becomes a
+memo. The decision anchor binds the memo that the entry stores, so the caller cuts once
+and gives that one value to the anchor and to the command. The statement posting, the
+Processing legs and the void reversal use the helper. The API schemas of a manual entry
+and of opening balances reject a longer memo (HTTP 422) and do not cut it.
 
 Ledger immutability protects accounting facts: entry ownership/date/memo/source
 identity, decision-anchor id, status correction path, and all journal-line

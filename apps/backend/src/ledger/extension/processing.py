@@ -349,7 +349,8 @@ async def _create_transfer_entry(
         db,
         user_id=user_id,
         entry_date=txn_date,
-        # The description of a transaction can use the whole column. The prefix must not overflow it.
+        # The description of a transaction has no length limit. The prefix and the description
+        # must not overflow the memo column.
         memo=fit_journal_memo(f"Transfer {direction}: {description}"),
         entry=entry,
         base_currency=processing_currency,

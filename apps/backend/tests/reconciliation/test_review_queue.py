@@ -20,10 +20,12 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import JournalEntrySourceType, SqlTraceRecordRepository, TraceEmitter
+from src.audit import JournalEntrySourceType, SqlTraceRecordRepository, TraceEmitter, TraceScope
+from src.config import settings
 from src.extraction import (
     ClassificationStatus,
     DispositionContext,
@@ -42,7 +44,7 @@ from src.extraction.extension.review_queue import create_entry_from_txn, get_or_
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import AccountType, JournalEntryStatus, ValidationError
+from src.ledger import AccountType, JournalEntry, JournalEntryStatus, ValidationError, journal_command_target
 from src.pricing import PricingError
 from src.reconciliation import AmountMismatchError, EntryCreationError, MatchNotFoundError, ReconciliationStatus
 from src.reconciliation.extension.review_queue import accept_match, batch_accept, get_pending_items, reject_match
@@ -805,8 +807,10 @@ async def test_create_entry_from_txn_still_fails_closed_when_fx_rate_unresolvabl
         ("x" * 501, 500),
         ("PAYNOW " + "y" * 593, 500),
         ("转账" * 300, 500),
+        ("a" * 499 + " " + "b" * 100, 500),
+        (" " + "c" * 100 + " ", 102),
     ],
-    ids=["499", "500", "501", "600-ascii", "600-chinese"],
+    ids=["499", "500", "501", "600-ascii", "600-chinese", "space-at-the-cut", "edge-spaces"],
 )
 async def test_AC_extraction_statement_memo_1_a_long_description_posts_one_entry_with_a_cut_memo(
     db, test_user, description, expected_length, auto_post
@@ -831,3 +835,84 @@ async def test_AC_extraction_statement_memo_1_a_long_description_posts_one_entry
     entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=auto_post)
     assert len(entry.memo) == expected_length
     assert entry.memo == description[:500]
+
+
+async def test_AC_extraction_statement_memo_1_the_anchor_covers_the_stored_memo_and_a_retry_finds_the_entry(
+    db, test_user
+):
+    """AC-extraction.statement-memo.1: the decision anchor binds the memo that the entry holds, and a second posting returns that entry."""
+    linked_account = await AccountFactory.create_async(
+        db,
+        user_id=test_user.id,
+        name="Mapped Bank Account",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    description = "PAYNOW " + "y" * 593
+    _, txn = await _make_statement_and_txn(
+        db,
+        test_user.id,
+        account_id=linked_account.id,
+        direction=TransactionDirection.OUT,
+        amount=Decimal("12.00"),
+        description=description,
+    )
+    decision, counter_account, proposal = await _reviewed_posting_command(db, test_user.id, txn)
+    emitter = TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry()))
+    source_decision = (
+        await emit_disposition_trace_records(
+            emitter=emitter,
+            user_id=test_user.id,
+            execution_id=f"memo-test:{txn.id}",
+            occurred_at=datetime.now(UTC),
+            transaction=StatementTransaction(
+                transaction_id=txn.id,
+                transaction_date=txn.txn_date,
+                amount=txn.amount,
+                currency=txn.currency,
+                direction=txn.direction,
+                description=txn.description,
+            ),
+            proposal=proposal,
+            decision=decision,
+        )
+    )[-1]
+    kwargs = {
+        "user_id": test_user.id,
+        "disposition": decision,
+        "counter_account": counter_account,
+        "source_decision": source_decision,
+        "trace_emitter": emitter,
+        "auto_post": True,
+    }
+
+    first = await create_entry_from_txn(db, txn, **kwargs)
+    await db.commit()
+    second = await create_entry_from_txn(db, txn, **kwargs)
+    await db.commit()
+    assert second.id == first.id, "a second posting created another entry"
+    count = (await db.execute(select(func.count(JournalEntry.id)).where(JournalEntry.source_id == txn.id))).scalar_one()
+    assert count == 1
+
+    # The anchor binds the exact bytes of the stored entry. Recompute the target from the row.
+    record = await emitter.repository.get(TraceScope.tenant(test_user.id), first.decision_anchor_id)
+    lines = sorted(first.lines, key=lambda line: line.direction.value != "DEBIT")
+    persisted_target = journal_command_target(
+        entry_date=first.entry_date,
+        memo=first.memo,
+        lines_data=[
+            {
+                "account_id": line.account_id,
+                "direction": line.direction,
+                "amount": line.amount,
+                "currency": line.currency,
+                "fx_rate": line.fx_rate,
+                "event_type": line.event_type,
+                "tags": line.tags,
+            }
+            for line in lines
+        ],
+        base_currency=settings.base_currency.upper(),
+        source_identity=f"statement-transaction:{txn.id}",
+    )
+    assert record.target == persisted_target, "the anchor digest does not cover the stored memo"
