@@ -148,6 +148,12 @@ def test_fails_when_the_backend_never_reports_healthy(
     _assert_contains(capsys.readouterr().out, "did not become healthy")
 
 
+def test_signoz_url_defaults_to_sdk_resolved_production_url() -> None:
+    from common.runtime.health_check import SIGNOZ_URL
+
+    assert SIGNOZ_URL == "https://signoz.zitian.party"
+
+
 def test_successful_deployment_prints_generic_guidance_when_observability_backend_unconfigured(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -161,7 +167,7 @@ def test_successful_deployment_prints_generic_guidance_when_observability_backen
     _assert_contains(
         out,
         "[SUCCESS] Deployment Successful",
-        "Logs available in observability backend (set OBSERVABILITY_BACKEND_URL to display link)",
+        "Logs available in observability backend",
     )
     assert out.find("Logs (observability backend):") == -1
 
