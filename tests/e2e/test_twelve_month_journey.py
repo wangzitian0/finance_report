@@ -39,7 +39,7 @@ from common.testing.provider_review import (
 )
 from deployment_pin import assert_pinned_deployment, resolve_expected_commit
 from journey_checkpoint import checkpoint
-from playwright.async_api import Page, expect
+from playwright.async_api import Locator, Page, expect
 
 APP_URL = os.getenv("APP_URL", "http://localhost:3000")
 PARSING_TIMEOUT_MS = int(os.getenv("PARSING_TIMEOUT_MS", "480000"))
@@ -74,7 +74,7 @@ DISPOSITIONS = {
 }
 
 
-def _summary_card(page: Page, caption: str):
+def _summary_card(page: Page, caption: str) -> Locator:
     """Return the summary card whose caption is exactly ``caption``.
 
     The cash reconciliation card repeats words such as "Net cash flow" inside a longer text.
