@@ -764,6 +764,17 @@ class TestCiLogging:
         captured = capsys.readouterr()
         assert "timed out after 180s" in captured.out
 
+    def test_child_env_isolates_test_namespace_and_preserves_explicit_override(
+        self, monkeypatch
+    ):
+        monkeypatch.delenv("TEST_NAMESPACE", raising=False)
+        env = preflight._child_env()
+        assert env["TEST_NAMESPACE"].startswith("preflight_")
+
+        monkeypatch.setenv("TEST_NAMESPACE", "explicit_ns")
+        env_override = preflight._child_env()
+        assert env_override["TEST_NAMESPACE"] == "explicit_ns"
+
 
 # ── Named-gate selection and CI wiring (#2378) ──
 # CI runs the `openapi-spec` gate through `--only`, so CI and the local pre-push

@@ -14,10 +14,81 @@ from common.runtime.github_api import write_github_output as _write_github_outpu
 
 JsonValue = object
 GhJson = Callable[[list[str]], JsonValue]
+GhText = Callable[[list[str]], str]
 
 
 def _default_gh_json(args: list[str]) -> JsonValue:
     return json.loads(subprocess.check_output(args, text=True))
+
+
+def _default_gh_text(args: list[str]) -> str:
+    return subprocess.check_output(args, text=True)
+
+
+def _extract_logged_digests(log_text: str) -> dict[str, str]:
+    digests: dict[str, str] = {}
+    for line in log_text.splitlines():
+        for service in ("backend", "frontend"):
+            marker = f"Found {service} release image digest:"
+            if marker in line:
+                digest = line.split(marker, 1)[1].strip()
+                if digest:
+                    digests[f"{service}_digest"] = digest
+                continue
+            kv_marker = f"{service}_digest=sha256:"
+            if kv_marker in line:
+                suffix = line.split(f"{service}_digest=", 1)[1].strip()
+                token = suffix.split()[0].strip("\"'")
+                if token.startswith("sha256:"):
+                    digests[f"{service}_digest"] = token
+    return digests
+
+
+def _verify_staging_digests(
+    *,
+    repository: str,
+    run_id: str,
+    deploy_job: dict[str, object],
+    expected_backend_digest: str,
+    expected_frontend_digest: str,
+    gh_text: GhText,
+) -> None:
+    if not expected_backend_digest and not expected_frontend_digest:
+        return
+    if not expected_backend_digest or not expected_frontend_digest:
+        raise ValueError(
+            "expected-backend-digest and expected-frontend-digest must be provided together"
+        )
+    job_id = deploy_job.get("databaseId")
+    if job_id is None:
+        raise RuntimeError(
+            f"staging run {run_id}: Deploy Staging job is missing databaseId for digest check"
+        )
+    log_text = gh_text(
+        [
+            "gh",
+            "api",
+            f"repos/{repository}/actions/jobs/{job_id}/logs",
+        ]
+    )
+    logged = _extract_logged_digests(log_text)
+    actual_backend = logged.get("backend_digest", "")
+    actual_frontend = logged.get("frontend_digest", "")
+    if not actual_backend or not actual_frontend:
+        raise RuntimeError(
+            f"staging run {run_id} (job {job_id}) did not record release image digests "
+            f"(backend={actual_backend!r}, frontend={actual_frontend!r})"
+        )
+    if (
+        actual_backend != expected_backend_digest
+        or actual_frontend != expected_frontend_digest
+    ):
+        raise RuntimeError(
+            f"staging run {run_id} deployed image digests "
+            f"(backend={actual_backend}, frontend={actual_frontend}) that differ from "
+            f"release image digests "
+            f"(backend={expected_backend_digest}, frontend={expected_frontend_digest})"
+        )
 
 
 def _require_list(value: JsonValue, label: str) -> list[dict[str, object]]:
@@ -132,7 +203,10 @@ def verify_staging(
     repository: str,
     version_ref: str,
     release_sha: str,
+    expected_backend_digest: str = "",
+    expected_frontend_digest: str = "",
     gh_json: GhJson = _default_gh_json,
+    gh_text: GhText = _default_gh_text,
 ) -> str:
     runs = _require_list(
         gh_json(
@@ -198,6 +272,14 @@ def verify_staging(
                 f"missing={missing} failed={failed}"
             )
             continue
+        _verify_staging_digests(
+            repository=repository,
+            run_id=candidate_run_id,
+            deploy_job=by_name["Deploy Staging"],
+            expected_backend_digest=expected_backend_digest.strip(),
+            expected_frontend_digest=expected_frontend_digest.strip(),
+            gh_text=gh_text,
+        )
         for name in sorted(optional_staging_jobs):
             job = _optional_job(jobs, name)
             if job is None:
@@ -393,6 +475,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--release-sha", default=os.getenv("RELEASE_SHA", ""))
     parser.add_argument("--version-ref", default=os.getenv("VERSION_REF", ""))
     parser.add_argument(
+        "--expected-backend-digest",
+        default=os.getenv("EXPECTED_BACKEND_DIGEST", ""),
+    )
+    parser.add_argument(
+        "--expected-frontend-digest",
+        default=os.getenv("EXPECTED_FRONTEND_DIGEST", ""),
+    )
+    parser.add_argument(
         "--max-age-hours",
         type=float,
         default=48.0,
@@ -423,6 +513,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 repository=repository,
                 version_ref=_required(args.version_ref, "version-ref"),
                 release_sha=_required(args.release_sha, "release-sha"),
+                expected_backend_digest=args.expected_backend_digest,
+                expected_frontend_digest=args.expected_frontend_digest,
             )
             outputs = {"run_id": run_id}
         else:

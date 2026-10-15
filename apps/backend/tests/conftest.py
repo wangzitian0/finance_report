@@ -256,13 +256,20 @@ def get_test_db_url(worker_id: str) -> str:
     Returns:
         Database URL with namespace and worker-specific database name for parallel execution
     """
-    # Get namespace from environment (set by test_lifecycle.py)
-    namespace = os.environ.get("TEST_NAMESPACE", "default")
+    from common.testing.test_isolation import (
+        get_namespace,
+        get_test_db_name,
+        sanitize_namespace,
+    )
 
-    # Build base database name with namespace
-    base_db_name = f"finance_report_test_{namespace}"
+    raw_namespace = os.environ.get("TEST_NAMESPACE")
+    if raw_namespace:
+        namespace = sanitize_namespace(raw_namespace)
+    else:
+        namespace = get_namespace()
 
-    # Construct URL with namespace-aware database name
+    base_db_name = get_test_db_name(namespace)
+
     base_url = (
         normalize_url(
             os.environ.get(
@@ -272,6 +279,9 @@ def get_test_db_url(worker_id: str) -> str:
         )
         or f"postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/{base_db_name}"
     )
+
+    if raw_namespace:
+        base_url = make_url(base_url).set(database=base_db_name).render_as_string(hide_password=False)
 
     if worker_id != "master":
         url_obj = make_url(base_url)

@@ -48,7 +48,6 @@ EXPECTED_PATH = (
     Path(__file__).resolve().parents[2]
     / "common/testing/fixtures/pdf/generated/gxs_statement_fixture_expected.json"
 )
-INSTITUTION = "GXS Zero Click Journey"
 # A posted entry is `posted`. A Processing leg is `reconciled` from the moment it exists.
 LIVE_ENTRY_STATUSES = {"posted", "reconciled"}
 
@@ -114,7 +113,7 @@ async def _upload_pdf(client: httpx.AsyncClient, *, pdf_path: Path, model: str) 
     with pdf_path.open("rb") as handle:
         response = await client.post(
             _api_url("/statements/upload"),
-            data={"institution": INSTITUTION, "model": model},
+            data={"model": model},
             files={"file": (pdf_path.name, handle, "application/pdf")},
         )
     assert response.status_code in (200, 201, 202), (
@@ -258,6 +257,13 @@ async def test_upload_alone_produces_the_base_tables_and_the_three_statements(
             for e in events
         )
         assert statement["status"] == "approved"
+        assert (
+            expected["institution"].lower()
+            in (statement.get("institution") or "").lower()
+        ), (
+            f"omitted institution must auto-detect {expected['institution']!r} from header, "
+            f"got {statement.get('institution')!r}"
+        )
         assert statement["validation_error"] is None, (
             f"a posted statement keeps no review note: {statement['validation_error']!r}"
         )

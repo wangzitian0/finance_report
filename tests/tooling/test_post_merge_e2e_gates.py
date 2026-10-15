@@ -1603,6 +1603,115 @@ def test_AC8_13_52_release_evidence_tool_requires_exact_successful_staging_run()
     assert run_id == "12"
 
 
+def test_AC8_13_52_release_evidence_staging_digest_tie_passes_and_fails_on_mismatch() -> (
+    None
+):
+    """#2444: verify_staging ties the staging image digests to the release image digests."""
+    from common.runtime import release_evidence
+
+    backend_digest = "sha256:" + "1" * 64
+    frontend_digest = "sha256:" + "2" * 64
+
+    def fake_gh_json(args: list[str]) -> object:
+        command = " ".join(args)
+        if " run list " in f" {command} ":
+            return [
+                {
+                    "databaseId": 12,
+                    "status": "completed",
+                    "displayTitle": "Deploy Staging v1.2.3",
+                    "headSha": "a" * 40,
+                }
+            ]
+        return {
+            "jobs": [
+                {
+                    "name": "Deploy Staging",
+                    "databaseId": 999,
+                    "conclusion": "success",
+                },
+                {
+                    "name": "Staging Provider Gate",
+                    "databaseId": 1000,
+                    "conclusion": "success",
+                },
+            ]
+        }
+
+    def fake_gh_text(args: list[str]) -> str:
+        assert args == ["gh", "api", "repos/owner/repo/actions/jobs/999/logs"]
+        return (
+            f"2026-10-14T10:00:00Z Found backend release image digest: {backend_digest}\n"
+            f"2026-10-14T10:00:01Z Found frontend release image digest: {frontend_digest}\n"
+        )
+
+    assert (
+        release_evidence.verify_staging(
+            repository="owner/repo",
+            version_ref="v1.2.3",
+            release_sha="a" * 40,
+            expected_backend_digest=backend_digest,
+            expected_frontend_digest=frontend_digest,
+            gh_json=fake_gh_json,
+            gh_text=fake_gh_text,
+        )
+        == "12"
+    )
+
+    with pytest.raises(RuntimeError, match="differ from release image digests"):
+        release_evidence.verify_staging(
+            repository="owner/repo",
+            version_ref="v1.2.3",
+            release_sha="a" * 40,
+            expected_backend_digest="sha256:" + "9" * 64,
+            expected_frontend_digest=frontend_digest,
+            gh_json=fake_gh_json,
+            gh_text=fake_gh_text,
+        )
+
+    with pytest.raises(RuntimeError, match="did not record release image digests"):
+        release_evidence.verify_staging(
+            repository="owner/repo",
+            version_ref="v1.2.3",
+            release_sha="a" * 40,
+            expected_backend_digest=backend_digest,
+            expected_frontend_digest=frontend_digest,
+            gh_json=fake_gh_json,
+            gh_text=lambda _args: "no digests here\n",
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="expected-backend-digest and expected-frontend-digest must be provided together",
+    ):
+        release_evidence.verify_staging(
+            repository="owner/repo",
+            version_ref="v1.2.3",
+            release_sha="a" * 40,
+            expected_backend_digest=backend_digest,
+            expected_frontend_digest="",
+            gh_json=fake_gh_json,
+            gh_text=fake_gh_text,
+        )
+
+    assert release_evidence._extract_logged_digests(
+        f"backend_digest={backend_digest}\nfrontend_digest={frontend_digest}\n"
+    ) == {
+        "backend_digest": backend_digest,
+        "frontend_digest": frontend_digest,
+    }
+
+    with pytest.raises(RuntimeError, match="missing databaseId for digest check"):
+        release_evidence._verify_staging_digests(
+            repository="owner/repo",
+            run_id="12",
+            deploy_job={"name": "Deploy Staging"},
+            expected_backend_digest=backend_digest,
+            expected_frontend_digest=frontend_digest,
+            gh_text=fake_gh_text,
+        )
+
+
 def test_AC8_13_52_release_evidence_tool_reports_source_and_release_runs() -> None:
     """AC8.13.52: Shared release evidence reports source and release-image runs."""
     from common.runtime import release_evidence
