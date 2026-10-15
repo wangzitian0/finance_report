@@ -1,14 +1,22 @@
+import { useState } from "react";
 import { BankStatement, BankStatementTransaction } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/audit/money";
+import { formatCategoryLabel } from "@/lib/categories";
 import { StatusBadge } from "@/components/ui";
+import { LowConfidenceReviewModal } from "@/components/review/LowConfidenceReviewModal";
 
 interface StatementTransactionsTableProps {
   statement: BankStatement;
+  onTransactionUpdated?: () => void;
 }
 
 export function StatementTransactionsTable({
   statement,
+  onTransactionUpdated,
 }: StatementTransactionsTableProps) {
+  const [selectedTxn, setSelectedTxn] = useState<BankStatementTransaction | null>(null);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+
   return (
     <div className="card">
       <div className="card-header flex items-center justify-between">
@@ -44,6 +52,9 @@ export function StatementTransactionsTable({
                 </th>
                 <th scope="col" className="text-left px-4 py-3 font-medium">
                   Balance
+                </th>
+                <th scope="col" className="text-left px-4 py-3 font-medium">
+                  Category
                 </th>
                 <th scope="col" className="text-center px-4 py-3 font-medium">
                   Confidence
@@ -94,6 +105,22 @@ export function StatementTransactionsTable({
                         )
                       : "—"}
                   </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground)]">
+                    <div className="flex items-center gap-2">
+                      <span>{formatCategoryLabel(txn.category ?? txn.proposed_category) || "—"}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTxn(txn);
+                          setIsReviewOpen(true);
+                        }}
+                        className="rounded px-1.5 py-0.5 text-xs text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)] transition"
+                        title="Edit category"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <StatusBadge
                       status={
@@ -119,6 +146,21 @@ export function StatementTransactionsTable({
             </tbody>
           </table>
         </div>
+      )}
+
+      {selectedTxn && (
+        <LowConfidenceReviewModal
+          isOpen={isReviewOpen}
+          onClose={() => {
+            setIsReviewOpen(false);
+            setSelectedTxn(null);
+          }}
+          transaction={selectedTxn}
+          currency={(selectedTxn.currency ?? statement.currency) || "SGD"}
+          onSuccess={() => {
+            onTransactionUpdated?.();
+          }}
+        />
       )}
     </div>
   );

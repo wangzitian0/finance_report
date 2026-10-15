@@ -142,7 +142,8 @@ async def _compose_statement_response(
     """Build a ``BankStatementResponse`` from the DWD records for a statement."""
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     transactions = await resolve_statement_transactions(db, statement)
-    return compose_statement_response(statement, uploaded_document, transactions)
+    suggestions = await classification_suggestions(db, [t.id for t in transactions])
+    return compose_statement_response(statement, uploaded_document, transactions, suggestions=suggestions)
 
 
 async def _get_statement_or_404(
@@ -651,7 +652,10 @@ async def list_statement_transactions(
     """List transactions for a statement."""
     statement = await _get_statement_or_404(db, statement_id, user_id)
     transactions = await resolve_statement_transactions(db, statement)
-    items = [AtomicTransactionResponse.from_atomic(t, statement.id) for t in transactions]
+    suggestions = await classification_suggestions(db, [t.id for t in transactions])
+    items = [
+        AtomicTransactionResponse.from_atomic(t, statement.id, suggestion=suggestions.get(t.id)) for t in transactions
+    ]
     return BankStatementTransactionListResponse(items=items, total=len(items))
 
 

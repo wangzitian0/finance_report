@@ -1801,6 +1801,7 @@ export interface components {
             amount: string;
             /** Balance After */
             balance_after?: string | null;
+            category?: components["schemas"]["TransactionCategory"] | null;
             /** Confidence Score */
             confidence_score?: number | null;
             /** Confidence Tier */
