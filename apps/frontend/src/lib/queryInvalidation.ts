@@ -65,6 +65,11 @@ export const MUTATION_INVALIDATION_MATRIX: readonly MutationInvalidationRule[] =
     invalidates: [["statement-review"]],
   },
   {
+    flow: "statements.review.create-custody-account",
+    file: "app/(main)/statements/[id]/review/page.tsx",
+    invalidates: [["statement-review-custody-accounts"]],
+  },
+  {
     flow: "statements.review.reparse",
     file: "app/(main)/statements/[id]/review/page.tsx",
     invalidates: [],
