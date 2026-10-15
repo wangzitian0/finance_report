@@ -895,7 +895,10 @@ def test_AC_runtime_deploy_request_5_notice_is_flushed_at_once(
 def test_AC_runtime_deploy_request_5_notice_reaches_a_pipe_before_the_process_ends() -> (
     None
 ):
-    """AC-runtime.deploy-request.5: a parent that reads the pipe gets the annotation while the process still waits."""
+    """AC-runtime.deploy-request.5: a parent that reads the pipe gets the annotation while the process still waits.
+
+    Python line-buffers stderr, so this test does not prove the flush. The tracking-stream test pins it.
+    """
     code = (
         "import time\n"
         "from tools._lib.deploy.app_deploy_transport import print_approval_notice\n"
@@ -914,7 +917,7 @@ def test_AC_runtime_deploy_request_5_notice_reaches_a_pipe_before_the_process_en
     try:
         assert proc.stderr is not None
         ready, _, _ = select.select([proc.stderr], [], [], 20)
-        assert ready, "no line on the pipe within 20 s: the notice stays in a buffer"
+        assert ready, "no line reached the pipe within 20 s"
         assert proc.stderr.readline().startswith(
             "::notice title=Production approval needed::Approval needed:"
         )
