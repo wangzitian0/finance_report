@@ -196,3 +196,70 @@ def test_apply_and_run_rejects_no_tests_collected_and_non_assertion_exit_codes(
     assert caught_2 is False
     assert "status 2" in why_2
     assert src_file.read_text(encoding="utf-8") == original_code
+
+
+def test_main_and_run_only_and_timeout_paths(tmp_path: Path, monkeypatch):
+    """Exercise main(), --only filtering, unknown --only id, all-caught path, and timeout handling."""
+    import subprocess
+
+    src_file = tmp_path / "sample.py"
+    original_code = "VALUE = 10\n"
+    src_file.write_text(original_code, encoding="utf-8")
+    manifest = tmp_path / "mutations.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "mutations": [
+                    {
+                        "id": "sample/caught",
+                        "guard": "inline",
+                        "file": "sample.py",
+                        "find": "VALUE = 10",
+                        "replace": "VALUE = 20",
+                        "command": ["{python}", "-c", "import sys; sys.exit(1)"],
+                        "cwd": ".",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert (
+        mutation_check.run(
+            only="sample/caught",
+            manifest=manifest,
+            repo_root=tmp_path,
+            python=sys.executable,
+        )
+        == 0
+    )
+    assert (
+        mutation_check.run(
+            only="no-such-id",
+            manifest=manifest,
+            repo_root=tmp_path,
+            python=sys.executable,
+        )
+        == 1
+    )
+
+    monkeypatch.setattr(mutation_check, "REPO_ROOT", tmp_path)
+    assert (
+        mutation_check.main(["--manifest", str(manifest), "--only", "sample/caught"])
+        == 0
+    )
+
+    def raise_timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=args[0], timeout=1)
+
+    monkeypatch.setattr(subprocess, "run", raise_timeout)
+    caught_t, why_t = mutation_check.apply_and_run(
+        mutation_check.load(manifest)[0],
+        repo_root=tmp_path,
+        python=sys.executable,
+        timeout=1,
+    )
+    assert caught_t is False
+    assert "did not finish within 1s" in why_t
+    assert src_file.read_text(encoding="utf-8") == original_code

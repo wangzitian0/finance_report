@@ -1694,6 +1694,23 @@ def test_AC8_13_52_release_evidence_staging_digest_tie_passes_and_fails_on_misma
             gh_text=fake_gh_text,
         )
 
+    assert release_evidence._extract_logged_digests(
+        f"backend_digest={backend_digest}\nfrontend_digest={frontend_digest}\n"
+    ) == {
+        "backend_digest": backend_digest,
+        "frontend_digest": frontend_digest,
+    }
+
+    with pytest.raises(RuntimeError, match="missing databaseId for digest check"):
+        release_evidence._verify_staging_digests(
+            repository="owner/repo",
+            run_id="12",
+            deploy_job={"name": "Deploy Staging"},
+            expected_backend_digest=backend_digest,
+            expected_frontend_digest=frontend_digest,
+            gh_text=fake_gh_text,
+        )
+
 
 def test_AC8_13_52_release_evidence_tool_reports_source_and_release_runs() -> None:
     """AC8.13.52: Shared release evidence reports source and release-image runs."""

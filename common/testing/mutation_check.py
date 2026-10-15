@@ -195,6 +195,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         only=args.only,
         advisory=args.advisory,
         manifest=args.manifest,
+        repo_root=REPO_ROOT,
     )
 
 
