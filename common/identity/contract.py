@@ -350,7 +350,7 @@ CONTRACT = PackageContract(
         # ── group ai-suggestions: the AiFeedback review surface (#1864 S1) ──
         ac('AC-identity.ai-suggestions.1', '``GET /ai/suggestions`` enforces a bounded page size: ``limit`` is declared with ``ge=1, le=200`` and an over-limit request is rejected with 422 instead of being accepted unbounded (#1864 S1).', 'apps/backend/tests/api/test_ai_feedback_router.py::test_AC_ai_suggestions_1_list_rejects_unbounded_limit', priority='P1'),
         # ── group 2478: preserve local session on aborted or transient /auth/me failure (#2478) ──
-        ac('AC-identity.2478.1', 'useSessionBootstrap clears local session storage only when GET /api/auth/me returns an explicit identity-rejection status (401/403/404); aborted navigations and transient network errors preserve local session state (#2478).', 'apps/frontend/src/__tests__/appShellSessionBootstrap.test.tsx::AC-identity.2478.1 preserves local session when /auth/me is aborted during page navigation or fails with a network error', priority='P1'),
+        ac('AC-identity.2478.1', 'useSessionBootstrap clears local session storage only when GET /api/auth/me returns an explicit identity-rejection status (401/403/404); aborted navigations and transient network errors preserve local session state (#2478).', 'apps/frontend/src/__tests__/appShellSessionBootstrap.test.tsx::AC-identity.2478.1 keeps the local identity when /auth/me is aborted or the network fails', priority='P1'),
     ],
     concepts=[
         ConceptRecord(

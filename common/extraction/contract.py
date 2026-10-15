@@ -1191,7 +1191,7 @@ CONTRACT = PackageContract(
         # ── group 2476: CSV exports that declare opening and closing balances keep their declared provenance (#2476) ──
         ac('AC-extraction.2476.1', 'A CSV statement export that declares both opening and closing balances records balance_source=declared_in_csv_export and is not capped by the missing_from_csv_export completeness flag (#2476).', 'apps/backend/tests/extraction/test_csv_parsing.py::test_AC_extraction_2476_1_declared_csv_balances_are_not_marked_missing', priority='P1', proof_kind='property'),
         # ── group 2477: inline custody account creation on statement review (#2477) ──
-        ac('AC-extraction.2477.1', 'When a user has no active asset custody accounts on the statement review page, the source-envelope confirmation card offers an inline create-account action that creates an asset account in the statement currency and selects it (#2477).', 'apps/frontend/src/__tests__/sourceEnvelopeCreateAccount.test.tsx::AC-extraction.2477.1 creates an inline custody account and selects it when the account list is empty', priority='P1'),
+        ac('AC-extraction.2477.1', 'When a user has no active asset custody accounts on the statement review page, the source-envelope confirmation card offers an inline create-account action that creates an asset account in the statement currency and selects it (#2477).', 'apps/frontend/src/__tests__/sourceEnvelopeCreateAccount.test.tsx::AC-extraction.2477.1 offers to create an asset account when the user has none', priority='P1'),
     ],
     governance=[
         GovernanceInitiative(
