@@ -141,17 +141,11 @@ def test_runtime_declared_env_variables(monkeypatch) -> None:
     monkeypatch.setenv("TRUST_PROXY", "true")
     monkeypatch.setenv("RECONCILIATION_AUTO_ACCEPT_THRESHOLD", "92")
     monkeypatch.setenv("RECONCILIATION_REVIEW_THRESHOLD", "75")
-    monkeypatch.setenv("LLM_CASSETTE_ENGAGE", "true")
-    monkeypatch.setenv("LLM_CASSETTE_REFRESH", "true")
-    monkeypatch.setenv("LLM_LIVE", "true")
 
     settings = Settings(_env_file=None)
     assert settings.trust_proxy is True
     assert settings.reconciliation_auto_accept_threshold == 92
     assert settings.reconciliation_review_threshold == 75
-    assert settings.llm_cassette_engage is True
-    assert settings.llm_cassette_refresh is True
-    assert settings.llm_live is True
 
 
 def test_settings_infra2_builders() -> None:

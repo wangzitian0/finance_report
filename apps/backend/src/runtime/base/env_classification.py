@@ -39,6 +39,7 @@ NON_DEPENDENCY_ENV_FIELDS: dict[str, str] = {
     "llm_encryption_keys": "security",
     "cors_origins_str": "security",
     "cors_origin_regex": "security",
+    "trust_proxy": "security",
     # ── deployment — which build/where it runs, not what it talks to ──
     "environment": "deployment",
     "debug": "deployment",
@@ -80,6 +81,11 @@ NON_DEPENDENCY_ENV_FIELDS: dict[str, str] = {
     "otel_service_name": "tuning",
     "otel_resource_attributes": "tuning",
     "openpanel_environment": "tuning",
+    "reconciliation_auto_accept_threshold": "tuning",
+    "reconciliation_review_threshold": "tuning",
+    "llm_cassette_engage": "tuning",
+    "llm_cassette_refresh": "tuning",
+    "llm_live": "tuning",
 }
 
 

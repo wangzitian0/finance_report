@@ -84,3 +84,17 @@ async def test_default_glm_models_reach_scene_bindings(monkeypatch):
         binding = await source.get_binding(scene)
         assert binding.model_id == "glm-5.3-flashx"
         assert binding.fallback_model_ids == ("glm-5.3-flash", "glm-4.6v")
+
+
+@pytest.mark.no_db
+def test_llm_cassette_and_live_settings_fields(monkeypatch) -> None:
+    """LLM cassette and live mode environment variables are declared on Settings."""
+    monkeypatch.setenv("LLM_CASSETTE_ENGAGE", "true")
+    monkeypatch.setenv("LLM_CASSETTE_REFRESH", "true")
+    monkeypatch.setenv("LLM_LIVE", "true")
+
+    s = Settings(_env_file=None)
+    assert s.llm_cassette_engage is True
+    assert s.llm_cassette_refresh is True
+    assert s.llm_live is True
+

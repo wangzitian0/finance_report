@@ -116,16 +116,8 @@ DEPENDENCY_MANIFEST = DependencyManifest(
             env_vars=frozenset(
                 {
                     "AI_PROVIDER",
-                    # Every alias of the key/base-url fields is a dependency env
-                    # var (no alias smuggling past the guardrail).
                     "AI_API_KEY",
-                    "ZAI_API_KEY",
-                    "GLM_API_KEY",
-                    "OPENROUTER_API_KEY",
-                    "GEMINI_API_KEY",
                     "AI_BASE_URL",
-                    "ZAI_BASE_URL",
-                    "OPENROUTER_BASE_URL",
                 }
             ),
             kind=DependencyKind.MODEL_DOMINANT,
