@@ -43,8 +43,12 @@ HALLUCINATED_DISCREPANCY_TOKENS: list[str] = [
 ]
 
 NEGATED_DISCREPANCY_PATTERNS: list[str] = [
-    r"(?:no|zero|without|not\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|does\s*n[\x27\']t\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|does\s+not\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|cannot\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|not\s+a|not\s+an|neither|no\s+balance|no\s+ledger)\s*(?:a|an|any)?\s*(?:balance\s+|ledger\s+)?(?:discrepanc(?:y|ies)|imbalance|mismatch|unbalanced)",
-    r"(?:balance\s+|ledger\s+)?discrepanc(?:y|ies)\s+(?:check|verification|audit|review|analysis|assessment)",
+    r"\b(?:no|zero|without|not\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|does\s*n[\x27\']t\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|does\s+not\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|cannot\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|not\s+a|not\s+an|neither|no\s+balance|no\s+ledger)\s*(?:a|an|any)?\s*(?:balance\s+|ledger\s+)?(?:discrepanc(?:y|ies)|imbalance|mismatch|unbalanced)",
+    # A review heading is a negation only when the words after it negate (#2484).
+    # "Discrepancy Check - No Imbalances Found" passes. "Discrepancy Check: assets
+    # exceed liabilities by 2,900" reports a finding and stays visible to Pillar 1.
+    r"(?:balance\s+|ledger\s+)?discrepanc(?:y|ies)\s+(?:check|verification|audit|review|analysis|assessment)"
+    r"(?=\s*[:\-\u2014\u2013]*\s*(?:(?:no|zero|none|passed|clear)\b|\u2705|\u2713))",
     r"no\s+(?:balance\s+)?discrepanc(?:y|ies)\s+found",
     r"no\s+ledger\s+imbalance",
     r"not\s+unbalanced",
@@ -117,15 +121,14 @@ def assert_ai_advisor_semantic_grounding(
         if forbidden_tokens is not None
         else HALLUCINATED_DISCREPANCY_TOKENS
     )
-    answer_lower = answer.lower()
-    sanitized_answer = answer_lower
-    for pattern in NEGATED_DISCREPANCY_PATTERNS:
-        sanitized_answer = re.sub(
-            pattern,
-            " [negated_consistency_assertion] ",
-            sanitized_answer,
-            flags=re.IGNORECASE,
-        )
+    # One pass over the answer. A look-ahead must read the words of the answer and not
+    # the marker that an earlier pattern left behind (#2484).
+    sanitized_answer = re.sub(
+        "|".join(f"(?:{pattern})" for pattern in NEGATED_DISCREPANCY_PATTERNS),
+        " [negated_consistency_assertion] ",
+        answer.lower(),
+        flags=re.IGNORECASE,
+    )
 
     for token in tokens:
         assert token.lower() not in sanitized_answer, (
