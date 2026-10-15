@@ -18,7 +18,7 @@ services:
       # calls — so wire a non-real key and point the base URL at an
       # unroutable address: no llm-marked spec runs here, and an accidental
       # provider call fails instantly instead of spending quota.
-      ZAI_API_KEY: e2e-in-runner-placeholder-key
+      AI_API_KEY: e2e-in-runner-placeholder-key
       AI_BASE_URL: http://127.0.0.1:9/unroutable
 
   frontend:

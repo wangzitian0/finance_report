@@ -186,7 +186,7 @@ def build_preview_env(
         "MINIO_API_PORTS": f"127.0.0.1:{32000 + port_offset}:9000",
         "MINIO_CONSOLE_PORTS": f"127.0.0.1:{33000 + port_offset}:9001",
         "AI_PROVIDER": "zai",
-        "ZAI_API_KEY": "",
+        "AI_API_KEY": "",
         "AI_BASE_URL": "https://api.z.ai/api/coding/paas/v4",
         "AI_CHAT_COMPLETIONS_PATH": "/chat/completions",
         "AI_LAYOUT_PARSING_PATH": "/layout_parsing",
