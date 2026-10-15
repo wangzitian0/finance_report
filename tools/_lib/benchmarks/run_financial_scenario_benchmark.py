@@ -282,55 +282,72 @@ class ScenarioBenchmarkRunner:
 
         return count
 
+    # The review envelope states these facts of the parsed statement. The run reads each fact
+    # from the statement. It never invents one (#2484).
+    ENVELOPE_FACTS = (
+        "currency",
+        "period_start",
+        "period_end",
+        "opening_balance",
+        "closing_balance",
+    )
+
+    def confirm_review_envelope(self, client: httpx.Client, statement_id: str) -> None:
+        """Confirm the source envelope of a statement that needs a human confirmation."""
+        review_resp = client.get(f"/api/statements/{statement_id}/review")
+        if review_resp.status_code != 200:
+            raise RuntimeError(
+                f"Review lookup failed for statement {statement_id}: "
+                f"{review_resp.status_code} {review_resp.text}"
+            )
+        review = review_resp.json()
+        stmt_resp = client.get(f"/api/statements/{statement_id}")
+        if stmt_resp.status_code != 200:
+            raise RuntimeError(
+                f"Failed to fetch statement {statement_id}: {stmt_resp.status_code} {stmt_resp.text}"
+            )
+        stmt = stmt_resp.json()
+        missing = [key for key in self.ENVELOPE_FACTS if stmt.get(key) in (None, "")]
+        if missing:
+            raise RuntimeError(
+                f"Cannot confirm the review envelope for statement {statement_id}: "
+                f"the parsed statement has no {', '.join(missing)}"
+            )
+        payload = {
+            "source_result_digest": review.get("source_result_digest"),
+            "account_id": review.get("account_id") or stmt.get("account_id"),
+            **{key: str(stmt[key]) for key in self.ENVELOPE_FACTS},
+            "rationale": "Benchmark automated review envelope confirmation",
+        }
+        conf_resp = client.post(
+            f"/api/statements/{statement_id}/review/envelope", json=payload
+        )
+        if conf_resp.status_code not in (200, 201):
+            raise RuntimeError(
+                f"Review envelope confirmation failed for statement {statement_id}: "
+                f"{conf_resp.status_code} {conf_resp.text}"
+            )
+
     def approve_statement(
         self, client: httpx.Client, statement_id: str
     ) -> dict[str, Any]:
         """Approve statement to post ledger entries.
 
         A statement that is already approved is returned as is, so a repeat call does
-        not fail on a settled statement.
+        not fail on a settled statement. A statement that needs a human confirmation
+        gets its review envelope first.
         """
         current = client.get(f"/api/statements/{statement_id}")
         if current.status_code == 200 and current.json().get("status") == "approved":
             return current.json()
-        resp = client.post(
-            f"/api/statements/{statement_id}/review/approve",
-            json={"create_account_if_missing": True},
-        )
+        approve_url = f"/api/statements/{statement_id}/review/approve"
+        resp = client.post(approve_url, json={"create_account_if_missing": True})
         if (
             resp.status_code == 400
             and "requires explicit human confirmation before posting" in resp.text
         ):
-            review_resp = client.get(f"/api/statements/{statement_id}/review")
-            if review_resp.status_code == 200:
-                rev = review_resp.json()
-                digest = rev.get("source_result_digest")
-                account_id = rev.get("account_id")
-                stmt_resp = client.get(f"/api/statements/{statement_id}")
-                if stmt_resp.status_code != 200:
-                    raise RuntimeError(
-                        f"Failed to fetch statement {statement_id}: {stmt_resp.status_code} {stmt_resp.text}"
-                    )
-                stmt = stmt_resp.json()
-                env_payload = {
-                    "source_result_digest": digest,
-                    "account_id": account_id or stmt.get("account_id"),
-                    "currency": stmt.get("currency", "SGD"),
-                    "period_start": stmt.get("period_start") or "2025-04-01",
-                    "period_end": stmt.get("period_end") or "2025-04-30",
-                    "opening_balance": str(stmt.get("opening_balance", "0.00")),
-                    "closing_balance": str(stmt.get("closing_balance", "0.00")),
-                    "rationale": "Benchmark automated review envelope confirmation",
-                }
-                conf_resp = client.post(
-                    f"/api/statements/{statement_id}/review/envelope",
-                    json=env_payload,
-                )
-                if conf_resp.status_code in (200, 201):
-                    resp = client.post(
-                        f"/api/statements/{statement_id}/review/approve",
-                        json={"create_account_if_missing": True},
-                    )
+            self.confirm_review_envelope(client, statement_id)
+            resp = client.post(approve_url, json={"create_account_if_missing": True})
 
         if resp.status_code != 200:
             raise RuntimeError(
