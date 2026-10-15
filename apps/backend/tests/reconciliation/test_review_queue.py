@@ -794,3 +794,40 @@ async def test_create_entry_from_txn_still_fails_closed_when_fx_rate_unresolvabl
     # in place, this call-args assertion is what would actually catch it
     # (the exception-message assertion above would still pass either way).
     mock_get_rate.assert_awaited_once_with(db, "CNY", "SGD", date(2025, 1, 15), lazy_load=True)
+
+
+@pytest.mark.parametrize("auto_post", [True, False])
+@pytest.mark.parametrize(
+    ("description", "expected_length"),
+    [
+        ("x" * 499, 499),
+        ("x" * 500, 500),
+        ("x" * 501, 500),
+        ("PAYNOW " + "y" * 593, 500),
+        ("转账" * 300, 500),
+    ],
+    ids=["499", "500", "501", "600-ascii", "600-chinese"],
+)
+async def test_AC_extraction_statement_memo_1_a_long_description_posts_one_entry_with_a_cut_memo(
+    db, test_user, description, expected_length, auto_post
+):
+    """AC-extraction.statement-memo.1: a description longer than the memo column posts one entry with a cut memo."""
+    linked_account = await AccountFactory.create_async(
+        db,
+        user_id=test_user.id,
+        name="Mapped Bank Account",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    _, txn = await _make_statement_and_txn(
+        db,
+        test_user.id,
+        account_id=linked_account.id,
+        direction=TransactionDirection.OUT,
+        amount=Decimal("12.00"),
+        description=description,
+    )
+
+    entry = await _create_reviewed_entry(db, txn, user_id=test_user.id, auto_post=auto_post)
+    assert len(entry.memo) == expected_length
+    assert entry.memo == description[:500]

@@ -288,6 +288,7 @@ CONTRACT = PackageContract(
         "derive_confidence_tier",
         "detect_transfer_pattern",
         "find_transfer_pairs",
+        "fit_journal_memo",
         "get_account_statement_coverage",
         "get_opening_balance_readiness",
         "get_or_create_processing_account",
@@ -444,6 +445,7 @@ CONTRACT = PackageContract(
         ac('AC-ledger.3.10', 'post_journal_entry success path. Was EPIC-002 AC2.3.10.', 'apps/backend/tests/ledger/test_accounting_service_errors.py::test_post_journal_entry_success', priority='P1'),
         ac('AC-ledger.3.11', 'void_journal_entry success path produces a reversal. Was EPIC-002 AC2.3.11.', 'apps/backend/tests/ledger/test_accounting_service_errors.py::test_void_journal_entry_success', priority='P1'),
         ac('AC-ledger.3.12', 'Voiding a posted entry preserves the historical base-currency basis encoded by its line currencies and FX rates, even after the effective base currency changes.', 'apps/backend/tests/ledger/test_multicurrency_integrity.py::test_void_preserves_historical_base_after_effective_currency_change'),
+        ac('AC-ledger.void-memo.1', 'Voiding an entry whose memo fills the memo column posts a reversal. The memo of the reversal is the text "VOID: " and the memo of the entry, cut to the size of the column.', 'apps/backend/tests/ledger/test_journal_memo_limit.py::test_AC_ledger_void_memo_1_voiding_an_entry_with_a_full_memo_posts_a_cut_reversal_memo'),
         ac('AC-ledger.3.13', 'Voiding fails closed when every historical line carries an FX rate and the original base-currency basis cannot be recovered.', 'apps/backend/tests/ledger/test_multicurrency_integrity.py::test_void_rejects_all_fx_entry_without_historical_basis'),
         # ── group 4: Balance calculation (was EPIC-002 AC2.4.*) ──
         ac('AC-ledger.4.1', 'Balance calculation for an asset account sums posted lines correctly. Was EPIC-002 AC2.4.1.', 'apps/backend/tests/ledger/test_accounting_integration.py::test_calculate_balance_for_asset_account'),

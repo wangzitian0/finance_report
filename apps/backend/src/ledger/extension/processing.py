@@ -30,6 +30,7 @@ from sqlalchemy.orm import selectinload
 
 from src.audit import JournalEntrySourceType
 from src.audit.money import Currency, Money
+from src.ledger.base.memo import fit_journal_memo
 from src.ledger.base.processing import (
     AUTO_PAIR_THRESHOLD,
     MAX_DATE_DIFF_DAYS,
@@ -52,9 +53,6 @@ from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, 
 from src.observability import get_logger
 
 logger = get_logger(__name__)
-
-#: The size of the column ``journal_entries.memo``. A test pins this value to the column.
-_MEMO_MAX_LENGTH = 500
 
 
 async def get_or_create_processing_account(
@@ -352,7 +350,7 @@ async def _create_transfer_entry(
         user_id=user_id,
         entry_date=txn_date,
         # The description of a transaction can use the whole column. The prefix must not overflow it.
-        memo=f"Transfer {direction}: {description}"[:_MEMO_MAX_LENGTH],
+        memo=fit_journal_memo(f"Transfer {direction}: {description}"),
         entry=entry,
         base_currency=processing_currency,
         source_id=source_id,

@@ -124,6 +124,12 @@ override. The write path derives that basis from the original line currency/FX
 metadata and fails closed when no FX-free line identifies the historical base,
 or when multiple FX-free currencies make it ambiguous.
 
+The memo column holds `JOURNAL_MEMO_MAX_LENGTH` (500) characters. A caller that builds a
+memo from outside text, such as a statement description, passes the text through
+`fit_journal_memo` once. It gives that one value to the decision anchor and to the
+command, so that the digest of a retry is the same. The Processing legs and the
+statement posting both use it.
+
 Ledger immutability protects accounting facts: entry ownership/date/memo/source
 identity, decision-anchor id, status correction path, and all journal-line
 amounts, directions, accounts, currencies, and FX rates. `source_type` is presentation provenance only; it is never a caller

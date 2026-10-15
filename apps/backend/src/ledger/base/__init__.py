@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from src.ledger.base.contribution import JournalLineContribution, ResolvedJournalContribution
 from src.ledger.base.decision_anchor import DecisionAnchor, DecisionAnchorError, journal_command_target
+from src.ledger.base.memo import fit_journal_memo
 from src.ledger.base.opening import OpeningPosition
 from src.ledger.base.processing import (
     PROCESSING_ACCOUNT_CODE,
@@ -70,6 +71,7 @@ __all__ = [
     "UnbalancedEntryError",
     "ValidationError",
     "detect_transfer_pattern",
+    "fit_journal_memo",
     "journal_command_target",
     "validate_fx_rates",
     "validate_journal_balance",

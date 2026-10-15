@@ -19,6 +19,7 @@ import src.config
 from src.audit import JournalEntrySourceType, normalize_source_type
 from src.audit.money import Currency
 from src.ledger.base.decision_anchor import DecisionAnchor
+from src.ledger.base.memo import fit_journal_memo
 from src.ledger.base.processing import PROCESSING_ACCOUNT_CODE
 from src.ledger.base.validators import (
     JournalEntryPostingProtocol,
@@ -264,7 +265,7 @@ async def void_journal_entry(
         db,
         user_id=user_id,
         entry_date=date.today(),
-        memo=f"VOID: {entry.memo}",
+        memo=fit_journal_memo(f"VOID: {entry.memo}"),
         lines_data=[
             {
                 "account_id": line.account_id,

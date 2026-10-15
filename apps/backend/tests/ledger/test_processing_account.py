@@ -686,10 +686,13 @@ class TestPairConfidenceEdgeCases:
 
 def test_AC_reconciliation_named_transfer_legs_5_the_memo_limit_equals_the_column_size():
     """AC-reconciliation.named-transfer-legs.5: the constant that bounds the memo is the size of the column."""
-    from src.ledger.extension import processing
+    from src.ledger import fit_journal_memo
+    from src.ledger.base.memo import JOURNAL_MEMO_MAX_LENGTH
     from src.ledger.orm.journal import JournalEntry
 
-    assert processing._MEMO_MAX_LENGTH == JournalEntry.__table__.c.memo.type.length == 500
+    assert JOURNAL_MEMO_MAX_LENGTH == JournalEntry.__table__.c.memo.type.length == 500
+    assert fit_journal_memo("x" * 600) == "x" * 500
+    assert fit_journal_memo("x" * 499) == "x" * 499
 
 
 async def test_AC_ledger_74_4_find_transfer_pairs_orders_and_excludes_paired_before_limit(

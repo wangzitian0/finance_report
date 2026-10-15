@@ -165,6 +165,68 @@ async def test_approve_statement_stage1_creates_posted_entries(db, test_user):
     assert all(any(line.account_id == bank_account_id for line in entry.lines) for entry in entries)
 
 
+async def test_AC_extraction_statement_memo_1_approval_posts_a_row_with_a_long_description(db, test_user):
+    """AC-extraction.statement-memo.1: a 600-character description approves and posts one entry with a 500-character memo."""
+    bank_account = Account(
+        user_id=test_user.id,
+        name="DBS Autosave",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(bank_account)
+    await db.flush()
+
+    statement = build_statement(test_user.id, "hash_long_description", 89)
+    statement.status = BankStatementStatus.PARSED
+    statement.account_id = bank_account.id
+    statement.closing_balance = Decimal("88.00")
+    db.add(statement)
+    await db.flush()
+    statement_id = statement.id
+
+    description = "PAYNOW " + "y" * 593
+    assert len(description) == 600
+    txn_out = await add_txn(
+        db,
+        statement_id,
+        txn_date=date(2025, 1, 3),
+        description=description,
+        amount=Decimal("12.00"),
+        direction="OUT",
+    )
+    db.add(txn_out)
+    await db.flush()
+    await add_reviewed_disposition_rule(
+        db,
+        user_id=test_user.id,
+        keyword="paynow",
+        account_type=AccountType.EXPENSE,
+        category="TRANSFER_OUT",
+    )
+    txn_id = txn_out.id
+    await db.commit()
+
+    result = await statements_router.approve_statement_stage1(statement_id=statement_id, db=db, user_id=test_user.id)
+    assert result.journal_entries_created == 1
+    assert result.status == BankStatementStatus.APPROVED
+
+    entries = (
+        (
+            await db.execute(
+                select(JournalEntry)
+                .where(JournalEntry.user_id == test_user.id)
+                .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
+                .where(JournalEntry.source_id == txn_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(entries) == 1
+    assert entries[0].status == JournalEntryStatus.POSTED
+    assert entries[0].memo == description[:500]
+
+
 async def test_AC_extraction_disposition_5_stage1_requires_economic_review(db, test_user, monkeypatch):
     """AC-extraction.disposition.5: source confirmation cannot imply an economic command."""
     monkeypatch.setattr(settings, "enable_ai_classification", False)
