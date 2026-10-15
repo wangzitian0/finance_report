@@ -27,46 +27,65 @@ from tools.app_deploy_request import request_from_mapping  # noqa: E402
 
 # The infra2 receiver refuses a Production request that is older than this age.
 # The value is PRODUCTION_REQUEST_MAX_AGE_SECONDS in infra2 libs/deploy/app_deploy_request.py.
-# infra2_sdk 3.5.0 does not export it, so this module holds a copy.
+# infra2_sdk does not export it, so this module holds a copy (wangzitian0/infra2#1253).
 PRODUCTION_APPROVAL_WINDOW_SECONDS = 24 * 60
+# The receiver checks the age after the approval, the runner start and the Python setup.
+# That took 31 s in the refused run 38549605696 of 2026-10-14. The margin keeps the deadline early.
+PRODUCTION_APPROVAL_MARGIN_SECONDS = 120
 
 
 def print_approval_notice(message: str) -> None:
-    """Show the notice in the run log, and as an annotation in GitHub Actions."""
+    """Show the notice in the run log, and as an annotation in GitHub Actions.
+
+    A piped stdout is block-buffered. The flush makes the runner read the annotation at once.
+    """
     if os.environ.get("GITHUB_ACTIONS") == "true":
-        print(f"::notice title=Production approval needed::{message}")
-    print(message, file=sys.stderr)
+        print(f"::notice title=Production approval needed::{message}", flush=True)
+    print(message, file=sys.stderr, flush=True)
 
 
-def _utc_time(value: object) -> datetime | None:
+def _approval_times(value: object) -> tuple[datetime, datetime] | None:
+    """Return the creation time and the approval deadline, both in UTC.
+
+    Return None when the time is missing, has no offset, or cannot be computed.
+    """
     if not isinstance(value, str):
         return None
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
+        created = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if created.tzinfo is None:
+            return None
+        created = created.astimezone(UTC)
+        deadline = created + timedelta(
+            seconds=PRODUCTION_APPROVAL_WINDOW_SECONDS
+            - PRODUCTION_APPROVAL_MARGIN_SECONDS
+        )
+    except (ValueError, OverflowError):
         return None
-    return parsed.astimezone(UTC) if parsed.tzinfo else None
+    return created, deadline
 
 
-def _approval_notice(run: Mapping[str, Any]) -> str:
-    created = _utc_time(run.get("created_at"))
-    if created is None:
-        when = "The latest approval time is unknown: the run has no creation time. Approve at once."
+def _approval_notice(run: Mapping[str, Any], version_ref: str) -> str:
+    times = _approval_times(run.get("created_at"))
+    if times is None:
+        when = "The approval deadline is unknown: the run has no usable creation time. Approve at once."
     else:
-        latest = created + timedelta(seconds=PRODUCTION_APPROVAL_WINDOW_SECONDS)
+        created, deadline = times
         when = (
-            f"The receiver refuses the request after {latest:%Y-%m-%d %H:%M:%S}Z "
-            f"(run created {created:%Y-%m-%d %H:%M:%S}Z plus {PRODUCTION_APPROVAL_WINDOW_SECONDS} s)."
+            f"Approve before {deadline:%Y-%m-%d %H:%M:%S}Z. "
+            f"The receiver refuses a request that is older than {PRODUCTION_APPROVAL_WINDOW_SECONDS} s "
+            "when its check runs, about 1 minute after the approval. "
+            f"The run was created at {created:%Y-%m-%d %H:%M:%S}Z."
         )
     return (
         f"Approval needed: {run.get('html_url')} waits for the owner to approve "
         f"the 'production' environment. {when} "
-        "Dispatch the release again if the receiver refuses the request."
+        f"Dispatch the release again for {version_ref} if the receiver refuses the request."
     )
 
 
 def _announce_approval_wait(
-    api: Api, request_id: str, announce: Callable[[str], None]
+    api: Api, request_id: str, version_ref: str, announce: Callable[[str], None]
 ) -> Api:
     """Return api. It announces once when the receiver run of request_id waits for approval."""
     announced = False
@@ -84,7 +103,7 @@ def _announce_approval_wait(
                     and request_id in str(run.get("display_title", ""))
                     and run.get("status") == "waiting"
                 ):
-                    announce(_approval_notice(run))
+                    announce(_approval_notice(run, version_ref))
                     announced = True
                     break
         return payload
@@ -107,10 +126,12 @@ def dispatch_and_wait(
     infra2_sdk.deploy.dispatch_and_wait — the shared infra2-receiver-boundary implementation.
 
     A Production request waits for the owner to approve the infra2 environment. While it waits,
-    announce receives one notice with the approval link and the latest approval time."""
+    announce receives one notice with the approval link and the approval deadline."""
     request = request_from_mapping(raw_request)
     if request.deploy_type.value == "prod":
-        api = _announce_approval_wait(api, request.request_id, announce)
+        api = _announce_approval_wait(
+            api, request.request_id, request.version_ref, announce
+        )
     return _sdk_dispatch_and_wait(
         request,
         api=api,
