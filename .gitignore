@@ -20,6 +20,8 @@ tests/e2e/.auth/
 .vscode/
 .moon/cache/
 .claude/settings.json
+# Run artifacts of agent sessions. .agents/skills stays tracked.
+.agents/runs/
 
 # Python
 __pycache__/

@@ -336,3 +336,30 @@ def test_skill_docs_reference_existing_tools() -> None:
     assert not missing, (
         f"SKILL.md files reference non-existent tools: {sorted(set(missing))}"
     )
+
+
+def _is_ignored(path: str) -> bool:
+    """Ask git whether path is ignored. Exit 0 means ignored, 1 means not ignored."""
+    result = subprocess.run(
+        ["git", "check-ignore", "-q", path], cwd=ROOT, capture_output=True
+    )
+    assert result.returncode in (0, 1), result.stderr.decode()
+    return result.returncode == 0
+
+
+def test_agent_run_artifacts_are_ignored_and_skills_stay_tracked() -> None:
+    """Issue #2445: .agents/runs/ holds run artifacts and is ignored; .agents/skills is tracked.
+
+    An untracked .agents/runs/ makes the delivery check report a dirty tree, and a
+    `git add -A` can commit run logs.
+    """
+    assert _is_ignored(".agents/runs/issue1/probe.log"), (
+        ".agents/runs/ is not ignored: run artifacts make the working tree dirty"
+    )
+    assert not _is_ignored(".agents/skills/example/SKILL.md"), (
+        ".agents/skills must stay tracked: do not ignore all of .agents/"
+    )
+    tracked = subprocess.check_output(
+        ["git", "ls-files", ".agents/skills"], cwd=ROOT, text=True
+    )
+    assert tracked.strip(), "no tracked file under .agents/skills"
