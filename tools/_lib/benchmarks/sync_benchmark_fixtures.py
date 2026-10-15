@@ -47,10 +47,11 @@ def verify_fixture(fixture: dict[str, Any], root_dir: Path) -> tuple[bool, str]:
     content = local_path.read_bytes()
 
     expected_sha = fixture.get("sha256")
-    if expected_sha:
-        actual_sha = compute_sha256(content)
-        if actual_sha != expected_sha:
-            return False, f"SHA-256 mismatch: expected {expected_sha}, got {actual_sha}"
+    if not expected_sha:
+        return False, f"Manifest has no sha256 for {fixture['local_path']}"
+    actual_sha = compute_sha256(content)
+    if actual_sha != expected_sha:
+        return False, f"SHA-256 mismatch: expected {expected_sha}, got {actual_sha}"
 
     return True, f"OK ({len(content):,} bytes, SHA-256 verified)"
 
@@ -69,6 +70,13 @@ def download_fixture(
             print(f"  [EXISTS] {fixture['id']}: {msg}")
             return True
 
+    expected_sha = fixture.get("sha256")
+    if not expected_sha:
+        print(
+            f"  [ERROR] Manifest has no sha256 for {fixture['local_path']}; nothing written"
+        )
+        return False
+
     local_path.parent.mkdir(parents=True, exist_ok=True)
     url = fixture["download_url"]
     print(f"  [DOWNLOADING] {fixture['id']} from {url} ...")
@@ -80,15 +88,10 @@ def download_fixture(
 
     raw_bytes = response.content
 
-    # Standard fixture verification and write
-    expected_sha = fixture.get("sha256")
-    if expected_sha:
-        actual_sha = compute_sha256(raw_bytes)
-        if actual_sha != expected_sha:
-            print(
-                f"  [ERROR] SHA-256 mismatch: expected {expected_sha}, got {actual_sha}"
-            )
-            return False
+    actual_sha = compute_sha256(raw_bytes)
+    if actual_sha != expected_sha:
+        print(f"  [ERROR] SHA-256 mismatch: expected {expected_sha}, got {actual_sha}")
+        return False
 
     local_path.write_bytes(raw_bytes)
     print(f"  [SAVED] Verified & written -> {local_path} ({len(raw_bytes):,} bytes)")
