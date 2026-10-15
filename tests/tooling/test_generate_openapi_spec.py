@@ -50,10 +50,10 @@ def test_diff_json_paths_escapes_tokens() -> None:
     assert diffs == ["/paths/~1api~1health/get/description"]
 
 
-def test_AC12_28_3_check_prints_json_pointer_diff_concisely(
+def test_AC12_28_2_check_prints_json_pointer_diff_concisely(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:
-    """AC-platform.28.3: --check prints JSON pointer paths concisely instead of full spec."""
+    """AC-platform.28.2: --check prints JSON pointer paths concisely instead of full spec."""
     large_doc = {
         "openapi": "3.1.0",
         "info": {"title": "Test API", "version": "1.0.0"},
