@@ -155,3 +155,44 @@ def test_run_strict_vs_advisory_exit_codes(tmp_path: Path, capsys):
     assert rc_advisory == 0
     captured = capsys.readouterr()
     assert "::warning::guard is inert: sample/inert" in captured.out
+
+
+def test_apply_and_run_rejects_no_tests_collected_and_non_assertion_exit_codes(
+    tmp_path: Path,
+):
+    """Pytest exit code 5 (no tests collected) and exit code 2 (collection error) must not count as caught."""
+    src_file = tmp_path / "sample.py"
+    original_code = "VALUE = 10\n"
+    src_file.write_text(original_code, encoding="utf-8")
+
+    no_tests = mutation_check.Mutation(
+        id="sample/no-tests-collected",
+        guard="inline",
+        file="sample.py",
+        find="VALUE = 10",
+        replace="VALUE = 20",
+        command=("{python}", "-c", "import sys; sys.exit(5)"),
+        cwd=".",
+    )
+    caught_5, why_5 = mutation_check.apply_and_run(
+        no_tests, repo_root=tmp_path, python=sys.executable
+    )
+    assert caught_5 is False
+    assert "collected 0 tests (pytest exit code 5)" in why_5
+    assert src_file.read_text(encoding="utf-8") == original_code
+
+    collection_err = mutation_check.Mutation(
+        id="sample/collection-error",
+        guard="inline",
+        file="sample.py",
+        find="VALUE = 10",
+        replace="VALUE = 20",
+        command=("{python}", "-c", "import sys; sys.exit(2)"),
+        cwd=".",
+    )
+    caught_2, why_2 = mutation_check.apply_and_run(
+        collection_err, repo_root=tmp_path, python=sys.executable
+    )
+    assert caught_2 is False
+    assert "status 2" in why_2
+    assert src_file.read_text(encoding="utf-8") == original_code

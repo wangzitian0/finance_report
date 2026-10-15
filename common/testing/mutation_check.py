@@ -2,8 +2,8 @@
 
 Applies each declared mutation from ``common/testing/data/money-mutations.json`` one at a time,
 runs its targeted pytest guard in ``apps/backend`` with ``-n0 --no-cov -x -q``, requires a
-non-zero exit code (proof that the guard caught the mutation), and restores the source file in
-a ``finally`` block.
+genuine assertion failure (exit code ``1`` — rejecting pytest collection/usage/empty-selection
+exit codes ``2..5``), and restores the source file in a ``finally`` block.
 
 In advisory mode (``--advisory``), surviving mutations emit ``::warning::`` annotations and
 exit ``0``. In strict mode (default), surviving mutations exit ``1``.
@@ -109,8 +109,15 @@ def apply_and_run(
     finally:
         target.write_text(original, encoding="utf-8")
 
-    if result.returncode != 0:
+    if result.returncode == 1:
         return True, ""
+    if result.returncode == 5:
+        return False, "the guard collected 0 tests (pytest exit code 5)"
+    if result.returncode != 0:
+        return (
+            False,
+            f"the guard exited with status {result.returncode} instead of test-failure exit code 1",
+        )
     return False, "the guard passed with the property broken"
 
 
