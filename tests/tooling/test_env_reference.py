@@ -92,7 +92,8 @@ def test_alias_names_reads_the_alias_choices_chain():
     by_field = {f["field"]: f for f in gen.collect_backend_fields()}
 
     assert by_field["environment"]["aliases"] == ["ENV"]
-    assert by_field["ai_api_key"]["aliases"] == []
+    # ZAI_API_KEY is the name that infra2 still supplies in production (#2487).
+    assert by_field["ai_api_key"]["aliases"] == ["ZAI_API_KEY"]
     assert by_field["ai_base_url"]["aliases"] == []
     assert by_field["llm_encryption_keys"]["aliases"] == []
     assert by_field["ai_provider"]["aliases"] == []  # plain string validation_alias

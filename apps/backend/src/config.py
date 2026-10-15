@@ -299,8 +299,11 @@ class Settings(BaseSettings):
     )
     ai_api_key: str = Field(
         default="",
-        validation_alias="AI_API_KEY",
-        description="AI provider API key (empty key = AI features disabled).",
+        # AI_API_KEY is the canonical name. ZAI_API_KEY is the name that infra2 still supplies in
+        # production (#2487). Remove it when infra2 supplies AI_API_KEY in production for the
+        # last three production releases.
+        validation_alias=AliasChoices("AI_API_KEY", "ZAI_API_KEY"),
+        description="AI provider API key (empty key = AI features disabled). The old name ZAI_API_KEY also works.",
         json_schema_extra={
             "group": "AI Provider",
             "vault": True,

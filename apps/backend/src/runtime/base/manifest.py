@@ -117,6 +117,8 @@ DEPENDENCY_MANIFEST = DependencyManifest(
                 {
                     "AI_PROVIDER",
                     "AI_API_KEY",
+                    # The old name of the key. infra2 still supplies it in production (#2487).
+                    "ZAI_API_KEY",
                     "AI_BASE_URL",
                 }
             ),
