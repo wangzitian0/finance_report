@@ -166,10 +166,8 @@ async def reject_match(
     match_id: str,
     *,
     user_id: UUID,
-    allow_accepted: bool = False,
-    reason: str = "Reconciliation match superseded",
 ) -> ReconciliationMatch:
-    """Reject a pending reconciliation match (or supersede an accepted one)."""
+    """Reject a pending reconciliation match."""
     result = await db.execute(
         select(ReconciliationMatch)
         .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
@@ -181,35 +179,11 @@ async def reject_match(
     if not match:
         raise MatchNotFoundError("Match not found")
 
-    allowed_statuses = (
-        (ReconciliationStatus.PENDING_REVIEW, ReconciliationStatus.ACCEPTED, ReconciliationStatus.AUTO_ACCEPTED)
-        if allow_accepted
-        else (ReconciliationStatus.PENDING_REVIEW,)
-    )
-    if match.status not in allowed_statuses:
+    if match.status != ReconciliationStatus.PENDING_REVIEW:
         return match
 
-    is_accepted = match.status in (ReconciliationStatus.ACCEPTED, ReconciliationStatus.AUTO_ACCEPTED)
-    match.status = ReconciliationStatus.SUPERSEDED if is_accepted else ReconciliationStatus.REJECTED
+    match.status = ReconciliationStatus.REJECTED
     match.version += 1
-
-    if is_accepted and match.journal_entry_ids:
-        from src.ledger.extension.repository import void_journal_entry
-
-        for jid in match.journal_entry_ids:
-            try:
-                entry_uuid = UUID(jid)
-                entry = await db.get(JournalEntry, entry_uuid)
-                if entry is not None and entry.status != JournalEntryStatus.VOID:
-                    await void_journal_entry(
-                        db,
-                        entry_uuid,
-                        reason=reason,
-                        user_id=user_id,
-                        allow_reconciled=True,
-                    )
-            except Exception as e:
-                logger.warning("Failed to void journal entry on match rejection", error=str(e), journal_entry_id=jid)
 
     await db.flush()
     return match
