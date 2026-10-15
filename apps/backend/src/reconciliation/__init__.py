@@ -19,7 +19,7 @@ from src.reconciliation.base import (
     ReviewedDispositionError,
     build_reconciliation_prompt,
 )
-from src.reconciliation.data import ReconciliationStats, get_reconciliation_stats
+from src.reconciliation.data import ReconciliationStats, get_reconciliation_stats, posted_statement_source_ids
 from src.reconciliation.extension.anomaly import detect_anomalies
 from src.reconciliation.extension.candidate_policy import (
     _find_many_to_one_candidates,
@@ -155,6 +155,7 @@ __all__ = [
     "find_candidates",
     "get_pending_items",
     "get_reconciliation_stats",
+    "posted_statement_source_ids",
     "get_stage2_queue",
     "has_unresolved_checks",
     "is_cross_period",

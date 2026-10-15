@@ -320,6 +320,7 @@ CONTRACT = PackageContract(
         "CashFlowItem",
         "CashFlowResponse",
         "CashFlowSummary",
+        "CASH_FLOW_PROOF_REASON_TEXT",
         "PersonalDataQualityHealthResponse",
         "QualityGrade",
         "InvariantStatus",
@@ -348,6 +349,7 @@ CONTRACT = PackageContract(
         "assemble_framework_balance_sheet",
         "assemble_framework_income_statement",
         "build_personal_report_package_traceability_payload",
+        "cash_flow_proof_reason_text",
         "derive_user_framework_policy_result",
         "generate_balance_sheet",
         "generate_annualized_income_schedule",
@@ -801,6 +803,8 @@ CONTRACT = PackageContract(
         ac('AC-reporting.cash-events.10', 'The adversarial cash-event matrix locks non-cash, settlement, transfer, FX, void, and hostile-tenant counterfactuals against regression.', 'apps/backend/tests/reporting/test_cash_event_governance.py::test_AC_reporting_cash_events_10_counterfactual_matrix_is_locked', proof_kind='exact'),
         ac('AC-reporting.cash-events.11', 'Cash flow bridge fx_effect is calculated independently from foreign-currency cash rate variances without circular plugging, exposing discrepancy and failing reconciliation when cash activities are omitted or corrupted.', 'apps/backend/tests/reporting/test_falsifiable_cash_flow.py::test_multicurrency_cash_bridge_exposes_discrepancy_on_missing_activity', priority='P1'),
         ac('AC-reporting.cash-events.12', 'Anchored statement cash events map LOAN_PRINCIPAL on liabilities to Financing and INVESTMENT_TRADE on assets to Investing. INVESTMENT_SALE stays in unclassified_cash (#2427).', 'apps/backend/tests/reporting/test_cash_event_projection.py::test_AC_reporting_cash_events_12_statement_balance_sheet_categories_classify', proof_kind='exact'),
+        # ── group 2466: distinct cash-flow proof reason text for each blocker cause (#2466) ──
+        ac('AC-reporting.2466.1', 'Every cash-flow proof reason code emitted by generate_cash_flow maps to its own distinct cause and action message in cash_flow_proof_reason_text and package blocker rendering (#2466).', 'apps/backend/tests/reporting/test_package_document.py::test_AC_reporting_2466_1_every_cash_flow_proof_reason_has_its_own_text', priority='P1', proof_kind='exact'),
     ],
     governance=[
         GovernanceInitiative(

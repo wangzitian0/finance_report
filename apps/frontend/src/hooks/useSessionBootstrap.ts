@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { apiOperation } from "@/lib/api-client";
+import { ApiError, apiOperation } from "@/lib/api-client";
 import { clearUser, getUserId, setUser } from "@/lib/auth";
 
 /**
@@ -16,9 +16,17 @@ import { clearUser, getUserId, setUser } from "@/lib/auth";
  * - Only runs when a local session id is present (skips the login route, which
  *   renders outside the authenticated shell).
  * - On success, refreshes the cached id/email from the backend response.
- * - The shared `apiFetch` client already redirects to `/login` on a 401; any
- *   other failure clears the stale local identity defensively.
+ * - The shared `apiFetch` client already redirects to `/login` on a 401.
+ * - Only a definite server answer that the identity is invalid (401, 403, or
+ *   404) clears the local identity. An aborted request or a network error
+ *   says nothing about the session, so it keeps the identity (#2478).
  */
+const IDENTITY_REJECTED_STATUSES = new Set([401, 403, 404]);
+
+function identityRejected(err: unknown): boolean {
+    return err instanceof ApiError && IDENTITY_REJECTED_STATUSES.has(err.status);
+}
+
 export function useSessionBootstrap(): void {
     useEffect(() => {
         if (getUserId() === null) return;
@@ -30,10 +38,10 @@ export function useSessionBootstrap(): void {
                 if (!cancelled) {
                     setUser(user.id, user.email);
                 }
-            } catch {
-                // 401 is handled by apiFetch (redirect to /login). For any other
-                // failure, drop the stale local identity rather than trusting it.
-                if (!cancelled) {
+            } catch (err) {
+                // Drop the local identity only when the server rejects it. A
+                // navigation abort or a network error keeps it (#2478).
+                if (!cancelled && identityRejected(err)) {
                     clearUser();
                 }
             }

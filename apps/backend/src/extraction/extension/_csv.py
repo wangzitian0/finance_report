@@ -622,12 +622,15 @@ class _CsvMixin:
         if source_closing_balance is not None:
             source_facts["closing_balance"] = str(source_closing_balance)
 
+        # A transaction export does not prove statement currency, period, or
+        # opening/closing balances. Keep absent facts absent instead of
+        # laundering SGD/zero/net-flow defaults into the trusted envelope. A
+        # CSV that declares both balances in its own columns carries source
+        # balance proof, so it is not marked as missing (#2476).
+        balances_declared = source_opening_balance is not None and source_closing_balance is not None
         return {
             **source_facts,
-            # A transaction export does not prove statement currency, period, or
-            # opening/closing balances. Keep those facts absent instead of
-            # laundering SGD/zero/net-flow defaults into the trusted envelope.
-            "balance_source": "missing_from_csv_export",
+            "balance_source": "declared_in_csv_export" if balances_declared else "missing_from_csv_export",
             "observed_transaction_start": period_start.isoformat() if period_start else None,
             "observed_transaction_end": period_end.isoformat() if period_end else None,
             "extraction_method": "live_llm" if used_ai_mapping else "deterministic",

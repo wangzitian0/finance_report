@@ -50,6 +50,27 @@ SGD,2025-01-01,2025-01-31,100.00,125.00,2025-01-15,Interest,25.00"""
         assert result["opening_balance"] == "100.00"
         assert result["closing_balance"] == "125.00"
 
+    async def test_AC_extraction_2476_1_declared_csv_balances_are_not_marked_missing(self):
+        """AC-extraction.2476.1: a CSV that declares both balances carries source balance proof.
+
+        Only a CSV without a declared opening or closing balance keeps the
+        missing marker that forces review.
+        """
+        declared = b"""Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount
+SGD,2025-01-01,2025-01-31,100.00,125.00,2025-01-15,Interest,25.00"""
+        result = await self.service._parse_csv_content(declared, "Example Bank")
+        assert result["balance_source"] == "declared_in_csv_export"
+
+        closing_only = b"""Statement Currency,Statement Closing Balance,Date,Description,Amount
+SGD,125.00,2025-01-15,Interest,25.00"""
+        result = await self.service._parse_csv_content(closing_only, "Example Bank")
+        assert result["balance_source"] == "missing_from_csv_export"
+
+        no_balances = b"""Date,Description,Amount
+2025-01-15,Interest,25.00"""
+        result = await self.service._parse_csv_content(no_balances, "Example Bank")
+        assert result["balance_source"] == "missing_from_csv_export"
+
     async def test_parse_posb_csv(self):
         csv_content = b"""Transaction Date,Debit Amount,Credit Amount,Transaction Ref1
 20 Jan 2025,,1000.00,TRANSFER FROM SAVINGS

@@ -306,6 +306,7 @@ CONTRACT = PackageContract(
         "pair_fx_legs",
         "paired_transfer_entry_ids",
         "post_named_transfer_legs",
+        "posted_statement_source_ids",
         "prune_candidates",
         "reject_match",
         "resolve_check",
@@ -620,6 +621,9 @@ CONTRACT = PackageContract(
         ac('AC-reconciliation.named-transfer-legs.4', 'The legs from post_named_transfer_legs carry the normalized anchors, so the pairing step of the next reconciliation run pairs them with the other side of the transfer. The function itself does not pair.', 'apps/backend/tests/reconciliation/test_named_transfer_legs.py::test_AC_reconciliation_named_transfer_legs_4_the_legs_pair_in_the_next_reconciliation_run', priority='P1', proof_kind='property'),
         ac('AC-reconciliation.named-transfer-legs.5', 'The memo of a transfer leg holds at most 500 characters, the size of the memo column. A transaction with a description of 495 characters posts one leg, and a second call finds the same entry.', 'apps/backend/tests/reconciliation/test_named_transfer_legs.py::test_AC_reconciliation_named_transfer_legs_5_a_long_description_posts_a_leg_with_a_bounded_memo', priority='P0', proof_kind='property'),
         ac('AC-reconciliation.named-transfer-legs.6', 'The keyword fallback posts a Processing leg only for a transaction in the effective base currency. A transaction in another currency creates no leg and no Processing account. Each keyword leg carries the id of its source transaction.', 'apps/backend/tests/reconciliation/test_keyword_leg_base_currency.py::test_AC_reconciliation_named_transfer_legs_6_a_foreign_row_posts_no_leg_and_creates_no_account', priority='P0', proof_kind='property'),
+        # ── group 2465: rows posted from a statement count as matched (#2465) ──
+        ac('AC-reconciliation.2465.1', 'A transaction with a live posted journal entry from its own statement counts as matched in get_reconciliation_stats, using the same posted_statement_source_ids query as the unmatched list (#2465).', 'apps/backend/tests/reconciliation/test_reconciliation_stats.py::test_AC_reconciliation_2465_1_statement_posted_rows_count_as_matched', priority='P1', proof_kind='property'),
+        ac('AC-reconciliation.2465.2', 'On the statement detail table, a transaction whose statement is approved defaults to matched status when an explicit transaction status is omitted (#2465).', 'apps/frontend/src/__tests__/statementDetailParts.test.tsx::AC-reconciliation.2465.2 defaults transaction status to matched when the statement is approved', priority='P1'),
     ],
     governance=[
         GovernanceInitiative(

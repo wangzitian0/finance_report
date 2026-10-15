@@ -1188,6 +1188,10 @@ CONTRACT = PackageContract(
         ac('AC-extraction.source-lifecycle.10', 'Counterfactual tests exercise cross-currency cancellation, independent-session conflict, failed commit, storage outage, retry, and retained history.', 'apps/backend/tests/extraction/test_source_lifecycle.py::test_AC_extraction_source_lifecycle_10_counterfactual_matrix_is_locked', proof_kind='property'),
         # ── group parse-robustness: tolerate what the statement prompt allows (#2328) ──
         ac('AC-extraction.parse-robustness.1', 'A statement transaction whose description is null, empty, blank or absent keeps its row with the description "Unknown". The statement prompt allows null for a field the model cannot read, so one such row no longer rejects the whole statement (#2328).', 'apps/backend/tests/extraction/test_extraction_error_paths.py::test_parse_document_uses_placeholder_for_missing_description', priority='P1'),
+        # ── group 2476: CSV exports that declare opening and closing balances keep their declared provenance (#2476) ──
+        ac('AC-extraction.2476.1', 'A CSV statement export that declares both opening and closing balances records balance_source=declared_in_csv_export and is not capped by the missing_from_csv_export completeness flag (#2476).', 'apps/backend/tests/extraction/test_csv_parsing.py::test_AC_extraction_2476_1_declared_csv_balances_are_not_marked_missing', priority='P1', proof_kind='property'),
+        # ── group 2477: inline custody account creation on statement review (#2477) ──
+        ac('AC-extraction.2477.1', 'When a user has no active asset custody accounts on the statement review page, the source-envelope confirmation card offers an inline create-account action that creates an asset account in the statement currency and selects it (#2477).', 'apps/frontend/src/__tests__/sourceEnvelopeCreateAccount.test.tsx::AC-extraction.2477.1 creates an inline custody account and selects it when the account list is empty', priority='P1'),
     ],
     governance=[
         GovernanceInitiative(
