@@ -31,8 +31,11 @@ FORBIDDEN_DOM_JARGON: list[str] = [
 
 HALLUCINATED_DISCREPANCY_TOKENS: list[str] = [
     "discrepancy",
+    "discrepancies",
     "imbalance",
     "does not balance",
+    "doesn't balance",
+    "doesn\u2019t balance",
     "not equal",
     "unbalanced",
     "mismatch",
@@ -42,13 +45,57 @@ HALLUCINATED_DISCREPANCY_TOKENS: list[str] = [
     "对不上",
 ]
 
+# A negation word starts a word. A letter, a digit or a hyphen before it means that it is
+# part of another word: "casino" and "non-zero" are no negation.
+_WORD_START = r"(?<![a-z0-9-])"
+# A negation word ends a word. "zero-balance" is no negation.
+_WORD_END = r"(?![a-z0-9-])"
+_ISSUE = (
+    r"(?:balance\s+|ledger\s+)?(?:discrepanc(?:y|ies)|imbalance|mismatch|unbalanced)"
+)
+_ADJECTIVE = (
+    r"(?:(?:significant|material|major|apparent|visible|notable|unexplained|"
+    r"outstanding|further|other|additional|remaining)\s+)?"
+)
+_VERB_OBJECT = r"(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)"
+_FIND_VERB = r"(?:find|see|detect|identify|notice|show|reveal)"
+_NEGATION_PREFIX = (
+    r"(?:no|zero|without"
+    rf"|not\s+{_VERB_OBJECT}|does\s*n[\x27\']t\s+{_VERB_OBJECT}|does\s+not\s+{_VERB_OBJECT}"
+    rf"|cannot\s+{_VERB_OBJECT}|not\s+a|not\s+an|neither|no\s+balance|no\s+ledger"
+    rf"|rather\s+than|(?:did|do|does)\s*(?:not|n[\x27\']t)\s+{_FIND_VERB}(?:\s+any)?"
+    r"|(?:found|find|see|saw|detected)\s+no)"
+)
+
+# A review heading is a negation only when the words after it negate (#2484).
+_REVIEW_WORD = (
+    r"(?:check|verification|audit|review|analysis|analyses|assessment)(?:s|es)?"
+)
+_HEADING = rf"(?:balance\s+|ledger\s+)?discrepanc(?:y|ies)(?:\s+{_REVIEW_WORD})?"
+# These may stand between the heading and the verdict: a qualifier in brackets, the word
+# "result", markdown marks (** _ # > |), list marks, a colon and a verb such as "found".
+_BETWEEN = (
+    r"(?:\s*\([^)]*\))?(?:\s+(?:result|results|status|outcome|summary))?"
+    r"[\s:\uff1a\-\u2014\u2013*_#>|\u2022\u00b7]*"
+    r"(?:(?:found|shows?|showed|reports?|reported|returned|is|was|came\s+back|and)\s+)*"
+)
+_CLEAN_VERDICT = (
+    r"(?:(?:no|zero|nothing|nil|passed|pass|clear|all\s+clear|balanced|consistent|clean|"
+    r"n/a|not\s+applicable|everything\s+(?:balances|matches|agrees|reconciles)|"
+    r"all\s+(?:balanced|matched|consistent))"
+    rf"{_WORD_END}|none(?![a-z0-9-])(?!\s+of\b)"
+    r"|\u2705|\u2713|\u2714|\u2611"
+    r"|无|没有|未发现|并未发现|不存在)"
+)
+
 NEGATED_DISCREPANCY_PATTERNS: list[str] = [
-    r"(?:no|zero|without|not\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|does\s*n[\x27\']t\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|does\s+not\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|cannot\s+(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)|not\s+a|not\s+an|neither|no\s+balance|no\s+ledger)\s*(?:a|an|any)?\s*(?:balance\s+|ledger\s+)?(?:discrepanc(?:y|ies)|imbalance|mismatch|unbalanced)",
-    r"(?:balance\s+|ledger\s+)?discrepanc(?:y|ies)\s+(?:check|verification|audit|review|analysis|assessment)",
-    r"no\s+(?:balance\s+)?discrepanc(?:y|ies)\s+found",
-    r"no\s+ledger\s+imbalance",
-    r"not\s+unbalanced",
-    r"(?:不存在|没有|无|并未发现|并无)\s*(?:任何)?\s*(?:不一致|不平|差额|对不上)",
+    rf"{_WORD_START}{_NEGATION_PREFIX}\s*(?:a|an|any)?\s*{_ADJECTIVE}{_ISSUE}",
+    rf"{_HEADING}(?={_BETWEEN}{_CLEAN_VERDICT})",
+    rf"{_WORD_START}no\s+(?:balance\s+)?discrepanc(?:y|ies)\s+found",
+    rf"{_WORD_START}no\s+ledger\s+imbalance",
+    rf"{_WORD_START}not\s+unbalanced",
+    r"(?:不存在|没有(?:发现|出现)?|无|未(?:发现|见|出现)|并未(?:发现|出现)|并无)"
+    r"\s*(?:任何)?\s*(?:不一致|不平|差额|对不上)",
 ]
 
 
@@ -117,15 +164,14 @@ def assert_ai_advisor_semantic_grounding(
         if forbidden_tokens is not None
         else HALLUCINATED_DISCREPANCY_TOKENS
     )
-    answer_lower = answer.lower()
-    sanitized_answer = answer_lower
-    for pattern in NEGATED_DISCREPANCY_PATTERNS:
-        sanitized_answer = re.sub(
-            pattern,
-            " [negated_consistency_assertion] ",
-            sanitized_answer,
-            flags=re.IGNORECASE,
-        )
+    # One pass over the answer. A look-ahead reads the words of the answer.
+    # It does not read the marker of an earlier pattern (#2484).
+    sanitized_answer = re.sub(
+        "|".join(f"(?:{pattern})" for pattern in NEGATED_DISCREPANCY_PATTERNS),
+        " [negated_consistency_assertion] ",
+        answer.lower(),
+        flags=re.IGNORECASE,
+    )
 
     for token in tokens:
         assert token.lower() not in sanitized_answer, (
