@@ -20,7 +20,7 @@ Re-record only on change via a manifest (source bytes sha + prompt sha); orphans
 
 Run from repo root with the coding token in direnv::
 
-    GLM_CODING_TOKEN=… python tools/_lib/record_hf_cassettes.py
+    AI_API_KEY=… python tools/_lib/record_hf_cassettes.py
 
 Recorder only — makes live GLM calls and writes fixtures; never imported by tests.
 """
@@ -291,7 +291,9 @@ def _prompt_sha() -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover
-    token = os.environ["GLM_CODING_TOKEN"]
+    token = os.environ.get("AI_API_KEY", "").strip()
+    if not token:
+        raise RuntimeError("AI_API_KEY is required to record HF cassettes")
     sources = fetch_sources()
     manifest = _load_manifest()
     prompt_sha = _prompt_sha()

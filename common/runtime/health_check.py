@@ -20,13 +20,13 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
-import os
 import time
 from collections.abc import Callable, Sequence
 
 from infra2_sdk.deploy import HttpGet, default_http_get, poll_until_healthy
+from infra2_sdk.routing import resolve_service_url
 
-SIGNOZ_URL = (os.environ.get("OBSERVABILITY_BACKEND_URL") or "").strip()
+SIGNOZ_URL = resolve_service_url("signoz", "production").rstrip("/")
 SERVICE_NAME = "finance-report-backend"
 DEFAULT_MAX_ATTEMPTS = 24
 INTERVAL_SECONDS = 10.0
@@ -114,9 +114,7 @@ def check_health(
     if SIGNOZ_URL:
         print(f"Logs (observability backend): {SIGNOZ_URL}")
     else:
-        print(
-            "Logs available in observability backend (set OBSERVABILITY_BACKEND_URL to display link)"
-        )
+        print("Logs available in observability backend")
     print(f"Filter: deployment.environment={environment} service_name={SERVICE_NAME}")
     print("=" * 41)
     return 0
