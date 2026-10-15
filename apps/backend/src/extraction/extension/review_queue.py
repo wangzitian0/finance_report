@@ -35,6 +35,7 @@ from src.ledger import (
     JournalEntry,
     ValidationError,
     account_service,
+    fit_journal_memo,
     submit_anchored_journal_entry_v2,
 )
 from src.observability import get_logger
@@ -335,12 +336,15 @@ async def _create_entry_from_txn(
     try:
         if source_decision is None or trace_emitter is None:
             raise ValueError("Statement posting requires a source-owned authoritative decision")
+        # The description has no length limit, but the memo column does. Cut it once:
+        # the decision anchor and the command must hold the same memo.
+        memo = fit_journal_memo(txn.description)
         decision_anchor = await authorize_financial_command(
             emitter=trace_emitter,
             user_id=user_id,
             upstream_decision=source_decision,
             entry_date=txn.txn_date,
-            memo=txn.description,
+            memo=memo,
             lines_data=lines_data,
             base_currency=base_currency,
             source_id=txn.id,
@@ -350,7 +354,7 @@ async def _create_entry_from_txn(
             user_id=user_id,
             command=AnchoredJournalCommandV2.from_mappings(
                 entry_date=txn.txn_date,
-                memo=txn.description,
+                memo=memo,
                 lines_data=lines_data,
                 base_currency=base_currency,
                 source_type=source_type,

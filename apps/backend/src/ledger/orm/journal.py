@@ -21,6 +21,7 @@ from src.audit import JournalEntrySourceType
 from src.audit.money import Currency, Money
 from src.config import settings
 from src.database import Base, split_postgresql_ddl
+from src.ledger.base.memo import JOURNAL_MEMO_MAX_LENGTH
 from src.ledger.base.vocabulary import (
     Direction,
     JournalEntryAuthorityState,
@@ -93,7 +94,7 @@ class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     )
 
     entry_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    memo: Mapped[str] = mapped_column(String(500), nullable=False)
+    memo: Mapped[str] = mapped_column(String(JOURNAL_MEMO_MAX_LENGTH), nullable=False)
     source_type: Mapped[JournalEntrySourceType] = mapped_column(
         Enum(
             JournalEntrySourceType,
