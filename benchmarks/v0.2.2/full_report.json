@@ -1,0 +1,109 @@
+{
+  "suite": "financial_reporting_temporal_scenarios",
+  "version_ref": "v0.2.2",
+  "app_url": "https://report-staging.zitian.party",
+  "run_at": "2026-10-15T05:34:08.841647+00:00",
+  "summary": {
+    "total": 7,
+    "passed": 3,
+    "skipped": 0,
+    "failed": 4,
+    "success": false
+  },
+  "results": [
+    {
+      "case_id": "case_1",
+      "case_name": "Case 1: Consecutive 4-Month Rollforward & Q1 Articulation",
+      "status": "FAIL",
+      "duration_seconds": 152.5885283946991,
+      "details": {},
+      "error_message": "Statement 41a40791-091e-437c-a1fa-5ae3ebee95fc did not reach parsed status within 150s"
+    },
+    {
+      "case_id": "case_2",
+      "case_name": "Case 2: Multi-PII Household Operations & Category Reconciliation",
+      "status": "PASS",
+      "duration_seconds": 65.37179732322693,
+      "details": {
+        "household_husband_cash": "12800.00",
+        "household_wife_cash": "8100.00",
+        "opening_balance": "15000.00",
+        "closing_balance": "20900.00",
+        "total_assets": "20900.00",
+        "total_equity": "15000.00",
+        "total_income": "8500.00",
+        "total_expenses": "2600.00",
+        "net_income": "5900.00",
+        "beginning_cash": "15000.00",
+        "ending_cash": "20900.00",
+        "equation_delta": "0.00",
+        "is_balanced": true
+      },
+      "error_message": null
+    },
+    {
+      "case_id": "case_3",
+      "case_name": "Case 3: Credit Card Liability & Non-P&L Repayment Clearance",
+      "status": "FAIL",
+      "duration_seconds": 156.55412006378174,
+      "details": {},
+      "error_message": "Statement dbb6ae30-84d2-4e93-a022-b9d5ef05b962 did not reach parsed status within 150s"
+    },
+    {
+      "case_id": "case_4",
+      "case_name": "Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet",
+      "status": "FAIL",
+      "duration_seconds": 80.31499338150024,
+      "details": {},
+      "error_message": "SGD equation delta must be exactly zero: 0.01"
+    },
+    {
+      "case_id": "case_5",
+      "case_name": "Case 5: Holistic Multi-Asset & Tax Ecosystem",
+      "status": "PASS",
+      "duration_seconds": 6.641334056854248,
+      "details": {
+        "holdings_count": 2,
+        "symbols": "AAPL, VT",
+        "liquid_brokerage_assets_sgd": "17792.30",
+        "property_valuation_usd": "350000.00",
+        "appraisal_source": "DocuBench FHA 1004 (KpewWz3R)",
+        "comprehensive_assets_sgd": "474766.30",
+        "tax_ecosystem_status": "Form W-2 and Payslip structured tax withholding entry verified",
+        "gross_salary_sgd": "10000.00",
+        "tax_withheld_sgd": "2000.00",
+        "net_payroll_cash_sgd": "8000.00",
+        "total_assets": "474766.30",
+        "total_equity": "0.00",
+        "equation_delta": "0.00",
+        "is_balanced": true
+      },
+      "error_message": null
+    },
+    {
+      "case_id": "case_6",
+      "case_name": "Case 6: Bank Overdraft & Capital Gain Disposal",
+      "status": "PASS",
+      "duration_seconds": 6.774031639099121,
+      "details": {
+        "overdraft_cash": "-1500.00",
+        "ending_cash": "11000.00",
+        "capital_gain": "2500.00",
+        "net_income": "0.00",
+        "total_assets": "11000.00",
+        "total_equity": "11000.00",
+        "equation_delta": "0.00",
+        "is_balanced": true
+      },
+      "error_message": null
+    },
+    {
+      "case_id": "case_ui",
+      "case_name": "Case UI: Browser Zero-Console-Error & DOM Hygiene Oracle",
+      "status": "FAIL",
+      "duration_seconds": 40.546541690826416,
+      "details": {},
+      "error_message": "Pillar 2 Invariant Failure: Browser console errors detected: ['[https://report-staging.zitian.party/] Failed to fetch trend data: TypeError: Failed to fetch\\n    at https://report-staging.zitian.party/_next/static/chunks/3680-e77dffcf017d0e86.js:3:10638\\n    at ec.with (https://report-staging.zitian.party/_next/static/chunks/3680-e77dffcf017d0e86.js:3:36945)\\n    at l.with (https://report-staging.zitian.party/_next/static/chunks/3680-e77dffcf017d0e86.js:3:43403)\\n    at https://report-staging.zitian.party/_next/static/chunks/3680-e77dffcf017d0e86.js:3:10543\\n    at c (https://report-staging.zitian.party/_next/static/chunks/7805-70e438f0ca3f9982.js:1:15271)\\n    at l (https://report-staging.zitian.party/_next/static/chunks/7805-70e438f0ca3f9982.js:1:16083)\\n    at https://report-staging.zitian.party/_next/static/chunks/app/(main)/page-554eee95ba2fc88a.js:1:48936\\n    at https://report-staging.zitian.party/_next/static/chunks/app/(main)/page-554eee95ba2fc88a.js:1:49142\\n    at o1 (https://report-staging.zitian.party/_next/static/chunks/4bd1b696-100b9d70ed4e49c1.js:1:88957)\\n    at uE (https://report-staging.zitian.party/_next/static/chunks/4bd1b696-100b9d70ed4e49c1.js:1:104849)']"
+    }
+  ]
+}
