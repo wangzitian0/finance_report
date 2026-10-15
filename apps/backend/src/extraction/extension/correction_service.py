@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -117,6 +118,10 @@ async def record_correction(
     transaction_id: UUID,
     corrected_category: str,
     corrected_account_id: UUID | None = None,
+    supersede_transfer_legs: Callable[[AsyncSession, UUID, UUID, str], Awaitable[None]] | None = None,
+    repost_approved_statement: (
+        Callable[[AsyncSession, StatementSummary, UUID, list[AtomicTransaction]], Awaitable[None]] | None
+    ) = None,
 ) -> CorrectionLog:
     """Record a user correction to a transaction category.
 
@@ -162,91 +167,53 @@ async def record_correction(
     db.add(correction)
     await db.flush()
 
-    # Void old journal entry / supersede transfer legs and repost if statement is approved (#2423)
+    # Reclassify posted entry / supersede transfer legs and repost if statement is approved (#2423)
     from src.extraction.base.source_vocabulary import BankStatementStatus
-    from src.ledger import JournalEntry, JournalEntryStatus, current_anchored_journal_entries
-    from src.ledger.extension.repository import void_journal_entry
-    from src.reconciliation.extension.review_queue import supersede_transaction_transfer_legs
-
-    existing_entries: list[JournalEntry] = []
-    direct_entry_id = getattr(txn, "journal_entry_id", None)
-    if direct_entry_id is not None:
-        direct_entry = await db.get(JournalEntry, direct_entry_id)
-        if direct_entry is not None and direct_entry.status != JournalEntryStatus.VOID:
-            existing_entries.append(direct_entry)
-
-    anchored_stmt = current_anchored_journal_entries(
-        user_id=user_id,
-        target_kind="journal_command",
-        target_id=f"statement-transaction:{txn.id}",
-    ).where(JournalEntry.status != JournalEntryStatus.VOID)
-    for entry in (await db.execute(anchored_stmt)).scalars().all():
-        if entry not in existing_entries:
-            existing_entries.append(entry)
-
-    source_stmt = (
-        select(JournalEntry)
-        .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.source_id == txn.id)
-        .where(JournalEntry.status != JournalEntryStatus.VOID)
-    )
-    for entry in (await db.execute(source_stmt)).scalars().all():
-        if entry not in existing_entries:
-            existing_entries.append(entry)
-
-    for existing_entry in existing_entries:
-        await void_journal_entry(
-            db,
-            existing_entry.id,
-            reason=f"Category corrected to {corrected_category}",
-            user_id=user_id,
-            allow_reconciled=True,
-        )
-
-    if hasattr(txn, "journal_entry_id"):
-        setattr(txn, "journal_entry_id", None)
-
-    await supersede_transaction_transfer_legs(
-        db,
-        user_id=user_id,
-        transaction_id=txn.id,
-        reason=f"Category corrected to {corrected_category}",
-    )
 
     statement = await _resolve_statement_for_transaction(db, user_id=user_id, txn=txn)
     if statement is not None and statement.status == BankStatementStatus.APPROVED:
-        from src.composition import compose_statement_posting_dependencies
-        from src.extraction.base.disposition import DispositionMode
-        from src.extraction.extension.statement_posting import (
-            StatementPostingDependencies,
-            auto_create_posted_entries_for_statement,
-        )
+        from src.ledger import JournalEntry, JournalEntryStatus, current_anchored_journal_entries
+        from src.ledger.extension.repository import void_journal_entry
 
-        base_deps = compose_statement_posting_dependencies()
-        posting_deps = StatementPostingDependencies(
-            transfer_exclusions=base_deps.transfer_exclusions,
-            fx_rate_provider=base_deps.fx_rate_provider,
-            fx_rate_error=base_deps.fx_rate_error,
-            trace_emitter_factory=base_deps.trace_emitter_factory,
-            disposition_mode=DispositionMode.ENFORCE,
-            post_named_transfers=base_deps.post_named_transfers,
+        existing_entries: list[JournalEntry] = []
+        anchored_stmt = current_anchored_journal_entries(
+            user_id=user_id,
+            target_kind="journal_command",
+            target_id=f"statement-transaction:{txn.id}",
+        ).where(JournalEntry.status != JournalEntryStatus.VOID)
+        for entry in (await db.execute(anchored_stmt)).scalars().all():
+            if entry not in existing_entries:
+                existing_entries.append(entry)
+
+        source_stmt = (
+            select(JournalEntry)
+            .where(JournalEntry.user_id == user_id)
+            .where(JournalEntry.source_id == txn.id)
+            .where(JournalEntry.status != JournalEntryStatus.VOID)
         )
-        await auto_create_posted_entries_for_statement(
-            db,
-            statement,
-            user_id,
-            dependencies=posting_deps,
-            transactions=[txn],
-        )
-        if hasattr(txn, "journal_entry_id"):
-            reposted_stmt = current_anchored_journal_entries(
+        for entry in (await db.execute(source_stmt)).scalars().all():
+            if entry not in existing_entries:
+                existing_entries.append(entry)
+
+        for existing_entry in existing_entries:
+            await void_journal_entry(
+                db,
+                existing_entry.id,
+                reason=f"Category corrected to {corrected_category}",
                 user_id=user_id,
-                target_kind="journal_command",
-                target_id=f"statement-transaction:{txn.id}",
-            ).where(JournalEntry.status != JournalEntryStatus.VOID)
-            reposted_entry = (await db.execute(reposted_stmt)).scalars().first()
-            if reposted_entry is not None:
-                setattr(txn, "journal_entry_id", reposted_entry.id)
+                allow_reconciled=True,
+            )
+
+        if supersede_transfer_legs is not None:
+            await supersede_transfer_legs(
+                db,
+                user_id,
+                txn.id,
+                f"Category corrected to {corrected_category}",
+            )
+
+        if repost_approved_statement is not None:
+            await repost_approved_statement(db, statement, user_id, [txn])
 
     # Invalidate cache for this user
     invalidate_correction_cache(user_id)

@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from fastapi.concurrency import run_in_threadpool
@@ -47,6 +48,7 @@ from src.extraction import (
     StatementSummary,
     TransactionDirection,
     applied_rows_the_policy_accepts,
+    auto_create_posted_entries_for_statement,
     balance_sheet_booking,
     build_statement_ingestion_use_case,
     classification_suggestions,
@@ -55,6 +57,7 @@ from src.extraction import (
     extraction_trace_policy_registry,
     general_account_name,
     get_or_create_account,
+    record_correction,
     settle_drafts_after_posting,
     snapshot_currencies,
     statement_disposition_policy_for_user,
@@ -81,6 +84,7 @@ from src.reconciliation import (
     accepted_transfer_txn_ids,
     post_named_transfer_legs,
     submit_reviewed_disposition,
+    supersede_transaction_transfer_legs,
 )
 from src.runtime import StorageService
 
@@ -449,4 +453,69 @@ async def market_data_scopes(db: AsyncSession) -> MarketDataScopes:
     return MarketDataScopes(
         fx_pairs=await observed_fx_pairs(db, None),
         stock_symbols=await active_stock_symbols(db, None),
+    )
+
+
+async def _repost_approved_statement_for_correction(
+    db: AsyncSession,
+    statement: StatementSummary,
+    user_id: UUID,
+    transactions: list[AtomicTransaction],
+) -> None:
+    base_deps = compose_statement_posting_dependencies()
+    posting_deps = StatementPostingDependencies(
+        transfer_exclusions=base_deps.transfer_exclusions,
+        fx_rate_provider=base_deps.fx_rate_provider,
+        fx_rate_error=base_deps.fx_rate_error,
+        trace_emitter_factory=base_deps.trace_emitter_factory,
+        disposition_mode=DispositionMode.ENFORCE,
+        post_named_transfers=base_deps.post_named_transfers,
+    )
+    await auto_create_posted_entries_for_statement(
+        db,
+        statement,
+        user_id,
+        dependencies=posting_deps,
+        transactions=transactions,
+    )
+
+
+async def _supersede_transfer_legs_for_correction(
+    db: AsyncSession,
+    user_id: UUID,
+    transaction_id: UUID,
+    reason: str,
+) -> None:
+    await supersede_transaction_transfer_legs(
+        db,
+        user_id=user_id,
+        transaction_id=transaction_id,
+        reason=reason,
+    )
+
+
+def compose_correction_callbacks() -> dict[str, Any]:
+    """Compose dependency injection callbacks for post-posting category correction (#2423)."""
+    return {
+        "supersede_transfer_legs": _supersede_transfer_legs_for_correction,
+        "repost_approved_statement": _repost_approved_statement_for_correction,
+    }
+
+
+async def record_user_correction(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    transaction_id: UUID,
+    corrected_category: str,
+    corrected_account_id: UUID | None = None,
+) -> Any:
+    """Record a user correction with reconciliation and statement posting callbacks wired (#2423)."""
+    return await record_correction(
+        db,
+        user_id=user_id,
+        transaction_id=transaction_id,
+        corrected_category=corrected_category,
+        corrected_account_id=corrected_account_id,
+        **compose_correction_callbacks(),
     )
