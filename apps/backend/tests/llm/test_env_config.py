@@ -97,4 +97,3 @@ def test_llm_cassette_and_live_settings_fields(monkeypatch) -> None:
     assert s.llm_cassette_engage is True
     assert s.llm_cassette_refresh is True
     assert s.llm_live is True
-
