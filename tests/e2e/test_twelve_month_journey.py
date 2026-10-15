@@ -39,7 +39,7 @@ from common.testing.provider_review import (
 )
 from deployment_pin import assert_pinned_deployment, resolve_expected_commit
 from journey_checkpoint import checkpoint
-from playwright.async_api import Page, expect
+from playwright.async_api import Locator, Page, expect
 
 APP_URL = os.getenv("APP_URL", "http://localhost:3000")
 PARSING_TIMEOUT_MS = int(os.getenv("PARSING_TIMEOUT_MS", "480000"))
@@ -72,6 +72,15 @@ DISPOSITIONS = {
         "expense", "EXPENSE", "Monthly rent expense", "HOUSING"
     ),
 }
+
+
+def _summary_card(page: Page, caption: str) -> Locator:
+    """Return the summary card whose caption is exactly ``caption``.
+
+    The cash reconciliation card repeats words such as "Net cash flow" inside a longer text.
+    A text filter alone matches both cards and Playwright stops on the strict mode violation (#2458).
+    """
+    return page.locator(".card").filter(has=page.get_by_text(caption, exact=True))
 
 
 def _api_url(path: str) -> str:
@@ -365,12 +374,12 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
             f"{APP_URL.rstrip('/')}/reports/cash-flow?start_date={YEAR_START}&end_date={YEAR_END}&currency={CURRENCY}",
             wait_until="domcontentloaded",
         )
-        await expect(
-            page.locator(".card").filter(has_text="Net Cash Flow")
-        ).to_contain_text(f"{EXPECTED_NET_INCOME:,.2f}", timeout=30000)
-        await expect(
-            page.locator(".card").filter(has_text="Ending Cash")
-        ).to_contain_text(f"{EXPECTED_ENDING_CASH:,.2f}", timeout=30000)
+        await expect(_summary_card(page, "Net Cash Flow")).to_contain_text(
+            f"{EXPECTED_NET_INCOME:,.2f}", timeout=30000
+        )
+        await expect(_summary_card(page, "Ending Cash")).to_contain_text(
+            f"{EXPECTED_ENDING_CASH:,.2f}", timeout=30000
+        )
         await expect(page.get_by_label("Cash reconciliation")).to_contain_text(
             f"{EXPECTED_NET_INCOME:,.2f}", timeout=30000
         )
