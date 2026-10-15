@@ -61,6 +61,7 @@ REPORT_HTML_TEMPLATE = """<!DOCTYPE html>
         }
         .badge-pass { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
         .badge-fail { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge-skip { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3); }
         .card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -178,12 +179,12 @@ REPORT_HTML_TEMPLATE = """<!DOCTYPE html>
                 <span class="stat-value">{{TOTAL_DURATION_STR}}</span>
             </div>
             <div class="stat-box">
-                <span class="stat-label">Accounting Balance Delta</span>
-                <span class="stat-value">0.00 SGD</span>
+                <span class="stat-label">Largest Balance Delta</span>
+                <span class="stat-value">{{MAX_DELTA}} SGD</span>
             </div>
             <div class="stat-box">
-                <span class="stat-label">P&amp;L Contamination</span>
-                <span class="stat-value">0.00 SGD</span>
+                <span class="stat-label">Cases Not Passed</span>
+                <span class="stat-value">{{NOT_PASSED_COUNT}}</span>
             </div>
         </div>
 
@@ -200,31 +201,7 @@ REPORT_HTML_TEMPLATE = """<!DOCTYPE html>
                         <th>Adjudication</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>Balance Sheet Identity</strong></td>
-                        <td><code>Assets ≡ Liabilities + Equity + Net Income</code></td>
-                        <td>Exact Equality (Δ = 0.00 SGD across all snapshots)</td>
-                        <td><span class="badge badge-pass">PASS</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Temporal Multi-Period Rollforward</strong></td>
-                        <td><code>Month_{n+1} Opening Cash ≡ Month_n Closing Cash</code></td>
-                        <td>Jan Closing ($15,450.75) ≡ Feb Opening ($15,450.75)</td>
-                        <td><span class="badge badge-pass">PASS</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Asset Reallocation / Swap Non-Contamination</strong></td>
-                        <td><code>Δ Revenue = 0.00, Δ Expense = 0.00, Δ Net Income = 0.00</code></td>
-                        <td>5,000 SGD Bank-to-Brokerage produced 0.00 P&amp;L impact</td>
-                        <td><span class="badge badge-pass">PASS</span></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Retained Earnings Articulation</strong></td>
-                        <td><code>Closing Equity = Opening Equity + Net Income</code></td>
-                        <td>Net Income rolls without leakage into Retained Earnings</td>
-                        <td><span class="badge badge-pass">PASS</span></td>
-                    </tr>
+                <tbody>{{INVARIANTS_ROWS}}
                 </tbody>
             </table>
         </div>
@@ -320,6 +297,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
         }
         .badge-pass { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
         .badge-fail { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge-skip { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3); }
         .table-responsive { overflow-x: auto; }
         .history-table {
             width: 100%;
@@ -369,7 +347,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
             <div>
                 <span class="badge {{LATEST_BADGE_CLASS}}">{{LATEST_STATUS}}</span>
                 <h2 class="hero-title" style="margin-top: 8px;">Latest Deployed Release: {{LATEST_VER}}</h2>
-                <p class="hero-meta">All 3-Statement financial invariants reconciled • Zero P&amp;L contamination</p>
+                <p class="hero-meta">{{LATEST_SUMMARY}}</p>
             </div>
             {{LATEST_REPORT_LINK}}
         </div>
@@ -381,15 +359,15 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
             <div class="stat-box">
                 <span class="stat-label">Latest Pass Rate</span>
-                <span class="stat-value">{{LATEST_PASS_RATE}} (100%)</span>
+                <span class="stat-value">{{LATEST_PASS_RATE}} ({{LATEST_PASS_PERCENT}})</span>
             </div>
             <div class="stat-box">
                 <span class="stat-label">Latest Latency</span>
                 <span class="stat-value">{{LATEST_DURATION}}</span>
             </div>
             <div class="stat-box">
-                <span class="stat-label">Equation Drift Delta</span>
-                <span class="stat-value">0.00 SGD</span>
+                <span class="stat-label">Largest Balance Delta</span>
+                <span class="stat-value">{{LATEST_DELTA}} SGD</span>
             </div>
         </div>
 
