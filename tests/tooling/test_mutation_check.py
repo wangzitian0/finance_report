@@ -11,8 +11,8 @@ from common.testing import mutation_check
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_default_manifest_has_unique_anchors_in_target_files():
-    """Every declared mutation in money-mutations.json must match its target file exactly once."""
+def test_AC_testing_preflight_1_default_manifest_has_unique_anchors_in_target_files():
+    """AC-testing.preflight.1: Every declared mutation in money-mutations.json matches its target file once."""
     mutations = mutation_check.load()
     assert len(mutations) >= 5
     for m in mutations:
