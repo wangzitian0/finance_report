@@ -38,20 +38,23 @@ export function LowConfidenceReviewModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const categoryInputRef = useRef<HTMLInputElement>(null);
+  const categorySelectRef = useRef<HTMLSelectElement>(null);
 
   useFocusTrap(dialogRef, isOpen);
   useBodyScrollLock(isOpen);
 
   useEffect(() => {
     if (isOpen && transaction) {
-      setCategory(
-        String(transaction.proposed_category ?? transaction.category ?? ""),
+      const initialCat = String(transaction.proposed_category ?? transaction.category ?? "").trim();
+      const available = getCategoriesForDirection(transaction.direction);
+      const matched = available.find(
+        (opt) => opt.value === initialCat.toUpperCase() || opt.label.toLowerCase() === initialCat.toLowerCase(),
       );
+      setCategory(matched ? matched.value : initialCat);
       setError(null);
       setSaving(false);
       setTimeout(() => {
-        categoryInputRef.current?.focus();
+        categorySelectRef.current?.focus();
       }, 50);
     }
   }, [isOpen, transaction]);
@@ -202,20 +205,24 @@ export function LowConfidenceReviewModal({
             >
               Classification Category
             </label>
-            <input
+            <select
               id="corrected-category-input"
-              ref={categoryInputRef}
-              type="text"
-              maxLength={100}
+              ref={categorySelectRef}
               className="input w-full text-sm"
-              placeholder="e.g. DINING, UTILITIES, SALARY..."
               value={category}
               onChange={(e) => {
                 setCategory(e.target.value);
                 setError(null);
               }}
               disabled={saving}
-            />
+            >
+              <option value="">Select a category...</option>
+              {availableCategories.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
             {error && (
               <p role="alert" className="mt-1 text-xs text-[var(--error)]">
                 {error}

@@ -18,10 +18,12 @@ if str(BACKEND_ROOT) not in sys.path:
 
 from tools._lib import api_response_vectors as _impl  # noqa: E402
 
+_impl_build_vector_files = _impl.build_vector_files
+
 
 def build_vector_files() -> dict[Path, dict[str, Any]]:
     _impl.ROOT_DIR = getattr(sys.modules[__name__], "ROOT_DIR", ROOT_DIR)
-    return _impl.build_vector_files()
+    return _impl_build_vector_files()
 
 
 def main(argv: Sequence[str] | None = None) -> int:

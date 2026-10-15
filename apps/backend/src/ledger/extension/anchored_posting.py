@@ -33,7 +33,7 @@ from src.audit.extension.trace_emitter import TraceEmitter
 from src.audit.extension.trace_repository import SqlTraceRecordRepository
 from src.ledger.base.decision_anchor import DecisionAnchor, DecisionAnchorError, journal_command_target
 from src.ledger.extension.repository import _create_anchored_journal_entry, post_journal_entry
-from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryAuthorityState
+from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryAuthorityState, JournalEntryStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -565,6 +565,7 @@ async def _existing_for_target(
         .join(decisions, decisions.c.decision_id == JournalEntry.decision_anchor_id)
         .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.decision_authority_state == JournalEntryAuthorityState.ANCHORED)
+        .where(JournalEntry.status != JournalEntryStatus.VOID)
         .where(decisions.c.target_kind == target.kind)
         .where(decisions.c.target_id == target.id)
         .with_for_update()

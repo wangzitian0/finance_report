@@ -423,7 +423,7 @@ BEGIN
             RETURN NEW;
         END IF;
 
-        IF OLD.status::text = 'posted' AND NEW.status::text = 'void' THEN
+        IF OLD.status::text IN ('posted', 'reconciled') AND NEW.status::text = 'void' THEN
             IF NEW.user_id IS DISTINCT FROM OLD.user_id
                 OR NEW.entry_date IS DISTINCT FROM OLD.entry_date
                 OR NEW.memo IS DISTINCT FROM OLD.memo
@@ -433,12 +433,12 @@ BEGIN
                 OR NEW.decision_authority_state IS DISTINCT FROM OLD.decision_authority_state
                 OR NEW.created_at IS DISTINCT FROM OLD.created_at
             THEN
-                RAISE EXCEPTION 'posted journal entry % can only be voided without fact mutation', OLD.id
+                RAISE EXCEPTION 'posted or reconciled journal entry % can only be voided without fact mutation', OLD.id
                     USING ERRCODE = '23514', CONSTRAINT = 'ck_journal_entries_posted_void_only';
             END IF;
 
             IF NEW.void_reversal_entry_id IS NULL OR NEW.void_reason IS NULL OR btrim(NEW.void_reason) = '' THEN
-                RAISE EXCEPTION 'voiding posted journal entry % requires reason and reversal entry', OLD.id
+                RAISE EXCEPTION 'voiding posted or reconciled journal entry % requires reason and reversal entry', OLD.id
                     USING ERRCODE = '23514', CONSTRAINT = 'ck_journal_entries_void_fields_required';
             END IF;
             RETURN NEW;

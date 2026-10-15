@@ -189,6 +189,63 @@ async def reject_match(
     return match
 
 
+async def supersede_transaction_transfer_legs(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    transaction_id: UUID,
+    reason: str,
+) -> None:
+    """Find and supersede any active ReconciliationMatch and void any Processing transfer leg for transaction_id."""
+    from src.ledger.extension.processing import find_processing_account
+    from src.ledger.extension.repository import void_journal_entry
+
+    matches_result = await db.execute(
+        select(ReconciliationMatch)
+        .where(ReconciliationMatch.atomic_txn_id == transaction_id)
+        .where(ReconciliationMatch.status.notin_((ReconciliationStatus.REJECTED, ReconciliationStatus.SUPERSEDED)))
+        .with_for_update()
+    )
+    active_matches = list(matches_result.scalars().all())
+
+    entry_ids_to_void: set[UUID] = set()
+    for match in active_matches:
+        match.status = ReconciliationStatus.SUPERSEDED
+        match.version += 1
+        if match.journal_entry_ids:
+            for jid in match.journal_entry_ids:
+                try:
+                    entry_ids_to_void.add(UUID(jid))
+                except (ValueError, TypeError):
+                    pass
+
+    processing_account = await find_processing_account(db, user_id)
+    if processing_account is not None:
+        processing_entries_result = await db.execute(
+            select(JournalEntry.id)
+            .join(JournalLine, JournalEntry.id == JournalLine.journal_entry_id)
+            .where(JournalEntry.user_id == user_id)
+            .where(JournalEntry.source_id == transaction_id)
+            .where(JournalEntry.status != JournalEntryStatus.VOID)
+            .where(JournalLine.account_id == processing_account.id)
+        )
+        for eid in processing_entries_result.scalars().all():
+            entry_ids_to_void.add(eid)
+
+    for eid in entry_ids_to_void:
+        entry = await db.get(JournalEntry, eid)
+        if entry is not None and entry.status != JournalEntryStatus.VOID:
+            await void_journal_entry(
+                db,
+                eid,
+                reason=reason,
+                user_id=user_id,
+                allow_reconciled=True,
+            )
+
+    await db.flush()
+
+
 async def apply_reconciliation_feedback(
     db: AsyncSession,
     user_id: UUID,

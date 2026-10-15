@@ -1,6 +1,10 @@
 """EPIC-018 Phase 2: Correction Service for feedback learning loop."""
 
+from __future__ import annotations
+
 import time
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -10,6 +14,9 @@ from src.extraction.orm.correction import CorrectionLog
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account
 from src.observability import get_logger
+
+if TYPE_CHECKING:
+    from src.extraction.orm.statement_summary import StatementSummary
 
 logger = get_logger(__name__)
 
@@ -33,6 +40,77 @@ def clear_all_correction_cache() -> None:
     _correction_cache.clear()
 
 
+async def _resolve_statement_for_transaction(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    txn: AtomicTransaction,
+) -> StatementSummary | None:
+    """Resolve the parent StatementSummary for an AtomicTransaction."""
+    from src.extraction.orm.statement_summary import StatementSummary
+
+    doc_ids: list[UUID] = []
+    source_docs = txn.source_documents
+    if isinstance(source_docs, list):
+        for doc in source_docs:
+            if isinstance(doc, dict) and "doc_id" in doc:
+                try:
+                    doc_ids.append(UUID(str(doc["doc_id"])))
+                except (ValueError, TypeError):
+                    pass
+    elif isinstance(source_docs, dict) and "doc_id" in source_docs:
+        try:
+            doc_ids.append(UUID(str(source_docs["doc_id"])))
+        except (ValueError, TypeError):
+            pass
+
+    if doc_ids:
+        result = await db.execute(
+            select(StatementSummary)
+            .where(
+                StatementSummary.user_id == user_id,
+                StatementSummary.uploaded_document_id.in_(doc_ids),
+            )
+            .order_by(StatementSummary.created_at.desc())
+            .limit(1)
+        )
+        statement = result.scalar_one_or_none()
+        if statement is not None:
+            return statement
+
+        stmt_direct = await db.execute(
+            select(StatementSummary)
+            .where(
+                StatementSummary.user_id == user_id,
+                StatementSummary.id.in_(doc_ids),
+            )
+            .limit(1)
+        )
+        statement = stmt_direct.scalar_one_or_none()
+        if statement is not None:
+            return statement
+
+        from src.extraction.orm.layer1 import UploadedDocument
+
+        doc_result = await db.execute(select(UploadedDocument.file_hash).where(UploadedDocument.id.in_(doc_ids)))
+        file_hashes = [h for h in doc_result.scalars().all() if h]
+        if file_hashes:
+            stmt_result = await db.execute(
+                select(StatementSummary)
+                .where(
+                    StatementSummary.user_id == user_id,
+                    StatementSummary.file_hash.in_(file_hashes),
+                )
+                .order_by(StatementSummary.created_at.desc())
+                .limit(1)
+            )
+            statement = stmt_result.scalar_one_or_none()
+            if statement is not None:
+                return statement
+
+    return None
+
+
 async def record_correction(
     db: AsyncSession,
     *,
@@ -40,6 +118,10 @@ async def record_correction(
     transaction_id: UUID,
     corrected_category: str,
     corrected_account_id: UUID | None = None,
+    supersede_transfer_legs: Callable[[AsyncSession, UUID, UUID, str], Awaitable[None]] | None = None,
+    repost_approved_statement: (
+        Callable[[AsyncSession, StatementSummary, UUID, list[AtomicTransaction]], Awaitable[None]] | None
+    ) = None,
 ) -> CorrectionLog:
     """Record a user correction to a transaction category.
 
@@ -84,6 +166,54 @@ async def record_correction(
     )
     db.add(correction)
     await db.flush()
+
+    # Reclassify posted entry / supersede transfer legs and repost if statement is approved (#2423)
+    from src.extraction.base.source_vocabulary import BankStatementStatus
+
+    statement = await _resolve_statement_for_transaction(db, user_id=user_id, txn=txn)
+    if statement is not None and statement.status == BankStatementStatus.APPROVED:
+        from src.ledger import JournalEntry, JournalEntryStatus, current_anchored_journal_entries
+        from src.ledger.extension.repository import void_journal_entry
+
+        existing_entries: list[JournalEntry] = []
+        anchored_stmt = current_anchored_journal_entries(
+            user_id=user_id,
+            target_kind="journal_command",
+            target_id=f"statement-transaction:{txn.id}",
+        ).where(JournalEntry.status != JournalEntryStatus.VOID)
+        for entry in (await db.execute(anchored_stmt)).scalars().all():
+            if entry not in existing_entries:
+                existing_entries.append(entry)
+
+        source_stmt = (
+            select(JournalEntry)
+            .where(JournalEntry.user_id == user_id)
+            .where(JournalEntry.source_id == txn.id)
+            .where(JournalEntry.status != JournalEntryStatus.VOID)
+        )
+        for entry in (await db.execute(source_stmt)).scalars().all():
+            if entry not in existing_entries:
+                existing_entries.append(entry)
+
+        for existing_entry in existing_entries:
+            await void_journal_entry(
+                db,
+                existing_entry.id,
+                reason=f"Category corrected to {corrected_category}",
+                user_id=user_id,
+                allow_reconciled=True,
+            )
+
+        if supersede_transfer_legs is not None:
+            await supersede_transfer_legs(
+                db,
+                user_id,
+                txn.id,
+                f"Category corrected to {corrected_category}",
+            )
+
+        if repost_approved_statement is not None:
+            await repost_approved_statement(db, statement, user_id, [txn])
 
     # Invalidate cache for this user
     invalidate_correction_cache(user_id)

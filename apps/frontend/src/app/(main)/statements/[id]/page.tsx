@@ -483,7 +483,10 @@ export default function StatementDetailPage() {
       <StatementSummaryCards statement={statement} />
 
       {/* Transactions Table */}
-      <StatementTransactionsTable statement={statement} />
+      <StatementTransactionsTable
+        statement={statement}
+        onTransactionUpdated={() => fetchStatement({ supersede: true })}
+      />
 
       {/* Delete Statement Confirmation */}
       <ConfirmDialog

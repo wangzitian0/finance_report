@@ -23,14 +23,14 @@ async def test_post_create_correction_and_stats(client: AsyncClient, db, test_us
         "/corrections",
         json={
             "transaction_id": str(txn.id),
-            "corrected_category": "Office Supplies",
+            "corrected_category": "Shopping",
         },
     )
 
     assert response.status_code == 201
     body = response.json()
     assert body["transaction_id"] == str(txn.id)
-    assert body["corrected_category"] == "Office Supplies"
+    assert body["corrected_category"] == "Shopping"
 
     stats = await client.get("/corrections/stats")
     assert stats.status_code == 200
@@ -210,3 +210,202 @@ async def test_post_correction_transfer_draft_is_posted_on_stage1_approval(
     )
     assert approved.status_code == 200
     assert approved.json()["journal_entries_created"] == 1
+
+
+async def test_post_correction_invalid_category_returns_400(client: AsyncClient, db, test_user):
+    """POST /corrections with non-canonical category returns 400 Bad Request."""
+    from tests.factories import AtomicTransactionFactory
+
+    txn = await AtomicTransactionFactory.create_async(
+        db,
+        user_id=test_user.id,
+        description="Coffee purchase",
+    )
+    await db.commit()
+
+    resp = await client.post(
+        "/corrections",
+        json={"transaction_id": str(txn.id), "corrected_category": "Food & Dining"},
+    )
+    assert resp.status_code == 400
+    assert "not a category" in resp.json()["detail"]
+
+
+async def test_post_correction_reclassifies_posted_entry_on_approved_statement(
+    client: AsyncClient, db, test_user, monkeypatch
+):
+    """POST /corrections on an approved statement voids the old JournalEntry and posts a replacement."""
+    from datetime import date
+    from decimal import Decimal
+
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from src.config import settings
+    from src.ledger import JournalEntry, JournalEntryStatus
+    from src.reconciliation import ReconciliationMatch, ReconciliationStatus
+    from tests.api._statement_router_fixtures import (
+        add_txn,
+        build_statement,
+        create_statement_account,
+    )
+
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    bank = await create_statement_account(db, test_user.id, "DBS Reclassify Test Bank")
+    statement = build_statement(test_user.id, "hash_reclassify_posted_2423", 88)
+    statement.account_id = bank.id
+    statement.opening_balance = Decimal("100.00")
+    statement.closing_balance = Decimal("70.00")
+    db.add(statement)
+    await db.flush()
+    txn = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 6),
+        description="Business meal",
+        amount=Decimal("30.00"),
+        direction="OUT",
+    )
+    user_id = test_user.id
+    txn_id = txn.id
+    await db.commit()
+
+    # Step 1: Set category to DINING and approve the statement
+    corr1 = await client.post(
+        "/corrections",
+        json={"transaction_id": str(txn_id), "corrected_category": "DINING"},
+    )
+    assert corr1.status_code == 201
+
+    approved = await client.post(
+        f"/statements/{statement.id}/review/approve",
+        json={"create_account_if_missing": False, "auto_fill_default_categories": False},
+    )
+    assert approved.status_code == 200
+    assert approved.json()["journal_entries_created"] == 1
+
+    # Check initial entry is POSTED
+    entries1 = (
+        await db.scalars(
+            select(JournalEntry)
+            .where(
+                JournalEntry.user_id == user_id,
+                JournalEntry.source_id == txn_id,
+            )
+            .options(selectinload(JournalEntry.lines))
+        )
+    ).all()
+    assert len(entries1) == 1
+    assert entries1[0].status == JournalEntryStatus.POSTED
+    initial_entry_id = entries1[0].id
+
+    # Step 2: User changes category to SHOPPING on the approved statement
+    corr2 = await client.post(
+        "/corrections",
+        json={"transaction_id": str(txn_id), "corrected_category": "SHOPPING"},
+    )
+    assert corr2.status_code == 201, f"{corr2.status_code}: {corr2.text}"
+
+    # Refresh DB entries for this transaction
+    await db.rollback()
+    entries2 = (
+        await db.scalars(
+            select(JournalEntry)
+            .where(
+                JournalEntry.user_id == user_id,
+                JournalEntry.source_id == txn_id,
+            )
+            .options(selectinload(JournalEntry.lines))
+        )
+    ).all()
+    assert len(entries2) == 2
+
+    old_entry = next(e for e in entries2 if e.id == initial_entry_id)
+    new_entry = next(e for e in entries2 if e.id != initial_entry_id)
+
+    assert old_entry.status == JournalEntryStatus.VOID
+    assert new_entry.status == JournalEntryStatus.POSTED
+    assert new_entry.memo == "Business meal"
+
+    # Step 3: User changes category to TRANSFER
+    corr3 = await client.post(
+        "/corrections",
+        json={"transaction_id": str(txn_id), "corrected_category": "TRANSFER"},
+    )
+    assert corr3.status_code == 201
+
+    await db.rollback()
+    all_entries = (
+        await db.scalars(
+            select(JournalEntry)
+            .where(
+                JournalEntry.user_id == user_id,
+                JournalEntry.source_id == txn_id,
+            )
+            .options(selectinload(JournalEntry.lines))
+        )
+    ).all()
+
+    # The shopping entry is now voided
+    refreshed_shopping = next(e for e in all_entries if e.id == new_entry.id)
+    assert refreshed_shopping.status == JournalEntryStatus.VOID
+
+    # Step 3 assertions: Processing transfer leg created as RECONCILED and match is ACCEPTED
+    processing_leg = next(
+        e
+        for e in all_entries
+        if e.id not in (initial_entry_id, new_entry.id) and e.status == JournalEntryStatus.RECONCILED
+    )
+    assert processing_leg is not None
+    assert processing_leg.status == JournalEntryStatus.RECONCILED
+    processing_leg_id = processing_leg.id
+
+    rec_matches = (
+        await db.scalars(
+            select(ReconciliationMatch).where(
+                ReconciliationMatch.atomic_txn_id == txn_id,
+            )
+        )
+    ).all()
+    assert len(rec_matches) >= 1
+    active_match = next(m for m in rec_matches if m.status == ReconciliationStatus.ACCEPTED)
+    assert str(processing_leg_id) in active_match.journal_entry_ids
+    active_match_id = active_match.id
+
+    # Step 4: User changes category back to DINING
+    corr4 = await client.post(
+        "/corrections",
+        json={"transaction_id": str(txn_id), "corrected_category": "DINING"},
+    )
+    assert corr4.status_code == 201
+
+    await db.rollback()
+    entries4 = (
+        await db.scalars(
+            select(JournalEntry)
+            .where(
+                JournalEntry.user_id == user_id,
+                JournalEntry.source_id == txn_id,
+            )
+            .options(selectinload(JournalEntry.lines))
+        )
+    ).all()
+
+    # The RECONCILED Processing leg is now VOID
+    refreshed_leg = next(e for e in entries4 if e.id == processing_leg_id)
+    assert refreshed_leg.status == JournalEntryStatus.VOID
+
+    # The ReconciliationMatch is now SUPERSEDED
+    refreshed_match = await db.get(ReconciliationMatch, active_match_id)
+    assert refreshed_match is not None
+    assert refreshed_match.status == ReconciliationStatus.SUPERSEDED
+
+    # A new POSTED DINING JournalEntry exists
+    dining_entry = next(
+        e
+        for e in entries4
+        if e.id not in (initial_entry_id, new_entry.id, processing_leg_id) and e.status == JournalEntryStatus.POSTED
+    )
+    assert dining_entry is not None
+    assert dining_entry.status == JournalEntryStatus.POSTED
+    assert dining_entry.memo == "Business meal"

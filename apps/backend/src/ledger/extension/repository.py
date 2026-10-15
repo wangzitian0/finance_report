@@ -222,6 +222,7 @@ async def void_journal_entry(
     user_id: UUID,
     *,
     base_currency: str | None = None,
+    allow_reconciled: bool = False,
 ) -> JournalEntry:
     """
     Void a posted journal entry by creating a reversal entry.
@@ -246,7 +247,10 @@ async def void_journal_entry(
         raise ValidationError(f"Journal entry {entry_id} not found")
     if entry.user_id != user_id:
         raise ValidationError("Journal entry does not belong to user")
-    if entry.status != JournalEntryStatus.POSTED:
+    allowed_statuses = (
+        (JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED) if allow_reconciled else (JournalEntryStatus.POSTED,)
+    )
+    if entry.status not in allowed_statuses:
         raise ValidationError("Can only void posted entries")
 
     # Load lines

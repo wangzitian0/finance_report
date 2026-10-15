@@ -437,7 +437,7 @@ async def authorize_financial_command(
         raise ValueError("financial command requires a current authoritative source decision")
 
     authorization_policy = FinancialCommandAuthorizationTracePolicy()
-    current_authorization = await emitter.repository.current_decision(
+    auth_head = await emitter.repository.decision_head(
         scope,
         TraceRecord.decision(
             scope=scope,
@@ -448,10 +448,9 @@ async def authorize_financial_command(
             parents=(upstream_decision,),
         ).lineage,
     )
-    if current_authorization is not None:
-        if current_authorization.target != target:
-            raise ValueError("a different command already owns this immutable source transaction")
-        return DecisionAnchor.from_record(current_authorization)
+    if auth_head is not None and auth_head.ancestry_current and auth_head.record.target == target:
+        return DecisionAnchor.from_record(auth_head.record)
+    authorization_supersedes_id = auth_head.record.record_id if auth_head is not None else None
 
     execution_id = f"journal-command:{target.id}:{target.version}"
     payload_digest = target.version
@@ -469,7 +468,7 @@ async def authorize_financial_command(
         reason_code="journal_command_payload_canonical",
     )
     payload_policy = JournalCommandPayloadTracePolicy()
-    current_guard = await emitter.repository.current_decision(
+    guard_head = await emitter.repository.decision_head(
         scope,
         TraceRecord.decision(
             scope=scope,
@@ -480,11 +479,10 @@ async def authorize_financial_command(
             parents=(observation,),
         ).lineage,
     )
-    if current_guard is not None:
-        if current_guard.target != target:
-            raise ValueError("a different command payload guard already owns this source transaction")
-        payload_guard = current_guard
+    if guard_head is not None and guard_head.ancestry_current and guard_head.record.target == target:
+        payload_guard = guard_head.record
     else:
+        guard_supersedes_id = guard_head.record.record_id if guard_head is not None else None
         emitted = await emitter.emit_many(
             (
                 observation,
@@ -495,6 +493,7 @@ async def authorize_financial_command(
                     execution_id=execution_id,
                     occurred_at=upstream_decision.occurred_at,
                     parents=(observation,),
+                    supersedes_id=guard_supersedes_id,
                 ),
             )
         )
@@ -507,5 +506,6 @@ async def authorize_financial_command(
         execution_id=execution_id,
         occurred_at=upstream_decision.occurred_at,
         parents=(upstream_decision, payload_guard),
+        supersedes_id=authorization_supersedes_id,
     )
     return DecisionAnchor.from_record(await emitter.emit(authorization))
