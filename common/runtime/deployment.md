@@ -209,8 +209,8 @@ git push origin v1.2.3
 A Production release waits for the owner to approve the `production`
 environment of infra2. The infra2 receiver refuses a Production request that is
 older than its age limit (`PRODUCTION_REQUEST_MAX_AGE_SECONDS` in infra2
-`libs/deploy/app_deploy_request.py`). It checks the age about a minute after the
-approval. The refusal reads `request expired: created <time>, now <time>, limit
+`libs/deploy/app_deploy_request.py`). It checks the age within one minute after
+the approval. The refusal reads `request expired: created <time>, now <time>, limit
 <n> s`. While the request waits, the transport prints the receiver run link and
 the approval deadline. The deadline keeps a margin for the start of the check.
 `tools/_lib/deploy/app_deploy_transport.py` holds a copy of the limit, because

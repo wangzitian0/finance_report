@@ -6,9 +6,12 @@ import ast
 import importlib
 import io
 import json
+import os
 import re
+import select
 import shlex
 import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
@@ -716,6 +719,7 @@ def test_AC_runtime_deploy_request_5_transport_announces_the_approval_wait() -> 
     assert "The run was created at 2026-10-14 10:55:50Z" in notice
     # The retry names the version of the refused request. A rollback request names the rollback version.
     assert "Dispatch the release again for v2.3.4" in notice
+    assert "older than 1440 s" in notice
 
     # A time with an offset is shown in UTC.
     offset_notices: list[str] = []
@@ -797,8 +801,12 @@ def test_AC_runtime_deploy_request_5_transport_announces_the_approval_wait() -> 
         assert "Dispatch the release again for v2.3.4" in unknown_notices[0]
 
     # The wrapper leaves a payload of another shape to the SDK, which refuses it with its own error.
-    for payload in ([], None):
-        with pytest.raises(RuntimeError, match="must be an object"):
+    for payload, error in (
+        ([], "must be an object"),
+        (None, "must be an object"),
+        ({"workflow_runs": ["x"]}, "must contain a run list"),
+    ):
+        with pytest.raises(RuntimeError, match=error):
             _drive_transport(
                 VALID_PRODUCTION_REQUEST,
                 [{"workflow_runs": [{"id": 200}]}, payload],
@@ -850,47 +858,80 @@ class _TrackingStream(io.StringIO):
 def test_AC_runtime_deploy_request_5_default_notice_reaches_the_run_log(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """AC-runtime.deploy-request.5: the default notice is a log line and, in GitHub Actions, an annotation."""
+    """AC-runtime.deploy-request.5: the default notice is a log line and, in GitHub Actions, an annotation, both on stderr."""
     impl = importlib.import_module("tools._lib.deploy.app_deploy_transport")
     message = "Approval needed: https://github.com/wangzitian0/infra2/actions/runs/201"
 
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     impl.print_approval_notice(message)
     captured = capsys.readouterr()
-    assert f"::notice title=Production approval needed::{message}" in captured.out
-    assert message in captured.err
+    assert captured.out == "", "stdout stays the JSON result of the program"
+    assert f"::notice title=Production approval needed::{message}" in captured.err
+    assert f"\n{message}\n" in captured.err
 
     monkeypatch.delenv("GITHUB_ACTIONS")
     impl.print_approval_notice(message)
     captured = capsys.readouterr()
-    assert "::notice" not in captured.out
+    assert captured.out == ""
+    assert "::notice" not in captured.err
     assert message in captured.err
 
 
 def test_AC_runtime_deploy_request_5_notice_is_flushed_at_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC-runtime.deploy-request.5: a piped stdout is block-buffered, so the notice must be flushed.
-
-    Without the flush the runner reads the annotation when the process exits, after the wait.
-    """
+    """AC-runtime.deploy-request.5: each notice line is flushed, so that a pipe has it before the wait ends."""
     impl = importlib.import_module("tools._lib.deploy.app_deploy_transport")
     stdout, stderr = _TrackingStream(), _TrackingStream()
     monkeypatch.setattr(impl.sys, "stdout", stdout)
     monkeypatch.setattr(impl.sys, "stderr", stderr)
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     impl.print_approval_notice("Approval needed: https://example.test/run/1")
-    assert stdout.getvalue(), "the annotation was not written"
-    assert not stdout.unflushed, "the annotation stays in the stdout buffer"
-    assert not stderr.unflushed, "the log line stays in the stderr buffer"
+    assert "::notice" in stderr.getvalue(), "the annotation was not written"
+    assert stdout.getvalue() == ""
+    assert not stderr.unflushed, "the notice stays in the stderr buffer"
 
 
+def test_AC_runtime_deploy_request_5_notice_reaches_a_pipe_before_the_process_ends() -> (
+    None
+):
+    """AC-runtime.deploy-request.5: a parent that reads the pipe gets the annotation while the process still waits."""
+    code = (
+        "import time\n"
+        "from tools._lib.deploy.app_deploy_transport import print_approval_notice\n"
+        "print_approval_notice('Approval needed: https://example.test/run/1')\n"
+        "time.sleep(30)\n"
+    )
+    env = {**os.environ, "GITHUB_ACTIONS": "true", "PYTHONPATH": str(ROOT)}
+    proc = subprocess.Popen(
+        [sys.executable, "-c", code],
+        cwd=ROOT,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert proc.stderr is not None
+        ready, _, _ = select.select([proc.stderr], [], [], 20)
+        assert ready, "no line on the pipe within 20 s: the notice stays in a buffer"
+        assert proc.stderr.readline().startswith(
+            "::notice title=Production approval needed::Approval needed:"
+        )
+        assert proc.poll() is None, "the process ended before the parent read the line"
+    finally:
+        proc.kill()
+        proc.wait()
+
+
+@pytest.mark.parametrize("github_actions", ["true", None])
 def test_AC_runtime_deploy_request_5_cli_prints_the_notice_with_the_default_announcer(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    github_actions: str | None,
 ) -> None:
-    """AC-runtime.deploy-request.5: the CLI path uses the default announcer, so a release prints the notice."""
+    """AC-runtime.deploy-request.5: the CLI path uses the default announcer. stdout stays pure JSON in any environment."""
     transport = importlib.import_module("tools.app_deploy_transport")
     impl = importlib.import_module("tools._lib.deploy.app_deploy_transport")
     request_id = str(VALID_PRODUCTION_REQUEST["request_id"])
@@ -903,6 +944,10 @@ def test_AC_runtime_deploy_request_5_cli_prints_the_notice_with_the_default_anno
     def api(method: str, path: str, body: object = None) -> object:
         return next(pages) if method == "GET" else None
 
+    if github_actions is None:
+        monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    else:
+        monkeypatch.setenv("GITHUB_ACTIONS", github_actions)
     monkeypatch.setenv("INFRA2_PAT", "test-token")
     monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output"))
     monkeypatch.setattr(
@@ -916,6 +961,9 @@ def test_AC_runtime_deploy_request_5_cli_prints_the_notice_with_the_default_anno
     assert transport.main(["--timeout", "5", "--poll-interval", "1"]) == 0
     captured = capsys.readouterr()
     assert "Approve before 2026-10-14 11:17:50Z" in captured.err
+    assert ("::notice title=Production approval needed::" in captured.err) == (
+        github_actions == "true"
+    )
     assert json.loads(captured.out) == {
         "receiver_run_id": 201,
         "receiver_run_url": "https://github.com/wangzitian0/infra2/actions/runs/201",

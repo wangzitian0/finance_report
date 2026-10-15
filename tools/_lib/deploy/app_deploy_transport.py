@@ -37,10 +37,11 @@ PRODUCTION_APPROVAL_MARGIN_SECONDS = 120
 def print_approval_notice(message: str) -> None:
     """Show the notice in the run log, and as an annotation in GitHub Actions.
 
-    A piped stdout is block-buffered. The flush makes the runner read the annotation at once.
+    Both lines go to stderr. The runner reads workflow commands on both streams, and
+    stdout stays the JSON result of this program. The last write flushes both lines.
     """
     if os.environ.get("GITHUB_ACTIONS") == "true":
-        print(f"::notice title=Production approval needed::{message}", flush=True)
+        print(f"::notice title=Production approval needed::{message}", file=sys.stderr)
     print(message, file=sys.stderr, flush=True)
 
 
@@ -74,7 +75,7 @@ def _approval_notice(run: Mapping[str, Any], version_ref: str) -> str:
         when = (
             f"Approve before {deadline:%Y-%m-%d %H:%M:%S}Z. "
             f"The receiver refuses a request that is older than {PRODUCTION_APPROVAL_WINDOW_SECONDS} s "
-            "when its check runs, about 1 minute after the approval. "
+            "when its check runs, within one minute after the approval. "
             f"The run was created at {created:%Y-%m-%d %H:%M:%S}Z."
         )
     return (
