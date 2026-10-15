@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAssetTrend } from "@/hooks/dashboard/useAssetTrend";
 import { apiOperation } from "@/lib/api-client";
@@ -112,5 +112,55 @@ describe("useAssetTrend (EPIC-022 AC22.16.3)", () => {
 
     await waitFor(() => expect(result.current.trendAccountId).toBeNull());
     expect(result.current.trendAccountName).toBe("Cash");
+  });
+});
+
+describe("useAssetTrend page unload (AC-reporting.fe-ia-reports.27, #2473)", () => {
+  // One stable object: a new balance sheet on every render would refetch in a loop.
+  const cash = balanceWith([{ account_id: "a1", name: "Cash", type: "ASSET", amount: "5000" }]);
+  const cashOnly = () => cash;
+
+  beforeEach(() => {
+    // An earlier test in this file spies on console.error and keeps its call history.
+    vi.restoreAllMocks();
+    mockedApiOperation.mockReset();
+    window.dispatchEvent(new Event("pageshow"));
+  });
+
+  afterEach(() => {
+    window.dispatchEvent(new Event("pageshow"));
+    vi.restoreAllMocks();
+  });
+
+  it("AC-reporting.fe-ia-reports.27 does not log a fetch that the browser aborted while the page unloads", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    window.dispatchEvent(new Event("pagehide"));
+    mockedApiOperation.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    const { result } = renderHook(() => useAssetTrend(cashOnly()));
+
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalled());
+    await waitFor(() => expect(result.current.trend).toBeNull());
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it("AC-reporting.fe-ia-reports.27 still logs a real trend failure while the page stays open", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockedApiOperation.mockRejectedValue(new Error("trend down"));
+
+    renderHook(() => useAssetTrend(cashOnly()));
+
+    await waitFor(() => expect(consoleError).toHaveBeenCalledWith("Failed to fetch trend data:", expect.any(Error)));
+  });
+
+  it("AC-reporting.fe-ia-reports.27 logs again after the browser restores the page from its cache", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    window.dispatchEvent(new Event("pagehide"));
+    window.dispatchEvent(new Event("pageshow"));
+    mockedApiOperation.mockRejectedValue(new Error("trend down"));
+
+    renderHook(() => useAssetTrend(cashOnly()));
+
+    await waitFor(() => expect(consoleError).toHaveBeenCalled());
   });
 });

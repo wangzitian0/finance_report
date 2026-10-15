@@ -1,4 +1,4 @@
-"""AC-llm.12.2, AC-testing.product-gates.7: journeys that approve a statement own their fixture facts (#2332).
+"""AC-llm.12.2, AC-testing.product-gates.7, AC-testing.product-gates.14: journeys that approve a statement own their fixture facts (#2332, #2473).
 
 Each check below pins one defect of the AI/OCR audit replay on staging v0.1.74.
 """
@@ -16,10 +16,7 @@ from common.testing.provider_review import _description_key
 REPO_ROOT = Path(__file__).resolve().parents[2]
 E2E = REPO_ROOT / "tests" / "e2e"
 FIXTURES = REPO_ROOT / "common" / "testing" / "fixtures" / "pdf" / "generated"
-FAKE_DATA = (
-    REPO_ROOT / "common" / "testing" / "fixtures" / "pdf" / "data" / "fake_data.py"
-)
-# The disposition tables of CMB and Ping An keep one generic fallback row.
+# The disposition table of CMB keeps one generic fallback row.
 GENERIC_DESCRIPTIONS = {_description_key("交易")}
 
 
@@ -60,7 +57,11 @@ def _disposition_keys(tree: ast.Module, table: str) -> set[str]:
 
 @pytest.mark.parametrize(
     ("table", "fixture"),
-    [("MARIBANK_DISPOSITIONS", "maribank"), ("CMB_DISPOSITIONS", "cmb")],
+    [
+        ("MARIBANK_DISPOSITIONS", "maribank"),
+        ("CMB_DISPOSITIONS", "cmb"),
+        ("PINGAN_DISPOSITIONS", "pingan"),
+    ],
 )
 def test_a_committed_fixture_disposition_table_covers_exactly_the_fixture_rows(
     table: str, fixture: str
@@ -83,41 +84,12 @@ def test_a_committed_fixture_disposition_table_covers_exactly_the_fixture_rows(
     assert keys - GENERIC_DESCRIPTIONS == fixture_rows
 
 
-def _generator_descriptions(function: str) -> set[str]:
-    """Descriptions that a fixture generator can emit, read from its `descriptions` list."""
-    tree = ast.parse(FAKE_DATA.read_text(encoding="utf-8"))
-    generator = next(
-        n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == function
-    )
-    for node in ast.walk(generator):
-        if (
-            isinstance(node, ast.Assign)
-            and isinstance(node.targets[0], ast.Name)
-            and node.targets[0].id == "descriptions"
-        ):
-            return {_description_key(row.elts[0].value) for row in node.value.elts}
-    raise AssertionError(f"{function} has no descriptions list")
-
-
-def test_the_pingan_table_covers_every_description_its_generator_can_emit() -> None:
-    """The Ping An journey uploads a PDF built at run time, so the table must cover its whole vocabulary."""
-    vocabulary = _generator_descriptions("generate_pingan_transactions")
-    keys = {
-        _description_key(key)
-        for key in _disposition_keys(
-            _tree("test_institution_statement_journeys.py"), "PINGAN_DISPOSITIONS"
-        )
-    }
-
-    assert vocabulary
-    assert vocabulary <= keys, f"no disposition for {sorted(vocabulary - keys)}"
-
-
 @pytest.mark.parametrize(
     ("journey", "pdf"),
     [
         ("test_maribank_statement_journey", "maribank_statement_fixture.pdf"),
         ("test_cmb_statement_journey", "cmb_statement_fixture.pdf"),
+        ("test_pingan_statement_journey", "pingan_statement_fixture.pdf"),
     ],
 )
 def test_a_committed_fixture_journey_uploads_the_committed_pdf_with_an_envelope(
@@ -232,3 +204,62 @@ def test_the_four_asset_journey_reports_on_a_past_month_end_with_a_matching_pdf(
         )
         for call in brokerage_uploads
     )
+
+
+#: Intents that fix the direction of the money. The other intents, such as a transfer, accept both.
+INTENT_DIRECTION = {
+    "income": "IN",
+    "expense_refund": "IN",
+    "investment_sale": "IN",
+    "expense": "OUT",
+    "card_repayment": "OUT",
+    "investment_purchase": "OUT",
+}
+
+
+def _disposition_intents(tree: ast.Module, table: str) -> dict[str, str]:
+    """Description -> intent of one disposition table. The intent is the first call argument."""
+    for node in tree.body:
+        if (
+            isinstance(node, ast.Assign)
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == table
+        ):
+            return {
+                _description_key(key.value): value.args[0].value  # type: ignore[attr-defined]
+                for key, value in zip(node.value.keys, node.value.values)  # type: ignore[attr-defined]
+                if isinstance(key, ast.Constant)
+            }
+    raise AssertionError(f"{table} not found")
+
+
+@pytest.mark.parametrize(
+    ("table", "fixture"),
+    [
+        ("MARIBANK_DISPOSITIONS", "maribank"),
+        ("CMB_DISPOSITIONS", "cmb"),
+        ("PINGAN_DISPOSITIONS", "pingan"),
+    ],
+)
+def test_AC_testing_product_gates_14_each_fixture_row_has_a_disposition_that_fits_its_direction(
+    table: str, fixture: str
+) -> None:
+    """A disposition whose intent contradicts the row direction fails the approval with HTTP 400 (#2473)."""
+    expected = json.loads(
+        (FIXTURES / f"{fixture}_statement_fixture_expected.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    intents = _disposition_intents(
+        _tree("test_institution_statement_journeys.py"), table
+    )
+
+    conflicts = [
+        f"{event['description']!r} is {event['direction']} but its intent is {intents[_description_key(event['description'])]!r}"
+        for event in expected["events"]
+        if INTENT_DIRECTION.get(intents[_description_key(event["description"])])
+        not in (None, event["direction"])
+    ]
+
+    assert expected["events"]
+    assert conflicts == []

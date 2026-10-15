@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiOperation } from "@/lib/api-client";
 import { compareAmounts } from "@/lib/audit/money";
+import { isPageUnloading } from "@/lib/pageUnload";
 import type { BalanceSheetResponse, TrendResponse } from "@/lib/types";
 
 /**
@@ -54,7 +55,10 @@ export function useAssetTrend(
       });
       setTrend(trendData);
     } catch (err) {
-      console.error("Failed to fetch trend data:", err);
+      // A fetch that the browser aborted while the page unloads is not a failure.
+      if (!isPageUnloading()) {
+        console.error("Failed to fetch trend data:", err);
+      }
       setTrend(null);
     }
   }, [balanceSheet, trendAccountId]);

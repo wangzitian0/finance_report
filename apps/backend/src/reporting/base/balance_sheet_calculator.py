@@ -55,6 +55,31 @@ def calculate_currency_translation_adjustment(
     return to_money(pnl_var - ufx + eq_var)
 
 
+#: Largest rounding error that one quantized money figure can carry: half of one cent.
+HALF_CENT = Decimal("0.005")
+
+
+def absorb_translation_rounding(
+    *,
+    cta_adjustment: Decimal,
+    residual: Decimal,
+    rounded_figure_count: int,
+) -> Decimal:
+    """Move a cent-level rounding residual of a translated report into the CTA reserve (#2473).
+
+    Each account line is rounded to the cent. Net income, unrealized FX and CTA are
+    rounded from unrounded sums. The two sides can differ by a few cents although the
+    unrounded books balance. The residual is a rounding artefact of translation, so
+    the translation reserve takes it.
+
+    The residual moves only when it fits the rounding bound: half a cent for each
+    rounded figure. A larger residual is a real imbalance and stays in the equation delta.
+    """
+    if residual == 0 or abs(residual) > HALF_CENT * rounded_figure_count:
+        return cta_adjustment
+    return to_money(cta_adjustment + residual)
+
+
 def calculate_balance_sheet_equation(
     *,
     total_assets: Decimal,

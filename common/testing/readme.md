@@ -62,7 +62,9 @@ The testing architecture strictly separates accounting mathematical verification
 from deployed user journeys (#2318, #2370):
 1. **Bench V2**: Pure accounting mathematical assertions and multi-period invariant
    checks ($\Delta = 0.00$ SGD), driven by `common/meta/flows/thirty_flows_ssot.json`.
-   It does not execute browser UI flows.
+   It runs no multi-step user journey. Its only browser step is the read-only route
+   check of Pillars 2 and 3 (`case_ui`): each route must load, log no console error,
+   and show no developer jargon (`AC-testing.benchmarks.3`).
 2. **Core Journey**: Physical user journeys on deployed environments, driven by
    `common/testing/data/core-journey-checkpoints.json` (U1 to U13) and published to
    the Core Journey Board.
