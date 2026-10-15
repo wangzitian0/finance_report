@@ -30,6 +30,7 @@ from common.audit.base.trace import (  # noqa: E402
     VersionedTraceRef,
 )
 from common.audit.extension.trace_codec import TraceRecordCodec  # noqa: E402
+from common.testing.coverage.junit import iter_testcases  # noqa: E402
 
 
 REPO_ROOT = ROOT_DIR
@@ -217,26 +218,19 @@ def summarize_junit(xml_paths: list[Path]) -> dict[str, Any]:
     total = passed = failed = skipped = 0
     failed_tests: list[str] = []
     for path in xml_paths:
-        try:
-            root = ET.parse(path).getroot()
-        except (OSError, ET.ParseError):
-            continue
-        # Handle both <testsuites><testsuite>... and a bare <testsuite> root.
-        suites = root.iter("testsuite")
-        for suite in suites:
-            for case in suite.iter("testcase"):
-                total += 1
-                failure = case.find("failure")
-                error = case.find("error")
-                if case.find("skipped") is not None:
-                    skipped += 1
-                elif failure is not None or error is not None:
-                    failed += 1
-                    name = case.get("classname", "")
-                    case_name = case.get("name", "<unknown>")
-                    failed_tests.append(f"{name}::{case_name}" if name else case_name)
-                else:
-                    passed += 1
+        for case in iter_testcases(path):
+            total += 1
+            failure = case.find("failure")
+            error = case.find("error")
+            if case.find("skipped") is not None:
+                skipped += 1
+            elif failure is not None or error is not None:
+                failed += 1
+                name = case.get("classname", "")
+                case_name = case.get("name", "<unknown>")
+                failed_tests.append(f"{name}::{case_name}" if name else case_name)
+            else:
+                passed += 1
     return {
         "total": total,
         "passed": passed,
@@ -331,29 +325,24 @@ def classify_junit(xml_paths: list[Path]) -> dict[str, Any]:
     """
     cases: list[dict[str, str]] = []
     for path in xml_paths:
-        try:
-            root = ET.parse(path).getroot()
-        except (OSError, ET.ParseError):
-            continue
-        for suite in root.iter("testsuite"):
-            for case in suite.iter("testcase"):
-                report = case.find("failure")
-                if report is None:
-                    report = case.find("error")
-                if report is None:
-                    continue
-                text = f"{report.get('message', '')}\n{report.text or ''}"
-                name = case.get("classname", "")
-                case_name = case.get("name", "<unknown>")
-                failure_class, subtype = _classify_failure_text(text)
-                cases.append(
-                    {
-                        "test": f"{name}::{case_name}" if name else case_name,
-                        "class": failure_class,
-                        "subtype": subtype,
-                        "file": _case_file(case) or "",
-                    }
-                )
+        for case in iter_testcases(path):
+            report = case.find("failure")
+            if report is None:
+                report = case.find("error")
+            if report is None:
+                continue
+            text = f"{report.get('message', '')}\n{report.text or ''}"
+            name = case.get("classname", "")
+            case_name = case.get("name", "<unknown>")
+            failure_class, subtype = _classify_failure_text(text)
+            cases.append(
+                {
+                    "test": f"{name}::{case_name}" if name else case_name,
+                    "class": failure_class,
+                    "subtype": subtype,
+                    "file": _case_file(case) or "",
+                }
+            )
     by_class = {
         key: [case for case in cases if case["class"] == key]
         for key in ("regression", "precondition", "transient")

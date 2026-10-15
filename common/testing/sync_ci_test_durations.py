@@ -24,6 +24,7 @@ from common.testing.backend_shard import (
     file_durations,
     split_files,
 )
+from common.testing.coverage.junit import iter_testcases
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -50,13 +51,7 @@ def extract_durations_from_xmls(xml_paths: Sequence[Path]) -> dict[str, float]:
     """Extract node_id -> duration mapping from a sequence of JUnit XML files."""
     durations: dict[str, float] = {}
     for path in xml_paths:
-        if not path.is_file():
-            continue
-        try:
-            tree = ElementTree.parse(path)
-        except ElementTree.ParseError:
-            continue
-        for case in tree.iter("testcase"):
+        for case in iter_testcases(path):
             nid = case_to_node_id(case)
             t = round(float(case.get("time", 0.0)), 3)
             durations[nid] = t

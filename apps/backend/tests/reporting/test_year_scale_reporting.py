@@ -8,13 +8,23 @@ keeps generation under a generous wall-clock backstop.
 """
 
 import time
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from uuid import uuid4
 
+from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntryAuthorityState,
+    JournalEntryStatus,
+    JournalLine,
+)
 from src.reporting import generate_balance_sheet, generate_cash_flow, generate_income_statement
 
 ENTRY_COUNT = 1000
@@ -31,22 +41,61 @@ async def test_AC5_20_year_scale_reporting_ties_out_within_budget(db: AsyncSessi
     db.add_all([bank, salary])
     await db.flush()
 
+    now = datetime.now(UTC)
     start = date(2026, 1, 1)
-    entries = []
+    entry_rows = []
+    line_rows = []
     for i in range(ENTRY_COUNT):
-        entry = JournalEntry(
-            user_id=user_id,
-            entry_date=start + timedelta(days=i % 365),
-            memo=f"txn {i}",
-            source_type=JournalEntrySourceType.MANUAL,
-            status=JournalEntryStatus.POSTED,
+        entry_id = uuid4()
+        entry_rows.append(
+            {
+                "id": entry_id,
+                "user_id": user_id,
+                "entry_date": start + timedelta(days=i % 365),
+                "memo": f"txn {i}",
+                "source_type": JournalEntrySourceType.MANUAL,
+                "source_id": None,
+                "decision_anchor_id": None,
+                "decision_authority_state": JournalEntryAuthorityState.LEGACY_UNPROVEN,
+                "status": JournalEntryStatus.POSTED,
+                "void_reason": None,
+                "void_reversal_entry_id": None,
+                "created_at": now,
+                "updated_at": now,
+            }
         )
-        entry.lines = [
-            JournalLine(account_id=bank.id, direction=Direction.DEBIT, amount=AMOUNT, currency="SGD"),
-            JournalLine(account_id=salary.id, direction=Direction.CREDIT, amount=AMOUNT, currency="SGD"),
-        ]
-        entries.append(entry)
-    db.add_all(entries)
+        line_rows.append(
+            {
+                "id": uuid4(),
+                "journal_entry_id": entry_id,
+                "account_id": bank.id,
+                "direction": Direction.DEBIT,
+                "amount": AMOUNT,
+                "currency": "SGD",
+                "fx_rate": None,
+                "event_type": None,
+                "tags": None,
+                "created_at": now,
+                "updated_at": now,
+            }
+        )
+        line_rows.append(
+            {
+                "id": uuid4(),
+                "journal_entry_id": entry_id,
+                "account_id": salary.id,
+                "direction": Direction.CREDIT,
+                "amount": AMOUNT,
+                "currency": "SGD",
+                "fx_rate": None,
+                "event_type": None,
+                "tags": None,
+                "created_at": now,
+                "updated_at": now,
+            }
+        )
+    await db.execute(insert(JournalEntry), entry_rows)
+    await db.execute(insert(JournalLine), line_rows)
     await db.commit()
 
     period_start = date(2026, 1, 1)

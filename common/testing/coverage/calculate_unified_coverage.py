@@ -31,6 +31,7 @@ from common.meta.extension.coverage.policy import (
     CoverageComponent,
     get_component,
 )
+from common.testing.coverage.lcov import parse_lcov_summaries
 
 # Configuration
 ROOT_DIR = Path(__file__).resolve().parents[3]
@@ -176,68 +177,22 @@ def parse_lcov_records(
     if not lcov_path.exists():
         return []
 
-    records: dict[str, dict] = {}
-    current_source = ""
-    current_file_covered = 0
-    current_file_total = 0
-    in_record = False
-
-    def flush_record() -> None:
-        nonlocal current_source, current_file_covered, current_file_total, in_record
-        if not in_record or not current_source:
-            return
-        source = (
-            component.normalize_lcov_source(current_source, repo_root)
-            if component is not None
-            else current_source.replace("\\", "/")
-        )
-        record = records.setdefault(
-            source,
-            {
-                "path": source,
-                "covered_lines": 0,
-                "total_lines": 0,
-            },
-        )
-        record["covered_lines"] += current_file_covered
-        record["total_lines"] += current_file_total
-        current_source = ""
-        current_file_covered = 0
-        current_file_total = 0
-        in_record = False
-
-    with open(lcov_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith("SF:"):
-                flush_record()
-                in_record = True
-                current_source = line[3:]
-                current_file_covered = 0
-                current_file_total = 0
-            elif line.startswith("LH:"):
-                try:
-                    current_file_covered = int(line[3:])
-                except ValueError:
-                    pass
-            elif line.startswith("LF:"):
-                try:
-                    current_file_total = int(line[3:])
-                except ValueError:
-                    pass
-            elif line == "end_of_record":
-                flush_record()
-
-    flush_record()
-
+    normalize = (
+        (lambda src: component.normalize_lcov_source(src, repo_root))
+        if component is not None
+        else (lambda src: src.replace("\\", "/"))
+    )
+    summaries = parse_lcov_summaries(lcov_path, normalize_source=normalize)
     return [
         {
-            **record,
+            "path": source,
+            "covered_lines": counts["covered_lines"],
+            "total_lines": counts["total_lines"],
             "coverage_percent": _coverage_percent(
-                record["covered_lines"], record["total_lines"]
+                counts["covered_lines"], counts["total_lines"]
             ),
         }
-        for record in records.values()
+        for source, counts in summaries.items()
     ]
 
 

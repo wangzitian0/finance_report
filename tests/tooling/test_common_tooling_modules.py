@@ -117,7 +117,6 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
     """AC-testing.toolchain.5: AC8.13.56: Coverage commands live under tools and delegate to tools._lib."""
     build_tool = importlib.import_module("tools.build_unified_lcov")
     calc_tool = importlib.import_module("tools.calculate_unified_coverage")
-    analyzer_tool = importlib.import_module("tools.coverage_analyzer")
     merge_tool = importlib.import_module("tools.merge_lcov")
     strip_tool = importlib.import_module("tools.strip_lcov_branches")
     policy_tool = importlib.import_module("tools.check_coverage_policy")
@@ -133,10 +132,6 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
         is importlib.import_module(
             "common.testing.coverage.calculate_unified_coverage"
         ).main
-    )
-    assert (
-        analyzer_tool.main
-        is importlib.import_module("common.testing.coverage.analyzer").main
     )
     assert (
         merge_tool.main

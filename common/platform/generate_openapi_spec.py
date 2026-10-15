@@ -14,7 +14,6 @@ Splitting it this way keeps each step in its own toolchain (Python here, Node th
 from __future__ import annotations
 
 import argparse
-import difflib
 import json
 import sys
 from collections.abc import Sequence
@@ -46,6 +45,47 @@ def generate() -> str:
     return render(_load_openapi())
 
 
+def diff_json_paths(current: Any, rendered: Any, prefix: str = "") -> list[str]:
+    """Find differences between two JSON structures and return JSON pointer paths."""
+    if prefix == "" and isinstance(current, str) and isinstance(rendered, str):
+        try:
+            current = json.loads(current)
+            rendered = json.loads(rendered)
+        except Exception:
+            pass
+
+    if type(current) is not type(rendered):
+        return [prefix or "/"]
+
+    if isinstance(current, dict) and isinstance(rendered, dict):
+        differing: list[str] = []
+        for key in sorted(set(current.keys()) | set(rendered.keys())):
+            escaped = str(key).replace("~", "~0").replace("/", "~1")
+            child_prefix = f"{prefix}/{escaped}"
+            if key not in current or key not in rendered:
+                differing.append(child_prefix)
+            else:
+                differing.extend(
+                    diff_json_paths(current[key], rendered[key], child_prefix)
+                )
+        return differing
+
+    if isinstance(current, list) and isinstance(rendered, list):
+        differing = []
+        max_len = max(len(current), len(rendered))
+        for i in range(max_len):
+            child_prefix = f"{prefix}/{i}"
+            if i >= len(current) or i >= len(rendered):
+                differing.append(child_prefix)
+            else:
+                differing.extend(diff_json_paths(current[i], rendered[i], child_prefix))
+        return differing
+
+    if current != rendered:
+        return [prefix or "/"]
+    return []
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -72,20 +112,27 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 1
         if current != rendered:
-            diff = list(
-                difflib.unified_diff(
-                    current.splitlines(),
-                    rendered.splitlines(),
-                    fromfile=str(output),
-                    tofile="generated",
-                    lineterm="",
-                )
-            )
             print(
                 "ERROR: committed openapi.json is stale — run tools/generate_openapi_spec.py",
                 file=sys.stderr,
             )
-            print("\n".join(diff[:60]), file=sys.stderr)
+            try:
+                current_obj = json.loads(current)
+                rendered_obj = json.loads(rendered)
+                differing = diff_json_paths(current_obj, rendered_obj)
+            except Exception:
+                differing = None
+
+            if differing is not None:
+                print(f"Total differing paths: {len(differing)}", file=sys.stderr)
+                for path in differing[:25]:
+                    print(f"  {path}", file=sys.stderr)
+                if len(differing) > 25:
+                    print(
+                        f"  ... and {len(differing) - 25} more paths", file=sys.stderr
+                    )
+            else:
+                print("ERROR: existing file is not valid JSON.", file=sys.stderr)
             return 1
         return 0
 
