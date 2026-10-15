@@ -155,6 +155,9 @@ async def test_effective_usd_base_drives_posting_trigger_and_equation(db: AsyncS
     posted_id = posted.id
     await db.commit()
 
+    with pytest.raises(ValidationError, match="fx_rate required"):
+        await verify_accounting_equation(db, user_id, base_currency="SGD")
+
     reversal = await void_journal_entry(
         db,
         posted_id,
@@ -166,9 +169,8 @@ async def test_effective_usd_base_drives_posting_trigger_and_equation(db: AsyncS
     assert reversal.status == JournalEntryStatus.POSTED
     assert {line.currency for line in reversal.lines} == {"USD"}
     assert await verify_accounting_equation(db, user_id, base_currency="USD") is True
-
-    with pytest.raises(ValidationError, match="fx_rate required"):
-        await verify_accounting_equation(db, user_id, base_currency="SGD")
+    # Once voided, the entry and reversal annihilate, leaving zero active lines
+    assert await verify_accounting_equation(db, user_id, base_currency="SGD") is True
 
 
 async def test_void_preserves_historical_base_after_effective_currency_change(db: AsyncSession, test_user) -> None:

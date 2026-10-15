@@ -49,7 +49,12 @@ from src.ledger.base.validators import ValidationError
 from src.ledger.extension import account_service
 from src.ledger.extension.post import post_entry
 from src.ledger.orm.account import Account
-from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger.orm.journal import (
+    Direction,
+    JournalEntry,
+    JournalLine,
+    active_journal_entry_filter,
+)
 from src.observability import get_logger
 
 logger = get_logger(__name__)
@@ -147,7 +152,7 @@ async def find_transfer_pairs(
         .options(selectinload(JournalEntry.lines))
         .join(JournalLine, JournalEntry.id == JournalLine.journal_entry_id)
         .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.source_type == JournalEntrySourceType.SYSTEM)
         .where(JournalLine.account_id == processing_account.id)
     )
@@ -384,7 +389,7 @@ async def get_processing_balance(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(JournalLine.account_id == processing_account.id)
         .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(active_journal_entry_filter(JournalEntry))
     )
     lines = result.scalars().all()
 
@@ -423,7 +428,7 @@ async def get_unpaired_transfers(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(JournalLine.account_id == processing_account.id)
         .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.source_type == JournalEntrySourceType.SYSTEM)
         .order_by(JournalEntry.entry_date.desc())
     )
@@ -460,7 +465,7 @@ async def list_processing_transfer_legs(
         .join(JournalLine, JournalLine.journal_entry_id == JournalEntry.id)
         .where(JournalLine.account_id == processing_account.id)
         .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.source_type == JournalEntrySourceType.SYSTEM)
         .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
         .order_by(JournalEntry.entry_date.desc())

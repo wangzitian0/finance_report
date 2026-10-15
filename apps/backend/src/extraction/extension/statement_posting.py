@@ -684,14 +684,12 @@ async def try_auto_post_statement_opening_balance(
     if existing is not None:
         if existing.state != "authoritative":
             raise ValueError("Opening balance authority needs review")
-        if existing.effective_date > statement.period_start:
-            if (
-                statement.closing_balance is not None
-                and abs(statement.closing_balance - existing.amount) <= STATEMENT_BALANCE_TOLERANCE
-            ):
+        if existing.effective_date < statement.period_start:
+            return False
+        if existing.effective_date == statement.period_start:
+            if abs(statement.opening_balance - existing.amount) <= STATEMENT_BALANCE_TOLERANCE:
                 return False
-            raise ValueError("Earlier statement requires opening-balance correction before posting")
-        return False
+            raise ValueError("Opening balance conflicts with existing opening position for the same date")
     source_decision_id = None
     if statement.current_extraction_result_id is not None:
         contribution = await resolve_statement_contribution(db, user_id=user_id, statement_id=statement.id)

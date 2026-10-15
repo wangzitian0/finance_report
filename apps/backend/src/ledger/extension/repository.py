@@ -30,7 +30,21 @@ from src.ledger.base.validators import (
     validate_journal_posting_invariants,
 )
 from src.ledger.orm.account import Account
-from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryAuthorityState, JournalEntryStatus, JournalLine
+from src.ledger.orm.journal import (
+    Direction,
+    JournalEntry,
+    JournalEntryAuthorityState,
+    JournalEntryStatus,
+    JournalLine,
+    active_journal_entry_filter,
+)
+
+__all__ = [
+    "active_journal_entry_filter",
+    "post_journal_entry",
+    "validate_line_account_ownership",
+    "void_journal_entry",
+]
 
 
 async def _set_transaction_base_currency(db: AsyncSession, base_currency: str | None) -> str:
@@ -264,7 +278,7 @@ async def void_journal_entry(
     reversal_entry = await submit_system_journal_entry(
         db,
         user_id=user_id,
-        entry_date=date.today(),
+        entry_date=entry.entry_date,
         memo=fit_journal_memo(f"VOID: {entry.memo}"),
         lines_data=[
             {

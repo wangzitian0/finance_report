@@ -8,9 +8,23 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
-from sqlalchemy import DECIMAL, CheckConstraint, Date, DateTime, Enum, ForeignKey, String, Text, event
+from sqlalchemy import (
+    DECIMAL,
+    CheckConstraint,
+    ColumnElement,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    String,
+    Text,
+    and_,
+    event,
+    exists,
+    select,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, aliased, mapped_column, relationship
 
 # JournalEntrySourceType (the provenance/trust vocabulary) is owned by the
 # ``audit`` package, co-located with the trust hierarchy that ranks it
@@ -153,6 +167,15 @@ class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     def confidence_tier(self) -> str:
         """Derived UI confidence tier based on source type."""
         return derive_confidence_tier(self.source_type)
+
+
+def active_journal_entry_filter(entry_cls: Any = JournalEntry) -> ColumnElement[bool]:
+    """SQLAlchemy filter matching posted/reconciled entries excluding void-reversal pairs."""
+    voided_entry = aliased(JournalEntry)
+    return and_(
+        entry_cls.status.in_((JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)),
+        ~exists(select(voided_entry.id).where(voided_entry.void_reversal_entry_id == entry_cls.id)),
+    )
 
 
 class JournalLine(Base, UUIDMixin, TimestampMixin):

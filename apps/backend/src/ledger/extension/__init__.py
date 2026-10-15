@@ -45,12 +45,14 @@ from src.ledger.extension.processing import (
     list_processing_transfer_legs,
 )
 from src.ledger.extension.repository import (
+    active_journal_entry_filter,
     post_journal_entry,
     validate_line_account_ownership,
     void_journal_entry,
 )
 
 __all__ = [
+    "active_journal_entry_filter",
     "list_opening_positions",
     "AccountNotFoundError",
     "AnchoredJournalCommand",

@@ -9,7 +9,14 @@ from sqlalchemy import func, select
 from src.audit import to_money
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalLine,
+    active_journal_entry_filter,
+)
 from src.platform import raise_bad_request
 from src.pricing import PricingError, convert_amount
 from src.reporting import AnnualizedIncomeTotals, income_bucket, resolve_line_currency
@@ -34,7 +41,7 @@ async def get_annualized_income(
         latest_entry_date = await db.scalar(
             select(func.max(JournalEntry.entry_date))
             .where(JournalEntry.user_id == user_id)
-            .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+            .where(active_journal_entry_filter(JournalEntry))
         )
         report_date = latest_entry_date or date.today()
     else:
@@ -47,7 +54,7 @@ async def get_annualized_income(
         .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.entry_date > start_date)
         .where(JournalEntry.entry_date <= report_date)
-        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(Account.type == AccountType.INCOME)
     )
 

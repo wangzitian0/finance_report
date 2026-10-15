@@ -23,7 +23,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit.money import Currency
 from src.ledger.base.validators import ValidationError
 from src.ledger.orm.account import Account, AccountType
-from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger.orm.journal import (
+    Direction,
+    JournalEntry,
+    JournalLine,
+    active_journal_entry_filter,
+)
 
 
 async def calculate_account_balance(db: AsyncSession, account_id: UUID, user_id: UUID) -> Decimal:
@@ -60,7 +65,7 @@ async def calculate_account_balance(db: AsyncSession, account_id: UUID, user_id:
         .where(JournalLine.account_id == account_id)
         .where(JournalLine.direction == Direction.DEBIT)
         .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(active_journal_entry_filter(JournalEntry))
     )
 
     credit_query = (
@@ -70,7 +75,7 @@ async def calculate_account_balance(db: AsyncSession, account_id: UUID, user_id:
         .where(JournalLine.account_id == account_id)
         .where(JournalLine.direction == Direction.CREDIT)
         .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(active_journal_entry_filter(JournalEntry))
     )
 
     debit_result = await db.execute(debit_query)
@@ -123,7 +128,7 @@ async def calculate_account_balances_in_base_currency(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(JournalEntry.user_id == user_id)
         .where(JournalLine.account_id.in_(account_ids))
-        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(func.coalesce(func.upper(JournalLine.currency), base_currency) != base_currency)
         .where(JournalLine.fx_rate.is_(None))
         .limit(1)
@@ -177,7 +182,7 @@ async def _calculate_account_balances(
         .where(Account.user_id == user_id)
         .where(JournalEntry.user_id == user_id)
         .where(JournalLine.account_id.in_(account_ids))
-        .where(JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]))
+        .where(active_journal_entry_filter(JournalEntry))
         .group_by(JournalLine.account_id)
     )
     result = await db.execute(net_query)

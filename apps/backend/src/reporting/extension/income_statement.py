@@ -12,12 +12,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryAuthorityState, JournalLine
+from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
 from src.reporting.base.income_statement_calculator import calculate_income_statement_totals
 from src.reporting.base.l1_registry import economic_category_line
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
-    _REPORT_STATUSES,
     _build_account_lines,
     _load_accounts,
 )
@@ -128,7 +128,7 @@ async def generate_income_statement(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
         .where(Account.type.in_(account_types))
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.entry_date >= start_date)
         .where(JournalEntry.entry_date <= end_date)
     )

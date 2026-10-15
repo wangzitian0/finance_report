@@ -11,7 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import TraceDecisionRef, TraceScope, VersionedTraceRef, current_authoritative_trace_decision_projection
 from src.ledger.base.contribution import JournalLineContribution, ResolvedJournalContribution
 from src.ledger.orm.account import Account
-from src.ledger.orm.journal import JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger.orm.journal import (
+    JournalEntry,
+    JournalLine,
+    active_journal_entry_filter,
+)
 
 
 async def list_journal_contributions(
@@ -44,7 +48,7 @@ async def list_journal_contributions(
         .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.entry_date >= start_date)
         .where(JournalEntry.entry_date <= end_date)
-        .where(JournalEntry.status.in_((JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)))
+        .where(active_journal_entry_filter(JournalEntry))
         .order_by(JournalEntry.entry_date, JournalEntry.id, JournalLine.id)
     )
     grouped: dict[UUID, tuple[JournalEntry, TraceDecisionRef | None, list[JournalLineContribution]]] = {}

@@ -276,6 +276,7 @@ CONTRACT = PackageContract(
         "UnbalancedEntryError",
         "ValidationError",
         "account_service",
+        "active_journal_entry_filter",
         "calculate_account_balance",
         "calculate_account_balances",
         "calculate_account_balances_in_base_currency",

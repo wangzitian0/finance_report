@@ -15,7 +15,12 @@ from src.ledger.base.validators import ValidationError
 from src.ledger.extension.anchored_posting import submit_system_journal_entry
 from src.ledger.extension.opening_positions import list_opening_positions, record_opening_position
 from src.ledger.orm.account import Account, AccountType
-from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger.orm.journal import (
+    Direction,
+    JournalEntry,
+    JournalLine,
+    active_journal_entry_filter,
+)
 
 __all__ = ["get_opening_balance_readiness", "initialize_opening_positions", "post_opening_balance_entry"]
 
@@ -129,11 +134,23 @@ async def initialize_opening_positions(
         if previous:
             if previous.state != "authoritative":
                 raise ValidationError("Existing opening evidence needs review before replacement")
-            if (previous.effective_date, previous.amount, previous.currency) != (entry_date, amount, code):
+            if (previous.effective_date, previous.amount, previous.currency) == (entry_date, amount, code):
+                if previous.journal_entry_id:
+                    existing_entries.add(previous.journal_entry_id)
+                continue
+            if entry_date < previous.effective_date:
+                if previous.journal_entry_id:
+                    from src.ledger.extension.repository import void_journal_entry
+
+                    await void_journal_entry(
+                        db,
+                        entry_id=previous.journal_entry_id,
+                        reason="Superseded by earlier statement opening balance",
+                        user_id=user_id,
+                        base_currency=normalized_base,
+                    )
+            else:
                 raise ValidationError("Account already has a different opening position; use the correction lifecycle")
-            if previous.journal_entry_id:
-                existing_entries.add(previous.journal_entry_id)
-            continue
         rate = (fx_rates or {}).get(code)
         if code != normalized_base and amount != 0:
             if not isinstance(rate, Decimal) or not rate.is_finite() or rate <= 0:
@@ -155,7 +172,7 @@ async def initialize_opening_positions(
         .where(
             JournalLine.account_id.in_(new),
             JournalEntry.user_id == user_id,
-            JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]),
+            active_journal_entry_filter(JournalEntry),
             JournalEntry.entry_date < entry_date,
         )
         .limit(1)
@@ -237,7 +254,7 @@ async def get_opening_balance_readiness(db: AsyncSession, user_id: UUID) -> dict
                 JournalEntry.user_id == user_id,
                 Account.is_system.is_(False),
                 Account.type.in_([AccountType.ASSET, AccountType.LIABILITY]),
-                JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]),
+                active_journal_entry_filter(JournalEntry),
                 JournalEntry.id.notin_(opening_ids),
             )
             .group_by(Account.id)
