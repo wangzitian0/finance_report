@@ -17,6 +17,20 @@ def _clear():
 
 async def test_get_few_shot_examples_cache_hit_and_limit(db, test_user):
     """AC-extraction.407.2: get_few_shot_examples respects default limit and caches results."""
+    categories = [
+        "DINING",
+        "GROCERIES",
+        "TRANSPORT",
+        "HOUSING",
+        "UTILITIES",
+        "SHOPPING",
+        "HEALTHCARE",
+        "ENTERTAINMENT",
+        "TRAVEL",
+        "EDUCATION",
+        "INSURANCE",
+        "FEES",
+    ]
     for i in range(12):
         txn = await AtomicTransactionFactory.create_async(
             db,
@@ -27,7 +41,7 @@ async def test_get_few_shot_examples_cache_hit_and_limit(db, test_user):
             db,
             user_id=test_user.id,
             transaction_id=txn.id,
-            corrected_category=f"Corrected{i}",
+            corrected_category=categories[i % len(categories)],
         )
     await db.commit()
 

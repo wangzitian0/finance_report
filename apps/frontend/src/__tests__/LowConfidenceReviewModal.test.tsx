@@ -102,7 +102,7 @@ describe("LowConfidenceReviewModal", () => {
     expect(screen.getByText("medium")).toBeInTheDocument();
   });
 
-  it("selects category via quick category chips and types manually", async () => {
+  it("selects category via quick category chips and select dropdown", async () => {
     render(
       <LowConfidenceReviewModal
         isOpen={true}
@@ -114,12 +114,11 @@ describe("LowConfidenceReviewModal", () => {
     const diningChip = screen.getByRole("button", { name: "Dining" });
     fireEvent.click(diningChip);
 
-    const input = screen.getByLabelText(/Classification Category/i) as HTMLInputElement;
-    expect(input.value).toBe("DINING");
+    const select = screen.getByLabelText(/Classification Category/i) as HTMLSelectElement;
+    expect(select.value).toBe("DINING");
 
-    await userEvent.clear(input);
-    await userEvent.type(input, "TRANSPORT");
-    expect(input.value).toBe("TRANSPORT");
+    await userEvent.selectOptions(select, "TRANSPORT");
+    expect(select.value).toBe("TRANSPORT");
   });
 
   it("submits correction via apiOperation on save", async () => {
@@ -192,10 +191,10 @@ describe("LowConfidenceReviewModal", () => {
       />
     );
 
-    const input = screen.getByLabelText(/Classification Category/i);
-    await userEvent.clear(input);
+    const select = screen.getByLabelText(/Classification Category/i) as HTMLSelectElement;
+    await userEvent.selectOptions(select, "");
 
-    const form = input.closest("form")!;
+    const form = select.closest("form")!;
     fireEvent.submit(form);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Please select or enter a category.");

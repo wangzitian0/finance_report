@@ -151,7 +151,7 @@ async def test_few_shot_examples_returns_corrections(db, test_user):
         db,
         user_id=test_user.id,
         transaction_id=txn.id,
-        corrected_category="Food & Dining",
+        corrected_category="Dining",
     )
     await db.commit()
 
@@ -159,7 +159,26 @@ async def test_few_shot_examples_returns_corrections(db, test_user):
     assert len(examples) == 1
     assert examples[0]["description"] == "Coffee at Starbucks"
     assert examples[0]["original_category"] == "Other"
-    assert examples[0]["corrected_category"] == "Food & Dining"
+    assert examples[0]["corrected_category"] == "Dining"
+
+
+async def test_record_correction_invalid_category_raises(db, test_user):
+    """Non-canonical category string raises SuggestionCorrectionError."""
+    from src.extraction import SuggestionCorrectionError
+
+    txn = await AtomicTransactionFactory.create_async(
+        db,
+        user_id=test_user.id,
+        description="Coffee at Starbucks",
+    )
+    await db.flush()
+    with pytest.raises(SuggestionCorrectionError):
+        await record_correction(
+            db,
+            user_id=test_user.id,
+            transaction_id=txn.id,
+            corrected_category="Food & Dining",
+        )
 
 
 async def test_few_shot_examples_empty_returns_empty(db, test_user):

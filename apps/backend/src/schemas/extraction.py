@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Literal
@@ -81,6 +82,7 @@ class AtomicTransactionResponse(BaseModel):
     reference: str | None = None
     currency: str | None = None
     balance_after: Decimal | None = None
+    category: TransactionCategory | None = None
     proposed_category: TransactionCategory | None = None
     confidence_score: int | None = None
     confidence_tier: Literal["HIGH", "MEDIUM", "LOW"] | None = None
@@ -97,13 +99,16 @@ class AtomicTransactionResponse(BaseModel):
         suggestion: ClassificationSuggestion | None = None,
     ) -> AtomicTransactionResponse:
         proposed_category: TransactionCategory | None = None
+        category: TransactionCategory | None = None
         confidence_score: int | None = None
         confidence_tier: Literal["HIGH", "MEDIUM", "LOW"] | None = None
         if suggestion is not None:
             try:
                 proposed_category = TransactionCategory(suggestion.category)
+                category = proposed_category
             except ValueError:
                 proposed_category = None
+                category = None
             confidence_score = 100 if suggestion.corrected else suggestion.confidence
             if suggestion.corrected or suggestion.applied or confidence_score >= 85:
                 confidence_tier = "HIGH"
@@ -121,6 +126,7 @@ class AtomicTransactionResponse(BaseModel):
             reference=txn.reference,
             currency=txn.currency,
             balance_after=txn.balance_after,
+            category=category,
             proposed_category=proposed_category,
             confidence_score=confidence_score,
             confidence_tier=confidence_tier,
@@ -167,6 +173,7 @@ def compose_statement_response(
     summary: StatementSummary,
     uploaded_document: UploadedDocument | None,
     atomic_txns: list[AtomicTransaction],
+    suggestions: Mapping[UUID, ClassificationSuggestion] | None = None,
 ) -> BankStatementResponse:
     """Compose a ``BankStatementResponse`` from the layered DWD records.
 
@@ -200,7 +207,12 @@ def compose_statement_response(
         validation_error=summary.validation_error,
         created_at=summary.created_at,
         updated_at=summary.updated_at,
-        transactions=[AtomicTransactionResponse.from_atomic(txn, summary.id) for txn in atomic_txns],
+        transactions=[
+            AtomicTransactionResponse.from_atomic(
+                txn, summary.id, suggestion=suggestions.get(txn.id) if suggestions else None
+            )
+            for txn in atomic_txns
+        ],
     )
 
 
