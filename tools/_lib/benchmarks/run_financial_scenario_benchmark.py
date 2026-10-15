@@ -282,8 +282,8 @@ class ScenarioBenchmarkRunner:
 
         return count
 
-    # The review envelope states these facts of the parsed statement. The run reads each one
-    # from the statement. A default would confirm a source that the run never read (#2484).
+    # The review envelope states these facts of the parsed statement. The run reads each fact
+    # from the statement. It never invents one (#2484).
     ENVELOPE_FACTS = (
         "currency",
         "period_start",

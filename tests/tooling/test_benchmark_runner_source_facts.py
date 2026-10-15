@@ -1,10 +1,13 @@
 """AC-testing.benchmarks.11 and AC-testing.benchmarks.12: the Bench V2 runner states only what it read (#2484).
 
-Each test fails on the earlier behavior or guards against fixing it too far:
-- The review envelope used an invented period and zero balances when the parsed statement had none.
-- A failed review lookup and a rejected envelope ended as a misleading "Approval failed ... 400".
-- A manifest entry without a SHA-256 passed the fixture check, and the download step wrote its bytes
-  and printed "Verified".
+Each test fails on the earlier behavior, or guards a behavior that must stay.
+- A missing fact of the parsed statement. The earlier code sent invented dates ("2025-04-01") or the
+  text "None" in the review envelope. The backend rejected both with HTTP 422. The run ended without
+  the name of the missing fact.
+- A failed review lookup and a rejected envelope ended with the message "Approval failed ... 400".
+  The message named neither cause.
+- A manifest entry without a SHA-256 passed the fixture check. The download step wrote its bytes and
+  printed "Verified".
 """
 
 from __future__ import annotations
@@ -33,7 +36,7 @@ class _Resp:
 
 
 class _ApprovalClient:
-    """The first approve asks for a human confirmation. The envelope call unlocks it."""
+    """The first approval request asks for a human confirmation. The envelope request unlocks it."""
 
     def __init__(
         self,
@@ -41,11 +44,13 @@ class _ApprovalClient:
         review_status: int = 200,
         envelope_status: int = 200,
         needs_confirmation: bool = True,
+        statement_statuses: list[int] | None = None,
     ) -> None:
         self.statement = statement
         self.review_status = review_status
         self.envelope_status = envelope_status
         self.needs_confirmation = needs_confirmation
+        self.statement_statuses = list(statement_statuses or [])
         self.posts: list[tuple[str, dict[str, Any]]] = []
         self.confirmed = False
 
@@ -56,7 +61,8 @@ class _ApprovalClient:
                 {"source_result_digest": "digest-1", "account_id": "acc-1"},
                 "review text",
             )
-        return _Resp(200, self.statement)
+        status = self.statement_statuses.pop(0) if self.statement_statuses else 200
+        return _Resp(status, self.statement, "statement text")
 
     def post(self, url: str, json: dict[str, Any]) -> _Resp:
         self.posts.append((url, json))
@@ -160,6 +166,20 @@ def test_AC_testing_benchmarks_11_a_failed_review_lookup_is_reported_with_its_st
     client = _ApprovalClient(_statement(), review_status=500)
 
     with pytest.raises(RuntimeError, match="Review lookup failed .* 500 review text"):
+        _runner().approve_statement(client, "s-1")  # type: ignore[arg-type]
+
+    assert _envelope_posts(client) == []
+
+
+def test_AC_testing_benchmarks_11_a_failed_statement_fetch_is_reported_with_its_status() -> (
+    None
+):
+    # The first fetch (is the statement approved?) succeeds. The fetch for the envelope fails.
+    client = _ApprovalClient(_statement(), statement_statuses=[200, 500])
+
+    with pytest.raises(
+        RuntimeError, match="Failed to fetch statement s-1: 500 statement text"
+    ):
         _runner().approve_statement(client, "s-1")  # type: ignore[arg-type]
 
     assert _envelope_posts(client) == []

@@ -73,7 +73,7 @@ def download_fixture(
     expected_sha = fixture.get("sha256")
     if not expected_sha:
         print(
-            f"  [ERROR] Manifest has no sha256 for {fixture['local_path']}; nothing written"
+            f"  [ERROR] Manifest has no sha256 for {fixture['local_path']}. The step writes no file."
         )
         return False
 
