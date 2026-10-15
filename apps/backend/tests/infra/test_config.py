@@ -69,6 +69,7 @@ def test_cors_origin_regex_defaults_to_match_nothing(monkeypatch) -> None:
 def test_AC_runtime_env_empty_values_2_settings_empty_env_resolution(monkeypatch, tmp_path) -> None:
     """AC-runtime.env-empty-values.2: Settings resolves empty environment strings safely across alias chains."""
     # 1. Process environment: empty values fall back safely to defaults
+    monkeypatch.delenv("ZAI_API_KEY", raising=False)  # the old name of the key (#2487)
     monkeypatch.setenv("AI_API_KEY", "")
     monkeypatch.setenv("CORS_ORIGINS", "")
     monkeypatch.setenv("API_RATE_LIMIT_REQUESTS", "")

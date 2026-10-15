@@ -21,7 +21,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `MARKET_DATA_YAHOO_TIMEOUT_SECONDS` | `5` |  |  | App Settings | Timeout (seconds) for outbound Yahoo Finance market-data calls. |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` |  | yes | App Settings | Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL and is used by backend components when they link back to the frontend app. |
 | `REDIS_URL` |  |  |  | App Settings | Optional Redis URL for staging/production background coordination. |
-| `AI_API_KEY` |  |  | yes | AI Provider | AI provider API key (empty key = AI features disabled). |
+| `AI_API_KEY` |  |  | yes | AI Provider | AI provider API key (empty key = AI features disabled). Settings also reads the old name ZAI_API_KEY. |
 | `AI_BASE_URL` | `https://api.z.ai/api/coding/paas/v4` |  |  | AI Provider | AI provider base URL (provider-neutral; default targets Z.AI/GLM). |
 | `AI_CHAT_COMPLETIONS_PATH` | `/chat/completions` |  |  | AI Provider | Chat completions path appended to the AI base URL. |
 | `AI_EXTRACT_MAX_ATTEMPTS` | `2` |  |  | AI Provider | Max balance-aware re-extract attempts for bank statements (1 disables retry). |
