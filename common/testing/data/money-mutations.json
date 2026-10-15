@@ -1,0 +1,118 @@
+{
+  "mutations": [
+    {
+      "id": "ledger/journal-balance-tolerance",
+      "guard": "tests/ledger/test_accounting_equation_mutations.py",
+      "file": "apps/backend/src/ledger/base/validators.py",
+      "find": "if abs((total_debit - total_credit).amount) > Decimal(\"0.01\"):",
+      "replace": "if abs((total_debit - total_credit).amount) > Decimal(\"1.00\"):",
+      "command": [
+        "{python}",
+        "-m",
+        "pytest",
+        "tests/ledger/test_accounting_equation_mutations.py",
+        "-n0",
+        "--no-cov",
+        "-x",
+        "-q"
+      ],
+      "cwd": "apps/backend"
+    },
+    {
+      "id": "ledger/fx-rate-required-for-foreign-currency",
+      "guard": "tests/ledger/test_accounting_equation_mutations.py",
+      "file": "apps/backend/src/ledger/base/validators.py",
+      "find": "if line_currency != effective_base and line.fx_rate is None:",
+      "replace": "if False and line_currency != effective_base and line.fx_rate is None:",
+      "command": [
+        "{python}",
+        "-m",
+        "pytest",
+        "tests/ledger/test_accounting_equation_mutations.py",
+        "-n0",
+        "--no-cov",
+        "-x",
+        "-q"
+      ],
+      "cwd": "apps/backend"
+    },
+    {
+      "id": "ledger/leg-positive-amount",
+      "guard": "tests/ledger/test_accounting_equation_mutations.py",
+      "file": "apps/backend/src/ledger/base/types/entry.py",
+      "find": "if not self.money.is_positive():",
+      "replace": "if False:",
+      "command": [
+        "{python}",
+        "-m",
+        "pytest",
+        "tests/ledger/test_accounting_equation_mutations.py",
+        "-n0",
+        "--no-cov",
+        "-x",
+        "-q"
+      ],
+      "cwd": "apps/backend"
+    },
+    {
+      "id": "classification/score-cuts-decimal-instead-of-rounding",
+      "guard": "tests/extraction/test_auto_accept.py",
+      "file": "apps/backend/src/extraction/extension/transaction_classification.py",
+      "find": "return min(100, math.floor(number))",
+      "replace": "return min(100, math.ceil(number))",
+      "command": [
+        "{python}",
+        "-m",
+        "pytest",
+        "tests/extraction/test_auto_accept.py",
+        "-k",
+        "decimal_part",
+        "-n0",
+        "--no-cov",
+        "-x",
+        "-q"
+      ],
+      "cwd": "apps/backend"
+    },
+    {
+      "id": "classification/mixed-scale-batch-drops-ambiguous-fractions",
+      "guard": "tests/extraction/test_classification_hardening.py",
+      "file": "apps/backend/src/extraction/extension/transaction_classification.py",
+      "find": "return [None if is_fraction else item for item, is_fraction in zip(items, fractional, strict=True)]",
+      "replace": "return list(items)",
+      "command": [
+        "{python}",
+        "-m",
+        "pytest",
+        "tests/extraction/test_classification_hardening.py",
+        "-k",
+        "scale",
+        "-n0",
+        "--no-cov",
+        "-x",
+        "-q"
+      ],
+      "cwd": "apps/backend"
+    },
+    {
+      "id": "posting/high-confidence-auto-approve-requires-balance-validated",
+      "guard": "tests/extraction/test_statements_shift_left.py",
+      "file": "apps/backend/src/extraction/extension/statement_posting.py",
+      "find": "and statement.balance_validated is True",
+      "replace": "and True",
+      "command": [
+        "{python}",
+        "-m",
+        "pytest",
+        "tests/extraction/test_statements_shift_left.py",
+        "-k",
+        "auto_approve",
+        "-n0",
+        "--no-cov",
+        "-x",
+        "-q"
+      ],
+      "cwd": "apps/backend"
+    }
+  ]
+}

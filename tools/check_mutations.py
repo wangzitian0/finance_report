@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Command wrapper for production smoke authentication verification."""
+"""CLI wrapper for common.testing.mutation_check (#2448)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common.runtime.verify_prod_smoke_auth import main  # noqa: E402
+from common.testing.mutation_check import main  # noqa: E402
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import os
 import subprocess
 import sys
 from collections.abc import Callable, Iterable, Sequence
@@ -224,8 +225,23 @@ CHECKS: tuple[Check, ...] = (
                 "--no-cov",
             ),
         ),
-        why="financial calculation logic changed: in-memory BenchV2 articulation matrix must balance",
+        why="financial calculation logic changed: BenchV2 articulation matrix must balance (isolated PostgreSQL test namespace)",
         cwd="apps/backend",
+        tier="static",
+    ),
+    Check(
+        name="money-mutation",
+        globs=(
+            "apps/backend/src/ledger/*.py",
+            "apps/backend/src/extraction/extension/classification.py",
+            "apps/backend/src/extraction/extension/transaction_classification.py",
+            "apps/backend/src/extraction/extension/statement_posting.py",
+            "common/testing/mutation_check.py",
+            "common/testing/data/money-mutations.json",
+            "tools/check_mutations.py",
+        ),
+        commands=((PY, "tools/check_mutations.py", "--advisory"),),
+        why="money/classification code changed: run advisory mutation reproof against declared invariants (#2448)",
         tier="static",
     ),
     Check(
@@ -583,10 +599,21 @@ def changed_files(base: str | None = None, *, git: Git = _default_git) -> list[s
 DEFAULT_SUBPROCESS_TIMEOUT: int = 180
 
 
+def _child_env() -> dict[str, str]:
+    """Build subprocess environment with an isolated TEST_NAMESPACE for preflight checks."""
+    env = os.environ.copy()
+    env.setdefault("TEST_NAMESPACE", f"preflight_{os.getpid()}")
+    return env
+
+
 def _default_runner(argv: Sequence[str], cwd: str) -> int:
     try:
         return subprocess.run(
-            list(argv), cwd=cwd, check=False, timeout=DEFAULT_SUBPROCESS_TIMEOUT
+            list(argv),
+            cwd=cwd,
+            env=_child_env(),
+            check=False,
+            timeout=DEFAULT_SUBPROCESS_TIMEOUT,
         ).returncode
     except subprocess.TimeoutExpired:
         print(
@@ -601,6 +628,7 @@ def _default_quiet_runner(argv: Sequence[str], cwd: str) -> int:
         proc = subprocess.run(
             list(argv),
             cwd=cwd,
+            env=_child_env(),
             capture_output=True,
             text=True,
             errors="replace",
