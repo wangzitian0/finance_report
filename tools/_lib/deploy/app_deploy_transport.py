@@ -8,6 +8,7 @@ import os
 import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,73 @@ from common.runtime.github_api import write_github_output  # noqa: E402
 from tools.app_deploy_request import request_from_mapping  # noqa: E402
 
 
+# The infra2 receiver refuses a Production request that is older than this age.
+# The value is PRODUCTION_REQUEST_MAX_AGE_SECONDS in infra2 libs/deploy/app_deploy_request.py.
+# infra2_sdk 3.5.0 does not export it, so this module holds a copy.
+PRODUCTION_APPROVAL_WINDOW_SECONDS = 24 * 60
+
+
+def print_approval_notice(message: str) -> None:
+    """Show the notice in the run log, and as an annotation in GitHub Actions."""
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::notice title=Production approval needed::{message}")
+    print(message, file=sys.stderr)
+
+
+def _utc_time(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.astimezone(UTC) if parsed.tzinfo else None
+
+
+def _approval_notice(run: Mapping[str, Any]) -> str:
+    created = _utc_time(run.get("created_at"))
+    if created is None:
+        when = "The latest approval time is unknown: the run has no creation time. Approve at once."
+    else:
+        latest = created + timedelta(seconds=PRODUCTION_APPROVAL_WINDOW_SECONDS)
+        when = (
+            f"The receiver refuses the request after {latest:%Y-%m-%d %H:%M:%S}Z "
+            f"(run created {created:%Y-%m-%d %H:%M:%S}Z plus {PRODUCTION_APPROVAL_WINDOW_SECONDS} s)."
+        )
+    return (
+        f"Approval needed: {run.get('html_url')} waits for the owner to approve "
+        f"the 'production' environment. {when} "
+        "Dispatch the release again if the receiver refuses the request."
+    )
+
+
+def _announce_approval_wait(
+    api: Api, request_id: str, announce: Callable[[str], None]
+) -> Api:
+    """Return api. It announces once when the receiver run of request_id waits for approval."""
+    announced = False
+
+    def watching_api(method: str, path: str, body: object = None) -> object:
+        nonlocal announced
+        payload = api(method, path, body)
+        if method == "GET" and not announced:
+            runs = (
+                payload.get("workflow_runs") if isinstance(payload, Mapping) else None
+            )
+            for run in runs if isinstance(runs, list) else []:
+                if (
+                    isinstance(run, Mapping)
+                    and request_id in str(run.get("display_title", ""))
+                    and run.get("status") == "waiting"
+                ):
+                    announce(_approval_notice(run))
+                    announced = True
+                    break
+        return payload
+
+    return watching_api
+
+
 def dispatch_and_wait(
     raw_request: Mapping[str, Any],
     *,
@@ -32,11 +100,17 @@ def dispatch_and_wait(
     sleep: Callable[[float], None] = time.sleep,
     poll_interval: float = 5.0,
     max_attempts: int = 300,
+    announce: Callable[[str], None] = print_approval_notice,
 ) -> ReceiverRun:
     """Validate raw_request under Finance Report's fixed-env authority, then delegate
     the watermark/ambiguity-guard/log-content-verification dispatch algorithm to
-    infra2_sdk.deploy.dispatch_and_wait — the shared infra2-receiver-boundary implementation."""
+    infra2_sdk.deploy.dispatch_and_wait — the shared infra2-receiver-boundary implementation.
+
+    A Production request waits for the owner to approve the infra2 environment. While it waits,
+    announce receives one notice with the approval link and the latest approval time."""
     request = request_from_mapping(raw_request)
+    if request.deploy_type.value == "prod":
+        api = _announce_approval_wait(api, request.request_id, announce)
     return _sdk_dispatch_and_wait(
         request,
         api=api,

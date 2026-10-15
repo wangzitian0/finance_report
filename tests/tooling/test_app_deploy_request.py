@@ -635,6 +635,152 @@ def test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge() -> N
     assert all(not (ROOT / path).exists() for path in retired_source_readers)
 
 
+def _approval_wait_pages(
+    request_id: str,
+    statuses: list[str],
+    *,
+    title: str | None = None,
+    created_at: str | None = "2026-10-14T10:55:50Z",
+) -> list[dict[str, object]]:
+    """Receiver run lists: one baseline page, then one page per status."""
+    run_title = title or f"Deploy finance_report/app prod v2.3.4 abc [{request_id}]"
+    pages: list[dict[str, object]] = [{"workflow_runs": [{"id": 200}]}]
+    for status in statuses:
+        run: dict[str, object] = {
+            "id": 201,
+            "display_title": run_title,
+            "status": status,
+            "conclusion": "success" if status == "completed" else None,
+            "html_url": "https://github.com/wangzitian0/infra2/actions/runs/201",
+        }
+        if created_at is not None:
+            run["created_at"] = created_at
+        pages.append({"workflow_runs": [run, {"id": 200}]})
+    return pages
+
+
+def _drive_transport(
+    request: dict[str, object],
+    pages: list[dict[str, object]],
+    notices: list[str],
+    *,
+    max_attempts: int,
+) -> object:
+    transport = importlib.import_module("tools.app_deploy_transport")
+    remaining = iter(pages)
+
+    def api(method: str, path: str, body: object = None) -> object:
+        return next(remaining) if method == "GET" else None
+
+    return transport.dispatch_and_wait(
+        request,
+        api=api,
+        fetch_logs=lambda run_id: str(request["request_id"]).encode(),
+        sleep=lambda _: None,
+        max_attempts=max_attempts,
+        announce=notices.append,
+    )
+
+
+def test_AC_runtime_deploy_request_5_transport_announces_the_approval_wait() -> None:
+    """AC-runtime.deploy-request.5: a waiting Production request names its approval link and last approval time."""
+    request_id = str(VALID_PRODUCTION_REQUEST["request_id"])
+
+    notices: list[str] = []
+    result = _drive_transport(
+        VALID_PRODUCTION_REQUEST,
+        _approval_wait_pages(
+            request_id, ["waiting", "waiting", "in_progress", "completed"]
+        ),
+        notices,
+        max_attempts=4,
+    )
+    assert result.run_id == 201
+    assert len(notices) == 1, "the notice appears once, not once per poll"
+    notice = notices[0]
+    assert "https://github.com/wangzitian0/infra2/actions/runs/201" in notice
+    # Created 10:55:50Z plus the 24 min age limit of the infra2 receiver.
+    assert "2026-10-14 11:19:50Z" in notice
+    assert "Dispatch the release again" in notice
+
+    # A Staging request has no approval gate and no age limit.
+    staging_notices: list[str] = []
+    _drive_transport(
+        VALID_REQUEST,
+        _approval_wait_pages(
+            request_id,
+            ["waiting", "completed"],
+            title=f"Deploy finance_report/app staging v2.3.4 abc [{request_id}]",
+        ),
+        staging_notices,
+        max_attempts=2,
+    )
+    assert staging_notices == []
+
+    # A waiting run of another request is not the approval of this request.
+    other_notices: list[str] = []
+    with pytest.raises(RuntimeError, match="timed out"):
+        _drive_transport(
+            VALID_PRODUCTION_REQUEST,
+            _approval_wait_pages(
+                request_id,
+                ["waiting", "waiting"],
+                title="Deploy finance_report/app prod v2.3.4 abc [finance-report-run-99999999]",
+            ),
+            other_notices,
+            max_attempts=2,
+        )
+    assert other_notices == []
+
+    # A Production run that never waits for approval announces nothing.
+    running_notices: list[str] = []
+    _drive_transport(
+        VALID_PRODUCTION_REQUEST,
+        _approval_wait_pages(request_id, ["queued", "in_progress", "completed"]),
+        running_notices,
+        max_attempts=3,
+    )
+    assert running_notices == []
+
+    # Without a usable creation time the notice still names the link and says that the time is unknown.
+    for created_at in (None, "not a time", "2026-10-14T10:55:50"):
+        unknown_notices: list[str] = []
+        _drive_transport(
+            VALID_PRODUCTION_REQUEST,
+            _approval_wait_pages(
+                request_id, ["waiting", "completed"], created_at=created_at
+            ),
+            unknown_notices,
+            max_attempts=2,
+        )
+        assert len(unknown_notices) == 1, created_at
+        assert (
+            "https://github.com/wangzitian0/infra2/actions/runs/201"
+            in unknown_notices[0]
+        )
+        assert "latest approval time is unknown" in unknown_notices[0], created_at
+
+
+def test_AC_runtime_deploy_request_5_default_notice_reaches_the_run_log(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AC-runtime.deploy-request.5: the default notice is a log line and, in GitHub Actions, an annotation."""
+    impl = importlib.import_module("tools._lib.deploy.app_deploy_transport")
+    message = "Approval needed: https://github.com/wangzitian0/infra2/actions/runs/201"
+
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    impl.print_approval_notice(message)
+    captured = capsys.readouterr()
+    assert f"::notice title=Production approval needed::{message}" in captured.out
+    assert message in captured.err
+
+    monkeypatch.delenv("GITHUB_ACTIONS")
+    impl.print_approval_notice(message)
+    captured = capsys.readouterr()
+    assert "::notice" not in captured.out
+    assert message in captured.err
+
+
 def test_canonical_json_is_the_sdk_function_not_a_local_copy() -> None:
     """One wire serializer: the renderer re-exports `infra2_sdk.deploy.canonical_json` (#2434)."""
     from infra2_sdk import deploy as sdk_deploy

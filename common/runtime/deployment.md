@@ -206,6 +206,16 @@ git push origin v1.2.3
 # -> Actions -> Release -> Run workflow -> version_ref=v1.2.3, dry_run=true
 ```
 
+A Production release waits for the owner to approve the `production`
+environment of infra2. The infra2 receiver refuses a Production request that is
+older than its age limit (`PRODUCTION_REQUEST_MAX_AGE_SECONDS` in infra2
+`libs/deploy/app_deploy_request.py`). The refusal reads
+`request expired: created <time>, now <time>, limit <n> s`. While the request
+waits, the transport prints the receiver run link and the latest approval time.
+`tools/_lib/deploy/app_deploy_transport.py` holds a copy of the limit, because
+`infra2_sdk` does not export it. After a refusal, dispatch the release again. A
+new request starts a new age.
+
 Production app deploys must keep the image tag, Dokploy runtime
 `GIT_COMMIT_SHA`, and `/api/health.git_sha` aligned. The release workflow bakes
 the tag into backend/frontend image names by manifest-copying main-CI images in
