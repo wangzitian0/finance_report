@@ -10,6 +10,9 @@ import os
 from functools import cached_property
 from typing import Any, Literal
 
+from infra2_sdk.runtime.llm import LlmSettings
+from infra2_sdk.runtime.postgres import PostgresSettings
+from infra2_sdk.runtime.s3 import S3Settings
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic.fields import FieldInfo
 from pydantic_settings import (
@@ -36,6 +39,8 @@ EMPTY_FALLBACK_FIELDS = frozenset(
         "llm_encryption_keys",
         "s3_public_access_key",
         "s3_public_secret_key",
+        "reconciliation_auto_accept_threshold",
+        "reconciliation_review_threshold",
     }
 )
 
@@ -278,6 +283,12 @@ class Settings(BaseSettings):
         description="Access token lifetime in minutes.",
         json_schema_extra={"group": "Security"},
     )
+    trust_proxy: bool = Field(
+        default=False,
+        validation_alias="TRUST_PROXY",
+        description="Trust X-Forwarded-For headers from reverse proxies.",
+        json_schema_extra={"group": "Security"},
+    )
 
     # AI provider (empty key = AI features disabled)
     ai_provider: str = Field(
@@ -288,18 +299,12 @@ class Settings(BaseSettings):
     )
     ai_api_key: str = Field(
         default="",
-        validation_alias=AliasChoices(
-            "ZAI_API_KEY", "GLM_API_KEY", "AI_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY"
-        ),
-        description=(
-            "AI provider API key (empty key = AI features disabled). ZAI_API_KEY is "
-            "preferred for the default Z.AI provider; GEMINI_API_KEY for AI_PROVIDER=gemini; "
-            "AI_API_KEY is a provider-neutral alias."
-        ),
+        validation_alias="AI_API_KEY",
+        description="AI provider API key (empty key = AI features disabled).",
         json_schema_extra={
             "group": "AI Provider",
             "vault": True,
-            "extra_keys": ["AI_API_KEY", "GEMINI_API_KEY"],
+            "store_key": "ZAI_API_KEY",
         },
     )
 
@@ -390,7 +395,7 @@ class Settings(BaseSettings):
     # provider-neutral so the base model can be swapped through env vars.
     ai_base_url: str = Field(
         default="https://api.z.ai/api/coding/paas/v4",
-        validation_alias=AliasChoices("AI_BASE_URL", "ZAI_BASE_URL", "OPENROUTER_BASE_URL"),
+        validation_alias="AI_BASE_URL",
         description="AI provider base URL (provider-neutral; default targets Z.AI/GLM).",
         json_schema_extra={"group": "AI Provider"},
     )
@@ -512,13 +517,31 @@ class Settings(BaseSettings):
     # DB-backed provider storage (env/Vault provider config still works).
     llm_encryption_keys: str = Field(
         default="",
-        validation_alias=AliasChoices("LLM_ENCRYPTION_KEYS", "LLM_ENCRYPTION_KEY"),
+        validation_alias="LLM_ENCRYPTION_KEYS",
         description=(
             "Comma-separated Fernet keys (urlsafe base64, 32 bytes) for encrypting LLM "
             "provider API keys at rest; newest first. Empty disables DB-backed provider "
             "storage. Rotate by prepending a new key and re-encrypting all secrets."
         ),
         json_schema_extra={"group": "AI Provider", "vault": True},
+    )
+    llm_cassette_engage: bool = Field(
+        default=False,
+        validation_alias="LLM_CASSETTE_ENGAGE",
+        description="Engage offline LLM cassette replay layer.",
+        json_schema_extra={"group": "AI Provider"},
+    )
+    llm_cassette_refresh: bool = Field(
+        default=False,
+        validation_alias="LLM_CASSETTE_REFRESH",
+        description="Refresh recorded LLM cassettes in local runs.",
+        json_schema_extra={"group": "AI Provider"},
+    )
+    llm_live: bool = Field(
+        default=False,
+        validation_alias="LLM_LIVE",
+        description="Force live LLM provider calls.",
+        json_schema_extra={"group": "AI Provider"},
     )
 
     @field_validator("base_currency", mode="before")
@@ -532,13 +555,18 @@ class Settings(BaseSettings):
             return value.strip().upper()
         return value
 
-    @field_validator("ai_json_seed", mode="before")
+    @field_validator(
+        "ai_json_seed",
+        "reconciliation_auto_accept_threshold",
+        "reconciliation_review_threshold",
+        mode="before",
+    )
     @classmethod
     def _empty_seed_is_none(cls, value: object) -> object:
-        """Treat an empty/whitespace AI_JSON_SEED as omitted (None).
+        """Treat an empty/whitespace optional integer env value as omitted (None).
 
         Pydantic cannot parse "" as int, so an empty env value would otherwise
-        raise at startup and the seed could never actually be omitted via env.
+        raise at startup and the optional field could never actually be omitted via env.
         """
         if isinstance(value, str) and not value.strip():
             return None
@@ -680,6 +708,18 @@ class Settings(BaseSettings):
         default=False,
         validation_alias="ENABLE_AI_RECONCILIATION",
         description=("EPIC-018: enable AI-assisted reconciliation scoring (default false, opt-in to avoid API costs)."),
+        json_schema_extra={"group": "Feature Flags"},
+    )
+    reconciliation_auto_accept_threshold: int | None = Field(
+        default=None,
+        validation_alias="RECONCILIATION_AUTO_ACCEPT_THRESHOLD",
+        description="Optional override for reconciliation auto-accept score threshold.",
+        json_schema_extra={"group": "Feature Flags"},
+    )
+    reconciliation_review_threshold: int | None = Field(
+        default=None,
+        validation_alias="RECONCILIATION_REVIEW_THRESHOLD",
+        description="Optional override for reconciliation pending-review score threshold.",
         json_schema_extra={"group": "Feature Flags"},
     )
     enable_ai_classification: bool = Field(
@@ -836,6 +876,50 @@ class Settings(BaseSettings):
         """
         return parse_comma_list(self.llm_encryption_keys, [])
 
+    def to_llm_settings(self) -> LlmSettings:
+        """Build canonical infra2-sdk LlmSettings from application settings."""
+        return LlmSettings(
+            provider=self.ai_provider,
+            base_url=self.ai_base_url,
+            api_key=self.ai_api_key or None,
+            primary_model=self.primary_model,
+            ocr_model=self.ocr_model,
+            vision_model=self.vision_model,
+            fallback_models=tuple(self.fallback_models),
+            vision_fallback_models=tuple(self.vision_fallback_models),
+            chat_completions_path=self.ai_chat_completions_path,
+            layout_parsing_path=self.ai_layout_parsing_path,
+            json_timeout_seconds=self.ai_json_timeout_seconds,
+            json_max_tokens=self.ai_json_max_tokens,
+            json_disable_thinking=self.ai_json_disable_thinking,
+            json_seed=self.ai_json_seed,
+            extract_max_attempts=self.ai_extract_max_attempts,
+            encryption_keys=tuple(self.llm_encryption_key_list),
+        )
+
+    def to_s3_settings(self) -> S3Settings:
+        """Build canonical infra2-sdk S3Settings from application settings."""
+        return S3Settings(
+            bucket=self.s3_bucket,
+            endpoint_url=self.s3_endpoint,
+            access_key_id=self.s3_access_key,
+            secret_access_key=self.s3_secret_key,
+            region_name=self.s3_region,
+            public_endpoint_url=self.s3_public_endpoint,
+            public_bucket=self.s3_public_bucket,
+            public_access_key_id=self.s3_public_access_key,
+            public_secret_access_key=self.s3_public_secret_key,
+            presign_expiry_seconds=self.s3_presign_expiry_seconds,
+        )
+
+    def to_postgres_settings(self) -> PostgresSettings:
+        """Build canonical infra2-sdk PostgresSettings from application settings."""
+        return PostgresSettings(
+            dsn=self.database_url,
+            pool_size=self.db_pool_size,
+            pool_max_overflow=self.db_pool_max_overflow,
+        )
+
 
 settings = Settings()
 
@@ -867,7 +951,12 @@ ENV_SOURCE_CLASSES: dict[str, dict[str, object]] = {
     "s3_public_access_key": {"source": "runtime", "sensitive": True, "empty_ok": True},
     "s3_public_secret_key": {"source": "runtime", "sensitive": True, "empty_ok": True},
     "secret_key": {"source": "runtime", "sensitive": True},
-    "ai_api_key": {"source": "human", "sensitive": True, "empty_ok": True},
+    "ai_api_key": {
+        "source": "human",
+        "sensitive": True,
+        "empty_ok": True,
+        "store_key": "ZAI_API_KEY",
+    },
     "llm_encryption_keys": {"source": "runtime", "sensitive": True, "empty_ok": True},
     "git_commit_sha": {"source": "release"},
     # decision: the deployment states these in infra2's compose env for finance_report/app

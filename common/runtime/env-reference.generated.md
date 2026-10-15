@@ -21,6 +21,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `MARKET_DATA_YAHOO_TIMEOUT_SECONDS` | `5` |  |  | App Settings | Timeout (seconds) for outbound Yahoo Finance market-data calls. |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` |  | yes | App Settings | Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL and is used by backend components when they link back to the frontend app. |
 | `REDIS_URL` |  |  |  | App Settings | Optional Redis URL for staging/production background coordination. |
+| `AI_API_KEY` |  |  | yes | AI Provider | AI provider API key (empty key = AI features disabled). |
 | `AI_BASE_URL` | `https://api.z.ai/api/coding/paas/v4` |  |  | AI Provider | AI provider base URL (provider-neutral; default targets Z.AI/GLM). |
 | `AI_CHAT_COMPLETIONS_PATH` | `/chat/completions` |  |  | AI Provider | Chat completions path appended to the AI base URL. |
 | `AI_EXTRACT_MAX_ATTEMPTS` | `2` |  |  | AI Provider | Max balance-aware re-extract attempts for bank statements (1 disables retry). |
@@ -31,15 +32,15 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `AI_LAYOUT_PARSING_PATH` | `/layout_parsing` |  |  | AI Provider | Layout-parsing path appended to the AI base URL. |
 | `AI_PROVIDER` | `zai` |  | yes | AI Provider | AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults). |
 | `FALLBACK_MODELS` |  | `glm-5.3-flash,glm-5.2` |  | AI Provider | Comma-separated fallback AI model ids. |
+| `LLM_CASSETTE_ENGAGE` | `false` |  |  | AI Provider | Engage offline LLM cassette replay layer. |
+| `LLM_CASSETTE_REFRESH` | `false` |  |  | AI Provider | Refresh recorded LLM cassettes in local runs. |
 | `LLM_ENCRYPTION_KEYS` |  |  | yes | AI Provider | Comma-separated Fernet keys (urlsafe base64, 32 bytes) for encrypting LLM provider API keys at rest; newest first. Empty disables DB-backed provider storage. Rotate by prepending a new key and re-encrypting all secrets. |
+| `LLM_LIVE` | `false` |  |  | AI Provider | Force live LLM provider calls. |
 | `OCR_MODEL` | `glm-5.3-flashx` |  |  | AI Provider | OCR AI model id. |
 | `PREFECT_API_URL` |  |  |  | AI Provider | EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod and per-PR ephemeral Prefect). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed). |
 | `PRIMARY_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Primary AI model id. |
 | `VISION_FALLBACK_MODELS` |  | `glm-5.3-flash,glm-4.6v` |  | AI Provider | Comma-separated fallback AI model ids for the vision/OCR path. These must be vision-capable because the vision request carries image content; the text-only FALLBACK_MODELS are not reused here (#1034). |
 | `VISION_MODEL` | `glm-5.3-flashx` |  |  | AI Provider | Vision AI model id. |
-| `ZAI_API_KEY` |  |  | yes | AI Provider | AI provider API key (empty key = AI features disabled). ZAI_API_KEY is preferred for the default Z.AI provider; GEMINI_API_KEY for AI_PROVIDER=gemini; AI_API_KEY is a provider-neutral alias. |
-| `AI_API_KEY` |  |  | yes | AI Provider | Alias of `ZAI_API_KEY`. |
-| `GEMINI_API_KEY` |  |  | yes | AI Provider | Alias of `ZAI_API_KEY`. |
 | `S3_ACCESS_KEY` | `minio` |  | yes | S3 / MinIO Storage | S3 / MinIO access key. |
 | `S3_BUCKET` | `statements` |  | yes | S3 / MinIO Storage | S3 / MinIO bucket name for uploaded statements. |
 | `S3_ENDPOINT` | `http://127.0.0.1:9000` | `http://localhost:9000` | yes | S3 / MinIO Storage | S3 / MinIO endpoint used for storing uploaded statement files. |
@@ -62,10 +63,13 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `CORS_ORIGIN_REGEX` | `^$` | `r"https://report(-pr-\d+|-staging)?\.zitian\.party"` |  | Security | CORS origin regex for dynamic subdomains (PR deployments and staging). |
 | `JWT_ALGORITHM` | `HS256` |  |  | Security | JWT signing algorithm. |
 | `SECRET_KEY` | `dev_secret_key_change_in_prod` | `generate_a_secure_token_for_production_here` | yes | Security | Application secret key. CRITICAL: must be set to a secure random value in production via Vault. |
+| `TRUST_PROXY` | `false` |  |  | Security | Trust X-Forwarded-For headers from reverse proxies. |
 | `AUTO_ACCEPT_AI_SUGGESTIONS` | `true` |  |  | Feature Flags | Post every row of a statement without a person: the system accepts the AI suggestions at or above the review score, and a general account takes a row that the AI could not place (default true). A user can turn it off in the AI settings. Set false to turn it off for all users: this flag is a ceiling over the setting of each user. A compose file that does not set this variable keeps the code default. Needs enable_ai_classification. |
 | `ENABLE_AI_CLASSIFICATION` | `true` |  |  | Feature Flags | EPIC-018: enable AI-assisted transaction classification suggestions (default true). A user can turn it off in the AI settings. |
 | `ENABLE_AI_RECONCILIATION` | `false` |  |  | Feature Flags | EPIC-018: enable AI-assisted reconciliation scoring (default false, opt-in to avoid API costs). |
 | `ENABLE_STORAGE_SWEEP` | `true` |  |  | Feature Flags | Enable periodic background sweep for orphaned S3 objects. Set to false in test/CI environments to suppress background S3 network calls. |
+| `RECONCILIATION_AUTO_ACCEPT_THRESHOLD` |  |  |  | Feature Flags | Optional override for reconciliation auto-accept score threshold. |
+| `RECONCILIATION_REVIEW_THRESHOLD` |  |  |  | Feature Flags | Optional override for reconciliation pending-review score threshold. |
 | `STATEMENT_DISPOSITION_MODE` | `enforce` |  |  | Feature Flags | Versioned statement-disposition rollout mode. It controls command application only; the shared policy still computes every decision. |
 | `STORAGE_SWEEP_GRACE_PERIOD_HOURS` | `24` |  |  | Feature Flags | Grace period (hours) before an orphaned S3 object is eligible for the storage sweep. Objects younger than this are never deleted, to avoid racing with in-progress uploads (issue #356, default 24h). |
 | `STORAGE_SWEEP_INTERVAL_SECONDS` | `86400` |  |  | Feature Flags | Interval (seconds) between orphaned-S3-object sweep runs (issue #356, default 86400s = daily). |

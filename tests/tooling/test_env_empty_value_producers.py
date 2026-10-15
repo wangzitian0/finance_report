@@ -129,8 +129,8 @@ def test_AC_runtime_env_empty_values_1_no_artifact_ships_an_empty_alias_chain_va
     """AC-runtime.env-empty-values.1: `.env.example` and the root compose files
     never assign an empty value to an alias-chain env name."""
     names = _alias_chain_env_names()
-    assert "ZAI_API_KEY" in names and "GEMINI_API_KEY" in names, (
-        "the ai_api_key alias chain vanished from the generated manifest — "
+    assert "ENVIRONMENT" in names and "ENV" in names, (
+        "the environment alias chain vanished from the generated manifest — "
         "this gate would be scanning for nothing"
     )
 

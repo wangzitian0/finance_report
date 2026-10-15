@@ -2930,7 +2930,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert upload.count("@pytest.mark.llm") >= 2
     _has(
         preview_lifecycle,
-        '"ZAI_API_KEY": ""',
+        '"AI_API_KEY": ""',
         '"AI_BASE_URL": "https://api.z.ai/api/coding/paas/v4"',
         '"OCR_MODEL": "glm-4.6v"',
         '"AI_JSON_TIMEOUT_SECONDS": "360"',

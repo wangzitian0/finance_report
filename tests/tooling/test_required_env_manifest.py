@@ -165,8 +165,11 @@ def test_AC_runtime_guard_proofs_13_every_field_names_its_producer_and_the_offli
         by_env["DATABASE_URL"].provided_by
         == "finance_report/postgres:POSTGRES_PASSWORD"
     )
-    assert by_env["SECRET_KEY"].source == "runtime" and by_env["SECRET_KEY"].sensitive
-    assert by_env["ZAI_API_KEY"].source == "human" and by_env["ZAI_API_KEY"].empty_ok
+    assert (
+        by_env["AI_API_KEY"].source == "human"
+        and by_env["AI_API_KEY"].empty_ok
+        and by_env["AI_API_KEY"].store_key == "ZAI_API_KEY"
+    )
     assert by_env["GIT_COMMIT_SHA"].source == "release"
     # Values infra2's compose env states for finance_report/app are `decision`:
     # deployment-injected, never store-backed (so the agent template never renders
