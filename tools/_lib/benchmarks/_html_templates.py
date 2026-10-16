@@ -79,6 +79,7 @@ REPORT_HTML_TEMPLATE = """<!DOCTYPE html>
             padding: 16px;
         }
         .stat-label { display: block; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+        .stat-note { display: block; font-size: 0.75rem; color: var(--text-secondary); }
         .stat-value { font-size: 1.5rem; font-weight: 700; margin-top: 4px; color: #fff; }
         .metric-diff-better { color: #34d399; font-size: 0.85rem; }
         .metric-diff-worse { color: #f87171; font-size: 0.85rem; }
@@ -180,7 +181,8 @@ REPORT_HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
             <div class="stat-box">
                 <span class="stat-label">Largest Balance Delta</span>
-                <span class="stat-value">{{MAX_DELTA}} SGD</span>
+                <span class="stat-value">{{MAX_DELTA}}</span>
+                <span class="stat-note">{{DELTA_COVERAGE}}</span>
             </div>
             <div class="stat-box">
                 <span class="stat-label">Cases Not Passed</span>
@@ -367,7 +369,7 @@ DASHBOARD_HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
             <div class="stat-box">
                 <span class="stat-label">Largest Balance Delta</span>
-                <span class="stat-value">{{LATEST_DELTA}} SGD</span>
+                <span class="stat-value">{{LATEST_DELTA}}</span>
             </div>
         </div>
 
