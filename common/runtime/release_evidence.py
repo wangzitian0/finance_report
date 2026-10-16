@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
@@ -25,9 +26,13 @@ def _default_gh_text(args: list[str]) -> str:
     return subprocess.check_output(args, text=True)
 
 
+# Terminal escape codes. The CI runner puts them in job logs, for example around an echoed step.
+_ESCAPE_CODE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
 def _extract_logged_digests(log_text: str) -> dict[str, str]:
     digests: dict[str, str] = {}
-    for line in log_text.splitlines():
+    for line in _ESCAPE_CODE.sub("", log_text).splitlines():
         for service in ("backend", "frontend"):
             marker = f"Found {service} release image digest:"
             if marker in line:
@@ -64,13 +69,13 @@ def _verify_staging_digests(
         raise RuntimeError(
             f"staging run {run_id}: Deploy Staging job is missing databaseId for digest check"
         )
-    log_text = gh_text(
-        [
-            "gh",
-            "api",
-            f"repos/{repository}/actions/jobs/{job_id}/logs",
-        ]
-    )
+    endpoint = f"repos/{repository}/actions/jobs/{job_id}/logs"
+    try:
+        # A job log holds escape codes. A current gh refuses to print them without the flag.
+        log_text = gh_text(["gh", "api", "--allow-escape-sequences", endpoint])
+    except subprocess.CalledProcessError:
+        # A gh before that guard rejects the flag. A real failure fails again here.
+        log_text = gh_text(["gh", "api", endpoint])
     logged = _extract_logged_digests(log_text)
     actual_backend = logged.get("backend_digest", "")
     actual_frontend = logged.get("frontend_digest", "")
@@ -237,7 +242,8 @@ def verify_staging(
     if not candidate_run_ids:
         raise RuntimeError(
             "No completed Deploy Staging run found for "
-            f"{version_ref}. Run deploy.yml for this version_ref first."
+            f"{version_ref} with head SHA {release_sha}. "
+            f"Dispatch deploy.yml with --ref {version_ref} for this version_ref first."
         )
 
     required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}
