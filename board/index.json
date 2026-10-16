@@ -66,7 +66,7 @@
       "title": "The proportion of low-confidence data is measured"
     }
   ],
-  "generated_at": "2026-10-16T04:32:16+00:00",
+  "generated_at": "2026-10-16T04:32:22+00:00",
   "records": [
     {
       "checkpoints": {
@@ -255,7 +255,7 @@
       "lane": "canary",
       "map_note": null,
       "reason": null,
-      "recorded_at": "2026-10-16T04:32:15+00:00",
+      "recorded_at": "2026-10-16T04:32:22+00:00",
       "run": {
         "attempt": 1,
         "completed_at": "2026-10-16T04:32:10Z",
