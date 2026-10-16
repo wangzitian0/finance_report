@@ -2,13 +2,13 @@
   "adapter": "rules-v2",
   "dirty_inputs": [],
   "inputs": {
-    "repo": "182566bf3f7a8f2803c5d7234d5db86e74847db756735efd3e84392ff7a7105d",
+    "repo": "858d8df1b2b64bae277c11381fcf59323f181d0c3167e028eb8e1f04fbd51eae",
     "root": "749e6cf6cfb5e18b32675996d0ddd5055f3583ff433e3c0aaa4cbf63b1805eaa",
     "skills": "361b821438e6e83b126770cbd01cf6a3bd1f37bace3aac6a15158f1be32aeab0"
   },
   "language": "en",
   "outputs": {
-    "AGENTS.md": "e3c3b5d60a73dca686387c3291a25173c223cc527171e7539b5754da87a6a1f9",
+    "AGENTS.md": "3705ff41556a5760c86471bf21f3045c6b9bf8abf91550ee099b1f85c8eca9fc",
     "CLAUDE.md": "a54ff182c7e8acf56acfd6e4b9c3ff41e2c41a31c9b211b2deb9df75d9a478f9"
   },
   "profiles": [
@@ -92,7 +92,7 @@
     "links": {},
     "root": "skills"
   },
-  "source_revision": "9b62272a71c338a3fa72f93c8e53016080108441",
+  "source_revision": "be75d941738b9fe4116593c909590a69b447f757",
   "target": {
     "remote": "github.com/wangzitian0/finance_report",
     "repo": "finance_report",
