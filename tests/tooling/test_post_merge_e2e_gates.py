@@ -1639,7 +1639,12 @@ def test_AC8_13_52_release_evidence_staging_digest_tie_passes_and_fails_on_misma
         }
 
     def fake_gh_text(args: list[str]) -> str:
-        assert args == ["gh", "api", "repos/owner/repo/actions/jobs/999/logs"]
+        assert args == [
+            "gh",
+            "api",
+            "--allow-escape-sequences",
+            "repos/owner/repo/actions/jobs/999/logs",
+        ]
         return (
             f"2026-10-14T10:00:00Z Found backend release image digest: {backend_digest}\n"
             f"2026-10-14T10:00:01Z Found frontend release image digest: {frontend_digest}\n"
@@ -1710,6 +1715,157 @@ def test_AC8_13_52_release_evidence_staging_digest_tie_passes_and_fails_on_misma
             expected_frontend_digest=frontend_digest,
             gh_text=fake_gh_text,
         )
+
+
+BACKEND_DIGEST = "sha256:" + "1" * 64
+FRONTEND_DIGEST = "sha256:" + "2" * 64
+
+
+def _deploy_log_with_escape_codes() -> str:
+    """A Deploy Staging job log in the shape of a real run (#2491).
+
+    The echoed shell source of a step starts with the code ESC[36;1m and ends with ESC[0m.
+    """
+    return (
+        f"2026-10-16T04:24:41.6518661Z Found backend release image digest: {BACKEND_DIGEST}\n"
+        f"2026-10-16T04:24:41.6519117Z Found frontend release image digest: {FRONTEND_DIGEST}\n"
+        f'2026-10-16T04:28:13.0556017Z \x1b[36;1m  echo "backend_digest={BACKEND_DIGEST}"\x1b[0m\n'
+        f'2026-10-16T04:28:13.0556641Z \x1b[36;1m  echo "frontend_digest={FRONTEND_DIGEST}"\x1b[0m\n'
+    )
+
+
+def _staging_runs_json(args: list[str], *, head_sha: str = "a" * 40) -> object:
+    if " run list " in f" {' '.join(args)} ":
+        return [
+            {
+                "databaseId": 12,
+                "status": "completed",
+                "displayTitle": "Deploy Staging v1.2.3",
+                "headSha": head_sha,
+            }
+        ]
+    return {
+        "jobs": [
+            {"name": "Deploy Staging", "databaseId": 999, "conclusion": "success"},
+            {
+                "name": "Staging Provider Gate",
+                "databaseId": 1000,
+                "conclusion": "success",
+            },
+        ]
+    }
+
+
+def _verify_with_log(gh_text: object) -> str:
+    from common.runtime import release_evidence
+
+    return release_evidence.verify_staging(
+        repository="owner/repo",
+        version_ref="v1.2.3",
+        release_sha="a" * 40,
+        expected_backend_digest=BACKEND_DIGEST,
+        expected_frontend_digest=FRONTEND_DIGEST,
+        gh_json=_staging_runs_json,
+        gh_text=gh_text,  # type: ignore[arg-type]
+    )
+
+
+def test_AC8_13_52_release_evidence_reads_digests_from_a_log_with_terminal_escape_codes() -> (
+    None
+):
+    """#2491: a real job log holds escape codes. The parser must return clean digests."""
+    from common.runtime import release_evidence
+
+    assert release_evidence._extract_logged_digests(
+        _deploy_log_with_escape_codes()
+    ) == {
+        "backend_digest": BACKEND_DIGEST,
+        "frontend_digest": FRONTEND_DIGEST,
+    }
+    assert _verify_with_log(lambda _args: _deploy_log_with_escape_codes()) == "12"
+
+
+def test_AC8_13_52_release_evidence_a_digest_that_differs_still_fails_in_a_log_with_escape_codes() -> (
+    None
+):
+    """#2491: removing the escape codes must not make the digest check pass for a wrong digest."""
+    wrong = _deploy_log_with_escape_codes().replace(
+        BACKEND_DIGEST, "sha256:" + "9" * 64
+    )
+
+    with pytest.raises(RuntimeError, match="differ from release image digests"):
+        _verify_with_log(lambda _args: wrong)
+
+
+def test_AC8_13_52_release_evidence_asks_gh_to_print_the_deploy_log_with_escape_codes() -> (
+    None
+):
+    """#2491: gh refuses a log with escape codes unless the call passes the flag."""
+    calls: list[list[str]] = []
+
+    def gh_text(args: list[str]) -> str:
+        calls.append(args)
+        if "--allow-escape-sequences" not in args:
+            raise subprocess.CalledProcessError(1, args)
+        return _deploy_log_with_escape_codes()
+
+    assert _verify_with_log(gh_text) == "12"
+    assert calls == [
+        [
+            "gh",
+            "api",
+            "--allow-escape-sequences",
+            "repos/owner/repo/actions/jobs/999/logs",
+        ]
+    ]
+
+
+def test_AC8_13_52_release_evidence_retries_the_deploy_log_without_the_flag_for_an_older_gh() -> (
+    None
+):
+    """#2491: a gh before the escape-sequence guard rejects the flag. The retry omits it."""
+    calls: list[list[str]] = []
+
+    def old_gh_text(args: list[str]) -> str:
+        calls.append(args)
+        if "--allow-escape-sequences" in args:
+            raise subprocess.CalledProcessError(1, args)
+        return _deploy_log_with_escape_codes()
+
+    assert _verify_with_log(old_gh_text) == "12"
+    assert [("--allow-escape-sequences" in args) for args in calls] == [True, False]
+
+
+def test_AC8_13_52_release_evidence_fails_when_gh_cannot_read_the_deploy_log_at_all() -> (
+    None
+):
+    """#2491: the retry must not hide a real failure."""
+
+    def broken_gh_text(args: list[str]) -> str:
+        raise subprocess.CalledProcessError(1, args)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        _verify_with_log(broken_gh_text)
+
+
+def test_AC8_13_52_release_evidence_a_staging_run_for_another_commit_names_the_head_sha_rule() -> (
+    None
+):
+    """#2491: a deploy from main has the head SHA of main. The error says what to dispatch."""
+    from common.runtime import release_evidence
+
+    with pytest.raises(RuntimeError) as error:
+        release_evidence.verify_staging(
+            repository="owner/repo",
+            version_ref="v1.2.3",
+            release_sha="a" * 40,
+            gh_json=lambda args: _staging_runs_json(args, head_sha="b" * 40),
+        )
+
+    message = str(error.value)
+    assert message.startswith("No completed Deploy Staging run found for v1.2.3")
+    assert "head SHA " + "a" * 40 in message
+    assert "--ref v1.2.3" in message
 
 
 def test_AC8_13_52_release_evidence_tool_reports_source_and_release_runs() -> None:

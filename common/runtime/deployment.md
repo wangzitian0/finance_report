@@ -196,8 +196,11 @@ git push origin v1.2.3
 # -> Triggers deploy.yml
 # -> Images: ghcr.io/.../finance_report-{backend,frontend}:v1.2.3
 
-# Deploy to staging (manual)
-# -> Actions -> Deploy Staging -> Run workflow -> version_ref=v1.2.3
+# Deploy to staging (manual). Dispatch it from the tag ref.
+# Release evidence accepts only a staging run whose head SHA is the tag commit.
+# A run from main has the head SHA of main and fails the release check (#2491).
+# -> gh workflow run deploy.yml --ref v1.2.3 -f target=staging -f version_ref=v1.2.3
+# -> Actions -> Deploy Staging -> Run workflow -> Use workflow from: tag v1.2.3 -> version_ref=v1.2.3
 
 # Deploy to production (manual, after staging passes, with the owner's approval and presence)
 # -> Actions -> Release -> Run workflow -> version_ref=v1.2.3
