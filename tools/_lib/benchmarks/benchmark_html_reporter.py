@@ -10,18 +10,241 @@ from __future__ import annotations
 
 import html
 import json
+import math
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
+from urllib.parse import urlsplit
 
 from tools._lib.benchmarks._html_templates import (
     DASHBOARD_HTML_TEMPLATE,
     REPORT_HTML_TEMPLATE,
 )
 from tools._lib.benchmarks.case_types import (
+    FLOW_TO_CASES,
     FLOW_TO_DOMAIN,
     get_case_to_flows,
 )
+
+
+MISSING = "n/a"
+EQUATION_DELTA_KEYS = ("equation_delta", "equation_delta_sgd", "equation_delta_usd")
+# The currency of each delta key.
+DELTA_CURRENCY = {
+    "equation_delta": "SGD",
+    "equation_delta_sgd": "SGD",
+    "equation_delta_usd": "USD",
+}
+# A value at or above this limit is no balance delta. The page never prints it.
+DELTA_LIMIT = Decimal("1E+12")
+# The cases of flow 23 prove the balance sheet identity (common/meta/flows).
+IDENTITY_CASE_IDS = tuple(f"case_{case}" for case in FLOW_TO_CASES[23])
+
+
+def _details_of(result: dict[str, Any]) -> dict[str, Any]:
+    """The recorded details of a case result, or an empty dict."""
+    details = result.get("details")
+    return details if isinstance(details, dict) else {}
+
+
+def _detail(details: dict[str, Any], *keys: str) -> Any:
+    """First recorded value among `keys`, or "n/a" when the run recorded none.
+
+    A report must never show an expected figure for a value the run did not produce.
+    """
+    for key in keys:
+        value = details.get(key)
+        if value not in (None, ""):
+            return value
+    return MISSING
+
+
+def _show(value: Any) -> str:
+    """Escaped text of a value for the page, or "n/a" when there is none."""
+    return MISSING if value in (None, "") else html.escape(str(value))
+
+
+def _whole_number(value: Any) -> int | None:
+    """The value as a whole number, or None when it is not one."""
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _percent(part: Any, whole: Any) -> str:
+    """Share of `part` in `whole` as a percent, or "n/a" when a count is not a number."""
+    numerator, denominator = _whole_number(part), _whole_number(whole)
+    if numerator is None or not denominator:
+        return MISSING
+    return f"{round(100 * numerator / denominator)}%"
+
+
+def _cases(count: int) -> str:
+    return f"{count} case" if count == 1 else f"{count} cases"
+
+
+def _seconds(value: Any) -> float:
+    """A duration in seconds, or 0.0 when the value is not a finite number."""
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return seconds if math.isfinite(seconds) else 0.0
+
+
+def _href(url: Any) -> str:
+    """Escaped link target. A target with a scheme other than http or https becomes "#".
+
+    `urlsplit` lowercases the scheme. It also removes tabs, new lines and leading control
+    characters, as a browser does.
+    """
+    text = str(url)
+    try:
+        scheme = urlsplit(text).scheme
+    except ValueError:
+        return "#"
+    return html.escape(text) if scheme in ("", "http", "https") else "#"
+
+
+def _balanced_badge(delta: Any, unit: str) -> str:
+    """Pass badge that states the recorded delta, or says that none was recorded."""
+    if delta == MISSING:
+        return '<span class="badge badge-pass">Balanced (Δ not recorded)</span>'
+    return f'<span class="badge badge-pass">{html.escape(str(delta))} {unit} Balanced</span>'
+
+
+def _format_delta(value: Decimal) -> str:
+    """Two decimals when they are exact. The exact digits when the delta has more."""
+    rounded = value.quantize(Decimal("0.01"))
+    return str(rounded) if rounded == value else format(value, "f")
+
+
+def _recorded_deltas(results: list[dict[str, Any]]) -> list[tuple[Decimal, str]]:
+    """Each finite, plausible delta that the results recorded, as (absolute value, currency)."""
+    found: list[tuple[Decimal, str]] = []
+    for result in results:
+        details = _details_of(result)
+        for key in EQUATION_DELTA_KEYS:
+            raw = details.get(key)
+            if raw in (None, ""):
+                continue
+            try:
+                value = abs(Decimal(str(raw)))
+            except (InvalidOperation, TypeError, ValueError):
+                continue
+            if value.is_finite() and value < DELTA_LIMIT:
+                found.append((value, DELTA_CURRENCY[key]))
+    return found
+
+
+def _largest_delta(results: list[dict[str, Any]]) -> tuple[str, str]:
+    """The largest recorded delta as (value, currency), or ("n/a", "") when none."""
+    found = _recorded_deltas(results)
+    if not found:
+        return MISSING, ""
+    value, currency = max(found, key=lambda item: item[0])
+    return _format_delta(value), currency
+
+
+def _max_equation_delta(results: list[dict[str, Any]]) -> str:
+    """The value of the largest recorded delta, or "n/a" when none."""
+    return _largest_delta(results)[0]
+
+
+def _delta_text(results: list[dict[str, Any]]) -> str:
+    """The largest recorded delta with its currency, or "n/a" when none."""
+    value, currency = _largest_delta(results)
+    return f"{value} {currency}" if currency else MISSING
+
+
+def _recorded_delta_count(results: list[dict[str, Any]]) -> int:
+    """How many results recorded at least one delta."""
+    return sum(1 for result in results if _recorded_deltas([result]))
+
+
+def _identity_results(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The results of the cases that prove the balance sheet identity."""
+    by_id = {r.get("case_id"): r for r in results}
+    return [by_id[case_id] for case_id in IDENTITY_CASE_IDS if case_id in by_id]
+
+
+def _adjudication(cases: list[dict[str, Any] | None]) -> str:
+    """PASS only when every backing case ran and passed.
+
+    A case that did not run, or was skipped, leaves the invariant unproven.
+    """
+    statuses = [case.get("status") if case else None for case in cases]
+    if not statuses or any(status in (None, "SKIPPED") for status in statuses):
+        return '<span class="badge badge-skip">NOT RUN</span>'
+    if all(status == "PASS" for status in statuses):
+        return '<span class="badge badge-pass">PASS</span>'
+    return '<span class="badge badge-fail">FAIL</span>'
+
+
+def _render_invariants_rows(results: list[dict[str, Any]]) -> str:
+    """Rows of the "Core Financial Invariants" table, from the recorded case results."""
+    by_id = {r.get("case_id"): r for r in results}
+    identity_cases = [by_id.get(case_id) for case_id in IDENTITY_CASE_IDS]
+    identity_present = _identity_results(results)
+    identity_recorded = _recorded_delta_count(identity_present)
+    if identity_recorded:
+        identity_observed = (
+            f"Largest recorded |Δ| is {_delta_text(identity_present)}, recorded by "
+            f"{identity_recorded} of {_cases(len(IDENTITY_CASE_IDS))}"
+        )
+    else:
+        identity_observed = (
+            f"No delta recorded by any of the {_cases(len(IDENTITY_CASE_IDS))}"
+        )
+    case_1 = by_id.get("case_1")
+    case_3 = by_id.get("case_3")
+    d1 = _details_of(case_1 or {})
+    d3 = _details_of(case_3 or {})
+    closings = ", ".join(
+        str(_detail(d1, f"m{n}_closing_balance", f"month_{n}_ending_balance"))
+        for n in (1, 2, 3, 4)
+    )
+    rows = [
+        (
+            "Balance Sheet Identity",
+            "Assets ≡ Liabilities + Equity + Net Income",
+            identity_observed,
+            identity_cases,
+        ),
+        (
+            "Temporal Multi-Period Rollforward",
+            "Month_{n+1} Opening Cash ≡ Month_n Closing Cash",
+            f"Closing balances of months 1 to 4: {closings}",
+            [case_1],
+        ),
+        (
+            "Credit Card Liability Clearance (No Double Counting)",
+            "Card spend recorded once; repayment moves cash and liability only",
+            f"Card spend {_detail(d3, 'card_spend_recorded')}, "
+            f"bank repayment {_detail(d3, 'bank_repayment')}, "
+            f"net income {_detail(d3, 'net_income')}",
+            [case_3],
+        ),
+        (
+            "Retained Earnings Articulation",
+            "Closing Equity = Opening Equity + Net Income",
+            f"Cumulative net income {_detail(d1, 'cumulative_net_income')}",
+            [case_1],
+        ),
+    ]
+    out = ""
+    for name, formula, observed, cases in rows:
+        out += f"""
+                    <tr>
+                        <td><strong>{html.escape(name)}</strong></td>
+                        <td><code>{html.escape(formula)}</code></td>
+                        <td>{html.escape(observed)}</td>
+                        <td>{_adjudication(cases)}</td>
+                    </tr>"""
+    return out
 
 
 def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
@@ -30,19 +253,7 @@ def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
     results = report_data.get("results", [])
     version_ref = report_data.get("version_ref", "dev")
 
-    total_duration = sum(r.get("duration_seconds", 0.0) for r in results)
-
-    max_delta = Decimal("0.00")
-    for r in results:
-        details = r.get("details", {})
-        eq_delta = details.get("equation_delta")
-        if eq_delta is not None:
-            try:
-                d_val = abs(Decimal(str(eq_delta)))
-                if d_val > max_delta:
-                    max_delta = d_val
-            except (InvalidOperation, TypeError, ValueError):
-                pass
+    total_duration = sum(_seconds(r.get("duration_seconds")) for r in results)
 
     passed_case_ids = {
         r.get("case_id")
@@ -69,7 +280,8 @@ def extract_summary_data(report_data: dict[str, Any]) -> dict[str, Any]:
             "failed", sum(1 for r in results if r.get("status") != "PASS")
         ),
         "duration_seconds": round(total_duration, 2),
-        "max_equation_delta": str(max_delta),
+        "max_equation_delta": _max_equation_delta(results),
+        "max_equation_delta_currency": _largest_delta(results)[1],
         "zero_pnl_contamination": any(
             r.get("case_id") == "case_3" and r.get("status") == "PASS" for r in results
         ),
@@ -95,6 +307,7 @@ def _render_diff_section(
     baseline_data: dict[str, Any] | None,
     total_dur: float,
     summary: dict[str, Any],
+    results: list[dict[str, Any]],
 ) -> str:
     """Render the baseline comparison card if baseline data is provided."""
     if not baseline_data:
@@ -102,7 +315,10 @@ def _render_diff_section(
     b_summary = baseline_data.get("summary", {})
     b_dur = b_summary.get(
         "total_duration_seconds",
-        sum(r.get("duration_seconds", 0.0) for r in baseline_data.get("results", [])),
+        sum(
+            _seconds(r.get("duration_seconds"))
+            for r in baseline_data.get("results", [])
+        ),
     )
     dur_diff = total_dur - b_dur
     dur_diff_sign = f"+{dur_diff:.2f}s" if dur_diff > 0 else f"{dur_diff:.2f}s"
@@ -112,6 +328,28 @@ def _render_diff_section(
         else ("metric-diff-better" if dur_diff < -5 else "metric-diff-neutral")
     )
     b_version = html.escape(str(baseline_data.get("version_ref", "baseline")))
+    total_cases = summary.get("total", 0)
+    passed_cases = summary.get("passed", 0)
+    pass_pct = _percent(passed_cases, total_cases)
+    total_number = _whole_number(total_cases)
+    pass_class = (
+        "metric-diff-better"
+        if total_number and _whole_number(passed_cases) == total_number
+        else "metric-diff-worse"
+    )
+    max_delta_text = _delta_text(results)
+    identity_recorded = _recorded_delta_count(_identity_results(results))
+    if max_delta_text == MISSING:
+        delta_note, delta_class = "not recorded", "metric-diff-neutral"
+    elif identity_recorded < len(IDENTITY_CASE_IDS):
+        delta_note, delta_class = (
+            "not recorded for every balance case",
+            "metric-diff-neutral",
+        )
+    elif Decimal(_max_equation_delta(results)) == 0:
+        delta_note, delta_class = "Zero Drift", "metric-diff-better"
+    else:
+        delta_note, delta_class = "Drift", "metric-diff-worse"
     return f"""
     <div class="card baseline-card">
         <h3 style="font-size: 1.1rem; margin-bottom: 12px;">⚖️ Baseline Comparison (vs {b_version})</h3>
@@ -122,11 +360,11 @@ def _render_diff_section(
             </div>
             <div class="stat-box">
                 <span class="stat-label">Pass Rate</span>
-                <span class="stat-value">{summary.get("passed", 0)}/{summary.get("total", 0)} <small class="metric-diff-better">(100%)</small></span>
+                <span class="stat-value">{_show(passed_cases)}/{_show(total_cases)} <small class="{pass_class}">({pass_pct})</small></span>
             </div>
             <div class="stat-box">
                 <span class="stat-label">Max Equation Delta</span>
-                <span class="stat-value">0.00 SGD <small class="metric-diff-better">(Zero Drift)</small></span>
+                <span class="stat-value">{max_delta_text} <small class="{delta_class}">({delta_note})</small></span>
             </div>
         </div>
     </div>
@@ -135,25 +373,17 @@ def _render_diff_section(
 
 def _render_case_1_table(cdetails: dict[str, Any], case_passed: bool) -> str:
     eq_badge = (
-        '<span class="badge badge-pass">0.00 SGD Balanced</span>'
+        _balanced_badge(_detail(cdetails, "equation_delta"), "SGD")
         if case_passed
-        else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
+        else f'<span class="badge badge-fail">{html.escape(str(_detail(cdetails, "equation_delta")))} SGD Regression</span>'
     )
-    m1_close = cdetails.get("m1_closing_balance") or cdetails.get(
-        "month_1_ending_balance", "15,271.23"
-    )
-    m2_close = cdetails.get("m2_closing_balance") or cdetails.get(
-        "month_2_ending_balance", "18,250.00"
-    )
-    m3_close = cdetails.get("m3_closing_balance") or cdetails.get(
-        "month_3_ending_balance", "21,300.00"
-    )
-    m4_close = cdetails.get("m4_closing_balance") or cdetails.get(
-        "month_4_ending_balance", "24,200.00"
-    )
-    q1_ni = cdetails.get("q1_net_income", "5,849.25")
-    cum_ni = cdetails.get("cumulative_net_income", "8,749.25")
-    eq_delta = cdetails.get("equation_delta", "0.00")
+    m1_close = _detail(cdetails, "m1_closing_balance", "month_1_ending_balance")
+    m2_close = _detail(cdetails, "m2_closing_balance", "month_2_ending_balance")
+    m3_close = _detail(cdetails, "m3_closing_balance", "month_3_ending_balance")
+    m4_close = _detail(cdetails, "m4_closing_balance", "month_4_ending_balance")
+    q1_ni = _detail(cdetails, "q1_net_income")
+    cum_ni = _detail(cdetails, "cumulative_net_income")
+    eq_delta = _detail(cdetails, "equation_delta")
     return f"""
     <table class="data-table">
         <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
@@ -172,17 +402,17 @@ def _render_case_1_table(cdetails: dict[str, Any], case_passed: bool) -> str:
 
 def _render_case_2_table(cdetails: dict[str, Any], case_passed: bool) -> str:
     eq_badge = (
-        '<span class="badge badge-pass">0.00 SGD Balanced</span>'
+        _balanced_badge(_detail(cdetails, "equation_delta"), "SGD")
         if case_passed
-        else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
+        else f'<span class="badge badge-fail">{html.escape(str(_detail(cdetails, "equation_delta")))} SGD Regression</span>'
     )
-    h_cash = cdetails.get("household_husband_cash", "12,800.00")
-    w_cash = cdetails.get("household_wife_cash", "8,100.00")
-    rev = cdetails.get("total_income", "8,500.00")
-    exp = cdetails.get("total_expenses", "2,600.00")
-    ni = cdetails.get("net_income", "5,900.00")
-    cash = cdetails.get("ending_cash") or cdetails.get("closing_balance", "20,900.00")
-    eq_delta = cdetails.get("equation_delta", "0.00")
+    h_cash = _detail(cdetails, "household_husband_cash")
+    w_cash = _detail(cdetails, "household_wife_cash")
+    rev = _detail(cdetails, "total_income")
+    exp = _detail(cdetails, "total_expenses")
+    ni = _detail(cdetails, "net_income")
+    cash = _detail(cdetails, "ending_cash", "closing_balance")
+    eq_delta = _detail(cdetails, "equation_delta")
     return f"""
     <table class="data-table">
         <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
@@ -206,18 +436,16 @@ def _render_case_3_table(cdetails: dict[str, Any], case_passed: bool) -> str:
         else '<span class="badge badge-fail">P&amp;L Contamination Detected</span>'
     )
     eq_badge = (
-        '<span class="badge badge-pass">0.00 SGD Balanced</span>'
+        _balanced_badge(_detail(cdetails, "equation_delta"), "SGD")
         if case_passed
-        else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
+        else f'<span class="badge badge-fail">{html.escape(str(_detail(cdetails, "equation_delta")))} SGD Regression</span>'
     )
-    card_spend = cdetails.get("card_spend_recorded", "1,200.00")
-    bank_repay = cdetails.get("bank_repayment", "1,200.00")
-    ending_cash = cdetails.get("ending_bank_cash") or cdetails.get(
-        "total_assets", "8,800.00"
-    )
-    liab_cleared = cdetails.get("credit_card_liability_cleared", "0.00")
-    net_income_val = cdetails.get("net_income", "-1,200.00")
-    eq_delta = cdetails.get("equation_delta", "0.00")
+    card_spend = _detail(cdetails, "card_spend_recorded")
+    bank_repay = _detail(cdetails, "bank_repayment")
+    ending_cash = _detail(cdetails, "ending_bank_cash", "total_assets")
+    liab_cleared = _detail(cdetails, "credit_card_liability_cleared")
+    net_income_val = _detail(cdetails, "net_income")
+    eq_delta = _detail(cdetails, "equation_delta")
     return f"""
     <table class="data-table">
         <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
@@ -235,19 +463,19 @@ def _render_case_3_table(cdetails: dict[str, Any], case_passed: bool) -> str:
 
 def _render_case_4_table(cdetails: dict[str, Any], case_passed: bool) -> str:
     eq_badge_sgd = (
-        '<span class="badge badge-pass">0.00 SGD Balanced</span>'
+        _balanced_badge(_detail(cdetails, "equation_delta_sgd"), "SGD")
         if case_passed
-        else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta_sgd", "Delta")))} SGD Regression</span>'
+        else f'<span class="badge badge-fail">{html.escape(str(_detail(cdetails, "equation_delta_sgd")))} SGD Regression</span>'
     )
     eq_badge_usd = (
-        '<span class="badge badge-pass">0.00 USD Balanced</span>'
+        _balanced_badge(_detail(cdetails, "equation_delta_usd"), "USD")
         if case_passed
-        else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta_usd", "Delta")))} USD Regression</span>'
+        else f'<span class="badge badge-fail">{html.escape(str(_detail(cdetails, "equation_delta_usd")))} USD Regression</span>'
     )
-    sgd_bal = cdetails.get("sgd_closing_balance", "12,800.00")
-    usd_bal = cdetails.get("usd_closing_balance", "6,800.00")
-    hkd_bal = cdetails.get("hkd_closing_balance", "24,000.00")
-    total_sgd = cdetails.get("total_assets_sgd", "Consolidated")
+    sgd_bal = _detail(cdetails, "sgd_closing_balance")
+    usd_bal = _detail(cdetails, "usd_closing_balance")
+    hkd_bal = _detail(cdetails, "hkd_closing_balance")
+    total_sgd = _detail(cdetails, "total_assets_sgd")
     return f"""
     <table class="data-table">
         <thead><tr><th>Financial Assertion</th><th>Amount</th><th>Multi-Currency Status</th></tr></thead>
@@ -256,8 +484,8 @@ def _render_case_4_table(cdetails: dict[str, Any], case_passed: bool) -> str:
             <tr><td>United States Jurisdiction (USD Account)</td><td>{html.escape(str(usd_bal))} USD</td><td>{"✅ Foreign Currency Inflow Verified" if case_passed else "❌ Unverified"}</td></tr>
             <tr><td>Hong Kong Jurisdiction (HKD Account)</td><td>{html.escape(str(hkd_bal))} HKD</td><td>{"✅ Foreign Currency Inflow Verified" if case_passed else "❌ Unverified"}</td></tr>
             <tr><td>Consolidated Total Assets (SGD Base)</td><td>${html.escape(str(total_sgd))} SGD</td><td>{"✅ Unified Multi-Currency Conversion" if case_passed else "❌ Imbalanced"}</td></tr>
-            <tr><td>SGD Balance Sheet Equation Delta</td><td>${html.escape(str(cdetails.get("equation_delta_sgd", "0.00")))}</td><td>{eq_badge_sgd}</td></tr>
-            <tr><td>USD Balance Sheet Equation Delta</td><td>${html.escape(str(cdetails.get("equation_delta_usd", "0.00")))}</td><td>{eq_badge_usd}</td></tr>
+            <tr><td>SGD Balance Sheet Equation Delta</td><td>${html.escape(str(_detail(cdetails, "equation_delta_sgd")))}</td><td>{eq_badge_sgd}</td></tr>
+            <tr><td>USD Balance Sheet Equation Delta</td><td>${html.escape(str(_detail(cdetails, "equation_delta_usd")))}</td><td>{eq_badge_usd}</td></tr>
         </tbody>
     </table>
     """
@@ -265,19 +493,17 @@ def _render_case_4_table(cdetails: dict[str, Any], case_passed: bool) -> str:
 
 def _render_case_5_table(cdetails: dict[str, Any], case_passed: bool) -> str:
     eq_badge = (
-        '<span class="badge badge-pass">0.00 SGD Balanced</span>'
+        _balanced_badge(_detail(cdetails, "equation_delta"), "SGD")
         if case_passed
-        else f'<span class="badge badge-fail">{html.escape(str(cdetails.get("equation_delta", "Delta")))} SGD Regression</span>'
+        else f'<span class="badge badge-fail">{html.escape(str(_detail(cdetails, "equation_delta")))} SGD Regression</span>'
     )
-    holdings_cnt = cdetails.get("holdings_count", "2")
-    symbols = cdetails.get("symbols", "AAPL, VT")
-    prop_val = cdetails.get("property_valuation_usd", "350,000.00")
-    appraisal_src = cdetails.get("appraisal_source", "DocuBench FHA 1004 (KpewWz3R)")
-    tax_status = cdetails.get(
-        "tax_ecosystem_status", "Form W-2 and Payslip fixtures verified"
-    )
-    assets_val = cdetails.get("total_assets", "Consolidated")
-    eq_delta = cdetails.get("equation_delta", "0.00")
+    holdings_cnt = _detail(cdetails, "holdings_count")
+    symbols = _detail(cdetails, "symbols")
+    prop_val = _detail(cdetails, "property_valuation_usd")
+    appraisal_src = _detail(cdetails, "appraisal_source")
+    tax_status = _detail(cdetails, "tax_ecosystem_status")
+    assets_val = _detail(cdetails, "total_assets")
+    eq_delta = _detail(cdetails, "equation_delta")
     return f"""
     <table class="data-table">
         <thead><tr><th>Financial Assertion</th><th>Value</th><th>Portfolio Status</th></tr></thead>
@@ -294,15 +520,15 @@ def _render_case_5_table(cdetails: dict[str, Any], case_passed: bool) -> str:
 
 
 def _render_case_6_table(cdetails: dict[str, Any], case_passed: bool) -> str:
-    overdraft_cash = cdetails.get("overdraft_cash", "-1500.00")
-    capital_gain = cdetails.get("capital_gain", "2500.00")
-    net_income = cdetails.get("net_income", "0.00")
-    total_assets = cdetails.get("total_assets", "11000.00")
-    total_equity = cdetails.get("total_equity", "11000.00")
-    eq_delta = cdetails.get("equation_delta", "0.00")
+    overdraft_cash = _detail(cdetails, "overdraft_cash")
+    capital_gain = _detail(cdetails, "capital_gain")
+    net_income = _detail(cdetails, "net_income")
+    total_assets = _detail(cdetails, "total_assets")
+    total_equity = _detail(cdetails, "total_equity")
+    eq_delta = _detail(cdetails, "equation_delta")
 
     eq_badge = (
-        '<span class="badge badge-pass">✅ Balanced (Δ = 0.00 SGD)</span>'
+        _balanced_badge(eq_delta, "SGD")
         if case_passed
         else '<span class="badge badge-fail">❌ Equation Broken</span>'
     )
@@ -347,16 +573,27 @@ def _render_scenario_cards(results: list[dict[str, Any]]) -> str:
     """Render the list of scenario execution cards."""
     cards: list[str] = []
     for r in results:
-        cid = html.escape(str(r.get("case_id", "")))
+        cid = str(r.get("case_id", ""))
+        cid_tag = html.escape(cid.upper())
         cname = html.escape(str(r.get("case_name", "")))
-        cstatus = r.get("status", "FAIL")
-        cdur = r.get("duration_seconds", 0.0)
-        cbadge = "badge-pass" if cstatus == "PASS" else "badge-fail"
-        cdetails = r.get("details", {})
+        status = r.get("status", "FAIL")
+        cstatus = html.escape(str(status))
+        cdur = _seconds(r.get("duration_seconds"))
+        cbadge = "badge-pass" if status == "PASS" else "badge-fail"
+        cdetails = _details_of(r)
         err = r.get("error_message")
-        case_passed = cstatus == "PASS"
+        case_passed = status == "PASS"
 
-        details_table = _render_case_details_table(cid, cdetails, case_passed)
+        # A case that did not run, or that stopped before it recorded a figure, has no
+        # figures. A table of failed assertions would claim facts that the run did not observe.
+        if status == "SKIPPED":
+            details_table = "<p>Not run: the case did not run.</p>"
+        elif not case_passed and not cdetails:
+            details_table = (
+                "<p>No figures recorded. The case stopped before it recorded any.</p>"
+            )
+        else:
+            details_table = _render_case_details_table(cid, cdetails, case_passed)
         err_html = (
             f"<div class='error-banner'><strong>Error:</strong> {html.escape(str(err))}</div>"
             if err
@@ -367,7 +604,7 @@ def _render_scenario_cards(results: list[dict[str, Any]]) -> str:
         <div class="card scenario-card">
             <div class="scenario-header">
                 <div>
-                    <span class="case-tag">{cid.upper()}</span>
+                    <span class="case-tag">{cid_tag}</span>
                     <h3 class="scenario-title">{cname}</h3>
                 </div>
                 <div class="scenario-meta">
@@ -401,15 +638,17 @@ def generate_html_report(
     all_passed = summary.get("success", False)
 
     total_cases = summary.get("total", len(results))
+    skipped_cases = _whole_number(summary.get("skipped", 0)) or 0
     status_badge_class = "badge-pass" if all_passed else "badge-fail"
-    status_text = (
-        f"ALL {total_cases} SCENARIOS BALANCED"
-        if all_passed
-        else "RECONCILIATION REGRESSION"
-    )
-    total_dur = sum(r.get("duration_seconds", 0.0) for r in results)
+    if all_passed and not skipped_cases:
+        status_text = f"ALL {_show(total_cases)} SCENARIOS BALANCED"
+    else:
+        status_text = f"{_show(summary.get('passed', 0))} OF {_show(total_cases)} SCENARIOS PASSED"
+        if skipped_cases:
+            status_text += f", {skipped_cases} SKIPPED"
+    total_dur = sum(_seconds(r.get("duration_seconds")) for r in results)
 
-    diff_html = _render_diff_section(baseline_data, total_dur, summary)
+    diff_html = _render_diff_section(baseline_data, total_dur, summary, results)
     scenarios_html = _render_scenario_cards(results)
 
     rendered = REPORT_HTML_TEMPLATE
@@ -418,27 +657,49 @@ def generate_html_report(
     rendered = rendered.replace("{{RUN_AT}}", run_at)
     rendered = rendered.replace("{{STATUS_BADGE_CLASS}}", status_badge_class)
     rendered = rendered.replace("{{STATUS_TEXT}}", status_text)
-    rendered = rendered.replace("{{PASSED_COUNT}}", str(summary.get("passed", 0)))
-    rendered = rendered.replace("{{TOTAL_COUNT}}", str(summary.get("total", 0)))
+    rendered = rendered.replace("{{PASSED_COUNT}}", _show(summary.get("passed", 0)))
+    rendered = rendered.replace("{{TOTAL_COUNT}}", _show(summary.get("total", 0)))
     rendered = rendered.replace("{{TOTAL_DURATION_STR}}", f"{total_dur:.2f}s")
+    rendered = rendered.replace("{{MAX_DELTA}}", _delta_text(results))
+    rendered = rendered.replace(
+        "{{DELTA_COVERAGE}}",
+        f"recorded by {_recorded_delta_count(results)} of {_cases(len(results))}",
+    )
+    rendered = rendered.replace(
+        "{{NOT_PASSED_COUNT}}",
+        str(sum(1 for r in results if r.get("status") != "PASS")),
+    )
+    rendered = rendered.replace("{{INVARIANTS_ROWS}}", _render_invariants_rows(results))
     rendered = rendered.replace("{{DIFF_HTML}}", diff_html)
     rendered = rendered.replace("{{SCENARIOS_HTML}}", scenarios_html)
     return rendered
+
+
+def _delta_cell(run: dict[str, Any]) -> str:
+    """Delta of one run for the history table. Older entries hold SGD without a currency."""
+    delta = run.get("max_equation_delta")
+    if delta in (None, "", MISSING):
+        return MISSING
+    currency = run.get("max_equation_delta_currency") or "SGD"
+    return f"{html.escape(str(delta))} {html.escape(str(currency))}"
 
 
 def _render_dashboard_table_rows(sorted_runs: list[dict[str, Any]]) -> str:
     """Render historical table rows for the multi-version dashboard."""
     table_rows = ""
     for r in sorted_runs:
-        v = html.escape(str(r.get("version", "unknown")))
-        status = r.get("status", "PASS")
+        version_text = str(r.get("version", "unknown"))
+        v = html.escape(version_text)
+        status = html.escape(str(r.get("status", "UNKNOWN")))
         badge_cls = "badge-pass" if status == "PASS" else "badge-fail"
         run_date = html.escape(str(r.get("run_at", ""))[:19].replace("T", " "))
         env = html.escape(str(r.get("app_url", "")))
-        cases_str = f"{r.get('cases_passed', 0)} / {r.get('cases_total', 0)}"
-        dur_str = f"{r.get('duration_seconds', 0):.2f}s"
-        delta_str = html.escape(str(r.get("max_equation_delta", "0.00")))
-        rep_url = html.escape(str(r.get("report_url", f"{v}/report.html")))
+        cases_str = (
+            f"{_show(r.get('cases_passed', 0))} / {_show(r.get('cases_total', 0))}"
+        )
+        dur_str = f"{_seconds(r.get('duration_seconds')):.2f}s"
+        delta_cell = _delta_cell(r)
+        rep_url = _href(r.get("report_url") or f"{version_text}/report.html")
 
         table_rows += f"""
         <tr>
@@ -448,7 +709,7 @@ def _render_dashboard_table_rows(sorted_runs: list[dict[str, Any]]) -> str:
             <td><code class="env-code">{env}</code></td>
             <td>{cases_str}</td>
             <td>{dur_str}</td>
-            <td>{delta_str} SGD</td>
+            <td>{delta_cell}</td>
             <td><a href="{rep_url}" class="btn-view">View Report →</a></td>
         </tr>
         """
@@ -459,8 +720,9 @@ def _render_dashboard_trend_svg(sorted_runs: list[dict[str, Any]]) -> str:
     """Render historical latency SVG trendline."""
     if not sorted_runs:
         return ""
-    chrono_runs = list(reversed(sorted_runs[-10:]))
-    durations = [r.get("duration_seconds", 0.0) for r in chrono_runs]
+    # `sorted_runs` is newest first: take the ten newest, then show them oldest to newest.
+    chrono_runs = list(reversed(sorted_runs[:10]))
+    durations = [_seconds(r.get("duration_seconds")) for r in chrono_runs]
     max_d = max(durations) if durations and max(durations) > 0 else 100.0
     width, height = 700, 160
     padding = 40
@@ -479,8 +741,8 @@ def _render_dashboard_trend_svg(sorted_runs: list[dict[str, Any]]) -> str:
     dots_svg = ""
     labels_svg = ""
     for i, (x, y) in enumerate(pts):
-        ver_label = chrono_runs[i].get("version", "")
-        dur_val = chrono_runs[i].get("duration_seconds", 0.0)
+        ver_label = html.escape(str(chrono_runs[i].get("version", "")))
+        dur_val = _seconds(chrono_runs[i].get("duration_seconds"))
         dots_svg += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="#3b82f6" stroke="#fff" stroke-width="2"/>'
         dots_svg += f'<text x="{x:.1f}" y="{y - 10:.1f}" font-size="11" fill="#94a3b8" text-anchor="middle">{dur_val:.1f}s</text>'
         labels_svg += f'<text x="{x:.1f}" y="{height - 10}" font-size="11" fill="#cbd5e1" text-anchor="middle">{ver_label}</text>'
@@ -497,24 +759,39 @@ def _render_dashboard_trend_svg(sorted_runs: list[dict[str, Any]]) -> str:
 
 def generate_index_dashboard(manifest_data: list[dict[str, Any]]) -> str:
     """Generate the root /benchmarks/index.html multi-version dashboard."""
-    sorted_runs = sorted(manifest_data, key=lambda x: x.get("run_at", ""), reverse=True)
+    sorted_runs = sorted(
+        manifest_data, key=lambda x: str(x.get("run_at", "")), reverse=True
+    )
 
     total_runs = len(sorted_runs)
     latest_run = sorted_runs[0] if sorted_runs else {}
-    latest_ver = html.escape(str(latest_run.get("version", "None")))
-    latest_status = latest_run.get("status", "UNKNOWN")
-    latest_pass_rate = (
-        f"{latest_run.get('cases_passed', 0)}/{latest_run.get('cases_total', 0)}"
-        if latest_run
-        else "N/A"
-    )
-    latest_duration = (
-        f"{latest_run.get('duration_seconds', 0):.2f}s" if latest_run else "N/A"
-    )
-    latest_badge_class = "badge-pass" if latest_status == "PASS" else "badge-fail"
+    latest_ver_text = str(latest_run.get("version", MISSING))
+    latest_ver = html.escape(latest_ver_text)
+    latest_status_text = str(latest_run.get("status", "UNKNOWN"))
+    latest_status = html.escape(latest_status_text)
+    passed = latest_run.get("cases_passed", 0)
+    total = latest_run.get("cases_total", 0)
+    latest_pass_rate = f"{_show(passed)}/{_show(total)}" if latest_run else MISSING
+    latest_pass_percent = _percent(passed, total) if latest_run else MISSING
+    if latest_run:
+        latest_delta = _delta_cell(latest_run)
+        latest_duration = f"{_seconds(latest_run.get('duration_seconds')):.2f}s"
+    else:
+        latest_delta = MISSING
+        latest_duration = MISSING
+    counts = f"{passed} of {total} cases passed"
+    if not latest_run:
+        latest_summary = "The history holds no run yet"
+    elif latest_status_text == "PASS":
+        latest_summary = counts
+    elif latest_status_text == "FAIL":
+        latest_summary = f"The latest run did not pass: {counts}"
+    else:
+        latest_summary = f"The status of the latest run is unknown. {counts}"
+    latest_badge_class = "badge-pass" if latest_status_text == "PASS" else "badge-fail"
     latest_report_link = (
-        f'<a href="{latest_ver}/report.html" class="btn-latest">View Latest Full Report →</a>'
-        if latest_ver != "None"
+        f'<a href="{_href(f"{latest_ver_text}/report.html")}" class="btn-latest">View Latest Full Report →</a>'
+        if latest_run
         else ""
     )
 
@@ -528,7 +805,10 @@ def generate_index_dashboard(manifest_data: list[dict[str, Any]]) -> str:
     rendered = rendered.replace("{{LATEST_REPORT_LINK}}", latest_report_link)
     rendered = rendered.replace("{{TOTAL_RUNS}}", str(total_runs))
     rendered = rendered.replace("{{LATEST_PASS_RATE}}", latest_pass_rate)
+    rendered = rendered.replace("{{LATEST_PASS_PERCENT}}", latest_pass_percent)
     rendered = rendered.replace("{{LATEST_DURATION}}", latest_duration)
+    rendered = rendered.replace("{{LATEST_DELTA}}", latest_delta)
+    rendered = rendered.replace("{{LATEST_SUMMARY}}", html.escape(latest_summary))
     rendered = rendered.replace("{{CHART_SVG}}", chart_svg)
     rendered = rendered.replace("{{TABLE_ROWS}}", table_rows)
     return rendered
