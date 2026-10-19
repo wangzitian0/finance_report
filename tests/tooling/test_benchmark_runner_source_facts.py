@@ -17,8 +17,8 @@ from typing import Any
 
 import pytest
 
-from tools._lib.benchmarks import sync_benchmark_fixtures as sync
-from tools._lib.benchmarks.run_financial_scenario_benchmark import (
+from common.testing.benchmarks import sync_benchmark_fixtures as sync
+from common.testing.benchmarks.run_financial_scenario_benchmark import (
     ScenarioBenchmarkRunner,
 )
 

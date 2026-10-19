@@ -162,7 +162,7 @@ The staging AI-OCR implementation now lives in
 `staging_ai_ocr_gate_contract.py`, with replay-count data in
 `data/staging-ai-ocr-replay-counters.json`; its workflow-facing tools file is a
 thin compatibility shim. Local developer commands likewise share runtime and
-container selection through `tools/_lib/dev/toolchain.py`, including consistent
+container selection through `common/runtime/dev/toolchain.py`, including consistent
 `CONTAINER_RUNTIME` handling.
 
 Provider-backed journeys may confirm a missing source envelope only from independently

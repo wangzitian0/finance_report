@@ -20,7 +20,9 @@ import pdfplumber
 import pytest
 
 from common.testing.fixtures.pdf import generate_pdf_fixtures
-from tools._lib.fixtures.personal_report_package import REPRESENTATIVE_PACKAGE_FIXTURE
+from common.testing.fixtures.personal_report_package import (
+    REPRESENTATIVE_PACKAGE_FIXTURE,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 E2E = REPO_ROOT / "tests" / "e2e"

@@ -274,7 +274,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
         ".github/actions/setup-e2e-tests/action.yml",
         "docker-compose.pr-preview.yml",
         "tools/pr_preview_lifecycle.py",
-        "tools/_lib/dev/pr_preview_lifecycle/_preview.py",
+        "common/runtime/dev/pr_preview_lifecycle/_preview.py",
     ):
         assert is_pr_preview_relevant(p) is True
 
@@ -290,7 +290,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
         [
             "docs/ssot/README.md",
             ".github/workflows/preview.yml",
-            "tools/_lib/dev/pr_preview_lifecycle/_preview.py",
+            "common/runtime/dev/pr_preview_lifecycle/_preview.py",
         ]
     )
     _check_result(
@@ -299,7 +299,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
         preview=True,
         preview_files=(
             ".github/workflows/preview.yml",
-            "tools/_lib/dev/pr_preview_lifecycle/_preview.py",
+            "common/runtime/dev/pr_preview_lifecycle/_preview.py",
         ),
         preview_reason="pr-preview-paths-changed",
         staging=False,
@@ -909,8 +909,8 @@ def test_all_declared_classifier_paths_exist_on_disk() -> None:
                 f"Prefix {prefix} does not match an existing path on disk"
             )
 
-    # Also assert that files under tools/_lib/dev/pr_preview_lifecycle/ classify as preview-only
-    pkg_file = "tools/_lib/dev/pr_preview_lifecycle/_preview.py"
+    # Also assert that files under common/runtime/dev/pr_preview_lifecycle/ classify as preview-only
+    pkg_file = "common/runtime/dev/pr_preview_lifecycle/_preview.py"
     res = cc.classify_changed_paths([pkg_file])
     assert res.envs[cc.Environment.PR_PREVIEW].required is True
     assert res.envs[cc.Environment.STAGING].required is False

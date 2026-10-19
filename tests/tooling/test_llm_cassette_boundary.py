@@ -23,7 +23,7 @@ _ALLOWED = (
     "common/llm/",
     # the sanctioned corpus-recording operator tool (cassette PRODUCTION, like
     # `make llm-record` — not downstream consumption).
-    "tools/_lib/record_hf_cassettes.py",
+    "common/extraction/record_hf_cassettes.py",
     # governance INTROSPECTION: the authority classifier detects LLM-band tests
     # by recognising these very tokens — it reads names, it never uses the layer.
     # (lives in common/meta/extension/ since the #1626 authority→meta converge)

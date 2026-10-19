@@ -10,7 +10,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from tools._lib.env_reference import (  # noqa: E402
+from common.runtime.env_reference import (  # noqa: E402
     ALIAS_CHAIN_EMPTY_NOTE as ALIAS_CHAIN_EMPTY_NOTE,
     BEGIN_MARKER as BEGIN_MARKER,
     END_MARKER as END_MARKER,

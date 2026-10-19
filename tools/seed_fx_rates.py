@@ -9,7 +9,7 @@ if str(ROOT_DIR) in sys.path:
     sys.path.remove(str(ROOT_DIR))
 sys.path.insert(0, str(ROOT_DIR))
 
-from tools._lib.market_data.seed_fx_rates import main  # noqa: E402
+from common.pricing.seed_fx_rates import main  # noqa: E402
 
 if str(ROOT_DIR) in sys.path:
     sys.path.remove(str(ROOT_DIR))

@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from tools._lib.dev import debug  # noqa: E402
+from common.runtime.dev import debug  # noqa: E402
 
 
 def test_AC16_11_1_detect_environment_ci(monkeypatch):

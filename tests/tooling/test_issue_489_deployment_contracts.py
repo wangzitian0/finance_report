@@ -25,7 +25,7 @@ def test_pr_preview_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
     """AC7.9.1 AC7.9.2 AC7.9.3 AC7.9.4 AC7.9.5: PR preview validates runtime health, API, domain, and storage upload paths."""
     workflow = read(".github/workflows/preview.yml")
     staging = read(".github/workflows/deploy.yml")
-    smoke = read("tools/_lib/shell/smoke_test.sh")
+    smoke = read("common/runtime/shell/smoke_test.sh")
     hard_gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
 
     assert "workflow_run:" not in workflow

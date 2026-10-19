@@ -72,7 +72,7 @@ def test_docker_compose_pr_s3_endpoint_is_explicit():
 
     root = ROOT
     sys.path.insert(0, str(root))
-    lifecycle = importlib.import_module("tools._lib.dev.pr_preview_lifecycle")
+    lifecycle = importlib.import_module("common.runtime.dev.pr_preview_lifecycle")
     compose_path = root / "docker-compose.yml"
 
     with open(compose_path) as f:

@@ -76,7 +76,7 @@ def test_AC8_13_53_root_scripts_and_infra_project_are_removed():
 
 
 def test_AC8_13_53_common_coverage_component_is_a_governed_source_root():
-    """AC-testing.toolchain.4: AC8.13.53: Common code is measured without tool-owned implementations."""
+    """AC-testing.toolchain.4: AC8.13.53: Common code is measured without tool-owned entry points."""
     component = coverage_policy.get_component("common")
 
     assert component.component_root == ""
@@ -84,14 +84,16 @@ def test_AC8_13_53_common_coverage_component_is_a_governed_source_root():
     assert component.ci_lcov_path == "coverage/common.lcov"
     assert "common/testing/test_isolation.py" in component.expected_sources(ROOT)
     assert "common/testing/check_ac_traceability.py" in component.expected_sources(ROOT)
-    assert "tools/_lib/dev/test_lifecycle.py" not in component.expected_sources(ROOT)
+    assert "common/runtime/dev/test_lifecycle.py" in component.expected_sources(ROOT)
+    assert "tools/test_lifecycle.py" not in component.expected_sources(ROOT)
+    assert not (ROOT / "tools" / "_lib").exists()
     assert not (ROOT / "common" / "dev").exists()
     assert not (ROOT / "common" / "fixtures").exists()
     assert not (ROOT / "common" / "pdf_fixtures").exists()
 
 
 def test_AC8_13_56_tools_coverage_component_is_a_governed_source_root():
-    """AC8.13.56: Tools entry points and private implementations are measured."""
+    """AC8.13.56: Tools entry points are measured while shared implementations live under common."""
     component = coverage_policy.get_component("tools")
 
     assert component.component_root == ""
@@ -99,10 +101,9 @@ def test_AC8_13_56_tools_coverage_component_is_a_governed_source_root():
     assert component.ci_lcov_path == "coverage/tools.lcov"
     assert "tools/calculate_unified_coverage.py" in component.expected_sources(ROOT)
     assert "tools/strip_lcov_branches.py" in component.expected_sources(ROOT)
-    assert "tools/_lib/dev/test_lifecycle.py" in component.expected_sources(ROOT)
+    assert "tools/test_lifecycle.py" in component.expected_sources(ROOT)
 
-    # Coverage/CI library implementations now live under common (consolidated
-    # from tools/_lib): they are measured by the common component.
+    # Library implementations live under common: they are measured by the common component.
     common = coverage_policy.get_component("common")
     assert (
         "common/testing/coverage/calculate_unified_coverage.py"
@@ -114,7 +115,7 @@ def test_AC8_13_56_tools_coverage_component_is_a_governed_source_root():
 
 
 def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
-    """AC-testing.toolchain.5: AC8.13.56: Coverage commands live under tools and delegate to tools._lib."""
+    """AC-testing.toolchain.5: AC8.13.56: Coverage commands live under tools and delegate to common."""
     build_tool = importlib.import_module("tools.build_unified_lcov")
     calc_tool = importlib.import_module("tools.calculate_unified_coverage")
     merge_tool = importlib.import_module("tools.merge_lcov")
@@ -166,15 +167,15 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
             "tools.generate_pdf_fixtures",
             "common.testing.fixtures.pdf.generate_pdf_fixtures",
         ),
-        ("tools.generate_test_pdfs", "tools._lib.fixtures.generate_test_pdfs"),
-        ("tools.seed_fx_rates", "tools._lib.market_data.seed_fx_rates"),
-        ("tools.cleanup_orphaned_dbs", "tools._lib.dev.cleanup_orphaned_dbs"),
-        ("tools.pr_preview_lifecycle", "tools._lib.dev.pr_preview_lifecycle"),
-        ("tools.cli", "tools._lib.dev.cli"),
-        ("tools.debug", "tools._lib.dev.debug"),
-        ("tools.dev_backend", "tools._lib.dev.dev_backend"),
-        ("tools.dev_frontend", "tools._lib.dev.dev_frontend"),
-        ("tools.test_lifecycle", "tools._lib.dev.test_lifecycle"),
+        ("tools.generate_test_pdfs", "common.testing.fixtures.generate_test_pdfs"),
+        ("tools.seed_fx_rates", "common.pricing.seed_fx_rates"),
+        ("tools.cleanup_orphaned_dbs", "common.runtime.dev.cleanup_orphaned_dbs"),
+        ("tools.pr_preview_lifecycle", "common.runtime.dev.pr_preview_lifecycle"),
+        ("tools.cli", "common.runtime.dev.cli"),
+        ("tools.debug", "common.runtime.dev.debug"),
+        ("tools.dev_backend", "common.runtime.dev.dev_backend"),
+        ("tools.dev_frontend", "common.runtime.dev.dev_frontend"),
+        ("tools.test_lifecycle", "common.runtime.dev.test_lifecycle"),
     ],
 )
 def test_AC8_13_53_tool_owned_commands_delegate_to_tools_lib(
@@ -264,7 +265,7 @@ def test_AC8_13_59_config_validation_tools_delegate_to_common_implementations():
 
 
 def test_AC8_13_58_shell_tools_delegate_to_common_shell_implementations():
-    """AC8.13.58: Shell command entry points stay thin and delegate to tools._lib."""
+    """AC8.13.58: Shell command entry points stay thin and delegate to common/runtime/shell."""
     shell_commands = [
         "bootstrap.sh",
         "check_ghcr_image_tag.sh",
@@ -276,19 +277,19 @@ def test_AC8_13_58_shell_tools_delegate_to_common_shell_implementations():
 
     for command in shell_commands:
         wrapper = (ROOT / "tools" / command).read_text(encoding="utf-8")
-        implementation = (ROOT / "tools" / "_lib" / "shell" / command).read_text(
+        implementation = (ROOT / "common" / "runtime" / "shell" / command).read_text(
             encoding="utf-8"
         )
 
-        assert "tools/_lib/shell/$(basename" in wrapper
+        assert "common/runtime/shell/$(basename" in wrapper
         assert len(wrapper.splitlines()) <= 5
         assert implementation.startswith("#!")
-        assert "tools/_lib/shell/$(basename" not in implementation
+        assert "common/runtime/shell/$(basename" not in implementation
 
 
 def test_AC8_13_58_infra_shell_tool_owns_legacy_docker_actions():
     """AC8.13.58: Legacy infra Moon docker actions are owned by tools/infra.sh."""
-    implementation = (ROOT / "tools" / "_lib" / "shell" / "infra.sh").read_text(
+    implementation = (ROOT / "common" / "runtime" / "shell" / "infra.sh").read_text(
         encoding="utf-8"
     )
 

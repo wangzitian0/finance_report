@@ -296,7 +296,7 @@ def test_AC23_8_6_ground_truth_artifacts_are_synthetic() -> None:
     import re
 
     from common.testing.cassette_graded_eval import CASSETTE_DIR, _parse_extraction
-    from tools._lib.fixtures.extraction_pii_mask import _DESC_KEYS
+    from common.testing.fixtures.extraction_pii_mask import _DESC_KEYS
 
     # A masked-description token: hash-derived hex + a star run + hex (no real text), or
     # all stars. Lowercase-hex + stars only — a real (cased, spaced) description can't match.

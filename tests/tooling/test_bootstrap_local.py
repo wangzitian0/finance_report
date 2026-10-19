@@ -10,14 +10,14 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_AC8_13_44_bootstrap_script_installs_local_toolchain_and_project_deps() -> None:
     """AC8.13.44: The local bootstrap command owns runtime and dependency setup."""
     script = ROOT / "tools" / "bootstrap.sh"
-    implementation = ROOT / "tools" / "_lib" / "shell" / "bootstrap.sh"
+    implementation = ROOT / "common" / "runtime" / "shell" / "bootstrap.sh"
 
     assert script.exists()
     assert script.stat().st_mode & stat.S_IXUSR
     assert implementation.exists()
 
     wrapper = script.read_text(encoding="utf-8")
-    assert "tools/_lib/shell/$(basename" in wrapper
+    assert "common/runtime/shell/$(basename" in wrapper
 
     content = implementation.read_text(encoding="utf-8")
     for expected in (
@@ -32,7 +32,9 @@ def test_AC8_13_44_bootstrap_script_installs_local_toolchain_and_project_deps() 
 
 def test_AC8_13_44_bootstrap_reports_container_runtime_prerequisite() -> None:
     """AC-testing.toolchain.2: AC8.13.44: Bootstrap diagnoses the host container runtime instead of hiding it."""
-    content = (ROOT / "tools" / "_lib" / "shell" / "bootstrap.sh").read_text(encoding="utf-8")
+    content = (ROOT / "common" / "runtime" / "shell" / "bootstrap.sh").read_text(
+        encoding="utf-8"
+    )
 
     assert "docker" in content
     assert "podman" in content

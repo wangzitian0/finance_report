@@ -13,8 +13,8 @@ from collections.abc import Callable
 import httpx
 import pytest
 
-from tools._lib.benchmarks import run_financial_scenario_benchmark as runner_module
-from tools._lib.benchmarks.run_financial_scenario_benchmark import (
+from common.testing.benchmarks import run_financial_scenario_benchmark as runner_module
+from common.testing.benchmarks.run_financial_scenario_benchmark import (
     ScenarioBenchmarkRunner,
 )
 

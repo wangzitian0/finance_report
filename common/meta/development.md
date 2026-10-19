@@ -17,7 +17,7 @@
 | File | Purpose |
 |------|---------|
 | `tools/bootstrap.sh` | One-command local bootstrap for runtimes, dependencies, hooks, and container-runtime diagnostics |
-| `tools/_lib/shell/` | Shell command implementations used by `tools/*.sh` command entry points |
+| `common/runtime/shell/` | Shell command implementations used by `tools/*.sh` command entry points |
 | `common/runtime/shell/common.sh` | Minimal shared shell helpers used by shell command implementations |
 | `toolchain.toml` | Runtime and container image version SSOT |
 | `.python-version` / `.node-version` / `.nvmrc` / `.tool-versions` | Local tool manager mirrors checked by CI |
@@ -64,7 +64,7 @@ Compose service images, or frontend engine constraints drift from
 `toolchain.toml`.
 
 Local bootstrapping is invoked through `tools/bootstrap.sh`; the tool-owned shell
-implementation lives under `tools/_lib/shell/` and shared helpers stay in
+implementation lives under `common/runtime/shell/` and shared helpers stay in
 `common/runtime/shell/common.sh`. It installs or verifies uv, Python,
 nvm/Node.js, Moon CLI, project dependencies, and pre-commit hooks, then reports
 whether Docker or Podman is available for workflows that need a host container

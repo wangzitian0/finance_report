@@ -4,7 +4,7 @@
 in dispatch_script`-style bash-line-substring assertions (formerly in
 test_AC8_13_146_report_main_dispatch_waits_for_ci_images in
 test_post_merge_e2e_gates.py) with a real execution of
-tools/_lib/shell/resolve_report_main_dispatch_sha.sh via subprocess, asserting
+common/runtime/shell/resolve_report_main_dispatch_sha.sh via subprocess, asserting
 on its actual stdout/exit-code behavior. A harmless reformat of the script
 (comments, whitespace, variable renaming) can no longer accidentally break
 this coverage; only the actual dispatch/skip decision can.
@@ -17,8 +17,8 @@ from pathlib import Path
 
 SCRIPT = (
     Path(__file__).resolve().parents[2]
-    / "tools"
-    / "_lib"
+    / "common"
+    / "runtime"
     / "shell"
     / "resolve_report_main_dispatch_sha.sh"
 )

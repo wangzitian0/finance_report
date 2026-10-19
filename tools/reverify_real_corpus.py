@@ -15,7 +15,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(1, str(BACKEND_DIR))
 
 from common.testing.reverify_real_corpus import run as _reverify_main  # noqa: E402
-from tools._lib.reverify_real_corpus import _live_extractor  # noqa: E402
+from common.extraction.reverify_real_corpus import _live_extractor  # noqa: E402
 
 
 def main(argv: Sequence[str] | None = None) -> int:

@@ -12,8 +12,8 @@ if str(ROOT_DIR) not in sys.path:
 
 from infra2_sdk.deploy import ReceiverRun as ReceiverRun  # noqa: E402, F401
 from infra2_sdk.deploy import dispatch_and_wait as _sdk_dispatch_and_wait  # noqa: E402, F401
-from tools._lib.deploy import app_deploy_transport as _impl  # noqa: E402
-from tools._lib.deploy.app_deploy_transport import (  # noqa: E402
+from common.runtime.deploy import app_deploy_transport as _impl  # noqa: E402
+from common.runtime.deploy.app_deploy_transport import (  # noqa: E402
     dispatch_and_wait as dispatch_and_wait,
     write_github_output as write_github_output,
 )

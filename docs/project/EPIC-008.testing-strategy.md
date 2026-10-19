@@ -515,7 +515,7 @@ the same contract the API enforces with a 409 ([#988](https://github.com/wangzit
 > `roadmap` (migration closeout wave 3, #1663). Its tests moved to
 > `apps/backend/tests/identity/test_account_purge.py`.
 
-The operator entry point is `python -m tools._lib.dev.purge_test_accounts` (dry-run by default;
+The operator entry point is `python -m common.runtime.dev.purge_test_accounts` (dry-run by default;
 `--apply` to delete; runbook in `docs/contributing/staging-test-account-cleanup.md`).
 
 ---

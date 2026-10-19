@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import pytest
 
-from tools._lib.benchmarks.oracles import assert_ai_advisor_semantic_grounding
+from common.testing.benchmarks.oracles import assert_ai_advisor_semantic_grounding
 
 FIGURES = ["24,200"]
 

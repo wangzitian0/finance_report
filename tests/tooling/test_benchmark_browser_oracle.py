@@ -17,7 +17,7 @@ import pytest
 import tests.e2e as e2e_package
 from tests.e2e import auth_cookie
 from tests.e2e.auth_cookie import build_auth_cookie, build_runner_browser_session
-from tools._lib.benchmarks.oracles import verify_browser_ui_hygiene
+from common.testing.benchmarks.oracles import verify_browser_ui_hygiene
 
 BASE_URL = "http://app.test"
 AUTH = {

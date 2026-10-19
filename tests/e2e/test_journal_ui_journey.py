@@ -16,7 +16,7 @@ from playwright.async_api import Page, expect
 
 from tests.e2e.bench_ui_bridge import BenchUiBridge
 from tests.e2e.conftest import TestConfig
-from tools._lib.benchmarks.run_financial_scenario_benchmark import (
+from common.testing.benchmarks.run_financial_scenario_benchmark import (
     ScenarioBenchmarkRunner,
 )
 

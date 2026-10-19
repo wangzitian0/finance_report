@@ -12,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 def test_benchmark_mapping_ssot_bijection_and_coverage() -> None:
     """AC-testing.benchmarks.4: FLOW_TO_CASES covers exactly the flows of the 30-flow registry."""
-    from tools._lib.benchmarks.case_types import (
+    from common.testing.benchmarks.case_types import (
         DOMAIN_TO_CASES,
         FLOW_TO_CASES,
         FLOW_TO_DOMAIN,
@@ -71,7 +71,7 @@ def test_flow_to_domain_is_derived_not_declared() -> None:
     """AC-testing.benchmarks.4: FLOW_TO_DOMAIN is a call to the registry loader and holds no literal map."""
     import ast
 
-    from tools._lib.benchmarks import case_types
+    from common.testing.benchmarks import case_types
 
     tree = ast.parse(Path(case_types.__file__).read_text(encoding="utf-8"))
     values = [
@@ -95,7 +95,7 @@ def test_flow_to_domain_is_derived_not_declared() -> None:
 
 def test_load_flow_to_domain_follows_registry_edits(tmp_path: Path) -> None:
     """AC-testing.benchmarks.4: the loader maps by the `id` fields, not by list position."""
-    from tools._lib.benchmarks.case_types import load_flow_to_domain
+    from common.testing.benchmarks.case_types import load_flow_to_domain
 
     # Domain 2 is listed before domain 1, so a position-based map gives a wrong answer.
     registry = {
@@ -126,7 +126,7 @@ def test_load_flow_to_domain_error_names_the_registry(
     tmp_path: Path, content: str
 ) -> None:
     """AC-testing.benchmarks.4: a bad registry raises ValueError with the file path."""
-    from tools._lib.benchmarks.case_types import load_flow_to_domain
+    from common.testing.benchmarks.case_types import load_flow_to_domain
 
     path = tmp_path / "flows.json"
     path.write_text(content, encoding="utf-8")

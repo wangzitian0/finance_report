@@ -34,7 +34,9 @@ from common.testing.provider_review import (
 from conftest import fail_or_skip_ai_ocr_gate
 from pdf_fixture_paths import generated_pdf_path
 from playwright.async_api import Page, expect
-from tools._lib.fixtures.personal_report_package import REPRESENTATIVE_PACKAGE_FIXTURE
+from common.testing.fixtures.personal_report_package import (
+    REPRESENTATIVE_PACKAGE_FIXTURE,
+)
 
 APP_URL: str = os.getenv("APP_URL", "http://localhost:3000")
 PARSING_TIMEOUT_MS: int = int(os.getenv("PARSING_TIMEOUT_MS", "480000"))

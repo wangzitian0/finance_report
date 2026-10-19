@@ -1,4 +1,4 @@
-"""Tests for tools/_lib/dev/compact_api_types.py and tools/compact_api_types.py.
+"""Tests for common/runtime/dev/compact_api_types.py and tools/compact_api_types.py.
 
 AC-platform.28.1: Verifies deterministic compaction of OpenAPI TypeScript definitions
 and CLI behavior.
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from tools._lib.dev.compact_api_types import compact_api_types, main
+from common.runtime.dev.compact_api_types import compact_api_types, main
 from tools.compact_api_types import main as shim_main
 
 

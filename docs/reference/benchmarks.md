@@ -55,7 +55,7 @@ Each benchmark run executes multi-period accounting scenarios against the live a
 
 ## 🔬 Physical Truth Oracles
 
-Four oracles in `tools/_lib/benchmarks/oracles.py` check the system against facts that the application code does not write itself.
+Four oracles in `common/testing/benchmarks/oracles.py` check the system against facts that the application code does not write itself.
 
 | Pillar | Check | Runs in |
 | :--- | :--- | :--- |
@@ -90,7 +90,7 @@ The V2 benchmark test matrix covers end-to-end multi-period accounting sufficien
 Bench V2 covers 30 canonical wealth and accounting flows in 7 domains.
 
 - The registry `common/meta/flows/thirty_flows_ssot.json` owns the flows, their domains, and their invariants. [thirty-wealth-flows.md](thirty-wealth-flows.md) renders it.
-- `FLOW_TO_CASES` in `tools/_lib/benchmarks/case_types.py` maps each flow to the benchmark cases that cover it. The tooling suite fails when its flow ids differ from the registry.
+- `FLOW_TO_CASES` in `common/testing/benchmarks/case_types.py` maps each flow to the benchmark cases that cover it. The tooling suite fails when its flow ids differ from the registry.
 - Select a subset with `--domain 1,4` or `--flow 14,23`, and leave `--case` unset. An unknown case, domain or flow id exits with code 2.
 - `apps/backend/tests/reporting/test_bench_articulation_matrix.py` checks the same invariants in memory, without a live stack.
 
