@@ -56,6 +56,11 @@ CANARY_FILES = [
 # core_journey corpus, so a new core-journey proof needs no second list.
 CORE_JOURNEY_MAP_PATH = ROOT_DIR / "common/testing/data/core-journey-checkpoints.json"
 
+# Journeys that fire many provider calls in a short time run last. The provider answers the next
+# journey with a rate limit or a time-out otherwise, and the statement stays at `intent_missing` (#2534).
+# The replay counters count only provider uploads, so they cannot rank these journeys.
+CORE_JOURNEY_LAST = ("tests/e2e/test_twelve_month_journey.py",)
+
 REPLAY_COUNTERS_PATH = (
     ROOT_DIR / "common/testing/data/staging-ai-ocr-replay-counters.json"
 )
@@ -154,11 +159,17 @@ def core_journey_tests() -> list[str]:
     map, so only the proofs run (not the other tests of a proof's file) and
     a new proof joins with no second list. It may overlap audit_replay and
     may hold tests without the llm marker. It blocks nothing.
+
+    The tests run in alphabetical order, except that the files of
+    ``CORE_JOURNEY_LAST`` run last.
     """
     data = json.loads(CORE_JOURNEY_MAP_PATH.read_text(encoding="utf-8"))
     tests = sorted(
-        f"{proof['file']}::{proof['test'].split('::', 1)[1]}"
-        for proof in data["proofs"]
+        (
+            f"{proof['file']}::{proof['test'].split('::', 1)[1]}"
+            for proof in data["proofs"]
+        ),
+        key=lambda node: (node.split("::", 1)[0] in CORE_JOURNEY_LAST, node),
     )
     missing_counters = [
         test

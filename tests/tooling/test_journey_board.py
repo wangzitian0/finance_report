@@ -738,7 +738,7 @@ def test_AC_testing_journey_board_7_core_journey_lane_runs_after_deploy_and_file
     proof_nodes = sorted(
         f"{proof.file}::{proof.test.split('::', 1)[1]}" for proof in proofs
     )
-    assert contract.core_journey_tests() == proof_nodes, (
+    assert sorted(contract.core_journey_tests()) == proof_nodes, (
         "only the proof tests run, not their whole files"
     )
     # Every proof is selectable by the gate marker "llm or journey"; a proof
