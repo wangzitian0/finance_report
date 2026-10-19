@@ -362,7 +362,7 @@ def test_benchmark_reporter_summary_extraction_v2() -> None:
 
     html_out = generate_html_report(mock_report)
     expected_snippets = [
-        "ALL 6 SCENARIOS BALANCED",
+        "ALL 6 SCENARIOS PASSED",
         "CASE_1",
         "CASE_2",
         "CASE_3",
