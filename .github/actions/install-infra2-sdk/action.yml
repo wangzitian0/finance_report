@@ -1,0 +1,32 @@
+name: 'Install infra2-sdk'
+description: >-
+  Install the infra2-sdk wheel that apps/backend/uv.lock pins into the Python of the job.
+  The step checks the SHA-256 of the wheel before it installs the wheel. The release tools
+  and the CI summary tools import the SDK (#2496, #2507). Run actions/setup-python and
+  actions/checkout before this action.
+runs:
+  using: composite
+  steps:
+    - name: Install the pinned infra2-sdk wheel
+      shell: bash
+      env:
+        # Bounded retry for the immutable wheel (timeout/504). The install fails after the last attempt.
+        TOOLCHAIN_DOWNLOAD_RETRIES: "3"
+        TOOLCHAIN_DOWNLOAD_BACKOFF_SECONDS: "10"
+      run: |
+        set -euo pipefail
+        sdk_dir="$(mktemp -d)"
+        sdk_pin="$(python tools/sdk_pin.py)"
+        read -r sdk_url sdk_sha256 sdk_filename <<< "$sdk_pin"
+        sdk_wheel="${sdk_dir}/${sdk_filename}"
+        for attempt in $(seq 1 "$TOOLCHAIN_DOWNLOAD_RETRIES"); do
+          if curl --fail --location --silent --show-error "$sdk_url" --output "$sdk_wheel" \
+            && echo "${sdk_sha256}  ${sdk_wheel}" | sha256sum --check --status; then
+            python -m pip install "$sdk_wheel" "httpx>=0.27.0"
+            exit 0
+          fi
+          echo "::warning::infra2-sdk wheel download or checksum failed (attempt ${attempt})"
+          sleep "$TOOLCHAIN_DOWNLOAD_BACKOFF_SECONDS"
+        done
+        echo "::error::infra2-sdk wheel could not be downloaded with a valid checksum"
+        exit 1

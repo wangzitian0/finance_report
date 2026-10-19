@@ -96,6 +96,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install infra2-sdk
+        uses: ./.github/actions/install-infra2-sdk
+
       - name: Resolve release coordinate
         id: release
         env:
@@ -297,6 +300,9 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install infra2-sdk
+        uses: ./.github/actions/install-infra2-sdk
 
       - name: Resolve release coordinate
         id: release
