@@ -256,6 +256,22 @@ describe("StatementTransactionsTable", () => {
         expect(screen.getByText("pending")).toBeInTheDocument();
         expect(screen.getByText("low")).toBeInTheDocument();
     });
+
+    it("AC-reconciliation.2465.2 defaults transaction status to matched when the statement is approved", () => {
+        const { status: _omittedStatus, ...txnWithoutStatus } = txn;
+        void _omittedStatus;
+        render(
+            <StatementTransactionsTable
+                statement={{
+                    ...baseStatement,
+                    status: "approved",
+                    transactions: [txnWithoutStatus],
+                }}
+            />,
+        );
+        expect(screen.getByText("matched")).toBeInTheDocument();
+        expect(screen.queryByText("pending")).not.toBeInTheDocument();
+    });
 });
 
 describe("BrokerageImportResultBanner", () => {

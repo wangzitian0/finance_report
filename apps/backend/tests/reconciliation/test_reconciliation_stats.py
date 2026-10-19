@@ -209,3 +209,58 @@ def test_stats_reexports_ssot_confidence_thresholds():
 
     assert RECONCILIATION_AUTO_ACCEPT_SCORE == 85
     assert RECONCILIATION_REVIEW_SCORE == 60
+
+
+async def test_AC_reconciliation_2465_1_statement_posted_rows_count_as_matched(db, test_user):
+    """AC-reconciliation.2465.1: a row that the system posted from its own statement is reconciled by construction.
+
+    The stats count it as matched and the unmatched list does not show it, so a
+    clean upload reads 100% matched instead of asking the user to review rows
+    that are already posted.
+    """
+
+    from src.extraction import BankStatementStatus
+    from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
+    from src.routers.reconciliation import _unmatched_atomic_txn_query
+    from tests.api._statement_router_fixtures import (
+        add_reviewed_disposition_rule,
+        add_txn,
+        build_statement,
+        create_statement_account,
+    )
+    from tests.statement_ingestion import posting_dependencies
+
+    bank_account = await create_statement_account(db, test_user.id, "DBS Stats Posted")
+    statement = build_statement(test_user.id, "hash_stats_posted_2465", 90)
+    statement.status = BankStatementStatus.APPROVED
+    statement.account_id = bank_account.id
+    statement.closing_balance = Decimal("120.00")
+    db.add(statement)
+    await db.flush()
+    txn = await add_txn(
+        db, statement, txn_date=date(2025, 1, 8), description="Salary", amount=Decimal("20.00"), direction="IN"
+    )
+    db.add(txn)
+    await db.flush()
+    await add_reviewed_disposition_rule(
+        db, user_id=test_user.id, keyword="salary", account_type=AccountType.INCOME, category="SALARY"
+    )
+    await db.commit()
+
+    before = await get_reconciliation_stats(db, test_user.id)
+    assert before.total_transactions == 1
+    assert before.matched_transactions == 0
+    assert before.unmatched_transactions == 1
+
+    posted = await try_auto_approve_high_confidence_statement(
+        db, statement.id, test_user.id, dependencies=posting_dependencies()
+    )
+    assert posted == 1
+
+    after = await get_reconciliation_stats(db, test_user.id)
+    assert after.total_transactions == 1
+    assert after.matched_transactions == 1
+    assert after.unmatched_transactions == 0
+    assert after.match_rate == 100.0
+    unmatched_rows = (await db.execute(_unmatched_atomic_txn_query(test_user.id))).scalars().all()
+    assert unmatched_rows == []

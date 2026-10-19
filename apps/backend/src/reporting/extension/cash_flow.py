@@ -32,6 +32,39 @@ logger = get_logger(__name__)
 _PROCESSING_ACCOUNT = ProcessingAccount()
 _AUTO_BANK_ACCOUNT_CODE = "AUTO-BANK"
 
+#: Plain-language cause and next action for each cash-flow proof reason (#2466).
+#: Every reason that ``generate_cash_flow`` emits has one entry here.
+CASH_FLOW_UNPROVEN_FALLBACK_TEXT = (
+    "Cash-flow event classification or lineage is unproven and cannot authorize a package."
+)
+CASH_FLOW_PROOF_REASON_TEXT: dict[str, str] = {
+    "opening_coverage_starts_after_period": (
+        "Your statements start after the first day of this period. "
+        "Upload the earlier statements or choose a period that starts on or after your first statement."
+    ),
+    "opening_position_unproven": (
+        "An opening balance has no confirmed source decision. Review and approve the statement that carries it."
+    ),
+    "cash_identity_compatibility_fallback": (
+        "No bank account is marked as cash from a statement. Approve a bank statement so its account becomes cash."
+    ),
+    "cash_identity_missing": (
+        "No cash account matches a statement custody account. Confirm the account of your bank statement."
+    ),
+    "cash_event_decision_unproven": (
+        "A cash movement has no confirmed source decision. Review the pending statement rows."
+    ),
+    "cash_event_classification_ambiguous": (
+        "A cash movement is not classified as operating, investing, or financing. Set the category of that entry."
+    ),
+}
+
+
+def cash_flow_proof_reason_text(reason_code: str) -> str:
+    """Return the user-facing text for one cash-flow proof reason."""
+    return CASH_FLOW_PROOF_REASON_TEXT.get(reason_code, CASH_FLOW_UNPROVEN_FALLBACK_TEXT)
+
+
 CashActivity = Literal["Operating", "Investing", "Financing"]
 _EXPLICIT_EVENT_ACTIVITIES: dict[str, CashActivity] = {
     "investment_buy": "Investing",
