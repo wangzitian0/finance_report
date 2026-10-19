@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -25,6 +26,9 @@ SERVICE = "finance_report/app"
 SOURCE_REPOSITORY = "wangzitian0/finance_report"
 CONTRACT_VERSION = 1
 _REPO_LABEL = "Finance Report"
+_SOURCE_RUN_PATH_RE = re.compile(
+    rf"\A/{re.escape(SOURCE_REPOSITORY)}/actions/runs/([1-9][0-9]*)\Z"
+)
 
 __all__ = [
     "CONTRACT_VERSION",
@@ -33,6 +37,7 @@ __all__ = [
     "DeployType",
     "SERVICE",
     "SOURCE_REPOSITORY",
+    "_SOURCE_RUN_PATH_RE",
     "canonical_json",
     "main",
     "render_request",
