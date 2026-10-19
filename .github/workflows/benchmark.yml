@@ -133,10 +133,26 @@ jobs:
             --output-summary "docs/benchmarks/${VERSION_REF}/summary.json" \
             --json-report "docs/benchmarks/${VERSION_REF}/full_report.json"
 
+      # The index lists every published run. docs/benchmarks holds only the runs that main
+      # commits plus this run, so the index reads the runs that GitHub Pages holds too (#2513).
+      - name: Fetch the published benchmark history
+        if: always()
+        run: |
+          set -uo pipefail
+          mkdir -p "$RUNNER_TEMP/published"
+          if git fetch --no-tags --depth=1 origin gh-pages \
+            && git archive --format=tar FETCH_HEAD benchmarks | tar -x -C "$RUNNER_TEMP/published"; then
+            echo "Published runs: $(find "$RUNNER_TEMP/published/benchmarks" -mindepth 1 -maxdepth 1 -type d | wc -l)"
+          else
+            echo "::warning::The published benchmark history is not available. The index lists only the runs in docs/benchmarks."
+          fi
+
       - name: Update benchmark multi-version index & manifest
         if: always()
         run: |
-          python3 tools/generate_benchmark_index.py --benchmarks-dir docs/benchmarks
+          python3 tools/generate_benchmark_index.py \
+            --benchmarks-dir docs/benchmarks \
+            --history-dir "$RUNNER_TEMP/published/benchmarks"
 
       - name: Deploy Benchmark Observatory to GitHub Pages
         if: always()

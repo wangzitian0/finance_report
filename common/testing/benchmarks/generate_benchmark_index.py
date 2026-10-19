@@ -7,8 +7,13 @@ summaries (* /summary.json), and generates:
   1. manifest.json (Time-series benchmark dataset)
   2. index.html    (Multi-version trends dashboard with SVG charts)
 
+The page lists every published run. The runs that GitHub Pages already holds
+come from --history-dir (a copy of the published benchmarks tree). A run in
+--benchmarks-dir replaces a published run of the same version.
+
 Usage:
-  python tools/generate_benchmark_index.py --benchmarks-dir docs/benchmarks
+  python tools/generate_benchmark_index.py --benchmarks-dir docs/benchmarks \
+      --history-dir /tmp/published/benchmarks
 """
 
 from __future__ import annotations
@@ -24,6 +29,29 @@ from common.testing.benchmarks.benchmark_html_reporter import generate_index_das
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
+def load_summaries(directory: Path) -> dict[str, dict]:
+    """The summary of each version folder, keyed by the folder name.
+
+    A file that is not JSON, or not an object, is skipped with a warning.
+    """
+    found: dict[str, dict] = {}
+    for summary_path in sorted(directory.glob("*/summary.json")):
+        try:
+            with open(summary_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as exc:
+            print(f"⚠️ Failed to parse {summary_path}: {exc}", file=sys.stderr)
+            continue
+        if not isinstance(data, dict):
+            print(
+                f"⚠️ Skipped {summary_path}: the file is not a JSON object",
+                file=sys.stderr,
+            )
+            continue
+        found[summary_path.parent.name] = data
+    return found
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Aggregate benchmark summaries into multi-version dashboard."
@@ -34,20 +62,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=REPO_ROOT / "docs" / "benchmarks",
         help="Directory containing benchmark version folders (default: docs/benchmarks)",
     )
+    parser.add_argument(
+        "--history-dir",
+        type=Path,
+        default=None,
+        help="Copy of the published benchmarks tree. Its runs join the dashboard.",
+    )
     args = parser.parse_args(argv)
 
     benchmarks_dir = args.benchmarks_dir
     benchmarks_dir.mkdir(parents=True, exist_ok=True)
 
-    summaries = []
-    # Search for */summary.json inside benchmarks_dir
-    for summary_path in benchmarks_dir.glob("*/summary.json"):
-        try:
-            with open(summary_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                summaries.append(data)
-        except Exception as exc:
-            print(f"⚠️ Failed to parse {summary_path}: {exc}", file=sys.stderr)
+    # A run in benchmarks_dir replaces the published run of the same version.
+    history = load_summaries(args.history_dir) if args.history_dir else {}
+    if args.history_dir and not history:
+        print(f"ℹ️ No published summary.json found in {args.history_dir}.")
+    summaries = list({**history, **load_summaries(benchmarks_dir)}.values())
 
     if not summaries:
         print(f"ℹ️ No summary.json found in {benchmarks_dir}. Writing empty dashboard.")
