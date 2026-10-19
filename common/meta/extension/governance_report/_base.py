@@ -42,7 +42,6 @@ PROOF_MARKERS = (
     "common/",
     ".github/workflows/",
     "apps/",
-    "libs/tests/",
     "platform/",
 )
 SSOT_FILE_SUFFIXES = {".md", ".yaml", ".yml", ".json"}

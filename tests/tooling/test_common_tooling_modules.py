@@ -181,7 +181,7 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
 def test_AC8_13_53_tool_owned_commands_delegate_to_tools_lib(
     tool_module: str, implementation_module: str
 ):
-    """AC8.13.53: Tool-owned commands delegate to tools._lib, not common."""
+    """AC8.13.53: Dev command entry points in tools/ delegate to common.runtime.dev.*."""
     assert (
         importlib.import_module(tool_module).main
         is importlib.import_module(implementation_module).main

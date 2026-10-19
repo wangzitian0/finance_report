@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from common.meta.base import gate_cli
 from common.meta.extension import (
     check_ac_tier_baseline,
     check_app_boundary,
@@ -19,7 +20,6 @@ from common.meta.extension import (
 from common.testing import (
     baseline_update_contract,
     check_ac_score_baseline,
-    gate_cli,
     gate_main_contract,
     tool_shim_contract,
 )
@@ -229,7 +229,7 @@ def test_AC_testing_governance_17_AC_testing_governance_22_main_contract_is_zero
     )
     (common / "check_qualified_runner.py").write_text(
         "from collections.abc import Sequence\n"
-        "from common.testing import gate_cli\n"
+        "from common.meta.base import gate_cli\n"
         "def main(argv: Sequence[str] | None = None) -> int:\n"
         "    return gate_cli.run_gate('X', lambda _: [], argv)\n",
         encoding="utf-8",
