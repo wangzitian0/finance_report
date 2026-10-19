@@ -41,7 +41,7 @@ def real_s3(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "s3_access_key", "testing")
     monkeypatch.setattr(settings, "s3_secret_key", "testing")
     monkeypatch.setattr(settings, "s3_bucket", "real-pipeline-test")
-    # Same posture as docker-compose.ci-e2e.yml (#1592): placeholder provider
+    # Same posture as staging core E2E (#1592): placeholder provider
     # wiring with an unroutable base URL, so if any parse path falls back to
     # the AI leg it fails in milliseconds instead of retrying a live provider.
     monkeypatch.setattr(settings, "ai_api_key", "test-placeholder-key")

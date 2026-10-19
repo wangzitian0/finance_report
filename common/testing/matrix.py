@@ -11,18 +11,15 @@ issue #1556):
    reading the generated YAML, so AC-traceability behavior is unchanged.
 
 2. **E2E ownership rows** (``E2E_ROWS``): every root E2E spec gets a named row
-   declaring what it *needs* beyond the ephemeral in-runner preview stack and
-   whether it has been explicitly audited as safe to run pre-merge. The PR
-   preview in-runner selection is **derived** from these rows instead of a
-   hand-maintained whitelist in ``preview.yml`` (issue #1547): a row enters
-   the pre-merge set only when it is audited AND needs nothing the in-runner
-   stack cannot provide. An unaudited or dependent row defaults to the
-   post-merge staging ladder — new heavy specs can never silently creep into
-   the merge-blocking path (same property as the AI/OCR canary rule,
-   AC8.13.159).
+   declaring what it *needs* beyond the ephemeral stack and whether it has been
+   explicitly audited. The Staging Batch non-LLM core E2E selection is
+   **derived** from these rows instead of a hand-maintained list (issue #1547):
+   a row enters the staging core set only when it is audited, does not require
+   a live LLM provider, and is not exclusive to the core journey lane. An
+   unaudited or dependent row defaults to the specialized gates.
 
 Workflows consume the selection at runtime through
-``tools/test_selection.py --stage pr_preview_e2e --shell`` (same pattern as
+``tools/test_selection.py --stage staging_core_e2e --shell`` (same pattern as
 ``tools/staging_ai_ocr_gate_contract.py --shell``), so the workflow never
 restates the list. Charter: ``common/testing/readme.md``.
 """
@@ -157,14 +154,23 @@ NEEDS_MARKET_DATA = "market_data"  # calls a real market-data provider
 NEEDS_DEPLOYED_ENV = "deployed_env"  # probes a persistent deployed environment
 NEEDS_STATE_SENSITIVE = "state_sensitive"  # mutates registration/auth state
 
+CORE_JOURNEY_ONLY_FILES: frozenset[str] = frozenset(
+    {
+        "tests/e2e/test_transfer_processing_journey.py",
+        "tests/e2e/test_opening_balance_browser_journey.py",
+        "tests/e2e/test_twelve_month_journey.py",
+        "tests/e2e/test_confidence_metrics_journey.py",
+    }
+)
+
 
 @dataclass(frozen=True)
 class E2ERow:
     """Named ownership row for one root E2E spec file.
 
     ``audited=True`` means the file was explicitly reviewed as safe for the
-    in-runner preview stack; ``needs`` lists external dependencies the
-    in-runner stack cannot provide. Selection requires audited AND no needs.
+    staging core stack; ``needs`` lists external dependencies. Selection
+    requires audited AND no LLM provider AND not in CORE_JOURNEY_ONLY_FILES.
     ``nodes`` optionally narrows selection to explicit pytest node ids.
     """
 
@@ -173,6 +179,25 @@ class E2ERow:
     audited: bool
     reason: str
     nodes: tuple[str, ...] = ()
+
+    @property
+    def staging_core_e2e(self) -> bool:
+        """Selected by the Staging Batch non-LLM core E2E gate."""
+        return (
+            self.audited
+            and NEEDS_LLM_PROVIDER not in self.needs
+            and self.file not in CORE_JOURNEY_ONLY_FILES
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "file": self.file,
+            "needs": list(self.needs),
+            "audited": self.audited,
+            "reason": self.reason,
+            "nodes": list(self.nodes),
+            "staging_core_e2e": self.staging_core_e2e,
+        }
 
 
 E2E_ROWS: tuple[E2ERow, ...] = (
@@ -197,8 +222,8 @@ E2E_ROWS: tuple[E2ERow, ...] = (
             "the app-wide FirstRunModal ('Set up your AI provider') opened on "
             "every full navigation because the stack had no provider wiring, "
             "intercepting pointer events over the upload button; fixed with "
-            "placeholder provider wiring + an unroutable AI_BASE_URL in "
-            "docker-compose.ci-e2e.yml (validates wiring, cannot spend quota)."
+            "placeholder provider wiring + an unroutable AI_BASE_URL "
+            "(validates wiring, cannot spend quota)."
         ),
     ),
     E2ERow(
@@ -368,53 +393,22 @@ E2E_ROWS: tuple[E2ERow, ...] = (
 # Per-stage selection (consumed by workflows via tools/test_selection.py)
 # ---------------------------------------------------------------------------
 
-PR_PREVIEW_E2E_STAGE = "pr_preview_e2e"
-PR_PREVIEW_E2E_MARKER = "(smoke or e2e) and not llm"
-PR_PREVIEW_E2E_PARALLELISM = 4
-
 STAGING_CORE_E2E_STAGE = "staging_core_e2e"
 STAGING_CORE_E2E_MARKER = "(smoke or e2e) and not llm"
 STAGING_CORE_E2E_PARALLELISM = 4
-
-CORE_JOURNEY_ONLY_FILES: frozenset[str] = frozenset(
-    {
-        "tests/e2e/test_transfer_processing_journey.py",
-        "tests/e2e/test_opening_balance_browser_journey.py",
-        "tests/e2e/test_twelve_month_journey.py",
-        "tests/e2e/test_confidence_metrics_journey.py",
-    }
-)
 
 
 def staging_core_e2e_selection() -> tuple[str, ...]:
     """Derive the Staging Batch non-LLM E2E set from E2E_ROWS."""
     nodes: list[str] = []
     for row in E2E_ROWS:
-        if (
-            row.audited
-            and NEEDS_LLM_PROVIDER not in row.needs
-            and row.file not in CORE_JOURNEY_ONLY_FILES
-        ):
-            nodes.extend(row.nodes or (row.file,))
-    return tuple(nodes)
-
-
-def pr_preview_e2e_selection() -> tuple[str, ...]:
-    """Derive the pre-merge in-runner E2E set from the ownership rows.
-
-    A row is selected only when it is audited AND needs nothing beyond the
-    in-runner stack. Everything else stays on the post-merge ladder.
-    """
-    nodes: list[str] = []
-    for row in E2E_ROWS:
-        if row.audited and not row.needs:
+        if row.staging_core_e2e:
             nodes.extend(row.nodes or (row.file,))
     return tuple(nodes)
 
 
 SELECTIONS = {
     STAGING_CORE_E2E_STAGE: staging_core_e2e_selection,
-    PR_PREVIEW_E2E_STAGE: pr_preview_e2e_selection,
 }
 
 
@@ -430,18 +424,6 @@ def emit_shell(stage: str) -> str:
                 f"STAGING_CORE_E2E_TESTS=({tests})",
                 f"STAGING_CORE_E2E_MARKER={shlex.quote(STAGING_CORE_E2E_MARKER)}",
                 f"STAGING_CORE_E2E_PARALLELISM={STAGING_CORE_E2E_PARALLELISM}",
-            ]
-        )
-    if stage == PR_PREVIEW_E2E_STAGE:
-        nodes = pr_preview_e2e_selection()
-        if not nodes:
-            raise ValueError(f"selection stage {stage!r} produced an empty test tuple")
-        tests = " ".join(shlex.quote(node) for node in nodes)
-        return "\n".join(
-            [
-                f"PR_PREVIEW_E2E_TESTS=({tests})",
-                f"PR_PREVIEW_E2E_MARKER={shlex.quote(PR_PREVIEW_E2E_MARKER)}",
-                f"PR_PREVIEW_E2E_PARALLELISM={PR_PREVIEW_E2E_PARALLELISM}",
             ]
         )
     known = ", ".join(sorted(SELECTIONS))

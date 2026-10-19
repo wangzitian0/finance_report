@@ -9,7 +9,7 @@ name: PR Test Environment
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [closed]
     branches: [main]
   workflow_dispatch:
     inputs:
@@ -107,14 +107,6 @@ jobs:
               if event.get("action") == "closed":
                   action = "cleanup"
                   action_reason = "pull-request-closed"
-              else:
-                  # opened/synchronize/reopened: run the in-runner e2e gate
-                  # synchronously on this PR commit, so it is a real required check a
-                  # fast/auto merge cannot outrun (the old workflow_run path was async
-                  # and bypassable). Preview is unaffected — deploy-preview stays
-                  # workflow_dispatch-only (P1a-2).
-                  action = "deploy"
-                  action_reason = "pull-request-sync"
 
           compose_name = f"pr-{pr_number}" if pr_number else ""
           commit_slug = preview_commit_slug(head_sha or github_sha)
@@ -278,7 +270,7 @@ jobs:
               : 'Persistent Preview Deploy Failed (non-blocking)';
             const line = ok
               ? `Preview URL: ${url}`
-              : `Deploy outcome: \`${process.env.DEPLOY_OUTCOME || 'skipped'}\` — see [logs](${process.env.RUN_URL}). This is non-blocking; the in-runner E2E gate is the merge authority.`;
+              : `Deploy outcome: \`${process.env.DEPLOY_OUTCOME || 'skipped'}\` — see [logs](${process.env.RUN_URL}). This is non-blocking; PR CI (ci.yml#finish) is the merge authority.`;
             const body = `${marker}
             ## ${title}
 

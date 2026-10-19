@@ -29,8 +29,8 @@ def test_pr_preview_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
     hard_gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
 
     assert "workflow_run:" not in workflow
-    assert "types: [opened, synchronize, reopened, closed]" in workflow
-    assert 'action_reason = "pull-request-sync"' in workflow
+    assert "types: [closed]" in workflow
+    assert 'action_reason = "pull-request-sync"' not in workflow
     assert "python tools/pr_preview_lifecycle.py" in workflow
     assert "--action cleanup" not in workflow
     assert "preview-teardown" in workflow
@@ -72,8 +72,8 @@ def test_pr_preview_follows_successful_ci_without_dokploy_deploy() -> None:
 
     assert "preview_opt_in" not in yaml.safe_dump(workflow)
     assert "workflow_run:" not in workflow_text
-    assert "types: [opened, synchronize, reopened, closed]" in workflow_text
-    assert 'action_reason = "pull-request-sync"' in workflow_text
+    assert "types: [closed]" in workflow_text
+    assert 'action_reason = "pull-request-sync"' not in workflow_text
     assert 'action = "cleanup"' in workflow_text
     assert "build-preview-backend-image" not in jobs
     assert "build-preview-frontend-image" not in jobs
@@ -100,5 +100,5 @@ def test_in_runner_e2e_is_image_free_and_self_cleaning() -> None:
     assert "pr_preview_required == 'true'" in deploy_preview["if"]
     assert "preview_opt_in" not in deploy_preview["if"]
 
-    assert (ROOT / "docker-compose.ci-e2e.yml").is_file()
-    assert (ROOT / "tools" / "ci" / "e2e-nginx.conf").is_file()
+    assert not (ROOT / "docker-compose.ci-e2e.yml").exists()
+    assert not (ROOT / "tools" / "ci" / "e2e-nginx.conf").exists()

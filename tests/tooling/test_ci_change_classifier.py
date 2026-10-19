@@ -760,15 +760,14 @@ def test_AC8_13_111_summary_prints_staging_provider_gate_files(tmp_path: Path) -
     assert "- `tests/e2e/test_statement_full_journey.py`" in summary_text
 
 
-def test_in_runner_stack_and_selection_ssot_trigger_preview_gate() -> None:
-    """#1547 follow-up: changing in-runner stack or selection SSOT runs Preview E2E gate."""
+def test_selection_ssot_triggers_staging_gate() -> None:
+    """#1547 / #2497: changing selection SSOT runs Staging E2E gate, not preview."""
     for path in (
-        "docker-compose.ci-e2e.yml",
-        "tools/ci/e2e-nginx.conf",
         "common/testing/matrix.py",
         "tools/test_selection.py",
     ):
-        assert is_pr_preview_relevant(path), path
+        assert is_staging_relevant(path) is True, path
+        assert is_pr_preview_relevant(path) is False, path
 
 
 def test_AC8_13_161_component_changed_isolates_a_single_component() -> None:

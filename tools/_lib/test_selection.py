@@ -19,7 +19,7 @@ MATRIX_YAML = ROOT_DIR / "common" / "testing" / "data" / "test-execution-matrix.
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--stage", help="Selection stage to emit (e.g. pr_preview_e2e)."
+        "--stage", help="Selection stage to emit (e.g. staging_core_e2e)."
     )
     parser.add_argument("--shell", action="store_true", help="Emit bash assignments.")
     parser.add_argument(

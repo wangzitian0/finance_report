@@ -197,9 +197,6 @@ def _resolve_job(jobs: list[dict[str, object]], name: str) -> dict[str, object] 
     return matches[0] if matches else None
 
 
-_optional_job = _resolve_job
-
-
 def verify_staging(
     *,
     repository: str,
@@ -249,7 +246,6 @@ def verify_staging(
         "Staging AI/OCR Gate",
         "Financial Benchmark",
     }
-    optional_staging_jobs: set[str] = set()
     for candidate_run_id in candidate_run_ids:
         jobs = _require_jobs(
             gh_json(
@@ -292,24 +288,6 @@ def verify_staging(
             expected_frontend_digest=expected_frontend_digest.strip(),
             gh_text=gh_text,
         )
-        for name in sorted(optional_staging_jobs):
-            job = _optional_job(jobs, name)
-            if job is None:
-                print(
-                    f"::warning::{name} did not run in staging run "
-                    f"{candidate_run_id}; it does not block production release "
-                    "eligibility."
-                )
-            elif job.get("conclusion") != "success":
-                print(
-                    f"::warning::{job.get('name')} concluded {job.get('conclusion')}; "
-                    "it does not block production release eligibility."
-                )
-            else:
-                print(
-                    f"::notice::{job.get('name')} concluded success in staging run "
-                    f"{candidate_run_id}."
-                )
         return candidate_run_id
 
     raise RuntimeError(

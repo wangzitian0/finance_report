@@ -922,26 +922,26 @@ def test_AC_testing_journey_board_8_release_shows_the_row_and_true_canary_eviden
         {"name": "Staging AI/OCR Gate / Staging AI/OCR Gate", "conclusion": "failure"},
     ]
     assert (
-        release_evidence._optional_job(jobs, "Staging AI/OCR Gate")["conclusion"]
+        release_evidence._resolve_job(jobs, "Staging AI/OCR Gate")["conclusion"]
         == "failure"
     )
     assert (
-        release_evidence._optional_job(list(reversed(jobs)), "Staging AI/OCR Gate")[
+        release_evidence._resolve_job(list(reversed(jobs)), "Staging AI/OCR Gate")[
             "conclusion"
         ]
         == "failure"
     )
     assert (
-        release_evidence._optional_job(jobs[:1], "Staging AI/OCR Gate")["conclusion"]
+        release_evidence._resolve_job(jobs[:1], "Staging AI/OCR Gate")["conclusion"]
         == "skipped"
     )
-    assert release_evidence._optional_job([], "Staging AI/OCR Gate") is None
+    assert release_evidence._resolve_job([], "Staging AI/OCR Gate") is None
     both_ran = [
         {"name": "Staging AI/OCR Gate", "conclusion": "success"},
         {"name": "Staging AI/OCR Gate / Staging AI/OCR Gate", "conclusion": "failure"},
     ]
     assert (
-        release_evidence._optional_job(both_ran, "Staging AI/OCR Gate")["conclusion"]
+        release_evidence._resolve_job(both_ran, "Staging AI/OCR Gate")["conclusion"]
         == "failure"
     ), "the reusable call wins over the manual job"
     no_call = [
@@ -949,7 +949,7 @@ def test_AC_testing_journey_board_8_release_shows_the_row_and_true_canary_eviden
         {"name": "Staging AI/OCR Gate / retry", "conclusion": "success"},
     ]
     assert (
-        release_evidence._optional_job(no_call, "Staging AI/OCR Gate")["name"]
+        release_evidence._resolve_job(no_call, "Staging AI/OCR Gate")["name"]
         == "Staging AI/OCR Gate / retry"
     ), "a job that ran wins over a skipped one"
 

@@ -52,7 +52,7 @@ implementation any app dispatching a `DeployRequest` reuses).
 - Backend startup is fail-closed for protected runtimes: public, staging, and production deployments must not use development defaults for `SECRET_KEY`, `DATABASE_URL`, or `S3_SECRET_KEY`.
 - Container names include env suffix (e.g., `-staging`)
 - Persistent Dokploy PR previews use `/docker-compose.pr-preview.yml`, deployed
-  non-blocking after the in-runner E2E gate passes. Dokploy clones the PR branch
+  non-blocking on demand via `workflow_dispatch`. Dokploy clones the PR branch
   and builds backend/frontend from source on the host (`up -d --build`); no GHCR
   image is pulled or pushed. The preview persists until PR close, then is removed
   by native `compose.delete`.

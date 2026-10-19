@@ -575,7 +575,7 @@ git rm unified-coverage.json && git commit -m "chore: remove coverage baseline f
 
 > **Deploy-implementation bullets** (post-merge staging deploy health, release
 > gate reclassification, the AI/OCR canary/audit-replay split, the post-merge
-> staging AI/OCR gate, PR preview E2E, and production release dry-run) live in
+> staging AI/OCR gate, on-demand PR preview, and production release dry-run) live in
 > the deploy half: [common/runtime/ci-cd.md](../runtime/ci-cd.md#deploy-implementation).
 
 The remaining higher-risk CI and post-merge optimization candidates are tracked

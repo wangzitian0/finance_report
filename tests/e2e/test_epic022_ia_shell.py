@@ -3,9 +3,8 @@
 Relocated from ``apps/backend/tests/e2e/test_epic022_ia.py``, where it was
 dead: the backend catch-all classified it ``backend_ci`` whose marker
 (``not e2e``) deselected it, and the Tier-1 API lane has no frontend. The
-in-runner preview stack (``preview.yml`` + ``docker-compose.ci-e2e.yml``)
-serves the real frontend behind the nginx edge, so the shell proof runs
-merge-blocking there instead of never.
+staging core E2E suite (``deploy.yml``) serves the real frontend behind the
+nginx edge, so the shell proof runs in the post-deploy staging gate.
 
 The everyday-user shell from a real authenticated browser:
 - the authenticated Home renders at ``/``
@@ -49,7 +48,9 @@ async def test_everyday_user_shell(authenticated_page: Page):
     nav = page.get_by_role("navigation", name="Sidebar navigation")
     await nav.get_by_role("link", name="Home", exact=True).wait_for()
     for target in ("Chat", "Audit", "More"):
-        assert await nav.get_by_role("link", name=target, exact=True).is_visible(), f"sidebar target missing: {target}"
+        assert await nav.get_by_role("link", name=target, exact=True).is_visible(), (
+            f"sidebar target missing: {target}"
+        )
     assert await nav.get_by_role("button", name="Add").is_visible()
 
     # The notification center is the bell in the header, not a nav peer.
