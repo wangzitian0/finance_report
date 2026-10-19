@@ -8,7 +8,6 @@ import os
 import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -19,102 +18,35 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from infra2_sdk.deploy import (  # noqa: E402
+    PRODUCTION_APPROVAL_MARGIN_SECONDS,
     PRODUCTION_REQUEST_MAX_AGE_SECONDS,
     Api,
     LogFetcher,
     ReceiverRun,
+    announce_approval_wait,
     github_api_client,
+    print_approval_notice,
 )
 from infra2_sdk.deploy import dispatch_and_wait as _sdk_dispatch_and_wait  # noqa: E402
 
 from common.runtime.github_api import write_github_output  # noqa: E402
 from tools.app_deploy_request import request_from_mapping  # noqa: E402
 
-
-# The infra2 receiver refuses a Production request that is older than this age.
-# Exported by infra2_sdk.deploy so sender and receiver share one source of truth (infra2#1253).
 PRODUCTION_APPROVAL_WINDOW_SECONDS = PRODUCTION_REQUEST_MAX_AGE_SECONDS
-# The receiver checks the age after the approval, the runner start and the Python setup.
-# That took 31 s in the refused run 38549605696 of 2026-10-14. The margin keeps the deadline early.
-PRODUCTION_APPROVAL_MARGIN_SECONDS = 120
 
-
-def print_approval_notice(message: str) -> None:
-    """Show the notice in the run log, and as an annotation in GitHub Actions.
-
-    Both lines go to stderr. The runner reads workflow commands on both streams, and
-    stdout stays the JSON result of this program. The last write flushes both lines.
-    """
-    if os.environ.get("GITHUB_ACTIONS") == "true":
-        print(f"::notice title=Production approval needed::{message}", file=sys.stderr)
-    print(message, file=sys.stderr, flush=True)
-
-
-def _approval_times(value: object) -> tuple[datetime, datetime] | None:
-    """Return the creation time and the approval deadline, both in UTC.
-
-    Return None when the time is missing, has no offset, or cannot be computed.
-    """
-    if not isinstance(value, str):
-        return None
-    try:
-        created = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        if created.tzinfo is None:
-            return None
-        created = created.astimezone(UTC)
-        deadline = created + timedelta(
-            seconds=PRODUCTION_APPROVAL_WINDOW_SECONDS
-            - PRODUCTION_APPROVAL_MARGIN_SECONDS
-        )
-    except (ValueError, OverflowError):
-        return None
-    return created, deadline
-
-
-def _approval_notice(run: Mapping[str, Any], version_ref: str) -> str:
-    times = _approval_times(run.get("created_at"))
-    if times is None:
-        when = "The approval deadline is unknown: the run has no usable creation time. Approve at once."
-    else:
-        created, deadline = times
-        when = (
-            f"Approve before {deadline:%Y-%m-%d %H:%M:%S}Z. "
-            f"The receiver refuses a request that is older than {PRODUCTION_APPROVAL_WINDOW_SECONDS} s "
-            "when its check runs, within one minute after the approval. "
-            f"The run was created at {created:%Y-%m-%d %H:%M:%S}Z."
-        )
-    return (
-        f"Approval needed: {run.get('html_url')} waits for the owner to approve "
-        f"the 'production' environment. {when} "
-        f"Dispatch the release again for {version_ref} if the receiver refuses the request."
-    )
-
-
-def _announce_approval_wait(
-    api: Api, request_id: str, version_ref: str, announce: Callable[[str], None]
-) -> Api:
-    """Return api. It announces once when the receiver run of request_id waits for approval."""
-    announced = False
-
-    def watching_api(method: str, path: str, body: object = None) -> object:
-        nonlocal announced
-        payload = api(method, path, body)
-        if method == "GET" and not announced:
-            runs = (
-                payload.get("workflow_runs") if isinstance(payload, Mapping) else None
-            )
-            for run in runs if isinstance(runs, list) else []:
-                if (
-                    isinstance(run, Mapping)
-                    and request_id in str(run.get("display_title", ""))
-                    and run.get("status") == "waiting"
-                ):
-                    announce(_approval_notice(run, version_ref))
-                    announced = True
-                    break
-        return payload
-
-    return watching_api
+__all__ = [
+    "Api",
+    "LogFetcher",
+    "PRODUCTION_APPROVAL_MARGIN_SECONDS",
+    "PRODUCTION_APPROVAL_WINDOW_SECONDS",
+    "PRODUCTION_REQUEST_MAX_AGE_SECONDS",
+    "ReceiverRun",
+    "announce_approval_wait",
+    "dispatch_and_wait",
+    "github_api_client",
+    "main",
+    "print_approval_notice",
+]
 
 
 def dispatch_and_wait(
@@ -135,7 +67,7 @@ def dispatch_and_wait(
     announce receives one notice with the approval link and the approval deadline."""
     request = request_from_mapping(raw_request)
     if request.deploy_type.value == "prod":
-        api = _announce_approval_wait(
+        api = announce_approval_wait(
             api, request.request_id, request.version_ref, announce
         )
     return _sdk_dispatch_and_wait(

@@ -57,9 +57,13 @@ def test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers(
                         helper_definitions[node.name].append(
                             path.relative_to(ROOT).as_posix()
                         )
+    from infra2_sdk import ci as sdk_ci
+
+    assert github_api.parse_github_time is sdk_ci.parse_github_time
+    assert github_api.write_github_output is sdk_ci.write_github_output
     assert helper_definitions == {
-        "parse_github_time": ["common/runtime/github_api.py"],
-        "write_github_output": ["common/runtime/github_api.py"],
+        "parse_github_time": [],
+        "write_github_output": [],
         "_write_github_output": [],
     }
 
