@@ -115,6 +115,8 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-finance-report-backend}
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-deployment.environment=development}
+      API_RATE_LIMIT_REQUESTS:
+      REGISTER_RATE_LIMIT_REQUESTS:
     networks:
       - internal
       - dokploy-network
