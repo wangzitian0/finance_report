@@ -1,22 +1,22 @@
 [
   {
-    "version": "v0.2.3",
-    "run_at": "2026-10-15T10:19:07.077936+00:00",
+    "version": "v0.2.6",
+    "run_at": "2026-10-19T07:09:02.109067+00:00",
     "app_url": "https://report-staging.zitian.party",
-    "status": "PASS",
+    "status": "FAIL",
     "cases_total": 7,
-    "cases_passed": 7,
-    "cases_failed": 0,
-    "duration_seconds": 387.71,
+    "cases_passed": 6,
+    "cases_failed": 1,
+    "duration_seconds": 299.03,
     "max_equation_delta": "0.00",
     "zero_pnl_contamination": true,
-    "rollforward_balanced": true,
+    "rollforward_balanced": false,
     "multicurrency_consolidated": true,
     "portfolio_holdings_verified": true,
     "overdraft_articulation_verified": true,
-    "thirty_flows_coverage": "30/30",
+    "thirty_flows_coverage": "23/30",
     "domains_covered": 7,
-    "report_url": "v0.2.3/report.html"
+    "report_url": "v0.2.6/report.html"
   },
   {
     "version": "v0.1.64",
