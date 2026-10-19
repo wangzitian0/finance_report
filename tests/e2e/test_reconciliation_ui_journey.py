@@ -134,7 +134,6 @@ async def test_reconciliation_unmatched_interactive_disposition(page: Page):
     await expect(confirm_btn).to_be_enabled()
     await confirm_btn.click()
 
-    # 8. Assert: success banner is rendered confirming posted reviewed entry
-    await expect(page.get_by_text("Posted reviewed entry")).to_be_visible(
-        timeout=15_000
-    )
+    # 8. Assert: posted transaction is removed from unmatched list after refresh
+    await expect(page.get_by_text("3 records")).to_be_visible(timeout=15_000)
+    await expect(txn_item).to_have_count(0)

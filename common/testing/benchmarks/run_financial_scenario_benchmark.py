@@ -173,13 +173,17 @@ class ScenarioBenchmarkRunner:
         statement_id: str,
         max_wait_seconds: int = 150,
         poll_interval: int = 3,
+        max_rate_limit_retries: int = 2,
+        retry_backoff_seconds: float = 15.0,
     ) -> dict[str, Any]:
         """Poll statement status until a settled state.
 
         'parsed' and 'approved' both mean parsing is done. 'rejected' and 'failed'
-        raise. A statement can be 'approved' when the user accepts AI suggestions (#2405).
+        raise unless caused by a transient LLM RateLimitError that can be retried.
+        A statement can be 'approved' when the user accepts AI suggestions (#2405).
         """
         start = time.time()
+        retries_used = 0
         while time.time() - start < max_wait_seconds:
             resp = client.get(f"/api/statements/{statement_id}")
             if resp.status_code != 200:
@@ -191,7 +195,17 @@ class ScenarioBenchmarkRunner:
             if status in ("parsed", "approved"):
                 return data
             if status in ("rejected", "failed"):
-                err = data.get("validation_error") or "Unknown validation error"
+                err = str(data.get("validation_error") or "Unknown validation error")
+                if "RateLimitError" in err and retries_used < max_rate_limit_retries:
+                    retries_used += 1
+                    time.sleep(retry_backoff_seconds)
+                    retry_resp = client.post(f"/api/statements/{statement_id}/retry")
+                    if retry_resp.status_code not in (200, 202):
+                        raise RuntimeError(
+                            f"Retrying statement {statement_id} failed: {retry_resp.status_code} {retry_resp.text}"
+                        )
+                    start = time.time()
+                    continue
                 raise RuntimeError(
                     f"Statement {statement_id} entered terminal failure state '{status}': {err}"
                 )
