@@ -9,18 +9,14 @@ masked ground-truth shape.
 from __future__ import annotations
 
 from decimal import Decimal
-
-import importlib.util as _ilu
 from pathlib import Path as _P
+
+from common.extraction import record_hf_cassettes as rec
 
 _REC_PATH = (
     _P(__file__).resolve().parents[2] / "common/extraction/record_hf_cassettes.py"
 )
 assert _REC_PATH.is_file(), f"recorder script missing: {_REC_PATH}"
-_spec = _ilu.spec_from_file_location("record_hf_cassettes", _REC_PATH)
-assert _spec is not None and _spec.loader is not None, f"unloadable: {_REC_PATH}"
-rec = _ilu.module_from_spec(_spec)
-_spec.loader.exec_module(rec)
 
 
 def test_iso_date_normalises_both_hf_schemas() -> None:
@@ -87,3 +83,47 @@ def test_main_requires_ai_api_key(monkeypatch) -> None:
     monkeypatch.delenv("AI_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="AI_API_KEY is required"):
         rec.main([])
+
+
+def test_pure_helpers_and_manifest_loading(monkeypatch, tmp_path) -> None:
+    import hashlib
+
+    assert rec._sha(b"hello") == hashlib.sha256(b"hello").hexdigest()
+    assert rec._num(None) is None
+    assert rec._num("1,234.50") == Decimal("1234.50")
+    assert rec._num("not-a-number") is None
+    assert rec._iso_date("unmatched_date_string") == "unmatched_"
+
+    img_url = "data:image/jpeg;base64,AAA"
+    messages = rec.build_messages([img_url])
+    assert len(messages) == 2
+    assert messages[0]["role"] == "system"
+    assert isinstance(messages[0]["content"], str)
+    assert messages[1]["role"] == "user"
+    assert messages[1]["content"][0]["type"] == "text"
+    assert messages[1]["content"][1] == {
+        "type": "image_url",
+        "image_url": {"url": img_url},
+    }
+
+    stripped = rec.strip_request_images(messages)
+    assert stripped[0] == messages[0]
+    assert stripped[1]["content"][0] == messages[1]["content"][0]
+    assert stripped[1]["content"][1] == {
+        "type": "image_url",
+        "image_bytes_sha256": hashlib.sha256(img_url.encode("utf-8")).hexdigest(),
+    }
+
+    manifest_file = tmp_path / "missing.json"
+    monkeypatch.setattr(rec, "MANIFEST", manifest_file)
+    assert rec._load_manifest() == {}
+
+    manifest_file.write_text("{not-valid-json", encoding="utf-8")
+    assert rec._load_manifest() == {}
+
+    manifest_file.write_text('{"k": 1}', encoding="utf-8")
+    assert rec._load_manifest() == {"k": 1}
+
+    prompt_sha = rec._prompt_sha()
+    assert len(prompt_sha) == 64
+    int(prompt_sha, 16)

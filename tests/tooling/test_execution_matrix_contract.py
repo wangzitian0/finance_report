@@ -17,7 +17,7 @@ import pytest
 import yaml
 
 from common.meta.extension.check_manifest import load_computed_concepts
-from common.testing import matrix
+from common.testing import matrix, test_selection
 
 ROOT = Path(__file__).resolve().parents[2]
 MATRIX_YAML = ROOT / "common" / "testing" / "data" / "test-execution-matrix.yaml"
@@ -254,3 +254,42 @@ def test_AC8_22_6_charter_and_manifest_ownership() -> None:
     assert entry["owner"] == "common/testing/matrix.py"
     cross_refs = entry.get("cross_refs", [])
     assert "common/testing/data/test-execution-matrix.yaml" in cross_refs
+
+
+def test_test_selection_cli_in_process(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify common.testing.test_selection CLI flags in-process."""
+    assert test_selection.main(["--check-matrix"]) == 0
+    capsys.readouterr()
+
+    fake_yaml = tmp_path / "matrix.yaml"
+    monkeypatch.setattr(test_selection, "ROOT_DIR", tmp_path)
+    monkeypatch.setattr(test_selection, "MATRIX_YAML", fake_yaml)
+
+    assert test_selection.main(["--check-matrix"]) == 1
+    assert "drifted from" in capsys.readouterr().err
+
+    assert test_selection.main(["--emit-matrix"]) == 0
+    assert fake_yaml.read_text(encoding="utf-8") == matrix.emit_execution_matrix_yaml()
+    capsys.readouterr()
+    assert test_selection.main(["--check-matrix"]) == 0
+    capsys.readouterr()
+
+    with pytest.raises(SystemExit):
+        test_selection.main([])
+    capsys.readouterr()
+
+    assert test_selection.main(["--stage", "nonexistent"]) == 2
+    assert "unknown selection stage" in capsys.readouterr().err
+
+    assert test_selection.main(["--stage", "staging_core_e2e", "--shell"]) == 0
+    assert "STAGING_CORE_E2E_TESTS=(" in capsys.readouterr().out
+
+    assert test_selection.main(["--stage", "staging_core_e2e"]) == 0
+    assert (
+        tuple(capsys.readouterr().out.strip().splitlines())
+        == matrix.staging_core_e2e_selection()
+    )
