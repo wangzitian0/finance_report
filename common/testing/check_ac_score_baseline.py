@@ -24,8 +24,6 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from infra2_sdk.ci import EPSILON
-
 from common.meta.base.gate_cli import run_gate
 from common.testing.ac_score_baseline_format import load_jsonl, write_jsonl
 from common.testing.jsonl_baseline import ratcheted_raise_only_merge
@@ -38,6 +36,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # is never regenerated from current scores.
 DEFAULT_BASELINE = REPO_ROOT / "common" / "testing" / "data" / "ac-score-baseline.jsonl"
 BASELINE_UPDATE_MODE = "raise-only"
+
+# Floating-point slack so an identical re-measurement never trips the gate.
+EPSILON = 1e-6
 
 
 def _load_json(path: Path) -> dict[str, Any]:

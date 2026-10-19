@@ -26,8 +26,6 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
-from infra2_sdk.ci import EPSILON
-
 from common.testing.jsonl_baseline import ratcheted_raise_only_merge
 from common.testing.cassette_eval_baseline import (
     CORPUS_COUNT_BASELINE,
@@ -37,6 +35,9 @@ from common.testing.cassette_eval_baseline import (
 from common.testing.check_llm_cassettes import CASSETTE_DIR, _response_text
 
 GROUND_TRUTH_DIR = CASSETTE_DIR / "ground_truth"
+
+# Floating-point slack so an identical re-measurement never trips the ratchet.
+EPSILON = 1e-6
 
 # The documented coverage matrix this eval set must satisfy (AC23.8.1). Keeping
 # the required axes in code lets the test assert breadth and the doc state it.
