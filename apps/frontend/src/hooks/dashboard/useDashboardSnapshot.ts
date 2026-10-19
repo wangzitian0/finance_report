@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiOperation } from "@/lib/api-client";
 import type { components } from "@/lib/api-types";
+import type { AttentionSources } from "@/lib/attention";
 import { formatDateInput } from "@/lib/date";
 import {
   normalizeAdvisorSuggestions,
@@ -152,6 +153,7 @@ export interface DashboardSnapshot {
   annualizedIncome: AnnualizedIncomeResponse | null;
   restrictedHoldings: RestrictedHolding[];
   stats: ReconciliationStatsResponse | null;
+  statements: NonNullable<AttentionSources["statements"]>;
   unmatched: UnmatchedTransactionsResponse | null;
   recentEntries: JournalEntryListResponse | null;
   onboardingStatus: DashboardOnboardingStatus | null;
@@ -175,6 +177,9 @@ export function useDashboardSnapshot(
     RestrictedHolding[]
   >([]);
   const [stats, setStats] = useState<ReconciliationStatsResponse | null>(null);
+  const [statements, setStatements] = useState<
+    NonNullable<AttentionSources["statements"]>
+  >([]);
   const [unmatched, setUnmatched] =
     useState<UnmatchedTransactionsResponse | null>(null);
   const [recentEntries, setRecentEntries] =
@@ -194,6 +199,19 @@ export function useDashboardSnapshot(
     );
     const incomeEnd = formatDateInput(today);
     setLoading(true);
+    void apiOperation("suggestions_chat_suggestions_get", {
+      query: { language: "en", include_structured: true },
+    })
+      .then((chatSuggestionsData) => {
+        setAdvisorSuggestions(
+          normalizeAdvisorSuggestions(
+            chatSuggestionsData?.structured_suggestions,
+          ),
+        );
+      })
+      .catch(() => {
+        setAdvisorSuggestions([]);
+      });
     try {
       const [
         balanceData,
@@ -206,7 +224,6 @@ export function useDashboardSnapshot(
         accountData,
         statementData,
         postedJournalData,
-        chatSuggestionsData,
       ] = await Promise.all([
         apiOperation("balance_sheet_reports_balance_sheet_get", {
           query: { include_restricted: includeRestricted },
@@ -228,9 +245,6 @@ export function useDashboardSnapshot(
         apiOperation("list_journal_entries_journal_entries_get", {
           query: { status_filter: "posted", limit: 1 },
         }),
-        apiOperation("suggestions_chat_suggestions_get", {
-          query: { language: "en", include_structured: true },
-        }).catch(() => ({ suggestions: [], structured_suggestions: [] })),
       ]);
       setBalanceSheet(normalizeBalanceSheet(balanceData));
       setIncomeStatement(normalizeIncomeStatement(incomeData));
@@ -239,6 +253,7 @@ export function useDashboardSnapshot(
         Array.isArray(restrictedData) ? restrictedData : [],
       );
       setStats(statsData || EMPTY_STATS);
+      setStatements(statementData?.items ?? []);
       setUnmatched(unmatchedData || { items: [], total: 0 });
       setRecentEntries(journalData || { items: [], total: 0 });
       setOnboardingStatus({
@@ -250,11 +265,6 @@ export function useDashboardSnapshot(
           ).length ?? 0,
         postedEntryCount: postedJournalData?.total ?? 0,
       });
-      setAdvisorSuggestions(
-        normalizeAdvisorSuggestions(
-          chatSuggestionsData?.structured_suggestions,
-        ),
-      );
       setError(null);
     } catch (err) {
       setError(
@@ -276,6 +286,7 @@ export function useDashboardSnapshot(
       annualizedIncome,
       restrictedHoldings,
       stats,
+      statements,
       unmatched,
       recentEntries,
       onboardingStatus,
@@ -295,6 +306,7 @@ export function useDashboardSnapshot(
       onboardingStatus,
       recentEntries,
       restrictedHoldings,
+      statements,
       stats,
       unmatched,
     ],

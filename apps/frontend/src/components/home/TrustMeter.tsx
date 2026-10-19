@@ -8,6 +8,7 @@ import { apiOperation } from "@/lib/api-client";
 import {
   buildAttentionItems,
   summarizeTrust,
+  type AttentionSources,
   type TrustSummary,
 } from "@/lib/attention";
 import type {
@@ -16,17 +17,41 @@ import type {
   ReconciliationStatsResponse,
 } from "@/lib/types";
 
+export interface TrustMeterProps {
+  statements?: AttentionSources["statements"];
+  stats?: ReconciliationStatsResponse | null;
+}
+
 // EPIC-022 PR6 (#864) AC22.6.2: a compact, always-honest view of the trust
 // posture — how much is trusted vs. how much still needs the user — that makes
 // the north-star (low-confidence data trending down) visible on Home. It stays
 // silent when nothing needs attention.
-export function TrustMeter() {
+export function TrustMeter({
+  statements: initialStatements,
+  stats: initialStats,
+}: TrustMeterProps = {}) {
   const [summary, setSummary] = useState<TrustSummary | null>(null);
 
   useEffect(() => {
+    if (initialStatements === null) {
+      return;
+    }
     let active = true;
     (async () => {
       try {
+        if (initialStatements !== undefined) {
+          const processing = await apiOperation(
+            "list_processing_pending_accounts_processing_pending_get",
+          );
+          if (!active) return;
+          const items = buildAttentionItems({
+            statements: initialStatements,
+            stats: initialStats ?? null,
+            processing: processing?.items ?? [],
+          });
+          setSummary(summarizeTrust(items, initialStats ?? null));
+          return;
+        }
         const [statements, stats, processing] = await Promise.all([
           apiOperation("list_statements_statements_get"),
           apiOperation("reconciliation_stats_reconciliation_stats_get"),
@@ -49,7 +74,7 @@ export function TrustMeter() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialStatements, initialStats]);
 
   // Silent when nothing needs attention (AC22.6.2).
   if (!summary || summary.needsConfirmation === 0) return null;

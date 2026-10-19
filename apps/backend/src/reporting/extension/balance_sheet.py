@@ -91,6 +91,66 @@ async def _build_manual_valuation_lines(
     )
 
 
+async def _compute_unrealized_fx_gain_loss(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    as_of_date: date,
+    target_currency: str,
+    fx_warnings: list[FxWarning] | None = None,
+) -> Decimal:
+    """Compute unrealized FX gain/loss in target_currency as of as_of_date."""
+    normalized_target = _normalize_currency(target_currency)
+    try:
+        fx_revaluation = await calculate_unrealized_fx_gains(db, user_id, as_of_date)
+        raw_unrealized = fx_revaluation.total_unrealized_gain_loss
+        base_curr = settings.base_currency.upper()
+        if normalized_target != base_curr:
+            try:
+                rate = await fx_gateway.get_exchange_rate(
+                    db,
+                    base_curr,
+                    normalized_target,
+                    as_of_date,
+                    lazy_load=True,
+                )
+                raw_unrealized = raw_unrealized * rate
+            except fx_gateway.FxRateError as exc:
+                if fx_warnings is not None:
+                    fx_warnings.append(
+                        {
+                            "type": "missing_fx_rate_target_currency",
+                            "as_of_date": as_of_date.isoformat(),
+                            "message": str(exc),
+                        }
+                    )
+                logger.warning(
+                    "Failed to convert unrealized FX to target currency",
+                    error_id=ErrorIds.REPORT_FX_FALLBACK,
+                    error=str(exc),
+                )
+                raw_unrealized = Decimal("0.00")
+        return _quantize_money(raw_unrealized)
+    except RevaluationError as exc:
+        if "Missing FX rate" not in str(exc):
+            raise ReportError(str(exc)) from exc
+        if fx_warnings is not None:
+            fx_warnings.append(
+                {
+                    "type": "missing_fx_revaluation_partial_skip",
+                    "as_of_date": as_of_date.isoformat(),
+                    "message": str(exc),
+                }
+            )
+        logger.warning(
+            "Skipping unrealized FX revaluation because FX rate is unavailable",
+            error_id=ErrorIds.REPORT_FX_FALLBACK,
+            as_of_date=as_of_date.isoformat(),
+            error=str(exc),
+        )
+        return Decimal("0.00")
+
+
 async def generate_balance_sheet(
     db: AsyncSession,
     user_id: UUID,
@@ -224,53 +284,13 @@ async def generate_balance_sheet(
         raise ReportError(str(exc)) from exc
 
     net_income = _quantize_money(net_income_raw)
-
-    try:
-        fx_revaluation = await calculate_unrealized_fx_gains(db, user_id, as_of_date)
-        raw_unrealized = fx_revaluation.total_unrealized_gain_loss
-        base_curr = settings.base_currency.upper()
-        if target_currency.upper() != base_curr:
-            try:
-                rate = await fx_gateway.get_exchange_rate(
-                    db,
-                    base_curr,
-                    target_currency.upper(),
-                    as_of_date,
-                    lazy_load=True,
-                )
-                raw_unrealized = raw_unrealized * rate
-            except fx_gateway.FxRateError as exc:
-                fx_warnings.append(
-                    {
-                        "type": "missing_fx_rate_target_currency",
-                        "as_of_date": as_of_date.isoformat(),
-                        "message": str(exc),
-                    }
-                )
-                logger.warning(
-                    "Failed to convert unrealized FX to target currency",
-                    error_id=ErrorIds.REPORT_FX_FALLBACK,
-                    error=str(exc),
-                )
-                raw_unrealized = Decimal("0.00")
-        unrealized_fx = _quantize_money(raw_unrealized)
-    except RevaluationError as exc:
-        if "Missing FX rate" not in str(exc):
-            raise ReportError(str(exc)) from exc
-        fx_warnings.append(
-            {
-                "type": "missing_fx_revaluation_partial_skip",
-                "as_of_date": as_of_date.isoformat(),
-                "message": str(exc),
-            }
-        )
-        logger.warning(
-            "Skipping unrealized FX revaluation because FX rate is unavailable",
-            error_id=ErrorIds.REPORT_FX_FALLBACK,
-            as_of_date=as_of_date.isoformat(),
-            error=str(exc),
-        )
-        unrealized_fx = Decimal("0.00")
+    unrealized_fx = await _compute_unrealized_fx_gain_loss(
+        db,
+        user_id,
+        as_of_date=as_of_date,
+        target_currency=target_currency,
+        fx_warnings=fx_warnings,
+    )
     net_worth_adjustment = _quantize_money(
         _line_total(portfolio_adjustments) + _line_total(valuation_assets) - _line_total(valuation_liabilities)
     )

@@ -7,6 +7,7 @@ import {
   useDashboardSnapshot,
   type DashboardOnboardingStatus,
 } from "@/hooks/dashboard/useDashboardSnapshot";
+import type { AttentionSources } from "@/lib/attention";
 import type {
   AdvisorSuggestion,
   AnnualizedIncomeResponse,
@@ -37,6 +38,7 @@ export interface UseDashboardDataResult {
   annualizedIncome: AnnualizedIncomeResponse | null;
   restrictedHoldings: RestrictedHolding[];
   stats: ReconciliationStatsResponse | null;
+  statements: NonNullable<AttentionSources["statements"]>;
   unmatched: UnmatchedTransactionsResponse | null;
   recentEntries: JournalEntryListResponse | null;
   onboardingStatus: DashboardOnboardingStatus | null;
@@ -63,6 +65,7 @@ export function useDashboardData(includeRestricted: boolean): UseDashboardDataRe
       annualizedIncome: snapshot.annualizedIncome,
       restrictedHoldings: snapshot.restrictedHoldings,
       stats: snapshot.stats,
+      statements: snapshot.statements,
       unmatched: snapshot.unmatched,
       recentEntries: snapshot.recentEntries,
       onboardingStatus: snapshot.onboardingStatus,

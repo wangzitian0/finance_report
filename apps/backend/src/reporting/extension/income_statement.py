@@ -21,7 +21,7 @@ from src.reporting.extension._core import (
     _build_account_lines,
     _load_accounts,
 )
-from src.reporting.extension.balance_sheet import generate_balance_sheet
+from src.reporting.extension.balance_sheet import _compute_unrealized_fx_gain_loss
 from src.reporting.extension.fx_gateway import (
     FxWarning,
     convert_money,
@@ -102,6 +102,7 @@ async def generate_income_statement(
     tags: list[str] | None = None,
     account_type: AccountType | None = None,
     include_economic_categories: bool = False,
+    ending_unrealized_fx_gain_loss: Decimal | None = None,
 ) -> dict[str, object]:
     """Generate income statement report for a date range."""
     if start_date > end_date:
@@ -308,7 +309,12 @@ async def generate_income_statement(
 
     # Calculate Unrealized FX Gain/Loss for the period
     unrealized_fx_change = await _calculate_unrealized_fx_change(
-        db, user_id=user_id, start_date=start_date, end_date=end_date, target_currency=target_currency
+        db,
+        user_id=user_id,
+        start_date=start_date,
+        end_date=end_date,
+        target_currency=target_currency,
+        ending_unrealized_fx_gain_loss=ending_unrealized_fx_gain_loss,
     )
 
     trend_items: list[dict[str, Any]] = []
@@ -418,17 +424,26 @@ async def _calculate_unrealized_fx_change(
     start_date: date,
     end_date: date,
     target_currency: str,
+    ending_unrealized_fx_gain_loss: Decimal | None = None,
 ) -> Decimal:
-    """Calculate Unrealized FX Gain/Loss change for the period across balance sheets."""
-    bs_start = await generate_balance_sheet(
-        db, user_id, as_of_date=start_date - timedelta(days=1), currency=target_currency, include_trust_signals=False
+    """Calculate Unrealized FX Gain/Loss change for the period without full balance-sheet assembly."""
+    start_fx = await _compute_unrealized_fx_gain_loss(
+        db,
+        user_id,
+        as_of_date=start_date - timedelta(days=1),
+        target_currency=target_currency,
     )
-    bs_end = await generate_balance_sheet(
-        db, user_id, as_of_date=end_date, currency=target_currency, include_trust_signals=False
+    end_fx = (
+        _quantize_money(Decimal(str(ending_unrealized_fx_gain_loss)))
+        if ending_unrealized_fx_gain_loss is not None
+        else await _compute_unrealized_fx_gain_loss(
+            db,
+            user_id,
+            as_of_date=end_date,
+            target_currency=target_currency,
+        )
     )
-    return _quantize_money(
-        Decimal(str(bs_end["unrealized_fx_gain_loss"])) - Decimal(str(bs_start["unrealized_fx_gain_loss"]))
-    )
+    return _quantize_money(end_fx - start_fx)
 
 
 async def _load_classification_breakdown(

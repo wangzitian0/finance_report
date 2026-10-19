@@ -77,9 +77,11 @@ export default function ReportsPage() {
 
   useEffect(() => {
     let active = true;
-    apiOperation("get_annualized_income_income_annualized_get")
-      .then((data) => active && setAnnualized(data))
-      .catch(() => active && setAnnualized(null));
+    const loadAnnualizedFallback = () => {
+      apiOperation("get_annualized_income_income_annualized_get")
+        .then((data) => active && setAnnualized(data))
+        .catch(() => active && setAnnualized(null));
+    };
     apiOperation("reconciliation_stats_reconciliation_stats_get")
       .then((data) => active && setStats(data))
       .catch(() => active && setStats(null));
@@ -90,6 +92,28 @@ export default function ReportsPage() {
       })(),
     })
       .then((document) => {
+        const packageIncome =
+          document?.sections?.annualized_income_long_term?.income;
+        if (
+          packageIncome &&
+          packageIncome.annualized_total != null &&
+          packageIncome.currency
+        ) {
+          if (active) {
+            setAnnualized({
+              annualized_salary: String(packageIncome.annualized_salary ?? "0"),
+              annualized_bonus: String(packageIncome.annualized_bonus ?? "0"),
+              annualized_dividend: String(
+                packageIncome.annualized_dividend ?? "0",
+              ),
+              annualized_total: String(packageIncome.annualized_total),
+              currency: String(packageIncome.currency),
+              as_of: String(document?.context?.as_of_date ?? ""),
+            });
+          }
+        } else {
+          loadAnnualizedFallback();
+        }
         if (!isPackageReadiness(document.readiness)) {
           if (active) {
             setReadiness(null);
@@ -103,6 +127,7 @@ export default function ReportsPage() {
         }
       })
       .catch(() => {
+        loadAnnualizedFallback();
         if (active) {
           setReadiness(null);
           setReadinessState("error");
