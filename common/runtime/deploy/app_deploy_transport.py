@@ -29,8 +29,8 @@ from infra2_sdk.deploy import (  # noqa: E402
 )
 from infra2_sdk.deploy import dispatch_and_wait as _sdk_dispatch_and_wait  # noqa: E402
 
+from common.runtime.deploy.app_deploy_request import request_from_mapping  # noqa: E402
 from common.runtime.github_api import write_github_output  # noqa: E402
-from tools.app_deploy_request import request_from_mapping  # noqa: E402
 
 PRODUCTION_APPROVAL_WINDOW_SECONDS = PRODUCTION_REQUEST_MAX_AGE_SECONDS
 
