@@ -15,6 +15,31 @@ vi.mock("next/link", () => ({
     ),
 }));
 
+vi.mock("@/components/review/LowConfidenceReviewModal", () => ({
+    LowConfidenceReviewModal: ({
+        isOpen,
+        onClose,
+        onSuccess,
+        transaction,
+        currency,
+    }: {
+        isOpen: boolean;
+        onClose: () => void;
+        onSuccess?: () => void;
+        transaction: unknown;
+        currency?: string;
+    }) => {
+        if (!isOpen) return null;
+        return (
+            <div data-testid="low-confidence-review-modal">
+                <span data-testid="modal-currency">{currency}</span>
+                <button type="button" onClick={onSuccess}>Trigger Success</button>
+                <button type="button" onClick={onClose}>Close Modal</button>
+            </div>
+        );
+    },
+}));
+
 const baseStatement: BankStatement = {
     id: "s1",
     user_id: "u1",
@@ -271,6 +296,76 @@ describe("StatementTransactionsTable", () => {
         );
         expect(screen.getByText("matched")).toBeInTheDocument();
         expect(screen.queryByText("pending")).not.toBeInTheDocument();
+    });
+
+    it("opens review modal on edit click and handles close and update", () => {
+        const onTransactionUpdated = vi.fn();
+        const diningTxn: BankStatementTransaction = {
+            ...txn,
+            id: "t4",
+            category: "DINING",
+            currency: null,
+        };
+        render(
+            <StatementTransactionsTable
+                statement={{
+                    ...baseStatement,
+                    currency: "SGD",
+                    transactions: [diningTxn],
+                }}
+                onTransactionUpdated={onTransactionUpdated}
+            />,
+        );
+
+        expect(screen.getByText("Dining")).toBeInTheDocument();
+        const editBtn = screen.getByRole("button", { name: "Edit" });
+        expect(editBtn).toHaveAttribute("title", "Edit category");
+
+        // Modal closed initially
+        expect(screen.queryByTestId("low-confidence-review-modal")).not.toBeInTheDocument();
+
+        // Click Edit to open modal
+        fireEvent.click(editBtn);
+        expect(screen.getByTestId("low-confidence-review-modal")).toBeInTheDocument();
+        expect(screen.getByTestId("modal-currency")).toHaveTextContent("SGD");
+
+        // Trigger success callback
+        fireEvent.click(screen.getByRole("button", { name: "Trigger Success" }));
+        expect(onTransactionUpdated).toHaveBeenCalledTimes(1);
+
+        // Close modal
+        fireEvent.click(screen.getByRole("button", { name: "Close Modal" }));
+        expect(screen.queryByTestId("low-confidence-review-modal")).not.toBeInTheDocument();
+    });
+
+    it("opens review modal without onTransactionUpdated handler and uses txn currency", () => {
+        const proposedTxn: BankStatementTransaction = {
+            ...txn,
+            id: "t5",
+            category: null,
+            proposed_category: "TRANSPORT",
+            currency: "USD",
+        };
+        render(
+            <StatementTransactionsTable
+                statement={{
+                    ...baseStatement,
+                    transactions: [proposedTxn],
+                }}
+            />,
+        );
+
+        expect(screen.getByText("Transport")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+        expect(screen.getByTestId("low-confidence-review-modal")).toBeInTheDocument();
+        expect(screen.getByTestId("modal-currency")).toHaveTextContent("USD");
+
+        // Trigger success without handler does not throw
+        fireEvent.click(screen.getByRole("button", { name: "Trigger Success" }));
+
+        // Close modal
+        fireEvent.click(screen.getByRole("button", { name: "Close Modal" }));
+        expect(screen.queryByTestId("low-confidence-review-modal")).not.toBeInTheDocument();
     });
 });
 
