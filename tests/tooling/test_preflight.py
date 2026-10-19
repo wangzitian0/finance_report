@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from common.testing import preflight
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -16,29 +15,17 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 class TestSelectChecks:
     def test_epic_edit_selects_ac_traceability(self):
-        names = [
-            c.name
-            for c in preflight.select_checks(
-                ["docs/project/EPIC-008.testing-strategy.md"]
-            )
-        ]
+        names = [c.name for c in preflight.select_checks(["docs/project/EPIC-008.testing-strategy.md"])]
         assert "ac-traceability" in names
 
     def test_epic_edit_selects_package_migration_safety(self):
-        names = [
-            c.name
-            for c in preflight.select_checks(
-                ["docs/project/EPIC-008.testing-strategy.md"]
-            )
-        ]
+        names = [c.name for c in preflight.select_checks(["docs/project/EPIC-008.testing-strategy.md"])]
         assert "package-migration-safety" in names
 
     def test_manifest_edit_selects_ownership(self):
         # docs/ssot/ is retired (#1823, Package-ization 4/4); the concept
         # registry lives at common/meta/data/MANIFEST.yaml now.
-        names = [
-            c.name for c in preflight.select_checks(["common/meta/data/MANIFEST.yaml"])
-        ]
+        names = [c.name for c in preflight.select_checks(["common/meta/data/MANIFEST.yaml"])]
         assert "ssot-ownership" in names
 
     @pytest.mark.parametrize(
@@ -55,19 +42,12 @@ class TestSelectChecks:
             "common/meta/extension/generate_ac_registry.py",
         ],
     )
-    def test_AC_testing_preflight_1_authority_input_selects_reconcile(
-        self, changed_path: str
-    ):
+    def test_AC_testing_preflight_1_authority_input_selects_reconcile(self, changed_path: str):
         names = [c.name for c in preflight.select_checks([changed_path])]
         assert "package-migration-safety" in names
 
     def test_AC_testing_preflight_1_proof_test_selects_package_migration_safety(self):
-        names = [
-            c.name
-            for c in preflight.select_checks(
-                ["tests/tooling/test_s4_gate_contracts.py"], tier="static"
-            )
-        ]
+        names = [c.name for c in preflight.select_checks(["tests/tooling/test_s4_gate_contracts.py"], tier="static")]
         assert "package-migration-safety" in names
 
     def test_workflow_edit_selects_workflow_contract(self):
@@ -75,12 +55,7 @@ class TestSelectChecks:
         assert {"workflow-contract"}.issubset(names)
 
     def test_governance_exceptions_edit_selects_governance_exceptions(self):
-        names = {
-            c.name
-            for c in preflight.select_checks(
-                ["common/meta/data/governance-exceptions.yaml"]
-            )
-        }
+        names = {c.name for c in preflight.select_checks(["common/meta/data/governance-exceptions.yaml"])}
         assert {"governance-exceptions"}.issubset(names)
 
     def test_fixture_edit_selects_recording_gates(self):
@@ -92,10 +67,7 @@ class TestSelectChecks:
     def test_AC_testing_preflight_1_backend_proof_test_selects_ac_index(self):
         """AC-testing.preflight.1: changed backend proofs re-run AC integrity locally."""
         names = [
-            c.name
-            for c in preflight.select_checks(
-                ["apps/backend/tests/audit/test_boundary_codecs.py"], tier="static"
-            )
+            c.name for c in preflight.select_checks(["apps/backend/tests/audit/test_boundary_codecs.py"], tier="static")
         ]
         assert "ac-proof-traceability" in names
 
@@ -111,117 +83,71 @@ class TestSelectChecks:
         # apps/backend/src/services/ is retired (#1610/#1666); the watched
         # commit-boundary files live under extraction/extension/ now.
         names = [
-            c.name
-            for c in preflight.select_checks(
-                ["apps/backend/src/extraction/extension/statement_parsing.py"]
-            )
+            c.name for c in preflight.select_checks(["apps/backend/src/extraction/extension/statement_parsing.py"])
         ]
         assert "backend-format" in names
         assert "transaction-boundary" in names
 
     def test_backend_source_edit_selects_app_boundary(self):
-        names = [
-            c.name
-            for c in preflight.select_checks(
-                ["apps/backend/src/reconciliation/extension/matching.py"]
-            )
-        ]
+        names = [c.name for c in preflight.select_checks(["apps/backend/src/reconciliation/extension/matching.py"])]
         assert "app-boundary" in names
 
     def test_backend_source_edit_selects_public_orm_export_gate(self):
-        names = [
-            c.name
-            for c in preflight.select_checks(["apps/backend/src/ledger/__init__.py"])
-        ]
+        names = [c.name for c in preflight.select_checks(["apps/backend/src/ledger/__init__.py"])]
         assert "public-orm-exports" in names
 
     def test_backend_source_edit_selects_base_purity(self):
-        selected = preflight.select_checks(
-            ["apps/backend/src/reconciliation/base/repository.py"]
-        )
+        selected = preflight.select_checks(["apps/backend/src/reconciliation/base/repository.py"])
 
         base_purity = next(check for check in selected if check.name == "base-purity")
         assert base_purity.commands == ((preflight.PY, "tools/check_base_purity.py"),)
 
     def test_migration_edit_selects_migration_risk(self):
-        names = [
-            c.name
-            for c in preflight.select_checks(
-                ["apps/backend/migrations/versions/0099_x.py"]
-            )
-        ]
+        names = [c.name for c in preflight.select_checks(["apps/backend/migrations/versions/0099_x.py"])]
         assert "migration-risk" in names
 
     def test_env_edit_selects_env_keys(self):
-        assert [c.name for c in preflight.select_checks([".env.example"])] == [
-            "env-keys"
-        ]
+        assert [c.name for c in preflight.select_checks([".env.example"])] == ["env-keys"]
 
     def test_schema_edit_selects_schema_validate(self):
-        names = [
-            c.name
-            for c in preflight.select_checks(["apps/backend/src/schemas/account.py"])
-        ]
+        names = [c.name for c in preflight.select_checks(["apps/backend/src/schemas/account.py"])]
         assert "schema-validate" in names
 
     def test_AC_testing_preflight_1_validator_edit_does_not_scan_schema_debt(self):
-        names = [
-            c.name
-            for c in preflight.select_checks(
-                ["apps/backend/src/runtime/extension/schema_validation.py"]
-            )
-        ]
+        names = [c.name for c in preflight.select_checks(["apps/backend/src/runtime/extension/schema_validation.py"])]
         assert "schema-validate" not in names
 
     def test_router_edit_selects_api_reference_and_router_contract(self):
         # A router change shifts the OpenAPI surface AND the router-contract
         # maturity scan; both generated docs are CI-gated, so preflight must
         # flag them locally (parity with CI's api-reference + Tooling gates).
-        names = [
-            c.name
-            for c in preflight.select_checks(["apps/backend/src/routers/income.py"])
-        ]
+        names = [c.name for c in preflight.select_checks(["apps/backend/src/routers/income.py"])]
         assert "api-reference" in names
         assert "router-contract" in names
 
     def test_package_extension_api_edit_selects_api_reference(self):
         """Package extension API changes select api-reference check."""
-        names = [
-            c.name
-            for c in preflight.select_checks(
-                ["apps/backend/src/identity/extension/api/users.py"]
-            )
-        ]
+        names = [c.name for c in preflight.select_checks(["apps/backend/src/identity/extension/api/users.py"])]
         assert "api-reference" in names
 
     def test_schema_edit_selects_api_reference(self):
         # Schema changes also move the OpenAPI reference (but not the
         # router-contract scan, which only reads routers/).
-        names = [
-            c.name
-            for c in preflight.select_checks(["apps/backend/src/schemas/income.py"])
-        ]
+        names = [c.name for c in preflight.select_checks(["apps/backend/src/schemas/income.py"])]
         assert "api-reference" in names
         assert "router-contract" not in names
 
     def test_frontend_edit_selects_frontend_gate(self):
-        names = [
-            c.name
-            for c in preflight.select_checks(["apps/frontend/src/app/layout.tsx"])
-        ]
+        names = [c.name for c in preflight.select_checks(["apps/frontend/src/app/layout.tsx"])]
         assert names == ["frontend-static", "frontend"]
 
     def test_config_edit_selects_env_reference_and_backend_format(self):
-        names = [
-            c.name for c in preflight.select_checks(["apps/backend/src/config.py"])
-        ]
+        names = [c.name for c in preflight.select_checks(["apps/backend/src/config.py"])]
         assert "env-reference" in names
         assert "backend-format" in names
 
     def test_tooling_edit_selects_tooling_gate(self):
-        names = [
-            c.name for c in preflight.select_checks(["tools/generate_env_reference.py"])
-        ]
+        names = [c.name for c in preflight.select_checks(["tools/generate_env_reference.py"])]
         assert "tooling" in names
 
     def test_unrelated_file_selects_nothing(self):
@@ -246,13 +172,7 @@ def _route_defining_backend_files() -> list[str]:
             if not isinstance(node, ast.Call):
                 continue
             func = node.func
-            name = (
-                func.id
-                if isinstance(func, ast.Name)
-                else func.attr
-                if isinstance(func, ast.Attribute)
-                else None
-            )
+            name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else None
             if name in {"APIRouter", "FastAPI"}:
                 found.append(path.relative_to(REPO_ROOT).as_posix())
                 break
@@ -277,12 +197,9 @@ def test_AC_testing_preflight_2_openapi_spec_gate_selects_every_route_file():
     unselected = [
         path
         for path in route_files
-        if "openapi-spec"
-        not in {c.name for c in preflight.select_checks([path], tier="static")}
+        if "openapi-spec" not in {c.name for c in preflight.select_checks([path], tier="static")}
     ]
-    assert unselected == [], (
-        f"route files that do not select openapi-spec: {unselected}"
-    )
+    assert unselected == [], f"route files that do not select openapi-spec: {unselected}"
 
 
 def test_AC_testing_preflight_2_api_reference_and_openapi_spec_share_input_globs():
@@ -317,9 +234,7 @@ def test_AC_testing_toolchain_3_backend_format_uses_invoking_python_environment(
     )
     precommit = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
     assert "cd apps/backend && uv run python ../../tools/check_env_keys.py" in precommit
-    assert (
-        "cd apps/backend && uv run python ../../tools/validate_schemas.py" in precommit
-    )
+    assert "cd apps/backend && uv run python ../../tools/validate_schemas.py" in precommit
 
 
 def test_run_checks_passes_each_check_cwd_to_the_runner():
@@ -365,14 +280,10 @@ def test_schema_validation_receives_only_its_matching_changed_paths():
 class TestRunAndMain:
     def test_run_checks_reports_per_check_pass_fail(self):
         checks = preflight.select_checks(["apps/backend/migrations/versions/0099_x.py"])
-        results = preflight.run_checks(
-            checks, runner=lambda argv, cwd: 0, python="python3"
-        )
+        results = preflight.run_checks(checks, runner=lambda argv, cwd: 0, python="python3")
         assert all(r.ok for r in results)
 
-        results = preflight.run_checks(
-            checks, runner=lambda argv, cwd: 1, python="python3"
-        )
+        results = preflight.run_checks(checks, runner=lambda argv, cwd: 1, python="python3")
         assert all(not r.ok for r in results)
 
     def test_run_checks_fails_fast_on_first_nonzero_command(self):
@@ -406,9 +317,7 @@ class TestRunAndMain:
         rc = preflight.run(["--changed", changed_path], runner=runner)
 
         assert rc == 0
-        schema_command = next(
-            command for command in calls if "tools/validate_schemas.py" in command
-        )
+        schema_command = next(command for command in calls if "tools/validate_schemas.py" in command)
         assert schema_command[-2:] == ["--paths", changed_path]
 
     def test_main_no_relevant_gates_is_clean(self):
@@ -478,16 +387,12 @@ class TestTierSelection:
             "apps/frontend/src/app/layout.tsx",
             "common/reporting/reporting.md",
         ]
-        assert preflight.select_checks(changed) == preflight.select_checks(
-            changed, tier="full"
-        )
+        assert preflight.select_checks(changed) == preflight.select_checks(changed, tier="full")
 
     def test_AC_testing_preflight_2_frontend_static_gate_parity(self):
         """AC-testing.preflight.2: frontend changes run fast static checks in tier=static."""
         # 1. Changing a frontend component selects frontend-static in tier=static
-        selected = preflight.select_checks(
-            ["apps/frontend/src/app/layout.tsx"], tier="static"
-        )
+        selected = preflight.select_checks(["apps/frontend/src/app/layout.tsx"], tier="static")
         selected_names = {c.name for c in selected}
         assert selected_names >= {"frontend-static"}
 
@@ -503,8 +408,7 @@ class TestTierSelection:
         # 3. openapi-spec gate also verifies frontend api-types sync
         openapi_check = next(c for c in preflight.CHECKS if c.name == "openapi-spec")
         has_api_types_check = any(
-            "check:api-types" in " ".join(cmd) or "check_api_types" in " ".join(cmd)
-            for cmd in openapi_check.commands
+            "check:api-types" in " ".join(cmd) or "check_api_types" in " ".join(cmd) for cmd in openapi_check.commands
         )
         assert has_api_types_check
 
@@ -518,9 +422,7 @@ class TestTierSelection:
         assert out.find("ac-traceability") != -1
 
         # With --tier=static and empty diff, lists all static gates
-        rc = preflight.run(
-            ["--list", "--tier=static", "--changed"], runner=lambda argv, cwd: 0
-        )
+        rc = preflight.run(["--list", "--tier=static", "--changed"], runner=lambda argv, cwd: 0)
         assert rc == 0
         out = capsys.readouterr().out
         assert out.find("frontend-static") != -1
@@ -704,9 +606,7 @@ class TestCiLogging:
         assert fail_indicator in out
         assert failed_summary in out
 
-    def test_default_quiet_runner_suppresses_output_on_success(
-        self, capsys, monkeypatch
-    ):
+    def test_default_quiet_runner_suppresses_output_on_success(self, capsys, monkeypatch):
         import subprocess
 
         fake_proc = subprocess.CompletedProcess(
@@ -764,9 +664,7 @@ class TestCiLogging:
         captured = capsys.readouterr()
         assert "timed out after 180s" in captured.out
 
-    def test_child_env_isolates_test_namespace_and_preserves_explicit_override(
-        self, monkeypatch
-    ):
+    def test_child_env_isolates_test_namespace_and_preserves_explicit_override(self, monkeypatch):
         monkeypatch.delenv("TEST_NAMESPACE", raising=False)
         env = preflight._child_env()
         assert env["TEST_NAMESPACE"].startswith("preflight_")
@@ -790,9 +688,7 @@ class TestOnlyNamedGate:
     @staticmethod
     def _collect(args: list[str], rc_of_runner: int = 0) -> tuple[int, list[list[str]]]:
         ran: list[list[str]] = []
-        rc = preflight.run(
-            args, runner=lambda argv, cwd: ran.append(list(argv)) or rc_of_runner
-        )
+        rc = preflight.run(args, runner=lambda argv, cwd: ran.append(list(argv)) or rc_of_runner)
         return rc, ran
 
     def test_AC_testing_preflight_2_only_runs_the_named_gate_commands(self, capsys):
@@ -800,10 +696,7 @@ class TestOnlyNamedGate:
         assert rc == 0
         assert "preflight: running 1 named gate(s)..." in capsys.readouterr().out
         gate = next(c for c in preflight.CHECKS if c.name == "openapi-spec")
-        expected = [
-            preflight._resolve(command, python=preflight.sys.executable)
-            for command in gate.commands
-        ]
+        expected = [preflight._resolve(command, python=preflight.sys.executable) for command in gate.commands]
         # Positive control: the gate has two commands, spec check and api-types check.
         assert len(expected) == 2
         assert ran == expected
@@ -841,9 +734,7 @@ class TestOnlyNamedGate:
         assert "unknown gate name(s): openapi-specc" in capsys.readouterr().err
 
     @pytest.mark.parametrize("extra", [["--all"], ["--changed", "Makefile"]])
-    def test_AC_testing_preflight_2_only_rejects_diff_selection_flags(
-        self, extra, capsys
-    ):
+    def test_AC_testing_preflight_2_only_rejects_diff_selection_flags(self, extra, capsys):
         ran: list[list[str]] = []
         with pytest.raises(SystemExit) as exc:
             preflight.run(
@@ -852,9 +743,7 @@ class TestOnlyNamedGate:
             )
         assert exc.value.code == 2
         assert ran == []
-        assert (
-            "--only cannot combine with --all or --changed" in capsys.readouterr().err
-        )
+        assert "--only cannot combine with --all or --changed" in capsys.readouterr().err
 
     def test_AC_testing_preflight_2_only_runs_a_gate_outside_the_requested_tier(self):
         heavy = next(c for c in preflight.CHECKS if c.tier == "heavy")
@@ -866,9 +755,7 @@ class TestOnlyNamedGate:
     def test_AC_testing_preflight_2_select_named_checks_keeps_registry_order(self):
         names = [c.name for c in preflight.CHECKS]
         picked = preflight.select_named_checks(["openapi-spec", "api-reference"])
-        assert [c.name for c in picked] == [
-            n for n in names if n in {"openapi-spec", "api-reference"}
-        ]
+        assert [c.name for c in picked] == [n for n in names if n in {"openapi-spec", "api-reference"}]
         with pytest.raises(ValueError, match="unknown gate name"):
             preflight.select_named_checks(["no-such-gate"])
 
@@ -885,18 +772,10 @@ def test_AC_testing_preflight_2_ci_lint_job_runs_the_openapi_spec_gate():
     """
     steps = _lint_steps()
     names = [step.get("name", "") for step in steps]
-    matching = [
-        i
-        for i, step in enumerate(steps)
-        if "--only openapi-spec" in step.get("run", "")
-    ]
+    matching = [i for i, step in enumerate(steps) if "--only openapi-spec" in step.get("run", "")]
     assert len(matching) == 1, f"expected one openapi-spec step in Lint, got {matching}"
     step = steps[matching[0]]
-    run_lines = [
-        line.strip()
-        for line in step["run"].splitlines()
-        if line.strip() and not line.strip().startswith("#")
-    ]
+    run_lines = [line.strip() for line in step["run"].splitlines() if line.strip() and not line.strip().startswith("#")]
     assert run_lines == [
         "cd apps/backend",
         "uv run python ../../tools/preflight.py --only openapi-spec --ci",
@@ -913,9 +792,7 @@ def test_AC_testing_preflight_2_every_ci_only_gate_name_exists():
     referenced: set[str] = set()
     for workflow in sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml")):
         text = workflow.read_text(encoding="utf-8")
-        referenced.update(
-            re.findall(r"preflight\.py[^\n]*?--only[= ]([A-Za-z0-9_-]+)", text)
-        )
+        referenced.update(re.findall(r"preflight\.py[^\n]*?--only[= ]([A-Za-z0-9_-]+)", text))
     # Positive control: the scan must find the openapi-spec reference.
     assert "openapi-spec" in referenced
     assert referenced <= registry, sorted(referenced - registry)
@@ -933,23 +810,24 @@ class TestDiffScopedPytestTargets:
 
     def test_resolve_changed_pytest_targets_maps_source_and_test_files(self, tmp_path):
         (tmp_path / "tests" / "tooling").mkdir(parents=True)
-        (tmp_path / "tests" / "tooling" / "test_preflight.py").write_text(
-            "def test_ok(): pass\n", encoding="utf-8"
-        )
-        (tmp_path / "tests" / "tooling" / "test_direct_root.py").write_text(
-            "def test_ok(): pass\n", encoding="utf-8"
-        )
+        (tmp_path / "tests" / "tooling" / "test_preflight.py").write_text("def test_ok(): pass\n", encoding="utf-8")
+        (tmp_path / "tests" / "tooling" / "test_direct_root.py").write_text("def test_ok(): pass\n", encoding="utf-8")
         (tmp_path / "apps" / "backend" / "tests" / "unit").mkdir(parents=True)
-        (
-            tmp_path / "apps" / "backend" / "tests" / "unit" / "test_journal_service.py"
-        ).write_text("def test_ok(): pass\n", encoding="utf-8")
-        (
-            tmp_path / "apps" / "backend" / "tests" / "unit" / "test_direct_backend.py"
-        ).write_text("def test_ok(): pass\n", encoding="utf-8")
+        (tmp_path / "apps" / "backend" / "tests" / "unit" / "test_journal_service.py").write_text(
+            "def test_ok(): pass\n", encoding="utf-8"
+        )
+        (tmp_path / "apps" / "backend" / "tests" / "unit" / "test_direct_backend.py").write_text(
+            "def test_ok(): pass\n", encoding="utf-8"
+        )
+        (tmp_path / "apps" / "backend" / "tests" / "audit" / "money").mkdir(parents=True)
+        (tmp_path / "apps" / "backend" / "tests" / "audit" / "money" / "test_money_value_type.py").write_text(
+            "def test_ok(): pass\n", encoding="utf-8"
+        )
         root_targets, backend_targets = preflight.resolve_changed_pytest_targets(
             [
                 "common/testing/__init__.py",
                 "common/testing/preflight.py",
+                "common/audit/money/money.py",
                 "tests/tooling/test_direct_root.py",
                 "apps/backend/src/services/journal_service.py",
                 "apps/backend/tests/unit/test_direct_backend.py",
@@ -962,6 +840,7 @@ class TestDiffScopedPytestTargets:
             "tests/tooling/test_preflight.py",
         ]
         assert backend_targets == [
+            "tests/audit/money/test_money_value_type.py",
             "tests/unit/test_direct_backend.py",
             "tests/unit/test_journal_service.py",
         ]
@@ -986,16 +865,12 @@ class TestDiffScopedPytestTargets:
         assert rc == 0
         out = capsys.readouterr().out
         root_calls = [
-            (argv, cwd)
-            for argv, cwd in recorded
-            if "pytest" in argv and "tests/tooling/test_preflight.py" in argv
+            (argv, cwd) for argv, cwd in recorded if "pytest" in argv and "tests/tooling/test_preflight.py" in argv
         ]
         backend_calls = [
             (argv, cwd)
             for argv, cwd in recorded
-            if "pytest" in argv
-            and "tests/infra/test_transaction_boundaries.py" in argv
-            and "--no-cov" in argv
+            if "pytest" in argv and "tests/infra/test_transaction_boundaries.py" in argv and "--no-cov" in argv
         ]
         assert len(root_calls) == 1
         assert len(backend_calls) == 1
@@ -1026,3 +901,33 @@ class TestDiffScopedPytestTargets:
         out = capsys.readouterr().out
         assert "[FAIL] pytest-changed:root" in out
         assert "preflight: 1 gate(s) failed: pytest-changed:root" in out
+
+    def test_run_pytest_changed_reports_no_relevant_gates_when_zero_targets_and_gates(self, capsys):
+        rc = preflight.run(
+            [
+                "--tier=static",
+                "--pytest-changed",
+                "--changed",
+                "nonexistent_dir/unmatched.txt",
+            ],
+            runner=lambda argv, cwd: 0,
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "preflight: no relevant gates for the current diff." in out
+
+    def test_run_pytest_changed_quiet_mode_counts_executed_pytest_suite(self, capsys):
+        rc = preflight.run(
+            [
+                "--tier=static",
+                "--quiet",
+                "--pytest-changed",
+                "--changed",
+                "tests/tooling/test_preflight.py",
+            ],
+            runner=lambda argv, cwd: 0,
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        selected_count = len(preflight.select_checks(["tests/tooling/test_preflight.py"], tier="static"))
+        assert f"preflight: all {selected_count + 1} gates passed." in out
