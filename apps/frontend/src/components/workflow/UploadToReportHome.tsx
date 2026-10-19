@@ -155,10 +155,18 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
 export function UploadToReportHomePanel() {
   const statusQuery = useWorkflowStatusQuery();
   const status = isWorkflowStatusResponse(statusQuery.data) ? statusQuery.data : null;
-  const eventsQuery = useWorkflowEventsQuery(5, "home", Boolean(status));
+  const hasWorkflowEvents = Boolean(
+    status &&
+      (status.active_session != null ||
+        status.primary_state !== "empty" ||
+        status.event_counts.unread > 0 ||
+        status.event_counts.action_required > 0 ||
+        status.event_counts.blocked > 0),
+  );
+  const eventsQuery = useWorkflowEventsQuery(5, "home", hasWorkflowEvents);
   const events = eventsQuery.data?.items ?? [];
 
-  if (statusQuery.isLoading || (Boolean(status) && eventsQuery.isLoading)) {
+  if (statusQuery.isLoading || (hasWorkflowEvents && eventsQuery.isLoading)) {
     return (
       <section className="space-y-4" aria-label="Upload-to-report home" role="status" aria-busy="true">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">

@@ -666,12 +666,7 @@ async def framework_policy_facts_for_user(
         )
 
     manual_snapshots = await list_current_manual_valuation_facts(db, user_id, as_of_date=as_of_date)
-    seen_manual: set[tuple[ManualValuationComponentType, str]] = set()
     for snapshot in manual_snapshots:
-        manual_key = (snapshot.component_type, snapshot.source)
-        if manual_key in seen_manual:
-            continue
-        seen_manual.add(manual_key)
         domain, instrument_type = _manual_domain_and_instrument(snapshot)
         intent, horizon = _parse_notes_metadata(snapshot.notes)
         facts.append(

@@ -275,3 +275,145 @@ async def test_AC5_11_3_AC11_11_3_annualized_schedule_converts_mixed_currency_to
     assert data["restricted_fair_value_total_currency"] == "SGD"
     assert data["restricted_holdings"][0]["fair_value"] == "20.00"
     assert data["restricted_holdings"][0]["currency"] == "USD"
+
+
+async def test_AC5_32_3_annualized_schedule_falls_back_to_account_currency_and_skips_restricted(
+    db: AsyncSession,
+    test_user,
+):
+    """AC-reporting.income-typed.3: AC-reporting.package-annualized.2: Schedule resolves account.currency when line.currency is None and supports include_restricted_holdings=False."""
+    from src.pricing import list_current_manual_valuation_facts
+    from src.reporting.extension.framework_policy import framework_policy_facts_for_user
+
+    assert ManualValuationComponentType.restricted_compensation_types() == (
+        ManualValuationComponentType.ESOP,
+        ManualValuationComponentType.RSU,
+        ManualValuationComponentType.STOCK_OPTIONS,
+    )
+
+    usd_dividend = Account(user_id=test_user.id, name="Dividend Income", type=AccountType.INCOME, currency="USD")
+    usd_cash = Account(user_id=test_user.id, name="USD Cash", type=AccountType.ASSET, currency="USD")
+    db.add_all([usd_dividend, usd_cash])
+    await db.flush()
+
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2026, 5, 1),
+        memo="account currency fallback",
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=usd_cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("20.00"),
+                currency="",
+                fx_rate=Decimal("1.500000"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=usd_dividend.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("20.00"),
+                currency="",
+                fx_rate=Decimal("1.500000"),
+            ),
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.500000"),
+                rate_date=date(2026, 5, 1),
+                source="test",
+            ),
+            ManualValuationSnapshot(
+                user_id=test_user.id,
+                component_type=ManualValuationComponentType.RSU,
+                liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+                as_of_date=date(2026, 1, 1),
+                value=Decimal("10.00"),
+                currency="USD",
+                source="MULTI-CCY-RSU",
+            ),
+            ManualValuationSnapshot(
+                user_id=test_user.id,
+                component_type=ManualValuationComponentType.RSU,
+                liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+                as_of_date=date(2026, 5, 1),
+                value=Decimal("25.00"),
+                currency="USD",
+                source="MULTI-CCY-RSU",
+            ),
+            ManualValuationSnapshot(
+                user_id=test_user.id,
+                component_type=ManualValuationComponentType.RSU,
+                liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+                as_of_date=date(2026, 5, 10),
+                value=Decimal("40.00"),
+                currency="SGD",
+                source="MULTI-CCY-RSU",
+            ),
+        ]
+    )
+    await db.commit()
+
+    schedule = await generate_annualized_income_schedule(
+        db,
+        test_user.id,
+        as_of_date=None,
+        include_restricted_holdings=False,
+    )
+    assert schedule.as_of_date == date(2026, 5, 1)
+    assert schedule.income.annualized_dividend == Decimal("30.00")
+    assert schedule.income.annualized_total == Decimal("30.00")
+    assert schedule.restricted_holdings == []
+    assert schedule.restricted_fair_value_total == Decimal("0.00")
+
+    current_facts = await list_current_manual_valuation_facts(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 5, 20),
+    )
+    assert [(f.source, f.currency, f.value) for f in current_facts] == [
+        ("MULTI-CCY-RSU", "SGD", Decimal("40.00")),
+        ("MULTI-CCY-RSU", "USD", Decimal("25.00")),
+    ]
+
+    policy_facts = await framework_policy_facts_for_user(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 5, 20),
+        report_period_start=date(2026, 1, 1),
+        report_period_end=date(2026, 5, 20),
+    )
+    manual_policy_facts = [f for f in policy_facts if f.fact_id.startswith("manual_valuation_snapshot:")]
+    assert {(f.currency, f.amount) for f in manual_policy_facts} == {
+        ("USD", Decimal("25.00")),
+        ("SGD", Decimal("40.00")),
+    }
+
+    from unittest.mock import AsyncMock, patch
+
+    import pytest
+    from fastapi import HTTPException
+
+    from src.reporting.extension import fx_gateway
+
+    with (
+        patch.object(
+            fx_gateway.PrefetchedFxRates,
+            "prefetch",
+            new=AsyncMock(side_effect=fx_gateway.FxRateError("Missing FX rate for USD/JPY")),
+        ),
+        pytest.raises(HTTPException) as exc_info,
+    ):
+        await generate_annualized_income_schedule(
+            db,
+            test_user.id,
+            as_of_date=date(2026, 5, 20),
+            currency="JPY",
+        )
+    assert exc_info.value.status_code == 400

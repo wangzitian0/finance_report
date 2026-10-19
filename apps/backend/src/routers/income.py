@@ -1,19 +1,12 @@
 """Income analytics API router."""
 
-from datetime import date, timedelta
+from datetime import date
 from http import HTTPStatus
 
 from fastapi import APIRouter, Query
-from sqlalchemy import func, select
 
-from src.audit import to_money
-from src.config import settings
 from src.deps import CurrentUserId, DbSession
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine, active_journal_entry_filter
-from src.platform import raise_bad_request
-from src.pricing import PricingError, convert_amount
-from src.reporting import AnnualizedIncomeTotals, income_bucket, resolve_line_currency
-from src.schemas.base import normalize_currency_code
+from src.reporting import generate_annualized_income_schedule
 from src.schemas.income import AnnualizedIncomeResponse, FxConversionErrorResponse
 
 router = APIRouter(prefix="/income", tags=["income"])
@@ -30,52 +23,17 @@ async def get_annualized_income(
     as_of: date | None = Query(default=None),
 ) -> AnnualizedIncomeResponse:
     """Return annualized salary, bonus, dividend, and total income over the trailing 12 months."""
-    if as_of is None:
-        latest_entry_date = await db.scalar(
-            select(func.max(JournalEntry.entry_date))
-            .where(JournalEntry.user_id == user_id)
-            .where(active_journal_entry_filter(JournalEntry))
-        )
-        report_date = latest_entry_date or date.today()
-    else:
-        report_date = as_of
-    start_date = report_date - timedelta(days=365)
-    result = await db.execute(
-        select(JournalLine, Account)
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .join(Account, JournalLine.account_id == Account.id)
-        .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.entry_date > start_date)
-        .where(JournalEntry.entry_date <= report_date)
-        .where(active_journal_entry_filter(JournalEntry))
-        .where(Account.type == AccountType.INCOME)
+    schedule = await generate_annualized_income_schedule(
+        db,
+        user_id,
+        as_of_date=as_of,
+        include_restricted_holdings=False,
     )
-
-    currency = normalize_currency_code(settings.base_currency)
-    totals = AnnualizedIncomeTotals()
-    for line, account in result.all():
-        signed_amount = line.amount if line.direction == Direction.CREDIT else -line.amount
-        source_currency = resolve_line_currency(line, account, base_currency=currency)
-        try:
-            signed_amount = await convert_amount(
-                db,
-                amount=signed_amount,
-                currency=source_currency,
-                target_currency=currency,
-                rate_date=report_date,
-                average_start=start_date,
-                average_end=report_date,
-                lazy_load=True,
-            )
-        except PricingError as exc:
-            raise_bad_request(str(exc), cause=exc)
-        totals.add(income_bucket(account.name), signed_amount)
-
     return AnnualizedIncomeResponse(
-        annualized_salary=to_money(totals.salary),
-        annualized_bonus=to_money(totals.bonus),
-        annualized_dividend=to_money(totals.dividend),
-        annualized_total=to_money(totals.total),
-        currency=currency,
-        as_of=report_date,
+        annualized_salary=schedule.income.annualized_salary,
+        annualized_bonus=schedule.income.annualized_bonus,
+        annualized_dividend=schedule.income.annualized_dividend,
+        annualized_total=schedule.income.annualized_total,
+        currency=schedule.income.currency,
+        as_of=schedule.as_of_date,
     )

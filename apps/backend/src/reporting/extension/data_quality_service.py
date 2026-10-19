@@ -21,6 +21,7 @@ from src.reporting.base.data_quality_types import (
     QualityGrade,
 )
 from src.reporting.extension.diagnostics import run_balance_sheet_diagnostics
+from src.reporting.extension.reporting_calc import _normalize_currency
 
 __all__ = [
     "compute_personal_data_quality",
@@ -48,7 +49,7 @@ async def compute_personal_data_quality(
 ) -> PersonalDataQualityHealthResponse:
     """Compute complete financial data quality, invariants, timeline, and actions."""
     report_date = as_of_date or date.today()
-    report_currency = (currency or "SGD").strip().upper()
+    report_currency = _normalize_currency(currency)
 
     # 1. Equation Invariant
     diag_result = await run_balance_sheet_diagnostics(

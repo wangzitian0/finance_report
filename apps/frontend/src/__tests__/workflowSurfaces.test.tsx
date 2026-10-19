@@ -8,6 +8,7 @@ import {
   WorkflowEventsPageContent,
   WorkflowInbox,
   UploadToReportHome,
+  UploadToReportHomePanel,
   WorkflowStatusFeed,
 } from "@/components/workflow/WorkflowNotifications"
 import { apiOperation } from "@/lib/api-client"
@@ -270,15 +271,19 @@ describe("workflow notification surfaces", () => {
     expect(screen.queryByRole("button", { name: /Archive/i })).not.toBeInTheDocument()
   })
 
-  it("AC19.4.3 keeps the upload-first CTA and quiet state aligned to workflow next action", () => {
-    render(<UploadToReportHome status={statusEmpty} events={[]} />)
+  it("AC19.4.3 keeps the upload-first CTA and quiet state aligned to workflow next action", async () => {
+    vi.mocked(fetchWorkflowStatus).mockResolvedValue(statusEmpty)
+    vi.mocked(fetchWorkflowEvents).mockClear()
 
-    expect(screen.getByText("Upload files to start the automated reporting workflow.")).toBeInTheDocument()
+    renderWithQuery(<UploadToReportHomePanel />)
+
+    expect(await screen.findByText("Upload files to start the automated reporting workflow.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /Upload statements/i })).toHaveAttribute("href", "/statements/upload")
     expect(screen.getAllByText("No reports generated yet")[0]).toBeInTheDocument()
     expect(screen.getByText("0 blockers")).toBeInTheDocument()
     expect(screen.getByText("No action required")).toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Routine automation" })).not.toBeInTheDocument()
+    expect(fetchWorkflowEvents).not.toHaveBeenCalled()
   })
 
   it("AC19.4.4 exposes ready, processing, and stale report readiness states above analytics", () => {
