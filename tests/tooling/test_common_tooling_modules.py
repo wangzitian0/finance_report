@@ -387,3 +387,60 @@ def test_AC8_13_53_common_isolation_handles_error_and_registry_edges(tmp_path):
     ]
     test_isolation.unregister_namespace("feature_x", active_file, cache_dir)
     assert test_isolation.load_active_namespaces(active_file, cache_dir) == []
+
+
+def test_purge_test_accounts_cli_in_process(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Verify common.runtime.dev.purge_test_accounts CLI helpers and entry point in-process."""
+    from common.runtime.dev import purge_test_accounts as purge_cli
+
+    assert (
+        purge_cli._redact("postgresql+asyncpg://user:secret@db.internal:5432/app")
+        == "postgresql+asyncpg://***@db.internal:5432/app"
+    )
+    assert purge_cli._redact("user@db.internal") == "***"
+    assert purge_cli._redact("sqlite:///local.db") == "sqlite:///local.db"
+
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("ENV", "production")
+    assert purge_cli.main(["--apply"]) == 2
+    assert "Refusing to --apply" in capsys.readouterr().err
+
+    monkeypatch.setenv("ENVIRONMENT", "staging")
+    assert purge_cli.main(["--pattern", "[unclosed"]) == 2
+    assert "Invalid --pattern regex" in capsys.readouterr().err
+
+    committed: list[bool] = []
+
+    class FakeSession:
+        async def __aenter__(self) -> FakeSession:
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        async def commit(self) -> None:
+            committed.append(True)
+
+    class FakeReport:
+        def summary(self) -> str:
+            return "purged=1"
+
+    async def fake_purge(session, *, pattern: str, apply: bool) -> FakeReport:
+        assert isinstance(session, FakeSession)
+        assert pattern
+        assert isinstance(apply, bool)
+        return FakeReport()
+
+    monkeypatch.setattr(purge_cli, "async_session_maker", lambda: FakeSession())
+    monkeypatch.setattr(purge_cli, "purge_test_accounts", fake_purge)
+
+    assert purge_cli.main([]) == 0
+    assert committed == []
+    assert "purged=1" in capsys.readouterr().out
+
+    assert purge_cli.main(["--apply", "--force"]) == 0
+    assert committed == [True]
+    assert "purged=1" in capsys.readouterr().out
