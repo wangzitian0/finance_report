@@ -133,3 +133,23 @@ class TestConfigContract:
 
         s = Settings()
         assert s.db_pool_max_overflow == 25
+
+    def test_fallback_models_default_and_code_source_class(self, monkeypatch):
+        """Ensure fallback_models defaults to glm-5.2 and glm-5-turbo and model fields use code source class."""
+        monkeypatch.delenv("FALLBACK_MODELS", raising=False)
+        from src.config import ENV_SOURCE_CLASSES, Settings
+
+        s = Settings(_env_file=None)
+        assert s.fallback_models == ["glm-5.2", "glm-5-turbo"]
+        assert "primary_model" not in ENV_SOURCE_CLASSES
+        assert "fallback_models_str" not in ENV_SOURCE_CLASSES
+
+    def test_empty_next_public_app_url_and_otel_resource_attributes_normalize(self, monkeypatch):
+        """Ensure empty string env overrides for NEXT_PUBLIC_APP_URL and OTEL_RESOURCE_ATTRIBUTES normalize cleanly."""
+        monkeypatch.setenv("NEXT_PUBLIC_APP_URL", "")
+        monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "")
+        from src.config import Settings
+
+        s = Settings(_env_file=None)
+        assert s.next_public_app_url == "http://localhost:3000"
+        assert s.otel_resource_attributes is None

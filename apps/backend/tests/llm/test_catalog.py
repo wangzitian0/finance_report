@@ -89,3 +89,22 @@ async def test_AC23_2_5_dedupes_models(patched):
     models = await patched.list_models()
     ids = [m.id for m in models]
     assert ids.count("glm-4.6v") == 1
+
+
+async def test_AC23_2_5_merges_modalities_for_duplicate_model_ids(monkeypatch):
+    """AC-llm.2.5: A model ID configured in both text and vision lists merges text and image modalities."""
+    monkeypatch.setattr(settings, "primary_model", "glm-5.3-flashx", raising=False)
+    monkeypatch.setattr(settings, "vision_model", "glm-5.3-flashx", raising=False)
+    monkeypatch.setattr(settings, "ocr_model", "glm-5.3-flashx", raising=False)
+    monkeypatch.setattr(settings, "fallback_models_str", "glm-5.3-flash", raising=False)
+    monkeypatch.setattr(settings, "vision_fallback_models_str", "glm-5.3-flash", raising=False)
+    monkeypatch.setattr(catalog_mod.litellm, "model_cost", {}, raising=False)
+    monkeypatch.setattr(catalog_mod.litellm, "supports_reasoning", lambda model: False, raising=False)
+
+    catalog = LitellmCatalog()
+    models = await catalog.list_models()
+    by_id = {m.id: m for m in models}
+    assert list(by_id) == ["glm-5.3-flashx", "glm-5.3-flash"]
+    for model_id in ("glm-5.3-flashx", "glm-5.3-flash"):
+        assert Modality.TEXT in by_id[model_id].modalities
+        assert Modality.IMAGE in by_id[model_id].modalities
