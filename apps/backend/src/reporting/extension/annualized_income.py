@@ -84,8 +84,15 @@ async def generate_annualized_income_schedule(
     )
 
     fx_pairs: list[tuple[str, str, date, date | None, date | None]] = []
+    resolved_lines: list[tuple[JournalLine, Account, Money]] = []
     for line, account in income_rows:
-        source_currency = resolve_line_currency(line, account, base_currency=reporting_currency)
+        line_money = (
+            line.money
+            if line.currency
+            else Money(line.amount, Currency(resolve_line_currency(line, account, base_currency=reporting_currency)))
+        )
+        resolved_lines.append((line, account, line_money))
+        source_currency = line_money.currency.code
         if source_currency != reporting_currency:
             fx_pairs.append((source_currency, reporting_currency, report_date, start_date, report_date))
     for snapshot in snapshots:
@@ -101,18 +108,19 @@ async def generate_annualized_income_schedule(
             raise_bad_request(str(exc), cause=exc)
 
     totals = AnnualizedIncomeTotals()
-    for line, account in income_rows:
-        signed_amount = line.amount if line.direction == Direction.CREDIT else -line.amount
-        source_currency = resolve_line_currency(line, account, base_currency=reporting_currency)
+    for line, account, line_money in resolved_lines:
+        source_currency = line_money.currency.code
         if source_currency != reporting_currency:
-            source_ccy = Currency(source_currency)
             rate = prefetched_fx.get_rate(
                 source_currency, reporting_currency, report_date, start_date, report_date
             ) or Decimal("1")
-            signed_amount = convert_money_with_rate(
-                Money(signed_amount, source_ccy),
-                ExchangeRate(source_ccy, target_ccy, rate),
+            converted_amount = convert_money_with_rate(
+                line_money,
+                ExchangeRate(line_money.currency, target_ccy, rate),
             ).amount
+        else:
+            converted_amount = line_money.amount
+        signed_amount = converted_amount if line.direction == Direction.CREDIT else -converted_amount
         totals.add(income_bucket(account.name), signed_amount)
 
     holdings: list[AnnualizedIncomeScheduleHolding] = []
