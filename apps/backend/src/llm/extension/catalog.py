@@ -45,14 +45,23 @@ def _pricing_for(model_id: str) -> tuple[Decimal | None, Decimal | None, bool]:
     return in_price, out_price, is_free
 
 
-def _configured_specs() -> list[ModelSpec]:
-    entries: list[tuple[str, frozenset[Modality]]] = [
-        (settings.primary_model, _TEXT_MODALITIES),
-        (settings.ocr_model, _VISION_MODALITIES),
-        (settings.vision_model, _VISION_MODALITIES),
-        *((m, _TEXT_MODALITIES) for m in settings.fallback_models),
-        *((m, _VISION_MODALITIES) for m in settings.vision_fallback_models),
-    ]
+def _configured_specs(*, modality: Modality | None = None) -> list[ModelSpec]:
+    if modality is not None and modality in (_VISION_MODALITIES - _TEXT_MODALITIES):
+        entries: list[tuple[str, frozenset[Modality]]] = [
+            (settings.ocr_model, _VISION_MODALITIES),
+            (settings.vision_model, _VISION_MODALITIES),
+            *((m, _VISION_MODALITIES) for m in settings.vision_fallback_models),
+            (settings.primary_model, _TEXT_MODALITIES),
+            *((m, _TEXT_MODALITIES) for m in settings.fallback_models),
+        ]
+    else:
+        entries = [
+            (settings.primary_model, _TEXT_MODALITIES),
+            (settings.ocr_model, _VISION_MODALITIES),
+            (settings.vision_model, _VISION_MODALITIES),
+            *((m, _TEXT_MODALITIES) for m in settings.fallback_models),
+            *((m, _VISION_MODALITIES) for m in settings.vision_fallback_models),
+        ]
     merged_modalities: dict[str, frozenset[Modality]] = {}
     for model_id, modalities in entries:
         if not model_id:
@@ -88,7 +97,7 @@ class LitellmCatalog:
         modality: Modality | None = None,
         free_only: bool = False,
     ) -> list[ModelSpec]:
-        specs = _configured_specs()
+        specs = _configured_specs(modality=modality)
         if provider_id is not None:
             specs = [s for s in specs if s.provider_id == provider_id]
         if modality is not None:
