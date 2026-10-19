@@ -20,16 +20,16 @@ from common.testing import matrix
 
 ROOT = Path(__file__).resolve().parents[2]
 MATRIX_YAML = ROOT / "common" / "testing" / "data" / "test-execution-matrix.yaml"
-PREVIEW_WORKFLOW = ROOT / ".github" / "workflows" / "preview.yml"
+DEPLOY_WORKFLOW = ROOT / ".github" / "workflows" / "deploy.yml"
 TESTING_README = ROOT / "common" / "testing" / "readme.md"
 MANIFEST = ROOT / "common" / "meta" / "data" / "MANIFEST.yaml"
 
 
-def _preview_e2e_run_step() -> str:
-    """Return the End-to-End Tests run block from preview.yml."""
-    workflow = PREVIEW_WORKFLOW.read_text(encoding="utf-8")
+def _staging_e2e_run_step() -> str:
+    """Return the non-LLM E2E tests run block from deploy.yml."""
+    workflow = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
     marker = "- name: End-to-End Tests"
-    assert marker in workflow, "preview.yml End-to-End Tests step not found"
+    assert marker in workflow, "deploy.yml End-to-End Tests step not found"
     block = workflow.split(marker, 1)[1]
     return block.split("- name:", 1)[0]
 
@@ -61,41 +61,39 @@ def test_AC8_22_1_generated_yaml_parses_identically_for_consumers() -> None:
 
 
 def test_AC8_22_2_preview_workflow_derives_selection_from_matrix() -> None:
-    """AC-testing.matrix.2: AC8.22.2: preview.yml consumes the CLI; no hardcoded whitelist remains."""
-    step = _preview_e2e_run_step()
+    """AC-testing.matrix.2: AC8.22.2: deploy.yml consumes the CLI; no hardcoded whitelist remains."""
+    step = _staging_e2e_run_step()
     assert (
-        'eval "$(python tools/test_selection.py --stage pr_preview_e2e --shell)"'
+        'eval "$(python tools/test_selection.py --stage staging_core_e2e --shell)"'
         in step
     )
-    assert 'pytest "${PR_PREVIEW_E2E_TESTS[@]}"' in step
-    assert '-m "$PR_PREVIEW_E2E_MARKER"' in step
-    assert '-n "$PR_PREVIEW_E2E_PARALLELISM"' in step
+    assert 'pytest "${STAGING_CORE_E2E_TESTS[@]}"' in step
+    assert '-m "$STAGING_CORE_E2E_MARKER"' in step
+    assert '-n "$STAGING_CORE_E2E_PARALLELISM"' in step
     # The selection lives in the matrix, not the workflow: no literal e2e
     # test path may reappear in the run step.
     assert "tests/e2e/" not in step
 
 
 def test_AC8_22_3_preview_selection_is_audited_and_dependency_free() -> None:
-    """AC-testing.matrix.3: AC8.22.3: selection = audited rows with no external needs; provider-
-    dependent specs can never creep into the merge-blocking path."""
-    selection = matrix.pr_preview_e2e_selection()
+    """AC-testing.matrix.3: AC8.22.3: selection = audited non-LLM rows; provider-
+    dependent specs can never creep into the staging core E2E path."""
+    selection = matrix.staging_core_e2e_selection()
     selected_files = {node.split("::", 1)[0] for node in selection}
 
-    # The in-runner set contains audited specs without external dependencies.
+    # The staging core set contains audited specs without external LLM dependencies.
     assert "tests/e2e/test_epic022_ia_shell.py" in selected_files
     assert "tests/e2e/test_version_check.py" in selected_files
-    # #1547's ask, delivered: after the double-/api 404 (PR #1587) and the
-    # FirstRunModal click interception (#1589) were both root-caused as
-    # in-runner STACK bugs and fixed in docker-compose.ci-e2e.yml, the
-    # non-LLM vision hard gate runs pre-merge — each admission was a row
-    # flip, never a workflow edit.
     vision = "tests/e2e/test_vision_upload_to_dashboard_hard_gate.py"
     assert vision in selected_files
 
-    # Completeness (Copilot on #1587): every audited, dependency-free row is
-    # actually selected — "exactly", not just "only".
+    # Completeness: every audited, non-LLM row not in core_journey is selected.
     for row in matrix.E2E_ROWS:
-        if row.audited and not row.needs:
+        if (
+            row.audited
+            and matrix.NEEDS_LLM_PROVIDER not in row.needs
+            and row.file not in matrix.CORE_JOURNEY_ONLY_FILES
+        ):
             for node in row.nodes or (row.file,):
                 assert node in selection, f"eligible row not selected: {node}"
 
@@ -106,15 +104,36 @@ def test_AC8_22_3_preview_selection_is_audited_and_dependency_free() -> None:
     rows_by_file = {row.file: row for row in matrix.E2E_ROWS}
     for file in selected_files:
         row = rows_by_file[file]
-        assert row.audited and not row.needs, (
+        assert row.audited and matrix.NEEDS_LLM_PROVIDER not in row.needs, (
             f"unaudited/dependent row selected: {file}"
         )
-        # A spec that spends provider quota (llm marker) must never be
-        # selected — verified against the real file, not the row metadata.
         content = (ROOT / file).read_text(encoding="utf-8")
         assert "pytest.mark.llm" not in content, (
-            f"llm-marked spec in preview set: {file}"
+            f"llm-marked spec in staging core set: {file}"
         )
+
+
+def test_AC8_22_3_every_e2e_row_is_reachable_by_at_least_one_live_stage() -> None:
+    """Every row in E2E_ROWS is reached by a live stage (0 orphaned rows)."""
+    from common.testing import staging_ai_ocr_gate_contract
+
+    all_files = {row.file for row in matrix.E2E_ROWS}
+    staging_core = {
+        node.split("::", 1)[0] for node in matrix.staging_core_e2e_selection()
+    }
+    ai_ocr_files = set(staging_ai_ocr_gate_contract.gate_files()) | {
+        t.split("::", 1)[0] for t in staging_ai_ocr_gate_contract.core_journey_tests()
+    }
+    provider_gate = {"tests/e2e/test_ai_provider_connectivity.py"}
+    reachable = staging_core | ai_ocr_files | provider_gate
+    orphaned = all_files - reachable
+    assert not orphaned, f"Orphaned rows in E2E_ROWS: {orphaned}"
+    assert matrix.CORE_JOURNEY_ONLY_FILES <= ai_ocr_files
+
+
+test_every_e2e_row_is_reachable_from_a_live_stage = (
+    test_AC8_22_3_every_e2e_row_is_reachable_by_at_least_one_live_stage
+)
 
 
 def test_AC8_22_4_every_root_e2e_spec_has_a_named_row() -> None:
@@ -131,13 +150,16 @@ def test_AC8_22_4_every_root_e2e_spec_has_a_named_row() -> None:
 
 def test_AC8_22_5_shell_emission_round_trips() -> None:
     """AC-testing.matrix.5: AC8.22.5: the --shell output is valid bash assignment material."""
-    emitted = matrix.emit_shell(matrix.PR_PREVIEW_E2E_STAGE)
+    emitted = matrix.emit_shell(matrix.STAGING_CORE_E2E_STAGE)
     lines = emitted.splitlines()
-    assert lines[0].startswith("PR_PREVIEW_E2E_TESTS=(") and lines[0].endswith(")")
-    tests = shlex.split(lines[0][len("PR_PREVIEW_E2E_TESTS=(") : -1])
-    assert tuple(tests) == matrix.pr_preview_e2e_selection()
-    assert shlex.split(lines[1].split("=", 1)[1]) == [matrix.PR_PREVIEW_E2E_MARKER]
-    assert lines[2] == f"PR_PREVIEW_E2E_PARALLELISM={matrix.PR_PREVIEW_E2E_PARALLELISM}"
+    assert lines[0].startswith("STAGING_CORE_E2E_TESTS=(") and lines[0].endswith(")")
+    tests = shlex.split(lines[0][len("STAGING_CORE_E2E_TESTS=(") : -1])
+    assert tuple(tests) == matrix.staging_core_e2e_selection()
+    assert shlex.split(lines[1].split("=", 1)[1]) == [matrix.STAGING_CORE_E2E_MARKER]
+    assert (
+        lines[2]
+        == f"STAGING_CORE_E2E_PARALLELISM={matrix.STAGING_CORE_E2E_PARALLELISM}"
+    )
 
     import pytest as _pytest
 

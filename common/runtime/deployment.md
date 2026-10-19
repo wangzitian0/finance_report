@@ -14,7 +14,7 @@ Finance Report uses **two git repositories** for configuration:
 | Environment | Configuration Source | Purpose |
 |-------------|---------------------|---------|
 | **Local/CI** | `/docker-compose.yml` | Development + local/CI service containers |
-| **PR preview** | in-runner: `/docker-compose.yml` + `/docker-compose.ci-e2e.yml`; persistent: `/docker-compose.pr-preview.yml` | After successful PR CI: in-runner smoke/E2E (merge authority), then a non-blocking persistent Dokploy preview built from source on the host (no registry push) at `report-pr-<N>.<domain>` |
+| **PR preview** | persistent: `/docker-compose.pr-preview.yml` | On-demand persistent Dokploy preview built from source on the host (no registry push) at `report-pr-<N>.<domain>`; PR merge authority is owned by CI |
 | **Staging/Production** | infra2-owned IaC selected by a versioned `DeployRequest` | Production with Vault secrets |
 
 Finance Report does not check out infra2 source. It pins the

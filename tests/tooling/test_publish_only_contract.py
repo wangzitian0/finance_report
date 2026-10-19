@@ -71,10 +71,11 @@ def test_AC7_12_4_image_push_publishes_for_main_release_and_dispatch():
 
 
 def test_AC7_12_4_persistent_preview_is_on_demand_not_per_pr():
-    """AC-meta.infra-boundary.5: AC7.12.4: the persistent Dokploy preview is on-demand only; the in-runner e2e gate stays automatic."""
+    """AC-meta.infra-boundary.5: AC7.12.4: the persistent Dokploy preview is on-demand only; cleanup runs on PR close and in-runner e2e is retired."""
     pr = read(".github/workflows/preview.yml")
+    assert not pr.count("  e2e:")
     # deploy-preview runs only via manual workflow_dispatch — no per-PR auto-deploy (P1a-2).
-    deploy_block = pr.split("  deploy-preview:", 1)[1].split("\n  e2e:", 1)[0]
+    deploy_block = pr.split("  deploy-preview:", 1)[1].split("\n  cleanup:", 1)[0]
     deploy_if = next(
         (ln for ln in deploy_block.splitlines() if ln.strip().startswith("if:")), ""
     )
@@ -82,12 +83,15 @@ def test_AC7_12_4_persistent_preview_is_on_demand_not_per_pr():
         "the persistent Dokploy preview (deploy-preview) must run only via manual "
         f"workflow_dispatch; per-PR auto-preview is removed (P1a-2, #879). if: {deploy_if.strip()}"
     )
-    # The in-runner e2e merge gate stays automatic — it must NOT require workflow_dispatch.
-    e2e_block = pr.split("\n  e2e:", 1)[1].split("\n  cleanup:", 1)[0]
-    e2e_if = next(
-        (ln for ln in e2e_block.splitlines() if ln.strip().startswith("if:")), ""
+    # The preview teardown cleanup stays automatic on PR close — it must NOT require workflow_dispatch.
+    cleanup_block = pr.split("\n  cleanup:", 1)[1]
+    cleanup_if = next(
+        (ln for ln in cleanup_block.splitlines() if ln.strip().startswith("if:")), ""
     )
-    assert "workflow_dispatch" not in e2e_if, (
-        "the in-runner e2e merge gate must stay automatic, not gated on workflow_dispatch "
-        f"(P1a-2, #879). e2e if: {e2e_if.strip()}"
+    assert (
+        "workflow_dispatch" not in cleanup_if
+        and "needs.setup.outputs.action == 'cleanup'" in cleanup_if
+    ), (
+        "the preview teardown cleanup must stay automatic on PR close, not gated on workflow_dispatch "
+        f"(P1a-2, #879). cleanup if: {cleanup_if.strip()}"
     )

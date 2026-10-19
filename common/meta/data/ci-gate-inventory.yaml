@@ -439,7 +439,7 @@ gates:
     workflow: .github/workflows/notify-infra2.yml
     job: dispatch
     owner: .github/workflows/notify-infra2.yml#dispatch
-    triggers: [workflow_run, workflow_dispatch]
+    triggers: [workflow_dispatch]
     blocks_workflow: false
     inputs: [successful_main_ci_sha]
     outputs: [infra2_repository_dispatch]
@@ -484,19 +484,6 @@ gates:
     outputs: [preview_url]
     artifacts: [pr-preview-deploy-context]
     failure_semantics: On-demand persistent PR preview could not be deployed.
-    action: keep
-  - id: preview.e2e
-    stage: github_ci.merge_authority
-    task_category: frontend_browser_e2e
-    workflow: .github/workflows/preview.yml
-    job: e2e
-    owner: tests/e2e
-    triggers: [pull_request, workflow_dispatch]
-    blocks_workflow: true
-    inputs: [runner_local_stack, provider_free_e2e]
-    outputs: [runner_e2e_context]
-    artifacts: [pr-preview-test-context]
-    failure_semantics: Required in-runner PR E2E proof failed.
     action: keep
   - id: preview.cleanup
     stage: preview.runtime
@@ -628,6 +615,20 @@ gates:
     artifacts: [staging-ai-ocr-test-context]
     failure_semantics: Shared staging AI/OCR gate body failed; the job always fails with the real status (#2370, red means red). Each caller decides what depends on it; the core_journey corpus files no alert issue.
     action: keep
+  - id: staging_deploy.financial_benchmark
+    stage: staging.release_validation
+    task_category: deploy_smoke
+    workflow: .github/workflows/deploy.yml
+    job: financial-benchmark
+    owner: reusable benchmark.yml (deploy caller)
+    triggers: [workflow_dispatch]
+    blocks_workflow: true
+    execution_condition: "always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.provider-gate.result == 'success' && needs.ai-ocr-gate.result == 'success'"
+    inputs: [staging_environment, version_ref, commit_ref]
+    outputs: [benchmark_summary]
+    artifacts: []
+    failure_semantics: Financial scenario benchmark failed during Staging Batch Train validation; blocks post-merge delivery and production eligibility.
+    action: keep
   - id: staging_deploy.post_merge_delivery
     stage: staging.release_validation
     task_category: aggregate
@@ -700,7 +701,7 @@ gates:
     job: run-benchmark
     owner: .github/workflows/benchmark.yml#run-benchmark
     triggers: [workflow_dispatch, workflow_call]
-    blocks_workflow: false
+    blocks_workflow: true
     inputs: [staging_environment, optional_version_ref, optional_app_url, optional_cases]
     outputs: [benchmark_summary, benchmark_html_report]
     artifacts: []

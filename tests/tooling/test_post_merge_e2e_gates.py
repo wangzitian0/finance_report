@@ -1207,18 +1207,10 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     )
     assert "if: ${{ always() }}" in ci.split("Upload backend shard test context", 1)[0]
 
-    assert "pr-preview-test-context" in pr_preview
-    # Full runtime/API/UI E2E now runs image-free in the in-runner `e2e` job
-    # (issue #839) after successful PR CI. Its junit lives here.
     _has(
         pr_preview,
-        "test-results/in-runner-e2e.xml",
-        "ci-context/pr-preview-context.txt",
-        "preview_runtime=github-runner-compose",
-        "persistent_preview_url=${{ needs.setup.outputs.preview_app_url }}",
-        "registry_image_push=false",
-        "dokploy_deploy=after-e2e-non-blocking-build-from-source",
-        "e2e_outcome=${{ steps.e2e_tests.outcome }}",
+        "pr-preview-deploy-context",
+        "ci-context/pr-preview-deploy-context.json",
     )
 
     _has(
@@ -1301,7 +1293,7 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
         workflow,
         "post-merge-delivery:",
         "name: Post-merge Delivery",
-        "needs: [build-and-deploy, provider-gate, ai-ocr-gate]",
+        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, financial-benchmark]",
         "Aggregate post-merge delivery result",
         'staging_required="${{ needs.build-and-deploy.outputs.staging_required }}"',
         'ai_ocr_required="${{ needs.build-and-deploy.outputs.ai_ocr_required }}"',
@@ -1345,7 +1337,7 @@ def test_AC8_13_103_post_merge_delivery_summary_check_aggregates_staging_gates()
     )
     _has(
         workflow,
-        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, post-merge-delivery]",
+        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, financial-benchmark, post-merge-delivery]",
     )
     _has(
         ci_cd,
@@ -1532,8 +1524,11 @@ def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
     assert 'run.get("conclusion") == "success"' not in staging_contract
     _has(
         staging_contract,
-        'required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}',
-        'optional_staging_jobs = {"Staging AI/OCR Gate"}',
+        '"Deploy Staging"',
+        '"Staging Provider Gate"',
+        '"Staging AI/OCR Gate"',
+        '"Financial Benchmark"',
+        "optional_staging_jobs: set[str] = set()",
         "candidate_run_ids",
         "for candidate_run_id in candidate_run_ids:",
         '"gh",',
@@ -1543,8 +1538,6 @@ def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
         "Skipping staging run ",
         "{candidate_run_id}: release-critical jobs",
         "with successful release-critical jobs",
-        "Staging AI/OCR Gate",
-        "does not block production release eligibility",
     )
     assert 'version_ref in (run.get("displayTitle") or "")' not in staging_contract
 
@@ -1588,7 +1581,8 @@ def test_AC8_13_52_release_evidence_tool_requires_exact_successful_staging_run()
             "12": [
                 {"name": "Deploy Staging", "conclusion": "success"},
                 {"name": "Staging Provider Gate", "conclusion": "success"},
-                {"name": "Staging AI/OCR Gate", "conclusion": "failure"},
+                {"name": "Staging AI/OCR Gate", "conclusion": "success"},
+                {"name": "Financial Benchmark", "conclusion": "success"},
             ],
         }
         return {"jobs": jobs_by_run[run_id]}
@@ -1633,6 +1627,16 @@ def test_AC8_13_52_release_evidence_staging_digest_tie_passes_and_fails_on_misma
                 {
                     "name": "Staging Provider Gate",
                     "databaseId": 1000,
+                    "conclusion": "success",
+                },
+                {
+                    "name": "Staging AI/OCR Gate",
+                    "databaseId": 1001,
+                    "conclusion": "success",
+                },
+                {
+                    "name": "Financial Benchmark",
+                    "databaseId": 1002,
                     "conclusion": "success",
                 },
             ]
@@ -1750,6 +1754,16 @@ def _staging_runs_json(args: list[str], *, head_sha: str = "a" * 40) -> object:
             {
                 "name": "Staging Provider Gate",
                 "databaseId": 1000,
+                "conclusion": "success",
+            },
+            {
+                "name": "Staging AI/OCR Gate",
+                "databaseId": 1001,
+                "conclusion": "success",
+            },
+            {
+                "name": "Financial Benchmark",
+                "databaseId": 1002,
                 "conclusion": "success",
             },
         ]
@@ -2691,36 +2705,19 @@ def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
 
 
 def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
-    """AC-testing.deploy-gates.30: AC8.13.146: report-branch-main deploys only successful CI SHA images.
-
-    The dispatch/skip DECISION (does a workflow_run completion's SHA still
-    match main's tip, or is it stale?) is covered behaviorally by
-    tests/tooling/test_report_main_dispatch.py (#1435 W1 / #1534), which
-    executes tools/_lib/shell/resolve_report_main_dispatch_sha.sh directly.
-    This test covers the surrounding wiring: trigger config, the env-var ->
-    script-argument handoff, and the payload construction.
-    """
+    """AC-testing.deploy-gates.30: AC8.13.146: report-branch-main deploys on-demand via workflow_dispatch."""
     notify = read(".github/workflows/notify-infra2.yml")
     notify_yaml = yaml.safe_load(notify)
     notify_on = notify_yaml.get(True) or notify_yaml.get("on")
 
-    # Exact trigger set (not just "push absent"/"workflow_dispatch present")
-    # so an accidental third trigger fails this too, not just a missing one.
-    assert set(notify_on) == {"workflow_run", "workflow_dispatch"}
-    assert notify_on["workflow_run"]["workflows"] == ["CI"]
-    assert notify_on["workflow_run"]["types"] == ["completed"]
-    assert notify_on["workflow_run"]["branches"] == ["main"]
+    # Exact trigger set: workflow_dispatch only (no automatic push / workflow_run)
+    assert set(notify_on) == {"workflow_dispatch"}
 
     dispatch_job = notify_yaml["jobs"]["dispatch"]
-    _has(
-        dispatch_job["if"],
-        "github.event.workflow_run.conclusion == 'success'",
-        "github.event.workflow_run.head_branch == 'main'",
-    )
+    assert "github.event_name == 'workflow_dispatch'" in dispatch_job["if"]
     dispatch_script = "\n".join(
         step.get("run", "") for step in dispatch_job["steps"] if isinstance(step, dict)
     )
-    assert "WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}" in notify
     _has(
         dispatch_script,
         "/git/ref/heads/main",
@@ -2735,7 +2732,7 @@ def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
     report_gate = next(
         gate for gate in delivery_gates if gate["id"] == "report-main-preview"
     )
-    assert report_gate["trigger"] == "workflow_run"
+    assert report_gate["trigger"] == "workflow_dispatch"
     assert report_gate["blocking"] is False
 
 
@@ -3050,7 +3047,6 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     """AC8.13.7: Post-merge AI/OCR E2E is a single-provider-access gate."""
     workflow = read(".github/workflows/deploy.yml")
     ai_workflow = read(".github/workflows/staging-ai-ocr-gate.yml")
-    pr_workflow = read(".github/workflows/preview.yml")
     journey = read("tests/e2e/test_statement_full_journey.py")
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     four_asset = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
@@ -3097,14 +3093,13 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
         read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"),
         "https://api.z.ai/api/coding/paas/v4",
     )
-    # The preview marker expression is derived from the execution matrix at
-    # runtime (#1547/#1556); the llm exclusion is asserted on the SSOT value.
-    assert '-m "$PR_PREVIEW_E2E_MARKER"' in pr_workflow
-    assert '-m "smoke or e2e"' not in pr_workflow
+    # The staging core marker expression is derived from the execution matrix at
+    # runtime; the llm exclusion is asserted on the SSOT value.
+    assert '-m "$STAGING_CORE_E2E_MARKER"' in workflow
 
     from common.testing import matrix as _matrix
 
-    assert "not llm" in _matrix.PR_PREVIEW_E2E_MARKER
+    assert "not llm" in _matrix.STAGING_CORE_E2E_MARKER
 
 
 def test_AC8_13_21_staging_ai_ocr_gate_runs_under_manual_dispatch() -> None:
@@ -3452,8 +3447,7 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
 
 
 def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
-    """AC-testing.preview.7: AC8.13.89: the in-runner e2e gate runs synchronously on pull_request (independent
-    of CI) and does not build/push PR images."""
+    """AC-testing.preview.7: AC8.13.89: preview.yml is on-demand persistent preview + cleanup without PR image builds."""
     workflow = read(".github/workflows/preview.yml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     compose = read("docker-compose.yml")
@@ -3462,15 +3456,11 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
         "apps/frontend/src/app/frontend-version.json/route.ts"
     )
 
-    e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
     cleanup_block = workflow.split("  cleanup:", 1)[1]
-    deploy_block = workflow.split("  deploy-preview:", 1)[1].split("  e2e:", 1)[0]
+    deploy_block = workflow.split("  deploy-preview:", 1)[1].split("  cleanup:", 1)[0]
     pr_preview_compose = read("docker-compose.pr-preview.yml")
     frontend_compose_block = compose.split("  frontend:", 1)[1].split("networks:", 1)[0]
 
-    # The in-runner e2e gate runs SYNCHRONOUSLY on pull_request (not async via
-    # workflow_run, which a fast/auto merge could outrun) so it is a real required
-    # check before merge. Preview stays on-demand (deploy-preview = workflow_dispatch).
     assert "workflow_run:" not in workflow
     _has(
         workflow,
@@ -3480,9 +3470,7 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
         'action = "cleanup"',
         "github.event.pull_request.number",
     )
-    _lacks(workflow, "gate-cheap-ci:", "tools/wait_for_cheap_ci.py")
-    # No PR preview IMAGES are built/pushed/preflighted in CI: the persistent
-    # preview is built from source on the Dokploy host instead.
+    _lacks(workflow, "gate-cheap-ci:", "tools/wait_for_cheap_ci.py", "  e2e:")
     _lacks(
         workflow,
         "build-preview-backend-image:",
@@ -3492,11 +3480,8 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
         "push: true",
         "packages: write",
     )
-    # Persistent preview: non-blocking deploy job, after the in-runner E2E gate,
-    # building from the PR source on the Dokploy host (no image pull/push).
     assert "deploy-preview:" in workflow
-    assert "needs: [setup, e2e]" in deploy_block
-    assert "needs.e2e.result == 'success'" in workflow
+    assert "needs: setup" in deploy_block
     _has(
         deploy_block,
         "continue-on-error: true",
@@ -3504,17 +3489,8 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
         "--github-integration-id",
         "build from source on Dokploy host",
     )
-    # The preview compose builds backend/frontend from source (no image pull).
     _has(pr_preview_compose, "context: ./apps/backend", "context: ./apps/frontend")
     assert "pull_policy: always" not in pr_preview_compose
-    _has(
-        e2e_block,
-        "GIT_COMMIT_SHA: ${{ needs.setup.outputs.head_sha }}",
-        "EXPECTED_SHA: ${{ needs.setup.outputs.head_sha }}",
-        "APP_URL: http://localhost:8080",
-        "docker compose up --build",
-        "docker compose down --volumes --remove-orphans",
-    )
     _has(
         frontend_dockerfile,
         "ARG GIT_COMMIT_SHA=unknown",
@@ -3530,25 +3506,13 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
         )
         == 2
     )
-    _has(e2e_block, "Wait for stack readiness", "End-to-End Tests")
-    assert e2e_block.index("Wait for stack readiness") < e2e_block.index(
-        "End-to-End Tests"
-    )
-    _has(
-        e2e_block,
-        'curl -fsS "$APP_URL/api/health"',
-        "bash tools/smoke_test.sh",
-        "no PR preview image is pushed",
-    )
     assert "Delete GHCR images" not in cleanup_block
     assert "pr_preview_images=not-created" in cleanup_block
     _has(
         ci_cd,
-        "synchronously on `pull_request`",
         "does not push, preflight, pull, or delete PR preview images",
         "built from the PR source on the Dokploy host",
         "not the infra2 `deploy_v2 preview/*` front door",
-        "The runner stack waits for `/api/health` before smoke/E2E",
     )
 
 
@@ -4072,42 +4036,31 @@ def test_AC8_13_45_root_moon_tasks_use_explicit_app_workspace_inputs() -> None:
 
 
 def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() -> None:
-    """AC-testing.preview.2: AC8.13.46: PR preview keeps strictness while narrowing to preview scope."""
-    preview = read(".github/workflows/preview.yml")
+    """AC-testing.preview.2: AC8.13.46: Staging batch non-LLM E2E uses strict gates and matrix SSOT selection."""
     staging = read(".github/workflows/deploy.yml")
-    ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
-    preview_block = preview.split("- name: End-to-End Tests", 1)[1].split(
-        "- name: Rollback on E2E Failure", 1
-    )[0]
-    staging_block = staging.split("- name: End-to-End Tests", 1)[1].split(
-        "\n  ai-ocr-gate:", 1
-    )[0]
+    staging_block = staging.split("- name: End-to-End Tests", 1)[1].split("- name:", 1)[
+        0
+    ]
 
-    for block in (preview_block, staging_block):
-        assert "STRICT_E2E_GATES: true" in block
+    assert "STRICT_E2E_GATES: true" in staging_block
 
-    # Preview selection is derived from the execution matrix SSOT
-    # (common/testing/matrix.py, #1547/#1556): the workflow carries no
-    # hardcoded test list; full conformance is gated in
-    # tests/tooling/test_execution_matrix_contract.py (AC8.22).
+    # Staging core selection is derived from the execution matrix SSOT
+    # (common/testing/matrix.py): the workflow carries no hardcoded test list;
+    # full conformance is gated in tests/tooling/test_execution_matrix_contract.py.
     _has(
-        preview_block,
-        'eval "$(python tools/test_selection.py --stage pr_preview_e2e --shell)"',
-        'pytest "${PR_PREVIEW_E2E_TESTS[@]}"',
-        '-m "$PR_PREVIEW_E2E_MARKER"',
+        staging_block,
+        'eval "$(python tools/test_selection.py --stage staging_core_e2e --shell)"',
+        'pytest "${STAGING_CORE_E2E_TESTS[@]}"',
+        '-m "$STAGING_CORE_E2E_MARKER"',
     )
-    assert "tests/e2e/" not in preview_block
+    assert "tests/e2e" not in staging_block.replace(
+        '"${STAGING_CORE_E2E_TESTS[@]}"', ""
+    )
 
     from common.testing import matrix
 
-    # The preview marker expression stays aligned with the staging gate's.
-    assert matrix.PR_PREVIEW_E2E_MARKER == "(smoke or e2e) and not llm"
-
-    # Marker expression equality is owned by the matrix conformance
-    # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
-
-    assert "PR preview non-LLM E2E is a strict preview-relevant subset" in ci_cd
+    assert matrix.STAGING_CORE_E2E_MARKER == "(smoke or e2e) and not llm"
 
 
 def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
@@ -4363,7 +4316,7 @@ def test_AC8_13_152_workflow_consumers_keep_classification_single_owned() -> Non
         "required['pr-preview']",
     )
 
-    for job_name in ("deploy-preview", "e2e"):
+    for job_name in ("deploy-preview",):
         text = job_text(pr_jobs[job_name])
         assert "needs.setup.outputs.pr_preview_required == 'true'" in text
         assert "tools/ci_change_classifier.py" not in text, job_name
@@ -4487,7 +4440,7 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     )
 
     assert "Delete GHCR images" not in pr_preview
-    _has(pr_preview, "pr_preview_images=not-created", "registry_image_push=false")
+    _has(pr_preview, "pr_preview_images=not-created")
 
     _has(
         staging,
@@ -4720,7 +4673,7 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     _has(
         deploy_workflow,
         "post-merge-summary:",
-        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, post-merge-delivery]",
+        "needs: [build-and-deploy, provider-gate, ai-ocr-gate, financial-benchmark, post-merge-delivery]",
         "Write post-merge timing summary",
         '--title "Post-merge Timing Summary"',
     )
@@ -4750,19 +4703,19 @@ def test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run() -> None:
         "gate-cheap-ci:",
         "build-preview-backend-image:",
         "build-preview-frontend-image:",
+        "  e2e:",
     )
 
 
 def test_AC8_13_115_readiness_fail_fast() -> None:
-    """AC-testing.preview.14: AC8.13.115: Runner preview readiness is bounded before smoke/E2E starts."""
-    workflow = read(".github/workflows/preview.yml")
-    e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
+    """AC-testing.preview.14: AC8.13.115: Deploy readiness is bounded before smoke/E2E starts."""
+    workflow = read(".github/workflows/deploy.yml")
+    assert "Wait for frontend readiness" in workflow
     _has(
-        e2e_block,
-        "timeout-minutes: 25",
-        "Wait for stack readiness",
-        "for i in $(seq 1 60)",
-        "stack did not become healthy within 300s",
+        workflow,
+        "timeout-minutes: 10",
+        "deadline = time.monotonic() + 540",
+        "Refusing to run E2E against old frontend code.",
     )
     _lacks(workflow, "consecutive_dokploy_failures", "consecutive_404_failures")
 

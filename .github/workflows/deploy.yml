@@ -440,8 +440,11 @@ jobs:
 
           # Parallelize non-LLM tests only. Real AI/OCR calls are run once below
           # to avoid four workers hitting the provider at the same time.
+          eval "$(python tools/test_selection.py --stage staging_core_e2e --shell)"
           run_timed_phase "Phase 2: Core Flow Validation (Python)" \
-            pytest tests/e2e -v -m "smoke and not llm" -n 4 --junit-xml=test-results/staging-core-e2e.xml
+            pytest "${STAGING_CORE_E2E_TESTS[@]}" \
+              -v -m "$STAGING_CORE_E2E_MARKER" -n "$STAGING_CORE_E2E_PARALLELISM" \
+              --junit-xml=test-results/staging-core-e2e.xml
 
           echo "✅ Staging deploy health gate passed!"
 
@@ -730,11 +733,22 @@ jobs:
       corpus: canary
     secrets: inherit
 
+  financial-benchmark:
+    name: Financial Benchmark
+    needs: [build-and-deploy, provider-gate, ai-ocr-gate]
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.provider-gate.result == 'success' && needs.ai-ocr-gate.result == 'success' }}
+    uses: ./.github/workflows/benchmark.yml
+    with:
+      commit_ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}
+      version_ref: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}
+      app_url: https://report-staging.zitian.party
+    secrets: inherit
+
   post-merge-delivery:
     name: Post-merge Delivery
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [build-and-deploy, provider-gate, ai-ocr-gate]
+    needs: [build-and-deploy, provider-gate, ai-ocr-gate, financial-benchmark]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
     permissions:
       contents: read
@@ -775,6 +789,7 @@ jobs:
           provider_status="${{ needs.provider-gate.outputs.provider_status }}"
           ai_ocr_result="${{ needs.ai-ocr-gate.result }}"
           ai_ocr_status="${{ needs.ai-ocr-gate.outputs.ai_ocr_status }}"
+          benchmark_result="${{ needs.financial-benchmark.result }}"
           run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           target_sha="${{ needs.build-and-deploy.outputs.commit_full_sha || github.sha }}"
           target_short="${target_sha:0:7}"
@@ -799,6 +814,10 @@ jobs:
             failed=true
             delivery_status="failed"
             failure_reason="staging AI/OCR canary failed"
+          elif [ "$staging_required" = "true" ] && [ "$benchmark_result" != "success" ]; then
+            failed=true
+            delivery_status="failed"
+            failure_reason="financial benchmark failed"
           fi
 
           {
@@ -825,6 +844,7 @@ jobs:
             echo "- AI/OCR result: ${ai_ocr_result}"
             echo "- AI/OCR status: ${ai_ocr_status:-not-run}"
             echo "- AI/OCR release semantics: exact-SHA minimal canary; release-critical blocker"
+            echo "- Financial benchmark result: ${benchmark_result}"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [ "$failed" = "true" ]; then
@@ -836,7 +856,7 @@ jobs:
     name: Post-merge Timing Summary
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [build-and-deploy, provider-gate, ai-ocr-gate, post-merge-delivery]
+    needs: [build-and-deploy, provider-gate, ai-ocr-gate, financial-benchmark, post-merge-delivery]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
     permissions:
       actions: read

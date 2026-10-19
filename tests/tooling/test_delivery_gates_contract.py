@@ -29,6 +29,7 @@ _TRIGGER_ON_KEY = {
     "pull_request": "pull_request",
     "workflow_run": "workflow_run",
     "workflow_dispatch": "workflow_dispatch",
+    "workflow_call": "workflow_call",
     "tag": "push",  # release tags live under on.push.tags
 }
 
@@ -50,16 +51,25 @@ def test_every_gate_workflow_declares_its_manifest_trigger():
 
 
 def test_merge_authority_gate_is_synchronous_not_bypassable():
-    """The blocking PR e2e gate must be a synchronous pull_request check, never async
-    workflow_run — that could be outrun by a fast/auto merge (#943)."""
-    gate = next(g for g in GATES if g["id"] == "pr-in-runner-e2e")
-    assert gate["trigger"] == "pull_request"
+    """The required merge authority in ci-gate-inventory.yaml is ci.yml#finish, which runs
+    synchronously on pull_request (pull_request trigger, branch_required_context=finish)."""
+    inv = _load("common/meta/data/ci-gate-inventory.yaml")
+    gates = inv["gates"]
+    finish = next(g for g in gates if g["id"] == "ci.finish")
+    assert finish["workflow"] == ".github/workflows/ci.yml"
+    assert finish["job"] == "finish"
+    assert finish["branch_required_context"] == "finish"
+    assert finish["blocks_workflow"] is True
+    assert "pull_request" in finish["triggers"]
+
+
+def test_staging_benchmark_is_wired_via_workflow_call():
+    """Financial temporal benchmark is wired via workflow_call and blocking in Staging Batch Train."""
+    gate = next(g for g in GATES if g["id"] == "staging-benchmark")
+    assert gate["trigger"] == "workflow_call"
     assert gate["blocking"] is True
     on = _workflow_on(_load(gate["workflow"]))
-    assert "workflow_run" not in on, (
-        "the merge-authority e2e gate must not use async workflow_run; a fast/auto "
-        "merge could land before it runs as a required check (delivery-gates.yaml)."
-    )
+    assert "workflow_call" in on
 
 
 def test_every_referenced_workflow_and_job_exists():

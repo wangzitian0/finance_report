@@ -151,7 +151,7 @@ def test_AC8_18_3_staging_workflow_runs_tier2_http_before_tier3_browser_e2e() ->
     )[0]
 
     tier2_index = e2e_step.index("tools/tier2_http_e2e.py")
-    tier3_index = e2e_step.index("pytest tests/e2e")
+    tier3_index = e2e_step.index('pytest "${STAGING_CORE_E2E_TESTS[@]}"')
     assert tier2_index < tier3_index
     assert '--base-url "$APP_URL"' in e2e_step
     assert '--expected-sha "$EXPECTED_SHA"' in e2e_step

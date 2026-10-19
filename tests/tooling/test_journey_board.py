@@ -971,18 +971,46 @@ def test_AC_testing_journey_board_8_release_shows_the_row_and_true_canary_eviden
             ]
         }
 
-    assert (
+    with pytest.raises(
+        RuntimeError, match="No completed Deploy Staging run found for v9.9.9"
+    ):
         release_evidence.verify_staging(
             repository="o/r",
             version_ref="v9.9.9",
             release_sha="e" * 40,
             gh_json=fake_gh_json,
         )
+    printed = capsys.readouterr().out
+    assert "release-critical jobs missing=['Financial Benchmark']" in printed
+
+    def fake_gh_json_ok(args: list[str]) -> object:
+        if "list" in args:
+            return [
+                {
+                    "databaseId": 7,
+                    "status": "completed",
+                    "displayTitle": "Deploy Staging v9.9.9",
+                    "headSha": "e" * 40,
+                }
+            ]
+        return {
+            "jobs": [
+                {"name": "Deploy Staging", "conclusion": "success"},
+                {"name": "Staging Provider Gate", "conclusion": "success"},
+                {"name": "Staging AI/OCR Gate", "conclusion": "success"},
+                {"name": "Financial Benchmark", "conclusion": "success"},
+            ]
+        }
+
+    assert (
+        release_evidence.verify_staging(
+            repository="o/r",
+            version_ref="v9.9.9",
+            release_sha="e" * 40,
+            gh_json=fake_gh_json_ok,
+        )
         == "7"
     )
-    printed = capsys.readouterr().out
-    assert "Staging AI/OCR Gate / Staging AI/OCR Gate concluded failure" in printed
-    assert "concluded skipped" not in printed
 
     # The CLI never fails a release: a malformed record or a non-SHA argument
     # still prints a row and exits 0.

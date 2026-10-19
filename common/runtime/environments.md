@@ -37,7 +37,7 @@
 | **1** | **Local Dev** | `localhost:3000` | Manual<br>`moon run :dev -- --backend` | Source (Host)<br>uvicorn/next dev | Shared Containers<br>(Podman/Docker) | `finance_report` | Container name suffix |
 | **2** | **Local CI** | `localhost:3000` | Manual<br>`moon run :lint && moon run :test` | Source (Host)<br>pytest | Shared Containers<br>(Podman/Docker) | `finance_report_test_{namespace}` | DB/bucket name |
 | **3** | **GitHub CI** | - | Push/PR<br>`ci.yml` | Source (Runner)<br>pytest | GitHub Services<br>(Ephemeral) | `finance_report_test` | Job isolation |
-| **4** | **PR Preview** | Required gate: `http://localhost:8080` inside GitHub runner<br>Preview slot: `report-preview.zitian.party` | PR push — synchronous `pull_request` runner E2E<br>Manual / post-merge preview deployment | Runner compose stack for merge gate<br>Dokploy preview compose | GitHub runner containers for merge gate<br>Dokploy preview compose | Ephemeral Postgres/MinIO | Runner `COMPOSE_PROJECT_NAME=fr-e2e-<run>-<attempt>`<br>Dokploy `report-preview` slot |
+| **4** | **PR Preview** | `report-pr-<N>.zitian.party` | On-demand PR preview<br>`preview.yml` (`workflow_dispatch`) | Source (Host build)<br>Dokploy preview compose | Shared Platform / Dokploy host | Ephemeral Postgres/MinIO | Dokploy `report-pr-<N>` compose |
 | **5** | **Staging** | `report-staging.zitian.party` | **Manual**<br>`deploy.yml` (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
 | **6** | **Production** | `report.zitian.party` | Manual release, owner-approved<br>`release.yml` (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
 
@@ -96,37 +96,16 @@ before invoking `moon`, `uv`, `npm`, `gh`, Docker, or Podman.
 - Runtime, test, script, CI, dependency, and coverage-policy changes run the full backend/frontend/unified coverage gate.
 - Lightweight documentation, markdown, issue-template, and `.github/workflows/docs.yml` changes skip the heavy backend/frontend/coverage jobs while still running lint, SSOT checks, AC traceability, and the final aggregate check.
 
-PR validation is split into two independent things (issue #839):
+PR validation and preview:
 
-**In-runner E2E** — the per-PR validation gate:
-- Runs after the matching PR `CI` workflow completes successfully (the `e2e`
-  job in `preview.yml`). Failed, cancelled, timed-out, non-PR, forked, or
-  already-closed CI runs do not create a preview.
-- Stands up the full stack **inside the GitHub runner** via
-  `docker compose up --build` (base compose + `docker-compose.ci-e2e.yml`,
-  which adds an nginx single-origin edge), runs the non-LLM E2E against
-  `http://localhost:8080`, then **always tears the stack down**
-  (`docker compose down -v --remove-orphans`) so nothing leaks.
-- **Image-free at registry level**: builds locally in the runner and pushes
-  nothing; no PR preview image, no GHCR tag, no Dokploy deploy, no shared VPS,
-  and no SSL wait. This is what keeps E2E coverage cheap and fast.
-- **No automatic persistent Dokploy URL**: the pull-request gate comments the
-  validation result on the PR instead of publishing a click-through preview URL.
+**PR Validation** — owned by CI:
+- PR merge authority is owned synchronously on `pull_request` events by `ci.yml#finish`. Unit, integration, build, typecheck, lint, and coverage gates run directly in GitHub Actions.
 
-**Persistent PR Preview (Dokploy)** — manual, non-blocking inspection:
-- The `deploy-preview` job still exists, but runs only by manual
-  `workflow_dispatch` after the in-runner E2E gate passes. It is not merge
-  authority.
-- It currently uses the app-side `tools/pr_preview_lifecycle.py` path:
-  Dokploy clones the PR branch and builds from source on the host. It does not
-  pull a GHCR PR image and it is not the infra2 `deploy_v2 preview/*` path.
-- Reclaim is **infra2-owned**: the app does not touch the Dokploy API *for
-  reclaim/teardown* (the deploy path above is still app-side). On PR close
-  `preview.yml#cleanup` dispatches a vendor-neutral `preview-teardown` signal to
-  infra2, which performs the authoritative idempotent 1:1 teardown
-  (`preview-teardown.yml` → `deploy_v2 --type preview/pr --down`); infra2's hourly
-  `preview-leak-check` is the detection fallback for a missed signal. The app's
-  scheduled `PR Preview Cleanup` job is GHCR PR-image-tag pruning only.
+**Persistent PR Preview (Dokploy)** — on-demand, non-blocking inspection:
+- No automatic persistent Dokploy URL: preview deployment is on-demand via `workflow_dispatch`, not automatic on every PR push.
+- The `deploy-preview` job runs on-demand via `workflow_dispatch` for manual inspection at `report-pr-<N>.<domain>`. It is not merge authority.
+- It uses the app-side `tools/pr_preview_lifecycle.py` path: Dokploy clones the PR branch and builds from source on the host. It does not pull or push GHCR PR images.
+- Reclaim is **infra2-owned**: on PR close `preview.yml#cleanup` dispatches a vendor-neutral `preview-teardown` signal to infra2, which performs the authoritative idempotent 1:1 teardown (`preview-teardown.yml` → `deploy_v2 --type preview/pr --down`). Stale PR image tags are pruned by the scheduled maintenance workflow.
 
 ### Production Environments (Staging + Production)
 
@@ -178,7 +157,7 @@ PR validation is split into two independent things (issue #839):
 | Workflow File | Environment | Trigger | Actions |
 |---------------|-------------|---------|---------|
 | `.github/workflows/ci.yml` | GitHub CI | Push/PR to main | Run lint, traceability, backend shards, frontend build/tests, common/tools coverage, unified coverage, and image validation |
-| `.github/workflows/preview.yml` | PR Preview | PR opened/sync; manual dispatch for persistent preview | Run runner-local E2E as merge gate; optionally deploy/cleanup a non-blocking persistent Dokploy preview |
+| `.github/workflows/preview.yml` | PR Preview | Manual dispatch for persistent preview; PR closed for cleanup | Deploy/cleanup an on-demand non-blocking persistent Dokploy preview at report-pr-<N>.<domain> |
 | `.github/workflows/deploy.yml` | Release images | Tag `vX.Y.Z` push | Promote main-CI SHA images to immutable release tags |
 | `.github/workflows/deploy.yml` | Staging | Manual (`workflow_dispatch`) | Deploy an existing release `version_ref` via deploy_v2, then smoke/E2E/AI-OCR gates |
 | `.github/workflows/release.yml` | Production | Manual (`workflow_dispatch`) | Dry-run, or deploy an existing release `version_ref` via deploy_v2. A deploy (`dry_run=false`) needs the owner's approval and presence |

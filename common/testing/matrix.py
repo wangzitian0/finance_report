@@ -372,6 +372,32 @@ PR_PREVIEW_E2E_STAGE = "pr_preview_e2e"
 PR_PREVIEW_E2E_MARKER = "(smoke or e2e) and not llm"
 PR_PREVIEW_E2E_PARALLELISM = 4
 
+STAGING_CORE_E2E_STAGE = "staging_core_e2e"
+STAGING_CORE_E2E_MARKER = "(smoke or e2e) and not llm"
+STAGING_CORE_E2E_PARALLELISM = 4
+
+CORE_JOURNEY_ONLY_FILES: frozenset[str] = frozenset(
+    {
+        "tests/e2e/test_transfer_processing_journey.py",
+        "tests/e2e/test_opening_balance_browser_journey.py",
+        "tests/e2e/test_twelve_month_journey.py",
+        "tests/e2e/test_confidence_metrics_journey.py",
+    }
+)
+
+
+def staging_core_e2e_selection() -> tuple[str, ...]:
+    """Derive the Staging Batch non-LLM E2E set from E2E_ROWS."""
+    nodes: list[str] = []
+    for row in E2E_ROWS:
+        if (
+            row.audited
+            and NEEDS_LLM_PROVIDER not in row.needs
+            and row.file not in CORE_JOURNEY_ONLY_FILES
+        ):
+            nodes.extend(row.nodes or (row.file,))
+    return tuple(nodes)
+
 
 def pr_preview_e2e_selection() -> tuple[str, ...]:
     """Derive the pre-merge in-runner E2E set from the ownership rows.
@@ -387,23 +413,39 @@ def pr_preview_e2e_selection() -> tuple[str, ...]:
 
 
 SELECTIONS = {
+    STAGING_CORE_E2E_STAGE: staging_core_e2e_selection,
     PR_PREVIEW_E2E_STAGE: pr_preview_e2e_selection,
 }
 
 
 def emit_shell(stage: str) -> str:
     """Emit bash assignments for a stage's selection (eval'd by workflows)."""
-    if stage != PR_PREVIEW_E2E_STAGE:
-        known = ", ".join(sorted(SELECTIONS))
-        raise ValueError(f"unknown selection stage {stage!r}; known: {known}")
-    tests = " ".join(shlex.quote(node) for node in pr_preview_e2e_selection())
-    return "\n".join(
-        [
-            f"PR_PREVIEW_E2E_TESTS=({tests})",
-            f"PR_PREVIEW_E2E_MARKER={shlex.quote(PR_PREVIEW_E2E_MARKER)}",
-            f"PR_PREVIEW_E2E_PARALLELISM={PR_PREVIEW_E2E_PARALLELISM}",
-        ]
-    )
+    if stage == STAGING_CORE_E2E_STAGE:
+        nodes = staging_core_e2e_selection()
+        if not nodes:
+            raise ValueError(f"selection stage {stage!r} produced an empty test tuple")
+        tests = " ".join(shlex.quote(node) for node in nodes)
+        return "\n".join(
+            [
+                f"STAGING_CORE_E2E_TESTS=({tests})",
+                f"STAGING_CORE_E2E_MARKER={shlex.quote(STAGING_CORE_E2E_MARKER)}",
+                f"STAGING_CORE_E2E_PARALLELISM={STAGING_CORE_E2E_PARALLELISM}",
+            ]
+        )
+    if stage == PR_PREVIEW_E2E_STAGE:
+        nodes = pr_preview_e2e_selection()
+        if not nodes:
+            raise ValueError(f"selection stage {stage!r} produced an empty test tuple")
+        tests = " ".join(shlex.quote(node) for node in nodes)
+        return "\n".join(
+            [
+                f"PR_PREVIEW_E2E_TESTS=({tests})",
+                f"PR_PREVIEW_E2E_MARKER={shlex.quote(PR_PREVIEW_E2E_MARKER)}",
+                f"PR_PREVIEW_E2E_PARALLELISM={PR_PREVIEW_E2E_PARALLELISM}",
+            ]
+        )
+    known = ", ".join(sorted(SELECTIONS))
+    raise ValueError(f"unknown selection stage {stage!r}; known: {known}")
 
 
 # ---------------------------------------------------------------------------
@@ -420,8 +462,6 @@ def emit_shell(stage: str) -> str:
 BACKEND_CI_MARKER = "not slow and not e2e and not integration"
 BACKEND_INTEGRATION_MARKER = "integration"
 BACKEND_TIER1_MARKER = "e2e and not slow and not integration and not perf"
-# Staging post-deploy core E2E intentionally scopes to smoke and not llm for fast fail-closed health.
-STAGING_CORE_E2E_MARKER = "smoke and not llm"
 STAGING_AI_OCR_MARKER = "llm"
 # The AI/OCR gate also runs core-journey proofs that make no provider call
 # (journey marker, #2370). The provider connectivity check stays "llm" only.
@@ -472,24 +512,16 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         workflow=".github/workflows/ci.yml",
         marker=None,
         paths=("tests/tooling/",),
-        # 8-way shard matrix (mirrors backend's `${{ matrix.shard }}` templating):
+        # 2-way shard matrix (mirrors backend's `${{ matrix.shard }}` templating):
         # this literal source text (unexpanded by GitHub Actions) appears exactly
         # once in the one shard job block regardless of how many shards run.
         anchor="--junit-xml=coverage/tooling-junit-${{ matrix.shard }}.xml",
     ),
     WorkflowPytestContract(
-        stage=PR_PREVIEW_E2E_STAGE,
-        workflow=".github/workflows/preview.yml",
-        marker=None,  # runtime-derived: eval tools/test_selection.py --shell
-        paths=('"${PR_PREVIEW_E2E_TESTS[@]}"',),
-        anchor='-m "$PR_PREVIEW_E2E_MARKER"',
-        precondition="tools/smoke_test.sh",
-    ),
-    WorkflowPytestContract(
         stage="staging_core_e2e",
         workflow=".github/workflows/deploy.yml",
-        marker=STAGING_CORE_E2E_MARKER,
-        paths=("tests/e2e",),
+        marker=None,  # runtime-derived: eval tools/test_selection.py --stage staging_core_e2e --shell
+        paths=('"${STAGING_CORE_E2E_TESTS[@]}"',),
         anchor="--junit-xml=test-results/staging-core-e2e.xml",
         precondition="tools/smoke_test.sh",
     ),

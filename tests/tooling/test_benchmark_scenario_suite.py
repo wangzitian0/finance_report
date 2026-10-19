@@ -23,13 +23,15 @@ if str(REPO_ROOT / "apps" / "backend") not in sys.path:
 
 
 def test_staging_core_e2e_marker_contract() -> None:
-    """AC-testing.deploy-gates.39: Staging deployment Phase 2 validation is scoped to fast fail-closed smoke."""
-    assert STAGING_CORE_E2E_MARKER == "smoke and not llm"
+    """Staging deployment Phase 2 validation is scoped to staging_core_e2e selection."""
+    assert STAGING_CORE_E2E_MARKER == "(smoke or e2e) and not llm"
     deploy_yml = (REPO_ROOT / ".github" / "workflows" / "deploy.yml").read_text(
         encoding="utf-8"
     )
-    expected_cmd = 'pytest tests/e2e -v -m "smoke and not llm" -n 4 --junit-xml=test-results/staging-core-e2e.xml'
-    assert expected_cmd in deploy_yml
+    assert (
+        "tools/test_selection.py --stage staging_core_e2e --shell" in deploy_yml
+        and 'pytest "${STAGING_CORE_E2E_TESTS[@]}"' in deploy_yml
+    )
 
 
 def test_generate_standard_operations_csv_identity() -> None:

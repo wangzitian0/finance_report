@@ -182,7 +182,6 @@ PR_PREVIEW_ONLY_EXACT = frozenset(
         ".github/workflows/preview.yml",
         "docker-compose.pr-preview.yml",
         "tools/pr_preview_lifecycle.py",
-        "tools/_lib/dev/pr_preview_lifecycle.py",
         # The in-runner preview stack itself and the selection SSOT it runs
         # (#1547 follow-up): changing what the gate runs, or the stack it
         # runs on, must run the gate.
@@ -192,6 +191,7 @@ PR_PREVIEW_ONLY_EXACT = frozenset(
         "tools/test_selection.py",
     }
 )
+PR_PREVIEW_ONLY_PREFIXES = ("tools/_lib/dev/pr_preview_lifecycle/",)
 STAGING_ONLY_EXACT = frozenset(
     {
         ".github/workflows/ci.yml",
@@ -201,12 +201,11 @@ STAGING_ONLY_EXACT = frozenset(
         "tools/check_ghcr_image_tag.sh",
         "tools/health_check.sh",
         "toolchain.toml",
-        "repo",
     }
 )
 
 PR_PREVIEW_EXACT = COMMON_DEPLOY_RUNTIME_EXACT | PR_PREVIEW_ONLY_EXACT
-PR_PREVIEW_PREFIXES = COMMON_DEPLOY_RUNTIME_PREFIXES
+PR_PREVIEW_PREFIXES = COMMON_DEPLOY_RUNTIME_PREFIXES + PR_PREVIEW_ONLY_PREFIXES
 
 PDF_FIXTURE_RUNTIME_EXACT = {
     "common/testing/fixtures/pdf/__init__.py",
