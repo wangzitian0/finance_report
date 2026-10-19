@@ -67,7 +67,12 @@ def test_the_report_is_published_even_when_the_benchmark_fails() -> None:
     names = [s.get("name", "") for s in _steps()]
     after = _steps()[names.index("Run Financial Scenario Benchmark Suite") + 1 :]
 
-    assert len(after) == 3
+    assert [step.get("name") for step in after] == [
+        "Fetch the published benchmark history",
+        "Update benchmark multi-version index & manifest",
+        "Deploy Benchmark Observatory to GitHub Pages",
+        "Write Step Summary with Observatory Links",
+    ]
     assert all(step.get("if") == "always()" for step in after)
 
 
