@@ -15,7 +15,7 @@ cutover. It is the landing package for cassette/PDF-fixture test assets: the
 ``fixtures/cassette-eval-baseline.jsonl``, ``Cassette`` value object) and the
 PDF fixture generator + committed synthetic PDFs (``fixtures/pdf/``,
 ``FixtureDocument`` value object), both relocated here from
-``apps/backend/tests/fixtures/`` / ``tools/_lib/pdf_fixtures/`` and
+``apps/backend/tests/fixtures/`` and
 ``docs/ssot/pdf-fixtures.md`` (see ``README.md#pdf-fixtures``).
 
 The package's ACs live here in ``roadmap`` (the package-model AC registry);
@@ -425,9 +425,9 @@ CONTRACT = PackageContract(
         ac('AC-testing.toolchain.2', 'Local bootstrap provides one command for runtimes, dependency setup, pre-commit hooks, and container-runtime diagnostics (Was EPIC-008 AC8.13.44).', 'tests/tooling/test_bootstrap_local.py::test_AC8_13_44_bootstrap_reports_container_runtime_prerequisite'),
         ac('AC-testing.toolchain.3', 'Local verification entry points use the project-pinned backend environment for format, environment, and schema gates, and route make test through the root Moon test command with explicit application workspace inputs (Was EPIC-008 AC8.13.45).', 'tests/tooling/test_preflight.py::test_AC_testing_toolchain_3_backend_format_uses_invoking_python_environment'),
         ac('AC-testing.toolchain.4', 'Common owns SSOT, config and CI contracts, coverage policy, and isolation helpers; command entry points and tool-owned implementations live in tools/; PR CI avoids optional Moon bootstrap for heavy gates that run direct pytest or npm commands, with Moon availability covered as static config contracts (Was EPIC-008 AC8.13.53).', 'tests/tooling/test_common_tooling_modules.py::test_AC8_13_53_common_coverage_component_is_a_governed_source_root'),
-        ac('AC-testing.toolchain.5', 'Coverage command entry points run from tools/; the shared policy stays in common/meta/extension/coverage/policy.py, and command implementations live under tools/_lib/coverage/ (Was EPIC-008 AC8.13.56).', 'tests/tooling/test_common_tooling_modules.py::test_AC8_13_56_coverage_tools_delegate_to_common_implementations'),
+        ac('AC-testing.toolchain.5', 'Coverage command entry points run from tools/; the shared policy stays in common/meta/extension/coverage/policy.py, and command implementations live under common/testing/coverage/ (Was EPIC-008 AC8.13.56).', 'tests/tooling/test_common_tooling_modules.py::test_AC8_13_56_coverage_tools_delegate_to_common_implementations'),
         ac('AC-testing.toolchain.6', 'SSOT and AC command entry points run from tools/ while shared implementations live in the packages that own them (common/testing/, common/meta/extension/, common/platform/); the residual common/ssot/ generator escape hatch is retired (Was EPIC-008 AC8.13.57).', 'tests/tooling/test_common_tooling_modules.py::test_AC8_13_57_ssot_tools_delegate_to_common_implementations'),
-        ac('AC-testing.toolchain.7', 'CI and toolchain command entry points run from tools/; reusable contracts live in the packages that own them (common/runtime/, common/testing/, common/meta/extension/), while report and shell command implementations live under tools/_lib/ (Was EPIC-008 AC8.13.58).', 'tests/tooling/test_common_tooling_modules.py::test_AC8_13_58_ci_tools_delegate_to_common_implementations'),
+        ac('AC-testing.toolchain.7', 'CI and toolchain command entry points run from tools/; reusable contracts and command implementations live in the packages that own them (common/runtime/, common/testing/, common/meta/extension/) (Was EPIC-008 AC8.13.58).', 'tests/tooling/test_common_tooling_modules.py::test_AC8_13_58_ci_tools_delegate_to_common_implementations'),
         ac('AC-testing.toolchain.8', 'Config validation command entry points run from tools/ while shared implementations live under apps/backend/src/runtime/extension/ (moved from common/config/ when that package folded into runtime, #1669) (Was EPIC-008 AC8.13.59).', 'tests/tooling/test_common_tooling_modules.py::test_AC8_13_59_config_validation_tools_delegate_to_common_implementations'),
         ac('AC-testing.toolchain.9', 'Local E2E command routing distinguishes root deployment E2E from backend Tier-1 API E2E (Was EPIC-008 AC8.13.79).', 'tests/tooling/test_cli_and_dev_servers.py::test_AC8_13_79_cmd_test_backend_e2e_route'),
         ac('AC-testing.toolchain.10', 'Frontend local and CI gates run full TypeScript checking, including tests, instead of relying only on Next production build type checks (Was EPIC-008 AC8.13.99).', 'tests/tooling/test_frontend_typecheck_contract.py::test_AC8_13_99_frontend_typecheck_is_a_required_gate'),
@@ -748,7 +748,7 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/testing/readme.md",
-                "common/testing/gate_cli.py",
+                "common/meta/base/gate_cli.py",
             ],
             proofs=["tests/tooling/test_s4_gate_contracts.py"],
             family="delivery",
@@ -763,7 +763,6 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/testing/readme.md",
-                "common/testing/gate_cli.py",
                 "common/testing/baseline_update_contract.py",
             ],
             proofs=["tests/tooling/test_s4_gate_contracts.py"],
@@ -780,7 +779,7 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/testing/readme.md",
-                "common/testing/gate_cli.py",
+                "common/meta/base/gate_cli.py",
             ],
             proofs=["tests/tooling/test_s4_gate_contracts.py"],
             family="delivery",

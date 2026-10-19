@@ -11,7 +11,6 @@ from common.meta.base.gate_cli import run_gate
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SHARED_GATE_MODULES = {
     "common.meta.base.gate_cli",
-    "common.testing.gate_cli",
 }
 
 
@@ -81,7 +80,7 @@ def _shared_gate_call_targets(tree: ast.Module) -> set[str]:
                     for alias in node.names
                     if alias.name == "run_gate"
                 )
-            if node.module in {"common.meta.base", "common.testing"}:
+            if node.module in {"common.meta.base"}:
                 targets.update(
                     f"{alias.asname or alias.name}.run_gate"
                     for alias in node.names

@@ -8,7 +8,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import TypeVar
 
-from common.testing import gate_cli
+from common.meta.base import gate_cli
 
 MONOTONIC_MODES = frozenset({"raise-only", "shrink-only"})
 REWRITE_MODE = "rewrite"
