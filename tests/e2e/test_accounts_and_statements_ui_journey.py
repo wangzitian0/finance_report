@@ -57,7 +57,7 @@ async def test_accounts_surface_and_balance_display(page: Page):
     await expect(
         page.get_by_role("heading", name="Accounts", exact=True)
     ).to_be_visible(timeout=15_000)
-    await expect(page.get_by_role("button", name="+ New Account")).to_be_visible(
+    await expect(page.get_by_role("button", name="Add Account")).to_be_visible(
         timeout=10_000
     )
 

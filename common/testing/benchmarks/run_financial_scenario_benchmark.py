@@ -139,8 +139,11 @@ class ScenarioBenchmarkRunner:
         currency: str = "SGD",
     ) -> str:
         """Upload a statement PDF or CSV and return statement ID."""
+        if filename.endswith(".csv") and not institution:
+            # The upload API rejects a CSV without an institution (400).
+            institution = "Operating"
         if filename.endswith(".csv") and not account_id:
-            account_name = f"{institution or 'Operating'} Cash Account"
+            account_name = f"{institution} Cash Account"
             acc = self.create_account(
                 client, name=account_name, type="ASSET", currency=currency
             )

@@ -66,7 +66,7 @@ async def test_reconciliation_review_queue_surface(authenticated_page: Page):
     assert "/login" not in page.url
 
     await expect(
-        page.get_by_role("heading", name="Review Queue", exact=True)
+        page.get_by_role("heading", name="Review queue", exact=True)
     ).to_be_visible(timeout=15_000)
     await expect(page.locator("body")).to_be_visible()
 
