@@ -82,6 +82,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Python for the release coordinate
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install infra2-sdk
+        uses: ./.github/actions/install-infra2-sdk
+
       - name: Resolve release coordinate
         id: release
         env:
@@ -864,6 +872,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Set up Python for the timing summary
+        continue-on-error: true
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install infra2-sdk for the timing summary
+        continue-on-error: true
+        uses: ./.github/actions/install-infra2-sdk
 
       - name: Write post-merge timing summary
         continue-on-error: true

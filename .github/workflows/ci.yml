@@ -1019,6 +1019,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install infra2-sdk
+        uses: ./.github/actions/install-infra2-sdk
+
       - name: Get Commit SHA
         id: get_sha
         run: |
@@ -1685,6 +1688,18 @@ jobs:
           | frontend-telemetry-e2e | not included in unified coverage | yes (browser telemetry emission) |
           | tooling-coverage | contributes common/tools to unified line coverage baseline | yes (tooling contracts) |
           EOF
+
+      - name: Set up Python for the timing summary
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install infra2-sdk for the timing summary
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: ./.github/actions/install-infra2-sdk
 
       - name: Write CI timing summary
         if: ${{ always() }}
