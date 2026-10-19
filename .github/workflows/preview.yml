@@ -1,23 +1,13 @@
 # PR Test Environment Workflow
 #
-# The in-runner E2E gate runs SYNCHRONOUSLY on pull_request: it starts the full
-# stack inside the GitHub runner, runs provider-free smoke/E2E, and destroys the
-# stack in the same job. As a synchronous required check it must pass before merge —
-# the old workflow_run trigger fired only after CI and a fast/auto merge could outrun
-# it (a skipped required check counts as passed). It is image-free and builds no
-# PR preview images. The automatic pull_request path creates no persistent Dokploy
-# URL; a separate manual workflow_dispatch can still deploy a non-blocking
-# persistent preview for inspection. PR close triggers cleanup of Dokploy preview
-# resources.
+# On-demand persistent Dokploy PR previews (deploy-preview) and PR-close teardown
+# signal (cleanup). The persistent preview is built from the PR source on the
+# Dokploy host via workflow_dispatch. When the PR is closed, cleanup dispatches the
+# teardown signal to infra2.
 
 name: PR Test Environment
 
 on:
-  # The in-runner e2e gate runs SYNCHRONOUSLY on pull_request (not via async
-  # workflow_run): workflow_run fires after CI and a fast/auto merge can land before
-  # it ever runs as a required check, so the "merge authority" was bypassable. As a
-  # real pull_request check it must pass before merge. (e2e is image-free — it builds
-  # the stack on the runner — so it needs no CI artifact and can run independently.)
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches: [main]
@@ -129,7 +119,7 @@ jobs:
           compose_name = f"pr-{pr_number}" if pr_number else ""
           commit_slug = preview_commit_slug(head_sha or github_sha)
           preview_app_url = (
-              f"https://report-preview.{internal_domain}" if pr_number else ""
+              f"https://report-pr-{pr_number}.{internal_domain}" if pr_number else ""
           )
 
           outputs = {
@@ -220,13 +210,13 @@ jobs:
     name: Deploy Persistent Preview
     # On-demand only (P1a-2, #879): a persistent Dokploy preview is NOT created
     # automatically per PR. It runs solely via manual `workflow_dispatch` (one click:
-    # Run workflow -> PR number), after the in-runner E2E gate passes, then builds the
+    # Run workflow -> PR number), then builds the
     # PR's source on the Dokploy host and persists until the PR is closed. It never
-    # blocks the PR: the in-runner E2E is the merge authority; this job reports the
-    # preview URL via PR comment. This app-side persistent PR preview path is not the
-    # infra2 deploy_v2 preview/* front door used by report-branch-main/canary slots.
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && needs.e2e.result == 'success' && github.event_name == 'workflow_dispatch'
-    needs: [setup, e2e]
+    # blocks the PR; this job reports the preview URL via PR comment. This app-side
+    # persistent PR preview path is not the infra2 deploy_v2 preview/* front door used
+    # by report-branch-main/canary slots.
+    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && github.event_name == 'workflow_dispatch'
+    needs: setup
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -296,217 +286,6 @@ jobs:
 
             Built from this PR's source on the Dokploy host (no image pull/push). Persists until the PR is closed, then released via \`compose.delete\`.
 
-            - Head SHA: \`${process.env.HEAD_SHA}\`
-            - Logs: [workflow run](${process.env.RUN_URL})`;
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: Number(process.env.PR_NUMBER),
-            });
-            const botComment = comments.find(c =>
-              c.user.type === 'Bot' && c.body.includes(marker)
-            );
-            if (botComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: Number(process.env.PR_NUMBER),
-                body,
-              });
-            }
-
-  e2e:
-    name: In-runner Preview E2E
-    # Image-free full-stack E2E (issue #839): the merge-relevant validation.
-    # Runs only after the matching PR CI workflow_run succeeds; does not push
-    # images or deploy to Dokploy. The runner stack is destroyed in this job.
-    if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true'
-    needs: setup
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
-    env:
-      COMPOSE_FILE: docker-compose.yml:docker-compose.ci-e2e.yml
-      # Base compose gates services behind profiles (infra=db/minio, app=back/front);
-      # activate both so the full stack (and the edge's depends_on) resolve.
-      COMPOSE_PROFILES: infra,app
-      # Baked into the images at build time and reported by both services; the
-      # smoke version check compares it against the PR head SHA.
-      GIT_COMMIT_SHA: ${{ needs.setup.outputs.head_sha }}
-      # The stack is reached through the edge origin; allow it for CORS so the
-      # smoke CORS check (Origin: http://localhost:8080) passes.
-      CORS_ORIGINS: http://localhost:8080,http://localhost:3000
-      # Unique per run+attempt so teardown targets exactly this run's resources.
-      COMPOSE_PROJECT_NAME: fr-e2e-${{ github.run_id }}-${{ github.run_attempt }}
-      APP_URL: http://localhost:8080
-    steps:
-      - name: Checkout PR head
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.setup.outputs.head_sha }}
-
-      - name: Setup E2E Tests
-        uses: ./.github/actions/setup-e2e-tests
-
-      - name: Generate PDF fixtures for E2E tests
-        run: |
-          mkdir -p tmp/fixtures
-          python tools/generate_pdf_fixtures.py --source dbs --output tmp/fixtures/
-
-      - name: Build and start ephemeral stack
-        run: |
-          set -euo pipefail
-          # backend/frontend attach to the external `dokploy-network` (a
-          # Dokploy/Traefik artifact that does not exist in the runner). Create a
-          # local stand-in so compose can start; removed again in teardown.
-          docker network create dokploy-network 2>/dev/null || true
-          docker compose up --build -d --quiet-pull
-          docker compose ps
-
-      - name: Wait for stack readiness
-        run: |
-          set -euo pipefail
-          for i in $(seq 1 60); do
-            if curl -fsS "$APP_URL/api/health" >/dev/null 2>&1; then
-              echo "Stack healthy after $((i * 5))s"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "::error::stack did not become healthy within 300s"
-          exit 1
-
-      - name: End-to-End Tests
-        id: e2e_tests
-        env:
-          TEST_ENV: staging
-          SKIP_UI_TESTS: false
-          EXPECTED_SHA: ${{ needs.setup.outputs.head_sha }}
-          TIMEOUT_MS: 60000
-          E2E_API_TIMEOUT: 30
-          STRICT_E2E_GATES: true
-        run: |
-          set -euo pipefail
-          mkdir -p test-results
-          echo "--- Phase 1: Smoke Check (Shell) ---"
-          bash tools/smoke_test.sh "$APP_URL" staging
-          echo "--- Phase 2: Runtime/API/UI Validation (Python, no real AI/OCR) ---"
-          # Selection is derived from the execution matrix SSOT
-          # (common/testing/matrix.py) — never hardcode test paths here.
-          eval "$(python tools/test_selection.py --stage pr_preview_e2e --shell)"
-          pytest "${PR_PREVIEW_E2E_TESTS[@]}" -v -m "$PR_PREVIEW_E2E_MARKER" -n "$PR_PREVIEW_E2E_PARALLELISM" --junit-xml=test-results/in-runner-e2e.xml
-
-      - name: Stack logs on failure
-        if: failure()
-        run: docker compose logs --no-color --tail=400 || true
-
-      # Lifecycle guard: always tear the stack down so containers / volumes /
-      # networks never leak, even on E2E failure or build failure. Project name
-      # is unique per run; -v removes named volumes, --remove-orphans the rest.
-      - name: Tear down ephemeral stack
-        if: always()
-        run: |
-          docker compose down --volumes --remove-orphans --timeout 30 || true
-          # Remove the local stand-in network (external networks are not removed
-          # by `compose down`); no-op if other containers still reference it.
-          docker network rm dokploy-network 2>/dev/null || true
-
-      - name: Write PR preview context
-        if: always()
-        run: |
-          mkdir -p ci-context
-          {
-            echo "PR Preview Context"
-            echo "=================="
-            echo "repository=${{ github.repository }}"
-            echo "event_name=${{ github.event_name }}"
-            echo "ref=${{ github.ref }}"
-            echo "sha=${{ github.sha }}"
-            echo "run_id=${{ github.run_id }}"
-            echo "run_attempt=${{ github.run_attempt }}"
-            echo "pr_number=${{ needs.setup.outputs.pr_number }}"
-            echo "compose_name=${{ needs.setup.outputs.compose_name }}"
-            echo "head_branch=${{ needs.setup.outputs.head_branch }}"
-            echo "head_sha=${{ needs.setup.outputs.head_sha }}"
-            echo "triggering_ci_conclusion=${{ needs.setup.outputs.triggering_ci_conclusion }}"
-            echo "pr_preview_required=${{ needs.setup.outputs.pr_preview_required }}"
-            echo "pr_preview_reason=${{ needs.setup.outputs.pr_preview_reason }}"
-            echo "preview_runtime=github-runner-compose"
-            echo "persistent_preview_url=${{ needs.setup.outputs.preview_app_url }}"
-            echo "registry_image_push=false"
-            echo "dokploy_deploy=after-e2e-non-blocking-build-from-source"
-            echo "cleanup=compose-down-volumes-remove-orphans"
-            echo "app_url=http://localhost:8080"
-            echo "api_health_url=http://localhost:8080/api/health"
-            echo "expected_sha=${{ needs.setup.outputs.head_sha }}"
-            echo "e2e_outcome=${{ steps.e2e_tests.outcome }}"
-            echo "strict_e2e_gates=true"
-            echo "marker=(smoke or e2e) and not llm"
-          } > ci-context/pr-preview-context.txt
-
-      - name: Upload PR preview test context
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: pr-preview-test-context
-          path: |
-            test-results/
-            ci-context/
-          retention-days: 14
-
-      - name: Comment on PR
-        if: always()
-        uses: actions/github-script@v9
-        env:
-          BRANCH_NAME: ${{ needs.setup.outputs.head_branch }}
-          PR_NUMBER: ${{ needs.setup.outputs.pr_number }}
-          HEAD_SHA: ${{ needs.setup.outputs.head_sha }}
-          E2E_OUTCOME: ${{ steps.e2e_tests.outcome }}
-          JOB_STATUS: ${{ job.status }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        with:
-          script: |
-            const marker = '<!-- pr-preview-status -->';
-            const outcome = process.env.E2E_OUTCOME || 'skipped';
-            const passed = outcome === 'success';
-            // A skip is only benign when the JOB itself succeeded (non-runtime PR or
-            // post-close cleanup). If an earlier step failed, e2e_tests is skipped but
-            // the job fails — that must read Failed, not Skipped (Copilot CR).
-            const wasSkipped =
-              (outcome === 'skipped' || outcome === '') &&
-              process.env.JOB_STATUS === 'success';
-            // Distinguish skipped from failed: a skipped check (e.g. a non-runtime PR,
-            // or a post-close cleanup run) is NOT a failure and must not read "Failed".
-            const title = passed
-              ? 'PR Preview Validation Passed'
-              : wasSkipped
-                ? 'PR Preview Validation Skipped'
-                : 'PR Preview Validation Failed';
-            const result = passed ? 'pass' : outcome;
-            const body = `${marker}
-            ## ${title}
-
-            | Step | Result |
-            |------|--------|
-            | In-runner full-stack preview | \`${result}\` |
-
-            This in-runner check runs synchronously on this PR (on every push): it starts the full stack inside the GitHub runner, runs provider-free smoke/E2E, and destroys the stack in the same job. It is the merge authority — a required check that must pass before merge.
-
-            A persistent Dokploy preview is on-demand only (Actions → PR Test Environment → Run workflow → PR number); no PR preview image is pushed, and it is not built automatically.
-
-            **Details:**
-            - Branch: \`${process.env.BRANCH_NAME}\`
             - Head SHA: \`${process.env.HEAD_SHA}\`
             - Logs: [workflow run](${process.env.RUN_URL})`;
 

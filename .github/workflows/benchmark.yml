@@ -28,6 +28,10 @@ on:
         type: string
   workflow_call:
     inputs:
+      commit_ref:
+        description: "Exact commit ref/SHA being benchmarked"
+        required: false
+        type: string
       version_ref:
         description: "Version reference / release tag"
         required: false
@@ -60,6 +64,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.commit_ref || github.sha }}
           fetch-depth: 0
 
       - name: Install uv

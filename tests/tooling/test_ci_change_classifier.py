@@ -274,7 +274,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
         ".github/actions/setup-e2e-tests/action.yml",
         "docker-compose.pr-preview.yml",
         "tools/pr_preview_lifecycle.py",
-        "tools/_lib/dev/pr_preview_lifecycle.py",
+        "tools/_lib/dev/pr_preview_lifecycle/_preview.py",
     ):
         assert is_pr_preview_relevant(p) is True
 
@@ -290,7 +290,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
         [
             "docs/ssot/README.md",
             ".github/workflows/preview.yml",
-            "tools/_lib/dev/pr_preview_lifecycle.py",
+            "tools/_lib/dev/pr_preview_lifecycle/_preview.py",
         ]
     )
     _check_result(
@@ -299,7 +299,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
         preview=True,
         preview_files=(
             ".github/workflows/preview.yml",
-            "tools/_lib/dev/pr_preview_lifecycle.py",
+            "tools/_lib/dev/pr_preview_lifecycle/_preview.py",
         ),
         preview_reason="pr-preview-paths-changed",
         staging=False,
@@ -875,3 +875,44 @@ def test_AC8_13_161_summary_includes_component_changed_table(tmp_path: Path) -> 
     summary_text = summary.read_text(encoding="utf-8")
     for name, changed in result.component_changed.items():
         assert f"| `{name}` | `{str(changed).lower()}` |" in summary_text
+
+
+def test_all_declared_classifier_paths_exist_on_disk() -> None:
+    """Every path or prefix constant declared in change_classifier exists on disk."""
+    repo_root = Path(__file__).resolve().parents[2]
+    import common.testing.change_classifier as cc
+
+    exact_sets = [
+        cc.COMMON_DEPLOY_RUNTIME_EXACT,
+        cc.IMAGE_BUILD_EXACT,
+        cc.CI_DEFINITION_PATHS,
+        cc.PR_PREVIEW_ONLY_EXACT,
+        cc.STAGING_ONLY_EXACT,
+        cc.STAGING_AI_OCR_EXACT,
+        cc.PDF_FIXTURE_RUNTIME_EXACT,
+    ]
+    for exact_set in exact_sets:
+        for path_str in exact_set:
+            path = repo_root / path_str
+            assert path.exists(), f"Exact path {path_str} does not exist on disk"
+
+    prefix_tuples = [
+        cc.LIGHTWEIGHT_PREFIXES,
+        cc.COMMON_DEPLOY_RUNTIME_PREFIXES,
+        cc.IMAGE_BUILD_PREFIXES,
+        cc.PR_PREVIEW_ONLY_PREFIXES,
+        cc.PDF_FIXTURE_RUNTIME_PREFIXES,
+    ]
+    for prefix_tuple in prefix_tuples:
+        for prefix in prefix_tuple:
+            path = repo_root / prefix.rstrip("/")
+            assert path.exists(), (
+                f"Prefix {prefix} does not match an existing path on disk"
+            )
+
+    # Also assert that files under tools/_lib/dev/pr_preview_lifecycle/ classify as preview-only
+    pkg_file = "tools/_lib/dev/pr_preview_lifecycle/_preview.py"
+    res = cc.classify_changed_paths([pkg_file])
+    assert res.envs[cc.Environment.PR_PREVIEW].required is True
+    assert res.envs[cc.Environment.STAGING].required is False
+    assert res.staging_ai_ocr_required is False

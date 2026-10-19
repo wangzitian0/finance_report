@@ -180,14 +180,8 @@ def verify_release_images_run(
     raise RuntimeError(f"No successful deploy.yml run found for {release_sha}")
 
 
-def _optional_job(jobs: list[dict[str, object]], name: str) -> dict[str, object] | None:
-    """Return the job that ran for an optional staging job name.
-
-    A staging run holds both the manual job ``<name>`` (skipped unless a
-    human dispatches it) and the reusable call ``<name> / <name>`` (#2370).
-    A name map keeps only the last of them, so read the reusable call first,
-    then any match that ran, then any match.
-    """
+def _resolve_job(jobs: list[dict[str, object]], name: str) -> dict[str, object] | None:
+    """Return the job that ran for a staging job name or reusable workflow call."""
     called = f"{name} / {name}"
     matches = [
         job
@@ -201,6 +195,9 @@ def _optional_job(jobs: list[dict[str, object]], name: str) -> dict[str, object]
     if ran:
         return ran[0]
     return matches[0] if matches else None
+
+
+_optional_job = _resolve_job
 
 
 def verify_staging(
@@ -246,8 +243,13 @@ def verify_staging(
             f"Dispatch deploy.yml with --ref {version_ref} for this version_ref first."
         )
 
-    required_staging_jobs = {"Deploy Staging", "Staging Provider Gate"}
-    optional_staging_jobs = {"Staging AI/OCR Gate"}
+    required_staging_jobs = {
+        "Deploy Staging",
+        "Staging Provider Gate",
+        "Staging AI/OCR Gate",
+        "Financial Benchmark",
+    }
+    optional_staging_jobs: set[str] = set()
     for candidate_run_id in candidate_run_ids:
         jobs = _require_jobs(
             gh_json(
@@ -264,13 +266,17 @@ def verify_staging(
             ),
             candidate_run_id,
         )
-        by_name = {job.get("name"): job for job in jobs}
-        missing = sorted(required_staging_jobs - set(by_name))
-        failed = sorted(
-            name
-            for name in required_staging_jobs
-            if name in by_name and by_name[name].get("conclusion") != "success"
-        )
+        resolved_jobs: dict[str, dict[str, object]] = {}
+        missing: list[str] = []
+        failed: list[str] = []
+        for name in sorted(required_staging_jobs):
+            job = _resolve_job(jobs, name)
+            if job is None:
+                missing.append(name)
+            else:
+                resolved_jobs[name] = job
+                if job.get("conclusion") != "success":
+                    failed.append(f"{job.get('name') or name}:{job.get('conclusion')}")
         if missing or failed:
             print(
                 "::notice::Skipping staging run "
@@ -281,7 +287,7 @@ def verify_staging(
         _verify_staging_digests(
             repository=repository,
             run_id=candidate_run_id,
-            deploy_job=by_name["Deploy Staging"],
+            deploy_job=resolved_jobs["Deploy Staging"],
             expected_backend_digest=expected_backend_digest.strip(),
             expected_frontend_digest=expected_frontend_digest.strip(),
             gh_text=gh_text,

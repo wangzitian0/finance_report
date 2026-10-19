@@ -52,7 +52,6 @@ def test_AC8_24_2_e2e_stages_run_their_environment_precondition_first() -> None:
     precondition is an environment failure, so the tests never start."""
     with_precondition = [c for c in matrix.WORKFLOW_PYTEST_CONTRACTS if c.precondition]
     assert {c.stage for c in with_precondition} == {
-        matrix.PR_PREVIEW_E2E_STAGE,
         "staging_core_e2e",
     }
     for contract in with_precondition:

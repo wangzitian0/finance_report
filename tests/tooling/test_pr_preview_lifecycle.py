@@ -1167,24 +1167,16 @@ def test_AC8_13_98_existing_preview_compose_is_redeployed_without_pre_stop(
 
 
 def test_AC8_13_100_pr_preview_runner_readiness_is_bounded_and_observable() -> None:
-    """AC-testing.preview.9: AC8.13.100: Runner preview readiness is bounded and logs stack failures."""
+    """AC-testing.preview.9: AC8.13.100: Persistent preview deployment is bounded and observable."""
     workflow = (ROOT / ".github/workflows/preview.yml").read_text()
-    e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
+    deploy_block = workflow.split("  deploy-preview:", 1)[1].split("  cleanup:", 1)[0]
     assert 'PYTHONUNBUFFERED: "1"' in workflow
     for s in (
+        "timeout-minutes: 30",
         "timeout-minutes: 25",
-        "Wait for stack readiness",
-        'curl -fsS "$APP_URL/api/health"',
-        "for i in $(seq 1 60)",
-        "stack did not become healthy within 300s",
-        "Stack logs on failure",
-        "docker compose logs --no-color --tail=400",
-        "preview_runtime=github-runner-compose",
-        "persistent_preview_url=${{ needs.setup.outputs.preview_app_url }}",
-        "registry_image_push=false",
-        "dokploy_deploy=after-e2e-non-blocking-build-from-source",
+        'PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS: "600"',
     ):
-        assert s in e2e_block
+        assert s in deploy_block
     for hidden in (
         "workflow_run:",
         "route_probe attempt=",
@@ -1317,31 +1309,27 @@ def test_AC8_13_107_pr_preview_workflow_uploads_context_without_image_preflight(
 ):
     """AC8.13.107: PR preview uploads context and does not preflight PR images."""
     workflow = (ROOT / ".github/workflows/preview.yml").read_text()
-    e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
     assert 'PYTHONUNBUFFERED: "1"' in workflow
     cleanup_block = workflow.split("  cleanup:", 1)[1]
-    deploy_block = workflow.split("  deploy-preview:", 1)[1].split("  e2e:", 1)[0]
+    deploy_block = workflow.split("  deploy-preview:", 1)[1].split("  cleanup:", 1)[0]
     for hidden in (
         "docker/build-push-action@v7",
         "- name: Preflight PR preview image tags",
         "docker buildx imagetools inspect",
+        "  e2e:",
     ):
         assert hidden not in workflow
     assert (
         "PR_PREVIEW_CONTEXT_PATH: ci-context/pr-preview-deploy-context.json"
         in deploy_block
     )
-    assert "registry_image_push=false" in e2e_block
-    assert "dokploy_deploy=after-e2e-non-blocking-build-from-source" in e2e_block
-    assert "preview_runtime=github-runner-compose" in e2e_block
+    assert "pr-preview-deploy-context" in deploy_block
     assert "pr_preview_images=not-created" in cleanup_block
-    assert "test-results/" in e2e_block and "ci-context/" in e2e_block
 
 
 def test_AC8_13_101_pr_test_workflow_uses_runner_preview_url() -> None:
-    """AC8.13.101: E2E consumes the runner-local preview URL."""
+    """AC8.13.101: PR preview derives stable URL."""
     workflow = (ROOT / ".github/workflows/preview.yml").read_text()
-    e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
     assert 'PYTHONUNBUFFERED: "1"' in workflow
     assert "preview_app_url: ${{ steps.info.outputs.preview_app_url }}" in workflow
     assert "preview_commit_slug" in workflow
@@ -1351,15 +1339,7 @@ def test_AC8_13_101_pr_test_workflow_uses_runner_preview_url() -> None:
         "APP_URL: ${{ steps.deploy.outputs.app_url }}",
     ):
         assert hidden not in workflow
-    for s in (
-        "APP_URL: http://localhost:8080",
-        "app_url=http://localhost:8080",
-        "api_health_url=http://localhost:8080/api/health",
-        "persistent_preview_url=${{ needs.setup.outputs.preview_app_url }}",
-        "no PR preview image is pushed",
-        "EXPECTED_SHA: ${{ needs.setup.outputs.head_sha }}",
-    ):
-        assert s in e2e_block
+    assert "report-pr-" in workflow
 
 
 def test_AC8_13_71_main_rejects_unsupported_action() -> None:
@@ -1598,17 +1578,12 @@ def test_AC8_13_125_busy_dokploy_queue_cannot_extend_past_rollout_deadline(
 
 
 def test_AC8_13_125_pr_preview_runner_lifecycle_has_hard_timeout() -> None:
-    """AC8.13.125: GitHub caps PR preview runner lifecycle runtime."""
+    """AC8.13.125: GitHub caps PR preview deploy runtime."""
     workflow = (ROOT / ".github/workflows/preview.yml").read_text()
-    e2e_block = workflow.split("  e2e:", 1)[1].split("  cleanup:", 1)[0]
+    deploy_block = workflow.split("  deploy-preview:", 1)[1].split("  cleanup:", 1)[0]
     assert 'PYTHONUNBUFFERED: "1"' in workflow
-    for s in (
-        "timeout-minutes: 25",
-        "for i in $(seq 1 60)",
-        "stack did not become healthy within 300s",
-        "docker compose down --volumes --remove-orphans --timeout 30",
-    ):
-        assert s in e2e_block
+    assert "timeout-minutes: 30" in deploy_block
+    assert "timeout-minutes: 25" in deploy_block
 
 
 def test_AC7_13_1_no_new_deployment_record_raises_classified_subclass(

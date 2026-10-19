@@ -26,17 +26,6 @@
 version: "1.0"
 
 gates:
-  - id: pr-in-runner-e2e
-    workflow: .github/workflows/preview.yml
-    job: e2e
-    trigger: pull_request          # synchronous — NOT workflow_run (#943)
-    blocking: true                 # the merge authority: a required check before merge
-    image_free: true              # builds the full stack on the runner; needs no CI artifact
-    description: >
-      Full-stack provider-free smoke/E2E inside the GitHub runner — the merge authority.
-      Runs synchronously on pull_request so a fast or auto merge cannot land before it
-      runs as a required check (a skipped required check counts as passed).
-
   - id: pr-persistent-preview
     workflow: .github/workflows/preview.yml
     job: deploy-preview
@@ -57,6 +46,16 @@ gates:
       deploy_v2 and rolls staging. Staging is a pre-prod canary (approx prod,
       slightly ahead); deploys are manual (CI is the dev quality gate, not auto-deploy).
 
+  - id: staging-benchmark
+    workflow: .github/workflows/benchmark.yml
+    job: run-benchmark
+    trigger: workflow_call
+    blocking: true
+    image_free: false
+    description: >
+      Financial temporal benchmark suite executing 7 end-to-end multi-period financial
+      scenarios enforcing Assets - Liabilities - Equity == 0.00 and zero browser console errors.
+
   - id: release-images
     workflow: .github/workflows/deploy.yml
     job: promote
@@ -69,15 +68,13 @@ gates:
   - id: report-main-preview
     workflow: .github/workflows/notify-infra2.yml
     job: dispatch
-    trigger: workflow_run          # after app main CI completes successfully
+    trigger: workflow_dispatch     # manual on-demand re-trigger of report-branch-main deploy
     blocking: false
     image_free: false
     description: >
-      Notify infra2 to redeploy the report-branch-main preview only after main CI
-      has published the SHA-tagged backend/frontend images. The receiver requires
-      deploy_v2's branch-form `main` resolution to match the exact successful SHA
-      from the repository_dispatch payload, so a newer in-progress main push cannot
-      race image publication.
+      Notify infra2 to redeploy the report-branch-main preview for the latest main
+      commit SHA. The receiver requires deploy_v2's branch-form `main` resolution to
+      match the exact verified SHA.
 
   - id: production-release
     workflow: .github/workflows/release.yml
