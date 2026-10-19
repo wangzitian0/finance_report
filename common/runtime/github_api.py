@@ -3,57 +3,18 @@
 from __future__ import annotations
 
 import json
-import os
-import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
 
+from infra2_sdk.ci import parse_github_time, write_github_output
 
-_GITHUB_OUTPUT_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
-
-def parse_github_time(value: str | None) -> datetime | None:
-    """Parse an optional GitHub ISO timestamp as a UTC datetime."""
-
-    if value is None or not value.strip():
-        return None
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC)
-
-
-def write_github_output(values: dict[str, str]) -> None:
-    """Append GitHub Actions outputs when the runner exposes ``GITHUB_OUTPUT``."""
-
-    output_path = os.getenv("GITHUB_OUTPUT")
-    if not output_path:
-        return
-
-    invalid_keys = [
-        key
-        for key in values
-        if not isinstance(key, str) or not _GITHUB_OUTPUT_KEY_RE.fullmatch(key)
-    ]
-    if invalid_keys:
-        raise ValueError(f"invalid GitHub output key: {invalid_keys[0]!r}")
-
-    with open(output_path, "a", encoding="utf-8") as handle:
-        for key, value in values.items():
-            if "\n" not in value and "\r" not in value:
-                print(f"{key}={value}", file=handle)
-                continue
-
-            delimiter = f"FINANCE_REPORT_OUTPUT_{uuid4().hex}"
-            while delimiter in value.splitlines():
-                delimiter = f"FINANCE_REPORT_OUTPUT_{uuid4().hex}"
-            print(f"{key}<<{delimiter}", file=handle)
-            print(value, file=handle)
-            print(delimiter, file=handle)
+__all__ = [
+    "GitHubActionsClient",
+    "parse_github_time",
+    "write_github_output",
+]
 
 
 class GitHubActionsClient:

@@ -45,7 +45,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from infra2_sdk.deploy import HttpGet, default_http_get
+from infra2_sdk.deploy import VERSION_KEYS, HttpGet, default_http_get
 
 from common.runtime.github_api import write_github_output
 
@@ -56,8 +56,6 @@ DEFAULT_MAX_AGE_DAYS: dict[str, int] = {"staging": 3, "production": 7}
 #: Bound for an environment name this module has no opinion about.
 FALLBACK_MAX_AGE_DAYS = 3
 
-#: Health payload keys that may carry the release identity, in preference order.
-VERSION_KEYS = ("git_sha", "version")
 _RELEASE_TAG = re.compile(r"^v\d+\.\d+\.\d+$")
 # The identity arrives over HTTP and is handed to git, where a leading "-" is
 # read as an option and whitespace makes the failure non-deterministic.
