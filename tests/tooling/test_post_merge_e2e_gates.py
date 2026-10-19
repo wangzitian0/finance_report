@@ -1111,6 +1111,13 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
         "${STAGING_AI_OCR_TESTS[@]}",
         "GITHUB_STEP_SUMMARY",
     )
+    _has(
+        workflow,
+        "STAGING_AI_OCR_EXPECTED_UPLOADS:",
+        "STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS:",
+        "STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS:",
+        "STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS:",
+    )
     _lacks(
         workflow,
         "- Expected uploads: 7",
@@ -3057,9 +3064,15 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     _has(
         workflow,
         "workflow_dispatch:",
-        "STAGING_E2E_PRIMARY_MODEL: glm-5.2",
-        "STAGING_E2E_OCR_MODEL: glm-4.6v",
-        "STAGING_E2E_VISION_MODEL: glm-4.6v",
+        "STAGING_E2E_PRIMARY_MODEL: glm-5.3-flash",
+        "STAGING_E2E_OCR_MODEL: glm-5.3-flashx",
+        "STAGING_E2E_VISION_MODEL: glm-5.3-flashx",
+    )
+    _has(
+        ai_workflow,
+        "STAGING_E2E_PRIMARY_MODEL: glm-5.3-flash",
+        "STAGING_E2E_OCR_MODEL: glm-5.3-flashx",
+        "STAGING_E2E_VISION_MODEL: glm-5.3-flashx",
     )
     # Marker expression equality is owned by the matrix conformance
     # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
@@ -3084,10 +3097,16 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
         preview_lifecycle,
         '"AI_API_KEY": ""',
         '"AI_BASE_URL": "https://api.z.ai/api/coding/paas/v4"',
-        '"OCR_MODEL": "glm-4.6v"',
         '"AI_JSON_TIMEOUT_SECONDS": "360"',
         '"AI_JSON_MAX_TOKENS": "8192"',
         '"AI_JSON_DISABLE_THINKING": "true"',
+    )
+    _lacks(
+        preview_lifecycle,
+        '"PRIMARY_MODEL":',
+        '"OCR_MODEL":',
+        '"VISION_MODEL":',
+        '"FALLBACK_MODELS":',
     )
     _has(
         read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"),

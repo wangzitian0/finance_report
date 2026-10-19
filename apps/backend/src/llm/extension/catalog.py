@@ -53,12 +53,14 @@ def _configured_specs() -> list[ModelSpec]:
         *((m, _TEXT_MODALITIES) for m in settings.fallback_models),
         *((m, _VISION_MODALITIES) for m in settings.vision_fallback_models),
     ]
-    specs: list[ModelSpec] = []
-    seen: set[str] = set()
+    merged_modalities: dict[str, frozenset[Modality]] = {}
     for model_id, modalities in entries:
-        if not model_id or model_id in seen:
+        if not model_id:
             continue
-        seen.add(model_id)
+        merged_modalities[model_id] = merged_modalities.get(model_id, frozenset()) | modalities
+
+    specs: list[ModelSpec] = []
+    for model_id, modalities in merged_modalities.items():
         in_price, out_price, is_free = _pricing_for(model_id)
         specs.append(
             ModelSpec(

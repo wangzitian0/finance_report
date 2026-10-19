@@ -45,9 +45,13 @@ env:
   LLM_LIVE: "1"
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
-  STAGING_E2E_PRIMARY_MODEL: glm-5.2
-  STAGING_E2E_OCR_MODEL: glm-4.6v
-  STAGING_E2E_VISION_MODEL: glm-4.6v
+  STAGING_E2E_PRIMARY_MODEL: glm-5.3-flash
+  STAGING_E2E_OCR_MODEL: glm-5.3-flashx
+  STAGING_E2E_VISION_MODEL: glm-5.3-flashx
+  STAGING_AI_OCR_EXPECTED_UPLOADS: "0"
+  STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS: "0"
+  STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS: "0"
+  STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS: "0"
   APP_URL: https://report-staging.zitian.party
   TEST_ENV: staging
   SKIP_UI_TESTS: false
@@ -249,6 +253,10 @@ jobs:
           echo "Corpus: ${CORPUS:-canary}"
           STAGING_AI_OCR_TESTS=()
           eval "$(.venv/bin/python tools/staging_ai_ocr_gate_contract.py --shell --corpus "${CORPUS:-canary}")"
+          : "${STAGING_AI_OCR_EXPECTED_UPLOADS:=${#STAGING_AI_OCR_TESTS[@]}}"
+          : "${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS:=${#STAGING_AI_OCR_TESTS[@]}}"
+          : "${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS:=0}"
+          : "${STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS:=0}"
           mkdir -p test-results
           write_staging_audit_inventory
 

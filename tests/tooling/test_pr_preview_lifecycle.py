@@ -172,9 +172,10 @@ def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
         "S3_HOST": "finance-report-minio-pr-591-abc123",
         "S3_ENDPOINT": "http://finance-report-minio-pr-591-abc123:9000",
         "COMPOSE_PROFILES": "infra,app",
-        "PRIMARY_MODEL": "glm-5.3-flash",
     }
     assert "COMPOSE_PROJECT_NAME" not in env
+    for model_key in ("PRIMARY_MODEL", "OCR_MODEL", "VISION_MODEL", "FALLBACK_MODELS"):
+        assert model_key not in env
     for k, v in expected.items():
         assert env[k] == v
 
@@ -221,6 +222,16 @@ def test_AC8_13_71_root_compose_passes_git_sha_to_backend_runtime_and_frontend_b
     assert frontend_block.index("args:") < frontend_block.index(
         "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}"
     )
+    for compose_name in ("docker-compose.yml", "docker-compose.pr-preview.yml"):
+        text = (ROOT / compose_name).read_text()
+        b_block = text.split("  backend:", 1)[1].split("  frontend:", 1)[0]
+        for drifted_key in (
+            "AI_PROVIDER:",
+            "AI_BASE_URL:",
+            "AI_CHAT_COMPLETIONS_PATH:",
+            "AI_LAYOUT_PARSING_PATH:",
+        ):
+            assert drifted_key not in b_block, (compose_name, drifted_key)
 
 
 def test_AC8_13_71_dash_prefixed_environment_id_is_accepted() -> None:

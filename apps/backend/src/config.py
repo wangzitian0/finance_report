@@ -33,6 +33,8 @@ EMPTY_FALLBACK_FIELDS = frozenset(
     {
         "ai_api_key",
         "cors_origins_str",
+        "next_public_app_url",
+        "otel_resource_attributes",
         "api_rate_limit_requests",
         "api_rate_limit_window",
         "register_rate_limit_requests",
@@ -436,7 +438,7 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="FALLBACK_MODELS",
         description="Comma-separated fallback AI model ids.",
-        json_schema_extra={"group": "AI Provider", "example": "glm-5.3-flash,glm-5.2"},
+        json_schema_extra={"group": "AI Provider", "example": "glm-5.2,glm-5-turbo"},
     )
     vision_fallback_models_str: str | None = Field(
         default=None,
@@ -575,15 +577,16 @@ class Settings(BaseSettings):
             return None
         return value
 
-    @field_validator("cors_origins_str", mode="before")
+    @field_validator("cors_origins_str", "otel_resource_attributes", mode="before")
     @classmethod
     def _empty_cors_origins_is_none(cls, value: object) -> object:
-        """Treat an empty/whitespace CORS_ORIGINS as omitted (None) to use defaults."""
+        """Treat an empty/whitespace CORS_ORIGINS or OTEL_RESOURCE_ATTRIBUTES as omitted (None)."""
         if isinstance(value, str) and not value.strip():
             return None
         return value
 
     @field_validator(
+        "next_public_app_url",
         "api_rate_limit_requests",
         "api_rate_limit_window",
         "register_rate_limit_requests",
@@ -591,7 +594,7 @@ class Settings(BaseSettings):
     )
     @classmethod
     def _empty_rate_limits_use_default(cls, value: object, info: Any) -> object:
-        """Treat empty/whitespace rate limit env vars as default rather than failing int parse (#2032)."""
+        """Treat empty/whitespace env vars as default rather than failing parse or overriding with empty (#2032)."""
         if (isinstance(value, str) and not value.strip()) or value is None:
             return cls.model_fields[info.field_name].default
         return value
@@ -848,7 +851,7 @@ class Settings(BaseSettings):
             self.fallback_models_str,
             [
                 "glm-5.2",
-                "glm-5.1",
+                "glm-5-turbo",
             ],
         )
 
@@ -966,7 +969,8 @@ ENV_SOURCE_CLASSES: dict[str, dict[str, object]] = {
     # (finance_report/finance_report/10.app/compose.yaml, backend `environment:` block;
     # staging overrides in AppDeployer.compose_env_overrides). They are injected by the
     # deployment, never stored in Vault and never rendered by the agent template. A field
-    # the compose does not set stays a `code` default (e.g. OCR_MODEL, VISION_MODEL).
+    # the compose does not set stays a `code` default (e.g. PRIMARY_MODEL, FALLBACK_MODELS,
+    # OCR_MODEL, VISION_MODEL, VISION_FALLBACK_MODELS).
     # `empty_ok` marks the ones the compose may legitimately leave empty (`${VAR:-}`).
     "environment": {"source": "decision"},
     "debug": {"source": "decision"},
@@ -978,8 +982,6 @@ ENV_SOURCE_CLASSES: dict[str, dict[str, object]] = {
     "s3_public_bucket": {"source": "decision", "empty_ok": True},
     "s3_presign_expiry_seconds": {"source": "decision"},
     "prefect_api_url": {"source": "decision"},
-    "primary_model": {"source": "decision"},
-    "fallback_models_str": {"source": "decision"},
     "api_rate_limit_requests": {"source": "decision"},
     "otel_exporter_otlp_endpoint": {"source": "decision"},
     "otel_service_name": {"source": "decision"},

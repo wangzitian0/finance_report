@@ -179,7 +179,6 @@ def test_AC_runtime_guard_proofs_13_every_field_names_its_producer_and_the_offli
         "CORS_ORIGINS",
         "S3_ENDPOINT",
         "PREFECT_API_URL",
-        "PRIMARY_MODEL",
         "API_RATE_LIMIT_REQUESTS",
         "OTEL_EXPORTER_OTLP_ENDPOINT",
         "OPENPANEL_CLIENT_ID",
@@ -189,9 +188,14 @@ def test_AC_runtime_guard_proofs_13_every_field_names_its_producer_and_the_offli
     assert (
         by_env["OPENPANEL_CLIENT_ID"].empty_ok and by_env["S3_PUBLIC_BUCKET"].empty_ok
     )
-    assert (
-        by_env["OCR_MODEL"].source == "code" and by_env["VISION_MODEL"].source == "code"
-    )
+    for model_env in (
+        "PRIMARY_MODEL",
+        "FALLBACK_MODELS",
+        "OCR_MODEL",
+        "VISION_MODEL",
+        "VISION_FALLBACK_MODELS",
+    ):
+        assert by_env[model_env].source == "code", model_env
     for entry in committed["fields"]:
         assert entry["source"] in {"human", "runtime", "release", "decision", "code"}, (
             entry["env"]
