@@ -16,7 +16,7 @@ if str(ROOT_DIR) not in sys.path:
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(1, str(BACKEND_ROOT))
 
-from tools._lib import api_response_vectors as _impl  # noqa: E402
+from common.platform import api_response_vectors as _impl  # noqa: E402
 
 _impl_build_vector_files = _impl.build_vector_files
 

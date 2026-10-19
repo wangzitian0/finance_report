@@ -15,7 +15,7 @@ def test_AC8_13_99_frontend_typecheck_is_a_required_gate() -> None:
     package_json = json.loads(read("apps/frontend/package.json"))
     assert package_json["scripts"]["typecheck"] == "tsc --noEmit"
 
-    cli = read("tools/_lib/dev/cli.py")
+    cli = read("common/runtime/dev/cli.py")
     assert 'run(["npm", "run", "typecheck"], cwd=FRONTEND_DIR)' in cli
 
     workflow = read(".github/workflows/ci.yml")

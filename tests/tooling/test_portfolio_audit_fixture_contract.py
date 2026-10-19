@@ -1,7 +1,7 @@
 from decimal import Decimal
 from pathlib import Path
 
-from tools._lib.fixtures.portfolio_audit_package import PORTFOLIO_AUDIT_FIXTURE
+from common.testing.fixtures.portfolio_audit_package import PORTFOLIO_AUDIT_FIXTURE
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -142,9 +142,12 @@ def test_AC17_12_3_personal_package_references_expanded_portfolio_fixture_contra
     None
 ):
     """AC-portfolio.fixtures.3: AC17.12.3: Personal package fixture consumes expanded portfolio expected outputs."""
-    personal_fixture = read("tools/_lib/fixtures/personal_report_package.py")
+    personal_fixture = read("common/testing/fixtures/personal_report_package.py")
 
-    assert "from tools._lib.fixtures.portfolio_audit_package import" in personal_fixture
+    assert (
+        "from common.testing.fixtures.portfolio_audit_package import"
+        in personal_fixture
+    )
     assert "PORTFOLIO_AUDIT_FIXTURE" in personal_fixture
     assert (
         "brokerage_market_value=PORTFOLIO_AUDIT_FIXTURE.report_package_market_value_sgd"

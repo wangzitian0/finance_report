@@ -15,14 +15,14 @@ def test_check_only_validates_full_classification(capsys) -> None:
     """AC-runtime.snapshot-anonymizer.1: --check-only classifies every live
     model column and exits 0 without touching any database (a zero exit IS the
     guarantee — classify_columns raises on any unclassified column)."""
-    from tools._lib.dev.anonymize_snapshot import main
+    from common.runtime.dev.anonymize_snapshot import main
 
     assert main(["--check-only"]) == 0
     capsys.readouterr()
 
 
 def test_transform_requires_database_url() -> None:
-    from tools._lib.dev.anonymize_snapshot import main
+    from common.runtime.dev.anonymize_snapshot import main
 
     with pytest.raises(SystemExit) as excinfo:
         main([])
@@ -32,7 +32,7 @@ def test_transform_requires_database_url() -> None:
 def test_transform_refuses_without_scratch_acknowledgement() -> None:
     """RL-DATA-2: the tool must never be pointed at prod or live staging; the
     explicit scratch-copy acknowledgement is a hard requirement."""
-    from tools._lib.dev.anonymize_snapshot import main
+    from common.runtime.dev.anonymize_snapshot import main
 
     with pytest.raises(SystemExit) as excinfo:
         main(["--database-url", "postgresql+psycopg2://x:y@localhost/scratch"])
@@ -42,7 +42,7 @@ def test_transform_refuses_without_scratch_acknowledgement() -> None:
 def test_async_database_url_is_normalized_to_sync_driver() -> None:
     """The backend's canonical postgresql+asyncpg:// URL is accepted and run
     through a sync driver (same normalization as migrations/env.py)."""
-    from tools._lib.dev.anonymize_snapshot import _normalize_url
+    from common.runtime.dev.anonymize_snapshot import _normalize_url
 
     assert (
         _normalize_url("postgresql+asyncpg://u:p@host:5432/db")
@@ -72,7 +72,7 @@ def test_transform_success_path_reports_counts(monkeypatch, capsys) -> None:
     """The wrapper drives anonymize + residual scan in one transaction and
     reports counts only (never values)."""
     import sqlalchemy
-    import tools._lib.dev.anonymize_snapshot as cli
+    import common.runtime.dev.anonymize_snapshot as cli
 
     from src.runtime.extension.snapshot_anonymizer import AnonymizationReport
 
@@ -102,7 +102,7 @@ def test_transform_residuals_fail_closed(monkeypatch) -> None:
     """AC-runtime.snapshot-anonymizer.3: a surviving original aborts the
     transaction — the wrapper raises instead of committing."""
     import sqlalchemy
-    import tools._lib.dev.anonymize_snapshot as cli
+    import common.runtime.dev.anonymize_snapshot as cli
 
     from src.runtime.extension.snapshot_anonymizer import (
         AnonymizationReport,
@@ -132,7 +132,7 @@ def test_transform_residuals_fail_closed(monkeypatch) -> None:
 
 def test_emit_audit_proof_flag_is_rejected(capsys) -> None:
     """The obsolete --emit-audit-proof flag and its helpers are removed (#2434)."""
-    import tools._lib.dev.anonymize_snapshot as cli
+    import common.runtime.dev.anonymize_snapshot as cli
 
     assert not hasattr(cli, "_get_schema_revision")
     assert not hasattr(cli, "_get_anonymizer_sha")

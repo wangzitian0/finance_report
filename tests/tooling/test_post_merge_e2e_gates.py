@@ -2728,7 +2728,7 @@ def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
     _has(
         dispatch_script,
         "/git/ref/heads/main",
-        "tools/_lib/shell/resolve_report_main_dispatch_sha.sh",
+        "common/runtime/shell/resolve_report_main_dispatch_sha.sh",
     )
     assert "$GITHUB_SHA" not in dispatch_script
     assert '--arg sha "$dispatch_sha"' in dispatch_script
@@ -3058,7 +3058,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     four_asset = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
     upload = read("tests/e2e/test_statement_upload_e2e.py")
-    preview_lifecycle = read("tools/_lib/dev/pr_preview_lifecycle")
+    preview_lifecycle = read("common/runtime/dev/pr_preview_lifecycle")
 
     _lacks(workflow, "post-merge-train-turn:", "wait_post_merge_train_turn.py")
     _has(
@@ -4092,7 +4092,7 @@ def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
     runs no Dokploy reclaim — PR close dispatches a teardown signal to infra2."""
     preview = read(".github/workflows/preview.yml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-    lifecycle = read("tools/_lib/dev/pr_preview_lifecycle")
+    lifecycle = read("common/runtime/dev/pr_preview_lifecycle")
 
     _has(ci_cd, "PR preview Dokploy API responses are parsed for required fields only")
     # Deploy goes through pr_preview_lifecycle.py (no hand-rolled Dokploy curl), so
@@ -4485,7 +4485,7 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     # Host hygiene (the "Docker build cache and stopped containers" leak path) is
     # infra2-owned now (tools/host_hygiene_schedule.py); the app ships no
     # host-hygiene module to assert on here.
-    assert not (ROOT / "tools/_lib/dev/vps_host_hygiene.py").exists()
+    assert not (ROOT / "common/runtime/dev/vps_host_hygiene.py").exists()
 
 
 def test_AC8_13_10_multi_brokerage_upload_to_portfolio_value_gate() -> None:

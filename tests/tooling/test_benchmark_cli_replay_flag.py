@@ -8,7 +8,7 @@ from __future__ import annotations
 
 def test_benchmark_cli_cassette_option_parsing() -> None:
     """Benchmark CLI supports --cassette=replay and propagates to runner."""
-    from tools._lib.benchmarks.run_financial_scenario_benchmark import (
+    from common.testing.benchmarks.run_financial_scenario_benchmark import (
         ScenarioBenchmarkRunner,
         _parse_args,
     )

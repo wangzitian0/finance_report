@@ -1247,7 +1247,7 @@ CONTRACT = PackageContract(
                 "README.md",
                 "common/runtime/environments.md#host-shell-boundaries",
                 "tools/bootstrap.sh",
-                "tools/_lib/shell/",
+                "common/runtime/shell/",
                 "common/runtime/shell/common.sh",
             ],
             family="development",
@@ -1328,7 +1328,7 @@ CONTRACT = PackageContract(
             cross_refs=[
                 "toolchain.toml",
                 "tools/bootstrap.sh",
-                "tools/_lib/shell/bootstrap.sh",
+                "common/runtime/shell/bootstrap.sh",
                 "common/runtime/shell/common.sh",
                 "tools/check_toolchain_contract.py",
                 "common/runtime/check_toolchain_contract.py",

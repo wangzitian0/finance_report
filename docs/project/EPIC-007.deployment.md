@@ -264,7 +264,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ### AC7.13: Preview rollout proof & half-update safety (#756, #758)
 
-> The PR preview lifecycle (`tools/_lib/dev/pr_preview_lifecycle.py`) must fail
+> The PR preview lifecycle (`common/runtime/dev/pr_preview_lifecycle.py`) must fail
 > fast when Dokploy never creates a new deployment record (#756) and must never
 > leave a silently half-updated compose on a deploy/rollout failure (#758).
 
@@ -311,7 +311,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ### AC7.17: Smoke Gate Asserts Only Real Public Frontend Routes (#411)
 
-> The deploy-smoke gate (`tools/_lib/shell/smoke_test.sh`) runs in the staging /
+> The deploy-smoke gate (`common/runtime/shell/smoke_test.sh`) runs in the staging /
 > PR-preview health gate. Every page route it asserts must correspond to a real,
 > publicly reachable Next.js route under `apps/frontend/src/app` — a smoke check
 > for a non-existent path (e.g. `/dashboard`, which 404s) makes the gate either

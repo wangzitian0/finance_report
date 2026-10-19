@@ -11,8 +11,8 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from tools._lib.deploy import app_deploy_request as _impl  # noqa: E402
-from tools._lib.deploy.app_deploy_request import (  # noqa: E402
+from common.runtime.deploy import app_deploy_request as _impl  # noqa: E402
+from common.runtime.deploy.app_deploy_request import (  # noqa: E402
     SOURCE_REPOSITORY as SOURCE_REPOSITORY,
     _SOURCE_RUN_PATH_RE as _SOURCE_RUN_PATH_RE,
     canonical_json as canonical_json,

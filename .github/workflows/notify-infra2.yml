@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      # #1534: needed so tools/_lib/shell/resolve_report_main_dispatch_sha.sh
+      # #1534: needed so common/runtime/shell/resolve_report_main_dispatch_sha.sh
       # (the extracted, testable dispatch-decision script) exists on the
       # runner — this job previously did no repo checkout at all, since the
       # inline bash conditional it replaces needed no file from the repo.
@@ -90,9 +90,9 @@ jobs:
 
           # #1534: the SHA-resolution/stale-completion decision lives in a
           # standalone, real-execution-testable script (not inline bash) —
-          # see tools/_lib/shell/resolve_report_main_dispatch_sha.sh and
+          # see common/runtime/shell/resolve_report_main_dispatch_sha.sh and
           # tests/tooling/test_report_main_dispatch.py.
-          if ! dispatch_sha="$(bash tools/_lib/shell/resolve_report_main_dispatch_sha.sh "${GITHUB_EVENT_NAME}" "${WORKFLOW_RUN_SHA:-}" "$latest_main_sha")"; then
+          if ! dispatch_sha="$(bash common/runtime/shell/resolve_report_main_dispatch_sha.sh "${GITHUB_EVENT_NAME}" "${WORKFLOW_RUN_SHA:-}" "$latest_main_sha")"; then
             alert_and_fail "unresolved-workflow-run-sha" "No workflow_run head SHA resolved for report-branch-main deploy."
           fi
           if [[ -z "$dispatch_sha" ]]; then

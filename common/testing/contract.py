@@ -721,15 +721,15 @@ CONTRACT = PackageContract(
         ),
         ConceptRecord(
             key="developer_toolchain",
-            owner="tools/_lib/dev/toolchain.py",
+            owner="common/runtime/dev/toolchain.py",
             description=(
                 "Shared runtime-version, uv command, and env-aware container "
                 "runtime selection for local developer commands."
             ),
             cross_refs=[
-                "tools/_lib/dev/cli.py",
-                "tools/_lib/dev/dev_backend.py",
-                "tools/_lib/dev/test_lifecycle.py",
+                "common/runtime/dev/cli.py",
+                "common/runtime/dev/dev_backend.py",
+                "common/runtime/dev/test_lifecycle.py",
             ],
             proofs=["tests/tooling/test_s4_tool_homing.py"],
             family="development",

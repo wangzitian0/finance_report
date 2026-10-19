@@ -1022,7 +1022,7 @@ requires-dist = [
     { name = "email-validator", specifier = ">=2.1.0" },
     { name = "fastapi", specifier = ">=0.111.0" },
     { name = "httpx", specifier = ">=0.27.0" },
-    { name = "infra2-sdk", url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v3.7.3/infra2_sdk-3.7.3-py3-none-any.whl" },
+    { name = "infra2-sdk", url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v3.8.0/infra2_sdk-3.8.0-py3-none-any.whl" },
     { name = "litellm", specifier = ">=1.55.0" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.24.0" },
     { name = "opentelemetry-instrumentation-fastapi", specifier = ">=0.45b0" },
@@ -1594,13 +1594,13 @@ wheels = [
 
 [[package]]
 name = "infra2-sdk"
-version = "3.7.3"
-source = { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v3.7.3/infra2_sdk-3.7.3-py3-none-any.whl" }
+version = "3.8.0"
+source = { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v3.8.0/infra2_sdk-3.8.0-py3-none-any.whl" }
 dependencies = [
     { name = "pyyaml" },
 ]
 wheels = [
-    { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v3.7.3/infra2_sdk-3.7.3-py3-none-any.whl", hash = "sha256:8e7f5018bfde75a91ea30b66c68cd35d43bae7731020297854b13b0c6c7eb3ce" },
+    { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v3.8.0/infra2_sdk-3.8.0-py3-none-any.whl", hash = "sha256:6dbbeb32691171493070cd25258a34497fd6c50b5bae5d5b3818164920428439" },
 ]
 
 [package.metadata]

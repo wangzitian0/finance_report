@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 
 
 def lifecycle_module():
-    return importlib.import_module("tools._lib.dev.pr_preview_lifecycle")
+    return importlib.import_module("common.runtime.dev.pr_preview_lifecycle")
 
 
 DEFAULT_EFFECTIVE_ENV = "\n".join(

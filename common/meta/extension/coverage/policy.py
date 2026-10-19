@@ -156,7 +156,6 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
             "tools/**/__pycache__/**",
             "tools/tests/**",
             "tools/wait_for_cheap_ci.py",
-            "tools/_lib/benchmarks/**",
             "tools/run_financial_scenario_benchmark.py",
             "tools/generate_benchmark_index.py",
             "tools/sync_benchmark_fixtures.py",
@@ -179,8 +178,9 @@ COMPONENTS: tuple[CoverageComponent, ...] = (
             "common/**/__init__.py",
             "common/**/__pycache__/**",
             "common/tests/**",
-            # Long-poll CI waiter: no meaningful unit coverage (moved from tools/_lib/ci).
+            # Long-poll CI waiter: no meaningful unit coverage.
             "common/testing/wait_for_cheap_ci.py",
+            "common/testing/benchmarks/**",
         ),
     ),
 )

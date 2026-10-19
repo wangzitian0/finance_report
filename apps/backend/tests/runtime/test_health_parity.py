@@ -130,7 +130,7 @@ async def test_health_reports_the_sdk_environment_tier_as_a_second_opinion(clien
 def test_smoke_script_calls_the_full_health_form() -> None:
     """The smoke script must assert dependency presence via /api/health?full=1 —
     dropping the line breaks parity (invariant 6), so it is pinned here."""
-    script = Path(__file__).resolve().parents[4] / "tools/_lib/shell/smoke_test.sh"
+    script = Path(__file__).resolve().parents[4] / "common/runtime/shell/smoke_test.sh"
     content = script.read_text(encoding="utf-8")
     assert "api/health?full=1" in content, "smoke_test.sh no longer asserts the manifest-declared dependency set"
 

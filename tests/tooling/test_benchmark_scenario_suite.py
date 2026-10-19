@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from common.testing.matrix import STAGING_CORE_E2E_MARKER
-from tools._lib.benchmarks.statement_generators import (
+from common.testing.benchmarks.statement_generators import (
     generate_credit_card_repayment_bank_pdf,
     generate_household_wife_operations_csv,
     generate_standard_operations_csv,
@@ -97,7 +97,7 @@ def test_generate_credit_card_repayment_bank_pdf(tmp_path: Path) -> None:
 
 def test_generate_consecutive_month3_and_month4_pdf(tmp_path: Path) -> None:
     """Benchmark Case 1: Month 3 (Q1 close) and Month 4 (Q2 transition) PDFs generate valid ReportLab documents."""
-    from tools._lib.benchmarks.statement_generators import (
+    from common.testing.benchmarks.statement_generators import (
         generate_consecutive_month3_pdf,
         generate_consecutive_month4_pdf,
     )
@@ -117,7 +117,7 @@ def test_generate_consecutive_month3_and_month4_pdf(tmp_path: Path) -> None:
 
 def test_generate_multicurrency_usd_and_hkd_csv() -> None:
     """Benchmark Case 4: multi-currency CSV generators maintain strict opening-closing mathematical reconciliation."""
-    from tools._lib.benchmarks.statement_generators import (
+    from common.testing.benchmarks.statement_generators import (
         generate_multicurrency_hkd_csv,
         generate_multicurrency_usd_csv,
     )
@@ -143,7 +143,7 @@ def test_generate_multicurrency_usd_and_hkd_csv() -> None:
 
 def test_generate_consecutive_months_replay_csv_identity() -> None:
     """Benchmark Case 1: Replay CSV generators maintain consecutive opening-closing chain reconciliation."""
-    from tools._lib.benchmarks.statement_generators import (
+    from common.testing.benchmarks.statement_generators import (
         generate_consecutive_month1_csv,
         generate_consecutive_month2_csv,
         generate_consecutive_month3_csv,
@@ -230,7 +230,7 @@ def test_benchmark_manifest_v2_fixtures_verified() -> None:
 
 def test_benchmark_reporter_summary_extraction_v2() -> None:
     """AC-testing.benchmarks.8: reporter generates comprehensive summary and standalone HTML for all 5 scenarios."""
-    from tools._lib.benchmarks.benchmark_html_reporter import (
+    from common.testing.benchmarks.benchmark_html_reporter import (
         extract_summary_data,
         generate_html_report,
     )
@@ -382,9 +382,9 @@ def test_benchmark_reporter_summary_extraction_v2() -> None:
 
 def test_benchmark_case_6_dispatch_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC-testing.benchmarks.1: Case 6 is exported and dispatchable via CLI and scenario runner."""
-    from tools._lib.benchmarks import run_financial_scenario_benchmark
-    from tools._lib.benchmarks.case_types import CaseResult
-    from tools._lib.benchmarks.cases import execute_case_6
+    from common.testing.benchmarks import run_financial_scenario_benchmark
+    from common.testing.benchmarks.case_types import CaseResult
+    from common.testing.benchmarks.cases import execute_case_6
 
     assert callable(execute_case_6)
 
@@ -412,7 +412,7 @@ def test_benchmark_case_6_dispatch_contract(monkeypatch: pytest.MonkeyPatch) -> 
 
 def test_benchmark_cli_case_selection_and_green_while_empty_guard() -> None:
     """AC-testing.benchmarks.1: CLI fails closed on invalid case selection and supports case_1 format."""
-    from tools._lib.benchmarks.run_financial_scenario_benchmark import main
+    from common.testing.benchmarks.run_financial_scenario_benchmark import main
 
     # Passing invalid case must fail-closed with code 2 (never GREEN-WHILE-EMPTY code 0)
     exit_code = main(
@@ -427,7 +427,7 @@ def test_benchmark_valuation_basis_contract_conformance() -> None:
     """AC-testing.benchmarks.7: valuation_basis aligns with backend ManualValuationBasis schema."""
     import inspect
     from src.pricing.base.manual_valuation import ManualValuationBasis
-    from tools._lib.benchmarks.run_financial_scenario_benchmark import (
+    from common.testing.benchmarks.run_financial_scenario_benchmark import (
         ScenarioBenchmarkRunner,
     )
 
@@ -444,7 +444,7 @@ def test_benchmark_valuation_basis_contract_conformance() -> None:
 def test_benchmark_statement_generators_zero_orphan_contract() -> None:
     """AC-testing.benchmarks.7: All statement generators are mapped to active scenario cases."""
     import inspect
-    from tools._lib.benchmarks import statement_generators
+    from common.testing.benchmarks import statement_generators
 
     all_generators = {
         name
@@ -476,7 +476,7 @@ def test_benchmark_statement_generators_zero_orphan_contract() -> None:
 
 def test_sync_benchmark_fixtures_contract(tmp_path: Path) -> None:
     """AC-testing.benchmarks.7: Fixture sync loads manifest v2.1 and verifies SHA-256 integrity."""
-    from tools._lib.benchmarks import sync_benchmark_fixtures
+    from common.testing.benchmarks import sync_benchmark_fixtures
 
     manifest_path = REPO_ROOT / "common/testing/fixtures/benchmarks/manifest.yaml"
     manifest = sync_benchmark_fixtures.load_manifest(manifest_path)
@@ -500,8 +500,8 @@ def test_sync_benchmark_fixtures_contract(tmp_path: Path) -> None:
 
 def test_benchmark_cli_domain_and_flow_option_parsing() -> None:
     """AC-testing.benchmarks.1: CLI supports --domain 1..7 and --flow 1..30 mappings."""
-    from tools._lib.benchmarks.case_types import DOMAIN_TO_CASES, FLOW_TO_CASES
-    from tools._lib.benchmarks.run_financial_scenario_benchmark import _parse_args
+    from common.testing.benchmarks.case_types import DOMAIN_TO_CASES, FLOW_TO_CASES
+    from common.testing.benchmarks.run_financial_scenario_benchmark import _parse_args
 
     parsed = _parse_args(
         [
@@ -526,7 +526,7 @@ def test_benchmark_cli_domain_and_flow_option_parsing() -> None:
 
 def test_benchmark_oracle_triple_accounting_articulation_pass_and_fail() -> None:
     """AC-testing.benchmarks.6: Validate Pillar 4 Triple Accounting Articulation Invariant."""
-    from tools._lib.benchmarks.oracles import assert_triple_accounting_articulation
+    from common.testing.benchmarks.oracles import assert_triple_accounting_articulation
 
     # 1. Balanced case with matching income statement
     valid_bs = {
@@ -571,7 +571,7 @@ def test_benchmark_oracle_triple_accounting_articulation_pass_and_fail() -> None
 
 def test_benchmark_oracle_ai_advisor_semantic_grounding_pass_and_fail() -> None:
     """AC-testing.benchmarks.6: Validate Pillar 1 AI Semantic Grounding Oracle."""
-    from tools._lib.benchmarks.oracles import assert_ai_advisor_semantic_grounding
+    from common.testing.benchmarks.oracles import assert_ai_advisor_semantic_grounding
 
     # 1. Passing answer: grounded net worth with 0 discrepancy keywords
     clean_answer = (
@@ -636,7 +636,7 @@ def test_benchmark_oracle_ai_advisor_semantic_grounding_pass_and_fail() -> None:
 
 def test_benchmark_oracle_dom_hygiene_scanner() -> None:
     """AC-testing.benchmarks.3: Validate Pillar 3 DOM Hygiene Scanner."""
-    from tools._lib.benchmarks.oracles import (
+    from common.testing.benchmarks.oracles import (
         FORBIDDEN_DOM_JARGON,
         scan_dom_hygiene,
     )
@@ -656,7 +656,7 @@ def test_benchmark_oracle_dom_hygiene_scanner() -> None:
 
 def test_benchmark_cli_verify_ui_option_and_dispatch() -> None:
     """AC-testing.benchmarks.1: CLI supports --verify-ui flag and propagates to runner."""
-    from tools._lib.benchmarks.run_financial_scenario_benchmark import (
+    from common.testing.benchmarks.run_financial_scenario_benchmark import (
         ScenarioBenchmarkRunner,
         _parse_args,
     )

@@ -146,7 +146,7 @@ def test_AC_testing_toolchain_13_dev_commands_share_env_aware_toolchain(
     monkeypatch, capsys
 ) -> None:
     """AC-testing.toolchain.13: dev commands share one toolchain implementation."""
-    from tools._lib.dev import cli, dev_backend, test_lifecycle, toolchain
+    from common.runtime.dev import cli, dev_backend, test_lifecycle, toolchain
 
     assert cli.get_runtime_version is toolchain.get_runtime_version
     assert dev_backend.get_runtime_version is toolchain.get_runtime_version

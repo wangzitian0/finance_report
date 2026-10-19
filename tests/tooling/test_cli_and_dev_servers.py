@@ -11,7 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from tools._lib.dev import cli, dev_backend, dev_frontend, toolchain  # noqa: E402
+from common.runtime.dev import cli, dev_backend, dev_frontend, toolchain  # noqa: E402
 
 
 def _test_args(**kwargs):

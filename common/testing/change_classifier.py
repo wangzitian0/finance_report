@@ -184,7 +184,7 @@ PR_PREVIEW_ONLY_EXACT = frozenset(
         "tools/pr_preview_lifecycle.py",
     }
 )
-PR_PREVIEW_ONLY_PREFIXES = ("tools/_lib/dev/pr_preview_lifecycle/",)
+PR_PREVIEW_ONLY_PREFIXES = ("common/runtime/dev/pr_preview_lifecycle/",)
 STAGING_ONLY_EXACT = frozenset(
     {
         ".github/workflows/ci.yml",

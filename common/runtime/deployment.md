@@ -216,7 +216,7 @@ older than its age limit (`PRODUCTION_REQUEST_MAX_AGE_SECONDS` in infra2
 the approval. The refusal reads `request expired: created <time>, now <time>, limit
 <n> s`. While the request waits, the transport prints the receiver run link and
 the approval deadline. The deadline keeps a margin for the start of the check.
-`tools/_lib/deploy/app_deploy_transport.py` holds a copy of the limit, because
+`common/runtime/deploy/app_deploy_transport.py` holds a copy of the limit, because
 `infra2_sdk` does not export it. After a refusal, dispatch the release again for
 the version in the notice. A new request starts a new age. The job limit of the
 release workflow covers the wait of the request and the wait of its rollback

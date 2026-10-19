@@ -1,8 +1,10 @@
 from decimal import Decimal
 from pathlib import Path
 
-from tools._lib.fixtures.personal_report_package import REPRESENTATIVE_PACKAGE_FIXTURE
-from tools._lib.fixtures.portfolio_audit_package import PORTFOLIO_AUDIT_FIXTURE
+from common.testing.fixtures.personal_report_package import (
+    REPRESENTATIVE_PACKAGE_FIXTURE,
+)
+from common.testing.fixtures.portfolio_audit_package import PORTFOLIO_AUDIT_FIXTURE
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -84,7 +86,7 @@ def test_AC8_13_84_personal_package_e2e_consumes_representative_fixture_contract
     """AC-testing.product-gates.9: AC8.13.84: Package E2E consumes the shared representative fixture contract."""
     journey = read("tests/e2e/test_personal_financial_report_package.py")
 
-    assert "from tools._lib.fixtures.personal_report_package import" in journey
+    assert "from common.testing.fixtures.personal_report_package import" in journey
     assert "REPRESENTATIVE_PACKAGE_FIXTURE" in journey
     assert "PROPERTY_VALUE = Decimal" not in journey
     assert "MORTGAGE_BALANCE = Decimal" not in journey

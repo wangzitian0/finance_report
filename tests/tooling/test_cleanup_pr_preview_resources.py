@@ -15,7 +15,7 @@ def test_AC8_13_38_legacy_cleanup_entrypoints_are_removed() -> None:
     Dokploy responses (Was EPIC-008 AC8.13.38).
     """
     assert not (ROOT / "tools/cleanup_pr_preview_resources.py").exists()
-    assert not (ROOT / "tools/_lib/dev/cleanup_pr_preview_resources.py").exists()
+    assert not (ROOT / "common/runtime/dev/cleanup_pr_preview_resources.py").exists()
 
 
 def test_AC8_13_73_app_owns_no_vps_host_hygiene() -> None:
@@ -24,7 +24,7 @@ def test_AC8_13_73_app_owns_no_vps_host_hygiene() -> None:
     # (tools/host_hygiene_schedule.py + the ops-checks re-ensure job). The app
     # ships no host-hygiene module and provisions no Dokploy host schedule.
     assert not (ROOT / "tools/vps_host_hygiene.py").exists()
-    assert not (ROOT / "tools/_lib/dev/vps_host_hygiene.py").exists()
+    assert not (ROOT / "common/runtime/dev/vps_host_hygiene.py").exists()
     maintenance = (ROOT / ".github/workflows/maintenance.yml").read_text()
     assert "vps_host_hygiene" not in maintenance
     assert "finance-report-vps-host-hygiene" not in maintenance
@@ -36,7 +36,9 @@ def test_AC8_13_73_app_owns_no_vps_host_hygiene() -> None:
 def test_AC8_13_38_pr_preview_lifecycle_has_no_host_hygiene_commands() -> None:
     module = "\n# <<< file-boundary >>>\n".join(
         p.read_text(encoding="utf-8")
-        for p in sorted((ROOT / "tools/_lib/dev/pr_preview_lifecycle").rglob("*.py"))
+        for p in sorted(
+            (ROOT / "common/runtime/dev/pr_preview_lifecycle").rglob("*.py")
+        )
     )
 
     assert "docker builder prune" not in module

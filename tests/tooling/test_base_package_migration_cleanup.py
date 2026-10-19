@@ -18,8 +18,8 @@ MONEY_FIXTURE_FILES = [
     Path("tests/e2e/test_personal_financial_report_package.py"),
     Path("tests/e2e/test_four_asset_net_worth_golden_path.py"),
     Path("tests/e2e/test_brokerage_upload_to_portfolio_value.py"),
-    Path("tools/_lib/fixtures/personal_report_package.py"),
-    Path("tools/_lib/fixtures/portfolio_audit_package.py"),
+    Path("common/testing/fixtures/personal_report_package.py"),
+    Path("common/testing/fixtures/portfolio_audit_package.py"),
 ]
 
 FRONTEND_PERCENT_FILES = [
@@ -90,7 +90,7 @@ def test_AC12_31_5_money_fixture_helpers_route_through_base_package():
         )
 
     portfolio_audit_fixture = _read(
-        Path("tools/_lib/fixtures/portfolio_audit_package.py")
+        Path("common/testing/fixtures/portfolio_audit_package.py")
     )
     assert (
         "report_package_market_value_sgd(self) -> Decimal:\n        return money_amount("

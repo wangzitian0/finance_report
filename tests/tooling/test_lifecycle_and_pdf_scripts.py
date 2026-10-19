@@ -12,10 +12,10 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from tools._lib.dev import test_lifecycle as tl  # noqa: E402
-from tools._lib.dev import toolchain  # noqa: E402
+from common.runtime.dev import test_lifecycle as tl  # noqa: E402
+from common.runtime.dev import toolchain  # noqa: E402
 
-GENERATE_TEST_PDFS_MODULE = "tools._lib.fixtures.generate_test_pdfs"
+GENERATE_TEST_PDFS_MODULE = "common.testing.fixtures.generate_test_pdfs"
 
 
 def test_AC8_13_15_pdf_fixture_modules_are_importable_for_script_coverage():

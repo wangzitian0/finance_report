@@ -11,8 +11,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from tools._lib.benchmarks import run_financial_scenario_benchmark as rb
-from tools._lib.benchmarks.case_types import (
+from common.testing.benchmarks import run_financial_scenario_benchmark as rb
+from common.testing.benchmarks.case_types import (
     DOMAIN_TO_CASES,
     FLOW_TO_CASES,
     CaseResult,
@@ -266,7 +266,7 @@ class _FakeRunner:
 def test_case_1_replay_mode_uploads_generated_csv_for_all_four_months(
     tmp_path: Path,
 ) -> None:
-    from tools._lib.benchmarks.cases import case_1
+    from common.testing.benchmarks.cases import case_1
 
     runner, client = _FakeRunner("replay"), _FakeClient()
     _, m1, account_id, institution = case_1._upload_month1_statement(runner, client)
@@ -289,7 +289,7 @@ def test_case_1_replay_mode_uploads_generated_csv_for_all_four_months(
 def test_case_1_off_mode_uses_the_pdf_fixture_and_fails_when_it_is_missing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from tools._lib.benchmarks.cases import case_1
+    from common.testing.benchmarks.cases import case_1
 
     monkeypatch.setattr(case_1, "REPO_ROOT", tmp_path)
     runner, client = _FakeRunner("off"), _FakeClient()

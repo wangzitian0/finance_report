@@ -859,7 +859,7 @@ def test_AC_runtime_deploy_request_5_default_notice_reaches_the_run_log(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """AC-runtime.deploy-request.5: the default notice is a log line and, in GitHub Actions, an annotation, both on stderr."""
-    impl = importlib.import_module("tools._lib.deploy.app_deploy_transport")
+    impl = importlib.import_module("common.runtime.deploy.app_deploy_transport")
     message = "Approval needed: https://github.com/wangzitian0/infra2/actions/runs/201"
 
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
@@ -881,7 +881,7 @@ def test_AC_runtime_deploy_request_5_notice_is_flushed_at_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """AC-runtime.deploy-request.5: each notice line is flushed, so that a pipe has it before the wait ends."""
-    impl = importlib.import_module("tools._lib.deploy.app_deploy_transport")
+    impl = importlib.import_module("common.runtime.deploy.app_deploy_transport")
     stdout, stderr = _TrackingStream(), _TrackingStream()
     monkeypatch.setattr(impl.sys, "stdout", stdout)
     monkeypatch.setattr(impl.sys, "stderr", stderr)
@@ -901,7 +901,7 @@ def test_AC_runtime_deploy_request_5_notice_reaches_a_pipe_before_the_process_en
     """
     code = (
         "import time\n"
-        "from tools._lib.deploy.app_deploy_transport import print_approval_notice\n"
+        "from common.runtime.deploy.app_deploy_transport import print_approval_notice\n"
         "print_approval_notice('Approval needed: https://example.test/run/1')\n"
         "time.sleep(30)\n"
     )
@@ -936,7 +936,7 @@ def test_AC_runtime_deploy_request_5_cli_prints_the_notice_with_the_default_anno
 ) -> None:
     """AC-runtime.deploy-request.5: the CLI path uses the default announcer. stdout stays pure JSON in any environment."""
     transport = importlib.import_module("tools.app_deploy_transport")
-    impl = importlib.import_module("tools._lib.deploy.app_deploy_transport")
+    impl = importlib.import_module("common.runtime.deploy.app_deploy_transport")
     request_id = str(VALID_PRODUCTION_REQUEST["request_id"])
     pages = iter(
         _approval_wait_pages(
