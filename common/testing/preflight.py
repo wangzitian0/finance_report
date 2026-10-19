@@ -894,45 +894,30 @@ def run(
 
     if args.pytest_changed and not failed:
         root_targets, backend_targets = resolve_changed_pytest_targets(files)
-        if root_targets:
+        for label, targets, target_cwd in (
+            ("pytest-changed:root", root_targets, REPO_ROOT),
+            ("pytest-changed:backend", backend_targets, REPO_ROOT / "apps" / "backend"),
+        ):
+            if not targets or failed:
+                continue
             cmd = [
                 sys.executable,
                 "-m",
                 "pytest",
-                *root_targets,
+                *targets,
                 "-x",
                 "-q",
                 "--no-cov",
                 "-n",
                 "0",
             ]
-            ok = effective_runner(cmd, str(REPO_ROOT)) == 0
+            ok = effective_runner(cmd, str(target_cwd)) == 0
             if not args.quiet:
-                print(f"  [{'ok' if ok else 'FAIL'}] pytest-changed:root")
+                print(f"  [{'ok' if ok else 'FAIL'}] {label}")
             elif not ok:
-                print("  [FAIL] pytest-changed:root")
+                print(f"  [FAIL] {label}")
             if not ok:
-                failed.append("pytest-changed:root")
-        if backend_targets and not failed:
-            workers = "0" if len(backend_targets) <= 2 else "2"
-            cmd = [
-                sys.executable,
-                "-m",
-                "pytest",
-                *backend_targets,
-                "-x",
-                "-q",
-                "--no-cov",
-                "-n",
-                workers,
-            ]
-            ok = effective_runner(cmd, str(REPO_ROOT / "apps" / "backend")) == 0
-            if not args.quiet:
-                print(f"  [{'ok' if ok else 'FAIL'}] pytest-changed:backend")
-            elif not ok:
-                print("  [FAIL] pytest-changed:backend")
-            if not ok:
-                failed.append("pytest-changed:backend")
+                failed.append(label)
 
     if failed:
         print(f"preflight: {len(failed)} gate(s) failed: {', '.join(failed)}")

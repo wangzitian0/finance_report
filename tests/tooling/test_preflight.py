@@ -936,20 +936,35 @@ class TestDiffScopedPytestTargets:
         (tmp_path / "tests" / "tooling" / "test_preflight.py").write_text(
             "def test_ok(): pass\n", encoding="utf-8"
         )
+        (tmp_path / "tests" / "tooling" / "test_direct_root.py").write_text(
+            "def test_ok(): pass\n", encoding="utf-8"
+        )
         (tmp_path / "apps" / "backend" / "tests" / "unit").mkdir(parents=True)
         (
             tmp_path / "apps" / "backend" / "tests" / "unit" / "test_journal_service.py"
         ).write_text("def test_ok(): pass\n", encoding="utf-8")
+        (
+            tmp_path / "apps" / "backend" / "tests" / "unit" / "test_direct_backend.py"
+        ).write_text("def test_ok(): pass\n", encoding="utf-8")
         root_targets, backend_targets = preflight.resolve_changed_pytest_targets(
             [
+                "common/testing/__init__.py",
                 "common/testing/preflight.py",
+                "tests/tooling/test_direct_root.py",
                 "apps/backend/src/services/journal_service.py",
+                "apps/backend/tests/unit/test_direct_backend.py",
                 "docs/README.md",
             ],
             repo_root=tmp_path,
         )
-        assert root_targets == ["tests/tooling/test_preflight.py"]
-        assert backend_targets == ["tests/unit/test_journal_service.py"]
+        assert root_targets == [
+            "tests/tooling/test_direct_root.py",
+            "tests/tooling/test_preflight.py",
+        ]
+        assert backend_targets == [
+            "tests/unit/test_direct_backend.py",
+            "tests/unit/test_journal_service.py",
+        ]
 
     def test_run_pytest_changed_executes_single_process_fail_fast_pytest(self, capsys):
         recorded: list[tuple[list[str], str]] = []
@@ -964,18 +979,50 @@ class TestDiffScopedPytestTargets:
                 "--pytest-changed",
                 "--changed",
                 "common/testing/preflight.py",
+                "apps/backend/tests/infra/test_transaction_boundaries.py",
             ],
             runner=fake_runner,
         )
         assert rc == 0
-        pytest_calls = [
+        out = capsys.readouterr().out
+        root_calls = [
             (argv, cwd)
             for argv, cwd in recorded
             if "pytest" in argv and "tests/tooling/test_preflight.py" in argv
         ]
-        assert len(pytest_calls) == 1
-        argv, _ = pytest_calls[0]
-        assert "-x" in argv
-        assert "--no-cov" in argv
-        assert "-n" in argv and argv[argv.index("-n") + 1] == "0"
-        assert "[ok] pytest-changed:root" in capsys.readouterr().out
+        backend_calls = [
+            (argv, cwd)
+            for argv, cwd in recorded
+            if "pytest" in argv
+            and "tests/infra/test_transaction_boundaries.py" in argv
+            and "--no-cov" in argv
+        ]
+        assert len(root_calls) == 1
+        assert len(backend_calls) == 1
+        for argv, _ in (root_calls[0], backend_calls[0]):
+            assert "-x" in argv
+            assert "--no-cov" in argv
+            assert "-n" in argv and argv[argv.index("-n") + 1] == "0"
+        assert "[ok] pytest-changed:root" in out
+        assert "[ok] pytest-changed:backend" in out
+
+    def test_run_pytest_changed_reports_failure_in_quiet_mode(self, capsys):
+        def failing_pytest_runner(argv, cwd):
+            if "pytest" in argv and "--no-cov" in argv:
+                return 1
+            return 0
+
+        rc = preflight.run(
+            [
+                "--tier=static",
+                "--quiet",
+                "--pytest-changed",
+                "--changed",
+                "common/testing/preflight.py",
+            ],
+            runner=failing_pytest_runner,
+        )
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "[FAIL] pytest-changed:root" in out
+        assert "preflight: 1 gate(s) failed: pytest-changed:root" in out
