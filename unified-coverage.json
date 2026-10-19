@@ -1,31 +1,31 @@
 {
-  "total_lines": 50784,
-  "covered_lines": 48508,
-  "coverage_percent": 95.52,
+  "total_lines": 54900,
+  "covered_lines": 52566,
+  "coverage_percent": 95.75,
   "breakdown": {
     "backend": {
-      "total_lines": 24725,
-      "covered_lines": 23936,
-      "coverage_percent": 96.81,
-      "file_count": 340
+      "total_lines": 26587,
+      "covered_lines": 25769,
+      "coverage_percent": 96.92,
+      "file_count": 354
     },
     "frontend": {
-      "total_lines": 4645,
-      "covered_lines": 4612,
-      "coverage_percent": 99.29,
-      "file_count": 192
+      "total_lines": 4758,
+      "covered_lines": 4725,
+      "coverage_percent": 99.31,
+      "file_count": 206
     },
     "common": {
-      "total_lines": 18008,
-      "covered_lines": 16815,
-      "coverage_percent": 93.38,
-      "file_count": 193
+      "total_lines": 22777,
+      "covered_lines": 21310,
+      "coverage_percent": 93.56,
+      "file_count": 236
     },
     "tools": {
-      "total_lines": 3406,
-      "covered_lines": 3145,
-      "coverage_percent": 92.34,
-      "file_count": 119
+      "total_lines": 778,
+      "covered_lines": 762,
+      "coverage_percent": 97.94,
+      "file_count": 96
     }
   }
 }
