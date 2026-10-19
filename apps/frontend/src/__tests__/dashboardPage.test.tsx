@@ -738,4 +738,27 @@ describe("HomePage", () => {
     expect(within(pnl).getByText("Period \u2014 Net")).toBeInTheDocument()
     expect(within(pnl).getByText("Surplus")).toBeInTheDocument()
   })
+
+  it("renders dashboard analytics without waiting for chat suggestions and avoids duplicate TrustMeter fetches", async () => {
+    mockDashboardApi({
+      chatSuggestions: new Promise(() => {}),
+    })
+
+    render(<HomePage />)
+
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument(),
+    )
+    expect(screen.getByText("Net Worth")).toBeInTheDocument()
+    expect(screen.getByText("Total Assets")).toBeInTheDocument()
+
+    const statementCalls = mockedApiOperation.mock.calls.filter(
+      ([op]) => op === "list_statements_statements_get",
+    )
+    const statsCalls = mockedApiOperation.mock.calls.filter(
+      ([op]) => op === "reconciliation_stats_reconciliation_stats_get",
+    )
+    expect(statementCalls).toHaveLength(1)
+    expect(statsCalls).toHaveLength(1)
+  })
 })

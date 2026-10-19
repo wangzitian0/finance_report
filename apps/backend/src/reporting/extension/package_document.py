@@ -51,6 +51,7 @@ from src.reporting.base.package_decision import (
 from src.reporting.base.report_package_contract import (
     PERSONAL_REPORT_PACKAGE_CONTRACT,
     PERSONAL_REPORT_PACKAGE_NOTES,
+    PERSONAL_REPORT_PACKAGE_TRACEABILITY,
 )
 from src.reporting.base.types import PersonalReportingFrameworkId
 from src.reporting.extension._core import _aggregate_net_income_sql, _quantize_money
@@ -758,16 +759,17 @@ class PackageAssembler:
         contributions: tuple[PackageSectionContribution[Any], ...],
         cash_inputs: PackageCashInputs,
     ) -> PersonalReportPackageSections:
-        balance_sheet, income_statement, cash_flow, investment_performance, annualized_income, traceability = (
-            await assemble_framework_balance_sheet(
-                db,
-                user_id,
-                framework_id=framework_id,
-                as_of_date=as_of_date,
-                currency=currency,
-                include_restricted=include_restricted,
-                decisions_by_source_id=decisions_by_source_id,
-            ),
+        del contributions
+        balance_sheet = await assemble_framework_balance_sheet(
+            db,
+            user_id,
+            framework_id=framework_id,
+            as_of_date=as_of_date,
+            currency=currency,
+            include_restricted=include_restricted,
+            decisions_by_source_id=decisions_by_source_id,
+        )
+        income_statement, cash_flow, investment_performance, annualized_income = (
             await assemble_framework_income_statement(
                 db,
                 user_id,
@@ -776,6 +778,9 @@ class PackageAssembler:
                 end_date=end_date,
                 currency=currency,
                 decisions_by_source_id=decisions_by_source_id,
+                ending_unrealized_fx_gain_loss=(
+                    balance_sheet.get("unrealized_fx_gain_loss") if end_date == as_of_date else None
+                ),
             ),
             await generate_cash_flow(
                 db,
@@ -794,9 +799,6 @@ class PackageAssembler:
                 currency=currency,
             ),
             await generate_annualized_income_schedule(db, user_id, as_of_date=as_of_date, currency=currency),
-            await build_personal_report_package_traceability_payload(
-                contributions=contributions,
-            ),
         )
         return PersonalReportPackageSections(
             balance_sheet=BalanceSheetResponse.model_validate(balance_sheet),
@@ -805,7 +807,9 @@ class PackageAssembler:
             investment_performance=InvestmentPerformanceReportScheduleResponse.model_validate(investment_performance),
             annualized_income_long_term=annualized_income,
             notes=PersonalReportPackageNotesResponse.model_validate(PERSONAL_REPORT_PACKAGE_NOTES),
-            traceability_appendix=PersonalReportPackageTraceabilityResponse.model_validate(traceability),
+            traceability_appendix=PersonalReportPackageTraceabilityResponse.model_validate(
+                PERSONAL_REPORT_PACKAGE_TRACEABILITY
+            ),
         )
 
     async def _contributions(

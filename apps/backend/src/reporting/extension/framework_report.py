@@ -289,6 +289,7 @@ async def assemble_framework_income_statement(
     end_date: date,
     currency: str | None = None,
     decisions_by_source_id: dict[str, Any] | None = None,
+    ending_unrealized_fx_gain_loss: Decimal | None = None,
 ) -> dict[str, Any]:
     """Assemble a framework-ordered and framework-categorized income statement."""
     raw_is = cast(
@@ -300,6 +301,7 @@ async def assemble_framework_income_statement(
             end_date=end_date,
             currency=currency,
             include_economic_categories=True,
+            ending_unrealized_fx_gain_loss=ending_unrealized_fx_gain_loss,
         ),
     )
 

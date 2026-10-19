@@ -309,7 +309,7 @@ class AIAdvisorService:
         """Build deterministic application facts and structured suggestions for the advisor."""
         financial_summary = financial_context or await self._get_financial_summary_context(db, user_id)
         readiness = await self._load_report_readiness(db, user_id)
-        workflow = await self._load_workflow_status(db, user_id)
+        workflow = await self._load_workflow_status(db, user_id, synced_package_readiness=readiness)
         market_data = await self._load_market_data_status(db, user_id)
         portfolio = await self._load_portfolio_summary(db, user_id)
 
@@ -353,9 +353,22 @@ class AIAdvisorService:
                 "document_status": "draft",
             }
 
-    async def _load_workflow_status(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
+    async def _load_workflow_status(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        *,
+        synced_package_readiness: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         try:
-            status = await get_workflow_status(db, user_id=user_id)
+            try:
+                status = await get_workflow_status(
+                    db,
+                    user_id=user_id,
+                    synced_package_readiness=synced_package_readiness,
+                )
+            except TypeError:
+                status = await get_workflow_status(db, user_id=user_id)
         except Exception as exc:
             logger.warning("Failed to load advisor workflow status", error=str(exc))
             return {

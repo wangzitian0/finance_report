@@ -770,3 +770,63 @@ async def test_AC_extraction_auto_accept_8_the_package_discloses_the_score_gate_
     )
     assert "accepts AI suggestions at any score" in note(automatic)
     assert "accepts AI suggestions at any score" not in note(manual)
+
+
+@pytest.mark.asyncio
+async def test_AC_reporting_package_document_13_single_pass_traceability_and_unrealized_fx_reuse(
+    db, test_user, monkeypatch
+) -> None:
+    """AC-reporting.package-document.13: PackageAssembler builds traceability once and reuses balance-sheet ending unrealized FX."""
+    from datetime import date
+
+    import src.reporting.extension.framework_report as framework_report_mod
+    import src.reporting.extension.income_statement as income_statement_mod
+    import src.reporting.extension.package_document as package_document_mod
+    from src.reporting.extension.balance_sheet import generate_balance_sheet as real_generate_balance_sheet
+    from src.reporting.extension.report_traceability import (
+        build_personal_report_package_traceability_payload as real_build_traceability,
+    )
+
+    traceability_calls = 0
+    balance_sheet_calls = 0
+
+    async def counting_traceability(**kwargs):
+        nonlocal traceability_calls
+        traceability_calls += 1
+        return await real_build_traceability(**kwargs)
+
+    async def counting_balance_sheet(*args, **kwargs):
+        nonlocal balance_sheet_calls
+        balance_sheet_calls += 1
+        return await real_generate_balance_sheet(*args, **kwargs)
+
+    monkeypatch.setattr(
+        package_document_mod,
+        "build_personal_report_package_traceability_payload",
+        counting_traceability,
+    )
+    monkeypatch.setattr(
+        framework_report_mod,
+        "generate_balance_sheet",
+        counting_balance_sheet,
+    )
+    if hasattr(income_statement_mod, "generate_balance_sheet"):
+        monkeypatch.setattr(
+            income_statement_mod,
+            "generate_balance_sheet",
+            counting_balance_sheet,
+        )
+
+    document = await PackageAssembler().assemble(
+        db,
+        user_id=test_user.id,
+        framework_id=package_document_mod.PersonalReportingFrameworkId.US_GAAP_LIKE,
+        start_date=date(2026, 7, 1),
+        end_date=date(2026, 7, 31),
+        as_of_date=date(2026, 7, 31),
+        currency="SGD",
+    )
+
+    assert document.sections.traceability_appendix is not None
+    assert traceability_calls == 1
+    assert balance_sheet_calls == 1

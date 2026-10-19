@@ -99,8 +99,11 @@ def bounded_context_fakes(test_user, monkeypatch: pytest.MonkeyPatch):
         del include_default
         return [("USD", "SGD")]
 
-    async def fake_workflow(_db: AsyncSession, *, user_id):
+    workflow_calls: list[dict | None] = []
+
+    async def fake_workflow(_db: AsyncSession, *, user_id, synced_package_readiness=None):
         assert user_id == test_user.id
+        workflow_calls.append(synced_package_readiness)
         return WorkflowStatusResponse(
             primary_state=WorkflowPrimaryState.NEEDS_ACTION,
             next_action=WorkflowNextActionResponse(
@@ -159,6 +162,7 @@ def bounded_context_fakes(test_user, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(advisor_service_module, "get_market_data_status", fake_market_data)
     monkeypatch.setattr(advisor_service_module, "active_stock_symbols", fake_active_stock_symbols)
     monkeypatch.setattr(advisor_service_module.PortfolioService, "get_portfolio_summary", fake_portfolio_summary)
+    return {"workflow_calls": workflow_calls}
 
 
 FINANCIAL_SUMMARY = {
@@ -184,9 +188,10 @@ async def test_AC_advisor_context_1_context_is_exactly_the_bounded_read_set(
     assert set(context) == BOUNDED_CONTEXT_KEYS
 
     # (b) The readiness fact came through the actual call site (sentinel round-trip),
-    # not a hardcoded/stale value.
+    # not a hardcoded/stale value, and is reused for workflow status without recomputation.
     assert context["report_readiness"]["blocking_count"] == 1
     assert context["authority_coverage"]["blocker_codes"] == [SENTINEL_BLOCKER_CODE]
+    assert bounded_context_fakes["workflow_calls"] == [{**_fake_readiness_payload(), "document_status": "draft"}]
 
     # (c) Every suggestion is grounded: cites only bounded sources, states a basis
     # and a safe next action.

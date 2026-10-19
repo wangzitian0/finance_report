@@ -39,6 +39,7 @@ export default function HomePage() {
     annualizedIncome,
     restrictedHoldings,
     stats,
+    statements,
     unmatched,
     recentEntries,
     onboardingStatus,
@@ -112,7 +113,10 @@ export default function HomePage() {
       </div>
 
       <div className="mb-6">
-        <TrustMeter />
+        <TrustMeter
+          statements={loading ? null : statements}
+          stats={stats}
+        />
       </div>
 
       {advisorSuggestions.length > 0 ? (

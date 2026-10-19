@@ -96,4 +96,37 @@ describe("ReportsPage", () => {
     const svgs = document.querySelectorAll("svg")
     expect(svgs.length).toBeGreaterThanOrEqual(4)
   })
+
+  it("reuses annualized income from the personal report package without a duplicate /api/income/annualized request", async () => {
+    mockedApiFetch.mockReset()
+    mockedApiFetch.mockImplementation((path: string) => {
+      if (path === "/api/reconciliation/stats") {
+        return Promise.resolve({ match_rate: 100, unmatched_transactions: 0 })
+      }
+      if (path === "/api/reports/package?") {
+        return Promise.resolve({
+          sections: {
+            annualized_income_long_term: {
+              income: {
+                annualized_salary: "100000.00",
+                annualized_bonus: "20000.00",
+                annualized_dividend: "0.00",
+                annualized_total: "120000.00",
+                currency: "SGD",
+              },
+            },
+          },
+        })
+      }
+      return Promise.reject(new Error(`unexpected path: ${path}`))
+    })
+
+    render(<ReportsPage />)
+
+    await waitFor(() => expect(screen.getByText("SGD 120,000.00")).toBeInTheDocument())
+    const annualizedCalls = mockedApiOperation.mock.calls.filter(
+      ([op]) => op === "get_annualized_income_income_annualized_get",
+    )
+    expect(annualizedCalls).toHaveLength(0)
+  })
 })
