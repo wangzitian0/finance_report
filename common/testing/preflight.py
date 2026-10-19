@@ -546,8 +546,7 @@ def select_checks(
     return [
         check
         for check in checks
-        if (tier == "full" or check.tier == tier)
-        and any(_matches(f, g) for f in files for g in check.globs)
+        if (tier == "full" or check.tier == tier) and any(_matches(f, g) for f in files for g in check.globs)
     ]
 
 
@@ -566,16 +565,12 @@ def select_named_checks(
     known = {check.name for check in checks}
     unknown = [name for name in wanted if name not in known]
     if unknown:
-        raise ValueError(
-            f"unknown gate name(s): {', '.join(unknown)}; known: {', '.join(sorted(known))}"
-        )
+        raise ValueError(f"unknown gate name(s): {', '.join(unknown)}; known: {', '.join(sorted(known))}")
     return [check for check in checks if check.name in wanted]
 
 
 def _default_git(args: Sequence[str]) -> str:
-    return subprocess.run(
-        ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=False
-    ).stdout
+    return subprocess.run(["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=False).stdout
 
 
 def changed_files(base: str | None = None, *, git: Git = _default_git) -> list[str]:
@@ -684,19 +679,12 @@ def run_checks(
     results: list[CheckResult] = []
     for check in checks:
         cwd = str(REPO_ROOT / check.cwd)
-        matching_paths = tuple(
-            path
-            for path in changed_files
-            if any(_matches(path, glob) for glob in check.globs)
-        )
+        matching_paths = tuple(path for path in changed_files if any(_matches(path, glob) for glob in check.globs))
         if ci and not quiet:
             print(f"::group::Gate [{check.tier}] {check.name}", flush=True)
         ok = True
         for command in check.commands:
-            if (
-                runner(_resolve(command, python, matching_paths=matching_paths), cwd)
-                != 0
-            ):
+            if runner(_resolve(command, python, matching_paths=matching_paths), cwd) != 0:
                 ok = False
                 break
         if ci:
@@ -745,10 +733,15 @@ def resolve_changed_pytest_targets(
             for match in backend_tests_dir.rglob(f"test_{stem}*.py"):
                 if match.is_file():
                     backend_selected.add(str(match.relative_to(backend_root)))
-        elif rel.startswith(("common/", "tools/")) and root_tests_dir.is_dir():
-            for match in root_tests_dir.rglob(f"test_{stem}*.py"):
-                if match.is_file():
-                    root_selected.add(str(match.relative_to(repo_root)))
+        elif rel.startswith(("common/", "tools/")):
+            if root_tests_dir.is_dir():
+                for match in root_tests_dir.rglob(f"test_{stem}*.py"):
+                    if match.is_file():
+                        root_selected.add(str(match.relative_to(repo_root)))
+            if rel.startswith("common/") and backend_tests_dir.is_dir():
+                for match in backend_tests_dir.rglob(f"test_{stem}*.py"):
+                    if match.is_file():
+                        backend_selected.add(str(match.relative_to(backend_root)))
 
     return sorted(root_selected), sorted(backend_selected)
 
@@ -759,15 +752,9 @@ def run(
     runner: Runner = _default_runner,
     git: Git = _default_git,
 ) -> int:
-    parser = argparse.ArgumentParser(
-        description="Run the gate checks relevant to the current diff."
-    )
-    parser.add_argument(
-        "--base", default=None, help="Diff base (default: merge-base with origin/main)."
-    )
-    parser.add_argument(
-        "--list", action="store_true", help="List the checks that would run, then exit."
-    )
+    parser = argparse.ArgumentParser(description="Run the gate checks relevant to the current diff.")
+    parser.add_argument("--base", default=None, help="Diff base (default: merge-base with origin/main).")
+    parser.add_argument("--list", action="store_true", help="List the checks that would run, then exit.")
     parser.add_argument(
         "--changed",
         nargs="*",
@@ -804,8 +791,7 @@ def run(
         "--pytest-changed",
         action="store_true",
         help=(
-            "Also execute fail-fast pytest on unit test files directly mapped "
-            "from the current diff (--no-cov -n 0)."
+            "Also execute fail-fast pytest on unit test files directly mapped from the current diff (--no-cov -n 0)."
         ),
     )
     parser.add_argument(
@@ -831,27 +817,15 @@ def run(
         files = ()
     elif args.all:
         files = ()
-        selected = [
-            check for check in CHECKS if args.tier == "full" or check.tier == args.tier
-        ]
+        selected = [check for check in CHECKS if args.tier == "full" or check.tier == args.tier]
     else:
-        files = (
-            args.changed
-            if args.changed is not None
-            else changed_files(args.base, git=git)
-        )
+        files = args.changed if args.changed is not None else changed_files(args.base, git=git)
         selected = select_checks(files, tier=args.tier)
 
     if args.list:
         if not selected or args.all:
-            inventory = [
-                check
-                for check in CHECKS
-                if args.tier == "full" or check.tier == args.tier
-            ]
-            print(
-                f"Registered preflight gate inventory ({args.tier} tier, {len(inventory)} gates):"
-            )
+            inventory = [check for check in CHECKS if args.tier == "full" or check.tier == args.tier]
+            print(f"Registered preflight gate inventory ({args.tier} tier, {len(inventory)} gates):")
             for check in inventory:
                 print(f"  [{check.tier}] {check.name}: {check.why}")
             return 0
@@ -859,11 +833,11 @@ def run(
             print(f"  [{check.tier}] {check.name}: {check.why}")
         return 0
 
-    effective_runner = (
-        _default_quiet_runner if runner is _default_runner and args.quiet else runner
-    )
+    effective_runner = _default_quiet_runner if runner is _default_runner and args.quiet else runner
 
-    if not selected and not args.pytest_changed:
+    root_targets, backend_targets = resolve_changed_pytest_targets(files) if args.pytest_changed else ([], [])
+
+    if not selected and not root_targets and not backend_targets:
         print("preflight: no relevant gates for the current diff.")
         return 0
 
@@ -873,9 +847,7 @@ def run(
             if args.only:
                 print(f"preflight: running {len(selected)} named gate(s)...")
             else:
-                print(
-                    f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
-                )
+                print(f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)...")
         results = run_checks(
             selected,
             changed_files=files,
@@ -892,14 +864,15 @@ def run(
                     print(f"  [FAIL] {result.name}")
         failed.extend(r.name for r in results if not r.ok)
 
+    pytest_suites_ran = 0
     if args.pytest_changed and not failed:
-        root_targets, backend_targets = resolve_changed_pytest_targets(files)
         for label, targets, target_cwd in (
             ("pytest-changed:root", root_targets, REPO_ROOT),
             ("pytest-changed:backend", backend_targets, REPO_ROOT / "apps" / "backend"),
         ):
             if not targets or failed:
                 continue
+            pytest_suites_ran += 1
             cmd = [
                 sys.executable,
                 "-m",
@@ -923,7 +896,7 @@ def run(
         print(f"preflight: {len(failed)} gate(s) failed: {', '.join(failed)}")
         return 1
     if args.quiet:
-        print(f"preflight: all {len(selected)} gates passed.")
+        print(f"preflight: all {len(selected) + pytest_suites_ran} gates passed.")
     else:
         print("preflight: all relevant gates passed.")
     return 0
