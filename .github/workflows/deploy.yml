@@ -745,6 +745,11 @@ jobs:
     name: Financial Benchmark
     needs: [build-and-deploy, provider-gate, ai-ocr-gate]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.provider-gate.result == 'success' && needs.ai-ocr-gate.result == 'success' }}
+    # benchmark.yml publishes the report to GitHub Pages. A caller must grant what the called job requests.
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     uses: ./.github/workflows/benchmark.yml
     with:
       commit_ref: ${{ needs.build-and-deploy.outputs.commit_full_sha }}
