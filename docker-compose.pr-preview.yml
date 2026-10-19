@@ -98,7 +98,6 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minio}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-minio_local_secret}
       S3_BUCKET: ${S3_BUCKET:-statements}
-      BASE_CURRENCY: ${BASE_CURRENCY:-SGD}
       # Pass-through form (no value): Compose sets this in the container only when
       # the environment it runs with actually has it, and omits the key entirely
       # otherwise.
@@ -116,10 +115,6 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-finance-report-backend}
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES:-deployment.environment=development}
-      API_RATE_LIMIT_REQUESTS: ${API_RATE_LIMIT_REQUESTS:-300}
-      API_RATE_LIMIT_WINDOW: ${API_RATE_LIMIT_WINDOW:-60}
-      REGISTER_RATE_LIMIT_REQUESTS: ${REGISTER_RATE_LIMIT_REQUESTS:-10}
-      REGISTER_RATE_LIMIT_WINDOW: ${REGISTER_RATE_LIMIT_WINDOW:-600}
     networks:
       - internal
       - dokploy-network
