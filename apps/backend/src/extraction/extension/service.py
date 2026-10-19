@@ -372,6 +372,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     "notes": None,
                 }
             csv_balance_missing = extracted.get("balance_source") == "missing_from_csv_export"
+            # A CSV that declares both balances carries its own balance proof (#2476). The file is the
+            # source of the rows and of the balances. A mismatch is a fact about the file, not an
+            # error of the extraction, so a retry cannot fix it (#2504).
+            csv_balance_declared = extracted.get("balance_source") == "declared_in_csv_export"
             # Fail-closed input for the LLM-LED gate (AC20.9.4): the balance chain is only
             # *evaluable* only when the source carries both exact balance facts.
             # Missing values must not turn into the vacuous 0 == 0 proof.
@@ -544,8 +548,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 balance_valid=is_valid,
                 within_doc_collapse=within_doc_collapse,
                 # An explicit source-fact absence is review-only, not a failed
-                # mathematical claim. The dedup invariant remains blocking.
-                balance_gate_exempt=csv_balance_missing or declared_balance_absent,
+                # mathematical claim. A CSV that declares both balances and does not
+                # reconcile stays reviewable with its rows (#2504).
+                # The dedup invariant remains blocking.
+                balance_gate_exempt=csv_balance_missing or csv_balance_declared or declared_balance_absent,
             )
             if llm_led_gate.quarantined:
                 reason = llm_led_gate.reason
