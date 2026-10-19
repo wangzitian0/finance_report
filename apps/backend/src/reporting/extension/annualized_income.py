@@ -10,18 +10,24 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
-from src.audit import normalize_currency_code, to_money
+from src.audit import (
+    Currency,
+    ExchangeRate,
+    Money,
+    convert as convert_money_with_rate,
+    normalize_currency_code,
+    to_money,
+)
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.platform import raise_bad_request
 from src.pricing import (
     ManualValuationComponentType,
-    ManualValuationFact,
     ManualValuationLiquidityClass,
     list_current_manual_valuation_facts,
 )
 from src.reporting.extension import fx_gateway
-from src.reporting.extension.reporting_calc import income_bucket
+from src.reporting.extension.reporting_calc import AnnualizedIncomeTotals, income_bucket, resolve_line_currency
 from src.schemas import (
     AnnualizedIncomeScheduleHolding,
     AnnualizedIncomeScheduleIncome,
@@ -38,6 +44,7 @@ async def generate_annualized_income_schedule(
     *,
     as_of_date: date | None = None,
     currency: str | None = None,
+    include_restricted_holdings: bool = True,
 ) -> AnnualizedIncomeScheduleResponse:
     """Return report-ready annualized income and restricted compensation."""
     if as_of_date is None:
@@ -60,56 +67,57 @@ async def generate_annualized_income_schedule(
         .where(active_journal_entry_filter(JournalEntry))
         .where(Account.type == AccountType.INCOME)
     )
+    income_rows = income_result.all()
 
-    totals = {
-        "salary": Decimal("0.00"),
-        "bonus": Decimal("0.00"),
-        "dividend": Decimal("0.00"),
-        "total": Decimal("0.00"),
-    }
     reporting_currency = normalize_currency_code(currency or settings.base_currency)
-    for line, account in income_result.all():
-        line_money = line.money
-        signed_amount = line_money.amount if line.direction == Direction.CREDIT else -line_money.amount
+    target_ccy = Currency(reporting_currency)
+    snapshots = (
+        await list_current_manual_valuation_facts(
+            db,
+            user_id,
+            as_of_date=report_date,
+            component_types=ManualValuationComponentType.restricted_compensation_types(),
+            liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+        )
+        if include_restricted_holdings
+        else []
+    )
+
+    fx_pairs: list[tuple[str, str, date, date | None, date | None]] = []
+    for line, account in income_rows:
+        source_currency = resolve_line_currency(line, account, base_currency=reporting_currency)
+        if source_currency != reporting_currency:
+            fx_pairs.append((source_currency, reporting_currency, report_date, start_date, report_date))
+    for snapshot in snapshots:
+        holding_currency = normalize_currency_code(snapshot.currency)
+        if holding_currency != reporting_currency:
+            fx_pairs.append((holding_currency, reporting_currency, report_date, None, None))
+
+    prefetched_fx = fx_gateway.PrefetchedFxRates(lazy_load=True)
+    if fx_pairs:
         try:
-            signed_amount = await fx_gateway.convert_amount(
-                db,
-                amount=signed_amount,
-                currency=line_money.currency.code,
-                target_currency=reporting_currency,
-                rate_date=report_date,
-                average_start=start_date,
-                average_end=report_date,
-                lazy_load=True,
-            )
+            await prefetched_fx.prefetch(db, fx_pairs)
         except fx_gateway.FxRateError as exc:
             raise_bad_request(str(exc), cause=exc)
-        bucket = income_bucket(account.name)
-        if bucket:
-            totals[bucket] += signed_amount
-        totals["total"] += signed_amount
 
-    restricted_types = (
-        ManualValuationComponentType.ESOP,
-        ManualValuationComponentType.RSU,
-        ManualValuationComponentType.STOCK_OPTIONS,
-    )
-    snapshots = await list_current_manual_valuation_facts(
-        db,
-        user_id,
-        as_of_date=report_date,
-        component_types=restricted_types,
-        liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
-    )
-
-    latest_holdings: dict[tuple[ManualValuationComponentType, str, str], ManualValuationFact] = {}
-    for snapshot in snapshots:
-        key = (snapshot.component_type, snapshot.source, snapshot.currency)
-        latest_holdings.setdefault(key, snapshot)
+    totals = AnnualizedIncomeTotals()
+    for line, account in income_rows:
+        signed_amount = line.amount if line.direction == Direction.CREDIT else -line.amount
+        source_currency = resolve_line_currency(line, account, base_currency=reporting_currency)
+        if source_currency != reporting_currency:
+            source_ccy = Currency(source_currency)
+            rate = prefetched_fx.get_rate(
+                source_currency, reporting_currency, report_date, start_date, report_date
+            ) or Decimal("1")
+            signed_amount = convert_money_with_rate(
+                Money(signed_amount, source_ccy),
+                ExchangeRate(source_ccy, target_ccy, rate),
+            ).amount
+        totals.add(income_bucket(account.name), signed_amount)
 
     holdings: list[AnnualizedIncomeScheduleHolding] = []
     restricted_total = Decimal("0.00")
-    for snapshot in latest_holdings.values():
+    for snapshot in snapshots:
         holdings.append(
             AnnualizedIncomeScheduleHolding(
                 ticker=snapshot.source,
@@ -123,17 +131,16 @@ async def generate_annualized_income_schedule(
                 net_worth_treatment="excluded_from_liquid_net_worth_by_default",
             )
         )
-        try:
-            restricted_total += await fx_gateway.convert_amount(
-                db,
-                amount=snapshot.value,
-                currency=snapshot.currency,
-                target_currency=reporting_currency,
-                rate_date=report_date,
-                lazy_load=True,
-            )
-        except fx_gateway.FxRateError as exc:
-            raise_bad_request(str(exc), cause=exc)
+        holding_currency = normalize_currency_code(snapshot.currency)
+        if holding_currency != reporting_currency:
+            holding_ccy = Currency(holding_currency)
+            rate = prefetched_fx.get_rate(holding_currency, reporting_currency, report_date) or Decimal("1")
+            restricted_total += convert_money_with_rate(
+                Money(snapshot.value, holding_ccy),
+                ExchangeRate(holding_ccy, target_ccy, rate),
+            ).amount
+        else:
+            restricted_total += snapshot.value
 
     return AnnualizedIncomeScheduleResponse(
         section_id="annualized_income_long_term",
@@ -143,10 +150,10 @@ async def generate_annualized_income_schedule(
         trailing_period_end=report_date,
         trailing_period_days=365,
         income=AnnualizedIncomeScheduleIncome(
-            annualized_salary=to_money(totals["salary"]),
-            annualized_bonus=to_money(totals["bonus"]),
-            annualized_dividend=to_money(totals["dividend"]),
-            annualized_total=to_money(totals["total"]),
+            annualized_salary=to_money(totals.salary),
+            annualized_bonus=to_money(totals.bonus),
+            annualized_dividend=to_money(totals.dividend),
+            annualized_total=to_money(totals.total),
             currency=reporting_currency,
             calculation_basis="posted_or_reconciled_income_journal_lines_trailing_12_months",
         ),

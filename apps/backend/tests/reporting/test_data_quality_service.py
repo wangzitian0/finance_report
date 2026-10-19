@@ -294,3 +294,23 @@ async def test_compute_personal_data_quality_multi_gap_and_unlinked_documents(
     assert res.grade == QualityGrade.D_OUT_OF_BALANCE
     assert res.lineage_anchors_invariant.is_healthy is False
     assert res.temporal_continuity_invariant.is_healthy is False
+
+
+@pytest.mark.asyncio
+async def test_compute_personal_data_quality_defaults_to_base_currency(
+    db: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Omitting currency normalizes from settings.base_currency instead of hardcoded SGD."""
+    from src import config
+
+    monkeypatch.setattr(config.settings, "base_currency", "usd")
+
+    res = await compute_personal_data_quality(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 10, 1),
+        currency=None,
+    )
+    assert res.currency == "USD"

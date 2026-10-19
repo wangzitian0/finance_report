@@ -18,7 +18,6 @@ from src.platform import raise_bad_request, raise_internal_error, raise_not_foun
 from src.portfolio import PositionService, PositionServiceError
 from src.pricing import (
     ManualValuationComponentType,
-    ManualValuationFact,
     ManualValuationLiquidityClass,
     PricingError,
     ValuationService,
@@ -283,30 +282,20 @@ async def list_restricted_holdings(
 ) -> list[RestrictedHoldingResponse]:
     """List latest ESOP/RSU/locked manual valuations as restricted holdings."""
     report_date = as_of_date or date.today()
-    restricted_types = (
-        ManualValuationComponentType.ESOP,
-        ManualValuationComponentType.RSU,
-        ManualValuationComponentType.STOCK_OPTIONS,
-    )
     snapshots = await list_current_manual_valuation_facts(
         db,
         user_id,
         as_of_date=report_date,
-        component_types=restricted_types,
+        component_types=ManualValuationComponentType.restricted_compensation_types(),
         liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
     )
-    holdings: dict[tuple[ManualValuationComponentType, str, str], ManualValuationFact] = {}
-    for snapshot in snapshots:
-        key = (snapshot.component_type, snapshot.source, snapshot.currency)
-        holdings.setdefault(key, snapshot)
 
-    # Paginate the deduplicated current-head holdings (dedup must run over the full
+    # Paginate the deduplicated current-head holdings (dedup runs over the full
     # result set before slicing, so the bound is applied here rather than in SQL).
-    # Sort explicitly with a stable tiebreaker (id) instead of relying on dict
-    # insertion order, so offset pagination is deterministic when as_of_date /
-    # created_at tie — otherwise pages could drop or duplicate rows.
+    # Sort explicitly with a stable tiebreaker (id) so offset pagination is
+    # deterministic when as_of_date / created_at tie.
     ordered = sorted(
-        holdings.values(),
+        snapshots,
         key=lambda s: (s.as_of_date, s.created_at, s.id),
         reverse=True,
     )

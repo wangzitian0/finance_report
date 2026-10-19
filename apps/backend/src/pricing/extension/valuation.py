@@ -125,7 +125,12 @@ async def list_current_manual_valuation_facts(
     if liquidity_class is not None:
         query = query.where(ManualValuationSnapshot.liquidity_class == liquidity_class)
     rows = (await db.execute(query)).scalars().all()
-    return [_manual_valuation_fact(row) for row in rows]
+    latest_by_key: dict[tuple[ManualValuationComponentType, str, str], ManualValuationFact] = {}
+    for row in rows:
+        key = (row.component_type, row.source, row.currency)
+        if key not in latest_by_key:
+            latest_by_key[key] = _manual_valuation_fact(row)
+    return list(latest_by_key.values())
 
 
 def _valuation_key_query(
@@ -503,11 +508,7 @@ def _manual_valuation_allocation_asset_class(component_type: str) -> str:
         ManualValuationComponentType.INSURANCE_CASH_VALUE.value,
     }:
         return "retirement_and_benefit_assets"
-    if component_type in {
-        ManualValuationComponentType.ESOP.value,
-        ManualValuationComponentType.RSU.value,
-        ManualValuationComponentType.STOCK_OPTIONS.value,
-    }:
+    if component_type in {t.value for t in ManualValuationComponentType.restricted_compensation_types()}:
         return "restricted_comp"
     if component_type == ManualValuationComponentType.TAX_REFUND.value:
         return "cash"

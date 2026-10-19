@@ -28,6 +28,11 @@ class ManualValuationComponentType(str, Enum):
     OTHER_ASSET = "other_asset"
     OTHER_LIABILITY = "other_liability"
 
+    @classmethod
+    def restricted_compensation_types(cls) -> tuple[ManualValuationComponentType, ...]:
+        """Restricted compensation component types (ESOP, RSU, stock options)."""
+        return (cls.ESOP, cls.RSU, cls.STOCK_OPTIONS)
+
 
 class ManualValuationLiquidityClass(str, Enum):
     """Presentation liquidity of a pricing-owned valuation fact."""

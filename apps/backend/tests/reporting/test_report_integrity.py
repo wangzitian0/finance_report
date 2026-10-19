@@ -550,3 +550,51 @@ async def test_cash_flow_csv_discloses_opening_adjustment(db, test_user, monkeyp
     assert rows["Ending Cash"][2] == "120.00"
     assert "unproven" in rows["Verification"][4]
     assert "opening_coverage_starts_after_period" in rows["Verification"][4]
+
+    from src.routers.reports import _render_cash_flow_csv, _render_income_statement_csv
+    from src.schemas import CashFlowResponse, IncomeStatementResponse
+
+    cf_dict = {
+        "currency": "SGD",
+        "operating": [{"subcategory": "Salary", "amount": Decimal("20.00"), "description": "Pay"}],
+        "investing": [],
+        "financing": [],
+        "summary": {
+            "operating_activities": Decimal("20.00"),
+            "investing_activities": Decimal("0.00"),
+            "financing_activities": Decimal("0.00"),
+            "net_cash_flow": Decimal("20.00"),
+            "beginning_cash": Decimal("0.00"),
+            "ending_cash": Decimal("120.00"),
+        },
+        "proof_state": "unproven",
+        "proof_reasons": ["opening_coverage_starts_after_period"],
+        "cash_bridge": {"opening_stock_adjustment": Decimal("100.00")},
+    }
+    cf_csv = _render_cash_flow_csv(cf_dict)
+    assert "Known Beginning Cash" in cf_csv
+    assert "Opening balance adjustment" in cf_csv
+    assert "unproven: opening_coverage_starts_after_period" in cf_csv
+
+    is_dict = {
+        "currency": "SGD",
+        "income": [{"name": "Salary", "amount": Decimal("20.00")}],
+        "expenses": [],
+        "total_income": Decimal("20.00"),
+        "total_expenses": Decimal("0.00"),
+        "net_income": Decimal("20.00"),
+    }
+    is_model = IncomeStatementResponse(
+        start_date=START,
+        end_date=END,
+        currency="SGD",
+        income=[{"account_id": bank.id, "name": "Salary", "type": "INCOME", "amount": Decimal("20.00")}],
+        expenses=[],
+        total_income=Decimal("20.00"),
+        total_expenses=Decimal("0.00"),
+        net_income=Decimal("20.00"),
+        savings_rate=Decimal("100.00"),
+        trends=[],
+    )
+    assert _render_income_statement_csv(is_dict) == _render_income_statement_csv(is_model)
+    _ = CashFlowResponse

@@ -199,6 +199,7 @@ if TYPE_CHECKING:
     )
     from src.reporting.base.types import PersonalReportingFrameworkId, PolicyDimension, ReportLineId
     from src.reporting.extension._core import _aggregate_balances_sql, _aggregate_net_income_sql
+    from src.reporting.extension.annualized_income import generate_annualized_income_schedule
     from src.reporting.extension.balance_sheet import (
         generate_balance_sheet,
         register_manual_valuation_lines_provider,

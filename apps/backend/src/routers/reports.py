@@ -305,14 +305,16 @@ async def get_personal_report_package_snapshot(
         raise_bad_request(str(exc), cause=exc)
 
 
+def _csv_val(obj: Any, key: str, default: Any = None) -> Any:
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
 def _render_balance_sheet_csv(bs: dict[str, Any] | BalanceSheetResponse) -> str:
     output = StringIO()
     writer = csv.writer(output)
-
-    def _val(obj: Any, key: str, default: Any = None) -> Any:
-        if isinstance(obj, dict):
-            return obj.get(key, default)
-        return getattr(obj, key, default)
+    _val = _csv_val
 
     as_of_date = _val(bs, "as_of_date")
     currency = _val(bs, "currency")
@@ -354,32 +356,69 @@ def _render_balance_sheet_csv(bs: dict[str, Any] | BalanceSheetResponse) -> str:
     return output.getvalue()
 
 
-def _render_income_statement_csv(is_stmt: IncomeStatementResponse) -> str:
+def _render_income_statement_csv(is_stmt: dict[str, Any] | IncomeStatementResponse) -> str:
     output = StringIO()
     writer = csv.writer(output)
+    currency = _csv_val(is_stmt, "currency")
     writer.writerow(["section", "account", "amount", "currency"])
-    for section, lines in (("Income", is_stmt.income), ("Expenses", is_stmt.expenses)):
+    for section, lines in (
+        ("Income", _csv_val(is_stmt, "income", [])),
+        ("Expenses", _csv_val(is_stmt, "expenses", [])),
+    ):
         for line in lines:
-            writer.writerow([section, line.name, line.amount, is_stmt.currency])
-    writer.writerow(["Total Income", "", is_stmt.total_income, is_stmt.currency])
-    writer.writerow(["Total Expenses", "", is_stmt.total_expenses, is_stmt.currency])
-    writer.writerow(["Net Income", "", is_stmt.net_income, is_stmt.currency])
+            writer.writerow([section, _csv_val(line, "name"), _csv_val(line, "amount"), currency])
+    writer.writerow(["Total Income", "", _csv_val(is_stmt, "total_income"), currency])
+    writer.writerow(["Total Expenses", "", _csv_val(is_stmt, "total_expenses"), currency])
+    writer.writerow(["Net Income", "", _csv_val(is_stmt, "net_income"), currency])
     return output.getvalue()
 
 
-def _render_cash_flow_csv(cf: CashFlowResponse) -> str:
+def _render_cash_flow_csv(cf: dict[str, Any] | CashFlowResponse) -> str:
     output = StringIO()
     writer = csv.writer(output)
+    currency = _csv_val(cf, "currency")
     writer.writerow(["section", "account", "amount", "currency", "description"])
-    for section, lines in (("Operating", cf.operating), ("Investing", cf.investing), ("Financing", cf.financing)):
+    for section, lines in (
+        ("Operating", _csv_val(cf, "operating", [])),
+        ("Investing", _csv_val(cf, "investing", [])),
+        ("Financing", _csv_val(cf, "financing", [])),
+    ):
         for line in lines:
-            writer.writerow([section, line.subcategory, line.amount, cf.currency, line.description or ""])
-    writer.writerow(["Operating Activities", "", cf.summary.operating_activities, cf.currency, ""])
-    writer.writerow(["Investing Activities", "", cf.summary.investing_activities, cf.currency, ""])
-    writer.writerow(["Financing Activities", "", cf.summary.financing_activities, cf.currency, ""])
-    writer.writerow(["Net Cash Flow", "", cf.summary.net_cash_flow, cf.currency, ""])
-    writer.writerow(["Beginning Cash", "", cf.summary.beginning_cash, cf.currency, ""])
-    writer.writerow(["Ending Cash", "", cf.summary.ending_cash, cf.currency, ""])
+            writer.writerow(
+                [
+                    section,
+                    _csv_val(line, "subcategory"),
+                    _csv_val(line, "amount"),
+                    currency,
+                    _csv_val(line, "description") or "",
+                ]
+            )
+    summary = _csv_val(cf, "summary")
+    writer.writerow(["Operating Activities", "", _csv_val(summary, "operating_activities"), currency, ""])
+    writer.writerow(["Investing Activities", "", _csv_val(summary, "investing_activities"), currency, ""])
+    writer.writerow(["Financing Activities", "", _csv_val(summary, "financing_activities"), currency, ""])
+    writer.writerow(["Net Cash Flow", "", _csv_val(summary, "net_cash_flow"), currency, ""])
+    proof_reasons = list(_csv_val(cf, "proof_reasons") or [])
+    incomplete_coverage = "opening_coverage_starts_after_period" in proof_reasons
+    beginning_label = "Known Beginning Cash" if incomplete_coverage else "Beginning Cash"
+    writer.writerow([beginning_label, "", _csv_val(summary, "beginning_cash"), currency, ""])
+    cash_bridge = _csv_val(cf, "cash_bridge")
+    opening_adjustment = (
+        _csv_val(cash_bridge, "opening_stock_adjustment", Decimal("0")) if cash_bridge else Decimal("0")
+    )
+    if opening_adjustment:
+        writer.writerow(
+            [
+                "Opening balance adjustment",
+                "",
+                opening_adjustment,
+                currency,
+                "Opening balance recorded after the selected period begins",
+            ]
+        )
+    writer.writerow(["Ending Cash", "", _csv_val(summary, "ending_cash"), currency, ""])
+    if _csv_val(cf, "proof_state") == "unproven":
+        writer.writerow(["Verification", "", "", "", "unproven: " + ", ".join(str(r) for r in proof_reasons)])
     return output.getvalue()
 
 
@@ -826,7 +865,6 @@ async def export_report(
     """Export reports in CSV format."""
     _ = (format, framework_id)
     output = StringIO()
-    writer = csv.writer(output)
 
     try:
         if report_type == ExportReportType.BALANCE_SHEET:
@@ -858,29 +896,7 @@ async def export_report(
                     currency=currency,
                 ),
             )
-            writer.writerow(["section", "account", "amount", "currency"])
-            for section, income_lines in (
-                ("Income", income_statement_report["income"]),
-                ("Expenses", income_statement_report["expenses"]),
-            ):
-                for income_line in income_lines:
-                    writer.writerow(
-                        [section, income_line["name"], income_line["amount"], income_statement_report["currency"]]
-                    )
-            writer.writerow(
-                ["Total Income", "", income_statement_report["total_income"], income_statement_report["currency"]]
-            )
-            writer.writerow(
-                [
-                    "Total Expenses",
-                    "",
-                    income_statement_report["total_expenses"],
-                    income_statement_report["currency"],
-                ]
-            )
-            writer.writerow(
-                ["Net Income", "", income_statement_report["net_income"], income_statement_report["currency"]]
-            )
+            output.write(_render_income_statement_csv(income_statement_report))
             filename = f"income-statement-{start_date}-to-{end_date}.csv"
         elif report_type == ExportReportType.CASH_FLOW:
             if not start_date or not end_date:
@@ -896,53 +912,7 @@ async def export_report(
                     currency=currency,
                 ),
             )
-            writer.writerow(["section", "account", "amount", "currency", "description"])
-            for section, cash_flow_lines in (
-                ("Operating", cash_flow_report["operating"]),
-                ("Investing", cash_flow_report["investing"]),
-                ("Financing", cash_flow_report["financing"]),
-            ):
-                for cash_flow_line in cash_flow_lines:
-                    writer.writerow(
-                        [
-                            section,
-                            cash_flow_line["subcategory"],
-                            cash_flow_line["amount"],
-                            cash_flow_report["currency"],
-                            cash_flow_line.get("description") or "",
-                        ]
-                    )
-            summary = cash_flow_report["summary"]
-            writer.writerow(
-                ["Operating Activities", "", summary["operating_activities"], cash_flow_report["currency"], ""]
-            )
-            writer.writerow(
-                ["Investing Activities", "", summary["investing_activities"], cash_flow_report["currency"], ""]
-            )
-            writer.writerow(
-                ["Financing Activities", "", summary["financing_activities"], cash_flow_report["currency"], ""]
-            )
-            writer.writerow(["Net Cash Flow", "", summary["net_cash_flow"], cash_flow_report["currency"], ""])
-            proof_reasons = cash_flow_report.get("proof_reasons", [])
-            incomplete_coverage = "opening_coverage_starts_after_period" in proof_reasons
-            beginning_label = "Known Beginning Cash" if incomplete_coverage else "Beginning Cash"
-            writer.writerow([beginning_label, "", summary["beginning_cash"], cash_flow_report["currency"], ""])
-            opening_adjustment = (cash_flow_report.get("cash_bridge") or {}).get(
-                "opening_stock_adjustment", Decimal("0")
-            )
-            if opening_adjustment:
-                writer.writerow(
-                    [
-                        "Opening balance adjustment",
-                        "",
-                        opening_adjustment,
-                        cash_flow_report["currency"],
-                        "Opening balance recorded after the selected period begins",
-                    ]
-                )
-            writer.writerow(["Ending Cash", "", summary["ending_cash"], cash_flow_report["currency"], ""])
-            if cash_flow_report.get("proof_state") == "unproven":
-                writer.writerow(["Verification", "", "", "", "unproven: " + ", ".join(proof_reasons)])
+            output.write(_render_cash_flow_csv(cash_flow_report))
             filename = f"cash-flow-{start_date}-to-{end_date}.csv"
         else:  # pragma: no cover - FastAPI enum validation rejects unsupported values first.
             raise_bad_request("Unsupported report type")
