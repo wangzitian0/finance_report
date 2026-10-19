@@ -319,6 +319,7 @@ CONTRACT = PackageContract(
         "score_single",
         "score_pattern",
         "submit_reviewed_disposition",
+        "supersede_transaction_transfer_legs",
         "sync_reconciliation_match_journal_entry_links",
         "weighted_total",
     ],

@@ -71,6 +71,7 @@ from src.reconciliation.extension.review_queue import (
     get_pending_items,
     get_stage2_queue,
     reject_match,
+    supersede_transaction_transfer_legs,
 )
 from src.reconciliation.extension.reviewed_disposition import (
     ReviewedDispositionDependencies,
@@ -178,6 +179,7 @@ __all__ = [
     "score_single",
     "score_pattern",
     "submit_reviewed_disposition",
+    "supersede_transaction_transfer_legs",
     "sync_reconciliation_match_journal_entry_links",
     "weighted_total",
 ]

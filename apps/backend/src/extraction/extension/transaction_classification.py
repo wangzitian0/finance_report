@@ -1374,13 +1374,10 @@ async def apply_user_transaction_correction(
     """Persist a user category correction onto the transaction's classification basis.
 
     Returns ``(original_category, resolved_account_id)`` when ``corrected_category``
-    maps to the canonical ``TransactionCategory`` catalog. Legacy free-text labels
-    outside the catalog leave ``TransactionClassification`` untouched.
+    maps to the canonical ``TransactionCategory`` catalog. Raises ``SuggestionCorrectionError``
+    when ``corrected_category`` is outside the catalog or does not fit direction.
     """
-    try:
-        category = parse_corrected_category({"value": corrected_category})
-    except SuggestionCorrectionError:
-        return None, corrected_account_id
+    category = parse_corrected_category({"value": corrected_category})
 
     if not category_fits_direction(category, txn.direction):
         raise SuggestionCorrectionError(

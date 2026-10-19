@@ -256,9 +256,10 @@ async def test_AC2_14_5_void_transition_requires_reversal_relationship(db: Async
     assert entry is not None
 
     reversal, _reversal_debit, _reversal_credit = await _valid_posted_entry(db, user_id, memo="reversal")
+    reversal_id = reversal.id
     entry.status = JournalEntryStatus.VOID
     entry.void_reason = "valid reversal"
-    entry.void_reversal_entry_id = reversal.id
+    entry.void_reversal_entry_id = reversal_id
     await db.commit()
 
     entry.void_reversal_entry_id = None
@@ -271,3 +272,42 @@ async def test_AC2_14_5_void_transition_requires_reversal_relationship(db: Async
     await db.delete(entry)
     with pytest.raises(IntegrityError):
         await db.commit()
+    await db.rollback()
+
+    # Reconciled entry voiding and fact-mutation protection
+    rec_entry, _rec_debit, _rec_credit = await _valid_posted_entry(db, user_id, memo="reconciled original")
+    rec_entry.status = JournalEntryStatus.RECONCILED
+    await db.commit()
+    await db.refresh(rec_entry)
+    rec_entry_id = rec_entry.id
+
+    # Moving to VOID while mutating memo must be rejected
+    rec_entry.status = JournalEntryStatus.VOID
+    rec_entry.memo = "mutated memo during void"
+    rec_entry.void_reason = "attempt mutation"
+    rec_entry.void_reversal_entry_id = reversal_id
+    with pytest.raises(IntegrityError):
+        await db.commit()
+    await db.rollback()
+    rec_entry = await db.get(JournalEntry, rec_entry_id)
+    assert rec_entry is not None
+    assert rec_entry.status == JournalEntryStatus.RECONCILED
+
+    # Missing reversal entry must be rejected
+    rec_entry.status = JournalEntryStatus.VOID
+    rec_entry.void_reason = "missing reversal"
+    with pytest.raises(IntegrityError):
+        await db.commit()
+    await db.rollback()
+    rec_entry = await db.get(JournalEntry, rec_entry_id)
+    assert rec_entry is not None
+
+    # Valid transition from RECONCILED to VOID succeeds
+    rec_reversal, _rec_rev_debit, _rec_rev_credit = await _valid_posted_entry(db, user_id, memo="reconciled reversal")
+    rec_reversal_id = rec_reversal.id
+    rec_entry.status = JournalEntryStatus.VOID
+    rec_entry.void_reason = "valid reconciled reversal"
+    rec_entry.void_reversal_entry_id = rec_reversal_id
+    await db.commit()
+    await db.refresh(rec_entry)
+    assert rec_entry.status == JournalEntryStatus.VOID

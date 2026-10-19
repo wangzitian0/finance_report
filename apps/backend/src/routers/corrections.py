@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
+from src.composition import compose_correction_callbacks
 from src.deps import CurrentUserId, DbSession
 from src.extraction import SuggestionCorrectionError, get_correction_stats, record_correction
 from src.observability import get_logger
@@ -68,6 +69,7 @@ async def create_correction(
             transaction_id=body.transaction_id,
             corrected_category=body.corrected_category,
             corrected_account_id=body.corrected_account_id,
+            **compose_correction_callbacks(),
         )
         await db.commit()
         return CorrectionResponse(
@@ -83,11 +85,7 @@ async def create_correction(
 
 
 @router.get("/stats", response_model=CorrectionStatsResponse)
-async def correction_stats(
-    *,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> CorrectionStatsResponse:
+async def correction_stats(*, db: DbSession, user_id: CurrentUserId) -> CorrectionStatsResponse:
     """Get correction statistics for the current user.
 
     AC18.2.2: Corrections API returns aggregated correction statistics.
