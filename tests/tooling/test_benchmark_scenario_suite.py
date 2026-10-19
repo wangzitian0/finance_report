@@ -667,3 +667,51 @@ def test_benchmark_cli_verify_ui_option_and_dispatch() -> None:
     runner = ScenarioBenchmarkRunner(base_url="http://localhost:8000")
     runner.verify_ui = parsed.verify_ui
     assert runner.verify_ui is True
+
+
+def test_wait_for_statement_parsed_retries_on_rate_limit_error() -> None:
+    """AC-testing.benchmarks.1: wait_for_statement_parsed retries via POST /api/statements/{id}/retry on transient RateLimitError."""
+    from unittest.mock import MagicMock
+
+    from common.testing.benchmarks.run_financial_scenario_benchmark import (
+        ScenarioBenchmarkRunner,
+    )
+
+    runner = ScenarioBenchmarkRunner(base_url="http://localhost:8000")
+    mock_client = MagicMock()
+
+    resp_rejected = MagicMock()
+    resp_rejected.status_code = 200
+    resp_rejected.json.return_value = {
+        "id": "stmt-rl-1",
+        "status": "rejected",
+        "validation_error": "Model glm-4.6v failed: LLM provider call failed (RateLimitError)",
+    }
+
+    resp_parsed = MagicMock()
+    resp_parsed.status_code = 200
+    resp_parsed.json.return_value = {
+        "id": "stmt-rl-1",
+        "status": "parsed",
+        "opening_balance": "100.00",
+        "closing_balance": "200.00",
+    }
+
+    mock_client.get.side_effect = [resp_rejected, resp_parsed]
+
+    resp_retry = MagicMock()
+    resp_retry.status_code = 200
+    mock_client.post.return_value = resp_retry
+
+    result = runner.wait_for_statement_parsed(
+        mock_client,
+        "stmt-rl-1",
+        max_wait_seconds=10,
+        poll_interval=0,
+        max_rate_limit_retries=2,
+        retry_backoff_seconds=0.0,
+    )
+
+    assert result["status"] == "parsed"
+    mock_client.post.assert_called_once_with("/api/statements/stmt-rl-1/retry")
+    assert mock_client.get.call_count == 2
