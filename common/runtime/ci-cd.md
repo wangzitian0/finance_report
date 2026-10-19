@@ -79,46 +79,33 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
 - The GLM-backed PDF gate allows a longer parsing window than normal UI tests: JSON extraction requests use `AI_JSON_TIMEOUT_SECONDS=360`, and the browser gate waits up to `PARSING_TIMEOUT_MS=480000` so slow but successful `glm-4.6v` PDF parsing is not misclassified as a failed provider gate.
 - The full GLM corpus (`corpus: all`) includes `tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_statement_upload_e2e.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `tests/e2e/test_four_asset_net_worth_golden_path.py`, and `tests/e2e/test_personal_financial_report_package.py`. The blocking deploy path runs only the `canary` subset of these (`test_brokerage_upload_to_portfolio_value.py`); the remaining heavy journeys run as the `audit_replay` corpus in `audit-replay.yml` (weekly and on dispatch). The brokerage canary test uploads Moomoo and Futu PDF fixtures through `/api/statements/upload`, waits for parsed statements, imports positions through `/api/statements/{id}/brokerage/import`, and verifies `/api/portfolio/holdings` plus `/api/reports/balance-sheet`. The four-asset gate (audit-replay corpus) uses an isolated user to combine deterministic bank statement posting, brokerage PDF import, property/mortgage/ESOP manual valuation snapshots, exact as-of net worth, and dashboard/report totals. The personal financial report package gate (audit-replay corpus) verifies statements, schedules, notes, restricted-asset treatment, report exports, and source traceability from one fresh user. Failures identify whether OCR parsing, parsed-data state transition, brokerage import, manual valuation, reporting, report packaging, or dashboard aggregation failed. The path-level proof matrix is maintained in [EPIC-017](../../docs/project/EPIC-017.portfolio-management.md#brokerage-pdf-to-asset-report-proof-matrix) with the compact entry-point version in the README; critical product proof anchors are a derived view of the AC graph, validated by the `check_critical_proof_matrix` contract folded into the single `tools/check_ac_index.py` gate (macro outcome source: `common/testing/data/critical-proof-outcomes.yaml`). Every `post_merge_environment` proof in that matrix that carries the `llm` marker appears in exactly one of the two corpora — the minimal `canary` (deploy blocking path) or the comprehensive `audit_replay` (`audit-replay.yml`) — and the on-demand `manual-ai-ocr-gate` recovery diagnostic in `.github/workflows/deploy.yml` runs the full corpus.
 
-**PR preview E2E** (`.github/workflows/preview.yml`):
+**On-demand PR preview & teardown** (`.github/workflows/preview.yml`):
 
 > The trigger/blocking contract for every delivery gate is the SSOT
 > [`delivery-gates.yaml`](../meta/data/delivery-gates.yaml) (verified by
 > `tests/tooling/test_delivery_gates_contract.py`). This section describes the
 > *behavior*; it does not own the trigger *mechanism* — change a trigger there.
 
-- The in-runner E2E gate runs **synchronously on `pull_request`**
-  (opened/synchronize/reopened), so it is a real required check a fast or auto
-  merge cannot bypass. It no longer follows CI asynchronously via `workflow_run`:
-  that fired only after CI and a quick merge could land before it ran as a gate
-  (GitHub counts a skipped required check as passed). It is image-free, so it needs
-  no CI artifact and runs independently of CI. PR close triggers cleanup, not a gate.
-- PR preview injects no REAL provider key: the in-runner stack wires a
-  placeholder `ZAI_API_KEY` with an unroutable `AI_BASE_URL` (so the app
-  reports LLM wiring configured and the first-run provider modal stays out of
-  browser E2E, #1589) while an accidental provider call fails instantly —
-  app wiring is validated without real GLM/OCR provider calls.
+- PR merge authority runs **synchronously on `pull_request`** via `ci.yml#finish`,
+  so a fast or auto merge cannot bypass deterministic CI gates. `preview.yml`
+  triggers on `pull_request` (`closed`) for teardown cleanup and on
+  `workflow_dispatch` for on-demand persistent previews; it no longer follows CI
+  asynchronously via `workflow_run`.
 - PR preview does not push, preflight, pull, or delete PR preview images, and it
   does not build images in CI. The `build-preview-backend-image`,
   `build-preview-frontend-image`, `gate-cheap-ci`, and GHCR preflight/delete
   jobs are removed. The post-merge staging ladder remains the first place
   registry images are born, pushed, and validated.
-- The runner stack uses `docker-compose.yml:docker-compose.ci-e2e.yml`,
-  `COMPOSE_PROFILES=infra,app`, `APP_URL=http://localhost:8080`, and
-  `GIT_COMMIT_SHA=<PR head SHA>`. The runner stack waits for `/api/health` before smoke/E2E, caps readiness at 300 seconds, emits compose logs on
-  failure, and then always runs `docker compose down --volumes
-  --remove-orphans`.
+- On-demand preview deployment caps new Dokploy deployment readiness at 600 seconds (`PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS=600`) within a 30-minute job timeout, and PR-close teardown dispatches `preview-teardown` within a 10-minute job timeout.
 - A persistent Dokploy preview is **on-demand only** (P1a-2, #879): the
   `deploy-preview` job runs solely via manual `workflow_dispatch` (Run workflow →
-  PR number), never automatically per PR. When triggered, after the in-runner E2E
-  gate passes it is GitHub-source: Dokploy clones the PR branch and runs
-  `docker compose ... up -d --build` so the backend/frontend are
-  **built from the PR source on the Dokploy host** — no GHCR image is pulled or
-  pushed. This app-side persistent PR preview path is not the infra2 `deploy_v2 preview/*` front door;
-  `deploy_v2 preview/branch` currently owns the
-  `report-branch-main`/canary style preview slots. The job is `continue-on-error`
-  and is not a required check, so a preview failure never blocks the PR; the
-  in-runner E2E is the merge authority. The persistent URL is
-  `https://report-pr-<N>.<domain>`.
+  PR number), never automatically per PR. When triggered, it is GitHub-source:
+  Dokploy clones the PR branch and runs `docker compose ... up -d --build` so
+  the backend/frontend are **built from the PR source on the Dokploy host** — no
+  GHCR image is pulled or pushed. This app-side persistent PR preview path is not the infra2 `deploy_v2 preview/*` front door;
+  `deploy_v2 preview/branch` currently owns the `report-branch-main`/canary style preview slots. The job is
+  `continue-on-error` and is not a required check, so a preview failure never
+  blocks the PR. The persistent URL is `https://report-pr-<N>.<domain>`.
 - `tools/pr_preview_lifecycle.py` is the single owner for preview **deploy**
   (standing previews up). The workflow does not hand-roll separate Dokploy shell
   blocks, so the deploy keeps one naming, metadata, logging, and redaction
@@ -127,12 +114,6 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
 - PR preview Dokploy API responses are parsed for required fields only.
   Workflows must not print raw Dokploy response JSON because compose responses
   can include environment data and refresh tokens.
-- The in-runner E2E result comment and context artifact record
-  `preview_runtime=github-runner-compose`,
-  `persistent_preview_url=https://report-pr-<N>.<domain>`,
-  `registry_image_push=false`, and
-  `dokploy_deploy=after-e2e-non-blocking-build-from-source`. The persistent
-  preview URL is posted as a separate non-blocking comment.
 - Persistent preview reclaim is infra2-owned: on PR close `preview.yml#cleanup`
   dispatches a vendor-neutral `preview-teardown` signal (`repository_dispatch`,
   `INFRA2_PAT`) to infra2, which performs the authoritative idempotent 1:1
@@ -166,8 +147,8 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
   stale non-allowlisted key from a prior deploy cannot diverge unnoticed;
   divergence fails fast with key-name-only diagnostics that never print env
   values.
-- PR preview E2E explicitly excludes tests marked `llm`. The post-merge `Staging AI/OCR Gate` workflow is the single automated CI entry point that may spend provider quota.
-- PR preview non-LLM E2E is a strict preview-relevant subset **derived from the execution matrix** (`common/testing/matrix.py`, issue #1547): the workflow evals `python tools/test_selection.py --stage pr_preview_e2e --shell` at runtime instead of hardcoding a whitelist. A root E2E spec enters the pre-merge set only when its matrix row is audited AND declares no external needs (provider quota, market data, deployed-env probing, state-sensitivity); everything else remains a staging/post-merge responsibility, and an unaudited spec can never silently creep into the merge-blocking path.
+- The post-merge `Staging AI/OCR Gate` workflow is the single automated CI entry point that may spend provider quota.
+- Staging core non-LLM E2E is a strict subset **derived from the execution matrix** (`common/testing/matrix.py`, issue #1547): the deploy workflow evals `python tools/test_selection.py --stage staging_core_e2e --shell` at runtime instead of hardcoding a whitelist. A root E2E spec enters the staging core set only when its matrix row is audited, does not require a live LLM provider, and is not exclusive to the core journey lane; an unaudited or provider-dependent spec defaults to the specialized gates.
 - The shared `.github/actions/setup-e2e-tests` action owns E2E Python import setup. It must export the repository root through `PYTHONPATH` via `$GITHUB_ENV` before preview, staging, AI/OCR, or production E2E pytest commands run, because `tests/e2e/conftest.py` imports shared helpers through the `tests.e2e.*` package path while pytest may choose `tests/e2e` as its root directory.
 - PR-preview reclaim is infra2-owned and event-driven: on PR close the app
   dispatches a `preview-teardown` signal and infra2 performs the idempotent 1:1
@@ -305,16 +286,14 @@ import a brokerage PDF, create property, mortgage, and ESOP valuation snapshots,
 then prove exact as-of assets, liabilities, net worth, and dashboard/report
 totals.
 
-PR preview E2E intentionally runs a strict runtime/API/UI subset derived from
+Staging core E2E intentionally runs a strict runtime/API/UI subset derived from
 the execution matrix (`common/testing/matrix.py` — audited rows with no
-external needs; see the generated selection via
-`python tools/test_selection.py --stage pr_preview_e2e`), excludes the `llm`
-marker, and does not inject the provider API key. This keeps provider spend and broad
-business-regression concurrency concentrated in the post-merge staging job,
-where `STRICT_E2E_GATES=true` makes provider/config failures block deploy. PR
-preview remains useful for app wiring and non-provider route proof without
-turning provider instability or state-sensitive staging regressions into PR
-preview noise.
+live LLM provider dependency and not exclusive to core journey; see the generated
+selection via `python tools/test_selection.py --stage staging_core_e2e`), excludes
+the `llm` marker, and does not inject the provider API key. This keeps provider spend
+and broad business-regression concurrency concentrated in the staging AI/OCR and
+provider gates, where `STRICT_E2E_GATES=true` makes provider/config failures block
+deploy.
 
 
 ---

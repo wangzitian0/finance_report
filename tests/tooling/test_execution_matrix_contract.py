@@ -13,6 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 from common.meta.extension.check_manifest import load_computed_concepts
@@ -89,13 +90,20 @@ def test_AC8_22_3_preview_selection_is_audited_and_dependency_free() -> None:
 
     # Completeness: every audited, non-LLM row not in core_journey is selected.
     for row in matrix.E2E_ROWS:
+        assert isinstance(row.staging_core_e2e, bool)
+        row_dict = row.to_dict()
+        assert row_dict["file"] == row.file
+        assert row_dict["staging_core_e2e"] == row.staging_core_e2e
         if (
             row.audited
             and matrix.NEEDS_LLM_PROVIDER not in row.needs
             and row.file not in matrix.CORE_JOURNEY_ONLY_FILES
         ):
+            assert row.staging_core_e2e is True
             for node in row.nodes or (row.file,):
                 assert node in selection, f"eligible row not selected: {node}"
+        else:
+            assert row.staging_core_e2e is False
 
     for node in selection:
         file = ROOT / node.split("::", 1)[0]
@@ -107,6 +115,7 @@ def test_AC8_22_3_preview_selection_is_audited_and_dependency_free() -> None:
         assert row.audited and matrix.NEEDS_LLM_PROVIDER not in row.needs, (
             f"unaudited/dependent row selected: {file}"
         )
+        assert row.staging_core_e2e is True
         content = (ROOT / file).read_text(encoding="utf-8")
         assert "pytest.mark.llm" not in content, (
             f"llm-marked spec in staging core set: {file}"
@@ -148,7 +157,7 @@ def test_AC8_22_4_every_root_e2e_spec_has_a_named_row() -> None:
     )
 
 
-def test_AC8_22_5_shell_emission_round_trips() -> None:
+def test_AC8_22_5_shell_emission_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC-testing.matrix.5: AC8.22.5: the --shell output is valid bash assignment material."""
     emitted = matrix.emit_shell(matrix.STAGING_CORE_E2E_STAGE)
     lines = emitted.splitlines()
@@ -161,10 +170,12 @@ def test_AC8_22_5_shell_emission_round_trips() -> None:
         == f"STAGING_CORE_E2E_PARALLELISM={matrix.STAGING_CORE_E2E_PARALLELISM}"
     )
 
-    import pytest as _pytest
-
-    with _pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="unknown selection stage"):
         matrix.emit_shell("nonexistent_stage")
+
+    with pytest.raises(ValueError, match="produced an empty test tuple"):
+        monkeypatch.setattr(matrix, "staging_core_e2e_selection", lambda: ())
+        matrix.emit_shell(matrix.STAGING_CORE_E2E_STAGE)
 
     # The CLI rejects an unknown stage with a diagnostic instead of a
     # KeyError traceback (Copilot review on PR #1562), on both output paths.
@@ -183,6 +194,46 @@ def test_AC8_22_5_shell_emission_round_trips() -> None:
         )
         assert result.returncode == 2, result.stderr
         assert "unknown selection stage" in result.stderr
+
+
+def test_matrix_classify_stage_and_package_declarations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify classify_stage and package_test_ownership error branches for 100% matrix coverage."""
+    assert matrix.classify_stage("apps/backend/tests/foo.py") == "backend_ci"
+    assert matrix.classify_stage("unmatched/prefix/foo.py") is None
+
+    import types
+
+    fake_empty = types.ModuleType("contract")
+    fake_empty.TEST_ROOTS = ()
+    monkeypatch.setattr(matrix, "PACKAGE_TEST_DECLARATIONS", ("pkg_empty",))
+    import importlib
+
+    monkeypatch.setattr(importlib, "import_module", lambda name: fake_empty)
+    with pytest.raises(ValueError, match="declares no TEST_ROOTS"):
+        matrix.package_test_ownership()
+
+    fake_str = types.ModuleType("contract")
+    fake_str.TEST_ROOTS = "apps/backend/tests/"
+    monkeypatch.setattr(importlib, "import_module", lambda name: fake_str)
+    with pytest.raises(ValueError, match="must be a tuple of paths"):
+        matrix.package_test_ownership()
+
+    fake_dup1 = types.ModuleType("contract1")
+    fake_dup1.TEST_ROOTS = ("tests/shared",)
+    fake_dup2 = types.ModuleType("contract2")
+    fake_dup2.TEST_ROOTS = ("tests/shared",)
+    monkeypatch.setattr(matrix, "PACKAGE_TEST_DECLARATIONS", ("p1", "p2"))
+
+    def fake_import(name: str):
+        if name == "common.p1.contract":
+            return fake_dup1
+        return fake_dup2
+
+    monkeypatch.setattr(importlib, "import_module", fake_import)
+    with pytest.raises(ValueError, match="declared by both"):
+        matrix.package_test_ownership()
 
 
 def test_AC8_22_6_charter_and_manifest_ownership() -> None:

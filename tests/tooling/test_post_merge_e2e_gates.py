@@ -1528,7 +1528,6 @@ def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
         '"Staging Provider Gate"',
         '"Staging AI/OCR Gate"',
         '"Financial Benchmark"',
-        "optional_staging_jobs: set[str] = set()",
         "candidate_run_ids",
         "for candidate_run_id in candidate_run_ids:",
         '"gh",',
@@ -1539,6 +1538,7 @@ def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
         "{candidate_run_id}: release-critical jobs",
         "with successful release-critical jobs",
     )
+    assert "optional_staging_jobs" not in staging_contract
     assert 'version_ref in (run.get("displayTitle") or "")' not in staging_contract
 
 
@@ -3464,13 +3464,18 @@ def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
     assert "workflow_run:" not in workflow
     _has(
         workflow,
-        "types: [opened, synchronize, reopened, closed]",
-        'action = "deploy"',
-        'action_reason = "pull-request-sync"',
+        "types: [closed]",
         'action = "cleanup"',
         "github.event.pull_request.number",
     )
-    _lacks(workflow, "gate-cheap-ci:", "tools/wait_for_cheap_ci.py", "  e2e:")
+    _lacks(
+        workflow,
+        'action_reason = "pull-request-sync"',
+        'action = "deploy"',
+        "gate-cheap-ci:",
+        "tools/wait_for_cheap_ci.py",
+        "  e2e:",
+    )
     _lacks(
         workflow,
         "build-preview-backend-image:",
@@ -4691,14 +4696,14 @@ def test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run() -> None:
     assert "workflow_run:" not in workflow
     _has(
         workflow,
-        "types: [opened, synchronize, reopened, closed]",
-        'action_reason = "pull-request-sync"',
-        'action = "deploy"',
+        "types: [closed]",
         'action = "cleanup"',
         "pr_preview_required == 'true'",
     )
     _lacks(
         workflow,
+        'action_reason = "pull-request-sync"',
+        'action = "deploy"',
         "tools/wait_for_cheap_ci.py",
         "gate-cheap-ci:",
         "build-preview-backend-image:",
@@ -4782,9 +4787,9 @@ def test_AC8_13_118_timeouts_and_retries_documented() -> None:
     assert "STAGING_FIFO_TIMEOUT_SECONDS" not in ci_cd
     _has(
         ci_cd,
-        "The runner stack waits for `/api/health` before smoke/E2E",
-        "caps readiness at 300 seconds",
-        "docker compose down --volumes",
+        "PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS=600",
+        "30-minute job timeout",
+        "10-minute job timeout",
         "parallel staging",
     )
 
