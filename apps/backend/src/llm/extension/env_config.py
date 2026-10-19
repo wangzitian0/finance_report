@@ -36,15 +36,15 @@ class EnvConfigSource:
     """Resolve providers/bindings from environment settings."""
 
     def _provider(self) -> ProviderRef | None:
-        api_key = settings.ai_api_key
-        if not api_key:
+        llm = settings.to_llm_settings()
+        if not llm.api_key:
             return None
         return ProviderRef(
             id=_PROVIDER_ENV_ID,
-            label=settings.ai_provider,
-            protocol=protocol_for(settings.ai_provider),
-            api_key=api_key,
-            api_base=settings.ai_base_url or None,
+            label=llm.provider,
+            protocol=protocol_for(llm.provider),
+            api_key=llm.api_key,
+            api_base=llm.base_url or None,
         )
 
     async def list_providers(self) -> list[ProviderRef]:
@@ -68,12 +68,11 @@ class EnvConfigSource:
 
 def _binding_for(scene: Scene) -> SceneBinding:
     """Map a scene to its env-configured model + fallbacks (behaviour-preserving)."""
-    text_fallbacks = tuple(settings.fallback_models)
-    vision_fallbacks = tuple(settings.vision_fallback_models)
+    llm = settings.to_llm_settings()
 
     if scene is Scene.EXTRACTION_VISION:
-        return SceneBinding(scene, settings.vision_model, fallback_model_ids=vision_fallbacks)
+        return SceneBinding(scene, llm.vision_model, fallback_model_ids=llm.vision_fallback_models)
     if scene is Scene.EXTRACTION_OCR:
-        return SceneBinding(scene, settings.ocr_model, fallback_model_ids=vision_fallbacks)
+        return SceneBinding(scene, llm.ocr_model, fallback_model_ids=llm.vision_fallback_models)
     # extraction.json / advisor.chat / statement.summary all use the primary model.
-    return SceneBinding(scene, settings.primary_model, fallback_model_ids=text_fallbacks)
+    return SceneBinding(scene, llm.primary_model, fallback_model_ids=llm.fallback_models)
