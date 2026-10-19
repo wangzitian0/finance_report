@@ -156,20 +156,20 @@
             <div class="header-title-row">
                 <div>
                     <h1 class="h1-title">Financial Scenario Benchmark: v0.2.6</h1>
-                    <p class="meta-text">Target: <strong>https://report-staging.zitian.party</strong> • Executed: <strong>2026-10-19T07:09:02.109067+00:00</strong></p>
+                    <p class="meta-text">Target: <strong>https://report-staging.zitian.party</strong> • Executed: <strong>2026-10-19T09:12:59.755408+00:00</strong></p>
                 </div>
-                <span class="badge badge-fail">RECONCILIATION REGRESSION</span>
+                <span class="badge badge-pass">ALL 7 SCENARIOS BALANCED</span>
             </div>
         </header>
 
         <div class="grid grid-4 card">
             <div class="stat-box">
                 <span class="stat-label">Scenarios Evaluated</span>
-                <span class="stat-value">6 / 7</span>
+                <span class="stat-value">7 / 7</span>
             </div>
             <div class="stat-box">
                 <span class="stat-label">Total Duration</span>
-                <span class="stat-value">299.03s</span>
+                <span class="stat-value">559.20s</span>
             </div>
             <div class="stat-box">
                 <span class="stat-label">Accounting Balance Delta</span>
@@ -232,28 +232,53 @@
                     <h3 class="scenario-title">Case 1: Consecutive 4-Month Rollforward &amp; Q1 Articulation</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 45.55s</span>
-                    <span class="badge badge-fail">FAIL</span>
+                    <span class="duration-tag">⏱️ 207.00s</span>
+                    <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
-            <div class='error-banner'><strong>Error:</strong> Statement 81a16318-278d-4585-a6de-d46218a22e01 entered terminal failure state &#x27;rejected&#x27;: All 3 models failed. Breakdown: 3 http_error. Last: Model glm-4.6v failed: LLM provider call failed (RateLimitError)</div>
+            
             
     <table class="data-table">
         <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
         <tbody>
-            <tr><td>Month 1 (Jan 2025) Ending Balance</td><td>$15,271.23</td><td>❌ Unconfirmed</td></tr>
-            <tr><td>Month 2 (Feb 2025) Ending Balance</td><td>$18,250.00</td><td>❌ Discontinuous</td></tr>
-            <tr><td>Month 3 (Mar 2025 - Q1 Close) Ending Balance</td><td>$21,300.00</td><td>❌ Discontinuous</td></tr>
-            <tr><td>Month 4 (Apr 2025 - Q2 Transition) Ending Balance</td><td>$24,200.00</td><td>❌ Discontinuous</td></tr>
-            <tr><td>Q1 Cumulative Net Income</td><td>$5,849.25</td><td>❌ Mismatched</td></tr>
-            <tr><td>4-Month Cumulative Net Income</td><td>$8,749.25</td><td>❌ Mismatched</td></tr>
-            <tr><td>Balance Sheet Equation Delta (A - L - E)</td><td>$0.00</td><td><span class="badge badge-fail">Delta SGD Regression</span></td></tr>
+            <tr><td>Month 1 (Jan 2025) Ending Balance</td><td>$15271.23</td><td>✅ Anchor Confirmed</td></tr>
+            <tr><td>Month 2 (Feb 2025) Ending Balance</td><td>$18250.00</td><td>✅ Exact Continuity Rollforward</td></tr>
+            <tr><td>Month 3 (Mar 2025 - Q1 Close) Ending Balance</td><td>$21300.00</td><td>✅ Q1 Continuity Confirmed</td></tr>
+            <tr><td>Month 4 (Apr 2025 - Q2 Transition) Ending Balance</td><td>$24200.00</td><td>✅ 4-Month Rollforward Intact</td></tr>
+            <tr><td>Q1 Cumulative Net Income</td><td>$5849.25</td><td>✅ Articulated to Q1 Retained Earnings</td></tr>
+            <tr><td>4-Month Cumulative Net Income</td><td>$8749.25</td><td>✅ Articulated to Retained Earnings</td></tr>
+            <tr><td>Balance Sheet Equation Delta (A - L - E)</td><td>$0.00</td><td><span class="badge badge-pass">0.00 SGD Balanced</span></td></tr>
         </tbody>
     </table>
     
             <details class="raw-details">
                 <summary>Inspect Raw Adjudication Telemetry</summary>
-                <pre class="raw-json">{}</pre>
+                <pre class="raw-json">{
+  &quot;m1_closing_balance&quot;: &quot;15271.23&quot;,
+  &quot;month_1_ending_balance&quot;: &quot;15271.23&quot;,
+  &quot;m2_opening_balance&quot;: &quot;15271.23&quot;,
+  &quot;month_2_opening_cash&quot;: &quot;15271.23&quot;,
+  &quot;m2_closing_balance&quot;: &quot;18250.00&quot;,
+  &quot;month_2_ending_balance&quot;: &quot;18250.00&quot;,
+  &quot;m3_opening_balance&quot;: &quot;18250.00&quot;,
+  &quot;month_3_opening_cash&quot;: &quot;18250.00&quot;,
+  &quot;m3_closing_balance&quot;: &quot;21300.00&quot;,
+  &quot;month_3_ending_balance&quot;: &quot;21300.00&quot;,
+  &quot;m4_opening_balance&quot;: &quot;21300.00&quot;,
+  &quot;month_4_opening_cash&quot;: &quot;21300.00&quot;,
+  &quot;m4_closing_balance&quot;: &quot;24200.00&quot;,
+  &quot;month_4_ending_balance&quot;: &quot;24200.00&quot;,
+  &quot;q1_net_income&quot;: &quot;5849.25&quot;,
+  &quot;q1_assets&quot;: &quot;21300.00&quot;,
+  &quot;total_assets&quot;: &quot;24200.00&quot;,
+  &quot;month_4_assets&quot;: &quot;24200.00&quot;,
+  &quot;total_equity&quot;: &quot;15450.75&quot;,
+  &quot;cumulative_net_income&quot;: &quot;8749.25&quot;,
+  &quot;beginning_cash&quot;: &quot;15450.75&quot;,
+  &quot;ending_cash&quot;: &quot;24200.00&quot;,
+  &quot;equation_delta&quot;: &quot;0.00&quot;,
+  &quot;is_balanced&quot;: true
+}</pre>
             </details>
         </div>
         
@@ -264,7 +289,7 @@
                     <h3 class="scenario-title">Case 2: Multi-PII Household Operations &amp; Category Reconciliation</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 59.90s</span>
+                    <span class="duration-tag">⏱️ 87.58s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -310,7 +335,7 @@
                     <h3 class="scenario-title">Case 3: Credit Card Liability &amp; Non-P&amp;L Repayment Clearance</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 43.87s</span>
+                    <span class="duration-tag">⏱️ 71.82s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -354,7 +379,7 @@
                     <h3 class="scenario-title">Case 4: Multi-National &amp; Multi-Currency Consolidated Balance Sheet</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 86.69s</span>
+                    <span class="duration-tag">⏱️ 127.28s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -399,7 +424,7 @@
                     <h3 class="scenario-title">Case 5: Holistic Multi-Asset &amp; Tax Ecosystem</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 5.96s</span>
+                    <span class="duration-tag">⏱️ 8.60s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -445,7 +470,7 @@
                     <h3 class="scenario-title">Case 6: Bank Overdraft &amp; Capital Gain Disposal</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 6.24s</span>
+                    <span class="duration-tag">⏱️ 8.15s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -487,7 +512,7 @@
                     <h3 class="scenario-title">Case UI: Browser Zero-Console-Error &amp; DOM Hygiene Oracle</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 50.82s</span>
+                    <span class="duration-tag">⏱️ 48.78s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>

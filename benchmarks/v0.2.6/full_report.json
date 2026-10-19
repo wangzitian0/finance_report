@@ -2,28 +2,53 @@
   "suite": "financial_reporting_temporal_scenarios",
   "version_ref": "v0.2.6",
   "app_url": "https://report-staging.zitian.party",
-  "run_at": "2026-10-19T07:09:02.109067+00:00",
+  "run_at": "2026-10-19T09:12:59.755408+00:00",
   "summary": {
     "total": 7,
-    "passed": 6,
+    "passed": 7,
     "skipped": 0,
-    "failed": 1,
-    "success": false
+    "failed": 0,
+    "success": true
   },
   "results": [
     {
       "case_id": "case_1",
       "case_name": "Case 1: Consecutive 4-Month Rollforward & Q1 Articulation",
-      "status": "FAIL",
-      "duration_seconds": 45.54904627799988,
-      "details": {},
-      "error_message": "Statement 81a16318-278d-4585-a6de-d46218a22e01 entered terminal failure state 'rejected': All 3 models failed. Breakdown: 3 http_error. Last: Model glm-4.6v failed: LLM provider call failed (RateLimitError)"
+      "status": "PASS",
+      "duration_seconds": 207.0029697418213,
+      "details": {
+        "m1_closing_balance": "15271.23",
+        "month_1_ending_balance": "15271.23",
+        "m2_opening_balance": "15271.23",
+        "month_2_opening_cash": "15271.23",
+        "m2_closing_balance": "18250.00",
+        "month_2_ending_balance": "18250.00",
+        "m3_opening_balance": "18250.00",
+        "month_3_opening_cash": "18250.00",
+        "m3_closing_balance": "21300.00",
+        "month_3_ending_balance": "21300.00",
+        "m4_opening_balance": "21300.00",
+        "month_4_opening_cash": "21300.00",
+        "m4_closing_balance": "24200.00",
+        "month_4_ending_balance": "24200.00",
+        "q1_net_income": "5849.25",
+        "q1_assets": "21300.00",
+        "total_assets": "24200.00",
+        "month_4_assets": "24200.00",
+        "total_equity": "15450.75",
+        "cumulative_net_income": "8749.25",
+        "beginning_cash": "15450.75",
+        "ending_cash": "24200.00",
+        "equation_delta": "0.00",
+        "is_balanced": true
+      },
+      "error_message": null
     },
     {
       "case_id": "case_2",
       "case_name": "Case 2: Multi-PII Household Operations & Category Reconciliation",
       "status": "PASS",
-      "duration_seconds": 59.8983588218689,
+      "duration_seconds": 87.57741928100586,
       "details": {
         "household_husband_cash": "12800.00",
         "household_wife_cash": "8100.00",
@@ -45,7 +70,7 @@
       "case_id": "case_3",
       "case_name": "Case 3: Credit Card Liability & Non-P&L Repayment Clearance",
       "status": "PASS",
-      "duration_seconds": 43.87332320213318,
+      "duration_seconds": 71.81797003746033,
       "details": {
         "card_spend_recorded": "1200.00",
         "bank_repayment": "1200.00",
@@ -66,7 +91,7 @@
       "case_id": "case_4",
       "case_name": "Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet",
       "status": "PASS",
-      "duration_seconds": 86.68561935424805,
+      "duration_seconds": 127.27566766738892,
       "details": {
         "currencies_consolidated": "SGD, USD, HKD",
         "sgd_closing_balance": "12800.00",
@@ -88,7 +113,7 @@
       "case_id": "case_5",
       "case_name": "Case 5: Holistic Multi-Asset & Tax Ecosystem",
       "status": "PASS",
-      "duration_seconds": 5.961411476135254,
+      "duration_seconds": 8.600427150726318,
       "details": {
         "holdings_count": 2,
         "symbols": "AAPL, VT",
@@ -111,7 +136,7 @@
       "case_id": "case_6",
       "case_name": "Case 6: Bank Overdraft & Capital Gain Disposal",
       "status": "PASS",
-      "duration_seconds": 6.242871284484863,
+      "duration_seconds": 8.149827480316162,
       "details": {
         "overdraft_cash": "-1500.00",
         "ending_cash": "11000.00",
@@ -128,7 +153,7 @@
       "case_id": "case_ui",
       "case_name": "Case UI: Browser Zero-Console-Error & DOM Hygiene Oracle",
       "status": "PASS",
-      "duration_seconds": 50.81675934791565,
+      "duration_seconds": 48.7767915725708,
       "details": {
         "status": "PASS",
         "visited_routes": [
