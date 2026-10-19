@@ -202,6 +202,8 @@ CHECKS: tuple[Check, ...] = (
                 "tests/infra/test_transaction_boundaries.py",
                 "-q",
                 "--no-cov",
+                "-n",
+                "0",
             ),
         ),
         why="service changed: re-run the commit/transaction-boundary meta-test",
@@ -706,6 +708,51 @@ def run_checks(
     return results
 
 
+def resolve_changed_pytest_targets(
+    changed_files_list: Iterable[str],
+    *,
+    repo_root: Path = REPO_ROOT,
+) -> tuple[list[str], list[str]]:
+    """Map changed repository-relative paths to (root_test_targets, backend_test_targets).
+
+    ``root_test_targets`` are relative to ``repo_root`` (``tests/...``).
+    ``backend_test_targets`` are relative to ``apps/backend`` (``tests/...``).
+    """
+    root_selected: set[str] = set()
+    backend_selected: set[str] = set()
+    backend_root = repo_root / "apps" / "backend"
+    backend_tests_dir = backend_root / "tests"
+    root_tests_dir = repo_root / "tests"
+
+    for rel in changed_files_list:
+        path_obj = Path(rel)
+        if not rel.endswith(".py"):
+            continue
+        if rel.startswith("apps/backend/tests/") and path_obj.name.startswith("test_"):
+            if (repo_root / rel).is_file():
+                backend_selected.add(rel.removeprefix("apps/backend/"))
+            continue
+        if rel.startswith("tests/") and path_obj.name.startswith("test_"):
+            if (repo_root / rel).is_file():
+                root_selected.add(rel)
+            continue
+
+        stem = path_obj.stem
+        if stem == "__init__":
+            continue
+
+        if rel.startswith("apps/backend/src/") and backend_tests_dir.is_dir():
+            for match in backend_tests_dir.rglob(f"test_{stem}*.py"):
+                if match.is_file():
+                    backend_selected.add(str(match.relative_to(backend_root)))
+        elif rel.startswith(("common/", "tools/")) and root_tests_dir.is_dir():
+            for match in root_tests_dir.rglob(f"test_{stem}*.py"):
+                if match.is_file():
+                    root_selected.add(str(match.relative_to(repo_root)))
+
+    return sorted(root_selected), sorted(backend_selected)
+
+
 def run(
     argv: Sequence[str] | None = None,
     *,
@@ -751,6 +798,14 @@ def run(
             "Run only the named gate, whatever the diff (repeatable). "
             "Ignores --tier. Cannot combine with --all or --changed. "
             "CI uses this to run the same commands as the local run."
+        ),
+    )
+    parser.add_argument(
+        "--pytest-changed",
+        action="store_true",
+        help=(
+            "Also execute fail-fast pytest on unit test files directly mapped "
+            "from the current diff (--no-cov -n 0)."
         ),
     )
     parser.add_argument(
@@ -804,35 +859,81 @@ def run(
             print(f"  [{check.tier}] {check.name}: {check.why}")
         return 0
 
-    if not selected:
-        print("preflight: no relevant gates for the current diff.")
-        return 0
-
-    if not args.quiet:
-        if args.only:
-            print(f"preflight: running {len(selected)} named gate(s)...")
-        else:
-            print(
-                f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
-            )
     effective_runner = (
         _default_quiet_runner if runner is _default_runner and args.quiet else runner
     )
-    results = run_checks(
-        selected,
-        changed_files=files,
-        runner=effective_runner,
-        ci=args.ci,
-        quiet=args.quiet,
-    )
-    if not args.quiet:
-        for result in results:
-            print(f"  [{'ok' if result.ok else 'FAIL'}] {result.name}")
-    else:
-        for result in results:
-            if not result.ok:
-                print(f"  [FAIL] {result.name}")
-    failed = [r.name for r in results if not r.ok]
+
+    if not selected and not args.pytest_changed:
+        print("preflight: no relevant gates for the current diff.")
+        return 0
+
+    failed: list[str] = []
+    if selected:
+        if not args.quiet:
+            if args.only:
+                print(f"preflight: running {len(selected)} named gate(s)...")
+            else:
+                print(
+                    f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
+                )
+        results = run_checks(
+            selected,
+            changed_files=files,
+            runner=effective_runner,
+            ci=args.ci,
+            quiet=args.quiet,
+        )
+        if not args.quiet:
+            for result in results:
+                print(f"  [{'ok' if result.ok else 'FAIL'}] {result.name}")
+        else:
+            for result in results:
+                if not result.ok:
+                    print(f"  [FAIL] {result.name}")
+        failed.extend(r.name for r in results if not r.ok)
+
+    if args.pytest_changed and not failed:
+        root_targets, backend_targets = resolve_changed_pytest_targets(files)
+        if root_targets:
+            cmd = [
+                sys.executable,
+                "-m",
+                "pytest",
+                *root_targets,
+                "-x",
+                "-q",
+                "--no-cov",
+                "-n",
+                "0",
+            ]
+            ok = effective_runner(cmd, str(REPO_ROOT)) == 0
+            if not args.quiet:
+                print(f"  [{'ok' if ok else 'FAIL'}] pytest-changed:root")
+            elif not ok:
+                print("  [FAIL] pytest-changed:root")
+            if not ok:
+                failed.append("pytest-changed:root")
+        if backend_targets and not failed:
+            workers = "0" if len(backend_targets) <= 2 else "2"
+            cmd = [
+                sys.executable,
+                "-m",
+                "pytest",
+                *backend_targets,
+                "-x",
+                "-q",
+                "--no-cov",
+                "-n",
+                workers,
+            ]
+            ok = effective_runner(cmd, str(REPO_ROOT / "apps" / "backend")) == 0
+            if not args.quiet:
+                print(f"  [{'ok' if ok else 'FAIL'}] pytest-changed:backend")
+            elif not ok:
+                print("  [FAIL] pytest-changed:backend")
+            if not ok:
+                failed.append("pytest-changed:backend")
+
     if failed:
         print(f"preflight: {len(failed)} gate(s) failed: {', '.join(failed)}")
         return 1
