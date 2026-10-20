@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { Network, X } from "lucide-react";
 
-import { nodeLabel } from "@/lib/lineage";
+import { nodeDisplayTitle, nodeLabel, nodeSourceHref } from "@/lib/lineage";
 import type {
   PersonalReportPackageTraceabilityLine,
   PersonalReportPackageTraceabilityResponse,
@@ -238,24 +239,38 @@ export function LineagePanelModal({
               <div>
                 <h3 className="text-sm font-semibold">Nodes</h3>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  {panel.response.nodes.map((node) => (
-                    <article
-                      key={node.id}
-                      className="rounded border border-[var(--border)] p-3"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="font-mono text-xs">
-                          {node.node_kind}
+                  {panel.response.nodes.map((node) => {
+                    const displayTitle = nodeDisplayTitle(node);
+                    const sourceHref = nodeSourceHref(node);
+                    return (
+                      <article
+                        key={node.id}
+                        className="rounded border border-[var(--border)] p-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="font-mono text-xs">
+                            {node.node_kind}
+                          </p>
+                          <span className="badge badge-muted">
+                            {node.entity_type}
+                          </span>
+                        </div>
+                        {sourceHref && (
+                          <div className="mt-1.5">
+                            <Link
+                              href={sourceHref}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline"
+                            >
+                              {displayTitle ? `${displayTitle} ↗` : "Open source ↗"}
+                            </Link>
+                          </div>
+                        )}
+                        <p className="mt-2 break-words font-mono text-[11px] text-muted">
+                          {nodeLabel(node)}
                         </p>
-                        <span className="badge badge-muted">
-                          {node.entity_type}
-                        </span>
-                      </div>
-                      <p className="mt-2 break-words font-mono text-[11px] text-muted">
-                        {nodeLabel(node)}
-                      </p>
-                    </article>
-                  ))}
+                      </article>
+                    );
+                  })}
                 </div>
               </div>
               <div>

@@ -157,16 +157,6 @@ export function nodeSourceHref(node: {
 export function nodeLabel(node: {
   entity_type: string;
   entity_id: string;
-  properties?: Record<string, unknown> | null;
 }): string {
-  const props = node.properties ?? {};
-  const filename =
-    (typeof props.original_filename === "string" &&
-      props.original_filename.trim()) ||
-    (typeof props.filename === "string" && props.filename.trim()) ||
-    null;
-  if (filename) {
-    return `${filename} (${node.entity_type}:${node.entity_id})`;
-  }
   return `${node.entity_type}:${node.entity_id}`;
 }
