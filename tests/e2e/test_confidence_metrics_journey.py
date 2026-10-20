@@ -9,8 +9,11 @@ recurring descriptions, and a reconciliation run, then proves on the pinned
 deployed revision that:
 * The live correction feedback loop replay endpoint (/api/metrics/correction-loop/replay)
   measures held-out low-confidence reduction (1.00000 -> 0.00000, reduced is True).
+* A reconciliation run after the approval creates no match: the approval already
+  posted both rows from their own statement (#2561).
 * The reconciliation statistics endpoint (/api/reconciliation/stats) measures
   a non-zero transaction match rate (2 matched out of 3 total transactions = 66.67%).
+  The 2 posted rows count as matched without a reconciliation match (#2465).
 * The system-wide low-confidence statement ratio is strictly computed from non-empty
   statements (total_statements == 2, low_confidence_statements == 1, ratio == 0.5)
   with no empty-database fallback.
@@ -215,7 +218,16 @@ async def test_proportion_of_low_confidence_data_is_measured(
         assert reconcile_resp.status_code == 200, (
             f"reconciliation run failed: {reconcile_resp.text}"
         )
-        assert reconcile_resp.json()["auto_accepted"] == 2
+        # The approval already posted both rows from their own statement, so the run
+        # finds no pending row and creates no self-match (AC-reconciliation.2561.1).
+        # The stats below still count both rows as matched (AC-reconciliation.2465.1).
+        run = reconcile_resp.json()
+        assert run["matches_created"] == 0, (
+            f"the run matched rows that are already posted: {run}"
+        )
+        assert run["auto_accepted"] == 0, (
+            f"the run matched rows that are already posted: {run}"
+        )
 
         for txn in valid_parsed["transactions"]:
             corr_resp = await client.post(

@@ -1015,9 +1015,7 @@ async def test_execute_matching_layer2_atomic_match_and_transfer_pair_logging(
     assert matches[0].atomic_txn_id == txn.id
 
 
-async def test_AC_reconciliation_2548_2_normal_matching_enforces_entry_exclusivity_and_skips_statement_posted(
-    db: AsyncSession, test_user
-) -> None:
+async def test_AC_reconciliation_2548_2_normal_matching_enforces_entry_exclusivity(db: AsyncSession, test_user) -> None:
     """AC-reconciliation.2548.2: Two identical-amount same-day transactions cannot claim one journal entry (#2548)."""
     user_id = test_user.id
     bank = _make_account(db, user_id, "Bank Exclusivity")

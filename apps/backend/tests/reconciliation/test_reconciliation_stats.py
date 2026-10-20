@@ -211,27 +211,18 @@ def test_stats_reexports_ssot_confidence_thresholds():
     assert RECONCILIATION_REVIEW_SCORE == 60
 
 
-async def test_AC_reconciliation_2465_1_statement_posted_rows_count_as_matched(db, test_user):
-    """AC-reconciliation.2465.1: a row that the system posted from its own statement is reconciled by construction.
-
-    The stats count it as matched and the unmatched list does not show it, so a
-    clean upload reads 100% matched instead of asking the user to review rows
-    that are already posted.
-    """
-
+async def _seed_reviewed_statement_row(db, user_id, file_hash):
+    """Seed one approved statement with one salary row and a reviewed disposition rule; do not post it."""
     from src.extraction import BankStatementStatus
-    from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
-    from src.routers.reconciliation import _unmatched_atomic_txn_query
     from tests.api._statement_router_fixtures import (
         add_reviewed_disposition_rule,
         add_txn,
         build_statement,
         create_statement_account,
     )
-    from tests.statement_ingestion import posting_dependencies
 
-    bank_account = await create_statement_account(db, test_user.id, "DBS Stats Posted")
-    statement = build_statement(test_user.id, "hash_stats_posted_2465", 90)
+    bank_account = await create_statement_account(db, user_id, "DBS Stats Posted")
+    statement = build_statement(user_id, file_hash, 90)
     statement.status = BankStatementStatus.APPROVED
     statement.account_id = bank_account.id
     statement.closing_balance = Decimal("120.00")
@@ -243,9 +234,25 @@ async def test_AC_reconciliation_2465_1_statement_posted_rows_count_as_matched(d
     db.add(txn)
     await db.flush()
     await add_reviewed_disposition_rule(
-        db, user_id=test_user.id, keyword="salary", account_type=AccountType.INCOME, category="SALARY"
+        db, user_id=user_id, keyword="salary", account_type=AccountType.INCOME, category="SALARY"
     )
     await db.commit()
+    return statement, txn
+
+
+async def test_AC_reconciliation_2465_1_statement_posted_rows_count_as_matched(db, test_user):
+    """AC-reconciliation.2465.1: a row that the system posted from its own statement is reconciled by construction.
+
+    The stats count it as matched and the unmatched list does not show it, so a
+    clean upload reads 100% matched instead of asking the user to review rows
+    that are already posted.
+    """
+
+    from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
+    from src.routers.reconciliation import _unmatched_atomic_txn_query
+    from tests.statement_ingestion import posting_dependencies
+
+    statement, _txn = await _seed_reviewed_statement_row(db, test_user.id, "hash_stats_posted_2465")
 
     before = await get_reconciliation_stats(db, test_user.id)
     assert before.total_transactions == 1
@@ -264,6 +271,38 @@ async def test_AC_reconciliation_2465_1_statement_posted_rows_count_as_matched(d
     assert after.match_rate == 100.0
     unmatched_rows = (await db.execute(_unmatched_atomic_txn_query(test_user.id))).scalars().all()
     assert unmatched_rows == []
+
+
+async def test_AC_reconciliation_2561_1_run_after_statement_posting_creates_no_self_match(db, test_user):
+    """AC-reconciliation.2561.1: a reconciliation run skips a row that its own statement already posted.
+
+    The run creates no match for that row, and the stats still count it as matched.
+    Core journey U13 runs a reconciliation after approval and reads these two facts (#2561, #2554).
+    """
+    from sqlalchemy import func, select
+
+    from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
+    from src.reconciliation import execute_matching
+    from tests.statement_ingestion import posting_dependencies
+
+    statement, txn = await _seed_reviewed_statement_row(db, test_user.id, "hash_stats_posted_2561")
+    posted = await try_auto_approve_high_confidence_statement(
+        db, statement.id, test_user.id, dependencies=posting_dependencies()
+    )
+    assert posted == 1
+
+    matches = await execute_matching(db, user_id=test_user.id, currency="SGD")
+    assert matches == []
+    match_count = await db.scalar(
+        select(func.count(ReconciliationMatch.id)).where(ReconciliationMatch.atomic_txn_id == txn.id)
+    )
+    assert match_count == 0
+
+    stats = await get_reconciliation_stats(db, test_user.id)
+    assert stats.total_transactions == 1
+    assert stats.matched_transactions == 1
+    assert stats.unmatched_transactions == 0
+    assert stats.auto_accepted == 0
 
 
 async def test_AC_reconciliation_2548_3_stats_unmatched_aligns_with_unmatched_query(db, test_user):
