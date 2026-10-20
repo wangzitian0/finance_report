@@ -227,6 +227,7 @@ def test_AC_advisor_grounding_3_a_mutated_real_answer_fails(
         "Here are your net worth, income and expenses for October 2026:\nNet worth: SGD 13,500.00",
         "Here is your net worth for the 120 days since you joined:\nNet worth: SGD 13,500.00",
         "Net worth as of 2026-10-20: SGD 13,500.00",
+        "Net worth - SGD 13,500.00",
         "Net worth (up 35% since September 30): SGD 13,500.00",
     ],
 )

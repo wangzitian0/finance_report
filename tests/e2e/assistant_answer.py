@@ -2,10 +2,13 @@
 
 The journey compares each amount in the answer with the reports. A set of all numbers in the
 answer is not sufficient: an answer that swaps the income and the expenses still holds both
-numbers. Correct prose after a wrong headline must not hide the headline either. So the stated
-amount of a metric is the first amount after the first label of that metric that states one. An
-amount is a number with a currency, a number with thousands separators or two decimals, or a bare
-number of three digits or more that is not a year.
+numbers. Correct prose after a wrong headline must not hide the headline either. So the first
+label of a metric whose text holds a number decides: its first number, with a minus sign that
+touches the number or its currency, is the stated amount. Dates, percentages and counts ("120
+days") are removed first. Any other number decides, also one that is not an amount ("2000", "0").
+
+The out-of-data check reads amounts: a number with a currency, a number with thousands separators
+or two decimals, or a bare number of three digits or more that is not a year or a count.
 
 The text of a label is the rest of its line, up to the next label. When that rest holds only
 markup or a parenthesis (a heading such as "### Income this month (October 2026)"), the text is
@@ -98,9 +101,10 @@ _NOT_AN_AMOUNT = re.compile(
     rf"|\b\d+[ \t]+(?:{_UNITS})\b",
     re.IGNORECASE,
 )
-# The stated value of a label: the first number, with a minus sign before it or before its currency.
+# The stated value of a label: the first number, with a minus sign that touches the number or
+# its currency. A spaced hyphen ("Net worth - SGD 13,500.00") is a separator, not a sign.
 _STATED = re.compile(
-    rf"(?P<before>[-−])?[ \t]*(?:(?i:{_CODES})|S\$|US\$|HK\$|[$¥€£])?[ \t]*(?P<after>[-−])?[ \t]*(?P<number>{_NUMBER})"
+    rf"(?P<before>[-−])?(?:(?i:{_CODES})|S\$|US\$|HK\$|[$¥€£])?[ \t]*(?P<after>[-−])?(?P<number>{_NUMBER})"
 )
 _LABEL = re.compile(
     "|".join(
@@ -139,8 +143,8 @@ def _decimal(raw: str) -> Decimal:
 def _stated_value(text: str) -> Decimal | None:
     """Return the first number of the text of a label, or None when the text holds no number.
 
-    Dates and percentages are removed first. Any other number decides, also one that is not an
-    amount ("2000", "0", "1.5k"), so a wrong headline cannot be skipped.
+    Dates, percentages and counts are removed first. Any other number decides, also one that is
+    not an amount ("2000", "0", "1.5k"), so a wrong headline cannot be skipped.
     """
     match = _STATED.search(_NOT_AN_AMOUNT.sub(" ", text))
     if match is None:
