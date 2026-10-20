@@ -140,8 +140,8 @@ test.describe("AC19.4.7 upload-first dashboard smoke", () => {
       await expect(uploadHome.getByRole("heading", { name: "Upload-to-report session" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
       await expect(uploadHome.getByRole("link", { name: "Review required", exact: true })).toHaveAttribute("href", "/review");
       await expect(uploadHome.getByRole("link", { name: "Report readiness" })).toHaveAttribute("href", "/reports");
-      await expect(uploadHome.getByRole("heading", { name: "Recent session timeline" })).toBeVisible();
-      await expect(uploadHome.getByRole("heading", { name: "Routine automation" })).toBeVisible();
+      await expect(uploadHome.getByText("Action required: Review required")).toBeVisible();
+      await expect(uploadHome.getByText("Routine automation")).toBeVisible();
 
       const homeBox = await uploadHome.boundingBox();
       const analyticsBox = await page.getByLabel("Dashboard analytics").boundingBox();

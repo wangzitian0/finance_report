@@ -169,6 +169,7 @@ export interface DashboardSnapshot {
 export function useDashboardSnapshot(
   includeRestricted: boolean,
   periodPreset: CockpitPeriodPreset = "1Y",
+  currency?: string,
 ): DashboardSnapshot {
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheetResponse | null>(
     null,
@@ -233,10 +234,17 @@ export function useDashboardSnapshot(
         postedJournalData,
       ] = await Promise.all([
         apiOperation("balance_sheet_reports_balance_sheet_get", {
-          query: { include_restricted: includeRestricted },
+          query: {
+            include_restricted: includeRestricted,
+            ...(currency ? { currency } : {}),
+          },
         }),
         apiOperation("income_statement_reports_income_statement_get", {
-          query: { start_date: incomeStart, end_date: incomeEnd },
+          query: {
+            start_date: incomeStart,
+            end_date: incomeEnd,
+            ...(currency ? { currency } : {}),
+          },
         }),
         apiOperation("get_annualized_income_income_annualized_get"),
         apiOperation("list_restricted_holdings_assets_restricted_get"),
@@ -281,7 +289,7 @@ export function useDashboardSnapshot(
     } finally {
       setLoading(false);
     }
-  }, [includeRestricted, periodPreset]);
+  }, [currency, includeRestricted, periodPreset]);
 
   useEffect(() => {
     fetchData();

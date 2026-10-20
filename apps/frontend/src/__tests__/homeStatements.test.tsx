@@ -81,6 +81,7 @@ describe("Home three-statement entry (EPIC-022 AC22.21.6 & #2548)", () => {
     it("AC-reporting.2548.1 switches reporting period preset and updates three-statement cockpit metrics", () => {
         const onPeriodPresetChange = vi.fn();
         const onIncludeRestrictedChange = vi.fn();
+        const onCurrencyChange = vi.fn();
         render(
             <ThreeStatementNav
                 balanceSheet={sampleBalanceSheet}
@@ -89,10 +90,15 @@ describe("Home three-statement entry (EPIC-022 AC22.21.6 & #2548)", () => {
                 onPeriodPresetChange={onPeriodPresetChange}
                 includeRestricted={false}
                 onIncludeRestrictedChange={onIncludeRestrictedChange}
+                onCurrencyChange={onCurrencyChange}
             />,
         );
 
-        const scopeToggle = screen.getByRole("button", { name: "Toggle restricted holdings scope" });
+        const currencySelect = screen.getByRole("combobox", { name: "Reporting currency" });
+        fireEvent.change(currencySelect, { target: { value: "USD" } });
+        expect(onCurrencyChange).toHaveBeenCalledWith("USD");
+
+        const scopeToggle = screen.getByRole("button", { name: "Include restricted holdings" });
         expect(scopeToggle).toHaveAttribute("aria-pressed", "false");
         expect(scopeToggle).toHaveTextContent("Scope: Liquid");
         fireEvent.click(scopeToggle);

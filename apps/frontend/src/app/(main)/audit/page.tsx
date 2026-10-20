@@ -15,7 +15,8 @@ const DESCRIPTIONS: Record<string, string> = {
   "/confidence": "How trusted each number is — confirmations needed and low-confidence items.",
   "/reconciliation": "How well your statements reconcile, and anything still unmatched.",
   "/journal": "The double-entry ledger behind every figure in your reports.",
-  "/processing": "The status of statements still being parsed or transformed.",
+  "/upload": "Uploaded bank, brokerage, and card statements with extraction status.",
+  "/processing": "In-flight transfer holdings awaiting paired institution statements.",
 };
 
 export default function AuditPage() {

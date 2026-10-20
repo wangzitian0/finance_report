@@ -14,6 +14,7 @@ describe("Audit hub (EPIC-022 AC22.21.3)", () => {
             { name: /Trust/, href: "/confidence" },
             { name: /Reconciliation/, href: "/reconciliation" },
             { name: /Journal/, href: "/journal" },
+            { name: /Statements/, href: "/upload" },
             { name: /Processing/, href: "/processing" },
         ];
         for (const { name, href } of links) {

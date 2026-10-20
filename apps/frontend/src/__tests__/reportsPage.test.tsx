@@ -105,6 +105,14 @@ describe("ReportsPage", () => {
       }
       if (path === "/api/reports/package?") {
         return Promise.resolve({
+          readiness: {
+            state: "blocked",
+            label: "Blocked",
+            action_href: "/attention",
+            blocking_count: 1,
+            blockers: [{ code: "b1", label: "Blocker 1", count: 1, reason: "Needs review" }],
+            input_coverage: { manifest_decision_count: 2, unproven_input_count: 1 },
+          },
           sections: {
             annualized_income_long_term: {
               income: {

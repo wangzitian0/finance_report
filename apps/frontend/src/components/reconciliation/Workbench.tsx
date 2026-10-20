@@ -12,15 +12,7 @@ import {
   formatPercentFromPercentValue,
   percentNumberFromParts,
 } from "@/lib/audit/ratio/format";
-import {
-  ReconciliationMatchListResponse,
-  ReconciliationMatchResponse,
-  ReconciliationStatsResponse,
-  type MoneyValue,
-} from "@/lib/types";
-import type { Schemas } from "@/lib/api-schema";
-
-type AnomalyResponse = Schemas["AnomalyResponse"];
+import type { ReconciliationMatchResponse, MoneyValue } from "@/lib/types";
 
 function formatQueueAmount(value: MoneyValue): string {
   const amount = formatAmount(value, 2);
@@ -29,234 +21,156 @@ function formatQueueAmount(value: MoneyValue): string {
 
 export default function ReconciliationWorkbench() {
   const queryClient = useQueryClient();
-  const [selected, setSelected] = useState<ReconciliationMatchResponse | null>(
-    null,
-  );
+  const [selected, setSelected] = useState<ReconciliationMatchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { data: stats, error: statsError } = useQuery({
     queryKey: ["reconciliation", "stats"],
-    queryFn: () =>
-      apiOperation("reconciliation_stats_reconciliation_stats_get"),
+    queryFn: () => apiOperation("reconciliation_stats_reconciliation_stats_get"),
   });
 
-  const {
-    data: pendingData,
-    isLoading,
-    error: pendingError,
-  } = useQuery({
+  const { data: pendingData, isLoading, error: pendingError } = useQuery({
     queryKey: ["reconciliation", "pending"],
-    queryFn: () =>
-      apiOperation("pending_review_queue_reconciliation_pending_get"),
+    queryFn: () => apiOperation("pending_review_queue_reconciliation_pending_get"),
   });
 
   useEffect(() => {
     if (!pendingData?.items) return;
-
     const items = pendingData.items;
-
     if (items.length === 0) {
-      if (selected !== null) {
-        setSelected(null);
-      }
+      if (selected !== null) setSelected(null);
       return;
     }
-
-    const existingSelection =
-      selected && items.find((item) => item.id === selected.id);
-
-    if (existingSelection) {
-      if (existingSelection !== selected) {
-        setSelected(existingSelection);
-      }
+    const existing = selected && items.find((item) => item.id === selected.id);
+    if (existing) {
+      if (existing !== selected) setSelected(existing);
     } else {
       setSelected(items[0]);
     }
   }, [pendingData, selected]);
 
   useEffect(() => {
-    if (statsError) {
-      setError(`Failed to load reconciliation stats: ${statsError.message}`);
-    } else if (pendingError) {
-      setError(`Failed to load pending matches: ${pendingError.message}`);
-    }
+    if (statsError) setError(`Failed to load reconciliation stats: ${statsError.message}`);
+    else if (pendingError) setError(`Failed to load pending matches: ${pendingError.message}`);
   }, [statsError, pendingError]);
 
   const { data: anomalies = [] } = useQuery({
     queryKey: ["reconciliation", "anomalies", selected?.transaction?.id],
     queryFn: () =>
-      apiOperation(
-        "list_anomalies_reconciliation_transactions__txn_id__anomalies_get",
-        {
-          path: { txn_id: selected!.transaction!.id },
-        },
-      ),
+      apiOperation("list_anomalies_reconciliation_transactions__txn_id__anomalies_get", {
+        path: { txn_id: selected!.transaction!.id },
+      }),
     enabled: !!selected?.transaction?.id,
   });
 
+  const onSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["reconciliation"] });
+    setError(null);
+  };
+
   const runReconciliationMutation = useMutation({
-    mutationFn: () =>
-      apiOperation("run_reconciliation_reconciliation_runs_post", {
-        body: {},
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["reconciliation"] });
-      setError(null);
-    },
-    onError: (err: Error) => {
-      setError(err.message);
-    },
+    mutationFn: () => apiOperation("run_reconciliation_reconciliation_runs_post", { body: {} }),
+    onSuccess,
+    onError: (err: Error) => setError(err.message),
   });
 
   const acceptMatchMutation = useMutation({
     mutationFn: (matchId: string) =>
-      apiOperation(
-        "accept_match_reconciliation_matches__match_id__accept_post",
-        {
-          path: { match_id: matchId },
-        },
-      ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["reconciliation"] });
-      setError(null);
-    },
-    onError: (err: Error) => {
-      setError(`Failed to accept match: ${err.message}`);
-    },
+      apiOperation("accept_match_reconciliation_matches__match_id__accept_post", { path: { match_id: matchId } }),
+    onSuccess,
+    onError: (err: Error) => setError(`Failed to accept match: ${err.message}`),
   });
 
   const rejectMatchMutation = useMutation({
     mutationFn: (matchId: string) =>
-      apiOperation(
-        "reject_match_reconciliation_matches__match_id__reject_post",
-        {
-          path: { match_id: matchId },
-        },
-      ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["reconciliation"] });
-      setError(null);
-    },
-    onError: (err: Error) => {
-      setError(`Failed to reject match: ${err.message}`);
-    },
+      apiOperation("reject_match_reconciliation_matches__match_id__reject_post", { path: { match_id: matchId } }),
+    onSuccess,
+    onError: (err: Error) => setError(`Failed to reject match: ${err.message}`),
   });
 
   const batchAcceptMutation = useMutation({
     mutationFn: (matchIds: string[]) =>
-      apiOperation("batch_accept_reconciliation_batch_accept_post", {
-        body: { match_ids: matchIds },
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["reconciliation"] });
-      setError(null);
-    },
-    onError: (err: Error) => {
-      setError(`Batch accept failed: ${err.message}`);
-    },
+      apiOperation("batch_accept_reconciliation_batch_accept_post", { body: { match_ids: matchIds } }),
+    onSuccess,
+    onError: (err: Error) => setError(`Batch accept failed: ${err.message}`),
   });
 
   const queue = pendingData?.items ?? [];
-  const highScoreIds = queue
-    .filter((m) => m.match_score >= 85)
-    .map((m) => m.id);
-
-  const distribution = useMemo(
-    () => (stats ? Object.entries(stats.score_distribution) : []),
-    [stats],
-  );
-  const maxBucket = useMemo(
-    () => (stats ? Math.max(...Object.values(stats.score_distribution), 1) : 1),
-    [stats],
-  );
-  const matchRateValue =
-    stats?.match_rate == null ? null : String(stats.match_rate);
+  const highScoreIds = queue.filter((m) => m.match_score >= 85).map((m) => m.id);
+  const distribution = useMemo(() => (stats ? Object.entries(stats.score_distribution) : []), [stats]);
+  const maxBucket = useMemo(() => (stats ? Math.max(...Object.values(stats.score_distribution), 1) : 1), [stats]);
+  const matchRateValue = stats?.match_rate == null ? null : String(stats.match_rate);
 
   return (
     <div className="p-6">
       <div className="page-header flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
         <div>
           <h1 className="page-title">Reconciliation Workbench</h1>
-          <p className="page-description">
-            Match statement activity to ledger entries with multi-dimensional
-            scoring
-          </p>
+          <p className="page-description">Match statement activity to ledger entries with multi-dimensional scoring</p>
           <div className="flex flex-wrap gap-2 mt-4">
-            <button
-              onClick={() => runReconciliationMutation.mutate()}
-              disabled={runReconciliationMutation.isPending}
-              className="btn-primary"
-            >
-              {runReconciliationMutation.isPending
-                ? "Running..."
-                : "Run Matching"}
+            <button onClick={() => runReconciliationMutation.mutate()} disabled={runReconciliationMutation.isPending} className="btn-primary">
+              {runReconciliationMutation.isPending ? "Running..." : "Run Matching"}
             </button>
-            <button
-              onClick={() => batchAcceptMutation.mutate(highScoreIds)}
-              disabled={
-                batchAcceptMutation.isPending || highScoreIds.length === 0
-              }
-              className="btn-secondary"
-            >
-              {batchAcceptMutation.isPending
-                ? "Batching..."
-                : "Batch Accept ≥ 85"}
+            <button onClick={() => batchAcceptMutation.mutate(highScoreIds)} disabled={batchAcceptMutation.isPending || highScoreIds.length === 0} className="btn-secondary">
+              {batchAcceptMutation.isPending ? "Batching..." : "Batch Accept ≥ 85"}
             </button>
-            <Link href="/reconciliation/unmatched" className="btn-secondary">
-              Unmatched Studio
-            </Link>
+            <Link href="/reconciliation/unmatched" className="btn-secondary">Unmatched Studio</Link>
+            <Link href="/reconciliation/review-queue" className="btn-secondary">Consistency Checks</Link>
+            <Link href="/upload" className="btn-secondary">Uploaded Statements</Link>
           </div>
           {error && <div className="mt-3 alert-error">{error}</div>}
         </div>
 
         <div className="card p-5 w-full max-w-sm">
-          <div className="text-xs text-muted uppercase tracking-wide">
-            Match Rate
-          </div>
+          <div className="text-xs text-muted uppercase tracking-wide">Match Rate</div>
           <div className="flex items-end gap-2 mt-1">
             <span className="text-3xl font-semibold text-[var(--accent)]">
-              {formatPercentFromPercentValue(matchRateValue, {
-                dp: 1,
-                fallback: "0.0%",
-              })}
+              {formatPercentFromPercentValue(matchRateValue, { dp: 1, fallback: "0.0%" })}
             </span>
             <span className="text-sm text-muted">
-              {stats?.matched_transactions ?? 0} /{" "}
-              {stats?.total_transactions ?? 0}
+              {stats?.matched_transactions ?? 0} / {stats?.total_transactions ?? 0}
             </span>
           </div>
           <div className="mt-3 h-2 rounded-full bg-[var(--background-muted)] overflow-hidden">
-            <div
-              className="h-full bg-[var(--accent)] rounded-full transition-all"
-              style={{
-                width: clampPercentWidthFromPercentValue(matchRateValue),
-              }}
-            />
+            <div className="h-full bg-[var(--accent)] rounded-full transition-all" style={{ width: clampPercentWidthFromPercentValue(matchRateValue) }} />
           </div>
           <div className="grid grid-cols-4 gap-2 mt-4 text-center">
-            <div className="p-2 rounded-md bg-[var(--success-muted)]">
-              <div className="text-xs text-muted">Auto</div>
-              <div className="font-semibold text-[var(--success)]">
-                {stats?.auto_accepted ?? 0}
+            {([
+              ["Auto", stats?.auto_accepted ?? 0, "bg-[var(--success-muted)]", "text-[var(--success)]"],
+              ["Review", stats?.pending_review ?? 0, "bg-[var(--warning-muted)]", "text-[var(--warning)]"],
+              ["None", stats?.unmatched_transactions ?? 0, "bg-[var(--background-muted)]", ""],
+              ["Queue", queue.length, "bg-[var(--accent-muted)]", "text-[var(--accent)]"],
+            ] as const).map(([label, val, bg, fg]) => (
+              <div key={label} className={`p-2 rounded-md ${bg}`}>
+                <div className="text-xs text-muted">{label}</div>
+                <div className={`font-semibold ${fg}`}>{val}</div>
               </div>
+            ))}
+          </div>
+          <div className="mt-3 pt-3 border-t border-[var(--border)]">
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-xs font-semibold">Score Distribution</h2>
+              <span className="text-[11px] text-muted">Confidence bands</span>
             </div>
-            <div className="p-2 rounded-md bg-[var(--warning-muted)]">
-              <div className="text-xs text-muted">Review</div>
-              <div className="font-semibold text-[var(--warning)]">
-                {stats?.pending_review ?? 0}
-              </div>
-            </div>
-            <div className="p-2 rounded-md bg-[var(--background-muted)]">
-              <div className="text-xs text-muted">None</div>
-              <div className="font-semibold">
-                {stats?.unmatched_transactions ?? 0}
-              </div>
-            </div>
-            <div className="p-2 rounded-md bg-[var(--accent-muted)]">
-              <div className="text-xs text-muted">Queue</div>
-              <div className="font-semibold text-[var(--accent)]">
-                {queue.length}
-              </div>
+            <div className="flex flex-wrap items-end gap-2 h-12">
+              {distribution.map(([label, value]) => (
+                <div key={label} className="flex flex-col items-end gap-0.5" style={{ height: "100%" }}>
+                  <div className="flex-1 flex items-end">
+                    <div
+                      className="w-7 rounded-sm bg-[var(--accent)] transition-all"
+                      style={{
+                        height:
+                          value === 0 || maxBucket <= 0
+                            ? "0%"
+                            : `${Math.max(10, percentNumberFromParts(String(value), String(maxBucket), { dp: 0, fallback: 0 }) ?? 0)}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="text-[10px] font-medium">{label}</div>
+                  <div className="text-[10px] text-muted">{value}</div>
+                </div>
+              ))}
+              {!stats && <p className="text-xs text-muted">No data yet</p>}
             </div>
           </div>
         </div>
@@ -282,31 +196,18 @@ export default function ReconciliationWorkbench() {
                 >
                   <div className="flex justify-between items-start gap-2">
                     <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">
-                        {match.transaction?.description ?? "Transaction"}
-                      </p>
-                      <p className="text-xs text-muted">
-                        {match.transaction?.txn_date} ·{" "}
-                        {match.transaction?.direction === "IN" ? "In" : "Out"}
-                      </p>
+                      <p className="font-medium text-sm truncate">{match.transaction?.description ?? "Transaction"}</p>
+                      <p className="text-xs text-muted">{match.transaction?.txn_date} · {match.transaction?.direction === "IN" ? "In" : "Out"}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="text-lg font-semibold text-[var(--accent)]">
-                        {match.match_score}
-                      </div>
-                      <span
-                        className={`badge text-[10px] ${match.status === "auto_accepted" ? "badge-success" : match.status === "pending_review" ? "badge-warning" : "badge-muted"}`}
-                      >
+                      <div className="text-lg font-semibold text-[var(--accent)]">{match.match_score}</div>
+                      <span className={`badge text-[10px] ${match.status === "auto_accepted" ? "badge-success" : match.status === "pending_review" ? "badge-warning" : "badge-muted"}`}>
                         {match.status.replace("_", " ")}
                       </span>
                     </div>
                   </div>
                   <div className="flex justify-between text-xs text-muted mt-2">
-                    <span>
-                      {match.transaction?.amount != null
-                        ? formatQueueAmount(match.transaction.amount)
-                        : "—"}
-                    </span>
+                    <span>{match.transaction?.amount != null ? formatQueueAmount(match.transaction.amount) : "—"}</span>
                     <span>{match.entries?.length ?? 0} entries</span>
                   </div>
                 </button>
@@ -330,35 +231,19 @@ export default function ReconciliationWorkbench() {
                   </span>
                 </div>
                 <div className="text-xl font-semibold mt-1 text-[var(--accent)]">
-                  {selected.transaction?.amount != null
-                    ? formatAmount(selected.transaction.amount, 2)
-                    : "—"}
+                  {selected.transaction?.amount != null ? formatAmount(selected.transaction.amount, 2) : "—"}
                 </div>
-                <p className="text-sm text-muted">
-                  {selected.transaction?.description}
-                </p>
-                <p className="text-xs text-muted">
-                  {selected.transaction?.txn_date} ·{" "}
-                  {selected.transaction?.direction === "IN" ? "In" : "Out"}
-                </p>
+                <p className="text-sm text-muted">{selected.transaction?.description}</p>
+                <p className="text-xs text-muted">{selected.transaction?.txn_date} · {selected.transaction?.direction === "IN" ? "In" : "Out"}</p>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2">
                 {(selected.entries ?? []).map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="p-3 rounded-md border border-[var(--border)]"
-                  >
-                    <div className="text-xs text-[var(--accent)] uppercase tracking-wide">
-                      Ledger Entry
-                    </div>
-                    <p className="font-medium text-sm">
-                      {entry.memo || "Untitled"}
-                    </p>
+                  <div key={entry.id} className="p-3 rounded-md border border-[var(--border)]">
+                    <div className="text-xs text-[var(--accent)] uppercase tracking-wide">Ledger Entry</div>
+                    <p className="font-medium text-sm">{entry.memo || "Untitled"}</p>
                     <p className="text-xs text-muted">{entry.entry_date}</p>
-                    <p className="font-semibold text-[var(--accent)]">
-                      {formatAmount(entry.total_amount, 2)}
-                    </p>
+                    <p className="font-semibold text-[var(--accent)]">{formatAmount(entry.total_amount, 2)}</p>
                   </div>
                 ))}
               </div>
@@ -366,18 +251,12 @@ export default function ReconciliationWorkbench() {
               <div className="p-3 rounded-md bg-[var(--background-muted)]">
                 <p className="font-medium text-sm mb-2">Score Breakdown</p>
                 <div className="space-y-1 text-xs">
-                  {Object.entries(selected.score_breakdown).map(
-                    ([key, value]) => (
-                      <div key={key} className="flex justify-between">
-                        <span className="capitalize text-muted">
-                          {key.replace("_", " ")}
-                        </span>
-                        <span className="font-semibold text-[var(--accent)]">
-                          {formatAmount(value, 1)}
-                        </span>
-                      </div>
-                    ),
-                  )}
+                  {Object.entries(selected.score_breakdown).map(([key, value]) => (
+                    <div key={key} className="flex justify-between">
+                      <span className="capitalize text-muted">{key.replace("_", " ")}</span>
+                      <span className="font-semibold text-[var(--accent)]">{formatAmount(value, 1)}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -390,8 +269,7 @@ export default function ReconciliationWorkbench() {
                   <ul className="mt-1 text-xs space-y-1">
                     {anomalies.map((a) => (
                       <li key={a.anomaly_type}>
-                        <strong className="uppercase">{a.severity}</strong>:{" "}
-                        {a.message}
+                        <strong className="uppercase">{a.severity}</strong>: {a.message}
                       </li>
                     ))}
                   </ul>
@@ -399,61 +277,15 @@ export default function ReconciliationWorkbench() {
               )}
 
               <div className="flex gap-2">
-                <button
-                  onClick={() => acceptMatchMutation.mutate(selected.id)}
-                  disabled={acceptMatchMutation.isPending}
-                  className="btn-primary flex-1"
-                >
+                <button onClick={() => acceptMatchMutation.mutate(selected.id)} disabled={acceptMatchMutation.isPending} className="btn-primary flex-1">
                   {acceptMatchMutation.isPending ? "Accepting..." : "Accept"}
                 </button>
-                <button
-                  onClick={() => rejectMatchMutation.mutate(selected.id)}
-                  disabled={rejectMatchMutation.isPending}
-                  className="btn-secondary flex-1"
-                >
+                <button onClick={() => rejectMatchMutation.mutate(selected.id)} disabled={rejectMatchMutation.isPending} className="btn-secondary flex-1">
                   {rejectMatchMutation.isPending ? "Rejecting..." : "Reject"}
                 </button>
               </div>
             </div>
           )}
-        </div>
-      </div>
-
-      <div className="card p-5 mt-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="font-semibold">Score Distribution</h2>
-          <span className="text-xs text-muted">Confidence bands</span>
-        </div>
-        <div className="flex flex-wrap items-end gap-4 h-24">
-          {distribution.map(([label, value]) => (
-            <div
-              key={label}
-              className="flex flex-col items-end gap-1"
-              style={{ height: "100%" }}
-            >
-              <div className="flex-1 flex items-end">
-                <div
-                  className="w-10 rounded-md bg-[var(--accent)] transition-all"
-                  style={{
-                    height:
-                      value === 0 || maxBucket <= 0
-                        ? "0%"
-                        : `${Math.max(
-                            10,
-                            percentNumberFromParts(
-                              String(value),
-                              String(maxBucket),
-                              { dp: 0, fallback: 0 },
-                            ) ?? 0,
-                          )}%`,
-                  }}
-                />
-              </div>
-              <div className="text-xs font-medium">{label}</div>
-              <div className="text-xs text-muted">{value}</div>
-            </div>
-          ))}
-          {!stats && <p className="text-sm text-muted">No data yet</p>}
         </div>
       </div>
     </div>

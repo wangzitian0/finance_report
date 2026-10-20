@@ -56,8 +56,9 @@ export interface UseDashboardDataResult {
 export function useDashboardData(
   includeRestricted: boolean,
   periodPreset: CockpitPeriodPreset = "1Y",
+  currency?: string,
 ): UseDashboardDataResult {
-  const snapshot = useDashboardSnapshot(includeRestricted, periodPreset);
+  const snapshot = useDashboardSnapshot(includeRestricted, periodPreset, currency);
   const { trend, trendAccountName, trendAccountId, setTrendAccountId } = useAssetTrend(
     snapshot.balanceSheet,
   );

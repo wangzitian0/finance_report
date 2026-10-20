@@ -9,7 +9,7 @@ import type { WorkflowEventResponse, WorkflowEventStatus } from "@/lib/types";
 import { formatEventTime, humanizeWorkflowText, labelFromSnake, severityBadgeVariant, severityIcon, workflowEventCardClass } from "./workflowFormat";
 
 /**
- * Single event card + a titled group of cards (was inline in
+ * Single workflow event card (extracted from
  * components/workflow/WorkflowNotifications.tsx, #1868 S5 PR-C).
  */
 
@@ -68,19 +68,5 @@ export function WorkflowEventCard({
         </div>
       </div>
     </article>
-  );
-}
-
-export function WorkflowEventGroup({ title, events }: { title: string; events: WorkflowEventResponse[] }) {
-  if (events.length === 0) return null;
-  return (
-    <section className="space-y-1.5" aria-label={title}>
-      <h3 className="text-xs font-semibold">{title}</h3>
-      <div className="space-y-1.5">
-        {events.map((event) => (
-          <WorkflowEventCard key={event.id} event={event} />
-        ))}
-      </div>
-    </section>
   );
 }

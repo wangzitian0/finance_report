@@ -9,17 +9,12 @@ import {
   ThreeStatementNav,
   type CockpitPeriodPreset,
 } from "@/components/home/ThreeStatementNav";
-import { OnboardingGuideCard } from "@/components/home/OnboardingGuideCard";
-import { HomeNetWorthBanner } from "@/components/home/HomeNetWorthBanner";
-import { HomeIncomeCards } from "@/components/home/HomeIncomeCards";
 import { HomeAnalyticsSection } from "@/components/home/HomeAnalyticsSection";
 
 import { formatMonthLabel } from "@/lib/date";
 import {
   amountToChartNumber,
   compareAmounts,
-  subtractAmounts,
-  toDecimal,
 } from "@/lib/audit/money";
 import { useDashboardData } from "@/hooks/useDashboardData";
 
@@ -34,6 +29,7 @@ const CHART_PALETTE = [
 export default function HomePage() {
   const [includeRestricted, setIncludeRestricted] = useState(false);
   const [periodPreset, setPeriodPreset] = useState<CockpitPeriodPreset>("1Y");
+  const [selectedCurrency, setSelectedCurrency] = useState<string>("");
 
   // Slice 3 of #751: dashboard aggregation + normalization live in the hook
   // layer; the route composes the returned data.
@@ -55,16 +51,11 @@ export default function HomePage() {
     loading,
     error,
     retry: fetchData,
-  } = useDashboardData(includeRestricted, periodPreset);
-
-  const netAssets = useMemo(() => {
-    return balanceSheet
-      ? subtractAmounts(
-          balanceSheet.total_assets ?? 0,
-          balanceSheet.total_liabilities ?? 0,
-        )
-      : toDecimal("0");
-  }, [balanceSheet]);
+  } = useDashboardData(
+    includeRestricted,
+    periodPreset,
+    selectedCurrency || undefined,
+  );
 
   const trendPoints = useMemo(
     () =>
@@ -113,7 +104,7 @@ export default function HomePage() {
     <div className="p-6">
       {/* EPIC-022 AC22.21.6: the three statements are the product — lead with a
           segmented entry into each, deep-linking to the full report. */}
-      <div className="mb-6">
+      <div className="mb-4">
         <ThreeStatementNav
           balanceSheet={balanceSheet}
           incomeStatement={incomeStatement}
@@ -121,14 +112,16 @@ export default function HomePage() {
           onPeriodPresetChange={setPeriodPreset}
           includeRestricted={includeRestricted}
           onIncludeRestrictedChange={setIncludeRestricted}
+          onCurrencyChange={setSelectedCurrency}
+          onboardingStatus={onboardingStatus}
         />
       </div>
 
-      <div className="mb-6">
+      <div className="mb-4">
         <UploadToReportHomePanel />
       </div>
 
-      <div className="mb-6">
+      <div className="mb-4">
         <TrustMeter
           statements={loading ? null : statements}
           stats={stats}
@@ -136,38 +129,15 @@ export default function HomePage() {
       </div>
 
       {advisorSuggestions.length > 0 ? (
-        <div className="mb-6">
+        <div className="mb-4">
           <AdvisorBrief suggestions={advisorSuggestions} />
         </div>
       ) : null}
 
       <section className="mb-6" aria-label="Dashboard analytics">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">Financial analytics</h2>
-            <p className="text-sm text-muted">
-              Secondary metrics, charts, and reconciliation details
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/reports/balance-sheet"
-              className="btn-secondary text-sm"
-            >
-              Balance Sheet
-            </Link>
-            <Link
-              href="/reports/income-statement"
-              className="btn-secondary text-sm"
-            >
-              Income Statement
-            </Link>
-          </div>
-        </div>
-
         {loading && (
           <div
-            className="card p-5"
+            className="card p-4"
             role="status"
             aria-label="Dashboard analytics loading"
           >
@@ -180,7 +150,7 @@ export default function HomePage() {
 
         {!loading && error && (
           <div
-            className="card p-5"
+            className="card p-4"
             role="alert"
             aria-label="Dashboard analytics unavailable"
           >
@@ -204,37 +174,21 @@ export default function HomePage() {
         )}
 
         {!loading && !error && (
-          <>
-            <OnboardingGuideCard onboardingStatus={onboardingStatus} />
-
-            <HomeNetWorthBanner
-              balanceSheet={balanceSheet}
-              netAssets={netAssets}
-              includeRestricted={includeRestricted}
-              setIncludeRestricted={setIncludeRestricted}
-              stats={stats}
-            />
-
-            <HomeIncomeCards
-              annualizedIncome={annualizedIncome}
-              restrictedHoldings={restrictedHoldings}
-              incomeStatement={incomeStatement}
-            />
-
-            <HomeAnalyticsSection
-              balanceSheet={balanceSheet}
-              stats={stats}
-              recentEntries={recentEntries}
-              unmatched={unmatched}
-              trend={trend}
-              trendAccountName={trendAccountName}
-              trendAccountId={trendAccountId}
-              setTrendAccountId={setTrendAccountId}
-              trendPoints={trendPoints}
-              assetSegments={assetSegments}
-              incomeBars={incomeBars}
-            />
-          </>
+          <HomeAnalyticsSection
+            balanceSheet={balanceSheet}
+            stats={stats}
+            recentEntries={recentEntries}
+            unmatched={unmatched}
+            trend={trend}
+            trendAccountName={trendAccountName}
+            trendAccountId={trendAccountId}
+            setTrendAccountId={setTrendAccountId}
+            trendPoints={trendPoints}
+            assetSegments={assetSegments}
+            incomeBars={incomeBars}
+            annualizedIncome={annualizedIncome}
+            restrictedHoldings={restrictedHoldings}
+          />
         )}
       </section>
     </div>

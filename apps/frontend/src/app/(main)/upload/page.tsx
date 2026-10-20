@@ -194,39 +194,6 @@ export default function UploadPage() {
         />
       </div>
 
-      {/* CSV import — separate because non-standard column headers need
-                their own server-side mapping. Folded by default. */}
-      <details className="card mb-3 group">
-        <summary className="card-header flex items-center justify-between cursor-pointer list-none">
-          <span className="text-sm font-medium">CSV import</span>
-          <span className="text-xs text-muted">
-            Non-standard columns are mapped automatically
-          </span>
-        </summary>
-        <div className="card-body">
-          <StatementUploader
-            kind="csv"
-            onUploadComplete={refreshStatements}
-            onError={setError}
-          />
-        </div>
-      </details>
-
-      {/* Manual records — assets no statement can verify (ESOP/RSU,
-                property, …). Trusted because the user supplied them; clearly
-                labelled as manual. Folded by default. */}
-      <details className="card mb-6 group">
-        <summary className="card-header flex items-center justify-between cursor-pointer list-none">
-          <span className="text-sm font-medium">Manual records</span>
-          <span className="text-xs text-muted">
-            ESOP / RSU, property, and other manual-trusted evidence
-          </span>
-        </summary>
-        <div className="card-body">
-          <GuidedEvidenceForm />
-        </div>
-      </details>
-
       {/* Error Display */}
       {error && (
         <Alert variant="error" className="mb-4">
@@ -259,7 +226,7 @@ export default function UploadPage() {
       )}
 
       {/* Statements List */}
-      <div className="card">
+      <div className="card mb-6">
         <div className="card-header flex items-center justify-between">
           <h3 className="text-sm font-medium">Uploaded Statements</h3>
           <div className="flex items-center gap-3">
@@ -439,6 +406,39 @@ export default function UploadPage() {
           </div>
         )}
       </div>
+
+      {/* CSV import — separate because non-standard column headers need
+                their own server-side mapping. Folded by default. */}
+      <details className="card mb-3 group">
+        <summary className="card-header flex items-center justify-between cursor-pointer list-none">
+          <span className="text-sm font-medium">CSV import</span>
+          <span className="text-xs text-muted">
+            Non-standard columns are mapped automatically
+          </span>
+        </summary>
+        <div className="card-body">
+          <StatementUploader
+            kind="csv"
+            onUploadComplete={refreshStatements}
+            onError={setError}
+          />
+        </div>
+      </details>
+
+      {/* Manual records — assets no statement can verify (ESOP/RSU,
+                property, …). Trusted because the user supplied them; clearly
+                labelled as manual. Folded by default. */}
+      <details className="card mb-6 group">
+        <summary className="card-header flex items-center justify-between cursor-pointer list-none">
+          <span className="text-sm font-medium">Manual records</span>
+          <span className="text-xs text-muted">
+            ESOP / RSU, property, and other manual-trusted evidence
+          </span>
+        </summary>
+        <div className="card-body">
+          <GuidedEvidenceForm />
+        </div>
+      </details>
 
       <ConfirmDialog
         isOpen={deleteDialogOpen}

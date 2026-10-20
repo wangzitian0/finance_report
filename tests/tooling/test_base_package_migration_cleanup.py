@@ -29,7 +29,7 @@ FRONTEND_PERCENT_FILES = [
     Path("apps/frontend/src/components/portfolio/AllocationChart.tsx"),
     Path("apps/frontend/src/app/(main)/portfolio/page.tsx"),
     Path("apps/frontend/src/app/(main)/portfolio/[ticker]/page.tsx"),
-    Path("apps/frontend/src/components/home/HomeNetWorthBanner.tsx"),
+    Path("apps/frontend/src/components/home/ThreeStatementNav.tsx"),
     Path("apps/frontend/src/app/(main)/reports/page.tsx"),
     Path("apps/frontend/src/components/reconciliation/Workbench.tsx"),
 ]
@@ -276,3 +276,17 @@ def test_AC12_31_7_backend_quantity_value_type_handles_storage_edges():
         Quantity(0.1, "units")
     with pytest.raises(FloatNotAllowedError):
         Quantity(True, "units")
+
+
+def test_legacy_duplicate_home_components_remain_deleted():
+    """Guard that redundant legacy Home KPI/onboarding components remain deleted."""
+    deleted_paths = [
+        Path("apps/frontend/src/components/home/HomeNetWorthBanner.tsx"),
+        Path("apps/frontend/src/components/home/HomeIncomeCards.tsx"),
+        Path("apps/frontend/src/components/home/OnboardingGuideCard.tsx"),
+    ]
+    for rel_path in deleted_paths:
+        assert not (REPO / rel_path).exists(), (
+            f"Redundant Home component {rel_path} must stay deleted; "
+            "ThreeStatementNav is the single Home statement surface."
+        )
