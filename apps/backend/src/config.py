@@ -438,7 +438,7 @@ class Settings(BaseSettings):
         default=None,
         validation_alias="FALLBACK_MODELS",
         description="Comma-separated fallback AI model ids.",
-        json_schema_extra={"group": "AI Provider", "example": "glm-5.2,glm-5-turbo"},
+        json_schema_extra={"group": "AI Provider", "example": "glm-5.3-flashx"},
     )
     vision_fallback_models_str: str | None = Field(
         default=None,
@@ -448,7 +448,7 @@ class Settings(BaseSettings):
             "must be vision-capable because the vision request carries image "
             "content; the text-only FALLBACK_MODELS are not reused here (#1034)."
         ),
-        json_schema_extra={"group": "AI Provider", "example": "glm-5.3-flash,glm-4.6v"},
+        json_schema_extra={"group": "AI Provider", "example": "glm-5.3-flash"},
     )
     # EPIC-019: when set, upload→report parsing is submitted as a durable Prefect
     # flow run instead of an in-process asyncio task. Unset (CI/local/preview) →
@@ -487,9 +487,9 @@ class Settings(BaseSettings):
     # reconcile and sometimes not. Set AI_JSON_SEED= (empty) to omit it for
     # providers that reject the field.
     # Off by default: Z.AI/GLM validates request params strictly and `seed` is
-    # NOT accepted by all models (e.g. glm-4.6v, a vision/OCR fallback,
-    # returns HTTP 400 for it) — sending it unconditionally would break vision
-    # extraction. Opt in only for seed-supporting models (e.g. GLM-5.1).
+    # NOT accepted by all models (an older vision model returned HTTP 400 for it),
+    # so sending it unconditionally can break vision extraction. Opt in only for
+    # models that accept a seed.
     # Determinism otherwise rests on temperature=0 / do_sample=false plus the
     # balance-aware self-consistency retry (#989).
     ai_json_seed: int | None = Field(
@@ -847,13 +847,7 @@ class Settings(BaseSettings):
     @cached_property
     def fallback_models(self) -> list[str]:
         """Parse fallback models from env string or use defaults."""
-        return parse_comma_list(
-            self.fallback_models_str,
-            [
-                "glm-5.2",
-                "glm-5-turbo",
-            ],
-        )
+        return parse_comma_list(self.fallback_models_str, ["glm-5.3-flashx"])
 
     @cached_property
     def vision_fallback_models(self) -> list[str]:
@@ -863,15 +857,9 @@ class Settings(BaseSettings):
         vision-capable; the text-only ``FALLBACK_MODELS`` are intentionally not
         reused here (#1034). The defaults retain compatible vision models so
         a non-retryable failure of the primary vision model does not fail the
-        whole upload.
+        whole upload. Every default is an approved model id (``src.llm.model_policy``, #2566).
         """
-        return parse_comma_list(
-            self.vision_fallback_models_str,
-            [
-                "glm-5.3-flash",
-                "glm-4.6v",
-            ],
-        )
+        return parse_comma_list(self.vision_fallback_models_str, ["glm-5.3-flash"])
 
     @cached_property
     def llm_encryption_key_list(self) -> list[str]:

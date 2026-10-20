@@ -79,11 +79,11 @@ async def test_default_glm_models_reach_scene_bindings(monkeypatch):
     for scene in (Scene.EXTRACTION_JSON, Scene.ADVISOR_CHAT, Scene.STATEMENT_SUMMARY):
         binding = await source.get_binding(scene)
         assert binding.model_id == "glm-5.3-flash"
-        assert binding.fallback_model_ids == ("glm-5.2", "glm-5-turbo")
+        assert binding.fallback_model_ids == ("glm-5.3-flashx",)
     for scene in (Scene.EXTRACTION_VISION, Scene.EXTRACTION_OCR):
         binding = await source.get_binding(scene)
         assert binding.model_id == "glm-5.3-flashx"
-        assert binding.fallback_model_ids == ("glm-5.3-flash", "glm-4.6v")
+        assert binding.fallback_model_ids == ("glm-5.3-flash",)
 
 
 @pytest.mark.no_db

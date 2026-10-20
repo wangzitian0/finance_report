@@ -482,6 +482,10 @@ CONTRACT = PackageContract(
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
         ac('AC-llm.fe-ai-settings2.1', 'Settings page `/settings/ai` exposes toggles for `enable_ai_reconciliation`, `enable_ai_classification`, persisted via `PATCH /api/users/me/settings`; toggle reflects backend feature-flag state on load', 'apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.5 — Settings AI toggles persist', priority='P2'),
         ac('AC-llm.fe-ai-settings2.2', 'Frontend tests: mount ConfidenceBadge for each tier; mount AI Suggestion Queue and assert Accept/Reject buttons render; mount Settings AI toggles and assert default state matches API', 'apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.7 — AI settings mount reflects saved toggles', priority='P2'),
+        # ── approved model ids for every slot (#2566) ──
+        ac('AC-llm.approved-models.1', 'Every default model slot (PRIMARY_MODEL, VISION_MODEL, OCR_MODEL, FALLBACK_MODELS, VISION_FALLBACK_MODELS) is in src.llm.model_policy.APPROVED_MODEL_IDS = {glm-5.3-flash, glm-5.3-flashx}; each fallback list adds the other approved model (#2566).', 'apps/backend/tests/llm/test_model_policy.py::test_AC_llm_approved_models_1_every_default_slot_is_approved', priority='P0', proof_kind='property'),
+        ac('AC-llm.approved-models.2', 'config.py, .env.example, the generated env reference, the extraction and CI/CD docs and every workflow name no GLM model id outside APPROVED_MODEL_IDS (#2566).', 'tests/tooling/test_model_policy_surfaces.py::test_AC_llm_approved_models_2_config_surfaces_name_only_approved_models', priority='P0', proof_kind='property'),
+        ac('AC-llm.approved-models.3', 'The deployed GET /api/llm/catalog lists at least one model and only APPROVED_MODEL_IDS (staging provider gate, #2566).', 'tests/e2e/test_ai_provider_connectivity.py::test_deployed_catalog_lists_only_approved_models', priority='P0', proof_kind='property'),
     ],
     concepts=[
         ConceptRecord(

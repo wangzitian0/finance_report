@@ -661,14 +661,14 @@ AI_LAYOUT_PARSING_PATH=/layout_parsing
 PRIMARY_MODEL=glm-5.3-flash
 OCR_MODEL=glm-5.3-flashx
 VISION_MODEL=glm-5.3-flashx
-FALLBACK_MODELS=glm-5.2,glm-5-turbo
-VISION_FALLBACK_MODELS=glm-5.3-flash,glm-4.6v
+FALLBACK_MODELS=glm-5.3-flashx
+VISION_FALLBACK_MODELS=glm-5.3-flash
 AI_JSON_TIMEOUT_SECONDS=360
 AI_JSON_MAX_TOKENS=8192
 AI_JSON_DISABLE_THINKING=true
 STATEMENT_DISPOSITION_MODE=enforce
-# Optional; off by default. Only set for seed-supporting models (e.g. GLM-5.1) —
-# glm-4.6v rejects `seed` with HTTP 400.
+# Optional; off by default. Only set for models that accept a seed;
+# an older vision model rejected `seed` with HTTP 400.
 AI_JSON_SEED=
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minio
@@ -707,8 +707,8 @@ Persistence checkpoints use the actual canonical statement/source identities.
   between uploads of the same source (#989). An optional fixed request `seed`
   (`AI_JSON_SEED`) can further pin decoding, but it is **off by default**: Z.AI/GLM
   validates request params strictly and `seed` is rejected by some models
-  (notably `glm-4.6v`, the default vision/OCR model, returns HTTP 400), so it is
-  only safe to set for seed-supporting models such as GLM-5.1.
+  (an older vision model returned HTTP 400), so it is only safe to set for
+  models that accept a seed.
 - **Balance-aware self-consistency re-extract**: when a bank statement's
   running-balance chain fails to reconcile, `_extract_with_balance_retry`
   re-extracts up to `AI_EXTRACT_MAX_ATTEMPTS` times (each with a varied seed —
@@ -787,8 +787,8 @@ slice is registered.
 - **Manual override**: a selected image-capable model bypasses the default OCR path and is used directly as a vision chat model. Selecting the shared `OCR_MODEL` uses the same vision OCR model.
 - **Retry**: `/api/statements/{id}/retry` accepts a model override; omitted uses OCR-first mode.
 - **Catalog**: `/api/llm/catalog` returns the configured provider catalog for UI dropdowns (filterable by modality). _(EPIC-023: supersedes the retired `/api/ai/models`.)_
-- **Fallback models (text path)**: `FALLBACK_MODELS` (default `glm-5.2,glm-5-turbo`) are attempted after OCR text extraction when `PRIMARY_MODEL` fails. These structure OCR Markdown and are text-only.
-- **Fallback models (vision path)**: `VISION_FALLBACK_MODELS` (default `glm-5.3-flash,glm-4.6v`) are appended after the primary OCR/vision model on the vision/image path, deduplicated and order-preserving. Because the vision request carries image content, these fallbacks must be vision-capable; the text-only `FALLBACK_MODELS` are intentionally **not** reused here. A non-retryable failure of the primary vision model (e.g. a provider `400`) therefore falls through to a secondary vision model before the upload is rejected with `ERR_EXT_003` (#1034). Set `VISION_FALLBACK_MODELS` empty to keep the prior single-model behavior.
+- **Fallback models (text path)**: `FALLBACK_MODELS` (default `glm-5.3-flashx`) are attempted after OCR text extraction when `PRIMARY_MODEL` fails. These structure OCR Markdown and are text-only.
+- **Fallback models (vision path)**: `VISION_FALLBACK_MODELS` (default `glm-5.3-flash`) are appended after the primary OCR/vision model on the vision/image path, deduplicated and order-preserving. Because the vision request carries image content, these fallbacks must be vision-capable; the text-only `FALLBACK_MODELS` are intentionally **not** reused here. A non-retryable failure of the primary vision model (e.g. a provider `400`) therefore falls through to a secondary vision model before the upload is rejected with `ERR_EXT_003` (#1034). Set `VISION_FALLBACK_MODELS` empty to keep the prior single-model behavior.
 
 ## Data Integrity & Typing
 
