@@ -10,7 +10,7 @@ Examples::
 
     OPENPANEL_API_KEY=... python openpanel_query.py events --env staging
     OPENPANEL_API_KEY=... python openpanel_query.py funnel \\
-        --steps screen_view,upload_clicked --env production
+        --preset core-funnel --env production --format markdown
 
 The default API base mirrors the self-hosted instance used by
 ``components/Analytics.tsx`` (``https://openpanel.zitian.party/api``); override
@@ -26,12 +26,26 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Sequence
+from typing import Mapping, Sequence
 
 DEFAULT_API_URL = "https://openpanel.zitian.party/api"
 API_KEY_ENV = "OPENPANEL_API_KEY"
 API_URL_ENV = "OPENPANEL_API_URL"
 _LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
+FUNNEL_PRESETS: dict[str, tuple[str, ...]] = {
+    "core-funnel": (
+        "upload_started",
+        "upload_succeeded",
+        "review_approved",
+        "report_generated",
+    ),
+    "activation": (
+        "upload_started",
+        "upload_succeeded",
+        "report_generated",
+    ),
+}
 
 
 def _is_loopback(host: str) -> bool:
@@ -69,6 +83,22 @@ def resolve_api_key(env: dict[str, str] | None = None) -> str:
     return key
 
 
+def resolve_funnel_steps(args: argparse.Namespace) -> list[str]:
+    """Resolve funnel steps from ``--preset`` or ``--steps``."""
+    preset = getattr(args, "preset", None)
+    raw_steps = getattr(args, "steps", None)
+    if preset:
+        if preset not in FUNNEL_PRESETS:
+            raise SystemExit(f"error: unknown funnel preset {preset!r}")
+        return list(FUNNEL_PRESETS[preset])
+    steps = [stripped for s in (raw_steps or "").split(",") if (stripped := s.strip())]
+    if len(steps) < 2:
+        raise SystemExit(
+            "error: funnel requires at least 2 steps via --steps or --preset."
+        )
+    return steps
+
+
 def build_payload(args: argparse.Namespace) -> dict[str, object]:
     """Build the JSON request body for the selected subcommand.
 
@@ -84,10 +114,49 @@ def build_payload(args: argparse.Namespace) -> dict[str, object]:
     if args.command == "events":
         payload["event"] = args.event or "*"
     elif args.command == "funnel":
-        payload["steps"] = [
-            stripped for s in (args.steps or "").split(",") if (stripped := s.strip())
-        ]
+        payload["steps"] = resolve_funnel_steps(args)
     return payload
+
+
+def format_markdown_summary(
+    result: Mapping[str, object], *, command: str, env: str | None = None
+) -> str:
+    """Format an OpenPanel events or funnel response as a Markdown summary table."""
+    scope = f" ({env})" if env else ""
+    if command == "funnel":
+        rows = result.get("steps") or result.get("data") or []
+        lines = [
+            f"### OpenPanel Funnel Summary{scope}",
+            "",
+            "| Step | Event | Count | Conversion |",
+            "|---|---|---|---|",
+        ]
+        if isinstance(rows, list) and rows:
+            first_count = 0
+            for idx, item in enumerate(rows, start=1):
+                if not isinstance(item, Mapping):
+                    continue
+                name = str(item.get("event") or item.get("name") or f"step_{idx}")
+                count = int(item.get("count") or item.get("value") or 0)
+                if idx == 1:
+                    first_count = count
+                pct = (
+                    round((count / first_count) * 100.0, 1)
+                    if first_count > 0
+                    else (100.0 if count > 0 else 0.0)
+                )
+                lines.append(f"| {idx} | `{name}` | {count} | {pct}% |")
+        else:
+            lines.append("| - | (no funnel steps returned) | 0 | 0.0% |")
+        return "\n".join(lines)
+
+    events = result.get("events") or result.get("data") or []
+    lines = [
+        f"### OpenPanel Events Summary{scope}",
+        "",
+        f"Total returned: {len(events) if isinstance(events, list) else 0}",
+    ]
+    return "\n".join(lines)
 
 
 def post_json(
@@ -145,6 +214,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--limit", type=int, default=100, help="Maximum rows to return (default: 100)."
     )
+    parser.add_argument(
+        "--format",
+        choices=("json", "markdown"),
+        default="json",
+        help="Output format (default: json).",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     events = sub.add_parser("events", help="List captured events.")
@@ -155,8 +230,14 @@ def build_parser() -> argparse.ArgumentParser:
     funnel = sub.add_parser("funnel", help="Compute a conversion funnel.")
     funnel.add_argument(
         "--steps",
-        required=True,
+        default=None,
         help="Comma-separated ordered event names making up the funnel.",
+    )
+    funnel.add_argument(
+        "--preset",
+        choices=tuple(FUNNEL_PRESETS),
+        default=None,
+        help="Named funnel preset (e.g. core-funnel or activation).",
     )
     return parser
 
@@ -170,8 +251,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     except urllib.error.URLError as exc:  # pragma: no cover - network failure path
         print(f"error: OpenPanel request failed: {exc}", file=sys.stderr)
         return 1
-    json.dump(result, sys.stdout, indent=2, sort_keys=True)
-    sys.stdout.write("\n")
+    if getattr(args, "format", "json") == "markdown":
+        sys.stdout.write(
+            format_markdown_summary(result, command=args.command, env=args.env) + "\n"
+        )
+    else:
+        json.dump(result, sys.stdout, indent=2, sort_keys=True)
+        sys.stdout.write("\n")
     return 0
 
 
