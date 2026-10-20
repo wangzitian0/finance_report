@@ -108,22 +108,22 @@ export function ThreeStatementNav({
     };
 
     const currency =
-        balanceSheet?.currency ?? incomeStatement?.currency ?? "SGD";
+        balanceSheet?.currency || incomeStatement?.currency || "SGD";
 
     const netPositionText = useMemo(() => {
         if (!balanceSheet) return null;
         const net = subtractAmounts(
-            balanceSheet.total_assets ?? "0",
-            balanceSheet.total_liabilities ?? "0",
+            balanceSheet.total_assets,
+            balanceSheet.total_liabilities,
         );
         const assets = formatCurrencyLocale(
-            balanceSheet.total_assets ?? "0",
+            balanceSheet.total_assets,
             currency,
             "en-US",
             FMT_OPTS,
         );
         const debt = formatCurrencyLocale(
-            balanceSheet.total_liabilities ?? "0",
+            balanceSheet.total_liabilities,
             currency,
             "en-US",
             FMT_OPTS,
@@ -139,11 +139,8 @@ export function ThreeStatementNav({
 
     const incomeSummaryText = useMemo(() => {
         if (!incomeStatement) return null;
-        const totalIn = toDecimal(incomeStatement.total_income ?? "0");
-        const totalOut = toDecimal(incomeStatement.total_expenses ?? "0");
-        const net = toDecimal(
-            incomeStatement.net_income ?? totalIn.minus(totalOut).toString(),
-        );
+        const totalIn = toDecimal(incomeStatement.total_income);
+        const net = toDecimal(incomeStatement.net_income);
         const savingsRate = totalIn.greaterThan(0)
             ? `${Math.round(net.dividedBy(totalIn).times(100).toNumber())}%`
             : "0%";
@@ -152,14 +149,14 @@ export function ThreeStatementNav({
     }, [incomeStatement, currency]);
 
     const cashSummaryText = useMemo(() => {
-        if (!balanceSheet && !incomeStatement) return null;
-        const cashAssets = (balanceSheet?.assets ?? []).filter((a) =>
+        if (!balanceSheet) return null;
+        const cashAssets = balanceSheet.assets.filter((a) =>
             /cash|bank|checking|saving|multiplier|wallet/i.test(a.name),
         );
         const liquidTotal = (
-            cashAssets.length > 0 ? cashAssets : (balanceSheet?.assets ?? [])
+            cashAssets.length > 0 ? cashAssets : balanceSheet.assets
         ).reduce(
-            (acc, row) => acc.plus(toDecimal(row.amount ?? "0")),
+            (acc, row) => acc.plus(toDecimal(row.amount)),
             toDecimal("0"),
         );
         const liquidFmt = formatCurrencyLocale(
@@ -169,25 +166,26 @@ export function ThreeStatementNav({
             FMT_OPTS,
         );
         return `Liquid cash ${liquidFmt}`;
-    }, [balanceSheet, incomeStatement, currency]);
+    }, [balanceSheet, currency]);
 
     const breakdownLines: ReportLine[] = useMemo(() => {
-        if (activeTab === "balance") {
+        if (activeTab === "balance" && balanceSheet) {
             return [
-                ...(balanceSheet?.assets ?? []),
-                ...(balanceSheet?.liabilities ?? []),
+                ...balanceSheet.assets,
+                ...balanceSheet.liabilities,
             ].slice(0, 6);
         }
-        if (activeTab === "income") {
+        if (activeTab === "income" && incomeStatement) {
             return [
-                ...(incomeStatement?.income ?? []),
-                ...(incomeStatement?.expenses ?? []),
+                ...incomeStatement.income,
+                ...incomeStatement.expenses,
             ].slice(0, 6);
         }
-        const cashRows = (balanceSheet?.assets ?? []).filter((a) =>
+        if (!balanceSheet) return [];
+        const cashRows = balanceSheet.assets.filter((a) =>
             /cash|bank|checking|saving|multiplier|wallet/i.test(a.name),
         );
-        return (cashRows.length > 0 ? cashRows : (balanceSheet?.assets ?? [])).slice(
+        return (cashRows.length > 0 ? cashRows : balanceSheet.assets).slice(
             0,
             6,
         );
