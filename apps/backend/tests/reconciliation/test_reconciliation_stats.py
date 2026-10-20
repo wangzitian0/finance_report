@@ -297,7 +297,7 @@ async def test_AC_reconciliation_2561_1_run_after_statement_posting_creates_no_s
     candidates = await repo.list_journal_candidates(
         user_id=test_user.id, start_date=txn.txn_date, end_date=txn.txn_date
     )
-    assert len(candidates) == 1
+    assert {candidate.source_id for candidate in candidates} == {txn.id}
     # The exclusion removes the row from the pending list, so the run cannot use that candidate.
     pending_ids = {row.id for row in await repo.list_pending_transactions(test_user.id)}
     assert txn.id not in pending_ids

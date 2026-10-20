@@ -498,7 +498,7 @@ retaining uniqueness for current non-rejected matches.
 
 Queues, automatic candidates, and direct reviewed dispositions use extraction-owned current source membership; preserved historical facts from retired or replaced results remain evidence, not actionable transactions.
 
-## Scoring, exclusivity, stats, and anomaly guardrails (#2457, #2548)
+## Scoring, exclusivity, stats, and anomaly guardrails (#2457, #2548, #2561)
 
 - **Unicode/CJK and truncated memo scoring (`AC-reconciliation.2548.1`)**: `normalize_text` preserves Unicode word tokens and extracts character bigrams for contiguous CJK sequences (`\u4e00-\u9fff`). Single-entry candidate scoring compares `fit_journal_memo(transaction.description)` against `entry.memo` so >500-character descriptions truncated on ledger write match at 100% description similarity.
 - **Candidate exclusivity (`AC-reconciliation.2548.2`)**: `list_journal_candidates` excludes journal entries already claimed by an active `ReconciliationMatch` (`AUTO_ACCEPTED`, `ACCEPTED`, `PENDING_REVIEW`), and `run_normal_matching_phase` tracks `consumed_entry_ids` within each batch so two same-day identical-amount transactions never claim the same single journal entry.

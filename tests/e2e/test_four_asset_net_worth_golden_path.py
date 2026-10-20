@@ -388,6 +388,7 @@ async def test_four_asset_as_of_net_worth_golden_path(
             "unmatched": 0,
         }
 
+        # A rerun stays a no-op: it creates no match and leaves no row unmatched.
         second_reconciliation = await client.post(
             _api_url("/reconciliation/runs"),
             json={"statement_id": bank_statement_id},
