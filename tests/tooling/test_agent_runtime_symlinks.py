@@ -29,7 +29,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-CANONICAL_SKILLS = ROOT / "skills"
+CANONICAL_SKILLS = ROOT / ".agents" / "skills"
 # Runtimes that mirror the canonical skill library via materialized directories
 # (Claude Code reads .claude/skills, Codex reads .codex/skills, agy reads
 # .agents/skills — all project-level and discovered on clone).
@@ -123,7 +123,7 @@ def test_instruction_mirrors_exempt_from_ssot_ownership_check() -> None:
 def test_every_canonical_skill_is_mirrored() -> None:
     """Every canonical skill exists as a materialized directory in each mirror."""
     leaves = _canonical_leaf_skill_dirs()
-    assert leaves, "expected to discover skills/**/SKILL.md leaves"
+    assert leaves, "expected to discover .agents/skills/**/SKILL.md leaves"
 
     for runtime, skills_dir in MIRROR_SKILL_DIRS.items():
         for name, leaf in sorted(leaves.items()):
