@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+  resolvePeriodRange,
+  type CockpitPeriodPreset,
+} from "@/components/home/ThreeStatementNav";
 import { apiOperation } from "@/lib/api-client";
 import type { components } from "@/lib/api-types";
 import type { AttentionSources } from "@/lib/attention";
-import { formatDateInput } from "@/lib/date";
 import {
   normalizeAdvisorSuggestions,
   normalizeFxWarningRows,
@@ -165,6 +168,7 @@ export interface DashboardSnapshot {
 
 export function useDashboardSnapshot(
   includeRestricted: boolean,
+  periodPreset: CockpitPeriodPreset = "1Y",
 ): DashboardSnapshot {
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheetResponse | null>(
     null,
@@ -194,10 +198,10 @@ export function useDashboardSnapshot(
 
   const fetchData = useCallback(async () => {
     const today = new Date();
-    const incomeStart = formatDateInput(
-      new Date(today.getFullYear(), today.getMonth() - 11, 1),
+    const { startDate: incomeStart, endDate: incomeEnd } = resolvePeriodRange(
+      periodPreset,
+      today,
     );
-    const incomeEnd = formatDateInput(today);
     setLoading(true);
     void apiOperation("suggestions_chat_suggestions_get", {
       query: { language: "en", include_structured: true },
@@ -273,7 +277,7 @@ export function useDashboardSnapshot(
     } finally {
       setLoading(false);
     }
-  }, [includeRestricted]);
+  }, [includeRestricted, periodPreset]);
 
   useEffect(() => {
     fetchData();

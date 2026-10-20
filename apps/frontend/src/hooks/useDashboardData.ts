@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 
+import type { CockpitPeriodPreset } from "@/components/home/ThreeStatementNav";
 import { useAssetTrend } from "@/hooks/dashboard/useAssetTrend";
 import {
   useDashboardSnapshot,
@@ -52,8 +53,11 @@ export interface UseDashboardDataResult {
   retry: () => void;
 }
 
-export function useDashboardData(includeRestricted: boolean): UseDashboardDataResult {
-  const snapshot = useDashboardSnapshot(includeRestricted);
+export function useDashboardData(
+  includeRestricted: boolean,
+  periodPreset: CockpitPeriodPreset = "1Y",
+): UseDashboardDataResult {
+  const snapshot = useDashboardSnapshot(includeRestricted, periodPreset);
   const { trend, trendAccountName, trendAccountId, setTrendAccountId } = useAssetTrend(
     snapshot.balanceSheet,
   );

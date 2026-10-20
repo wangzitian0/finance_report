@@ -94,9 +94,9 @@ async def test_get_reconciliation_stats_basic(db, test_user):
     stats = await get_reconciliation_stats(db, user_id, include_distribution=False)
 
     assert stats.total_transactions == 3
-    # Only accepted/auto-accepted matches count as "matched".
+    # Only accepted/auto-accepted matches count as "matched", and pending_review is not double-counted in unmatched.
     assert stats.matched_transactions == 1
-    assert stats.unmatched_transactions == 2
+    assert stats.unmatched_transactions == 1
     assert stats.pending_review == 1
     assert stats.auto_accepted == 1
 
@@ -264,3 +264,76 @@ async def test_AC_reconciliation_2465_1_statement_posted_rows_count_as_matched(d
     assert after.match_rate == 100.0
     unmatched_rows = (await db.execute(_unmatched_atomic_txn_query(test_user.id))).scalars().all()
     assert unmatched_rows == []
+
+
+async def test_AC_reconciliation_2548_3_stats_unmatched_aligns_with_unmatched_query(db, test_user):
+    """AC-reconciliation.2548.3: stats.unmatched_transactions equals the /reconciliation/unmatched total (#2548)."""
+    from src.extraction import BankStatementStatus, DocumentType, UploadedDocument
+    from src.extraction.orm.statement_summary import StatementSummary
+    from src.routers.reconciliation import _unmatched_atomic_txn_query
+
+    user_id = test_user.id
+    await _make_account(db, user_id)
+
+    retired_doc = UploadedDocument(
+        id=uuid4(),
+        user_id=user_id,
+        file_path="statements/retired.pdf",
+        file_hash=f"retired_{uuid4().hex}",
+        original_filename="retired.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
+    db.add(retired_doc)
+    await db.flush()
+    retired_stmt = StatementSummary(
+        id=uuid4(),
+        user_id=user_id,
+        uploaded_document_id=retired_doc.id,
+        file_hash=retired_doc.file_hash,
+        institution="Bank",
+        currency="SGD",
+        status=BankStatementStatus.RETIRED,
+    )
+    db.add(retired_stmt)
+    await db.flush()
+
+    retired_txn = AtomicTransaction(
+        user_id=user_id,
+        txn_date=date(2026, 2, 1),
+        description="Retired statement row",
+        amount=Decimal("50.00"),
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=uuid4().hex + uuid4().hex,
+        source_documents=[{"doc_id": str(retired_doc.id), "doc_type": DocumentType.BANK_STATEMENT.value}],
+    )
+    txn_auto = _make_atomic(user_id, txn_date=date(2026, 2, 2), description="Salary", amount=Decimal("3000.00"))
+    txn_pending = _make_atomic(user_id, txn_date=date(2026, 2, 3), description="Rent", amount=Decimal("1200.00"))
+    txn_unmatched = _make_atomic(user_id, txn_date=date(2026, 2, 4), description="Coffee", amount=Decimal("6.50"))
+    db.add_all([retired_txn, txn_auto, txn_pending, txn_unmatched])
+    await db.flush()
+
+    active_auto = _make_match(txn_auto.id, score=92, status=ReconciliationStatus.AUTO_ACCEPTED)
+    db.add(active_auto)
+    await db.flush()
+    superseded_old = _make_match(
+        txn_auto.id,
+        score=70,
+        status=ReconciliationStatus.PENDING_REVIEW,
+        superseded_by_id=active_auto.id,
+    )
+    pending_match = _make_match(txn_pending.id, score=72, status=ReconciliationStatus.PENDING_REVIEW)
+    db.add_all([superseded_old, pending_match])
+    await db.commit()
+
+    stats = await get_reconciliation_stats(db, user_id, include_distribution=True)
+    unmatched_rows = (await db.execute(_unmatched_atomic_txn_query(user_id))).scalars().all()
+
+    assert stats.total_transactions == 3
+    assert stats.matched_transactions == 1
+    assert stats.pending_review == 1
+    assert stats.unmatched_transactions == 1
+    assert stats.unmatched_transactions == len(unmatched_rows)
+    assert [row.id for row in unmatched_rows] == [txn_unmatched.id]
+    assert stats.score_distribution is not None
+    assert sum(stats.score_distribution.values()) == 2

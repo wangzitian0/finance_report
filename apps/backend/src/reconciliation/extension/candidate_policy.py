@@ -12,7 +12,7 @@ from decimal import Decimal
 from itertools import combinations
 
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.ledger import JournalEntry, detect_transfer_pattern
+from src.ledger import JournalEntry, JournalEntryStatus, detect_transfer_pattern, fit_journal_memo
 from src.reconciliation.base.config import MAX_COMBINATION_CANDIDATES, MatchCandidate, ReconciliationConfig
 from src.reconciliation.extension.entry_reads import (
     _candidate_is_better,
@@ -143,10 +143,13 @@ def _score_rule_candidate(
             (entry_bank_side_amount(entry, transaction.direction, currency=transaction.currency) for entry in entries),
             Decimal("0.00"),
         )
+    txn_description = (
+        fit_journal_memo(transaction.description or "") if len(entries) == 1 else (transaction.description or "")
+    )
     scores = {
         "amount": score_amount(amount, total_amount, config, is_multi=is_group or len(entries) > 1),
         "date": max(score_date(transaction.txn_date, entry.entry_date, config) for entry in entries),
-        "description": score_description(transaction.description, " / ".join(entry.memo for entry in entries).strip()),
+        "description": score_description(txn_description, " / ".join(entry.memo for entry in entries).strip()),
         "business": min(score_business_logic(transaction, entry) for entry in entries) if entries else 0.0,
         "history": history_score,
     }
@@ -255,9 +258,16 @@ def _find_normal_candidates(
     """Evaluate journal evidence with the live enumeration, rules and ordering."""
     results: list[tuple[AtomicTransaction, MatchCandidate]] = []
     entries_by_id = {str(entry.id): entry for entry in atomic_txns}
+    consumed_entry_ids: set[str] = set()
     for transaction in pending_txns:
+        available_entries = [
+            entry
+            for entry in _date_candidates(atomic_txns, transaction.txn_date, config)
+            if str(entry.id) not in consumed_entry_ids
+            and getattr(entry, "status", None) != JournalEntryStatus.RECONCILED
+        ]
         candidates = prune_candidates(
-            _date_candidates(atomic_txns, transaction.txn_date, config),
+            available_entries,
             txn_date=transaction.txn_date,
             target_amount=transaction.amount,
             currency=transaction.currency,
@@ -278,4 +288,5 @@ def _find_normal_candidates(
                 best = candidate
         if best and best.score >= config.pending_review:
             results.append((transaction, best))
+            consumed_entry_ids.update(best.journal_entry_ids)
     return results

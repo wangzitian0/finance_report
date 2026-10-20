@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE, STATEMENT_SOURCE_TYPES
 from src.audit.ratio import Ratio
+from src.extraction import effective_statement_transaction_filter
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import JournalEntry, JournalEntryStatus, current_anchored_journal_entries
 from src.observability import get_logger
@@ -70,18 +71,18 @@ async def get_reconciliation_stats(
     A transaction is "matched" when it has an active (non-superseded)
     accepted/auto-accepted match; "unmatched" otherwise.
     """
-    # Total atomic transactions for the user
-    total_result = await db.execute(
-        select(func.count(AtomicTransaction.id)).where(AtomicTransaction.user_id == user_id)
-    )
+    # Total effective atomic transactions for the user
+    effective_filter = effective_statement_transaction_filter(user_id)
+    total_result = await db.execute(select(func.count(AtomicTransaction.id)).where(effective_filter))
     total = total_result.scalar_one()
 
     # Match status counts via ReconciliationMatch joined on atomic_txn_id
     match_base = (
         select(func.count(ReconciliationMatch.id))
         .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(AtomicTransaction.user_id == user_id)
+        .where(effective_filter)
         .where(ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED)
+        .where(ReconciliationMatch.superseded_by_id.is_(None))
     )
 
     # Count DISTINCT atomic transactions that are reconciled: they carry an
@@ -90,6 +91,7 @@ async def get_reconciliation_stats(
     accepted_match_ids = (
         select(ReconciliationMatch.atomic_txn_id)
         .where(ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED)
+        .where(ReconciliationMatch.superseded_by_id.is_(None))
         .where(
             ReconciliationMatch.status.in_(
                 [
@@ -99,25 +101,32 @@ async def get_reconciliation_stats(
             )
         )
     )
+    posted_source_ids = posted_statement_source_ids(user_id)
     matched_result = await db.execute(
         select(func.count(distinct(AtomicTransaction.id)))
-        .where(AtomicTransaction.user_id == user_id)
+        .where(effective_filter)
         .where(
             or_(
                 AtomicTransaction.id.in_(accepted_match_ids),
-                AtomicTransaction.id.in_(posted_statement_source_ids(user_id)),
+                AtomicTransaction.id.in_(posted_source_ids),
             )
         )
     )
     pending_result = await db.execute(
-        match_base.where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
+        select(func.count(distinct(ReconciliationMatch.atomic_txn_id)))
+        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
+        .where(effective_filter)
+        .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
+        .where(ReconciliationMatch.superseded_by_id.is_(None))
+        .where(AtomicTransaction.id.notin_(accepted_match_ids))
+        .where(AtomicTransaction.id.notin_(posted_source_ids))
     )
     auto_result = await db.execute(match_base.where(ReconciliationMatch.status == ReconciliationStatus.AUTO_ACCEPTED))
 
     matched = matched_result.scalar_one()
     pending = pending_result.scalar_one()
     auto = auto_result.scalar_one()
-    unmatched = max(total - matched, 0)
+    unmatched = max(total - matched - pending, 0)
 
     # Score distribution (optional)
     score_distribution: dict[str, int] | None = None
@@ -125,7 +134,9 @@ async def get_reconciliation_stats(
         score_result = await db.execute(
             select(ReconciliationMatch.match_score)
             .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-            .where(AtomicTransaction.user_id == user_id)
+            .where(effective_filter)
+            .where(ReconciliationMatch.status.notin_((ReconciliationStatus.REJECTED, ReconciliationStatus.SUPERSEDED)))
+            .where(ReconciliationMatch.superseded_by_id.is_(None))
         )
         scores = score_result.scalars().all()
         buckets = {"0-59": 0, "60-79": 0, "80-89": 0, "90-100": 0}

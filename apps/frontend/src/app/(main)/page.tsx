@@ -5,7 +5,10 @@ import { useMemo, useState } from "react";
 import { UploadToReportHomePanel } from "@/components/workflow/WorkflowNotifications";
 import { AdvisorBrief } from "@/components/advisor/AdvisorBrief";
 import { TrustMeter } from "@/components/home/TrustMeter";
-import { ThreeStatementNav } from "@/components/home/ThreeStatementNav";
+import {
+  ThreeStatementNav,
+  type CockpitPeriodPreset,
+} from "@/components/home/ThreeStatementNav";
 import { OnboardingGuideCard } from "@/components/home/OnboardingGuideCard";
 import { HomeNetWorthBanner } from "@/components/home/HomeNetWorthBanner";
 import { HomeIncomeCards } from "@/components/home/HomeIncomeCards";
@@ -30,6 +33,7 @@ const CHART_PALETTE = [
 
 export default function HomePage() {
   const [includeRestricted, setIncludeRestricted] = useState(false);
+  const [periodPreset, setPeriodPreset] = useState<CockpitPeriodPreset>("1Y");
 
   // Slice 3 of #751: dashboard aggregation + normalization live in the hook
   // layer; the route composes the returned data.
@@ -51,7 +55,7 @@ export default function HomePage() {
     loading,
     error,
     retry: fetchData,
-  } = useDashboardData(includeRestricted);
+  } = useDashboardData(includeRestricted, periodPreset);
 
   const netAssets = useMemo(() => {
     return balanceSheet
@@ -73,19 +77,24 @@ export default function HomePage() {
     [trend],
   );
 
-  const incomeBars = useMemo(
-    () =>
-      incomeStatement && incomeStatement.trends
-        ? incomeStatement.trends
-            .slice(-6)
-            .map((t) => ({
-              label: formatMonthLabel(t.period_start),
-              income: amountToChartNumber(t.total_income),
-              expense: amountToChartNumber(t.total_expenses),
-            }))
-        : [],
-    [incomeStatement],
-  );
+  const incomeBars = useMemo(() => {
+    if (!incomeStatement || !incomeStatement.trends) return [];
+    const sliceLimit =
+      periodPreset === "1M"
+        ? 1
+        : periodPreset === "1Q"
+          ? 3
+          : periodPreset === "1Y" || periodPreset === "YTD"
+            ? 12
+            : periodPreset === "3Y"
+              ? 36
+              : incomeStatement.trends.length;
+    return incomeStatement.trends.slice(-Math.max(sliceLimit, 1)).map((t) => ({
+      label: formatMonthLabel(t.period_start),
+      income: amountToChartNumber(t.total_income),
+      expense: amountToChartNumber(t.total_expenses),
+    }));
+  }, [incomeStatement, periodPreset]);
 
   const assetSegments = useMemo(() => {
     if (!balanceSheet || !balanceSheet.assets) return [];
@@ -109,7 +118,12 @@ export default function HomePage() {
       {/* EPIC-022 AC22.21.6: the three statements are the product — lead with a
           segmented entry into each, deep-linking to the full report. */}
       <div className="mb-6">
-        <ThreeStatementNav />
+        <ThreeStatementNav
+          balanceSheet={balanceSheet}
+          incomeStatement={incomeStatement}
+          periodPreset={periodPreset}
+          onPeriodPresetChange={setPeriodPreset}
+        />
       </div>
 
       <div className="mb-6">

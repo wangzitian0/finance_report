@@ -53,4 +53,38 @@ describe("Chart components", () => {
     expect(container.querySelectorAll("path").length).toBeGreaterThan(1)
     expect(container.querySelectorAll("circle").length).toBe(3)
   })
+
+  // AC-reporting.2548.3
+  it("AC-reporting.2548.3 renders axis scale bounds, formatted values, and percentage shares across chart components", () => {
+    render(
+      <div>
+        <BarChart
+          items={[
+            { label: "Jan", income: 4000, expense: 2500 },
+            { label: "Feb", income: 3000, expense: 1800 },
+          ]}
+        />
+        <PieChart
+          centerLabel="Assets"
+          segments={[
+            { label: "Cash", value: 7500, color: "#00aa00" },
+            { label: "Equities", value: 2500, color: "#0000aa" },
+          ]}
+        />
+        <TrendChart
+          points={[
+            { label: "2026-01", value: 12000 },
+            { label: "2026-02", value: 15500 },
+          ]}
+        />
+      </div>,
+    )
+
+    expect(screen.getByTestId("bar-chart-axis-scale")).toHaveTextContent("4.0k")
+    expect(screen.getByTestId("bar-chart-net-Jan")).toHaveTextContent("+1.5k")
+    expect(screen.getByTestId("pie-segment-share-Cash")).toHaveTextContent("75%")
+    expect(screen.getByTestId("pie-segment-share-Equities")).toHaveTextContent("25%")
+    expect(screen.getByTestId("trend-axis-scale")).toHaveTextContent("15.5k")
+    expect(screen.getByTestId("trend-axis-scale")).toHaveTextContent("12.0k")
+  })
 })

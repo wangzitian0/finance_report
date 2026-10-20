@@ -1056,3 +1056,78 @@ async def test_issue2388_review_band_transfer_pair_rejection_leaves_legs_in_tran
     resp = await client.get("/accounts/processing/pending")
     assert resp.status_code == 200
     assert resp.json()["total"] == 2
+
+
+async def test_AC_reconciliation_2548_5_consistency_checks_guard_same_account_refund_and_adjacent_day_spend(
+    db: AsyncSession,
+    user_id,
+) -> None:
+    """AC-reconciliation.2548.5: Same-account purchase+refund is not a transfer pair and adjacent-day spend is not a duplicate (#2548)."""
+    stmt_a = await _make_statement(db, user_id, file_hash=f"stmt_a_{uuid4().hex}")
+    stmt_b = await _make_statement(db, user_id, file_hash=f"stmt_b_{uuid4().hex}")
+
+    # 1. Purchase and refund on the SAME statement/account must NOT trigger TRANSFER_PAIR
+    await _add_txn(
+        db,
+        user_id,
+        amount=Decimal("88.00"),
+        direction=TransactionDirection.OUT,
+        txn_date=date(2026, 6, 1),
+        description="Merchant purchase",
+        source_doc_id=stmt_a.uploaded_document_id,
+    )
+    await _add_txn(
+        db,
+        user_id,
+        amount=Decimal("88.00"),
+        direction=TransactionDirection.IN,
+        txn_date=date(2026, 6, 2),
+        description="Merchant refund",
+        source_doc_id=stmt_a.uploaded_document_id,
+    )
+
+    transfer_checks = await detect_transfer_pairs(db, user_id, stmt_a.id)
+    assert transfer_checks == []
+
+    # 2. Adjacent-day daily spend (days == 1) on the same statement must NOT trigger DUPLICATE
+    await _add_txn(
+        db,
+        user_id,
+        amount=Decimal("6.50"),
+        direction=TransactionDirection.OUT,
+        txn_date=date(2026, 6, 10),
+        description="MRT Transit",
+        source_doc_id=stmt_a.uploaded_document_id,
+    )
+    await _add_txn(
+        db,
+        user_id,
+        amount=Decimal("6.50"),
+        direction=TransactionDirection.OUT,
+        txn_date=date(2026, 6, 11),
+        description="MRT Transit",
+        source_doc_id=stmt_a.uploaded_document_id,
+    )
+
+    # 3. Same-day identical spend across two DIFFERENT accounts must NOT trigger DUPLICATE
+    await _add_txn(
+        db,
+        user_id,
+        amount=Decimal("12.00"),
+        direction=TransactionDirection.OUT,
+        txn_date=date(2026, 6, 12),
+        description="Cafe Lunch",
+        source_doc_id=stmt_a.uploaded_document_id,
+    )
+    await _add_txn(
+        db,
+        user_id,
+        amount=Decimal("12.00"),
+        direction=TransactionDirection.OUT,
+        txn_date=date(2026, 6, 12),
+        description="Cafe Lunch",
+        source_doc_id=stmt_b.uploaded_document_id,
+    )
+
+    dup_checks = await detect_duplicates(db, user_id, stmt_a.id)
+    assert dup_checks == []
