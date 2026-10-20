@@ -478,6 +478,10 @@ def test_AC_testing_journey_board_4_index_and_fragment_are_regenerated_honestly(
     fragment = render_fragment(
         build_index(records, MAP, generated_at="2026-10-12T03:00:00+00:00")
     )
+    assert 'class="kpi-grid"' in fragment
+    assert "Staging Candidate" in fragment
+    assert "Head Checkpoint Coverage" in fragment
+    assert '<span class="ver-badge">v9.9.9</span>' in fragment
     assert "STALE: did not test the newest staging deploy" in fragment
     # The canary passed with no test case: never green.
     assert (
@@ -486,10 +490,25 @@ def test_AC_testing_journey_board_4_index_and_fragment_are_regenerated_honestly(
     )
     assert "<script>" not in fragment
     assert "&lt;script&gt;" in fragment
+    assert "(1.50s)" in fragment
     assert (
         'class="bad"><a href="https://example.invalid/runs/9">failed</a> (core_journey)'
         in fragment
     )
+    replay_record = dict(
+        journey,
+        lane="audit_replay",
+        status="passed",
+        junit=True,
+        counts={"total": 1, "passed": 1, "failed": 0, "skipped": 0},
+    )
+    with_replay = render_fragment(
+        build_index(
+            [canary, replay_record], MAP, generated_at="2026-10-12T03:00:00+00:00"
+        )
+    )
+    assert "Newest Audit Replay" in with_replay
+    assert "11111111" in with_replay
 
 
 def _checkpoint_calls(path: Path) -> list[str]:
