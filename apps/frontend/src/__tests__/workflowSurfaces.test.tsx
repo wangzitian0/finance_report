@@ -11,6 +11,7 @@ import {
   UploadToReportHomePanel,
   WorkflowStatusFeed,
 } from "@/components/workflow/WorkflowNotifications"
+import { humanizeWorkflowText } from "@/components/workflow/workflowFormat"
 import { apiOperation } from "@/lib/api-client"
 import type {
   WorkflowEventListResponse,
@@ -444,5 +445,24 @@ describe("workflow notification surfaces", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "Mark as read" })[0])
     await waitFor(() => expect(updateWorkflowEventStatus).toHaveBeenCalledWith("blocked-event", "read"))
+  })
+
+  it("humanizeWorkflowText replaces all five invariant jargon patterns and preserves ordinary copy", () => {
+    expect(
+      humanizeWorkflowText(
+        "Package section invariant failed: opening_balance_missing, cash_balance_input_missing, cash_identity_missing",
+      ),
+    ).toBe("Upload a bank statement to verify opening and ending cash balances.")
+    expect(humanizeWorkflowText("Package section invariant failed: opening_balance_missing")).toBe(
+      "Opening balance awaits bank statement verification.",
+    )
+    expect(humanizeWorkflowText("Package section invariant failed: cash_balance_input_missing")).toBe(
+      "Ending cash balance awaits bank statement verification.",
+    )
+    expect(humanizeWorkflowText("Package section invariant failed: cash_identity_missing")).toBe(
+      "Cash account balance awaits bank statement verification.",
+    )
+    expect(humanizeWorkflowText("Package section invariant failed")).toBe("Statement balance check needed")
+    expect(humanizeWorkflowText("Ordinary user-facing summary")).toBe("Ordinary user-facing summary")
   })
 })
