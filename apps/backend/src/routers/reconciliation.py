@@ -220,7 +220,7 @@ async def run_reconciliation(
     )
 
     try:
-        currency = await get_effective_base_currency(db)
+        currency = await get_effective_base_currency(db, user_id=user_id)
         matches = await execute_matching(
             db,
             limit=payload.limit,
@@ -622,7 +622,7 @@ async def post_reconciliation_adjustment(
         db.add(rounding_account)
         await db.flush()
 
-    base_currency = await get_effective_base_currency(db)
+    base_currency = await get_effective_base_currency(db, user_id=user_id)
     if account.currency != base_currency and payload.fx_rate is None:
         raise_bad_request(
             f"fx_rate is required for non-base currency account {account.currency} (base currency {base_currency})"

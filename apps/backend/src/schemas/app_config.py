@@ -6,7 +6,7 @@ from src.audit import Currency, InvalidCurrencyError
 
 
 class BaseCurrencyResponse(BaseModel):
-    """The effective base reporting currency (persisted override else env default)."""
+    """The caller's effective base reporting currency (own value, else operator default, else env default)."""
 
     base_currency: str
 

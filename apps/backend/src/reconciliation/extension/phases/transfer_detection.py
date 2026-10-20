@@ -48,7 +48,7 @@ async def run_transfer_detection_phase(
         # The Processing account holds the effective base currency. A row in another currency needs the
         # FX-aware path, and a leg in its currency would fix the Processing currency of the user (#2415).
         if base_currency is None:
-            base_currency = (await get_effective_base_currency(db)).upper()
+            base_currency = (await get_effective_base_currency(db, user_id=user_id)).upper()
         if (txn.currency or "").upper() != base_currency:
             logger.info(
                 "Transfer detected in another currency - skipping Processing entry",

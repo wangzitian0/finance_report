@@ -499,7 +499,12 @@ async def validate_manual_journal_entry_for_post(
     entry: JournalEntry,
     base_currency: str,
 ) -> None:
-    """Re-check an editable draft against its manual decision before posting it."""
+    """Re-check an editable draft against its manual decision before posting it.
+
+    The target is recomputed under the base currency stored at creation of the draft. ``base_currency``
+    applies only to a draft written before revision 0067. A later change of the effective base currency
+    therefore does not invalidate the anchor (#2539).
+    """
     if entry.source_type is not JournalEntrySourceType.MANUAL:
         return
     if entry.decision_authority_state is JournalEntryAuthorityState.LEGACY_UNPROVEN:
@@ -523,7 +528,7 @@ async def validate_manual_journal_entry_for_post(
             }
             for line in entry.lines
         ],
-        base_currency=base_currency,
+        base_currency=entry.stored_base_currency(base_currency),
     )
     repository = SqlTraceRecordRepository(db, TraceDecisionPolicyRegistry((ManualJournalAttestationPolicy(),)))
     record = await repository.get(TraceScope.tenant(user_id), entry.decision_anchor_id)

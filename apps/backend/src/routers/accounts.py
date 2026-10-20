@@ -149,7 +149,9 @@ async def get_processing_summary(
     # A page view reads the Processing account and never creates it. The first transfer leg creates it, in the
     # base currency of that moment. A user without legs sees zeros in the base currency (#2415).
     processing_account = await find_processing_account(db, user_id)
-    currency = processing_account.currency if processing_account else await get_effective_base_currency(db)
+    currency = (
+        processing_account.currency if processing_account else await get_effective_base_currency(db, user_id=user_id)
+    )
     persisted_paired_ids = await paired_transfer_entry_ids(db, user_id=user_id)
     pairs = await find_transfer_pairs(
         db,
@@ -187,7 +189,9 @@ async def list_processing_pending(
     # A page view reads the Processing account and never creates it. The first transfer leg creates it, in the
     # base currency of that moment. A user without legs sees zeros in the base currency (#2415).
     processing_account = await find_processing_account(db, user_id)
-    currency = processing_account.currency if processing_account else await get_effective_base_currency(db)
+    currency = (
+        processing_account.currency if processing_account else await get_effective_base_currency(db, user_id=user_id)
+    )
     persisted_paired_ids = await paired_transfer_entry_ids(db, user_id=user_id)
     pairs = await find_transfer_pairs(
         db,

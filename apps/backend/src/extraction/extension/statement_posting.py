@@ -232,7 +232,7 @@ async def auto_create_posted_entries_for_statement(
             if user_transfer_txns:
                 legs_posted = await dependencies.post_named_transfers(db, user_id, user_transfer_txns)
                 transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
-    base_currency = await get_effective_base_currency(db)
+    base_currency = await get_effective_base_currency(db, user_id=user_id)
     policy = await statement_disposition_policy_for_user(db, user_id)
     policy_snapshot = current_statement_disposition_policy_snapshot(
         mode=dependencies.disposition_mode,
@@ -696,7 +696,7 @@ async def try_auto_post_statement_opening_balance(
         if contribution.state != "authoritative" or contribution.decision is None:
             raise ValueError("Statement opening balance requires current source authority")
         source_decision_id = contribution.decision.decision_id
-    base_currency = await get_effective_base_currency(db)
+    base_currency = await get_effective_base_currency(db, user_id=user_id)
     currency = normalize_currency_code(statement.currency or "")
     fx_rates = {}
     if currency != base_currency and statement.opening_balance != 0:

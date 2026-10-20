@@ -69,7 +69,7 @@ async def test_AC_ledger_71_6_a_view_does_not_fix_the_currency_before_the_first_
     from src.config_app import set_base_currency
 
     await client.get("/accounts/processing/summary")
-    await set_base_currency(db, "USD")
+    await set_base_currency(db, "USD", user_id=test_user.id)
     await db.commit()
     bank = Account(user_id=test_user.id, name="USD bank", type=AccountType.ASSET, currency="USD")
     db.add(bank)
