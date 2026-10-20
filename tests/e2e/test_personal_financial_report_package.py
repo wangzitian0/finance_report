@@ -3,7 +3,7 @@ Tier 3 Browser/API E2E: personal financial report package proof.
 
 Issue #565:
 Fresh-user post-merge proof for one complete personal report package journey:
-bank statement ingest, reconciliation idempotency, brokerage import,
+bank statement ingest, a reconciliation rerun that stays a no-op, brokerage import,
 manual valuation snapshots, report and traceability assertions, and report export.
 """
 
@@ -467,13 +467,16 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert first_reconciliation.status_code == 200, (
             f"first reconciliation failed: {first_reconciliation.status_code} {first_reconciliation.text}"
         )
+        # The approval already posted every row from its own statement, so the first run
+        # finds no pending row and creates no self-match (AC-reconciliation.2561.1, #2554).
         assert first_reconciliation.json() == {
-            "matches_created": expected.transaction_count,
-            "auto_accepted": expected.transaction_count,
+            "matches_created": 0,
+            "auto_accepted": 0,
             "pending_review": 0,
             "unmatched": 0,
         }
 
+        # A rerun stays a no-op: it creates no match and leaves no row unmatched.
         second_reconciliation = await client.post(
             _api_url("/reconciliation/runs"),
             json={"statement_id": bank_statement_id},
