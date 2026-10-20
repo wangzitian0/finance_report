@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { formatCompactChartValue } from "@/components/charts/BarChart";
 
 interface TrendPoint {
   label: string;
@@ -18,6 +19,8 @@ export function TrendChart({ points, height = DEFAULT_HEIGHT }: TrendChartProps)
   const lineId = `trend-line-${id}`;
 
   const values = points.map((point) => point.value);
+  const rawMax = values.length ? Math.max(...values) : 0;
+  const rawMin = values.length ? Math.min(...values) : 0;
   const max = Math.max(...values, 0);
   const min = Math.min(...values, 0);
   const span = max - min || 1;
@@ -41,12 +44,20 @@ export function TrendChart({ points, height = DEFAULT_HEIGHT }: TrendChartProps)
     .map((point, index) => `${index === 0 ? "M" : "L"}${point.x},${point.y}`)
     .join(" ");
 
-  const areaPath =
-    `${linePath} L${padding + (points.length - 1) * xStep},${chartHeight - padding} ` +
-    `L${padding},${chartHeight - padding} Z`;
+  const areaPath = points.length
+    ? `${linePath} L${padding + (points.length - 1) * xStep},${chartHeight - padding} ` +
+      `L${padding},${chartHeight - padding} Z`
+    : "";
 
   return (
     <div className="w-full">
+      <div
+        className="mb-2 flex items-center justify-between text-[11px] text-[var(--foreground-muted)]"
+        data-testid="trend-axis-scale"
+      >
+        <span>{`Min ${formatCompactChartValue(rawMin)}`}</span>
+        <span>{`Max ${formatCompactChartValue(rawMax)}`}</span>
+      </div>
       <svg
         viewBox={`0 0 ${width} ${chartHeight}`}
         className="w-full"
@@ -84,7 +95,7 @@ export function TrendChart({ points, height = DEFAULT_HEIGHT }: TrendChartProps)
       </svg>
       <div className="mt-3 flex flex-wrap gap-3 text-xs text-[var(--foreground-muted)]">
         {points.map((point, index) => (
-          <span key={`${point.label}-${index}`} className="min-w-[3rem]">
+          <span key={`${point.label}-${index}`} className="min-w-[3rem]" title={formatCompactChartValue(point.value)}>
             {point.label}
           </span>
         ))}

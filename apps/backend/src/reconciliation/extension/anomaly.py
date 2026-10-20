@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.extraction import effective_statement_transaction_filter
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.reconciliation.extension.scoring import extract_merchant_tokens
 
@@ -30,13 +31,19 @@ async def detect_anomalies(
     """Detect anomalies for a transaction."""
     anomalies: list[AnomalyResult] = []
     lookback_start = txn.txn_date - timedelta(days=30)
+    effective_filter = effective_statement_transaction_filter(user_id)
 
-    avg_result = await db.execute(
+    avg_query = (
         select(func.avg(AtomicTransaction.amount))
-        .where(AtomicTransaction.user_id == user_id)
+        .where(effective_filter)
+        .where(AtomicTransaction.currency == txn.currency)
         .where(AtomicTransaction.txn_date >= lookback_start)
+        .where(AtomicTransaction.txn_date <= txn.txn_date)
         .where(AtomicTransaction.direction == txn.direction)
     )
+    if getattr(txn, "id", None) is not None:
+        avg_query = avg_query.where(AtomicTransaction.id != txn.id)
+    avg_result = await db.execute(avg_query)
     avg_value = avg_result.scalar_one_or_none()
     avg_amount = Decimal(str(avg_value)) if avg_value is not None else Decimal("0")
 
@@ -56,7 +63,8 @@ async def detect_anomalies(
         pattern = f"%{safe_token}%"
         daily_count_result = await db.execute(
             select(func.count(AtomicTransaction.id))
-            .where(AtomicTransaction.user_id == user_id)
+            .where(effective_filter)
+            .where(AtomicTransaction.currency == txn.currency)
             .where(AtomicTransaction.txn_date == txn.txn_date)
             .where(AtomicTransaction.description.ilike(pattern, escape="\\"))
         )
@@ -73,8 +81,10 @@ async def detect_anomalies(
         history_start = txn.txn_date - timedelta(days=90)
         history_result = await db.execute(
             select(func.count(AtomicTransaction.id))
-            .where(AtomicTransaction.user_id == user_id)
+            .where(effective_filter)
+            .where(AtomicTransaction.currency == txn.currency)
             .where(AtomicTransaction.txn_date >= history_start)
+            .where(AtomicTransaction.txn_date <= txn.txn_date)
             .where(AtomicTransaction.description.ilike(pattern, escape="\\"))
         )
         history_count = history_result.scalar_one_or_none() or 0
@@ -87,7 +97,7 @@ async def detect_anomalies(
                 )
             )
 
-    if txn.txn_date.weekday() >= 5 and txn.amount > avg_amount * Decimal("5"):
+    if txn.txn_date.weekday() >= 5 and avg_amount and txn.amount > avg_amount * Decimal("5"):
         anomalies.append(
             AnomalyResult(
                 anomaly_type="WEEKEND_LARGE",
