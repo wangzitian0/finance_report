@@ -25,7 +25,6 @@ from infra2_sdk.observability import (
 )
 
 DEFAULT_API_URL = "https://openpanel.zitian.party/api"
-API_KEY_ENV = "OPENPANEL_API_KEY"
 API_URL_ENV = "OPENPANEL_API_URL"
 OPENPANEL_CONTRACT_PATH = (
     Path(__file__).resolve().parent / "data" / "openpanel_analytics.json"
