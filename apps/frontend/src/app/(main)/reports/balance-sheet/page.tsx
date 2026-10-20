@@ -21,6 +21,7 @@ import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import {
   CurrencyFilterControl,
   DateFilterControl,
+  PeriodPresetFilterControl,
 } from "@/components/reports/ReportFilters";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 import { InfoHint } from "@/components/ui/InfoHint";
@@ -235,6 +236,9 @@ export default function BalanceSheetPage() {
       }
     >
       <div className="flex flex-wrap gap-3 mb-6 text-sm">
+        <PeriodPresetFilterControl
+          onSelectRange={(range) => setAsOfDate(range.endDate)}
+        />
         <DateFilterControl
           label="As of date"
           value={asOfDate}

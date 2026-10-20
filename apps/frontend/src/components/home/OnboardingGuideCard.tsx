@@ -11,8 +11,10 @@ interface OnboardingGuideCardProps {
 
 export function OnboardingGuideCard({ onboardingStatus }: OnboardingGuideCardProps) {
   const isCoreFlowComplete =
-    (onboardingStatus?.approvedStatementCount ?? 0) > 0 &&
-    (onboardingStatus?.postedEntryCount ?? 0) > 0;
+    ((onboardingStatus?.approvedStatementCount ?? 0) > 0 &&
+      (onboardingStatus?.postedEntryCount ?? 0) > 0) ||
+    ((onboardingStatus?.postedEntryCount ?? 0) > 0 &&
+      (onboardingStatus?.statementCount ?? 0) === 0);
   const showOnboarding = onboardingStatus !== null && !isCoreFlowComplete;
 
   const onboardingSteps = useMemo(() => {

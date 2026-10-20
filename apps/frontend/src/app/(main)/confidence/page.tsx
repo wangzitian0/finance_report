@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { AuditBackLink } from "@/components/audit/AuditBackLink";
@@ -42,8 +43,20 @@ export default function CorrectionLoopPage() {
       </div>
       <PageHeader
         title="Correction Loop Proof"
-        description="Held-out replay measures whether recurring corrections improve future extraction without treating source labels as financial authority."
+        description="See items that need your confirmation and how your past reviews improve automatic statement reading."
       />
+
+      <div className="card p-4 mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold">Review items needing attention</h2>
+          <p className="mt-0.5 text-xs text-muted">
+            Inspect low-confidence statement lines and unmatched transactions in one ranked queue.
+          </p>
+        </div>
+        <Link href="/attention" className="btn-primary text-xs px-3 py-1.5 w-fit">
+          Open attention queue
+        </Link>
+      </div>
 
       {replay === null && !error && <LoadingState label="Loading correction-loop proof" />}
       {error && (
@@ -77,8 +90,7 @@ function ReplayCard({ replay }: { replay: CorrectionLoopReplayResponse }) {
         )}
       </div>
       <p className="mt-1 text-sm text-muted">
-        This evaluates correction reuse on held-out examples. Package trust remains a separate
-        TraceRecord decision.
+        Shows how past review corrections reduce extraction errors on new statements.
       </p>
 
       {summary.hasHoldout ? (

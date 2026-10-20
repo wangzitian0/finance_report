@@ -5,7 +5,7 @@ import { ArrowRight, CircleCheck, FileCheck2, Inbox, UploadCloud } from "lucide-
 
 import { Badge } from "@/components/ui";
 import { isWorkflowStatusResponse, useWorkflowEventsQuery, useWorkflowStatusQuery } from "@/hooks/useWorkflowStatus";
-import { countLabel, readinessVariant } from "@/lib/statusLabels";
+import { countLabel } from "@/lib/statusLabels";
 
 import { WorkflowEventGroup } from "./WorkflowEventCard";
 import type { WorkflowStatusFeedProps } from "./WorkflowStatusFeed";
@@ -46,16 +46,14 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
     : events;
 
   return (
-    <section className="space-y-4" aria-label="Upload-to-report home">
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
-        <div className="card p-5">
-          <p className="text-xs uppercase tracking-wide text-muted">Your statements</p>
-          <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <section className="space-y-2" aria-label="Upload-to-report home">
+      <div className="grid gap-2 xl:grid-cols-[minmax(0,1.35fr)_minmax(16rem,0.65fr)]">
+        <div className="card p-3">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
-              <h1 className="text-2xl font-semibold">{activeSession?.title ?? "Upload to report"}</h1>
-              <p className="mt-2 max-w-2xl text-sm text-muted">{workflowStateCopy(status)}</p>
-              {primarySummary && <p className="mt-2 max-w-2xl text-sm font-medium">{primarySummary}</p>}
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] uppercase tracking-wide text-muted">Your statements</span>
+                <h1 className="text-base font-semibold">{activeSession?.title ?? "Upload to report"}</h1>
                 <Badge variant={severityBadgeVariant(status.primary_state === "blocked" ? "blocked" : "info")}>
                   {labelFromSnake(status.primary_state)}
                 </Badge>
@@ -67,65 +65,60 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
                   <Badge variant="error">{countLabel(status.event_counts.blocked, "blocked", "blocked")}</Badge>
                 )}
               </div>
+              <p className="mt-1 text-xs text-muted">{workflowStateCopy(status)}</p>
+              {primarySummary && <p className="mt-0.5 text-xs font-medium">{primarySummary}</p>}
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
-              <Link href={status.next_action.href} className="btn-primary inline-flex items-center justify-center gap-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <Link href={status.next_action.href} className="btn-primary inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs">
                 {primaryIsUpload ? (
-                  <UploadCloud className="h-4 w-4" aria-hidden="true" />
+                  <UploadCloud className="h-3.5 w-3.5" aria-hidden="true" />
                 ) : (
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 )}
                 {primaryLabel}
               </Link>
-              <Link href="/notifications" className="btn-secondary inline-flex items-center justify-center gap-2 text-sm">
-                <Inbox className="h-4 w-4" aria-hidden="true" />
+              <Link href="/notifications" className="btn-secondary inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs">
+                <Inbox className="h-3.5 w-3.5" aria-hidden="true" />
                 Session history
               </Link>
             </div>
           </div>
         </div>
 
-        <Link href={status.report_readiness.href} className="card block p-5 transition-colors hover:border-accent" aria-label="Report readiness">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted">Report readiness</p>
-              <h2 className="mt-2 text-lg font-semibold">{readinessLabel}</h2>
-            </div>
-            <FileCheck2 className="h-5 w-5 text-muted" aria-hidden="true" />
+        <Link href={status.report_readiness.href} className="card flex items-center justify-between gap-3 p-3 transition-colors hover:border-accent" aria-label="Report readiness">
+          <div>
+            <p className="text-[11px] uppercase tracking-wide text-muted">Report readiness</p>
+            <h2 className="mt-0.5 text-sm font-semibold">{readinessLabel}</h2>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Badge variant={readinessVariant(status.report_readiness.state)}>{readinessLabel}</Badge>
+          <div className="flex items-center gap-2">
             <Badge variant={status.report_readiness.blocking_count > 0 ? "error" : "muted"}>{blockerLabel}</Badge>
+            <FileCheck2 className="h-4 w-4 text-muted" aria-hidden="true" />
           </div>
-          <p className="mt-3 text-sm text-muted">Open the report readiness path for blockers, processing state, or generated output.</p>
         </Link>
       </div>
 
-      <div className={`grid gap-4 ${groupedEvents.routine.length > 0 ? "lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.45fr)]" : ""}`}>
-        <section className="card p-5" aria-label="Workflow status">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">Workflow status</h2>
-              <p className="mt-1 text-sm text-muted">Required actions and blockers stay visible before analytics.</p>
-            </div>
+      <div className={`grid gap-2 ${groupedEvents.routine.length > 0 ? "lg:grid-cols-[minmax(0,1fr)_minmax(14rem,0.45fr)]" : ""}`}>
+        <section className="card p-3" aria-label="Workflow status">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">Workflow status</h2>
             <Badge variant="muted">{events.length} recent</Badge>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-2 md:grid-cols-2">
             <WorkflowEventGroup title="Blocked" events={groupedEvents.blocked.slice(0, 2)} />
             <WorkflowEventGroup title="Action required" events={groupedEvents.actionRequired.slice(0, 2)} />
           </div>
           {groupedEvents.blocked.length === 0 && groupedEvents.actionRequired.length === 0 && (
-            <div className="rounded-md border border-border bg-surface-muted p-3 text-sm text-muted">No action required</div>
+            <div className="rounded-md border border-border bg-surface-muted px-2.5 py-1.5 text-xs text-muted">No action required</div>
           )}
           {activeSessionEvents.length > 0 && (
-            <div className="mt-4 rounded-md border border-border bg-surface-muted p-3">
-              <h3 className="text-sm font-semibold">Recent session timeline</h3>
-              <ol className="mt-3 space-y-2">
+            <div className="mt-2 rounded-md border border-border bg-surface-muted px-2.5 py-2">
+              <h3 className="text-xs font-semibold">Recent session timeline</h3>
+              <ol className="mt-1.5 flex flex-wrap gap-2 text-xs">
                 {activeSessionEvents.slice(0, 3).map((event) => (
-                  <li key={event.id} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="min-w-0 truncate">{humanizeWorkflowText(event.title)}</span>
-                    <time className="shrink-0 text-xs text-muted" dateTime={event.occurred_at}>
+                  <li key={event.id} className="inline-flex items-center gap-1.5 rounded bg-[var(--background-card)] px-2 py-0.5 border border-[var(--border)]">
+                    <span className="truncate max-w-[16rem]">{humanizeWorkflowText(event.title)}</span>
+                    <time className="shrink-0 text-[11px] text-muted" dateTime={event.occurred_at}>
                       {formatEventTime(event.occurred_at)}
                     </time>
                   </li>
@@ -136,15 +129,17 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
         </section>
 
         {groupedEvents.routine.length > 0 && (
-          <section className="card p-5" aria-label="Routine automation">
-            <div className="flex items-center gap-2">
-              <CircleCheck className="h-4 w-4 text-muted" aria-hidden="true" />
-              <h2 className="text-sm font-semibold">Routine automation</h2>
+          <section className="card p-3" aria-label="Routine automation">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <CircleCheck className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+                <h2 className="text-xs font-semibold">Routine automation</h2>
+              </div>
+              <span className="text-[11px] text-muted">{countLabel(groupedEvents.routine.length, "routine event")}</span>
             </div>
-            <p className="mt-3 text-sm text-muted">{countLabel(groupedEvents.routine.length, "routine event")}</p>
-            <div className="mt-3 rounded-md border border-border bg-surface-muted p-3 text-sm">
+            <div className="mt-2 rounded-md border border-border bg-surface-muted p-2 text-xs">
               <p className="font-medium">{humanizeWorkflowText(groupedEvents.routine[0].title)}</p>
-              <p className="mt-1 text-muted">{humanizeWorkflowText(groupedEvents.routine[0].summary)}</p>
+              <p className="mt-0.5 text-muted">{humanizeWorkflowText(groupedEvents.routine[0].summary)}</p>
             </div>
           </section>
         )}

@@ -89,7 +89,7 @@ export function NetWorthTimeSeriesChart() {
           smooth: true,
           showSymbol: false,
           data: values,
-          lineStyle: { color: "var(--chart-trend-start)", width: 2 },
+          lineStyle: { color: "#2563eb", width: 2 },
           areaStyle: { color: "rgba(37, 99, 235, 0.10)" },
         },
       ],

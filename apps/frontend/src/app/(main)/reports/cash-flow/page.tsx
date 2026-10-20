@@ -15,6 +15,7 @@ import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
 import {
   CurrencyFilterControl,
   DateFilterControl,
+  PeriodPresetFilterControl,
 } from "@/components/reports/ReportFilters";
 import { formatDateInput } from "@/lib/date";
 import {
@@ -160,6 +161,13 @@ export default function CashFlowPage() {
       }
     >
       <div className="flex flex-wrap gap-3 mb-6 text-sm">
+        <PeriodPresetFilterControl
+          defaultPreset="1M"
+          onSelectRange={(range) => {
+            setStartDate(range.startDate);
+            setEndDate(range.endDate);
+          }}
+        />
         <DateFilterControl
           label="Start date"
           value={startDate}

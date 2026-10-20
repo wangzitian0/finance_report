@@ -31,34 +31,36 @@ export function WorkflowEventCard({
   const displaySummary = humanizeWorkflowText(event.summary);
   const resolvedOpenLabel = openLabel ?? `Open ${displayTitle}`;
   return (
-    <article className={className}>
-      <div className="flex min-w-0 items-start gap-3">
-        {showIcon && <Icon className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted" aria-hidden="true" />}
+    <article className={`${className} !p-2.5`}>
+      <div className="flex min-w-0 items-start gap-2">
+        {showIcon && <Icon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted" aria-hidden="true" />}
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h4 className="font-medium">{displayTitle}</h4>
-            <Badge variant={severityBadgeVariant(event.severity)}>{labelFromSnake(event.severity)}</Badge>
+          <div className="flex flex-wrap items-center justify-between gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <h4 className="text-xs font-medium">{displayTitle}</h4>
+              <Badge variant={severityBadgeVariant(event.severity)}>{labelFromSnake(event.severity)}</Badge>
+            </div>
+            <time className="text-[11px] text-muted" dateTime={event.occurred_at}>
+              {formatEventTime(event.occurred_at)}
+            </time>
           </div>
-          <p className="mt-1 text-sm text-muted">{displaySummary}</p>
-          <time className="mt-2 block text-xs text-muted" dateTime={event.occurred_at}>
-            {formatEventTime(event.occurred_at)}
-          </time>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <p className="mt-0.5 text-xs text-muted">{displaySummary}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <Link
               href={event.action_href}
-              className="btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
+              className="btn-secondary inline-flex items-center gap-1 px-2 py-1 text-[11px]"
               aria-label={`Open ${displayTitle}`}
             >
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              <ExternalLink className="h-3 w-3" aria-hidden="true" />
               {resolvedOpenLabel}
             </Link>
             {event.status === "unread" && onStatusChange && (
-              <button type="button" className="btn-ghost px-3 py-1.5 text-xs" onClick={() => onStatusChange(event.id, "read")}>
+              <button type="button" className="btn-ghost px-2 py-1 text-[11px]" onClick={() => onStatusChange(event.id, "read")}>
                 Mark as read
               </button>
             )}
             {event.status !== "archived" && onStatusChange && (
-              <button type="button" className="btn-ghost px-3 py-1.5 text-xs" onClick={() => onStatusChange(event.id, "archived")}>
+              <button type="button" className="btn-ghost px-2 py-1 text-[11px]" onClick={() => onStatusChange(event.id, "archived")}>
                 Archive
               </button>
             )}
@@ -72,9 +74,9 @@ export function WorkflowEventCard({
 export function WorkflowEventGroup({ title, events }: { title: string; events: WorkflowEventResponse[] }) {
   if (events.length === 0) return null;
   return (
-    <section className="space-y-2" aria-label={title}>
-      <h3 className="text-sm font-semibold">{title}</h3>
-      <div className="space-y-2">
+    <section className="space-y-1.5" aria-label={title}>
+      <h3 className="text-xs font-semibold">{title}</h3>
+      <div className="space-y-1.5">
         {events.map((event) => (
           <WorkflowEventCard key={event.id} event={event} />
         ))}

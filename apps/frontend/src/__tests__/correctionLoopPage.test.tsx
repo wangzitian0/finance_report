@@ -25,6 +25,11 @@ describe("Correction loop proof page", () => {
     expect(await screen.findByText("30.0%")).toBeInTheDocument();
     expect(screen.getByText("18.0%")).toBeInTheDocument();
     expect(screen.getByText("Improves extraction")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open attention queue" })).toHaveAttribute(
+      "href",
+      "/attention",
+    );
+    expect(screen.queryByText(/TraceRecord/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/posted facts/i)).not.toBeInTheDocument();
   });
 
