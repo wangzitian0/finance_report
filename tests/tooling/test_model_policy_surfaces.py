@@ -34,7 +34,9 @@ ASSIGNMENT = re.compile(
     rf"(?<![A-Za-z0-9])(?:[A-Z0-9]+_)*?({_VARS})\b\s*[:=]\s*(\$\{{\{{[^}}]*\}}\}}|[\"']?[^\"'\s#]*)"
 )
 # `| `KEY` | default | example | …` (env reference table): both value cells count.
-REFERENCE_ROW = re.compile(rf"^\|\s*`({_VARS})`\s*\|([^|]*)\|([^|]*)\|")
+REFERENCE_ROW = re.compile(rf"^\|\s*`(?:[A-Z0-9]+_)*?({_VARS})`\s*\|([^|]*)\|([^|]*)\|")
+# Dockerfile `ENV KEY value` (space form).
+DOCKER_ENV = re.compile(rf"^\s*ENV\s+(?:[A-Z0-9]+_)*?({_VARS})\s+([^\s=]+)\s*$")
 QUOTED = re.compile(r"'([^']*)'|\"([^\"]*)\"")
 # A wire-adapter matcher that recognises GLM 5.3 names; it is never a call target.
 EXEMPT_LINES = {("apps/backend/src/llm/extension/client.py", '"glm-5.3",')}
@@ -125,9 +127,19 @@ def _slot_values(line: str) -> list[tuple[str, str]]:
                     if item.strip()
                 )
         return pairs
+    docker = DOCKER_ENV.match(line)
+    if docker is not None:
+        return [
+            (docker.group(1), item.strip())
+            for item in docker.group(2).split(",")
+            if item.strip()
+        ]
     for match in ASSIGNMENT.finditer(line):
         value = match.group(2)
-        if value.startswith("${{"):
+        if value == "${{":
+            # An expression the parser cannot read fails closed: it is reported as a value.
+            literals = [line.split(match.group(1), 1)[1].lstrip(" :=").strip()]
+        elif value.startswith("${{"):
             # A workflow expression: check every literal default inside it.
             literals = [a or b for a, b in QUOTED.findall(value)]
         else:
@@ -165,11 +177,17 @@ def test_AC_llm_approved_models_2_slot_parser_reads_every_assignment_form() -> N
         ],
         "ENV VISION_FALLBACK_MODELS=glm-4.5v": [("VISION_FALLBACK_MODELS", "glm-4.5v")],
         "echo primary=${STAGING_E2E_PRIMARY_MODEL}": [],
+        "ENV PRIMARY_MODEL gpt-4o": [("PRIMARY_MODEL", "gpt-4o")],
+        "| `STAGING_E2E_OCR_MODEL` | `glm-5.2` |  |": [("OCR_MODEL", "glm-5.2")],
     }
     for line, expected in cases.items():
         assert _slot_values(line) == expected, (
             f"{line!r} parsed as {_slot_values(line)}"
         )
+    unreadable = _slot_values("PRIMARY_MODEL: ${{ format('{0}', 'gpt-4o') }}")
+    assert unreadable and unreadable[0][1] not in _approved_model_ids(), (
+        f"an unreadable expression must fail closed, parsed as {unreadable}"
+    )
 
 
 def test_AC_llm_approved_models_2_config_surfaces_name_only_approved_models() -> None:
@@ -263,6 +281,18 @@ def test_AC_llm_approved_models_3_staging_gate_blocks_on_the_catalog_check() -> 
         "the AI/OCR canary must not run when the provider-gate job, catalog check included, failed"
     )
     assert (
+        "model_catalog_outcome: ${{ steps.model_catalog_policy.outcome }}"
+        in provider_job
+    ), "the provider gate must export the catalog step outcome"
+    delivery_job = workflow.split("\n  post-merge-delivery:", 1)[1]
+    read_line = 'model_catalog_outcome="${{ needs.provider-gate.outputs.model_catalog_outcome }}"'
+    catalog_branch = '[ "$model_catalog_outcome" = "failure" ]'
+    reason = (
         'failure_reason="deployed model catalog lists models outside the approved set"'
-        in workflow
+    )
+    provider_branch = '[ "$provider_result" != "success" ]'
+    for text in (read_line, catalog_branch, reason, provider_branch):
+        assert text in delivery_job, f"post-merge delivery is missing: {text}"
+    assert delivery_job.index(catalog_branch) < delivery_job.index(provider_branch), (
+        "the catalog branch must come before the generic provider branch"
     )
