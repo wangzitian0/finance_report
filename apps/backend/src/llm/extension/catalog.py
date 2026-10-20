@@ -52,11 +52,13 @@ def _configured_specs(*, modality: Modality | None = None) -> list[ModelSpec]:
             (settings.vision_model, _VISION_MODALITIES),
             *((m, _VISION_MODALITIES) for m in settings.vision_fallback_models),
             (settings.primary_model, _TEXT_MODALITIES),
+            (settings.large_model, _TEXT_MODALITIES),
             *((m, _TEXT_MODALITIES) for m in settings.fallback_models),
         ]
     else:
         entries = [
             (settings.primary_model, _TEXT_MODALITIES),
+            (settings.large_model, _TEXT_MODALITIES),
             (settings.ocr_model, _VISION_MODALITIES),
             (settings.vision_model, _VISION_MODALITIES),
             *((m, _TEXT_MODALITIES) for m in settings.fallback_models),

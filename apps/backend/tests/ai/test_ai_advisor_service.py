@@ -232,6 +232,7 @@ async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> 
     """AC-advisor.stream.1: AC6.7.1: Stream falls back to fallback model on primary failure."""
     service = AIAdvisorService()
     service.primary_model = "primary"
+    service.large_model = "primary"
     service.fallback_models = ["fallback"]
     calls: list[str] = []
 
@@ -259,6 +260,7 @@ async def test_stream_openrouter_raises_when_all_fail(
     """AC-advisor.stream.2: AC6.7.2: Stream raises error when all models fail."""
     service = AIAdvisorService()
     service.primary_model = "primary"
+    service.large_model = "primary"
     service.fallback_models = ["fallback"]
 
     async def fake_stream_model(
@@ -961,6 +963,7 @@ async def test_stream_openrouter_with_preferred_model(monkeypatch: pytest.Monkey
     """AC-advisor.stream.7: AC6.13.2: preferred_model is prepended to the model list."""
     service = AIAdvisorService()
     service.primary_model = "primary"
+    service.large_model = "primary"
     service.fallback_models = []
     called_with: list[str] = []
 
@@ -985,6 +988,7 @@ async def test_stream_openrouter_raises_on_programming_error(monkeypatch: pytest
     """AC-advisor.stream.8: AC6.13.3: ValueError/TypeError in _stream_model raises AIAdvisorError."""
     service = AIAdvisorService()
     service.primary_model = "primary"
+    service.large_model = "primary"
     service.fallback_models = []
 
     async def broken_stream_model(model, _messages, _user_id=None, _reasoning=None, _max_tokens=None):
