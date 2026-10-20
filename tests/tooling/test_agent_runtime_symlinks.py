@@ -123,7 +123,7 @@ def test_instruction_mirrors_exempt_from_ssot_ownership_check() -> None:
 def test_every_canonical_skill_is_mirrored() -> None:
     """Every canonical skill exists as a materialized directory in each mirror."""
     leaves = _canonical_leaf_skill_dirs()
-    assert leaves, "expected to discover skills/**/SKILL.md leaves"
+    assert leaves, "expected to discover .agents/skills/**/SKILL.md leaves"
 
     for runtime, skills_dir in MIRROR_SKILL_DIRS.items():
         for name, leaf in sorted(leaves.items()):
