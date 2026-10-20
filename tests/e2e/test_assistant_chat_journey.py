@@ -14,8 +14,8 @@ deployed revision that:
   runs, so it proves the header contract on the deployment, not the use of the data. The amount
   check proves the use of the data;
 * a question about a period with no data (dining in March 2019) gets an answer that says so in a
-  sentence about that subject. No sentence about that subject states a money amount, and the answer
-  states no money amount that is not in the data of the user.
+  sentence about that subject. No sentence about that subject states an amount, and the answer
+  states no amount that is not in the data of the user.
 
 The assistant reads the balance sheet of today and the income statement of the current month
 (``_get_financial_summary_context``), so the statement uses the current month of the server.
@@ -110,15 +110,22 @@ async def _server_today(client: httpx.AsyncClient) -> date:
 
 
 async def _wait_for_parsed(client: httpx.AsyncClient, statement_id: str) -> dict:
-    """Wait for the deterministic CSV parse. No provider parses a CSV, so the wait is short."""
-    deadline = time.monotonic() + CSV_PARSE_TIMEOUT_SECONDS
+    """Wait for the deterministic CSV parse. No provider parses a CSV, so the wait is short.
+
+    The httpx timeout limits each request, so ``asyncio.timeout`` limits the whole wait.
+    """
     statement: dict = {}
-    while time.monotonic() < deadline:
-        statement = await _get(client, f"/statements/{statement_id}")
-        if statement.get("status") in ("parsed", "approved", "rejected"):
-            return statement
-        await asyncio.sleep(POLL_SECONDS)
-    pytest.fail(f"statement {statement_id} did not parse: {statement}")
+    try:
+        async with asyncio.timeout(CSV_PARSE_TIMEOUT_SECONDS):
+            while True:
+                statement = await _get(client, f"/statements/{statement_id}")
+                if statement.get("status") in ("parsed", "approved", "rejected"):
+                    return statement
+                await asyncio.sleep(POLL_SECONDS)
+    except TimeoutError:
+        pytest.fail(
+            f"statement {statement_id} did not parse within {CSV_PARSE_TIMEOUT_SECONDS} s: {statement}"
+        )
 
 
 async def _ask(client: httpx.AsyncClient, question: str) -> tuple[str, dict, float]:
@@ -143,6 +150,12 @@ async def _ask(client: httpx.AsyncClient, question: str) -> tuple[str, dict, flo
     seconds = round(time.monotonic() - started, 1)
     assert response.status_code == 200, (
         f"POST /chat failed for {question!r}: {response.status_code} {response.text}"
+    )
+    # A finished answer always ends with the disclaimer. An empty body means that the
+    # provider stream failed before its first chunk, after the server sent HTTP 200.
+    assert response.text.strip(), (
+        f"the assistant sent HTTP 200 with an empty body after {seconds} s for {question!r}: "
+        "the provider stream failed before its first chunk, and the AI service may be unavailable"
     )
     raw_metadata = response.headers.get("X-Advisor-Metadata")
     assert raw_metadata, f"the answer has no X-Advisor-Metadata header: {response.text}"

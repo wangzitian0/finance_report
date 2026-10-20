@@ -11,14 +11,16 @@ prose that follows the headline is the prose of a real answer.
 
 from __future__ import annotations
 
+import ast
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
 from tests.e2e.assistant_answer import (
+    ANSWERS_PER_JOURNEY,
     METRIC_LABELS,
     QUESTION,
-    WAIT_CEILING_MINUTES,
     misstated_metrics,
     money_amounts,
     says_no_data,
@@ -95,10 +97,20 @@ def test_AC_advisor_grounding_3_the_question_asks_for_the_first_label_of_each_me
         assert labels[0] in QUESTION.lower()
 
 
-def test_AC_advisor_grounding_3_the_wait_ceiling_is_two_answers_and_one_csv_parse() -> (
+def test_AC_advisor_grounding_3_the_journey_asks_as_many_questions_as_the_budget_counts() -> (
     None
 ):
-    assert WAIT_CEILING_MINUTES == 6
+    journey = (
+        Path(__file__).resolve().parents[2] / "tests/e2e/test_assistant_chat_journey.py"
+    )
+    calls = [
+        node
+        for node in ast.walk(ast.parse(journey.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_ask"
+    ]
+    assert len(calls) == ANSWERS_PER_JOURNEY
 
 
 @pytest.mark.parametrize("answer", [V022_ANSWER, V029_ANSWER])
@@ -135,6 +147,28 @@ def test_AC_advisor_grounding_3_a_real_answer_states_each_report_amount(
             "Income this month: see below",
             {"income": None},
         ),
+        # Wrong headlines as bare numbers, with no currency and no decimals.
+        (
+            "Net worth: SGD 13500.00",
+            "Net worth: 10,000",
+            {"net_worth": Decimal("10000")},
+        ),
+        (
+            "Net worth: SGD 13500.00",
+            "Net worth: 10000",
+            {"net_worth": Decimal("10000")},
+        ),
+        (
+            "Expenses this month: SGD 1500.00",
+            "Expenses this month: 5,000",
+            {"expenses": Decimal("5000")},
+        ),
+        # A wrong headline in a parenthesis.
+        (
+            "Net worth: SGD 13500.00",
+            "Net worth: (SGD 10,000.00)",
+            {"net_worth": Decimal("10000.00")},
+        ),
     ],
 )
 def test_AC_advisor_grounding_3_a_mutated_real_answer_fails(
@@ -142,6 +176,29 @@ def test_AC_advisor_grounding_3_a_mutated_real_answer_fails(
 ) -> None:
     assert V029_ANSWER.count(old) == 1
     assert misstated_metrics(V029_ANSWER.replace(old, new), ORACLE) == misstated
+
+
+@pytest.mark.parametrize(
+    "headline",
+    [
+        "**Net worth:** SGD 13,500.00",
+        "Net worth (as of 20 Oct 2026): SGD 13,500.00",
+        "Net worth: S$13,500",
+        "Net worth: SGD  13,500",
+        "Net worth: 13,500.00 SGD",
+        "Here are your net worth, income and expenses for October 2026:\nNet worth: SGD 13,500.00",
+    ],
+)
+def test_AC_advisor_grounding_3_a_correct_headline_variant_passes(
+    headline: str,
+) -> None:
+    assert stated_amounts(headline)["net_worth"] == Decimal("13500")
+
+
+def test_AC_advisor_grounding_3_a_curly_apostrophe_label_is_read() -> None:
+    assert stated_amounts("This month’s income: SGD 5,000.00")["income"] == Decimal(
+        "5000"
+    )
 
 
 def test_AC_advisor_grounding_3_a_label_reads_up_to_the_next_label_only() -> None:
@@ -189,6 +246,15 @@ def test_AC_advisor_grounding_3_a_real_refusal_passes(refusal: str) -> None:
         "There is no dining data for March 2019, but it was about $180.00.",
         "Your dining spend in March 2019 would be 245.50.",
         "Dining in March 2019 was roughly 240 SGD, but I do not have the receipts.",
+        # The abbreviation does not end the sentence.
+        "I don't have dining records for March 2019, but it was approx. SGD 1,500.00 based on your pattern.",
+        "Dining in March 2019 was about 180 dollars.",
+        "Dining in March 2019 was sgd 240.",
+        "Dining in March 2019 was CAD 240.",
+        "Dining in March 2019 was around 180.",
+        # Each half of the subject alone names the subject.
+        "Your dining total is SGD 245.00.",
+        "In March 2019 you spent SGD 245.00.",
     ],
 )
 def test_AC_advisor_grounding_3_an_amount_about_the_subject_fails(refusal: str) -> None:
@@ -209,18 +275,41 @@ def test_AC_advisor_grounding_3_a_caveat_about_another_subject_is_no_refusal() -
     assert says_no_data("I cannot see any dining spend for March 2019 in your records.")
 
 
-def test_AC_advisor_grounding_3_money_needs_a_currency_or_two_decimals() -> None:
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        "Dining data for March 2019 isn't available in your records.",
+        "Dining for March 2019 is not in your data.",
+        "Dining spend for March 2019 is not present in your statements.",
+        "March 2019 is outside the period of your records.",
+        "Your records do not extend back to March 2019.",
+    ],
+)
+def test_AC_advisor_grounding_3_a_no_data_wording_is_read(refusal: str) -> None:
+    assert says_no_data(refusal)
+
+
+def test_AC_advisor_grounding_3_an_amount_is_money_or_a_bare_number_that_is_no_year() -> (
+    None
+):
     assert (
         money_amounts(
             "A 0.0% match rate, 66.67% coverage, 2 unmatched rows, March 2019."
         )
         == set()
     )
-    assert money_amounts("An FX rate of 1.3456, version v0.2.9, OCT 2026.") == set()
-    assert money_amounts("S$1,200 and USD 40 and 12.50 and 245.50. And 240 SGD.") == {
+    assert (
+        money_amounts("An FX rate of 1.3456, version v0.2.9, OCT 2026, 70% saved.")
+        == set()
+    )
+    assert money_amounts(
+        "S$1,200 and USD 40 and 12.50 and 245.50. And 240 SGD, 180 dollars, 10000, 2019."
+    ) == {
         Decimal("1200"),
         Decimal("40"),
         Decimal("12.50"),
         Decimal("245.50"),
         Decimal("240"),
+        Decimal("180"),
+        Decimal("10000"),
     }
