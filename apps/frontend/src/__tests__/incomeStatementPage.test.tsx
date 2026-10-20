@@ -255,5 +255,8 @@ describe("IncomeStatementPage", () => {
         end_date: "2026-02-15",
       })
     })
+
+    fireEvent.click(screen.getByRole("button", { name: "Period 1Q" }))
+    expect(screen.getByRole("button", { name: "Period 1Q" })).toHaveAttribute("aria-pressed", "true")
   })
 })
