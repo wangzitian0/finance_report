@@ -58,22 +58,8 @@ describe("lineage helpers (EPIC-022 AC22.3.4)", () => {
     expect(lineageUrl({ entity_type: "journal_line", entity_id: UUID })).not.toContain("node_kind")
   })
 
-  it("nodeLabel renders a typed identifier label and includes original filename when present", () => {
+  it("nodeLabel renders a typed identifier label", () => {
     expect(nodeLabel({ entity_type: "journal_line", entity_id: UUID })).toBe(`journal_line:${UUID}`)
-    expect(
-      nodeLabel({
-        entity_type: "uploaded_document",
-        entity_id: UUID,
-        properties: { original_filename: "DBS_2026_03.pdf" },
-      }),
-    ).toBe(`DBS_2026_03.pdf (uploaded_document:${UUID})`)
-    expect(
-      nodeLabel({
-        entity_type: "uploaded_document",
-        entity_id: UUID,
-        properties: { filename: "export.csv" },
-      }),
-    ).toBe(`export.csv (uploaded_document:${UUID})`)
   })
 
   it("nodeDisplayTitle and nodeSourceHref resolve human-readable titles and links", () => {
@@ -84,6 +70,13 @@ describe("lineage helpers (EPIC-022 AC22.3.4)", () => {
         properties: { original_filename: "DBS_2026_03.pdf" },
       }),
     ).toBe("DBS_2026_03.pdf")
+    expect(
+      nodeDisplayTitle({
+        entity_type: "uploaded_document",
+        entity_id: UUID,
+        properties: { filename: "export.csv" },
+      }),
+    ).toBe("export.csv")
     expect(
       nodeDisplayTitle({
         entity_type: "atomic_transaction",
