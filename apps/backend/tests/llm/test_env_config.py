@@ -75,7 +75,14 @@ async def test_default_glm_models_reach_scene_bindings(monkeypatch):
     """AC-llm.2.8: the actual defaults route text and images to supported models."""
     import src.llm.extension.env_config as env_config
 
-    for variable in ("PRIMARY_MODEL", "VISION_MODEL", "OCR_MODEL", "FALLBACK_MODELS", "VISION_FALLBACK_MODELS"):
+    for variable in (
+        "PRIMARY_MODEL",
+        "LARGE_MODEL",
+        "VISION_MODEL",
+        "OCR_MODEL",
+        "FALLBACK_MODELS",
+        "VISION_FALLBACK_MODELS",
+    ):
         monkeypatch.delenv(variable, raising=False)
     defaults = Settings(_env_file=None, AI_PROVIDER="zai", AI_API_KEY="test-key")
     monkeypatch.setattr(env_config, "settings", defaults)
