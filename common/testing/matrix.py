@@ -524,6 +524,15 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         anchor="--junit-xml=test-results/staging-provider-connectivity.xml",
     ),
     WorkflowPytestContract(
+        stage="staging_model_catalog_policy",
+        workflow=".github/workflows/deploy.yml",
+        marker=STAGING_AI_OCR_MARKER,
+        paths=(
+            "tests/e2e/test_ai_provider_connectivity.py::test_deployed_catalog_lists_only_approved_models",
+        ),
+        anchor="--junit-xml=test-results/staging-model-catalog-policy.xml",
+    ),
+    WorkflowPytestContract(
         stage="staging_ai_ocr_version_check",
         workflow=".github/workflows/staging-ai-ocr-gate.yml",
         marker=STAGING_VERSION_CHECK_MARKER,
