@@ -379,9 +379,11 @@ async def test_four_asset_as_of_net_worth_golden_path(
         assert first_reconciliation.status_code == 200, (
             f"first reconciliation failed: {first_reconciliation.status_code} {first_reconciliation.text}"
         )
+        # The approval already posted every row from its own statement, so the first run
+        # finds no pending row and creates no self-match (AC-reconciliation.2561.1, #2554).
         assert first_reconciliation.json() == {
-            "matches_created": 2,
-            "auto_accepted": 2,
+            "matches_created": 0,
+            "auto_accepted": 0,
             "pending_review": 0,
             "unmatched": 0,
         }

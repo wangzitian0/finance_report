@@ -283,6 +283,7 @@ async def test_AC_reconciliation_2561_1_run_after_statement_posting_creates_no_s
 
     from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
     from src.reconciliation import execute_matching
+    from src.reconciliation.extension.repository import SqlReconciliationRepository
     from tests.statement_ingestion import posting_dependencies
 
     statement, txn = await _seed_reviewed_statement_row(db, test_user.id, "hash_stats_posted_2561")
@@ -290,6 +291,16 @@ async def test_AC_reconciliation_2561_1_run_after_statement_posting_creates_no_s
         db, statement.id, test_user.id, dependencies=posting_dependencies()
     )
     assert posted == 1
+
+    # A self-match candidate exists: the posted entry is a live journal candidate on the row's date.
+    repo = SqlReconciliationRepository(db)
+    candidates = await repo.list_journal_candidates(
+        user_id=test_user.id, start_date=txn.txn_date, end_date=txn.txn_date
+    )
+    assert len(candidates) == 1
+    # The exclusion removes the row from the pending list, so the run cannot use that candidate.
+    pending_ids = {row.id for row in await repo.list_pending_transactions(test_user.id)}
+    assert txn.id not in pending_ids
 
     matches = await execute_matching(db, user_id=test_user.id, currency="SGD")
     assert matches == []

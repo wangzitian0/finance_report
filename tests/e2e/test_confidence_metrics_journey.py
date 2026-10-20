@@ -221,13 +221,13 @@ async def test_proportion_of_low_confidence_data_is_measured(
         # The approval already posted both rows from their own statement, so the run
         # finds no pending row and creates no self-match (AC-reconciliation.2561.1).
         # The stats below still count both rows as matched (AC-reconciliation.2465.1).
-        run = reconcile_resp.json()
-        assert run["matches_created"] == 0, (
-            f"the run matched rows that are already posted: {run}"
-        )
-        assert run["auto_accepted"] == 0, (
-            f"the run matched rows that are already posted: {run}"
-        )
+        # unmatched == 0 shows that the run saw both rows of this statement as resolved.
+        assert reconcile_resp.json() == {
+            "matches_created": 0,
+            "auto_accepted": 0,
+            "pending_review": 0,
+            "unmatched": 0,
+        }, f"the run did not treat the posted rows as resolved: {reconcile_resp.json()}"
 
         for txn in valid_parsed["transactions"]:
             corr_resp = await client.post(

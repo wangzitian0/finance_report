@@ -467,9 +467,11 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert first_reconciliation.status_code == 200, (
             f"first reconciliation failed: {first_reconciliation.status_code} {first_reconciliation.text}"
         )
+        # The approval already posted every row from its own statement, so the first run
+        # finds no pending row and creates no self-match (AC-reconciliation.2561.1, #2554).
         assert first_reconciliation.json() == {
-            "matches_created": expected.transaction_count,
-            "auto_accepted": expected.transaction_count,
+            "matches_created": 0,
+            "auto_accepted": 0,
             "pending_review": 0,
             "unmatched": 0,
         }
