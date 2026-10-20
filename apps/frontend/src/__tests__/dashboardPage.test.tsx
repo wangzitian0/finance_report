@@ -761,4 +761,24 @@ describe("HomePage", () => {
     expect(statementCalls).toHaveLength(1)
     expect(statsCalls).toHaveLength(1)
   })
+
+  it("keeps dashboard DOM mounted without flipping loading back to true on subsequent period or scope switch", async () => {
+    mockDashboardApi()
+
+    render(<HomePage />)
+
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument(),
+    )
+    expect(screen.getByText("Total Assets")).toBeInTheDocument()
+
+    // Make the next refetch hang indefinitely so we can observe the in-flight state
+    mockedApiOperation.mockImplementation(() => new Promise(() => {}))
+
+    fireEvent.click(screen.getByRole("button", { name: "Period YTD" }))
+
+    expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument()
+    expect(screen.getByText("Total Assets")).toBeInTheDocument()
+    expect(screen.getByText("Net Worth")).toBeInTheDocument()
+  })
 })
