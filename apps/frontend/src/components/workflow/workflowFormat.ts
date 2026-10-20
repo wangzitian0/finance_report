@@ -75,7 +75,8 @@ const WORKFLOW_JARGON_REPLACEMENTS: Array<[RegExp, string]> = [
   [/Package section invariant failed/gi, "Statement balance check needed"],
 ];
 
-export function humanizeWorkflowText(value: string): string {
+export function humanizeWorkflowText(value?: string | null): string {
+  if (!value) return "";
   let result = value;
   for (const [pattern, replacement] of WORKFLOW_JARGON_REPLACEMENTS) {
     result = result.replace(pattern, replacement);

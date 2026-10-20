@@ -464,5 +464,7 @@ describe("workflow notification surfaces", () => {
     )
     expect(humanizeWorkflowText("Package section invariant failed")).toBe("Statement balance check needed")
     expect(humanizeWorkflowText("Ordinary user-facing summary")).toBe("Ordinary user-facing summary")
+    expect(humanizeWorkflowText(undefined)).toBe("")
+    expect(humanizeWorkflowText(null)).toBe("")
   })
 })
