@@ -1,86 +1,48 @@
 #!/usr/bin/env python3
 """Thin OpenPanel query CLI for inspecting frontend product-analytics data.
 
-A dependency-light (stdlib-only) wrapper over the OpenPanel export API, used to
-pull events / funnels when triaging frontend issues. The API key is read from
-the ``OPENPANEL_API_KEY`` environment variable and never accepted as a CLI
-argument (so it cannot leak into shell history / process listings).
-
-Examples::
-
-    OPENPANEL_API_KEY=... python openpanel_query.py events --env staging
-    OPENPANEL_API_KEY=... python openpanel_query.py funnel \\
-        --preset core-funnel --env production --format markdown
-
-The default API base mirrors the self-hosted instance used by
-``components/Analytics.tsx`` (``https://openpanel.zitian.party/api``); override
-with ``--api-url`` or ``OPENPANEL_API_URL`` for other environments.
+Delegates OpenPanel export API URL validation, API key resolution, declarative
+funnel preset loading, payload construction, Markdown summary rendering, and
+HTTP transport to :mod:`infra2_sdk.observability` (#2544).
 """
 
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping, Sequence
 import json
-import os
+from pathlib import Path
 import sys
 import urllib.error
-import urllib.parse
-import urllib.request
-from typing import Mapping, Sequence
+
+from infra2_sdk.observability import (
+    build_openpanel_payload,
+    format_openpanel_markdown,
+    load_openpanel_funnel_presets,
+    post_openpanel_json,
+    resolve_openpanel_api_key,
+    resolve_openpanel_api_url,
+)
 
 DEFAULT_API_URL = "https://openpanel.zitian.party/api"
 API_KEY_ENV = "OPENPANEL_API_KEY"
 API_URL_ENV = "OPENPANEL_API_URL"
-_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
-
-FUNNEL_PRESETS: dict[str, tuple[str, ...]] = {
-    "core-funnel": (
-        "upload_started",
-        "upload_succeeded",
-        "review_approved",
-        "report_generated",
-    ),
-    "activation": (
-        "upload_started",
-        "upload_succeeded",
-        "report_generated",
-    ),
-}
-
-
-def _is_loopback(host: str) -> bool:
-    return host.strip("[]").lower() in _LOOPBACK_HOSTS
+OPENPANEL_CONTRACT_PATH = (
+    Path(__file__).resolve().parent / "data" / "openpanel_analytics.json"
+)
+FUNNEL_PRESETS: dict[str, tuple[str, ...]] = load_openpanel_funnel_presets(
+    OPENPANEL_CONTRACT_PATH
+)
 
 
 def resolve_api_url(explicit: str | None) -> str:
-    """Resolve and validate the API base URL: CLI flag > env var > default.
-
-    The API key is sent as a header, so a plaintext ``http://`` endpoint would
-    leak the secret on the wire. Reject any non-``https`` URL except loopback
-    (localhost / 127.0.0.1 / ::1), which is safe for local development.
-    """
-    candidate = (explicit or os.environ.get(API_URL_ENV) or "").strip()
-    url = candidate or DEFAULT_API_URL
-    parsed = urllib.parse.urlparse(url)
-    if parsed.scheme == "https":
-        return url
-    if parsed.scheme == "http" and parsed.hostname and _is_loopback(parsed.hostname):
-        return url
-    raise SystemExit(
-        f"error: refusing to send the API key to a non-HTTPS endpoint: {url!r}; "
-        "use https:// (or http:// only for localhost)."
-    )
+    """Resolve and validate the API base URL via ``infra2_sdk.observability``."""
+    return resolve_openpanel_api_url(explicit, default_url=DEFAULT_API_URL)
 
 
-def resolve_api_key(env: dict[str, str] | None = None) -> str:
-    """Return the API key from the environment or exit with a clear error."""
-    source = env if env is not None else dict(os.environ)
-    key = (source.get(API_KEY_ENV) or "").strip()
-    if not key:
-        raise SystemExit(
-            f"error: {API_KEY_ENV} is not set; export it before querying OpenPanel."
-        )
-    return key
+def resolve_api_key(env: Mapping[str, str] | None = None) -> str:
+    """Return the API key from the environment via ``infra2_sdk.observability``."""
+    return resolve_openpanel_api_key(env)
 
 
 def resolve_funnel_steps(args: argparse.Namespace) -> list[str]:
@@ -100,92 +62,33 @@ def resolve_funnel_steps(args: argparse.Namespace) -> list[str]:
 
 
 def build_payload(args: argparse.Namespace) -> dict[str, object]:
-    """Build the JSON request body for the selected subcommand.
-
-    Pure (no I/O) so it is exhaustively unit-testable.
-    """
-    payload: dict[str, object] = {"limit": args.limit}
-    if args.env:
-        # OpenPanel events are tagged with `environment` global property by
-        # `components/Analytics.tsx`; filter on it so per-env data is isolable.
-        payload["filters"] = [
-            {"name": "environment", "operator": "is", "value": [args.env]}
-        ]
-    if args.command == "events":
-        payload["event"] = args.event or "*"
-    elif args.command == "funnel":
-        payload["steps"] = resolve_funnel_steps(args)
-    return payload
+    """Build the JSON request body for the selected subcommand."""
+    steps = resolve_funnel_steps(args) if args.command == "funnel" else None
+    return build_openpanel_payload(
+        command=args.command,
+        limit=args.limit,
+        env=args.env,
+        event=getattr(args, "event", None),
+        steps=steps,
+    )
 
 
 def format_markdown_summary(
     result: Mapping[str, object], *, command: str, env: str | None = None
 ) -> str:
     """Format an OpenPanel events or funnel response as a Markdown summary table."""
-    scope = f" ({env})" if env else ""
-    if command == "funnel":
-        rows = result.get("steps") or result.get("data") or []
-        lines = [
-            f"### OpenPanel Funnel Summary{scope}",
-            "",
-            "| Step | Event | Count | Conversion |",
-            "|---|---|---|---|",
-        ]
-        if isinstance(rows, list) and rows:
-            first_count = 0
-            for idx, item in enumerate(rows, start=1):
-                if not isinstance(item, Mapping):
-                    continue
-                name = str(item.get("event") or item.get("name") or f"step_{idx}")
-                count = int(item.get("count") or item.get("value") or 0)
-                if idx == 1:
-                    first_count = count
-                pct = (
-                    round((count / first_count) * 100.0, 1)
-                    if first_count > 0
-                    else (100.0 if count > 0 else 0.0)
-                )
-                lines.append(f"| {idx} | `{name}` | {count} | {pct}% |")
-        else:
-            lines.append("| - | (no funnel steps returned) | 0 | 0.0% |")
-        return "\n".join(lines)
-
-    events = result.get("events") or result.get("data") or []
-    lines = [
-        f"### OpenPanel Events Summary{scope}",
-        "",
-        f"Total returned: {len(events) if isinstance(events, list) else 0}",
-    ]
-    return "\n".join(lines)
+    return format_openpanel_markdown(result, command=command, env=env)
 
 
 def post_json(
     url: str, api_key: str, payload: dict[str, object]
 ) -> dict[str, object]:  # pragma: no cover - real network egress, injected in tests
-    """POST a JSON payload and return the decoded response.
-
-    Isolated so tests can monkeypatch it without making a network call.
-    """
-    data = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(  # noqa: S310 - scheme validated by resolve_api_url (https, or http only for loopback)
-        url,
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "openpanel-client-secret": api_key,
-        },
-        method="POST",
-    )
-    with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
-        return json.loads(response.read().decode("utf-8"))
+    """POST a JSON payload and return the decoded response."""
+    return post_openpanel_json(url, api_key, payload)
 
 
 def run(args: argparse.Namespace, *, transport=None) -> dict[str, object]:
-    """Resolve config, build the payload, and execute the request.
-
-    ``transport`` is injectable for tests; when omitted it is resolved to the
-    module-level :func:`post_json` at call time (so monkeypatching works).
-    """
+    """Resolve config, build the payload, and execute the request."""
     if transport is None:
         transport = post_json
     api_url = resolve_api_url(args.api_url)
@@ -261,5 +164,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
     raise SystemExit(main())
