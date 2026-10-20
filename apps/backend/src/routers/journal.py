@@ -38,7 +38,7 @@ async def create_entry(
 ) -> JournalEntryResponse:
     lines_data = [line.model_dump() for line in entry_data.lines]
     try:
-        base_currency = await get_effective_base_currency(db)
+        base_currency = await get_effective_base_currency(db, user_id=user_id)
         entry = await submit_manual_journal_entry(
             db=db,
             user_id=user_id,
@@ -115,7 +115,9 @@ async def post_entry(
     user_id: CurrentUserId,
 ) -> JournalEntryResponse:
     try:
-        base_currency = await get_effective_base_currency(db)
+        # Both calls validate the draft under the base currency stored at its creation. The effective
+        # value applies only to a draft written before revision 0067 (#2539).
+        base_currency = await get_effective_base_currency(db, user_id=user_id)
         draft = await get_owned_or_404(
             db,
             JournalEntry,
@@ -161,7 +163,7 @@ async def void_entry(
     user_id: CurrentUserId,
 ) -> JournalEntryResponse:
     try:
-        base_currency = await get_effective_base_currency(db)
+        base_currency = await get_effective_base_currency(db, user_id=user_id)
         reversal_entry = await void_journal_entry(
             db,
             entry_id,

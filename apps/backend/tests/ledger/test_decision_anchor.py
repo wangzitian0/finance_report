@@ -30,6 +30,8 @@ from src.audit import (
     trace_decision_projection,
 )
 from src.audit.extension.trace_repository import SqlTraceRecordRepository
+from src.audit.money import Currency
+from src.config import settings
 from src.ledger import (
     Account,
     AccountType,
@@ -51,6 +53,7 @@ from src.ledger.extension.anchored_posting import (
     SystemJournalCommandPolicy,
     validate_decision_anchor,
 )
+from src.platform import BASE_CURRENCY_KEY, AppConfig
 from src.reconciliation.extension.reviewed_disposition import _find_existing_entry
 
 
@@ -577,3 +580,54 @@ async def test_AC_ledger_80_1_publishes_only_current_decision_anchored_journal_f
     assert contribution.decision.target == decision.target
     assert contribution.decision.assertion == decision.assertion
     assert len(contribution.lines) == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["user_override", "operator_default"])
+async def test_AC_ledger_79_9_post_uses_the_base_currency_stored_on_the_draft(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    change: str,
+) -> None:
+    """AC-ledger.79.9: a base-currency change between create and post does not change the post result (#2539)."""
+    created_base = Currency(settings.base_currency).code
+    changed_base = "USD" if created_base != "USD" else "EUR"
+    debit = Account(user_id=test_user.id, name=f"payroll cash {uuid4()}", type=AccountType.ASSET, currency=created_base)
+    credit = Account(
+        user_id=test_user.id, name=f"payroll income {uuid4()}", type=AccountType.INCOME, currency=created_base
+    )
+    db.add_all((debit, credit))
+    await db.commit()
+
+    created = await client.post(
+        "/journal-entries",
+        json={
+            "entry_date": "2025-04-15",
+            "memo": "Monthly payroll",
+            "rationale": "I checked this payroll against the payslip.",
+            "lines": [
+                {"account_id": str(debit.id), "direction": "DEBIT", "amount": "8000.00", "currency": created_base},
+                {"account_id": str(credit.id), "direction": "CREDIT", "amount": "8000.00", "currency": created_base},
+            ],
+        },
+    )
+    assert created.status_code == 201, created.text
+    entry_id = UUID(created.json()["id"])
+
+    if change == "user_override":
+        update = await client.put("/app-config/base-currency", json={"base_currency": changed_base})
+        assert update.status_code == 200, update.text
+    else:
+        db.add(AppConfig(key=BASE_CURRENCY_KEY, value=changed_base))
+        await db.commit()
+    effective = await client.get("/app-config/base-currency")
+    assert effective.json() == {"base_currency": changed_base}
+
+    posted = await client.post(f"/journal-entries/{entry_id}/postings")
+
+    assert posted.status_code == 200, posted.text
+    assert posted.json()["status"] == "posted"
+    assert {line["currency"] for line in posted.json()["lines"]} == {created_base}
+    stored = await db.scalar(select(JournalEntry.base_currency).where(JournalEntry.id == entry_id))
+    assert stored == created_base

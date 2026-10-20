@@ -136,6 +136,7 @@ async def _create_anchored_journal_entry(
         source_id=source_id,
         decision_anchor_id=decision_anchor.decision_id,
         decision_authority_state=JournalEntryAuthorityState.ANCHORED,
+        base_currency=base_currency,
     )
 
     lines: list[JournalLine] = []
@@ -182,6 +183,8 @@ async def post_journal_entry(
         db: Database session
         entry_id: Journal entry UUID or existing JournalEntry instance
         user_id: User UUID for security check
+        base_currency: Used only for a draft written before revision 0067. A newer
+            draft is validated under the base currency stored at its creation (#2539).
 
     Returns:
         Posted journal entry
@@ -214,7 +217,7 @@ async def post_journal_entry(
     if entry.status != JournalEntryStatus.DRAFT:
         raise ValidationError(f"Can only post draft entries, current status: {entry.status}")
 
-    base_currency = await _set_transaction_base_currency(db, base_currency)
+    base_currency = await _set_transaction_base_currency(db, entry.stored_base_currency(base_currency))
 
     validate_journal_posting_invariants(cast("JournalEntryPostingProtocol", entry), base_currency=base_currency)
 

@@ -5,6 +5,7 @@ import { apiOperation } from "@/lib/api-client";
 import { useSettingsForm } from "@/hooks/useSettingsForm";
 
 // EPIC-012 AC12.39 / #1340: edit the effective base reporting currency.
+// The value belongs to the signed-in user only (#2539).
 // The backend validates the ISO 4217 code (HTTP 422 on invalid), so this
 // control stays minimal — a text input normalized to upper-case.
 export default function GeneralSettingsPanel() {
@@ -34,7 +35,7 @@ export default function GeneralSettingsPanel() {
     <div className="p-6 max-w-3xl">
       <div className="page-header">
         <h1 className="page-title">General Settings</h1>
-        <p className="page-description">App-level settings shared across reports.</p>
+        <p className="page-description">Settings for your own reports.</p>
       </div>
 
       {error && (
@@ -49,7 +50,7 @@ export default function GeneralSettingsPanel() {
             Base currency
           </label>
           <p className="text-sm text-muted">
-            The reporting currency all statements consolidate into (ISO 4217, e.g. SGD, USD, EUR).
+            The reporting currency your statements consolidate into (ISO 4217, e.g. SGD, USD, EUR).
           </p>
           <input
             id="base-currency"

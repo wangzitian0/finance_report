@@ -253,7 +253,7 @@ async def submit_reviewed_disposition(
             db,
             txn,
             user_id=user_id,
-            base_currency=await get_effective_base_currency(db),
+            base_currency=await get_effective_base_currency(db, user_id=user_id),
             auto_post=True,
             source_type=JournalEntrySourceType.USER_CONFIRMED,
             disposition=decision,

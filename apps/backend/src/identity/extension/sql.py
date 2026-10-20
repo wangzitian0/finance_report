@@ -41,6 +41,8 @@ class User(Base, UUIDMixin, TimestampMixin):
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     ai_settings: Mapped[dict[str, bool]] = mapped_column(JSONB, nullable=False, default=dict)
+    # The user's own base reporting currency. NULL means the operator default (#2539).
+    base_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     is_deleted: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False, server_default=text("false"), index=True
     )

@@ -103,12 +103,12 @@ export interface paths {
         parameters: { query?: never; header?: never; path?: never; cookie?: never; };
         /**
          * Get Base Currency
-         * @description Return the effective base currency (persisted override else env default).
+         * @description Return the caller's effective base currency (own value, operator default, env default).
          */
         get: operations["get_base_currency_app_config_base_currency_get"];
         /**
          * Update Base Currency
-         * @description Persist a new effective base currency. Invalid ISO 4217 code -> HTTP 422.
+         * @description Persist the caller's own base currency. Invalid ISO 4217 code -> HTTP 422.
          */
         put: operations["update_base_currency_app_config_base_currency_put"];
         post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
@@ -2098,7 +2098,7 @@ export interface components {
         };
         /**
          * BaseCurrencyResponse
-         * @description The effective base reporting currency (persisted override else env default).
+         * @description The caller's effective base reporting currency (own value, else operator default, else env default).
          */
         BaseCurrencyResponse: {
             /** Base Currency */

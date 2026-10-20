@@ -124,6 +124,14 @@ override. The write path derives that basis from the original line currency/FX
 metadata and fails closed when no FX-free line identifies the historical base,
 or when multiple FX-free currencies make it ambiguous.
 
+A journal entry stores the base currency that validated it at creation
+(`journal_entries.base_currency`, #2539). The decision-anchor target of a manual
+draft includes that base currency. Posting the draft therefore recomputes the
+target, the balance and the FX checks under the stored value, not under the
+current effective value. A change of the effective base currency between create
+and post does not change the post result (AC-ledger.79.9). Rows from before
+revision 0067 have no stored value; they use the effective value of the caller.
+
 The memo column holds `JOURNAL_MEMO_MAX_LENGTH` (500) characters. Text without a limit,
 such as a statement description, goes through `fit_journal_memo` before it becomes a
 memo. The decision anchor binds the memo that the entry stores, so the caller cuts once

@@ -116,7 +116,7 @@ async def post_guided_opening_balances(
     memo: str,
 ) -> JournalEntry | None:
     """Compose ledger-owned opening targets with pricing-owned historical rates."""
-    base_currency = await get_effective_base_currency(db)
+    base_currency = await get_effective_base_currency(db, user_id=user_id)
     currencies = await account_service.opening_balance_currencies(db, user_id, list(balances), currency)
     fx_rates = {
         code: await get_exchange_rate(db, code, base_currency, entry_date, lazy_load=True)

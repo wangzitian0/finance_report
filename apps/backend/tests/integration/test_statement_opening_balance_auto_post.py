@@ -347,7 +347,7 @@ async def test_statement_opening_balance_uses_persisted_usd_base(db, test_user) 
         institution="GXS",
         user_id=test_user.id,
     )
-    await set_base_currency(db, "USD")
+    await set_base_currency(db, "USD", user_id=test_user.id)
     await _attach_reviewed_semantic_dispositions(db, test_user.id, transactions)
 
     posted = await try_auto_approve_high_confidence_statement(
