@@ -80,14 +80,23 @@ describe("Home three-statement entry (EPIC-022 AC22.21.6 & #2548)", () => {
     // AC-reporting.2548.1
     it("AC-reporting.2548.1 switches reporting period preset and updates three-statement cockpit metrics", () => {
         const onPeriodPresetChange = vi.fn();
+        const onIncludeRestrictedChange = vi.fn();
         render(
             <ThreeStatementNav
                 balanceSheet={sampleBalanceSheet}
                 incomeStatement={sampleIncomeStatement}
                 periodPreset="1Q"
                 onPeriodPresetChange={onPeriodPresetChange}
+                includeRestricted={false}
+                onIncludeRestrictedChange={onIncludeRestrictedChange}
             />,
         );
+
+        const scopeToggle = screen.getByRole("button", { name: "Toggle restricted holdings scope" });
+        expect(scopeToggle).toHaveAttribute("aria-pressed", "false");
+        expect(scopeToggle).toHaveTextContent("Scope: Liquid");
+        fireEvent.click(scopeToggle);
+        expect(onIncludeRestrictedChange).toHaveBeenCalledWith(true);
 
         const periodGroup = screen.getByRole("group", { name: "Reporting period" });
         expect(periodGroup).toBeInTheDocument();
@@ -144,12 +153,20 @@ describe("Home three-statement entry (EPIC-022 AC22.21.6 & #2548)", () => {
         const switcher = screen.getByRole("tablist", { name: "Statement breakdown switcher" });
         expect(switcher).toBeInTheDocument();
 
+        const visualChart = screen.getByTestId("cockpit-visual-chart");
+        expect(visualChart).toHaveAttribute("aria-label", "Cockpit balance visual chart");
+        expect(visualChart).toHaveTextContent(/Assets vs Liabilities/i);
+
         expect(screen.getByRole("button", { name: /Drill down DBS Multiplier/i })).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("tab", { name: "Cash Breakdown" }));
+        expect(screen.getByTestId("cockpit-visual-chart")).toHaveAttribute("aria-label", "Cockpit cash visual chart");
+        expect(screen.getByTestId("cockpit-visual-chart")).toHaveTextContent(/Liquid Cash vs Total Assets/i);
         expect(screen.getByRole("button", { name: /Drill down DBS Multiplier/i })).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("tab", { name: "Income Breakdown" }));
+        expect(screen.getByTestId("cockpit-visual-chart")).toHaveAttribute("aria-label", "Cockpit income visual chart");
+        expect(screen.getByTestId("cockpit-visual-chart")).toHaveTextContent(/Income vs Expenses/i);
         const salaryButton = screen.getByRole("button", { name: /Drill down Base Salary/i });
         expect(salaryButton).toBeInTheDocument();
 

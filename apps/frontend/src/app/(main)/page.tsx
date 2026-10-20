@@ -119,6 +119,8 @@ export default function HomePage() {
           incomeStatement={incomeStatement}
           periodPreset={periodPreset}
           onPeriodPresetChange={setPeriodPreset}
+          includeRestricted={includeRestricted}
+          onIncludeRestrictedChange={setIncludeRestricted}
         />
       </div>
 

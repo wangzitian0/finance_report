@@ -29,13 +29,13 @@ export function HomeNetWorthBanner({
     <>
       {/* KPI Cards — Net Worth lives in the hero banner below, so it is not
           duplicated here as a "Net Assets" card. */}
-      <div className="grid gap-4 md:grid-cols-3 mb-6">
+      <div className="grid gap-3 md:grid-cols-3 mb-3">
         <ProcessingSummaryCard />
-        <div className="card p-5">
+        <div className="card p-3">
           <p className="text-xs text-muted uppercase tracking-wide">
             Total Assets
           </p>
-          <p className="text-2xl font-semibold text-[var(--success)] mt-1">
+          <p className="text-xl font-semibold text-[var(--success)] mt-0.5">
             {balanceSheet
               ? formatCurrencyLocale(
                   balanceSheet.total_assets,
@@ -45,19 +45,19 @@ export function HomeNetWorthBanner({
                 )
               : "—"}
           </p>
-          <p className="text-xs text-muted mt-1">
+          <p className="text-xs text-muted mt-0.5">
             As of{" "}
             {balanceSheet?.as_of_date
               ? formatDateDisplay(balanceSheet.as_of_date)
               : "—"}
           </p>
         </div>
-        <div className="card p-5">
+        <div className="card p-3">
           <p className="text-xs text-muted uppercase tracking-wide">
             Total Liabilities
           </p>
           <p
-            className={`text-2xl font-semibold mt-1 ${
+            className={`text-xl font-semibold mt-0.5 ${
               balanceSheet ? liabilityToneClass(balanceSheet.total_liabilities) : "text-muted"
             }`}
           >
@@ -70,7 +70,7 @@ export function HomeNetWorthBanner({
                 )
               : "—"}
           </p>
-          <p className="text-xs text-muted mt-1">Obligations</p>
+          <p className="text-xs text-muted mt-0.5">Obligations</p>
         </div>
       </div>
 
@@ -82,14 +82,14 @@ export function HomeNetWorthBanner({
 
       {/* Hero: Net Worth Banner (C2 + C3) */}
       {balanceSheet && (
-        <div className="card p-6 mb-6 bg-gradient-to-r from-[var(--accent-muted)] to-[var(--background-card)] border border-[var(--accent)]/30">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="card p-3 mb-3 bg-gradient-to-r from-[var(--accent-muted)] to-[var(--background-card)] border border-[var(--accent)]/30">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <p className="text-xs text-muted uppercase tracking-wide mb-1">
+              <p className="text-xs text-muted uppercase tracking-wide mb-0.5">
                 Net Worth
               </p>
               <p
-                className={`text-4xl font-bold ${netAssets.isNegative() ? "text-[var(--error)]" : "text-[var(--success)]"}`}
+                className={`text-xl font-bold ${netAssets.isNegative() ? "text-[var(--error)]" : "text-[var(--success)]"}`}
               >
                 {formatCurrencyLocale(
                   netAssets,
@@ -98,7 +98,7 @@ export function HomeNetWorthBanner({
                   { maximumFractionDigits: 0 },
                 )}
               </p>
-              <p className="text-xs text-muted mt-1 inline-flex items-center">
+              <p className="text-xs text-muted mt-0.5 inline-flex items-center">
                 As of{" "}
                 {balanceSheet?.as_of_date
                   ? formatDateDisplay(balanceSheet.as_of_date)
@@ -116,7 +116,7 @@ export function HomeNetWorthBanner({
                   }
                 />
               </p>
-              <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">
+              <label className="mt-1.5 inline-flex items-center gap-2 text-xs text-muted">
                 <input
                   type="checkbox"
                   checked={includeRestricted}
@@ -186,7 +186,7 @@ export function HomeNetWorthBanner({
               })()}
           </div>
           <div
-            className="mt-4 pt-3 border-t border-[var(--border)] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs"
+            className="mt-2 pt-2 border-t border-[var(--border)] grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs"
             data-testid="dashboard-net-worth-articulation"
           >
             <div>

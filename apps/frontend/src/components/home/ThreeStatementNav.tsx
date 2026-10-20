@@ -8,11 +8,12 @@ import {
     type AccountLineageTarget,
 } from "@/components/reports/AccountLineageDrawer";
 import {
+    compareAmounts,
     formatCurrencyLocale,
     subtractAmounts,
     toDecimal,
 } from "@/lib/audit/money";
-import { formatDateInput } from "@/lib/date";
+import { formatDateInput, formatMonthLabel } from "@/lib/date";
 import type {
     BalanceSheetResponse,
     IncomeStatementResponse,
@@ -20,6 +21,8 @@ import type {
 } from "@/lib/types";
 
 export type CockpitPeriodPreset = "1M" | "1Q" | "1Y" | "YTD" | "3Y" | "All";
+
+export const COCKPIT_PERIOD_STORAGE_KEY = "finance_report.cockpit_period";
 
 export const COCKPIT_PERIOD_PRESETS: CockpitPeriodPreset[] = [
     "1M",
@@ -78,6 +81,8 @@ interface ThreeStatementNavProps {
     incomeStatement?: IncomeStatementResponse | null;
     periodPreset?: CockpitPeriodPreset;
     onPeriodPresetChange?: (preset: CockpitPeriodPreset) => void;
+    includeRestricted?: boolean;
+    onIncludeRestrictedChange?: (include: boolean) => void;
 }
 
 type ActiveStatementTab = "balance" | "income" | "cash";
@@ -88,6 +93,8 @@ export function ThreeStatementNav({
     incomeStatement = null,
     periodPreset = "1Y",
     onPeriodPresetChange,
+    includeRestricted = false,
+    onIncludeRestrictedChange,
 }: ThreeStatementNavProps = {}) {
     const [internalPreset, setInternalPreset] =
         useState<CockpitPeriodPreset>(periodPreset);
@@ -100,6 +107,11 @@ export function ThreeStatementNav({
         : internalPreset;
 
     const handlePresetClick = (preset: CockpitPeriodPreset) => {
+        try {
+            window.sessionStorage.setItem(COCKPIT_PERIOD_STORAGE_KEY, preset);
+        } catch {
+            // Storage may be restricted in privacy modes.
+        }
         if (onPeriodPresetChange) {
             onPeriodPresetChange(preset);
         } else {
@@ -215,9 +227,31 @@ export function ThreeStatementNav({
     return (
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-medium uppercase tracking-wide text-muted">
-                    Unified Statement Cockpit ({effectivePreset})
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted">
+                        Unified Statement Cockpit ({effectivePreset})
+                    </span>
+                    <span className="rounded bg-[var(--background-muted)] px-2 py-0.5 text-[11px] font-medium text-muted">
+                        {currency}
+                    </span>
+                    {onIncludeRestrictedChange && (
+                        <button
+                            type="button"
+                            aria-label="Toggle restricted holdings scope"
+                            aria-pressed={Boolean(includeRestricted)}
+                            onClick={() =>
+                                onIncludeRestrictedChange(!includeRestricted)
+                            }
+                            className={`rounded border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                                includeRestricted
+                                    ? "border-[var(--accent)] bg-[var(--accent-muted)] text-[var(--accent)]"
+                                    : "border-[var(--border)] bg-[var(--background-card)] text-muted hover:text-[var(--foreground)]"
+                            }`}
+                        >
+                            {includeRestricted ? "Scope: + RSU" : "Scope: Liquid"}
+                        </button>
+                    )}
+                </div>
                 <div
                     role="group"
                     aria-label="Reporting period"
@@ -349,31 +383,288 @@ export function ThreeStatementNav({
                         </span>
                     </div>
 
-                    {breakdownLines.length > 0 && (
-                        <div className="mt-2.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                            {breakdownLines.map((line) => {
-                                const amt = formatCurrencyLocale(
-                                    line.amount,
-                                    currency,
-                                    "en-US",
-                                    FMT_OPTS,
+                    <div className="mt-2.5 grid gap-3 lg:grid-cols-12">
+                        <div
+                            data-testid="cockpit-visual-chart"
+                            role="img"
+                            aria-label={`Cockpit ${activeTab} visual chart`}
+                            className="lg:col-span-6 rounded-md border border-[var(--border)] bg-[var(--background-muted)]/30 p-3"
+                        >
+                            {activeTab === "balance" && balanceSheet && (() => {
+                                const totalAssets = toDecimal(
+                                    balanceSheet.total_assets,
+                                );
+                                const totalLiabs = toDecimal(
+                                    balanceSheet.total_liabilities,
+                                );
+                                const maxSide = Math.max(
+                                    totalAssets.toNumber(),
+                                    totalLiabs.toNumber(),
+                                    1,
+                                );
+                                const assetPct = Math.min(
+                                    100,
+                                    Math.round(
+                                        (totalAssets.toNumber() / maxSide) *
+                                            100,
+                                    ),
+                                );
+                                const liabPct = Math.min(
+                                    100,
+                                    Math.round(
+                                        (totalLiabs.toNumber() / maxSide) *
+                                            100,
+                                    ),
+                                );
+                                const topAssets = [...balanceSheet.assets]
+                                    .filter(
+                                        (a) =>
+                                            compareAmounts(a.amount, "0") > 0,
+                                    )
+                                    .sort((a, b) =>
+                                        compareAmounts(b.amount, a.amount),
+                                    )
+                                    .slice(0, 3);
+                                return (
+                                    <div className="space-y-2 text-xs">
+                                        <p className="font-medium text-muted uppercase tracking-wide text-[11px]">
+                                            Assets vs Liabilities & Top Allocation
+                                        </p>
+                                        <div className="space-y-1.5">
+                                            <div>
+                                                <div className="flex justify-between font-medium text-[var(--success)]">
+                                                    <span>{`Assets: ${formatCurrencyLocale(totalAssets, currency, "en-US", FMT_OPTS)} (${assetPct}%)`}</span>
+                                                </div>
+                                                <div className="mt-0.5 h-2 rounded-full bg-[var(--background-muted)] overflow-hidden">
+                                                    <div
+                                                        className="h-full rounded-full bg-[var(--success)]"
+                                                        style={{
+                                                            width: `${assetPct}%`,
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="flex justify-between font-medium text-[var(--error)]">
+                                                    <span>{`Liabilities: ${formatCurrencyLocale(totalLiabs, currency, "en-US", FMT_OPTS)} (${liabPct}%)`}</span>
+                                                </div>
+                                                <div className="mt-0.5 h-2 rounded-full bg-[var(--background-muted)] overflow-hidden">
+                                                    <div
+                                                        className="h-full rounded-full bg-[var(--error)]"
+                                                        style={{
+                                                            width: `${liabPct}%`,
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {topAssets.length > 0 && (
+                                            <div className="pt-1.5 border-t border-[var(--border)] space-y-1">
+                                                {topAssets.map((asset) => {
+                                                    const share =
+                                                        totalAssets.greaterThan(
+                                                            0,
+                                                        )
+                                                            ? Math.round(
+                                                                  toDecimal(
+                                                                      asset.amount,
+                                                                  )
+                                                                      .dividedBy(
+                                                                          totalAssets,
+                                                                      )
+                                                                      .times(
+                                                                          100,
+                                                                      )
+                                                                      .toNumber(),
+                                                              )
+                                                            : 0;
+                                                    return (
+                                                        <div
+                                                            key={
+                                                                asset.account_id
+                                                            }
+                                                            className="flex items-center justify-between gap-2 text-[11px] text-muted"
+                                                        >
+                                                            <span className="truncate">
+                                                                {`${asset.name} (${share}% · ${formatCurrencyLocale(asset.amount, currency, "en-US", FMT_OPTS)})`}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+                            {activeTab === "income" && incomeStatement && (() => {
+                                const trends =
+                                    incomeStatement.trends?.slice(-4) ?? [];
+                                const effectiveTrends =
+                                    trends.length > 0
+                                        ? trends
+                                        : [
+                                              {
+                                                  period_start:
+                                                      incomeStatement.start_date,
+                                                  total_income:
+                                                      incomeStatement.total_income,
+                                                  total_expenses:
+                                                      incomeStatement.total_expenses,
+                                              },
+                                          ];
+                                const maxTrend = Math.max(
+                                    ...effectiveTrends.flatMap((t) => [
+                                        toDecimal(t.total_income).toNumber(),
+                                        toDecimal(t.total_expenses).toNumber(),
+                                    ]),
+                                    1,
                                 );
                                 return (
-                                    <button
-                                        key={line.account_id}
-                                        type="button"
-                                        aria-label={`Drill down ${line.name}`}
-                                        onClick={() =>
-                                            openLineageForAccount(line)
-                                        }
-                                        className="flex items-center justify-between gap-2 rounded-md border border-[var(--border)] bg-[var(--background-muted)]/50 px-3 py-1.5 text-left text-xs font-medium hover:border-[var(--accent)] transition-colors"
-                                    >
-                                        {`${line.name} · ${amt} ›`}
-                                    </button>
+                                    <div className="space-y-1.5 text-xs">
+                                        <p className="font-medium text-muted uppercase tracking-wide text-[11px]">
+                                            Income vs Expenses Trend
+                                        </p>
+                                        {effectiveTrends.map((t) => {
+                                            const inc = toDecimal(
+                                                t.total_income,
+                                            );
+                                            const exp = toDecimal(
+                                                t.total_expenses,
+                                            );
+                                            const net = inc.minus(exp);
+                                            const incPct = Math.min(
+                                                100,
+                                                Math.round(
+                                                    (inc.toNumber() /
+                                                        maxTrend) *
+                                                        100,
+                                                ),
+                                            );
+                                            const expPct = Math.min(
+                                                100,
+                                                Math.round(
+                                                    (exp.toNumber() /
+                                                        maxTrend) *
+                                                        100,
+                                                ),
+                                            );
+                                            return (
+                                                <div
+                                                    key={t.period_start}
+                                                    className="space-y-0.5"
+                                                >
+                                                    <div className="flex justify-between text-[11px]">
+                                                        <span className="font-medium">
+                                                            {`${formatMonthLabel(t.period_start)} · Net ${formatCurrencyLocale(net, currency, "en-US", FMT_OPTS)}`}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex gap-1 h-1.5">
+                                                        <div
+                                                            className="rounded-full bg-[var(--success)]"
+                                                            style={{
+                                                                width: `${incPct}%`,
+                                                            }}
+                                                        />
+                                                        <div
+                                                            className="rounded-full bg-[var(--error)]"
+                                                            style={{
+                                                                width: `${expPct}%`,
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 );
-                            })}
+                            })()}
+                            {activeTab === "cash" && balanceSheet && (() => {
+                                const totalAssets = toDecimal(
+                                    balanceSheet.total_assets,
+                                );
+                                const cashRows = balanceSheet.assets.filter(
+                                    (a) =>
+                                        /cash|bank|checking|saving|multiplier|wallet/i.test(
+                                            a.name,
+                                        ),
+                                );
+                                const rows =
+                                    cashRows.length > 0
+                                        ? cashRows
+                                        : balanceSheet.assets.slice(0, 3);
+                                return (
+                                    <div className="space-y-1.5 text-xs">
+                                        <p className="font-medium text-muted uppercase tracking-wide text-[11px]">
+                                            Liquid Cash vs Total Assets
+                                        </p>
+                                        {rows.map((row) => {
+                                            const amt = toDecimal(row.amount);
+                                            const share =
+                                                totalAssets.greaterThan(0)
+                                                    ? Math.min(
+                                                          100,
+                                                          Math.round(
+                                                              amt
+                                                                  .dividedBy(
+                                                                      totalAssets,
+                                                                  )
+                                                                  .times(100)
+                                                                  .toNumber(),
+                                                          ),
+                                                      )
+                                                    : 0;
+                                            return (
+                                                <div
+                                                    key={row.account_id}
+                                                    className="space-y-0.5"
+                                                >
+                                                    <div className="flex justify-between text-[11px]">
+                                                        <span className="truncate font-medium">
+                                                            {`${row.name} (${share}% · ${formatCurrencyLocale(amt, currency, "en-US", FMT_OPTS)})`}
+                                                        </span>
+                                                    </div>
+                                                    <div className="h-1.5 rounded-full bg-[var(--background-muted)] overflow-hidden">
+                                                        <div
+                                                            className="h-full rounded-full bg-[var(--accent)]"
+                                                            style={{
+                                                                width: `${share}%`,
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })()}
                         </div>
-                    )}
+
+                        {breakdownLines.length > 0 && (
+                            <div className="lg:col-span-6 grid grid-cols-1 gap-1.5 sm:grid-cols-2 content-start">
+                                {breakdownLines.map((line) => {
+                                    const amt = formatCurrencyLocale(
+                                        line.amount,
+                                        currency,
+                                        "en-US",
+                                        FMT_OPTS,
+                                    );
+                                    return (
+                                        <button
+                                            key={line.account_id}
+                                            type="button"
+                                            aria-label={`Drill down ${line.name}`}
+                                            onClick={() =>
+                                                openLineageForAccount(line)
+                                            }
+                                            className="flex items-center justify-between gap-2 rounded-md border border-[var(--border)] bg-[var(--background-muted)]/50 px-3 py-1.5 text-left text-xs font-medium hover:border-[var(--accent)] transition-colors"
+                                        >
+                                            {`${line.name} · ${amt} ›`}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
