@@ -14,7 +14,8 @@
     {"id": "U10", "title": "The saved package lists, reopens and exports, and stays unchanged after a later posting"},
     {"id": "U11", "title": "A report line traces to its source decision"},
     {"id": "U12", "title": "The test ran against the pinned deployed revision"},
-    {"id": "U13", "title": "The proportion of low-confidence data is measured"}
+    {"id": "U13", "title": "The proportion of low-confidence data is measured"},
+    {"id": "U14", "title": "The assistant answer equals the reports, cites them, and invents no amount for a period with no data"}
   ],
   "proofs": [
     {
@@ -56,6 +57,11 @@
       "test": "test_zero_click_statement_journey::test_upload_alone_produces_the_base_tables_and_the_three_statements",
       "file": "tests/e2e/test_zero_click_statement_journey.py",
       "reaches": ["U12", "U1", "U2", "U6"]
+    },
+    {
+      "test": "test_assistant_chat_journey::test_assistant_answers_from_the_data_of_the_user",
+      "file": "tests/e2e/test_assistant_chat_journey.py",
+      "reaches": ["U12", "U14"]
     }
   ]
 }

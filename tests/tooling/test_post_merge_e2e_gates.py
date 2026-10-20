@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 import yaml
 from common.testing import staging_ai_ocr_gate_contract as contract
+from tests.e2e import assistant_answer
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -1032,7 +1033,7 @@ def test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case() -> None:
     corpus_step = next(s for s in job["steps"] if s.get("id") == "staging_ai_ocr_tests")
 
     assert corpus_step["timeout-minutes"] == (
-        "${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 145 || 130) }}"
+        "${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 150 || 135) }}"
     )
     # 8-min parse ceiling that the budgets below are computed against, read as
     # a structured env value rather than grepped text.
@@ -1052,19 +1053,38 @@ def test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case() -> None:
     # audit_replay 14 waits = 118 min, all 16 waits = 134 min worst case.
     # #2405 added the zero-click proof (1 upload): audit_replay 15 waits = 126 min,
     # all 17 waits = 142 min worst case.
-    budgets = {"canary": 25, "audit_replay": 130, "core_journey": 130, "all": 145}
-    wait_counts = {
-        "canary": contract.totals(contract.canary_files())["uploads"],
-        "audit_replay": contract.totals(contract.audit_replay_files())["uploads"],
-        "core_journey": contract.totals(contract.core_journey_tests())["uploads"],
-        "all": contract.totals(contract.gate_files())["uploads"],
+    # #2461 added the assistant chat proof (0 uploads). Its answer waits are not parse
+    # waits, so they count apart: 2 answers of at most 2 minutes each. audit_replay
+    # 126 + 4 = 130 min, all 142 + 4 = 146 min worst case.
+    budgets = {"canary": 25, "audit_replay": 135, "core_journey": 135, "all": 150}
+    corpora = {
+        "canary": contract.canary_files(),
+        "audit_replay": contract.audit_replay_files(),
+        "core_journey": contract.core_journey_tests(),
+        "all": contract.gate_files(),
     }
+    chat_journey = "tests/e2e/test_assistant_chat_journey.py"
+    chat_minutes = (
+        assistant_answer.ANSWERS_PER_JOURNEY
+        * assistant_answer.ANSWER_TIMEOUT_SECONDS
+        / 60
+    )
+    assert chat_minutes == 4
+    assert chat_journey in corpora["all"]
     for corpus_name, budget in budgets.items():
-        worst_case = wait_counts[corpus_name] * parse_ceiling_minutes + overhead_minutes
+        files = corpora[corpus_name]
+        waits = contract.totals(files)["uploads"]
+        answer_minutes = (
+            chat_minutes
+            if any(node.split("::", 1)[0] == chat_journey for node in files)
+            else 0
+        )
+        worst_case = waits * parse_ceiling_minutes + answer_minutes + overhead_minutes
         assert worst_case <= budget, (
-            f"{corpus_name} corpus grew to {wait_counts[corpus_name]} sequential "
-            f"parse waits; its {budget}min budget no longer covers the "
-            f"{worst_case}min worst case (raise the budget alongside the corpus)"
+            f"{corpus_name} corpus grew to {waits} sequential parse waits and "
+            f"{answer_minutes} min of assistant answer waits; its {budget}min budget "
+            f"no longer covers the {worst_case}min worst case (raise the budget "
+            "alongside the corpus)"
         )
 
     # Job-level timeout-minutes must be >= the largest step budget plus slack
@@ -1150,10 +1170,11 @@ def test_AC8_13_49_staging_ai_ocr_contract_outputs_files_and_counts() -> None:
         "tests/e2e/test_institution_statement_journeys.py",
         "tests/e2e/test_stage1_routing_journey.py",
         "tests/e2e/test_zero_click_statement_journey.py",
+        "tests/e2e/test_assistant_chat_journey.py",
         "STAGING_AI_OCR_EXPECTED_UPLOADS=17",
         "STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS=17",
         "STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS=4",
-        "STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS=3",
+        "STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS=4",
     )
     assert len(files) == len(set(files))
     assert files == sorted(files)
@@ -1164,6 +1185,7 @@ def test_AC8_13_50_critical_llm_post_merge_proofs_are_in_ai_ocr_gates() -> None:
     proof_files = critical_post_merge_llm_proof_files()
     shell = staging_ai_ocr_contract_shell()
     assert proof_files == [
+        "tests/e2e/test_assistant_chat_journey.py",
         "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
         "tests/e2e/test_four_asset_net_worth_golden_path.py",
         "tests/e2e/test_gxs_browser_journey.py",

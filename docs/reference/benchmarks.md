@@ -14,7 +14,7 @@ Testing and observability enforce two separate layers with zero overlapping resp
 2. **Core Journey (Core User Journey Board)**:
    - **Scope**: Physical user journeys on deployed environments (statement upload, live OCR provider parsing, browser review and approval, opening balances, inter-account transfers, package listing/reopen/export, and source-to-report traceability).
    - **Execution**: Browser actions via Playwright on deployed revisions (`tests/e2e/test_*_journey.py`).
-   - **Single Source of Truth**: Governed by `common/testing/data/core-journey-checkpoints.json` (checkpoints U1 to U13).
+   - **Single Source of Truth**: Governed by `common/testing/data/core-journey-checkpoints.json` (checkpoints U1 to U14).
    - **Surface**: Visualized per revision on the [Core Journey Board](../board/index.html).
 
 The system prohibits hybrid UI test suites between these two layers.

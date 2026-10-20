@@ -66,7 +66,7 @@ from deployed user journeys (#2318, #2370):
    check of Pillars 2 and 3 (`case_ui`): each route must load, log no console error,
    and show no developer jargon (`AC-testing.benchmarks.3`).
 2. **Core Journey**: Physical user journeys on deployed environments, driven by
-   `common/testing/data/core-journey-checkpoints.json` (U1 to U13) and published to
+   `common/testing/data/core-journey-checkpoints.json` (U1 to U14) and published to
    the Core Journey Board.
 Hybrid UI test suites between these two tiers are prohibited.
 
@@ -388,7 +388,7 @@ The owner direction is "heavy board, light gates": the board shows outcomes and
 blocks nothing. The production approver reads it; no job or ruleset requires it.
 
 - **Checkpoint map** — `data/core-journey-checkpoints.json` defines checkpoints
-  U1–U13 and, for each proof test, the checkpoints it proves in execution order.
+  U1–U14 and, for each proof test, the checkpoints it proves in execution order.
   A checkpoint with no proof shows `not-covered` with its gap issue.
 - **Test marks** — a proof test calls `tests/e2e/journey_checkpoint.checkpoint()`
   right after the assertions that prove a checkpoint. The call writes a JUnit
