@@ -176,7 +176,7 @@ the GLM plan.
 
 `key = sha256(normalize(role + messages + decode params + image-bytes hash))`.
 It is computed on the *semantic request and modality role*, **NOT the exact model
-id**, so bumping `glm-5.1 → 5.2` does not invalidate every cassette — refreshing
+id**, so changing the model id does not invalidate every cassette — refreshing
 content is a re-record, the key is stable. Volatile fields (timestamps, random
 request ids) are stripped before hashing; image content is reduced to a sha256 of
 its bytes so transport encoding does not change the key. Only provably
@@ -399,7 +399,7 @@ Commit the refreshed cassettes and the raised baseline together.
 ### 6.8 Real-statement corpus (source-referenced, PII-masked)
 
 Large/scanned statements are recorded as cassettes by
-`common/extraction/record_hf_cassettes.py` (engine: GLM-4.6V, thinking disabled,
+`common/extraction/record_hf_cassettes.py` (engine: the coding-plan vision model in its `MODEL` constant, thinking disabled; its move to glm-5.3-flashx is #2569;
 pages rendered as compressed JPEG so even scanned docs fit context). To avoid repo
 bloat and PII, **the source document is never committed** — the cassette stores a
 `source` reference (an HF dataset URL, or a sha256 for a local/own statement) and the

@@ -39,9 +39,6 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
-  STAGING_E2E_PRIMARY_MODEL: glm-5.3-flash
-  STAGING_E2E_OCR_MODEL: glm-5.3-flashx
-  STAGING_E2E_VISION_MODEL: glm-5.3-flashx
   PYTHON_VERSION: "3.12.12"
   NODE_VERSION: "20.19.0"
   UV_VERSION: "0.9.18"
@@ -628,6 +625,19 @@ jobs:
       - name: Setup E2E Tests
         uses: ./.github/actions/setup-e2e-tests
 
+      # The catalog check compares staging with the infra2 SDK default models (#2566).
+      # pytest runs in the uv venv of setup-e2e-tests, which has no pip, so the shared
+      # install action cannot reach it. Install the pinned wheel into that venv.
+      - name: Install infra2-sdk into the E2E environment
+        run: |
+          set -euo pipefail
+          read -r sdk_url sdk_sha256 sdk_filename <<< "$(python tools/sdk_pin.py)"
+          sdk_wheel="$(mktemp -d)/${sdk_filename}"
+          curl --fail --location --silent --show-error --retry 3 --retry-delay 10 "$sdk_url" --output "$sdk_wheel"
+          echo "${sdk_sha256}  ${sdk_wheel}" | sha256sum --check --status
+          uv pip install --python "$(command -v python)" "$sdk_wheel"
+          python -c "import infra2_sdk.runtime.llm"
+
       # Provider-risk staging changes prove one real chat round trip (AC8.13.120).
       # It is retried with backoff and only blocks delivery on client/config 4xx.
       # Transient 5xx/timeouts are reported as degraded-provider and remain
@@ -710,8 +720,8 @@ jobs:
             echo "marker=llm connectivity smoke"
           } > ci-context/staging-provider-gate-context.txt
 
-      # The deployed model catalog lists only approved model ids (#2566,
-      # AC-llm.approved-models.3). The check reads config, not the provider, so it
+      # Staging serves exactly the infra2 SDK default models (#2566,
+      # AC-llm.sdk-model-defaults.3). The check reads config, not the provider, so it
       # runs once here without retry, and a failure fails this job and blocks
       # delivery. The retry loop above may also run it, but this step decides.
       - name: Deployed Model Catalog Policy
@@ -722,7 +732,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p test-results
-          pytest tests/e2e/test_ai_provider_connectivity.py::test_deployed_catalog_lists_only_approved_models \
+          pytest tests/e2e/test_ai_provider_connectivity.py::test_staging_catalog_serves_the_sdk_default_models \
             -v -m "llm" --junit-xml=test-results/staging-model-catalog-policy.xml
 
       - name: Upload provider gate test context
@@ -837,7 +847,7 @@ jobs:
           elif [ "$provider_gate_required" = "true" ] && [ "$model_catalog_outcome" = "failure" ]; then
             failed=true
             delivery_status="failed"
-            failure_reason="deployed model catalog lists models outside the approved set"
+            failure_reason="deployed model catalog does not equal the SDK default models"
           elif [ "$provider_gate_required" = "true" ] && [ "$provider_result" != "success" ]; then
             failed=true
             delivery_status="failed"
