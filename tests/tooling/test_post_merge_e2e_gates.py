@@ -1053,9 +1053,9 @@ def test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case() -> None:
     # audit_replay 14 waits = 118 min, all 16 waits = 134 min worst case.
     # #2405 added the zero-click proof (1 upload): audit_replay 15 waits = 126 min,
     # all 17 waits = 142 min worst case.
-    # #2461 added the assistant chat proof (0 uploads). Its answer waits are not parse
-    # waits, so they count apart: 2 answers of at most 2 minutes each. audit_replay
-    # 126 + 4 = 130 min, all 142 + 4 = 146 min worst case.
+    # #2461 added the assistant chat proof (0 uploads). Its waits are not provider parse
+    # waits, so they count apart: 2 answers and 1 CSV parse of at most 2 minutes each.
+    # audit_replay 126 + 6 = 132 min, all 142 + 6 = 148 min worst case.
     budgets = {"canary": 25, "audit_replay": 135, "core_journey": 135, "all": 150}
     corpora = {
         "canary": contract.canary_files(),
@@ -1064,25 +1064,20 @@ def test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case() -> None:
         "all": contract.gate_files(),
     }
     chat_journey = "tests/e2e/test_assistant_chat_journey.py"
-    chat_minutes = (
-        assistant_answer.ANSWERS_PER_JOURNEY
-        * assistant_answer.ANSWER_TIMEOUT_SECONDS
-        / 60
-    )
-    assert chat_minutes == 4
+    assert assistant_answer.WAIT_CEILING_MINUTES == 6
     assert chat_journey in corpora["all"]
     for corpus_name, budget in budgets.items():
         files = corpora[corpus_name]
         waits = contract.totals(files)["uploads"]
         answer_minutes = (
-            chat_minutes
+            assistant_answer.WAIT_CEILING_MINUTES
             if any(node.split("::", 1)[0] == chat_journey for node in files)
             else 0
         )
         worst_case = waits * parse_ceiling_minutes + answer_minutes + overhead_minutes
         assert worst_case <= budget, (
             f"{corpus_name} corpus grew to {waits} sequential parse waits and "
-            f"{answer_minutes} min of assistant answer waits; its {budget}min budget "
+            f"{answer_minutes} min of assistant chat journey waits; its {budget}min budget "
             f"no longer covers the {worst_case}min worst case (raise the budget "
             "alongside the corpus)"
         )

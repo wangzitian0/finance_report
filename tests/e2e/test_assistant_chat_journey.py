@@ -7,10 +7,14 @@ deployed revision that:
 
 * the reports (the oracle) equal the independent Decimal facts of the fixture: net worth 13,500.00,
   income 5,000.00 and expenses 1,500.00;
-* the answer states each report amount after its own label, so an answer that swaps two amounts fails;
+* the answer states each report amount after its own label, so an answer that swaps two amounts, or
+  a wrong headline followed by correct prose, fails;
 * the grounding header ``X-Advisor-Metadata`` is grounded and cites the balance sheet and the income
-  statement;
-* a question about a period with no data (dining in March 2019) gets an answer that says so and
+  statement. The service builds this header from the question and the report state before the model
+  runs, so it proves the header contract on the deployment, not the use of the data. The amount
+  check proves the use of the data;
+* a question about a period with no data (dining in March 2019) gets an answer that says so in a
+  sentence about that subject. No sentence about that subject states a money amount, and the answer
   states no money amount that is not in the data of the user.
 
 The assistant reads the balance sheet of today and the income statement of the current month
@@ -32,11 +36,13 @@ import httpx
 import pytest
 from assistant_answer import (
     ANSWER_TIMEOUT_SECONDS,
+    CSV_PARSE_TIMEOUT_SECONDS,
     OUT_OF_DATA_QUESTION,
     QUESTION,
     misstated_metrics,
     money_amounts,
     says_no_data,
+    topic_sentences_with_amounts,
 )
 from common.testing.ac_proof import ac_proof
 from common.testing.provider_review import (
@@ -49,7 +55,6 @@ from journey_checkpoint import checkpoint
 from playwright.async_api import Page
 
 APP_URL = os.getenv("APP_URL", "http://localhost:3000")
-PARSING_TIMEOUT_MS = int(os.getenv("PARSING_TIMEOUT_MS", "480000"))
 POLL_SECONDS = 0.5
 
 CURRENCY = "SGD"
@@ -105,7 +110,8 @@ async def _server_today(client: httpx.AsyncClient) -> date:
 
 
 async def _wait_for_parsed(client: httpx.AsyncClient, statement_id: str) -> dict:
-    deadline = time.monotonic() + PARSING_TIMEOUT_MS / 1000
+    """Wait for the deterministic CSV parse. No provider parses a CSV, so the wait is short."""
+    deadline = time.monotonic() + CSV_PARSE_TIMEOUT_SECONDS
     statement: dict = {}
     while time.monotonic() < deadline:
         statement = await _get(client, f"/statements/{statement_id}")
@@ -116,13 +122,24 @@ async def _wait_for_parsed(client: httpx.AsyncClient, statement_id: str) -> dict
 
 
 async def _ask(client: httpx.AsyncClient, question: str) -> tuple[str, dict, float]:
-    """Send one question. Return the answer, the grounding header and the seconds."""
+    """Send one question. Return the answer, the grounding header and the seconds.
+
+    The httpx timeout limits each read of the stream, so ``wait_for`` limits the whole answer.
+    """
     started = time.monotonic()
-    response = await client.post(
-        _api_url("/chat"),
-        json={"message": question},
-        timeout=ANSWER_TIMEOUT_SECONDS,
-    )
+    try:
+        response = await asyncio.wait_for(
+            client.post(
+                _api_url("/chat"),
+                json={"message": question},
+                timeout=ANSWER_TIMEOUT_SECONDS,
+            ),
+            timeout=ANSWER_TIMEOUT_SECONDS,
+        )
+    except TimeoutError:
+        pytest.fail(
+            f"the assistant gave no full answer within {ANSWER_TIMEOUT_SECONDS} s: {question!r}"
+        )
     seconds = round(time.monotonic() - started, 1)
     assert response.status_code == 200, (
         f"POST /chat failed for {question!r}: {response.status_code} {response.text}"
@@ -138,9 +155,10 @@ async def _ask(client: httpx.AsyncClient, question: str) -> tuple[str, dict, flo
     scope="behavioral",
     ci_tier="post_merge_environment",
     issue="#2461",
-    required_markers=["e2e", "critical", "llm"],
+    required_markers=["e2e", "tier3", "critical", "llm"],
 )
 @pytest.mark.e2e
+@pytest.mark.tier3
 @pytest.mark.critical
 @pytest.mark.llm
 async def test_assistant_answers_from_the_data_of_the_user(
@@ -290,7 +308,9 @@ async def test_assistant_answers_from_the_data_of_the_user(
         }
         for source_ref, href in REPORT_CITATIONS.items():
             citation = cited.get(source_ref)
-            assert citation, f"the answer does not cite {source_ref}: {metadata}"
+            assert citation, (
+                f"the grounding header does not cite {source_ref}: {metadata}"
+            )
             assert citation.get("href") == href, citation
             assert citation.get("confidence_tier") != "UNAVAILABLE", (
                 f"the cited report was not available to the assistant: {citation}"
@@ -300,8 +320,12 @@ async def test_assistant_answers_from_the_data_of_the_user(
         refusal, _, refusal_seconds = await _ask(client, OUT_OF_DATA_QUESTION)
         record_property("out_of_data_answer_seconds", refusal_seconds)
         assert says_no_data(refusal), (
-            f"the answer about a period with no data does not say that the data holds no answer: "
+            f"no sentence about the subject of the question says that the data holds no answer: "
             f"{refusal[:1200]}"
+        )
+        claims = topic_sentences_with_amounts(refusal)
+        assert not claims, (
+            f"a sentence about the subject of a question with no data states an amount: {claims}"
         )
         data_amounts = {
             Decimal("0"),
