@@ -64,8 +64,9 @@ jobs:
     runs-on: ubuntu-latest
     # #1767/AC8.13.167: sized for corpus=all worst-case sequential parse waits
     # -- tools/staging_ai_ocr_gate_contract.py totals()['uploads'] -- x the 8-min
-    # PARSING_TIMEOUT_MS ceiling each, plus checkout/setup/summary overhead.
-    timeout-minutes: 150
+    # PARSING_TIMEOUT_MS ceiling each, plus the assistant chat journey waits (#2461)
+    # and checkout/setup/summary overhead.
+    timeout-minutes: 155
     permissions:
       contents: read
       issues: write # #1623: open the GitHub-issue fallback alert on regression
@@ -89,8 +90,10 @@ jobs:
         # sequential parse-wait count (contract.py totals()['uploads']).
         # Pytest runs single-worker, no -n xdist, so
         # every wait across every file is fully serial, plus checkout/setup
-        # overhead, not a per-file or per-journey guess.
-        timeout-minutes: ${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 145 || 130) }}
+        # overhead, not a per-file or per-journey guess. The assistant chat
+        # journey (#2461) adds two answer waits and one CSV parse wait of at
+        # most 2 minutes each.
+        timeout-minutes: ${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 150 || 135) }}
         env:
           EXPECTED_SHA_RAW: ${{ inputs.expected_sha }}
           CORPUS: ${{ inputs.corpus }}
