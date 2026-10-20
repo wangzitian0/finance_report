@@ -1,4 +1,4 @@
-<!-- WS_STATIC_START adapter=rules-v2 inputs=bf9a56c2a0cbf52815967de3189e633e7611e110eaccda91cf302a74d3158a40 -->
+<!-- WS_STATIC_START adapter=rules-v2 inputs=4caa7f6a238ca87e061635610f98f0274446afb6eeb28d38668c9515265ac94a -->
 <!-- Generated file: do not edit by hand. These rules are maintained in the owner's rule source and re-rendered here. -->
 
 ## Engineering discipline
@@ -85,7 +85,7 @@ No document may usurp another document's role: vision does not dictate internal 
 | Tech stack, quick start | [README.md](README.md) |
 | Concept ownership registry (which package owns what) | [common/meta/data/MANIFEST.yaml](common/meta/data/MANIFEST.yaml) |
 | Project tracking & EPICs (never duplicate phase status in this file) | [docs/project/README.md](docs/project/README.md) |
-| Agent skills | [skills/](skills/) |
+| Agent skills | [.agents/skills/](.agents/skills/) |
 | Copilot-specific settings | [.github/copilot-instructions.md](.github/copilot-instructions.md) |
 
 **Routing Rules**:
@@ -214,8 +214,7 @@ Per-runtime agents & MCP baseline: **[.claude/README.md](.claude/README.md)**
 - UI work: behavior is proven by tests; **visual quality passes the `ux-review`
   skill** on simulator or browser captures of the changed screens.
 
-Skills: [skills/](skills/) (canonical library; other
-runtimes symlink into it — see [.claude/README.md](.claude/README.md))
+Skills: [.agents/skills/](.agents/skills/) (see [.claude/README.md](.claude/README.md))
 
 ---
 
