@@ -67,7 +67,7 @@ async def test_staging_ai_provider_chat_connectivity(
 async def test_deployed_catalog_lists_only_approved_models(
     authenticated_page_unique: Page,
 ) -> None:
-    """AC-llm.approved-models.3: the deployed /api/llm/catalog lists only approved model ids (#2566)."""
+    """EPIC-008 EPIC-023 / AC-llm.approved-models.3: the deployed /api/llm/catalog lists only approved model ids (#2566)."""
     response = await authenticated_page_unique.request.get(_api_url("/llm/catalog"))
     body = await response.text()
     assert response.status == 200, (
