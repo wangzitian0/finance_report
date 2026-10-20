@@ -30,7 +30,8 @@ async def test_AC12_39_2_effective_accessor_falls_back_to_env_default(db: AsyncS
     own_value = "JPY" if default != "JPY" else "GBP"
     assert await get_effective_base_currency(db, user_id=test_user.id) == default
 
-    db.add(AppConfig(key=BASE_CURRENCY_KEY, value=operator_value))
+    # An operator writes this row by hand; the accessor normalizes it.
+    db.add(AppConfig(key=BASE_CURRENCY_KEY, value=f" {operator_value.lower()} "))
     await db.commit()
     assert await get_effective_base_currency(db, user_id=test_user.id) == operator_value
 

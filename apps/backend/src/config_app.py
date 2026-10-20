@@ -23,15 +23,16 @@ from src.platform.orm.app_config import BASE_CURRENCY_KEY, AppConfig
 async def get_effective_base_currency(db: AsyncSession, *, user_id: UUID) -> str:
     """Return the user's own value, else the operator default, else the env default.
 
-    Persisted values are written pre-validated/normalized, so they are returned
-    as-is; the env default is normalized through ``Currency`` for consistency.
+    ``set_base_currency`` writes the own value normalized, so it is returned
+    as-is. The operator default has no API writer (an operator writes it by
+    hand), so it goes through ``Currency`` like the env default.
     """
     own = await db.scalar(select(User.base_currency).where(User.id == user_id))
     if own is not None:
         return own
     operator_default = await db.scalar(select(AppConfig.value).where(AppConfig.key == BASE_CURRENCY_KEY))
     if operator_default is not None:
-        return operator_default
+        return Currency(operator_default).code
     return Currency(settings.base_currency).code
 
 
