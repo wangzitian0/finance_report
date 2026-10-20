@@ -132,6 +132,19 @@ current effective value. A change of the effective base currency between create
 and post does not change the post result (AC-ledger.79.9). Rows from before
 revision 0067 have no stored value; they use the effective value of the caller.
 
+The target hashes the lines as an ordered list of decimal texts. Two more inputs
+must therefore be equal at create and at post (#2539):
+- **Line order.** Each line stores its position in the command
+  (`journal_lines.line_no`), and `JournalEntry.lines` loads in that order. A
+  select without ORDER BY returns rows in physical order, which can differ
+  from the insert order after deletes (AC-ledger.79.10).
+- **Decimal scale.** A manual command expresses each amount with 2 places and
+  each FX rate with 6 places, the scale of the columns, before it hashes the
+  target. `1000` and `1000.00` then give the same text. A value with more places
+  is rejected, never rounded (AC-ledger.79.11).
+
+Rows from before revision 0068 have no position and keep the old load order.
+
 The memo column holds `JOURNAL_MEMO_MAX_LENGTH` (500) characters. Text without a limit,
 such as a statement description, goes through `fit_journal_memo` before it becomes a
 memo. The decision anchor binds the memo that the entry stores, so the caller cuts once

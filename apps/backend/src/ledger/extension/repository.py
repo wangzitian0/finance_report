@@ -141,11 +141,12 @@ async def _create_anchored_journal_entry(
 
     lines: list[JournalLine] = []
     default_currency = base_currency
-    for line_data in lines_data:
+    for line_no, line_data in enumerate(lines_data):
         account_id = line_data["account_id"]
         line = JournalLine(
             id=uuid4(),
             journal_entry_id=entry_pk,
+            line_no=line_no,
             account_id=account_id,
             direction=line_data["direction"],
             amount=line_data["amount"],

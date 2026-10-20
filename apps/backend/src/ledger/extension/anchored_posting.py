@@ -32,8 +32,15 @@ from src.audit.base.trace_repository import TraceRecordRepository
 from src.audit.extension.trace_emitter import TraceEmitter
 from src.audit.extension.trace_repository import SqlTraceRecordRepository
 from src.ledger.base.decision_anchor import DecisionAnchor, DecisionAnchorError, journal_command_target
+from src.ledger.base.validators import ValidationError
 from src.ledger.extension.repository import _create_anchored_journal_entry, post_journal_entry, void_journal_entry
-from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryAuthorityState, JournalEntryStatus
+from src.ledger.orm.journal import (
+    Direction,
+    JournalEntry,
+    JournalEntryAuthorityState,
+    JournalEntryStatus,
+    JournalLine,
+)
 
 __all__ = [
     "AnchoredJournalCommand",
@@ -283,6 +290,30 @@ def _normalized_lines_data(lines_data: list[dict], *, base_currency: str) -> lis
     ]
 
 
+def _at_column_scale(value: Decimal, column: object) -> Decimal:
+    """Return ``value`` with the decimal places that ``column`` stores, or raise.
+
+    The target hashes the decimal text. Posting recomputes it from the stored row, so ``1000``
+    and ``1000.00`` must give the same text (#2539). A value is never rounded.
+    """
+    scale = column.type.scale  # type: ignore[attr-defined]
+    stored = value.quantize(Decimal(1).scaleb(-scale))
+    if stored != value:
+        raise ValidationError(f"{column.key} {value} has more than {scale} decimal places")  # type: ignore[attr-defined]
+    return stored
+
+
+def _at_stored_scale(lines_data: list[dict]) -> list[dict]:
+    """Express each amount and FX rate as ``journal_lines`` stores it."""
+    scaled = []
+    for line in lines_data:
+        stored = {**line, "amount": _at_column_scale(line["amount"], JournalLine.amount)}
+        if line.get("fx_rate") is not None:
+            stored["fx_rate"] = _at_column_scale(line["fx_rate"], JournalLine.fx_rate)
+        scaled.append(stored)
+    return scaled
+
+
 def manual_journal_target(
     *,
     entry_date: date,
@@ -374,8 +405,12 @@ async def submit_manual_journal_entry(
     lines_data: list[dict],
     base_currency: str,
 ) -> JournalEntry:
-    """Create a manual draft through the same decision-anchored command port."""
-    normalized_lines = _normalized_lines_data(lines_data, base_currency=base_currency)
+    """Create a manual draft through the same decision-anchored command port.
+
+    The lines keep the command order and use the stored decimal scale. Posting the draft then
+    recomputes the same target from the stored rows (#2539).
+    """
+    normalized_lines = _at_stored_scale(_normalized_lines_data(lines_data, base_currency=base_currency))
     anchor = await manual_journal_decision_anchor(
         db,
         user_id=user_id,
