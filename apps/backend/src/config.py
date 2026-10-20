@@ -448,7 +448,7 @@ class Settings(BaseSettings):
             "must be vision-capable because the vision request carries image "
             "content; the text-only FALLBACK_MODELS are not reused here (#1034)."
         ),
-        json_schema_extra={"group": "AI Provider", "example": "glm-5.3-flash"},
+        json_schema_extra={"group": "AI Provider"},
     )
     # EPIC-019: when set, upload→report parsing is submitted as a durable Prefect
     # flow run instead of an in-process asyncio task. Unset (CI/local/preview) →
@@ -857,9 +857,11 @@ class Settings(BaseSettings):
         vision-capable; the text-only ``FALLBACK_MODELS`` are intentionally not
         reused here (#1034). The defaults retain compatible vision models so
         a non-retryable failure of the primary vision model does not fail the
-        whole upload. Every default is an approved model id (``src.llm.model_policy``, #2566).
+        whole upload. The default is empty: the only approved vision-capable model
+        is glm-5.3-flashx, which already fills the vision and OCR slots
+        (``src.llm.model_policy``, #2566).
         """
-        return parse_comma_list(self.vision_fallback_models_str, ["glm-5.3-flash"])
+        return parse_comma_list(self.vision_fallback_models_str, [])
 
     @cached_property
     def llm_encryption_key_list(self) -> list[str]:

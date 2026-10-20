@@ -662,7 +662,7 @@ PRIMARY_MODEL=glm-5.3-flash
 OCR_MODEL=glm-5.3-flashx
 VISION_MODEL=glm-5.3-flashx
 FALLBACK_MODELS=glm-5.3-flashx
-VISION_FALLBACK_MODELS=glm-5.3-flash
+VISION_FALLBACK_MODELS=
 AI_JSON_TIMEOUT_SECONDS=360
 AI_JSON_MAX_TOKENS=8192
 AI_JSON_DISABLE_THINKING=true
@@ -788,7 +788,7 @@ slice is registered.
 - **Retry**: `/api/statements/{id}/retry` accepts a model override; omitted uses OCR-first mode.
 - **Catalog**: `/api/llm/catalog` returns the configured provider catalog for UI dropdowns (filterable by modality). _(EPIC-023: supersedes the retired `/api/ai/models`.)_
 - **Fallback models (text path)**: `FALLBACK_MODELS` (default `glm-5.3-flashx`) are attempted after OCR text extraction when `PRIMARY_MODEL` fails. These structure OCR Markdown and are text-only.
-- **Fallback models (vision path)**: `VISION_FALLBACK_MODELS` (default `glm-5.3-flash`) are appended after the primary OCR/vision model on the vision/image path, deduplicated and order-preserving. Because the vision request carries image content, these fallbacks must be vision-capable; the text-only `FALLBACK_MODELS` are intentionally **not** reused here. A non-retryable failure of the primary vision model (e.g. a provider `400`) therefore falls through to a secondary vision model before the upload is rejected with `ERR_EXT_003` (#1034). Set `VISION_FALLBACK_MODELS` empty to keep the prior single-model behavior.
+- **Fallback models (vision path)**: `VISION_FALLBACK_MODELS` (default empty: the only approved vision-capable model, `glm-5.3-flashx`, already fills the vision and OCR slots) are appended after the primary OCR/vision model on the vision/image path, deduplicated and order-preserving. Because the vision request carries image content, these fallbacks must be vision-capable; the text-only `FALLBACK_MODELS` are intentionally **not** reused here. A non-retryable failure of the primary vision model (e.g. a provider `400`) therefore falls through to a secondary vision model before the upload is rejected with `ERR_EXT_003` (#1034). Set `VISION_FALLBACK_MODELS` empty to keep the prior single-model behavior.
 
 ## Data Integrity & Typing
 

@@ -20,7 +20,7 @@ cassette tests'. See ``common/llm/readme.md#cassettes``.
 
 The fingerprint is computed on the *semantic request and modality role* —
 ``sha256(normalize(role + messages + decode params + image-bytes hash))`` — and
-deliberately **NOT the exact model id**, so bumping ``glm-5.1 -> 5.2`` does not
+deliberately **NOT the exact model id**, so changing the model id does not
 invalidate every cassette: refreshing content is a re-record, the key is stable.
 Volatile fields (timestamps, random request ids) are stripped before hashing.
 """
@@ -196,7 +196,7 @@ def _normalize(value: Any) -> Any:
                 continue
             out[key] = _normalize(v)
         return out
-    if isinstance(value, (bytes, bytearray, memoryview)):
+    if isinstance(value, bytes | bytearray | memoryview):
         return _hash_image_bytes(value)
     # str is a Sequence; handle it before the generic sequence branch.
     if isinstance(value, str):

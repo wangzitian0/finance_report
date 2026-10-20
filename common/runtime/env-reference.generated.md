@@ -39,7 +39,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `OCR_MODEL` | `glm-5.3-flashx` |  |  | AI Provider | OCR AI model id. |
 | `PREFECT_API_URL` |  |  |  | AI Provider | EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod and per-PR ephemeral Prefect). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed). |
 | `PRIMARY_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Primary AI model id. |
-| `VISION_FALLBACK_MODELS` |  | `glm-5.3-flash` |  | AI Provider | Comma-separated fallback AI model ids for the vision/OCR path. These must be vision-capable because the vision request carries image content; the text-only FALLBACK_MODELS are not reused here (#1034). |
+| `VISION_FALLBACK_MODELS` |  |  |  | AI Provider | Comma-separated fallback AI model ids for the vision/OCR path. These must be vision-capable because the vision request carries image content; the text-only FALLBACK_MODELS are not reused here (#1034). |
 | `VISION_MODEL` | `glm-5.3-flashx` |  |  | AI Provider | Vision AI model id. |
 | `S3_ACCESS_KEY` | `minio` |  | yes | S3 / MinIO Storage | S3 / MinIO access key. |
 | `S3_BUCKET` | `statements` |  | yes | S3 / MinIO Storage | S3 / MinIO bucket name for uploaded statements. |
