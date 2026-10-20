@@ -174,6 +174,7 @@ def test_no_orphan_or_broken_mirror_skill_links() -> None:
 def test_opencode_config_has_no_banrisk_auth_plugins() -> None:
     config = json.loads((ROOT / "opencode.json").read_text(encoding="utf-8"))
     plugins = config.get("plugin", [])
+    assert isinstance(plugins, list), "opencode.json plugin field must be a list"
     for plugin in plugins:
         for banned in BANNED_OPENCODE_PLUGINS:
             assert banned not in plugin, (
@@ -321,8 +322,10 @@ def test_skill_docs_reference_existing_tools() -> None:
     matcher.)
     """
     repo_basenames = _repo_py_basenames()
+    skill_mds = sorted(CANONICAL_SKILLS.rglob("SKILL.md"))
+    assert skill_mds, f"expected canonical SKILL.md files under {CANONICAL_SKILLS}"
     missing: list[str] = []
-    for skill_md in sorted(CANONICAL_SKILLS.rglob("SKILL.md")):
+    for skill_md in skill_mds:
         if skill_md.parent.name in _COMMON_ENGINEERING_SKILLS:
             continue
         text = skill_md.read_text(encoding="utf-8")
