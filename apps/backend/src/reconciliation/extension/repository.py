@@ -5,21 +5,35 @@ from __future__ import annotations
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from src.audit import STATEMENT_SOURCE_TYPES
 from src.extraction import effective_statement_transaction_filter
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.ledger import JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger import JournalEntry, JournalEntryStatus, JournalLine, current_anchored_journal_entries
 from src.reconciliation.base.repository import ReconciliationRepository
-from src.reconciliation.data.stats import posted_statement_source_ids
 from src.reconciliation.orm.reconciliation import (
     DispositionKind,
     ReconciliationMatch,
     ReconciliationMatchJournalEntry,
     ReconciliationStatus,
 )
+
+
+def posted_statement_source_ids(user_id: UUID) -> Select:
+    """Select statement transaction IDs that already have a live statement-posted journal entry."""
+    return (
+        current_anchored_journal_entries(
+            user_id=user_id,
+            target_kind="journal_command",
+            target_id=func.concat("statement-transaction:", JournalEntry.source_id),
+        )
+        .with_only_columns(JournalEntry.source_id)
+        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
+        .where(JournalEntry.status != JournalEntryStatus.VOID)
+    )
 
 
 class SqlReconciliationRepository(ReconciliationRepository):

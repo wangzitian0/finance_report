@@ -5,15 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import Select, distinct, func, or_, select
+from sqlalchemy import distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE, STATEMENT_SOURCE_TYPES
+from src.audit import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE
 from src.audit.ratio import Ratio
 from src.extraction import effective_statement_transaction_filter
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.ledger import JournalEntry, JournalEntryStatus, current_anchored_journal_entries
 from src.observability import get_logger
+from src.reconciliation.extension.repository import posted_statement_source_ids
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 
 logger = get_logger(__name__)
@@ -25,25 +25,6 @@ __all__ = [
     "get_reconciliation_stats",
     "posted_statement_source_ids",
 ]
-
-
-def posted_statement_source_ids(user_id: UUID) -> Select:
-    """Select the ids of statement transactions that have a live posted entry from their own statement.
-
-    Such a row is reconciled by construction (#2465): the system posted it from
-    the source, so it needs no separate reconciliation match. The unmatched list
-    and the statistics both use this one definition.
-    """
-    return (
-        current_anchored_journal_entries(
-            user_id=user_id,
-            target_kind="journal_command",
-            target_id=func.concat("statement-transaction:", JournalEntry.source_id),
-        )
-        .with_only_columns(JournalEntry.source_id)
-        .where(JournalEntry.source_type.in_(STATEMENT_SOURCE_TYPES))
-        .where(JournalEntry.status != JournalEntryStatus.VOID)
-    )
 
 
 @dataclass(frozen=True)

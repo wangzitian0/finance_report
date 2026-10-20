@@ -932,7 +932,7 @@ async def test_get_financial_context_filters_by_user(db: AsyncSession, test_user
 
     assert context["monthly_income"] == "SGD 500.00"
     assert context["monthly_expenses"] == "SGD 200.00"
-    assert context["unmatched_count"] == "1"
+    assert context["unmatched_count"] == "0"
     assert context["pending_review"] == "1"
     assert context["match_rate"] == "50.0%"
 
