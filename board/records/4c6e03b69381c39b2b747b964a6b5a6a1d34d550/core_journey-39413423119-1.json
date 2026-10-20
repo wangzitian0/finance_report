@@ -1,0 +1,270 @@
+{
+  "checkpoints": {
+    "U1": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "passed",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        },
+        {
+          "status": "passed",
+          "test": "test_zero_click_statement_journey::test_upload_alone_produces_the_base_tables_and_the_three_statements"
+        }
+      ],
+      "status": "passed"
+    },
+    "U10": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        }
+      ],
+      "status": "passed"
+    },
+    "U11": {
+      "proofs": [
+        {
+          "status": "blocked",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "passed",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        }
+      ],
+      "status": "blocked"
+    },
+    "U12": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "passed",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        },
+        {
+          "status": "passed",
+          "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser"
+        },
+        {
+          "status": "passed",
+          "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing"
+        },
+        {
+          "status": "passed",
+          "test": "test_stage1_routing_journey::test_stage1_accepts_clean_source_and_reviews_broken_source"
+        },
+        {
+          "status": "passed",
+          "test": "test_twelve_month_journey::test_twelve_consecutive_months_tie_out_on_deployed_revision"
+        },
+        {
+          "status": "passed",
+          "test": "test_confidence_metrics_journey::test_proportion_of_low_confidence_data_is_measured"
+        },
+        {
+          "status": "passed",
+          "test": "test_zero_click_statement_journey::test_upload_alone_produces_the_base_tables_and_the_three_statements"
+        },
+        {
+          "status": "passed",
+          "test": "test_assistant_chat_journey::test_assistant_answers_from_the_data_of_the_user"
+        }
+      ],
+      "status": "passed"
+    },
+    "U13": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_confidence_metrics_journey::test_proportion_of_low_confidence_data_is_measured"
+        }
+      ],
+      "status": "passed"
+    },
+    "U14": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_assistant_chat_journey::test_assistant_answers_from_the_data_of_the_user"
+        }
+      ],
+      "status": "passed"
+    },
+    "U2": {
+      "proofs": [
+        {
+          "status": "failed",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "passed",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        },
+        {
+          "status": "passed",
+          "test": "test_zero_click_statement_journey::test_upload_alone_produces_the_base_tables_and_the_three_statements"
+        }
+      ],
+      "status": "failed"
+    },
+    "U3": {
+      "proofs": [
+        {
+          "status": "failed",
+          "test": "test_stage1_routing_journey::test_stage1_accepts_clean_source_and_reviews_broken_source"
+        }
+      ],
+      "status": "failed"
+    },
+    "U4": {
+      "proofs": [
+        {
+          "status": "blocked",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        }
+      ],
+      "status": "blocked"
+    },
+    "U5": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser"
+        }
+      ],
+      "status": "passed"
+    },
+    "U6": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        },
+        {
+          "status": "passed",
+          "test": "test_zero_click_statement_journey::test_upload_alone_produces_the_base_tables_and_the_three_statements"
+        }
+      ],
+      "status": "passed"
+    },
+    "U7": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing"
+        }
+      ],
+      "status": "passed"
+    },
+    "U8": {
+      "proofs": [
+        {
+          "status": "blocked",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "passed",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        }
+      ],
+      "status": "blocked"
+    },
+    "U9": {
+      "proofs": [
+        {
+          "status": "passed",
+          "test": "test_twelve_month_journey::test_twelve_consecutive_months_tie_out_on_deployed_revision"
+        }
+      ],
+      "status": "passed"
+    }
+  },
+  "counts": {
+    "failed": 2,
+    "passed": 7,
+    "skipped": 0,
+    "total": 9
+  },
+  "expected_version": "v0.2.13",
+  "junit": true,
+  "lane": "core_journey",
+  "map_note": null,
+  "reason": null,
+  "recorded_at": "2026-10-20T12:40:40+00:00",
+  "run": {
+    "attempt": 1,
+    "completed_at": "2026-10-20T11:30:10Z",
+    "conclusion": "failure",
+    "event": "workflow_dispatch",
+    "id": "39413423119",
+    "url": "https://github.com/wangzitian0/finance_report/actions/runs/39413423119",
+    "workflow": ".github/workflows/audit-replay.yml"
+  },
+  "schema": 1,
+  "status": "regression-failed",
+  "tested_sha": "4c6e03b69381c39b2b747b964a6b5a6a1d34d550",
+  "tests": [
+    {
+      "failure_class": null,
+      "outcome": "passed",
+      "seconds": 61.36,
+      "test": "test_assistant_chat_journey::test_assistant_answers_from_the_data_of_the_user"
+    },
+    {
+      "failure_class": null,
+      "outcome": "passed",
+      "seconds": 53.34,
+      "test": "test_confidence_metrics_journey::test_proportion_of_low_confidence_data_is_measured"
+    },
+    {
+      "failure_class": "app-assertion",
+      "outcome": "failed",
+      "seconds": 53.53,
+      "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+    },
+    {
+      "failure_class": null,
+      "outcome": "passed",
+      "seconds": 85.77,
+      "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+    },
+    {
+      "failure_class": null,
+      "outcome": "passed",
+      "seconds": 7.33,
+      "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser"
+    },
+    {
+      "failure_class": "app-assertion",
+      "outcome": "failed",
+      "seconds": 64.48,
+      "test": "test_stage1_routing_journey::test_stage1_accepts_clean_source_and_reviews_broken_source"
+    },
+    {
+      "failure_class": null,
+      "outcome": "passed",
+      "seconds": 134.59,
+      "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing"
+    },
+    {
+      "failure_class": null,
+      "outcome": "passed",
+      "seconds": 73.8,
+      "test": "test_zero_click_statement_journey::test_upload_alone_produces_the_base_tables_and_the_three_statements"
+    },
+    {
+      "failure_class": null,
+      "outcome": "passed",
+      "seconds": 393.64,
+      "test": "test_twelve_month_journey::test_twelve_consecutive_months_tie_out_on_deployed_revision"
+    }
+  ]
+}
