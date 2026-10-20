@@ -39,6 +39,8 @@ REFERENCE_ROW = re.compile(rf"^\|\s*`(?:[A-Z0-9]+_)*?({_VARS})`\s*\|([^|]*)\|([^
 # Dockerfile `ENV KEY value` (space form).
 DOCKER_ENV = re.compile(rf"^\s*ENV\s+(?:[A-Z0-9]+_)*?({_VARS})\s+([^\s=]+)\s*$")
 QUOTED = re.compile(r"'([^']*)'|\"([^\"]*)\"")
+# Python or JSON mapping form: "PRIMARY_MODEL": "value".
+MAPPING = re.compile(rf"[\"'](?:[A-Z0-9]+_)*?({_VARS})[\"']\s*:\s*[\"']([^\"']+)[\"']")
 # The GLM 5.3 wire adapter matches these family names to enable thinking; it
 # chooses no model, so its three lines are exempt by exact content.
 EXEMPT_LINES = {
@@ -70,6 +72,10 @@ NON_PRODUCTION_CONFIG = (
     "**/*compose*.yml",
     "**/*compose*.yaml",
     "**/Dockerfile*",
+    "tools/**/*.py",
+    "common/runtime/dev/**/*",
+    "**/*.sh",
+    "Makefile",
 )
 GENERATED_ENV = (".env.example", "common/runtime/env-reference.generated.md")
 DOCS = (
@@ -129,6 +135,9 @@ def _slot_values(line: str) -> list[tuple[str, str]]:
                     if item.strip()
                 )
         return pairs
+    mapped = [(m.group(1), m.group(2).strip()) for m in MAPPING.finditer(line)]
+    if mapped:
+        return mapped
     docker = DOCKER_ENV.match(line)
     if docker is not None:
         return [
@@ -180,6 +189,7 @@ def test_AC_llm_sdk_model_defaults_2_slot_parser_reads_every_assignment_form() -
         "ENV VISION_FALLBACK_MODELS=glm-4.5v": [("VISION_FALLBACK_MODELS", "glm-4.5v")],
         "echo primary=${STAGING_E2E_PRIMARY_MODEL}": [],
         "ENV PRIMARY_MODEL gpt-4o": [("PRIMARY_MODEL", "gpt-4o")],
+        '{"PRIMARY_MODEL": "glm-5.2"}': [("PRIMARY_MODEL", "glm-5.2")],
         "| `STAGING_E2E_OCR_MODEL` | `glm-5.2` |  |": [("OCR_MODEL", "glm-5.2")],
     }
     for line, expected in cases.items():
@@ -265,9 +275,10 @@ def test_AC_llm_sdk_model_defaults_3_staging_gate_blocks_on_the_catalog_check() 
     assert node in provider_job, (
         "the catalog check must run in the staging provider-gate job"
     )
-    assert provider_job.index(
-        "uses: ./.github/actions/install-infra2-sdk"
-    ) < provider_job.index(node), (
+    install = 'uv pip install --python "$(command -v python)" "$sdk_wheel"'
+    assert install in provider_job, "the SDK must go into the uv venv that runs pytest"
+    assert 'python -c "import infra2_sdk.runtime.llm"' in provider_job
+    assert provider_job.index(install) < provider_job.index(node), (
         "the provider gate must install the SDK before the catalog check"
     )
     steps = provider_job.split("\n      - name: ")
@@ -306,7 +317,7 @@ def test_AC_llm_sdk_model_defaults_3_staging_gate_blocks_on_the_catalog_check() 
     for text in (
         'model_catalog_outcome="${{ needs.provider-gate.outputs.model_catalog_outcome }}"',
         catalog_branch,
-        'failure_reason="deployed model catalog lists models outside the approved set"',
+        'failure_reason="deployed model catalog does not equal the SDK default models"',
         provider_branch,
     ):
         assert text in delivery_job, f"post-merge delivery is missing: {text}"

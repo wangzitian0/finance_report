@@ -7,7 +7,6 @@ import os
 
 import httpx
 
-from infra2_sdk.runtime.llm import LlmSettings
 from playwright.async_api import Page
 import pytest
 
@@ -24,6 +23,9 @@ def _api_url(path: str) -> str:
 
 def _sdk_default_model_ids() -> frozenset[str]:
     """The model ids that the infra2 SDK defaults name (#2566)."""
+    # Imported here, so the chat smoke in this file does not need the SDK.
+    from infra2_sdk.runtime.llm import LlmSettings
+
     sdk = LlmSettings()
     ids = (
         sdk.primary_model,

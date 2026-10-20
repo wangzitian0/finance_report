@@ -46,3 +46,18 @@ def test_AC_llm_sdk_model_defaults_1_production_may_override_a_model(monkeypatch
     settings = Settings(_env_file=None)
     assert settings.primary_model == "custom-production-model"
     assert settings.to_llm_settings().primary_model == "custom-production-model"
+
+
+def test_AC_llm_sdk_model_defaults_1_fallbacks_follow_a_changed_sdk_default(monkeypatch) -> None:
+    """AC-llm.sdk-model-defaults.1: the fallback lists follow the SDK, so non-empty SDK fallbacks reach the app."""
+    import src.config as config_module
+
+    _default_settings(monkeypatch)
+    monkeypatch.setattr(
+        config_module,
+        "_SDK_LLM_DEFAULTS",
+        LlmSettings(fallback_models=("sdk-text-fallback",), vision_fallback_models=("sdk-vision-fallback",)),
+    )
+    settings = Settings(_env_file=None)
+    assert settings.fallback_models == ["sdk-text-fallback"]
+    assert settings.vision_fallback_models == ["sdk-vision-fallback"]

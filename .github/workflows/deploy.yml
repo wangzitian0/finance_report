@@ -626,8 +626,17 @@ jobs:
         uses: ./.github/actions/setup-e2e-tests
 
       # The catalog check compares staging with the infra2 SDK default models (#2566).
-      - name: Install infra2-sdk
-        uses: ./.github/actions/install-infra2-sdk
+      # pytest runs in the uv venv of setup-e2e-tests, which has no pip, so the shared
+      # install action cannot reach it. Install the pinned wheel into that venv.
+      - name: Install infra2-sdk into the E2E environment
+        run: |
+          set -euo pipefail
+          read -r sdk_url sdk_sha256 sdk_filename <<< "$(python tools/sdk_pin.py)"
+          sdk_wheel="$(mktemp -d)/${sdk_filename}"
+          curl --fail --location --silent --show-error --retry 3 --retry-delay 10 "$sdk_url" --output "$sdk_wheel"
+          echo "${sdk_sha256}  ${sdk_wheel}" | sha256sum --check --status
+          uv pip install --python "$(command -v python)" "$sdk_wheel"
+          python -c "import infra2_sdk.runtime.llm"
 
       # Provider-risk staging changes prove one real chat round trip (AC8.13.120).
       # It is retried with backoff and only blocks delivery on client/config 4xx.
@@ -838,7 +847,7 @@ jobs:
           elif [ "$provider_gate_required" = "true" ] && [ "$model_catalog_outcome" = "failure" ]; then
             failed=true
             delivery_status="failed"
-            failure_reason="deployed model catalog lists models outside the approved set"
+            failure_reason="deployed model catalog does not equal the SDK default models"
           elif [ "$provider_gate_required" = "true" ] && [ "$provider_result" != "success" ]; then
             failed=true
             delivery_status="failed"
