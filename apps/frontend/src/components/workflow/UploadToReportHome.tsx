@@ -11,6 +11,7 @@ import { WorkflowEventGroup } from "./WorkflowEventCard";
 import type { WorkflowStatusFeedProps } from "./WorkflowStatusFeed";
 import {
   formatEventTime,
+  humanizeWorkflowText,
   labelFromSnake,
   nextActionLabel,
   nextActionSummary,
@@ -123,7 +124,7 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
               <ol className="mt-3 space-y-2">
                 {activeSessionEvents.slice(0, 3).map((event) => (
                   <li key={event.id} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="min-w-0 truncate">{event.title}</span>
+                    <span className="min-w-0 truncate">{humanizeWorkflowText(event.title)}</span>
                     <time className="shrink-0 text-xs text-muted" dateTime={event.occurred_at}>
                       {formatEventTime(event.occurred_at)}
                     </time>
@@ -142,8 +143,8 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
             </div>
             <p className="mt-3 text-sm text-muted">{countLabel(groupedEvents.routine.length, "routine event")}</p>
             <div className="mt-3 rounded-md border border-border bg-surface-muted p-3 text-sm">
-              <p className="font-medium">{groupedEvents.routine[0].title}</p>
-              <p className="mt-1 text-muted">{groupedEvents.routine[0].summary}</p>
+              <p className="font-medium">{humanizeWorkflowText(groupedEvents.routine[0].title)}</p>
+              <p className="mt-1 text-muted">{humanizeWorkflowText(groupedEvents.routine[0].summary)}</p>
             </div>
           </section>
         )}

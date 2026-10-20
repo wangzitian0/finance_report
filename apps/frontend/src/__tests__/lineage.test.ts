@@ -4,7 +4,9 @@ import {
   anchorFromIdentifiers,
   anchorFromTypedIdentifier,
   lineageUrl,
+  nodeDisplayTitle,
   nodeLabel,
+  nodeSourceHref,
   parseTypedIdentifier,
 } from "@/lib/lineage"
 
@@ -56,7 +58,83 @@ describe("lineage helpers (EPIC-022 AC22.3.4)", () => {
     expect(lineageUrl({ entity_type: "journal_line", entity_id: UUID })).not.toContain("node_kind")
   })
 
-  it("nodeLabel renders a typed identifier label", () => {
+  it("nodeLabel renders a typed identifier label and includes original filename when present", () => {
     expect(nodeLabel({ entity_type: "journal_line", entity_id: UUID })).toBe(`journal_line:${UUID}`)
+    expect(
+      nodeLabel({
+        entity_type: "uploaded_document",
+        entity_id: UUID,
+        properties: { original_filename: "DBS_2026_03.pdf" },
+      }),
+    ).toBe(`DBS_2026_03.pdf (uploaded_document:${UUID})`)
+    expect(
+      nodeLabel({
+        entity_type: "uploaded_document",
+        entity_id: UUID,
+        properties: { filename: "export.csv" },
+      }),
+    ).toBe(`export.csv (uploaded_document:${UUID})`)
+  })
+
+  it("nodeDisplayTitle and nodeSourceHref resolve human-readable titles and links", () => {
+    expect(
+      nodeDisplayTitle({
+        entity_type: "uploaded_document",
+        entity_id: UUID,
+        properties: { original_filename: "DBS_2026_03.pdf" },
+      }),
+    ).toBe("DBS_2026_03.pdf")
+    expect(
+      nodeDisplayTitle({
+        entity_type: "atomic_transaction",
+        entity_id: UUID,
+        properties: { txn_date: "2026-03-15", amount: "120.50", currency: "SGD" },
+      }),
+    ).toBe("2026-03-15 · SGD 120.50")
+    expect(
+      nodeDisplayTitle({
+        entity_type: "atomic_transaction",
+        entity_id: UUID,
+        properties: { txn_date: "2026-03-15", amount: "120.50" },
+      }),
+    ).toBe("2026-03-15 · 120.50")
+    expect(nodeDisplayTitle({ entity_type: "journal_line", entity_id: UUID })).toBeNull()
+
+    expect(
+      nodeSourceHref({
+        entity_type: "uploaded_document",
+        entity_id: UUID,
+        node_kind: "source_document",
+      }),
+    ).toBe("/statements")
+    expect(
+      nodeSourceHref({
+        entity_type: "uploaded_document",
+        entity_id: UUID,
+        node_kind: "source_document",
+        properties: { statement_id: "stmt-1" },
+      }),
+    ).toBe("/statements/stmt-1/review")
+    expect(
+      nodeSourceHref({
+        entity_type: "journal_line",
+        entity_id: UUID,
+        node_kind: "ledger_line",
+      }),
+    ).toBe("/journal")
+    expect(
+      nodeSourceHref({
+        entity_type: "atomic_transaction",
+        entity_id: UUID,
+        node_kind: "atomic_fact",
+      }),
+    ).toBe("/reconciliation")
+    expect(
+      nodeSourceHref({
+        entity_type: "balance_sheet_line",
+        entity_id: UUID,
+        node_kind: "report_line",
+      }),
+    ).toBeNull()
   })
 })

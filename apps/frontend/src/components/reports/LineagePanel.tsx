@@ -1,10 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import Sheet from "@/components/ui/Sheet";
 import { apiOperation } from "@/lib/api-client";
-import { lineageQuery, nodeLabel, type LineageAnchor } from "@/lib/lineage";
+import {
+  lineageQuery,
+  nodeDisplayTitle,
+  nodeLabel,
+  nodeSourceHref,
+  type LineageAnchor,
+} from "@/lib/lineage";
 import type {
   EvidenceLineageEdge,
   EvidenceLineageNode,
@@ -202,29 +209,43 @@ export function LineagePanel({ title, anchor, onClose }: LineagePanelProps) {
             ) : (
               <ol className="space-y-2" aria-label="Lineage path">
                 {orderNodesAsPath(response.nodes, response.edges).map(
-                  (node) => (
-                    <li
-                      key={node.id}
-                      className="rounded-md border border-[var(--border)] bg-[var(--background-muted)]/40 p-3 text-sm"
-                    >
-                      <div className="font-medium">
-                        {formatNodeKind(node.node_kind)}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {lineageBadges(node).map((badge) => (
-                          <span
-                            key={`${node.id}:${badge.label}`}
-                            className="badge badge-muted"
-                          >
-                            {badge.label}: {badge.value}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="mt-1 break-all font-mono text-xs text-muted">
-                        {nodeLabel(node)}
-                      </div>
-                    </li>
-                  ),
+                  (node) => {
+                    const displayTitle = nodeDisplayTitle(node);
+                    const sourceHref = nodeSourceHref(node);
+                    return (
+                      <li
+                        key={node.id}
+                        className="rounded-md border border-[var(--border)] bg-[var(--background-muted)]/40 p-3 text-sm"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="font-medium">
+                            {formatNodeKind(node.node_kind)}
+                          </div>
+                          {sourceHref && (
+                            <Link
+                              href={sourceHref}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:underline"
+                            >
+                              {displayTitle ? `${displayTitle} ↗` : "Open source ↗"}
+                            </Link>
+                          )}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {lineageBadges(node).map((badge) => (
+                            <span
+                              key={`${node.id}:${badge.label}`}
+                              className="badge badge-muted"
+                            >
+                              {badge.label}: {badge.value}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="mt-1 break-all font-mono text-xs text-muted">
+                          {nodeLabel(node)}
+                        </div>
+                      </li>
+                    );
+                  },
                 )}
               </ol>
             )}

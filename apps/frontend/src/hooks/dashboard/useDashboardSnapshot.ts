@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   resolvePeriodRange,
@@ -195,6 +195,7 @@ export function useDashboardSnapshot(
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const fetchData = useCallback(async () => {
     const today = new Date();
@@ -202,7 +203,9 @@ export function useDashboardSnapshot(
       periodPreset,
       today,
     );
-    setLoading(true);
+    if (!hasLoadedRef.current) {
+      setLoading(true);
+    }
     void apiOperation("suggestions_chat_suggestions_get", {
       query: { language: "en", include_structured: true },
     })
@@ -269,6 +272,7 @@ export function useDashboardSnapshot(
           ).length ?? 0,
         postedEntryCount: postedJournalData?.total ?? 0,
       });
+      hasLoadedRef.current = true;
       setError(null);
     } catch (err) {
       setError(

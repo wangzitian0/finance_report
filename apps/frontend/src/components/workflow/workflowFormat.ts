@@ -67,8 +67,24 @@ export function nextActionLabel(status: WorkflowStatusResponse) {
   return "Open workflow";
 }
 
+const WORKFLOW_JARGON_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/Package section invariant failed:\s*opening_balance_missing,\s*cash_balance_input_missing,\s*cash_identity_missing/gi, "Upload a bank statement to verify opening and ending cash balances."],
+  [/Package section invariant failed:\s*opening_balance_missing/gi, "Opening balance awaits bank statement verification."],
+  [/Package section invariant failed:\s*cash_balance_input_missing/gi, "Ending cash balance awaits bank statement verification."],
+  [/Package section invariant failed:\s*cash_identity_missing/gi, "Cash account balance awaits bank statement verification."],
+  [/Package section invariant failed/gi, "Statement balance check needed"],
+];
+
+export function humanizeWorkflowText(value: string): string {
+  let result = value;
+  for (const [pattern, replacement] of WORKFLOW_JARGON_REPLACEMENTS) {
+    result = result.replace(pattern, replacement);
+  }
+  return result;
+}
+
 export function nextActionSummary(status: WorkflowStatusResponse) {
-  return status.next_action.summary;
+  return humanizeWorkflowText(status.next_action.summary);
 }
 
 export function workflowStateCopy(status: WorkflowStatusResponse) {

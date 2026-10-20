@@ -87,9 +87,86 @@ export function lineageQuery(anchor: LineageAnchor) {
   };
 }
 
+export function nodeDisplayTitle(node: {
+  entity_type: string;
+  entity_id: string;
+  node_kind?: string;
+  properties?: Record<string, unknown> | null;
+}): string | null {
+  const props = node.properties ?? {};
+  const filename =
+    (typeof props.original_filename === "string" &&
+      props.original_filename.trim()) ||
+    (typeof props.filename === "string" && props.filename.trim()) ||
+    null;
+  if (filename) return filename;
+
+  const txnDate =
+    typeof props.txn_date === "string" && props.txn_date.trim()
+      ? props.txn_date.trim()
+      : null;
+  const amount =
+    typeof props.amount === "string" && props.amount.trim()
+      ? props.amount.trim()
+      : null;
+  const currency =
+    typeof props.currency === "string" && props.currency.trim()
+      ? props.currency.trim()
+      : null;
+  if (txnDate && amount) {
+    return `${txnDate} · ${currency ? `${currency} ` : ""}${amount}`;
+  }
+  return null;
+}
+
+export function nodeSourceHref(node: {
+  entity_type: string;
+  entity_id: string;
+  node_kind?: string;
+  properties?: Record<string, unknown> | null;
+}): string | null {
+  const props = node.properties ?? {};
+  const statementId =
+    typeof props.statement_id === "string" && props.statement_id.trim()
+      ? props.statement_id.trim()
+      : null;
+  if (
+    node.node_kind === "source_document" ||
+    node.entity_type === "uploaded_document" ||
+    node.entity_type === "bank_statement_transaction"
+  ) {
+    return statementId ? `/statements/${statementId}/review` : "/statements";
+  }
+  if (
+    node.node_kind === "ledger_line" ||
+    node.node_kind === "ledger_entry" ||
+    node.entity_type === "journal_line" ||
+    node.entity_type === "journal_entry"
+  ) {
+    return "/journal";
+  }
+  if (
+    node.node_kind === "atomic_fact" ||
+    node.entity_type === "atomic_transaction"
+  ) {
+    return "/reconciliation";
+  }
+  return null;
+}
+
 export function nodeLabel(node: {
   entity_type: string;
   entity_id: string;
+  properties?: Record<string, unknown> | null;
 }): string {
+  const props = node.properties ?? {};
+  const filename =
+    (typeof props.original_filename === "string" &&
+      props.original_filename.trim()) ||
+    (typeof props.filename === "string" && props.filename.trim()) ||
+    null;
+  if (filename) {
+    return `${filename} (${node.entity_type}:${node.entity_id})`;
+  }
   return `${node.entity_type}:${node.entity_id}`;
 }
