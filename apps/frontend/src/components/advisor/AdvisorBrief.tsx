@@ -10,6 +10,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 
+import { humanizeWorkflowText } from "@/components/workflow/workflowFormat";
 import type { AdvisorSuggestion } from "@/lib/types";
 
 const SAFE_ROUTE_FALLBACK = "/";
@@ -115,7 +116,7 @@ export function AdvisorBrief({
                     <h3 className="text-sm font-semibold">{titleText}</h3>
                     <span className="badge badge-muted">{suggestion.confidence_tier}</span>
                   </div>
-                  <p className="mt-2 break-words text-sm">{suggestion.basis}</p>
+                  <p className="mt-2 break-words text-sm">{humanizeWorkflowText(suggestion.basis)}</p>
                   <p className="mt-2 break-words text-xs text-muted">{suggestion.limitation}</p>
                 </div>
               </div>

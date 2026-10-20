@@ -111,10 +111,6 @@ export default function HomePage() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <UploadToReportHomePanel />
-      </div>
-
       {/* EPIC-022 AC22.21.6: the three statements are the product — lead with a
           segmented entry into each, deep-linking to the full report. */}
       <div className="mb-6">
@@ -124,6 +120,10 @@ export default function HomePage() {
           periodPreset={periodPreset}
           onPeriodPresetChange={setPeriodPreset}
         />
+      </div>
+
+      <div className="mb-6">
+        <UploadToReportHomePanel />
       </div>
 
       <div className="mb-6">

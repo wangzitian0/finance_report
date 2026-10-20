@@ -6,7 +6,7 @@ import { ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui";
 import type { WorkflowEventResponse, WorkflowEventStatus } from "@/lib/types";
 
-import { formatEventTime, labelFromSnake, severityBadgeVariant, severityIcon, workflowEventCardClass } from "./workflowFormat";
+import { formatEventTime, humanizeWorkflowText, labelFromSnake, severityBadgeVariant, severityIcon, workflowEventCardClass } from "./workflowFormat";
 
 /**
  * Single event card + a titled group of cards (was inline in
@@ -16,7 +16,7 @@ import { formatEventTime, labelFromSnake, severityBadgeVariant, severityIcon, wo
 export function WorkflowEventCard({
   event,
   className = workflowEventCardClass(event),
-  openLabel = `Open ${event.title}`,
+  openLabel,
   showIcon = true,
   onStatusChange,
 }: {
@@ -27,16 +27,19 @@ export function WorkflowEventCard({
   onStatusChange?: (eventId: string, status: WorkflowEventStatus) => void;
 }) {
   const Icon = severityIcon(event.severity);
+  const displayTitle = humanizeWorkflowText(event.title);
+  const displaySummary = humanizeWorkflowText(event.summary);
+  const resolvedOpenLabel = openLabel ?? `Open ${displayTitle}`;
   return (
     <article className={className}>
       <div className="flex min-w-0 items-start gap-3">
         {showIcon && <Icon className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted" aria-hidden="true" />}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h4 className="font-medium">{event.title}</h4>
+            <h4 className="font-medium">{displayTitle}</h4>
             <Badge variant={severityBadgeVariant(event.severity)}>{labelFromSnake(event.severity)}</Badge>
           </div>
-          <p className="mt-1 text-sm text-muted">{event.summary}</p>
+          <p className="mt-1 text-sm text-muted">{displaySummary}</p>
           <time className="mt-2 block text-xs text-muted" dateTime={event.occurred_at}>
             {formatEventTime(event.occurred_at)}
           </time>
@@ -44,10 +47,10 @@ export function WorkflowEventCard({
             <Link
               href={event.action_href}
               className="btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
-              aria-label={`Open ${event.title}`}
+              aria-label={`Open ${displayTitle}`}
             >
               <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-              {openLabel}
+              {resolvedOpenLabel}
             </Link>
             {event.status === "unread" && onStatusChange && (
               <button type="button" className="btn-ghost px-3 py-1.5 text-xs" onClick={() => onStatusChange(event.id, "read")}>

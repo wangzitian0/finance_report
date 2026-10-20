@@ -142,8 +142,16 @@ export function AccountLineageDrawer({
                           {line.entry_date}
                         </span>
                       </span>
-                      <span className="shrink-0 font-medium tabular-nums">
-                        {formatCurrencyLocale(line.amount, response.currency)}
+                      <span className="shrink-0 font-medium tabular-nums inline-flex items-center gap-1.5">
+                        <span>
+                          {formatCurrencyLocale(line.amount, response.currency)}
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="text-xs text-[var(--accent)]"
+                        >
+                          ›
+                        </span>
                       </span>
                     </button>
                   </li>

@@ -252,10 +252,11 @@ export function ThreeStatementNav({
                 <Link
                     href="/reports/balance-sheet"
                     data-testid="cockpit-card-balance-sheet"
-                    className="card p-3 text-center sm:text-left transition-colors hover:bg-[var(--background-muted)]"
+                    className="card p-3 text-center sm:text-left transition-colors hover:border-[var(--accent)] hover:bg-[var(--background-muted)]"
                 >
-                    <span className="block text-sm font-medium">
-                        Balance Sheet
+                    <span className="flex items-center justify-between text-sm font-medium">
+                        <span>Balance Sheet</span>
+                        <span aria-hidden="true" className="text-xs text-[var(--accent)]">↗</span>
                     </span>
                     <span className="mt-0.5 block text-xs text-muted">
                         What you own and owe
@@ -270,9 +271,12 @@ export function ThreeStatementNav({
                 <Link
                     href="/reports/income-statement"
                     data-testid="cockpit-card-income-statement"
-                    className="card p-3 text-center sm:text-left transition-colors hover:bg-[var(--background-muted)]"
+                    className="card p-3 text-center sm:text-left transition-colors hover:border-[var(--accent)] hover:bg-[var(--background-muted)]"
                 >
-                    <span className="block text-sm font-medium">Income</span>
+                    <span className="flex items-center justify-between text-sm font-medium">
+                        <span>Income</span>
+                        <span aria-hidden="true" className="text-xs text-[var(--accent)]">↗</span>
+                    </span>
                     <span className="mt-0.5 block text-xs text-muted">
                         Money in and out
                     </span>
@@ -286,9 +290,12 @@ export function ThreeStatementNav({
                 <Link
                     href="/reports/cash-flow"
                     data-testid="cockpit-card-cash-flow"
-                    className="card p-3 text-center sm:text-left transition-colors hover:bg-[var(--background-muted)]"
+                    className="card p-3 text-center sm:text-left transition-colors hover:border-[var(--accent)] hover:bg-[var(--background-muted)]"
                 >
-                    <span className="block text-sm font-medium">Cash Flow</span>
+                    <span className="flex items-center justify-between text-sm font-medium">
+                        <span>Cash Flow</span>
+                        <span aria-hidden="true" className="text-xs text-[var(--accent)]">↗</span>
+                    </span>
                     <span className="mt-0.5 block text-xs text-muted">
                         Where cash moved
                     </span>
@@ -338,15 +345,15 @@ export function ThreeStatementNav({
                             })}
                         </div>
                         <span className="text-[11px] text-muted">
-                            Click any line to inspect journal lineage
+                            {`${currency} · Click any row (›) to inspect source lineage`}
                         </span>
                     </div>
 
                     {breakdownLines.length > 0 && (
-                        <div className="mt-2.5 flex flex-wrap gap-2">
+                        <div className="mt-2.5 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                             {breakdownLines.map((line) => {
                                 const amt = formatCurrencyLocale(
-                                    line.amount ?? "0",
+                                    line.amount,
                                     currency,
                                     "en-US",
                                     FMT_OPTS,
@@ -359,9 +366,9 @@ export function ThreeStatementNav({
                                         onClick={() =>
                                             openLineageForAccount(line)
                                         }
-                                        className="rounded-md border border-[var(--border)] bg-[var(--background-muted)]/50 px-2.5 py-1 text-xs font-medium hover:border-[var(--accent)] transition-colors"
+                                        className="flex items-center justify-between gap-2 rounded-md border border-[var(--border)] bg-[var(--background-muted)]/50 px-3 py-1.5 text-left text-xs font-medium hover:border-[var(--accent)] transition-colors"
                                     >
-                                        {`${line.name} · ${amt}`}
+                                        {`${line.name} · ${amt} ›`}
                                     </button>
                                 );
                             })}
