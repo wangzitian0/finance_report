@@ -12,8 +12,9 @@ markup or a parenthesis (a heading such as "### Income this month (October 2026)
 the next non-empty line. A horizontal markdown table is not read.
 
 Known limit of the out-of-data check: a real amount of the user that the answer reuses as an
-estimate in a sentence that does not name the subject ("I have no dining records for March 2019.
-It was probably SGD 1,500.00.") passes. To find it, the check must read the meaning of the text.
+estimate in a clause that does not name the subject ("I have no dining records for March 2019,
+but it was probably SGD 1,500.00.") passes. To find it, the check must read the meaning of the
+text. An invented amount in such a clause fails, because it is not an amount of the data.
 
 The module is pure: ``tests/tooling/test_assistant_answer.py`` runs it with no deployment.
 """
@@ -61,6 +62,13 @@ QUESTION = (
     "'Income this month: <amount>', 'Expenses this month: <amount>'. Use the exact amounts."
 )
 OUT_OF_DATA_QUESTION = "How much did I spend on dining in March 2019?"
+# The failure text of an empty answer body. It names the provider failure, so the staging gate
+# classifies it as a provider transient. It lives here, not in the journey source: pytest prints
+# that source on any failure of the journey, and the text would classify that failure too.
+EMPTY_ANSWER_FAILURE = (
+    "the assistant sent HTTP 200 with an empty body after {seconds} s for {question!r}: "
+    "the provider stream failed before its first chunk, and the AI service may be unavailable"
+)
 # A sentence that names the subject of the out-of-data question.
 OUT_OF_DATA_TOPIC = re.compile(r"\bdining\b|\bmarch\s+2019\b", re.IGNORECASE)
 
@@ -70,14 +78,29 @@ _CODES = (
 _NUMBER = r"\d[\d,]*(?:\.\d+)?"
 # The number ends here: no more digits, no percent sign and no decimal part follow.
 _END = r"(?![\d%]|[.,]\d)"
+# A bare number before one of these words counts something; it is not an amount.
+_UNITS = r"days?|weeks?|months?|years?|hours?|transactions?|entries|rows?|statements?|accounts?|items?"
+_UNIT = rf"(?![ \t]*(?i:{_UNITS})\b)"
 # An amount has a currency before or after it, or it is a bare number with thousands
 # separators, exactly two decimals, or three digits or more that is not a year.
 # A percentage, a year, a small count and a rate with more decimals are not amounts.
 _AMOUNT = re.compile(
-    rf"(?:(?<![A-Za-z])(?i:{_CODES})|S\$|US\$|HK\$|\$|¥|€|£)\s*({_NUMBER}){_END}"
-    rf"|(?<![\d.,])({_NUMBER})\s*(?:(?i:{_CODES})\b|(?i:dollars?)\b)"
-    r"|(?<![\d.,$])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d{2}|(?!(?:19|20)\d\d(?!\d))\d{3,})"
-    rf"{_END}"
+    rf"(?:(?<![A-Za-z])(?i:{_CODES})|S\$|US\$|HK\$|\$|¥|€|£)[ \t]*({_NUMBER})(?![\d%]|\.\d)"
+    rf"|(?<![\w.,])({_NUMBER})[ \t]*(?:(?i:{_CODES})\b|(?i:dollars?)\b)"
+    r"|(?<![\w.,$])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d{2}|(?!(?:19|20)\d\d(?!\d))\d{3,})"
+    rf"{_END}{_UNIT}"
+)
+_MONTH = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?"
+# A date, a percentage or a count in the text of a label is no amount; it is removed first.
+_NOT_AN_AMOUNT = re.compile(
+    rf"\b\d{{1,2}}[ \t]+{_MONTH}(?:[ \t]+\d{{4}})?\b|\b{_MONTH}[ \t]+\d{{1,2}}(?:,[ \t]*\d{{4}})?\b"
+    rf"|\b{_MONTH}[ \t]+\d{{4}}\b|\b\d{{4}}-\d{{2}}-\d{{2}}\b|\d+(?:\.\d+)?[ \t]*%"
+    rf"|\b\d+[ \t]+(?:{_UNITS})\b",
+    re.IGNORECASE,
+)
+# The stated value of a label: the first number, with a minus sign before it or before its currency.
+_STATED = re.compile(
+    rf"(?P<before>[-−])?[ \t]*(?:(?i:{_CODES})|S\$|US\$|HK\$|[$¥€£])?[ \t]*(?P<after>[-−])?[ \t]*(?P<number>{_NUMBER})"
 )
 _LABEL = re.compile(
     "|".join(
@@ -89,8 +112,15 @@ _LABEL = re.compile(
 )
 _MARKUP = re.compile(r"\([^)]*\)|[\s*:#|_\-–—]")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
-# A sentence does not end after these abbreviations.
-_ABBREVIATIONS = ("approx.", "e.g.", "i.e.", "etc.", "vs.", "est.", "ca.", "avg.")
+# A clause ends at a comma that is not in a number, a semicolon, a dash, or a joining word.
+_CLAUSE_END = re.compile(
+    r"(?<!\d),|,(?!\d)|;|\s[—–-]\s|—|\b(?:but|while|whereas|although|however|with)\b",
+    re.IGNORECASE,
+)
+# A sentence does not end after one of these abbreviations, as a whole word.
+_ABBREVIATION = re.compile(
+    r"(?:^|[\s(])(?:approx|e\.g|i\.e|vs|est|ca|avg)\.$", re.IGNORECASE
+)
 # Words that tell the user that the data holds no answer.
 _NO_DATA = re.compile(
     r"\bno\b[^.\n]{0,60}\b(?:data|records?|transactions?|information|statements?|details?|entries|history)\b"
@@ -106,32 +136,43 @@ def _decimal(raw: str) -> Decimal:
     return Decimal(raw.replace(",", ""))
 
 
-def _first_amount(text: str) -> Decimal | None:
-    match = _AMOUNT.search(text)
+def _stated_value(text: str) -> Decimal | None:
+    """Return the first number of the text of a label, or None when the text holds no number.
+
+    Dates and percentages are removed first. Any other number decides, also one that is not an
+    amount ("2000", "0", "1.5k"), so a wrong headline cannot be skipped.
+    """
+    match = _STATED.search(_NOT_AN_AMOUNT.sub(" ", text))
     if match is None:
         return None
-    return _decimal(next(group for group in match.groups() if group))
+    value = _decimal(match["number"])
+    return -value if match["before"] or match["after"] else value
 
 
 def _label_text(answer: str, start: int, end: int) -> str:
     line, _, rest = answer[start:end].partition("\n")
-    if _AMOUNT.search(line) or _MARKUP.sub("", line):
+    cleaned = _NOT_AN_AMOUNT.sub(" ", line)
+    if any(character.isdigit() for character in cleaned) or _MARKUP.sub("", cleaned):
         return line
     return next((other for other in rest.split("\n") if other.strip()), "")
 
 
 def stated_amounts(answer: str) -> dict[str, Decimal | None]:
-    """Return, for each metric, the first amount after the first label that states one."""
+    """Return, for each metric, the first number after the first label that states one."""
     stated: dict[str, Decimal | None] = dict.fromkeys(METRIC_LABELS)
+    decided: set[str] = set()
     labels = list(_LABEL.finditer(answer))
     for position, match in enumerate(labels):
         metric = match.lastgroup.rsplit("_", 1)[0] if match.lastgroup else ""
-        if stated[metric] is not None:
+        if metric in decided:
             continue
         end = (
             labels[position + 1].start() if position + 1 < len(labels) else len(answer)
         )
-        stated[metric] = _first_amount(_label_text(answer, match.end(), end))
+        value = _stated_value(_label_text(answer, match.end(), end))
+        if value is not None:
+            stated[metric] = value
+            decided.add(metric)
     return stated
 
 
@@ -161,7 +202,7 @@ def _sentences(answer: str) -> list[str]:
         pending = ""
         for piece in _SENTENCE_END.split(line):
             pending = f"{pending} {piece}" if pending else piece
-            if not pending.lower().endswith(_ABBREVIATIONS):
+            if not _ABBREVIATION.search(pending):
                 sentences.append(pending)
                 pending = ""
         if pending:
@@ -169,12 +210,17 @@ def _sentences(answer: str) -> list[str]:
     return [sentence for sentence in sentences if sentence.strip()]
 
 
-def topic_sentences_with_amounts(answer: str) -> list[str]:
-    """Return the sentences that name the out-of-data subject and state an amount."""
+def topic_claims(answer: str) -> list[str]:
+    """Return the clauses that name the out-of-data subject and state an amount.
+
+    A sentence can name the subject and, in another clause, an amount of the data that the user
+    has ("your top expense is Housing: SGD 1,500.00, with no dining category"). That is no claim.
+    """
     return [
-        sentence
+        clause.strip()
         for sentence in _sentences(answer)
-        if OUT_OF_DATA_TOPIC.search(sentence) and _AMOUNT.search(sentence)
+        for clause in _CLAUSE_END.split(sentence)
+        if OUT_OF_DATA_TOPIC.search(clause) and _AMOUNT.search(clause)
     ]
 
 

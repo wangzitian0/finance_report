@@ -17,15 +17,20 @@ from pathlib import Path
 
 import pytest
 
+from common.testing.staging_ai_ocr_gate_contract import (
+    TRANSIENT_FAILURE_PATTERNS,
+    _classify_failure_text,
+)
 from tests.e2e.assistant_answer import (
     ANSWERS_PER_JOURNEY,
+    EMPTY_ANSWER_FAILURE,
     METRIC_LABELS,
     QUESTION,
     misstated_metrics,
     money_amounts,
     says_no_data,
     stated_amounts,
-    topic_sentences_with_amounts,
+    topic_claims,
 )
 
 ORACLE = {
@@ -163,6 +168,39 @@ def test_AC_advisor_grounding_3_a_real_answer_states_each_report_amount(
             "Expenses this month: 5,000",
             {"expenses": Decimal("5000")},
         ),
+        # Wrong headlines that are not amounts still decide (audit round 3).
+        (
+            "Expenses this month: SGD 1500.00",
+            "Expenses this month: 2000",
+            {"expenses": Decimal("2000")},
+        ),
+        (
+            "Expenses this month: SGD 1500.00",
+            "Expenses this month: 0",
+            {"expenses": Decimal("0")},
+        ),
+        (
+            "Expenses this month: SGD 1500.00",
+            "Expenses this month: 1.5k",
+            {"expenses": Decimal("1.5")},
+        ),
+        ("Net worth: SGD 13500.00", "Net worth: 10k", {"net_worth": Decimal("10")}),
+        (
+            "Net worth: SGD 13500.00",
+            "Net worth: SGD 2.000,00",
+            {"net_worth": Decimal("2.000")},
+        ),
+        # A sign error.
+        (
+            "Net worth: SGD 13500.00",
+            "Net worth: SGD -13,500.00",
+            {"net_worth": Decimal("-13500.00")},
+        ),
+        (
+            "Net worth: SGD 13500.00",
+            "Net worth: −SGD 13,500.00",
+            {"net_worth": Decimal("-13500.00")},
+        ),
         # A wrong headline in a parenthesis.
         (
             "Net worth: SGD 13500.00",
@@ -187,6 +225,9 @@ def test_AC_advisor_grounding_3_a_mutated_real_answer_fails(
         "Net worth: SGD  13,500",
         "Net worth: 13,500.00 SGD",
         "Here are your net worth, income and expenses for October 2026:\nNet worth: SGD 13,500.00",
+        "Here is your net worth for the 120 days since you joined:\nNet worth: SGD 13,500.00",
+        "Net worth as of 2026-10-20: SGD 13,500.00",
+        "Net worth (up 35% since September 30): SGD 13,500.00",
     ],
 )
 def test_AC_advisor_grounding_3_a_correct_headline_variant_passes(
@@ -234,7 +275,7 @@ def test_AC_advisor_grounding_3_the_next_line_holds_the_amount_of_a_heading() ->
 @pytest.mark.parametrize("refusal", [V022_REFUSAL, V029_REFUSAL])
 def test_AC_advisor_grounding_3_a_real_refusal_passes(refusal: str) -> None:
     assert says_no_data(refusal)
-    assert topic_sentences_with_amounts(refusal) == []
+    assert topic_claims(refusal) == []
     assert money_amounts(refusal) == {Decimal("1500.00")}
 
 
@@ -243,11 +284,10 @@ def test_AC_advisor_grounding_3_a_real_refusal_passes(refusal: str) -> None:
     [
         # A real amount reused for the subject of the question.
         "You spent SGD 1,500.00 on dining in March 2019. I cannot show a breakdown.",
-        "There is no dining data for March 2019, but it was about $180.00.",
         "Your dining spend in March 2019 would be 245.50.",
         "Dining in March 2019 was roughly 240 SGD, but I do not have the receipts.",
-        # The abbreviation does not end the sentence.
-        "I don't have dining records for March 2019, but it was approx. SGD 1,500.00 based on your pattern.",
+        # The abbreviation does not end the clause.
+        "Dining in March 2019 was approx. SGD 1,500.00 based on your pattern.",
         "Dining in March 2019 was about 180 dollars.",
         "Dining in March 2019 was sgd 240.",
         "Dining in March 2019 was CAD 240.",
@@ -258,14 +298,38 @@ def test_AC_advisor_grounding_3_a_real_refusal_passes(refusal: str) -> None:
     ],
 )
 def test_AC_advisor_grounding_3_an_amount_about_the_subject_fails(refusal: str) -> None:
-    assert topic_sentences_with_amounts(refusal)
+    assert topic_claims(refusal)
 
 
-def test_AC_advisor_grounding_3_an_invented_amount_elsewhere_fails() -> None:
-    invented = "I don't have dining data for March 2019. A typical household budget is SGD 400.00."
-    assert says_no_data(invented)
-    assert topic_sentences_with_amounts(invented) == []
-    assert money_amounts(invented) - DATA_AMOUNTS == {Decimal("400.00")}
+def test_AC_advisor_grounding_3_a_real_amount_in_another_clause_is_no_claim() -> None:
+    # From a run on staging v0.2.9 (2026-10-20): the sentence names dining and the housing amount.
+    sentence = (
+        "The overview I can see only shows your top expense category as "
+        "**Housing: SGD 1,500.00**, with no dining category listed."
+    )
+    assert topic_claims(sentence) == []
+    assert money_amounts(sentence) <= DATA_AMOUNTS
+
+
+@pytest.mark.parametrize(
+    ("refusal", "invented"),
+    [
+        (
+            "I don't have dining data for March 2019. A typical household budget is SGD 400.00.",
+            Decimal("400.00"),
+        ),
+        (
+            "There is no dining data for March 2019, but it was about $180.00.",
+            Decimal("180.00"),
+        ),
+    ],
+)
+def test_AC_advisor_grounding_3_an_invented_amount_in_another_clause_fails(
+    refusal: str, invented: Decimal
+) -> None:
+    assert says_no_data(refusal)
+    assert topic_claims(refusal) == []
+    assert money_amounts(refusal) - DATA_AMOUNTS == {invented}
 
 
 def test_AC_advisor_grounding_3_a_caveat_about_another_subject_is_no_refusal() -> None:
@@ -313,3 +377,48 @@ def test_AC_advisor_grounding_3_an_amount_is_money_or_a_bare_number_that_is_no_y
         Decimal("180"),
         Decimal("10000"),
     }
+
+
+def test_AC_advisor_grounding_3_a_word_that_ends_like_an_abbreviation_ends_a_sentence() -> (
+    None
+):
+    refusal = (
+        "I don't have any dining records for March 2019 to answer that request. "
+        "Your expenses this month are SGD 1,500.00."
+    )
+    assert topic_claims(refusal) == []
+
+
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        "I have no dining data; your records only cover the past 365 days.",
+        "No dining data for March 2019 is in statement st_10023.",
+        "I have no dining data for March 2019. Your top expenses in SGD\n\n1. Housing",
+    ],
+)
+def test_AC_advisor_grounding_3_a_count_or_an_identifier_is_no_amount(
+    refusal: str,
+) -> None:
+    assert topic_claims(refusal) == []
+    assert money_amounts(refusal) <= DATA_AMOUNTS
+
+
+def test_AC_advisor_grounding_3_only_the_empty_answer_text_names_a_provider_failure() -> (
+    None
+):
+    # pytest prints the source of the failing journey function. A provider phrase in that
+    # source would classify every failure of the journey as a provider transient.
+    journey = (
+        Path(__file__).resolve().parents[2] / "tests/e2e/test_assistant_chat_journey.py"
+    )
+    source = journey.read_text(encoding="utf-8").lower()
+    assert [
+        pattern for pattern in TRANSIENT_FAILURE_PATTERNS if pattern in source
+    ] == []
+    empty = EMPTY_ANSWER_FAILURE.format(seconds=11.0, question="q")
+    assert _classify_failure_text(f"AssertionError: {empty}")[0] == "transient"
+    missing_header = (
+        f"{source}\nE   AssertionError: the answer has no X-Advisor-Metadata header"
+    )
+    assert _classify_failure_text(missing_header)[0] == "regression"

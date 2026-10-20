@@ -14,7 +14,7 @@ deployed revision that:
   runs, so it proves the header contract on the deployment, not the use of the data. The amount
   check proves the use of the data;
 * a question about a period with no data (dining in March 2019) gets an answer that says so in a
-  sentence about that subject. No sentence about that subject states an amount, and the answer
+  sentence about that subject. No clause about that subject states an amount, and the answer
   states no amount that is not in the data of the user.
 
 The assistant reads the balance sheet of today and the income statement of the current month
@@ -37,12 +37,13 @@ import pytest
 from assistant_answer import (
     ANSWER_TIMEOUT_SECONDS,
     CSV_PARSE_TIMEOUT_SECONDS,
+    EMPTY_ANSWER_FAILURE,
     OUT_OF_DATA_QUESTION,
     QUESTION,
     misstated_metrics,
     money_amounts,
     says_no_data,
-    topic_sentences_with_amounts,
+    topic_claims,
 )
 from common.testing.ac_proof import ac_proof
 from common.testing.provider_review import (
@@ -152,10 +153,9 @@ async def _ask(client: httpx.AsyncClient, question: str) -> tuple[str, dict, flo
         f"POST /chat failed for {question!r}: {response.status_code} {response.text}"
     )
     # A finished answer always ends with the disclaimer. An empty body means that the
-    # provider stream failed before its first chunk, after the server sent HTTP 200.
-    assert response.text.strip(), (
-        f"the assistant sent HTTP 200 with an empty body after {seconds} s for {question!r}: "
-        "the provider stream failed before its first chunk, and the AI service may be unavailable"
+    # stream failed before its first chunk, after the server sent HTTP 200.
+    assert response.text.strip(), EMPTY_ANSWER_FAILURE.format(
+        seconds=seconds, question=question
     )
     raw_metadata = response.headers.get("X-Advisor-Metadata")
     assert raw_metadata, f"the answer has no X-Advisor-Metadata header: {response.text}"
@@ -336,9 +336,9 @@ async def test_assistant_answers_from_the_data_of_the_user(
             f"no sentence about the subject of the question says that the data holds no answer: "
             f"{refusal[:1200]}"
         )
-        claims = topic_sentences_with_amounts(refusal)
+        claims = topic_claims(refusal)
         assert not claims, (
-            f"a sentence about the subject of a question with no data states an amount: {claims}"
+            f"a clause about the subject of a question with no data states an amount: {claims}"
         )
         data_amounts = {
             Decimal("0"),
