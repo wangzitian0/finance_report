@@ -29,7 +29,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-CANONICAL_SKILLS = ROOT / "skills"
+CANONICAL_SKILLS = ROOT / ".agents" / "skills"
 # Runtimes that mirror the canonical skill library via materialized directories
 # (Claude Code reads .claude/skills, Codex reads .codex/skills, agy reads
 # .agents/skills — all project-level and discovered on clone).
