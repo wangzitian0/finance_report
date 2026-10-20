@@ -105,10 +105,18 @@ describe("Home three-statement entry (EPIC-022 AC22.21.6 & #2548)", () => {
         expect(onPeriodPresetChange).toHaveBeenCalledWith("3Y");
 
         const range1M = resolvePeriodRange("1M", new Date(2026, 2, 15));
+        const range1Q = resolvePeriodRange("1Q", new Date(2026, 2, 15));
+        const range1Y = resolvePeriodRange("1Y", new Date(2026, 2, 15));
+        const rangeYTD = resolvePeriodRange("YTD", new Date(2026, 2, 15));
         const range3Y = resolvePeriodRange("3Y", new Date(2026, 2, 15));
+        const rangeAll = resolvePeriodRange("All", new Date(2026, 2, 15));
         expect(range1M.startDate).toBe("2026-03-01");
         expect(range1M.endDate).toBe("2026-03-15");
+        expect(range1Q.startDate).toBe("2026-01-01");
+        expect(range1Y.startDate).toBe("2025-04-01");
+        expect(rangeYTD.startDate).toBe("2026-01-01");
         expect(range3Y.startDate).toBe("2023-04-01");
+        expect(rangeAll.startDate).toBe("2000-01-01");
     });
 
     // AC-reporting.2548.2
@@ -130,9 +138,15 @@ describe("Home three-statement entry (EPIC-022 AC22.21.6 & #2548)", () => {
             />,
         );
 
+        fireEvent.click(screen.getByRole("button", { name: "Period YTD" }));
+        expect(screen.getByRole("button", { name: "Period YTD" })).toHaveAttribute("aria-pressed", "true");
+
         const switcher = screen.getByRole("tablist", { name: "Statement breakdown switcher" });
         expect(switcher).toBeInTheDocument();
 
+        expect(screen.getByRole("button", { name: /Drill down DBS Multiplier/i })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("tab", { name: "Cash Breakdown" }));
         expect(screen.getByRole("button", { name: /Drill down DBS Multiplier/i })).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole("tab", { name: "Income Breakdown" }));
@@ -153,5 +167,8 @@ describe("Home three-statement entry (EPIC-022 AC22.21.6 & #2548)", () => {
             ),
         );
         expect(await screen.findByText(/Sources · Base Salary/)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+        expect(screen.queryByText(/Sources · Base Salary/)).toBeNull();
     });
 });

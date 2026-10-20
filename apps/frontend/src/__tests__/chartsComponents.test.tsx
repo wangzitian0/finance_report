@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
-import { BarChart } from "@/components/charts/BarChart"
+import { BarChart, formatCompactChartValue } from "@/components/charts/BarChart"
 import { PieChart } from "@/components/charts/PieChart"
 import { TrendChart } from "@/components/charts/TrendChart"
 
@@ -86,5 +86,8 @@ describe("Chart components", () => {
     expect(screen.getByTestId("pie-segment-share-Equities")).toHaveTextContent("25%")
     expect(screen.getByTestId("trend-axis-scale")).toHaveTextContent("15.5k")
     expect(screen.getByTestId("trend-axis-scale")).toHaveTextContent("12.0k")
+    expect(formatCompactChartValue(2_500_000)).toBe("2.5M")
+    expect(formatCompactChartValue(-1_200)).toBe("-1.2k")
+    expect(formatCompactChartValue(450)).toBe("450")
   })
 })
