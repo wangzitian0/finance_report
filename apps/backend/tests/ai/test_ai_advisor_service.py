@@ -41,7 +41,7 @@ from src.audit import JournalEntrySourceType
 from src.extraction import TransactionDirection
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.llm import AIStreamError, estimate_tokens
+from src.llm import AIStreamError, ReasoningEffort, estimate_tokens
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reporting import ReportError
 from src.schemas.workflow import (
@@ -232,15 +232,18 @@ async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> 
     """AC-advisor.stream.1: AC6.7.1: Stream falls back to fallback model on primary failure."""
     service = AIAdvisorService()
     service.primary_model = "primary"
+    service.large_model = "large"
     service.fallback_models = ["fallback"]
     calls: list[str] = []
+    efforts: list[ReasoningEffort | None] = []
 
     async def fake_stream_model(
-        model: str, _messages: list[dict[str, str]], _user_id=None, _reasoning=None, _max_tokens=None
+        model: str, _messages: list[dict[str, str]], _user_id=None, reasoning=None, _max_tokens=None
     ):
         calls.append(model)
-        if model == "primary":
-            raise AIStreamError(message="fail primary", retryable=True)
+        efforts.append(reasoning)
+        if model == "large":
+            raise AIStreamError(message="fail large", retryable=True)
         yield "hello"
 
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
@@ -249,7 +252,9 @@ async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> 
     async for chunk, model in service._stream_openrouter([{"role": "user", "content": "hi"}], None):
         results.append((chunk, model))
 
-    assert calls == ["primary", "fallback"]
+    # The advisor tries the large role first, never the small-role primary model.
+    assert calls == ["large", "fallback"]
+    assert efforts == [ReasoningEffort.HIGH, ReasoningEffort.HIGH]
     assert results == [("hello", "fallback")]
 
 
@@ -259,6 +264,7 @@ async def test_stream_openrouter_raises_when_all_fail(
     """AC-advisor.stream.2: AC6.7.2: Stream raises error when all models fail."""
     service = AIAdvisorService()
     service.primary_model = "primary"
+    service.large_model = "large"
     service.fallback_models = ["fallback"]
 
     async def fake_stream_model(
@@ -961,6 +967,7 @@ async def test_stream_openrouter_with_preferred_model(monkeypatch: pytest.Monkey
     """AC-advisor.stream.7: AC6.13.2: preferred_model is prepended to the model list."""
     service = AIAdvisorService()
     service.primary_model = "primary"
+    service.large_model = "large"
     service.fallback_models = []
     called_with: list[str] = []
 
@@ -985,6 +992,7 @@ async def test_stream_openrouter_raises_on_programming_error(monkeypatch: pytest
     """AC-advisor.stream.8: AC6.13.3: ValueError/TypeError in _stream_model raises AIAdvisorError."""
     service = AIAdvisorService()
     service.primary_model = "primary"
+    service.large_model = "large"
     service.fallback_models = []
 
     async def broken_stream_model(model, _messages, _user_id=None, _reasoning=None, _max_tokens=None):

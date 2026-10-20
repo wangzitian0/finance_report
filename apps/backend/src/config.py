@@ -428,6 +428,15 @@ class Settings(BaseSettings):
         description="Primary AI model id. Unset: the infra2 SDK default; set it only to customize production.",
         json_schema_extra={"group": "AI Provider"},
     )
+    large_model: str = Field(
+        default=_SDK_LLM_DEFAULTS.large_model,
+        validation_alias="LARGE_MODEL",
+        description=(
+            "Large-role AI model id for user-facing answers (advisor chat). "
+            "Unset: the infra2 SDK default; set it only to customize production."
+        ),
+        json_schema_extra={"group": "AI Provider"},
+    )
     vision_model: str = Field(
         default=_SDK_LLM_DEFAULTS.vision_model or _SDK_LLM_DEFAULTS.primary_model,
         validation_alias="VISION_MODEL",
@@ -885,6 +894,7 @@ class Settings(BaseSettings):
             primary_model=self.primary_model,
             ocr_model=self.ocr_model,
             vision_model=self.vision_model,
+            large_model=self.large_model,
             fallback_models=tuple(self.fallback_models),
             vision_fallback_models=tuple(self.vision_fallback_models),
             chat_completions_path=self.ai_chat_completions_path,

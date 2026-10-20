@@ -110,6 +110,11 @@ async def _bound_scene_binding(user_id: UUID | None) -> SceneBinding | None:
         return None
 
 
+def _large_role_reasoning() -> ReasoningEffort:
+    """The reasoning effort of the infra2 SDK large role (high by default, #2572)."""
+    return ReasoningEffort(settings.to_llm_settings().role_reasoning_effort("large"))
+
+
 class AIAdvisorService:
     """AI advisor service to answer financial questions."""
 
@@ -117,6 +122,8 @@ class AIAdvisorService:
         self.api_key = settings.ai_api_key
         self.base_url = settings.ai_base_url
         self.primary_model = settings.primary_model
+        # User-facing answers use the large role of the infra2 SDK (#2572).
+        self.large_model = settings.large_model
         self.fallback_models = settings.fallback_models
 
     async def chat_stream(
@@ -165,7 +172,7 @@ class AIAdvisorService:
         bound_model = bound.model_id if bound else None
         # The cache key must reflect the model that will actually answer: an explicit
         # per-message model, else the bound model, else the env primary.
-        model_key = model or bound_model or self.primary_model
+        model_key = model or bound_model or self.large_model
         cache_key = f"{user_id}:{language}:{normalize_question(message)}:{context_hash}:{model_key}"
         _CACHE.prune()
         cached = _CACHE.get(cache_key)
@@ -794,7 +801,7 @@ class AIAdvisorService:
             session,
             ChatMessageRole.ASSISTANT,
             response_text,
-            model_name=model_used or self.primary_model,
+            model_name=model_used or self.large_model,
         )
         # Commit here because the router has already returned the StreamingResponse
         # and cannot commit after the generator completes.  This is a documented
@@ -831,7 +838,7 @@ class AIAdvisorService:
         from src.llm import AIStreamError
         from src.observability import ErrorIds
 
-        models = [self.primary_model, *self.fallback_models]
+        models = [self.large_model, *self.fallback_models]
         if preferred_model is None and bound is not None:
             try:
                 client = get_llm_client(user_id)
@@ -848,7 +855,7 @@ class AIAdvisorService:
                 )
         # The binding's reasoning/max_tokens apply only when its model is used (no
         # per-message override). They're hints/caps, harmless if a fallback ignores them.
-        reasoning = bound.reasoning if bound else None
+        reasoning: ReasoningEffort | None = bound.reasoning if bound else _large_role_reasoning()
         max_tokens = bound.max_tokens if bound else None
         if preferred_model:
             models = [preferred_model, *models]

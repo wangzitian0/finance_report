@@ -69,6 +69,7 @@ NON_DEPENDENCY_ENV_FIELDS: dict[str, str] = {
     "ai_json_seed": "tuning",
     "ai_extract_max_attempts": "tuning",
     "primary_model": "tuning",
+    "large_model": "tuning",
     "vision_model": "tuning",
     "ocr_model": "tuning",
     "fallback_models_str": "tuning",

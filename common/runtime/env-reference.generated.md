@@ -32,6 +32,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `AI_LAYOUT_PARSING_PATH` | `/layout_parsing` |  |  | AI Provider | Layout-parsing path appended to the AI base URL. |
 | `AI_PROVIDER` | `zai` |  | yes | AI Provider | AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults). |
 | `FALLBACK_MODELS` |  |  |  | AI Provider | Comma-separated fallback AI model ids. Unset: the infra2 SDK default. |
+| `LARGE_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Large-role AI model id for user-facing answers (advisor chat). Unset: the infra2 SDK default; set it only to customize production. |
 | `LLM_CASSETTE_ENGAGE` | `false` |  |  | AI Provider | Engage offline LLM cassette replay layer. |
 | `LLM_CASSETTE_REFRESH` | `false` |  |  | AI Provider | Refresh recorded LLM cassettes in local runs. |
 | `LLM_ENCRYPTION_KEYS` |  |  | yes | AI Provider | Comma-separated Fernet keys (urlsafe base64, 32 bytes) for encrypting LLM provider API keys at rest; newest first. Empty disables DB-backed provider storage. Rotate by prepending a new key and re-encrypting all secrets. |
