@@ -47,6 +47,7 @@ from src.ledger import (
     submit_anchored_journal_entry,
 )
 from src.ledger.base.decision_anchor import journal_command_target
+from src.ledger.base.validators import ValidationError
 from src.ledger.extension import anchored_posting
 from src.ledger.extension.anchored_posting import (
     AnchoredJournalCommand,
@@ -706,3 +707,11 @@ async def test_AC_ledger_79_11_post_does_not_depend_on_the_decimal_scale_of_the_
 
     assert posted.status_code == 200, posted.text
     assert posted.json()["status"] == "posted"
+
+    # A value with more places than the column stores is rejected, never rounded.
+    with pytest.raises(ValidationError, match="more than 2 decimal places"):
+        anchored_posting._at_stored_scale([{"account_id": usd.id, "amount": Decimal("1.234")}])
+    with pytest.raises(ValidationError, match="more than 6 decimal places"):
+        anchored_posting._at_stored_scale(
+            [{"account_id": usd.id, "amount": Decimal("1"), "fx_rate": Decimal("1.1234567")}]
+        )
