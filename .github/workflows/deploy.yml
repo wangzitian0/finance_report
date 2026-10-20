@@ -610,6 +610,7 @@ jobs:
       contents: read
     outputs:
       provider_status: ${{ steps.ai_provider_connectivity.outputs.provider_status }}
+      model_catalog_outcome: ${{ steps.model_catalog_policy.outcome }}
     env:
       APP_URL: https://report-staging.zitian.party
       TEST_ENV: staging
@@ -714,6 +715,7 @@ jobs:
       # runs once here without retry, and a failure fails this job and blocks
       # delivery. The retry loop above may also run it, but this step decides.
       - name: Deployed Model Catalog Policy
+        id: model_catalog_policy
         timeout-minutes: 5
         env:
           EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}
@@ -739,7 +741,7 @@ jobs:
       contents: read
       issues: write
     needs: [build-and-deploy, provider-gate]
-    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' && needs.provider-gate.result == 'success' }}
     # The minimal durable statement canary is release-critical: a failed
     # upload/parse/import journey must fail this exact deployed revision.
     uses: ./.github/workflows/staging-ai-ocr-gate.yml
@@ -813,6 +815,7 @@ jobs:
           failure_summary="${{ needs.build-and-deploy.outputs.failure_summary }}"
           build_result="${{ needs.build-and-deploy.result }}"
           provider_result="${{ needs.provider-gate.result }}"
+          model_catalog_outcome="${{ needs.provider-gate.outputs.model_catalog_outcome }}"
           provider_status="${{ needs.provider-gate.outputs.provider_status }}"
           ai_ocr_result="${{ needs.ai-ocr-gate.result }}"
           ai_ocr_status="${{ needs.ai-ocr-gate.outputs.ai_ocr_status }}"
@@ -831,6 +834,10 @@ jobs:
             failure_reason="build/deploy gate failed"
           elif [ "$staging_required" != "true" ]; then
             delivery_status="skipped-no-staging-required"
+          elif [ "$provider_gate_required" = "true" ] && [ "$model_catalog_outcome" = "failure" ]; then
+            failed=true
+            delivery_status="failed"
+            failure_reason="deployed model catalog lists models outside the approved set"
           elif [ "$provider_gate_required" = "true" ] && [ "$provider_result" != "success" ]; then
             failed=true
             delivery_status="failed"

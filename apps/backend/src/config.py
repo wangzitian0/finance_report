@@ -855,11 +855,10 @@ class Settings(BaseSettings):
 
         The vision/OCR path sends image content, so its fallbacks must be
         vision-capable; the text-only ``FALLBACK_MODELS`` are intentionally not
-        reused here (#1034). The defaults retain compatible vision models so
-        a non-retryable failure of the primary vision model does not fail the
-        whole upload. The default is empty: the only approved vision-capable model
-        is glm-5.3-flashx, which already fills the vision and OCR slots
-        (``src.llm.model_policy``, #2566).
+        reused here (#1034). The default is empty: the only approved
+        vision-capable model is glm-5.3-flashx, which already fills the vision
+        and OCR slots (``src.llm.model_policy``, #2566). A configured list is
+        tried after the primary vision model.
         """
         return parse_comma_list(self.vision_fallback_models_str, [])
 

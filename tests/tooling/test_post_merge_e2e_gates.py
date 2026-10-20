@@ -801,7 +801,7 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
         deploy_workflow,
         "ai-ocr-gate:",
         "needs: [build-and-deploy, provider-gate]",
-        "if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' }}",
+        "if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' && needs.provider-gate.result == 'success' }}",
         "name: Staging AI/OCR Gate",
         "commit_full_sha: ${{ steps.release.outputs.full_sha }}",
         "deployed_version_ref: ${{ steps.release.outputs.version_ref }}",
