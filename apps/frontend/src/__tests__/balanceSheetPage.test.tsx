@@ -114,6 +114,9 @@ describe("BalanceSheetPage", () => {
         expect.objectContaining({ query: expect.objectContaining({ as_of_date: "2026-03-01" }) }),
       ),
     )
+
+    fireEvent.click(screen.getByRole("button", { name: "Period 1Q" }))
+    expect(screen.getByRole("button", { name: "Period 1Q" })).toHaveAttribute("aria-pressed", "true")
   })
 
   it("AC8.13.42 honors include_restricted=true from the balance-sheet URL", async () => {
