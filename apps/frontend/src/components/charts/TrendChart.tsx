@@ -44,9 +44,10 @@ export function TrendChart({ points, height = DEFAULT_HEIGHT }: TrendChartProps)
     .map((point, index) => `${index === 0 ? "M" : "L"}${point.x},${point.y}`)
     .join(" ");
 
-  const areaPath =
-    `${linePath} L${padding + (points.length - 1) * xStep},${chartHeight - padding} ` +
-    `L${padding},${chartHeight - padding} Z`;
+  const areaPath = points.length
+    ? `${linePath} L${padding + (points.length - 1) * xStep},${chartHeight - padding} ` +
+      `L${padding},${chartHeight - padding} Z`
+    : "";
 
   return (
     <div className="w-full">

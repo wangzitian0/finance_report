@@ -97,7 +97,7 @@ async def detect_anomalies(
                 )
             )
 
-    if txn.txn_date.weekday() >= 5 and txn.amount > avg_amount * Decimal("5"):
+    if txn.txn_date.weekday() >= 5 and avg_amount and txn.amount > avg_amount * Decimal("5"):
         anomalies.append(
             AnomalyResult(
                 anomaly_type="WEEKEND_LARGE",

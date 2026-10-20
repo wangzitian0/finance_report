@@ -22,8 +22,10 @@ def derive_reconciliation_score_tier(score: int | None) -> ReconciliationConfide
     return "HIGH"
 
 
-def normalize_text(value: str) -> str:
+def normalize_text(value: str | None) -> str:
     """Normalize text for similarity comparison while preserving Unicode/CJK characters."""
+    if not value:
+        return ""
     cleaned = re.sub(r"[^\w]+|_", " ", value.lower()).strip()
     return re.sub(r"\s+", " ", cleaned)
 
@@ -76,7 +78,10 @@ def score_amount(
     if txn_amount == Decimal("0"):
         return 0.0
 
-    ratio = max(Decimal("0"), Decimal("100") - (diff / txn_amount) * Decimal("100"))
+    ratio = max(
+        Decimal("0"),
+        min(Decimal("100"), Decimal("100") - (diff / abs(txn_amount)) * Decimal("100")),
+    )
     return float(round(ratio, 2))
 
 
