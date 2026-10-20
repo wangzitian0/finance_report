@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,6 +40,7 @@ from src.ledger import (
     Direction,
     JournalEntry,
     JournalEntryAuthorityState,
+    JournalLine,
     current_anchored_journal_entries,
     ledger_trace_policy_registry,
     list_journal_contributions,
@@ -631,3 +632,77 @@ async def test_AC_ledger_79_9_post_uses_the_base_currency_stored_on_the_draft(
     assert {line["currency"] for line in posted.json()["lines"]} == {created_base}
     stored = await db.scalar(select(JournalEntry.base_currency).where(JournalEntry.id == entry_id))
     assert stored == created_base
+
+
+async def _manual_draft(client: AsyncClient, *, memo: str, lines: list[dict]) -> UUID:
+    created = await client.post(
+        "/journal-entries",
+        json={"entry_date": "2025-05-01", "memo": memo, "rationale": "I checked this entry.", "lines": lines},
+    )
+    assert created.status_code == 201, created.text
+    return UUID(created.json()["id"])
+
+
+@pytest.mark.asyncio
+async def test_AC_ledger_79_10_post_does_not_depend_on_the_database_row_order(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-ledger.79.10: a draft posts when the database returns its lines in another order (#2539)."""
+    debit = Account(user_id=test_user.id, name=f"checking {uuid4()}", type=AccountType.ASSET, currency="SGD")
+    credit = Account(user_id=test_user.id, name=f"equity {uuid4()}", type=AccountType.EQUITY, currency="SGD")
+    db.add_all((debit, credit))
+    await db.commit()
+    entry_id = await _manual_draft(
+        client,
+        memo="Initial Checking Deposit",
+        lines=[
+            {"account_id": str(debit.id), "direction": "DEBIT", "amount": "1000.00", "currency": "SGD"},
+            {"account_id": str(credit.id), "direction": "CREDIT", "amount": "1000.00", "currency": "SGD"},
+        ],
+    )
+
+    # A deleted row frees space, and Postgres can store a later row before an earlier one.
+    # Move the first line behind the second to get that physical order.
+    await db.execute(
+        text(
+            "WITH moved AS (DELETE FROM journal_lines WHERE journal_entry_id = :entry AND account_id = :account "
+            "RETURNING *) INSERT INTO journal_lines SELECT * FROM moved"
+        ),
+        {"entry": entry_id, "account": debit.id},
+    )
+    await db.commit()
+    unordered = await db.scalars(select(JournalLine.account_id).where(JournalLine.journal_entry_id.in_([entry_id])))
+    assert list(unordered) == [credit.id, debit.id]
+
+    posted = await client.post(f"/journal-entries/{entry_id}/postings")
+
+    assert posted.status_code == 200, posted.text
+    assert [line["account_id"] for line in posted.json()["lines"]] == [str(debit.id), str(credit.id)]
+
+
+@pytest.mark.asyncio
+async def test_AC_ledger_79_11_post_does_not_depend_on_the_decimal_scale_of_the_request(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-ledger.79.11: amounts and FX rates with fewer decimals than the ledger stores still post (#2539)."""
+    usd = Account(user_id=test_user.id, name=f"usd cash {uuid4()}", type=AccountType.ASSET, currency="USD")
+    sgd = Account(user_id=test_user.id, name=f"sgd income {uuid4()}", type=AccountType.INCOME, currency="SGD")
+    db.add_all((usd, sgd))
+    await db.commit()
+    entry_id = await _manual_draft(
+        client,
+        memo="Short decimals",
+        lines=[
+            {"account_id": str(usd.id), "direction": "DEBIT", "amount": "100", "currency": "USD", "fx_rate": "1.35"},
+            {"account_id": str(sgd.id), "direction": "CREDIT", "amount": "135", "currency": "SGD"},
+        ],
+    )
+
+    posted = await client.post(f"/journal-entries/{entry_id}/postings")
+
+    assert posted.status_code == 200, posted.text
+    assert posted.json()["status"] == "posted"

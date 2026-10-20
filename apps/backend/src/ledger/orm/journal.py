@@ -16,6 +16,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Integer,
     String,
     Text,
     and_,
@@ -159,8 +160,13 @@ class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         nullable=True,
     )
 
+    # Lines load in the order of the command that created them. The decision-anchor target hashes
+    # the lines in that order, so posting a draft must see the same order (#2539).
     lines: Mapped[list[JournalLine]] = relationship(
-        "JournalLine", back_populates="journal_entry", cascade="all, delete-orphan"
+        "JournalLine",
+        back_populates="journal_entry",
+        cascade="all, delete-orphan",
+        order_by="JournalLine.line_no",
     )
 
     def __repr__(self) -> str:
@@ -223,6 +229,9 @@ class JournalLine(Base, UUIDMixin, TimestampMixin):
     fx_rate: Mapped[Decimal | None] = mapped_column(DECIMAL(18, 6), nullable=True)
     event_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     tags: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Zero-based position of the line in the command that created the entry (#2539).
+    # NULL only on rows written before revision 0068.
+    line_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     journal_entry: Mapped[JournalEntry] = relationship("JournalEntry", back_populates="lines")
     account: Mapped[Account] = relationship("Account", back_populates="journal_lines")
