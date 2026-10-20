@@ -1111,7 +1111,7 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
         workflow,
         "- Backend image tag:",
         "- Frontend image tag:",
-        "- Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}",
+        '- Deployed models: $(curl -fsS --max-time 15 "${APP_URL}/api/llm/catalog"',
         "- Expected uploads: ${STAGING_AI_OCR_EXPECTED_UPLOADS}",
         "- Expected parse completions: ${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}",
         "- Expected brokerage imports: ${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}",
@@ -1257,7 +1257,7 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
         "test-results/staging-ai-ocr-version.xml",
         "test-results/staging-ai-ocr-gate.xml",
         "ci-context/staging-ai-ocr-context.txt",
-        "primary_model=${STAGING_E2E_PRIMARY_MODEL}",
+        'deployed_models=$(curl -fsS --max-time 15 "${APP_URL}/api/llm/catalog"',
     )
 
     # Production release context lives in release.yml.
@@ -3078,19 +3078,15 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     preview_lifecycle = read("common/runtime/dev/pr_preview_lifecycle")
 
     _lacks(workflow, "post-merge-train-turn:", "wait_post_merge_train_turn.py")
-    _has(
-        workflow,
-        "workflow_dispatch:",
-        "STAGING_E2E_PRIMARY_MODEL: glm-5.3-flash",
-        "STAGING_E2E_OCR_MODEL: glm-5.3-flashx",
-        "STAGING_E2E_VISION_MODEL: glm-5.3-flashx",
-    )
-    _has(
-        ai_workflow,
-        "STAGING_E2E_PRIMARY_MODEL: glm-5.3-flash",
-        "STAGING_E2E_OCR_MODEL: glm-5.3-flashx",
-        "STAGING_E2E_VISION_MODEL: glm-5.3-flashx",
-    )
+    _has(workflow, "workflow_dispatch:")
+    # Staging runs the infra2 SDK default models; no workflow pins a model (#2566).
+    for staging_workflow in (workflow, ai_workflow):
+        _lacks(
+            staging_workflow,
+            "STAGING_E2E_PRIMARY_MODEL",
+            "STAGING_E2E_OCR_MODEL",
+            "STAGING_E2E_VISION_MODEL",
+        )
     # Marker expression equality is owned by the matrix conformance
     # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
     assert "PARSING_TIMEOUT_MS: 480000" in workflow

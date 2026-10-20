@@ -528,7 +528,7 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         workflow=".github/workflows/deploy.yml",
         marker=STAGING_AI_OCR_MARKER,
         paths=(
-            "tests/e2e/test_ai_provider_connectivity.py::test_deployed_catalog_lists_only_approved_models",
+            "tests/e2e/test_ai_provider_connectivity.py::test_staging_catalog_serves_the_sdk_default_models",
         ),
         anchor="--junit-xml=test-results/staging-model-catalog-policy.xml",
     ),

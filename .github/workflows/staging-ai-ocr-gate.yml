@@ -45,9 +45,6 @@ env:
   LLM_LIVE: "1"
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
-  STAGING_E2E_PRIMARY_MODEL: glm-5.3-flash
-  STAGING_E2E_OCR_MODEL: glm-5.3-flashx
-  STAGING_E2E_VISION_MODEL: glm-5.3-flashx
   STAGING_AI_OCR_EXPECTED_UPLOADS: "0"
   STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS: "0"
   STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS: "0"
@@ -143,7 +140,7 @@ jobs:
               echo "- Backend image tag: ${REGISTRY}/${IMAGE_PREFIX}-backend:${EXPECTED_SHA}"
               echo "- Frontend image tag: ${REGISTRY}/${IMAGE_PREFIX}-frontend:${EXPECTED_SHA}"
               echo "- App URL: ${APP_URL}"
-              echo "- Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
+              echo "- Deployed models: $(curl -fsS --max-time 15 "${APP_URL}/api/llm/catalog" 2>/dev/null | python3 -c 'import json,sys; print(",".join(m["id"] for m in json.load(sys.stdin)["models"]))' 2>/dev/null || echo unavailable)"
               echo "- Fixture tests:"
               for fixture_test in "${STAGING_AI_OCR_TESTS[@]}"; do
                 echo "  - ${fixture_test}"
@@ -252,7 +249,7 @@ jobs:
           }
 
           echo "Starting Staging AI/OCR Gate for $APP_URL"
-          echo "Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}"
+          echo "Deployed models: $(curl -fsS --max-time 15 "${APP_URL}/api/llm/catalog" 2>/dev/null | python3 -c 'import json,sys; print(",".join(m["id"] for m in json.load(sys.stdin)["models"]))' 2>/dev/null || echo unavailable)"
           echo "Corpus: ${CORPUS:-canary}"
           STAGING_AI_OCR_TESTS=()
           eval "$(.venv/bin/python tools/staging_ai_ocr_gate_contract.py --shell --corpus "${CORPUS:-canary}")"
@@ -306,7 +303,7 @@ jobs:
             record_and_finish 2 "precondition-failed"
           fi
           gate_status=0
-          run_timed_phase "Staging AI/OCR Gate (primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL})" \
+          run_timed_phase "Staging AI/OCR Gate" \
             pytest "${STAGING_AI_OCR_TESTS[@]}" \
               -v -m "llm or journey" --junit-xml=test-results/staging-ai-ocr-gate.xml || gate_status=$?
 
@@ -462,9 +459,7 @@ jobs:
             echo "run_attempt=${{ github.run_attempt }}"
             echo "expected_version=${EXPECTED_SHA}"
             echo "app_url=${APP_URL}"
-            echo "primary_model=${STAGING_E2E_PRIMARY_MODEL}"
-            echo "ocr_model=${STAGING_E2E_OCR_MODEL}"
-            echo "vision_model=${STAGING_E2E_VISION_MODEL}"
+            echo "deployed_models=$(curl -fsS --max-time 15 "${APP_URL}/api/llm/catalog" 2>/dev/null | python3 -c 'import json,sys; print(",".join(m["id"] for m in json.load(sys.stdin)["models"]))' 2>/dev/null || echo unavailable)"
             echo "ai_ocr_outcome=${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_status || steps.gate_timeout_fallback.outputs.ai_ocr_status || 'not-run' }}"
             echo "ai_ocr_exit_code=${{ steps.staging_ai_ocr_tests.outputs.ai_ocr_exit_code || steps.gate_timeout_fallback.outputs.ai_ocr_exit_code || '0' }}"
             # #2370: a staging deploy can land during a long run. The board

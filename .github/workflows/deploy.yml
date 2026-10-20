@@ -39,9 +39,6 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
-  STAGING_E2E_PRIMARY_MODEL: glm-5.3-flash
-  STAGING_E2E_OCR_MODEL: glm-5.3-flashx
-  STAGING_E2E_VISION_MODEL: glm-5.3-flashx
   PYTHON_VERSION: "3.12.12"
   NODE_VERSION: "20.19.0"
   UV_VERSION: "0.9.18"
@@ -628,6 +625,10 @@ jobs:
       - name: Setup E2E Tests
         uses: ./.github/actions/setup-e2e-tests
 
+      # The catalog check compares staging with the infra2 SDK default models (#2566).
+      - name: Install infra2-sdk
+        uses: ./.github/actions/install-infra2-sdk
+
       # Provider-risk staging changes prove one real chat round trip (AC8.13.120).
       # It is retried with backoff and only blocks delivery on client/config 4xx.
       # Transient 5xx/timeouts are reported as degraded-provider and remain
@@ -710,8 +711,8 @@ jobs:
             echo "marker=llm connectivity smoke"
           } > ci-context/staging-provider-gate-context.txt
 
-      # The deployed model catalog lists only approved model ids (#2566,
-      # AC-llm.approved-models.3). The check reads config, not the provider, so it
+      # Staging serves exactly the infra2 SDK default models (#2566,
+      # AC-llm.sdk-model-defaults.3). The check reads config, not the provider, so it
       # runs once here without retry, and a failure fails this job and blocks
       # delivery. The retry loop above may also run it, but this step decides.
       - name: Deployed Model Catalog Policy
@@ -722,7 +723,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p test-results
-          pytest tests/e2e/test_ai_provider_connectivity.py::test_deployed_catalog_lists_only_approved_models \
+          pytest tests/e2e/test_ai_provider_connectivity.py::test_staging_catalog_serves_the_sdk_default_models \
             -v -m "llm" --junit-xml=test-results/staging-model-catalog-policy.xml
 
       - name: Upload provider gate test context

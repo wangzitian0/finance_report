@@ -135,12 +135,14 @@ class TestConfigContract:
         assert s.db_pool_max_overflow == 25
 
     def test_fallback_models_default_and_code_source_class(self, monkeypatch):
-        """Ensure fallback_models defaults to the approved glm-5.3-flashx (#2566) and model fields use code source class."""
+        """Ensure fallback_models defaults to the infra2 SDK default (#2566) and model fields use code source class."""
         monkeypatch.delenv("FALLBACK_MODELS", raising=False)
         from src.config import ENV_SOURCE_CLASSES, Settings
 
         s = Settings(_env_file=None)
-        assert s.fallback_models == ["glm-5.3-flashx"]
+        from infra2_sdk.runtime.llm import LlmSettings
+
+        assert s.fallback_models == list(LlmSettings().fallback_models)
         assert "primary_model" not in ENV_SOURCE_CLASSES
         assert "fallback_models_str" not in ENV_SOURCE_CLASSES
 

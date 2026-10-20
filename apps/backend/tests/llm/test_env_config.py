@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from infra2_sdk.runtime.llm import LlmSettings
 
 from src.config import Settings, settings
 from src.llm.base import ProtocolFamily, Scene
@@ -76,14 +77,17 @@ async def test_default_glm_models_reach_scene_bindings(monkeypatch):
     defaults = Settings(_env_file=None, AI_PROVIDER="zai", AI_API_KEY="test-key")
     monkeypatch.setattr(env_config, "settings", defaults)
     source = EnvConfigSource()
+    sdk = LlmSettings()
     for scene in (Scene.EXTRACTION_JSON, Scene.ADVISOR_CHAT, Scene.STATEMENT_SUMMARY):
         binding = await source.get_binding(scene)
-        assert binding.model_id == "glm-5.3-flash"
-        assert binding.fallback_model_ids == ("glm-5.3-flashx",)
-    for scene in (Scene.EXTRACTION_VISION, Scene.EXTRACTION_OCR):
-        binding = await source.get_binding(scene)
-        assert binding.model_id == "glm-5.3-flashx"
-        assert binding.fallback_model_ids == ()
+        assert binding.model_id == sdk.primary_model
+        assert binding.fallback_model_ids == sdk.fallback_models
+    vision = await source.get_binding(Scene.EXTRACTION_VISION)
+    assert vision.model_id == (sdk.vision_model or sdk.primary_model)
+    assert vision.fallback_model_ids == sdk.vision_fallback_models
+    ocr = await source.get_binding(Scene.EXTRACTION_OCR)
+    assert ocr.model_id == (sdk.ocr_model or sdk.primary_model)
+    assert ocr.fallback_model_ids == sdk.vision_fallback_models
 
 
 @pytest.mark.no_db

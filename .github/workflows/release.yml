@@ -730,6 +730,19 @@ jobs:
             echo "marker=prod_safe"
           } > ci-context/production-deploy-context.txt
 
+      # Production may customize its models (owner decision, #2566). This step
+      # only reports the served model set in the release summary; it never fails.
+      - name: Report production model catalog
+        if: ${{ always() && steps.deploy_v2.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          APP_URL: https://report.zitian.party
+        run: |
+          set -uo pipefail
+          models="$(curl -fsS --max-time 15 "${APP_URL}/api/llm/catalog" | python3 -c 'import json,sys; print(", ".join(m["id"] for m in json.load(sys.stdin)["models"]))' || echo "unavailable")"
+          echo "Production model catalog: ${models}"
+          echo "- Production model catalog: \`${models}\`" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload production deploy test context
         if: ${{ always() }}
         uses: actions/upload-artifact@v7

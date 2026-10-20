@@ -120,6 +120,12 @@ def parse_key_value_pairs(value: str | None) -> dict[str, str]:
     return pairs
 
 
+# The infra2 SDK owns the default models (#2566). The app reads them here and
+# never writes its own model ids, so an SDK release moves every environment that
+# sets no model variable. Only production may set the model variables.
+_SDK_LLM_DEFAULTS = LlmSettings()
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables.
 
@@ -417,28 +423,28 @@ class Settings(BaseSettings):
         json_schema_extra={"group": "AI Provider"},
     )
     primary_model: str = Field(
-        default="glm-5.3-flash",
+        default=_SDK_LLM_DEFAULTS.primary_model,
         validation_alias="PRIMARY_MODEL",
-        description="Primary AI model id.",
+        description="Primary AI model id. Unset: the infra2 SDK default; set it only to customize production.",
         json_schema_extra={"group": "AI Provider"},
     )
     vision_model: str = Field(
-        default="glm-5.3-flashx",
+        default=_SDK_LLM_DEFAULTS.vision_model or _SDK_LLM_DEFAULTS.primary_model,
         validation_alias="VISION_MODEL",
-        description="Vision AI model id.",
+        description="Vision AI model id. Unset: the infra2 SDK default; set it only to customize production.",
         json_schema_extra={"group": "AI Provider"},
     )
     ocr_model: str = Field(
-        default="glm-5.3-flashx",
+        default=_SDK_LLM_DEFAULTS.ocr_model or _SDK_LLM_DEFAULTS.primary_model,
         validation_alias="OCR_MODEL",
-        description="OCR AI model id.",
+        description="OCR AI model id. Unset: the infra2 SDK default; set it only to customize production.",
         json_schema_extra={"group": "AI Provider"},
     )
     fallback_models_str: str | None = Field(
         default=None,
         validation_alias="FALLBACK_MODELS",
-        description="Comma-separated fallback AI model ids.",
-        json_schema_extra={"group": "AI Provider", "example": "glm-5.3-flashx"},
+        description="Comma-separated fallback AI model ids. Unset: the infra2 SDK default.",
+        json_schema_extra={"group": "AI Provider"},
     )
     vision_fallback_models_str: str | None = Field(
         default=None,
@@ -446,7 +452,8 @@ class Settings(BaseSettings):
         description=(
             "Comma-separated fallback AI model ids for the vision/OCR path. These "
             "must be vision-capable because the vision request carries image "
-            "content; the text-only FALLBACK_MODELS are not reused here (#1034)."
+            "content; the text-only FALLBACK_MODELS are not reused here (#1034). "
+            "Unset: the infra2 SDK default."
         ),
         json_schema_extra={"group": "AI Provider"},
     )
@@ -846,8 +853,8 @@ class Settings(BaseSettings):
 
     @cached_property
     def fallback_models(self) -> list[str]:
-        """Parse fallback models from env string or use defaults."""
-        return parse_comma_list(self.fallback_models_str, ["glm-5.3-flashx"])
+        """Parse fallback models from env string, else the infra2 SDK default (#2566)."""
+        return parse_comma_list(self.fallback_models_str, list(_SDK_LLM_DEFAULTS.fallback_models))
 
     @cached_property
     def vision_fallback_models(self) -> list[str]:
@@ -855,12 +862,10 @@ class Settings(BaseSettings):
 
         The vision/OCR path sends image content, so its fallbacks must be
         vision-capable; the text-only ``FALLBACK_MODELS`` are intentionally not
-        reused here (#1034). The default is empty: the only approved
-        vision-capable model is glm-5.3-flashx, which already fills the vision
-        and OCR slots (``src.llm.model_policy``, #2566). A configured list is
-        tried after the primary vision model.
+        reused here (#1034). Unset: the infra2 SDK default (#2566). A configured
+        list is tried after the primary vision model.
         """
-        return parse_comma_list(self.vision_fallback_models_str, [])
+        return parse_comma_list(self.vision_fallback_models_str, list(_SDK_LLM_DEFAULTS.vision_fallback_models))
 
     @cached_property
     def llm_encryption_key_list(self) -> list[str]:

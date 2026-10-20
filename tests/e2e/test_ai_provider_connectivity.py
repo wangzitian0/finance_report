@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
-from pathlib import Path
 
+import httpx
+
+from infra2_sdk.runtime.llm import LlmSettings
 from playwright.async_api import Page
 import pytest
 
@@ -21,20 +22,17 @@ def _api_url(path: str) -> str:
     return f"{APP_URL}/api{path}"
 
 
-def _approved_model_ids() -> frozenset[str]:
-    policy = (
-        Path(__file__).resolve().parents[2]
-        / "apps"
-        / "backend"
-        / "src"
-        / "llm"
-        / "model_policy.py"
+def _sdk_default_model_ids() -> frozenset[str]:
+    """The model ids that the infra2 SDK defaults name (#2566)."""
+    sdk = LlmSettings()
+    ids = (
+        sdk.primary_model,
+        sdk.ocr_model,
+        sdk.vision_model,
+        *sdk.fallback_models,
+        *sdk.vision_fallback_models,
     )
-    spec = importlib.util.spec_from_file_location("model_policy", policy)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.APPROVED_MODEL_IDS
+    return frozenset(model_id for model_id in ids if model_id)
 
 
 @pytest.mark.e2e
@@ -64,18 +62,18 @@ async def test_staging_ai_provider_chat_connectivity(
 @pytest.mark.e2e
 @pytest.mark.critical
 @pytest.mark.llm
-async def test_deployed_catalog_lists_only_approved_models(
-    authenticated_page_unique: Page,
-) -> None:
-    """EPIC-008 EPIC-023 / AC-llm.approved-models.3: the deployed /api/llm/catalog lists only approved model ids (#2566)."""
-    response = await authenticated_page_unique.request.get(_api_url("/llm/catalog"))
-    body = await response.text()
-    assert response.status == 200, (
-        f"model catalog failed: {response.status} {body[:500]}"
+async def test_staging_catalog_serves_the_sdk_default_models() -> None:
+    """EPIC-008 EPIC-023 / AC-llm.sdk-model-defaults.3: staging serves exactly the infra2 SDK default models (#2566)."""
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.get(_api_url("/llm/catalog"))
+    body = response.text
+    assert response.status_code == 200, (
+        f"model catalog failed: {response.status_code} {body[:500]}"
     )
     model_ids = {model["id"].split("/")[-1] for model in json.loads(body)["models"]}
     assert model_ids, f"the deployed catalog lists no model: {body[:500]}"
-    outside = sorted(model_ids - _approved_model_ids())
-    assert outside == [], (
-        f"the deployed catalog lists models outside the approved set: {outside}"
+    expected = _sdk_default_model_ids()
+    assert model_ids == expected, (
+        f"staging must serve the SDK default models {sorted(expected)}, "
+        f"but its catalog lists {sorted(model_ids)}"
     )
