@@ -265,8 +265,9 @@ class TestConfig:
         sdk = LlmSettings()
         assert settings.ai_provider == "zai"
         assert settings.primary_model == sdk.primary_model
-        assert settings.ocr_model == sdk.ocr_model
-        assert settings.vision_model == sdk.vision_model
+        # config.py falls back to the primary model when the SDK leaves a slot empty.
+        assert settings.ocr_model == (sdk.ocr_model or sdk.primary_model)
+        assert settings.vision_model == (sdk.vision_model or sdk.primary_model)
         assert settings.s3_bucket == "statements"
 
     def test_config_database_url(self):
