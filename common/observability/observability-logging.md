@@ -309,7 +309,7 @@ approval gates.
    [StatementUploader] Model selection: {
      source: "localStorage",
      selectedModel: "glm-5.3-flash",
-     availableModels: ["glm-5.3-flash", "glm-5.3-flashx"]
+     availableModels: ["glm-5.3-flash"]
    }
    
    [StatementUploader] Uploading statement: {

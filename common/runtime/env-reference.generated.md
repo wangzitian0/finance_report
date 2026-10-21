@@ -37,11 +37,11 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `LLM_CASSETTE_REFRESH` | `false` |  |  | AI Provider | Refresh recorded LLM cassettes in local runs. |
 | `LLM_ENCRYPTION_KEYS` |  |  | yes | AI Provider | Comma-separated Fernet keys (urlsafe base64, 32 bytes) for encrypting LLM provider API keys at rest; newest first. Empty disables DB-backed provider storage. Rotate by prepending a new key and re-encrypting all secrets. |
 | `LLM_LIVE` | `false` |  |  | AI Provider | Force live LLM provider calls. |
-| `OCR_MODEL` | `glm-5.3-flashx` |  |  | AI Provider | OCR AI model id. Unset: the infra2 SDK default; set it only to customize production. |
+| `OCR_MODEL` | `glm-5.3-flash` |  |  | AI Provider | OCR AI model id. Unset: the infra2 SDK default; set it only to customize production. |
 | `PREFECT_API_URL` |  |  |  | AI Provider | EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod and per-PR ephemeral Prefect). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed). |
 | `PRIMARY_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Primary AI model id. Unset: the infra2 SDK default; set it only to customize production. |
 | `VISION_FALLBACK_MODELS` |  |  |  | AI Provider | Comma-separated fallback AI model ids for the vision/OCR path. These must be vision-capable because the vision request carries image content; the text-only FALLBACK_MODELS are not reused here (#1034). Unset: the infra2 SDK default. |
-| `VISION_MODEL` | `glm-5.3-flashx` |  |  | AI Provider | Vision AI model id. Unset: the infra2 SDK default; set it only to customize production. |
+| `VISION_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Vision AI model id. Unset: the infra2 SDK default; set it only to customize production. |
 | `S3_ACCESS_KEY` | `minio` |  | yes | S3 / MinIO Storage | S3 / MinIO access key. |
 | `S3_BUCKET` | `statements` |  | yes | S3 / MinIO Storage | S3 / MinIO bucket name for uploaded statements. |
 | `S3_ENDPOINT` | `http://127.0.0.1:9000` | `http://localhost:9000` | yes | S3 / MinIO Storage | S3 / MinIO endpoint used for storing uploaded statement files. |

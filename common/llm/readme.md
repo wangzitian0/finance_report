@@ -56,7 +56,7 @@ binding; onboarding a vendor touches only axis 1.
 
 The GLM 5.3 transport follows the provider's
 [text migration contract](https://docs.z.ai/guides/llm/glm-5.3-flash) and
-[multimodal contract](https://docs.z.ai/guides/vlm/glm-5.3-flashx): these models
+[multimodal contract](https://docs.z.ai/guides/vlm/glm-5.3-flash): these models
 require enabled thinking. At the OpenAI-compatible wire boundary, absent,
 disabled, or low reasoning maps to `low`; medium/high maps to `high`.
 Existing extraction callers can retain their generic disabled-thinking request.
@@ -399,7 +399,7 @@ Commit the refreshed cassettes and the raised baseline together.
 ### 6.8 Real-statement corpus (source-referenced, PII-masked)
 
 Large/scanned statements are recorded as cassettes by
-`common/extraction/record_hf_cassettes.py` (engine: the coding-plan vision model in its `MODEL` constant, thinking disabled; its move to glm-5.3-flashx is #2569;
+`common/extraction/record_hf_cassettes.py` (engine: the coding-plan vision model in its `MODEL` constant, thinking disabled; its move to the SDK multimodal model is #2569;
 pages rendered as compressed JPEG so even scanned docs fit context). To avoid repo
 bloat and PII, **the source document is never committed** — the cassette stores a
 `source` reference (an HF dataset URL, or a sha256 for a local/own statement) and the
