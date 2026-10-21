@@ -77,6 +77,29 @@ export default function AuditPage() {
 
       {/* 5. Underlying Accounting Machinery & Deep Links */}
       <div className="border-t border-[var(--border)] pt-6">
+        <div
+          data-testid="audit-needs-confirmation-bar"
+          className="card mb-6 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <h2 className="text-sm font-semibold">Needs Confirmation</h2>
+            <p className="text-xs text-muted">
+              Confirm items that need your input so your financial reports stay accurate.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/attention" className="btn-secondary text-xs">
+              Low-confidence items
+            </Link>
+            <Link href="/reconciliation/unmatched" className="btn-secondary text-xs">
+              Unmatched bank lines
+            </Link>
+            <Link href="/upload" className="btn-secondary text-xs">
+              Uploaded statements
+            </Link>
+          </div>
+        </div>
+
         <div className="mb-3 flex items-center gap-2">
           <Layers className="h-4 w-4 text-muted" aria-hidden="true" />
           <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">

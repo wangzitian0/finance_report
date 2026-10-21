@@ -483,5 +483,47 @@ describe("StatementsPage", () => {
       "href",
       "/reports/balance-sheet",
     )
+    expect(screen.getByTestId("upload-processing-summary")).toHaveTextContent(
+      "0 parsing · 1 parsed · 1 approved",
+    )
+    expect(screen.queryByRole("link", { name: "Processing Queue →" })).toBeNull()
+    const compareLinks = screen.getAllByRole("link", { name: "Compare with PDF" })
+    expect(compareLinks).toHaveLength(2)
+    expect(compareLinks[0]).toHaveAttribute("href", "/statements/s-parsed/review")
+    expect(compareLinks[1]).toHaveAttribute("href", "/statements/s-approved/review")
+  })
+
+  it("renders inline processing queue link when active parsing jobs exist and falls back to institution period title", async () => {
+    mockStatementsPageApi({
+      statements: [
+        {
+          items: [
+            makeStmt("s-fallback", "", "parsing", {
+              institution: "DBS",
+              period_start: "2026-02-01",
+              period_end: "2026-02-28",
+              currency: "SGD",
+            }),
+          ],
+        },
+      ],
+    })
+
+    render(<StatementsPage />)
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: "DBS (2026-02-01 – 2026-02-28)" }),
+      ).toHaveAttribute("href", "/statements/s-fallback"),
+    )
+    expect(screen.getByTestId("upload-processing-summary")).toHaveTextContent(
+      "1 parsing · 0 parsed · 0 approved",
+    )
+    expect(
+      screen.getByRole("link", { name: "Processing Queue →" }),
+    ).toHaveAttribute("href", "/processing")
+    expect(
+      screen.getByRole("link", { name: "Compare with PDF" }),
+    ).toHaveAttribute("href", "/statements/s-fallback/review")
   })
 })

@@ -1,8 +1,14 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import SettingsPage from "@/app/(main)/settings/page";
 import LlmSettingsPage from "@/components/settings/LlmSettingsPanel";
 import { apiOperation } from "@/lib/api-client";
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams("tab=llm"),
+  useRouter: () => ({ replace: vi.fn() }),
+}));
 
 vi.mock("@/lib/api-client", () => ({
   apiOperation: vi.fn(),
@@ -379,5 +385,20 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Add provider/i }));
     fireEvent.click(screen.getByRole("button", { name: /Cancel/i }));
     expect(screen.queryByLabelText("API key")).not.toBeInTheDocument();
+  });
+
+  it("renders Settings header quick-navigation links to Accounts and Portfolio", async () => {
+    primeHappyLoad();
+    render(<SettingsPage />);
+
+    const accountsLink = screen.getByRole("link", {
+      name: "Manage Chart of Accounts",
+    });
+    const portfolioLink = screen.getByRole("link", {
+      name: "Portfolio Holdings",
+    });
+
+    expect(accountsLink).toHaveAttribute("href", "/accounts");
+    expect(portfolioLink).toHaveAttribute("href", "/portfolio");
   });
 });

@@ -100,9 +100,52 @@ export default function ReconciliationWorkbench() {
   const distribution = useMemo(() => (stats ? Object.entries(stats.score_distribution) : []), [stats]);
   const maxBucket = useMemo(() => (stats ? Math.max(...Object.values(stats.score_distribution), 1) : 1), [stats]);
   const matchRateValue = stats?.match_rate == null ? null : String(stats.match_rate);
+  const selectedStatementId = selected?.transaction?.statement_id;
+  const selectedStatementFilename =
+    selected?.transaction &&
+    "statement_filename" in selected.transaction &&
+    typeof (selected.transaction as { statement_filename?: unknown }).statement_filename === "string"
+      ? (selected.transaction as { statement_filename?: string }).statement_filename
+      : null;
+  const sourceStatementHref = selectedStatementId
+    ? `/statements/${selectedStatementId}`
+    : "/upload";
+  const sourceStatementLabel =
+    selectedStatementFilename && selectedStatementFilename.trim().length > 0
+      ? `View source statement (${selectedStatementFilename})`
+      : "View source statement";
 
   return (
     <div className="p-6">
+      <nav
+        role="navigation"
+        aria-label="Reconciliation workspace views"
+        className="mb-6 flex flex-wrap gap-2 border-b border-[var(--border)] pb-3"
+      >
+        <Link
+          href="/reconciliation"
+          aria-current="page"
+          className="inline-flex items-center gap-2 rounded-md bg-[var(--accent-muted)] px-3 py-1.5 text-sm font-medium text-[var(--accent)]"
+        >
+          Matched & Pending
+        </Link>
+        <Link
+          href="/reconciliation/unmatched"
+          className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
+        >
+          <span>Unmatched Bank Lines</span>
+          <span className="badge badge-warning text-[10px]">
+            {stats?.unmatched_transactions ?? 0}
+          </span>
+        </Link>
+        <Link
+          href="/reconciliation/review-queue"
+          className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
+        >
+          Consistency Checks
+        </Link>
+      </nav>
+
       <div className="page-header flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
         <div>
           <h1 className="page-title">Reconciliation Workbench</h1>
@@ -235,6 +278,14 @@ export default function ReconciliationWorkbench() {
                 </div>
                 <p className="text-sm text-muted">{selected.transaction?.description}</p>
                 <p className="text-xs text-muted">{selected.transaction?.txn_date} · {selected.transaction?.direction === "IN" ? "In" : "Out"}</p>
+                <div className="mt-2 pt-2 border-t border-[var(--border)]">
+                  <Link
+                    href={sourceStatementHref}
+                    className="text-xs font-medium text-[var(--accent)] hover:underline"
+                  >
+                    {sourceStatementLabel}
+                  </Link>
+                </div>
               </div>
 
               <div className="grid gap-2 sm:grid-cols-2">

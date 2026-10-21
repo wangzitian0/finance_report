@@ -7,12 +7,14 @@ import { BarChart2, TrendingUp, DollarSign, FileText, CalendarClock, ShieldCheck
 import { apiOperation } from "@/lib/api-client";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatPercentFromPercentValue } from "@/lib/audit/ratio/format";
+import { CurrencyFilterControl, PeriodPresetFilterControl, StatementQuickTabs } from "@/components/reports/ReportFilters";
 import { Badge } from "@/components/ui";
 import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
 import { packagePeriodRequest } from "@/lib/reportPackage";
 import { countLabel, readinessVariant } from "@/lib/statusLabels";
 import type { AnnualizedIncomeResponse, PersonalReportPackageReadinessResponse, ReconciliationStatsResponse } from "@/lib/types";
 
+const REPORT_CURRENCIES = ["SGD", "USD", "CNY", "EUR", "GBP", "HKD", "JPY"];
 const MORE_REPORTS = [
   { id: "cash-flow", title: "Cash Flow Statement", description: "Cash movements by operating, investing, and financing activities", icon: DollarSign, href: "/reports/cash-flow" },
   { id: "personal-package", title: "Personal Report Package", description: "Stable package contract for statements, schedules, notes, and traceability", icon: FileText, href: "/reports/package" },
@@ -31,6 +33,8 @@ export default function ReportsPage() {
   const [readiness, setReadiness] = useState<PersonalReportPackageReadinessResponse | null>(null);
   const [readinessState, setReadinessState] = useState<ReadinessLoadState>("loading");
   const [showMore, setShowMore] = useState(false);
+  const [currency, setCurrency] = useState("SGD");
+  const [asOfDate, setAsOfDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
     let active = true;
@@ -39,7 +43,7 @@ export default function ReportsPage() {
     };
     apiOperation("reconciliation_stats_reconciliation_stats_get").then((d) => active && setStats(d)).catch(() => active && setStats(null));
     apiOperation("preview_personal_report_package_reports_package_get", {
-      query: packagePeriodRequest(new Date().toISOString().slice(0, 10)),
+      query: { ...packagePeriodRequest(asOfDate), currency },
     })
       .then((document) => {
         const inc = document?.sections?.annualized_income_long_term?.income;
@@ -68,15 +72,25 @@ export default function ReportsPage() {
         if (active) { setReadiness(null); setReadinessState("error"); }
       });
     return () => { active = false; };
-  }, []);
+  }, [asOfDate, currency]);
 
   const matchRate = stats ? formatPercentFromPercentValue(stats.match_rate == null ? null : String(stats.match_rate), { dp: 0, fallback: "—" }) : "—";
 
   return (
     <div className="p-6">
-      <div className="page-header">
-        <h1 className="page-title">Reports</h1>
-        <p className="page-description">The four reports you read most. Open one to drill any amount down to its source transactions.</p>
+      <div className="page-header flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="page-title">Reports</h1>
+          <p className="page-description">The four reports you read most. Open one to drill any amount down to its source transactions.</p>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <PeriodPresetFilterControl onSelectRange={(range) => setAsOfDate(range.endDate)} />
+          <CurrencyFilterControl value={currency} currencies={REPORT_CURRENCIES} onChange={setCurrency} />
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <StatementQuickTabs activeHref="/reports" />
       </div>
 
       <ReportsReadinessCockpit readiness={readiness} loadState={readinessState} />

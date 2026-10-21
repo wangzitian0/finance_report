@@ -53,6 +53,13 @@ function statusDisplay(status: string): {
   }
 }
 
+function statementDisplayTitle(statement: BankStatement): string {
+  return (
+    statement.original_filename ||
+    `${statement.institution} (${statement.period_start ?? ""} – ${statement.period_end ?? ""})`
+  );
+}
+
 export default function UploadPage() {
   const { showToast } = useToast();
   const router = useRouter();
@@ -227,9 +234,26 @@ export default function UploadPage() {
 
       {/* Statements List */}
       <div className="card mb-6">
-        <div className="card-header flex items-center justify-between">
-          <h3 className="text-sm font-medium">Uploaded Statements</h3>
+        <div className="card-header flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-medium">Uploaded Statements</h3>
+            {statements.length > 0 && (
+              <span data-testid="upload-processing-summary">
+                <Badge variant="muted">
+                  {`${statements.filter((s) => s.status === "parsing").length} parsing · ${statements.filter((s) => s.status === "parsed").length} parsed · ${statements.filter((s) => s.status === "approved").length} approved`}
+                </Badge>
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3">
+            {statements.some((s) => s.status === "parsing") && (
+              <Link
+                href="/processing"
+                className="text-xs font-medium text-[var(--accent)] hover:underline"
+              >
+                Processing Queue →
+              </Link>
+            )}
             {statements.some((s) => s.status === "approved" || s.status === "parsed") && (
               <Link
                 href="/reports/balance-sheet"
@@ -280,7 +304,7 @@ export default function UploadPage() {
                         href={`/statements/${statement.id}`}
                         className="font-medium truncate hover:text-[var(--accent)] after:absolute after:inset-0"
                       >
-                        {statement.original_filename}
+                        {statementDisplayTitle(statement)}
                       </Link>
                       <Badge variant={statusDisplay(statement.status).variant}>
                         {statement.status === "parsing" && (
@@ -295,7 +319,7 @@ export default function UploadPage() {
                           {statement.validation_error}
                         </div>
                       )}
-                    <div className="flex items-center gap-3 text-xs text-muted">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
                       <span>{statement.institution}</span>
                       <span>•</span>
                       <span>
@@ -306,6 +330,13 @@ export default function UploadPage() {
                       </span>
                       <span>•</span>
                       <span>{currencyCodeOrDash(statement.currency)}</span>
+                      <span>•</span>
+                      <Link
+                        href={`/statements/${statement.id}/review`}
+                        className="relative z-10 font-medium text-[var(--accent)] hover:underline"
+                      >
+                        Compare with PDF
+                      </Link>
                     </div>
                   </div>
                   <div className="relative z-10 text-right flex-shrink-0 flex flex-col items-end gap-2">
