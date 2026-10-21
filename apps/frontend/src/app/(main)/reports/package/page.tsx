@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 import {
@@ -27,6 +28,7 @@ import {
 } from "@/components/reports/package/shared";
 import {
   generatePackageSnapshot,
+  invalidateReportPackageQueries,
   usePersonalReportPackage,
 } from "@/hooks/usePersonalReportPackage";
 import { apiOperation, apiOperationDownload } from "@/lib/api-client";
@@ -41,6 +43,7 @@ import type {
 } from "@/lib/types";
 
 export default function PersonalReportPackagePage() {
+  const queryClient = useQueryClient();
   const [selectedFrameworkId, setSelectedFrameworkId] =
     useState<PersonalReportingFrameworkId | null>(null);
   const [reportDate, setReportDate] = useState(() =>
@@ -64,7 +67,7 @@ export default function PersonalReportPackagePage() {
     contract,
     document: packageDocument,
     packageSnapshots,
-    refetchPackageSnapshots,
+    isPackageRefreshing,
     isPackageLoading,
     error,
   } = usePersonalReportPackage(
@@ -136,7 +139,7 @@ export default function PersonalReportPackagePage() {
       track(ANALYTICS_EVENTS.REPORT_GENERATED, {
         framework_id: selectedFrameworkId,
       });
-      await refetchPackageSnapshots();
+      await invalidateReportPackageQueries(queryClient);
     } catch (err) {
       setSnapshotError(
         err instanceof Error
@@ -285,25 +288,42 @@ export default function PersonalReportPackagePage() {
   const evidenceReferences = evidenceBundleReferences(
     packageDocument.framework_policy,
   );
+  // A date change keeps the previous document on screen while the new one loads. The cover then
+  // shows the dates of that document, never the requested ones, and a snapshot cannot be
+  // generated from it (#2583 S4).
   const canGenerateSnapshot = Boolean(
-    selectedFrameworkId && !periodError && !generatingSnapshot,
+    selectedFrameworkId &&
+      !periodError &&
+      !generatingSnapshot &&
+      !isPackageRefreshing,
   );
-  const frozenContext = packageDocument.lifecycle === "frozen"
-    ? packageDocument.context
-    : null;
+  const shownContext =
+    packageDocument.lifecycle === "frozen" || isPackageRefreshing
+      ? packageDocument.context
+      : null;
 
   return (
-    <div className="p-6">
+    <div className="p-6" aria-busy={isPackageRefreshing || undefined}>
       <div className="page-header">
         <h1 className="page-title">Personal Report Package</h1>
         <p className="page-description">{contract.package_id}</p>
       </div>
 
+      {isPackageRefreshing && shownContext ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="card mb-4 p-3 text-sm text-muted"
+        >
+          {`Loading the package for ${startDate} to ${reportDate}. The report below still shows ${shownContext.start_date} to ${shownContext.end_date}.`}
+        </div>
+      ) : null}
+
       <PackageCover
         contract={contract}
-        reportDate={frozenContext?.end_date ?? reportDate}
-        startDate={frozenContext?.start_date ?? startDate}
-        asOfDate={frozenContext?.as_of_date ?? reportDate}
+        reportDate={shownContext?.end_date ?? reportDate}
+        startDate={shownContext?.start_date ?? startDate}
+        asOfDate={shownContext?.as_of_date ?? reportDate}
         selectedFrameworkLabel={selectedFrameworkLabel}
       />
 

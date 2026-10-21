@@ -199,6 +199,9 @@ async function waitForDashboardAnalyticsReady() {
   if (analyticsToggle) {
     fireEvent.click(analyticsToggle)
   }
+  // #2583 S4: the analytics-only sources start when the panel opens, and each card shows a
+  // loading line until its own source answers. Wait until every card has its data.
+  await waitFor(() => expect(document.querySelector("[data-loading]")).toBeNull())
 }
 
 describe("HomePage", () => {
@@ -470,7 +473,7 @@ describe("HomePage", () => {
       "balance_sheet_reports_balance_sheet_get",
       expect.objectContaining({ query: expect.objectContaining({ include_restricted: false }) }),
     )
-    expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000")
+    await waitFor(() => expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000"))
 
     fireEvent.click(screen.getByLabelText("Include restricted holdings"))
 
@@ -606,7 +609,9 @@ describe("HomePage", () => {
       "account_trend_reports_trend_get",
       expect.objectContaining({ query: expect.objectContaining({ account_id: "a2", period: "monthly" }) }),
     ))
-    expect(consoleError).toHaveBeenCalledWith("Failed to fetch trend data:", expect.any(Error))
+    await waitFor(() =>
+      expect(consoleError).toHaveBeenCalledWith("Failed to fetch trend data:", expect.any(Error)),
+    )
     consoleError.mockRestore()
   })
 

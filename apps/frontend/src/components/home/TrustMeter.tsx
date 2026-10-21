@@ -1,81 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 
-import { apiOperation } from "@/lib/api-client";
+import { buildAttentionItems, summarizeTrust } from "@/lib/attention";
 import {
-  buildAttentionItems,
-  summarizeTrust,
-  type AttentionSources,
-  type TrustSummary,
-} from "@/lib/attention";
-import type {
-  BankStatementListResponse,
-  ProcessingPendingListResponse,
-  ReconciliationStatsResponse,
-} from "@/lib/types";
-
-export interface TrustMeterProps {
-  statements?: AttentionSources["statements"];
-  stats?: ReconciliationStatsResponse | null;
-}
+  processingPendingQuery,
+  reconciliationStatsQuery,
+  statementsListQuery,
+} from "@/lib/sharedQueries";
 
 // EPIC-022 PR6 (#864) AC22.6.2: a compact, always-honest view of the trust
 // posture — how much is trusted vs. how much still needs the user — that makes
 // the north-star (low-confidence data trending down) visible on Home. It stays
 // silent when nothing needs attention.
-export function TrustMeter({
-  statements: initialStatements,
-  stats: initialStats,
-}: TrustMeterProps = {}) {
-  const [summary, setSummary] = useState<TrustSummary | null>(null);
+//
+// The three sources come from the shared query cache (#2583 S4): Home, /attention and
+// the reconciliation Workbench read the same keys, so a source loads once per stale time.
+export function TrustMeter() {
+  const statements = useQuery(statementsListQuery());
+  const stats = useQuery(reconciliationStatsQuery());
+  const processing = useQuery(processingPendingQuery());
 
-  useEffect(() => {
-    if (initialStatements === null) {
-      return;
-    }
-    let active = true;
-    (async () => {
-      try {
-        if (initialStatements !== undefined) {
-          const processing = await apiOperation(
-            "list_processing_pending_accounts_processing_pending_get",
-          );
-          if (!active) return;
-          const items = buildAttentionItems({
-            statements: initialStatements,
-            stats: initialStats ?? null,
-            processing: processing?.items ?? [],
-          });
-          setSummary(summarizeTrust(items, initialStats ?? null));
-          return;
-        }
-        const [statements, stats, processing] = await Promise.all([
-          apiOperation("list_statements_statements_get"),
-          apiOperation("reconciliation_stats_reconciliation_stats_get"),
-          apiOperation(
-            "list_processing_pending_accounts_processing_pending_get",
-          ),
-        ]);
-        if (!active) return;
-        const items = buildAttentionItems({
-          statements: statements?.items ?? [],
-          stats: stats ?? null,
-          processing: processing?.items ?? [],
-        });
-        setSummary(summarizeTrust(items, stats ?? null));
-      } catch {
-        // Stay silent on failure — the meter is non-critical chrome on Home.
-        if (active) setSummary(null);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [initialStatements, initialStats]);
+  const statementItems = statements.data?.items;
+  const statsData = stats.data;
+  const processingItems = processing.data?.items;
+  const ready =
+    statements.isSuccess && stats.isSuccess && processing.isSuccess;
 
+  const summary = useMemo(() => {
+    if (!ready) return null;
+    const items = buildAttentionItems({
+      statements: statementItems ?? [],
+      stats: statsData ?? null,
+      processing: processingItems ?? [],
+    });
+    return summarizeTrust(items, statsData ?? null);
+  }, [ready, statementItems, statsData, processingItems]);
+
+  // Stay silent while loading and on failure — the meter is non-critical chrome on Home.
   // Silent when nothing needs attention (AC22.6.2).
   if (!summary || summary.needsConfirmation === 0) return null;
 

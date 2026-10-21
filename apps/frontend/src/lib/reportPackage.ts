@@ -7,6 +7,12 @@
 
 const REPORT_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Currency of the package preview and of the snapshot that the page generates. The package
+ * page and the Reports hub use it by default, so both read the same cached preview (#2583 S4).
+ */
+export const PACKAGE_DEFAULT_CURRENCY = "SGD";
+
 export function isValidReportDate(reportDate: string): boolean {
   if (!REPORT_DATE_PATTERN.test(reportDate)) return false;
   const [year, month, day] = reportDate.split("-").map(Number);
@@ -33,7 +39,7 @@ export function reportPeriodStart(reportDate: string): string {
 export function packageSnapshotRequest(
   frameworkId: import("./api-schema").Schemas["PersonalReportingFrameworkId"],
   reportDate: string,
-  currency = "SGD",
+  currency = PACKAGE_DEFAULT_CURRENCY,
   startDate = reportPeriodStart(reportDate),
 ) {
   return {

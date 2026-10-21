@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import ReportsPage from "@/app/(main)/reports/page"
 import { apiOperation } from "@/lib/api-client"
+import { normalizablePackageDocument } from "./helpers/packageDocumentFixture"
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
@@ -61,7 +62,7 @@ const readiness = {
 }
 
 function packageDocument(readinessResponse = readiness) {
-  return { readiness: readinessResponse }
+  return normalizablePackageDocument({ readiness: readinessResponse })
 }
 
 beforeEach(() => {
@@ -93,7 +94,8 @@ describe("Reports cockpit (EPIC-022 AC22.3)", () => {
     // Annualized Income and Reconciliation coverage surface live numbers.
     await waitFor(() => expect(screen.getByText("92% matched")).toBeInTheDocument())
     expect(screen.getByText("3 unmatched")).toBeInTheDocument()
-    expect(screen.getByText(/120,000/)).toBeInTheDocument()
+    // The annualized fallback request starts once the package preview answers without that section.
+    await waitFor(() => expect(screen.getByText(/120,000/)).toBeInTheDocument())
   })
 
   // AC-reporting.fe-ia-reports.18

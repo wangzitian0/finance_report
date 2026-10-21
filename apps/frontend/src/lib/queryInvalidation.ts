@@ -17,6 +17,12 @@
  *
  * Keys are STATIC prefixes; react-query's default fuzzy matching extends them
  * to runtime-suffixed keys (e.g. `["statement-conflicts", statementId]`).
+ *
+ * The app query client adds a rule on top of this matrix (#2583 S4): after EVERY
+ * successful mutation it marks the ledger-derived reads stale
+ * (`LEDGER_DERIVED_QUERY_KEYS` in `lib/queryClient.ts`), because Home, /attention
+ * and the report pages keep those reads in the cache for one minute. A row with an
+ * empty `invalidates` list relies on that rule.
  */
 
 import type { QueryKey } from "@tanstack/react-query";
@@ -44,15 +50,17 @@ export const MUTATION_INVALIDATION_MATRIX: readonly MutationInvalidationRule[] =
     invalidates: [],
     noInvalidationReason:
       "Navigates to the statement detail (or attention) route on success; " +
-      "the review surface unmounts and the destination remounts fresh queries.",
+      "the app query client marks the ledger-derived reads stale after every " +
+      "successful mutation, so the destination reads them again.",
   },
   {
     flow: "statements.review.reject",
     file: "app/(main)/statements/[id]/review/page.tsx",
     invalidates: [],
     noInvalidationReason:
-      "Navigates back to /statements on success; the review surface unmounts " +
-      "and the list route remounts fresh queries.",
+      "Navigates back to /statements on success; the app query client marks " +
+      "the ledger-derived reads stale after every successful mutation, so the " +
+      "list route reads them again.",
   },
   {
     flow: "statements.review.resolve-conflicts",
@@ -74,8 +82,9 @@ export const MUTATION_INVALIDATION_MATRIX: readonly MutationInvalidationRule[] =
     file: "app/(main)/statements/[id]/review/page.tsx",
     invalidates: [],
     noInvalidationReason:
-      "Navigates to the statement detail route to watch the re-parse; the " +
-      "review surface unmounts and the detail route remounts fresh queries.",
+      "Navigates to the statement detail route to watch the re-parse; the app " +
+      "query client marks the ledger-derived reads stale after every " +
+      "successful mutation, so the detail route reads them again.",
   },
   {
     flow: "reconciliation.run",

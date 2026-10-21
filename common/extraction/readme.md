@@ -515,7 +515,7 @@ precondition.
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/statements/upload` | Upload document and enqueue parsing (202 Accepted) |
-| GET | `/api/statements` | Statement list |
+| GET | `/api/statements` | Statement list. Each item has an empty `transactions` list unless the request sets `include_transactions=true`. The list uses a fixed number of SQL statements (#2583) |
 | GET | `/api/statements/{id}` | Get statement with transactions |
 | GET | `/api/statements/{id}/transactions` | Transaction list |
 | GET | `/api/statements/pending-review` | List parsed items needing review, including legacy parsed rows with no `stage1_status` |

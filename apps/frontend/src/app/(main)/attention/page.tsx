@@ -1,21 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 
-import { apiOperation } from "@/lib/api-client";
 import {
   buildAttentionItems,
-  type AttentionItem,
   type AttentionKind,
 } from "@/lib/attention";
 import { withAttentionSource } from "@/lib/attentionNavigation";
-import type {
-  BankStatementListResponse,
-  ProcessingPendingListResponse,
-  ReconciliationStatsResponse,
-} from "@/lib/types";
+import {
+  processingPendingQuery,
+  reconciliationStatsQuery,
+  statementsListQuery,
+} from "@/lib/sharedQueries";
 import {
   Badge,
   EmptyState,
@@ -39,38 +38,43 @@ function confidenceVariant(confidence: number): BadgeVariant {
 }
 
 export default function AttentionPage() {
-  const [items, setItems] = useState<AttentionItem[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // The three sources come from the shared query cache (#2583 S4): Home and the
+  // reconciliation Workbench read the same keys, so a source loads once per stale time.
+  const statements = useQuery(statementsListQuery());
+  const stats = useQuery(reconciliationStatsQuery());
+  const processing = useQuery(processingPendingQuery());
+  const sources = [statements, stats, processing];
 
-  const fetchAttention = useCallback(async () => {
-    // Reset to the loading state so a refresh/retry never shows stale items or a
-    // misleading "all clear" while the new data is in flight.
-    setItems(null);
-    setError(null);
-    try {
-      const [statements, stats, processing] = await Promise.all([
-        apiOperation("list_statements_statements_get"),
-        apiOperation("reconciliation_stats_reconciliation_stats_get"),
-        apiOperation("list_processing_pending_accounts_processing_pending_get"),
-      ]);
-      setItems(
-        buildAttentionItems({
-          statements: statements?.items ?? [],
-          stats: stats ?? null,
-          processing: processing?.items ?? [],
-        }),
-      );
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load attention items",
-      );
-      setItems([]);
+  const failed = sources.find((source) => source.isError);
+  // A retry keeps the failed status until the refetch answers; show the loading state meanwhile
+  // so a retry never shows the old error or a misleading "all clear".
+  const retrying = sources.some((source) => source.isError && source.isFetching);
+  const error =
+    failed && !retrying
+      ? (failed.error?.message ?? "Failed to load attention items")
+      : null;
+
+  const statementItems = statements.data?.items;
+  const statsData = stats.data;
+  const processingItems = processing.data?.items;
+  const ready = sources.every((source) => source.isSuccess);
+  const items = useMemo(
+    () =>
+      ready
+        ? buildAttentionItems({
+            statements: statementItems ?? [],
+            stats: statsData ?? null,
+            processing: processingItems ?? [],
+          })
+        : null,
+    [ready, statementItems, statsData, processingItems],
+  );
+
+  const fetchAttention = () => {
+    for (const source of sources) {
+      if (source.isError) void source.refetch();
     }
-  }, []);
-
-  useEffect(() => {
-    fetchAttention();
-  }, [fetchAttention]);
+  };
 
   return (
     <div className="p-6">

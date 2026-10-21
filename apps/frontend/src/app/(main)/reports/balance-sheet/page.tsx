@@ -9,6 +9,7 @@ import { formatCurrencyLocale } from "@/lib/audit/money";
 import { useCurrencies } from "@/hooks/useCurrencies";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useReportFilters } from "@/hooks/useReportFilters";
+import { balanceSheetQueryKey } from "@/lib/sharedQueries";
 import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
 import { OpeningBalanceWarningBanner } from "@/components/reports/OpeningBalanceWarningBanner";
 import {
@@ -66,18 +67,10 @@ export default function BalanceSheetPage() {
   );
   const { currencies } = useCurrencies();
 
-  // Balance sheet adds the restricted-holdings toggle on top of the shared
-  // date/currency filters, so it builds its own request query string here.
-  const queryString = useMemo(() => {
-    const params = new URLSearchParams({
-      as_of_date: asOfDate,
-      currency,
-      include_restricted: includeRestricted ? "true" : "false",
-    });
-    return params.toString();
-  }, [asOfDate, currency, includeRestricted]);
+  // The key comes from the shared builder, so Home reads the same cache entry when it
+  // requests the same balance sheet (#2583 S4).
   const reportQuery = useApiQuery(
-    ["report", "balance-sheet", queryString],
+    balanceSheetQueryKey({ asOfDate, currency, includeRestricted }),
     "balance_sheet_reports_balance_sheet_get",
     {
       query: {
