@@ -206,12 +206,12 @@ async def get_average_rate(
     return sum(in_range, Decimal("0")) / len(in_range)
 
 
-def _convert_money_amount(amount: Decimal, source: str, target: str, rate: Decimal) -> Decimal:
+def _convert_money_amount(amount: Decimal, source_code: str, target_code: str, rate: Decimal) -> Decimal:
     try:
-        source_code, target_code = Currency.of(source), Currency.of(target)
-        return _money_convert(Money(amount, source_code), ExchangeRate(source_code, target_code, rate)).amount
+        source, target = Currency.of(source_code), Currency.of(target_code)
+        return _money_convert(Money(amount, source), ExchangeRate(source, target, rate)).amount
     except MoneyError as exc:
-        raise PricingError(f"invalid FX conversion boundary for {source}/{target}: {exc}") from exc
+        raise PricingError(f"invalid FX conversion boundary for {source_code}/{target_code}: {exc}") from exc
 
 
 async def convert_amount(

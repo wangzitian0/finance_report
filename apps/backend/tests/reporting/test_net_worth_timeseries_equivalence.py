@@ -17,6 +17,8 @@ from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+import pytest
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
@@ -27,7 +29,7 @@ from src.pricing import ManualValuationComponentType, ManualValuationLiquidityCl
 from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.pricing.orm.market_data import FxRate, StockPrice
 from src.pricing.orm.market_data_override import MarketDataOverride, PriceSource
-from src.reporting import generate_balance_sheet, get_net_worth_timeseries
+from src.reporting import ReportError, generate_balance_sheet, get_net_worth_timeseries
 
 RANGE_START = date(2024, 12, 30)
 RANGE_END = date(2025, 2, 14)
@@ -45,6 +47,20 @@ async def _reference_point(db: AsyncSession, user_id: UUID, point_date: date, cu
         "total_liabilities": total_liabilities,
         "net_worth": total_assets - total_liabilities,
     }
+
+
+async def _stored_fx_rate_ids(db: AsyncSession) -> set[UUID]:
+    return set((await db.execute(select(FxRate.id))).scalars().all())
+
+
+async def _drop_fx_rates_except(db: AsyncSession, kept_ids: set[UUID]) -> None:
+    """Delete the FX rows that a lazy FX fallback wrote, so the next computation starts from the seeded rates.
+
+    The lazy fallback stores derived rates, and a stored rate changes later lookups.
+    Without this reset, the reference would read the rates that the series stored.
+    """
+    await db.execute(delete(FxRate).where(FxRate.id.not_in(kept_ids)))
+    await db.commit()
 
 
 def _values(point: dict[str, object]) -> dict[str, object]:
@@ -357,8 +373,10 @@ async def _seed_mixed_household(db: AsyncSession, user_id: UUID) -> None:
 async def test_AC_reporting_net_worth_timeseries_3_daily_points_equal_balance_sheets(db: AsyncSession, test_user):
     """AC-reporting.net-worth-timeseries.3: every daily point equals the balance sheet on its date."""
     await _seed_mixed_household(db, test_user.id)
+    seeded_fx_rates = await _stored_fx_rate_ids(db)
 
     for currency in ("SGD", "USD"):
+        await _drop_fx_rates_except(db, seeded_fx_rates)
         report = await get_net_worth_timeseries(
             db, test_user.id, start_date=RANGE_START, end_date=RANGE_END, granularity="daily", currency=currency
         )
@@ -366,6 +384,7 @@ async def test_AC_reporting_net_worth_timeseries_3_daily_points_equal_balance_sh
         assert [point["date"] for point in points] == [
             RANGE_START + timedelta(days=offset) for offset in range((RANGE_END - RANGE_START).days + 1)
         ]
+        await _drop_fx_rates_except(db, seeded_fx_rates)
         mismatches = []
         for point in points:
             expected = await _reference_point(db, test_user.id, point["date"], currency)
@@ -388,10 +407,12 @@ async def test_AC_reporting_net_worth_timeseries_3_daily_points_equal_balance_sh
 async def test_AC_reporting_net_worth_timeseries_3_monthly_points_equal_balance_sheets(db: AsyncSession, test_user):
     """AC-reporting.net-worth-timeseries.3: every monthly point equals the balance sheet on its month end."""
     await _seed_mixed_household(db, test_user.id)
+    seeded_fx_rates = await _stored_fx_rate_ids(db)
 
     report = await get_net_worth_timeseries(
         db, test_user.id, start_date=date(2024, 10, 1), end_date=RANGE_END, granularity="monthly", currency="SGD"
     )
+    await _drop_fx_rates_except(db, seeded_fx_rates)
 
     # October and November hold no data, so the series starts in December.
     # The last point is the end date, not the month end.
@@ -412,11 +433,35 @@ async def test_AC_reporting_net_worth_timeseries_3_point_on_today_equals_balance
     today = date.today()
     db.add(_snapshot(test_user.id, "AAPL", today + timedelta(days=3), "10", "1555.00", "SGD"))
     await db.commit()
+    seeded_fx_rates = await _stored_fx_rate_ids(db)
 
     report = await get_net_worth_timeseries(
         db, test_user.id, start_date=today - timedelta(days=4), end_date=today, granularity="daily", currency="SGD"
     )
+    await _drop_fx_rates_except(db, seeded_fx_rates)
 
     assert report["points"][-1]["date"] == today
     for point in report["points"]:
         assert _values(point) == await _reference_point(db, test_user.id, point["date"], "SGD")
+
+
+async def test_AC_reporting_net_worth_timeseries_3_income_fx_miss_does_not_fail_the_series(db: AsyncSession, test_user):
+    """AC-reporting.net-worth-timeseries.3: the series does not compute net income. An FX miss on an expense
+    line fails the balance sheet, but the series returns its points and skips the line as the balance sheet does."""
+    cash = await _account(db, test_user.id, "Cash", AccountType.ASSET, "SGD")
+    jpy_wallet = await _account(db, test_user.id, "JPY Wallet", AccountType.ASSET, "JPY")
+    equity = await _account(db, test_user.id, "Owner Equity", AccountType.EQUITY, "SGD")
+    jpy_equity = await _account(db, test_user.id, "JPY Equity", AccountType.EQUITY, "JPY")
+    travel = await _account(db, test_user.id, "Travel", AccountType.EXPENSE, "JPY")
+    await _entry(db, test_user.id, date(2025, 3, 1), cash, equity, "800.00", "SGD")
+    await _entry(db, test_user.id, date(2025, 3, 1), jpy_wallet, jpy_equity, "50000.00", "JPY")
+    await _entry(db, test_user.id, date(2025, 3, 10), travel, jpy_wallet, "12000.00", "JPY")
+    await db.commit()
+
+    with pytest.raises(ReportError, match="No FX rate available"):
+        await generate_balance_sheet(db, test_user.id, as_of_date=date(2025, 3, 10), currency="SGD")
+    report = await get_net_worth_timeseries(
+        db, test_user.id, start_date=date(2025, 3, 9), end_date=date(2025, 3, 11), granularity="daily", currency="SGD"
+    )
+
+    assert [point["net_worth"] for point in report["points"]] == [Decimal("800.00")] * 3

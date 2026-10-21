@@ -248,8 +248,10 @@ brokerage container is not assigned a global binary cash role.
 **Net worth time-series** — `GET /reports/net-worth/timeseries?from=...&to=...&granularity=daily|monthly`
 returns `{date, total_assets, total_liabilities, net_worth, currency}`
 points; `daily` is capped at 366 points, `monthly` uses the period end
-date, and each point equals the balance sheet on that point's date
-(AC-reporting.net-worth-timeseries.3). The series does not build one
+date, and for the same stored FX rates each point equals the balance sheet
+on that point's date (AC-reporting.net-worth-timeseries.3). It does not
+compute net income, so an FX miss on an income or expense line does not fail
+it. The series does not build one
 balance sheet per point (#2583). Two grouped queries give the ledger balance
 before the first point and the daily movements; a running sum gives each
 point, at the spot FX rate of the point date (`get_exchange_rate_series`).

@@ -560,11 +560,13 @@ async def get_net_worth_timeseries(
 ) -> dict[str, object]:
     """Get historical net worth points.
 
-    Each point equals ``total_assets`` and ``total_liabilities`` of
-    ``generate_balance_sheet`` on the point date: ledger balances at the spot
-    FX rate of that date, portfolio market-value adjustments and manual
-    valuations. The ledger balances come from a running sum, not from one
-    balance sheet per point (#2583).
+    For the same stored FX rates, each point equals ``total_assets`` and
+    ``total_liabilities`` of ``generate_balance_sheet`` on the point date:
+    ledger balances at the spot FX rate of that date, portfolio market-value
+    adjustments and manual valuations. The ledger balances come from a running
+    sum, not from one balance sheet per point (#2583). The series does not
+    compute net income, unrealized FX or CTA, so an FX miss on an income or
+    expense line does not fail it.
 
     A monthly series holds at most ``MAX_NET_WORTH_MONTHLY_POINTS`` points and
     keeps the latest months. It starts at the first month that has a non-zero
