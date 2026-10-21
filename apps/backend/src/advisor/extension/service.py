@@ -71,7 +71,7 @@ from src.reporting import (
 )
 from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
 from src.schemas.reporting import PersonalReportPackageSnapshotStatus
-from src.workflow import get_workflow_status
+from src.workflow import get_workflow_status, stored_package_readiness
 
 # Bound from the bare published root (config publishes no named symbols).
 settings = src.config.settings
@@ -228,8 +228,14 @@ class AIAdvisorService:
 
         context: dict[str, str] = {}
 
+        ending_unrealized_fx: Decimal | None = None
         try:
-            balance = cast(dict[str, Any], await generate_balance_sheet(db, user_id, as_of_date=today))
+            # The summary reads totals and the currency. It does not read the trust signals
+            # (line provenance and the opening-balance warning), so the balance sheet skips them (#2583).
+            balance = cast(
+                dict[str, Any],
+                await generate_balance_sheet(db, user_id, as_of_date=today, include_trust_signals=False),
+            )
             total_assets = Decimal(str(balance["total_assets"]))
             total_liabilities = Decimal(str(balance["total_liabilities"]))
             opening_equity = Decimal(str(balance["total_equity"]))
@@ -237,6 +243,7 @@ class AIAdvisorService:
             net_worth = total_assets - total_liabilities
             currency = str(balance.get("currency") or settings.base_currency)
             balance_sheet_confidence_tier = str(balance.get("confidence_tier") or "DETERMINISTIC")
+            ending_unrealized_fx = Decimal(str(balance["unrealized_fx_gain_loss"]))
         except ReportError:
             total_assets = Decimal("0")
             total_liabilities = Decimal("0")
@@ -247,9 +254,18 @@ class AIAdvisorService:
             balance_sheet_confidence_tier = "UNAVAILABLE"
 
         try:
+            # The balance sheet above has the same date and currency as the period end, so its
+            # unrealized FX revaluation is the ending value. The income statement does not run it again.
             income_statement = cast(
                 dict[str, Any],
-                await generate_income_statement(db, user_id, start_date=start_date, end_date=today, currency=currency),
+                await generate_income_statement(
+                    db,
+                    user_id,
+                    start_date=start_date,
+                    end_date=today,
+                    currency=currency,
+                    ending_unrealized_fx_gain_loss=ending_unrealized_fx,
+                ),
             )
             monthly_income = Decimal(str(income_statement["total_income"]))
             monthly_expenses = Decimal(str(income_statement["total_expenses"]))
@@ -283,7 +299,7 @@ class AIAdvisorService:
         except ReportError:
             top_expenses = "N/A"
 
-        stats = await get_reconciliation_stats(db, user_id)
+        reconciliation = await self._get_reconciliation_summary(db, user_id)
         period_net_income = net_income_bs
 
         context.update(
@@ -297,15 +313,22 @@ class AIAdvisorService:
                 "monthly_income": self._format_money(monthly_income, currency),
                 "monthly_expenses": self._format_money(monthly_expenses, currency),
                 "top_expenses": top_expenses or "N/A",
-                "unmatched_count": str(stats.unmatched_transactions),
-                "match_rate": f"{stats.match_rate}%",
-                "pending_review": str(stats.pending_review),
+                **reconciliation,
                 "balance_sheet_confidence_tier": balance_sheet_confidence_tier,
                 "income_statement_confidence_tier": income_statement_confidence_tier,
             }
         )
 
         return context
+
+    async def _get_reconciliation_summary(self, db: AsyncSession, user_id: UUID) -> dict[str, str]:
+        """Build the reconciliation fields of the financial summary."""
+        stats = await get_reconciliation_stats(db, user_id)
+        return {
+            "unmatched_count": str(stats.unmatched_transactions),
+            "match_rate": f"{stats.match_rate}%",
+            "pending_review": str(stats.pending_review),
+        }
 
     async def get_advisor_context(
         self,
@@ -316,6 +339,28 @@ class AIAdvisorService:
     ) -> dict[str, Any]:
         """Build deterministic application facts and structured suggestions for the advisor."""
         financial_summary = financial_context or await self._get_financial_summary_context(db, user_id)
+        context = await self._load_advisor_facts(db, user_id, financial_summary)
+        context["suggestions"] = [suggestion.model_dump() for suggestion in self._build_advisor_suggestions(context)]
+        return self._redact_context(context)
+
+    async def get_advisor_suggestions(self, db: AsyncSession, user_id: UUID) -> list[dict[str, Any]]:
+        """Return the suggestions of ``get_advisor_context`` without its statement reads.
+
+        The suggestion rules read only the reconciliation fields of the financial summary.
+        This path skips the balance sheet, the income statement and the category breakdown
+        (#2583). A rule that reads another summary field must read it in this path too.
+        """
+        context = await self._load_advisor_facts(db, user_id, await self._get_reconciliation_summary(db, user_id))
+        suggestions = [suggestion.model_dump() for suggestion in self._build_advisor_suggestions(context)]
+        return cast(list[dict[str, Any]], self._redact_context({"suggestions": suggestions})["suggestions"])
+
+    async def _load_advisor_facts(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        financial_summary: dict[str, str],
+    ) -> dict[str, Any]:
+        """Load the fact groups of the advisor context, without the suggestions."""
         readiness = await self._load_report_readiness(db, user_id)
         workflow = await self._load_workflow_status(db, user_id, synced_package_readiness=readiness)
         market_data = await self._load_market_data_status(db, user_id)
@@ -336,12 +381,16 @@ class AIAdvisorService:
                 "pending_review": financial_summary.get("pending_review", "N/A"),
             },
         }
-        context["suggestions"] = [suggestion.model_dump() for suggestion in self._build_advisor_suggestions(context)]
-        return self._redact_context(context)
+        return context
 
     async def _load_report_readiness(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
         try:
-            readiness = (await current_package_readiness(db, user_id=user_id)).model_dump(mode="json")
+            # The app shell reads the workflow status on each page, and that read stores readiness.
+            # While no input changed, the stored value equals a new evaluation (#2583). The advisor
+            # does not write on a read, so it evaluates readiness itself when no value is reusable.
+            readiness = await stored_package_readiness(db, user_id=user_id)
+            if readiness is None:
+                readiness = (await current_package_readiness(db, user_id=user_id)).model_dump(mode="json")
             # The current candidate is a preview. Only a frozen snapshot with a package decision is trusted.
             readiness["document_status"] = PersonalReportPackageSnapshotStatus.DRAFT.value
             return readiness

@@ -79,7 +79,7 @@ The advisor aggregates context from:
 
 | Source | What it reads | How the advisor reads it |
 |--------|--------------|---------------------------|
-| `report_readiness` | Readiness state + blockers | `src.reporting` published root (`current_package_readiness`) |
+| `report_readiness` | Readiness state + blockers | `src.workflow` published root (`stored_package_readiness`) while the last workflow derivation is reusable, else `src.reporting` published root (`current_package_readiness`) (#2583) |
 | `reporting` | Balance sheet, income statement, category breakdown | `src.reporting` published root (`generate_balance_sheet`/`generate_income_statement`/`get_category_breakdown`, #1666) |
 | `reconciliation` | Pending review count, reconciliation stats | `src.reconciliation` published root (`get_reconciliation_stats`) |
 | `portfolio` | Positions, unrealised P&L, active symbols | `src.portfolio` published root (`PortfolioService`, `active_stock_symbols`) |
@@ -191,6 +191,12 @@ portfolio summary, cash-flow observations, and `AdvisorSuggestion` objects
 before prompt construction. The prompt receives the serialized structured
 facts and must preserve blocked/stale/unreviewed/unsupported/manual-trusted
 limitations instead of converting them into trusted conclusions.
+
+`AIAdvisorService.get_advisor_suggestions()` returns the suggestions of
+`get_advisor_context()` and reads only the facts that the suggestion rules
+read. It does not build the balance sheet, the income statement or the
+category breakdown (#2583). `GET /api/chat/suggestions?include_structured=true`
+uses it.
 
 Frontend Advisor Brief surfaces consume the `structured_suggestions` field
 from `GET /api/chat/suggestions` only when the caller explicitly sends

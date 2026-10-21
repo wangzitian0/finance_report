@@ -441,7 +441,10 @@ provider when no stored rate exists: a provider miss changes no database row,
 so only the age bound makes a later recovery reach the events.
 When it differs, the read runs the derivation and stores the fingerprint that
 it computed before the derivation. Thus a change during the derivation makes
-the next read derive again (#2583). The synthetic active `WorkflowSession` creation path is
+the next read derive again (#2583). `stored_package_readiness` applies the same
+reuse rule without a derivation and without a write: it returns the stored
+readiness while the derivation is reusable, else None. The advisor context uses
+it and evaluates readiness itself when the result is None (#2583 S7). The synthetic active `WorkflowSession` creation path is
 concurrency-safe: overlapping status and event reads reuse the same
 `active-upload-to-report` session instead of surfacing duplicate-key 500s. If a
 historical synthetic row with the same dedupe key is no longer active, sync

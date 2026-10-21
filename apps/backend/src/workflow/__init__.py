@@ -22,6 +22,7 @@ from src.workflow.base import (
 from src.workflow.extension import (
     get_workflow_status,
     list_workflow_events_response,
+    stored_package_readiness,
     sync_workflow_events_for_user,
     update_workflow_event_status,
     upsert_workflow_event,
@@ -50,6 +51,7 @@ __all__ = [
     "WorkflowStatusResponse",
     "get_workflow_status",
     "list_workflow_events_response",
+    "stored_package_readiness",
     "sync_workflow_events_for_user",
     "update_workflow_event_status",
     "upsert_workflow_event",
