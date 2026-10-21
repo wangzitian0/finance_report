@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 
-import { StatementHeader } from "@/app/(main)/statements/[id]/_components/StatementHeader";
-import { StatementSummaryCards } from "@/app/(main)/statements/[id]/_components/StatementSummaryCards";
-import { StatementTransactionsTable } from "@/app/(main)/statements/[id]/_components/StatementTransactionsTable";
-import { BrokerageImportResultBanner } from "@/app/(main)/statements/[id]/_components/BrokerageImportResultBanner";
+import {
+    BrokerageImportResultBanner,
+    StatementHeader,
+    StatementSummaryCards,
+    StatementTransactionsTable,
+} from "@/app/(main)/statements/[id]/_components/StatementHeader";
 import { BankStatement, BankStatementTransaction, BrokerageImportResponse } from "@/lib/types";
 import { currencyCodeOrDash as formatCode } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";

@@ -41,3 +41,7 @@ export function BackLink({ href = "/notifications", children }: { href?: string;
         </Link>
     );
 }
+
+export function AuditBackLink() {
+    return <BackLink href="/audit">Back to Audit</BackLink>;
+}

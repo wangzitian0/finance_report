@@ -1,13 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AuditPage from "@/app/(main)/audit/page";
-import { ActionChecklist } from "@/components/audit/ActionChecklist";
-import { InvariantChecksGrid } from "@/components/audit/InvariantChecksGrid";
-import { TemporalTimelineGrid } from "@/components/audit/TemporalTimelineGrid";
-import { TrustScoreHero } from "@/components/audit/TrustScoreHero";
+import {
+  ActionChecklist,
+  InvariantChecksGrid,
+  TemporalTimelineGrid,
+  TrustScoreHero,
+} from "@/components/audit/TrustScoreHero";
 import {
   getGradeColor,
   getGradeLabel,
@@ -215,8 +217,40 @@ describe("Personal Data Quality Observatory (#2294)", () => {
   });
 
   describe("AuditPage", () => {
-    it("loads and displays full observatory with deep links", async () => {
-      mockedApiOperation.mockResolvedValueOnce(mockHealthData as any);
+    it("loads and displays full observatory with deep links and inline attention queue", async () => {
+      mockedApiOperation.mockImplementation(async (op: string) => {
+        if (op === "list_statements_statements_get") {
+          return {
+            items: [
+              {
+                id: "stmt-1",
+                institution: "DBS",
+                original_filename: "DBS_2026_01.pdf",
+                status: "parsed",
+                confidence_score: 65,
+                balance_validated: false,
+                period_start: "2026-01-01",
+                period_end: "2026-01-31",
+                transactions: [],
+              },
+            ],
+          } as any;
+        }
+        if (op === "reconciliation_stats_reconciliation_stats_get") {
+          return {
+            total_transactions: 10,
+            matched_transactions: 8,
+            unmatched_transactions: 2,
+            pending_review: 1,
+            auto_accepted: 7,
+            match_rate: 80,
+          } as any;
+        }
+        if (op === "list_processing_pending_accounts_processing_pending_get") {
+          return { items: [] } as any;
+        }
+        return mockHealthData as any;
+      });
 
       render(<AuditPage />, { wrapper: createWrapper() });
 
@@ -228,16 +262,24 @@ describe("Personal Data Quality Observatory (#2294)", () => {
         expect(screen.getByText("Grade A · Audit-Ready")).toBeInTheDocument();
       });
 
+      await waitFor(() => {
+        expect(screen.getByText("DBS_2026_01.pdf")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Re-evaluate/i }));
+
       // Underlying ledgers deep links
       expect(screen.getByText("Accounting Machinery & Ledgers")).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Trust/ })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Reconciliation/ })).toBeInTheDocument();
+      expect(screen.getAllByRole("link", { name: /Reconciliation/ }).length).toBeGreaterThanOrEqual(1);
       expect(screen.getByRole("link", { name: /Journal/ })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Processing/ })).toBeInTheDocument();
     });
 
     it("renders error state with retry button when query fails", async () => {
-      mockedApiOperation.mockRejectedValueOnce(new Error("Network failure"));
+      mockedApiOperation
+        .mockRejectedValueOnce(new Error("Network failure"))
+        .mockResolvedValue(mockHealthData as any);
 
       render(<AuditPage />, { wrapper: createWrapper() });
 
@@ -247,7 +289,9 @@ describe("Personal Data Quality Observatory (#2294)", () => {
         ).toBeInTheDocument();
       });
 
-      expect(screen.getByRole("button", { name: "Retry Evaluation" })).toBeInTheDocument();
+      const retryBtn = screen.getByRole("button", { name: "Retry Evaluation" });
+      expect(retryBtn).toBeInTheDocument();
+      fireEvent.click(retryBtn);
     });
   });
 });

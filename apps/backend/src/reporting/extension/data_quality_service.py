@@ -7,10 +7,11 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction import BankStatementStatus, StatementSummary
+from src.ledger import JournalEntry, JournalEntryStatus
 from src.observability import get_logger
 from src.reconciliation import get_reconciliation_stats
 from src.reporting.base.data_quality_types import (
@@ -167,7 +168,18 @@ async def compute_personal_data_quality(
             )
 
     stats = await get_reconciliation_stats(db, user_id)
-    has_unanchored_activity = len(raw_statements) == 0 and stats.total_transactions > 0
+    posted_entry_count = (
+        await db.scalar(
+            select(func.count())
+            .select_from(JournalEntry)
+            .where(
+                JournalEntry.user_id == user_id,
+                JournalEntry.status == JournalEntryStatus.POSTED,
+            )
+        )
+        or 0
+    )
+    has_unanchored_activity = len(raw_statements) == 0 and (stats.total_transactions > 0 or posted_entry_count > 0)
 
     temporal_healthy = total_gaps == 0 and not has_unanchored_activity
     temporal_delta = total_gaps if not has_unanchored_activity else 1
@@ -190,17 +202,28 @@ async def compute_personal_data_quality(
     )
 
     # 4. Reconciliation Purity Invariant
-    recon_healthy = stats.pending_review == 0 and stats.unmatched_transactions == 0
-    recon_delta = stats.pending_review if stats.pending_review > 0 else stats.unmatched_transactions
+    recon_healthy = stats.pending_review == 0 and stats.unmatched_transactions == 0 and not has_unanchored_activity
+    recon_delta = (
+        stats.pending_review
+        if stats.pending_review > 0
+        else (
+            stats.unmatched_transactions
+            if stats.unmatched_transactions > 0
+            else (max(1, posted_entry_count) if has_unanchored_activity else 0)
+        )
+    )
     if recon_healthy:
         recon_summary = "Reconciliation purity verified with zero pending clearance items"
         recon_detail = "Credit card and loan settlements clear liability accounts with zero P&L duplication."
     elif stats.pending_review > 0:
         recon_summary = f"{stats.pending_review} reconciliation item(s) pending review"
         recon_detail = "Review suggested matches to confirm liability clearing."
-    else:
+    elif stats.unmatched_transactions > 0:
         recon_summary = f"{stats.unmatched_transactions} unmatched transaction(s) require reconciliation"
         recon_detail = "Match statement transactions against journal entries to verify cash clearance."
+    else:
+        recon_summary = f"{recon_delta} ledger entry(s) have zero bank statement reconciliation coverage"
+        recon_detail = "Upload bank statements and run matching to verify cash and liability clearance."
 
     recon_status = InvariantStatus(
         is_healthy=recon_healthy,
@@ -217,6 +240,7 @@ async def compute_personal_data_quality(
         if not s.uploaded_document_id and (not s.file_hash or s.file_hash.startswith("unlinked"))
     )
     lineage_healthy = unlinked_count == 0 and not has_unanchored_activity
+    lineage_delta = unlinked_count if not has_unanchored_activity else max(1, posted_entry_count)
     if lineage_healthy:
         lineage_summary = "Full source-document-to-report lineage verified"
         lineage_detail = "Every report line traces directly to verified statement extraction evidence."
@@ -232,7 +256,7 @@ async def compute_personal_data_quality(
         name="Evidence Lineage & Traceability Anchors",
         summary=lineage_summary,
         detail=lineage_detail,
-        delta=Decimal(unlinked_count),
+        delta=Decimal(lineage_delta),
     )
 
     # 6. Trust Score Computation
@@ -249,7 +273,7 @@ async def compute_personal_data_quality(
 
     # Reconciliation purity: 20 points
     if stats.total_transactions == 0:
-        recon_pts = 20
+        recon_pts = 10 if has_unanchored_activity else 20
     else:
         ratio = (stats.matched_transactions + stats.auto_accepted) / max(1, stats.total_transactions)
         recon_pts = int(round(20 * ratio))
@@ -299,7 +323,19 @@ async def compute_personal_data_quality(
             )
         )
 
-    if total_gaps > 0 and first_gap_month is not None:
+    if has_unanchored_activity:
+        action_items.append(
+            QualityActionItem(
+                id="upload_statements_for_ledger",
+                priority="P1",
+                title="Upload Bank Statements to Anchor Ledger Activity",
+                description="Ledger entries exist without uploaded bank statement evidence. Upload statements to verify rollforward and lineage.",
+                score_boost=min(30, 100 - total_score),
+                action_type="UPLOAD_STATEMENT",
+                action_url="/upload",
+            )
+        )
+    elif total_gaps > 0 and first_gap_month is not None:
         action_items.append(
             QualityActionItem(
                 id=f"upload_statement_{first_gap_month}",

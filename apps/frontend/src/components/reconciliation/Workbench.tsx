@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
+import UnmatchedBoard from "@/components/reconciliation/UnmatchedBoard";
+import { Stage2ReviewQueue } from "@/components/review/Stage2ReviewQueue";
 import { InfoHint } from "@/components/ui/InfoHint";
 import { apiOperation } from "@/lib/api-client";
 import { formatAmount } from "@/lib/audit/money";
@@ -21,6 +23,7 @@ function formatQueueAmount(value: MoneyValue): string {
 
 export default function ReconciliationWorkbench() {
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<"matched" | "unmatched" | "consistency">("matched");
   const [selected, setSelected] = useState<ReconciliationMatchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -124,14 +127,31 @@ export default function ReconciliationWorkbench() {
       >
         <Link
           href="/reconciliation"
-          aria-current="page"
-          className="inline-flex items-center gap-2 rounded-md bg-[var(--accent-muted)] px-3 py-1.5 text-sm font-medium text-[var(--accent)]"
+          aria-current={activeTab === "matched" ? "page" : undefined}
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab("matched");
+          }}
+          className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${
+            activeTab === "matched"
+              ? "bg-[var(--accent-muted)] text-[var(--accent)]"
+              : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
+          }`}
         >
           Matched & Pending
         </Link>
         <Link
           href="/reconciliation/unmatched"
-          className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
+          aria-current={activeTab === "unmatched" ? "page" : undefined}
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab("unmatched");
+          }}
+          className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${
+            activeTab === "unmatched"
+              ? "bg-[var(--accent-muted)] text-[var(--accent)]"
+              : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
+          }`}
         >
           <span>Unmatched Bank Lines</span>
           <span className="badge badge-warning text-[10px]">
@@ -140,13 +160,28 @@ export default function ReconciliationWorkbench() {
         </Link>
         <Link
           href="/reconciliation/review-queue"
-          className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
+          aria-current={activeTab === "consistency" ? "page" : undefined}
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab("consistency");
+          }}
+          className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${
+            activeTab === "consistency"
+              ? "bg-[var(--accent-muted)] text-[var(--accent)]"
+              : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
+          }`}
         >
           Consistency Checks
         </Link>
       </nav>
 
-      <div className="page-header flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+      {activeTab === "unmatched" ? (
+        <UnmatchedBoard />
+      ) : activeTab === "consistency" ? (
+        <Stage2ReviewQueue embedded />
+      ) : (
+        <>
+          <div className="page-header flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
         <div>
           <h1 className="page-title">Reconciliation Workbench</h1>
           <p className="page-description">Match statement activity to ledger entries with multi-dimensional scoring</p>
@@ -339,6 +374,8 @@ export default function ReconciliationWorkbench() {
           )}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

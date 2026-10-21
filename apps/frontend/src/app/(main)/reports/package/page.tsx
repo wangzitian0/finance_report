@@ -4,30 +4,22 @@ import { useState } from "react";
 
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 import {
-  PackageCover,
-  PackageFrameworkSelection,
-  PackageLoadingSkeleton,
-  PackageSetupGuidance,
-  PackageTableOfContents,
-} from "@/components/reports/package/PackageChrome";
-import {
-  PackageFrameworkPolicySection,
-  PackageInputManifestSection,
-  PackageReadinessSection,
-} from "@/components/reports/package/PackageReadinessSections";
-import {
-  PackageAnnualizedScheduleSection,
-  PackageExportContractSection,
-  PackageNotesSection,
-  PackageSectionCards,
-} from "@/components/reports/package/PackageScheduleSections";
-import { PackageSnapshotsCard } from "@/components/reports/package/PackageSnapshotsCard";
-import {
-  LineagePanelModal,
-  PackageTraceabilitySection,
-} from "@/components/reports/package/PackageTraceability";
-import {
   FRAMEWORK_LABELS,
+  LineagePanelModal,
+  PackageAnnualizedScheduleSection,
+  PackageCover,
+  PackageExportContractSection,
+  PackageFrameworkPolicySection,
+  PackageFrameworkSelection,
+  PackageInputManifestSection,
+  PackageLoadingSkeleton,
+  PackageNotesSection,
+  PackageReadinessSection,
+  PackageSectionCards,
+  PackageSetupGuidance,
+  PackageSnapshotsCard,
+  PackageTableOfContents,
+  PackageTraceabilitySection,
   evidenceBundleReferences,
   lineageAnchorForLine,
   packageTocLinks,

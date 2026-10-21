@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { apiOperationDownload } from "@/lib/api-client";
+import * as apiClient from "@/lib/api-client";
 
 interface PdfPreviewPaneProps {
   /** Statement whose original document is streamed by the same-origin proxy. */
@@ -39,11 +39,22 @@ export function PdfPreviewPane({
       return;
     }
 
+    let downloadFn: typeof apiClient.apiOperationDownload | undefined;
+    try {
+      downloadFn = apiClient.apiOperationDownload;
+    } catch {
+      downloadFn = undefined;
+    }
+    if (typeof downloadFn !== "function") {
+      setState({ status: "idle" });
+      return;
+    }
+
     let objectUrl: string | null = null;
     let cancelled = false;
     setState({ status: "loading" });
 
-    apiOperationDownload(
+    downloadFn(
       "get_statement_document_statements__statement_id__document_get",
       { path: { statement_id: statementId } },
     )

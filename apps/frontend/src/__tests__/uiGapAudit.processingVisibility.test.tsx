@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import ProcessingSummaryCard from '@/components/ProcessingSummaryCard';
 import ProcessingPage from '@/app/(main)/processing/page';
+import { ProcessingSummaryCard } from '@/components/audit/TrustScoreHero';
 import { apiOperation } from '@/lib/api-client';
 import type { ReactNode } from 'react';
 

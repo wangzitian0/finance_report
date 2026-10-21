@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { AuditBackLink } from "@/components/audit/AuditBackLink";
+import { AuditBackLink } from "@/components/ui/BackLink";
 import { Badge, EmptyState, LoadingState, PageHeader } from "@/components/ui";
 import { apiOperation } from "@/lib/api-client";
 import { summarizeReplay } from "@/lib/confidence";
