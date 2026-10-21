@@ -140,8 +140,6 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/performanceCard.test.tsx` | `common/portfolio/assets.md` |
 | `apps/frontend/src/__tests__/portfolioPricesPage.test.tsx` | `common/portfolio/assets.md` |
 | `apps/frontend/src/__tests__/reportPackage.test.ts` | `apps/frontend/frontend-patterns.md` (#1868 S5 PR-C — pure helpers extracted from usePersonalReportPackage.ts) |
-| `apps/frontend/src/__tests__/reviewQueuePage.actions.test.tsx` | `common/reconciliation/confirmation-workflow.md` |
-| `apps/frontend/src/__tests__/reviewQueuePage.coverage.test.tsx` | `common/reconciliation/confirmation-workflow.md` |
 | `apps/frontend/src/__tests__/statusLabels.test.ts` | `apps/frontend/frontend-patterns.md` (#1609 colour-not-alone status labels) |
 | `apps/frontend/src/__tests__/sheetAndDetailDialogComponents.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/theme.coverage.test.ts` | `apps/frontend/frontend-patterns.md` |

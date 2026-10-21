@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { apiOperation } from "@/lib/api-client";
-import { DividendEvent, HoldingsListResponse, RealizedLot } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatQuantity } from "@/lib/audit/quantity";
 import { formatDateDisplay } from "@/lib/date";
@@ -16,43 +15,23 @@ import { pnlColorClass } from "@/lib/statusLabels";
 export default function HoldingDetailPage() {
   const params = useParams();
   const ticker = decodeURIComponent(params.ticker as string);
-  const [activeTab, setActiveTab] = useState<
-    "overview" | "dividends" | "realized"
-  >("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "dividends" | "realized">("overview");
   const [savingMethod, setSavingMethod] = useState(false);
 
-  const {
-    data: allHoldings,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
+  const { data: allHoldings, isLoading, error, refetch } = useQuery({
     queryKey: ["portfolio-holdings-all"],
-    queryFn: () =>
-      apiOperation("get_holdings_portfolio_holdings_get", {
-        query: { include_disposed: true },
-      }).then((response) => response.items),
+    queryFn: () => apiOperation("get_holdings_portfolio_holdings_get", { query: { include_disposed: true } }).then((r) => r.items),
   });
   const { data: dividends = [], refetch: refetchDividends } = useQuery({
     queryKey: ["portfolio-dividends", ticker],
-    queryFn: () =>
-      apiOperation("get_holding_dividends_portfolio__ticker__dividends_get", {
-        path: { ticker },
-      }),
+    queryFn: () => apiOperation("get_holding_dividends_portfolio__ticker__dividends_get", { path: { ticker } }),
   });
   const { data: realizedLots = [], refetch: refetchRealized } = useQuery({
     queryKey: ["portfolio-realized", ticker],
-    queryFn: () =>
-      apiOperation(
-        "get_holding_realized_lots_portfolio__ticker__realized_get",
-        {
-          path: { ticker },
-        },
-      ),
+    queryFn: () => apiOperation("get_holding_realized_lots_portfolio__ticker__realized_get", { path: { ticker } }),
   });
 
-  const holdings =
-    allHoldings?.filter((h) => h.asset_identifier === ticker) ?? [];
+  const holdings = allHoldings?.filter((h) => h.asset_identifier === ticker) ?? [];
   const activeHoldings = holdings.filter((h) => h.status === "active");
   const disposedHoldings = holdings.filter((h) => h.status === "disposed");
 
@@ -71,65 +50,28 @@ export default function HoldingDetailPage() {
     return (
       <div className="p-6">
         <div className="card p-8 text-center" role="alert" aria-live="polite">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--error-muted)] text-[var(--error)] mb-4">
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </div>
-          <p className="text-[var(--foreground)] font-medium mb-2">
-            Failed to load holding
-          </p>
-          <p className="text-sm text-muted mb-6">
-            {error instanceof Error ? error.message : "Unknown error"}
-          </p>
-          <button onClick={() => refetch()} className="btn-secondary">
-            Retry
-          </button>
+          <p className="text-[var(--foreground)] font-medium mb-2">Failed to load holding</p>
+          <p className="text-sm text-muted mb-6">{error instanceof Error ? error.message : "Unknown error"}</p>
+          <button onClick={() => refetch()} className="btn-secondary">Retry</button>
         </div>
       </div>
     );
   }
 
+  const backLink = (
+    <div className="mb-4">
+      <Link href="/portfolio" className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1">
+        <span aria-hidden="true">←</span> Back to Portfolio
+      </Link>
+    </div>
+  );
+
   if (holdings.length === 0) {
     return (
       <div className="p-6">
-        <div className="mb-4">
-          <Link
-            href="/portfolio"
-            className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1"
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-            Back to Portfolio
-          </Link>
-        </div>
+        {backLink}
         <div className="card p-8 text-center">
-          <p className="text-muted">
-            No holdings found for{" "}
-            <span className="font-mono font-medium">{ticker}</span>
-          </p>
+          <p className="text-muted">No holdings found for <span className="font-mono font-medium">{ticker}</span></p>
         </div>
       </div>
     );
@@ -141,13 +83,10 @@ export default function HoldingDetailPage() {
   const updateCostBasisMethod = async (method: "FIFO" | "LIFO" | "AvgCost") => {
     setSavingMethod(true);
     try {
-      await apiOperation(
-        "update_holding_cost_basis_method_portfolio__ticker__patch",
-        {
-          path: { ticker },
-          body: { cost_basis_method: method },
-        },
-      );
+      await apiOperation("update_holding_cost_basis_method_portfolio__ticker__patch", {
+        path: { ticker },
+        body: { cost_basis_method: method },
+      });
       await Promise.all([refetch(), refetchRealized(), refetchDividends()]);
     } finally {
       setSavingMethod(false);
@@ -156,56 +95,25 @@ export default function HoldingDetailPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-4">
-        <Link
-          href="/portfolio"
-          className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          Back to Portfolio
-        </Link>
-      </div>
-
+      {backLink}
       <div className="page-header">
         <h1 className="page-title font-mono">{ticker}</h1>
         <p className="page-description">
-          {primary.sector && `${primary.sector} \u00b7 `}
-          {primary.geography && `${primary.geography} \u00b7 `}
+          {primary.sector && `${primary.sector} · `}
+          {primary.geography && `${primary.geography} · `}
           {primary.asset_type ?? "Equity"}
         </p>
       </div>
 
       <div className="mb-6 flex flex-col gap-3 border-b border-[var(--border)] pb-3 sm:flex-row sm:items-center sm:justify-between">
-        <div
-          className="flex gap-2"
-          role="tablist"
-          aria-label="Holding detail views"
-        >
-          {[
-            ["overview", "Overview"],
-            ["dividends", "Dividends"],
-            ["realized", "Realized P&L"],
-          ].map(([value, label]) => (
+        <div className="flex gap-2" role="tablist" aria-label="Holding detail views">
+          {([["overview", "Overview"], ["dividends", "Dividends"], ["realized", "Realized P&L"]] as const).map(([value, label]) => (
             <button
               key={value}
               type="button"
               role="tab"
               aria-selected={activeTab === value}
-              onClick={() =>
-                setActiveTab(value as "overview" | "dividends" | "realized")
-              }
+              onClick={() => setActiveTab(value)}
               className={`inline-flex min-h-[44px] items-center rounded border px-3 py-2.5 text-sm ${activeTab === value ? "border-[var(--accent)] text-[var(--accent)]" : "border-[var(--border)] text-muted"}`}
             >
               {label}
@@ -217,11 +125,7 @@ export default function HoldingDetailPage() {
           <select
             value={selectedCostBasisMethod}
             disabled={savingMethod}
-            onChange={(event) =>
-              updateCostBasisMethod(
-                event.target.value as "FIFO" | "LIFO" | "AvgCost",
-              )
-            }
+            onChange={(e) => updateCostBasisMethod(e.target.value as "FIFO" | "LIFO" | "AvgCost")}
             className="rounded border border-[var(--border)] bg-[var(--background)] px-2 py-1 text-sm text-[var(--foreground)]"
           >
             <option value="FIFO">FIFO</option>
@@ -235,102 +139,55 @@ export default function HoldingDetailPage() {
         <>
           <div className="grid gap-4 md:grid-cols-4 mb-6">
             <div className="card p-5">
-              <p className="text-xs text-muted uppercase tracking-wide">
-                Market Value
-              </p>
-              <p className="text-2xl font-semibold mt-1">
-                {formatCurrencyLocale(primary.market_value, primary.currency)}
-              </p>
+              <p className="text-xs text-muted uppercase tracking-wide">Market Value</p>
+              <p className="text-2xl font-semibold mt-1">{formatCurrencyLocale(primary.market_value, primary.currency)}</p>
             </div>
             <div className="card p-5">
-              <p className="text-xs text-muted uppercase tracking-wide">
-                Cost Basis
-              </p>
-              <p className="text-2xl font-semibold mt-1">
-                {formatCurrencyLocale(primary.cost_basis, primary.currency)}
-              </p>
+              <p className="text-xs text-muted uppercase tracking-wide">Cost Basis</p>
+              <p className="text-2xl font-semibold mt-1">{formatCurrencyLocale(primary.cost_basis, primary.currency)}</p>
             </div>
             <div className="card p-5">
-              <p className="text-xs text-muted uppercase tracking-wide">
-                Unrealized P&L
-              </p>
-              <p
-                className={`text-2xl font-semibold mt-1 ${pnlColorClass(primary.unrealized_pnl)}`}
-              >
+              <p className="text-xs text-muted uppercase tracking-wide">Unrealized P&L</p>
+              <p className={`text-2xl font-semibold mt-1 ${pnlColorClass(primary.unrealized_pnl)}`}>
                 {formatCurrencyLocale(primary.unrealized_pnl, primary.currency)}
               </p>
-              <p
-                className={`text-sm mt-0.5 ${pnlColorClass(primary.unrealized_pnl_percent)}`}
-              >
-                {formatSignedPercentFromPercentValue(
-                  primary.unrealized_pnl_percent,
-                )}
+              <p className={`text-sm mt-0.5 ${pnlColorClass(primary.unrealized_pnl_percent)}`}>
+                {formatSignedPercentFromPercentValue(primary.unrealized_pnl_percent)}
               </p>
             </div>
             <div className="card p-5">
-              <p className="text-xs text-muted uppercase tracking-wide">
-                Quantity
-              </p>
-              <p className="text-2xl font-semibold mt-1 font-mono">
-                {formatQuantity(primary.quantity)}
-              </p>
-              <p className="text-xs text-muted mt-0.5">
-                {primary.cost_basis_method ?? "Default"} method
-              </p>
+              <p className="text-xs text-muted uppercase tracking-wide">Quantity</p>
+              <p className="text-2xl font-semibold mt-1 font-mono">{formatQuantity(primary.quantity)}</p>
+              <p className="text-xs text-muted mt-0.5">{primary.cost_basis_method ?? "Default"} method</p>
             </div>
           </div>
 
           {activeHoldings.length > 0 && (
             <div className="card mb-6">
-              <div className="card-header">
-                <h2 className="text-sm font-medium">Active Lots</h2>
-              </div>
+              <div className="card-header"><h2 className="text-sm font-medium">Active Lots</h2></div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[var(--border)]">
-                      <th className="text-left px-4 py-2 font-medium">
-                        Account
-                      </th>
+                      <th className="text-left px-4 py-2 font-medium">Account</th>
                       <th className="text-right px-4 py-2 font-medium">Qty</th>
-                      <th className="text-right px-4 py-2 font-medium">
-                        Cost Basis
-                      </th>
-                      <th className="text-right px-4 py-2 font-medium">
-                        Market Value
-                      </th>
+                      <th className="text-right px-4 py-2 font-medium">Cost Basis</th>
+                      <th className="text-right px-4 py-2 font-medium">Market Value</th>
                       <th className="text-right px-4 py-2 font-medium">P&L</th>
-                      <th className="text-left px-4 py-2 font-medium">
-                        Acquired
-                      </th>
+                      <th className="text-left px-4 py-2 font-medium">Acquired</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
                     {activeHoldings.map((h) => (
-                      <tr
-                        key={h.id}
-                        className="hover:bg-[var(--background-muted)]/50"
-                      >
-                        <td className="px-4 py-2">
-                          {h.account_name ?? "Unknown"}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono">
-                          {formatQuantity(h.quantity)}
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          {formatCurrencyLocale(h.cost_basis, h.currency)}
-                        </td>
-                        <td className="px-4 py-2 text-right font-medium">
-                          {formatCurrencyLocale(h.market_value, h.currency)}
-                        </td>
-                        <td
-                          className={`px-4 py-2 text-right font-medium ${pnlColorClass(h.unrealized_pnl)}`}
-                        >
+                      <tr key={h.id} className="hover:bg-[var(--background-muted)]/50">
+                        <td className="px-4 py-2">{h.account_name ?? "Unknown"}</td>
+                        <td className="px-4 py-2 text-right font-mono">{formatQuantity(h.quantity)}</td>
+                        <td className="px-4 py-2 text-right">{formatCurrencyLocale(h.cost_basis, h.currency)}</td>
+                        <td className="px-4 py-2 text-right font-medium">{formatCurrencyLocale(h.market_value, h.currency)}</td>
+                        <td className={`px-4 py-2 text-right font-medium ${pnlColorClass(h.unrealized_pnl)}`}>
                           {formatCurrencyLocale(h.unrealized_pnl, h.currency)}
                         </td>
-                        <td className="px-4 py-2">
-                          {formatDateDisplay(h.acquisition_date)}
-                        </td>
+                        <td className="px-4 py-2">{formatDateDisplay(h.acquisition_date)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -341,51 +198,26 @@ export default function HoldingDetailPage() {
 
           {disposedHoldings.length > 0 && (
             <div className="card">
-              <div className="card-header">
-                <h2 className="text-sm font-medium">Disposed Lots</h2>
-              </div>
+              <div className="card-header"><h2 className="text-sm font-medium">Disposed Lots</h2></div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[var(--border)]">
-                      <th className="text-left px-4 py-2 font-medium">
-                        Account
-                      </th>
+                      <th className="text-left px-4 py-2 font-medium">Account</th>
                       <th className="text-right px-4 py-2 font-medium">Qty</th>
-                      <th className="text-right px-4 py-2 font-medium">
-                        Cost Basis
-                      </th>
-                      <th className="text-left px-4 py-2 font-medium">
-                        Acquired
-                      </th>
-                      <th className="text-left px-4 py-2 font-medium">
-                        Disposed
-                      </th>
+                      <th className="text-right px-4 py-2 font-medium">Cost Basis</th>
+                      <th className="text-left px-4 py-2 font-medium">Acquired</th>
+                      <th className="text-left px-4 py-2 font-medium">Disposed</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
                     {disposedHoldings.map((h) => (
-                      <tr
-                        key={h.id}
-                        className="hover:bg-[var(--background-muted)]/50 text-muted"
-                      >
-                        <td className="px-4 py-2">
-                          {h.account_name ?? "Unknown"}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono">
-                          {formatQuantity(h.quantity)}
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          {formatCurrencyLocale(h.cost_basis, h.currency)}
-                        </td>
-                        <td className="px-4 py-2">
-                          {formatDateDisplay(h.acquisition_date)}
-                        </td>
-                        <td className="px-4 py-2">
-                          {h.disposal_date
-                            ? formatDateDisplay(h.disposal_date)
-                            : "\u2014"}
-                        </td>
+                      <tr key={h.id} className="hover:bg-[var(--background-muted)]/50 text-muted">
+                        <td className="px-4 py-2">{h.account_name ?? "Unknown"}</td>
+                        <td className="px-4 py-2 text-right font-mono">{formatQuantity(h.quantity)}</td>
+                        <td className="px-4 py-2 text-right">{formatCurrencyLocale(h.cost_basis, h.currency)}</td>
+                        <td className="px-4 py-2">{formatDateDisplay(h.acquisition_date)}</td>
+                        <td className="px-4 py-2">{h.disposal_date ? formatDateDisplay(h.disposal_date) : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -398,9 +230,7 @@ export default function HoldingDetailPage() {
 
       {activeTab === "dividends" && (
         <div className="card">
-          <div className="card-header">
-            <h2 className="text-sm font-medium">Dividend Events</h2>
-          </div>
+          <div className="card-header"><h2 className="text-sm font-medium">Dividend Events</h2></div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -409,39 +239,22 @@ export default function HoldingDetailPage() {
                   <th className="text-left px-4 py-2 font-medium">Pay Date</th>
                   <th className="text-right px-4 py-2 font-medium">Amount</th>
                   <th className="text-left px-4 py-2 font-medium">Currency</th>
-                  <th className="text-left px-4 py-2 font-medium">
-                    Reinvested
-                  </th>
+                  <th className="text-left px-4 py-2 font-medium">Reinvested</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {dividends.length ? (
                   dividends.map((event) => (
                     <tr key={event.id}>
-                      <td className="px-4 py-2">
-                        {formatDateDisplay(event.ex_date)}
-                      </td>
-                      <td className="px-4 py-2">
-                        {formatDateDisplay(event.pay_date)}
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        {formatCurrencyLocale(event.amount, event.currency)}
-                      </td>
+                      <td className="px-4 py-2">{formatDateDisplay(event.ex_date)}</td>
+                      <td className="px-4 py-2">{formatDateDisplay(event.pay_date)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrencyLocale(event.amount, event.currency)}</td>
                       <td className="px-4 py-2">{event.currency}</td>
-                      <td className="px-4 py-2">
-                        {event.reinvested ? "Yes" : "No"}
-                      </td>
+                      <td className="px-4 py-2">{event.reinvested ? "Yes" : "No"}</td>
                     </tr>
                   ))
                 ) : (
-                  <tr>
-                    <td
-                      className="px-4 py-6 text-center text-muted"
-                      colSpan={5}
-                    >
-                      No dividends recorded.
-                    </td>
-                  </tr>
+                  <tr><td className="px-4 py-6 text-center text-muted" colSpan={5}>No dividends recorded.</td></tr>
                 )}
               </tbody>
             </table>
@@ -451,9 +264,7 @@ export default function HoldingDetailPage() {
 
       {activeTab === "realized" && (
         <div className="card">
-          <div className="card-header">
-            <h2 className="text-sm font-medium">Realized P&L Lots</h2>
-          </div>
+          <div className="card-header"><h2 className="text-sm font-medium">Realized P&L Lots</h2></div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -464,57 +275,28 @@ export default function HoldingDetailPage() {
                   <th className="text-right px-4 py-2 font-medium">Quantity</th>
                   <th className="text-right px-4 py-2 font-medium">Basis</th>
                   <th className="text-right px-4 py-2 font-medium">Proceeds</th>
-                  <th className="text-right px-4 py-2 font-medium">
-                    Gain/Loss
-                  </th>
-                  <th className="text-right px-4 py-2 font-medium">
-                    Holding Period
-                  </th>
+                  <th className="text-right px-4 py-2 font-medium">Gain/Loss</th>
+                  <th className="text-right px-4 py-2 font-medium">Holding Period</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {realizedLots.length ? (
                   realizedLots.map((lot) => (
                     <tr key={lot.lot_id}>
-                      <td className="px-4 py-2 font-mono">
-                        {lot.lot_id.slice(0, 8)}
-                      </td>
-                      <td className="px-4 py-2">
-                        {lot.acquired_date
-                          ? formatDateDisplay(lot.acquired_date)
-                          : "\u2014"}
-                      </td>
-                      <td className="px-4 py-2">
-                        {formatDateDisplay(lot.sold_date)}
-                      </td>
-                      <td className="px-4 py-2 text-right font-mono">
-                        {formatQuantity(lot.quantity)}
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        {formatCurrencyLocale(lot.basis, lot.currency)}
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        {formatCurrencyLocale(lot.proceeds, lot.currency)}
-                      </td>
-                      <td
-                        className={`px-4 py-2 text-right font-medium ${pnlColorClass(lot.gain_loss)}`}
-                      >
+                      <td className="px-4 py-2 font-mono">{lot.lot_id.slice(0, 8)}</td>
+                      <td className="px-4 py-2">{lot.acquired_date ? formatDateDisplay(lot.acquired_date) : "—"}</td>
+                      <td className="px-4 py-2">{formatDateDisplay(lot.sold_date)}</td>
+                      <td className="px-4 py-2 text-right font-mono">{formatQuantity(lot.quantity)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrencyLocale(lot.basis, lot.currency)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrencyLocale(lot.proceeds, lot.currency)}</td>
+                      <td className={`px-4 py-2 text-right font-medium ${pnlColorClass(lot.gain_loss)}`}>
                         {formatCurrencyLocale(lot.gain_loss, lot.currency)}
                       </td>
-                      <td className="px-4 py-2 text-right">
-                        {lot.holding_period ?? "\u2014"}
-                      </td>
+                      <td className="px-4 py-2 text-right">{lot.holding_period ?? "—"}</td>
                     </tr>
                   ))
                 ) : (
-                  <tr>
-                    <td
-                      className="px-4 py-6 text-center text-muted"
-                      colSpan={8}
-                    >
-                      No realized lots recorded.
-                    </td>
-                  </tr>
+                  <tr><td className="px-4 py-6 text-center text-muted" colSpan={8}>No realized lots recorded.</td></tr>
                 )}
               </tbody>
             </table>
