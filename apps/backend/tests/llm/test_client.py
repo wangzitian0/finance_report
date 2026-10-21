@@ -502,3 +502,86 @@ def test_AC_llm_provider_error_code_1_text_stays_the_class_name_without_status_o
     # A code that is not a 3-5 digit number is not a provider code.
     err = client_mod._wrap(_ProviderError('{"error":{"code":"rate_limited"}}', status_code=429))
     assert str(err) == "LLM provider call failed (_ProviderError, http 429)"
+
+
+@pytest.fixture
+def provider_429():
+    """A local server that answers every request with HTTP 429 and the body set by the test.
+
+    The app client and litellm run for real, so the exception text is the one staging prints.
+    """
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    state: dict = {"body": {}}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("content-length", 0)))
+            raw = json.dumps(state["body"]).encode()
+            self.send_response(429)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    provider = ProviderRef(
+        id="env",
+        label="zai",
+        protocol=ProtocolFamily.OPENAI_COMPATIBLE,
+        api_key="k",
+        api_base=f"http://127.0.0.1:{server.server_port}/v1",
+    )
+    yield state, provider
+    server.shutdown()
+    server.server_close()
+
+
+async def _text_of_failed_call(provider: ProviderRef) -> tuple[str, bool]:
+    with pytest.raises(LLMError) as ei:
+        async for _ in litellm_stream([{"role": "user", "content": "x"}], provider=provider, model_id="glm-5.3-flashx"):
+            pass
+    return str(ei.value), ei.value.retryable
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        # litellm turns this standard body into message text only; the code must come from the body.
+        ({"error": {"code": "1302", "message": "Rate limit reached for requests"}}, "provider code 1302"),
+        ({"error": {"code": 1113, "message": "Insufficient balance"}}, "provider code 1113"),
+        ({"code": 1305, "msg": "too many requests", "success": False}, "provider code 1305"),
+        # No numeric code: only the class and the status.
+        ({"error": {"code": "rate_limited", "message": "slow down"}}, None),
+        ({"error": {"message": "slow down"}}, None),
+    ],
+)
+async def test_AC_llm_provider_error_code_1_real_429_body_gives_the_code_through_litellm(provider_429, body, expected):
+    """AC-llm.provider-error-code.1: the code reaches the text for each body shape the provider sends."""
+    state, provider = provider_429
+    state["body"] = body
+
+    text, retryable = await _text_of_failed_call(provider)
+
+    want = "LLM provider call failed (RateLimitError, http 429" + (f", {expected}" if expected else "") + ")"
+    assert text == want
+    assert retryable is True
+
+
+async def test_AC_llm_provider_error_code_1_real_429_message_text_never_reaches_the_error(provider_429):
+    """AC-llm.provider-error-code.1: a secret in the provider message stays out of the text."""
+    state, provider = provider_429
+    state["body"] = {"error": {"code": "1113", "message": "key sk-SECRET-123 at https://x.example/v1 Bearer abc"}}
+
+    text, _ = await _text_of_failed_call(provider)
+
+    assert text == "LLM provider call failed (RateLimitError, http 429, provider code 1113)"
+    for leaked in ("sk-SECRET", "Bearer", "https://"):
+        assert leaked not in text
