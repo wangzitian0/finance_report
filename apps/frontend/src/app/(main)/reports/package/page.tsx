@@ -36,7 +36,6 @@ import { formatDateInput } from "@/lib/date";
 import { lineageQuery } from "@/lib/lineage";
 import { reportPeriodError, reportPeriodStart } from "@/lib/reportPackage";
 import type {
-  EvidenceLineageResponse,
   PersonalReportPackageSnapshotSummary,
   PersonalReportPackageTraceabilityLine,
   PersonalReportingFrameworkId,
@@ -44,25 +43,17 @@ import type {
 
 export default function PersonalReportPackagePage() {
   const queryClient = useQueryClient();
-  const [selectedFrameworkId, setSelectedFrameworkId] =
-    useState<PersonalReportingFrameworkId | null>(null);
-  const [reportDate, setReportDate] = useState(() =>
-    formatDateInput(new Date()),
-  );
+  const [selectedFrameworkId, setSelectedFrameworkId] = useState<PersonalReportingFrameworkId | null>(null);
+  const [reportDate, setReportDate] = useState(() => formatDateInput(new Date()));
   const [selectedStartDate, setSelectedStartDate] = useState<string | null>(null);
   const startDate = selectedStartDate ?? reportPeriodStart(reportDate);
   const periodError = reportPeriodError(startDate, reportDate);
-  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(
-    null,
-  );
-  const [lineagePanel, setLineagePanel] = useState<LineagePanelState | null>(
-    null,
-  );
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
+  const [lineagePanel, setLineagePanel] = useState<LineagePanelState | null>(null);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [generatingSnapshot, setGeneratingSnapshot] = useState(false);
-  const [downloadingSnapshot, setDownloadingSnapshot] = useState<string | null>(
-    null,
-  );
+  const [downloadingSnapshot, setDownloadingSnapshot] = useState<string | null>(null);
+
   const {
     contract,
     document: packageDocument,
@@ -70,12 +61,7 @@ export default function PersonalReportPackagePage() {
     isPackageRefreshing,
     isPackageLoading,
     error,
-  } = usePersonalReportPackage(
-    selectedFrameworkId,
-    reportDate,
-    selectedSnapshotId,
-    startDate,
-  );
+  } = usePersonalReportPackage(selectedFrameworkId, reportDate, selectedSnapshotId, startDate);
 
   async function openLineagePanel(line: PersonalReportPackageTraceabilityLine) {
     setLineagePanel({ line, response: null, isLoading: true, error: null });
@@ -87,13 +73,7 @@ export default function PersonalReportPackagePage() {
           anchor: null,
           nodes: [],
           edges: [],
-          blockers: [
-            {
-              code: "lineage_anchor_missing",
-              message:
-                "No graph-compatible UUID anchor exists for this traceability row.",
-            },
-          ],
+          blockers: [{ code: "lineage_anchor_missing", message: "No graph-compatible UUID anchor exists for this traceability row." }],
           max_depth: 6,
         },
         isLoading: false,
@@ -103,22 +83,14 @@ export default function PersonalReportPackagePage() {
     }
 
     try {
-      const response = await apiOperation(
-        "get_evidence_lineage_evidence_lineage_get",
-        {
-          query: lineageQuery(anchor),
-        },
-      );
+      const response = await apiOperation("get_evidence_lineage_evidence_lineage_get", { query: lineageQuery(anchor) });
       setLineagePanel({ line, response, isLoading: false, error: null });
     } catch (err) {
       setLineagePanel({
         line,
         response: null,
         isLoading: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : "Failed to load evidence lineage.",
+        error: err instanceof Error ? err.message : "Failed to load evidence lineage.",
       });
     }
   }
@@ -128,24 +100,12 @@ export default function PersonalReportPackagePage() {
     setGeneratingSnapshot(true);
     setSnapshotError(null);
     try {
-      const snapshot = await generatePackageSnapshot(
-        selectedFrameworkId,
-        reportDate,
-        startDate,
-      );
+      const snapshot = await generatePackageSnapshot(selectedFrameworkId, reportDate, startDate);
       setSelectedSnapshotId(snapshot.id);
-      // EPIC-022 AC22.18.3 (#1109): instrument report-package generation. The
-      // framework id is a safe, non-PII selector (e.g. personal_us_gaap_like).
-      track(ANALYTICS_EVENTS.REPORT_GENERATED, {
-        framework_id: selectedFrameworkId,
-      });
+      track(ANALYTICS_EVENTS.REPORT_GENERATED, { framework_id: selectedFrameworkId });
       await invalidateReportPackageQueries(queryClient);
     } catch (err) {
-      setSnapshotError(
-        err instanceof Error
-          ? err.message
-          : "Failed to generate package snapshot.",
-      );
+      setSnapshotError(err instanceof Error ? err.message : "Failed to generate package snapshot.");
     } finally {
       setGeneratingSnapshot(false);
     }
@@ -159,10 +119,7 @@ export default function PersonalReportPackagePage() {
     setSelectedStartDate(snapshot.start_date);
   }
 
-  async function downloadPackageSnapshot(
-    snapshot: PersonalReportPackageSnapshotSummary,
-    format: "json" | "csv",
-  ) {
+  async function downloadPackageSnapshot(snapshot: PersonalReportPackageSnapshotSummary, format: "json" | "csv") {
     setDownloadingSnapshot(`${snapshot.id}:${format}`);
     setSnapshotError(null);
     try {
@@ -173,45 +130,35 @@ export default function PersonalReportPackagePage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download =
-        filename || `personal-report-package-${snapshot.id}.${format}`;
+      link.download = filename || `personal-report-package-${snapshot.id}.${format}`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setSnapshotError(
-        err instanceof Error
-          ? err.message
-          : `Failed to download ${format.toUpperCase()} snapshot.`,
-      );
+      setSnapshotError(err instanceof Error ? err.message : `Failed to download ${format.toUpperCase()} snapshot.`);
     } finally {
       setDownloadingSnapshot(null);
     }
   }
 
-  if (error) {
-    return <div className="p-6 text-[var(--error)]">{error}</div>;
-  }
+  if (error) return <div className="p-6 text-[var(--error)]">{error}</div>;
 
   if (!contract) {
     return (
-      <div
-        role="status"
-        aria-label="Loading report package"
-        aria-busy="true"
-        aria-live="polite"
-        className="p-6 text-muted"
-      >
+      <div role="status" aria-label="Loading report package" aria-busy="true" aria-live="polite" className="p-6 text-muted">
         Loading package document...
       </div>
     );
   }
 
-  const selectedFrameworkLabel = selectedFrameworkId
-    ? (FRAMEWORK_LABELS[selectedFrameworkId] ?? selectedFrameworkId)
-    : null;
-
+  const selectedFrameworkLabel = selectedFrameworkId ? (FRAMEWORK_LABELS[selectedFrameworkId] ?? selectedFrameworkId) : null;
+  const header = (
+    <div className="page-header">
+      <h1 className="page-title">Personal Report Package</h1>
+      <p className="page-description">{contract.package_id}</p>
+    </div>
+  );
   const frameworkSelection = (
     <PackageFrameworkSelection
       contract={contract}
@@ -225,11 +172,7 @@ export default function PersonalReportPackagePage() {
         setSelectedStartDate(nextDate);
       }}
       onSelectFramework={(frameworkId) => {
-        if (
-          frameworkId !== "personal_us_gaap_like" &&
-          frameworkId !== "personal_hkfrs_like"
-        )
-          return;
+        if (frameworkId !== "personal_us_gaap_like" && frameworkId !== "personal_hkfrs_like") return;
         setSelectedSnapshotId(null);
         setSelectedFrameworkId(frameworkId);
       }}
@@ -243,16 +186,8 @@ export default function PersonalReportPackagePage() {
   if (!selectedFrameworkId) {
     return (
       <div className="p-6">
-        <div className="page-header">
-          <h1 className="page-title">Personal Report Package</h1>
-          <p className="page-description">{contract.package_id}</p>
-        </div>
-        <PackageCover
-          contract={contract}
-          reportDate={reportDate}
-          startDate={startDate}
-          selectedFrameworkLabel={selectedFrameworkLabel}
-        />
+        {header}
+        <PackageCover contract={contract} reportDate={reportDate} startDate={startDate} selectedFrameworkLabel={selectedFrameworkLabel} />
         {frameworkSelection}
         <PackageTableOfContents links={packageTocLinks(contract, false)} />
         <PackageSetupGuidance />
@@ -260,24 +195,13 @@ export default function PersonalReportPackagePage() {
     );
   }
 
-  const outputTocLinks = packageTocLinks(
-    packageDocument?.contract ?? contract,
-    true,
-  );
+  const outputTocLinks = packageTocLinks(packageDocument?.contract ?? contract, true);
 
   if (periodError || isPackageLoading || !packageDocument) {
     return (
       <div className="p-6">
-        <div className="page-header">
-          <h1 className="page-title">Personal Report Package</h1>
-          <p className="page-description">{contract.package_id}</p>
-        </div>
-        <PackageCover
-          contract={contract}
-          reportDate={reportDate}
-          startDate={startDate}
-          selectedFrameworkLabel={selectedFrameworkLabel}
-        />
+        {header}
+        <PackageCover contract={contract} reportDate={reportDate} startDate={startDate} selectedFrameworkLabel={selectedFrameworkLabel} />
         {frameworkSelection}
         <PackageTableOfContents links={outputTocLinks} />
         {!periodError && <PackageLoadingSkeleton />}
@@ -285,36 +209,15 @@ export default function PersonalReportPackagePage() {
     );
   }
 
-  const evidenceReferences = evidenceBundleReferences(
-    packageDocument.framework_policy,
-  );
-  // A date change keeps the previous document on screen while the new one loads. The cover then
-  // shows the dates of that document, never the requested ones, and a snapshot cannot be
-  // generated from it (#2583 S4).
-  const canGenerateSnapshot = Boolean(
-    selectedFrameworkId &&
-      !periodError &&
-      !generatingSnapshot &&
-      !isPackageRefreshing,
-  );
-  const shownContext =
-    packageDocument.lifecycle === "frozen" || isPackageRefreshing
-      ? packageDocument.context
-      : null;
+  const evidenceReferences = evidenceBundleReferences(packageDocument.framework_policy);
+  const canGenerateSnapshot = Boolean(selectedFrameworkId && !periodError && !generatingSnapshot && !isPackageRefreshing);
+  const shownContext = packageDocument.lifecycle === "frozen" || isPackageRefreshing ? packageDocument.context : null;
 
   return (
     <div className="p-6" aria-busy={isPackageRefreshing || undefined}>
-      <div className="page-header">
-        <h1 className="page-title">Personal Report Package</h1>
-        <p className="page-description">{contract.package_id}</p>
-      </div>
-
+      {header}
       {isPackageRefreshing && shownContext ? (
-        <div
-          role="status"
-          aria-live="polite"
-          className="card mb-4 p-3 text-sm text-muted"
-        >
+        <div role="status" aria-live="polite" className="card mb-4 p-3 text-sm text-muted">
           {`Loading the package for ${startDate} to ${reportDate}. The report below still shows ${shownContext.start_date} to ${shownContext.end_date}.`}
         </div>
       ) : null}
@@ -326,11 +229,8 @@ export default function PersonalReportPackagePage() {
         asOfDate={shownContext?.as_of_date ?? reportDate}
         selectedFrameworkLabel={selectedFrameworkLabel}
       />
-
       {frameworkSelection}
-
       <PackageTableOfContents links={outputTocLinks} />
-
       <PackageSnapshotsCard
         snapshots={packageSnapshots}
         snapshotError={snapshotError}
@@ -353,48 +253,20 @@ export default function PersonalReportPackagePage() {
                 : "Live preview. Generate a snapshot to freeze these exact inputs and totals."}
             </p>
           </div>
-          <span className="badge badge-muted">
-            {packageDocument.status === "trusted" ? "Trusted" : "Draft"}
-          </span>
+          <span className="badge badge-muted">{packageDocument.status === "trusted" ? "Trusted" : "Draft"}</span>
         </div>
       </section>
 
       <PackageReadinessSection readiness={packageDocument.readiness} />
-
-      <PackageInputManifestSection
-        coverage={packageDocument.readiness.input_coverage}
-        manifest={packageDocument.input_manifest}
-      />
-
-      <PackageFrameworkPolicySection
-        policy={packageDocument.framework_policy}
-      />
-
+      <PackageInputManifestSection coverage={packageDocument.readiness.input_coverage} manifest={packageDocument.input_manifest} />
+      <PackageFrameworkPolicySection policy={packageDocument.framework_policy} />
       <PackageSectionCards sections={packageDocument.sections} />
-
-      <PackageAnnualizedScheduleSection
-        schedule={packageDocument.sections.annualized_income_long_term}
-      />
-
+      <PackageAnnualizedScheduleSection schedule={packageDocument.sections.annualized_income_long_term} />
       <PackageNotesSection notes={packageDocument.sections.notes} />
+      <PackageTraceabilitySection appendix={packageDocument.sections.traceability_appendix} onTrace={(line) => void openLineagePanel(line)} />
+      <PackageExportContractSection contract={packageDocument.contract} policy={packageDocument.framework_policy} evidenceReferences={evidenceReferences} />
 
-      <PackageTraceabilitySection
-        appendix={packageDocument.sections.traceability_appendix}
-        onTrace={(line) => void openLineagePanel(line)}
-      />
-
-      <PackageExportContractSection
-        contract={packageDocument.contract}
-        policy={packageDocument.framework_policy}
-        evidenceReferences={evidenceReferences}
-      />
-
-      {lineagePanel ? (
-        <LineagePanelModal
-          panel={lineagePanel}
-          onClose={() => setLineagePanel(null)}
-        />
-      ) : null}
+      {lineagePanel ? <LineagePanelModal panel={lineagePanel} onClose={() => setLineagePanel(null)} /> : null}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { LineagePanel } from "@/components/reports/LineagePanel"
+import { LineagePanel } from "@/components/reports/AccountLineageDrawer"
 import { apiOperation } from "@/lib/api-client"
 import type { LineageAnchor } from "@/lib/lineage"
 
