@@ -1,4 +1,4 @@
-<!-- WS_STATIC_START adapter=rules-v2 inputs=4caa7f6a238ca87e061635610f98f0274446afb6eeb28d38668c9515265ac94a -->
+<!-- WS_STATIC_START adapter=rules-v2 inputs=8f181c27ecaec2a44f9a1649eb32f52e7862cb1f29bab886e591c7d9fccf46f8 -->
 <!-- Generated file: do not edit by hand. These rules are maintained in the owner's rule source and re-rendered here. -->
 
 ## Engineering discipline
@@ -30,6 +30,16 @@
 - **Three-stage deployment prerequisite:** Stage 1 (Merge to main) is a non-bypassable physical prerequisite for Stage 2 and Stage 3. If HEAD is not on main, fail closed and refuse any deployment request.
 - **Deploy provenance invariant:** Before dispatching any deploy workflow, physically verify that the target ref or tag contains current branch commits (`git merge-base --is-ancestor HEAD <target>`). Never deploy an older tag as completion evidence for current work.
 
+## Production reservation
+
+The single definition of the production reservation. Other tiers, skills and gates point here.
+
+- **Only a production change returns to the owner.** A production change alters what production runs or stores. Examples: a deploy, promote or apply to production; a production secret write; a manual production data write or deletion. Also a production DNS, route or host change, and a release that cannot be recalled. Code that reaches production with no later owner approval, for example on a schedule, counts too. Each Repo tier names its production paths.
+- **Approval:** the owner approves the exact commit SHA or release tag of each production change, and is present when it runs. A "deploy" reply covers only the release that it names. Immediately before a production dispatch, get a live reply from the owner.
+- **Self-guard:** an edit that removes, narrows or redefines the production reservation needs the owner's approval of its head SHA. This includes an edit that makes fewer production runs wait for the owner. Examples: the owner-approval check of a deploy path, a production job classification, the settings of a production environment. It also includes an edit that removes or weakens a pin of this section or its dev_env pin test. The same holds for the required check that runs the test.
+- **Everything else is the agent's:** in a repository that the owner owns, every merge, staging and canary deploy, and release tag. Also rule text, skills, gate code, data and tests, required-check workflows and release code. Before you merge gate or release code, a read-only reviewer that did not write it checks the head. The review states whether the gate gets stricter, stays equal or gets looser. A looser edit in the self-guard list follows the self-guard.
+- **Every other hold is a defect:** a rule, skill, label or gate exit code that holds non-production work for the owner. Do the work, then fix the hold. The dev_env check `ws_owner_scope` fails on it.
+
 ## Runtime safety
 
 - **Reason from the worst case.** For environment changes, wrappers, redirection, or interception rules, check for no-TTY deadlock in CI or child processes, concurrent shared-file truncation/races, and network or cold-start failure cascades. Reject a proposal whose lack of backlash cannot be established.
@@ -41,8 +51,8 @@
 # Finance Report — Agent & Contributor Guide
 
 > **Rule source**: This file is generated. Change its dev_env source and pass the rule-text checklist; do not hand-edit it.
-> **Merge authority**: AI deliverable = CI-passing PR. An agent merges it when every condition in [docs/contributing/branch-policy.md](docs/contributing/branch-policy.md) §4 holds. **Production reservation.** The owner approves every production change, for the precise commit or tag in question, and is present when it runs. A production change is anything that alters what production runs or stores: a release, promote or apply; a secret value; a manual data write or deletion; DNS, routes or the host; and whatever this repository's release pipeline names as production. A "deploy" reply authorizes only the release it names, and the dispatching session first hears from the owner directly. An edit that weakens this block, or the gate code and wording behind it, also needs the owner. A release workflow deploys, promotes or applies to a production environment. The release code is the code that a release workflow runs. The owner also approves each edit to merge-gate code or data, even when the gate proves it tighter. Only a proven tightening of the infra2 gate inventory, with a verified run as defined below, changes this. A workflow that defines a required check is part of the gate, so this rule covers its edits too. In a repository with a release workflow, the owner also approves workflow edits and edits to the release code. A verified run is a run of this repository's merge gate that gives exit 0 and prints `production lock verified`. With a verified run, the agent merges an edit to the release code. With a verified run, the agent merges a workflow edit, except in a workflow that defines a required check. With a verified run, the agent merges a proven tightening of the infra2 gate inventory. In a repository whose gate does not print `production lock verified`, these edits stay with the owner. A Repo tier may record an owner decision that replaces this rule for that repository.
-> **Workflow edits**: An owner decision of 2026-10-08 (#2248) replaces the block's rule on workflow and release-code edits here. Workflow edits and release-code edits are the agent's, like any other non-production change. The production release is a dispatch of `release.yml`. The owner approves the exact tag of each such dispatch at run time. The block's holds on merge-gate code and data still apply, including required-check workflows.
+> **Merge authority**: AI deliverable = CI-passing PR. An agent merges it when every condition in [docs/contributing/branch-policy.md](docs/contributing/branch-policy.md) §4 holds. That covers gate code, workflows and release code once the review that the Root section `Production reservation` requires is on the PR.
+> **Production here**: a dispatch of `release.yml` is the production release.
 > **Checklist**: Before completing a task, verify every item in [docs/agents/orchestration.md](docs/agents/orchestration.md).
 > **Language**: All code, PRs, commits, issues, and repo docs must be in **English**.
 > Conversation with the user follows the **user's language** — answer in the language the question was asked in.
@@ -174,7 +184,7 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 - ❌ No direct commits to `main`
 - Parallel PR branches are allowed when [branch-policy.md](docs/contributing/branch-policy.md) rule 3 holds
 - Agents may merge a PR that meets every condition in [branch-policy.md](docs/contributing/branch-policy.md) §4
-- ❌ Agents do not merge a PR whose merge reaches **production**; it needs the user's approval of that exact head SHA. A protected-file change merges once the protected-file checklist in [branch-policy.md](docs/contributing/branch-policy.md) §4 passes. A merge that only triggers a preview/staging redeploy is the agent's call — see [branch-policy.md](docs/contributing/branch-policy.md) §4 for exactly which workflows reach which environment.
+- A merge that reaches **production** is a production change (Root section `Production reservation`). A protected-file change merges once the protected-file checklist in [branch-policy.md](docs/contributing/branch-policy.md) §4 passes. A merge that only triggers a preview/staging redeploy is the agent's call — see [branch-policy.md](docs/contributing/branch-policy.md) §4 for exactly which workflows reach which environment.
 - Install pre-commit hooks: `make install`
 - Run `moon run :lint && moon run :test` before pushing
 - A mergeable PR must resolve all Copilot auto-review comments (either by fixing them or providing a justification for not doing so). Reply on the thread with what changed *before* resolving it, then resolve the thread on GitHub.
@@ -182,7 +192,7 @@ Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-pol
 - A "verified against staging/production" claim is only true if the verification mechanism actually targeted the commit you think it did (e.g. a post-merge gate dispatched without an explicit version/commit pin defaults to whatever is *currently deployed*, which may predate your merge) — confirm and state the actual commit/version before reporting a live result.
 - Delivery does not end at first green: keep watching the open PR (new CI runs, late CR comments, conflicts from other merges) and fix regressions unprompted, until the PR is merged (by you once §4 holds; when §4 fails, fix the cause) — see the PR Lifecycle Loop in [docs/agents/orchestration.md](docs/agents/orchestration.md).
 - The merge (announced or detected) is itself the continue signal: resync `main`, rebase remaining branches, and proceed to the next planned slice without waiting for a fresh instruction.
-- A product judgment is not a reason to stop: decide, record why in the PR or issue, and keep the change reversible. Only production, and edits to merge-gate code or data, wait for the user. While they wait, start the next independent planned slice.
+- A product judgment is not a reason to stop: decide, record why in the PR or issue, and keep the change reversible. Only a production change waits for the user. While they wait, start the next independent planned slice.
 
 ---
 

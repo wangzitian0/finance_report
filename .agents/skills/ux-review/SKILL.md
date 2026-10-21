@@ -43,6 +43,6 @@ Item → issue → action → goal → acceptance criteria, **ROI-ranked**. Merg
 like-with-like: ~4-5 issues per round, orthogonal to existing ones (amend,
 don't duplicate). Screenshots must not contain real financial data (RL-6).
 
-Behavior is proven by tests, but **visual quality is judged by human eyes and
-simulators** (AGENTS.md) — recommend and rank; never self-certify a visual
-outcome as done.
+Behavior is proven by tests. **Visual quality passes this skill on simulator or
+browser captures** (AGENTS.md), and an independent read-only reviewer checks the
+captures. Recommend and rank; do not certify your own visual outcome as done.
