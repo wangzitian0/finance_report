@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 
-import { BackLink } from "@/components/ui/BackLink";
+import { BackLink } from "@/components/ui/SmartBackLink";
 import AiSuggestionsPage from "@/app/(main)/review/ai-suggestions/page";
 import { apiOperation } from "@/lib/api-client";
 

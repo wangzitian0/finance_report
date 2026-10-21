@@ -41,14 +41,7 @@ interface TrustScoreHeroProps {
   onRefresh?: () => void;
 }
 
-export function TrustScoreHero({
-  score,
-  grade,
-  asOfDate,
-  currency,
-  isRefreshing,
-  onRefresh,
-}: TrustScoreHeroProps) {
+export function TrustScoreHero({ score, grade, asOfDate, currency, isRefreshing, onRefresh }: TrustScoreHeroProps) {
   const gradeColor = getGradeColor(grade);
   const gradeLabel = getGradeLabel(grade);
   const radius = 48;
@@ -87,16 +80,9 @@ export function TrustScoreHero({
             <div className="flex items-center gap-2">
               <span
                 className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
-                style={{
-                  backgroundColor: `color-mix(in srgb, ${gradeColor} 15%, transparent)`,
-                  color: gradeColor,
-                }}
+                style={{ backgroundColor: `color-mix(in srgb, ${gradeColor} 15%, transparent)`, color: gradeColor }}
               >
-                {score >= 80 ? (
-                  <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                ) : (
-                  <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                )}
+                {score >= 80 ? <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /> : <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />}
                 {gradeLabel}
               </span>
             </div>
@@ -180,6 +166,7 @@ export function ActionChecklist({ actionItems }: { actionItems: QualityActionIte
                 : item.action_type === "RECONCILE_TRANSACTIONS"
                   ? GitMerge
                   : AlertOctagon;
+          const toneVar = isP0 ? "var(--error)" : isP1 ? "var(--warning)" : "var(--accent)";
 
           return (
             <div
@@ -194,27 +181,14 @@ export function ActionChecklist({ actionItems }: { actionItems: QualityActionIte
             >
               <div className="flex items-start gap-3">
                 <span
-                  className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${
-                    isP0
-                      ? "bg-[color-mix(in_srgb,var(--error)_15%,transparent)] text-[var(--error)]"
-                      : isP1
-                        ? "bg-[color-mix(in_srgb,var(--warning)_15%,transparent)] text-[var(--warning)]"
-                        : "bg-[color-mix(in_srgb,var(--accent)_15%,transparent)] text-[var(--accent)]"
-                  }`}
+                  className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg"
+                  style={{ backgroundColor: `color-mix(in srgb, ${toneVar} 15%, transparent)`, color: toneVar }}
                 >
                   <ActionIcon className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`inline-block rounded px-2 py-0.5 text-[11px] font-semibold ${
-                        isP0
-                          ? "bg-[var(--error)] text-white"
-                          : isP1
-                            ? "bg-[var(--warning)] text-white"
-                            : "bg-[var(--background-muted)] text-muted"
-                      }`}
-                    >
+                    <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-semibold ${isP0 ? "bg-[var(--error)] text-white" : isP1 ? "bg-[var(--warning)] text-white" : "bg-[var(--background-muted)] text-muted"}`}>
                       {item.priority}
                     </span>
                     <span className="font-semibold text-sm">{item.title}</span>
@@ -226,12 +200,8 @@ export function ActionChecklist({ actionItems }: { actionItems: QualityActionIte
                 </div>
               </div>
 
-              <Link
-                href={item.action_url}
-                className="btn-primary inline-flex flex-shrink-0 items-center gap-1.5 self-end px-3.5 py-1.5 text-xs sm:self-center"
-              >
-                Resolve
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              <Link href={item.action_url} className="btn-primary inline-flex flex-shrink-0 items-center gap-1.5 self-end px-3.5 py-1.5 text-xs sm:self-center">
+                Resolve <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
               </Link>
             </div>
           );
@@ -268,55 +238,30 @@ export function InvariantChecksGrid({
       <div className="grid gap-4 sm:grid-cols-2">
         {cards.map(({ invariant, icon: Icon, fallbackName, proofFormula }) => {
           const isHealthy = Boolean(invariant?.is_healthy);
+          const toneVar = isHealthy ? "var(--success)" : "var(--warning)";
           return (
             <div
               key={fallbackName}
               className={`card flex flex-col justify-between p-5 transition-colors ${
-                isHealthy
-                  ? "border-[var(--border)] hover:border-[var(--success)]"
-                  : "border-[var(--warning)] bg-[color-mix(in_srgb,var(--warning)_4%,transparent)]"
+                isHealthy ? "border-[var(--border)] hover:border-[var(--success)]" : "border-[var(--warning)] bg-[color-mix(in_srgb,var(--warning)_4%,transparent)]"
               }`}
             >
               <div>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span
-                      className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                        isHealthy
-                          ? "bg-[color-mix(in_srgb,var(--success)_15%,transparent)] text-[var(--success)]"
-                          : "bg-[color-mix(in_srgb,var(--warning)_15%,transparent)] text-[var(--warning)]"
-                      }`}
-                    >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ backgroundColor: `color-mix(in srgb, ${toneVar} 15%, transparent)`, color: toneVar }}>
                       <Icon className="h-4 w-4" aria-hidden="true" />
                     </span>
                     <span className="text-sm font-semibold">{invariant?.name || fallbackName}</span>
                   </div>
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
-                      isHealthy
-                        ? "bg-[color-mix(in_srgb,var(--success)_15%,transparent)] text-[var(--success)]"
-                        : "bg-[color-mix(in_srgb,var(--warning)_15%,transparent)] text-[var(--warning)]"
-                    }`}
-                  >
-                    {isHealthy ? (
-                      <>
-                        <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                        Verified
-                      </>
-                    ) : (
-                      <>
-                        <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                        Attention
-                      </>
-                    )}
+                  <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium" style={{ backgroundColor: `color-mix(in srgb, ${toneVar} 15%, transparent)`, color: toneVar }}>
+                    {isHealthy ? <><CheckCircle2 className="h-3 w-3" aria-hidden="true" />Verified</> : <><AlertTriangle className="h-3 w-3" aria-hidden="true" />Attention</>}
                   </span>
                 </div>
                 <p className="mt-3 text-xs font-mono text-muted">{proofFormula}</p>
                 <p className="mt-1 text-sm font-medium">{invariant?.summary ?? "Pending verification."}</p>
               </div>
-              {invariant?.detail && (
-                <p className="mt-3 border-t border-[var(--border)] pt-2 text-xs text-muted">{invariant.detail}</p>
-              )}
+              {invariant?.detail && <p className="mt-3 border-t border-[var(--border)] pt-2 text-xs text-muted">{invariant.detail}</p>}
             </div>
           );
         })}
@@ -440,52 +385,31 @@ export function ProcessingSummaryCard() {
   }
 
   const pendingCount = summary?.pending_count ?? 0;
-  const currentBalance =
-    summary?.current_balance ?? summary?.pending_total ?? "0.00";
+  const currentBalance = summary?.current_balance ?? summary?.pending_total ?? "0.00";
   const currency = summary?.currency ?? "SGD";
   const hasUnresolvedBalance = !isAmountZero(currentBalance, 0);
 
   return (
-    <Link
-      href="/processing"
-      className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block"
-    >
+    <Link href="/processing" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
       <div className="flex justify-between items-start">
         <div>
           <p className="text-xs text-muted uppercase">Processing</p>
-          <p
-            className={`text-2xl font-semibold mt-1 ${hasUnresolvedBalance ? "text-[var(--warning)]" : ""}`}
-            data-testid="processing-balance"
-          >
+          <p className={`text-2xl font-semibold mt-1 ${hasUnresolvedBalance ? "text-[var(--warning)]" : ""}`} data-testid="processing-balance">
             {formatCurrency(currentBalance, currency)}
           </p>
-          <p
-            className="text-sm font-medium mt-1"
-            data-testid="processing-count"
-          >
-            {pendingCount} Pending
-          </p>
+          <p className="text-sm font-medium mt-1" data-testid="processing-count">{pendingCount} Pending</p>
         </div>
         {hasUnresolvedBalance ? (
-          <AlertTriangle
-            className="w-5 h-5 text-[var(--warning)]"
-            aria-label="Unresolved Processing Account balance"
-          />
+          <AlertTriangle className="w-5 h-5 text-[var(--warning)]" aria-label="Unresolved Processing Account balance" />
         ) : (
           <Clock className="w-5 h-5 text-muted" aria-hidden="true" />
         )}
       </div>
-      {hasUnresolvedBalance ? (
-        <p className="text-xs text-[var(--warning)] mt-2">
-          Unresolved in-transit balance
-        </p>
-      ) : (
-        <p className="text-xs text-muted mt-2">Balanced</p>
-      )}
+      <p className={`text-xs mt-2 ${hasUnresolvedBalance ? "text-[var(--warning)]" : "text-muted"}`}>
+        {hasUnresolvedBalance ? "Unresolved in-transit balance" : "Balanced"}
+      </p>
       {summary?.oldest_pending_date && (
-        <p className="text-xs text-muted mt-2">
-          Oldest: {formatDateDisplay(summary.oldest_pending_date)}
-        </p>
+        <p className="text-xs text-muted mt-2">Oldest: {formatDateDisplay(summary.oldest_pending_date)}</p>
       )}
     </Link>
   );

@@ -42,7 +42,8 @@ vi.mock("@/components/ui/ConfirmDialog", () => ({
       </div>
     ) : null,
 }))
-vi.mock("@/components/accounts/AccountFormModal", () => ({
+vi.mock("@/components/accounts/AccountFormModal", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/accounts/AccountFormModal")>()),
   default: ({ isOpen, editAccount, onSuccess, onClose }: { isOpen: boolean; editAccount: Account | null; onSuccess?: () => void; onClose?: () => void }) =>
     isOpen ? (
       <div>

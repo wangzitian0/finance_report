@@ -7,132 +7,61 @@ import { CalendarDays, X } from "lucide-react";
 
 import { apiOperation } from "@/lib/api-client";
 import { useBaseCurrency } from "@/hooks/useBaseCurrency";
-import { HoldingsListResponse, PortfolioSummaryResponse } from "@/lib/types";
 import { PerformanceCard } from "@/components/portfolio/PerformanceCard";
 import { LoadingState } from "@/components/ui";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { AllocationChart } from "@/components/portfolio/AllocationChart";
 import { InvestmentPerformanceSchedule } from "@/components/portfolio/InvestmentPerformanceSchedule";
 import { PriceUpdateForm } from "@/components/portfolio/PriceUpdateForm";
-import {
-  amountToChartNumber,
-  formatCurrencyLocale,
-  sumAmounts,
-} from "@/lib/audit/money";
-import {
-  clampPercentWidthFromPercentValue,
-  formatPercentFromPercentValue,
-} from "@/lib/audit/ratio/format";
-import type {
-  InvestmentPerformanceReportSchedule,
-  NetWorthAllocationResponse,
-  NetWorthAllocationRow,
-} from "@/lib/types";
-
-function allocationBarWidth(percentage: string | null | undefined): string {
-  return clampPercentWidthFromPercentValue(percentage);
-}
+import { amountToChartNumber, formatCurrencyLocale, sumAmounts } from "@/lib/audit/money";
+import { clampPercentWidthFromPercentValue, formatPercentFromPercentValue } from "@/lib/audit/ratio/format";
+import type { NetWorthAllocationRow } from "@/lib/types";
 
 function formatAllocationLabel(value: string): string {
-  const labels: Record<string, string> = {
-    retirement_and_benefit_assets: "Retirement & Benefit Assets",
-  };
-  if (labels[value]) return labels[value];
-  return value
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function allocationValueClass(row: NetWorthAllocationRow): string {
-  return amountToChartNumber(row.value) < 0
-    ? "text-[var(--error)]"
-    : "text-[var(--foreground)]";
-}
-
-function allocationBarClass(row: NetWorthAllocationRow): string {
-  return amountToChartNumber(row.value) < 0
-    ? "bg-[var(--error)]"
-    : "bg-[var(--accent)]";
+  if (value === "retirement_and_benefit_assets") return "Retirement & Benefit Assets";
+  return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
 export default function PortfolioPage() {
-  // #1487: derive the reporting currency from app config instead of hardcoding it.
   const { baseCurrency: reportCurrency } = useBaseCurrency();
   const [showDisposed, setShowDisposed] = useState(false);
   const [asOfDate, setAsOfDate] = useState("");
-  const [includeRestrictedAllocation, setIncludeRestrictedAllocation] =
-    useState(true);
+  const [includeRestrictedAllocation, setIncludeRestrictedAllocation] = useState(true);
   const [priceSheetOpen, setPriceSheetOpen] = useState(false);
 
-  const {
-    data: holdings,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
+  const { data: holdings, isLoading, error, refetch } = useQuery({
     queryKey: ["portfolio-holdings", showDisposed, asOfDate],
-    queryFn: () => {
-      return apiOperation("get_holdings_portfolio_holdings_get", {
-        query: {
-          include_disposed: showDisposed || undefined,
-          as_of_date: asOfDate || undefined,
-        },
-      }).then((response) => response.items);
-    },
+    queryFn: () =>
+      apiOperation("get_holdings_portfolio_holdings_get", {
+        query: { include_disposed: showDisposed || undefined, as_of_date: asOfDate || undefined },
+      }).then((res) => res.items),
   });
+
   const { data: summary } = useQuery({
     queryKey: ["portfolio-summary", asOfDate],
-    queryFn: () =>
-      apiOperation("get_portfolio_summary_portfolio_summary_get", {
-        query: { as_of_date: asOfDate || undefined },
-      }),
+    queryFn: () => apiOperation("get_portfolio_summary_portfolio_summary_get", { query: { as_of_date: asOfDate || undefined } }),
   });
-  const {
-    data: performanceSchedule,
-    isLoading: isPerformanceScheduleLoading,
-    error: performanceScheduleError,
-  } = useQuery({
+
+  const { data: performanceSchedule, isLoading: isPerformanceScheduleLoading, error: performanceScheduleError } = useQuery({
     queryKey: ["portfolio-performance-report-schedule", asOfDate, reportCurrency],
     queryFn: () => {
       const yearStart = asOfDate ? `${asOfDate.slice(0, 4)}-01-01` : undefined;
-      return apiOperation(
-        "get_investment_performance_report_schedule_portfolio_performance_report_schedule_get",
-        {
-          query: {
-            period_start: yearStart,
-            period_end: asOfDate || undefined,
-            as_of_date: asOfDate || undefined,
-            currency: reportCurrency,
-          },
-        },
-      );
+      return apiOperation("get_investment_performance_report_schedule_portfolio_performance_report_schedule_get", {
+        query: { period_start: yearStart, period_end: asOfDate || undefined, as_of_date: asOfDate || undefined, currency: reportCurrency },
+      });
     },
   });
-  const {
-    data: netWorthAllocation,
-    isLoading: isNetWorthAllocationLoading,
-    error: netWorthAllocationError,
-  } = useQuery({
-    queryKey: [
-      "reports-net-worth-allocation",
-      asOfDate,
-      reportCurrency,
-      includeRestrictedAllocation,
-    ],
+
+  const { data: netWorthAllocation, isLoading: isNetWorthAllocationLoading, error: netWorthAllocationError } = useQuery({
+    queryKey: ["reports-net-worth-allocation", asOfDate, reportCurrency, includeRestrictedAllocation],
     queryFn: () =>
       apiOperation("net_worth_allocation_reports_net_worth_allocation_get", {
-        query: {
-          as_of_date: asOfDate || undefined,
-          currency: reportCurrency,
-          include_restricted: includeRestrictedAllocation,
-        },
+        query: { as_of_date: asOfDate || undefined, currency: reportCurrency, include_restricted: includeRestrictedAllocation },
       }),
   });
 
-  const activeHoldings = holdings?.filter((h) => h.status === "active") ?? [];
-  const totalPortfolioValue = sumAmounts(
-    activeHoldings.map((holding) => holding.market_value),
-  );
+  const activeHoldings = useMemo(() => holdings?.filter((h) => h.status === "active") ?? [], [holdings]);
+  const totalPortfolioValue = sumAmounts(activeHoldings.map((h) => h.market_value));
   const primaryCurrency = activeHoldings[0]?.currency ?? reportCurrency;
   const allocationRows = netWorthAllocation?.rows ?? [];
 
@@ -141,154 +70,82 @@ export default function PortfolioPage() {
       <div className="page-header flex items-center justify-between">
         <div>
           <h1 className="page-title">Portfolio</h1>
-          <p className="page-description">
-            Track your investment holdings, performance, and allocation
-          </p>
+          <p className="page-description">Track your investment holdings, performance, and allocation</p>
         </div>
         <Link
           href="/portfolio/prices"
-          onClick={(e) => {
-            e.preventDefault();
-            setPriceSheetOpen((prev) => !prev);
-          }}
+          onClick={(e) => { e.preventDefault(); setPriceSheetOpen((prev) => !prev); }}
           className="btn-primary flex items-center gap-2"
         >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           Update Prices
         </Link>
       </div>
 
       {priceSheetOpen && (
-        <section
-          data-testid="portfolio-price-update-sheet"
-          className="mb-6 card p-5 border-[var(--accent)]/30"
-        >
+        <section data-testid="portfolio-price-update-sheet" className="mb-6 card p-5 border-[var(--accent)]/30">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold">Update Market Prices</h2>
-              <p className="text-xs text-muted">
-                Enter latest market prices to refresh portfolio valuations inline.
-              </p>
+              <p className="text-xs text-muted">Enter latest market prices to refresh portfolio valuations inline.</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setPriceSheetOpen(false)}
-              className="btn-secondary text-xs px-2.5 py-1"
-            >
-              Close
-            </button>
+            <button type="button" onClick={() => setPriceSheetOpen(false)} className="btn-secondary text-xs px-2.5 py-1">Close</button>
           </div>
           <PriceUpdateForm
-            knownTickers={Array.from(
-              new Set(activeHoldings.map((h) => h.asset_identifier)),
-            )}
-            onSuccess={() => {
-              setPriceSheetOpen(false);
-              void refetch();
-            }}
+            knownTickers={Array.from(new Set(activeHoldings.map((h) => h.asset_identifier)))}
+            onSuccess={() => { setPriceSheetOpen(false); void refetch(); }}
           />
         </section>
       )}
 
-      {/* Total Portfolio Value Banner */}
       {!isLoading && !error && activeHoldings.length > 0 && (
         <div className="mb-6 card p-5" data-testid="total-portfolio-value">
-          <p className="text-xs text-muted uppercase tracking-wide mb-1">
-            Total Portfolio Value
-          </p>
-          <p className="text-3xl font-bold text-[var(--accent)]">
-            {formatCurrencyLocale(totalPortfolioValue, primaryCurrency)}
-          </p>
+          <p className="text-xs text-muted uppercase tracking-wide mb-1">Total Portfolio Value</p>
+          <p className="text-3xl font-bold text-[var(--accent)]">{formatCurrencyLocale(totalPortfolioValue, primaryCurrency)}</p>
           <p className="text-xs text-muted mt-1">
-            Active holdings · {activeHoldings.length} position
-            {activeHoldings.length !== 1 ? "s" : ""}
+            Active holdings · {activeHoldings.length} position{activeHoldings.length !== 1 ? "s" : ""}
           </p>
           {summary && (
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="rounded border border-[var(--border)] p-3">
-                <p className="text-xs text-muted uppercase tracking-wide">
-                  Realized P&L YTD
-                </p>
-                <p className="text-lg font-semibold">
-                  {formatCurrencyLocale(
-                    summary.realized_pnl_ytd,
-                    summary.currency,
-                  )}
-                </p>
+                <p className="text-xs text-muted uppercase tracking-wide">Realized P&L YTD</p>
+                <p className="text-lg font-semibold">{formatCurrencyLocale(summary.realized_pnl_ytd, summary.currency)}</p>
               </div>
               <div className="rounded border border-[var(--border)] p-3">
-                <p className="text-xs text-muted uppercase tracking-wide">
-                  Dividend Income YTD
-                </p>
-                <p className="text-lg font-semibold">
-                  {formatCurrencyLocale(
-                    summary.dividend_income_ytd,
-                    summary.currency,
-                  )}
-                </p>
+                <p className="text-xs text-muted uppercase tracking-wide">Dividend Income YTD</p>
+                <p className="text-lg font-semibold">{formatCurrencyLocale(summary.dividend_income_ytd, summary.currency)}</p>
               </div>
             </div>
           )}
         </div>
       )}
 
-      <section
-        className="mb-6 card p-5"
-        aria-labelledby="net-worth-allocation-title"
-        aria-busy={isNetWorthAllocationLoading}
-      >
+      <section className="mb-6 card p-5" aria-labelledby="net-worth-allocation-title" aria-busy={isNetWorthAllocationLoading}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs text-muted uppercase tracking-wide">
-              Asset Class x Liquidity x Source Currency
-            </p>
-            <h2
-              id="net-worth-allocation-title"
-              className="mt-1 text-base font-semibold"
-            >
-              Net Worth Allocation
-            </h2>
+            <p className="text-xs text-muted uppercase tracking-wide">Asset Class x Liquidity x Source Currency</p>
+            <h2 id="net-worth-allocation-title" className="mt-1 text-base font-semibold">Net Worth Allocation</h2>
             <p className="mt-1 text-sm text-muted">
-              {netWorthAllocation
-                ? `Reconciles to net worth: ${formatCurrencyLocale(netWorthAllocation.net_worth, netWorthAllocation.currency)}`
-                : "Reconciles allocation rows to net worth"}
+              {netWorthAllocation ? `Reconciles to net worth: ${formatCurrencyLocale(netWorthAllocation.net_worth, netWorthAllocation.currency)}` : "Reconciles allocation rows to net worth"}
             </p>
-            {activeHoldings.length > 0 ? (
+            {activeHoldings.length > 0 && (
               <p className="mt-1 text-sm text-muted">
-                Portfolio value shown in {primaryCurrency}:{" "}
-                {formatCurrencyLocale(totalPortfolioValue, primaryCurrency)}
+                Portfolio value shown in {primaryCurrency}: {formatCurrencyLocale(totalPortfolioValue, primaryCurrency)}
               </p>
-            ) : null}
+            )}
           </div>
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="text-xs text-muted md:text-right">
-              <p>
-                Report currency:{" "}
-                {netWorthAllocation?.currency ?? reportCurrency}
-              </p>
-              <p>
-                As of {netWorthAllocation?.as_of_date ?? (asOfDate || "latest")}
-              </p>
+              <p>Report currency: {netWorthAllocation?.currency ?? reportCurrency}</p>
+              <p>As of {netWorthAllocation?.as_of_date ?? (asOfDate || "latest")}</p>
             </div>
             <label className="flex items-center gap-2 rounded border border-[var(--border)] px-3 py-2 text-sm text-muted cursor-pointer">
               <input
                 type="checkbox"
                 checked={includeRestrictedAllocation}
-                onChange={(event) =>
-                  setIncludeRestrictedAllocation(event.target.checked)
-                }
+                onChange={(e) => setIncludeRestrictedAllocation(e.target.checked)}
                 className="rounded"
               />
               <span>Include restricted holdings in allocation</span>
@@ -296,39 +153,20 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-        {netWorthAllocation ? (
+        {netWorthAllocation && (
           <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-            <div className="rounded border border-[var(--border)] p-3">
-              <dt className="text-xs text-muted uppercase">Total assets</dt>
-              <dd className="mt-1 font-semibold">
-                {formatCurrencyLocale(
-                  netWorthAllocation.total_assets,
-                  netWorthAllocation.currency,
-                )}
-              </dd>
-            </div>
-            <div className="rounded border border-[var(--border)] p-3">
-              <dt className="text-xs text-muted uppercase">
-                Total liabilities
-              </dt>
-              <dd className="mt-1 font-semibold">
-                {formatCurrencyLocale(
-                  netWorthAllocation.total_liabilities,
-                  netWorthAllocation.currency,
-                )}
-              </dd>
-            </div>
-            <div className="rounded border border-[var(--border)] p-3">
-              <dt className="text-xs text-muted uppercase">Net worth</dt>
-              <dd className="mt-1 font-semibold">
-                {formatCurrencyLocale(
-                  netWorthAllocation.net_worth,
-                  netWorthAllocation.currency,
-                )}
-              </dd>
-            </div>
+            {([
+              ["Total assets", netWorthAllocation.total_assets],
+              ["Total liabilities", netWorthAllocation.total_liabilities],
+              ["Net worth", netWorthAllocation.net_worth],
+            ] as const).map(([dt, val]) => (
+              <div key={dt} className="rounded border border-[var(--border)] p-3">
+                <dt className="text-xs text-muted uppercase">{dt}</dt>
+                <dd className="mt-1 font-semibold">{formatCurrencyLocale(val, netWorthAllocation.currency)}</dd>
+              </div>
+            ))}
           </dl>
-        ) : null}
+        )}
 
         <div className="mt-4 overflow-hidden rounded border border-[var(--border)]">
           <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(6rem,0.6fr)_minmax(6rem,0.6fr)_minmax(5rem,0.4fr)_minmax(8rem,0.8fr)] gap-3 border-b border-[var(--border)] bg-[var(--background-muted)] px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted md:grid">
@@ -339,105 +177,60 @@ export default function PortfolioPage() {
             <span>Sources</span>
           </div>
           {isNetWorthAllocationLoading ? (
-            <div className="px-3 py-4 text-sm text-muted">
-              Loading net worth allocation...
-            </div>
+            <div className="px-3 py-4 text-sm text-muted">Loading net worth allocation...</div>
           ) : netWorthAllocationError ? (
-            <div className="px-3 py-4 text-sm text-muted">
-              Unable to load net worth allocation
-            </div>
+            <div className="px-3 py-4 text-sm text-muted">Unable to load net worth allocation</div>
           ) : allocationRows.length === 0 ? (
-            <div className="px-3 py-4 text-sm text-muted">
-              No allocation rows available
-            </div>
+            <div className="px-3 py-4 text-sm text-muted">No allocation rows available</div>
           ) : (
-            allocationRows.map((row) => (
-              <div
-                key={`${row.asset_class}-${row.liquidity_class}-${row.source_currency}`}
-                className="grid gap-2 border-b border-[var(--border)] px-3 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.4fr)_minmax(6rem,0.6fr)_minmax(6rem,0.6fr)_minmax(5rem,0.4fr)_minmax(8rem,0.8fr)] md:items-center"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-[var(--foreground)]">
-                    {formatAllocationLabel(row.asset_class)}
+            allocationRows.map((row: NetWorthAllocationRow) => {
+              const isNeg = amountToChartNumber(row.value) < 0;
+              return (
+                <div
+                  key={`${row.asset_class}-${row.liquidity_class}-${row.source_currency}`}
+                  className="grid gap-2 border-b border-[var(--border)] px-3 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.4fr)_minmax(6rem,0.6fr)_minmax(6rem,0.6fr)_minmax(5rem,0.4fr)_minmax(8rem,0.8fr)] md:items-center"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-[var(--foreground)]">{formatAllocationLabel(row.asset_class)}</p>
+                    <p className="mt-1 text-xs text-muted">{formatAllocationLabel(row.liquidity_class)}</p>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--background-muted)]" aria-hidden="true">
+                      <div
+                        className={`h-full rounded-full ${isNeg ? "bg-[var(--error)]" : "bg-[var(--accent)]"}`}
+                        style={{ width: clampPercentWidthFromPercentValue(row.percentage_of_net_worth) }}
+                      />
+                    </div>
+                  </div>
+                  <p className={`text-sm font-medium md:text-right ${isNeg ? "text-[var(--error)]" : "text-[var(--foreground)]"}`}>
+                    {formatCurrencyLocale(row.value, netWorthAllocation?.currency ?? reportCurrency)}
                   </p>
-                  <p className="mt-1 text-xs text-muted">
-                    {formatAllocationLabel(row.liquidity_class)}
-                  </p>
-                  <div
-                    className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--background-muted)]"
-                    aria-hidden="true"
-                  >
-                    <div
-                      className={`h-full rounded-full ${allocationBarClass(row)}`}
-                      style={{
-                        width: allocationBarWidth(row.percentage_of_net_worth),
-                      }}
-                    />
+                  <p className="text-sm text-muted md:text-right">{formatPercentFromPercentValue(row.percentage_of_net_worth, { dp: 1 })}</p>
+                  <p className="text-sm text-muted md:text-right">{row.source_currency}</p>
+                  <div className="min-w-0 text-sm text-muted">
+                    <p className="font-medium text-[var(--foreground)]">
+                      {row.source_line_count} source{row.source_line_count === 1 ? "" : "s"}
+                    </p>
+                    <ul className="mt-1 space-y-1">
+                      {row.source_lines.slice(0, 2).map((line) => (
+                        <li key={`${line.source_type}-${line.source_id ?? line.label}`} className="truncate" title={line.label}>
+                          {line.href ? <Link href={line.href} className="hover:text-[var(--foreground)]">{line.label}</Link> : line.label}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
-                <p
-                  className={`text-sm font-medium md:text-right ${allocationValueClass(row)}`}
-                >
-                  {formatCurrencyLocale(
-                    row.value,
-                    netWorthAllocation?.currency ?? reportCurrency,
-                  )}
-                </p>
-                <p className="text-sm text-muted md:text-right">
-                  {formatPercentFromPercentValue(row.percentage_of_net_worth, {
-                    dp: 1,
-                  })}
-                </p>
-                <p className="text-sm text-muted md:text-right">
-                  {row.source_currency}
-                </p>
-                <div className="min-w-0 text-sm text-muted">
-                  <p className="font-medium text-[var(--foreground)]">
-                    {row.source_line_count} source
-                    {row.source_line_count === 1 ? "" : "s"}
-                  </p>
-                  <ul className="mt-1 space-y-1">
-                    {row.source_lines.slice(0, 2).map((line) => (
-                      <li
-                        key={`${line.source_type}-${line.source_id ?? line.label}`}
-                        className="truncate"
-                        title={line.label}
-                      >
-                        {line.href ? (
-                          <Link
-                            href={line.href}
-                            className="hover:text-[var(--foreground)]"
-                          >
-                            {line.label}
-                          </Link>
-                        ) : (
-                          line.label
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </section>
 
       <div className="grid gap-4 md:grid-cols-3 mb-6">
-        <PerformanceCard
-          schedule={performanceSchedule}
-          isLoading={isPerformanceScheduleLoading}
-          error={performanceScheduleError}
-        />
+        <PerformanceCard schedule={performanceSchedule} isLoading={isPerformanceScheduleLoading} error={performanceScheduleError} />
         <AllocationChart type="sector" title="Sector Allocation" />
         <AllocationChart type="geography" title="Geography Allocation" />
       </div>
 
-      <InvestmentPerformanceSchedule
-        schedule={performanceSchedule}
-        isLoading={isPerformanceScheduleLoading}
-        error={performanceScheduleError}
-      />
+      <InvestmentPerformanceSchedule schedule={performanceSchedule} isLoading={isPerformanceScheduleLoading} error={performanceScheduleError} />
 
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
         <h2 className="text-lg font-semibold">Holdings</h2>
@@ -453,7 +246,7 @@ export default function PortfolioPage() {
               aria-label="Portfolio as-of date"
             />
           </label>
-          {asOfDate ? (
+          {asOfDate && (
             <button
               type="button"
               onClick={() => setAsOfDate("")}
@@ -462,14 +255,9 @@ export default function PortfolioPage() {
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
-          ) : null}
+          )}
           <label className="flex items-center gap-2 text-sm text-muted cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showDisposed}
-              onChange={(e) => setShowDisposed(e.target.checked)}
-              className="rounded"
-            />
+            <input type="checkbox" checked={showDisposed} onChange={(e) => setShowDisposed(e.target.checked)} className="rounded" />
             Show disposed
           </label>
         </div>
@@ -479,60 +267,16 @@ export default function PortfolioPage() {
         <LoadingState label="Loading holdings" />
       ) : error ? (
         <div className="card p-8 text-center" role="alert" aria-live="polite">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--error-muted)] text-[var(--error)] mb-4">
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-          </div>
-          <p className="text-[var(--foreground)] font-medium mb-2">
-            Failed to load holdings
-          </p>
-          <p className="text-sm text-muted mb-6">
-            {error instanceof Error ? error.message : "Unknown error"}
-          </p>
-          <button
-            onClick={() => refetch()}
-            className="btn-secondary"
-            aria-label="Retry loading holdings"
-          >
-            Retry
-          </button>
+          <p className="text-[var(--foreground)] font-medium mb-2">Failed to load holdings</p>
+          <p className="text-sm text-muted mb-6">{error instanceof Error ? error.message : "Unknown error"}</p>
+          <button onClick={() => refetch()} className="btn-secondary" aria-label="Retry loading holdings">Retry</button>
         </div>
       ) : holdings && holdings.length > 0 ? (
         <HoldingsTable holdings={holdings} showDisposed={showDisposed} />
       ) : (
         <div className="card p-8 text-center">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--background-muted)] text-muted mb-4">
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-              />
-            </svg>
-          </div>
           <p className="text-muted mb-4">No holdings found</p>
-          <p className="text-sm text-muted mb-6">
-            Upload brokerage statements and reconcile to see your portfolio
-            here.
-          </p>
+          <p className="text-sm text-muted mb-6">Upload brokerage statements and reconcile to see your portfolio here.</p>
         </div>
       )}
     </div>

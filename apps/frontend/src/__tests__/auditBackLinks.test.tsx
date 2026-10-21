@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import { AuditBackLink } from "@/components/ui/BackLink";
+import { AuditBackLink } from "@/components/ui/SmartBackLink";
 
 const navigationState = vi.hoisted(() => ({
     searchParams: new URLSearchParams(),
