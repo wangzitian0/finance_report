@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import ReportsPage from "@/app/(main)/reports/page"
 import { apiOperation } from "@/lib/api-client"
+import { normalizablePackageDocument } from "./helpers/packageDocumentFixture"
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode; [key: string]: unknown }) => (
@@ -106,7 +107,7 @@ describe("ReportsPage", () => {
         return Promise.resolve({ match_rate: 100, unmatched_transactions: 0 })
       }
       if (path === "/api/reports/package?") {
-        return Promise.resolve({
+        return Promise.resolve(normalizablePackageDocument({
           readiness: {
             state: "blocked",
             label: "Blocked",
@@ -126,7 +127,7 @@ describe("ReportsPage", () => {
               },
             },
           },
-        })
+        }))
       }
       return Promise.reject(new Error(`unexpected path: ${path}`))
     })

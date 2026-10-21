@@ -14,6 +14,7 @@ import {
   formatPercentFromPercentValue,
   percentNumberFromParts,
 } from "@/lib/audit/ratio/format";
+import { RECONCILIATION_STATS_QUERY_KEY } from "@/lib/sharedQueries";
 import type { ReconciliationMatchResponse, MoneyValue } from "@/lib/types";
 
 function formatQueueAmount(value: MoneyValue): string {
@@ -28,7 +29,7 @@ export default function ReconciliationWorkbench() {
   const [error, setError] = useState<string | null>(null);
 
   const { data: stats, error: statsError } = useQuery({
-    queryKey: ["reconciliation", "stats"],
+    queryKey: RECONCILIATION_STATS_QUERY_KEY,
     queryFn: () => apiOperation("reconciliation_stats_reconciliation_stats_get"),
   });
 

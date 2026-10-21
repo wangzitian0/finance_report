@@ -31,13 +31,46 @@ export function isWorkflowStatusResponse(
   );
 }
 
+/** Poll interval while the status shows pending work. */
+export const WORKFLOW_STATUS_POLL_PENDING_MS = 30_000;
+/** Poll interval while nothing is pending. */
+export const WORKFLOW_STATUS_POLL_IDLE_MS = 120_000;
+
+/**
+ * True when the user can still see work move: an active session, a parsing source, an
+ * action-required or blocked state, or an open action-required or blocked event.
+ * A missing or malformed status counts as pending, so a failed read retries at the fast pace
+ * and the interval callback never throws on a payload without the expected fields.
+ */
+export function workflowStatusHasPendingWork(
+  status: WorkflowStatusResponse | undefined,
+): boolean {
+  if (!isWorkflowStatusResponse(status)) return true;
+  return (
+    Boolean(status.active_session) ||
+    status.primary_state === "processing" ||
+    status.primary_state === "needs_action" ||
+    status.primary_state === "blocked" ||
+    status.event_counts.action_required > 0 ||
+    status.event_counts.blocked > 0
+  );
+}
+
+/**
+ * The shell mounts this query on every page. Each read costs the server a full readiness
+ * check, so the poll runs every 30 s only while work is pending, and every 120 s otherwise.
+ * A focus refetch still gives a fresh status when the user returns to the tab.
+ */
 export function useWorkflowStatusQuery() {
   return useApiQuery(
     WORKFLOW_STATUS_QUERY_KEY,
     "get_workflow_status_endpoint_workflow_status_get",
     {},
     {
-      refetchInterval: 30000,
+      refetchInterval: (query) =>
+        workflowStatusHasPendingWork(query.state.data)
+          ? WORKFLOW_STATUS_POLL_PENDING_MS
+          : WORKFLOW_STATUS_POLL_IDLE_MS,
       refetchOnWindowFocus: true,
     },
   );

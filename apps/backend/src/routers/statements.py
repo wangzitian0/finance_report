@@ -3,11 +3,12 @@
 import asyncio
 import hashlib
 import mimetypes
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from sqlalchemy import func, select
@@ -132,6 +133,46 @@ async def _resolve_uploaded_document(
         .where(UploadedDocument.file_hash == statement.file_hash)
     )
     return result.scalar_one_or_none()
+
+
+async def _resolve_uploaded_documents(
+    db: AsyncSession,
+    statements: Sequence[StatementSummary],
+    user_id: UUID,
+) -> dict[UUID, UploadedDocument | None]:
+    """Resolve the backing ``UploadedDocument`` of many statements in at most two queries.
+
+    Same rules as :func:`_resolve_uploaded_document`: the canonical join is
+    ``uploaded_document_id`` (owned by ``user_id``); a statement without a usable link falls back
+    to the shared ``(user_id, file_hash)`` key.
+    """
+    document_ids = {s.uploaded_document_id for s in statements if s.uploaded_document_id is not None}
+    by_id: dict[UUID, UploadedDocument] = {}
+    if document_ids:
+        rows = await db.execute(
+            select(UploadedDocument).where(UploadedDocument.user_id == user_id, UploadedDocument.id.in_(document_ids))
+        )
+        by_id = {document.id: document for document in rows.scalars()}
+
+    resolved: dict[UUID, UploadedDocument | None] = {}
+    needs_hash_lookup: list[StatementSummary] = []
+    for statement in statements:
+        document = by_id.get(statement.uploaded_document_id) if statement.uploaded_document_id is not None else None
+        resolved[statement.id] = document
+        if document is None:
+            needs_hash_lookup.append(statement)
+
+    if needs_hash_lookup:
+        file_hashes = {s.file_hash for s in needs_hash_lookup}
+        rows = await db.execute(
+            select(UploadedDocument).where(
+                UploadedDocument.user_id == user_id, UploadedDocument.file_hash.in_(file_hashes)
+            )
+        )
+        by_hash = {document.file_hash: document for document in rows.scalars()}
+        for statement in needs_hash_lookup:
+            resolved[statement.id] = by_hash.get(statement.file_hash)
+    return resolved
 
 
 async def _compose_statement_response(
@@ -531,6 +572,16 @@ async def retry_statement_parsing(
 async def list_statements(
     db: DbSession,
     user_id: CurrentUserId,
+    include_transactions: Annotated[
+        bool,
+        Query(
+            description=(
+                "Embed the atomic transactions of each statement. Default is false. "
+                "Then each item has an empty transactions list and the list uses a fixed number of SQL statements. "
+                "Use GET /statements/{id}/transactions to read the rows of one statement."
+            )
+        ),
+    ] = False,
 ) -> BankStatementListResponse:
     """List all statements for the current user."""
     result = await db.execute(
@@ -553,7 +604,11 @@ async def list_statements(
     )
     total = total_result.scalar() or 0
 
-    items = [await _compose_statement_response(db, s, user_id) for s in statements]
+    if include_transactions:
+        items = [await _compose_statement_response(db, s, user_id) for s in statements]
+    else:
+        documents = await _resolve_uploaded_documents(db, statements, user_id)
+        items = [compose_statement_response(s, documents[s.id], []) for s in statements]
     return BankStatementListResponse(items=items, total=total)
 
 

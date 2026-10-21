@@ -30,6 +30,8 @@ export default function HomePage() {
   const [includeRestricted, setIncludeRestricted] = useState(false);
   const [periodPreset, setPeriodPreset] = useState<CockpitPeriodPreset>("1Y");
   const [selectedCurrency, setSelectedCurrency] = useState<string>("");
+  // The analytics panel is opt-in. Its sources start when the user opens it (#2583 S4).
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
 
   // Slice 3 of #751: dashboard aggregation + normalization live in the hook
   // layer; the route composes the returned data.
@@ -39,11 +41,11 @@ export default function HomePage() {
     annualizedIncome,
     restrictedHoldings,
     stats,
-    statements,
     unmatched,
     recentEntries,
     onboardingStatus,
     advisorSuggestions,
+    pending,
     trend,
     trendAccountName,
     trendAccountId,
@@ -55,6 +57,7 @@ export default function HomePage() {
     includeRestricted,
     periodPreset,
     selectedCurrency || undefined,
+    { analyticsOpen },
   );
 
   const trendPoints = useMemo(
@@ -122,10 +125,7 @@ export default function HomePage() {
       </div>
 
       <div className="mb-4">
-        <TrustMeter
-          statements={loading ? null : statements}
-          stats={stats}
-        />
+        <TrustMeter />
       </div>
 
       {advisorSuggestions.length > 0 ? (
@@ -137,7 +137,7 @@ export default function HomePage() {
       <section className="mb-6" aria-label="Dashboard analytics">
         {loading && (
           <div
-            className="card p-4"
+            className="card mb-4 p-4"
             role="status"
             aria-label="Dashboard analytics loading"
           >
@@ -148,9 +148,9 @@ export default function HomePage() {
           </div>
         )}
 
-        {!loading && error && (
+        {error && (
           <div
-            className="card p-4"
+            className="card mb-4 p-4"
             role="alert"
             aria-label="Dashboard analytics unavailable"
           >
@@ -173,23 +173,24 @@ export default function HomePage() {
           </div>
         )}
 
-        {!loading && !error && (
-          <HomeAnalyticsSection
-            balanceSheet={balanceSheet}
-            stats={stats}
-            recentEntries={recentEntries}
-            unmatched={unmatched}
-            trend={trend}
-            trendAccountName={trendAccountName}
-            trendAccountId={trendAccountId}
-            setTrendAccountId={setTrendAccountId}
-            trendPoints={trendPoints}
-            assetSegments={assetSegments}
-            incomeBars={incomeBars}
-            annualizedIncome={annualizedIncome}
-            restrictedHoldings={restrictedHoldings}
-          />
-        )}
+        {/* Each card renders when its own source delivers data; no card waits for the others. */}
+        <HomeAnalyticsSection
+          balanceSheet={balanceSheet}
+          stats={stats}
+          recentEntries={recentEntries}
+          unmatched={unmatched}
+          trend={trend}
+          trendAccountName={trendAccountName}
+          trendAccountId={trendAccountId}
+          setTrendAccountId={setTrendAccountId}
+          trendPoints={trendPoints}
+          assetSegments={assetSegments}
+          incomeBars={incomeBars}
+          annualizedIncome={annualizedIncome}
+          restrictedHoldings={restrictedHoldings}
+          pending={pending}
+          onOpenChange={setAnalyticsOpen}
+        />
       </section>
     </div>
   );

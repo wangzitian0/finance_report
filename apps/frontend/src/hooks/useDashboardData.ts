@@ -7,8 +7,9 @@ import { useAssetTrend } from "@/hooks/dashboard/useAssetTrend";
 import {
   useDashboardSnapshot,
   type DashboardOnboardingStatus,
+  type DashboardPending,
+  type DashboardSnapshotOptions,
 } from "@/hooks/dashboard/useDashboardSnapshot";
-import type { AttentionSources } from "@/lib/attention";
 import type {
   AdvisorSuggestion,
   AnnualizedIncomeResponse,
@@ -27,11 +28,14 @@ import type {
  * Thin composition layer over two independently-usable hooks:
  * `useDashboardSnapshot` (financial + reconciliation aggregate) and
  * `useAssetTrend` (the per-account trend that depends on the loaded balance
- * sheet). The public result contract is unchanged from the former single hook,
- * so consumers (the Home route) need no changes. No behavior change.
+ * sheet). Both read through the query cache (#2583 S4). The statement list
+ * left this result: the trust meter reads it from the cache on its own.
  */
 
-export type { DashboardOnboardingStatus };
+export type { DashboardOnboardingStatus, DashboardPending };
+
+/** Pending flags per card. `trend` joins the snapshot flags: the trend waits for the balance sheet. */
+export type DashboardCardPending = DashboardPending & { trend: boolean };
 
 export interface UseDashboardDataResult {
   balanceSheet: BalanceSheetResponse | null;
@@ -39,11 +43,11 @@ export interface UseDashboardDataResult {
   annualizedIncome: AnnualizedIncomeResponse | null;
   restrictedHoldings: RestrictedHolding[];
   stats: ReconciliationStatsResponse | null;
-  statements: NonNullable<AttentionSources["statements"]>;
   unmatched: UnmatchedTransactionsResponse | null;
   recentEntries: JournalEntryListResponse | null;
   onboardingStatus: DashboardOnboardingStatus | null;
   advisorSuggestions: AdvisorSuggestion[];
+  pending: DashboardCardPending;
   trend: TrendResponse | null;
   trendAccountName: string;
   trendAccountId: string | null;
@@ -57,10 +61,25 @@ export function useDashboardData(
   includeRestricted: boolean,
   periodPreset: CockpitPeriodPreset = "1Y",
   currency?: string,
+  options: DashboardSnapshotOptions = {},
 ): UseDashboardDataResult {
-  const snapshot = useDashboardSnapshot(includeRestricted, periodPreset, currency);
-  const { trend, trendAccountName, trendAccountId, setTrendAccountId } = useAssetTrend(
-    snapshot.balanceSheet,
+  const snapshot = useDashboardSnapshot(
+    includeRestricted,
+    periodPreset,
+    currency,
+    options,
+  );
+  const { trend, trendPending, trendAccountName, trendAccountId, setTrendAccountId } =
+    useAssetTrend(snapshot.balanceSheet, {
+      enabled: options.analyticsOpen ?? true,
+    });
+  const snapshotPending = snapshot.pending;
+  const pending = useMemo<DashboardCardPending>(
+    () => ({
+      ...snapshotPending,
+      trend: snapshotPending.balanceSheet || trendPending,
+    }),
+    [snapshotPending, trendPending],
   );
 
   return useMemo(
@@ -70,11 +89,11 @@ export function useDashboardData(
       annualizedIncome: snapshot.annualizedIncome,
       restrictedHoldings: snapshot.restrictedHoldings,
       stats: snapshot.stats,
-      statements: snapshot.statements,
       unmatched: snapshot.unmatched,
       recentEntries: snapshot.recentEntries,
       onboardingStatus: snapshot.onboardingStatus,
       advisorSuggestions: snapshot.advisorSuggestions,
+      pending,
       trend,
       trendAccountName,
       trendAccountId,
@@ -83,6 +102,6 @@ export function useDashboardData(
       error: snapshot.error,
       retry: snapshot.retry,
     }),
-    [snapshot, trend, trendAccountName, trendAccountId, setTrendAccountId],
+    [snapshot, pending, trend, trendAccountName, trendAccountId, setTrendAccountId],
   );
 }

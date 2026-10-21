@@ -23,6 +23,7 @@ import { amountToChartNumber, formatCurrencyLocale } from "@/lib/audit/money";
 import { useCurrencies } from "@/hooks/useCurrencies";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useReportFilters } from "@/hooks/useReportFilters";
+import { incomeStatementQueryKey } from "@/lib/sharedQueries";
 import { normalizeFxWarningRows } from "@/lib/types";
 
 const ACCOUNT_TYPE_OPTIONS = [
@@ -75,21 +76,17 @@ export default function IncomeStatementPage() {
     );
   };
 
-  const queryString = useMemo(() => {
-    const params = new URLSearchParams();
-    params.set("start_date", startDate);
-    params.set("end_date", endDate);
-    params.set("currency", currency);
-    if (accountTypeFilter) {
-      params.set("account_type", accountTypeFilter);
-    }
-    if (selectedTags.length > 0) {
-      selectedTags.forEach((tag) => params.append("tags", tag));
-    }
-    return params.toString();
-  }, [startDate, endDate, currency, accountTypeFilter, selectedTags]);
+  // The key comes from the shared builder, so Home reads the same cache entry when it
+  // requests the same income statement (#2583 S4).
+  const reportKey = incomeStatementQueryKey({
+    startDate,
+    endDate,
+    currency,
+    accountType: accountTypeFilter || undefined,
+    tags: selectedTags,
+  });
   const reportQuery = useApiQuery(
-    ["report", "income-statement", queryString],
+    reportKey,
     "income_statement_reports_income_statement_get",
     {
       query: {

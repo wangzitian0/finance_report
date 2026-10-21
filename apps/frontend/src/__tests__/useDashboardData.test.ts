@@ -93,7 +93,7 @@ describe("useDashboardData", () => {
           currency: "USD",
         },
         "/api/chat/suggestions": { suggestions: [], structured_suggestions: [] },
-      })(path),
+      }, () => null)(path),
     );
 
     const { result } = renderHook(() => useDashboardData(false));

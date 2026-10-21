@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
@@ -22,11 +23,9 @@ import {
 } from "@/components/ui";
 import type { BadgeVariant } from "@/components/ui";
 import { apiOperation } from "@/lib/api-client";
-import {
-  BankStatement,
-  BankStatementListResponse,
-  normalizeBankStatement,
-} from "@/lib/types";
+import { invalidateLedgerDerivedQueries } from "@/lib/queryClient";
+import { SHARED_STALE_MS, STATEMENTS_LIST_QUERY_KEY } from "@/lib/sharedQueries";
+import { BankStatement, normalizeBankStatement } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { currencyCodeOrDash } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
@@ -60,94 +59,62 @@ function statementDisplayTitle(statement: BankStatement): string {
   );
 }
 
+/** Poll interval while a statement parses. The poll stops when no statement parses. */
+const PARSING_POLL_MS = 3000;
+
 export default function UploadPage() {
   const { showToast } = useToast();
   const router = useRouter();
-  const [statements, setStatements] = useState<BankStatement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [polling, setPolling] = useState(false);
+  const queryClient = useQueryClient();
+  const [actionError, setActionError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingStatementId, setDeletingStatementId] = useState<string | null>(
     null,
   );
   const [deleting, setDeleting] = useState(false);
   const mountedRef = useRef(false);
-  const requestSequenceRef = useRef(0);
-  const activeRequestRef = useRef<{
-    controller: AbortController;
-    requestId: number;
-  } | null>(null);
 
-  const fetchStatements = useCallback(
-    async ({ supersede = false }: { supersede?: boolean } = {}) => {
-      if (!mountedRef.current) return;
-
-      if (activeRequestRef.current) {
-        if (!supersede) return;
-        activeRequestRef.current.controller.abort();
-      }
-
-      const controller = new AbortController();
-      const requestId = ++requestSequenceRef.current;
-      activeRequestRef.current = { controller, requestId };
-
-      const ownsResult = () =>
-        mountedRef.current &&
-        !controller.signal.aborted &&
-        activeRequestRef.current?.requestId === requestId;
-
-      try {
-        const data = await apiOperation("list_statements_statements_get", {
-          signal: controller.signal,
-        });
-        if (!ownsResult()) return;
-
-        setStatements(data.items.map(normalizeBankStatement));
-        setError(null);
-
-        const hasParsing = data.items.some((s) => s.status === "parsing");
-        setPolling(hasParsing);
-      } catch (err) {
-        if (!ownsResult()) return;
-        setError(
-          err instanceof Error ? err.message : "Failed to load statements",
-        );
-      } finally {
-        if (activeRequestRef.current?.requestId === requestId) {
-          activeRequestRef.current = null;
-          if (mountedRef.current) setLoading(false);
-        }
-      }
-    },
-    [],
+  // The lean statement list (no transactions) through the shared query cache (#2583 S4).
+  // React Query keeps one request in flight, aborts it on unmount, and polls only while a
+  // statement parses: the interval function returns false once nothing parses.
+  const statementsQuery = useQuery({
+    queryKey: STATEMENTS_LIST_QUERY_KEY,
+    queryFn: ({ signal }) =>
+      apiOperation("list_statements_statements_get", { signal }),
+    staleTime: SHARED_STALE_MS,
+    // Show the current list on arrival: the user may come from an upload or a review.
+    refetchOnMount: "always",
+    refetchInterval: (query) =>
+      query.state.data?.items?.some((s) => s.status === "parsing")
+        ? PARSING_POLL_MS
+        : false,
+  });
+  const listItems = statementsQuery.data?.items;
+  const statements = useMemo(
+    () => (listItems ?? []).map(normalizeBankStatement),
+    [listItems],
   );
+  const polling = statements.some((s) => s.status === "parsing");
+  const loading = statementsQuery.isPending;
+  const error =
+    actionError ??
+    (statementsQuery.isError
+      ? (statementsQuery.error?.message ?? "Failed to load statements")
+      : null);
 
   const refreshStatements = useCallback(() => {
-    void fetchStatements({ supersede: true });
-  }, [fetchStatements]);
+    if (!mountedRef.current) return;
+    setActionError(null);
+    // A new upload changes the list, the workflow status and every ledger-derived read model.
+    void invalidateLedgerDerivedQueries(queryClient);
+  }, [queryClient]);
 
   useEffect(() => {
     mountedRef.current = true;
-    void fetchStatements({ supersede: true });
     return () => {
       mountedRef.current = false;
-      requestSequenceRef.current += 1;
-      activeRequestRef.current?.controller.abort();
-      activeRequestRef.current = null;
     };
-  }, [fetchStatements]);
-
-  useEffect(() => {
-    if (!polling) return;
-
-    const interval = setInterval(() => {
-      void fetchStatements();
-    }, 3000);
-    return () => {
-      clearInterval(interval);
-    };
-  }, [polling, fetchStatements]);
+  }, []);
 
   const handleDeleteStatement = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
@@ -166,9 +133,9 @@ export default function UploadPage() {
       showToast("Statement deleted successfully", "success");
       setDeleteDialogOpen(false);
       setDeletingStatementId(null);
-      await fetchStatements({ supersede: true });
+      await invalidateLedgerDerivedQueries(queryClient);
     } catch (err) {
-      setError(
+      setActionError(
         err instanceof Error ? err.message : "Failed to delete statement",
       );
     } finally {
@@ -197,7 +164,7 @@ export default function UploadPage() {
         <StatementUploader
           kind="statement"
           onUploadComplete={refreshStatements}
-          onError={setError}
+          onError={setActionError}
         />
       </div>
 
@@ -394,9 +361,7 @@ export default function UploadPage() {
                       <div className="text-lg font-semibold text-[var(--accent)]">
                         {statement.confidence_score ?? "—"}%
                       </div>
-                      <div className="text-xs text-muted">
-                        {statement.transactions.length} txns
-                      </div>
+                      <div className="text-xs text-muted">confidence</div>
                     </div>
                   </div>
                 </div>
@@ -451,7 +416,7 @@ export default function UploadPage() {
           <StatementUploader
             kind="csv"
             onUploadComplete={refreshStatements}
-            onError={setError}
+            onError={setActionError}
           />
         </div>
       </details>

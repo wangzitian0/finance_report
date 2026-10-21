@@ -1,18 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { BarChart2, TrendingUp, DollarSign, FileText, CalendarClock, ShieldCheck, ChevronDown } from "lucide-react";
 
-import { apiOperation } from "@/lib/api-client";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { personalReportPackageQuery } from "@/hooks/usePersonalReportPackage";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatPercentFromPercentValue } from "@/lib/audit/ratio/format";
 import { CurrencyFilterControl, PeriodPresetFilterControl, StatementQuickTabs } from "@/components/reports/ReportFilters";
 import { Badge } from "@/components/ui";
 import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
-import { packagePeriodRequest } from "@/lib/reportPackage";
+import { formatDateInput } from "@/lib/date";
+import { isValidReportDate } from "@/lib/reportPackage";
+import { RECONCILIATION_STATS_QUERY_KEY, SHARED_STALE_MS } from "@/lib/sharedQueries";
 import { countLabel, readinessVariant } from "@/lib/statusLabels";
-import type { AnnualizedIncomeResponse, PersonalReportPackageReadinessResponse, ReconciliationStatsResponse } from "@/lib/types";
+import type { AnnualizedIncomeResponse, PersonalReportPackageDocument, PersonalReportPackageReadinessResponse } from "@/lib/types";
 
 const REPORT_CURRENCIES = ["SGD", "USD", "CNY", "EUR", "GBP", "HKD", "JPY"];
 const MORE_REPORTS = [
@@ -27,52 +31,57 @@ function isPackageReadiness(value: unknown): value is PersonalReportPackageReadi
   return Boolean(c && typeof c.label === "string" && typeof c.action_href === "string" && typeof c.blocking_count === "number" && Array.isArray(c.blockers) && typeof c.input_coverage === "object");
 }
 
+function annualizedFromPackage(document: PersonalReportPackageDocument | undefined): AnnualizedIncomeResponse | null {
+  const inc = document?.sections?.annualized_income_long_term?.income;
+  if (!inc || inc.annualized_total == null || !inc.currency) return null;
+  return {
+    annualized_salary: String(inc.annualized_salary ?? "0"),
+    annualized_bonus: String(inc.annualized_bonus ?? "0"),
+    annualized_dividend: String(inc.annualized_dividend ?? "0"),
+    annualized_total: String(inc.annualized_total),
+    currency: String(inc.currency),
+    as_of: String(document?.context?.as_of_date ?? ""),
+  };
+}
+
 export default function ReportsPage() {
-  const [annualized, setAnnualized] = useState<AnnualizedIncomeResponse | null>(null);
-  const [stats, setStats] = useState<ReconciliationStatsResponse | null>(null);
-  const [readiness, setReadiness] = useState<PersonalReportPackageReadinessResponse | null>(null);
-  const [readinessState, setReadinessState] = useState<ReadinessLoadState>("loading");
   const [showMore, setShowMore] = useState(false);
   const [currency, setCurrency] = useState("SGD");
-  const [asOfDate, setAsOfDate] = useState(() => new Date().toISOString().slice(0, 10));
+  // The local date, like every report page: the package page then asks for the same preview.
+  const [asOfDate, setAsOfDate] = useState(() => formatDateInput(new Date()));
 
-  useEffect(() => {
-    let active = true;
-    const loadAnnualizedFallback = () => {
-      apiOperation("get_annualized_income_income_annualized_get").then((d) => active && setAnnualized(d)).catch(() => active && setAnnualized(null));
-    };
-    apiOperation("reconciliation_stats_reconciliation_stats_get").then((d) => active && setStats(d)).catch(() => active && setStats(null));
-    apiOperation("preview_personal_report_package_reports_package_get", {
-      query: { ...packagePeriodRequest(asOfDate), currency },
-    })
-      .then((document) => {
-        const inc = document?.sections?.annualized_income_long_term?.income;
-        if (inc && inc.annualized_total != null && inc.currency) {
-          if (active) {
-            setAnnualized({
-              annualized_salary: String(inc.annualized_salary ?? "0"),
-              annualized_bonus: String(inc.annualized_bonus ?? "0"),
-              annualized_dividend: String(inc.annualized_dividend ?? "0"),
-              annualized_total: String(inc.annualized_total),
-              currency: String(inc.currency),
-              as_of: String(document?.context?.as_of_date ?? ""),
-            });
-          }
-        } else {
-          loadAnnualizedFallback();
-        }
-        if (!isPackageReadiness(document.readiness)) {
-          if (active) { setReadiness(null); setReadinessState("error"); }
-          return;
-        }
-        if (active) { setReadiness(document.readiness); setReadinessState("loaded"); }
-      })
-      .catch(() => {
-        loadAnnualizedFallback();
-        if (active) { setReadiness(null); setReadinessState("error"); }
-      });
-    return () => { active = false; };
-  }, [asOfDate, currency]);
+  // Reconciliation stats and the package preview come from the shared query cache (#2583 S4):
+  // the package page reads the same preview key, and the Workbench reads the same stats key.
+  const statsQuery = useApiQuery(
+    RECONCILIATION_STATS_QUERY_KEY,
+    "reconciliation_stats_reconciliation_stats_get",
+    {},
+    { staleTime: SHARED_STALE_MS },
+  );
+  const packageQuery = useQuery({
+    ...personalReportPackageQuery({ frameworkId: null, reportDate: asOfDate, currency }),
+    enabled: isValidReportDate(asOfDate),
+  });
+  const packageDocument = packageQuery.data;
+  const packageAnnualized = useMemo(() => annualizedFromPackage(packageDocument), [packageDocument]);
+  // When the preview has no annualized section, or fails, fall back to the annualized-income endpoint.
+  const needsAnnualizedFallback = packageQuery.isError || (packageQuery.isSuccess && !packageAnnualized);
+  const annualizedFallbackQuery = useApiQuery(
+    ["dashboard", "annualized-income"],
+    "get_annualized_income_income_annualized_get",
+    {},
+    { enabled: needsAnnualizedFallback, staleTime: SHARED_STALE_MS },
+  );
+
+  const stats = statsQuery.data ?? null;
+  const annualized: AnnualizedIncomeResponse | null =
+    packageAnnualized ?? (needsAnnualizedFallback ? (annualizedFallbackQuery.data ?? null) : null);
+  const readiness = isPackageReadiness(packageDocument?.readiness) ? packageDocument.readiness : null;
+  const readinessState: ReadinessLoadState = packageQuery.isError
+    ? "error"
+    : packageQuery.isSuccess
+      ? (readiness ? "loaded" : "error")
+      : "loading";
 
   const matchRate = stats ? formatPercentFromPercentValue(stats.match_rate == null ? null : String(stats.match_rate), { dp: 0, fallback: "—" }) : "—";
 

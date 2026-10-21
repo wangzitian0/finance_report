@@ -243,6 +243,20 @@ All API calls must go through the centralized `apiFetch` or `apiUpload` utility 
   OpenAPI schema (`apps/frontend/openapi.json`) via `npm run gen:api-types`. The
   committed spec is staleness-gated by `tools/generate_openapi_spec.py --check`, so
   the FE↔BE contract fails CI when it drifts. Do not hand-edit `api-types.ts`.
+- **One cache entry per request (#2583)**: A route reads a GET through React Query
+  (`useApiQuery`), never through a raw `apiOperation` call inside an effect. Two routes
+  that read the same endpoint with the same parameters use the same key. The keys live in
+  `lib/sharedQueries.ts` (statement list, reconciliation stats, processing queue, balance
+  sheet and income statement key builders) and `hooks/usePersonalReportPackage.ts`
+  (package preview). A route must not write its own key for a request that has a shared
+  key. Each route calls `useApiQuery` with the operation id itself, so the operation
+  consumer census sees every consumer. Put a key that a builder function returns in a
+  constant first: the census cannot read a call with commas inside the key argument.
+- **Stale reads after a mutation (#2583)**: `lib/queryClient.ts` builds the app client. After
+  every successful mutation it marks the ledger-derived keys (`LEDGER_DERIVED_QUERY_KEYS`)
+  stale. A write that does not use `useMutation` calls `invalidateLedgerDerivedQueries`.
+- **Polling**: A poll uses `refetchInterval` as a function of the cached data, so it stops or
+  slows when no work is pending (`useWorkflowStatusQuery`, the `/upload` statement list).
 
 ## 7. Shared-Layer Dependency Rules
 

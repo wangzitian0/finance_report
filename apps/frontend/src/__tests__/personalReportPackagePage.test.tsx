@@ -1,13 +1,18 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PersonalReportPackageSections } from "@/lib/types";
 import PersonalReportPackagePage from "@/app/(main)/reports/package/page";
+import ReportsPage from "@/app/(main)/reports/page";
 import {
   PackageSectionCards,
   renderCsv,
   renderSourceClasses,
 } from "@/components/reports/package/shared";
+import { personalReportPackageQuery } from "@/hooks/usePersonalReportPackage";
+import { formatDateInput } from "@/lib/date";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 const mockedApiDownload = vi.fn();
@@ -1065,13 +1070,15 @@ describe("PersonalReportPackagePage", () => {
         expect.objectContaining({ signal: expect.any(Object) }),
       ),
     );
+    // Wait for the loaded document first: the loading layout shows the same selection text
+    // in a tree that the loaded layout replaces.
+    expect(await screen.findByRole("heading", { name: "Reporting Basis" })).toBeInTheDocument();
     expect(
       await screen.findByText("HK-like selected for this package."),
     ).toBeInTheDocument();
     expect(screen.getAllByText("HK-like").length).toBeGreaterThan(
       0,
     );
-    expect(await screen.findByRole("heading", { name: "Reporting Basis" })).toBeInTheDocument();
     expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(2);
     expectInsideClosedAuditDetails("personal_hkfrs_like");
     expectInsideClosedAuditDetails("none");
@@ -1204,6 +1211,8 @@ describe("PersonalReportPackagePage", () => {
       target: { value: "2026-05-20" },
     });
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    // The loading layout has a cover too; wait for the loaded document before reading it.
+    await screen.findByRole("button", { name: /Generate Snapshot/i });
 
     const cover = await screen.findByRole("region", {
       name: "Report package cover",
@@ -1710,6 +1719,146 @@ describe("PersonalReportPackagePage", () => {
       expect(mockedApiFetch).toHaveBeenCalledWith(testCase.expected);
       unmount();
     }
+  });
+
+  // #2583 S4: one cached preview for the hub and the page; the previous document stays visible.
+  function sharedClient() {
+    return new QueryClient({
+      defaultOptions: { queries: { staleTime: 60_000, retry: false } },
+    });
+  }
+  function withClient(client: QueryClient) {
+    return {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    };
+  }
+  function previewRequests() {
+    return mockedApiFetch.mock.calls
+      .map(([path]) => String(path))
+      .filter((path) => path.startsWith("/api/reports/package?"));
+  }
+
+  it("AC-reporting.fe-fetch-budget.5 the Reports hub and the package page share one preview request", async () => {
+    mockPackageApi();
+    const client = sharedClient();
+
+    const hub = render(<ReportsPage />, withClient(client));
+    await screen.findByLabelText("Report readiness cockpit");
+    await waitFor(() => expect(previewRequests()).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByText("Checking")).not.toBeInTheDocument());
+    hub.unmount();
+
+    renderPackageWith(client);
+    await screen.findByLabelText("Package report date");
+    expect(previewRequests()).toHaveLength(1);
+  });
+
+  function renderPackageWith(client: QueryClient) {
+    return render(<PersonalReportPackagePage />, withClient(client));
+  }
+
+  it("AC-reporting.fe-fetch-budget.5 a second visit to the package page inside the stale time issues no preview request", async () => {
+    mockPackageApi();
+    const client = sharedClient();
+
+    const first = renderPackageWith(client);
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("button", { name: /Generate Snapshot/i });
+    first.unmount();
+    mockedApiFetch.mockClear();
+
+    renderPackageWith(client);
+    // Select the same framework again: the preview of that selection is already cached.
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("button", { name: /Generate Snapshot/i });
+
+    expect(previewRequests()).toEqual([]);
+  });
+
+  it("AC-reporting.fe-fetch-budget.5 keeps the previous document visible, labelled with its own period, while a new date loads", async () => {
+    mockPackageApi();
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("button", { name: /Generate Snapshot/i });
+
+    // Hold the next preview request open.
+    const settled = mockedApiFetch.getMockImplementation()!;
+    let releasePreview: () => void = () => {};
+    mockedApiFetch.mockImplementation((path: string, options?: RequestInit) =>
+      path.startsWith("/api/reports/package?")
+        ? new Promise((resolve) => {
+            releasePreview = () => resolve(packageDocument());
+          })
+        : settled(path, options),
+    );
+
+    fireEvent.change(screen.getByLabelText("Package report date"), {
+      target: { value: "2025-03-31" },
+    });
+
+    // The old document is still on screen, with a notice and without the skeleton.
+    const notice = await screen.findByRole("status");
+    expect(notice).toHaveTextContent("The report below still shows 2025-05-20 to 2026-05-20");
+    expect(screen.getByRole("heading", { name: "Reporting Basis" })).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "Loading report package" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Package report date")).toHaveValue("2025-03-31");
+    // The cover names the dates of the document that is on screen, not the requested date.
+    const cover = within(screen.getByRole("region", { name: "Report package cover" }));
+    expect(cover.getByText("2025-05-20 to 2026-05-20")).toBeInTheDocument();
+    expect(cover.queryByText(/2025-03-31/)).not.toBeInTheDocument();
+    // A snapshot of the old document must not be offered for the new date.
+    expect(screen.getByRole("button", { name: /Generate Snapshot/i })).toBeDisabled();
+
+    await act(async () => {
+      releasePreview();
+    });
+    await waitFor(() => expect(screen.queryByText(/The report below still shows/)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Generate Snapshot/i })).toBeEnabled(),
+    );
+  });
+
+  it("AC-reporting.fe-fetch-budget.5 does not show a document of another framework while the new framework loads", async () => {
+    mockPackageApi();
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("heading", { name: "Reporting Basis" });
+
+    const settled = mockedApiFetch.getMockImplementation()!;
+    mockedApiFetch.mockImplementation((path: string, options?: RequestInit) =>
+      path.startsWith("/api/reports/package?framework_id=personal_hkfrs_like")
+        ? new Promise(() => {})
+        : settled(path, options),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "HK-like" }));
+
+    // The skeleton replaces the old document: another framework is another document.
+    await screen.findByRole("status", { name: "Loading report package" });
+    expect(screen.queryByRole("heading", { name: "Reporting Basis" })).not.toBeInTheDocument();
+  });
+
+  it("AC-reporting.fe-fetch-budget.5 generating a snapshot reads the snapshot list again and marks cached previews stale", async () => {
+    mockPackageApi();
+    const client = sharedClient();
+    renderPackageWith(client);
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Generate Snapshot/i }));
+    await screen.findByText("Frozen snapshot snap-001");
+
+    const snapshotListReads = mockedApiFetch.mock.calls.filter(
+      ([path]) => path === "/api/reports/package/snapshots",
+    );
+    expect(snapshotListReads.length).toBeGreaterThanOrEqual(2);
+
+    const today = formatDateInput(new Date());
+    const previewKey = personalReportPackageQuery({
+      frameworkId: "personal_us_gaap_like",
+      reportDate: today,
+    }).queryKey;
+    expect(client.getQueryState(previewKey)?.isInvalidated).toBe(true);
   });
 });
 
