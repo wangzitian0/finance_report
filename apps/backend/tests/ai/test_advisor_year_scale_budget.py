@@ -117,6 +117,11 @@ async def test_AC_advisor_context_6_chat_context_within_sql_budget_at_year_scale
     # 800 salary entries of 100.00 and 200 card charges of 100.00, all into the bank.
     assert context["total_assets"] == "SGD 100000.00"
     assert context["total_liabilities"] == "SGD 20000.00"
+    # The summary reads catch a ReportError without a warning. A failed read gives this tier.
+    assert context["balance_sheet_confidence_tier"] == "DETERMINISTIC"
+    assert context["income_statement_confidence_tier"] == "DETERMINISTIC"
+    # Each month holds salary entries, today included, so the month-to-date income is above zero.
+    assert context["monthly_income"] != "SGD 0.00"
     assert "[blocked]" in context["advisor_suggestions"]
     assert "[stale]" in context["advisor_suggestions"]
     assert advisor_warnings == [], f"an advisor read fell back to a stub: {advisor_warnings}"

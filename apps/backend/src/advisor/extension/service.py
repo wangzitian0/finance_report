@@ -408,9 +408,9 @@ class AIAdvisorService:
         try:
             # The app shell reads the workflow status on each page, and that read stores readiness.
             # The advisor uses the stored value while the workflow read reuses it: no input row
-            # changed and the state is younger than 15 minutes (#2583). Thus the advisor readiness
-            # can lag a provider FX recovery or a code deploy by at most 15 minutes, as the app
-            # shell does. The advisor does not write on a read, so it evaluates readiness itself
+            # changed and the state is younger than WORKFLOW_SYNC_STATE_MAX_AGE (#2583). Thus the
+            # advisor readiness can lag a provider FX recovery or a code deploy by at most that
+            # age, as the app shell does. The advisor does not write on a read, so it evaluates readiness itself
             # when no value is reusable.
             readiness = await stored_package_readiness(db, user_id=user_id)
             if readiness is None:

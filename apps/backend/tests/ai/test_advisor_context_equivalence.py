@@ -121,7 +121,11 @@ async def _add_pending_reconciliation_match(db: AsyncSession, user_id: UUID) -> 
 
 
 async def build_advisor_states(client, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
-    """Return the advisor outputs in the two readiness states. The golden file has the same keys."""
+    """Return the advisor outputs in the two readiness states.
+
+    The golden file holds the ``advisor_context`` and ``financial_context`` of each state.
+    ``stored_readiness_reusable`` records which readiness path the state took.
+    """
     await _seed_statement(client, db, user_id, name="approved", approve=True)
     pending_statement_id = await _seed_statement(client, db, user_id, name="pending", approve=False)
     await _add_pending_reconciliation_match(db, user_id)
@@ -223,4 +227,8 @@ def test_AC_advisor_context_5_suggestion_rules_read_only_reconciliation_summary_
     assert {item["confidence_tier"] for item in expected} == {"blocked", "review_required", "stale", "deterministic"}
     for value in ("N/A", "", "SGD 0.00", "SGD -999999.00", "SGD 999999.00", "LOW", "UNAVAILABLE"):
         assert suggestions_for({**{key: value for key in other_keys}, **reconciliation}) == expected, value
+    # Each field gets its own value, so a rule that compares two fields also sees a change.
+    for offset in range(len(other_keys)):
+        distinct = {key: f"SGD {(index + offset) * 1000 - 3000}.00" for index, key in enumerate(sorted(other_keys))}
+        assert suggestions_for({**distinct, **reconciliation}) == expected, distinct
     assert suggestions_for(summary) == expected
