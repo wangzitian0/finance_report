@@ -19,10 +19,17 @@ The lock session uses its own engine with ``NullPool`` and ``AUTOCOMMIT``:
   never go back to a pool with the lock still held.
 - ``AUTOCOMMIT`` keeps the session out of a transaction. A session that stays
   "idle in transaction" holds back vacuum.
+- ``idle_session_timeout`` (PostgreSQL 14 and later) lets the server end a lock
+  session that sends no query for ``LEADER_IDLE_SESSION_TIMEOUT_MS``. A leader
+  that lost its network without a TCP reset then loses the lock on the server
+  too, and another worker can become the leader.
 
-The leader checks its lock session every ``heartbeat_seconds``. When the check
-fails, the leader stops its loops before another worker can get the lock on the
-next retry, so two copies of a loop overlap for at most one heartbeat period.
+The leader runs ``SELECT 1`` on its lock session every ``heartbeat_seconds``.
+When the query fails or takes longer than ``LEADER_SESSION_TIMEOUT_SECONDS``,
+the leader stops its loops. When the server ends the session, the query fails
+at once, so the old leader stops within one heartbeat period. When the network
+is silent, the old leader stops within one heartbeat period plus the session
+timeout (10 s).
 """
 
 from __future__ import annotations
@@ -50,6 +57,18 @@ LEADER_RETRY_SECONDS: float = 10.0
 
 #: Seconds between two checks of the lock session by the leader.
 LEADER_HEARTBEAT_SECONDS: float = 5.0
+
+#: Upper limit in seconds for one connect, query, unlock or close of the lock session.
+#: A hung session cannot hold a lock attempt or a shutdown for longer.
+LEADER_SESSION_TIMEOUT_SECONDS: float = 5.0
+
+#: The server ends a lock session that sends no query for this time. The leader
+#: sends one every heartbeat (5 s), so a live leader keeps its session.
+LEADER_IDLE_SESSION_TIMEOUT_MS: int = 60_000
+
+#: Seconds the lifespan shutdown waits for the leader to stop its loops and
+#: release its lock session; then it cancels the leader task.
+LEADER_SHUTDOWN_SECONDS: float = 5.0
 
 #: A loop factory: it gets a stop event and runs until the event is set.
 BackgroundLoop = Callable[[asyncio.Event], Coroutine[Any, Any, None]]
@@ -100,7 +119,12 @@ class BackgroundLeader:
 
     async def run(self, stop_event: asyncio.Event) -> None:
         """Try the lock until ``stop_event`` is set; run the loops while the lock is held."""
-        engine = create_async_engine(self._database_url, poolclass=NullPool, isolation_level="AUTOCOMMIT")
+        engine = create_async_engine(
+            self._database_url,
+            poolclass=NullPool,
+            isolation_level="AUTOCOMMIT",
+            connect_args={"server_settings": {"idle_session_timeout": str(LEADER_IDLE_SESSION_TIMEOUT_MS)}},
+        )
         try:
             while not stop_event.is_set():
                 connection = await self._try_acquire(engine)
@@ -108,7 +132,8 @@ class BackgroundLeader:
                     await _wait_for_stop(stop_event, self._retry_seconds)
                     continue
                 try:
-                    await self._lead(connection, stop_event)
+                    if not stop_event.is_set():
+                        await self._lead(connection, stop_event)
                 finally:
                     await self._release(connection)
                 if not stop_event.is_set():
@@ -121,7 +146,7 @@ class BackgroundLeader:
     async def _try_acquire(self, engine: AsyncEngine) -> AsyncConnection | None:
         """Return a connection that holds the lock, or None when the lock is not available."""
         try:
-            connection = await engine.connect()
+            connection = await asyncio.wait_for(engine.connect(), timeout=LEADER_SESSION_TIMEOUT_SECONDS)
         except Exception as exc:
             logger.warning("background_leader.connect_failed", error_type=type(exc).__name__, error=str(exc))
             return None
@@ -159,9 +184,9 @@ class BackgroundLeader:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _session_is_alive(self, connection: AsyncConnection) -> bool:
-        """Return True when the lock session answers a query within one heartbeat period."""
+        """Return True when the lock session answers a query within the session timeout."""
         try:
-            await asyncio.wait_for(connection.execute(text("SELECT 1")), timeout=self._heartbeat_seconds)
+            await asyncio.wait_for(connection.execute(text("SELECT 1")), timeout=LEADER_SESSION_TIMEOUT_SECONDS)
         except Exception as exc:
             logger.warning("background_leader.heartbeat_failed", error_type=type(exc).__name__, error=str(exc))
             return False
@@ -170,7 +195,10 @@ class BackgroundLeader:
     async def _release(self, connection: AsyncConnection) -> None:
         """Release the lock and close the lock session; a dead session releases the lock itself."""
         try:
-            await connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": self._lock_key})
+            await asyncio.wait_for(
+                connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": self._lock_key}),
+                timeout=LEADER_SESSION_TIMEOUT_SECONDS,
+            )
         except Exception as exc:
             logger.info("background_leader.unlock_skipped", error_type=type(exc).__name__)
         await self._close_quietly(connection)
@@ -179,6 +207,6 @@ class BackgroundLeader:
     @staticmethod
     async def _close_quietly(connection: AsyncConnection) -> None:
         try:
-            await connection.close()
+            await asyncio.wait_for(connection.close(), timeout=LEADER_SESSION_TIMEOUT_SECONDS)
         except Exception as exc:
             logger.info("background_leader.close_failed", error_type=type(exc).__name__)

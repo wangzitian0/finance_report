@@ -30,3 +30,19 @@ async def app(scope, receive, send) -> None:  # noqa: ANN001 - raw ASGI callable
     body = str(os.getpid()).encode()
     await send({"type": "http.response.start", "status": 200, "headers": [(b"content-type", b"text/plain")]})
     await send({"type": "http.response.body", "body": body})
+
+
+async def failing_app(scope, receive, send) -> None:  # noqa: ANN001 - raw ASGI callable
+    """An app whose startup fails, as a failed ``Bootloader.validate`` does.
+
+    With ``PROBE_STOP_SUPERVISOR=1`` the startup first calls the production helper
+    ``stop_worker_supervisor``, as ``src.main.lifespan`` does on a startup failure.
+    """
+    if scope["type"] != "lifespan":
+        return
+    await receive()
+    if os.environ.get("PROBE_STOP_SUPERVISOR") == "1":
+        from src.runtime.extension.worker_process import stop_worker_supervisor
+
+        stop_worker_supervisor()
+    await send({"type": "lifespan.startup.failed", "message": "probe startup failure"})

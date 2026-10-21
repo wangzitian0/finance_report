@@ -76,6 +76,7 @@ CONTRACT = PackageContract(
         "DependencyKind",
         "DependencyManifest",
         "EnvTier",
+        "LEADER_SHUTDOWN_SECONDS",
         "LlmCheck",
         "MarketDataCheck",
         "NON_DEPENDENCY_ENV_FIELDS",
@@ -92,6 +93,7 @@ CONTRACT = PackageContract(
         "resolve_env_tier",
         "run_storage_sweep",
         "runtime_system_router",
+        "stop_worker_supervisor",
     ],
     events=[],
     invariants=[
@@ -266,9 +268,10 @@ CONTRACT = PackageContract(
         ac('AC-runtime.env-empty-values.1', 'No shipped environment artifact (`.env.example`, the root `docker-compose*.yml` files) materializes an empty value for an env name that participates in a `Settings` alias chain: an empty value is a value today, so shipping one shadows every later alias in its chain. The alias names are derived from the generated required-env manifest, so a chain added later is covered without editing the guard.', 'tests/tooling/test_env_empty_value_producers.py::test_AC_runtime_env_empty_values_1_no_artifact_ships_an_empty_alias_chain_value', priority='P1'),
         ac('AC-runtime.env-empty-values.2', "Settings resolves empty environment strings safely without stale multi-alias shadowing: an empty AI_API_KEY='' resolves to an empty key disabling AI features, empty CORS_ORIGINS yields default origins, empty API_RATE_LIMIT_REQUESTS does not raise at import time, and downstream package contracts are verified compatible by tools/generate_consumer_proofs.py executing dynamic verification feeding report_ddd_dependencies.py --consumer-proofs.", 'apps/backend/tests/infra/test_config.py::test_AC_runtime_env_empty_values_2_settings_empty_env_resolution', priority='P1'),
         # ── Worker processes (#2583 S5): a CPU-bound request holds one event loop only ──
-        ac('AC-runtime.workers.1', 'The four background loops (parsing supervisor, market-data scheduler, storage sweep, outbox relay) run in exactly one worker process. Two app lifespans on one database start each loop in one lifespan only. A lost lock session stops the loops of the old leader within one heartbeat. When the leader stops, the other worker starts all four loops within the retry interval.', 'apps/backend/tests/runtime/test_background_leader.py::test_AC_runtime_workers_1_each_background_loop_runs_in_exactly_one_worker', priority='P1'),
+        ac('AC-runtime.workers.1', 'The four background loops (parsing supervisor, market-data scheduler, storage sweep, outbox relay) run in exactly one worker process. Two app lifespans on one database start each loop in one lifespan only. When the server ends the lock session of the leader, the old leader stops its loops within one heartbeat. The server ends a lock session that sends no query for the idle session timeout. When the leader stops, the other worker starts all four loops within the retry interval.', 'apps/backend/tests/runtime/test_background_leader.py::test_AC_runtime_workers_1_each_background_loop_runs_in_exactly_one_worker', priority='P1'),
         ac('AC-runtime.workers.2', 'uvicorn started as the backend image starts it (WEB_CONCURRENCY from the Dockerfile, no --workers flag) serves six cheap GETs on new connections in another worker while a CPU-bound GET holds the event loop of one worker for 2 s. Their median is below 50 ms and each is below 250 ms; a blocked GET would wait at least 600 ms.', 'apps/backend/tests/runtime/test_worker_concurrency.py::test_AC_runtime_workers_2_cheap_get_stays_fast_while_a_cpu_bound_get_runs', priority='P1'),
         ac('AC-runtime.workers.3', 'The image worker count is at least 2. The measured worker memory fits the 768 MB backend mem_limit with headroom, and the default DB pools of all workers plus one leader-lock session each fit the Postgres connection limit.', 'apps/backend/tests/runtime/test_worker_concurrency.py::test_AC_runtime_workers_3_worker_count_fits_memory_and_connection_budgets', priority='P1'),
+        ac('AC-runtime.workers.4', 'A failed worker startup ends the whole uvicorn process, as it does with one worker: the lifespan calls stop_worker_supervisor, which sends SIGTERM to the uvicorn supervisor. Without it, the supervisor restarts the failed worker every 0.5 s and the container never stops. The lifespan shutdown waits at most LEADER_SHUTDOWN_SECONDS for the leader.', 'apps/backend/tests/runtime/test_worker_concurrency.py::test_AC_runtime_workers_4_a_failed_worker_startup_stops_the_supervisor', priority='P1'),
         ac('AC-runtime.env-ai-key-alias.1', 'Settings reads the AI key from AI_API_KEY first and from ZAI_API_KEY second. Within one source (the process environment or one dotenv file), a non-empty AI_API_KEY wins and an empty one falls through. ZAI_API_KEY alone makes the llm health check present. This keeps a production release of the App healthy while infra2 still supplies the old name (#2487).', 'apps/backend/tests/infra/test_ai_key_alias.py::test_AC_runtime_env_ai_key_alias_1_the_old_name_sets_the_key', priority='P1'),
     ],
     concepts=[

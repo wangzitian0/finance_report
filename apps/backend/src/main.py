@@ -96,11 +96,13 @@ from src.routers import (
 )
 from src.routers.reconciliation import router as reconciliation_router
 from src.runtime import (
+    LEADER_SHUTDOWN_SECONDS,
     BackgroundLeader,
     BackgroundLoop,
     register_known_storage_paths_provider,
     run_storage_sweep,
     runtime_system_router,
+    stop_worker_supervisor,
 )
 from src.schemas.errors import (
     COMMON_ERROR_RESPONSES,
@@ -285,10 +287,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Bootloader check (Critical Only)
     # This ensures we have DB connectivity before accepting traffic
     # Will sys.exit(1) if critical checks fail
-    await Bootloader.validate(mode=BootMode.CRITICAL)
-    Bootloader.print_config()
-
-    await init_db()
+    try:
+        await Bootloader.validate(mode=BootMode.CRITICAL)
+        Bootloader.print_config()
+        await init_db()
+    except BaseException:
+        # With more than one uvicorn worker, the supervisor restarts a worker whose
+        # startup failed, forever. Stop the supervisor so the container stops (#2583 S5).
+        stop_worker_supervisor()
+        raise
     stop_event = asyncio.Event()
     background_leader = BackgroundLeader(settings.database_url, background_loops())
     leader_task = asyncio.create_task(background_leader.run(stop_event))
@@ -296,8 +303,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("Application started", version="0.1.0")
     yield
     stop_event.set()
-    with suppress(asyncio.CancelledError):
-        await leader_task
+    # The leader stops its loops and releases its lock session. A hung lock session
+    # must not hold the shutdown past the container stop grace period (10 s).
+    with suppress(asyncio.CancelledError, TimeoutError):
+        await asyncio.wait_for(leader_task, timeout=LEADER_SHUTDOWN_SECONDS)
     logger.info("Application shutting down")
 
 

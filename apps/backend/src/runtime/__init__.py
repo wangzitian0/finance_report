@@ -35,12 +35,13 @@ from src.runtime.extension.adapters import (
     TelemetryCheck,
     WorkflowEngineCheck,
 )
-from src.runtime.extension.background_leader import BackgroundLeader, BackgroundLoop
+from src.runtime.extension.background_leader import LEADER_SHUTDOWN_SECONDS, BackgroundLeader, BackgroundLoop
 from src.runtime.extension.storage import StorageError, StorageService, redact_presigned_url
 from src.runtime.extension.storage_sweep import (
     register_known_storage_paths_provider,
     run_storage_sweep,
 )
+from src.runtime.extension.worker_process import stop_worker_supervisor
 
 __all__ = [
     "APP_OWNED_TIERS",
@@ -53,6 +54,7 @@ __all__ = [
     "DependencyKind",
     "DependencyManifest",
     "EnvTier",
+    "LEADER_SHUTDOWN_SECONDS",
     "LlmCheck",
     "MarketDataCheck",
     "NON_DEPENDENCY_ENV_FIELDS",
@@ -69,6 +71,7 @@ __all__ = [
     "resolve_env_tier",
     "run_storage_sweep",
     "runtime_system_router",
+    "stop_worker_supervisor",
 ]
 
 

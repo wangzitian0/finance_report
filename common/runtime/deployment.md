@@ -372,7 +372,15 @@ storage sweep and the outbox relay run in exactly one worker
 (`src/runtime/extension/background_leader.py`, AC-runtime.workers.1). The
 worker that holds the PostgreSQL session advisory lock `25830005` runs them.
 The other workers try the lock again every 10 s. When the leader process stops,
-PostgreSQL releases the lock, and another worker starts the loops.
+PostgreSQL releases the lock, and another worker starts the loops. The leader
+checks its lock session every 5 s; the server ends a lock session that sends no
+query for 60 s (`idle_session_timeout`).
+
+**Fail fast.** uvicorn restarts a worker whose startup fails, every 0.5 s,
+without end. So a failed lifespan startup calls `stop_worker_supervisor`, which
+sends SIGTERM to the uvicorn supervisor. The container then stops, as with one
+worker (AC-runtime.workers.4). The lifespan shutdown waits at most 5 s for the
+leader.
 
 **Budgets** (AC-runtime.workers.3, measured in the image at 960 transactions):
 

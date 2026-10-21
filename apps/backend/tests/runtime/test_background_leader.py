@@ -109,6 +109,13 @@ def recorder(monkeypatch: pytest.MonkeyPatch, db_engine, test_database_url: str)
     loops = LoopRecorder()
     for name, attribute in LOOP_GLOBALS.items():
         monkeypatch.setattr(main_module, attribute, loops.loop(name))
+
+    # Boot validation has its own tests (tests/infra/test_boot.py). In CI the
+    # ``testing`` environment is protected and rejects the default SECRET_KEY.
+    async def validate_ok(*_args: object, **_kwargs: object) -> bool:
+        return True
+
+    monkeypatch.setattr(main_module.Bootloader, "validate", validate_ok)
     monkeypatch.setattr(settings, "database_url", test_database_url)
     monkeypatch.setattr(leader_module, "LEADER_RETRY_SECONDS", RETRY_SECONDS)
     monkeypatch.setattr(leader_module, "LEADER_HEARTBEAT_SECONDS", HEARTBEAT_SECONDS)
@@ -222,7 +229,40 @@ async def test_AC_runtime_workers_1_failed_lock_query_runs_no_loop(test_database
         started.append("loop")
         await stop_event.wait()
 
-    # A key outside the bigint range makes the lock query fail on the server side.
+    # A key outside the bigint range makes the lock query fail: asyncpg cannot encode it.
     leader = BackgroundLeader(test_database_url, {"loop": loop}, lock_key=2**70, retry_seconds=0.05)
     await _run_briefly(leader, 0.3)
     assert started == []
+
+
+async def test_AC_runtime_workers_1_server_ends_a_silent_lock_session(
+    monkeypatch: pytest.MonkeyPatch, test_database_url: str, db_engine
+) -> None:
+    """AC-runtime.workers.1: the server ends a lock session that sends no query (idle_session_timeout).
+
+    The heartbeat (3 s) is longer than the idle timeout (0.3 s) here, so the
+    server ends the session before the leader sends its first heartbeat. With a
+    silent network, this releases the lock on the server for another worker.
+    """
+    monkeypatch.setattr(leader_module, "LEADER_IDLE_SESSION_TIMEOUT_MS", 300)
+
+    async def loop(stop_event: asyncio.Event) -> None:
+        await stop_event.wait()
+
+    leader = BackgroundLeader(test_database_url, {"loop": loop}, retry_seconds=10.0, heartbeat_seconds=3.0)
+    stop_event = asyncio.Event()
+    task = asyncio.create_task(leader.run(stop_event))
+    try:
+        started = time.monotonic()
+        while not await _lock_holder_pids(db_engine) and time.monotonic() - started < 5.0:
+            await asyncio.sleep(0.02)
+        assert leader.is_leader, "the leader did not get the lock"
+        locked_at = time.monotonic()
+        while await _lock_holder_pids(db_engine) and time.monotonic() - locked_at < 5.0:
+            await asyncio.sleep(0.05)
+        released_after = time.monotonic() - locked_at
+        assert await _lock_holder_pids(db_engine) == []
+        assert released_after < 2.0, f"the server released the idle lock session after {released_after:.2f}s"
+    finally:
+        stop_event.set()
+        await asyncio.wait_for(task, timeout=10.0)

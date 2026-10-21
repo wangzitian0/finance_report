@@ -69,20 +69,25 @@ def _get(port: int, path: str) -> tuple[float, str]:
 class UvicornServer:
     """A uvicorn subprocess started with the production command shape (no ``--workers`` flag)."""
 
-    def __init__(self, workers: int) -> None:
+    def __init__(
+        self, workers: int, app: str = "worker_probe_app:app", extra_env: dict[str, str] | None = None
+    ) -> None:
         self.workers = workers
         self.port = _free_port()
         self._started = 0
+        self._failed = 0
         self._lines: list[str] = []
         self._ready = threading.Event()
         env = {key: value for key, value in os.environ.items() if key != "WEB_CONCURRENCY"}
         env["WEB_CONCURRENCY"] = str(workers)
+        env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(BACKEND_DIR), env.get("PYTHONPATH")]))
+        env.update(extra_env or {})
         self.process = subprocess.Popen(
             [
                 sys.executable,
                 "-m",
                 "uvicorn",
-                "worker_probe_app:app",
+                app,
                 "--app-dir",
                 str(PROBE_DIR),
                 "--host",
@@ -90,6 +95,7 @@ class UvicornServer:
                 "--port",
                 str(self.port),
             ],
+            cwd=BACKEND_DIR,
             env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
@@ -107,11 +113,20 @@ class UvicornServer:
             bound = bound or "Uvicorn running on" in line
             if "Application startup complete" in line:
                 self._started += 1
+            if "Application startup failed" in line:
+                self._failed += 1
             if bound and self._started >= self.workers:
                 self._ready.set()
 
     def wait_ready(self, timeout: float = 30.0) -> None:
         assert self._ready.wait(timeout), "uvicorn workers did not start:\n" + "\n".join(self._lines[-20:])
+
+    def startup_failures(self) -> int:
+        """Return how many worker startups failed so far."""
+        return self._failed
+
+    def log_tail(self) -> str:
+        return "\n".join(self._lines[-20:])
 
     def stop(self) -> None:
         if self.process.poll() is None:
@@ -163,6 +178,98 @@ def test_AC_runtime_workers_2_cheap_get_stays_fast_while_a_cpu_bound_get_runs() 
         assert latencies[-1] < CHEAP_MAX_LIMIT_MS, context
     finally:
         server.stop()
+
+
+@pytest.mark.integration
+@pytest.mark.no_db
+def test_AC_runtime_workers_4_a_failed_worker_startup_stops_the_supervisor() -> None:
+    """AC-runtime.workers.4: a worker startup failure ends the uvicorn process, as with one worker.
+
+    Without the helper, the supervisor starts a new worker after each failed
+    startup, and the process does not end. With ``stop_worker_supervisor`` in the
+    failed startup (as in ``src.main.lifespan``), the supervisor ends.
+    """
+    workers = image_web_concurrency()
+    restart_loop = UvicornServer(workers, app="worker_probe_app:failing_app")
+    try:
+        deadline = time.monotonic() + 30
+        while restart_loop.startup_failures() <= workers and time.monotonic() < deadline:
+            time.sleep(0.2)
+        assert restart_loop.startup_failures() > workers, restart_loop.log_tail()
+        assert restart_loop.process.poll() is None, "without the helper the supervisor keeps restarting workers"
+    finally:
+        restart_loop.stop()
+
+    fail_fast = UvicornServer(workers, app="worker_probe_app:failing_app", extra_env={"PROBE_STOP_SUPERVISOR": "1"})
+    try:
+        fail_fast.process.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        pytest.fail("the supervisor did not stop after a failed worker startup:\n" + fail_fast.log_tail())
+    finally:
+        fail_fast.stop()
+
+
+@pytest.mark.no_db
+async def test_AC_runtime_workers_4_lifespan_startup_failure_stops_the_supervisor(monkeypatch) -> None:
+    """AC-runtime.workers.4: a failed boot validation in the lifespan calls ``stop_worker_supervisor``."""
+    import src.main as main_module
+
+    calls: list[str] = []
+
+    async def validate_fails(*_args: object, **_kwargs: object) -> bool:
+        raise SystemExit(1)
+
+    monkeypatch.setattr(main_module.Bootloader, "validate", validate_fails)
+    monkeypatch.setattr(main_module, "stop_worker_supervisor", lambda: calls.append("stop") or True)
+    with pytest.raises(SystemExit):
+        async with main_module.lifespan(main_module.app):
+            pytest.fail("the lifespan started after a failed boot validation")
+    assert calls == ["stop"]
+
+
+@pytest.mark.no_db
+async def test_AC_runtime_workers_4_lifespan_shutdown_is_bounded(monkeypatch) -> None:
+    """AC-runtime.workers.4: a leader that does not stop cannot hold the lifespan shutdown."""
+    import asyncio
+
+    import src.main as main_module
+
+    async def validate_ok(*_args: object, **_kwargs: object) -> bool:
+        return True
+
+    async def run_forever(_self: object, _stop_event: asyncio.Event) -> None:
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(main_module.Bootloader, "validate", validate_ok)
+    monkeypatch.setattr(main_module.BackgroundLeader, "run", run_forever)
+    monkeypatch.setattr(main_module, "LEADER_SHUTDOWN_SECONDS", 0.2)
+    lifespan = main_module.lifespan(main_module.app)
+    await lifespan.__aenter__()
+    started = time.monotonic()
+    await lifespan.__aexit__(None, None, None)
+    assert time.monotonic() - started < 2.0
+
+
+@pytest.mark.no_db
+def test_AC_runtime_workers_4_stop_worker_supervisor_signals_only_a_worker(monkeypatch) -> None:
+    """AC-runtime.workers.4: the helper sends SIGTERM to the parent of a worker, and nothing in a single process."""
+    import multiprocessing
+
+    from src.runtime import stop_worker_supervisor
+
+    kills: list[tuple[int, int]] = []
+    monkeypatch.setattr(os, "kill", lambda pid, sig: kills.append((pid, sig)))
+
+    monkeypatch.setattr(multiprocessing, "parent_process", lambda: None)
+    assert stop_worker_supervisor() is False
+    assert kills == []
+
+    class Supervisor:
+        pid = 4242
+
+    monkeypatch.setattr(multiprocessing, "parent_process", lambda: Supervisor())
+    assert stop_worker_supervisor() is True
+    assert kills == [(4242, signal.SIGTERM)]
 
 
 # ── AC-runtime.workers.3: the worker count fits the memory and connection budgets ──
