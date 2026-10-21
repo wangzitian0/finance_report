@@ -39,12 +39,13 @@ export const WORKFLOW_STATUS_POLL_IDLE_MS = 120_000;
 /**
  * True when the user can still see work move: an active session, a parsing source, an
  * action-required or blocked state, or an open action-required or blocked event.
- * A missing status counts as pending, so a failed read retries at the fast pace.
+ * A missing or malformed status counts as pending, so a failed read retries at the fast pace
+ * and the interval callback never throws on a payload without the expected fields.
  */
 export function workflowStatusHasPendingWork(
   status: WorkflowStatusResponse | undefined,
 ): boolean {
-  if (!status) return true;
+  if (!isWorkflowStatusResponse(status)) return true;
   return (
     Boolean(status.active_session) ||
     status.primary_state === "processing" ||

@@ -169,6 +169,21 @@ describe("shared query cache (#2583 S4)", () => {
   });
 
   // AC-reporting.fe-fetch-budget.3
+  it("AC-reporting.fe-fetch-budget.3 the upload page renders an empty list, without polling, when the answer has no items", async () => {
+    // Mocked and degraded backends answer `{}`. The interval function runs on every list update.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mockedApiOperation.mockResolvedValue({});
+
+    renderOn(sharedClient(), <UploadPage />);
+    await screen.findByText("No statements uploaded yet");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(callsTo("list_statements_statements_get")).toBe(1);
+  });
+
+  // AC-reporting.fe-fetch-budget.3
   it("AC-reporting.fe-fetch-budget.3 an upload completion refreshes the shared list that other routes read", async () => {
     mockApi([
       { items: [], total: 0 },

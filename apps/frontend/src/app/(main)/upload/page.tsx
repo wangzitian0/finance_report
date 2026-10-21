@@ -85,7 +85,7 @@ export default function UploadPage() {
     // Show the current list on arrival: the user may come from an upload or a review.
     refetchOnMount: "always",
     refetchInterval: (query) =>
-      query.state.data?.items.some((s) => s.status === "parsing")
+      query.state.data?.items?.some((s) => s.status === "parsing")
         ? PARSING_POLL_MS
         : false,
   });

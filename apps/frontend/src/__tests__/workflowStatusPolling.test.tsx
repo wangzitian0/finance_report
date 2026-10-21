@@ -137,4 +137,18 @@ describe("workflow status polling (#2583 S4)", () => {
     expect(workflowStatusHasPendingWork(undefined)).toBe(true);
     expect(workflowStatusHasPendingWork(status())).toBe(false);
   });
+
+  // AC-reporting.fe-fetch-budget.6
+  it("AC-reporting.fe-fetch-budget.6 treats a payload without the status fields as pending work and does not throw", async () => {
+    // Mocked and degraded backends answer `{}`. The interval callback runs in the shell on every page.
+    expect(workflowStatusHasPendingWork({} as WorkflowStatusResponse)).toBe(true);
+
+    mockedApiOperation.mockResolvedValue({});
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = renderHook(() => useWorkflowStatusQuery(), { wrapper: wrapperFor(client) });
+    await waitFor(() => expect(statusReads()).toBe(1));
+    await advance(WORKFLOW_STATUS_POLL_PENDING_MS);
+    expect(statusReads()).toBe(2);
+    expect(view.result.current.isError).toBe(false);
+  });
 });
