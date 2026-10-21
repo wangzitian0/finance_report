@@ -24,11 +24,11 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
     <section aria-label="Upload-to-report home" className="card px-3 py-2.5">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
-          <span className="sr-only">
+          <h1 className="text-sm font-semibold">{sessionTitle}</h1>
+          <div className="sr-only">
             {sessionTitle !== "Upload to report" && <h2>Upload to report</h2>}
             <h2>Workflow status</h2>
-          </span>
-          <h1 className="text-sm font-semibold">{sessionTitle}</h1>
+          </div>
           <Badge variant={severityBadgeVariant(status.primary_state === "blocked" ? "blocked" : "info")}>{labelFromSnake(status.primary_state)}</Badge>
           <span className="text-xs text-muted">{primaryCopy}</span>
           {Boolean(summaryText && summaryText !== primaryCopy) && <span className="text-xs text-muted hidden sm:inline">{summaryText}</span>}

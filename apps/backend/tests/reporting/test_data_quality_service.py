@@ -220,7 +220,9 @@ async def test_compute_personal_data_quality_unmatched_and_unanchored_activity(
     assert res.reconciliation_purity_invariant.is_healthy is False
     assert res.reconciliation_purity_invariant.delta == Decimal("4")
     assert res.temporal_continuity_invariant.is_healthy is False
+    assert res.temporal_continuity_invariant.delta == Decimal("1")
     assert res.lineage_anchors_invariant.is_healthy is False
+    assert res.score == 73
 
     recon_actions = [a for a in res.action_items if a.id == "reconcile_unmatched_transactions"]
     assert len(recon_actions) == 1

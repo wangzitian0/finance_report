@@ -170,6 +170,7 @@ async def compute_personal_data_quality(
     has_unanchored_activity = len(raw_statements) == 0 and stats.total_transactions > 0
 
     temporal_healthy = total_gaps == 0 and not has_unanchored_activity
+    temporal_delta = total_gaps if not has_unanchored_activity else 1
     if temporal_healthy:
         temporal_summary = "Continuous multi-period cash rollforward verified (zero gaps detected)"
         temporal_detail = "All consecutive statements roll forward without missing periods."
@@ -185,7 +186,7 @@ async def compute_personal_data_quality(
         name="Temporal Continuity & Rollforward",
         summary=temporal_summary,
         detail=temporal_detail,
-        delta=Decimal(total_gaps),
+        delta=Decimal(temporal_delta),
     )
 
     # 4. Reconciliation Purity Invariant
@@ -241,7 +242,7 @@ async def compute_personal_data_quality(
     # Temporal continuity: 25 points
     if temporal_healthy:
         temporal_pts = 25
-    elif total_gaps == 1:
+    elif has_unanchored_activity or total_gaps == 1:
         temporal_pts = 15
     else:
         temporal_pts = max(0, 25 - total_gaps * 10)
