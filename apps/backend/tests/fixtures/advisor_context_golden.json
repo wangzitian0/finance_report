@@ -1,0 +1,704 @@
+{
+ "stored_readiness_current": {
+  "advisor_context": {
+   "authority_coverage": {
+    "authoritative_input_count": 13,
+    "blocker_codes": [
+     "cash_identity_missing",
+     "cash_balance_input_missing"
+    ],
+    "manifest_decision_count": 5,
+    "unproven_input_count": 0
+   },
+   "cash_flow": {
+    "monthly_expenses": "SGD 49.75",
+    "monthly_income": "SGD 3000.00",
+    "pending_review": "1",
+    "top_expenses": "Expense - Corpus Reviewed: SGD 49.75",
+    "unmatched_count": "3"
+   },
+   "financial_summary": {
+    "balance_sheet_confidence_tier": "DETERMINISTIC",
+    "equity": "SGD 3950.25",
+    "income_statement_confidence_tier": "DETERMINISTIC",
+    "match_rate": "42.86%",
+    "monthly_expenses": "SGD 49.75",
+    "monthly_income": "SGD 3000.00",
+    "net_income": "SGD 2950.25",
+    "net_worth": "SGD 3950.25",
+    "opening_equity": "SGD 1000.00",
+    "pending_review": "1",
+    "top_expenses": "Expense - Corpus Reviewed: SGD 49.75",
+    "total_assets": "SGD 3950.25",
+    "total_liabilities": "SGD 0.00",
+    "unmatched_count": "3"
+   },
+   "market_data": {
+    "stale_count": 1,
+    "stale_scopes": [
+     "USD/SGD"
+    ],
+    "statuses": [
+     {
+      "fresh": false,
+      "kind": "fx",
+      "last_observation_date": null,
+      "last_success_at": null,
+      "last_success_date": null,
+      "scope": "USD/SGD"
+     }
+    ]
+   },
+   "portfolio": {
+    "active_positions_count": 0,
+    "available": false,
+    "currency": "SGD",
+    "holdings_count": 0,
+    "total_market_value": "0.00"
+   },
+   "report_readiness": {
+    "action_href": "/reports/package",
+    "blockers": [
+     {
+      "action_href": "/reports/package",
+      "code": "cash_identity_missing",
+      "count": 1,
+      "label": "Package section invariant failed",
+      "reason": "No cash account matches a statement custody account. Confirm the account of your bank statement.",
+      "severity": "blocking"
+     },
+     {
+      "action_href": "/reports/package",
+      "code": "cash_balance_input_missing",
+      "count": 1,
+      "label": "Package section invariant failed",
+      "reason": "Cash balances require an authoritative bank-statement custody account input.",
+      "severity": "blocking"
+     }
+    ],
+    "blocking_count": 2,
+    "generated_at": null,
+    "label": "Blocked",
+    "package_id": "personal-financial-report-package",
+    "stale_since": null,
+    "state": "blocked",
+    "trusted": false
+   },
+   "suggestions": [
+    {
+     "basis": "Report readiness is blocked with 2 blocker(s).",
+     "confidence_tier": "blocked",
+     "limitation": "Do not describe the report package as trusted until blockers are resolved.",
+     "next_action_href": "/reports/package",
+     "source_refs": [
+      "report_readiness",
+      "authority_coverage"
+     ]
+    },
+    {
+     "basis": "Workflow has 1 action-required event(s).",
+     "confidence_tier": "review_required",
+     "limitation": "Pending review items may affect report readiness and advisory conclusions.",
+     "next_action_href": "/reports/package",
+     "source_refs": [
+      "workflow"
+     ]
+    },
+    {
+     "basis": "Market data is stale for 1 observed scope(s).",
+     "confidence_tier": "stale",
+     "limitation": "Portfolio valuation and market-sensitive report facts should be refreshed before relying on them.",
+     "next_action_href": "/portfolio/prices/update",
+     "source_refs": [
+      "market_data"
+     ]
+    },
+    {
+     "basis": "Cash-flow context has 1 pending reconciliation review item(s).",
+     "confidence_tier": "review_required",
+     "limitation": "Unreviewed reconciliation items should not be used as trusted cash-flow conclusions.",
+     "next_action_href": "/reconciliation/review-queue",
+     "source_refs": [
+      "cash_flow",
+      "reconciliation"
+     ]
+    }
+   ],
+   "workflow": {
+    "active_session": {
+     "event_counts": {
+      "action_required": 1,
+      "blocked": 3,
+      "unread": 7
+     },
+     "id": "<uuid>",
+     "last_event_at": "<datetime>",
+     "primary_state": "blocked",
+     "report_href": null,
+     "report_readiness": {
+      "blocking_count": 2,
+      "href": "/reports/package",
+      "state": "blocked"
+     },
+     "source_count": 7,
+     "started_at": "<datetime>",
+     "status": "active",
+     "summary": "Current upload, processing, review, and report-readiness work.",
+     "title": "Upload-to-report session"
+    },
+    "event_counts": {
+     "action_required": 1,
+     "blocked": 3,
+     "unread": 7
+    },
+    "next_action": {
+     "count": 3,
+     "href": "/reports/package",
+     "label": "Resolve blocker",
+     "summary": "Resolve the blocking condition before the report package can be trusted.",
+     "type": "resolve_blocker"
+    },
+    "primary_state": "blocked",
+    "report_readiness": {
+     "blocking_count": 2,
+     "href": "/reports/package",
+     "state": "blocked"
+    }
+   }
+  },
+  "financial_context": {
+   "advisor_context": {
+    "authority_coverage": {
+     "authoritative_input_count": 13,
+     "blocker_codes": [
+      "cash_identity_missing",
+      "cash_balance_input_missing"
+     ],
+     "manifest_decision_count": 5,
+     "unproven_input_count": 0
+    },
+    "cash_flow": {
+     "monthly_expenses": "SGD 49.75",
+     "monthly_income": "SGD 3000.00",
+     "pending_review": "1",
+     "top_expenses": "Expense - Corpus Reviewed: SGD 49.75",
+     "unmatched_count": "3"
+    },
+    "financial_summary": {
+     "balance_sheet_confidence_tier": "DETERMINISTIC",
+     "equity": "SGD 3950.25",
+     "income_statement_confidence_tier": "DETERMINISTIC",
+     "match_rate": "42.86%",
+     "monthly_expenses": "SGD 49.75",
+     "monthly_income": "SGD 3000.00",
+     "net_income": "SGD 2950.25",
+     "net_worth": "SGD 3950.25",
+     "opening_equity": "SGD 1000.00",
+     "pending_review": "1",
+     "top_expenses": "Expense - Corpus Reviewed: SGD 49.75",
+     "total_assets": "SGD 3950.25",
+     "total_liabilities": "SGD 0.00",
+     "unmatched_count": "3"
+    },
+    "market_data": {
+     "stale_count": 1,
+     "stale_scopes": [
+      "USD/SGD"
+     ],
+     "statuses": [
+      {
+       "fresh": false,
+       "kind": "fx",
+       "last_observation_date": null,
+       "last_success_at": null,
+       "last_success_date": null,
+       "scope": "USD/SGD"
+      }
+     ]
+    },
+    "portfolio": {
+     "active_positions_count": 0,
+     "available": false,
+     "currency": "SGD",
+     "holdings_count": 0,
+     "total_market_value": "0.00"
+    },
+    "report_readiness": {
+     "action_href": "/reports/package",
+     "blockers": [
+      {
+       "action_href": "/reports/package",
+       "code": "cash_identity_missing",
+       "count": 1,
+       "label": "Package section invariant failed",
+       "reason": "No cash account matches a statement custody account. Confirm the account of your bank statement.",
+       "severity": "blocking"
+      },
+      {
+       "action_href": "/reports/package",
+       "code": "cash_balance_input_missing",
+       "count": 1,
+       "label": "Package section invariant failed",
+       "reason": "Cash balances require an authoritative bank-statement custody account input.",
+       "severity": "blocking"
+      }
+     ],
+     "blocking_count": 2,
+     "generated_at": null,
+     "label": "Blocked",
+     "package_id": "personal-financial-report-package",
+     "stale_since": null,
+     "state": "blocked",
+     "trusted": false
+    },
+    "suggestions": [
+     {
+      "basis": "Report readiness is blocked with 2 blocker(s).",
+      "confidence_tier": "blocked",
+      "limitation": "Do not describe the report package as trusted until blockers are resolved.",
+      "next_action_href": "/reports/package",
+      "source_refs": [
+       "report_readiness",
+       "authority_coverage"
+      ]
+     },
+     {
+      "basis": "Workflow has 1 action-required event(s).",
+      "confidence_tier": "review_required",
+      "limitation": "Pending review items may affect report readiness and advisory conclusions.",
+      "next_action_href": "/reports/package",
+      "source_refs": [
+       "workflow"
+      ]
+     },
+     {
+      "basis": "Market data is stale for 1 observed scope(s).",
+      "confidence_tier": "stale",
+      "limitation": "Portfolio valuation and market-sensitive report facts should be refreshed before relying on them.",
+      "next_action_href": "/portfolio/prices/update",
+      "source_refs": [
+       "market_data"
+      ]
+     },
+     {
+      "basis": "Cash-flow context has 1 pending reconciliation review item(s).",
+      "confidence_tier": "review_required",
+      "limitation": "Unreviewed reconciliation items should not be used as trusted cash-flow conclusions.",
+      "next_action_href": "/reconciliation/review-queue",
+      "source_refs": [
+       "cash_flow",
+       "reconciliation"
+      ]
+     }
+    ],
+    "workflow": {
+     "active_session": {
+      "event_counts": {
+       "action_required": 1,
+       "blocked": 3,
+       "unread": 7
+      },
+      "id": "<uuid>",
+      "last_event_at": "<datetime>",
+      "primary_state": "blocked",
+      "report_href": null,
+      "report_readiness": {
+       "blocking_count": 2,
+       "href": "/reports/package",
+       "state": "blocked"
+      },
+      "source_count": 7,
+      "started_at": "<datetime>",
+      "status": "active",
+      "summary": "Current upload, processing, review, and report-readiness work.",
+      "title": "Upload-to-report session"
+     },
+     "event_counts": {
+      "action_required": 1,
+      "blocked": 3,
+      "unread": 7
+     },
+     "next_action": {
+      "count": 3,
+      "href": "/reports/package",
+      "label": "Resolve blocker",
+      "summary": "Resolve the blocking condition before the report package can be trusted.",
+      "type": "resolve_blocker"
+     },
+     "primary_state": "blocked",
+     "report_readiness": {
+      "blocking_count": 2,
+      "href": "/reports/package",
+      "state": "blocked"
+     }
+    }
+   },
+   "advisor_suggestions": "Report readiness is blocked with 2 blocker(s). [blocked]; Workflow has 1 action-required event(s). [review_required]; Market data is stale for 1 observed scope(s). [stale]; Cash-flow context has 1 pending reconciliation review item(s). [review_required]",
+   "balance_sheet_confidence_tier": "DETERMINISTIC",
+   "equity": "SGD 3950.25",
+   "income_statement_confidence_tier": "DETERMINISTIC",
+   "match_rate": "42.86%",
+   "monthly_expenses": "SGD 49.75",
+   "monthly_income": "SGD 3000.00",
+   "net_income": "SGD 2950.25",
+   "net_worth": "SGD 3950.25",
+   "opening_equity": "SGD 1000.00",
+   "pending_review": "1",
+   "top_expenses": "Expense - Corpus Reviewed: SGD 49.75",
+   "total_assets": "SGD 3950.25",
+   "total_liabilities": "SGD 0.00",
+   "unmatched_count": "3"
+  }
+ },
+ "stored_readiness_stale": {
+  "advisor_context": {
+   "authority_coverage": {
+    "authoritative_input_count": 26,
+    "blocker_codes": [
+     "cash_identity_missing",
+     "cash_balance_input_missing"
+    ],
+    "manifest_decision_count": 10,
+    "unproven_input_count": 0
+   },
+   "cash_flow": {
+    "monthly_expenses": "SGD 99.50",
+    "monthly_income": "SGD 6000.00",
+    "pending_review": "1",
+    "top_expenses": "Expense - Corpus Reviewed: SGD 49.75, Expense - Corpus Reviewed: SGD 49.75",
+    "unmatched_count": "0"
+   },
+   "financial_summary": {
+    "balance_sheet_confidence_tier": "DETERMINISTIC",
+    "equity": "SGD 7900.50",
+    "income_statement_confidence_tier": "DETERMINISTIC",
+    "match_rate": "85.71%",
+    "monthly_expenses": "SGD 99.50",
+    "monthly_income": "SGD 6000.00",
+    "net_income": "SGD 5900.50",
+    "net_worth": "SGD 7900.50",
+    "opening_equity": "SGD 2000.00",
+    "pending_review": "1",
+    "top_expenses": "Expense - Corpus Reviewed: SGD 49.75, Expense - Corpus Reviewed: SGD 49.75",
+    "total_assets": "SGD 7900.50",
+    "total_liabilities": "SGD 0.00",
+    "unmatched_count": "0"
+   },
+   "market_data": {
+    "stale_count": 1,
+    "stale_scopes": [
+     "USD/SGD"
+    ],
+    "statuses": [
+     {
+      "fresh": false,
+      "kind": "fx",
+      "last_observation_date": null,
+      "last_success_at": null,
+      "last_success_date": null,
+      "scope": "USD/SGD"
+     }
+    ]
+   },
+   "portfolio": {
+    "active_positions_count": 0,
+    "available": false,
+    "currency": "SGD",
+    "holdings_count": 0,
+    "total_market_value": "0.00"
+   },
+   "report_readiness": {
+    "action_href": "/reports/package",
+    "blockers": [
+     {
+      "action_href": "/reports/package",
+      "code": "cash_identity_missing",
+      "count": 1,
+      "label": "Package section invariant failed",
+      "reason": "No cash account matches a statement custody account. Confirm the account of your bank statement.",
+      "severity": "blocking"
+     },
+     {
+      "action_href": "/reports/package",
+      "code": "cash_balance_input_missing",
+      "count": 1,
+      "label": "Package section invariant failed",
+      "reason": "Cash balances require an authoritative bank-statement custody account input.",
+      "severity": "blocking"
+     }
+    ],
+    "blocking_count": 2,
+    "generated_at": null,
+    "label": "Blocked",
+    "package_id": "personal-financial-report-package",
+    "stale_since": null,
+    "state": "blocked",
+    "trusted": false
+   },
+   "suggestions": [
+    {
+     "basis": "Report readiness is blocked with 2 blocker(s).",
+     "confidence_tier": "blocked",
+     "limitation": "Do not describe the report package as trusted until blockers are resolved.",
+     "next_action_href": "/reports/package",
+     "source_refs": [
+      "report_readiness",
+      "authority_coverage"
+     ]
+    },
+    {
+     "basis": "Workflow has 1 action-required event(s).",
+     "confidence_tier": "review_required",
+     "limitation": "Pending review items may affect report readiness and advisory conclusions.",
+     "next_action_href": "/reports/package",
+     "source_refs": [
+      "workflow"
+     ]
+    },
+    {
+     "basis": "Market data is stale for 1 observed scope(s).",
+     "confidence_tier": "stale",
+     "limitation": "Portfolio valuation and market-sensitive report facts should be refreshed before relying on them.",
+     "next_action_href": "/portfolio/prices/update",
+     "source_refs": [
+      "market_data"
+     ]
+    },
+    {
+     "basis": "Cash-flow context has 1 pending reconciliation review item(s).",
+     "confidence_tier": "review_required",
+     "limitation": "Unreviewed reconciliation items should not be used as trusted cash-flow conclusions.",
+     "next_action_href": "/reconciliation/review-queue",
+     "source_refs": [
+      "cash_flow",
+      "reconciliation"
+     ]
+    }
+   ],
+   "workflow": {
+    "active_session": {
+     "event_counts": {
+      "action_required": 1,
+      "blocked": 3,
+      "unread": 7
+     },
+     "id": "<uuid>",
+     "last_event_at": "<datetime>",
+     "primary_state": "blocked",
+     "report_href": null,
+     "report_readiness": {
+      "blocking_count": 2,
+      "href": "/reports/package",
+      "state": "blocked"
+     },
+     "source_count": 7,
+     "started_at": "<datetime>",
+     "status": "active",
+     "summary": "Current upload, processing, review, and report-readiness work.",
+     "title": "Upload-to-report session"
+    },
+    "event_counts": {
+     "action_required": 1,
+     "blocked": 3,
+     "unread": 7
+    },
+    "next_action": {
+     "count": 3,
+     "href": "/reports/package",
+     "label": "Resolve blocker",
+     "summary": "Resolve the blocking condition before the report package can be trusted.",
+     "type": "resolve_blocker"
+    },
+    "primary_state": "blocked",
+    "report_readiness": {
+     "blocking_count": 2,
+     "href": "/reports/package",
+     "state": "blocked"
+    }
+   }
+  },
+  "financial_context": {
+   "advisor_context": {
+    "authority_coverage": {
+     "authoritative_input_count": 26,
+     "blocker_codes": [
+      "cash_identity_missing",
+      "cash_balance_input_missing"
+     ],
+     "manifest_decision_count": 10,
+     "unproven_input_count": 0
+    },
+    "cash_flow": {
+     "monthly_expenses": "SGD 99.50",
+     "monthly_income": "SGD 6000.00",
+     "pending_review": "1",
+     "top_expenses": "Expense - Corpus Reviewed: SGD 49.75, Expense - Corpus Reviewed: SGD 49.75",
+     "unmatched_count": "0"
+    },
+    "financial_summary": {
+     "balance_sheet_confidence_tier": "DETERMINISTIC",
+     "equity": "SGD 7900.50",
+     "income_statement_confidence_tier": "DETERMINISTIC",
+     "match_rate": "85.71%",
+     "monthly_expenses": "SGD 99.50",
+     "monthly_income": "SGD 6000.00",
+     "net_income": "SGD 5900.50",
+     "net_worth": "SGD 7900.50",
+     "opening_equity": "SGD 2000.00",
+     "pending_review": "1",
+     "top_expenses": "Expense - Corpus Reviewed: SGD 49.75, Expense - Corpus Reviewed: SGD 49.75",
+     "total_assets": "SGD 7900.50",
+     "total_liabilities": "SGD 0.00",
+     "unmatched_count": "0"
+    },
+    "market_data": {
+     "stale_count": 1,
+     "stale_scopes": [
+      "USD/SGD"
+     ],
+     "statuses": [
+      {
+       "fresh": false,
+       "kind": "fx",
+       "last_observation_date": null,
+       "last_success_at": null,
+       "last_success_date": null,
+       "scope": "USD/SGD"
+      }
+     ]
+    },
+    "portfolio": {
+     "active_positions_count": 0,
+     "available": false,
+     "currency": "SGD",
+     "holdings_count": 0,
+     "total_market_value": "0.00"
+    },
+    "report_readiness": {
+     "action_href": "/reports/package",
+     "blockers": [
+      {
+       "action_href": "/reports/package",
+       "code": "cash_identity_missing",
+       "count": 1,
+       "label": "Package section invariant failed",
+       "reason": "No cash account matches a statement custody account. Confirm the account of your bank statement.",
+       "severity": "blocking"
+      },
+      {
+       "action_href": "/reports/package",
+       "code": "cash_balance_input_missing",
+       "count": 1,
+       "label": "Package section invariant failed",
+       "reason": "Cash balances require an authoritative bank-statement custody account input.",
+       "severity": "blocking"
+      }
+     ],
+     "blocking_count": 2,
+     "generated_at": null,
+     "label": "Blocked",
+     "package_id": "personal-financial-report-package",
+     "stale_since": null,
+     "state": "blocked",
+     "trusted": false
+    },
+    "suggestions": [
+     {
+      "basis": "Report readiness is blocked with 2 blocker(s).",
+      "confidence_tier": "blocked",
+      "limitation": "Do not describe the report package as trusted until blockers are resolved.",
+      "next_action_href": "/reports/package",
+      "source_refs": [
+       "report_readiness",
+       "authority_coverage"
+      ]
+     },
+     {
+      "basis": "Workflow has 1 action-required event(s).",
+      "confidence_tier": "review_required",
+      "limitation": "Pending review items may affect report readiness and advisory conclusions.",
+      "next_action_href": "/reports/package",
+      "source_refs": [
+       "workflow"
+      ]
+     },
+     {
+      "basis": "Market data is stale for 1 observed scope(s).",
+      "confidence_tier": "stale",
+      "limitation": "Portfolio valuation and market-sensitive report facts should be refreshed before relying on them.",
+      "next_action_href": "/portfolio/prices/update",
+      "source_refs": [
+       "market_data"
+      ]
+     },
+     {
+      "basis": "Cash-flow context has 1 pending reconciliation review item(s).",
+      "confidence_tier": "review_required",
+      "limitation": "Unreviewed reconciliation items should not be used as trusted cash-flow conclusions.",
+      "next_action_href": "/reconciliation/review-queue",
+      "source_refs": [
+       "cash_flow",
+       "reconciliation"
+      ]
+     }
+    ],
+    "workflow": {
+     "active_session": {
+      "event_counts": {
+       "action_required": 1,
+       "blocked": 3,
+       "unread": 7
+      },
+      "id": "<uuid>",
+      "last_event_at": "<datetime>",
+      "primary_state": "blocked",
+      "report_href": null,
+      "report_readiness": {
+       "blocking_count": 2,
+       "href": "/reports/package",
+       "state": "blocked"
+      },
+      "source_count": 7,
+      "started_at": "<datetime>",
+      "status": "active",
+      "summary": "Current upload, processing, review, and report-readiness work.",
+      "title": "Upload-to-report session"
+     },
+     "event_counts": {
+      "action_required": 1,
+      "blocked": 3,
+      "unread": 7
+     },
+     "next_action": {
+      "count": 3,
+      "href": "/reports/package",
+      "label": "Resolve blocker",
+      "summary": "Resolve the blocking condition before the report package can be trusted.",
+      "type": "resolve_blocker"
+     },
+     "primary_state": "blocked",
+     "report_readiness": {
+      "blocking_count": 2,
+      "href": "/reports/package",
+      "state": "blocked"
+     }
+    }
+   },
+   "advisor_suggestions": "Report readiness is blocked with 2 blocker(s). [blocked]; Workflow has 1 action-required event(s). [review_required]; Market data is stale for 1 observed scope(s). [stale]; Cash-flow context has 1 pending reconciliation review item(s). [review_required]",
+   "balance_sheet_confidence_tier": "DETERMINISTIC",
+   "equity": "SGD 7900.50",
+   "income_statement_confidence_tier": "DETERMINISTIC",
+   "match_rate": "85.71%",
+   "monthly_expenses": "SGD 99.50",
+   "monthly_income": "SGD 6000.00",
+   "net_income": "SGD 5900.50",
+   "net_worth": "SGD 7900.50",
+   "opening_equity": "SGD 2000.00",
+   "pending_review": "1",
+   "top_expenses": "Expense - Corpus Reviewed: SGD 49.75, Expense - Corpus Reviewed: SGD 49.75",
+   "total_assets": "SGD 7900.50",
+   "total_liabilities": "SGD 0.00",
+   "unmatched_count": "0"
+  }
+ }
+}

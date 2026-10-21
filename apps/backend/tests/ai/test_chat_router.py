@@ -62,7 +62,7 @@ async def test_AC21_3_1_chat_suggestions_include_structured_advisor_facts() -> N
 
     with patch("src.routers.chat.AIAdvisorService") as MockService:
         mock_service = MagicMock()
-        mock_service.get_advisor_context = AsyncMock(return_value={"suggestions": [advisor_fact]})
+        mock_service.get_advisor_suggestions = AsyncMock(return_value=[advisor_fact])
         MockService.return_value = mock_service
 
         response = await suggestions(language="en", include_structured=True, db=mock_db, user_id=mock_user_id)
@@ -75,7 +75,7 @@ async def test_AC21_3_1_chat_suggestions_include_structured_advisor_facts() -> N
     assert structured.source_refs == ["workflow.status", "report_package.readiness"]
     assert structured.limitation == advisor_fact["limitation"]
     assert structured.next_action_href == "/reports/package"
-    mock_service.get_advisor_context.assert_awaited_once_with(mock_db, mock_user_id)
+    mock_service.get_advisor_suggestions.assert_awaited_once_with(mock_db, mock_user_id)
 
 
 @pytest.mark.no_db
@@ -99,9 +99,9 @@ async def test_AC6_5_1_chat_suggestions_return_static_items_when_structured_cont
     """AC6.5.1: Chat suggestions stay available when structured advisor context is slow."""
     from src.routers.chat import suggestions
 
-    async def slow_context(*_args: object) -> dict:
+    async def slow_context(*_args: object) -> list[dict]:
         await asyncio.sleep(0.05)
-        return {"suggestions": [{"basis": "too slow"}]}
+        return [{"basis": "too slow"}]
 
     mock_db = MagicMock()
     mock_user_id = uuid4()
@@ -111,7 +111,7 @@ async def test_AC6_5_1_chat_suggestions_return_static_items_when_structured_cont
         patch("src.routers.chat.AIAdvisorService") as MockService,
     ):
         mock_service = MagicMock()
-        mock_service.get_advisor_context = AsyncMock(side_effect=slow_context)
+        mock_service.get_advisor_suggestions = AsyncMock(side_effect=slow_context)
         MockService.return_value = mock_service
 
         response = await suggestions(
@@ -123,7 +123,7 @@ async def test_AC6_5_1_chat_suggestions_return_static_items_when_structured_cont
 
     assert response.suggestions
     assert response.structured_suggestions == []
-    mock_service.get_advisor_context.assert_awaited_once_with(mock_db, mock_user_id)
+    mock_service.get_advisor_suggestions.assert_awaited_once_with(mock_db, mock_user_id)
 
 
 async def test_detect_language_chinese() -> None:

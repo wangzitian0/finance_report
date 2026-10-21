@@ -27,6 +27,7 @@ from src.ledger import (
     JournalLine,
 )
 from src.reporting import generate_balance_sheet, generate_cash_flow, generate_income_statement
+from tests.factories import seed_year_of_journal_entries
 
 ENTRY_COUNT = 1000
 AMOUNT = Decimal("100.00")
@@ -136,58 +137,8 @@ async def test_AC_reporting_net_worth_timeseries_4_six_month_daily_series_within
     """AC-reporting.net-worth-timeseries.4: at a year of activity (1000 entries), the Home
     default series (6 months, daily) makes fewer than 30 SQL statements and answers in
     less than 500 ms. Before #2583 it ran one balance sheet per point (about 2000 statements)."""
-    user_id = test_user.id
-    bank = Account(user_id=user_id, name="Bank", code="1001", type=AccountType.ASSET, currency="SGD")
-    card = Account(user_id=user_id, name="Card", code="2001", type=AccountType.LIABILITY, currency="SGD")
-    salary = Account(user_id=user_id, name="Salary", code="4001", type=AccountType.INCOME, currency="SGD")
-    db.add_all([bank, card, salary])
-    await db.flush()
-
     today = date.today()
-    first_day = today - timedelta(days=364)
-    now = datetime.now(UTC)
-    entry_rows = []
-    line_rows = []
-    for i in range(ENTRY_COUNT):
-        entry_id = uuid4()
-        entry_rows.append(
-            {
-                "id": entry_id,
-                "user_id": user_id,
-                "entry_date": first_day + timedelta(days=i % 365),
-                "memo": f"txn {i}",
-                "source_type": JournalEntrySourceType.MANUAL,
-                "source_id": None,
-                "decision_anchor_id": None,
-                "decision_authority_state": JournalEntryAuthorityState.LEGACY_UNPROVEN,
-                "status": JournalEntryStatus.POSTED,
-                "void_reason": None,
-                "void_reversal_entry_id": None,
-                "created_at": now,
-                "updated_at": now,
-            }
-        )
-        # Every fifth entry is a card charge; the other entries are salary into the bank.
-        debit, credit = (bank, card) if i % 5 == 0 else (bank, salary)
-        for account, direction in ((debit, Direction.DEBIT), (credit, Direction.CREDIT)):
-            line_rows.append(
-                {
-                    "id": uuid4(),
-                    "journal_entry_id": entry_id,
-                    "account_id": account.id,
-                    "direction": direction,
-                    "amount": AMOUNT,
-                    "currency": "SGD",
-                    "fx_rate": None,
-                    "event_type": None,
-                    "tags": None,
-                    "created_at": now,
-                    "updated_at": now,
-                }
-            )
-    await db.execute(insert(JournalEntry), entry_rows)
-    await db.execute(insert(JournalLine), line_rows)
-    await db.commit()
+    await seed_year_of_journal_entries(db, test_user.id, first_day=today - timedelta(days=364), entry_count=ENTRY_COUNT)
 
     statements = {"count": 0}
 
