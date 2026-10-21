@@ -90,11 +90,41 @@ def _is_retryable(exc: Exception) -> bool:
 
 
 # Z.ai and other providers put a numeric error code in the response body, for example
-# {"error":{"code":"1302",...}}. The OpenAI client writes the body into the exception
-# text as a Python dict ("Error code: 429 - {'error': {'code': '1302', ...}}"), so the
-# quotes can be single or double. One status maps to many causes (concurrency, quota,
-# no resource package); the code tells them apart (#2580).
+# {"error":{"code":"1302",...}}. One status maps to many causes (concurrency, quota,
+# no resource package); the code tells them apart (#2580). litellm turns a standard
+# body into message text only, so the code is read from the body of the chained
+# provider error. The text pattern is the fallback for a body written into the text.
 _PROVIDER_CODE = re.compile(r"""["']code["']\s*:\s*["']?(\d{3,5})["']?""")
+_CODE_TEXT = re.compile(r"\d{3,5}")
+_CHAIN_DEPTH = 4
+
+
+def _code_in_body(body: object) -> str | None:
+    if not isinstance(body, Mapping):
+        return None
+    inner = body.get("error")
+    for source in (inner, body):
+        if not isinstance(source, Mapping):
+            continue
+        code = source.get("code")
+        if isinstance(code, bool) or not isinstance(code, str | int):
+            continue
+        if _CODE_TEXT.fullmatch(str(code)):
+            return str(code)
+    return None
+
+
+def _provider_code(exc: BaseException) -> str | None:
+    current: BaseException | None = exc
+    for _ in range(_CHAIN_DEPTH):
+        if current is None:
+            break
+        code = _code_in_body(getattr(current, "body", None))
+        if code:
+            return code
+        current = current.__cause__ or current.__context__
+    match = _PROVIDER_CODE.search(str(exc))
+    return match.group(1) if match else None
 
 
 def _wrap(exc: Exception) -> LLMError:
@@ -106,9 +136,9 @@ def _wrap(exc: Exception) -> LLMError:
     status = getattr(exc, "status_code", None)
     if isinstance(status, int) and not isinstance(status, bool) and 100 <= status <= 599:
         parts.append(f"http {status}")
-    code = _PROVIDER_CODE.search(str(exc))
+    code = _provider_code(exc)
     if code:
-        parts.append(f"provider code {code.group(1)}")
+        parts.append(f"provider code {code}")
     return LLMError(f"LLM provider call failed ({', '.join(parts)})", retryable=_is_retryable(exc))
 
 
