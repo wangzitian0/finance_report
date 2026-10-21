@@ -10,6 +10,7 @@ entry point is :mod:`src.llm.extension.streaming` (which counts request/token us
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -88,11 +89,25 @@ def _is_retryable(exc: Exception) -> bool:
     return type(exc).__name__ in _RETRYABLE_EXC
 
 
+# Z.ai and other providers put a numeric error code in the JSON body, for example
+# {"error":{"code":"1113",...}}. One status maps to many causes (concurrency, quota,
+# no resource package), so the code is what tells them apart (#2580).
+_PROVIDER_CODE = re.compile(r'"code"\s*:\s*"?(\d{3,5})"?')
+
+
 def _wrap(exc: Exception) -> LLMError:
-    # Surface only the exception class in the raised message — upstream provider
-    # errors can embed request context (endpoints, headers, payload fragments).
-    # The full detail is logged server-side (with the logger) by the caller.
-    return LLMError(f"LLM provider call failed ({type(exc).__name__})", retryable=_is_retryable(exc))
+    # Surface only the exception class, the integer HTTP status and a numeric
+    # provider code in the raised message — upstream provider errors can embed
+    # request context (endpoints, headers, payload fragments), so no free text
+    # passes. The full detail is logged server-side (with the logger) by the caller.
+    parts = [type(exc).__name__]
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int) and not isinstance(status, bool) and 100 <= status <= 599:
+        parts.append(f"http {status}")
+    code = _PROVIDER_CODE.search(str(exc))
+    if code:
+        parts.append(f"provider code {code.group(1)}")
+    return LLMError(f"LLM provider call failed ({', '.join(parts)})", retryable=_is_retryable(exc))
 
 
 def _base_kwargs(

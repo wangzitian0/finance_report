@@ -461,3 +461,39 @@ def test_AC23_9_1_litellm_aiohttp_transport_disabled_prevents_session_leak():
 
     assert client_mod.litellm.disable_aiohttp_transport is True
     assert litellm.disable_aiohttp_transport is True
+
+
+class _ProviderError(Exception):
+    def __init__(self, message: str, status_code=None):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class RateLimitError(_ProviderError):
+    """Same class name as litellm's, so the retryable check sees a rate limit."""
+
+
+def test_AC_llm_provider_error_code_1_text_names_status_and_code_and_nothing_else():
+    """AC-llm.provider-error-code.1: class, HTTP status and numeric code reach the text; the message does not."""
+    body = (
+        '{"error":{"code":"1113","message":"Insufficient balance. key sk-SECRET-123 at '
+        'https://open.bigmodel.cn/api/paas/v4/chat Authorization: Bearer abc"}}'
+    )
+    err = client_mod._wrap(RateLimitError(body, status_code=429))
+
+    assert str(err) == "LLM provider call failed (RateLimitError, http 429, provider code 1113)"
+    assert err.retryable is True
+    for leaked in ("sk-SECRET", "Bearer", "https://", "Insufficient"):
+        assert leaked not in str(err)
+
+
+def test_AC_llm_provider_error_code_1_text_stays_the_class_name_without_status_or_code():
+    """AC-llm.provider-error-code.1: no status and no numeric code leave only the class name."""
+    assert str(client_mod._wrap(ValueError("bad request"))) == "LLM provider call failed (ValueError)"
+    # A non-integer status, a bool and an out-of-range status are not HTTP statuses.
+    for status in ("429", True, 99, 600):
+        err = client_mod._wrap(_ProviderError("x", status_code=status))
+        assert str(err) == "LLM provider call failed (_ProviderError)"
+    # A code that is not a 3-5 digit number is not a provider code.
+    err = client_mod._wrap(_ProviderError('{"error":{"code":"rate_limited"}}', status_code=429))
+    assert str(err) == "LLM provider call failed (_ProviderError, http 429)"

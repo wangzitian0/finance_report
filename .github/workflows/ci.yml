@@ -25,7 +25,7 @@ env:
 jobs:
   changes:
     name: Classify Changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       pr_required: ${{ steps.gates.outputs.pr_required }}
@@ -89,7 +89,7 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -368,7 +368,7 @@ jobs:
 
   schema-migrations:
     name: Schema Migration Contract
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
@@ -435,7 +435,7 @@ jobs:
           retention-days: 14
   backend:
     name: Backend Tests (Shard ${{ matrix.shard }}/4)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
@@ -549,7 +549,7 @@ jobs:
 
   backend-integration:
     name: Backend Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
@@ -635,7 +635,7 @@ jobs:
 
   frontend-build:
     name: Frontend Build & Typecheck
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
     # AC-testing.ci-structure.11: right-moved off PRs that touch no
@@ -678,7 +678,7 @@ jobs:
 
   frontend-vitest:
     name: Frontend Vitest Coverage
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
@@ -723,7 +723,7 @@ jobs:
 
   frontend-playwright:
     name: Frontend Playwright
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: [changes]
     # AC-testing.ci-structure.11: right-moved off PRs that touch no
@@ -813,7 +813,7 @@ jobs:
 
   frontend-telemetry-e2e:
     name: Frontend Telemetry E2E
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: [changes]
     # #1689: right-moved off unrelated PRs (browser install is ~2-3 min). Always
@@ -906,7 +906,7 @@ jobs:
 
   container-images:
     name: Build Staging Images
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: [changes]
     # Main/release push (and manual dispatch) ALWAYS build + push the immutable
@@ -994,7 +994,7 @@ jobs:
 
   verify-sha-image-published:
     name: Verify Commit Image Published
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [container-images]
     # #1759 (W4 of #1435): "every main commit produces a promotable :<sha>"
@@ -1051,7 +1051,7 @@ jobs:
     name: Tooling/Common Coverage (Shard ${{ matrix.shard }}/2)
     needs: [changes]
     if: needs.changes.outputs.pr_required == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -1156,7 +1156,7 @@ jobs:
     name: Calculate Unified Coverage
     needs: [changes, backend, frontend-vitest, tooling-coverage]
     if: needs.changes.outputs.pr_required == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -1354,7 +1354,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.pr_required == 'true' && needs.unified-coverage.result == 'success'
     # Best-effort post-merge automation: opening/refreshing the baseline PR must
     # never fail the main CI run. Isolated with continue-on-error on the execution step.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -1383,7 +1383,7 @@ jobs:
     name: AC Traceability Check
     needs: [changes, lint, tooling-coverage, backend, backend-integration, frontend-vitest]
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -1530,7 +1530,7 @@ jobs:
     # complete and cannot race an in-flight upload.
     needs: [changes, backend, backend-integration, frontend-vitest]
     if: needs.changes.outputs.pr_required == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -1585,7 +1585,7 @@ jobs:
     # depends on this job, so it cannot block a merge or grow the required-check
     # count). Runs after the two gates whose output it aggregates.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -1618,7 +1618,7 @@ jobs:
   finish:
     needs: [changes, schema-migrations, backend, backend-integration, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, container-images, verify-sha-image-published, lint, tooling-coverage, unified-coverage, ac-traceability, ac-behavioral-ratchet]
     if: ${{ always() }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
