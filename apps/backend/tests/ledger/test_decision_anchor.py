@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -11,9 +13,10 @@ from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import func, select, text
+from sqlalchemy import Result, Select, event, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import ORMExecuteState, Session
 
 from src.audit import (
     JournalEntrySourceType,
@@ -644,6 +647,31 @@ async def _manual_draft(client: AsyncClient, *, memo: str, lines: list[dict]) ->
     return UUID(created.json()["id"])
 
 
+def _reverse_unordered_journal_line_reads(state: ORMExecuteState) -> Result | None:
+    """Give a journal-line read without ORDER BY the reverse of the command order.
+
+    SQL defines no row order without ORDER BY. Postgres usually returns the insert order, so a
+    read that has no ORDER BY passes by chance. This hook removes that chance (#2594).
+    A read with an ORDER BY runs unchanged.
+    """
+    statement = state.statement
+    if not state.is_select or not isinstance(statement, Select) or statement._order_by_clauses:
+        return None
+    if not any(column.get("expr") is JournalLine for column in statement.column_descriptions):
+        return None
+    return state.invoke_statement(statement=statement.order_by(JournalLine.line_no.desc()))
+
+
+@contextmanager
+def _unordered_journal_line_reads_in_reverse_command_order() -> Iterator[None]:
+    """Apply ``_reverse_unordered_journal_line_reads`` to every session, the app session included."""
+    event.listen(Session, "do_orm_execute", _reverse_unordered_journal_line_reads)
+    try:
+        yield
+    finally:
+        event.remove(Session, "do_orm_execute", _reverse_unordered_journal_line_reads)
+
+
 @pytest.mark.asyncio
 async def test_AC_ledger_79_10_post_does_not_depend_on_the_database_row_order(
     client: AsyncClient,
@@ -663,21 +691,19 @@ async def test_AC_ledger_79_10_post_does_not_depend_on_the_database_row_order(
             {"account_id": str(credit.id), "direction": "CREDIT", "amount": "1000.00", "currency": "SGD"},
         ],
     )
-
-    # A deleted row frees space, and Postgres can store a later row before an earlier one.
-    # Move the first line behind the second to get that physical order.
-    await db.execute(
-        text(
-            "WITH moved AS (DELETE FROM journal_lines WHERE journal_entry_id = :entry AND account_id = :account "
-            "RETURNING *) INSERT INTO journal_lines SELECT * FROM moved"
-        ),
-        {"entry": entry_id, "account": debit.id},
+    positions = await db.execute(
+        select(JournalLine.account_id, JournalLine.line_no)
+        .where(JournalLine.journal_entry_id == entry_id)
+        .order_by(JournalLine.line_no)
     )
-    await db.commit()
-    unordered = await db.scalars(select(JournalLine.account_id).where(JournalLine.journal_entry_id.in_([entry_id])))
-    assert list(unordered) == [credit.id, debit.id]
+    assert [tuple(row) for row in positions] == [(debit.id, 0), (credit.id, 1)]
 
-    posted = await client.post(f"/journal-entries/{entry_id}/postings")
+    with _unordered_journal_line_reads_in_reverse_command_order():
+        # Precondition: a line read without ORDER BY now gets the lines in the reverse command order.
+        unordered = await db.scalars(select(JournalLine).where(JournalLine.journal_entry_id == entry_id))
+        assert [line.account_id for line in unordered] == [credit.id, debit.id]
+
+        posted = await client.post(f"/journal-entries/{entry_id}/postings")
 
     assert posted.status_code == 200, posted.text
     assert [line["account_id"] for line in posted.json()["lines"]] == [str(debit.id), str(credit.id)]

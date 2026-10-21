@@ -309,6 +309,38 @@ describe("PortfolioPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("closes the inline price sheet and reloads the holdings after a price update succeeds", async () => {
+    mockPortfolioApi([mockHolding]);
+    const portfolioApi = mockedApiFetch.getMockImplementation()!;
+    mockedApiFetch.mockImplementation((path: string, init?: RequestInit) =>
+      path === "/api/portfolio/prices/update"
+        ? Promise.resolve({ updated_count: 1, errors: [] })
+        : portfolioApi(path, init),
+    );
+    const holdingsReads = () =>
+      mockedApiFetch.mock.calls.filter(([path]) => String(path).startsWith("/api/portfolio/holdings")).length;
+
+    render(<PortfolioPage />, { wrapper: createWrapper() });
+    await waitFor(() => expect(screen.getByText("AAPL")).toBeInTheDocument());
+    const readsBeforeUpdate = holdingsReads();
+
+    fireEvent.click(screen.getByText("Update Prices").closest("a")!);
+    const sheet = screen.getByTestId("portfolio-price-update-sheet");
+    fireEvent.change(within(sheet).getByRole("combobox"), { target: { value: "AAPL" } });
+    fireEvent.change(within(sheet).getByPlaceholderText("0.00"), { target: { value: "190.50" } });
+    fireEvent.submit(within(sheet).getByRole("button", { name: "Update Prices" }).closest("form")!);
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("portfolio-price-update-sheet")).not.toBeInTheDocument(),
+    );
+    const [, request] = mockedApiFetch.mock.calls.find(([path]) => path === "/api/portfolio/prices/update")!;
+    expect(JSON.parse(String(request.body))).toEqual({
+      updates: [expect.objectContaining({ asset_identifier: "AAPL", price: "190.50" })],
+    });
+    expect(showToastMock).toHaveBeenCalledWith("Updated 1 price(s)", "success");
+    await waitFor(() => expect(holdingsReads()).toBe(readsBeforeUpdate + 1));
+  });
+
   it("AC17.8.4 shows total portfolio value banner when active holdings are loaded", async () => {
     mockPortfolioApi();
 
