@@ -84,6 +84,10 @@ describe("Report filter controls", () => {
       "aria-selected",
       "false",
     );
+    expect(screen.getByRole("tab", { name: "Full package" })).toHaveAttribute(
+      "href",
+      "/reports/package",
+    );
     expect(screen.getByRole("button", { name: "Period 3Y" })).toHaveAttribute(
       "aria-pressed",
       "true",

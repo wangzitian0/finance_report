@@ -150,7 +150,7 @@ describe("ReportsPage", () => {
     expect(screen.getByRole("tab", { name: "Balance Sheet" })).toHaveAttribute("href", "/reports/balance-sheet")
     expect(screen.getByRole("tab", { name: "Income Statement" })).toHaveAttribute("href", "/reports/income-statement")
     expect(screen.getByRole("tab", { name: "Cash Flow" })).toHaveAttribute("href", "/reports/cash-flow")
-    expect(screen.getByRole("tab", { name: "Report Package" })).toHaveAttribute("href", "/reports/package")
+    expect(screen.getByRole("tab", { name: "Full package" })).toHaveAttribute("href", "/reports/package")
 
     const periodGroup = screen.getByRole("group", { name: "Reporting period" })
     expect(periodGroup).toBeInTheDocument()

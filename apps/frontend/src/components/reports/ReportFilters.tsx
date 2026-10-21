@@ -99,7 +99,7 @@ export const STATEMENT_QUICK_TABS: ReadonlyArray<{
   { label: "Balance Sheet", displayLabel: "Balance sheet", href: "/reports/balance-sheet" },
   { label: "Income Statement", displayLabel: "Income statement", href: "/reports/income-statement" },
   { label: "Cash Flow", displayLabel: "Cash flow", href: "/reports/cash-flow" },
-  { label: "Report Package", displayLabel: "Report package", href: "/reports/package" },
+  { label: "Full package", displayLabel: "Full package", href: "/reports/package" },
 ];
 
 export function StatementQuickTabs({
