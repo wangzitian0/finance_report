@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState } from "react";
 
 import {
@@ -79,6 +80,60 @@ interface PeriodPresetFilterControlProps {
     preset: CockpitPeriodPreset,
   ) => void;
   defaultPreset?: CockpitPeriodPreset;
+  activePreset?: CockpitPeriodPreset;
+}
+
+export type StatementQuickTabHref =
+  | "/reports"
+  | "/reports/balance-sheet"
+  | "/reports/income-statement"
+  | "/reports/cash-flow"
+  | "/reports/package";
+
+export const STATEMENT_QUICK_TABS: ReadonlyArray<{
+  label: string;
+  displayLabel: string;
+  href: StatementQuickTabHref;
+}> = [
+  { label: "Overview", displayLabel: "Overview", href: "/reports" },
+  { label: "Balance Sheet", displayLabel: "Balance sheet", href: "/reports/balance-sheet" },
+  { label: "Income Statement", displayLabel: "Income statement", href: "/reports/income-statement" },
+  { label: "Cash Flow", displayLabel: "Cash flow", href: "/reports/cash-flow" },
+  { label: "Full package", displayLabel: "Full package", href: "/reports/package" },
+];
+
+export function StatementQuickTabs({
+  activeHref = "/reports",
+}: {
+  activeHref?: StatementQuickTabHref | string;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Statement view switcher"
+      className="flex flex-wrap items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--background-muted)]/40 p-1"
+    >
+      {STATEMENT_QUICK_TABS.map((tab) => {
+        const active = activeHref === tab.href;
+        return (
+          <Link
+            key={tab.href}
+            href={tab.href}
+            role="tab"
+            aria-label={tab.label}
+            aria-selected={active}
+            className={`rounded px-2.5 py-1 text-xs font-medium capitalize transition-colors ${
+              active
+                ? "bg-[var(--background-card)] text-[var(--foreground)] shadow-sm"
+                : "text-muted hover:text-[var(--foreground)]"
+            }`}
+          >
+            {tab.displayLabel}
+          </Link>
+        );
+      })}
+    </div>
+  );
 }
 
 function readStoredPreset(
@@ -101,13 +156,15 @@ function readStoredPreset(
 export function PeriodPresetFilterControl({
   onSelectRange,
   defaultPreset = "1Y",
+  activePreset: controlledPreset,
 }: PeriodPresetFilterControlProps) {
-  const [activePreset, setActivePreset] = useState<CockpitPeriodPreset>(() =>
+  const [internalPreset, setInternalPreset] = useState<CockpitPeriodPreset>(() =>
     readStoredPreset(defaultPreset),
   );
+  const activePreset = controlledPreset ?? internalPreset;
 
   const handleSelect = (preset: CockpitPeriodPreset) => {
-    setActivePreset(preset);
+    setInternalPreset(preset);
     try {
       window.sessionStorage.setItem(COCKPIT_PERIOD_STORAGE_KEY, preset);
     } catch {

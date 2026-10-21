@@ -2,7 +2,6 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ProcessingSummaryCard from '@/components/ProcessingSummaryCard';
 import ProcessingPage from '@/app/(main)/processing/page';
-import DashboardPage from '@/app/(main)/page';
 import { apiOperation } from '@/lib/api-client';
 import type { ReactNode } from 'react';
 
@@ -213,7 +212,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
       return Promise.resolve({});
     }) as any);
 
-    render(<DashboardPage />);
+    render(<ProcessingSummaryCard />);
 
     await waitFor(() => {
       expect(screen.getByTestId('processing-count')).toHaveTextContent('2 Pending');

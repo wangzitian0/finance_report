@@ -34,15 +34,28 @@ export function StatementHeader({
     formatCode,
     formatPeriod,
 }: StatementHeaderProps) {
+    const displayTitle =
+        statement.original_filename ||
+        `${statement.institution} (${statement.period_start ?? ""} – ${statement.period_end ?? ""})`;
+    const reviewHref = `/statements/${statement.id || statementId}/review`;
+
     return (
         <div className="page-header flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex-1 min-w-0 w-full">
-                <div className="flex items-center gap-3 mb-2">
-                    <h1 className="page-title truncate">{statement.original_filename}</h1>
+                <div className="flex flex-wrap items-center gap-3 mb-2">
+                    <h1 className="page-title truncate">{displayTitle}</h1>
                     <StatusBadge
                         status={statement.status}
                         variants={{ approved: "success", rejected: "error", parsed: "warning" }}
                     />
+                    {statement.original_filename && (
+                        <span
+                            data-testid="statement-original-filename-badge"
+                            className="inline-flex items-center rounded-md border border-[var(--border)] bg-[var(--background-muted)] px-2.5 py-0.5 text-xs font-medium text-[var(--foreground-muted)]"
+                        >
+                            Source file: {statement.original_filename}
+                        </span>
+                    )}
                 </div>
                 <p className="page-description">
                     {statement.institution} • {formatCode(statement.currency)} • {formatPeriod(statement.period_start, statement.period_end)}
@@ -51,6 +64,12 @@ export function StatementHeader({
 
             {/* Actions */}
             <div className="flex flex-wrap items-center gap-2">
+                <Link
+                    href={reviewHref}
+                    className="btn-secondary flex items-center gap-2"
+                >
+                    Compare PDF & Review
+                </Link>
                 <Link
                     href={`/statements/${statementId}/review`}
                     className="btn-primary flex items-center gap-2"

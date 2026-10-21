@@ -6,7 +6,9 @@ import ReportsPage from "@/app/(main)/reports/page"
 import { apiOperation } from "@/lib/api-client"
 
 vi.mock("next/link", () => ({
-  default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
+  default: ({ href, children, ...props }: { href: string; children: ReactNode; [key: string]: unknown }) => (
+    <a href={href} {...props}>{children}</a>
+  ),
 }))
 
 vi.mock("@/lib/api-client", () => ({
@@ -105,6 +107,14 @@ describe("ReportsPage", () => {
       }
       if (path === "/api/reports/package?") {
         return Promise.resolve({
+          readiness: {
+            state: "blocked",
+            label: "Blocked",
+            action_href: "/attention",
+            blocking_count: 1,
+            blockers: [{ code: "b1", label: "Blocker 1", count: 1, reason: "Needs review" }],
+            input_coverage: { manifest_decision_count: 2, unproven_input_count: 1 },
+          },
           sections: {
             annualized_income_long_term: {
               income: {
@@ -128,5 +138,33 @@ describe("ReportsPage", () => {
       ([op]) => op === "get_annualized_income_income_annualized_get",
     )
     expect(annualizedCalls).toHaveLength(0)
+  })
+
+  it("renders statement view switcher tabs, period presets, and currency filter that persist to sessionStorage", () => {
+    window.sessionStorage.removeItem("finance_report.cockpit_period")
+    render(<ReportsPage />)
+
+    const tablist = screen.getByRole("tablist", { name: "Statement view switcher" })
+    expect(tablist).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true")
+    expect(screen.getByRole("tab", { name: "Balance Sheet" })).toHaveAttribute("href", "/reports/balance-sheet")
+    expect(screen.getByRole("tab", { name: "Income Statement" })).toHaveAttribute("href", "/reports/income-statement")
+    expect(screen.getByRole("tab", { name: "Cash Flow" })).toHaveAttribute("href", "/reports/cash-flow")
+    expect(screen.getByRole("tab", { name: "Full package" })).toHaveAttribute("href", "/reports/package")
+
+    const periodGroup = screen.getByRole("group", { name: "Reporting period" })
+    expect(periodGroup).toBeInTheDocument()
+    for (const preset of ["1M", "1Q", "1Y", "YTD", "3Y", "All"]) {
+      expect(screen.getByRole("button", { name: `Period ${preset}` })).toBeInTheDocument()
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "Period YTD" }))
+    expect(window.sessionStorage.getItem("finance_report.cockpit_period")).toBe("YTD")
+
+    const currencySelect = screen.getByLabelText("Currency")
+    expect(currencySelect).toHaveValue("SGD")
+    fireEvent.change(currencySelect, { target: { value: "USD" } })
+    expect(currencySelect).toHaveValue("USD")
+    window.sessionStorage.removeItem("finance_report.cockpit_period")
   })
 })

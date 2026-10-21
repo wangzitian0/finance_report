@@ -5,6 +5,7 @@ import {
   CurrencyFilterControl,
   DateFilterControl,
   PeriodPresetFilterControl,
+  StatementQuickTabs,
 } from "@/components/reports/ReportFilters";
 
 describe("Report filter controls", () => {
@@ -63,5 +64,33 @@ describe("Report filter controls", () => {
     );
     expect(window.sessionStorage.getItem("finance_report.cockpit_period")).toBe("YTD");
     window.sessionStorage.removeItem("finance_report.cockpit_period");
+  });
+
+  it("renders StatementQuickTabs and respects controlled activePreset on PeriodPresetFilterControl", () => {
+    const onSelectRange = vi.fn();
+    render(
+      <div>
+        <StatementQuickTabs activeHref="/reports/balance-sheet" />
+        <PeriodPresetFilterControl onSelectRange={onSelectRange} activePreset="3Y" />
+      </div>,
+    );
+
+    expect(screen.getByRole("tablist", { name: "Statement view switcher" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Balance Sheet" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+    expect(screen.getByRole("tab", { name: "Full package" })).toHaveAttribute(
+      "href",
+      "/reports/package",
+    );
+    expect(screen.getByRole("button", { name: "Period 3Y" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 });

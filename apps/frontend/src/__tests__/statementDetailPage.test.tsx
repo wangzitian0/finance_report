@@ -195,6 +195,12 @@ describe("StatementDetailPage", () => {
 
     await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
     expect(screen.getByText("Salary")).toBeInTheDocument()
+    expect(
+      screen.getByTestId("statement-original-filename-badge"),
+    ).toHaveTextContent("Source file: statement-jan.pdf")
+    expect(
+      screen.getByRole("link", { name: "Compare PDF & Review" }),
+    ).toHaveAttribute("href", "/statements/s1/review")
     expect(screen.getByRole("link", { name: "Start Review →" })).toHaveAttribute("href", "/statements/s1/review")
   })
 

@@ -277,7 +277,7 @@ export default function StatementDetailPage() {
   return (
     <div className="p-6">
       {/* Breadcrumb */}
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <Link
           href="/statements"
           className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1"
@@ -297,6 +297,11 @@ export default function StatementDetailPage() {
           </svg>
           Back to Statements
         </Link>
+        {statement.original_filename && (
+          <span className="text-xs text-muted">
+            Original PDF: {statement.original_filename}
+          </span>
+        )}
       </div>
 
       <div className="mb-6">

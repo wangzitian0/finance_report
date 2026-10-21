@@ -247,8 +247,8 @@ describe("HomePage", () => {
     )
     expect(screen.getByText("Total Assets")).toBeInTheDocument()
     expect(screen.getByText("Total Liabilities")).toBeInTheDocument()
-    // Net worth is shown once, in the hero banner — not duplicated as a KPI card.
-    expect(screen.getByText("Net Worth")).toBeInTheDocument()
+    // Net worth position is shown once in the Unified Statement Cockpit.
+    expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000")
     expect(screen.getByText("PieChartMock")).toBeInTheDocument()
     expect(screen.getByText("BarChartMock")).toBeInTheDocument()
     expect(screen.getByText("Recent Entries")).toBeInTheDocument()
@@ -265,7 +265,7 @@ describe("HomePage", () => {
       expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument(),
     )
     // Lean default: action-required home + financial key numbers are visible…
-    expect(screen.getByText("Net Worth")).toBeInTheDocument()
+    expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000")
     expect(screen.getByText("Total Assets")).toBeInTheDocument()
     // …but the heavy charts are collapsed until opted into.
     expect(screen.queryByText("BarChartMock")).toBeNull()
@@ -323,8 +323,8 @@ describe("HomePage", () => {
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "Upload to report" })).toBeInTheDocument())
     const workflowHome = screen.getByLabelText("Upload-to-report home")
-    const totalAssets = screen.getByText("Total Assets")
-    expect(Boolean(workflowHome.compareDocumentPosition(totalAssets) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    const analyticsSection = screen.getByLabelText("Dashboard analytics")
+    expect(Boolean(workflowHome.compareDocumentPosition(analyticsSection) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
   })
 
   it("AC21.3.3 test_AC21_3_3_dashboard_renders_advisor_brief_before_analytics", async () => {
@@ -400,8 +400,8 @@ describe("HomePage", () => {
     expect(screen.getAllByText("Report blocked").length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText("1 blocker")).toBeInTheDocument()
     const readiness = screen.getByLabelText("Report readiness")
-    const totalAssets = screen.getByText("Total Assets")
-    expect(Boolean(readiness.compareDocumentPosition(totalAssets) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    const analyticsSection = screen.getByLabelText("Dashboard analytics")
+    expect(Boolean(readiness.compareDocumentPosition(analyticsSection) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
   })
 
   // AC-reporting.fe-remainder-reports.8
@@ -410,11 +410,11 @@ describe("HomePage", () => {
 
     render(<HomePage />)
 
-    await waitFor(() => expect(screen.getByText("Action required")).toBeInTheDocument())
-    expect(screen.getAllByText("Review required").length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByRole("heading", { name: "Routine automation" })).toBeInTheDocument()
-    expect(screen.getByText("1 routine event")).toBeInTheDocument()
-    expect(screen.getAllByText("Safe entries posted").length).toBeGreaterThanOrEqual(1)
+    await waitFor(() => expect(screen.getByText("Action required: Review required")).toBeInTheDocument())
+    expect(screen.getAllByText(/Review required/).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText("Routine automation")).toBeInTheDocument()
+    expect(screen.getByText(/1 routine event/)).toBeInTheDocument()
+    expect(screen.getByText(/Safe entries posted/)).toBeInTheDocument()
   })
 
   // AC-reporting.fe-remainder-reports.9
@@ -437,6 +437,7 @@ describe("HomePage", () => {
 
     render(<HomePage />)
 
+    await waitForDashboardAnalyticsReady()
     await waitFor(() => expect(screen.getByText("Annualized Income")).toBeInTheDocument())
     expect(screen.getByText("Salary")).toBeInTheDocument()
     expect(screen.getByText("Bonus")).toBeInTheDocument()
@@ -451,6 +452,7 @@ describe("HomePage", () => {
 
     render(<HomePage />)
 
+    await waitForDashboardAnalyticsReady()
     await waitFor(() => expect(screen.getByText("Restricted Holdings")).toBeInTheDocument())
     expect(screen.getByText("SHOP-RSU")).toBeInTheDocument()
     expect(screen.getByText(/Unlock Jan 1, 2027/)).toBeInTheDocument()
@@ -468,7 +470,7 @@ describe("HomePage", () => {
       "balance_sheet_reports_balance_sheet_get",
       expect.objectContaining({ query: expect.objectContaining({ include_restricted: false }) }),
     )
-    expect(screen.getAllByText("$4,000").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000")
 
     fireEvent.click(screen.getByLabelText("Include restricted holdings"))
 
@@ -478,7 +480,7 @@ describe("HomePage", () => {
         expect.objectContaining({ query: expect.objectContaining({ include_restricted: true }) }),
       ),
     )
-    await waitFor(() => expect(screen.getAllByText("$16,500").length).toBeGreaterThanOrEqual(1))
+    await waitFor(() => expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $16,500"))
   })
 
   it("uses empty fallbacks when optional asset APIs return null", async () => {
@@ -486,9 +488,10 @@ describe("HomePage", () => {
 
     render(<HomePage />)
 
+    await waitForDashboardAnalyticsReady()
     await waitFor(() => expect(screen.getByText("Restricted Holdings")).toBeInTheDocument())
     expect(screen.getByText("No restricted holdings.")).toBeInTheDocument()
-    expect(screen.getAllByText("$4,000").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000")
   })
 
   it("uses empty fallbacks when primary dashboard APIs return null", async () => {
@@ -518,10 +521,8 @@ describe("HomePage", () => {
 
     render(<HomePage />)
 
-    await waitFor(() => expect(screen.getByText("This Month \u2014 Income")).toBeInTheDocument())
-    expect(screen.getByText("This Month \u2014 Expenses")).toBeInTheDocument()
-    expect(screen.getByText("This Month \u2014 Net")).toBeInTheDocument()
-    expect(screen.getByText("Surplus")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByTestId("cockpit-card-income-statement")).toHaveTextContent("Net $2,300 · Save rate 66%"))
+    expect(screen.getByTestId("cockpit-card-income-statement")).toHaveTextContent("Surplus")
   })
 
   it("AC16.23.2 This Month KPI cards link to income statement report and show deficit", async () => {
@@ -534,10 +535,10 @@ describe("HomePage", () => {
 
     render(<HomePage />)
 
-    await waitFor(() => expect(screen.getByText("This Month \u2014 Income")).toBeInTheDocument())
-    const links = screen.getAllByRole("link", { name: /This Month/i })
-    links.forEach((link) => expect(link).toHaveAttribute("href", "/reports/income-statement"))
-    expect(screen.getByText("Deficit")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByTestId("cockpit-card-income-statement")).toHaveTextContent("Deficit"))
+    const link = screen.getByTestId("cockpit-card-income-statement")
+    expect(link).toHaveAttribute("href", "/reports/income-statement")
+    expect(link).toHaveTextContent("Net -$500")
   })
 
   // AC-reporting.fe-report-surfaces.4
@@ -570,6 +571,7 @@ describe("HomePage", () => {
 
     render(<HomePage />)
 
+    await waitForDashboardAnalyticsReady()
     await waitFor(() => expect(screen.getByText("Reconciliation coverage")).toBeInTheDocument())
     expect(screen.getByText("80%")).toBeInTheDocument()
     expect(screen.queryByText("20%")).not.toBeInTheDocument()
@@ -593,7 +595,7 @@ describe("HomePage", () => {
     render(<HomePage />)
 
     await waitForDashboardAnalyticsReady()
-    const selector = screen.getByRole("combobox") as HTMLSelectElement
+    const selector = within(screen.getByLabelText("Dashboard analytics")).getByRole("combobox") as HTMLSelectElement
     expect(selector).toBeInTheDocument()
     expect(screen.getByText("Top Asset")).toBeInTheDocument()
     expect(screen.getByText("Savings")).toBeInTheDocument()
@@ -710,12 +712,8 @@ describe("HomePage", () => {
     render(<HomePage />)
 
     await waitForDashboardAnalyticsReady()
-    const articulation = await screen.findByTestId("dashboard-net-worth-articulation")
-    expect(within(articulation).getByText("Opening Equity")).toBeInTheDocument()
-    expect(within(articulation).getByText("Period Net Income")).toBeInTheDocument()
-    expect(within(articulation).getByText("Total Obligations")).toBeInTheDocument()
-    expect(within(articulation).getByText("Accounting Status")).toBeInTheDocument()
-    expect(within(articulation).getByText("Balanced (Δ 0.00)")).toBeInTheDocument()
+    const bsCard = await screen.findByTestId("cockpit-card-balance-sheet")
+    expect(bsCard).toHaveTextContent(/Position SGD\s*15,242 · Own SGD\s*15,242 \/ Owe SGD\s*0/)
   })
 
   it("renders period P&L fallback cards when trends array is empty but income data exists", async () => {
@@ -732,11 +730,9 @@ describe("HomePage", () => {
     render(<HomePage />)
 
     await waitForDashboardAnalyticsReady()
-    const pnl = await screen.findByTestId("period-pnl-summary")
-    expect(within(pnl).getByText("Period \u2014 Income")).toBeInTheDocument()
-    expect(within(pnl).getByText("Period \u2014 Expenses")).toBeInTheDocument()
-    expect(within(pnl).getByText("Period \u2014 Net")).toBeInTheDocument()
-    expect(within(pnl).getByText("Surplus")).toBeInTheDocument()
+    const incomeCard = await screen.findByTestId("cockpit-card-income-statement")
+    expect(incomeCard).toHaveTextContent("Net $2,000 · Save rate 40%")
+    expect(incomeCard).toHaveTextContent("Surplus")
   })
 
   it("renders dashboard analytics without waiting for chat suggestions and avoids duplicate TrustMeter fetches", async () => {
@@ -749,7 +745,7 @@ describe("HomePage", () => {
     await waitFor(() =>
       expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument(),
     )
-    expect(screen.getByText("Net Worth")).toBeInTheDocument()
+    expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000")
     expect(screen.getByText("Total Assets")).toBeInTheDocument()
 
     const statementCalls = mockedApiOperation.mock.calls.filter(
@@ -779,6 +775,6 @@ describe("HomePage", () => {
 
     expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument()
     expect(screen.getByText("Total Assets")).toBeInTheDocument()
-    expect(screen.getByText("Net Worth")).toBeInTheDocument()
+    expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000")
   })
 })

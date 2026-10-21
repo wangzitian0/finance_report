@@ -87,6 +87,7 @@ export const auditHubItems: NavItem[] = [
     { icon: TrendingDown, label: "Trust", href: APP_ROUTES.CONFIDENCE, protected: true },
     { icon: Link2, label: "Reconciliation", href: APP_ROUTES.RECONCILIATION, protected: true },
     { icon: BookOpen, label: "Journal", href: APP_ROUTES.JOURNAL, protected: true },
+    { icon: UploadCloud, label: "Statements", href: APP_ROUTES.UPLOAD, protected: true },
     { icon: Clock, label: "Processing", href: APP_ROUTES.PROCESSING, protected: true },
 ];
 

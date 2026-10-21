@@ -166,40 +166,48 @@ async def compute_personal_data_quality(
                 )
             )
 
-    temporal_healthy = total_gaps == 0
+    stats = await get_reconciliation_stats(db, user_id)
+    has_unanchored_activity = len(raw_statements) == 0 and stats.total_transactions > 0
+
+    temporal_healthy = total_gaps == 0 and not has_unanchored_activity
+    temporal_delta = total_gaps if not has_unanchored_activity else 1
+    if temporal_healthy:
+        temporal_summary = "Continuous multi-period cash rollforward verified (zero gaps detected)"
+        temporal_detail = "All consecutive statements roll forward without missing periods."
+    elif has_unanchored_activity:
+        temporal_summary = "No uploaded bank statements cover existing ledger activity"
+        temporal_detail = "Upload bank statements so transaction history has verified period rollforward."
+    else:
+        temporal_summary = f"{total_gaps} missing month gap(s) detected in financial timeline"
+        temporal_detail = f"Statement missing for {first_gap_month}. Upload statement to complete timeline continuity."
+
     temporal_status = InvariantStatus(
         is_healthy=temporal_healthy,
         name="Temporal Continuity & Rollforward",
-        summary=(
-            "Continuous multi-period cash rollforward verified (zero gaps detected)"
-            if temporal_healthy
-            else f"{total_gaps} missing month gap(s) detected in financial timeline"
-        ),
-        detail=(
-            "All consecutive statements roll forward without missing periods."
-            if temporal_healthy
-            else f"Statement missing for {first_gap_month}. Upload statement to complete timeline continuity."
-        ),
-        delta=Decimal(total_gaps),
+        summary=temporal_summary,
+        detail=temporal_detail,
+        delta=Decimal(temporal_delta),
     )
 
     # 4. Reconciliation Purity Invariant
-    stats = await get_reconciliation_stats(db, user_id)
-    recon_healthy = stats.pending_review == 0
+    recon_healthy = stats.pending_review == 0 and stats.unmatched_transactions == 0
+    recon_delta = stats.pending_review if stats.pending_review > 0 else stats.unmatched_transactions
+    if recon_healthy:
+        recon_summary = "Reconciliation purity verified with zero pending clearance items"
+        recon_detail = "Credit card and loan settlements clear liability accounts with zero P&L duplication."
+    elif stats.pending_review > 0:
+        recon_summary = f"{stats.pending_review} reconciliation item(s) pending review"
+        recon_detail = "Review suggested matches to confirm liability clearing."
+    else:
+        recon_summary = f"{stats.unmatched_transactions} unmatched transaction(s) require reconciliation"
+        recon_detail = "Match statement transactions against journal entries to verify cash clearance."
+
     recon_status = InvariantStatus(
         is_healthy=recon_healthy,
         name="Reconciliation & Debt Clearance Purity",
-        summary=(
-            "Reconciliation purity verified with zero pending clearance items"
-            if recon_healthy
-            else f"{stats.pending_review} reconciliation item(s) pending review"
-        ),
-        detail=(
-            "Credit card and loan settlements clear liability accounts with zero P&L duplication."
-            if recon_healthy
-            else "Review suggested matches to confirm liability clearing."
-        ),
-        delta=Decimal(stats.pending_review),
+        summary=recon_summary,
+        detail=recon_detail,
+        delta=Decimal(recon_delta),
     )
 
     # 5. Lineage Anchors Invariant
@@ -208,20 +216,22 @@ async def compute_personal_data_quality(
         for s in raw_statements
         if not s.uploaded_document_id and (not s.file_hash or s.file_hash.startswith("unlinked"))
     )
-    lineage_healthy = unlinked_count == 0
+    lineage_healthy = unlinked_count == 0 and not has_unanchored_activity
+    if lineage_healthy:
+        lineage_summary = "Full source-document-to-report lineage verified"
+        lineage_detail = "Every report line traces directly to verified statement extraction evidence."
+    elif has_unanchored_activity:
+        lineage_summary = "Transactions exist without uploaded source statement anchors"
+        lineage_detail = "Upload source statements to anchor ledger transactions to immutable evidence."
+    else:
+        lineage_summary = f"{unlinked_count} statement(s) missing immutable source file link"
+        lineage_detail = "Re-upload missing original document to anchor report evidence."
+
     lineage_status = InvariantStatus(
         is_healthy=lineage_healthy,
         name="Evidence Lineage & Traceability Anchors",
-        summary=(
-            "Full source-document-to-report lineage verified"
-            if lineage_healthy
-            else f"{unlinked_count} statement(s) missing immutable source file link"
-        ),
-        detail=(
-            "Every report line traces directly to verified statement extraction evidence."
-            if lineage_healthy
-            else "Re-upload missing original document to anchor report evidence."
-        ),
+        summary=lineage_summary,
+        detail=lineage_detail,
         delta=Decimal(unlinked_count),
     )
 
@@ -232,7 +242,7 @@ async def compute_personal_data_quality(
     # Temporal continuity: 25 points
     if temporal_healthy:
         temporal_pts = 25
-    elif total_gaps == 1:
+    elif has_unanchored_activity or total_gaps == 1:
         temporal_pts = 15
     else:
         temporal_pts = max(0, 25 - total_gaps * 10)
@@ -285,7 +295,7 @@ async def compute_personal_data_quality(
                 description="Approve or confirm parsed statements so balances reflect in your ledger.",
                 score_boost=min(20, pending_count * 5),
                 action_type="REVIEW_STATEMENT",
-                action_url="/processing",
+                action_url="/upload",
             )
         )
 
@@ -312,6 +322,18 @@ async def compute_personal_data_quality(
                 score_boost=min(10, stats.pending_review * 2),
                 action_type="RECONCILE_TRANSACTIONS",
                 action_url="/reconciliation",
+            )
+        )
+    elif stats.unmatched_transactions > 0:
+        action_items.append(
+            QualityActionItem(
+                id="reconcile_unmatched_transactions",
+                priority="P2",
+                title=f"Reconcile {stats.unmatched_transactions} Unmatched Transaction(s)",
+                description="Match or classify unmatched statement transactions in the reconciliation workbench.",
+                score_boost=min(15, max(2, 20 - recon_pts)),
+                action_type="RECONCILE_TRANSACTIONS",
+                action_url="/reconciliation/unmatched",
             )
         )
 

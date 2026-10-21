@@ -190,6 +190,43 @@ async def test_compute_personal_data_quality_pending_statements(
     review_actions = [a for a in res.action_items if a.action_type == "REVIEW_STATEMENT"]
     assert len(review_actions) == 1
     assert "Review 1 Pending Statement" in review_actions[0].title
+    assert review_actions[0].action_url == "/upload"
+
+
+@pytest.mark.asyncio
+@patch("src.reporting.extension.data_quality_service.get_reconciliation_stats")
+async def test_compute_personal_data_quality_unmatched_and_unanchored_activity(
+    mock_recon: AsyncMock,
+    db: AsyncSession,
+    test_user: User,
+):
+    """Unmatched transactions with zero uploaded statements mark temporal, lineage, and reconciliation unhealthy."""
+    mock_recon.return_value = ReconciliationStats(
+        total_transactions=12,
+        matched_transactions=8,
+        unmatched_transactions=4,
+        pending_review=0,
+        auto_accepted=0,
+        match_rate=0.66,
+    )
+
+    res = await compute_personal_data_quality(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 10, 1),
+        currency="SGD",
+    )
+
+    assert res.reconciliation_purity_invariant.is_healthy is False
+    assert res.reconciliation_purity_invariant.delta == Decimal("4")
+    assert res.temporal_continuity_invariant.is_healthy is False
+    assert res.temporal_continuity_invariant.delta == Decimal("1")
+    assert res.lineage_anchors_invariant.is_healthy is False
+    assert res.score == 73
+
+    recon_actions = [a for a in res.action_items if a.id == "reconcile_unmatched_transactions"]
+    assert len(recon_actions) == 1
+    assert recon_actions[0].action_url == "/reconciliation/unmatched"
 
 
 @pytest.mark.asyncio
