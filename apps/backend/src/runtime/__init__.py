@@ -35,6 +35,7 @@ from src.runtime.extension.adapters import (
     TelemetryCheck,
     WorkflowEngineCheck,
 )
+from src.runtime.extension.background_leader import BackgroundLeader, BackgroundLoop
 from src.runtime.extension.storage import StorageError, StorageService, redact_presigned_url
 from src.runtime.extension.storage_sweep import (
     register_known_storage_paths_provider,
@@ -44,6 +45,8 @@ from src.runtime.extension.storage_sweep import (
 __all__ = [
     "APP_OWNED_TIERS",
     "AnalyticsCheck",
+    "BackgroundLeader",
+    "BackgroundLoop",
     "DEPENDENCY_MANIFEST",
     "DatabaseCheck",
     "Dependency",

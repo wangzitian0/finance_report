@@ -96,6 +96,8 @@ from src.routers import (
 )
 from src.routers.reconciliation import router as reconciliation_router
 from src.runtime import (
+    BackgroundLeader,
+    BackgroundLoop,
     register_known_storage_paths_provider,
     run_storage_sweep,
     runtime_system_router,
@@ -257,6 +259,24 @@ def _instrument_fastapi_app(app: FastAPI) -> None:
 _init_otel_instrumentation()
 
 
+def background_loops() -> dict[str, BackgroundLoop]:
+    """Return the background loops that run in exactly one worker process (#2583 S5).
+
+    The lifespan of each uvicorn worker runs a :class:`BackgroundLeader`. Only the
+    worker that holds the leader lock runs these loops. The names look up the
+    module globals at call time.
+    """
+    return {
+        "parsing_supervisor": run_parsing_supervisor,
+        # Scope discovery is inverted (#1610 P2): pricing's scheduler receives the
+        # composition root's cross-domain scope composer instead of reading other
+        # domains itself — same inversion as the provider ports registered above.
+        "market_data_scheduler": lambda stop_event: run_market_data_scheduler(stop_event, market_data_scopes),
+        "storage_sweep": run_storage_sweep,
+        "outbox_relay": run_outbox_relay,
+    }
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan - init DB on startup."""
@@ -270,30 +290,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     await init_db()
     stop_event = asyncio.Event()
-    supervisor_task = asyncio.create_task(run_parsing_supervisor(stop_event))
-    # Scope discovery is inverted (#1610 P2): pricing's scheduler receives the
-    # composition root's cross-domain scope composer instead of reading other
-    # domains itself — same inversion as the provider ports registered above.
-    market_data_task = asyncio.create_task(run_market_data_scheduler(stop_event, market_data_scopes))
-    sweep_task = asyncio.create_task(run_storage_sweep(stop_event))
-    outbox_relay_task = asyncio.create_task(run_outbox_relay(stop_event))
+    background_leader = BackgroundLeader(settings.database_url, background_loops())
+    leader_task = asyncio.create_task(background_leader.run(stop_event))
     log_observability_startup(logger)
     logger.info("Application started", version="0.1.0")
     yield
     stop_event.set()
-    supervisor_task.cancel()
-    market_data_task.cancel()
-    sweep_task.cancel()
-    outbox_relay_task.cancel()
-
     with suppress(asyncio.CancelledError):
-        await supervisor_task
-    with suppress(asyncio.CancelledError):
-        await market_data_task
-    with suppress(asyncio.CancelledError):
-        await sweep_task
-    with suppress(asyncio.CancelledError):
-        await outbox_relay_task
+        await leader_task
     logger.info("Application shutting down")
 
 

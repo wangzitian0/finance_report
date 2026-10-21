@@ -31,6 +31,12 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Inject Git SHA for runtime verification
 ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}
 
+# Number of uvicorn worker processes (#2583 S5). uvicorn reads WEB_CONCURRENCY
+# when its command line has no --workers flag. A CPU-bound request holds the
+# event loop of one worker only. The memory and connection budgets are in
+# common/runtime/deployment.md ("Worker Processes"); AC-runtime.workers.3 checks them.
+ENV WEB_CONCURRENCY=2
+
 # Copy application code and migration configuration.
 COPY src ./src
 COPY migrations ./migrations

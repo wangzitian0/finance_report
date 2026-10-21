@@ -30,6 +30,11 @@ set -a
 . /secrets/.env
 set +a
 
+# The image sets WEB_CONCURRENCY for the API server (#2583 S5). The worker runs
+# no API server. Unset it, so that no uvicorn that Prefect starts in this
+# container reads it.
+unset WEB_CONCURRENCY
+
 # Idempotent: upserts the deployment by (flow name, deployment name) rather
 # than duplicating it, so re-running on every container start/restart is safe.
 python3 scripts/register_prefect_deployment.py

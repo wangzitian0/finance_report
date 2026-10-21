@@ -215,6 +215,11 @@ from there. The interface lists only names that this repo defines.
 `boot.Bootloader` delegates its checks to the adapters. New enforcement work
 must start in a GitHub issue and the package roadmap rather than a parallel list.
 
+The package also publishes `BackgroundLeader` and its `BackgroundLoop` type. The
+app lifespan uses them to run the background loops in exactly one uvicorn
+worker process (`AC-runtime.workers.1`). See *Worker Processes* in
+`deployment.md` for the worker count and its budgets.
+
 Snapshot anonymization classifies opening-position amounts as money, preserving
 FX ratios and currency codes while pseudonymizing content digests. Versioned
 atomic identity hashes and custody scopes are pseudonymized; currency and the

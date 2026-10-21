@@ -151,7 +151,18 @@ def _build_otel_resource() -> Any:
         **attrs,
         "git.commit": settings.git_commit_sha,
     }
+    # Each uvicorn worker process exports its own cumulative metrics (#2583 S5).
+    # Without a unique service.instance.id, two workers write to one series.
+    final_attrs.setdefault("service.instance.id", _process_instance_id())
     return Resource.create(final_attrs)
+
+
+def _process_instance_id() -> str:
+    """Return the telemetry instance id of this process: ``<hostname>-<pid>``."""
+    import os
+    import socket
+
+    return f"{socket.gethostname()}-{os.getpid()}"
 
 
 def _configure_otel_tracing() -> None:

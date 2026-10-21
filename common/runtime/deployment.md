@@ -359,6 +359,42 @@ post-deploy detectors.
 
 ---
 
+## Worker Processes
+
+The backend image sets `WEB_CONCURRENCY=2` (`apps/backend/Dockerfile`, #2583 S5).
+uvicorn reads it because the start command has no `--workers` flag. One
+CPU-bound request holds the event loop of one worker only. To change the count,
+set `WEB_CONCURRENCY` in the container environment. The Prefect worker
+container unsets it (`scripts/prefect_worker_entrypoint.sh`).
+
+**Background loops.** The parsing supervisor, the market-data scheduler, the
+storage sweep and the outbox relay run in exactly one worker
+(`src/runtime/extension/background_leader.py`, AC-runtime.workers.1). The
+worker that holds the PostgreSQL session advisory lock `25830005` runs them.
+The other workers try the lock again every 10 s. When the leader process stops,
+PostgreSQL releases the lock, and another worker starts the loops.
+
+**Budgets** (AC-runtime.workers.3, measured in the image at 960 transactions):
+
+| Budget | Arithmetic | Limit |
+|---|---|---|
+| Memory | 2 workers × 325 MB peak + 34 MB supervisor and resource tracker = 684 MB | 768 MB `mem_limit` |
+| Postgres connections | 2 workers × (5 pool + 10 overflow + 1 lock session) + 15 Prefect flow run + 1 migration = 48 | 100 − 3 reserved = 97 |
+
+**Per-process state.** Each worker keeps its own in-memory state:
+
+- The rate limiters count per worker, so a client gets up to 2× the configured limit.
+- The few-shot correction cache invalidates in the worker that took the correction only.
+  The other worker keeps its copy for up to 1 hour (the Prefect worker already behaves so).
+- Each worker exports telemetry with its own `service.instance.id` (AC-observability.4.11).
+
+**Limit.** The kernel and Traefik keep-alive connections choose the worker, not
+the load. A cheap request can still go to the worker that runs a heavy request.
+Two workers make this less frequent; they do not prevent it. Cheaper heavy
+requests (#2583 S0–S2) remove the cause.
+
+---
+
 ## Runtime Incident Response
 
 Runtime failure triage is owned by

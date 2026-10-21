@@ -420,6 +420,26 @@ def test_AC10_4_4_otel_resource_includes_commit_version(monkeypatch) -> None:
     assert attributes.get("service.name") == logger_module.settings.otel_service_name
 
 
+def test_AC_observability_4_11_otel_resource_names_each_worker_process(monkeypatch) -> None:
+    """AC-observability.4.11: each worker process exports under its own service.instance.id (#2583 S5)."""
+    import os
+    import socket
+
+    monkeypatch.setattr(logger_module.settings, "otel_resource_attributes", "", raising=False)
+    first = dict(logger_module._build_otel_resource().attributes)
+    assert first["service.instance.id"] == f"{socket.gethostname()}-{os.getpid()}"
+
+    # A second worker process has another pid, so its series do not mix with the first.
+    monkeypatch.setattr(os, "getpid", lambda: 4242)
+    second = dict(logger_module._build_otel_resource().attributes)
+    assert second["service.instance.id"] == f"{socket.gethostname()}-4242"
+    assert second["service.instance.id"] != first["service.instance.id"]
+
+    # An operator value in OTEL_RESOURCE_ATTRIBUTES wins.
+    monkeypatch.setattr(logger_module.settings, "otel_resource_attributes", "service.instance.id=fixed", raising=False)
+    assert dict(logger_module._build_otel_resource().attributes)["service.instance.id"] == "fixed"
+
+
 def test_AC10_4_3_instrument_app_applies_to_instance(monkeypatch) -> None:
     """AC-observability.4.3: _instrument_fastapi_app applies instrumentation to the app instance."""
     import sys
