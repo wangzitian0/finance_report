@@ -100,7 +100,7 @@ Human values live in 1Password; the deploy copies them into Vault. No Vault
 token is involved at any step on the Finance Report side.
 
 ```bash
-# 0. STOP: steps 1-3 change production. Get the owner's approval of this secret change
+# 0. STOP: steps 1-3 change production (Root section `Production reservation`). Get the owner's approval of this production secret change
 #    and of the version_ref, with the owner present, first. A dry run needs none.
 # 1. Put the new value in 1Password (Infra2 vault, item finance_report/production/app).
 #    From the infra2 repo this writes 1Password only, never Vault:
@@ -121,7 +121,7 @@ by an infra2 operator from the infra2 repo with a bounded token (never the root
 token); the daily reconcile reports the write.
 
 ```bash
-# STOP: this writes a production secret and logs every user out. Get the owner's
+# STOP: this writes a production secret (Root section `Production reservation`). It logs every user out. Get the owner's
 # approval, with the owner present, before this command.
 invoke env.set SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(64))')" \
   --project=finance_report --env=production --service=app --break-glass
