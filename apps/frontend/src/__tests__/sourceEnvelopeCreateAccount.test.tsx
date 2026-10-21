@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   SourceEnvelopeConfirmation,
   type EnvelopeDraft,
-} from "@/components/review/SourceEnvelopeConfirmation"
+} from "@/components/review/TransactionTable"
 
 const draft: EnvelopeDraft = {
   accountId: "",
@@ -61,5 +61,23 @@ describe("SourceEnvelopeConfirmation inline account creation (#2477)", () => {
     expect(button.disabled).toBe(true)
     fireEvent.click(button)
     expect(onCreateAccount).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { label: "Custody account", key: "accountId" as const, value: "a1" },
+    { label: "Statement currency", key: "currency" as const, value: "USD" },
+    { label: "Period start", key: "periodStart" as const, value: "2026-09-01" },
+    { label: "Period end", key: "periodEnd" as const, value: "2026-09-30" },
+    { label: "Opening balance", key: "openingBalance" as const, value: "1.00" },
+    { label: "Closing balance", key: "closingBalance" as const, value: "2.00" },
+    { label: "Why are these facts confirmed\\?", key: "rationale" as const, value: "Checked against the PDF" },
+  ])("AC-extraction.2477.1 $label writes only the $key of the draft", ({ label, key, value }) => {
+    const results: EnvelopeDraft[] = []
+    renderEnvelope({
+      custodyAccounts: [{ id: "a1", name: "DBS Savings", currency: "SGD" }],
+      onDraftChange: (updater) => results.push(updater(draft)),
+    })
+    fireEvent.change(screen.getByLabelText(new RegExp(`^${label}`)), { target: { value } })
+    expect(results).toEqual([{ ...draft, [key]: value }])
   })
 })

@@ -3,28 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-
 import { useToast } from "@/components/ui/Toast";
 import { LoadingState } from "@/components/ui";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
+import { FlowStepBanner } from "@/components/workflow/WorkflowNotifications";
 import { apiOperation } from "@/lib/api-client";
-import {
-  BankStatement,
-  BrokerageImportResponse,
-  normalizeBankStatement,
-} from "@/lib/types";
+import { BankStatement, BrokerageImportResponse, normalizeBankStatement } from "@/lib/types";
 import { currencyCodeOrDash } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
 import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
-import {
-  BrokerageImportResultBanner,
-  StatementHeader,
-  StatementSummaryCards,
-  StatementTransactionsTable,
-} from "./_components/StatementHeader";
+import { BrokerageImportResultBanner, StatementHeader, StatementSummaryCards, StatementTransactionsTable } from "@/components/review/TransactionTable";
 
-const PARSING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const PARSING_TIMEOUT_MS = 5 * 60 * 1000;
 
 export default function StatementDetailPage() {
   const { showToast } = useToast();
@@ -41,22 +31,16 @@ export default function StatementDetailPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [polling, setPolling] = useState(false);
-  const [consecutiveErrors, setConsecutiveErrors] = useState(0);
-  const [pollingStoppedReason, setPollingStoppedReason] = useState<
-    string | null
-  >(null);
+  const [, setConsecutiveErrors] = useState(0);
+  const [pollingStoppedReason, setPollingStoppedReason] = useState<string | null>(null);
   const [parsingStartTime, setParsingStartTime] = useState<number | null>(null);
-  const [importResult, setImportResult] =
-    useState<BrokerageImportResponse | null>(null);
+  const [importResult, setImportResult] = useState<BrokerageImportResponse | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const mountedRef = useRef(false);
   const pollingRef = useRef(false);
   const requestSequenceRef = useRef(0);
-  const activeRequestRef = useRef<{
-    controller: AbortController;
-    requestId: number;
-  } | null>(null);
+  const activeRequestRef = useRef<{ controller: AbortController; requestId: number } | null>(null);
   const approvedNow = approvedRedirect && statement?.status === "approved";
 
   const updatePolling = useCallback((enabled: boolean) => {
@@ -64,74 +48,51 @@ export default function StatementDetailPage() {
     setPolling(enabled);
   }, []);
 
-  const fetchStatement = useCallback(
-    async ({ supersede = false }: { supersede?: boolean } = {}) => {
-      if (!mountedRef.current) return;
-      if (activeRequestRef.current) {
-        if (!supersede) return;
-        activeRequestRef.current.controller.abort();
-        activeRequestRef.current = null;
+  const fetchStatement = useCallback(async ({ supersede = false }: { supersede?: boolean } = {}) => {
+    if (!mountedRef.current) return;
+    if (activeRequestRef.current) {
+      if (!supersede) return;
+      activeRequestRef.current.controller.abort();
+      activeRequestRef.current = null;
+    }
+    const controller = new AbortController();
+    const requestId = ++requestSequenceRef.current;
+    activeRequestRef.current = { controller, requestId };
+    const ownsResult = () => mountedRef.current && !controller.signal.aborted && activeRequestRef.current?.requestId === requestId;
+
+    try {
+      const data = await apiOperation("get_statement_statements__statement_id__get", { path: { statement_id: statementId }, signal: controller.signal });
+      if (!ownsResult()) return;
+      setStatement(normalizeBankStatement(data));
+      setError(null);
+      setConsecutiveErrors(0);
+      if (data.status === "parsing") {
+        updatePolling(true);
+        setParsingStartTime((prev) => prev ?? Date.now());
+      } else {
+        updatePolling(false);
+        setParsingStartTime(null);
       }
-
-      const controller = new AbortController();
-      const requestId = ++requestSequenceRef.current;
-      activeRequestRef.current = { controller, requestId };
-
-      const ownsResult = () =>
-        mountedRef.current &&
-        !controller.signal.aborted &&
-        activeRequestRef.current?.requestId === requestId;
-
-      try {
-        const data = await apiOperation(
-          "get_statement_statements__statement_id__get",
-          {
-            path: { statement_id: statementId },
-            signal: controller.signal,
-          },
-        );
-        if (!ownsResult()) return;
-
-        setStatement(normalizeBankStatement(data));
-        setError(null);
-        setConsecutiveErrors(0);
-
-        if (data.status === "parsing") {
-          updatePolling(true);
-          setParsingStartTime((prev) => prev ?? Date.now());
-        } else {
+    } catch (err) {
+      if (!ownsResult()) return;
+      const errorMessage = err instanceof Error ? err.message : "Failed to load statement";
+      setConsecutiveErrors((prev) => {
+        const newCount = prev + 1;
+        if (pollingRef.current && newCount >= 3) {
           updatePolling(false);
-          setParsingStartTime(null);
+          setPollingStoppedReason(`Auto-refresh stopped after 3 consecutive errors. Last error: ${errorMessage}`);
+          showToast("Auto-refresh stopped due to repeated errors", "error");
         }
-      } catch (err) {
-        if (!ownsResult()) return;
-
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to load statement";
-
-        setConsecutiveErrors((prev) => {
-          const newCount = prev + 1;
-
-          if (pollingRef.current && newCount >= 3) {
-            updatePolling(false);
-            const reason = `Auto-refresh stopped after 3 consecutive errors. Last error: ${errorMessage}`;
-            setPollingStoppedReason(reason);
-            showToast("Auto-refresh stopped due to repeated errors", "error");
-          }
-
-          return newCount;
-        });
-
-        setError(errorMessage);
-      } finally {
-        if (activeRequestRef.current?.requestId === requestId) {
-          activeRequestRef.current = null;
-          if (mountedRef.current) setLoading(false);
-        }
+        return newCount;
+      });
+      setError(errorMessage);
+    } finally {
+      if (activeRequestRef.current?.requestId === requestId) {
+        activeRequestRef.current = null;
+        if (mountedRef.current) setLoading(false);
       }
-    },
-    [showToast, statementId, updatePolling],
-  );
+    }
+  }, [showToast, statementId, updatePolling]);
 
   const resumePolling = useCallback(() => {
     setPollingStoppedReason(null);
@@ -153,31 +114,22 @@ export default function StatementDetailPage() {
     };
   }, [fetchStatement]);
 
-  // Auto-refresh while parsing (with timeout)
   useEffect(() => {
     if (!polling) return;
-
     const interval = setInterval(() => {
-      if (
-        parsingStartTime &&
-        Date.now() - parsingStartTime > PARSING_TIMEOUT_MS
-      ) {
+      if (parsingStartTime && Date.now() - parsingStartTime > PARSING_TIMEOUT_MS) {
         activeRequestRef.current?.controller.abort();
         activeRequestRef.current = null;
         requestSequenceRef.current += 1;
         updatePolling(false);
         setParsingStartTime(null);
-        setPollingStoppedReason(
-          "Parsing has been running for over 5 minutes. It may be stuck. You can retry parsing with a different model.",
-        );
+        setPollingStoppedReason("Parsing has been running for over 5 minutes. It may be stuck. You can retry parsing with a different model.");
         showToast("Parsing appears stuck — stopped auto-refresh", "error");
         return;
       }
       void fetchStatement({ supersede: false });
     }, 3000);
-    return () => {
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, [polling, fetchStatement, parsingStartTime, showToast, updatePolling]);
 
   const handleRetry = async () => {
@@ -185,19 +137,13 @@ export default function StatementDetailPage() {
     setParsingStartTime(null);
     setPollingStoppedReason(null);
     try {
-      await apiOperation(
-        "retry_statement_parsing_statements__statement_id__retry_post",
-        {
-          path: { statement_id: statementId },
-        },
-      );
+      await apiOperation("retry_statement_parsing_statements__statement_id__retry_post", { path: { statement_id: statementId } });
       showToast("Re-parsing started", "success");
       await fetchStatement({ supersede: true });
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to retry parsing";
-      showToast(message, "error");
-      setError(message);
+      const msg = err instanceof Error ? err.message : "Failed to retry parsing";
+      showToast(msg, "error");
+      setError(msg);
     } finally {
       setRetryLoading(false);
     }
@@ -208,20 +154,12 @@ export default function StatementDetailPage() {
     setImportError(null);
     setImportResult(null);
     try {
-      const result = await apiOperation(
-        "import_brokerage_statement_positions_statements__statement_id__brokerage_import_post",
-        { path: { statement_id: statementId } },
-      );
+      const result = await apiOperation("import_brokerage_statement_positions_statements__statement_id__brokerage_import_post", { path: { statement_id: statementId } });
       setImportResult(result);
       showToast("Brokerage positions imported successfully", "success");
     } catch (err) {
-      // Surface a safe, actionable message — never expose raw credentials or
-      // internal storage paths returned by the server.
       const raw = err instanceof Error ? err.message : "Import failed";
-      const safe = raw
-        .replace(/https?:\/\/\S+/g, "[URL]")
-        .replace(/s3:\/\/\S+/g, "[URL]");
-      setImportError(safe);
+      setImportError(raw.replace(/https?:\/\/\S+/g, "[URL]").replace(/s3:\/\/\S+/g, "[URL]"));
       showToast("Brokerage import failed", "error");
     } finally {
       setImportLoading(false);
@@ -231,298 +169,68 @@ export default function StatementDetailPage() {
   const handleDeleteStatement = async () => {
     setDeleteLoading(true);
     try {
-      await apiOperation("delete_statement_statements__statement_id__delete", {
-        path: { statement_id: statementId },
-      });
+      await apiOperation("delete_statement_statements__statement_id__delete", { path: { statement_id: statementId } });
       showToast("Statement deleted successfully", "success");
-      if (typeof window !== "undefined") {
-        window.location.href = "/upload";
-      }
+      if (typeof window !== "undefined") window.location.href = "/upload";
     } catch (err) {
-      showToast(
-        err instanceof Error ? err.message : "Failed to delete statement",
-        "error",
-      );
+      showToast(err instanceof Error ? err.message : "Failed to delete statement", "error");
       setDeleteLoading(false);
       setDeleteDialogOpen(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="p-6">
-        <LoadingState label="Loading statement" />
-      </div>
-    );
-  }
+  if (loading) return <div className="p-6"><LoadingState label="Loading statement" /></div>;
+  if (!statement) return <div className="p-6"><div className="card p-8 text-center"><p className="text-muted mb-4">Statement not found</p><Link href="/statements" className="btn-primary">Back to Statements</Link></div></div>;
 
-  if (!statement) {
-    return (
-      <div className="p-6">
-        <div className="card p-8 text-center">
-          <p className="text-muted mb-4">Statement not found</p>
-          <Link href="/statements" className="btn-primary">
-            Back to Statements
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const canRetry =
-    statement.status === "parsed" ||
-    statement.status === "rejected" ||
-    (statement.status === "parsing" && Boolean(pollingStoppedReason));
-  const canImport =
-    !importResult &&
-    (statement.status === "parsed" || statement.status === "approved");
+  const canRetry = statement.status === "parsed" || statement.status === "rejected" || (statement.status === "parsing" && Boolean(pollingStoppedReason));
+  const canImport = !importResult && (statement.status === "parsed" || statement.status === "approved");
 
   return (
     <div className="p-6">
-      {/* Breadcrumb */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <Link
-          href="/statements"
-          className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          Back to Statements
-        </Link>
-        {statement.original_filename && (
-          <span className="text-xs text-muted">
-            Original PDF: {statement.original_filename}
-          </span>
-        )}
+        <Link href="/statements" className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1">← Back to Statements</Link>
+        {statement.original_filename && <span className="text-xs text-muted">Original PDF: {statement.original_filename}</span>}
       </div>
-
-      <div className="mb-6">
-        <FlowStepBanner current="review" />
-      </div>
-
-      {/* Polling Stopped Alert */}
+      <div className="mb-6"><FlowStepBanner current="review" /></div>
       {pollingStoppedReason && (
         <div className="mb-4 p-4 border border-[var(--error)]/30 bg-[var(--error-muted)] rounded-lg">
-          <div className="flex items-start gap-3">
-            <svg
-              className="w-5 h-5 text-[var(--error)] flex-shrink-0 mt-0.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-[var(--error)] mb-1">
-                Auto-refresh Stopped
-              </div>
-              <div className="text-sm text-[var(--foreground-muted)] mb-3">
-                {pollingStoppedReason}
-              </div>
-              <button onClick={resumePolling} className="btn-secondary text-sm">
-                Resume Auto-Refresh
-              </button>
-            </div>
-          </div>
+          <div className="font-medium text-[var(--error)] mb-1">Auto-refresh Stopped</div>
+          <div className="text-sm text-[var(--foreground-muted)] mb-3">{pollingStoppedReason}</div>
+          <button onClick={resumePolling} className="btn-secondary text-sm">Resume Auto-Refresh</button>
         </div>
       )}
-
-      {/* Header */}
-      <StatementHeader
-        statement={statement}
-        statementId={statementId}
-        canImport={canImport}
-        canRetry={canRetry}
-        canDelete={statement.status !== "approved"}
-        importLoading={importLoading}
-        retryLoading={retryLoading}
-        deleteLoading={deleteLoading}
-        onBrokerageImport={handleBrokerageImport}
-        onRetry={handleRetry}
-        onDelete={() => setDeleteDialogOpen(true)}
-        formatCode={currencyCodeOrDash}
-        formatPeriod={formatPeriod}
-      />
-
+      <StatementHeader statement={statement} statementId={statementId} canImport={canImport} canRetry={canRetry} canDelete={statement.status !== "approved"} importLoading={importLoading} retryLoading={retryLoading} deleteLoading={deleteLoading} onBrokerageImport={handleBrokerageImport} onRetry={handleRetry} onDelete={() => setDeleteDialogOpen(true)} formatCode={currencyCodeOrDash} formatPeriod={formatPeriod} />
       {approvedNow && (
         <div className="mb-4 p-4 border border-[var(--success)]/30 bg-[var(--success-muted)] rounded-lg">
-          <p className="font-medium text-[var(--success)]">
-            Statement approved. {entriesCreated} journal entries created.
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <Link href="/journal" className="btn-secondary text-sm">
-              View in Journal
-            </Link>
-            <Link href="/reports" className="btn-secondary text-sm">
-              Go to Reports
-            </Link>
-          </div>
+          <p className="font-medium text-[var(--success)]">Statement approved. {entriesCreated} journal entries created.</p>
+          <div className="mt-2 flex items-center gap-2"><Link href="/journal" className="btn-secondary text-sm">View in Journal</Link><Link href="/reports" className="btn-secondary text-sm">Go to Reports</Link></div>
         </div>
       )}
-
-      {/* Brokerage Import Result */}
-      {importResult && (
-        <BrokerageImportResultBanner importResult={importResult} />
-      )}
-
-      {/* Brokerage Import Error */}
+      {importResult && <BrokerageImportResultBanner importResult={importResult} />}
       {importError && (
-        <div
-          className="mb-4 p-4 border border-[var(--error)]/30 bg-[var(--error-muted)] rounded-lg"
-          data-testid="import-error-banner"
-        >
-          <div className="flex items-start gap-3">
-            <svg
-              className="w-5 h-5 text-[var(--error)] flex-shrink-0 mt-0.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-[var(--error)] mb-1">
-                Brokerage Import Failed
-              </div>
-              <div className="text-sm text-[var(--foreground-muted)] mb-3">
-                {importError}
-              </div>
-              <button
-                onClick={handleBrokerageImport}
-                disabled={importLoading}
-                className="btn-secondary text-sm"
-              >
-                Retry Import
-              </button>
-            </div>
-          </div>
+        <div className="mb-4 p-4 border border-[var(--error)]/30 bg-[var(--error-muted)] rounded-lg" data-testid="import-error-banner">
+          <div className="font-medium text-[var(--error)] mb-1">Brokerage Import Failed</div>
+          <div className="text-sm text-[var(--foreground-muted)] mb-3">{importError}</div>
+          <button onClick={handleBrokerageImport} disabled={importLoading} className="btn-secondary text-sm">Retry Import</button>
         </div>
       )}
-
-      {/* Error */}
       {error && <div className="mb-4 alert-error">{error}</div>}
-
-      {/* Parsing Progress Indicator (indeterminate) */}
       {polling && (
-        <div className="mb-4 card p-4">
-          <div
-            className="flex items-center gap-3"
-            role="status"
-            aria-live="polite"
-            aria-busy="true"
-          >
-            <div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
-            <div className="flex-1">
-              <div className="text-sm font-medium text-[var(--accent)]">
-                Parsing in progress…
-              </div>
-              <div className="text-xs text-muted mt-0.5">
-                AI is extracting transaction data. This may take up to 3
-                minutes.
-              </div>
-            </div>
-          </div>
-        </div>
+        <div className="mb-4 card p-4"><div className="flex items-center gap-3" role="status" aria-live="polite" aria-busy="true"><div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" /><div className="flex-1"><div className="text-sm font-medium text-[var(--accent)]">Parsing in progress…</div><div className="text-xs text-muted mt-0.5">AI is extracting transaction data. This may take up to 3 minutes.</div></div></div></div>
       )}
-
-      {/* Rejected Status Alert */}
       {statement.status === "rejected" && (
         <div className="mb-4 p-4 border border-[var(--error)]/30 bg-[var(--error-muted)] rounded-lg">
-          <div className="flex items-start gap-3">
-            <svg
-              className="w-5 h-5 text-[var(--error)] flex-shrink-0 mt-0.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-label="Error"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-[var(--error)] mb-1">
-                Parsing Failed
-              </div>
-              {statement.validation_error && (
-                <div className="text-sm text-[var(--foreground-muted)] mb-3 break-words">
-                  {statement.validation_error}
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={handleRetry}
-                disabled={retryLoading}
-                className="btn-secondary text-sm"
-              >
-                {retryLoading ? "Retrying..." : "Retry Parse"}
-              </button>
-            </div>
-          </div>
+          <div className="font-medium text-[var(--error)] mb-1">Parsing Failed</div>
+          {statement.validation_error && <div className="text-sm text-[var(--foreground-muted)] mb-3 break-words">{statement.validation_error}</div>}
+          <button type="button" onClick={handleRetry} disabled={retryLoading} className="btn-secondary text-sm">{retryLoading ? "Retrying..." : "Retry Parse"}</button>
         </div>
       )}
-
-      {/* Summary Cards */}
       <StatementSummaryCards statement={statement} />
-
-      {/* Side-by-Side PDF + Transactions Workbench */}
-      <div
-        data-testid="statement-side-by-side-workbench"
-        className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start"
-      >
-        <div className="lg:col-span-5 min-h-[540px] h-[600px]">
-          <PdfPreviewPane
-            statementId={statementId}
-            hasDocument={
-              Boolean(statement.file_path) &&
-              (statement.status === "parsed" || statement.status === "approved")
-            }
-          />
-        </div>
-        <div className="lg:col-span-7 min-w-0">
-          <StatementTransactionsTable
-            statement={statement}
-            onTransactionUpdated={() => fetchStatement({ supersede: true })}
-          />
-        </div>
+      <div data-testid="statement-side-by-side-workbench" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="lg:col-span-5 min-h-[540px] h-[600px]"><PdfPreviewPane statementId={statementId} hasDocument={Boolean(statement.file_path) && (statement.status === "parsed" || statement.status === "approved")} /></div>
+        <div className="lg:col-span-7 min-w-0"><StatementTransactionsTable statement={statement} onTransactionUpdated={() => fetchStatement({ supersede: true })} /></div>
       </div>
-
-      {/* Delete Statement Confirmation */}
-      <ConfirmDialog
-        isOpen={deleteDialogOpen}
-        title="Delete Statement"
-        message="Are you sure you want to delete this statement? This action cannot be undone and will remove all associated parsed transactions and errors."
-        confirmLabel="Delete"
-        confirmVariant="danger"
-        loading={deleteLoading}
-        onConfirm={handleDeleteStatement}
-        onCancel={() => setDeleteDialogOpen(false)}
-      />
+      <ConfirmDialog isOpen={deleteDialogOpen} title="Delete Statement" message="Are you sure you want to delete this statement? This action cannot be undone and will remove all associated parsed transactions and errors." confirmLabel="Delete" confirmVariant="danger" loading={deleteLoading} onConfirm={handleDeleteStatement} onCancel={() => setDeleteDialogOpen(false)} />
     </div>
   );
 }

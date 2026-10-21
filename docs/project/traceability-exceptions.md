@@ -140,10 +140,8 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/performanceCard.test.tsx` | `common/portfolio/assets.md` |
 | `apps/frontend/src/__tests__/portfolioPricesPage.test.tsx` | `common/portfolio/assets.md` |
 | `apps/frontend/src/__tests__/reportPackage.test.ts` | `apps/frontend/frontend-patterns.md` (#1868 S5 PR-C — pure helpers extracted from usePersonalReportPackage.ts) |
-| `apps/frontend/src/__tests__/reviewPages.test.tsx` | `common/extraction/confirmation-workflow.md` |
 | `apps/frontend/src/__tests__/reviewQueuePage.actions.test.tsx` | `common/reconciliation/confirmation-workflow.md` |
 | `apps/frontend/src/__tests__/reviewQueuePage.coverage.test.tsx` | `common/reconciliation/confirmation-workflow.md` |
-| `apps/frontend/src/__tests__/statementReviewPage.coverage.test.tsx` | `common/extraction/confirmation-workflow.md` |
 | `apps/frontend/src/__tests__/statusLabels.test.ts` | `apps/frontend/frontend-patterns.md` (#1609 colour-not-alone status labels) |
 | `apps/frontend/src/__tests__/sheetAndDetailDialogComponents.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/theme.coverage.test.ts` | `apps/frontend/frontend-patterns.md` |
@@ -153,8 +151,6 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/useBodyScrollLock.test.tsx` | `apps/frontend/frontend-patterns.md` (#1608 modal/sheet body-scroll lock) |
 | `apps/frontend/src/__tests__/useLlmConfigStatus.test.ts` | `common/llm/readme.md` |
 | `apps/frontend/src/__tests__/processingSummaryCard.test.tsx` | `common/ledger/readme.md` |
-| `apps/frontend/src/__tests__/conflictResolutionDialogKeydown.test.tsx` | `apps/frontend/frontend-patterns.md` |
-| `apps/frontend/src/__tests__/transactionTableKeyEvents.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `apps/frontend/src/__tests__/useFocusTrap.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `tests/tooling/test_agent_runtime_symlinks.py` | `docs/agents/orchestration.md` |
 | `tests/tooling/test_audit_router_contracts.py` | `docs/reference/router-contract-maturity.md` |
@@ -219,8 +215,6 @@ router, or generated-fixture flows.
 |---|---|
 | `apps/backend/src/observability/error_ids.py` | Shared error-code constants; covered indirectly by exception/API tests |
 | `apps/backend/src/routers/user_settings.py` | Owned by AC18.5.5 through `apps/backend/tests/api/test_user_settings_router.py` |
-| `apps/frontend/src/components/review/BalanceIndicator.tsx` | Review UI subcomponent covered through review page/component suites |
-| `apps/frontend/src/components/review/ReviewActionBar.tsx` | Review UI subcomponent covered through review page/action suites |
 | `apps/frontend/src/components/review/Stage2ReviewQueue.tsx` | Review UI subcomponent covered through review queue and run review page suites |
 | `common/testing/fixtures/pdf/generators/base_generator.py` | EPIC-009 fixture infrastructure covered by `tests/tooling/test_pdf_fixture_epic009_behavior.py` |
 | `common/testing/fixtures/pdf/generators/font_utils.py` | EPIC-009 fixture infrastructure covered by `tests/tooling/test_pdf_fixture_tooling_coverage.py` |
