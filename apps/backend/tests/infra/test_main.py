@@ -250,6 +250,8 @@ class TestConfig:
 
     def test_config_defaults(self, monkeypatch):
         """AC7.6.1: Config has reasonable defaults matching expected patterns."""
+        from infra2_sdk.runtime.llm import LlmSettings
+
         from src.config import Settings
 
         # Clear S3_BUCKET so we test the class default, not whatever the test
@@ -259,10 +261,12 @@ class TestConfig:
         monkeypatch.delenv("OCR_MODEL", raising=False)
         monkeypatch.delenv("VISION_MODEL", raising=False)
         settings = Settings(_env_file=None)
+        # The infra2 SDK owns the default models (#2566); no model id is written here.
+        sdk = LlmSettings()
         assert settings.ai_provider == "zai"
-        assert settings.primary_model == "glm-5.3-flash"
-        assert settings.ocr_model == "glm-5.3-flashx"
-        assert settings.vision_model == "glm-5.3-flashx"
+        assert settings.primary_model == sdk.primary_model
+        assert settings.ocr_model == sdk.ocr_model
+        assert settings.vision_model == sdk.vision_model
         assert settings.s3_bucket == "statements"
 
     def test_config_database_url(self):
