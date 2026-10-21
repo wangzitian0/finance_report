@@ -45,7 +45,7 @@ jobs:
     # exact release before the production approval prompt. This job reads only
     # and never fails a release; deploy runs whatever its result.
     name: Core Journey Board Row
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -79,7 +79,7 @@ jobs:
   dry-run:
     name: Production Release Dry Run
     if: ${{ inputs.dry_run }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       actions: read
@@ -278,7 +278,7 @@ jobs:
     # board error from ever skipping production (#2370: light gates).
     needs: [journey-board]
     if: ${{ !cancelled() && !inputs.dry_run }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Two receiver waits of 1800 s each (the request and the rollback request) plus
     # 10 min for the other steps. A shorter limit can end the job while a rollback
     # request still waits for approval, and then no health check verifies it (#2452).

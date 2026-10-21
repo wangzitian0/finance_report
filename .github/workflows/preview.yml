@@ -43,7 +43,7 @@ env:
 jobs:
   setup:
     name: Setup Variables
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -209,7 +209,7 @@ jobs:
     # by report-branch-main/canary slots.
     if: needs.setup.outputs.action == 'deploy' && needs.setup.outputs.pr_preview_required == 'true' && github.event_name == 'workflow_dispatch'
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -309,7 +309,7 @@ jobs:
     name: Dispatch preview teardown to infra2
     if: needs.setup.outputs.action == 'cleanup' && needs.setup.outputs.pr_number != ''
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
