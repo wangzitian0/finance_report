@@ -395,8 +395,11 @@ JSON/CSV downloads remain addressed by the selected snapshot ID; editing
 dates starts a new preview and never rewrites a saved artifact.
 
 Package readiness is a deterministic field of the document and is produced
-only by `PackageAssembler`. Workflow and advisor consume
-`current_package_document_summary`; frontend surfaces render the document.
+only by `PackageAssembler`. `assemble` and `evaluate_readiness` share one
+evaluation step, so both return the same readiness. `evaluate_readiness` does
+not build the traceability appendix, the notes, or a package decision, because
+readiness does not read them (#2583). Workflow and advisor consume
+`current_package_readiness`; frontend surfaces render the document.
 None may retain a readiness route, service, or local derivation. A document is
 `ready` only when exact current contribution decisions and section invariants
 pass; otherwise it is `blocked`. Only a persisted package decision may set the

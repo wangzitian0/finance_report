@@ -32,7 +32,6 @@ from src.reporting.base.package_decision import PackageReadinessDecisionPolicy
 from src.reporting.extension.package_document import (
     PackageAssembler,
     _cash_inputs_from_contributions,
-    _package_document_summary,
     _policy_blockers,
     _section_invariant_blockers,
     _valuation_section_contribution,
@@ -431,15 +430,6 @@ def test_package_contribution_envelopes_reject_incomplete_authority_contracts() 
 
 
 def test_package_document_helpers_fail_closed_without_reconstructing_authority() -> None:
-    with pytest.raises(ValueError, match="missing durable identity metadata"):
-        _package_document_summary(
-            SimpleNamespace(
-                lifecycle=PersonalReportPackageDocumentLifecycle.FROZEN,
-                snapshot_id=None,
-                frozen_at=None,
-            )
-        )
-
     valuation = _valuation_section_contribution(
         SimpleNamespace(
             input_refs=(),

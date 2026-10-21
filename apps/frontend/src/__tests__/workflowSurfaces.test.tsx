@@ -273,7 +273,7 @@ describe("workflow notification surfaces", () => {
 
   it("AC19.4.3 keeps the upload-first CTA and quiet state aligned to workflow next action", async () => {
     vi.mocked(fetchWorkflowStatus).mockResolvedValue(statusEmpty)
-    vi.mocked(fetchWorkflowEvents).mockClear()
+    vi.mocked(fetchWorkflowEvents).mockResolvedValue({ total: 0, items: [], sessions: [] })
 
     renderWithQuery(<UploadToReportHomePanel />)
 
@@ -283,7 +283,17 @@ describe("workflow notification surfaces", () => {
     expect(screen.getByText("0 blockers")).toBeInTheDocument()
     expect(screen.getByText("No action required")).toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Routine automation" })).not.toBeInTheDocument()
-    expect(fetchWorkflowEvents).not.toHaveBeenCalled()
+  })
+
+  // AC-platform.fe-workflow.8
+  it("AC-platform.fe-workflow.8 requests home workflow events in parallel with the status", async () => {
+    vi.mocked(fetchWorkflowStatus).mockReturnValue(new Promise<WorkflowStatusResponse>(() => {}))
+
+    renderWithQuery(<UploadToReportHomePanel />)
+
+    await waitFor(() => expect(fetchWorkflowEvents).toHaveBeenCalledTimes(1))
+    expect(fetchWorkflowStatus).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("status", { name: "Upload-to-report home" })).toHaveAttribute("aria-busy", "true")
   })
 
   it("AC19.4.4 exposes ready, processing, and stale report readiness states above analytics", () => {

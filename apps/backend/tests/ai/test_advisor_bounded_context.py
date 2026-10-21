@@ -88,12 +88,9 @@ def bounded_context_fakes(test_user, monkeypatch: pytest.MonkeyPatch):
         assert user_id == test_user.id
         return _fake_readiness_payload()
 
-    async def fake_package_summary(_db: AsyncSession, *, user_id):
+    async def fake_package_readiness(_db: AsyncSession, *, user_id):
         payload = await fake_readiness(_db, user_id=user_id)
-        return SimpleNamespace(
-            status=SimpleNamespace(value="draft"),
-            readiness=SimpleNamespace(model_dump=lambda mode="json": payload),
-        )
+        return SimpleNamespace(model_dump=lambda mode="json": payload)
 
     async def fake_fx_pairs(_db: AsyncSession, _user_id, *, include_default=True):
         del include_default
@@ -156,7 +153,7 @@ def bounded_context_fakes(test_user, monkeypatch: pytest.MonkeyPatch):
             currency="SGD",
         )
 
-    monkeypatch.setattr(advisor_service_module, "current_package_document_summary", fake_package_summary)
+    monkeypatch.setattr(advisor_service_module, "current_package_readiness", fake_package_readiness)
     register_fx_pairs_read(fake_fx_pairs)
     monkeypatch.setattr(advisor_service_module, "get_workflow_status", fake_workflow)
     monkeypatch.setattr(advisor_service_module, "get_market_data_status", fake_market_data)

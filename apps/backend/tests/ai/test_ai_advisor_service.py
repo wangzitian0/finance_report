@@ -388,14 +388,11 @@ async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_su
             },
         }
 
-    async def fake_package_summary(_db: AsyncSession, *, user_id):
+    async def fake_package_readiness(_db: AsyncSession, *, user_id):
         payload = await fake_readiness(_db, user_id=user_id)
-        return SimpleNamespace(
-            status=SimpleNamespace(value="draft"),
-            readiness=SimpleNamespace(model_dump=lambda mode="json": payload),
-        )
+        return SimpleNamespace(model_dump=lambda mode="json": payload)
 
-    async def fake_workflow(_db: AsyncSession, *, user_id):
+    async def fake_workflow(_db: AsyncSession, *, user_id, synced_package_readiness=None):
         assert user_id == test_user.id
         return WorkflowStatusResponse(
             primary_state=WorkflowPrimaryState.NEEDS_ACTION,
@@ -446,7 +443,7 @@ async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_su
             currency="SGD",
         )
 
-    monkeypatch.setattr(ai_advisor_service, "current_package_document_summary", fake_package_summary)
+    monkeypatch.setattr(ai_advisor_service, "current_package_readiness", fake_package_readiness)
     monkeypatch.setattr(ai_advisor_service, "get_workflow_status", fake_workflow)
     monkeypatch.setattr(ai_advisor_service, "get_market_data_status", fake_market_data)
     monkeypatch.setattr(ai_advisor_service.PortfolioService, "get_portfolio_summary", fake_portfolio_summary)
@@ -557,7 +554,7 @@ async def test_AC21_2_1_advisor_context_degrades_to_default_suggestion_when_sour
     async def raise_source_error(*_args, **_kwargs):
         raise RuntimeError("source unavailable")
 
-    monkeypatch.setattr(ai_advisor_service, "current_package_document_summary", raise_source_error)
+    monkeypatch.setattr(ai_advisor_service, "current_package_readiness", raise_source_error)
     monkeypatch.setattr(ai_advisor_service, "get_workflow_status", raise_source_error)
     monkeypatch.setattr(ai_advisor_service, "get_market_data_status", raise_source_error)
     monkeypatch.setattr(ai_advisor_service.PortfolioService, "get_portfolio_summary", raise_source_error)

@@ -868,19 +868,6 @@ class PersonalReportPackageDocument(BaseModel):
         return self
 
 
-class PersonalReportPackageDocumentSummary(BaseModel):
-    """Typed preview/frozen projection consumed outside the package renderer."""
-
-    snapshot_id: UUID | None = None
-    package_id: str
-    lifecycle: PersonalReportPackageDocumentLifecycle
-    status: PersonalReportPackageSnapshotStatus
-    context: PersonalReportPackageContext
-    readiness: PersonalReportPackageReadinessResponse
-    generated_at: datetime
-    frozen_at: datetime | None = None
-
-
 class PersonalReportPackageSnapshotResponse(PersonalReportPackageSnapshotSummary):
     """Saved personal report package snapshot plus its immutable typed document."""
 
