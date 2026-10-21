@@ -24,7 +24,7 @@ import {
 import type { BadgeVariant } from "@/components/ui";
 import { apiOperation } from "@/lib/api-client";
 import { invalidateLedgerDerivedQueries } from "@/lib/queryClient";
-import { statementsListQuery } from "@/lib/sharedQueries";
+import { SHARED_STALE_MS, STATEMENTS_LIST_QUERY_KEY } from "@/lib/sharedQueries";
 import { BankStatement, normalizeBankStatement } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { currencyCodeOrDash } from "@/lib/statusLabels";
@@ -78,7 +78,10 @@ export default function UploadPage() {
   // React Query keeps one request in flight, aborts it on unmount, and polls only while a
   // statement parses: the interval function returns false once nothing parses.
   const statementsQuery = useQuery({
-    ...statementsListQuery(),
+    queryKey: STATEMENTS_LIST_QUERY_KEY,
+    queryFn: ({ signal }) =>
+      apiOperation("list_statements_statements_get", { signal }),
+    staleTime: SHARED_STALE_MS,
     // Show the current list on arrival: the user may come from an upload or a review.
     refetchOnMount: "always",
     refetchInterval: (query) =>

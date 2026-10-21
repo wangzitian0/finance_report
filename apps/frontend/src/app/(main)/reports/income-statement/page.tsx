@@ -78,14 +78,15 @@ export default function IncomeStatementPage() {
 
   // The key comes from the shared builder, so Home reads the same cache entry when it
   // requests the same income statement (#2583 S4).
+  const reportKey = incomeStatementQueryKey({
+    startDate,
+    endDate,
+    currency,
+    accountType: accountTypeFilter || undefined,
+    tags: selectedTags,
+  });
   const reportQuery = useApiQuery(
-    incomeStatementQueryKey({
-      startDate,
-      endDate,
-      currency,
-      accountType: accountTypeFilter || undefined,
-      tags: selectedTags,
-    }),
+    reportKey,
     "income_statement_reports_income_statement_get",
     {
       query: {

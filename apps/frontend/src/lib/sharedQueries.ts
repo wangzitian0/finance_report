@@ -1,49 +1,23 @@
 /**
- * Query keys and query options that several routes share (#2583 S4).
+ * Query keys that several routes share (#2583 S4).
  *
  * Home, /attention, /upload, the Reports hub and the reconciliation Workbench read the same
  * endpoints with the same parameters. One key per endpoint-and-parameters pair lets react-query
  * serve a second reader from the cache and merge two readers that mount together into one request.
  * A route must build these keys here. It must not write its own key for the same request.
+ * Each route still calls `useApiQuery` with the operation id, so every consumer of an operation
+ * stays visible to the operation-consumer census.
  */
 
-import { queryOptions } from "@tanstack/react-query";
-
-import { apiOperation } from "@/lib/api-client";
-
-/** Stale time of the shared read models. It equals the default in `app/providers.tsx`. */
+/** Stale time of the shared read models. It equals the default in `lib/queryClient.ts`. */
 export const SHARED_STALE_MS = 60_000;
 
-export const STATEMENTS_LIST_QUERY_KEY = ["statements", "list"] as const;
-export const RECONCILIATION_STATS_QUERY_KEY = ["reconciliation", "stats"] as const;
-export const PROCESSING_PENDING_QUERY_KEY = ["accounts", "processing", "pending"] as const;
-
 /** `GET /statements`: the lean list (no transactions). */
-export function statementsListQuery() {
-  return queryOptions({
-    queryKey: STATEMENTS_LIST_QUERY_KEY,
-    queryFn: ({ signal }) => apiOperation("list_statements_statements_get", { signal }),
-    staleTime: SHARED_STALE_MS,
-  });
-}
-
+export const STATEMENTS_LIST_QUERY_KEY = ["statements", "list"] as const;
 /** `GET /reconciliation/stats`. */
-export function reconciliationStatsQuery() {
-  return queryOptions({
-    queryKey: RECONCILIATION_STATS_QUERY_KEY,
-    queryFn: () => apiOperation("reconciliation_stats_reconciliation_stats_get"),
-    staleTime: SHARED_STALE_MS,
-  });
-}
-
+export const RECONCILIATION_STATS_QUERY_KEY = ["reconciliation", "stats"] as const;
 /** `GET /accounts/processing/pending`. */
-export function processingPendingQuery() {
-  return queryOptions({
-    queryKey: PROCESSING_PENDING_QUERY_KEY,
-    queryFn: () => apiOperation("list_processing_pending_accounts_processing_pending_get"),
-    staleTime: SHARED_STALE_MS,
-  });
-}
+export const PROCESSING_PENDING_QUERY_KEY = ["accounts", "processing", "pending"] as const;
 
 export interface BalanceSheetKeyParams {
   asOfDate?: string;

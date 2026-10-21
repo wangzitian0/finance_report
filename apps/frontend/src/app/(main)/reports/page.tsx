@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui";
 import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
 import { formatDateInput } from "@/lib/date";
 import { isValidReportDate } from "@/lib/reportPackage";
-import { reconciliationStatsQuery, SHARED_STALE_MS } from "@/lib/sharedQueries";
+import { RECONCILIATION_STATS_QUERY_KEY, SHARED_STALE_MS } from "@/lib/sharedQueries";
 import { countLabel, readinessVariant } from "@/lib/statusLabels";
 import type { AnnualizedIncomeResponse, PersonalReportPackageDocument, PersonalReportPackageReadinessResponse } from "@/lib/types";
 
@@ -52,7 +52,12 @@ export default function ReportsPage() {
 
   // Reconciliation stats and the package preview come from the shared query cache (#2583 S4):
   // the package page reads the same preview key, and the Workbench reads the same stats key.
-  const statsQuery = useQuery(reconciliationStatsQuery());
+  const statsQuery = useApiQuery(
+    RECONCILIATION_STATS_QUERY_KEY,
+    "reconciliation_stats_reconciliation_stats_get",
+    {},
+    { staleTime: SHARED_STALE_MS },
+  );
   const packageQuery = useQuery({
     ...personalReportPackageQuery({ frameworkId: null, reportDate: asOfDate, currency }),
     enabled: isValidReportDate(asOfDate),

@@ -1,6 +1,6 @@
 "use client";
 
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import {
@@ -12,9 +12,9 @@ import type { components } from "@/lib/api-types";
 import {
   balanceSheetQueryKey,
   incomeStatementQueryKey,
-  reconciliationStatsQuery,
+  RECONCILIATION_STATS_QUERY_KEY,
   SHARED_STALE_MS,
-  statementsListQuery,
+  STATEMENTS_LIST_QUERY_KEY,
 } from "@/lib/sharedQueries";
 import {
   normalizeAdvisorSuggestions,
@@ -216,8 +216,9 @@ export function useDashboardSnapshot(
   );
 
   // Cockpit sources: they feed the statement cards, onboarding and the trust meter.
+  const balanceKey = balanceSheetQueryKey({ currency, includeRestricted });
   const balanceQuery = useApiQuery(
-    balanceSheetQueryKey({ currency, includeRestricted }),
+    balanceKey,
     "balance_sheet_reports_balance_sheet_get",
     {
       query: {
@@ -231,8 +232,9 @@ export function useDashboardSnapshot(
       select: normalizeBalanceSheet,
     },
   );
+  const incomeKey = incomeStatementQueryKey({ startDate, endDate, currency });
   const incomeQuery = useApiQuery(
-    incomeStatementQueryKey({ startDate, endDate, currency }),
+    incomeKey,
     "income_statement_reports_income_statement_get",
     {
       query: {
@@ -247,11 +249,18 @@ export function useDashboardSnapshot(
       select: normalizeIncomeStatement,
     },
   );
-  const statsQuery = useQuery({
-    ...reconciliationStatsQuery(),
-    select: (data) => data || EMPTY_STATS,
-  });
-  const statementsQuery = useQuery(statementsListQuery());
+  const statsQuery = useApiQuery(
+    RECONCILIATION_STATS_QUERY_KEY,
+    "reconciliation_stats_reconciliation_stats_get",
+    {},
+    { staleTime: SHARED_STALE_MS, select: (data) => data || EMPTY_STATS },
+  );
+  const statementsQuery = useApiQuery(
+    STATEMENTS_LIST_QUERY_KEY,
+    "list_statements_statements_get",
+    {},
+    { staleTime: SHARED_STALE_MS },
+  );
   const accountsQuery = useApiQuery(
     ["accounts", "count"],
     "list_accounts_accounts_get",

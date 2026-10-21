@@ -69,8 +69,9 @@ export default function BalanceSheetPage() {
 
   // The key comes from the shared builder, so Home reads the same cache entry when it
   // requests the same balance sheet (#2583 S4).
+  const reportKey = balanceSheetQueryKey({ asOfDate, currency, includeRestricted });
   const reportQuery = useApiQuery(
-    balanceSheetQueryKey({ asOfDate, currency, includeRestricted }),
+    reportKey,
     "balance_sheet_reports_balance_sheet_get",
     {
       query: {

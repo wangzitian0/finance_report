@@ -2,18 +2,19 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 
+import { useApiQuery } from "@/hooks/useApiQuery";
 import {
   buildAttentionItems,
   type AttentionKind,
 } from "@/lib/attention";
 import { withAttentionSource } from "@/lib/attentionNavigation";
 import {
-  processingPendingQuery,
-  reconciliationStatsQuery,
-  statementsListQuery,
+  PROCESSING_PENDING_QUERY_KEY,
+  RECONCILIATION_STATS_QUERY_KEY,
+  SHARED_STALE_MS,
+  STATEMENTS_LIST_QUERY_KEY,
 } from "@/lib/sharedQueries";
 import {
   Badge,
@@ -40,9 +41,24 @@ function confidenceVariant(confidence: number): BadgeVariant {
 export default function AttentionPage() {
   // The three sources come from the shared query cache (#2583 S4): Home and the
   // reconciliation Workbench read the same keys, so a source loads once per stale time.
-  const statements = useQuery(statementsListQuery());
-  const stats = useQuery(reconciliationStatsQuery());
-  const processing = useQuery(processingPendingQuery());
+  const statements = useApiQuery(
+    STATEMENTS_LIST_QUERY_KEY,
+    "list_statements_statements_get",
+    {},
+    { staleTime: SHARED_STALE_MS },
+  );
+  const stats = useApiQuery(
+    RECONCILIATION_STATS_QUERY_KEY,
+    "reconciliation_stats_reconciliation_stats_get",
+    {},
+    { staleTime: SHARED_STALE_MS },
+  );
+  const processing = useApiQuery(
+    PROCESSING_PENDING_QUERY_KEY,
+    "list_processing_pending_accounts_processing_pending_get",
+    {},
+    { staleTime: SHARED_STALE_MS },
+  );
   const sources = [statements, stats, processing];
 
   const failed = sources.find((source) => source.isError);

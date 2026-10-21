@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { buildAttentionItems, summarizeTrust } from "@/lib/attention";
 import {
-  processingPendingQuery,
-  reconciliationStatsQuery,
-  statementsListQuery,
+  PROCESSING_PENDING_QUERY_KEY,
+  RECONCILIATION_STATS_QUERY_KEY,
+  SHARED_STALE_MS,
+  STATEMENTS_LIST_QUERY_KEY,
 } from "@/lib/sharedQueries";
 
 // EPIC-022 PR6 (#864) AC22.6.2: a compact, always-honest view of the trust
@@ -20,9 +21,24 @@ import {
 // The three sources come from the shared query cache (#2583 S4): Home, /attention and
 // the reconciliation Workbench read the same keys, so a source loads once per stale time.
 export function TrustMeter() {
-  const statements = useQuery(statementsListQuery());
-  const stats = useQuery(reconciliationStatsQuery());
-  const processing = useQuery(processingPendingQuery());
+  const statements = useApiQuery(
+    STATEMENTS_LIST_QUERY_KEY,
+    "list_statements_statements_get",
+    {},
+    { staleTime: SHARED_STALE_MS },
+  );
+  const stats = useApiQuery(
+    RECONCILIATION_STATS_QUERY_KEY,
+    "reconciliation_stats_reconciliation_stats_get",
+    {},
+    { staleTime: SHARED_STALE_MS },
+  );
+  const processing = useApiQuery(
+    PROCESSING_PENDING_QUERY_KEY,
+    "list_processing_pending_accounts_processing_pending_get",
+    {},
+    { staleTime: SHARED_STALE_MS },
+  );
 
   const statementItems = statements.data?.items;
   const statsData = stats.data;
