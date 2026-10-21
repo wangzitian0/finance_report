@@ -52,12 +52,13 @@ export function UploadToReportHome({ status, events }: WorkflowStatusFeedProps) 
 }
 
 export function UploadToReportHomePanel() {
+  // Status and events load in parallel. A workflow read with no source change does not derive again
+  // (#2583), so the panel does not wait for the status before it requests the events.
   const statusQuery = useWorkflowStatusQuery();
   const status = isWorkflowStatusResponse(statusQuery.data) ? statusQuery.data : null;
-  const hasEvents = Boolean(status && (status.active_session != null || status.primary_state !== "empty" || status.event_counts.unread > 0 || status.event_counts.action_required > 0 || status.event_counts.blocked > 0));
-  const eventsQuery = useWorkflowEventsQuery(5, "home", hasEvents);
+  const eventsQuery = useWorkflowEventsQuery(5, "home");
 
-  if (statusQuery.isLoading || (hasEvents && eventsQuery.isLoading)) {
+  if (statusQuery.isLoading || eventsQuery.isLoading) {
     return (
       <section className="card px-3 py-2.5 animate-pulse" aria-label="Upload-to-report home" role="status" aria-busy="true">
         <div className="h-5 w-48 rounded bg-muted/20" />

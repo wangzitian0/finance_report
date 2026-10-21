@@ -18,7 +18,7 @@ from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User, get_current_user_id
 from src.ledger import Account, AccountType
 from src.main import app
-from src.reporting import ReportSnapshot, ReportType, current_package_document_summary
+from src.reporting import ReportSnapshot, ReportType, current_package_readiness
 from src.schemas.workflow import (
     WorkflowEventCreate,
     WorkflowEventListResponse,
@@ -333,10 +333,10 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     )
 
     unproven = await _get_as_user(public_client, unproven_user.id, "/workflow/status")
-    package = await current_package_document_summary(db, user_id=unproven_user.id)
+    readiness = await current_package_readiness(db, user_id=unproven_user.id)
     # This fixture has only income/expense accounts: no starting stock is owed.
     # Its three unanchored inputs and two missing cash proofs still block trust.
-    assert {blocker.code: blocker.count for blocker in package.readiness.blockers} == {
+    assert {blocker.code: blocker.count for blocker in readiness.blockers} == {
         "cash_identity_missing": 1,
         "cash_balance_input_missing": 1,
         "unproven_package_input": 3,
@@ -583,7 +583,7 @@ async def test_AC19_2_6_workflow_router_and_ssot_document_compact_read_path() ->
     assert "GET /workflow/status" in ssot
     assert "GET /workflow/events" in ssot
     assert "PATCH /workflow/events/{event_id}" in ssot
-    assert "current_package_document_summary" in ssot
+    assert "current_package_readiness" in ssot
     assert "PackageDocument readiness" in ssot
 
 

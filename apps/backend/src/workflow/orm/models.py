@@ -1,6 +1,7 @@
 """User-facing workflow event read model."""
 
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
@@ -14,7 +15,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
@@ -135,3 +136,18 @@ class WorkflowEvent(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         default=WorkflowReportImpact.NONE,
     )
     dedupe_key: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
+class WorkflowSyncState(Base, TimestampMixin):
+    """Source fingerprint and package readiness of the last workflow derivation for one user (#2583).
+
+    A workflow read compares the current source fingerprint with this row. When they are equal,
+    the read uses the stored readiness and does not run the derivation again.
+    """
+
+    __tablename__ = "workflow_sync_states"
+
+    # No delete cascade: account purge deletes every user_id table before the user row.
+    user_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("users.id"), primary_key=True)
+    source_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    package_readiness: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)

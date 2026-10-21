@@ -315,7 +315,7 @@ CONTRACT = PackageContract(
         "EquationDiagnosticResult",
         "diagnose_equation_imbalance",
         "run_balance_sheet_diagnostics",
-        "current_package_document_summary",
+        "current_package_readiness",
         "AnnualizedIncomeTotals",
         "CashFlowItem",
         "CashFlowResponse",
@@ -581,6 +581,7 @@ CONTRACT = PackageContract(
         ac('AC-reporting.package-document.11', "Package readiness validates cumulative balance-sheet and selected-period income against matching ledger periods. Prior-period activity does not block a valid monthly package; inconsistent section values remain blocked and saved exports retain the selected document's period-specific values.", 'apps/backend/tests/reporting/test_package_period_readiness.py::test_AC_reporting_package_document_11_prior_period_package_lifecycle', priority='P1', proof_kind='exact'),
         ac('AC-reporting.package-document.12', "The package page accepts an explicit reporting start and end date. Preview and generation submit that exact period with as_of_date equal to the selected end; empty or reversed dates fail locally without a request. Reopening and exporting a saved package retain the selected frozen artifact's period and identity.", 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC-reporting.package-document.12 previews and generates the selected month through the page', proof_kind='exact'),
         ac('AC-reporting.package-document.13', 'Package assembly builds the traceability appendix and notes once per assembly and reuses the balance-sheet ending unrealized FX gain/loss for the income statement without redundant balance-sheet executions.', 'apps/backend/tests/reporting/test_package_document.py::test_AC_reporting_package_document_13_single_pass_traceability_and_unrealized_fx_reuse', proof_kind='exact'),
+        ac('AC-reporting.package-document.14', 'PackageAssembler.evaluate_readiness returns the readiness of assemble for the same arguments. It does not build the traceability appendix, notes, or package decision.', 'apps/backend/tests/reporting/test_package_readiness_path.py::test_AC_reporting_package_document_14_readiness_path_equals_full_assembly', proof_kind='exact'),
         # ── group year-scale: year-scale reporting validation (was EPIC-005
         # AC5.20.1, migration closeout continuation, #1663 / #1716) ──
         ac('AC-reporting.year-scale.1', "At a full year's transaction volume the three statements tie out and generate within a wall-clock backstop, guarding against a silent O(n^2) regression.", 'apps/backend/tests/reporting/test_year_scale_reporting.py::test_AC5_20_year_scale_reporting_ties_out_within_budget', priority='P1'),

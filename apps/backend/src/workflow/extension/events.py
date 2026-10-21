@@ -16,7 +16,7 @@ from src.extraction import (
     get_uploaded_document_filenames,
 )
 from src.reconciliation import count_pending_review_items
-from src.reporting import current_package_document_summary
+from src.reporting import current_package_readiness
 from src.workflow.base.types import (
     WorkflowEventCountsResponse,
     WorkflowEventCreate,
@@ -47,9 +47,11 @@ from src.workflow.extension.builders import (  # noqa: F401
     build_uploaded_statement_event_payload,
     build_workflow_dedupe_key,
 )
+from src.workflow.extension.source_fingerprint import workflow_source_fingerprint
 from src.workflow.orm.models import (
     WorkflowEvent,
     WorkflowSession,
+    WorkflowSyncState,
 )
 
 # Raw extraction status values keep the derivation independent of ORM enums.
@@ -354,8 +356,7 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
     if pending_reconciliation_count:
         derived_payloads.append(build_reconciliation_review_event_payload(pending_reconciliation_count))
 
-    package_summary = await current_package_document_summary(db, user_id=user_id)
-    package_readiness = package_summary.readiness.model_dump(mode="json")
+    package_readiness = (await current_package_readiness(db, user_id=user_id)).model_dump(mode="json")
     for blocker in package_readiness.get("blockers", []):
         derived_payloads.append(build_readiness_blocker_event_payload(blocker))
     report_state_payload = build_report_state_event_payload(package_readiness)
@@ -432,6 +433,42 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
     return package_readiness
 
 
+async def ensure_workflow_events_synced(db: AsyncSession, *, user_id: UUID) -> dict:
+    """Run the derivation only when one of its inputs changed; return the package readiness.
+
+    A read computes the source fingerprint first. When it equals the fingerprint of the last
+    derivation, the stored readiness is returned and the read writes nothing (#2583). Otherwise
+    the derivation runs and the state row records the fingerprint from before the derivation.
+    If an input changes while the derivation runs, the next read sees a new fingerprint and
+    derives again.
+    """
+    fingerprint = await workflow_source_fingerprint(db, user_id=user_id)
+    state = (
+        await db.execute(
+            select(WorkflowSyncState.source_fingerprint, WorkflowSyncState.package_readiness).where(
+                WorkflowSyncState.user_id == user_id
+            )
+        )
+    ).one_or_none()
+    if state is not None and state.source_fingerprint == fingerprint:
+        return dict(state.package_readiness)
+
+    package_readiness = await sync_workflow_events_for_user(db, user_id=user_id)
+    await db.execute(
+        postgresql_insert(WorkflowSyncState)
+        .values(user_id=user_id, source_fingerprint=fingerprint, package_readiness=package_readiness)
+        .on_conflict_do_update(
+            index_elements=[WorkflowSyncState.user_id],
+            set_={
+                "source_fingerprint": fingerprint,
+                "package_readiness": package_readiness,
+                "updated_at": func.now(),
+            },
+        )
+    )
+    return package_readiness
+
+
 async def refresh_workflow_session_summary(
     db: AsyncSession,
     *,
@@ -494,7 +531,7 @@ async def list_workflow_events_response(
     # for the active session's derived (primary_state, report_readiness). The
     # readiness computed during sync is injected so get_workflow_status does not
     # sync or recompute the multi-query readiness a second time (#987 perf fix).
-    package_readiness = await sync_workflow_events_for_user(db, user_id=user_id)
+    package_readiness = await ensure_workflow_events_synced(db, user_id=user_id)
     workflow_status = await get_workflow_status(
         db,
         user_id=user_id,
@@ -607,15 +644,14 @@ async def get_workflow_status(
 ) -> WorkflowStatusResponse:
     """Return the compact workflow status for primary UI surfaces.
 
-    sync_workflow_events_for_user already computes the personal report package
-    readiness, so its return value is reused here instead of recomputing the
-    multi-query readiness a second time (#987 perf fix). Callers that have
-    already synced (e.g. list_workflow_events_response) inject that readiness via
-    synced_package_readiness to skip both the redundant sync and the second
-    readiness pass, while still deriving the SAME primary_state/report_readiness.
+    ensure_workflow_events_synced returns the package readiness of the last
+    derivation, so this function does not compute readiness again (#987, #2583).
+    Callers that have already synced (e.g. list_workflow_events_response) inject that
+    readiness via synced_package_readiness to skip the second sync check, while still
+    deriving the SAME primary_state/report_readiness.
     """
     if synced_package_readiness is None:
-        package_readiness = await sync_workflow_events_for_user(db, user_id=user_id)
+        package_readiness = await ensure_workflow_events_synced(db, user_id=user_id)
     else:
         package_readiness = synced_package_readiness
     package_readiness_state = _collapse_package_readiness_state(str(package_readiness["state"]))

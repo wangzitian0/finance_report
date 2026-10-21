@@ -256,6 +256,8 @@ STRING_KEEP_COLUMNS: frozenset[str] = frozenset(
         "workflow_events.status",
         "workflow_sessions.report_href",
         "workflow_sessions.status",
+        # A SHA-256 digest of row counts, row timestamps, the date, and a settings digest.
+        "workflow_sync_states.source_fingerprint",
     }
 )
 

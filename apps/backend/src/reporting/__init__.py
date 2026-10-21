@@ -34,7 +34,7 @@ _EXPORTS = {
     "PackageSectionContribution": "src.reporting.base.package_contribution",
     "personal_report_package_target": "src.reporting.base.package_decision",
     "personal_report_package_decision_ref": "src.reporting.extension.package_document",
-    "current_package_document_summary": "src.reporting.extension.package_document",
+    "current_package_readiness": "src.reporting.extension.package_document",
     "PackageDocumentVersionError": "src.reporting.extension.report_package",
     "EquationDiagnosticCategory": "src.reporting.base.diagnostics",
     "EquationDiagnosticResult": "src.reporting.base.diagnostics",
@@ -104,7 +104,7 @@ __all__ = [
     "PackageSectionContribution",
     "personal_report_package_target",
     "personal_report_package_decision_ref",
-    "current_package_document_summary",
+    "current_package_readiness",
     "PackageDocumentVersionError",
     "EquationDiagnosticCategory",
     "EquationDiagnosticResult",
@@ -226,7 +226,7 @@ if TYPE_CHECKING:
     )
     from src.reporting.extension.package_document import (
         PackageAssembler,
-        current_package_document_summary,
+        current_package_readiness,
         personal_report_package_decision_ref,
     )
     from src.reporting.extension.report_package import (

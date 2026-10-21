@@ -64,12 +64,13 @@ from src.pricing import MarketDataScopeStatus, get_market_data_status
 from src.reconciliation import get_reconciliation_stats
 from src.reporting import (
     ReportError,
-    current_package_document_summary,
+    current_package_readiness,
     generate_balance_sheet,
     generate_income_statement,
     get_category_breakdown,
 )
 from src.schemas.chat import AdvisorSuggestion, ChatActionChip, ChatCitation, ChatResponseMetadata
+from src.schemas.reporting import PersonalReportPackageSnapshotStatus
 from src.workflow import get_workflow_status
 
 # Bound from the bare published root (config publishes no named symbols).
@@ -340,9 +341,9 @@ class AIAdvisorService:
 
     async def _load_report_readiness(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
         try:
-            summary = await current_package_document_summary(db, user_id=user_id)
-            readiness = summary.readiness.model_dump(mode="json")
-            readiness["document_status"] = summary.status.value
+            readiness = (await current_package_readiness(db, user_id=user_id)).model_dump(mode="json")
+            # The current candidate is a preview. Only a frozen snapshot with a package decision is trusted.
+            readiness["document_status"] = PersonalReportPackageSnapshotStatus.DRAFT.value
             return readiness
         except Exception as exc:
             logger.warning("Failed to load advisor report readiness", error=str(exc))
@@ -368,14 +369,11 @@ class AIAdvisorService:
         synced_package_readiness: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         try:
-            try:
-                status = await get_workflow_status(
-                    db,
-                    user_id=user_id,
-                    synced_package_readiness=synced_package_readiness,
-                )
-            except TypeError:
-                status = await get_workflow_status(db, user_id=user_id)
+            status = await get_workflow_status(
+                db,
+                user_id=user_id,
+                synced_package_readiness=synced_package_readiness,
+            )
         except Exception as exc:
             logger.warning("Failed to load advisor workflow status", error=str(exc))
             return {

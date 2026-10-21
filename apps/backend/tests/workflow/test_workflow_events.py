@@ -18,7 +18,7 @@ import src.workflow.extension.events as workflow_events
 from src.extraction import BankStatementStatus, DocumentType, Stage1Status, UploadedDocument
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
-from src.reporting import current_package_document_summary
+from src.reporting import current_package_readiness
 from src.schemas.workflow import (
     WorkflowEventCreate,
     WorkflowEventResponse,
@@ -53,19 +53,18 @@ ROOT_DIR = Path(__file__).resolve().parents[4]
 
 @pytest.fixture(autouse=True)
 def _restore_readiness_read() -> Iterator[None]:
-    """Keep test-local frozen-document summary overrides isolated."""
-    workflow_events.current_package_document_summary = current_package_document_summary
+    """Keep test-local package readiness overrides isolated."""
+    workflow_events.current_package_readiness = current_package_readiness
     yield
-    workflow_events.current_package_document_summary = current_package_document_summary
+    workflow_events.current_package_readiness = current_package_readiness
 
 
 def _override_readiness_for_test(provider) -> None:
-    async def summary_provider(db, *, user_id):
+    async def readiness_provider(db, *, user_id):
         payload = await provider(db, user_id=user_id)
-        readiness = SimpleNamespace(model_dump=lambda mode="json": payload)
-        return SimpleNamespace(readiness=readiness)
+        return SimpleNamespace(model_dump=lambda mode="json": payload)
 
-    workflow_events.current_package_document_summary = summary_provider
+    workflow_events.current_package_readiness = readiness_provider
 
 
 async def _make_statement(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
@@ -71,7 +72,6 @@ from src.schemas.reporting import (
     PersonalReportPackageContractResponse,
     PersonalReportPackageDocument,
     PersonalReportPackageDocumentLifecycle,
-    PersonalReportPackageDocumentSummary,
     PersonalReportPackageInputCoverage,
     PersonalReportPackageNotesResponse,
     PersonalReportPackageReadinessBlocker,
@@ -83,23 +83,6 @@ from src.schemas.reporting import (
     PersonalReportPackageTraceabilityResponse,
     PersonalReportPackageTraceManifestEntry,
 )
-
-
-def _package_document_summary(document: PersonalReportPackageDocument) -> PersonalReportPackageDocumentSummary:
-    """Project one typed document without recomputing authority in the consumer."""
-    if document.lifecycle is PersonalReportPackageDocumentLifecycle.FROZEN:
-        if document.snapshot_id is None or document.frozen_at is None:
-            raise ValueError("Frozen package document is missing durable identity metadata")
-    return PersonalReportPackageDocumentSummary(
-        snapshot_id=document.snapshot_id,
-        package_id=document.package_id,
-        lifecycle=document.lifecycle,
-        status=document.status,
-        context=document.context,
-        readiness=document.readiness,
-        generated_at=document.generated_at,
-        frozen_at=document.frozen_at,
-    )
 
 
 def personal_report_package_decision_ref(document: PersonalReportPackageDocument) -> TraceDecisionRef:
@@ -492,6 +475,17 @@ def _section_invariant_blockers(
     return blockers
 
 
+@dataclass(frozen=True)
+class _PackageEvaluation:
+    """Readiness and the inputs that ``assemble`` reuses for display sections and the decision."""
+
+    policy: Any
+    contributions: tuple[PackageSectionContribution[Any], ...]
+    sections: PersonalReportPackageSections
+    input_manifest: list[PersonalReportPackageTraceManifestEntry]
+    readiness: PersonalReportPackageReadinessResponse
+
+
 class PackageAssembler:
     """Build one preview/frozen document without router-local section aggregation."""
 
@@ -511,26 +505,7 @@ class PackageAssembler:
         frozen_at: datetime | None = None,
     ) -> PersonalReportPackageDocument:
         """Assemble the document and fail closed on unanchored contributing inputs."""
-        contract = _contract(framework_id)
-        statement_disposition_policy = await _package_statement_disposition_policy(db, user_id)
-        policy = await derive_user_framework_policy_result(
-            db,
-            user_id,
-            framework_id=framework_id,
-            report_period_start=start_date,
-            report_period_end=end_date,
-            as_of_date=as_of_date,
-        )
-        decisions_by_source_id = _policy_decisions_by_source_id(policy)
-        base_contributions = await self._contributions(
-            db,
-            user_id=user_id,
-            start_date=start_date,
-            end_date=end_date,
-            as_of_date=as_of_date,
-        )
-        cash_inputs = _cash_inputs_from_contributions(base_contributions)
-        sections = await self._sections(
+        evaluation = await self._evaluate(
             db,
             user_id=user_id,
             framework_id=framework_id,
@@ -539,52 +514,17 @@ class PackageAssembler:
             as_of_date=as_of_date,
             currency=currency,
             include_restricted=include_restricted,
-            decisions_by_source_id=decisions_by_source_id,
-            contributions=base_contributions,
-            cash_inputs=cash_inputs,
         )
-        market_contributions = await self._selected_market_contributions(
-            db,
-            user_id=user_id,
-            selections=sections.investment_performance.market_valuation_selections,
-        )
-        contributions = (*base_contributions, *market_contributions)
+        contract = _contract(framework_id)
+        statement_disposition_policy = await _package_statement_disposition_policy(db, user_id)
+        policy = evaluation.policy
+        sections = evaluation.sections
+        input_manifest = evaluation.input_manifest
+        readiness = evaluation.readiness
         sections.traceability_appendix = PersonalReportPackageTraceabilityResponse.model_validate(
-            await build_personal_report_package_traceability_payload(contributions=contributions)
+            await build_personal_report_package_traceability_payload(contributions=evaluation.contributions)
         )
         sections.notes = _package_notes(statement_disposition_policy)
-        input_manifest, unproven_input_refs = await self._input_manifest(
-            db,
-            user_id=user_id,
-            contributions=contributions,
-        )
-        coverage = PersonalReportPackageInputCoverage(
-            manifest_decision_count=len(input_manifest),
-            authoritative_input_count=sum(len(item.input_refs) for item in input_manifest),
-            unproven_input_count=len(unproven_input_refs),
-        )
-        # Position and flow sections have different periods and FX averaging
-        # windows. Compare each against its matching ledger projection rather
-        # than comparing lifetime income with the selected month's income.
-        cumulative_net_income = _quantize_money(await _aggregate_net_income_sql(db, user_id, currency, as_of_date))
-        period_net_income = _quantize_money(
-            await _aggregate_net_income_sql(db, user_id, currency, end_date, start_date=start_date)
-        )
-        readiness = self._readiness(
-            policy=policy,
-            coverage=coverage,
-            section_blockers=_section_invariant_blockers(
-                sections,
-                start_date=start_date,
-                end_date=end_date,
-                as_of_date=as_of_date,
-                currency=currency,
-                contributions=contributions,
-                cash_inputs=cash_inputs,
-                cumulative_net_income=cumulative_net_income,
-                period_net_income=period_net_income,
-            ),
-        )
         now = datetime.now(UTC)
         package_decision_id = None
         if (
@@ -635,6 +575,124 @@ class PackageAssembler:
             statement_disposition_policy=statement_disposition_policy,
             input_manifest=input_manifest,
             sections=sections,
+        )
+
+    async def evaluate_readiness(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        framework_id: PersonalReportingFrameworkId,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+        include_restricted: bool = False,
+    ) -> PersonalReportPackageReadinessResponse:
+        """Return the readiness that ``assemble`` returns for the same arguments.
+
+        This path does not build the traceability appendix, the notes, or a package decision.
+        Readiness does not read these sections (#2583).
+        """
+        evaluation = await self._evaluate(
+            db,
+            user_id=user_id,
+            framework_id=framework_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+            currency=currency,
+            include_restricted=include_restricted,
+        )
+        return evaluation.readiness
+
+    async def _evaluate(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        framework_id: PersonalReportingFrameworkId,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+        include_restricted: bool,
+    ) -> _PackageEvaluation:
+        """Compute every readiness input and the readiness. This is the one readiness path."""
+        policy = await derive_user_framework_policy_result(
+            db,
+            user_id,
+            framework_id=framework_id,
+            report_period_start=start_date,
+            report_period_end=end_date,
+            as_of_date=as_of_date,
+        )
+        decisions_by_source_id = _policy_decisions_by_source_id(policy)
+        base_contributions = await self._contributions(
+            db,
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+        )
+        cash_inputs = _cash_inputs_from_contributions(base_contributions)
+        sections = await self._sections(
+            db,
+            user_id=user_id,
+            framework_id=framework_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+            currency=currency,
+            include_restricted=include_restricted,
+            decisions_by_source_id=decisions_by_source_id,
+            contributions=base_contributions,
+            cash_inputs=cash_inputs,
+        )
+        market_contributions = await self._selected_market_contributions(
+            db,
+            user_id=user_id,
+            selections=sections.investment_performance.market_valuation_selections,
+        )
+        contributions = (*base_contributions, *market_contributions)
+        input_manifest, unproven_input_refs = await self._input_manifest(
+            db,
+            user_id=user_id,
+            contributions=contributions,
+        )
+        coverage = PersonalReportPackageInputCoverage(
+            manifest_decision_count=len(input_manifest),
+            authoritative_input_count=sum(len(item.input_refs) for item in input_manifest),
+            unproven_input_count=len(unproven_input_refs),
+        )
+        # Position and flow sections have different periods and FX averaging
+        # windows. Compare each against its matching ledger projection rather
+        # than comparing lifetime income with the selected month's income.
+        cumulative_net_income = _quantize_money(await _aggregate_net_income_sql(db, user_id, currency, as_of_date))
+        period_net_income = _quantize_money(
+            await _aggregate_net_income_sql(db, user_id, currency, end_date, start_date=start_date)
+        )
+        readiness = self._readiness(
+            policy=policy,
+            coverage=coverage,
+            section_blockers=_section_invariant_blockers(
+                sections,
+                start_date=start_date,
+                end_date=end_date,
+                as_of_date=as_of_date,
+                currency=currency,
+                contributions=contributions,
+                cash_inputs=cash_inputs,
+                cumulative_net_income=cumulative_net_income,
+                period_net_income=period_net_income,
+            ),
+        )
+        return _PackageEvaluation(
+            policy=policy,
+            contributions=contributions,
+            sections=sections,
+            input_manifest=input_manifest,
+            readiness=readiness,
         )
 
     async def _emit_package_decision(
@@ -962,15 +1020,15 @@ class PackageAssembler:
         )
 
 
-async def current_package_document_summary(
+async def current_package_readiness(
     db: AsyncSession,
     *,
     user_id: UUID,
     as_of_date: date | None = None,
-) -> PersonalReportPackageDocumentSummary:
-    """Build the current default-framework candidate through the sole assembler."""
+) -> PersonalReportPackageReadinessResponse:
+    """Evaluate readiness of the current default-framework candidate through the sole assembler."""
     report_end = as_of_date or date.today()
-    document = await PackageAssembler().assemble(
+    return await PackageAssembler().evaluate_readiness(
         db,
         user_id=user_id,
         framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
@@ -979,4 +1037,3 @@ async def current_package_document_summary(
         as_of_date=report_end,
         currency=settings.base_currency,
     )
-    return _package_document_summary(document)
