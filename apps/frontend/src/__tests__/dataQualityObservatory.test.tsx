@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -152,6 +152,21 @@ describe("Personal Data Quality Observatory (#2294)", () => {
       expect(screen.getByText("SGD")).toBeInTheDocument();
       expect(screen.getByText("Re-evaluate")).toBeInTheDocument();
     });
+
+    it("shows a grade that the frontend contract does not know as Unclassified in the muted color", () => {
+      // A newer backend can send a grade before the generated frontend types know it.
+      render(
+        <TrustScoreHero
+          score={50}
+          grade={"E_NOT_IN_CONTRACT" as QualityGrade}
+          asOfDate="2026-10-09"
+          currency="SGD"
+        />,
+      );
+
+      const badge = screen.getByText("Unclassified");
+      expect(badge.style.color).toBe("var(--muted)");
+    });
   });
 
   describe("InvariantChecksGrid", () => {
@@ -274,6 +289,62 @@ describe("Personal Data Quality Observatory (#2294)", () => {
       expect(screen.getAllByRole("link", { name: /Reconciliation/ }).length).toBeGreaterThanOrEqual(1);
       expect(screen.getByRole("link", { name: /Journal/ })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Processing/ })).toBeInTheDocument();
+    });
+
+    it("keeps the attention rows of the sources that load when the statement and processing reads fail", async () => {
+      mockedApiOperation.mockImplementation(async (op: string) => {
+        if (op === "list_statements_statements_get") throw new Error("statements unavailable");
+        if (op === "list_processing_pending_accounts_processing_pending_get") {
+          throw new Error("processing unavailable");
+        }
+        if (op === "reconciliation_stats_reconciliation_stats_get") {
+          return {
+            total_transactions: 10,
+            matched_transactions: 7,
+            unmatched_transactions: 3,
+            pending_review: 0,
+            auto_accepted: 7,
+            match_rate: 70,
+          } as any;
+        }
+        return mockHealthData as any;
+      });
+
+      render(<AuditPage />, { wrapper: createWrapper() });
+
+      const bar = screen.getByTestId("audit-needs-confirmation-bar");
+      const row = await within(bar).findByRole("link", { name: /3 unmatched transactions/ });
+      expect(row).toHaveAttribute("href", "/reconciliation/unmatched?from=attention");
+      expect(within(row).getByText("0% confidence")).toBeInTheDocument();
+    });
+
+    it("keeps the statement attention rows when the reconciliation stats read fails", async () => {
+      mockedApiOperation.mockImplementation(async (op: string) => {
+        if (op === "reconciliation_stats_reconciliation_stats_get") throw new Error("stats unavailable");
+        if (op === "list_processing_pending_accounts_processing_pending_get") return { items: [] } as any;
+        if (op === "list_statements_statements_get") {
+          return {
+            items: [
+              {
+                id: "stmt-2",
+                original_filename: "OCBC_2026_02.pdf",
+                status: "parsed",
+                confidence_score: 65,
+                balance_validated: false,
+              },
+            ],
+          } as any;
+        }
+        return mockHealthData as any;
+      });
+
+      render(<AuditPage />, { wrapper: createWrapper() });
+
+      const bar = screen.getByTestId("audit-needs-confirmation-bar");
+      const row = await within(bar).findByRole("link", { name: /OCBC_2026_02\.pdf/ });
+      expect(row).toHaveAttribute("href", "/statements/stmt-2/review?from=attention");
+      expect(within(row).getByText("Balance needs review")).toBeInTheDocument();
+      expect(within(row).getByText("40% confidence")).toBeInTheDocument();
     });
 
     it("renders error state with retry button when query fails", async () => {

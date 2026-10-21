@@ -104,13 +104,6 @@ export function percentNumberFromParts(
   }
 }
 
-export function ratioNumberFromRatioValue(
-  value: NullablePercentInput,
-): number | null {
-  const ratio = ratioFromRatioValue(value);
-  return ratio === null ? null : ratio.value.toNumber();
-}
-
 export function percentNumberFromRatioValue(
   value: NullablePercentInput,
   options: PercentNumberOptions = {},
