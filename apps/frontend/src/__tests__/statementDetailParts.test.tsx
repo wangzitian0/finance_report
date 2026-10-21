@@ -6,7 +6,7 @@ import {
     StatementHeader,
     StatementSummaryCards,
     StatementTransactionsTable,
-} from "@/app/(main)/statements/[id]/_components/StatementHeader";
+} from "@/components/review/TransactionTable";
 import { BankStatement, BankStatementTransaction, BrokerageImportResponse } from "@/lib/types";
 import { currencyCodeOrDash as formatCode } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";

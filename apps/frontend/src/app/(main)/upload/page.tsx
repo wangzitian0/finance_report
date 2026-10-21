@@ -8,7 +8,7 @@ import { Trash2 } from "lucide-react";
 
 import StatementUploader from "@/components/statements/StatementUploader";
 import GuidedEvidenceForm from "@/components/assets/GuidedEvidenceForm";
-import { FlowStepBanner } from "@/components/workflow/FlowStepBanner";
+import { FlowStepBanner } from "@/components/workflow/WorkflowNotifications";
 import { InfoHint } from "@/components/ui/InfoHint";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";

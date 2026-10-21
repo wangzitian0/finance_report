@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ConflictResolutionDialog } from "@/components/review/ConflictResolutionDialog";
+import { ConflictResolutionDialog } from "@/components/review/TransactionTable";
 
 describe("ConflictResolutionDialog", () => {
     const onClose = vi.fn();
@@ -94,5 +94,18 @@ describe("ConflictResolutionDialog", () => {
         expect(resolving).toBeDisabled();
         fireEvent.click(resolving);
         expect(onResolve).not.toHaveBeenCalled();
+    });
+
+    it("calls onClose when Escape pressed inside dialog", () => {
+        render(
+            <ConflictResolutionDialog
+                isOpen={true}
+                onClose={onClose}
+                duplicateCandidates={[]}
+                transferPairCandidates={[]}
+            />
+        );
+        fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+        expect(onClose).toHaveBeenCalled();
     });
 });

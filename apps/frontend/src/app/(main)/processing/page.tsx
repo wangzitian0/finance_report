@@ -15,48 +15,30 @@ export default function ProcessingPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchPending() {
+    void (async () => {
       try {
-        const response = await apiOperation(
-          "list_processing_pending_accounts_processing_pending_get",
-        );
-        setData(response);
+        setData(await apiOperation("list_processing_pending_accounts_processing_pending_get"));
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load pending transfers",
-        );
+        setError(err instanceof Error ? err.message : "Failed to load pending transfers");
       } finally {
         setLoading(false);
       }
-    }
-    fetchPending();
+    })();
   }, []);
 
   return (
     <div className="p-6">
-      <div className="mb-4">
-        <AuditBackLink />
-      </div>
-
+      <div className="mb-4"><AuditBackLink /></div>
       <div className="page-header mb-6">
         <h1 className="page-title">Processing Transfers</h1>
-        <p className="page-description">
-          Transactions currently in flight between accounts
-        </p>
+        <p className="page-description">Transactions currently in flight between accounts</p>
       </div>
-
       {loading ? (
         <LoadingState label="Loading transfers" />
       ) : error ? (
-        <div className="card p-8 text-center text-[var(--error)] border-[var(--error)]/30">
-          <p>{error}</p>
-        </div>
+        <div className="card p-8 text-center text-[var(--error)] border-[var(--error)]/30"><p>{error}</p></div>
       ) : !data || data.items.length === 0 ? (
-        <div className="card p-8 text-center text-muted">
-          <p>No pending transfers found.</p>
-        </div>
+        <div className="card p-8 text-center text-muted"><p>No pending transfers found.</p></div>
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
@@ -73,30 +55,15 @@ export default function ProcessingPage() {
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {data.items.map((item) => (
-                  <tr
-                    key={item.entry_id}
-                    className="hover:bg-[var(--background-muted)]/50 transition-colors"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {formatDateDisplay(item.initiated_date)}
-                    </td>
+                  <tr key={item.entry_id} className="hover:bg-[var(--background-muted)]/50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">{formatDateDisplay(item.initiated_date)}</td>
                     <td className="px-6 py-4">{item.from_account}</td>
                     <td className="px-6 py-4">{item.to_account}</td>
-                    <td className="px-6 py-4 text-right font-mono">
-                      {formatCurrencyLocale(item.amount, item.currency)}
-                    </td>
+                    <td className="px-6 py-4 text-right font-mono">{formatCurrencyLocale(item.amount, item.currency)}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <span>{item.days_outstanding}d</span>
-                        {item.days_outstanding > 7 && (
-                          <span
-                            className="badge badge-error inline-flex items-center gap-1"
-                            aria-label="warning overdue"
-                          >
-                            <AlertTriangle className="w-3 h-3" />
-                            {item.days_outstanding}d
-                          </span>
-                        )}
+                        {item.days_outstanding > 7 && <span className="badge badge-error inline-flex items-center gap-1" aria-label="warning overdue"><AlertTriangle className="w-3 h-3" />{item.days_outstanding}d</span>}
                       </div>
                     </td>
                     <td className="px-6 py-4">{item.description}</td>
