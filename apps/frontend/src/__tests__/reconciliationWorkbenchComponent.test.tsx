@@ -16,6 +16,10 @@ vi.mock("@/lib/api-client", () => ({
   apiOperation: vi.fn(),
 }))
 
+vi.mock("@/components/ui/Toast", () => ({
+  useToast: () => ({ showToast: vi.fn() }),
+}))
+
 function mapWorkbenchOperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
   switch (operationId) {
     case "reconciliation_stats_reconciliation_stats_get":
@@ -39,6 +43,8 @@ function mapWorkbenchOperationToLegacy(operationId: string, req: any = {}): [str
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => navigationState.searchParams,
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => "/reconciliation",
 }))
 
 function createWrapper() {
@@ -494,5 +500,18 @@ describe("Workbench invalidation matrix flows (#1827 G-async-seam)", () => {
       }),
     )
     await waitFor(() => probe.expectDeclaredInvalidated())
+  })
+
+  it("switches reconciliation workspace views inline across Matched, Unmatched, and Consistency tabs", async () => {
+    await renderWithProbe("reconciliation.run")
+    const nav = screen.getByRole("navigation", { name: "Reconciliation workspace views" })
+    fireEvent.click(within(nav).getByRole("link", { name: /Unmatched Bank Lines/i }))
+    expect(within(nav).getByRole("link", { name: /Unmatched Bank Lines/i })).toHaveAttribute("aria-current", "page")
+
+    fireEvent.click(within(nav).getByRole("link", { name: /Consistency Checks/i }))
+    expect(within(nav).getByRole("link", { name: /Consistency Checks/i })).toHaveAttribute("aria-current", "page")
+
+    fireEvent.click(within(nav).getByRole("link", { name: /Matched & Pending/i }))
+    expect(within(nav).getByRole("link", { name: /Matched & Pending/i })).toHaveAttribute("aria-current", "page")
   })
 })

@@ -287,13 +287,26 @@ describe("PortfolioPage", () => {
     );
   });
 
-  it("has a link to the prices page", async () => {
-    mockPortfolioApi([]);
+  it("has a link to the prices page and toggles inline price update sheet", async () => {
+    mockPortfolioApi([mockHolding]);
 
     render(<PortfolioPage />, { wrapper: createWrapper() });
 
+    await waitFor(() => expect(screen.getByText("AAPL")).toBeInTheDocument());
+
     const link = screen.getByText("Update Prices").closest("a");
     expect(link).toHaveAttribute("href", "/portfolio/prices");
+
+    fireEvent.click(link!);
+    expect(
+      screen.getByTestId("portfolio-price-update-sheet"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Update Market Prices")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(
+      screen.queryByTestId("portfolio-price-update-sheet"),
+    ).not.toBeInTheDocument();
   });
 
   it("AC17.8.4 shows total portfolio value banner when active holdings are loaded", async () => {
