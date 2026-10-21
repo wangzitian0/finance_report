@@ -89,10 +89,12 @@ def _is_retryable(exc: Exception) -> bool:
     return type(exc).__name__ in _RETRYABLE_EXC
 
 
-# Z.ai and other providers put a numeric error code in the JSON body, for example
-# {"error":{"code":"1113",...}}. One status maps to many causes (concurrency, quota,
-# no resource package), so the code is what tells them apart (#2580).
-_PROVIDER_CODE = re.compile(r'"code"\s*:\s*"?(\d{3,5})"?')
+# Z.ai and other providers put a numeric error code in the response body, for example
+# {"error":{"code":"1302",...}}. The OpenAI client writes the body into the exception
+# text as a Python dict ("Error code: 429 - {'error': {'code': '1302', ...}}"), so the
+# quotes can be single or double. One status maps to many causes (concurrency, quota,
+# no resource package); the code tells them apart (#2580).
+_PROVIDER_CODE = re.compile(r"""["']code["']\s*:\s*["']?(\d{3,5})["']?""")
 
 
 def _wrap(exc: Exception) -> LLMError:

@@ -475,16 +475,21 @@ class RateLimitError(_ProviderError):
 
 def test_AC_llm_provider_error_code_1_text_names_status_and_code_and_nothing_else():
     """AC-llm.provider-error-code.1: class, HTTP status and numeric code reach the text; the message does not."""
-    body = (
-        '{"error":{"code":"1113","message":"Insufficient balance. key sk-SECRET-123 at '
-        'https://open.bigmodel.cn/api/paas/v4/chat Authorization: Bearer abc"}}'
-    )
-    err = client_mod._wrap(RateLimitError(body, status_code=429))
+    secret = "key sk-SECRET-123 at https://open.bigmodel.cn/api/paas/v4/chat Authorization: Bearer abc"
+    # The OpenAI client writes "Error code: <status> - <body dict>" (Python repr, single
+    # quotes). A raw JSON body (double quotes) must give the same result.
+    texts = {
+        "python dict repr": f"Error code: 429 - {{'error': {{'code': '1113', 'message': 'Insufficient balance. {secret}'}}}}",
+        "json": f'{{"error":{{"code":"1113","message":"Insufficient balance. {secret}"}}}}',
+        "unquoted number": f"Error code: 429 - {{'error': {{'code': 1113, 'message': '{secret}'}}}}",
+    }
+    for label, text in texts.items():
+        err = client_mod._wrap(RateLimitError(text, status_code=429))
 
-    assert str(err) == "LLM provider call failed (RateLimitError, http 429, provider code 1113)"
-    assert err.retryable is True
-    for leaked in ("sk-SECRET", "Bearer", "https://", "Insufficient"):
-        assert leaked not in str(err)
+        assert str(err) == "LLM provider call failed (RateLimitError, http 429, provider code 1113)", label
+        assert err.retryable is True
+        for leaked in ("sk-SECRET", "Bearer", "https://", "Insufficient"):
+            assert leaked not in str(err), (label, leaked)
 
 
 def test_AC_llm_provider_error_code_1_text_stays_the_class_name_without_status_or_code():
