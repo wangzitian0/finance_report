@@ -16,10 +16,13 @@ import {
 } from "@/lib/types";
 import { currencyCodeOrDash } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
-import { StatementHeader } from "./_components/StatementHeader";
-import { BrokerageImportResultBanner } from "./_components/BrokerageImportResultBanner";
-import { StatementSummaryCards } from "./_components/StatementSummaryCards";
-import { StatementTransactionsTable } from "./_components/StatementTransactionsTable";
+import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
+import {
+  BrokerageImportResultBanner,
+  StatementHeader,
+  StatementSummaryCards,
+  StatementTransactionsTable,
+} from "./_components/StatementHeader";
 
 const PARSING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -487,11 +490,27 @@ export default function StatementDetailPage() {
       {/* Summary Cards */}
       <StatementSummaryCards statement={statement} />
 
-      {/* Transactions Table */}
-      <StatementTransactionsTable
-        statement={statement}
-        onTransactionUpdated={() => fetchStatement({ supersede: true })}
-      />
+      {/* Side-by-Side PDF + Transactions Workbench */}
+      <div
+        data-testid="statement-side-by-side-workbench"
+        className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start"
+      >
+        <div className="lg:col-span-5 min-h-[540px] h-[600px]">
+          <PdfPreviewPane
+            statementId={statementId}
+            hasDocument={
+              Boolean(statement.file_path) &&
+              (statement.status === "parsed" || statement.status === "approved")
+            }
+          />
+        </div>
+        <div className="lg:col-span-7 min-w-0">
+          <StatementTransactionsTable
+            statement={statement}
+            onTransactionUpdated={() => fetchStatement({ supersede: true })}
+          />
+        </div>
+      </div>
 
       {/* Delete Statement Confirmation */}
       <ConfirmDialog

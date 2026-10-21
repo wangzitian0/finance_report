@@ -1,10 +1,13 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PackageSectionCards } from "@/components/reports/package/PackageScheduleSections";
 import type { PersonalReportPackageSections } from "@/lib/types";
 import PersonalReportPackagePage from "@/app/(main)/reports/package/page";
-import { renderCsv, renderSourceClasses } from "@/components/reports/package/shared";
+import {
+  PackageSectionCards,
+  renderCsv,
+  renderSourceClasses,
+} from "@/components/reports/package/shared";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
 const mockedApiDownload = vi.fn();

@@ -1,15 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, Layers } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowRight, ChevronRight, Layers } from "lucide-react";
 
-import { ActionChecklist } from "@/components/audit/ActionChecklist";
-import { InvariantChecksGrid } from "@/components/audit/InvariantChecksGrid";
-import { TemporalTimelineGrid } from "@/components/audit/TemporalTimelineGrid";
-import { TrustScoreHero } from "@/components/audit/TrustScoreHero";
+import {
+  ActionChecklist,
+  InvariantChecksGrid,
+  TemporalTimelineGrid,
+  TrustScoreHero,
+} from "@/components/audit/TrustScoreHero";
 import { auditHubItems } from "@/components/navigation";
-import { PageHeader } from "@/components/ui";
+import { Badge, PageHeader } from "@/components/ui";
 import { useDataQualityHealth } from "@/hooks/useDataQualityHealth";
+import { apiOperation } from "@/lib/api-client";
+import { buildAttentionItems, type AttentionItem } from "@/lib/attention";
+import { withAttentionSource } from "@/lib/attentionNavigation";
 
 const DESCRIPTIONS: Record<string, string> = {
   "/confidence": "How trusted each number is — confirmations needed and low-confidence items.",
@@ -21,6 +27,30 @@ const DESCRIPTIONS: Record<string, string> = {
 
 export default function AuditPage() {
   const { data, isLoading, isError, refetch, isFetching } = useDataQualityHealth();
+  const [attentionItems, setAttentionItems] = useState<AttentionItem[]>([]);
+
+  useEffect(() => {
+    if (!data) return;
+    let active = true;
+    Promise.all([
+      Promise.resolve(apiOperation("list_statements_statements_get")).catch(() => null),
+      Promise.resolve(apiOperation("reconciliation_stats_reconciliation_stats_get")).catch(() => null),
+      Promise.resolve(apiOperation("list_processing_pending_accounts_processing_pending_get")).catch(() => null),
+    ]).then(([statements, stats, processing]) => {
+      if (!active) return;
+      if (!statements && !stats && !processing) return;
+      setAttentionItems(
+        buildAttentionItems({
+          statements: statements?.items ?? [],
+          stats: stats ?? null,
+          processing: processing?.items ?? [],
+        }),
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, [data]);
 
   return (
     <div className="space-y-8 p-6 max-w-7xl mx-auto">
@@ -49,7 +79,6 @@ export default function AuditPage() {
         </div>
       ) : (
         <>
-          {/* 1. Score Hero */}
           <TrustScoreHero
             score={data.score}
             grade={data.grade}
@@ -59,10 +88,8 @@ export default function AuditPage() {
             onRefresh={() => refetch()}
           />
 
-          {/* 2. Prioritized Action Checklist */}
           <ActionChecklist actionItems={data.action_items} />
 
-          {/* 3. Invariant Proofs */}
           <InvariantChecksGrid
             equationInvariant={data.equation_invariant}
             temporalInvariant={data.temporal_continuity_invariant}
@@ -70,34 +97,57 @@ export default function AuditPage() {
             lineageInvariant={data.lineage_anchors_invariant}
           />
 
-          {/* 4. Temporal Rollforward Timeline */}
           <TemporalTimelineGrid timeline={data.timeline} />
         </>
       )}
 
-      {/* 5. Underlying Accounting Machinery & Deep Links */}
       <div className="border-t border-[var(--border)] pt-6">
         <div
           data-testid="audit-needs-confirmation-bar"
-          className="card mb-6 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+          className="card mb-6 space-y-3 p-4"
         >
-          <div>
-            <h2 className="text-sm font-semibold">Needs Confirmation</h2>
-            <p className="text-xs text-muted">
-              Confirm items that need your input so your financial reports stay accurate.
-            </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold">Needs Confirmation</h2>
+              <p className="text-xs text-muted">
+                Confirm items that need your input so your financial reports stay accurate.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/attention" className="btn-secondary text-xs">
+                Low-confidence items
+              </Link>
+              <Link href="/reconciliation/unmatched" className="btn-secondary text-xs">
+                Unmatched bank lines
+              </Link>
+              <Link href="/upload" className="btn-secondary text-xs">
+                Uploaded statements
+              </Link>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/attention" className="btn-secondary text-xs">
-              Low-confidence items
-            </Link>
-            <Link href="/reconciliation/unmatched" className="btn-secondary text-xs">
-              Unmatched bank lines
-            </Link>
-            <Link href="/upload" className="btn-secondary text-xs">
-              Uploaded statements
-            </Link>
-          </div>
+
+          {attentionItems.length > 0 && (
+            <div className="divide-y divide-[var(--border)] border-t border-[var(--border)] pt-2">
+              {attentionItems.slice(0, 5).map((item) => (
+                <Link
+                  key={item.id}
+                  href={withAttentionSource(item.href)}
+                  className="flex items-center justify-between gap-3 py-2.5 text-xs transition-colors hover:text-[var(--accent)]"
+                >
+                  <div className="min-w-0">
+                    <span className="font-medium">{item.title}</span>
+                    <span className="ml-2 text-muted">{item.detail}</span>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <Badge variant={item.confidence < 40 ? "error" : item.confidence < 70 ? "warning" : "info"}>
+                      {item.confidence}% confidence
+                    </Badge>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted" aria-hidden="true" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mb-3 flex items-center gap-2">

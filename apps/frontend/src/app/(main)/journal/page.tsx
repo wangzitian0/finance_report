@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { AuditBackLink } from "@/components/audit/AuditBackLink";
+import { AuditBackLink } from "@/components/ui/BackLink";
 import JournalEntryForm from "@/components/journal/JournalEntryForm";
 import JournalEntryDetailsModal from "@/components/journal/JournalEntryDetailsModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";

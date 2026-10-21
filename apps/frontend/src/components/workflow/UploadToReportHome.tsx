@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui";
 import { isWorkflowStatusResponse, useWorkflowEventsQuery, useWorkflowStatusQuery } from "@/hooks/useWorkflowStatus";
 import { countLabel } from "@/lib/statusLabels";
-import type { WorkflowStatusFeedProps } from "./WorkflowStatusFeed";
+import type { WorkflowStatusFeedProps } from "./WorkflowEventsPageContent";
 import {
   humanizeWorkflowText, labelFromSnake, nextActionLabel, nextActionSummary,
   routineEvents as selectRoutineEvents, sentenceFromSnake, severityBadgeVariant, workflowStateCopy,

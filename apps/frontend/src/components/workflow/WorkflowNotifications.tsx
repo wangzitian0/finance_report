@@ -7,7 +7,10 @@
  */
 
 export { UploadToReportHome, UploadToReportHomePanel } from "./UploadToReportHome";
-export { WorkflowEventsPageContent } from "./WorkflowEventsPageContent";
-export { WorkflowInbox } from "./WorkflowInbox";
+export {
+  WorkflowEventsPageContent,
+  WorkflowStatusFeed,
+  type WorkflowStatusFeedProps,
+} from "./WorkflowEventsPageContent";
+export { WorkflowInbox, WorkflowEventCard } from "./WorkflowInbox";
 export { WorkflowNotificationCenter } from "./WorkflowNotificationCenter";
-export { WorkflowStatusFeed, type WorkflowStatusFeedProps } from "./WorkflowStatusFeed";

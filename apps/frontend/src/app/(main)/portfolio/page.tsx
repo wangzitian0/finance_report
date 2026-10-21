@@ -13,6 +13,7 @@ import { LoadingState } from "@/components/ui";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { AllocationChart } from "@/components/portfolio/AllocationChart";
 import { InvestmentPerformanceSchedule } from "@/components/portfolio/InvestmentPerformanceSchedule";
+import { PriceUpdateForm } from "@/components/portfolio/PriceUpdateForm";
 import {
   amountToChartNumber,
   formatCurrencyLocale,
@@ -61,6 +62,7 @@ export default function PortfolioPage() {
   const [asOfDate, setAsOfDate] = useState("");
   const [includeRestrictedAllocation, setIncludeRestrictedAllocation] =
     useState(true);
+  const [priceSheetOpen, setPriceSheetOpen] = useState(false);
 
   const {
     data: holdings,
@@ -90,7 +92,7 @@ export default function PortfolioPage() {
     isLoading: isPerformanceScheduleLoading,
     error: performanceScheduleError,
   } = useQuery({
-    queryKey: ["portfolio-performance-report-schedule", asOfDate],
+    queryKey: ["portfolio-performance-report-schedule", asOfDate, reportCurrency],
     queryFn: () => {
       const yearStart = asOfDate ? `${asOfDate.slice(0, 4)}-01-01` : undefined;
       return apiOperation(
@@ -100,7 +102,7 @@ export default function PortfolioPage() {
             period_start: yearStart,
             period_end: asOfDate || undefined,
             as_of_date: asOfDate || undefined,
-            currency: "SGD",
+            currency: reportCurrency,
           },
         },
       );
@@ -145,6 +147,10 @@ export default function PortfolioPage() {
         </div>
         <Link
           href="/portfolio/prices"
+          onClick={(e) => {
+            e.preventDefault();
+            setPriceSheetOpen((prev) => !prev);
+          }}
           className="btn-primary flex items-center gap-2"
         >
           <svg
@@ -163,6 +169,38 @@ export default function PortfolioPage() {
           Update Prices
         </Link>
       </div>
+
+      {priceSheetOpen && (
+        <section
+          data-testid="portfolio-price-update-sheet"
+          className="mb-6 card p-5 border-[var(--accent)]/30"
+        >
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold">Update Market Prices</h2>
+              <p className="text-xs text-muted">
+                Enter latest market prices to refresh portfolio valuations inline.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPriceSheetOpen(false)}
+              className="btn-secondary text-xs px-2.5 py-1"
+            >
+              Close
+            </button>
+          </div>
+          <PriceUpdateForm
+            knownTickers={Array.from(
+              new Set(activeHoldings.map((h) => h.asset_identifier)),
+            )}
+            onSuccess={() => {
+              setPriceSheetOpen(false);
+              void refetch();
+            }}
+          />
+        </section>
+      )}
 
       {/* Total Portfolio Value Banner */}
       {!isLoading && !error && activeHoldings.length > 0 && (

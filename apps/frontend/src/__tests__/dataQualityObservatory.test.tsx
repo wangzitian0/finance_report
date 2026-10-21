@@ -4,10 +4,12 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AuditPage from "@/app/(main)/audit/page";
-import { ActionChecklist } from "@/components/audit/ActionChecklist";
-import { InvariantChecksGrid } from "@/components/audit/InvariantChecksGrid";
-import { TemporalTimelineGrid } from "@/components/audit/TemporalTimelineGrid";
-import { TrustScoreHero } from "@/components/audit/TrustScoreHero";
+import {
+  ActionChecklist,
+  InvariantChecksGrid,
+  TemporalTimelineGrid,
+  TrustScoreHero,
+} from "@/components/audit/TrustScoreHero";
 import {
   getGradeColor,
   getGradeLabel,
