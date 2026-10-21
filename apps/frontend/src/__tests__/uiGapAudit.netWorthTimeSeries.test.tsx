@@ -1,5 +1,7 @@
 import "@testing-library/jest-dom/vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { NetWorthTimeSeriesChart } from "@/components/charts/NetWorthTimeSeriesChart";
@@ -18,6 +20,23 @@ vi.mock("echarts-for-react", () => ({
 vi.mock("@/lib/api-client", () => ({
   apiOperation: vi.fn(),
 }));
+
+function createQueryClient() {
+  return new QueryClient({ defaultOptions: { queries: { retry: false } } });
+}
+
+function renderWithClient(ui: ReactElement, client: QueryClient = createQueryClient()) {
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
+
+const TWO_POINTS = {
+  currency: "SGD",
+  granularity: "daily",
+  points: [
+    { date: "2026-05-01", total_assets: "1000.00", total_liabilities: "100.00", net_worth: "900.00", currency: "SGD" },
+    { date: "2026-05-02", total_assets: "1100.00", total_liabilities: "100.00", net_worth: "1000.00", currency: "SGD" },
+  ],
+} satisfies NetWorthTimeSeriesResponse;
 
 describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
   const mockedApiOperation = vi.mocked(apiOperation);
@@ -38,7 +57,7 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
       ],
     } satisfies NetWorthTimeSeriesResponse);
 
-    render(<NetWorthTimeSeriesChart />);
+    renderWithClient(<NetWorthTimeSeriesChart />);
 
     await waitFor(() => expect(screen.getByTestId("net-worth-echarts")).toBeInTheDocument());
     expect(screen.getByRole("img", { name: "ECharts net worth line chart" })).toBeInTheDocument();
@@ -57,7 +76,7 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
       ],
     } satisfies NetWorthTimeSeriesResponse);
 
-    render(<NetWorthTimeSeriesChart />);
+    renderWithClient(<NetWorthTimeSeriesChart />);
     await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByRole("tab", { name: "1M" }));
 
@@ -82,7 +101,7 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
       ],
     } satisfies NetWorthTimeSeriesResponse);
 
-    render(<NetWorthTimeSeriesChart />);
+    renderWithClient(<NetWorthTimeSeriesChart />);
 
     await waitFor(() =>
       expect(screen.getByText("At least two net worth points are needed to draw a line.")).toBeInTheDocument(),
@@ -92,8 +111,37 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
   it("test_AC8_13_48 shows net worth history load failures", async () => {
     mockedApiOperation.mockRejectedValueOnce(new Error("history failed"));
 
-    render(<NetWorthTimeSeriesChart />);
+    renderWithClient(<NetWorthTimeSeriesChart />);
 
     expect(await screen.findByText("history failed")).toBeInTheDocument();
+  });
+
+  // AC-reporting.fe-viz-reports.34
+  it("caches each range so a revisit within the stale time sends no request", async () => {
+    mockedApiOperation.mockResolvedValue(TWO_POINTS);
+    const client = createQueryClient();
+
+    const first = renderWithClient(<NetWorthTimeSeriesChart />, client);
+    await waitFor(() => expect(screen.getByTestId("net-worth-echarts")).toBeInTheDocument());
+    expect(mockedApiOperation).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("tab", { name: "1M" }));
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole("tab", { name: "6M" }));
+    await waitFor(() => expect(screen.getByTestId("net-worth-echarts")).toBeInTheDocument());
+
+    first.unmount();
+    renderWithClient(<NetWorthTimeSeriesChart />, client);
+    await waitFor(() => expect(screen.getByTestId("net-worth-echarts")).toBeInTheDocument());
+
+    expect(mockedApiOperation).toHaveBeenCalledTimes(2);
+    const sixMonthQuery = client
+      .getQueryCache()
+      .findAll({ queryKey: ["report", "net-worth-timeseries", "6M"] });
+    expect(sixMonthQuery).toHaveLength(1);
+    const [, , range, from, to, granularity] = sixMonthQuery[0].queryKey as string[];
+    expect(range).toBe("6M");
+    expect(granularity).toBe("daily");
+    expect(from < to).toBe(true);
   });
 });

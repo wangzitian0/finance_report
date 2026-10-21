@@ -40,11 +40,14 @@ from src.reporting.extension.reporting_calc import (
 from src.schemas.provenance import DataProvenance
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Awaitable, Callable, Sequence
 
     # Always called as (db, user_id, *, as_of_date=..., target_currency=...,
     # include_restricted=...) — see _build_manual_valuation_lines below.
     ManualValuationLinesProvider = Callable[..., "Awaitable[tuple[list[dict], list[dict]]]"]
+    # Always called as (db, user_id, *, as_of_dates=..., target_currency=...,
+    # include_restricted=...) — see _build_manual_valuation_lines_series below.
+    ManualValuationLinesSeriesProvider = Callable[..., "Awaitable[dict[date, tuple[list[dict], list[dict]]]]"]
 
 logger = get_logger(__name__)
 
@@ -57,12 +60,22 @@ logger = get_logger(__name__)
 # registers the real function at startup; the backend test conftest
 # registers it for direct (no-app) test runs.
 _manual_valuation_lines_provider: ManualValuationLinesProvider | None = None
+_manual_valuation_lines_series_provider: ManualValuationLinesSeriesProvider | None = None
 
 
-def register_manual_valuation_lines_provider(provider: ManualValuationLinesProvider) -> None:
-    """Wire the manual-valuation balance-sheet-lines builder (see note above)."""
-    global _manual_valuation_lines_provider
+def register_manual_valuation_lines_provider(
+    provider: ManualValuationLinesProvider,
+    *,
+    series_provider: ManualValuationLinesSeriesProvider,
+) -> None:
+    """Wire the manual-valuation balance-sheet-lines builders (see note above).
+
+    ``series_provider`` builds the same lines for many dates at once; the
+    net-worth time series uses it.
+    """
+    global _manual_valuation_lines_provider, _manual_valuation_lines_series_provider
     _manual_valuation_lines_provider = provider
+    _manual_valuation_lines_series_provider = series_provider
 
 
 async def _build_manual_valuation_lines(
@@ -88,6 +101,30 @@ async def _build_manual_valuation_lines(
         target_currency=target_currency,
         include_restricted=include_restricted,
         warnings=warnings,
+    )
+
+
+async def _build_manual_valuation_lines_series(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    as_of_dates: Sequence[date],
+    target_currency: str,
+    include_restricted: bool = True,
+) -> dict[date, tuple[list[dict], list[dict]]]:
+    """Dispatch to the registered manual-valuation lines series provider."""
+    if _manual_valuation_lines_series_provider is None:
+        raise RuntimeError(
+            "balance_sheet.register_manual_valuation_lines_provider() was never "
+            "called — main.py wires it at startup (#1666); a test exercising this "
+            "path without the app must call it too (the backend test conftest does)."
+        )
+    return await _manual_valuation_lines_series_provider(
+        db,
+        user_id,
+        as_of_dates=as_of_dates,
+        target_currency=target_currency,
+        include_restricted=include_restricted,
     )
 
 

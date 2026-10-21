@@ -36,6 +36,8 @@ _DERIVED_SOURCE_TYPES = {JournalEntrySourceType.SYSTEM, JournalEntrySourceType.F
 # Limit to ~1 year of daily data to ensure report performance and prevent memory issues.
 MAX_TREND_POINTS = 366
 MAX_NET_WORTH_DAILY_POINTS = 366
+# A monthly net-worth series keeps its latest 366 months (30.5 years) (#2583).
+MAX_NET_WORTH_MONTHLY_POINTS = 366
 
 
 class ReportError(Exception):

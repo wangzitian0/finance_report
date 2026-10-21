@@ -5,6 +5,7 @@ Valuation snapshots and their versioned read models are pricing-owned facts
 ``src.portfolio.extension.positions``.
 """
 
+from bisect import bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
@@ -16,6 +17,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import normalize_currency_code
 from src.audit.money import to_money
 from src.observability import get_logger
 from src.pricing.base.manual_valuation import (
@@ -520,6 +522,37 @@ def _manual_valuation_allocation_asset_class(component_type: str) -> str:
     return "other"
 
 
+def _manual_valuation_line(component: ValuationComponentItem, amount: Decimal) -> dict[str, Any]:
+    """Build one balance-sheet line from a component and its target-currency amount."""
+    is_liability = component.liquidity_class == ManualValuationLiquidityClass.LIABILITY.value
+    return {
+        "account_id": component.id,
+        "name": _valuation_line_name(component.source, component.component_type),
+        # Plain string, not ledger.AccountType: pricing must not depend on
+        # ledger (target dep table, migration-standard.md); AccountType is a
+        # str-Enum, so "ASSET"/"LIABILITY" compare/serialize identically to
+        # the enum members every consumer of this line dict expects.
+        "type": "LIABILITY" if is_liability else "ASSET",
+        "parent_id": None,
+        "amount": to_money(amount),
+        "provenance": "manual",
+        "source_currency": component.currency.upper(),
+        "allocation_asset_class": _manual_valuation_allocation_asset_class(component.component_type),
+        "allocation_liquidity_class": component.liquidity_class,
+        "allocation_source_type": "manual_valuation",
+    }
+
+
+def _split_manual_valuation_lines(
+    lines: Sequence[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    asset_lines = sorted((line for line in lines if line["type"] == "ASSET"), key=lambda line: line["name"].lower())
+    liability_lines = sorted(
+        (line for line in lines if line["type"] == "LIABILITY"), key=lambda line: line["name"].lower()
+    )
+    return asset_lines, liability_lines
+
+
 async def build_manual_valuation_lines(
     db: AsyncSession,
     user_id: UUID,
@@ -558,8 +591,7 @@ async def build_manual_valuation_lines(
     )
     if warnings is not None:
         warnings.extend(components.warnings)
-    asset_lines: list[dict[str, Any]] = []
-    liability_lines: list[dict[str, Any]] = []
+    lines: list[dict[str, Any]] = []
 
     for component in components.items:
         amount = component.value
@@ -573,29 +605,95 @@ async def build_manual_valuation_lines(
                 rate_date=as_of_date,
                 lazy_load=True,
             )
+        lines.append(_manual_valuation_line(component, amount))
 
-        is_liability = component.liquidity_class == ManualValuationLiquidityClass.LIABILITY.value
-        line = {
-            "account_id": component.id,
-            "name": _valuation_line_name(component.source, component.component_type),
-            # Plain string, not ledger.AccountType: pricing must not depend on
-            # ledger (target dep table, migration-standard.md); AccountType is a
-            # str-Enum, so "ASSET"/"LIABILITY" compare/serialize identically to
-            # the enum members every consumer of this line dict expects.
-            "type": "LIABILITY" if is_liability else "ASSET",
-            "parent_id": None,
-            "amount": to_money(amount),
-            "provenance": "manual",
-            "source_currency": source_currency,
-            "allocation_asset_class": _manual_valuation_allocation_asset_class(component.component_type),
-            "allocation_liquidity_class": component.liquidity_class,
-            "allocation_source_type": "manual_valuation",
-        }
-        if is_liability:
-            liability_lines.append(line)
-        else:
-            asset_lines.append(line)
+    return _split_manual_valuation_lines(lines)
 
-    asset_lines.sort(key=lambda line: line["name"].lower())
-    liability_lines.sort(key=lambda line: line["name"].lower())
-    return asset_lines, liability_lines
+
+async def build_manual_valuation_lines_series(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    as_of_dates: Sequence[date],
+    target_currency: str,
+    include_restricted: bool = True,
+) -> dict[date, tuple[list[dict[str, Any]], list[dict[str, Any]]]]:
+    """Return the ``build_manual_valuation_lines`` lines for each date in ``as_of_dates``.
+
+    The lines are equal to one ``build_manual_valuation_lines`` call per date.
+    The warnings are not returned. The selected components change only on a
+    date that holds a current snapshot. Thus the components are read once per
+    such date, not once per requested date. The FX rates are read once per
+    source currency. An FX miss raises the pricing error family, as the
+    single-date builder does.
+    """
+    from src.pricing.extension.fx import _convert_money_amount, get_exchange_rate, get_exchange_rate_series
+
+    target_currency = target_currency.upper()
+    ordered = sorted(set(as_of_dates))
+    if not ordered:
+        return {}
+    snapshot_dates = sorted(
+        (
+            await db.execute(
+                select(ManualValuationSnapshot.as_of_date)
+                .distinct()
+                .where(ManualValuationSnapshot.user_id == user_id)
+                .where(ManualValuationSnapshot.superseded_by_id.is_(None))
+                .where(ManualValuationSnapshot.as_of_date <= ordered[-1])
+            )
+        )
+        .scalars()
+        .all()
+    )
+    selected_snapshot_date: dict[date, date | None] = {}
+    for as_of_date in ordered:
+        position = bisect_right(snapshot_dates, as_of_date)
+        selected_snapshot_date[as_of_date] = snapshot_dates[position - 1] if position else None
+
+    components_by_snapshot_date: dict[date, list[ValuationComponentItem]] = {}
+    for snapshot_date in sorted({value for value in selected_snapshot_date.values() if value is not None}):
+        components = await ValuationService().get_latest_valuation_components(
+            db,
+            user_id,
+            as_of_date=snapshot_date,
+            include_restricted=include_restricted,
+        )
+        components_by_snapshot_date[snapshot_date] = components.items
+
+    def components_on(as_of_date: date) -> list[ValuationComponentItem]:
+        snapshot_date = selected_snapshot_date[as_of_date]
+        return components_by_snapshot_date[snapshot_date] if snapshot_date is not None else []
+
+    dates_by_currency: dict[str, list[date]] = {}
+    for as_of_date in ordered:
+        for component in components_on(as_of_date):
+            source_currency = component.currency.upper()
+            if source_currency != target_currency:
+                dates_by_currency.setdefault(source_currency, []).append(as_of_date)
+    rates_by_currency = {
+        source_currency: await get_exchange_rate_series(
+            db, source_currency, target_currency, rate_dates, lazy_load=True
+        )
+        for source_currency, rate_dates in dates_by_currency.items()
+    }
+
+    series: dict[date, tuple[list[dict[str, Any]], list[dict[str, Any]]]] = {}
+    for as_of_date in ordered:
+        lines: list[dict[str, Any]] = []
+        for component in components_on(as_of_date):
+            amount = component.value
+            source_currency = component.currency.upper()
+            if source_currency != target_currency:
+                rate = rates_by_currency[source_currency].get(as_of_date)
+                if rate is None:
+                    # Raises the same pricing error as the single-date builder.
+                    rate = await get_exchange_rate(db, source_currency, target_currency, as_of_date, lazy_load=True)
+                # Same normalization and math as convert_amount in the single-date builder.
+                source_code = normalize_currency_code(source_currency)
+                target_code = normalize_currency_code(target_currency)
+                if source_code != target_code:
+                    amount = _convert_money_amount(amount, source_code, target_code, rate)
+            lines.append(_manual_valuation_line(component, amount))
+        series[as_of_date] = _split_manual_valuation_lines(lines)
+    return series

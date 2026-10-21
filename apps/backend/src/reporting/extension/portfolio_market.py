@@ -32,6 +32,31 @@ from src.reporting.extension.reporting_calc import (
 logger = get_logger(__name__)
 
 
+async def _portfolio_eval_date(db: AsyncSession, user_id: UUID, as_of_date: date) -> date:
+    """Return the date on which the portfolio is valued for ``as_of_date``."""
+    if as_of_date == date.today():
+        return await PortfolioService()._default_holdings_eval_date(db, user_id)
+    return as_of_date
+
+
+def _held_on(position: ManagedPosition, eval_date: date) -> bool:
+    """Return True when ``position`` is held on ``eval_date`` (same rule as the SQL filter below)."""
+    return position.acquisition_date <= eval_date and (
+        position.disposal_date is None or position.disposal_date > eval_date
+    )
+
+
+async def _load_portfolio_positions(db: AsyncSession, user_id: UUID) -> list[tuple[ManagedPosition, Account]]:
+    """Return every position of the user with its broker account, for a filter per date with ``_held_on``."""
+    result = await db.execute(
+        select(ManagedPosition, Account)
+        .join(Account, ManagedPosition.account_id == Account.id)
+        .where(ManagedPosition.user_id == user_id)
+        .where(Account.user_id == user_id)
+    )
+    return [(position, account) for position, account in result.all()]
+
+
 async def _portfolio_market_basis_by_account(
     db: AsyncSession,
     user_id: UUID,
@@ -41,10 +66,7 @@ async def _portfolio_market_basis_by_account(
     warnings: list[FxWarning] | None = None,
 ) -> dict[UUID, dict[str, Any]]:
     """Return converted portfolio market/cost-basis totals by broker account."""
-    portfolio_service = PortfolioService()
-    portfolio_eval_date = as_of_date
-    if as_of_date == date.today():
-        portfolio_eval_date = await portfolio_service._default_holdings_eval_date(db, user_id)
+    portfolio_eval_date = await _portfolio_eval_date(db, user_id, as_of_date)
 
     # Point-in-time (#1791 follow-up): a position's *current* status reflects
     # today, not portfolio_eval_date -- a position bought before and disposed
@@ -64,10 +86,31 @@ async def _portfolio_market_basis_by_account(
         )
         .where(Account.user_id == user_id)
     )
+    return await _portfolio_basis_for_positions(
+        db,
+        user_id,
+        [(position, account) for position, account in result.all()],
+        eval_date=portfolio_eval_date,
+        target_currency=target_currency,
+        warnings=warnings,
+    )
 
+
+async def _portfolio_basis_for_positions(
+    db: AsyncSession,
+    user_id: UUID,
+    positions: Sequence[tuple[ManagedPosition, Account]],
+    *,
+    eval_date: date,
+    target_currency: str,
+    warnings: list[FxWarning] | None = None,
+) -> dict[UUID, dict[str, Any]]:
+    """Value the held ``positions`` on ``eval_date`` and total them by broker account."""
+    portfolio_service = PortfolioService()
+    portfolio_eval_date = eval_date
     basis_by_account: dict[UUID, dict[str, Any]] = {}
 
-    for position, account in result.all():
+    for position, account in positions:
         try:
             latest_price = await portfolio_service._get_latest_price(db, position, portfolio_eval_date, user_id)
         except AssetNotFoundError:
@@ -153,7 +196,6 @@ async def _build_portfolio_market_adjustment_lines(
     cost basis only when that cost basis is already represented in the ledger,
     so cash balances are not accidentally netted out.
     """
-    ledger_by_account = {line["account_id"]: Decimal(str(line["amount"])) for line in asset_lines}
     basis_by_account = await _portfolio_market_basis_by_account(
         db,
         user_id,
@@ -161,7 +203,19 @@ async def _build_portfolio_market_adjustment_lines(
         target_currency=target_currency,
         warnings=warnings,
     )
+    return _portfolio_market_adjustment_lines_from_basis(
+        basis_by_account, asset_lines=asset_lines, target_currency=target_currency
+    )
 
+
+def _portfolio_market_adjustment_lines_from_basis(
+    basis_by_account: dict[UUID, dict[str, Any]],
+    *,
+    asset_lines: Sequence[dict[str, Any]],
+    target_currency: str,
+) -> list[dict[str, Any]]:
+    """Build the market-value adjustment lines from the portfolio basis and the ledger asset lines."""
+    ledger_by_account = {line["account_id"]: Decimal(str(line["amount"])) for line in asset_lines}
     adjustment_lines: list[dict[str, Any]] = []
     for account_id, basis in basis_by_account.items():
         market_value = Decimal(str(basis["market_value"]))

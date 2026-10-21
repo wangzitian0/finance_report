@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import ReactECharts from "echarts-for-react";
 
-import { apiOperation } from "@/lib/api-client";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { amountToChartNumber, formatCurrencyLocale } from "@/lib/audit/money";
 import { formatDateInput, formatMonthLabel } from "@/lib/date";
 import type { NetWorthRange, NetWorthTimeSeriesResponse } from "@/lib/types";
@@ -30,40 +30,24 @@ function getRangeParams(range: NetWorthRange): {
   };
 }
 
+// A revisit of Home or of a range within this time reuses the cached series (#2583).
+const NET_WORTH_SERIES_STALE_TIME_MS = 60_000;
+
 export function NetWorthTimeSeriesChart() {
   const [range, setRange] = useState<NetWorthRange>("6M");
-  const [data, setData] = useState<NetWorthTimeSeriesResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const fetchSeries = useCallback(async () => {
-    const params = getRangeParams(range);
-    const to = formatDateInput(new Date());
-    setLoading(true);
-    try {
-      const response = await apiOperation(
-        "net_worth_timeseries_reports_net_worth_timeseries_get",
-        {
-          query: { from: params.from, to, granularity: params.granularity },
-        },
-      );
-      setData(response);
-      setError(null);
-    } catch (err) {
-      setData(null);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to load net worth history.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [range]);
-
-  useEffect(() => {
-    fetchSeries();
-  }, [fetchSeries]);
+  const { from, granularity } = getRangeParams(range);
+  const to = formatDateInput(new Date());
+  const seriesQuery = useApiQuery(
+    ["report", "net-worth-timeseries", range, from, to, granularity],
+    "net_worth_timeseries_reports_net_worth_timeseries_get",
+    { query: { from, to, granularity } },
+    { staleTime: NET_WORTH_SERIES_STALE_TIME_MS },
+  );
+  const data: NetWorthTimeSeriesResponse | undefined = seriesQuery.data;
+  const loading = seriesQuery.isPending;
+  const error = seriesQuery.error
+    ? seriesQuery.error.message || "Failed to load net worth history."
+    : null;
 
   const points = useMemo(() => data?.points ?? [], [data?.points]);
   const option = useMemo(() => {

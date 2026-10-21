@@ -32,10 +32,12 @@ from src.pricing import (
     PrefetchedFxRates,
     PricingError,
     build_manual_valuation_lines,
+    build_manual_valuation_lines_series,
     convert_amount,
     convert_money,
     get_average_rate,
     get_exchange_rate,
+    get_exchange_rate_series,
 )
 from src.reporting import register_fx_gateway, register_manual_valuation_lines_provider
 
@@ -48,13 +50,16 @@ from src.reporting import register_fx_gateway, register_manual_valuation_lines_p
 # import.
 register_fx_gateway(
     get_exchange_rate=get_exchange_rate,
+    get_exchange_rate_series=get_exchange_rate_series,
     get_average_rate=get_average_rate,
     convert_amount=convert_amount,
     convert_money=convert_money,
     prefetched_fx_rates=PrefetchedFxRates,
     fx_rate_error=PricingError,
 )
-register_manual_valuation_lines_provider(build_manual_valuation_lines)
+register_manual_valuation_lines_provider(
+    build_manual_valuation_lines, series_provider=build_manual_valuation_lines_series
+)
 
 # Wire extraction's and ledger's FX-rate ports (#1675 D5c), same reason as
 # the reporting gate above: pricing now depends on extraction, so a direct

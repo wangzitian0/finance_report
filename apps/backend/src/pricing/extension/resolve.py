@@ -8,10 +8,12 @@ tested. The orchestration that calls ``repository.candidates()`` and then
 
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
+from collections.abc import Sequence
 from datetime import date
 
 from src.pricing.base.errors import NoObservationError
-from src.pricing.base.observation import PriceObservation
+from src.pricing.base.observation import Authority, PriceObservation
 from src.pricing.base.policy import ResolutionPolicy
 from src.pricing.base.subject import PriceableSubject
 
@@ -48,3 +50,41 @@ def resolve(
     if not eligible:
         raise NoObservationError(f"no eligible observation for {subject.kind}:{subject.key} as of {as_of}")
     return max(eligible, key=lambda c: (c.authority, c.as_of, c.observed_at, c.id))
+
+
+def resolve_series(
+    subject: PriceableSubject,
+    as_of_dates: Sequence[date],
+    policy: ResolutionPolicy,
+    candidates: list[PriceObservation],
+) -> dict[date, PriceObservation]:
+    """Return ``resolve(subject, d, policy, candidates)`` for each date ``d`` that has a winner.
+
+    A date without an eligible candidate is absent from the result. The result
+    is equal to one ``resolve`` call per date, but each call reads a short list:
+    per authority, the candidates on the latest ``as_of`` on or before the date.
+    The winner is always in that list. ``resolve`` ranks authority first and
+    ``as_of`` second, and a later ``as_of`` is never older than ``max_age_days``
+    when an earlier one is not.
+    """
+    by_authority: dict[Authority, list[PriceObservation]] = {}
+    for candidate in candidates:
+        if candidate.subject == subject:
+            by_authority.setdefault(candidate.authority, []).append(candidate)
+    groups: list[tuple[list[PriceObservation], list[date]]] = []
+    for group in by_authority.values():
+        group.sort(key=lambda c: c.as_of)
+        groups.append((group, [c.as_of for c in group]))
+
+    resolved: dict[date, PriceObservation] = {}
+    for as_of in as_of_dates:
+        shortlist: list[PriceObservation] = []
+        for group, group_dates in groups:
+            end = bisect_right(group_dates, as_of)
+            if end:
+                shortlist.extend(group[bisect_left(group_dates, group_dates[end - 1]) : end])
+        try:
+            resolved[as_of] = resolve(subject, as_of, policy, shortlist)
+        except NoObservationError:
+            continue
+    return resolved

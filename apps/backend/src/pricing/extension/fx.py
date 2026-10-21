@@ -34,19 +34,20 @@ first, improve second). ``PrefetchedFxRates`` covers the hot batch paths.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
-from src.audit import ExchangeRate, Money, MoneyError, convert as _money_convert, normalize_currency_code
+from src.audit import Currency, ExchangeRate, Money, MoneyError, convert as _money_convert, normalize_currency_code
 from src.observability import get_logger
 from src.pricing.base.errors import NoObservationError, PricingError
 from src.pricing.base.policy import ResolutionPolicy
 from src.pricing.base.subject import PriceableSubject
 from src.pricing.extension.repository import SqlObservationRepository
-from src.pricing.extension.resolve import resolve
+from src.pricing.extension.resolve import resolve, resolve_series
 
 # Bound from the bare published root (config publishes no named symbols).
 settings = src.config.settings
@@ -106,6 +107,52 @@ async def get_exchange_rate(
     return observation.value
 
 
+async def get_exchange_rate_series(
+    db: AsyncSession,
+    base_currency: str,
+    quote_currency: str,
+    rate_dates: Sequence[date],
+    *,
+    lazy_load: bool = False,
+) -> dict[date, Decimal]:
+    """Return the ``get_exchange_rate`` result for each date in ``rate_dates``.
+
+    A date without a rate is absent from the result: the caller decides if a
+    miss is a skip or an error. The pair's candidates are read once, and
+    ``resolve_series`` picks the rate per date. A date before the earliest
+    stored candidate goes through ``get_exchange_rate`` itself, so the lazy
+    crawler fallback stays the same. That fallback can persist a rate, so the
+    candidates are read again after it.
+    """
+    base = normalize_currency_code(base_currency)
+    quote = normalize_currency_code(quote_currency)
+    ordered = sorted(set(rate_dates))
+    if not ordered:
+        return {}
+    if base == quote:
+        return dict.fromkeys(ordered, Decimal("1"))
+
+    subject = PriceableSubject.currency_pair(base, quote)
+    repo = SqlObservationRepository(db)
+    candidates = await repo.candidates(subject, ordered[-1])
+    earliest = min((c.as_of for c in candidates), default=None)
+    uncovered = [d for d in ordered if earliest is None or d < earliest]
+    rates: dict[date, Decimal] = {}
+    for rate_date in uncovered:
+        try:
+            rates[rate_date] = await get_exchange_rate(db, base, quote, rate_date, lazy_load=lazy_load)
+        except PricingError:
+            continue
+    covered = ordered[len(uncovered) :]
+    if not covered:
+        return rates
+    if uncovered and lazy_load:
+        candidates = await repo.candidates(subject, ordered[-1])
+    for rate_date, observation in resolve_series(subject, covered, ResolutionPolicy(), candidates).items():
+        rates[rate_date] = observation.value
+    return rates
+
+
 async def get_average_rate(
     db: AsyncSession,
     base_currency: str,
@@ -156,14 +203,15 @@ async def get_average_rate(
             },
         )
         return await get_exchange_rate(db, base, quote, end_date, lazy_load=lazy_load)
-    return sum(in_range) / len(in_range)
+    return sum(in_range, Decimal("0")) / len(in_range)
 
 
-def _convert_money_amount(amount: Decimal, source: str, target: str, rate: Decimal) -> Decimal:
+def _convert_money_amount(amount: Decimal, source_code: str, target_code: str, rate: Decimal) -> Decimal:
     try:
+        source, target = Currency.of(source_code), Currency.of(target_code)
         return _money_convert(Money(amount, source), ExchangeRate(source, target, rate)).amount
     except MoneyError as exc:
-        raise PricingError(f"invalid FX conversion boundary for {source}/{target}: {exc}") from exc
+        raise PricingError(f"invalid FX conversion boundary for {source_code}/{target_code}: {exc}") from exc
 
 
 async def convert_amount(
@@ -233,7 +281,7 @@ async def convert_money(
         fx_warnings=fx_warnings,
         lazy_load=lazy_load,
     )
-    return Money(converted, target_currency)
+    return Money(converted, Currency.of(target_currency))
 
 
 async def convert_to_base(
