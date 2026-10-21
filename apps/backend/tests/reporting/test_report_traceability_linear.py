@@ -1,6 +1,6 @@
 """Keep the traceability appendix builder linear and its output unchanged (#2583 S1).
 
-Five GET endpoints build the appendix, and one of them is polled every 30 s.
+Five GET endpoints build the appendix. The app shell polls one of them every 30 s.
 The builder ran in O(n^2) per report line before #2583: about 2 s of CPU at
 960 transactions, which blocked the single event loop.
 """
@@ -8,7 +8,10 @@ The builder ran in O(n^2) per report line before #2583: about 2 s of CPU at
 from __future__ import annotations
 
 import json
+import sys
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -176,6 +179,22 @@ def _mixed_contributions() -> tuple[PackageSectionContribution[Any], ...]:
     )
 
 
+@contextmanager
+def _without_line_tracer() -> Iterator[None]:
+    """Remove the trace function of this thread while the budget is measured, then put it back.
+
+    Coverage traces each line and makes the builder about 6 times slower (CI run 39565464061: 159-188 ms).
+    In a pytest-xdist worker, Coverage.stop() leaves a tracer installed, so this clears sys.settrace directly.
+    The budget measures the builder as production runs it. The golden test covers the builder lines.
+    """
+    tracer = sys.gettrace()
+    sys.settrace(None)
+    try:
+        yield
+    finally:
+        sys.settrace(tracer)
+
+
 def _canonical(value: Any) -> str:
     """Serialize with key order kept, and with the Python type of each non-JSON value."""
     return json.dumps(value, indent=1, default=lambda item: f"{type(item).__name__}:{item}") + "\n"
@@ -198,6 +217,8 @@ async def test_AC_reporting_package_traceability_5_output_equals_pre_change_gold
     The golden file is the output of the quadratic builder at main 83352b22.
     It fixes detail order (first occurrence wins), sorted identifiers, anchor
     counts, blocker codes, key order and value types.
+    The file also holds the static template. After a deliberate template change,
+    regenerate the file. It then proves the template, not the pre-#2583 builder.
     """
     payloads = await _golden_payloads()
     mixed_lines = {line["line_id"]: line for line in payloads["mixed"]["lines"]}
@@ -219,9 +240,10 @@ async def test_AC_reporting_package_traceability_6_builder_is_linear_in_contribu
 
     timings: list[float] = []
     for _ in range(LINEAR_ATTEMPTS):
-        started = time.perf_counter()
-        payload = await build_personal_report_package_traceability_payload(contributions=contributions)
-        timings.append(time.perf_counter() - started)
+        with _without_line_tracer():
+            started = time.perf_counter()
+            payload = await build_personal_report_package_traceability_payload(contributions=contributions)
+            timings.append(time.perf_counter() - started)
         if timings[-1] < LINEAR_BUDGET_SECONDS:
             break
 
