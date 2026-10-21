@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -187,6 +188,17 @@ async def record_opening_position(
     return record
 
 
+_SYSTEM_OPENING_TARGET_PREFIX = "ledger-system:opening-balance:"
+
+
+def _is_system_opening_decision(evidence: Any) -> bool:
+    """Return True for the decision of a system opening-balance journal command."""
+    return (
+        evidence.target_id.startswith(_SYSTEM_OPENING_TARGET_PREFIX)
+        and evidence.assertion_kind == "ledger_system_command"
+    )
+
+
 async def list_opening_positions(db: AsyncSession, *, user_id: UUID, as_of: date) -> tuple[OpeningPosition, ...]:
     """Read exact current starting-stock evidence, including historical anchored commands.
 
@@ -208,19 +220,30 @@ async def list_opening_positions(db: AsyncSession, *, user_id: UUID, as_of: date
         .scalars()
         .all()
     )
-    positions = []
+    latest_records = []
     seen = set()
-    entry_ids = set()
     for row in records:
         if row.account_id in seen:
             continue
         # A voided latest version ends that account's initialized position. Do
         # not resurrect an older version or an older legacy journal fallback.
         seen.add(row.account_id)
+        latest_records.append(row)
+    entry_ids = {row.journal_entry_id for row in latest_records if row.journal_entry_id}
+    # One statement reads the journal entries of all latest records (#2583).
+    record_entries = (
+        {
+            entry.id: entry
+            for entry in (await db.execute(select(JournalEntry).where(JournalEntry.id.in_(entry_ids)))).scalars()
+        }
+        if entry_ids
+        else {}
+    )
+    positions = []
+    for row in latest_records:
         journal_current = True
         if row.journal_entry_id:
-            entry = await db.get(JournalEntry, row.journal_entry_id)
-            entry_ids.add(row.journal_entry_id)
+            entry = record_entries.get(row.journal_entry_id)
             if entry is not None and entry.status == JournalEntryStatus.VOID:
                 continue
             journal_current = (
@@ -290,29 +313,34 @@ async def list_opening_positions(db: AsyncSession, *, user_id: UUID, as_of: date
         )
     # Existing system opening operations are already immutable evidence. Project
     # them without modifying old facts or trusting a user-editable memo/tag.
-    entries = (
-        (
-            await db.execute(
-                current_anchored_journal_entries(user_id=user_id)
-                .where(
-                    JournalEntry.entry_date <= as_of,
-                    JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]),
-                )
-                .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
-            )
+    # Only an entry anchored to a current system opening-balance decision can give a
+    # position, so the query reads only those entries, not every anchored entry (#2583).
+    opening_decision_ids = {
+        decision_id for decision_id, evidence in authorities.items() if _is_system_opening_decision(evidence)
+    }
+    entries: Sequence[JournalEntry] = ()
+    if opening_decision_ids:
+        historical_query = current_anchored_journal_entries(user_id=user_id).where(
+            JournalEntry.entry_date <= as_of,
+            JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]),
+            JournalEntry.decision_anchor_id.in_(opening_decision_ids),
         )
-        .scalars()
-        .all()
-    )
+        if entry_ids:
+            historical_query = historical_query.where(JournalEntry.id.not_in(entry_ids))
+        entries = (
+            (
+                await db.execute(
+                    historical_query.options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+                )
+            )
+            .scalars()
+            .all()
+        )
     for historical_entry in entries:
         if historical_entry.id in entry_ids or historical_entry.decision_anchor_id is None:
             continue
         evidence = authorities.get(historical_entry.decision_anchor_id)
-        if (
-            evidence is None
-            or not evidence.target_id.startswith("ledger-system:opening-balance:")
-            or evidence.assertion_kind != "ledger_system_command"
-        ):
+        if evidence is None or not _is_system_opening_decision(evidence):
             continue
         for line in historical_entry.lines:
             acct = line.account

@@ -267,11 +267,10 @@ async def suggestions(
     structured_suggestions: list[Any] = []
     if include_structured and db is not None and user_id is not None:
         try:
-            context = await asyncio.wait_for(
-                AIAdvisorService().get_advisor_context(db, user_id),
+            structured_suggestions = await asyncio.wait_for(
+                AIAdvisorService().get_advisor_suggestions(db, user_id),
                 timeout=SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS,
             )
-            structured_suggestions = context.get("suggestions") or []
         except TimeoutError as exc:
             logger.warning(
                 "Timed out loading structured chat suggestions",

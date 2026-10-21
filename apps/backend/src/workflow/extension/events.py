@@ -438,16 +438,12 @@ async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> d
     return package_readiness
 
 
-async def ensure_workflow_events_synced(db: AsyncSession, *, user_id: UUID) -> dict:
-    """Run the derivation only when one of its inputs changed; return the package readiness.
+async def _reusable_package_readiness(db: AsyncSession, *, user_id: UUID, fingerprint: str) -> dict | None:
+    """Return the stored readiness when the last derivation is reusable for ``fingerprint``.
 
-    A read computes the source fingerprint first. When it equals the fingerprint of the last
-    derivation and the state is younger than WORKFLOW_SYNC_STATE_MAX_AGE, the stored readiness
-    is returned and the read writes nothing (#2583). Otherwise the derivation runs and the state
-    row records the fingerprint from before the derivation. If an input changes while the
-    derivation runs, the next read sees a new fingerprint and derives again.
+    The last derivation is reusable when its fingerprint equals ``fingerprint`` and its state
+    is younger than WORKFLOW_SYNC_STATE_MAX_AGE. This is the one definition of reuse (#2583).
     """
-    fingerprint = await workflow_source_fingerprint(db, user_id=user_id)
     state = (
         await db.execute(
             select(
@@ -463,6 +459,33 @@ async def ensure_workflow_events_synced(db: AsyncSession, *, user_id: UUID) -> d
         and datetime.now(UTC) - state.updated_at < WORKFLOW_SYNC_STATE_MAX_AGE
     ):
         return dict(state.package_readiness)
+    return None
+
+
+async def stored_package_readiness(db: AsyncSession, *, user_id: UUID) -> dict | None:
+    """Return the package readiness of the last derivation while no input changed, else None.
+
+    The value equals the readiness that ``ensure_workflow_events_synced`` returns at this time.
+    The function sends two SQL statements and writes nothing. A read path that must not write,
+    such as the advisor context, evaluates readiness itself when the result is None (#2583).
+    """
+    fingerprint = await workflow_source_fingerprint(db, user_id=user_id)
+    return await _reusable_package_readiness(db, user_id=user_id, fingerprint=fingerprint)
+
+
+async def ensure_workflow_events_synced(db: AsyncSession, *, user_id: UUID) -> dict:
+    """Run the derivation only when one of its inputs changed; return the package readiness.
+
+    A read computes the source fingerprint first. When it equals the fingerprint of the last
+    derivation and the state is younger than WORKFLOW_SYNC_STATE_MAX_AGE, the stored readiness
+    is returned and the read writes nothing (#2583). Otherwise the derivation runs and the state
+    row records the fingerprint from before the derivation. If an input changes while the
+    derivation runs, the next read sees a new fingerprint and derives again.
+    """
+    fingerprint = await workflow_source_fingerprint(db, user_id=user_id)
+    stored = await _reusable_package_readiness(db, user_id=user_id, fingerprint=fingerprint)
+    if stored is not None:
+        return stored
 
     package_readiness = await sync_workflow_events_for_user(db, user_id=user_id)
     await db.execute(
