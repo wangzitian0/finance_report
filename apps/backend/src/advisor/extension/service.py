@@ -348,7 +348,11 @@ class AIAdvisorService:
 
         The suggestion rules read only the reconciliation fields of the financial summary.
         This path skips the balance sheet, the income statement and the category breakdown
-        (#2583). A rule that reads another summary field must read it in this path too.
+        (#2583). A rule that reads another summary field must read it in this path too;
+        AC-advisor.context.5 fails when a rule reads one.
+
+        This path does not run the balance sheet, so it does not load a missing FX rate from
+        the provider. The market-data status therefore reads only stored rates.
         """
         context = await self._load_advisor_facts(db, user_id, await self._get_reconciliation_summary(db, user_id))
         suggestions = [suggestion.model_dump() for suggestion in self._build_advisor_suggestions(context)]
@@ -365,7 +369,24 @@ class AIAdvisorService:
         workflow = await self._load_workflow_status(db, user_id, synced_package_readiness=readiness)
         market_data = await self._load_market_data_status(db, user_id)
         portfolio = await self._load_portfolio_summary(db, user_id)
+        return self._assemble_advisor_facts(
+            financial_summary,
+            readiness=readiness,
+            workflow=workflow,
+            market_data=market_data,
+            portfolio=portfolio,
+        )
 
+    def _assemble_advisor_facts(
+        self,
+        financial_summary: dict[str, str],
+        *,
+        readiness: dict[str, Any],
+        workflow: dict[str, Any],
+        market_data: dict[str, Any],
+        portfolio: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Assemble the fact groups from loaded reads. This step reads no database."""
         context: dict[str, Any] = {
             "financial_summary": financial_summary,
             "report_readiness": self._advisor_readiness(readiness),
@@ -386,8 +407,11 @@ class AIAdvisorService:
     async def _load_report_readiness(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
         try:
             # The app shell reads the workflow status on each page, and that read stores readiness.
-            # While no input changed, the stored value equals a new evaluation (#2583). The advisor
-            # does not write on a read, so it evaluates readiness itself when no value is reusable.
+            # The advisor uses the stored value while the workflow read reuses it: no input row
+            # changed and the state is younger than 15 minutes (#2583). Thus the advisor readiness
+            # can lag a provider FX recovery or a code deploy by at most 15 minutes, as the app
+            # shell does. The advisor does not write on a read, so it evaluates readiness itself
+            # when no value is reusable.
             readiness = await stored_package_readiness(db, user_id=user_id)
             if readiness is None:
                 readiness = (await current_package_readiness(db, user_id=user_id)).model_dump(mode="json")

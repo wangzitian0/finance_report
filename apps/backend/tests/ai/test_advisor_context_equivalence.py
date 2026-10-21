@@ -17,12 +17,14 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.advisor import AIAdvisorService
 from src.extraction import TransactionDirection
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
+from src.workflow import stored_package_readiness
 from tests.e2e.test_statement_corpus_journeys import attach_reviewed_corpus_semantics
 from tests.factories import seed_parsed_statement
 
@@ -129,6 +131,7 @@ async def build_advisor_states(client, db: AsyncSession, user_id: UUID) -> dict[
     assert status.status_code == 200, status.text
     service = AIAdvisorService()
     stored_state = {
+        "stored_readiness_reusable": await stored_package_readiness(db, user_id=user_id) is not None,
         "advisor_context": await service.get_advisor_context(db, user_id),
         "financial_context": await service.get_financial_context(db, user_id),
     }
@@ -136,6 +139,7 @@ async def build_advisor_states(client, db: AsyncSession, user_id: UUID) -> dict[
     # An input changes after the derivation: the stored readiness is now stale.
     await approve_statement(client, pending_statement_id)
     changed_state = {
+        "stored_readiness_reusable": await stored_package_readiness(db, user_id=user_id) is not None,
         "advisor_context": await service.get_advisor_context(db, user_id),
         "financial_context": await service.get_financial_context(db, user_id),
     }
@@ -161,6 +165,9 @@ async def test_AC_advisor_context_5_context_and_suggestions_equal_the_pre_change
     states = await build_advisor_states(client, db, test_user.id)
     golden = json.loads(GOLDEN_PATH.read_text())
 
+    # Each state takes the readiness path that its name states.
+    assert states["stored_readiness_current"]["stored_readiness_reusable"] is True
+    assert states["stored_readiness_stale"]["stored_readiness_reusable"] is False
     assert normalized_states(states) == golden
 
     # The fixture reaches the suggestion rules that read each fact group.
@@ -173,3 +180,47 @@ async def test_AC_advisor_context_5_context_and_suggestions_equal_the_pre_change
     suggestions = await service.get_advisor_suggestions(db, test_user.id)
     assert suggestions == (await service.get_advisor_context(db, test_user.id))["suggestions"]
     assert normalized(suggestions) == golden["stored_readiness_stale"]["advisor_context"]["suggestions"]
+
+
+_RECONCILIATION_SUMMARY_KEYS = {"unmatched_count", "match_rate", "pending_review"}
+
+
+@pytest.mark.no_db
+def test_AC_advisor_context_5_suggestion_rules_read_only_reconciliation_summary_fields() -> None:
+    """AC-advisor.context.5: ``get_advisor_suggestions`` passes only the reconciliation fields of
+    the financial summary. The suggestion rules must not read another summary field, so the
+    suggestions stay equal when every other field changes or is missing."""
+    golden = json.loads(GOLDEN_PATH.read_text())["stored_readiness_stale"]["advisor_context"]
+    summary = golden["financial_summary"]
+    other_keys = set(summary) - _RECONCILIATION_SUMMARY_KEYS
+    assert other_keys, "the golden summary must hold fields outside reconciliation"
+    reconciliation = {key: summary[key] for key in _RECONCILIATION_SUMMARY_KEYS}
+    facts = {
+        "readiness": {
+            "state": "blocked",
+            "label": "Blocked",
+            "action_href": "/reports/package",
+            "blocking_count": 2,
+            "blockers": [{"code": "cash_identity_missing"}],
+            "input_coverage": {},
+        },
+        "workflow": golden["workflow"],
+        "market_data": golden["market_data"],
+        "portfolio": {
+            "available": True,
+            "active_positions_count": 1,
+            "total_market_value": "10.00",
+            "currency": "SGD",
+        },
+    }
+    service = AIAdvisorService()
+
+    def suggestions_for(financial_summary: dict[str, str]) -> list[dict[str, Any]]:
+        context = service._assemble_advisor_facts(financial_summary, **facts)
+        return [item.model_dump() for item in service._build_advisor_suggestions(context)]
+
+    expected = suggestions_for(reconciliation)
+    assert {item["confidence_tier"] for item in expected} == {"blocked", "review_required", "stale", "deterministic"}
+    for value in ("N/A", "", "SGD 0.00", "SGD -999999.00", "SGD 999999.00", "LOW", "UNAVAILABLE"):
+        assert suggestions_for({**{key: value for key in other_keys}, **reconciliation}) == expected, value
+    assert suggestions_for(summary) == expected

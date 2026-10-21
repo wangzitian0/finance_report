@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.routers.chat as chat_router
 from src.advisor import AIAdvisorService
+from src.advisor.extension import service as advisor_service_module
 from tests.factories import seed_year_of_journal_entries
 
 ENTRY_COUNT = 1000
@@ -40,6 +41,32 @@ class _StatementCounter:
         event.remove(self._engine, "before_cursor_execute", self._on_execute)
 
 
+class _FallbackRecorder:
+    """Record the warnings of the advisor service and forward every logger call.
+
+    Each advisor read logs a warning and returns a stub when it fails. A stub sends fewer
+    statements, so a budget test must also prove that no read fell back.
+    """
+
+    def __init__(self, inner) -> None:
+        self._inner = inner
+        self.warnings: list[str] = []
+
+    def warning(self, event: str, *args: object, **kwargs: object) -> None:
+        self.warnings.append(event)
+        self._inner.warning(event, *args, **kwargs)
+
+    def __getattr__(self, name: str):
+        return getattr(self._inner, name)
+
+
+@pytest.fixture
+def advisor_warnings(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    recorder = _FallbackRecorder(advisor_service_module.logger)
+    monkeypatch.setattr(advisor_service_module, "logger", recorder)
+    return recorder.warnings
+
+
 async def _seed_and_open_home(client, db: AsyncSession, user_id) -> None:
     await seed_year_of_journal_entries(
         db, user_id, first_day=date.today() - timedelta(days=364), entry_count=ENTRY_COUNT
@@ -50,7 +77,7 @@ async def _seed_and_open_home(client, db: AsyncSession, user_id) -> None:
 
 
 async def test_AC_advisor_context_6_structured_suggestions_within_sql_budget_at_year_scale(
-    client, db: AsyncSession, db_engine, test_user, monkeypatch: pytest.MonkeyPatch
+    client, db: AsyncSession, db_engine, test_user, monkeypatch: pytest.MonkeyPatch, advisor_warnings: list[str]
 ) -> None:
     """AC-advisor.context.6: at 1000 entries, after the app shell read the workflow status,
     ``GET /chat/suggestions?include_structured=true`` issues fewer than 60 SQL statements.
@@ -68,12 +95,14 @@ async def test_AC_advisor_context_6_structured_suggestions_within_sql_budget_at_
     assert response.status_code == 200, response.text
     structured = response.json()["structured_suggestions"]
     assert structured, "the structured suggestions are empty: the advisor context did not finish"
-    assert {item["confidence_tier"] for item in structured} >= {"stale"}
+    # The legacy manual entries are unproven inputs, so readiness is blocked. USD/SGD has no stored rate.
+    assert {item["confidence_tier"] for item in structured} >= {"blocked", "stale"}
+    assert advisor_warnings == [], f"an advisor read fell back to a stub: {advisor_warnings}"
     assert counter.count < SUGGESTIONS_SQL_BUDGET, f"structured suggestions issued {counter.count} SQL statements"
 
 
 async def test_AC_advisor_context_6_chat_context_within_sql_budget_at_year_scale(
-    client, db: AsyncSession, db_engine, test_user
+    client, db: AsyncSession, db_engine, test_user, advisor_warnings: list[str]
 ) -> None:
     """AC-advisor.context.6: at 1000 entries, after the app shell read the workflow status,
     the ``/chat`` answer context (``get_financial_context``) issues fewer than 60 SQL statements.
@@ -88,5 +117,7 @@ async def test_AC_advisor_context_6_chat_context_within_sql_budget_at_year_scale
     # 800 salary entries of 100.00 and 200 card charges of 100.00, all into the bank.
     assert context["total_assets"] == "SGD 100000.00"
     assert context["total_liabilities"] == "SGD 20000.00"
-    assert context["advisor_suggestions"] != "N/A"
+    assert "[blocked]" in context["advisor_suggestions"]
+    assert "[stale]" in context["advisor_suggestions"]
+    assert advisor_warnings == [], f"an advisor read fell back to a stub: {advisor_warnings}"
     assert counter.count < CHAT_CONTEXT_SQL_BUDGET, f"chat context issued {counter.count} SQL statements"
