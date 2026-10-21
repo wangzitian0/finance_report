@@ -58,7 +58,7 @@ env:
 jobs:
   run:
     name: Staging AI/OCR Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # #1767/AC8.13.167: sized for corpus=all worst-case sequential parse waits
     # -- tools/staging_ai_ocr_gate_contract.py totals()['uploads'] -- x the 8-min
     # PARSING_TIMEOUT_MS ceiling each, plus the assistant chat journey waits (#2461)

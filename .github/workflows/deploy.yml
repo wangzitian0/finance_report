@@ -52,7 +52,7 @@ jobs:
   build-and-deploy:
     name: Deploy Staging
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     permissions:
       actions: read
@@ -599,7 +599,7 @@ jobs:
 
   provider-gate:
     name: Staging Provider Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [build-and-deploy]
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.provider_gate_required == 'true' }}
     timeout-minutes: 12
@@ -785,7 +785,7 @@ jobs:
 
   post-merge-delivery:
     name: Post-merge Delivery
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [build-and-deploy, provider-gate, ai-ocr-gate, financial-benchmark]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
@@ -898,7 +898,7 @@ jobs:
 
   post-merge-summary:
     name: Post-merge Timing Summary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [build-and-deploy, provider-gate, ai-ocr-gate, financial-benchmark, post-merge-delivery]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
@@ -934,7 +934,7 @@ jobs:
   promote:
     name: Promote SHA images to release tag
     if: ${{ github.event_name == 'push' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       actions: read
