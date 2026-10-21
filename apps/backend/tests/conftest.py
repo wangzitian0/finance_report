@@ -398,6 +398,28 @@ async def ensure_database(db_url: str):
         await engine.dispose()
 
 
+# Planner statistics of the worker database must not depend on autovacuum timing (#2398).
+# Each test deletes the rows of the tables it wrote. Autovacuum can then ANALYZE a table while it
+# is empty. A test that next loads one year of entries gets plans for empty tables: the cash flow
+# query ran nested loops with about 2 million inner scans and passed the 60 s test timeout.
+# Without autovacuum the tables stay unanalyzed, and the planner estimates rows from the table size.
+DISABLE_AUTOVACUUM_SQL = """
+DO $$
+DECLARE
+    relation regclass;
+BEGIN
+    FOR relation IN
+        SELECT c.oid::regclass
+        FROM pg_class AS c JOIN pg_namespace AS n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind = 'r'
+    LOOP
+        EXECUTE format('ALTER TABLE %s SET (autovacuum_enabled = false)', relation);
+    END LOOP;
+END
+$$
+"""
+
+
 @pytest_asyncio.fixture(scope="session")
 async def _schema_engine(test_database_url):
     """Build the test schema once per xdist worker and share one engine.
@@ -454,6 +476,7 @@ async def _schema_engine(test_database_url):
         # The test schema keeps the production CASCADE FKs to ``users`` (#991): tests
         # own their rows via the ``test_user`` fixture, so cross-user / cross-version
         # isolation leaks surface here instead of being silently allowed.
+        await conn.exec_driver_sql(DISABLE_AUTOVACUUM_SQL)
 
     _DIRTY_TABLES.clear()
 

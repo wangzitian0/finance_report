@@ -117,6 +117,10 @@ markers = [
 # The thread method ends a worker that is blocked outside the event loop.
 timeout = 60
 timeout_method = "thread"
+# In an xdist worker the stack dump of pytest-timeout goes to stdout, which execnet sends to
+# /dev/null, so the job log has no stack. faulthandler writes every thread's stack to the real
+# stderr of the worker 15 s before the timeout ends it (#2398).
+faulthandler_timeout = 45
 
 # Default: Run all tests except slow/perf/e2e
 # Note: -n 4 for local (fixed), CI uses -n auto for ephemeral runners
