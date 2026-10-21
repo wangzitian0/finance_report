@@ -248,8 +248,15 @@ brokerage container is not assigned a global binary cash role.
 **Net worth time-series** — `GET /reports/net-worth/timeseries?from=...&to=...&granularity=daily|monthly`
 returns `{date, total_assets, total_liabilities, net_worth, currency}`
 points; `daily` is capped at 366 points, `monthly` uses the period end
-date, and each point reuses balance-sheet FX conversion as of that point's
-date.
+date, and each point equals the balance sheet on that point's date
+(AC-reporting.net-worth-timeseries.3). The series does not build one
+balance sheet per point (#2583). Two grouped queries give the ledger balance
+before the first point and the daily movements; a running sum gives each
+point, at the spot FX rate of the point date (`get_exchange_rate_series`).
+Manual valuations come from `build_manual_valuation_lines_series`. Positions
+are read once; a point with held positions uses the balance-sheet portfolio
+valuation for those positions. A `monthly` series keeps at most 366 months
+(the latest ones) and starts at the first month with a non-zero total.
 
 **Net worth allocation schedule** — `GET /reports/net-worth/allocation?as_of_date=...&currency=...&include_restricted=...`
 is report-owned (not portfolio-owned) because it must reconcile ledger

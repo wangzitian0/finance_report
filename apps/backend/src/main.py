@@ -61,10 +61,12 @@ from src.pricing import (
     PrefetchedFxRates,
     PricingError,
     build_manual_valuation_lines,
+    build_manual_valuation_lines_series,
     convert_amount,
     convert_money,
     get_average_rate,
     get_exchange_rate,
+    get_exchange_rate_series,
     run_market_data_scheduler,
     subscribe_price_ingest,
 )
@@ -130,13 +132,16 @@ register_fx_pairs_read(observed_fx_pairs)
 # services/reporting/manual_valuation.py are deleted).
 register_fx_gateway(
     get_exchange_rate=get_exchange_rate,
+    get_exchange_rate_series=get_exchange_rate_series,
     get_average_rate=get_average_rate,
     convert_amount=convert_amount,
     convert_money=convert_money,
     prefetched_fx_rates=PrefetchedFxRates,
     fx_rate_error=PricingError,
 )
-register_manual_valuation_lines_provider(build_manual_valuation_lines)
+register_manual_valuation_lines_provider(
+    build_manual_valuation_lines, series_provider=build_manual_valuation_lines_series
+)
 
 # Wire extraction's FX-rate port (#1675 D5c): extraction's review-queue
 # journal-entry creation needs a currency-conversion rate, but a module-level

@@ -73,6 +73,7 @@ from src.pricing.extension import (
     ensure_market_data_fresh,
     get_average_rate,
     get_exchange_rate,
+    get_exchange_rate_series,
     get_market_data_status,
     ingest_statement_price,
     list_current_manual_valuation_facts,
@@ -97,6 +98,7 @@ from src.pricing.extension.valuation import (
     ValuationService,
     ValuationServiceError,
     build_manual_valuation_lines,
+    build_manual_valuation_lines_series,
 )
 
 # ORM models owned by this package (moved from src/models, #1675); imported
@@ -147,12 +149,14 @@ __all__ = [
     "ValuationService",
     "ValuationServiceError",
     "build_manual_valuation_lines",
+    "build_manual_valuation_lines_series",
     "convert_amount",
     "convert_money",
     "convert_to_base",
     "ensure_market_data_fresh",
     "get_average_rate",
     "get_exchange_rate",
+    "get_exchange_rate_series",
     "get_market_data_status",
     "ingest_statement_price",
     "list_current_manual_valuation_facts",
