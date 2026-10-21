@@ -1,0 +1,1568 @@
+{
+ "empty": {
+  "section_id": "traceability_appendix",
+  "label": "Traceability Appendix",
+  "status": "ready",
+  "lines": [
+   {
+    "line_id": "balance_sheet.total_assets",
+    "section_id": "balance_sheet",
+    "label": "Total Assets",
+    "amount_field": "total_assets",
+    "currency_field": "currency",
+    "source_state": "posted_reconciled_journal_lines_and_manual_valuations",
+    "source_anchor": {
+     "state": "unavailable",
+     "source_types": [
+      "bank_statement",
+      "brokerage_import",
+      "manual_valuation_snapshot"
+     ],
+     "identifier_fields": [
+      "statement_transaction_ids",
+      "brokerage_statement_ids",
+      "manual_valuation_snapshot_ids"
+     ],
+     "unavailable_reason": "no_selected_source_contribution"
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ]
+    },
+    "anchor_count": 0,
+    "blocker_codes": []
+   },
+   {
+    "line_id": "income_statement.total_income",
+    "section_id": "income_statement",
+    "label": "Total Income",
+    "amount_field": "total_income",
+    "currency_field": "currency",
+    "source_state": "posted_reconciled_income_journal_lines",
+    "source_anchor": {
+     "state": "unavailable",
+     "source_types": [
+      "bank_statement",
+      "manual_journal_entry"
+     ],
+     "identifier_fields": [
+      "statement_transaction_ids",
+      "journal_entry_source_ids"
+     ],
+     "unavailable_reason": "no_selected_source_contribution"
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ]
+    },
+    "anchor_count": 0,
+    "blocker_codes": []
+   },
+   {
+    "line_id": "income_statement.total_expenses",
+    "section_id": "income_statement",
+    "label": "Total Expenses",
+    "amount_field": "total_expenses",
+    "currency_field": "currency",
+    "source_state": "posted_reconciled_expense_journal_lines",
+    "source_anchor": {
+     "state": "unavailable",
+     "source_types": [
+      "bank_statement",
+      "manual_journal_entry"
+     ],
+     "identifier_fields": [
+      "statement_transaction_ids",
+      "journal_entry_source_ids"
+     ],
+     "unavailable_reason": "no_selected_source_contribution"
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ]
+    },
+    "anchor_count": 0,
+    "blocker_codes": []
+   },
+   {
+    "line_id": "cash_flow.net_cash_flow",
+    "section_id": "cash_flow",
+    "label": "Net Cash Flow",
+    "amount_field": "summary.net_cash_flow",
+    "currency_field": "currency",
+    "source_state": "cash_bank_journal_lines",
+    "source_anchor": {
+     "state": "unavailable",
+     "source_types": [
+      "bank_statement",
+      "manual_journal_entry"
+     ],
+     "identifier_fields": [
+      "statement_transaction_ids",
+      "journal_entry_source_ids"
+     ],
+     "unavailable_reason": "no_selected_source_contribution"
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ]
+    },
+    "anchor_count": 0,
+    "blocker_codes": []
+   },
+   {
+    "line_id": "investment_performance.market_value",
+    "section_id": "investment_performance",
+    "label": "Investment Market Value",
+    "amount_field": "holdings.market_value",
+    "currency_field": "currency",
+    "source_state": "brokerage_imports_market_data_and_ledger_cost_basis",
+    "source_anchor": {
+     "state": "unavailable",
+     "source_types": [
+      "brokerage_import",
+      "market_data_price",
+      "journal_entry"
+     ],
+     "identifier_fields": [
+      "brokerage_statement_ids",
+      "price_source_ids",
+      "ledger_entry_ids"
+     ],
+     "unavailable_reason": "no_selected_source_contribution"
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "ledger_entry_ids",
+      "journal_line_ids"
+     ]
+    },
+    "anchor_count": 0,
+    "blocker_codes": [
+     "stale_market_data"
+    ]
+   },
+   {
+    "line_id": "annualized_income_long_term.annualized_total",
+    "section_id": "annualized_income_long_term",
+    "label": "Annualized Total Income",
+    "amount_field": "income.annualized_total",
+    "currency_field": "income.currency",
+    "source_state": "posted_reconciled_income_journal_lines_trailing_12_months",
+    "source_anchor": {
+     "state": "unavailable",
+     "source_types": [
+      "bank_statement",
+      "manual_journal_entry"
+     ],
+     "identifier_fields": [
+      "journal_entry_source_ids",
+      "statement_transaction_ids"
+     ],
+     "unavailable_reason": "no_selected_source_contribution"
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ]
+    },
+    "anchor_count": 0,
+    "blocker_codes": []
+   },
+   {
+    "line_id": "annualized_income_long_term.restricted_fair_value_total",
+    "section_id": "annualized_income_long_term",
+    "label": "Restricted Fair Value Total",
+    "amount_field": "restricted_fair_value_total",
+    "currency_field": "restricted_fair_value_total_currency",
+    "source_state": "manual_valuation_snapshots",
+    "source_anchor": {
+     "state": "unavailable",
+     "source_types": [
+      "manual_valuation_snapshot"
+     ],
+     "identifier_fields": [
+      "manual_valuation_snapshot_ids"
+     ],
+     "unavailable_reason": "no_selected_source_contribution"
+    },
+    "ledger_anchor": {
+     "state": "not_applicable",
+     "entry_statuses": [],
+     "identifier_fields": [],
+     "unavailable_reason": "Restricted compensation is disclosed as explicit manual valuation input, not posted ledger cash."
+    },
+    "anchor_count": 0,
+    "blocker_codes": [
+     "manual_only_source"
+    ]
+   },
+   {
+    "line_id": "notes.non_compliance_statement",
+    "section_id": "notes",
+    "label": "Package Non-Compliance Statement",
+    "amount_field": null,
+    "currency_field": null,
+    "source_state": "package_contract",
+    "source_anchor": {
+     "state": "available",
+     "source_types": [
+      "package_contract"
+     ],
+     "identifier_fields": [
+      "note_id"
+     ],
+     "details": [
+      {
+       "identifier": "package_contract:personal-financial-report-package",
+       "source_kind": "package_contract",
+       "source_id": "personal-financial-report-package",
+       "source_type": "static_contract",
+       "amount": null,
+       "currency": null,
+       "review_state": "not_applicable",
+       "decision_id": null,
+       "contribution_basis": "static_disclosure_contract",
+       "reason_code": null
+      }
+     ],
+     "identifiers": [
+      "package_contract:personal-financial-report-package"
+     ]
+    },
+    "ledger_anchor": {
+     "state": "not_applicable",
+     "entry_statuses": [],
+     "identifier_fields": [],
+     "unavailable_reason": "Disclosure wording is not a ledger-derived amount."
+    },
+    "anchor_count": 1,
+    "blocker_codes": []
+   }
+  ],
+  "completeness_warnings": [
+   {
+    "code": "missing_source_anchor",
+    "label": "Missing source anchor",
+    "applies_to_sections": [
+     "balance_sheet",
+     "income_statement",
+     "cash_flow"
+    ],
+    "state": "fail_package_proof_for_trusted_totals",
+    "remediation": "Expose statement transaction, document, or explicit manual-input identifiers before treating totals as trusted."
+   },
+   {
+    "code": "manual_only_source",
+    "label": "Manual-only source coverage",
+    "applies_to_sections": [
+     "balance_sheet",
+     "annualized_income_long_term"
+    ],
+    "state": "explicit_manual_input_required",
+    "remediation": "Keep manual valuation snapshot identifiers and valuation basis visible in the appendix."
+   },
+   {
+    "code": "stale_market_data",
+    "label": "Stale market data",
+    "applies_to_sections": [
+     "investment_performance",
+     "balance_sheet"
+    ],
+    "state": "disclose_stale_or_refresh_required",
+    "remediation": "Use schedule freshness flags and refresh market data when provider prices are stale."
+   },
+   {
+    "code": "duplicate_source_coverage",
+    "label": "Duplicate source coverage",
+    "applies_to_sections": [
+     "balance_sheet",
+     "cash_flow"
+    ],
+    "state": "exclude_or_disclose_duplicate_source",
+    "remediation": "Preserve duplicate detection and reconciliation state so the same source is not counted twice."
+   },
+   {
+    "code": "overlapping_statement_period",
+    "label": "Overlapping statement period",
+    "applies_to_sections": [
+     "income_statement",
+     "cash_flow"
+    ],
+    "state": "review_required_before_trusted_total",
+    "remediation": "Surface overlapping bank statement periods and keep affected totals out of trusted proof until reviewed."
+   }
+  ]
+ },
+ "mixed": {
+  "section_id": "traceability_appendix",
+  "label": "Traceability Appendix",
+  "status": "ready",
+  "lines": [
+   {
+    "line_id": "balance_sheet.total_assets",
+    "section_id": "balance_sheet",
+    "label": "Total Assets",
+    "amount_field": "total_assets",
+    "currency_field": "currency",
+    "source_state": "posted_reconciled_journal_lines_and_manual_valuations",
+    "source_anchor": {
+     "state": "available",
+     "source_types": [
+      "bank_statement",
+      "brokerage_import",
+      "manual_valuation_snapshot"
+     ],
+     "identifier_fields": [
+      "statement_transaction_ids",
+      "brokerage_statement_ids",
+      "manual_valuation_snapshot_ids"
+     ],
+     "details": [
+      {
+       "identifier": "statement_result:0003",
+       "source_kind": "statement_extraction_result",
+       "source_id": "0003",
+       "source_type": "bank_statement",
+       "amount": null,
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000065",
+       "contribution_basis": "current_statement_result",
+       "reason_code": null
+      },
+      {
+       "identifier": "statement_result:0001",
+       "source_kind": "statement_extraction_result",
+       "source_id": "0001",
+       "source_type": "bank_statement",
+       "amount": null,
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000065",
+       "contribution_basis": "current_statement_result",
+       "reason_code": null
+      },
+      {
+       "identifier": "statement_result:0002",
+       "source_kind": "statement_extraction_result",
+       "source_id": "0002",
+       "source_type": "statement_result",
+       "amount": null,
+       "currency": null,
+       "review_state": "unproven",
+       "decision_id": null,
+       "contribution_basis": "current_statement_result",
+       "reason_code": "missing_current_decision_anchor"
+      },
+      {
+       "identifier": "manual_valuation:0010",
+       "source_kind": "pricing_valuation_observation",
+       "source_id": "0010",
+       "source_type": "manual",
+       "amount": "Decimal:850000.00",
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000066",
+       "contribution_basis": "resolved_pricing_valuation",
+       "reason_code": null,
+       "component_type": "property_value",
+       "valuation_basis": "market_appraisal",
+       "liquidity_class": "illiquid"
+      },
+      {
+       "identifier": "market_valuation:0011",
+       "source_kind": "pricing_valuation_observation",
+       "source_id": "0011",
+       "source_type": "valuation_observation",
+       "amount": "Decimal:1234.5600",
+       "currency": "USD",
+       "review_state": "unproven",
+       "decision_id": null,
+       "contribution_basis": "resolved_pricing_valuation",
+       "reason_code": "missing_current_decision_anchor",
+       "component_type": null,
+       "valuation_basis": "unspecified",
+       "liquidity_class": "liquid"
+      }
+     ],
+     "identifiers": [
+      "manual_valuation:0010",
+      "market_valuation:0011",
+      "statement_result:0001",
+      "statement_result:0002",
+      "statement_result:0003"
+     ]
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ],
+     "details": [
+      {
+       "identifier": "opening_position:00000000-0000-0000-0000-0000000000c9",
+       "source_kind": "opening_position",
+       "source_id": "00000000-0000-0000-0000-0000000000c9",
+       "source_type": "ledger_opening_position",
+       "amount": "Decimal:1000.00",
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000067",
+       "contribution_basis": "initial_stock",
+       "reason_code": null
+      },
+      {
+       "identifier": "journal_line:00000000-0000-0000-0000-000000000199",
+       "source_kind": "journal_line",
+       "source_id": "00000000-0000-0000-0000-000000000199",
+       "source_type": "decision_anchored_journal",
+       "amount": "Decimal:100.00",
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000068",
+       "contribution_basis": "ledger_line_amount",
+       "journal_entry_id": "00000000-0000-0000-0000-00000000012d",
+       "account_id": "00000000-0000-0000-0000-000000000581",
+       "account_type": "asset",
+       "reason_code": null
+      },
+      {
+       "identifier": "journal_line:00000000-0000-0000-0000-000000000198",
+       "source_kind": "journal_line",
+       "source_id": "00000000-0000-0000-0000-000000000198",
+       "source_type": "decision_anchored_journal",
+       "amount": "Decimal:100.00",
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000068",
+       "contribution_basis": "ledger_line_amount",
+       "journal_entry_id": "00000000-0000-0000-0000-00000000012d",
+       "account_id": "00000000-0000-0000-0000-000000000580",
+       "account_type": "income",
+       "reason_code": null
+      },
+      {
+       "identifier": "journal_line:00000000-0000-0000-0000-000000000193",
+       "source_kind": "journal_line",
+       "source_id": "00000000-0000-0000-0000-000000000193",
+       "source_type": "decision_anchored_journal",
+       "amount": "Decimal:25.50",
+       "currency": "SGD",
+       "review_state": "unproven",
+       "decision_id": null,
+       "contribution_basis": "ledger_line_amount",
+       "journal_entry_id": "00000000-0000-0000-0000-00000000012e",
+       "account_id": "00000000-0000-0000-0000-00000000057b",
+       "account_type": "expense",
+       "reason_code": "missing_current_decision_anchor"
+      },
+      {
+       "identifier": "journal_line:00000000-0000-0000-0000-000000000194",
+       "source_kind": "journal_line",
+       "source_id": "00000000-0000-0000-0000-000000000194",
+       "source_type": "decision_anchored_journal",
+       "amount": "Decimal:25.50",
+       "currency": "SGD",
+       "review_state": "unproven",
+       "decision_id": null,
+       "contribution_basis": "ledger_line_amount",
+       "journal_entry_id": "00000000-0000-0000-0000-00000000012e",
+       "account_id": "00000000-0000-0000-0000-00000000057c",
+       "account_type": "asset",
+       "reason_code": "missing_current_decision_anchor"
+      },
+      {
+       "identifier": "journal_line:00000000-0000-0000-0000-000000000195",
+       "source_kind": "journal_line",
+       "source_id": "00000000-0000-0000-0000-000000000195",
+       "source_type": "decision_anchored_journal",
+       "amount": "Decimal:60.00",
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000069",
+       "contribution_basis": "ledger_line_amount",
+       "journal_entry_id": "00000000-0000-0000-0000-00000000012f",
+       "account_id": "00000000-0000-0000-0000-00000000057d",
+       "account_type": "liability",
+       "reason_code": null
+      }
+     ],
+     "identifiers": [
+      "journal_line:00000000-0000-0000-0000-000000000193",
+      "journal_line:00000000-0000-0000-0000-000000000194",
+      "journal_line:00000000-0000-0000-0000-000000000195",
+      "journal_line:00000000-0000-0000-0000-000000000198",
+      "journal_line:00000000-0000-0000-0000-000000000199",
+      "opening_position:00000000-0000-0000-0000-0000000000c9"
+     ]
+    },
+    "anchor_count": 11,
+    "blocker_codes": [
+     "unproven_package_input"
+    ]
+   },
+   {
+    "line_id": "income_statement.total_income",
+    "section_id": "income_statement",
+    "label": "Total Income",
+    "amount_field": "total_income",
+    "currency_field": "currency",
+    "source_state": "posted_reconciled_income_journal_lines",
+    "source_anchor": {
+     "state": "available",
+     "source_types": [
+      "bank_statement",
+      "manual_journal_entry"
+     ],
+     "identifier_fields": [
+      "statement_transaction_ids",
+      "journal_entry_source_ids"
+     ],
+     "details": [
+      {
+       "identifier": "statement_result:0003",
+       "source_kind": "statement_extraction_result",
+       "source_id": "0003",
+       "source_type": "bank_statement",
+       "amount": null,
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000065",
+       "contribution_basis": "current_statement_result",
+       "reason_code": null
+      },
+      {
+       "identifier": "statement_result:0001",
+       "source_kind": "statement_extraction_result",
+       "source_id": "0001",
+       "source_type": "bank_statement",
+       "amount": null,
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000065",
+       "contribution_basis": "current_statement_result",
+       "reason_code": null
+      }
+     ],
+     "identifiers": [
+      "statement_result:0001",
+      "statement_result:0003"
+     ]
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ],
+     "details": [
+      {
+       "identifier": "journal_line:00000000-0000-0000-0000-000000000198",
+       "source_kind": "journal_line",
+       "source_id": "00000000-0000-0000-0000-000000000198",
+       "source_type": "decision_anchored_journal",
+       "amount": "Decimal:100.00",
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000068",
+       "contribution_basis": "ledger_line_amount",
+       "journal_entry_id": "00000000-0000-0000-0000-00000000012d",
+       "account_id": "00000000-0000-0000-0000-000000000580",
+       "account_type": "income",
+       "reason_code": null
+      }
+     ],
+     "identifiers": [
+      "journal_line:00000000-0000-0000-0000-000000000198"
+     ]
+    },
+    "anchor_count": 3,
+    "blocker_codes": [
+     "unproven_package_input"
+    ]
+   },
+   {
+    "line_id": "income_statement.total_expenses",
+    "section_id": "income_statement",
+    "label": "Total Expenses",
+    "amount_field": "total_expenses",
+    "currency_field": "currency",
+    "source_state": "posted_reconciled_expense_journal_lines",
+    "source_anchor": {
+     "state": "available",
+     "source_types": [
+      "bank_statement",
+      "manual_journal_entry"
+     ],
+     "identifier_fields": [
+      "statement_transaction_ids",
+      "journal_entry_source_ids"
+     ],
+     "details": [
+      {
+       "identifier": "statement_result:0003",
+       "source_kind": "statement_extraction_result",
+       "source_id": "0003",
+       "source_type": "bank_statement",
+       "amount": null,
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000065",
+       "contribution_basis": "current_statement_result",
+       "reason_code": null
+      },
+      {
+       "identifier": "statement_result:0001",
+       "source_kind": "statement_extraction_result",
+       "source_id": "0001",
+       "source_type": "bank_statement",
+       "amount": null,
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000065",
+       "contribution_basis": "current_statement_result",
+       "reason_code": null
+      }
+     ],
+     "identifiers": [
+      "statement_result:0001",
+      "statement_result:0003"
+     ]
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ],
+     "details": [
+      {
+       "identifier": "journal_line:00000000-0000-0000-0000-000000000193",
+       "source_kind": "journal_line",
+       "source_id": "00000000-0000-0000-0000-000000000193",
+       "source_type": "decision_anchored_journal",
+       "amount": "Decimal:25.50",
+       "currency": "SGD",
+       "review_state": "unproven",
+       "decision_id": null,
+       "contribution_basis": "ledger_line_amount",
+       "journal_entry_id": "00000000-0000-0000-0000-00000000012e",
+       "account_id": "00000000-0000-0000-0000-00000000057b",
+       "account_type": "expense",
+       "reason_code": "missing_current_decision_anchor"
+      }
+     ],
+     "identifiers": [
+      "journal_line:00000000-0000-0000-0000-000000000193"
+     ]
+    },
+    "anchor_count": 3,
+    "blocker_codes": [
+     "unproven_package_input"
+    ]
+   },
+   {
+    "line_id": "cash_flow.net_cash_flow",
+    "section_id": "cash_flow",
+    "label": "Net Cash Flow",
+    "amount_field": "summary.net_cash_flow",
+    "currency_field": "currency",
+    "source_state": "cash_bank_journal_lines",
+    "source_anchor": {
+     "state": "available",
+     "source_types": [
+      "bank_statement",
+      "manual_journal_entry"
+     ],
+     "identifier_fields": [
+      "statement_transaction_ids",
+      "journal_entry_source_ids"
+     ],
+     "details": [
+      {
+       "identifier": "statement_result:0003",
+       "source_kind": "statement_extraction_result",
+       "source_id": "0003",
+       "source_type": "bank_statement",
+       "amount": null,
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000065",
+       "contribution_basis": "current_statement_result",
+       "reason_code": null
+      },
+      {
+       "identifier": "statement_result:0001",
+       "source_kind": "statement_extraction_result",
+       "source_id": "0001",
+       "source_type": "bank_statement",
+       "amount": null,
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000065",
+       "contribution_basis": "current_statement_result",
+       "reason_code": null
+      }
+     ],
+     "identifiers": [
+      "statement_result:0001",
+      "statement_result:0003"
+     ]
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ],
+     "details": [
+      {
+       "identifier": "opening_position:00000000-0000-0000-0000-0000000000c9",
+       "source_kind": "opening_position",
+       "source_id": "00000000-0000-0000-0000-0000000000c9",
+       "source_type": "ledger_opening_position",
+       "amount": "Decimal:1000.00",
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000067",
+       "contribution_basis": "initial_stock",
+       "reason_code": null
+      },
+      {
+       "identifier": "journal_line:00000000-0000-0000-0000-000000000199",
+       "source_kind": "journal_line",
+       "source_id": "00000000-0000-0000-0000-000000000199",
+       "source_type": "decision_anchored_journal",
+       "amount": "Decimal:100.00",
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000068",
+       "contribution_basis": "ledger_line_amount",
+       "journal_entry_id": "00000000-0000-0000-0000-00000000012d",
+       "account_id": "00000000-0000-0000-0000-000000000581",
+       "account_type": "asset",
+       "reason_code": null
+      },
+      {
+       "identifier": "journal_line:00000000-0000-0000-0000-000000000194",
+       "source_kind": "journal_line",
+       "source_id": "00000000-0000-0000-0000-000000000194",
+       "source_type": "decision_anchored_journal",
+       "amount": "Decimal:25.50",
+       "currency": "SGD",
+       "review_state": "unproven",
+       "decision_id": null,
+       "contribution_basis": "ledger_line_amount",
+       "journal_entry_id": "00000000-0000-0000-0000-00000000012e",
+       "account_id": "00000000-0000-0000-0000-00000000057c",
+       "account_type": "asset",
+       "reason_code": "missing_current_decision_anchor"
+      }
+     ],
+     "identifiers": [
+      "journal_line:00000000-0000-0000-0000-000000000194",
+      "journal_line:00000000-0000-0000-0000-000000000199",
+      "opening_position:00000000-0000-0000-0000-0000000000c9"
+     ]
+    },
+    "anchor_count": 5,
+    "blocker_codes": [
+     "unproven_package_input"
+    ]
+   },
+   {
+    "line_id": "investment_performance.market_value",
+    "section_id": "investment_performance",
+    "label": "Investment Market Value",
+    "amount_field": "holdings.market_value",
+    "currency_field": "currency",
+    "source_state": "brokerage_imports_market_data_and_ledger_cost_basis",
+    "source_anchor": {
+     "state": "available",
+     "source_types": [
+      "brokerage_import",
+      "market_data_price",
+      "journal_entry"
+     ],
+     "identifier_fields": [
+      "brokerage_statement_ids",
+      "price_source_ids",
+      "ledger_entry_ids"
+     ],
+     "details": [
+      {
+       "identifier": "market_valuation:0011",
+       "source_kind": "pricing_valuation_observation",
+       "source_id": "0011",
+       "source_type": "valuation_observation",
+       "amount": "Decimal:1234.5600",
+       "currency": "USD",
+       "review_state": "unproven",
+       "decision_id": null,
+       "contribution_basis": "resolved_pricing_valuation",
+       "reason_code": "missing_current_decision_anchor",
+       "component_type": null,
+       "valuation_basis": "unspecified",
+       "liquidity_class": "liquid"
+      }
+     ],
+     "identifiers": [
+      "market_valuation:0011"
+     ]
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "ledger_entry_ids",
+      "journal_line_ids"
+     ]
+    },
+    "anchor_count": 1,
+    "blocker_codes": [
+     "stale_market_data",
+     "unproven_package_input"
+    ]
+   },
+   {
+    "line_id": "annualized_income_long_term.annualized_total",
+    "section_id": "annualized_income_long_term",
+    "label": "Annualized Total Income",
+    "amount_field": "income.annualized_total",
+    "currency_field": "income.currency",
+    "source_state": "posted_reconciled_income_journal_lines_trailing_12_months",
+    "source_anchor": {
+     "state": "available",
+     "source_types": [
+      "bank_statement",
+      "manual_journal_entry"
+     ],
+     "identifier_fields": [
+      "journal_entry_source_ids",
+      "statement_transaction_ids"
+     ],
+     "details": [
+      {
+       "identifier": "statement_result:0003",
+       "source_kind": "statement_extraction_result",
+       "source_id": "0003",
+       "source_type": "bank_statement",
+       "amount": null,
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000065",
+       "contribution_basis": "current_statement_result",
+       "reason_code": null
+      },
+      {
+       "identifier": "statement_result:0001",
+       "source_kind": "statement_extraction_result",
+       "source_id": "0001",
+       "source_type": "bank_statement",
+       "amount": null,
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000065",
+       "contribution_basis": "current_statement_result",
+       "reason_code": null
+      },
+      {
+       "identifier": "manual_valuation:0010",
+       "source_kind": "pricing_valuation_observation",
+       "source_id": "0010",
+       "source_type": "manual",
+       "amount": "Decimal:850000.00",
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000066",
+       "contribution_basis": "resolved_pricing_valuation",
+       "reason_code": null,
+       "component_type": "property_value",
+       "valuation_basis": "market_appraisal",
+       "liquidity_class": "illiquid"
+      }
+     ],
+     "identifiers": [
+      "manual_valuation:0010",
+      "statement_result:0001",
+      "statement_result:0003"
+     ]
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ],
+     "details": [
+      {
+       "identifier": "journal_line:00000000-0000-0000-0000-000000000198",
+       "source_kind": "journal_line",
+       "source_id": "00000000-0000-0000-0000-000000000198",
+       "source_type": "decision_anchored_journal",
+       "amount": "Decimal:100.00",
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000068",
+       "contribution_basis": "ledger_line_amount",
+       "journal_entry_id": "00000000-0000-0000-0000-00000000012d",
+       "account_id": "00000000-0000-0000-0000-000000000580",
+       "account_type": "income",
+       "reason_code": null
+      }
+     ],
+     "identifiers": [
+      "journal_line:00000000-0000-0000-0000-000000000198"
+     ]
+    },
+    "anchor_count": 4,
+    "blocker_codes": [
+     "unproven_package_input"
+    ]
+   },
+   {
+    "line_id": "annualized_income_long_term.restricted_fair_value_total",
+    "section_id": "annualized_income_long_term",
+    "label": "Restricted Fair Value Total",
+    "amount_field": "restricted_fair_value_total",
+    "currency_field": "restricted_fair_value_total_currency",
+    "source_state": "manual_valuation_snapshots",
+    "source_anchor": {
+     "state": "available",
+     "source_types": [
+      "manual_valuation_snapshot"
+     ],
+     "identifier_fields": [
+      "manual_valuation_snapshot_ids"
+     ],
+     "details": [
+      {
+       "identifier": "statement_result:0003",
+       "source_kind": "statement_extraction_result",
+       "source_id": "0003",
+       "source_type": "bank_statement",
+       "amount": null,
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000065",
+       "contribution_basis": "current_statement_result",
+       "reason_code": null
+      },
+      {
+       "identifier": "statement_result:0001",
+       "source_kind": "statement_extraction_result",
+       "source_id": "0001",
+       "source_type": "bank_statement",
+       "amount": null,
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000065",
+       "contribution_basis": "current_statement_result",
+       "reason_code": null
+      },
+      {
+       "identifier": "manual_valuation:0010",
+       "source_kind": "pricing_valuation_observation",
+       "source_id": "0010",
+       "source_type": "manual",
+       "amount": "Decimal:850000.00",
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000066",
+       "contribution_basis": "resolved_pricing_valuation",
+       "reason_code": null,
+       "component_type": "property_value",
+       "valuation_basis": "market_appraisal",
+       "liquidity_class": "illiquid"
+      }
+     ],
+     "identifiers": [
+      "manual_valuation:0010",
+      "statement_result:0001",
+      "statement_result:0003"
+     ]
+    },
+    "ledger_anchor": {
+     "state": "not_applicable",
+     "entry_statuses": [],
+     "identifier_fields": [],
+     "unavailable_reason": "Restricted compensation is disclosed as explicit manual valuation input, not posted ledger cash.",
+     "details": [
+      {
+       "identifier": "journal_line:00000000-0000-0000-0000-000000000199",
+       "source_kind": "journal_line",
+       "source_id": "00000000-0000-0000-0000-000000000199",
+       "source_type": "decision_anchored_journal",
+       "amount": "Decimal:100.00",
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000068",
+       "contribution_basis": "ledger_line_amount",
+       "journal_entry_id": "00000000-0000-0000-0000-00000000012d",
+       "account_id": "00000000-0000-0000-0000-000000000581",
+       "account_type": "asset",
+       "reason_code": null
+      },
+      {
+       "identifier": "journal_line:00000000-0000-0000-0000-000000000198",
+       "source_kind": "journal_line",
+       "source_id": "00000000-0000-0000-0000-000000000198",
+       "source_type": "decision_anchored_journal",
+       "amount": "Decimal:100.00",
+       "currency": "SGD",
+       "review_state": "current_authoritative_decision",
+       "decision_id": "00000000-0000-0000-0000-000000000068",
+       "contribution_basis": "ledger_line_amount",
+       "journal_entry_id": "00000000-0000-0000-0000-00000000012d",
+       "account_id": "00000000-0000-0000-0000-000000000580",
+       "account_type": "income",
+       "reason_code": null
+      },
+      {
+       "identifier": "journal_line:00000000-0000-0000-0000-000000000193",
+       "source_kind": "journal_line",
+       "source_id": "00000000-0000-0000-0000-000000000193",
+       "source_type": "decision_anchored_journal",
+       "amount": "Decimal:25.50",
+       "currency": "SGD",
+       "review_state": "unproven",
+       "decision_id": null,
+       "contribution_basis": "ledger_line_amount",
+       "journal_entry_id": "00000000-0000-0000-0000-00000000012e",
+       "account_id": "00000000-0000-0000-0000-00000000057b",
+       "account_type": "expense",
+       "reason_code": "missing_current_decision_anchor"
+      },
+      {
+       "identifier": "journal_line:00000000-0000-0000-0000-000000000194",
+       "source_kind": "journal_line",
+       "source_id": "00000000-0000-0000-0000-000000000194",
+       "source_type": "decision_anchored_journal",
+       "amount": "Decimal:25.50",
+       "currency": "SGD",
+       "review_state": "unproven",
+       "decision_id": null,
+       "contribution_basis": "ledger_line_amount",
+       "journal_entry_id": "00000000-0000-0000-0000-00000000012e",
+       "account_id": "00000000-0000-0000-0000-00000000057c",
+       "account_type": "asset",
+       "reason_code": "missing_current_decision_anchor"
+      }
+     ],
+     "identifiers": [
+      "journal_line:00000000-0000-0000-0000-000000000193",
+      "journal_line:00000000-0000-0000-0000-000000000194",
+      "journal_line:00000000-0000-0000-0000-000000000198",
+      "journal_line:00000000-0000-0000-0000-000000000199"
+     ]
+    },
+    "anchor_count": 7,
+    "blocker_codes": [
+     "manual_only_source",
+     "unproven_package_input"
+    ]
+   },
+   {
+    "line_id": "notes.non_compliance_statement",
+    "section_id": "notes",
+    "label": "Package Non-Compliance Statement",
+    "amount_field": null,
+    "currency_field": null,
+    "source_state": "package_contract",
+    "source_anchor": {
+     "state": "available",
+     "source_types": [
+      "package_contract"
+     ],
+     "identifier_fields": [
+      "note_id"
+     ],
+     "details": [
+      {
+       "identifier": "package_contract:personal-financial-report-package",
+       "source_kind": "package_contract",
+       "source_id": "personal-financial-report-package",
+       "source_type": "static_contract",
+       "amount": null,
+       "currency": null,
+       "review_state": "not_applicable",
+       "decision_id": null,
+       "contribution_basis": "static_disclosure_contract",
+       "reason_code": null
+      }
+     ],
+     "identifiers": [
+      "package_contract:personal-financial-report-package"
+     ]
+    },
+    "ledger_anchor": {
+     "state": "not_applicable",
+     "entry_statuses": [],
+     "identifier_fields": [],
+     "unavailable_reason": "Disclosure wording is not a ledger-derived amount."
+    },
+    "anchor_count": 1,
+    "blocker_codes": []
+   }
+  ],
+  "completeness_warnings": [
+   {
+    "code": "missing_source_anchor",
+    "label": "Missing source anchor",
+    "applies_to_sections": [
+     "balance_sheet",
+     "income_statement",
+     "cash_flow"
+    ],
+    "state": "fail_package_proof_for_trusted_totals",
+    "remediation": "Expose statement transaction, document, or explicit manual-input identifiers before treating totals as trusted."
+   },
+   {
+    "code": "manual_only_source",
+    "label": "Manual-only source coverage",
+    "applies_to_sections": [
+     "balance_sheet",
+     "annualized_income_long_term"
+    ],
+    "state": "explicit_manual_input_required",
+    "remediation": "Keep manual valuation snapshot identifiers and valuation basis visible in the appendix."
+   },
+   {
+    "code": "stale_market_data",
+    "label": "Stale market data",
+    "applies_to_sections": [
+     "investment_performance",
+     "balance_sheet"
+    ],
+    "state": "disclose_stale_or_refresh_required",
+    "remediation": "Use schedule freshness flags and refresh market data when provider prices are stale."
+   },
+   {
+    "code": "duplicate_source_coverage",
+    "label": "Duplicate source coverage",
+    "applies_to_sections": [
+     "balance_sheet",
+     "cash_flow"
+    ],
+    "state": "exclude_or_disclose_duplicate_source",
+    "remediation": "Preserve duplicate detection and reconciliation state so the same source is not counted twice."
+   },
+   {
+    "code": "overlapping_statement_period",
+    "label": "Overlapping statement period",
+    "applies_to_sections": [
+     "income_statement",
+     "cash_flow"
+    ],
+    "state": "review_required_before_trusted_total",
+    "remediation": "Surface overlapping bank statement periods and keep affected totals out of trusted proof until reviewed."
+   }
+  ]
+ },
+ "filtered_empty": {
+  "section_id": "traceability_appendix",
+  "label": "Traceability Appendix",
+  "status": "ready",
+  "lines": [
+   {
+    "line_id": "balance_sheet.total_assets",
+    "section_id": "balance_sheet",
+    "label": "Total Assets",
+    "amount_field": "total_assets",
+    "currency_field": "currency",
+    "source_state": "posted_reconciled_journal_lines_and_manual_valuations",
+    "source_anchor": {
+     "state": "unavailable",
+     "source_types": [
+      "bank_statement",
+      "brokerage_import",
+      "manual_valuation_snapshot"
+     ],
+     "identifier_fields": [
+      "statement_transaction_ids",
+      "brokerage_statement_ids",
+      "manual_valuation_snapshot_ids"
+     ],
+     "unavailable_reason": "no_selected_source_contribution"
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ]
+    },
+    "anchor_count": 0,
+    "blocker_codes": []
+   },
+   {
+    "line_id": "income_statement.total_income",
+    "section_id": "income_statement",
+    "label": "Total Income",
+    "amount_field": "total_income",
+    "currency_field": "currency",
+    "source_state": "posted_reconciled_income_journal_lines",
+    "source_anchor": {
+     "state": "unavailable",
+     "source_types": [
+      "bank_statement",
+      "manual_journal_entry"
+     ],
+     "identifier_fields": [
+      "statement_transaction_ids",
+      "journal_entry_source_ids"
+     ],
+     "unavailable_reason": "no_selected_source_contribution"
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ],
+     "details": [],
+     "identifiers": []
+    },
+    "anchor_count": 0,
+    "blocker_codes": [
+     "unproven_package_input"
+    ]
+   },
+   {
+    "line_id": "income_statement.total_expenses",
+    "section_id": "income_statement",
+    "label": "Total Expenses",
+    "amount_field": "total_expenses",
+    "currency_field": "currency",
+    "source_state": "posted_reconciled_expense_journal_lines",
+    "source_anchor": {
+     "state": "unavailable",
+     "source_types": [
+      "bank_statement",
+      "manual_journal_entry"
+     ],
+     "identifier_fields": [
+      "statement_transaction_ids",
+      "journal_entry_source_ids"
+     ],
+     "unavailable_reason": "no_selected_source_contribution"
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ],
+     "details": [],
+     "identifiers": []
+    },
+    "anchor_count": 0,
+    "blocker_codes": [
+     "unproven_package_input"
+    ]
+   },
+   {
+    "line_id": "cash_flow.net_cash_flow",
+    "section_id": "cash_flow",
+    "label": "Net Cash Flow",
+    "amount_field": "summary.net_cash_flow",
+    "currency_field": "currency",
+    "source_state": "cash_bank_journal_lines",
+    "source_anchor": {
+     "state": "unavailable",
+     "source_types": [
+      "bank_statement",
+      "manual_journal_entry"
+     ],
+     "identifier_fields": [
+      "statement_transaction_ids",
+      "journal_entry_source_ids"
+     ],
+     "unavailable_reason": "no_selected_source_contribution"
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ]
+    },
+    "anchor_count": 0,
+    "blocker_codes": []
+   },
+   {
+    "line_id": "investment_performance.market_value",
+    "section_id": "investment_performance",
+    "label": "Investment Market Value",
+    "amount_field": "holdings.market_value",
+    "currency_field": "currency",
+    "source_state": "brokerage_imports_market_data_and_ledger_cost_basis",
+    "source_anchor": {
+     "state": "unavailable",
+     "source_types": [
+      "brokerage_import",
+      "market_data_price",
+      "journal_entry"
+     ],
+     "identifier_fields": [
+      "brokerage_statement_ids",
+      "price_source_ids",
+      "ledger_entry_ids"
+     ],
+     "unavailable_reason": "no_selected_source_contribution"
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "ledger_entry_ids",
+      "journal_line_ids"
+     ]
+    },
+    "anchor_count": 0,
+    "blocker_codes": [
+     "stale_market_data"
+    ]
+   },
+   {
+    "line_id": "annualized_income_long_term.annualized_total",
+    "section_id": "annualized_income_long_term",
+    "label": "Annualized Total Income",
+    "amount_field": "income.annualized_total",
+    "currency_field": "income.currency",
+    "source_state": "posted_reconciled_income_journal_lines_trailing_12_months",
+    "source_anchor": {
+     "state": "unavailable",
+     "source_types": [
+      "bank_statement",
+      "manual_journal_entry"
+     ],
+     "identifier_fields": [
+      "journal_entry_source_ids",
+      "statement_transaction_ids"
+     ],
+     "unavailable_reason": "no_selected_source_contribution"
+    },
+    "ledger_anchor": {
+     "state": "available",
+     "entry_statuses": [
+      "posted",
+      "reconciled"
+     ],
+     "identifier_fields": [
+      "journal_entry_ids",
+      "journal_line_ids"
+     ]
+    },
+    "anchor_count": 0,
+    "blocker_codes": []
+   },
+   {
+    "line_id": "annualized_income_long_term.restricted_fair_value_total",
+    "section_id": "annualized_income_long_term",
+    "label": "Restricted Fair Value Total",
+    "amount_field": "restricted_fair_value_total",
+    "currency_field": "restricted_fair_value_total_currency",
+    "source_state": "manual_valuation_snapshots",
+    "source_anchor": {
+     "state": "unavailable",
+     "source_types": [
+      "manual_valuation_snapshot"
+     ],
+     "identifier_fields": [
+      "manual_valuation_snapshot_ids"
+     ],
+     "unavailable_reason": "no_selected_source_contribution"
+    },
+    "ledger_anchor": {
+     "state": "not_applicable",
+     "entry_statuses": [],
+     "identifier_fields": [],
+     "unavailable_reason": "Restricted compensation is disclosed as explicit manual valuation input, not posted ledger cash."
+    },
+    "anchor_count": 0,
+    "blocker_codes": [
+     "manual_only_source"
+    ]
+   },
+   {
+    "line_id": "notes.non_compliance_statement",
+    "section_id": "notes",
+    "label": "Package Non-Compliance Statement",
+    "amount_field": null,
+    "currency_field": null,
+    "source_state": "package_contract",
+    "source_anchor": {
+     "state": "available",
+     "source_types": [
+      "package_contract"
+     ],
+     "identifier_fields": [
+      "note_id"
+     ],
+     "details": [
+      {
+       "identifier": "package_contract:personal-financial-report-package",
+       "source_kind": "package_contract",
+       "source_id": "personal-financial-report-package",
+       "source_type": "static_contract",
+       "amount": null,
+       "currency": null,
+       "review_state": "not_applicable",
+       "decision_id": null,
+       "contribution_basis": "static_disclosure_contract",
+       "reason_code": null
+      }
+     ],
+     "identifiers": [
+      "package_contract:personal-financial-report-package"
+     ]
+    },
+    "ledger_anchor": {
+     "state": "not_applicable",
+     "entry_statuses": [],
+     "identifier_fields": [],
+     "unavailable_reason": "Disclosure wording is not a ledger-derived amount."
+    },
+    "anchor_count": 1,
+    "blocker_codes": []
+   }
+  ],
+  "completeness_warnings": [
+   {
+    "code": "missing_source_anchor",
+    "label": "Missing source anchor",
+    "applies_to_sections": [
+     "balance_sheet",
+     "income_statement",
+     "cash_flow"
+    ],
+    "state": "fail_package_proof_for_trusted_totals",
+    "remediation": "Expose statement transaction, document, or explicit manual-input identifiers before treating totals as trusted."
+   },
+   {
+    "code": "manual_only_source",
+    "label": "Manual-only source coverage",
+    "applies_to_sections": [
+     "balance_sheet",
+     "annualized_income_long_term"
+    ],
+    "state": "explicit_manual_input_required",
+    "remediation": "Keep manual valuation snapshot identifiers and valuation basis visible in the appendix."
+   },
+   {
+    "code": "stale_market_data",
+    "label": "Stale market data",
+    "applies_to_sections": [
+     "investment_performance",
+     "balance_sheet"
+    ],
+    "state": "disclose_stale_or_refresh_required",
+    "remediation": "Use schedule freshness flags and refresh market data when provider prices are stale."
+   },
+   {
+    "code": "duplicate_source_coverage",
+    "label": "Duplicate source coverage",
+    "applies_to_sections": [
+     "balance_sheet",
+     "cash_flow"
+    ],
+    "state": "exclude_or_disclose_duplicate_source",
+    "remediation": "Preserve duplicate detection and reconciliation state so the same source is not counted twice."
+   },
+   {
+    "code": "overlapping_statement_period",
+    "label": "Overlapping statement period",
+    "applies_to_sections": [
+     "income_statement",
+     "cash_flow"
+    ],
+    "state": "review_required_before_trusted_total",
+    "remediation": "Surface overlapping bank statement periods and keep affected totals out of trusted proof until reviewed."
+   }
+  ]
+ }
+}
