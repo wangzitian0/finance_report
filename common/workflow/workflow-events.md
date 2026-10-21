@@ -434,7 +434,11 @@ the tables that the derivation writes (`workflow_events`, `workflow_sessions`,
 `workflow_sync_states`) and the tables that it does not read (chat, AI
 feedback, counter, outbox, liveness ping). `workflow_sync_states` keeps the
 fingerprint and package readiness of the last derivation per user. When the
-fingerprint is equal, the read uses the stored readiness and writes nothing.
+fingerprint is equal and the state is younger than 15 minutes
+(`WORKFLOW_SYNC_STATE_MAX_AGE`), the read uses the stored readiness and writes
+nothing. The age bound exists because readiness can call an external FX
+provider when no stored rate exists: a provider miss changes no database row,
+so only the age bound makes a later recovery reach the events.
 When it differs, the read runs the derivation and stores the fingerprint that
 it computed before the derivation. Thus a change during the derivation makes
 the next read derive again (#2583). The synthetic active `WorkflowSession` creation path is

@@ -145,6 +145,7 @@ CONTRACT = PackageContract(
         ac('AC-workflow.sync.2', 'An insert or an update of a derivation source row makes the next workflow read derive the events again, so no event stays stale.', 'apps/backend/tests/workflow/test_workflow_sync_gate.py::test_AC_workflow_sync_2_a_source_change_derives_events_again'),
         ac('AC-workflow.sync.3', 'The source fingerprint reads every model table, except tables that an explicit exclusion names with a reason.', 'apps/backend/tests/workflow/test_workflow_sync_gate.py::test_AC_workflow_sync_3_fingerprint_classifies_every_table'),
         ac('AC-workflow.sync.4', 'The source fingerprint changes on a user, child, global, date, or settings change. It does not change on excluded tables or on rows of another user.', 'apps/backend/tests/workflow/test_workflow_sync_gate.py::test_AC_workflow_sync_4_fingerprint_changes_only_with_an_input'),
+        ac('AC-workflow.sync.5', 'A workflow read reuses the last derivation only while its state is younger than 15 minutes. An older state derives again, so an external provider recovery reaches the events.', 'apps/backend/tests/workflow/test_workflow_sync_gate.py::test_AC_workflow_sync_5_a_state_older_than_the_max_age_derives_again'),
     ],
     concepts=[
         ConceptRecord(

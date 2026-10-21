@@ -4,7 +4,8 @@ Workflow derivation reads statements, reconciliation state, and package readines
 readiness reads the ledger, extraction, pricing, portfolio, and audit tables. The fingerprint
 covers every table in the model metadata. A table is excluded only when derivation does not
 read it, or when the derivation writes it. Thus a new table is an input until a person
-classifies it here, and a missed input cannot keep an event stale.
+classifies it here. An input outside the database, such as the response of an external FX
+provider, is not in the fingerprint; WORKFLOW_SYNC_STATE_MAX_AGE in events.py bounds its effect.
 
 Per table, the fingerprint holds the row count and the sum of the row timestamps in the scope
 of the user. An insert or a delete changes the count. An update changes ``updated_at``, so it

@@ -354,3 +354,43 @@ async def test_AC_workflow_sync_4_tenant_scope_matches_stored_trace_records(db: 
     table = Base.metadata.tables["trace_records"]
     row = (await db.execute(source_fingerprint_mod._source_select(table, test_user.id))).one()
     assert row.row_count > 0
+
+
+async def test_AC_workflow_sync_5_a_state_older_than_the_max_age_derives_again(
+    db: AsyncSession,
+    test_user: User,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-workflow.sync.5: an equal fingerprint reuses the state only while it is younger than the max age."""
+    import src.workflow.extension.events as workflow_events
+    from src.workflow.extension.events import WORKFLOW_SYNC_STATE_MAX_AGE, ensure_workflow_events_synced
+    from src.workflow.orm.models import WorkflowSyncState
+
+    user_id = test_user.id
+    real_readiness = workflow_events.current_package_readiness
+    derivations = 0
+
+    async def counting_readiness(db, *, user_id):
+        nonlocal derivations
+        derivations += 1
+        return await real_readiness(db, user_id=user_id)
+
+    monkeypatch.setattr(workflow_events, "current_package_readiness", counting_readiness)
+
+    await ensure_workflow_events_synced(db, user_id=user_id)
+    await db.commit()
+    assert derivations == 1
+
+    await ensure_workflow_events_synced(db, user_id=user_id)
+    await db.commit()
+    assert derivations == 1
+
+    await db.execute(
+        update(WorkflowSyncState)
+        .where(WorkflowSyncState.user_id == user_id)
+        .values(updated_at=datetime.now(UTC) - WORKFLOW_SYNC_STATE_MAX_AGE - timedelta(minutes=1))
+    )
+    await db.commit()
+    await ensure_workflow_events_synced(db, user_id=user_id)
+    await db.commit()
+    assert derivations == 2

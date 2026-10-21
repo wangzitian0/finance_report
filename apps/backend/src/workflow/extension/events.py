@@ -1,5 +1,6 @@
 """Deterministic user-facing workflow event derivation."""
 
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -63,6 +64,10 @@ _STAGE1_REJECTED = "rejected"
 _STAGE1_EDITED = "edited"
 
 ACTIVE_WORKFLOW_SESSION_DEDUPE_KEY = "active-upload-to-report"
+# Readiness can read an external FX provider when no stored rate exists. A provider miss changes
+# no database row, so the source fingerprint cannot see a later recovery. This age bounds how long
+# a read can reuse a derivation (#2583).
+WORKFLOW_SYNC_STATE_MAX_AGE = timedelta(minutes=15)
 MUTABLE_DERIVED_EVENT_SOURCE_TYPES = {"bank_statement", "readiness_blocker", "reconciliation", "report_package"}
 MUTABLE_DERIVED_EVENT_FAMILIES = {
     WorkflowEventFamily.SOURCE_PARSING_FAILED,
@@ -437,20 +442,26 @@ async def ensure_workflow_events_synced(db: AsyncSession, *, user_id: UUID) -> d
     """Run the derivation only when one of its inputs changed; return the package readiness.
 
     A read computes the source fingerprint first. When it equals the fingerprint of the last
-    derivation, the stored readiness is returned and the read writes nothing (#2583). Otherwise
-    the derivation runs and the state row records the fingerprint from before the derivation.
-    If an input changes while the derivation runs, the next read sees a new fingerprint and
-    derives again.
+    derivation and the state is younger than WORKFLOW_SYNC_STATE_MAX_AGE, the stored readiness
+    is returned and the read writes nothing (#2583). Otherwise the derivation runs and the state
+    row records the fingerprint from before the derivation. If an input changes while the
+    derivation runs, the next read sees a new fingerprint and derives again.
     """
     fingerprint = await workflow_source_fingerprint(db, user_id=user_id)
     state = (
         await db.execute(
-            select(WorkflowSyncState.source_fingerprint, WorkflowSyncState.package_readiness).where(
-                WorkflowSyncState.user_id == user_id
-            )
+            select(
+                WorkflowSyncState.source_fingerprint,
+                WorkflowSyncState.package_readiness,
+                WorkflowSyncState.updated_at,
+            ).where(WorkflowSyncState.user_id == user_id)
         )
     ).one_or_none()
-    if state is not None and state.source_fingerprint == fingerprint:
+    if (
+        state is not None
+        and state.source_fingerprint == fingerprint
+        and datetime.now(UTC) - state.updated_at < WORKFLOW_SYNC_STATE_MAX_AGE
+    ):
         return dict(state.package_readiness)
 
     package_readiness = await sync_workflow_events_for_user(db, user_id=user_id)
