@@ -10,20 +10,15 @@ import { useCurrencies } from "@/hooks/useCurrencies";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useReportFilters } from "@/hooks/useReportFilters";
 import { balanceSheetQueryKey } from "@/lib/sharedQueries";
-import { FxWarningBanner } from "@/components/reports/FxWarningBanner";
-import { OpeningBalanceWarningBanner } from "@/components/reports/OpeningBalanceWarningBanner";
+import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import {
-  AccountLineageDrawer,
-  type AccountLineageTarget,
-} from "@/components/reports/AccountLineageDrawer";
-import { ReportPageShell } from "@/components/reports/ReportPageShell";
-import { ReportToolbar } from "@/components/reports/ReportToolbar";
-import { ExportCsvButton } from "@/components/reports/ExportCsvButton";
-import {
-  CurrencyFilterControl,
-  DateFilterControl,
-  PeriodPresetFilterControl,
-} from "@/components/reports/ReportFilters";
+  ExportCsvButton,
+  FxWarningBanner,
+  OpeningBalanceWarningBanner,
+  ReportPageShell,
+  ReportToolbar,
+} from "@/components/reports/ReportPageShell";
+import { CurrencyFilterControl, DateFilterControl, PeriodPresetFilterControl } from "@/components/reports/ReportFilters";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 import { InfoHint } from "@/components/ui/InfoHint";
 import { liabilityToneClass } from "@/lib/statusLabels";
@@ -35,13 +30,10 @@ interface AccountNode extends ReportLine {
 
 const buildTree = (lines: ReportLine[]): AccountNode[] => {
   const nodes = new Map<string, AccountNode>();
-  lines.forEach((line) =>
-    nodes.set(line.account_id, { ...line, children: [] }),
-  );
+  lines.forEach((line) => nodes.set(line.account_id, { ...line, children: [] }));
   const roots: AccountNode[] = [];
   nodes.forEach((node) => {
-    if (node.parent_id && nodes.has(node.parent_id))
-      nodes.get(node.parent_id)?.children.push(node);
+    if (node.parent_id && nodes.has(node.parent_id)) nodes.get(node.parent_id)?.children.push(node);
     else roots.push(node);
   });
   const sortNodes = (items: AccountNode[]) => {
@@ -53,41 +45,25 @@ const buildTree = (lines: ReportLine[]): AccountNode[] => {
 };
 
 export default function BalanceSheetPage() {
-  const { asOfDate, setAsOfDate, currency, setCurrency } = useReportFilters({
-    reportType: "balance-sheet",
-  });
+  const { asOfDate, setAsOfDate, currency, setCurrency } = useReportFilters({ reportType: "balance-sheet" });
   const searchParams = useSearchParams();
   const includeRestrictedParam = searchParams.get("include_restricted");
-  const [includeRestricted, setIncludeRestricted] = useState(
-    includeRestrictedParam === "true",
-  );
+  const [includeRestricted, setIncludeRestricted] = useState(includeRestrictedParam === "true");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(
-    null,
-  );
+  const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(null);
   const { currencies } = useCurrencies();
 
-  // The key comes from the shared builder, so Home reads the same cache entry when it
-  // requests the same balance sheet (#2583 S4).
   const reportKey = balanceSheetQueryKey({ asOfDate, currency, includeRestricted });
   const reportQuery = useApiQuery(
     reportKey,
     "balance_sheet_reports_balance_sheet_get",
-    {
-      query: {
-        as_of_date: asOfDate,
-        currency,
-        include_restricted: includeRestricted,
-      },
-    },
+    { query: { as_of_date: asOfDate, currency, include_restricted: includeRestricted } },
     {
       placeholderData: keepPreviousData,
       select: (data) => ({
         ...data,
         fx_warnings: normalizeFxWarningRows(data.fx_warnings),
-        opening_balance_warnings: normalizeFxWarningRows(
-          data.opening_balance_warnings,
-        ),
+        opening_balance_warnings: normalizeFxWarningRows(data.opening_balance_warnings),
       }),
     },
   );
@@ -96,36 +72,20 @@ export default function BalanceSheetPage() {
   useEffect(() => {
     if (!report) return;
     const rootIds = new Set<string>();
-    [...report.assets, ...report.liabilities, ...report.equity].forEach(
-      (line) => {
-        if (!line.parent_id) rootIds.add(line.account_id);
-      },
-    );
+    [...report.assets, ...report.liabilities, ...report.equity].forEach((line) => {
+      if (!line.parent_id) rootIds.add(line.account_id);
+    });
     setExpanded(rootIds);
   }, [report]);
-
-  const assetsTree = useMemo(
-    () => (report ? buildTree(report.assets) : []),
-    [report],
-  );
-  const liabilitiesTree = useMemo(
-    () => (report ? buildTree(report.liabilities) : []),
-    [report],
-  );
-  const equityTree = useMemo(
-    () => (report ? buildTree(report.equity) : []),
-    [report],
-  );
-
-  const aiPrompt = useMemo(
-    () =>
-      `Explain my balance sheet as of ${asOfDate} in ${currency}. Highlight any risks.`,
-    [asOfDate, currency],
-  );
 
   useEffect(() => {
     setIncludeRestricted(includeRestrictedParam === "true");
   }, [includeRestrictedParam]);
+
+  const assetsTree = useMemo(() => (report ? buildTree(report.assets) : []), [report]);
+  const liabilitiesTree = useMemo(() => (report ? buildTree(report.liabilities) : []), [report]);
+  const equityTree = useMemo(() => (report ? buildTree(report.equity) : []), [report]);
+  const aiPrompt = useMemo(() => `Explain my balance sheet as of ${asOfDate} in ${currency}. Highlight any risks.`, [asOfDate, currency]);
 
   const toggle = (id: string) =>
     setExpanded((prev) => {
@@ -153,15 +113,10 @@ export default function BalanceSheetPage() {
             {hasChildren && (
               <button
                 onClick={() => toggle(node.account_id)}
-                aria-label={
-                  isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`
-                }
+                aria-label={isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
                 className="-my-2 flex h-11 w-11 items-center justify-center text-base leading-none text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
               >
-                <span
-                  className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--background-muted)] text-xs"
-                  aria-hidden="true"
-                >
+                <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--background-muted)] text-xs" aria-hidden="true">
                   {isExpanded ? "–" : "+"}
                 </span>
               </button>
@@ -173,14 +128,7 @@ export default function BalanceSheetPage() {
             <button
               type="button"
               className="font-medium tabular-nums hover:text-[var(--accent)] hover:underline"
-              onClick={() =>
-                setDrillTarget({
-                  accountId: node.account_id,
-                  accountName: node.name,
-                  asOfDate,
-                  currency: report.currency,
-                })
-              }
+              onClick={() => setDrillTarget({ accountId: node.account_id, accountName: node.name, asOfDate, currency: report.currency })}
               aria-label={`View source transactions for ${node.name}`}
             >
               {formatCurrencyLocale(node.amount, report.currency)}
@@ -190,10 +138,7 @@ export default function BalanceSheetPage() {
           )}
         </div>
         {hasChildren && isExpanded && (
-          <div
-            role="group"
-            className="ml-2 border-l border-[var(--border)] pl-2"
-          >
+          <div role="group" className="ml-2 border-l border-[var(--border)] pl-2">
             {node.children.map((c) => renderNode(c, depth + 1))}
           </div>
         )}
@@ -215,72 +160,37 @@ export default function BalanceSheetPage() {
           aiPrompt={aiPrompt}
           exportControl={
             <ExportCsvButton
-              request={{
-                query: {
-                  report_type: "balance-sheet",
-                  format: "csv",
-                  as_of_date: asOfDate,
-                  currency,
-                  include_restricted: includeRestricted,
-                },
-              }}
+              request={{ query: { report_type: "balance-sheet", format: "csv", as_of_date: asOfDate, currency, include_restricted: includeRestricted } }}
             />
           }
         />
       }
     >
       <div className="flex flex-wrap gap-3 mb-6 text-sm">
-        <PeriodPresetFilterControl
-          onSelectRange={(range) => setAsOfDate(range.endDate)}
-        />
-        <DateFilterControl
-          label="As of date"
-          value={asOfDate}
-          onChange={setAsOfDate}
-        />
-        <CurrencyFilterControl
-          value={currency}
-          currencies={currencies}
-          onChange={setCurrency}
-        />
+        <PeriodPresetFilterControl onSelectRange={(range) => setAsOfDate(range.endDate)} />
+        <DateFilterControl label="As of date" value={asOfDate} onChange={setAsOfDate} />
+        <CurrencyFilterControl value={currency} currencies={currencies} onChange={setCurrency} />
         <label className="self-end flex items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2">
-          <input
-            type="checkbox"
-            checked={includeRestricted}
-            onChange={(e) => setIncludeRestricted(e.target.checked)}
-          />
+          <input type="checkbox" checked={includeRestricted} onChange={(e) => setIncludeRestricted(e.target.checked)} />
           <span>Include restricted holdings</span>
         </label>
         <span className="self-end inline-flex items-center">
-          <span
-            className={`badge ${report?.is_balanced ? "badge-success" : "badge-warning"}`}
-          >
+          <span className={`badge ${report?.is_balanced ? "badge-success" : "badge-warning"}`}>
             {report?.is_balanced ? "✓ Balanced" : "⚠ Drift"}
           </span>
-          <InfoHint
-            term={report?.is_balanced ? "balanced" : "drift"}
-            label={report?.is_balanced ? "Balanced" : "Drift"}
-          />
+          <InfoHint term={report?.is_balanced ? "balanced" : "drift"} label={report?.is_balanced ? "Balanced" : "Drift"} />
         </span>
       </div>
 
       <FxWarningBanner warnings={report?.fx_warnings} />
-      <OpeningBalanceWarningBanner
-        warnings={report?.opening_balance_warnings}
-      />
+      <OpeningBalanceWarningBanner warnings={report?.opening_balance_warnings} />
 
       {report && report.is_balanced === false && (
-        <div
-          role="alert"
-          className="p-4 mb-6 bg-[var(--error)]/10 border border-[var(--error)] rounded-lg flex items-center justify-between text-[var(--error)]"
-        >
+        <div role="alert" className="p-4 mb-6 bg-[var(--error)]/10 border border-[var(--error)] rounded-lg flex items-center justify-between text-[var(--error)]">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-sm">
-              Accounting Equation Imbalance Detected
-            </span>
+            <span className="font-semibold text-sm">Accounting Equation Imbalance Detected</span>
             <span className="text-xs">
-              Assets do not match Liabilities + Equity (Delta:{" "}
-              {formatCurrencyLocale(report.equation_delta, report.currency)}).
+              Assets do not match Liabilities + Equity (Delta: {formatCurrencyLocale(report.equation_delta, report.currency)}).
             </span>
           </div>
         </div>
@@ -289,30 +199,10 @@ export default function BalanceSheetPage() {
       <div className="flex flex-col gap-2 mb-6">
         <span className="text-xs text-muted uppercase">Quick filters</span>
         <div className="flex flex-wrap gap-2">
-          <Link
-            href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}`}
-            className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--accent)] text-white"
-          >
-            All
-          </Link>
-          <Link
-            href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#assets`}
-            className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--success-muted)] hover:text-[var(--success)]"
-          >
-            Assets
-          </Link>
-          <Link
-            href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#liabilities`}
-            className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--error-muted)] hover:text-[var(--error)]"
-          >
-            Liabilities
-          </Link>
-          <Link
-            href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#equity`}
-            className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--accent-muted)] hover:text-[var(--accent)]"
-          >
-            Equity
-          </Link>
+          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--accent)] text-white">All</Link>
+          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#assets`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--success-muted)] hover:text-[var(--success)]">Assets</Link>
+          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#liabilities`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--error-muted)] hover:text-[var(--error)]">Liabilities</Link>
+          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#equity`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--accent-muted)] hover:text-[var(--accent)]">Equity</Link>
         </div>
       </div>
 
@@ -321,80 +211,38 @@ export default function BalanceSheetPage() {
           <span className="flex items-center gap-2">
             <span>Balance Equation Detail</span>
             <span className="text-xs font-normal text-muted">
-              {report?.is_balanced
-                ? "Books in balance"
-                : report
-                  ? `Delta: ${formatCurrencyLocale(report.equation_delta, report.currency)}`
-                  : "—"}
+              {report?.is_balanced ? "Books in balance" : report ? `Delta: ${formatCurrencyLocale(report.equation_delta, report.currency)}` : "—"}
             </span>
           </span>
-          <span className="text-xs text-muted group-open:rotate-180 transition-transform">
-            ▼
-          </span>
+          <span className="text-xs text-muted group-open:rotate-180 transition-transform">▼</span>
         </summary>
         <div className="p-5 pt-1 border-t border-[var(--border)]">
           <dl className="grid gap-3 text-sm grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
             <div>
               <dt className="text-xs text-muted uppercase">Net Income</dt>
-              <dd className="mt-1 font-medium">
-                {report
-                  ? formatCurrencyLocale(report.net_income ?? 0, report.currency)
-                  : "—"}
-              </dd>
+              <dd className="mt-1 font-medium">{report ? formatCurrencyLocale(report.net_income ?? 0, report.currency) : "—"}</dd>
             </div>
             <div>
               <dt className="text-xs text-muted uppercase">Unrealized FX</dt>
-              <dd className="mt-1 font-medium">
-                {report
-                  ? formatCurrencyLocale(
-                      report.unrealized_fx_gain_loss ?? 0,
-                      report.currency,
-                    )
-                  : "—"}
-              </dd>
+              <dd className="mt-1 font-medium">{report ? formatCurrencyLocale(report.unrealized_fx_gain_loss ?? 0, report.currency) : "—"}</dd>
             </div>
             <div>
-              <dt className="text-xs text-muted uppercase">
-                Net Worth Adjustment
-              </dt>
-              <dd className="mt-1 font-medium">
-                {report
-                  ? formatCurrencyLocale(
-                      report.net_worth_adjustment_gain_loss ?? 0,
-                      report.currency,
-                    )
-                  : "—"}
-              </dd>
+              <dt className="text-xs text-muted uppercase">Net Worth Adjustment</dt>
+              <dd className="mt-1 font-medium">{report ? formatCurrencyLocale(report.net_worth_adjustment_gain_loss ?? 0, report.currency) : "—"}</dd>
             </div>
             <div data-testid="equation-detail-cta">
               <dt className="text-xs text-muted uppercase">CTA Adjustment</dt>
-              <dd
-                className="mt-1 font-medium"
-                aria-label="Currency translation adjustment"
-              >
-                {report
-                  ? formatCurrencyLocale(
-                      report.cta_adjustment ?? "0.00",
-                      report.currency,
-                    )
-                  : "—"}
+              <dd className="mt-1 font-medium" aria-label="Currency translation adjustment">
+                {report ? formatCurrencyLocale(report.cta_adjustment ?? "0.00", report.currency) : "—"}
               </dd>
             </div>
             <div>
               <dt className="text-xs text-muted uppercase">Equation Delta</dt>
-              <dd className="mt-1 font-medium">
-                {report
-                  ? formatCurrencyLocale(report.equation_delta, report.currency)
-                  : "—"}
-              </dd>
+              <dd className="mt-1 font-medium">{report ? formatCurrencyLocale(report.equation_delta, report.currency) : "—"}</dd>
             </div>
             <div>
-              <dt className="text-xs text-muted uppercase">
-                Restricted Treatment
-              </dt>
-              <dd className="mt-1 font-medium">
-                {includeRestricted ? "Included" : "Excluded by default"}
-              </dd>
+              <dt className="text-xs text-muted uppercase">Restricted Treatment</dt>
+              <dd className="mt-1 font-medium">{includeRestricted ? "Included" : "Excluded by default"}</dd>
             </div>
           </dl>
         </div>
@@ -403,82 +251,36 @@ export default function BalanceSheetPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card p-5" id="assets">
           <h2 className="font-semibold mb-3">Assets</h2>
-          <div
-            role="tree"
-            aria-label="Balance Sheet - Assets"
-            className="space-y-1"
-          >
-            {assetsTree.length ? (
-              assetsTree.map((n) => renderNode(n))
-            ) : (
-              <span className="text-muted">—</span>
-            )}
+          <div role="tree" aria-label="Balance Sheet - Assets" className="space-y-1">
+            {assetsTree.length ? assetsTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}
           </div>
           <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold text-[var(--success)]">
-            Total:{" "}
-            {report
-              ? formatCurrencyLocale(report.total_assets, report.currency)
-              : "—"}
+            Total: {report ? formatCurrencyLocale(report.total_assets, report.currency) : "—"}
           </div>
         </div>
         <div className="card p-5" id="liabilities">
           <h2 className="font-semibold mb-3">Liabilities</h2>
-          <div
-            role="tree"
-            aria-label="Balance Sheet - Liabilities"
-            className="space-y-1"
-          >
-            {liabilitiesTree.length ? (
-              liabilitiesTree.map((n) => renderNode(n))
-            ) : (
-              <span className="text-muted">—</span>
-            )}
+          <div role="tree" aria-label="Balance Sheet - Liabilities" className="space-y-1">
+            {liabilitiesTree.length ? liabilitiesTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}
           </div>
-          <div
-            className={`mt-4 pt-3 border-t border-[var(--border)] font-semibold ${
-              report ? liabilityToneClass(report.total_liabilities) : "text-muted"
-            }`}
-          >
-            Total:{" "}
-            {report
-              ? formatCurrencyLocale(report.total_liabilities, report.currency)
-              : "—"}
+          <div className={`mt-4 pt-3 border-t border-[var(--border)] font-semibold ${report ? liabilityToneClass(report.total_liabilities) : "text-muted"}`}>
+            Total: {report ? formatCurrencyLocale(report.total_liabilities, report.currency) : "—"}
           </div>
         </div>
         <div className="card p-5" id="equity">
           <h2 className="font-semibold mb-3">Equity</h2>
-          <div
-            role="tree"
-            aria-label="Balance Sheet - Equity"
-            className="space-y-1"
-          >
-            {equityTree.length ? (
-              equityTree.map((n) => renderNode(n))
-            ) : (
-              <span className="text-muted">—</span>
-            )}
+          <div role="tree" aria-label="Balance Sheet - Equity" className="space-y-1">
+            {equityTree.length ? equityTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}
           </div>
           <div className="mt-4 pt-3 border-t border-[var(--border)] space-y-1 text-sm">
             <div className="flex justify-between text-muted">
               <span>Opening Equity:</span>
-              <span>
-                {report
-                  ? formatCurrencyLocale(report.total_equity, report.currency)
-                  : "—"}
-              </span>
+              <span>{report ? formatCurrencyLocale(report.total_equity, report.currency) : "—"}</span>
             </div>
             <div className="flex justify-between text-muted">
               <span>Net Income (P&L):</span>
-              <span
-                className={
-                  report && Number(report.net_income ?? 0) >= 0
-                    ? "text-[var(--success)] font-medium"
-                    : "text-[var(--error)] font-medium"
-                }
-              >
-                {report
-                  ? formatCurrencyLocale(report.net_income ?? 0, report.currency)
-                  : "—"}
+              <span className={report && Number(report.net_income ?? 0) >= 0 ? "text-[var(--success)] font-medium" : "text-[var(--error)] font-medium"}>
+                {report ? formatCurrencyLocale(report.net_income ?? 0, report.currency) : "—"}
               </span>
             </div>
             {report &&
@@ -516,10 +318,7 @@ export default function BalanceSheetPage() {
         </div>
       </div>
 
-      <AccountLineageDrawer
-        target={drillTarget}
-        onClose={() => setDrillTarget(null)}
-      />
+      <AccountLineageDrawer target={drillTarget} onClose={() => setDrillTarget(null)} />
     </ReportPageShell>
   );
 }

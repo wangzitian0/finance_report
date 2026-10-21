@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 
 import { apiOperation } from "@/lib/api-client";
 import { getCategoriesForDirection } from "@/lib/categories";
-import { BackLink } from "@/components/ui/BackLink";
+import { BackLink } from "@/components/ui/SmartBackLink";
 import type { AiSuggestion } from "@/lib/types";
 
 type FeedbackAction = "accept" | "reject" | "edit_accept";

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { AuditBackLink } from "@/components/ui/BackLink";
+import { AuditBackLink } from "@/components/ui/SmartBackLink";
 import { LoadingState } from "@/components/ui";
 import { apiOperation } from "@/lib/api-client";
 import { ProcessingPendingListResponse } from "@/lib/types";

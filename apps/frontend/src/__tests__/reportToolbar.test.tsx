@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { AiPromptAction, ReportToolbar } from "@/components/reports/ReportToolbar";
+import { AiPromptAction, ReportToolbar } from "@/components/reports/ReportPageShell";
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode }) => (

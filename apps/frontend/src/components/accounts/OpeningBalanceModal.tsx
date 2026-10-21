@@ -15,7 +15,6 @@ interface OpeningBalanceModalProps {
   accounts: Account[];
 }
 
-/** At most two decimal places — a format check; positivity is checked decimal-safe. */
 const AMOUNT_RE = /^\d+(\.\d{1,2})?$/;
 
 function previousCalendarDay(periodStart: string): string {
@@ -26,20 +25,7 @@ function previousCalendarDay(periodStart: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-/**
- * Guided opening-balance flow (#949 / AC2.15.8).
- *
- * Lets a non-accountant establish starting balances by entering what each
- * account was worth on a start date. The backend posts the balanced journal
- * entry (offsetting into Opening Balance Equity), so the user never hand-writes
- * double-entry lines and the cross-year balance sheet is complete from day one.
- */
-export default function OpeningBalanceModal({
-  isOpen,
-  onClose,
-  onSuccess,
-  accounts,
-}: OpeningBalanceModalProps) {
+export default function OpeningBalanceModal({ isOpen, onClose, onSuccess, accounts }: OpeningBalanceModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef, isOpen);
   useBodyScrollLock(isOpen);
@@ -51,12 +37,8 @@ export default function OpeningBalanceModal({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Only real (non-system) accounts can carry an opening balance.
   const eligibleAccounts = useMemo(
-    () =>
-      accounts.filter(
-        (a) => a.is_active && a.type !== "INCOME" && a.type !== "EXPENSE",
-      ),
+    () => accounts.filter((a) => a.is_active && a.type !== "INCOME" && a.type !== "EXPENSE"),
     [accounts],
   );
 
@@ -74,10 +56,7 @@ export default function OpeningBalanceModal({
   if (!isOpen) return null;
 
   const suggestedDate = previousCalendarDay(periodStart);
-
-  const filledEntries = Object.entries(amounts).filter(
-    ([, value]) => value.trim() !== "",
-  );
+  const filledEntries = Object.entries(amounts).filter(([, value]) => value.trim() !== "");
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -95,43 +74,23 @@ export default function OpeningBalanceModal({
       setError("Enter a starting balance for at least one account.");
       return;
     }
-    // Positivity is checked decimal-safe (decimal.js) rather than with Number()
-    // to honor the repo's monetary-amount rules; the regex only bounds the format.
-    const invalid = filledEntries.find(
-      ([, value]) =>
-        !AMOUNT_RE.test(value.trim()) || compareAmounts(value.trim(), "0") <= 0,
-    );
+    const invalid = filledEntries.find(([, value]) => !AMOUNT_RE.test(value.trim()) || compareAmounts(value.trim(), "0") <= 0);
     if (invalid) {
-      setError(
-        "Balances must be positive amounts with at most two decimal places.",
-      );
+      setError("Balances must be positive amounts with at most two decimal places.");
       return;
     }
 
-    const balances = Object.fromEntries(
-      filledEntries.map(([id, value]) => [id, value.trim()]),
-    );
+    const balances = Object.fromEntries(filledEntries.map(([id, value]) => [id, value.trim()]));
 
     setSubmitting(true);
     try {
-      await apiOperation(
-        "post_opening_balances_accounts_opening_balances_post",
-        {
-          body: {
-            entry_date: entryDate,
-            balances,
-            memo: memo.trim() || "Opening balances",
-          },
-        },
-      );
+      await apiOperation("post_opening_balances_accounts_opening_balances_post", {
+        body: { entry_date: entryDate, balances, memo: memo.trim() || "Opening balances" },
+      });
       onSuccess();
       onClose();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to record opening balances",
-      );
+      setError(err instanceof Error ? err.message : "Failed to record opening balances");
     } finally {
       setSubmitting(false);
     }
@@ -154,25 +113,14 @@ export default function OpeningBalanceModal({
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-6">
             <p className="text-sm text-muted">
-              Enter the balances brought forward into your first report period.
-              We&apos;ll record the bookkeeping entry for you after you confirm
-              the date and amounts — no journal entries required.
+              Enter the balances brought forward into your first report period. We&apos;ll record the bookkeeping entry for you after you confirm the date and amounts — no journal entries required.
             </p>
 
             <div>
-              <label htmlFor="opening-period-start" className="mb-1.5 block text-sm font-medium">
-                First report period starts
-              </label>
-              <input
-                id="opening-period-start"
-                type="date"
-                value={periodStart}
-                onChange={(event) => setPeriodStart(event.target.value)}
-                className="input"
-              />
+              <label htmlFor="opening-period-start" className="mb-1.5 block text-sm font-medium">First report period starts</label>
+              <input id="opening-period-start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="input" />
               <p className="mt-1 text-xs text-muted">
-                Use the start of the report period, not the first transaction date.
-                For a March report, bring forward the closing balance from February.
+                Use the start of the report period, not the first transaction date. For a March report, bring forward the closing balance from February.
               </p>
               {suggestedDate && (
                 <button type="button" className="btn-secondary mt-2" onClick={() => setEntryDate(suggestedDate)}>
@@ -182,45 +130,23 @@ export default function OpeningBalanceModal({
             </div>
 
             <div>
-              <label
-                htmlFor="opening-balance-date"
-                className="mb-1.5 block text-sm font-medium"
-              >
-                As-of date *
-              </label>
-              <input
-                id="opening-balance-date"
-                type="date"
-                value={entryDate}
-                onChange={(e) => setEntryDate(e.target.value)}
-                className="input"
-              />
+              <label htmlFor="opening-balance-date" className="mb-1.5 block text-sm font-medium">As-of date *</label>
+              <input id="opening-balance-date" type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} className="input" />
               <p className="mt-1 text-xs text-muted">
-                Confirm the date these balances were held, before your first
-                report period starts. Applying a suggestion does not record an entry.
+                Confirm the date these balances were held, before your first report period starts. Applying a suggestion does not record an entry.
               </p>
             </div>
 
             {eligibleAccounts.length === 0 ? (
-              <div className="alert-error">
-                Create an asset, liability, or equity account first, then set
-                its opening balance.
-              </div>
+              <div className="alert-error">Create an asset, liability, or equity account first, then set its opening balance.</div>
             ) : (
               <div className="space-y-2">
-                <span className="block text-sm font-medium">
-                  Starting balances
-                </span>
+                <span className="block text-sm font-medium">Starting balances</span>
                 {eligibleAccounts.map((account) => (
                   <div key={account.id} className="flex items-center gap-3">
-                    <label
-                      htmlFor={`opening-balance-${account.id}`}
-                      className="min-w-0 flex-1 truncate text-sm"
-                    >
+                    <label htmlFor={`opening-balance-${account.id}`} className="min-w-0 flex-1 truncate text-sm">
                       {account.name}
-                      <span className="ml-1 text-xs text-muted">
-                        {account.currency}
-                      </span>
+                      <span className="ml-1 text-xs text-muted">{account.currency}</span>
                     </label>
                     <input
                       id={`opening-balance-${account.id}`}
@@ -228,12 +154,7 @@ export default function OpeningBalanceModal({
                       inputMode="decimal"
                       placeholder="0.00"
                       value={amounts[account.id] ?? ""}
-                      onChange={(e) =>
-                        setAmounts((prev) => ({
-                          ...prev,
-                          [account.id]: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => setAmounts((prev) => ({ ...prev, [account.id]: e.target.value }))}
                       aria-label={`Opening balance for ${account.name}`}
                       className="input w-32 text-right"
                     />
@@ -243,37 +164,16 @@ export default function OpeningBalanceModal({
             )}
 
             <div>
-              <label
-                htmlFor="opening-balance-memo"
-                className="mb-1.5 block text-sm font-medium"
-              >
-                Memo
-              </label>
-              <input
-                id="opening-balance-memo"
-                type="text"
-                value={memo}
-                onChange={(e) => setMemo(e.target.value)}
-                className="input"
-              />
+              <label htmlFor="opening-balance-memo" className="mb-1.5 block text-sm font-medium">Memo</label>
+              <input id="opening-balance-memo" type="text" value={memo} onChange={(e) => setMemo(e.target.value)} className="input" />
             </div>
 
             {error && <div className="alert-error">{error}</div>}
           </div>
 
           <div className="flex gap-3 border-t border-[var(--border)] p-6 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn-secondary flex-1"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting || eligibleAccounts.length === 0}
-              className="btn-primary flex-1"
-            >
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+            <button type="submit" disabled={submitting || eligibleAccounts.length === 0} className="btn-primary flex-1">
               {submitting ? "Saving..." : "Record opening balances"}
             </button>
           </div>

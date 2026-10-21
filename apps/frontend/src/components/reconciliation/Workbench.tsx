@@ -9,11 +9,7 @@ import { Stage2ReviewQueue } from "@/components/review/Stage2ReviewQueue";
 import { InfoHint } from "@/components/ui/InfoHint";
 import { apiOperation } from "@/lib/api-client";
 import { formatAmount } from "@/lib/audit/money";
-import {
-  clampPercentWidthFromPercentValue,
-  formatPercentFromPercentValue,
-  percentNumberFromParts,
-} from "@/lib/audit/ratio/format";
+import { clampPercentWidthFromPercentValue, formatPercentFromPercentValue, percentNumberFromParts } from "@/lib/audit/ratio/format";
 import { RECONCILIATION_STATS_QUERY_KEY } from "@/lib/sharedQueries";
 import type { ReconciliationMatchResponse, MoneyValue } from "@/lib/types";
 
@@ -111,9 +107,7 @@ export default function ReconciliationWorkbench() {
     typeof (selected.transaction as { statement_filename?: unknown }).statement_filename === "string"
       ? (selected.transaction as { statement_filename?: string }).statement_filename
       : null;
-  const sourceStatementHref = selectedStatementId
-    ? `/statements/${selectedStatementId}`
-    : "/upload";
+  const sourceStatementHref = selectedStatementId ? `/statements/${selectedStatementId}` : "/upload";
   const sourceStatementLabel =
     selectedStatementFilename && selectedStatementFilename.trim().length > 0
       ? `View source statement (${selectedStatementFilename})`
@@ -121,59 +115,25 @@ export default function ReconciliationWorkbench() {
 
   return (
     <div className="p-6">
-      <nav
-        role="navigation"
-        aria-label="Reconciliation workspace views"
-        className="mb-6 flex flex-wrap gap-2 border-b border-[var(--border)] pb-3"
-      >
-        <Link
-          href="/reconciliation"
-          aria-current={activeTab === "matched" ? "page" : undefined}
-          onClick={(e) => {
-            e.preventDefault();
-            setActiveTab("matched");
-          }}
-          className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${
-            activeTab === "matched"
-              ? "bg-[var(--accent-muted)] text-[var(--accent)]"
-              : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
-          }`}
-        >
-          Matched & Pending
-        </Link>
-        <Link
-          href="/reconciliation/unmatched"
-          aria-current={activeTab === "unmatched" ? "page" : undefined}
-          onClick={(e) => {
-            e.preventDefault();
-            setActiveTab("unmatched");
-          }}
-          className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${
-            activeTab === "unmatched"
-              ? "bg-[var(--accent-muted)] text-[var(--accent)]"
-              : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
-          }`}
-        >
-          <span>Unmatched Bank Lines</span>
-          <span className="badge badge-warning text-[10px]">
-            {stats?.unmatched_transactions ?? 0}
-          </span>
-        </Link>
-        <Link
-          href="/reconciliation/review-queue"
-          aria-current={activeTab === "consistency" ? "page" : undefined}
-          onClick={(e) => {
-            e.preventDefault();
-            setActiveTab("consistency");
-          }}
-          className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${
-            activeTab === "consistency"
-              ? "bg-[var(--accent-muted)] text-[var(--accent)]"
-              : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
-          }`}
-        >
-          Consistency Checks
-        </Link>
+      <nav role="navigation" aria-label="Reconciliation workspace views" className="mb-6 flex flex-wrap gap-2 border-b border-[var(--border)] pb-3">
+        {([
+          ["matched", "/reconciliation", "Matched & Pending", null],
+          ["unmatched", "/reconciliation/unmatched", "Unmatched Bank Lines", stats?.unmatched_transactions ?? 0],
+          ["consistency", "/reconciliation/review-queue", "Consistency Checks", null],
+        ] as const).map(([tabKey, href, label, badgeCount]) => (
+          <Link
+            key={tabKey}
+            href={href}
+            aria-current={activeTab === tabKey ? "page" : undefined}
+            onClick={(e) => { e.preventDefault(); setActiveTab(tabKey); }}
+            className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${
+              activeTab === tabKey ? "bg-[var(--accent-muted)] text-[var(--accent)]" : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            <span>{label}</span>
+            {badgeCount !== null && <span className="badge badge-warning text-[10px]">{badgeCount}</span>}
+          </Link>
+        ))}
       </nav>
 
       {activeTab === "unmatched" ? (
@@ -183,198 +143,193 @@ export default function ReconciliationWorkbench() {
       ) : (
         <>
           <div className="page-header flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
-        <div>
-          <h1 className="page-title">Reconciliation Workbench</h1>
-          <p className="page-description">Match statement activity to ledger entries with multi-dimensional scoring</p>
-          <div className="flex flex-wrap gap-2 mt-4">
-            <button onClick={() => runReconciliationMutation.mutate()} disabled={runReconciliationMutation.isPending} className="btn-primary">
-              {runReconciliationMutation.isPending ? "Running..." : "Run Matching"}
-            </button>
-            <button onClick={() => batchAcceptMutation.mutate(highScoreIds)} disabled={batchAcceptMutation.isPending || highScoreIds.length === 0} className="btn-secondary">
-              {batchAcceptMutation.isPending ? "Batching..." : "Batch Accept ≥ 85"}
-            </button>
-            <Link href="/reconciliation/unmatched" className="btn-secondary">Unmatched Studio</Link>
-            <Link href="/reconciliation/review-queue" className="btn-secondary">Consistency Checks</Link>
-            <Link href="/upload" className="btn-secondary">Uploaded Statements</Link>
-          </div>
-          {error && <div className="mt-3 alert-error">{error}</div>}
-        </div>
-
-        <div className="card p-5 w-full max-w-sm">
-          <div className="text-xs text-muted uppercase tracking-wide">Match Rate</div>
-          <div className="flex items-end gap-2 mt-1">
-            <span className="text-3xl font-semibold text-[var(--accent)]">
-              {formatPercentFromPercentValue(matchRateValue, { dp: 1, fallback: "0.0%" })}
-            </span>
-            <span className="text-sm text-muted">
-              {stats?.matched_transactions ?? 0} / {stats?.total_transactions ?? 0}
-            </span>
-          </div>
-          <div className="mt-3 h-2 rounded-full bg-[var(--background-muted)] overflow-hidden">
-            <div className="h-full bg-[var(--accent)] rounded-full transition-all" style={{ width: clampPercentWidthFromPercentValue(matchRateValue) }} />
-          </div>
-          <div className="grid grid-cols-4 gap-2 mt-4 text-center">
-            {([
-              ["Auto", stats?.auto_accepted ?? 0, "bg-[var(--success-muted)]", "text-[var(--success)]"],
-              ["Review", stats?.pending_review ?? 0, "bg-[var(--warning-muted)]", "text-[var(--warning)]"],
-              ["None", stats?.unmatched_transactions ?? 0, "bg-[var(--background-muted)]", ""],
-              ["Queue", queue.length, "bg-[var(--accent-muted)]", "text-[var(--accent)]"],
-            ] as const).map(([label, val, bg, fg]) => (
-              <div key={label} className={`p-2 rounded-md ${bg}`}>
-                <div className="text-xs text-muted">{label}</div>
-                <div className={`font-semibold ${fg}`}>{val}</div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 pt-3 border-t border-[var(--border)]">
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="text-xs font-semibold">Score Distribution</h2>
-              <span className="text-[11px] text-muted">Confidence bands</span>
-            </div>
-            <div className="flex flex-wrap items-end gap-2 h-12">
-              {distribution.map(([label, value]) => (
-                <div key={label} className="flex flex-col items-end gap-0.5" style={{ height: "100%" }}>
-                  <div className="flex-1 flex items-end">
-                    <div
-                      className="w-7 rounded-sm bg-[var(--accent)] transition-all"
-                      style={{
-                        height:
-                          value === 0 || maxBucket <= 0
-                            ? "0%"
-                            : `${Math.max(10, percentNumberFromParts(String(value), String(maxBucket), { dp: 0, fallback: 0 }) ?? 0)}%`,
-                      }}
-                    />
-                  </div>
-                  <div className="text-[10px] font-medium">{label}</div>
-                  <div className="text-[10px] text-muted">{value}</div>
-                </div>
-              ))}
-              {!stats && <p className="text-xs text-muted">No data yet</p>}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2 mt-6">
-        <div className="card p-5">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="font-semibold">Review Queue</h2>
-            <span className="text-xs text-muted">{queue.length} items</span>
-          </div>
-          {isLoading ? (
-            <p className="text-sm text-muted">Loading...</p>
-          ) : queue.length === 0 ? (
-            <p className="text-sm text-muted">No pending matches</p>
-          ) : (
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {queue.map((match) => (
-                <button
-                  key={match.id}
-                  onClick={() => setSelected(match)}
-                  className={`w-full text-left p-3 rounded-md transition-colors ${selected?.id === match.id ? "bg-[var(--accent-muted)] border border-[var(--accent)]" : "bg-[var(--background-muted)] hover:bg-[var(--background-muted)]/80"}`}
-                >
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{match.transaction?.description ?? "Transaction"}</p>
-                      <p className="text-xs text-muted">{match.transaction?.txn_date} · {match.transaction?.direction === "IN" ? "In" : "Out"}</p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className="text-lg font-semibold text-[var(--accent)]">{match.match_score}</div>
-                      <span className={`badge text-[10px] ${match.status === "auto_accepted" ? "badge-success" : match.status === "pending_review" ? "badge-warning" : "badge-muted"}`}>
-                        {match.status.replace("_", " ")}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between text-xs text-muted mt-2">
-                    <span>{match.transaction?.amount != null ? formatQueueAmount(match.transaction.amount) : "—"}</span>
-                    <span>{match.entries?.length ?? 0} entries</span>
-                  </div>
+            <div>
+              <h1 className="page-title">Reconciliation Workbench</h1>
+              <p className="page-description">Match statement activity to ledger entries with multi-dimensional scoring</p>
+              <div className="flex flex-wrap gap-2 mt-4">
+                <button onClick={() => runReconciliationMutation.mutate()} disabled={runReconciliationMutation.isPending} className="btn-primary">
+                  {runReconciliationMutation.isPending ? "Running..." : "Run Matching"}
                 </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="card p-5">
-          <h2 className="font-semibold mb-4">Match Detail</h2>
-          {!selected ? (
-            <p className="text-sm text-muted">Select a match to review</p>
-          ) : (
-            <div className="space-y-4">
-              <div className="p-3 rounded-md bg-[var(--background-muted)]">
-                <div className="flex justify-between">
-                  <span className="text-sm font-medium">Transaction</span>
-                  <span className="text-xs text-[var(--accent)] inline-flex items-center">
-                    Score {selected.match_score}
-                    <InfoHint term="match_score" label="Match score" />
-                  </span>
-                </div>
-                <div className="text-xl font-semibold mt-1 text-[var(--accent)]">
-                  {selected.transaction?.amount != null ? formatAmount(selected.transaction.amount, 2) : "—"}
-                </div>
-                <p className="text-sm text-muted">{selected.transaction?.description}</p>
-                <p className="text-xs text-muted">{selected.transaction?.txn_date} · {selected.transaction?.direction === "IN" ? "In" : "Out"}</p>
-                <div className="mt-2 pt-2 border-t border-[var(--border)]">
-                  <Link
-                    href={sourceStatementHref}
-                    className="text-xs font-medium text-[var(--accent)] hover:underline"
-                  >
-                    {sourceStatementLabel}
-                  </Link>
-                </div>
+                <button onClick={() => batchAcceptMutation.mutate(highScoreIds)} disabled={batchAcceptMutation.isPending || highScoreIds.length === 0} className="btn-secondary">
+                  {batchAcceptMutation.isPending ? "Batching..." : "Batch Accept ≥ 85"}
+                </button>
+                <Link href="/reconciliation/unmatched" className="btn-secondary">Unmatched Studio</Link>
+                <Link href="/reconciliation/review-queue" className="btn-secondary">Consistency Checks</Link>
+                <Link href="/upload" className="btn-secondary">Uploaded Statements</Link>
               </div>
+              {error && <div className="mt-3 alert-error">{error}</div>}
+            </div>
 
-              <div className="grid gap-2 sm:grid-cols-2">
-                {(selected.entries ?? []).map((entry) => (
-                  <div key={entry.id} className="p-3 rounded-md border border-[var(--border)]">
-                    <div className="text-xs text-[var(--accent)] uppercase tracking-wide">Ledger Entry</div>
-                    <p className="font-medium text-sm">{entry.memo || "Untitled"}</p>
-                    <p className="text-xs text-muted">{entry.entry_date}</p>
-                    <p className="font-semibold text-[var(--accent)]">{formatAmount(entry.total_amount, 2)}</p>
+            <div className="card p-5 w-full max-w-sm">
+              <div className="text-xs text-muted uppercase tracking-wide">Match Rate</div>
+              <div className="flex items-end gap-2 mt-1">
+                <span className="text-3xl font-semibold text-[var(--accent)]">
+                  {formatPercentFromPercentValue(matchRateValue, { dp: 1, fallback: "0.0%" })}
+                </span>
+                <span className="text-sm text-muted">
+                  {stats?.matched_transactions ?? 0} / {stats?.total_transactions ?? 0}
+                </span>
+              </div>
+              <div className="mt-3 h-2 rounded-full bg-[var(--background-muted)] overflow-hidden">
+                <div className="h-full bg-[var(--accent)] rounded-full transition-all" style={{ width: clampPercentWidthFromPercentValue(matchRateValue) }} />
+              </div>
+              <div className="grid grid-cols-4 gap-2 mt-4 text-center">
+                {([
+                  ["Auto", stats?.auto_accepted ?? 0, "bg-[var(--success-muted)]", "text-[var(--success)]"],
+                  ["Review", stats?.pending_review ?? 0, "bg-[var(--warning-muted)]", "text-[var(--warning)]"],
+                  ["None", stats?.unmatched_transactions ?? 0, "bg-[var(--background-muted)]", ""],
+                  ["Queue", queue.length, "bg-[var(--accent-muted)]", "text-[var(--accent)]"],
+                ] as const).map(([label, val, bg, fg]) => (
+                  <div key={label} className={`p-2 rounded-md ${bg}`}>
+                    <div className="text-xs text-muted">{label}</div>
+                    <div className={`font-semibold ${fg}`}>{val}</div>
                   </div>
                 ))}
               </div>
-
-              <div className="p-3 rounded-md bg-[var(--background-muted)]">
-                <p className="font-medium text-sm mb-2">Score Breakdown</p>
-                <div className="space-y-1 text-xs">
-                  {Object.entries(selected.score_breakdown).map(([key, value]) => (
-                    <div key={key} className="flex justify-between">
-                      <span className="capitalize text-muted">{key.replace("_", " ")}</span>
-                      <span className="font-semibold text-[var(--accent)]">{formatAmount(value, 1)}</span>
+              <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                <div className="flex justify-between items-center mb-2">
+                  <h2 className="text-xs font-semibold">Score Distribution</h2>
+                  <span className="text-[11px] text-muted">Confidence bands</span>
+                </div>
+                <div className="flex flex-wrap items-end gap-2 h-12">
+                  {distribution.map(([label, value]) => (
+                    <div key={label} className="flex flex-col items-end gap-0.5" style={{ height: "100%" }}>
+                      <div className="flex-1 flex items-end">
+                        <div
+                          className="w-7 rounded-sm bg-[var(--accent)] transition-all"
+                          style={{
+                            height:
+                              value === 0 || maxBucket <= 0
+                                ? "0%"
+                                : `${Math.max(10, percentNumberFromParts(String(value), String(maxBucket), { dp: 0, fallback: 0 }) ?? 0)}%`,
+                          }}
+                        />
+                      </div>
+                      <div className="text-[10px] font-medium">{label}</div>
+                      <div className="text-[10px] text-muted">{value}</div>
                     </div>
                   ))}
+                  {!stats && <p className="text-xs text-muted">No data yet</p>}
                 </div>
-              </div>
-
-              {anomalies.length > 0 && (
-                <div className="p-3 rounded-md bg-[var(--warning-muted)] border border-[var(--warning)]/30">
-                  <p className="font-medium text-sm text-[var(--warning)]">
-                    Anomaly Signals
-                    <InfoHint term="anomaly" label="Anomaly" />
-                  </p>
-                  <ul className="mt-1 text-xs space-y-1">
-                    {anomalies.map((a) => (
-                      <li key={a.anomaly_type}>
-                        <strong className="uppercase">{a.severity}</strong>: {a.message}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <button onClick={() => acceptMatchMutation.mutate(selected.id)} disabled={acceptMatchMutation.isPending} className="btn-primary flex-1">
-                  {acceptMatchMutation.isPending ? "Accepting..." : "Accept"}
-                </button>
-                <button onClick={() => rejectMatchMutation.mutate(selected.id)} disabled={rejectMatchMutation.isPending} className="btn-secondary flex-1">
-                  {rejectMatchMutation.isPending ? "Rejecting..." : "Reject"}
-                </button>
               </div>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2 mt-6">
+            <div className="card p-5">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="font-semibold">Review Queue</h2>
+                <span className="text-xs text-muted">{queue.length} items</span>
+              </div>
+              {isLoading ? (
+                <p className="text-sm text-muted">Loading...</p>
+              ) : queue.length === 0 ? (
+                <p className="text-sm text-muted">No pending matches</p>
+              ) : (
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                  {queue.map((match) => (
+                    <button
+                      key={match.id}
+                      onClick={() => setSelected(match)}
+                      className={`w-full text-left p-3 rounded-md transition-colors ${selected?.id === match.id ? "bg-[var(--accent-muted)] border border-[var(--accent)]" : "bg-[var(--background-muted)] hover:bg-[var(--background-muted)]/80"}`}
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{match.transaction?.description ?? "Transaction"}</p>
+                          <p className="text-xs text-muted">{match.transaction?.txn_date} · {match.transaction?.direction === "IN" ? "In" : "Out"}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <div className="text-lg font-semibold text-[var(--accent)]">{match.match_score}</div>
+                          <span className={`badge text-[10px] ${match.status === "auto_accepted" ? "badge-success" : match.status === "pending_review" ? "badge-warning" : "badge-muted"}`}>
+                            {match.status.replace("_", " ")}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-xs text-muted mt-2">
+                        <span>{match.transaction?.amount != null ? formatQueueAmount(match.transaction.amount) : "—"}</span>
+                        <span>{match.entries?.length ?? 0} entries</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="card p-5">
+              <h2 className="font-semibold mb-4">Match Detail</h2>
+              {!selected ? (
+                <p className="text-sm text-muted">Select a match to review</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-3 rounded-md bg-[var(--background-muted)]">
+                    <div className="flex justify-between">
+                      <span className="text-sm font-medium">Transaction</span>
+                      <span className="text-xs text-[var(--accent)] inline-flex items-center">
+                        Score {selected.match_score}
+                        <InfoHint term="match_score" label="Match score" />
+                      </span>
+                    </div>
+                    <div className="text-xl font-semibold mt-1 text-[var(--accent)]">
+                      {selected.transaction?.amount != null ? formatAmount(selected.transaction.amount, 2) : "—"}
+                    </div>
+                    <p className="text-sm text-muted">{selected.transaction?.description}</p>
+                    <p className="text-xs text-muted">{selected.transaction?.txn_date} · {selected.transaction?.direction === "IN" ? "In" : "Out"}</p>
+                    <div className="mt-2 pt-2 border-t border-[var(--border)]">
+                      <Link href={sourceStatementHref} className="text-xs font-medium text-[var(--accent)] hover:underline">
+                        {sourceStatementLabel}
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {(selected.entries ?? []).map((entry) => (
+                      <div key={entry.id} className="p-3 rounded-md border border-[var(--border)]">
+                        <div className="text-xs text-[var(--accent)] uppercase tracking-wide">Ledger Entry</div>
+                        <p className="font-medium text-sm">{entry.memo || "Untitled"}</p>
+                        <p className="text-xs text-muted">{entry.entry_date}</p>
+                        <p className="font-semibold text-[var(--accent)]">{formatAmount(entry.total_amount, 2)}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="p-3 rounded-md bg-[var(--background-muted)]">
+                    <p className="font-medium text-sm mb-2">Score Breakdown</p>
+                    <div className="space-y-1 text-xs">
+                      {Object.entries(selected.score_breakdown).map(([key, value]) => (
+                        <div key={key} className="flex justify-between">
+                          <span className="capitalize text-muted">{key.replace("_", " ")}</span>
+                          <span className="font-semibold text-[var(--accent)]">{formatAmount(value, 1)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {anomalies.length > 0 && (
+                    <div className="p-3 rounded-md bg-[var(--warning-muted)] border border-[var(--warning)]/30">
+                      <p className="font-medium text-sm text-[var(--warning)]">
+                        Anomaly Signals
+                        <InfoHint term="anomaly" label="Anomaly" />
+                      </p>
+                      <ul className="mt-1 text-xs space-y-1">
+                        {anomalies.map((a) => (
+                          <li key={a.anomaly_type}><strong className="uppercase">{a.severity}</strong>: {a.message}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button onClick={() => acceptMatchMutation.mutate(selected.id)} disabled={acceptMatchMutation.isPending} className="btn-primary flex-1">
+                      {acceptMatchMutation.isPending ? "Accepting..." : "Accept"}
+                    </button>
+                    <button onClick={() => rejectMatchMutation.mutate(selected.id)} disabled={rejectMatchMutation.isPending} className="btn-secondary flex-1">
+                      {rejectMatchMutation.isPending ? "Rejecting..." : "Reject"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </>
       )}
     </div>

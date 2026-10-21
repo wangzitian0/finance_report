@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
-import { OpeningBalanceWarningBanner } from "@/components/reports/OpeningBalanceWarningBanner";
+import { OpeningBalanceWarningBanner } from "@/components/reports/ReportPageShell";
 import { compareAmounts, formatCurrencyLocale, subtractAmounts, toDecimal } from "@/lib/audit/money";
 import { formatPercentFromPercentValue, percentNumberFromParts } from "@/lib/audit/ratio/format";
 import { formatDateInput, formatMonthLabel } from "@/lib/date";
