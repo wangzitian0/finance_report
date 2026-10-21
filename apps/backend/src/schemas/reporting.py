@@ -719,6 +719,71 @@ class PersonalReportPackageTraceabilityResponse(BaseModel):
     completeness_warnings: list[PersonalReportPackageCompletenessWarning]
 
 
+class PersonalReportPackageTraceabilityAnchorName(str, Enum):
+    """The two anchors of one traceability line."""
+
+    SOURCE = "source_anchor"
+    LEDGER = "ledger_anchor"
+
+
+class PersonalReportPackageTraceabilityAnchorSummary(BaseModel):
+    """Source or ledger anchor of one preview line, without its identifiers and details (#2583)."""
+
+    state: str
+    source_types: list[str] = Field(default_factory=list, description="Source types disclosed for this anchor.")
+    entry_statuses: list[str] = Field(
+        default_factory=list, description="Ledger entry states disclosed for this anchor."
+    )
+    identifier_fields: list[str] = Field(
+        default_factory=list, description="Identifier field names available for this anchor."
+    )
+    unavailable_reason: str | None = None
+    detail_count: int = Field(
+        ge=0,
+        description="Number of details of this anchor. GET /reports/package/line-details returns them page by page.",
+    )
+
+
+class PersonalReportPackageTraceabilityLineSummary(BaseModel):
+    """Traceability metadata and anchor counts for one preview line."""
+
+    line_id: str
+    section_id: str
+    label: str
+    amount_field: str | None = None
+    currency_field: str | None = None
+    source_state: str
+    source_anchor: PersonalReportPackageTraceabilityAnchorSummary
+    ledger_anchor: PersonalReportPackageTraceabilityAnchorSummary
+    anchor_count: int = 0
+    blocker_codes: list[str] = Field(
+        default_factory=list, description="Explicit completeness or authority blockers for this line."
+    )
+
+
+class PersonalReportPackageTraceabilitySummaryResponse(BaseModel):
+    """The traceability appendix of a preview: one summary per line, without the details."""
+
+    section_id: str
+    label: str
+    status: str
+    lines: list[PersonalReportPackageTraceabilityLineSummary]
+    completeness_warnings: list[PersonalReportPackageCompletenessWarning]
+
+
+class PersonalReportPackageLineDetailsPage(BaseModel):
+    """One page of the details of one traceability line anchor, in appendix order."""
+
+    line_id: str
+    anchor: PersonalReportPackageTraceabilityAnchorName
+    total: int = Field(ge=0, description="Number of details of this anchor.")
+    limit: int = Field(ge=1, description="Maximum number of details in this page.")
+    offset: int = Field(ge=0, description="Number of details before this page.")
+    details: list[dict[str, str | Decimal | None]] = Field(
+        default_factory=list, description="Typed contribution details of this page."
+    )
+
+
 class AnnualizedIncomeScheduleIncome(BaseModel):
     """Trailing income totals for the personal report package."""
 
@@ -866,6 +931,55 @@ class PersonalReportPackageDocument(BaseModel):
         if self.package_decision_id is not None and self.lifecycle is not PersonalReportPackageDocumentLifecycle.FROZEN:
             raise ValueError("preview package cannot persist an authority decision")
         return self
+
+
+class PersonalReportPackagePreviewSections(BaseModel):
+    """The sections of a preview. The traceability appendix has one summary per line."""
+
+    model_config = {"extra": "forbid"}
+
+    balance_sheet: BalanceSheetResponse
+    income_statement: IncomeStatementResponse
+    cash_flow: CashFlowResponse
+    investment_performance: InvestmentPerformanceReportScheduleResponse
+    annualized_income_long_term: AnnualizedIncomeScheduleResponse
+    notes: PersonalReportPackageNotesResponse
+    traceability_appendix: PersonalReportPackageTraceabilitySummaryResponse
+
+
+class PersonalReportPackagePreview(BaseModel):
+    """The live preview of one package document (#2583).
+
+    It is a projection of ``PersonalReportPackageDocument``. Its appendix lines carry detail
+    counts, not details. It has no input manifest entries: ``readiness.input_coverage`` gives
+    their counts. ``GET /reports/package/line-details`` and ``GET /reports/package/manifest-entries``
+    return the entries page by page. A frozen snapshot stores the complete document.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    schema_version: Literal["2"]
+    lifecycle: Literal[PersonalReportPackageDocumentLifecycle.PREVIEW]
+    generated_at: datetime
+    package_id: str
+    status: Literal[PersonalReportPackageSnapshotStatus.DRAFT]
+    context: PersonalReportPackageContext
+    contract: PersonalReportPackageContractResponse
+    readiness: PersonalReportPackageReadinessResponse
+    framework_policy: FrameworkPolicyResult
+    statement_disposition_policy: PersonalReportPackageStatementDispositionPolicy | None = None
+    sections: PersonalReportPackagePreviewSections
+
+
+class PersonalReportPackageManifestEntriesPage(BaseModel):
+    """One page of the input manifest of a package document, in manifest order."""
+
+    total: int = Field(ge=0, description="Number of manifest entries.")
+    limit: int = Field(ge=1, description="Maximum number of entries in this page.")
+    offset: int = Field(ge=0, description="Number of entries before this page.")
+    entries: list[PersonalReportPackageTraceManifestEntry] = Field(
+        default_factory=list, description="Manifest entries of this page."
+    )
 
 
 class PersonalReportPackageSnapshotResponse(PersonalReportPackageSnapshotSummary):

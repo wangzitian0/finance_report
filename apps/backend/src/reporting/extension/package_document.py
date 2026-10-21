@@ -74,13 +74,20 @@ from src.schemas.reporting import (
     PersonalReportPackageDocumentLifecycle,
     PersonalReportPackageInputCoverage,
     PersonalReportPackageNotesResponse,
+    PersonalReportPackagePreview,
+    PersonalReportPackagePreviewSections,
     PersonalReportPackageReadinessBlocker,
     PersonalReportPackageReadinessResponse,
     PersonalReportPackageReadinessState,
     PersonalReportPackageSections,
     PersonalReportPackageSnapshotStatus,
     PersonalReportPackageStatementDispositionPolicy,
+    PersonalReportPackageTraceabilityAnchor,
+    PersonalReportPackageTraceabilityAnchorName,
+    PersonalReportPackageTraceabilityAnchorSummary,
+    PersonalReportPackageTraceabilityLineSummary,
     PersonalReportPackageTraceabilityResponse,
+    PersonalReportPackageTraceabilitySummaryResponse,
     PersonalReportPackageTraceManifestEntry,
 )
 
@@ -521,9 +528,7 @@ class PackageAssembler:
         sections = evaluation.sections
         input_manifest = evaluation.input_manifest
         readiness = evaluation.readiness
-        sections.traceability_appendix = PersonalReportPackageTraceabilityResponse.model_validate(
-            await build_personal_report_package_traceability_payload(contributions=evaluation.contributions)
-        )
+        sections.traceability_appendix = await _traceability_appendix(evaluation.contributions)
         sections.notes = _package_notes(statement_disposition_policy)
         now = datetime.now(UTC)
         package_decision_id = None
@@ -649,12 +654,12 @@ class PackageAssembler:
             contributions=base_contributions,
             cash_inputs=cash_inputs,
         )
-        market_contributions = await self._selected_market_contributions(
+        contributions = await self._with_market_contributions(
             db,
             user_id=user_id,
-            selections=sections.investment_performance.market_valuation_selections,
+            base_contributions=base_contributions,
+            investment_performance=sections.investment_performance,
         )
-        contributions = (*base_contributions, *market_contributions)
         input_manifest, unproven_input_refs = await self._input_manifest(
             db,
             user_id=user_id,
@@ -848,11 +853,11 @@ class PackageAssembler:
                 currency=currency,
                 cash_account_ids=cash_inputs.account_ids,
             ),
-            await build_investment_performance_report_schedule(
+            await self._investment_performance(
                 db,
-                user_id,
-                period_start=start_date,
-                period_end=end_date,
+                user_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
                 as_of_date=as_of_date,
                 currency=currency,
             ),
@@ -862,7 +867,7 @@ class PackageAssembler:
             balance_sheet=BalanceSheetResponse.model_validate(balance_sheet),
             income_statement=IncomeStatementResponse.model_validate(income_statement),
             cash_flow=CashFlowResponse.model_validate(cash_flow),
-            investment_performance=InvestmentPerformanceReportScheduleResponse.model_validate(investment_performance),
+            investment_performance=investment_performance,
             annualized_income_long_term=annualized_income,
             notes=PersonalReportPackageNotesResponse.model_validate(PERSONAL_REPORT_PACKAGE_NOTES),
             traceability_appendix=PersonalReportPackageTraceabilityResponse.model_validate(
@@ -914,8 +919,142 @@ class PackageAssembler:
                 for item in journal_results
             ),
             *(_valuation_section_contribution(item) for item in valuation_results),
-            *(_opening_section_contribution(item) for item in opening_results),
+            # The ledger read leaves accounts of equal version in database order. Each evidence page
+            # is a new request, so the package fixes one order: one position per account (#2583 S8).
+            *(
+                _opening_section_contribution(item)
+                for item in sorted(opening_results, key=lambda position: str(position.account_id))
+            ),
         )
+
+    @staticmethod
+    async def _investment_performance(
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+    ) -> InvestmentPerformanceReportScheduleResponse:
+        """Return the investment schedule. Its market selections are package contributions."""
+        return InvestmentPerformanceReportScheduleResponse.model_validate(
+            await build_investment_performance_report_schedule(
+                db,
+                user_id,
+                period_start=start_date,
+                period_end=end_date,
+                as_of_date=as_of_date,
+                currency=currency,
+            )
+        )
+
+    async def _with_market_contributions(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        base_contributions: tuple[PackageSectionContribution[Any], ...],
+        investment_performance: InvestmentPerformanceReportScheduleResponse,
+    ) -> tuple[PackageSectionContribution[Any], ...]:
+        """Add the market prices that the investment schedule shows. The result is the package contribution set."""
+        market_contributions = await self._selected_market_contributions(
+            db,
+            user_id=user_id,
+            selections=investment_performance.market_valuation_selections,
+        )
+        return (*base_contributions, *market_contributions)
+
+    async def _evidence_contributions(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+    ) -> tuple[PackageSectionContribution[Any], ...]:
+        """Return the contribution set that ``_evaluate`` computes for the same arguments.
+
+        The appendix and the input manifest read only this set. This path therefore does not
+        build the balance sheet, the income statement, the cash flow or the readiness.
+        """
+        base_contributions = await self._contributions(
+            db,
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+        )
+        investment_performance = await self._investment_performance(
+            db,
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+            currency=currency,
+        )
+        return await self._with_market_contributions(
+            db,
+            user_id=user_id,
+            base_contributions=base_contributions,
+            investment_performance=investment_performance,
+        )
+
+    async def line_details(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+        line_id: str,
+        anchor: PersonalReportPackageTraceabilityAnchorName,
+    ) -> list[dict[str, str | Decimal | None]] | None:
+        """Return all details of one appendix anchor, as ``assemble`` writes them. Return None for an unknown line."""
+        if line_id not in {line["line_id"] for line in PERSONAL_REPORT_PACKAGE_TRACEABILITY["lines"]}:
+            return None
+        appendix = await _traceability_appendix(
+            await self._evidence_contributions(
+                db,
+                user_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
+                as_of_date=as_of_date,
+                currency=currency,
+            )
+        )
+        # The builder writes every contract line, so the line exists.
+        line = next(line for line in appendix.lines if line.line_id == line_id)
+        return getattr(line, anchor.value).details
+
+    async def manifest_entries(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+    ) -> list[PersonalReportPackageTraceManifestEntry]:
+        """Return the input manifest that ``assemble`` writes for the same arguments."""
+        manifest, _unproven_input_refs = await self._input_manifest(
+            db,
+            user_id=user_id,
+            contributions=await self._evidence_contributions(
+                db,
+                user_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
+                as_of_date=as_of_date,
+                currency=currency,
+            ),
+        )
+        return manifest
 
     async def _selected_market_contributions(
         self,
@@ -1018,6 +1157,87 @@ class PackageAssembler:
             and current["assertion_id"] == expected.assertion.id
             and current["assertion_version"] == expected.assertion.version
         )
+
+
+async def _traceability_appendix(
+    contributions: tuple[PackageSectionContribution[Any], ...],
+) -> PersonalReportPackageTraceabilityResponse:
+    """Build the typed appendix. ``assemble`` and ``line_details`` use this one builder."""
+    return PersonalReportPackageTraceabilityResponse.model_validate(
+        await build_personal_report_package_traceability_payload(contributions=contributions)
+    )
+
+
+def _anchor_summary(
+    anchor: PersonalReportPackageTraceabilityAnchor,
+) -> PersonalReportPackageTraceabilityAnchorSummary:
+    return PersonalReportPackageTraceabilityAnchorSummary(
+        state=anchor.state,
+        source_types=anchor.source_types,
+        entry_statuses=anchor.entry_statuses,
+        identifier_fields=anchor.identifier_fields,
+        unavailable_reason=anchor.unavailable_reason,
+        detail_count=len(anchor.details),
+    )
+
+
+def traceability_summary(
+    appendix: PersonalReportPackageTraceabilityResponse,
+) -> PersonalReportPackageTraceabilitySummaryResponse:
+    """Replace the identifiers and the details of each anchor with their count."""
+    return PersonalReportPackageTraceabilitySummaryResponse(
+        section_id=appendix.section_id,
+        label=appendix.label,
+        status=appendix.status,
+        lines=[
+            PersonalReportPackageTraceabilityLineSummary(
+                line_id=line.line_id,
+                section_id=line.section_id,
+                label=line.label,
+                amount_field=line.amount_field,
+                currency_field=line.currency_field,
+                source_state=line.source_state,
+                source_anchor=_anchor_summary(line.source_anchor),
+                ledger_anchor=_anchor_summary(line.ledger_anchor),
+                anchor_count=line.anchor_count,
+                blocker_codes=line.blocker_codes,
+            )
+            for line in appendix.lines
+        ],
+        completeness_warnings=appendix.completeness_warnings,
+    )
+
+
+def package_preview(document: PersonalReportPackageDocument) -> PersonalReportPackagePreview:
+    """Project a preview document to the bounded preview payload (#2583).
+
+    The appendix keeps one summary for each line. The input manifest entries are not in the
+    payload: ``readiness.input_coverage`` gives their counts. A frozen document has no preview.
+    """
+    if document.lifecycle is not PersonalReportPackageDocumentLifecycle.PREVIEW:
+        raise ValueError("only a preview document has a preview payload")
+    sections = document.sections
+    return PersonalReportPackagePreview(
+        schema_version=document.schema_version,
+        lifecycle=document.lifecycle,
+        generated_at=document.generated_at,
+        package_id=document.package_id,
+        status=document.status,
+        context=document.context,
+        contract=document.contract,
+        readiness=document.readiness,
+        framework_policy=document.framework_policy,
+        statement_disposition_policy=document.statement_disposition_policy,
+        sections=PersonalReportPackagePreviewSections(
+            balance_sheet=sections.balance_sheet,
+            income_statement=sections.income_statement,
+            cash_flow=sections.cash_flow,
+            investment_performance=sections.investment_performance,
+            annualized_income_long_term=sections.annualized_income_long_term,
+            notes=sections.notes,
+            traceability_appendix=traceability_summary(sections.traceability_appendix),
+        ),
+    )
 
 
 async def current_package_readiness(

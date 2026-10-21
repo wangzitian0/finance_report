@@ -46,6 +46,7 @@ from src.reporting import (
     get_net_worth_timeseries,
     package_currency as _package_currency,
     package_dates as _package_dates,
+    package_preview,
     package_snapshot_csv as _package_snapshot_csv,
     package_snapshot_response as _package_snapshot_response,
     package_snapshot_summary as _package_snapshot_summary,
@@ -65,11 +66,14 @@ from src.schemas import (
     NetWorthTimeSeriesResponse,
     PersonalDataQualityHealthResponse,
     PersonalReportingFrameworkId,
-    PersonalReportPackageDocument,
     PersonalReportPackageDocumentLifecycle,
     PersonalReportPackageGenerateRequest,
+    PersonalReportPackageLineDetailsPage,
+    PersonalReportPackageManifestEntriesPage,
+    PersonalReportPackagePreview,
     PersonalReportPackageSnapshotResponse,
     PersonalReportPackageSnapshotSummary,
+    PersonalReportPackageTraceabilityAnchorName,
     ReportSnapshotSummary,
     TrendPeriod,
 )
@@ -175,7 +179,32 @@ class ExportReportType(str, Enum):
     CASH_FLOW = "cash-flow"
 
 
-@router.get("/package", response_model=PersonalReportPackageDocument)
+async def _package_period(
+    db: DbSession,
+    user_id: CurrentUserId,
+    *,
+    start_date: date | None,
+    end_date: date | None,
+    as_of_date: date | None,
+    currency: str | None,
+) -> tuple[date, date, date, str]:
+    """Resolve the package period and currency, and refresh the market data.
+
+    Each package GET commits at its end, as the other report GETs do. Refreshed prices then
+    stay stored, so the preview and the later evidence pages read the same prices. The commit
+    comes after the read, so the request keeps one connection.
+    """
+    report_start, report_end, report_as_of = _package_dates(
+        start_date=start_date,
+        end_date=end_date,
+        as_of_date=as_of_date,
+    )
+    target_currency = _package_currency(currency)
+    await _ensure_report_market_data_fresh(db, user_id, currency=target_currency, end_date=report_as_of)
+    return report_start, report_end, report_as_of, target_currency
+
+
+@router.get("/package", response_model=PersonalReportPackagePreview)
 async def preview_personal_report_package(
     framework_id: PersonalReportingFrameworkId = PersonalReportingFrameworkId.US_GAAP_LIKE,
     start_date: date | None = Query(default=None),
@@ -186,16 +215,16 @@ async def preview_personal_report_package(
     *,
     db: DbSession,
     user_id: CurrentUserId,
-) -> PersonalReportPackageDocument:
-    """Build the one typed preview document without persisting a snapshot."""
-    report_start, report_end, report_as_of = _package_dates(
-        start_date=start_date,
-        end_date=end_date,
-        as_of_date=as_of_date,
+) -> PersonalReportPackagePreview:
+    """Build the typed preview document without persisting a snapshot, and return its bounded projection.
+
+    The traceability details and the input manifest entries load page by page from
+    ``GET /reports/package/line-details`` and ``GET /reports/package/manifest-entries`` (#2583).
+    """
+    report_start, report_end, report_as_of, target_currency = await _package_period(
+        db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
     )
-    target_currency = _package_currency(currency)
-    await _ensure_report_market_data_fresh(db, user_id, currency=target_currency, end_date=report_as_of)
-    return await PackageAssembler().assemble(
+    document = await PackageAssembler().assemble(
         db,
         user_id=user_id,
         framework_id=framework_id,
@@ -204,6 +233,88 @@ async def preview_personal_report_package(
         as_of_date=report_as_of,
         currency=target_currency,
         include_restricted=include_restricted,
+    )
+    await db.commit()
+    return package_preview(document)
+
+
+@router.get("/package/line-details", response_model=PersonalReportPackageLineDetailsPage)
+async def list_personal_report_package_line_details(
+    line_id: str = Query(
+        min_length=1, max_length=128, description="Traceability line, for example balance_sheet.total_assets"
+    ),
+    anchor: PersonalReportPackageTraceabilityAnchorName = Query(description="The anchor of the line"),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    as_of_date: date | None = Query(default=None),
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+    pagination: Pagination,
+) -> PersonalReportPackageLineDetailsPage:
+    """Return one page of the details of one traceability line anchor of the preview.
+
+    The details equal the details that a snapshot of the same period stores, in the same order.
+    """
+    report_start, report_end, report_as_of, target_currency = await _package_period(
+        db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
+    )
+    details = await PackageAssembler().line_details(
+        db,
+        user_id=user_id,
+        start_date=report_start,
+        end_date=report_end,
+        as_of_date=report_as_of,
+        currency=target_currency,
+        line_id=line_id,
+        anchor=anchor,
+    )
+    if details is None:
+        raise_not_found("Traceability line")
+    await db.commit()
+    return PersonalReportPackageLineDetailsPage(
+        line_id=line_id,
+        anchor=anchor,
+        total=len(details),
+        limit=pagination.limit,
+        offset=pagination.offset,
+        details=details[pagination.offset : pagination.offset + pagination.limit],
+    )
+
+
+@router.get("/package/manifest-entries", response_model=PersonalReportPackageManifestEntriesPage)
+async def list_personal_report_package_manifest_entries(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    as_of_date: date | None = Query(default=None),
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+    pagination: Pagination,
+) -> PersonalReportPackageManifestEntriesPage:
+    """Return one page of the input manifest of the preview.
+
+    The entries equal the input manifest that a snapshot of the same period stores, in the same order.
+    """
+    report_start, report_end, report_as_of, target_currency = await _package_period(
+        db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
+    )
+    entries = await PackageAssembler().manifest_entries(
+        db,
+        user_id=user_id,
+        start_date=report_start,
+        end_date=report_end,
+        as_of_date=report_as_of,
+        currency=target_currency,
+    )
+    await db.commit()
+    return PersonalReportPackageManifestEntriesPage(
+        total=len(entries),
+        limit=pagination.limit,
+        offset=pagination.offset,
+        entries=entries[pagination.offset : pagination.offset + pagination.limit],
     )
 
 

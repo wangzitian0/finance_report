@@ -242,12 +242,32 @@ def _assert_traceability(statement_rows: list[dict], journal_rows: list[dict]) -
     assert matched, "expected at least one statement-linked journal entry"
 
 
-def _has_dynamic_traceability_identifiers(traceability: dict) -> bool:
+def _has_dynamic_traceability_details(traceability: dict) -> bool:
+    """The preview carries a detail count per anchor; the details load page by page (#2583)."""
     return any(
-        anchor.get("identifiers")
+        anchor.get("detail_count", 0) > 0
         for line in traceability.get("lines", [])
+        if line.get("line_id") != "notes.non_compliance_statement"
         for anchor in (line.get("source_anchor", {}), line.get("ledger_anchor", {}))
     )
+
+
+async def _all_evidence_pages(
+    client: httpx.AsyncClient, path: str, query: str, item_key: str
+) -> list[dict]:
+    """Read every page of one package evidence list (line details or manifest entries)."""
+    items: list[dict] = []
+    offset = 0
+    while True:
+        response = await client.get(_api_url(f"{path}?{query}&limit=500&offset={offset}"))
+        assert response.status_code == 200, (
+            f"{path} failed: {response.status_code} {response.text}"
+        )
+        page = response.json()
+        items.extend(page[item_key])
+        offset += 500
+        if offset >= page["total"]:
+            return items
 
 
 def _has_price_source_link(source_links: list[str]) -> bool:
@@ -735,13 +755,14 @@ async def test_personal_financial_report_package_post_merge_journey(
         assert schedules_by_ticker[RSU_SOURCE] == RSU_NOTES
         assert schedules_by_ticker[STOCK_OPTIONS_SOURCE] == STOCK_OPTIONS_NOTES
 
+        package_period_query = (
+            f"start_date={fixture_period_start.isoformat()}"
+            f"&end_date={fixture_period_end.isoformat()}"
+            f"&as_of_date={fixture_period_end.isoformat()}"
+            "&currency=SGD"
+        )
         package_response = await client.get(
-            _api_url(
-                f"/reports/package?start_date={fixture_period_start.isoformat()}"
-                f"&end_date={fixture_period_end.isoformat()}"
-                f"&as_of_date={fixture_period_end.isoformat()}"
-                "&currency=SGD&include_restricted=true"
-            )
+            _api_url(f"/reports/package?{package_period_query}&include_restricted=true")
         )
         assert package_response.status_code == 200, (
             f"package preview failed: {package_response.status_code} {package_response.text}"
@@ -795,21 +816,34 @@ async def test_personal_financial_report_package_post_merge_journey(
         traceability = package_sections["traceability_appendix"]
         assert traceability["section_id"] == "traceability_appendix"
         assert traceability["status"] == "ready"
-        assert _has_dynamic_traceability_identifiers(traceability)
+        assert _has_dynamic_traceability_details(traceability)
         traceability_lines = {line["line_id"]: line for line in traceability["lines"]}
         trusted_total_line_ids = PACKAGE_FIXTURE.required_traceability_line_ids
         assert trusted_total_line_ids <= set(traceability_lines)
+        manifest_entries = await _all_evidence_pages(
+            client, "/reports/package/manifest-entries", package_period_query, "entries"
+        )
+        assert len(manifest_entries) == (
+            package_document["readiness"]["input_coverage"]["manifest_decision_count"]
+        )
+        manifest_decisions = {item["decision_id"] for item in manifest_entries}
         for line_id in trusted_total_line_ids:
             line = traceability_lines[line_id]
             assert line["source_anchor"]["state"] == "available"
             assert line["ledger_anchor"]["state"] == "available"
             assert line["ledger_anchor"]["entry_statuses"] == ["posted", "reconciled"]
             assert line["blocker_codes"] == []
-            manifest_decisions = {
-                item["decision_id"] for item in package_document["input_manifest"]
-            }
             for anchor_name in ("source_anchor", "ledger_anchor"):
-                details = line[anchor_name]["details"]
+                details = await _all_evidence_pages(
+                    client,
+                    "/reports/package/line-details",
+                    f"{package_period_query}&line_id={line_id}&anchor={anchor_name}",
+                    "details",
+                )
+                assert len(details) == line[anchor_name]["detail_count"], (
+                    line_id,
+                    anchor_name,
+                )
                 assert details, (line_id, anchor_name)
                 assert all(
                     detail["review_state"] == "current_authoritative_decision"

@@ -1,23 +1,25 @@
 import Link from "next/link";
+import { useState } from "react";
 import { Download, FileJson, Network, Printer, Save, X } from "lucide-react";
 
+import { ManifestEntries, TraceabilityLineEvidence } from "@/components/reports/package/evidence";
 import { SkeletonBlock } from "@/components/ui";
 import { formatCurrencyLocale } from "@/lib/audit/money";
-import { anchorFromIdentifiers, nodeDisplayTitle, nodeLabel, nodeSourceHref, type LineageAnchor } from "@/lib/lineage";
+import { nodeDisplayTitle, nodeLabel, nodeSourceHref } from "@/lib/lineage";
 import type {
   AnnualizedIncomeScheduleResponse,
   EvidenceLineageResponse,
   FrameworkPolicyResult,
   MoneyValue,
   PersonalReportPackageContractResponse,
+  PersonalReportPackageDocument,
   PersonalReportPackageInputCoverage,
   PersonalReportPackageNotesResponse,
   PersonalReportPackageReadinessResponse,
   PersonalReportPackageSections,
   PersonalReportPackageSnapshotSummary,
-  PersonalReportPackageTraceabilityLine,
-  PersonalReportPackageTraceabilityResponse,
-  PersonalReportPackageTraceManifestEntry,
+  PersonalReportPackageTraceabilityLineSummary,
+  PersonalReportPackageTraceabilitySummary,
 } from "@/lib/types";
 import { countLabel, humanizeIdentifier, sourceClassLabel } from "@/lib/statusLabels";
 
@@ -27,7 +29,7 @@ export const FRAMEWORK_LABELS: Record<string, string> = {
 };
 
 export type LineagePanelState = {
-  line: PersonalReportPackageTraceabilityLine;
+  line: PersonalReportPackageTraceabilityLineSummary;
   response: EvidenceLineageResponse | null;
   isLoading: boolean;
   error: string | null;
@@ -67,11 +69,11 @@ export function renderSourceClasses(values?: string[]): string {
   return values && values.length ? values.map(sourceClassLabel).join(", ") : "none";
 }
 
-export function renderAnchorDetail(primary: string, identifiers?: string[]) {
+export function renderAnchorDetail(primary: string, detailCount: number) {
   return (
     <>
       <p className="mt-1 text-xs text-muted">{primary}</p>
-      {identifiers?.length ? <p className="mt-1 max-w-xs break-words font-mono text-[11px] text-muted">{identifiers.join(", ")}</p> : null}
+      {detailCount ? <p className="mt-1 font-mono text-[11px] text-muted">{countLabel(detailCount, "detail")}</p> : null}
     </>
   );
 }
@@ -95,10 +97,6 @@ export function formatSnapshotTimestamp(value?: string | null): string {
 export function snapshotDownloadLabel(snapshot: PersonalReportPackageSnapshotSummary, format: "JSON" | "CSV"): string {
   const framework = FRAMEWORK_LABELS[snapshot.framework_id] ?? snapshot.framework_id;
   return `Download ${format} snapshot ${snapshot.id} for ${framework} ${snapshot.start_date} to ${snapshot.end_date}`;
-}
-
-export function lineageAnchorForLine(line: PersonalReportPackageTraceabilityLine): LineageAnchor | null {
-  return anchorFromIdentifiers([...(line.ledger_anchor.identifiers ?? []), ...(line.source_anchor.identifiers ?? [])]);
 }
 
 export function PackageCover({
@@ -346,11 +344,13 @@ export function PackageReadinessSection({ readiness }: { readiness: PersonalRepo
 
 export function PackageInputManifestSection({
   coverage,
-  manifest,
+  document,
 }: {
   coverage: PersonalReportPackageInputCoverage;
-  manifest: PersonalReportPackageTraceManifestEntry[];
+  document: PersonalReportPackageDocument;
 }) {
+  // The entries load when the user opens the audit details (#2583 S8).
+  const [manifestOpen, setManifestOpen] = useState(false);
   return (
     <section id="package-input-manifest" className="card p-5 mb-6" aria-label="Authority Coverage">
       <div className="flex items-start justify-between gap-3">
@@ -364,13 +364,15 @@ export function PackageInputManifestSection({
         <div className="rounded border border-[var(--border)] p-3"><dt className="text-xs text-muted">Authoritative inputs</dt><dd className="mt-1 font-semibold">{coverage.authoritative_input_count}</dd></div>
         <div className="rounded border border-[var(--border)] p-3"><dt className="text-xs text-muted">Unproven inputs</dt><dd className="mt-1 font-semibold">{coverage.unproven_input_count}</dd></div>
       </dl>
-      <details className="mt-4 rounded border border-[var(--border)] p-3 text-sm print:hidden">
+      <details
+        className="mt-4 rounded border border-[var(--border)] p-3 text-sm print:hidden"
+        onToggle={(event) => setManifestOpen(event.currentTarget.open)}
+      >
         <summary className="cursor-pointer font-medium">Authority manifest audit details</summary>
-        <div className="mt-3 space-y-2 font-mono text-xs">
-          {manifest.length ? manifest.map((e) => (
-            <p key={e.decision_id}>{e.decision_id} {e.target_kind}:{e.target_id}@{e.target_version}</p>
-          )) : <p>No authority decisions are pinned for this document.</p>}
-        </div>
+        {manifestOpen && coverage.manifest_decision_count > 0 ? <ManifestEntries document={document} /> : null}
+        {manifestOpen && coverage.manifest_decision_count === 0 ? (
+          <p className="mt-3 font-mono text-xs">No authority decisions are pinned for this document.</p>
+        ) : null}
       </details>
     </section>
   );
@@ -739,12 +741,64 @@ export function PackageSnapshotsCard({
   );
 }
 
-export function PackageTraceabilitySection({
-  appendix,
+function TraceabilityLineCard({
+  line,
+  document,
   onTrace,
 }: {
-  appendix: PersonalReportPackageTraceabilityResponse;
-  onTrace: (line: PersonalReportPackageTraceabilityLine) => void;
+  line: PersonalReportPackageTraceabilityLineSummary;
+  document: PersonalReportPackageDocument;
+  onTrace: (line: PersonalReportPackageTraceabilityLineSummary) => void;
+}) {
+  // The details of the line load when the user opens it (#2583 S8).
+  const [open, setOpen] = useState(false);
+  const evidenceId = `package-line-evidence-${line.line_id.replace(/[^a-z0-9_-]/gi, "-")}`;
+  return (
+    <article className="rounded border border-[var(--border)] p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div><p className="font-medium">{line.label}</p><p className="mt-1 text-xs text-muted">{humanizeIdentifier(line.section_id)}</p></div>
+        <button
+          type="button"
+          className="btn-secondary inline-flex h-9 w-9 items-center justify-center p-0"
+          aria-label={`Trace evidence for ${line.label}`}
+          title="Trace evidence"
+          onClick={() => onTrace(line)}
+        >
+          <Network aria-hidden="true" className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+        <span className="badge badge-muted">Source {humanizeIdentifier(line.source_anchor.state).toLowerCase()}</span>
+        <span className="badge badge-muted">Ledger {humanizeIdentifier(line.ledger_anchor.state).toLowerCase()}</span>
+        <span className="badge badge-muted">{countLabel(line.anchor_count ?? 0, "evidence anchor")}</span>
+      </div>
+      <button
+        type="button"
+        className="btn-secondary mt-3 text-xs"
+        aria-expanded={open}
+        aria-controls={evidenceId}
+        aria-label={`${open ? "Hide" : "Show"} evidence details for ${line.label}`}
+        onClick={() => setOpen((value) => !value)}
+      >
+        {open ? "Hide evidence details" : "Show evidence details"}
+      </button>
+      {open ? (
+        <div id={evidenceId}>
+          <TraceabilityLineEvidence document={document} line={line} />
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+export function PackageTraceabilitySection({
+  appendix,
+  document,
+  onTrace,
+}: {
+  appendix: PersonalReportPackageTraceabilitySummary;
+  document: PersonalReportPackageDocument;
+  onTrace: (line: PersonalReportPackageTraceabilityLineSummary) => void;
 }) {
   const linesWithEvidence = appendix.lines.filter((l) => l.source_anchor.state === "available" || l.ledger_anchor.state === "available").length;
   return (
@@ -758,27 +812,9 @@ export function PackageTraceabilitySection({
         <div><dt className="text-xs text-muted">Completeness warnings</dt><dd className="mt-1 font-semibold">{appendix.completeness_warnings.length}</dd></div>
         <div><dt className="text-xs text-muted">Appendix status</dt><dd className="mt-1 font-semibold">{humanizeIdentifier(appendix.status)}</dd></div>
       </dl>
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+      <div className="mt-5 grid items-start gap-4 lg:grid-cols-2">
         {appendix.lines.map((line) => (
-          <article key={line.line_id} className="rounded border border-[var(--border)] p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div><p className="font-medium">{line.label}</p><p className="mt-1 text-xs text-muted">{humanizeIdentifier(line.section_id)}</p></div>
-              <button
-                type="button"
-                className="btn-secondary inline-flex h-9 w-9 items-center justify-center p-0"
-                aria-label={`Trace evidence for ${line.label}`}
-                title="Trace evidence"
-                onClick={() => onTrace(line)}
-              >
-                <Network aria-hidden="true" className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2 text-xs">
-              <span className="badge badge-muted">Source {humanizeIdentifier(line.source_anchor.state).toLowerCase()}</span>
-              <span className="badge badge-muted">Ledger {humanizeIdentifier(line.ledger_anchor.state).toLowerCase()}</span>
-              <span className="badge badge-muted">{countLabel(line.anchor_count ?? 0, "evidence anchor")}</span>
-            </div>
-          </article>
+          <TraceabilityLineCard key={line.line_id} line={line} document={document} onTrace={onTrace} />
         ))}
       </div>
       <div className="mt-5 grid lg:grid-cols-2 gap-4">
@@ -811,11 +847,11 @@ export function PackageTraceabilitySection({
                   <td className="py-3 pr-4"><p className="font-mono text-xs">{line.line_id}</p><p className="mt-1 text-xs text-muted">{line.label}</p></td>
                   <td className="py-3 pr-4">
                     <p className="font-mono text-xs">{line.source_state}</p>
-                    {renderAnchorDetail((line.source_anchor.source_types ?? []).join(", ") || line.source_anchor.state, line.source_anchor.identifiers)}
+                    {renderAnchorDetail((line.source_anchor.source_types ?? []).join(", ") || line.source_anchor.state, line.source_anchor.detail_count)}
                   </td>
                   <td className="py-3 pr-4">
                     <p className="font-mono text-xs">{line.ledger_anchor.state}</p>
-                    {renderAnchorDetail((line.ledger_anchor.entry_statuses ?? []).join(", ") || line.ledger_anchor.unavailable_reason || line.ledger_anchor.state, line.ledger_anchor.identifiers)}
+                    {renderAnchorDetail((line.ledger_anchor.entry_statuses ?? []).join(", ") || line.ledger_anchor.unavailable_reason || line.ledger_anchor.state, line.ledger_anchor.detail_count)}
                   </td>
                   <td className="py-3">
                     <div className="flex flex-col gap-2">

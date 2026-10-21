@@ -362,12 +362,25 @@ are `manual`.
 
 The stable delivery surface is one versioned `PersonalReportPackageDocument`,
 not a directory of section endpoints. `GET /api/reports/package` builds the
-current preview. Runtime package journeys read annualized income, notes and
-traceability from that same document, with their independent numeric assertions
-intact; the consumer-closure proof includes these E2E callers.
-`POST /api/reports/package/generate` persists the same shape;
-the snapshot list, selected reopen, and selected JSON/CSV export routes read
-only that frozen document. Required document sections are:
+current preview document and returns its bounded projection,
+`PersonalReportPackagePreview` (#2583 S8). The projection keeps every section.
+Each traceability line keeps its metadata, its anchor states and a `detail_count`
+per anchor. It has no identifiers, no details and no input manifest entries;
+`readiness.input_coverage` gives the manifest counts. At one year of activity the
+preview is about 60 KB; the complete document was 3.9 MB.
+`GET /api/reports/package/line-details` (one line anchor) and
+`GET /api/reports/package/manifest-entries` return those lists page by page with
+the shared `limit`/`offset` bounds. They read the same contribution set as the
+document, without the statement sections, and the same appendix builder, so each
+page equals the matching slice of a frozen snapshot of the same period. These
+two routes are pages of the one document, not separate package artifacts.
+Runtime package journeys read annualized income, notes and traceability counts
+from the preview, and the traceability details and manifest entries from these
+pages, with their independent numeric assertions intact; the consumer-closure
+proof includes these E2E callers.
+`POST /api/reports/package/generate` persists the complete document, details and
+manifest included; the snapshot list, selected reopen, and selected JSON/CSV
+export routes read only that frozen document. Required document sections are:
 
 | Section ID | Owner |
 |---|---|
@@ -457,7 +470,9 @@ Each line maps one section/line to source and ledger anchors: `line_id`,
 `source_state`, `source_anchor` (`state` ∈ `{available, unavailable,
 not_applicable}` + identifiers), and `ledger_anchor` (same shape). Details
 carry the contribution input reference, amount/currency when present,
-current decision id, review state, and reason code.
+current decision id, review state, and reason code. The preview replaces the
+identifiers and details of each anchor with `detail_count`; the package page
+loads the details of one line when the user opens it.
 
 For a cutoff inside a statement period, reporting retains its exact current
 source decision for immutable transactions dated within the selected period

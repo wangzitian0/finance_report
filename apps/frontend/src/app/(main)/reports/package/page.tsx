@@ -22,7 +22,6 @@ import {
   PackageTableOfContents,
   PackageTraceabilitySection,
   evidenceBundleReferences,
-  lineageAnchorForLine,
   packageTocLinks,
   type LineagePanelState,
 } from "@/components/reports/package/shared";
@@ -34,10 +33,12 @@ import {
 import { apiOperation, apiOperationDownload } from "@/lib/api-client";
 import { formatDateInput } from "@/lib/date";
 import { lineageQuery } from "@/lib/lineage";
+import { loadLineageAnchorForLine } from "@/lib/packageEvidence";
 import { reportPeriodError, reportPeriodStart } from "@/lib/reportPackage";
 import type {
+  PersonalReportPackageDocument,
   PersonalReportPackageSnapshotSummary,
-  PersonalReportPackageTraceabilityLine,
+  PersonalReportPackageTraceabilityLineSummary,
   PersonalReportingFrameworkId,
 } from "@/lib/types";
 
@@ -63,9 +64,21 @@ export default function PersonalReportPackagePage() {
     error,
   } = usePersonalReportPackage(selectedFrameworkId, reportDate, selectedSnapshotId, startDate);
 
-  async function openLineagePanel(line: PersonalReportPackageTraceabilityLine) {
+  async function openLineagePanel(shownDocument: PersonalReportPackageDocument, line: PersonalReportPackageTraceabilityLineSummary) {
     setLineagePanel({ line, response: null, isLoading: true, error: null });
-    const anchor = lineageAnchorForLine(line);
+    // The preview has no identifiers: read the first page of the line, then ask the graph (#2583 S8).
+    let anchor;
+    try {
+      anchor = await loadLineageAnchorForLine(queryClient, shownDocument, line);
+    } catch (err) {
+      setLineagePanel({
+        line,
+        response: null,
+        isLoading: false,
+        error: err instanceof Error ? err.message : "Failed to load the evidence of this line.",
+      });
+      return;
+    }
     if (!anchor) {
       setLineagePanel({
         line,
@@ -258,12 +271,16 @@ export default function PersonalReportPackagePage() {
       </section>
 
       <PackageReadinessSection readiness={packageDocument.readiness} />
-      <PackageInputManifestSection coverage={packageDocument.readiness.input_coverage} manifest={packageDocument.input_manifest} />
+      <PackageInputManifestSection coverage={packageDocument.readiness.input_coverage} document={packageDocument} />
       <PackageFrameworkPolicySection policy={packageDocument.framework_policy} />
       <PackageSectionCards sections={packageDocument.sections} />
       <PackageAnnualizedScheduleSection schedule={packageDocument.sections.annualized_income_long_term} />
       <PackageNotesSection notes={packageDocument.sections.notes} />
-      <PackageTraceabilitySection appendix={packageDocument.sections.traceability_appendix} onTrace={(line) => void openLineagePanel(line)} />
+      <PackageTraceabilitySection
+        appendix={packageDocument.sections.traceability_appendix}
+        document={packageDocument}
+        onTrace={(line) => void openLineagePanel(packageDocument, line)}
+      />
       <PackageExportContractSection contract={packageDocument.contract} policy={packageDocument.framework_policy} evidenceReferences={evidenceReferences} />
 
       {lineagePanel ? <LineagePanelModal panel={lineagePanel} onClose={() => setLineagePanel(null)} /> : null}

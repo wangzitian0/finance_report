@@ -206,6 +206,24 @@ const packageNotes = {
   ],
 };
 
+// One detail per identifier, as the backend appendix builder writes it.
+function detailsFor(identifiers: string[]) {
+  return identifiers.map((identifier) => ({
+    identifier,
+    source_kind: identifier.split(":")[0],
+    source_id: identifier.slice(identifier.indexOf(":") + 1),
+    amount: identifier.startsWith("journal_line:") ? "120.00" : null,
+    currency: identifier.startsWith("journal_line:") ? "SGD" : null,
+    review_state: "current_authoritative_decision",
+    decision_id: "77777777-7777-4777-8777-777777777777",
+    reason_code: null,
+  }));
+}
+
+const fullAnchor = <T extends { identifiers: string[] }>(anchor: T) => ({ ...anchor, details: detailsFor(anchor.identifiers) });
+const withIdentifiers = <T extends { identifiers: string[] }>(anchor: T, identifiers: string[]) => ({ ...anchor, identifiers, details: detailsFor(identifiers) });
+
+// The complete appendix: a frozen snapshot stores it with every identifier and detail.
 const traceabilityAppendix = {
   section_id: "traceability_appendix",
   label: "Traceability Appendix",
@@ -218,18 +236,18 @@ const traceabilityAppendix = {
       amount_field: "total_assets",
       currency_field: "currency",
       source_state: "posted_reconciled_journal_lines_and_manual_valuations",
-      source_anchor: {
+      source_anchor: fullAnchor({
         state: "available",
         source_types: ["bank_statement", "manual_valuation_snapshot"],
         identifier_fields: ["statement_transaction_ids", "manual_valuation_snapshot_ids"],
         identifiers: [`statement_transaction:${statementTxnId}`, "manual_valuation_snapshot:val-456"],
-      },
-      ledger_anchor: {
+      }),
+      ledger_anchor: fullAnchor({
         state: "available",
         entry_statuses: ["posted", "reconciled"],
         identifier_fields: ["journal_entry_ids", "journal_line_ids"],
         identifiers: [`journal_entry:${journalEntryId}`, `journal_line:${journalLineId}`],
-      },
+      }),
       anchor_count: 4,
       blocker_codes: [],
     },
@@ -240,13 +258,13 @@ const traceabilityAppendix = {
       amount_field: null,
       currency_field: null,
       source_state: "package_contract",
-      source_anchor: {
+      source_anchor: fullAnchor({
         state: "available",
         source_types: ["package_contract"],
         identifier_fields: ["note_id"],
         identifiers: ["note:basis-of-preparation"],
-      },
-      ledger_anchor: { state: "not_applicable", entry_statuses: [], identifier_fields: [], identifiers: [] },
+      }),
+      ledger_anchor: fullAnchor({ state: "not_applicable", entry_statuses: [], identifier_fields: [], identifiers: [] as string[] }),
       blocker_codes: ["static_contract_note"],
     },
   ],
@@ -327,6 +345,56 @@ function packageDocument(
   };
 }
 
+// The wire shape of `GET /reports/package` (#2583 S8): per-line detail counts, no identifiers,
+// no details and no input manifest entries.
+function previewAnchor(anchor: Record<string, unknown>) {
+  const { identifiers: _identifiers, details, ...summary } = anchor;
+  return { ...summary, detail_count: Array.isArray(details) ? details.length : 0 };
+}
+
+function previewAppendix(appendix: unknown) {
+  const full = appendix as { lines: Record<string, unknown>[] };
+  return {
+    ...full,
+    lines: full.lines.map((line) => ({
+      ...line,
+      source_anchor: previewAnchor(line.source_anchor as Record<string, unknown>),
+      ledger_anchor: previewAnchor(line.ledger_anchor as Record<string, unknown>),
+    })),
+  };
+}
+
+function packagePreview(readinessPayload = readiness, policyPayload = frameworkPolicy, traceabilityPayload: unknown = traceabilityAppendix) {
+  const {
+    snapshot_id: _snapshotId,
+    package_decision_id: _decisionId,
+    frozen_at: _frozenAt,
+    input_manifest: _manifest,
+    ...preview
+  } = packageDocument(readinessPayload, policyPayload, traceabilityPayload);
+  return { ...preview, status: "draft", sections: { ...preview.sections, traceability_appendix: previewAppendix(traceabilityPayload) } };
+}
+
+// The evidence pages of the preview: slices of the complete fixture lists.
+function evidencePage(path: string, traceabilityPayload: unknown) {
+  const url = new URL(path, "http://localhost");
+  const limit = Number(url.searchParams.get("limit"));
+  const offset = Number(url.searchParams.get("offset"));
+  if (url.pathname === "/api/reports/package/manifest-entries") {
+    const entries = packageDocument().input_manifest;
+    return { total: entries.length, limit, offset, entries: entries.slice(offset, offset + limit) };
+  }
+  const lineId = url.searchParams.get("line_id");
+  const anchor = url.searchParams.get("anchor") as "source_anchor" | "ledger_anchor";
+  type FixtureLine = { line_id: string; source_anchor: { details?: unknown[] }; ledger_anchor: { details?: unknown[] } };
+  const line = (traceabilityPayload as { lines: FixtureLine[] }).lines.find((item) => item.line_id === lineId);
+  const details = line?.[anchor]?.details ?? [];
+  return { line_id: lineId, anchor, total: details.length, limit, offset, details: details.slice(offset, offset + limit) };
+}
+
+const evidenceRequests = (prefix: "/api/reports/package/line-details?" | "/api/reports/package/manifest-entries?") =>
+  mockedApiFetch.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith(prefix));
+
 const packageSnapshot = {
   id: "snap-001",
   package_id: "personal-financial-report-package",
@@ -379,7 +447,10 @@ function mockPackageApi(
     if (path === "/api/reports/package/generate" && options?.method === "POST") {
       return snapshotGenerateResult instanceof Error ? Promise.reject(snapshotGenerateResult) : Promise.resolve(snapshotGenerateResult);
     }
-    if (path.startsWith("/api/reports/package?")) return Promise.resolve(packageDocument(readinessPayload, policyPayload, traceabilityPayload));
+    if (path.startsWith("/api/reports/package?")) return Promise.resolve(packagePreview(readinessPayload, policyPayload, traceabilityPayload));
+    if (path.startsWith("/api/reports/package/line-details?") || path.startsWith("/api/reports/package/manifest-entries?")) {
+      return Promise.resolve(evidencePage(path, traceabilityPayload));
+    }
     if (path.startsWith("/api/evidence/lineage?")) {
       return lineagePayload instanceof Error ? Promise.reject(lineagePayload) : Promise.resolve(lineagePayload);
     }
@@ -522,7 +593,7 @@ describe("PersonalReportPackagePage", () => {
   });
 
   it("AC20.6.1 ignores the initial package document response after unmount", async () => {
-    let resolveDocument!: (value: ReturnType<typeof packageDocument>) => void;
+    let resolveDocument!: (value: ReturnType<typeof packagePreview>) => void;
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.startsWith("/api/reports/package?")) return new Promise((resolve) => { resolveDocument = resolve; });
       if (path === "/api/reports/package/snapshots") return Promise.resolve([]);
@@ -531,12 +602,12 @@ describe("PersonalReportPackagePage", () => {
     const { unmount } = renderPackagePage();
     expect(screen.getByText("Loading package document...")).toBeInTheDocument();
     unmount();
-    await act(async () => { resolveDocument(packageDocument()); });
+    await act(async () => { resolveDocument(packagePreview()); });
   });
 
   it("AC20.6.1 renders the API error when selected framework package output cannot load", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/reports/package?") && !path.includes("framework_id=")) return Promise.resolve(packageDocument());
+      if (path.startsWith("/api/reports/package?") && !path.includes("framework_id=")) return Promise.resolve(packagePreview());
       if (path === "/api/reports/package/snapshots") return Promise.resolve([]);
       if (path.startsWith("/api/reports/package?framework_id=")) return Promise.reject(new Error("Framework package unavailable"));
       return Promise.reject(new Error(`Unexpected path ${path}`));
@@ -548,7 +619,7 @@ describe("PersonalReportPackagePage", () => {
 
   it("AC20.6.1 keeps canceled framework package requests from surfacing errors", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/reports/package?") && !path.includes("framework_id=")) return Promise.resolve(packageDocument());
+      if (path.startsWith("/api/reports/package?") && !path.includes("framework_id=")) return Promise.resolve(packagePreview());
       if (path === "/api/reports/package/snapshots") return Promise.resolve([]);
       if (path.startsWith("/api/reports/package?framework_id=")) return Promise.reject(new DOMException("Canceled", "AbortError"));
       return new Promise(() => undefined);
@@ -672,12 +743,20 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getAllByText("SGD 137,400").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("SGD 22,500")).toBeInTheDocument();
     expect(screen.getByText("ACME")).toBeInTheDocument();
-    expectInsideClosedAuditDetails(`statement_transaction:${statementTxnId}, manual_valuation_snapshot:val-456`);
+    expectInsideClosedAuditDetails("2 details");
     expect(screen.getByText("Live preview. Generate a snapshot to freeze these exact inputs and totals.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Reopen" }));
     await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("/api/reports/package/snapshots/snap-001", expect.objectContaining({ signal: expect.any(Object) })));
     expect(await screen.findByText("Frozen snapshot snap-001")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();
+    // A frozen snapshot stores every detail and manifest entry: the page reads them without a request.
+    fireEvent.click(screen.getByRole("button", { name: "Show evidence details for Total Assets" }));
+    expect(await screen.findByText(`statement_transaction:${statementTxnId}`)).toBeInTheDocument();
+    expect(screen.getByText(`journal_line:${journalLineId}`)).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Authority manifest audit details"));
+    expect(await screen.findByText(/77777777-7777-4777-8777-777777777777 journal_command/)).toBeInTheDocument();
+    expect(evidenceRequests("/api/reports/package/line-details?")).toEqual([]);
+    expect(evidenceRequests("/api/reports/package/manifest-entries?")).toEqual([]);
   });
 
   it("renders absent disclosure list values explicitly", () => {
@@ -750,13 +829,13 @@ describe("PersonalReportPackagePage", () => {
     const hkPolicy = { ...frameworkPolicy, result_id: "policy-result:personal_hkfrs_like:2025-05-20:2026-05-20:fixture", framework_id: "personal_hkfrs_like", decisions: [], gaps: [] };
 
     mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
-      if (path.startsWith("/api/reports/package?") && !path.includes("framework_id=")) return Promise.resolve(packageDocument());
+      if (path.startsWith("/api/reports/package?") && !path.includes("framework_id=")) return Promise.resolve(packagePreview());
       if (path === "/api/reports/package/snapshots") return Promise.resolve([packageSnapshot]);
       if (path.startsWith("/api/reports/package?framework_id=personal_us_gaap_like")) {
         if (options?.signal) usSignals.push(options.signal);
-        return new Promise((resolve) => { resolveUsRequests.push(() => resolve(packageDocument(readiness, frameworkPolicy, traceabilityAppendix))); });
+        return new Promise((resolve) => { resolveUsRequests.push(() => resolve(packagePreview(readiness, frameworkPolicy, traceabilityAppendix))); });
       }
-      if (path.startsWith("/api/reports/package?framework_id=personal_hkfrs_like")) return Promise.resolve(packageDocument(readiness, hkPolicy, traceabilityAppendix));
+      if (path.startsWith("/api/reports/package?framework_id=personal_hkfrs_like")) return Promise.resolve(packagePreview(readiness, hkPolicy, traceabilityAppendix));
       return Promise.reject(new Error(`Unexpected path ${path}`));
     });
 
@@ -826,7 +905,7 @@ describe("PersonalReportPackagePage", () => {
 
   it("AC22.8.3 reserves the framework-package layout while package sections load", async () => {
     mockedApiFetch.mockImplementation((path: string) => {
-      if (path.startsWith("/api/reports/package?") && !path.includes("framework_id=")) return Promise.resolve(packageDocument());
+      if (path.startsWith("/api/reports/package?") && !path.includes("framework_id=")) return Promise.resolve(packagePreview());
       if (path === "/api/reports/package/snapshots") return Promise.resolve([]);
       return new Promise(() => undefined);
     });
@@ -876,8 +955,14 @@ describe("PersonalReportPackagePage", () => {
     expect(authorityCoverage.compareDocumentPosition(traceability) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText("Trust comes from the current decision graph pinned into this document, not a source label.")).toBeInTheDocument();
     expect(screen.getByText("1 decisions")).toBeInTheDocument();
-    expectInsideClosedAuditDetails(/77777777-7777-4777-8777-777777777777/);
-    expectInsideClosedAuditDetails(new RegExp(`journal_command:statement-transaction:${statementTxnId}@fixture-v1`));
+    // The preview has no manifest entries. They load when the audit details open (#2583 S8).
+    expect(screen.queryByText(/77777777-7777-4777-8777-777777777777/)).not.toBeInTheDocument();
+    expect(evidenceRequests("/api/reports/package/manifest-entries?")).toEqual([]);
+    fireEvent.click(screen.getByText("Authority manifest audit details"));
+    expect(
+      await screen.findByText(new RegExp(`77777777-7777-4777-8777-777777777777 journal_command:statement-transaction:${statementTxnId}@fixture-v1`)),
+    ).toBeInTheDocument();
+    expect(evidenceRequests("/api/reports/package/manifest-entries?")).toEqual([expect.stringContaining("limit=200&offset=0")]);
   });
 
   // AC-reporting.fe-ia-reports.23
@@ -894,7 +979,7 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getByText("Trust comes from the current decision graph pinned into this document, not a source label.")).toBeInTheDocument();
     expect(screen.getByText("Report lines with evidence")).toBeInTheDocument();
     expect(screen.getByText("Reporting gaps")).toBeInTheDocument();
-    expectInsideClosedAuditDetails(/77777777-7777-4777-8777-777777777777/);
+    expect(screen.queryByText(/77777777-7777-4777-8777-777777777777/)).not.toBeInTheDocument();
     expectInsideClosedAuditDetails("Framework Policy Result");
     expectInsideClosedAuditDetails("unsupported_policy_domain");
     expectInsideClosedAuditDetails("pending_review");
@@ -933,7 +1018,7 @@ describe("PersonalReportPackagePage", () => {
     }
     expect(screen.getByText("Matrix Version")).toBeInTheDocument();
     expect(screen.getByText("balance_sheet.total_assets")).toBeInTheDocument();
-    expect(screen.getByText(/77777777-7777-4777-8777-777777777777/)).toBeInTheDocument();
+    expect(await screen.findByText(/77777777-7777-4777-8777-777777777777/)).toBeInTheDocument();
     expect(screen.getByText(new RegExp(`journal_command:statement-transaction:${statementTxnId}@fixture-v1`))).toBeInTheDocument();
     expect(screen.getByText("static_contract_note")).toBeInTheDocument();
   });
@@ -1012,14 +1097,200 @@ describe("PersonalReportPackagePage", () => {
     expectInsideClosedAuditDetails("balance_sheet.total_assets");
     expectInsideClosedAuditDetails("posted_reconciled_journal_lines_and_manual_valuations");
     expectInsideClosedAuditDetails("bank_statement, manual_valuation_snapshot");
-    expectInsideClosedAuditDetails(`statement_transaction:${statementTxnId}, manual_valuation_snapshot:val-456`);
     expectInsideClosedAuditDetails("posted, reconciled");
-    expectInsideClosedAuditDetails(`journal_entry:${journalEntryId}, journal_line:${journalLineId}`);
+    // The preview carries the detail counts, not the identifiers (#2583 S8).
+    expect(expectInsideClosedAuditDetails("2 details")).toBeInstanceOf(HTMLDetailsElement);
+    expect(screen.queryByText(`statement_transaction:${statementTxnId}`)).not.toBeInTheDocument();
     expectInsideClosedAuditDetails("4 anchors");
     expectInsideClosedAuditDetails("static_contract_note");
     expectInsideClosedAuditDetails("manual_only_source");
     expectInsideClosedAuditDetails("explicit_manual_input_required");
   });
+
+  it("AC-reporting.fe-fetch-budget.7 loads the details of a traceability line only after the user opens the line", async () => {
+    mockPackageApi();
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("heading", { name: "Traceability Summary" });
+
+    // Before the user opens a line: no evidence request and no identifier on the page.
+    expect(evidenceRequests("/api/reports/package/line-details?")).toEqual([]);
+    expect(evidenceRequests("/api/reports/package/manifest-entries?")).toEqual([]);
+    expect(screen.queryByText(`journal_line:${journalLineId}`)).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole("button", { name: "Show evidence details for Total Assets" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+
+    expect(await screen.findByText(`journal_line:${journalLineId}`)).toBeInTheDocument();
+    expect(await screen.findByText(`statement_transaction:${statementTxnId}`)).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Ledger evidence for Total Assets" })).toHaveTextContent(
+      "Ledger evidence: 2 of 2 details",
+    );
+    expect(screen.getByRole("button", { name: "Hide evidence details for Total Assets" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    const requests = evidenceRequests("/api/reports/package/line-details?");
+    expect(requests).toHaveLength(2);
+    for (const anchor of ["source_anchor", "ledger_anchor"]) {
+      const request = requests.find((path) => path.includes(`anchor=${anchor}`));
+      expect(request).toBeDefined();
+      const params = new URL(request!, "http://localhost").searchParams;
+      // The page asks for the period of the document on screen.
+      expect(Object.fromEntries(params)).toEqual({
+        start_date: "2025-05-20",
+        end_date: "2026-05-20",
+        as_of_date: "2026-05-20",
+        currency: "SGD",
+        line_id: "balance_sheet.total_assets",
+        anchor,
+        limit: "200",
+        offset: "0",
+      });
+    }
+    // The other line stays closed, and the manifest is not read.
+    expect(evidenceRequests("/api/reports/package/manifest-entries?")).toEqual([]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide evidence details for Total Assets" }));
+    expect(screen.queryByText(`journal_line:${journalLineId}`)).not.toBeInTheDocument();
+  });
+
+  it("AC-reporting.fe-fetch-budget.7 the lineage trace reuses the details that the open line loaded", async () => {
+    mockPackageApi();
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Show evidence details for Total Assets" }));
+    expect(await screen.findByText(`journal_line:${journalLineId}`)).toBeInTheDocument();
+    const ledgerRequests = () => evidenceRequests("/api/reports/package/line-details?").filter((path) => path.includes("anchor=ledger_anchor"));
+    expect(ledgerRequests()).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Trace evidence for Total Assets" }));
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith(`/api/evidence/lineage?entity_type=journal_line&entity_id=${journalLineId}&node_kind=ledger_line&direction=both&max_depth=6`),
+    );
+    expect(ledgerRequests()).toHaveLength(1);
+  });
+
+  it("AC-reporting.fe-fetch-budget.7 pages a long evidence list and shows a failed list", async () => {
+    const ledgerIds = Array.from(
+      { length: 210 },
+      (_unused, index) => `journal_line:00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    );
+    mockPackageApi(readiness, frameworkPolicy, {
+      ...traceabilityAppendix,
+      lines: [
+        {
+          ...traceabilityAppendix.lines[0],
+          ledger_anchor: withIdentifiers(traceabilityAppendix.lines[0].ledger_anchor, ledgerIds),
+        },
+      ],
+    });
+    const settled = mockedApiFetch.getMockImplementation()!;
+    mockedApiFetch.mockImplementation((path: string, options?: RequestInit) =>
+      path.startsWith("/api/reports/package/line-details?") && path.includes("anchor=source_anchor")
+        ? Promise.reject(new Error("Source evidence unavailable"))
+        : settled(path, options),
+    );
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Show evidence details for Total Assets" }));
+
+    const ledger = await screen.findByRole("region", { name: "Ledger evidence for Total Assets" });
+    expect(await within(ledger).findByText(ledgerIds[199])).toBeInTheDocument();
+    expect(within(ledger).queryByText(ledgerIds[200])).not.toBeInTheDocument();
+    expect(ledger).toHaveTextContent("Ledger evidence: 200 of 210 details");
+    expect(await screen.findByText("Source evidence unavailable")).toBeInTheDocument();
+
+    fireEvent.click(within(ledger).getByRole("button", { name: "Load more ledger evidence" }));
+    expect(await within(ledger).findByText(ledgerIds[209])).toBeInTheDocument();
+    expect(ledger).toHaveTextContent("Ledger evidence: 210 of 210 details");
+    expect(within(ledger).queryByRole("button", { name: "Load more ledger evidence" })).not.toBeInTheDocument();
+    expect(
+      evidenceRequests("/api/reports/package/line-details?").filter((path) => path.includes("anchor=ledger_anchor")),
+    ).toEqual([expect.stringContaining("offset=0"), expect.stringContaining("offset=200")]);
+  });
+
+  it("AC-reporting.fe-fetch-budget.7 pages the authority manifest after the user opens it", async () => {
+    mockPackageApi();
+    const entries = Array.from({ length: 201 }, (_unused, index) => ({
+      ...packageDocument().input_manifest[0],
+      decision_id: `77777777-7777-4777-8777-${String(index).padStart(12, "0")}`,
+    }));
+    const settled = mockedApiFetch.getMockImplementation()!;
+    mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
+      if (!path.startsWith("/api/reports/package/manifest-entries?")) return settled(path, options);
+      const offset = Number(new URL(path, "http://localhost").searchParams.get("offset"));
+      return Promise.resolve({ total: entries.length, limit: 200, offset, entries: entries.slice(offset, offset + 200) });
+    });
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("heading", { name: "Authority Coverage" });
+    expect(evidenceRequests("/api/reports/package/manifest-entries?")).toEqual([]);
+
+    fireEvent.click(screen.getByText("Authority manifest audit details"));
+    expect(await screen.findByText(new RegExp(entries[199].decision_id))).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(entries[200].decision_id))).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Load more decisions" }));
+    expect(await screen.findByText(new RegExp(entries[200].decision_id))).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Load more decisions" })).not.toBeInTheDocument();
+    expect(evidenceRequests("/api/reports/package/manifest-entries?")).toEqual([
+      expect.stringContaining("offset=0"),
+      expect.stringContaining("offset=200"),
+    ]);
+  });
+
+  it("AC-reporting.fe-fetch-budget.7 shows a failed manifest and a failed trace inside their panels", async () => {
+    mockPackageApi();
+    const settled = mockedApiFetch.getMockImplementation()!;
+    mockedApiFetch.mockImplementation((path: string, options?: RequestInit) =>
+      path.startsWith("/api/reports/package/manifest-entries?") ||
+      path.startsWith("/api/reports/package/line-details?")
+        ? Promise.reject(new Error("Evidence page unavailable"))
+        : settled(path, options),
+    );
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("heading", { name: "Authority Coverage" });
+
+    fireEvent.click(screen.getByText("Authority manifest audit details"));
+    expect(await screen.findByText("Evidence page unavailable")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Trace evidence for Total Assets" }));
+    const dialog = await screen.findByRole("dialog", { name: "Evidence Lineage" });
+    expect(await within(dialog).findByText("Evidence page unavailable")).toBeInTheDocument();
+    expect(mockedApiFetch.mock.calls.some(([path]) => String(path).startsWith("/api/evidence/lineage?"))).toBe(false);
+  });
+
+  it("AC-reporting.fe-fetch-budget.7 issues no evidence request for empty lists", async () => {
+    mockPackageApi(
+      {
+        ...readiness,
+        input_coverage: { manifest_decision_count: 0, authoritative_input_count: 0, unproven_input_count: 0 },
+      },
+      frameworkPolicy,
+      {
+        ...traceabilityAppendix,
+        lines: [
+          traceabilityAppendix.lines[0],
+          {
+            ...traceabilityAppendix.lines[1],
+            source_anchor: withIdentifiers(traceabilityAppendix.lines[1].source_anchor, []),
+          },
+        ],
+      },
+    );
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("heading", { name: "Authority Coverage" });
+    fireEvent.click(screen.getByText("Authority manifest audit details"));
+    expect(await screen.findByText("No authority decisions are pinned for this document.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show evidence details for Package Non-Compliance Statement" }));
+    expect(await screen.findByText("This line has no evidence details.")).toBeInTheDocument();
+    expect(evidenceRequests("/api/reports/package/manifest-entries?")).toEqual([]);
+    expect(evidenceRequests("/api/reports/package/line-details?")).toEqual([]);
+  });
+
 
   // AC-reporting.fe-remainder-reports.1 / AC-reporting.fe-remainder-reports.2 / AC-reporting.fe-remainder-reports.3
   it("AC18.9.4 AC18.9.5 AC18.9.6 opens an Evidence Graph lineage panel from report traceability", async () => {
@@ -1029,7 +1300,14 @@ describe("PersonalReportPackagePage", () => {
     await screen.findByRole("heading", { name: "Traceability Summary" });
     fireEvent.click(screen.getByRole("button", { name: "Trace evidence for Total Assets" }));
     await screen.findByRole("dialog", { name: "Evidence Lineage" });
-    expect(mockedApiFetch).toHaveBeenCalledWith(`/api/evidence/lineage?entity_type=journal_line&entity_id=${journalLineId}&node_kind=ledger_line&direction=both&max_depth=6`);
+    // The preview has no identifiers. The trace reads the first page of the ledger details,
+    // then asks the lineage graph for its first graph-compatible identifier (#2583 S8).
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith(`/api/evidence/lineage?entity_type=journal_line&entity_id=${journalLineId}&node_kind=ledger_line&direction=both&max_depth=6`),
+    );
+    expect(evidenceRequests("/api/reports/package/line-details?")).toEqual([
+      expect.stringContaining("line_id=balance_sheet.total_assets&anchor=ledger_anchor&limit=200&offset=0"),
+    ]);
     expect(await screen.findByText("source_document")).toBeInTheDocument();
     expect(screen.getByText("extracted_record")).toBeInTheDocument();
     expect(screen.getByText("atomic_fact")).toBeInTheDocument();
@@ -1048,8 +1326,8 @@ describe("PersonalReportPackagePage", () => {
       ...traceabilityAppendix,
       lines: [{
         ...traceabilityAppendix.lines[0],
-        ledger_anchor: { ...traceabilityAppendix.lines[0].ledger_anchor, identifiers: ["journal_line:not-a-uuid"] },
-        source_anchor: { ...traceabilityAppendix.lines[0].source_anchor, identifiers: [] },
+        ledger_anchor: withIdentifiers(traceabilityAppendix.lines[0].ledger_anchor, ["journal_line:not-a-uuid"]),
+        source_anchor: withIdentifiers(traceabilityAppendix.lines[0].source_anchor, []),
       }],
     });
     renderPackagePage();
@@ -1057,7 +1335,7 @@ describe("PersonalReportPackagePage", () => {
     await screen.findByRole("heading", { name: "Traceability Summary" });
     fireEvent.click(screen.getByRole("button", { name: "Trace evidence for Total Assets" }));
     await screen.findByRole("dialog", { name: "Evidence Lineage" });
-    expect(screen.getByText("lineage_anchor_missing")).toBeInTheDocument();
+    expect(await screen.findByText("lineage_anchor_missing")).toBeInTheDocument();
     expect(screen.getByText("No graph-compatible UUID anchor exists for this traceability row.")).toBeInTheDocument();
   });
 
@@ -1083,8 +1361,8 @@ describe("PersonalReportPackagePage", () => {
         ...traceabilityAppendix,
         lines: [{
           ...traceabilityAppendix.lines[0],
-          ledger_anchor: { ...traceabilityAppendix.lines[0].ledger_anchor, identifiers: [] },
-          source_anchor: { ...traceabilityAppendix.lines[0].source_anchor, identifiers: [testCase.identifier] },
+          ledger_anchor: withIdentifiers(traceabilityAppendix.lines[0].ledger_anchor, []),
+          source_anchor: withIdentifiers(traceabilityAppendix.lines[0].source_anchor, [testCase.identifier]),
         }],
       });
       const { unmount } = renderPackagePage();
@@ -1092,7 +1370,9 @@ describe("PersonalReportPackagePage", () => {
       await screen.findByRole("heading", { name: "Traceability Summary" });
       fireEvent.click(screen.getByRole("button", { name: "Trace evidence for Total Assets" }));
       await screen.findByRole("dialog", { name: "Evidence Lineage" });
-      expect(mockedApiFetch).toHaveBeenCalledWith(testCase.expected);
+      await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith(testCase.expected));
+      // The ledger anchor has no details, so the trace reads only the source page.
+      expect(evidenceRequests("/api/reports/package/line-details?")).toEqual([expect.stringContaining("anchor=source_anchor")]);
       unmount();
     }
   });
@@ -1138,7 +1418,7 @@ describe("PersonalReportPackagePage", () => {
     const settled = mockedApiFetch.getMockImplementation()!;
     let releasePreview: () => void = () => {};
     mockedApiFetch.mockImplementation((path: string, options?: RequestInit) =>
-      path.startsWith("/api/reports/package?") ? new Promise((resolve) => { releasePreview = () => resolve(packageDocument()); }) : settled(path, options),
+      path.startsWith("/api/reports/package?") ? new Promise((resolve) => { releasePreview = () => resolve(packagePreview()); }) : settled(path, options),
     );
     fireEvent.change(screen.getByLabelText("Package report date"), { target: { value: "2025-03-31" } });
 
