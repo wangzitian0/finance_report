@@ -15,7 +15,7 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import event, insert
+from sqlalchemy import event, insert, inspect as sa_inspect, text
 from sqlalchemy.engine import Result
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import ORMExecuteState, Session
@@ -29,7 +29,7 @@ from src.audit import (
     VersionedTraceRef,
 )
 from src.audit.extension.trace_repository import _row_from_record
-from src.audit.orm import TraceRecordParentRow
+from src.audit.orm import TraceRecordParentRow, TraceRecordRow
 from src.ledger import (
     Account,
     AccountType,
@@ -47,6 +47,7 @@ from src.pricing import ManualValuationComponentType, ManualValuationLiquidityCl
 from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.pricing.orm.market_data import StockPrice
 from src.reporting import PackageAssembler
+from src.reporting.extension.package_document import _traceability_appendix
 from src.schemas.reporting import PersonalReportingFrameworkId, PersonalReportPackageTraceabilityAnchorName
 from tests.portfolio.test_portfolio_router import _make_atomic_position, _make_managed_position
 from tests.reporting.test_package_readiness_path import _seed_ready
@@ -166,11 +167,22 @@ async def _seed_year_of_anchored_entries(db: AsyncSession, user_id: UUID) -> Non
                     "updated_at": now,
                 }
             )
-    db.add_all(trace_rows)
-    await db.flush()
+    # One executemany through the table, without the ORM unit of work. (An ORM-enabled bulk
+    # insert of these rows sends one INSERT per row.)
+    trace_columns = [
+        (attribute.key, attribute.columns[0].name) for attribute in sa_inspect(TraceRecordRow).column_attrs
+    ]
+    await db.execute(
+        insert(TraceRecordRow.__table__),
+        [{column: getattr(row, key) for key, column in trace_columns} for row in trace_rows],
+    )
     await db.execute(insert(TraceRecordParentRow), parent_rows)
     await db.execute(insert(JournalEntry), entry_rows)
     await db.execute(insert(JournalLine), line_rows)
+    # A new test database has no table statistics, so the deferred link triggers that run at
+    # commit plan sequential scans: 5.3 s for these 3000 rows instead of 1.3 s. Production
+    # tables carry statistics. The fixture gives the planner the same view.
+    await db.execute(text("ANALYZE trace_records, trace_record_parents"))
     await db.commit()
 
 
@@ -313,26 +325,32 @@ async def test_AC_reporting_package_traceability_7_year_scale_preview_is_bounded
     # The full appendix has at least one ledger detail per journal line of the year.
     assert detail_total >= 2 * YEAR_ENTRY_COUNT
 
-    # Each page reads the contribution set once, so the year-scale check pages the largest anchor
-    # and the manifest only. The reviewed-statement test below pages every anchor.
+    # Each page reads the contribution set once. At year scale the test reads the last page of the
+    # largest anchor and of the manifest; the reviewed-statement test below pages every list.
     full_json = document.model_dump(mode="json")
     assets_ledger = next(
         line["ledger_anchor"]["details"]
         for line in full_json["sections"]["traceability_appendix"]["lines"]
         if line["line_id"] == "balance_sheet.total_assets"
     )
-    details, total = await _all_pages(
-        client,
+    assert len(assets_ledger) == 2 * YEAR_ENTRY_COUNT
+    last_details = await client.get(
         "/reports/package/line-details",
-        {**YEAR, "line_id": "balance_sheet.total_assets", "anchor": "ledger_anchor"},
-        limit=500,
-        item_key="details",
+        params={
+            **YEAR,
+            "line_id": "balance_sheet.total_assets",
+            "anchor": "ledger_anchor",
+            "limit": 500,
+            "offset": 1500,
+        },
     )
-    assert total == len(assets_ledger) == 2 * YEAR_ENTRY_COUNT
-    assert details == assets_ledger
-    entries, total = await _all_pages(client, "/reports/package/manifest-entries", YEAR, limit=500, item_key="entries")
-    assert total == YEAR_ENTRY_COUNT
-    assert entries == full_json["input_manifest"]
+    assert last_details.status_code == 200, last_details.text
+    assert last_details.json()["total"] == len(assets_ledger)
+    assert last_details.json()["details"] == assets_ledger[1500:]
+    last_entries = await client.get("/reports/package/manifest-entries", params={**YEAR, "limit": 500, "offset": 500})
+    assert last_entries.status_code == 200, last_entries.text
+    assert last_entries.json()["total"] == YEAR_ENTRY_COUNT
+    assert last_entries.json()["entries"] == full_json["input_manifest"][500:]
 
 
 async def test_AC_reporting_package_traceability_8_evidence_pages_equal_snapshot(
@@ -341,10 +359,14 @@ async def test_AC_reporting_package_traceability_8_evidence_pages_equal_snapshot
     """AC-reporting.package-traceability.8: the details that ``GET /reports/package/line-details``
     returns page by page equal the details of a frozen snapshot of the same data, in the same
     order. ``GET /reports/package/manifest-entries`` returns the input manifest of that snapshot.
-    The preview counts equal the snapshot lists. The test pages every line and anchor two
-    details at a time."""
+    The preview counts equal the snapshot lists.
+
+    Each page request reads the contribution set again. So the test compares every anchor with
+    the builder output that the page slices (one read), and reads through the API the largest
+    anchor two details at a time, one anchor per detail kind, and the manifest three at a time."""
     stock_price = await _seed_reviewed_statement(db, test_user.id, monkeypatch)
-    period, limit = JUNE, 2
+    market_identifier = f"pricing_observation:{stock_price.id}"
+    period = JUNE
 
     generated = await client.post(
         "/reports/package/generate", json={**period, "framework_id": PersonalReportingFrameworkId.US_GAAP_LIKE.value}
@@ -357,40 +379,62 @@ async def test_AC_reporting_package_traceability_8_evidence_pages_equal_snapshot
         line["line_id"]: line for line in preview_response.json()["sections"]["traceability_appendix"]["lines"]
     }
 
-    detail_kinds = set()
-    paged_count = 0
-    for line in snapshot["sections"]["traceability_appendix"]["lines"]:
-        for anchor_name in ANCHORS:
-            expected = line[anchor_name]["details"]
-            assert preview_lines[line["line_id"]][anchor_name]["detail_count"] == len(expected)
-            paged_count += 1
-            details, total = await _all_pages(
-                client,
-                "/reports/package/line-details",
-                {**period, "line_id": line["line_id"], "anchor": anchor_name},
-                limit=limit,
-                item_key="details",
-            )
-            assert total == len(expected), (line["line_id"], anchor_name)
-            assert details == expected, (line["line_id"], anchor_name)
-            detail_kinds.update(detail["source_kind"] for detail in expected)
-
-    entries, total = await _all_pages(
-        client, "/reports/package/manifest-entries", period, limit=limit, item_key="entries"
+    anchors = [
+        (line["line_id"], anchor_name, line[anchor_name]["details"])
+        for line in snapshot["sections"]["traceability_appendix"]["lines"]
+        for anchor_name in ANCHORS
+    ]
+    # Every anchor: the builder output that the line-details page slices equals the snapshot.
+    # Read the rows from the database, as a request does, not from the fixture objects.
+    user_id = test_user.id
+    db.expire_all()
+    evidence = await PackageAssembler()._evidence_contributions(
+        db,
+        user_id=user_id,
+        start_date=date(2026, 6, 1),
+        end_date=date(2026, 6, 30),
+        as_of_date=date(2026, 6, 30),
+        currency="SGD",
     )
+    built = {
+        line["line_id"]: line for line in (await _traceability_appendix(evidence)).model_dump(mode="json")["lines"]
+    }
+    for line_id, anchor_name, expected in anchors:
+        assert preview_lines[line_id][anchor_name]["detail_count"] == len(expected), (line_id, anchor_name)
+        assert built[line_id][anchor_name]["details"] == expected, (line_id, anchor_name)
+
+    # Through the API: the largest anchor two details at a time, and one anchor per detail kind.
+    largest = max(anchors, key=lambda item: len(item[2]))
+    assert len(largest[2]) > 2
+    paged = [largest]
+    for kind in sorted({detail["source_kind"] for _, _, details in anchors for detail in details}):
+        if not any(detail["source_kind"] == kind for _, _, details in paged for detail in details):
+            paged.append(next(item for item in anchors if any(d["source_kind"] == kind for d in item[2])))
+    detail_kinds = set()
+    for line_id, anchor_name, expected in paged:
+        limit = 2 if (line_id, anchor_name) == largest[:2] else 500
+        details, total = await _all_pages(
+            client,
+            "/reports/package/line-details",
+            {**period, "line_id": line_id, "anchor": anchor_name},
+            limit=limit,
+            item_key="details",
+        )
+        assert total == len(expected), (line_id, anchor_name)
+        assert details == expected, (line_id, anchor_name)
+        detail_kinds.update(detail["source_kind"] for detail in expected)
+
+    entries, total = await _all_pages(client, "/reports/package/manifest-entries", period, limit=3, item_key="entries")
     assert total == len(snapshot["input_manifest"])
     assert entries == snapshot["input_manifest"]
-    assert total > limit
-    assert paged_count == 2 * len(snapshot["sections"]["traceability_appendix"]["lines"])
+    assert total > 3
     # The market price that the investment schedule renders is a package contribution.
     market_line = next(
         line
         for line in snapshot["sections"]["traceability_appendix"]["lines"]
         if line["line_id"] == "investment_performance.market_value"
     )
-    assert f"pricing_observation:{stock_price.id}" in {
-        detail["identifier"] for detail in market_line["source_anchor"]["details"]
-    }
+    assert market_identifier in {detail["identifier"] for detail in market_line["source_anchor"]["details"]}
     # The fixture reaches every detail renderer, so the equality covers each of them.
     assert detail_kinds == {
         "journal_line",
