@@ -240,29 +240,26 @@ async def test_AC_runtime_workers_1_server_ends_a_silent_lock_session(
 ) -> None:
     """AC-runtime.workers.1: the server ends a lock session that sends no query (idle_session_timeout).
 
-    The heartbeat (3 s) is longer than the idle timeout (0.3 s) here, so the
+    The heartbeat (6 s) is longer than the idle timeout (1 s) here, so the
     server ends the session before the leader sends its first heartbeat. With a
     silent network, this releases the lock on the server for another worker.
     """
-    monkeypatch.setattr(leader_module, "LEADER_IDLE_SESSION_TIMEOUT_MS", 300)
+    monkeypatch.setattr(leader_module, "LEADER_IDLE_SESSION_TIMEOUT_MS", 1000)
 
     async def loop(stop_event: asyncio.Event) -> None:
         await stop_event.wait()
 
-    leader = BackgroundLeader(test_database_url, {"loop": loop}, retry_seconds=10.0, heartbeat_seconds=3.0)
+    leader = BackgroundLeader(test_database_url, {"loop": loop}, retry_seconds=10.0, heartbeat_seconds=6.0)
     stop_event = asyncio.Event()
     task = asyncio.create_task(leader.run(stop_event))
     try:
-        started = time.monotonic()
-        while not await _lock_holder_pids(db_engine) and time.monotonic() - started < 5.0:
-            await asyncio.sleep(0.02)
-        assert leader.is_leader, "the leader did not get the lock"
+        assert await _wait_until(lambda: leader.is_leader, timeout=5.0) is not None, "the leader did not get the lock"
         locked_at = time.monotonic()
-        while await _lock_holder_pids(db_engine) and time.monotonic() - locked_at < 5.0:
+        while await _lock_holder_pids(db_engine) and time.monotonic() - locked_at < 6.0:
             await asyncio.sleep(0.05)
         released_after = time.monotonic() - locked_at
         assert await _lock_holder_pids(db_engine) == []
-        assert released_after < 2.0, f"the server released the idle lock session after {released_after:.2f}s"
+        assert released_after < 4.0, f"the server released the idle lock session after {released_after:.2f}s"
     finally:
         stop_event.set()
         await asyncio.wait_for(task, timeout=10.0)

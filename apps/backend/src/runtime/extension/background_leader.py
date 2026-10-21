@@ -151,7 +151,10 @@ class BackgroundLeader:
             logger.warning("background_leader.connect_failed", error_type=type(exc).__name__, error=str(exc))
             return None
         try:
-            result = await connection.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": self._lock_key})
+            result = await asyncio.wait_for(
+                connection.execute(text("SELECT pg_try_advisory_lock(:key)"), {"key": self._lock_key}),
+                timeout=LEADER_SESSION_TIMEOUT_SECONDS,
+            )
             acquired = bool(result.scalar_one())
         except Exception as exc:
             logger.warning("background_leader.lock_query_failed", error_type=type(exc).__name__, error=str(exc))

@@ -192,7 +192,7 @@ def test_AC_runtime_workers_4_a_failed_worker_startup_stops_the_supervisor() -> 
     workers = image_web_concurrency()
     restart_loop = UvicornServer(workers, app="worker_probe_app:failing_app")
     try:
-        deadline = time.monotonic() + 30
+        deadline = time.monotonic() + 20
         while restart_loop.startup_failures() <= workers and time.monotonic() < deadline:
             time.sleep(0.2)
         assert restart_loop.startup_failures() > workers, restart_loop.log_tail()
@@ -202,7 +202,7 @@ def test_AC_runtime_workers_4_a_failed_worker_startup_stops_the_supervisor() -> 
 
     fail_fast = UvicornServer(workers, app="worker_probe_app:failing_app", extra_env={"PROBE_STOP_SUPERVISOR": "1"})
     try:
-        fail_fast.process.wait(timeout=30)
+        fail_fast.process.wait(timeout=20)
     except subprocess.TimeoutExpired:
         pytest.fail("the supervisor did not stop after a failed worker startup:\n" + fail_fast.log_tail())
     finally:
@@ -252,7 +252,7 @@ async def test_AC_runtime_workers_4_lifespan_shutdown_is_bounded(monkeypatch) ->
 
 @pytest.mark.no_db
 def test_AC_runtime_workers_4_stop_worker_supervisor_signals_only_a_worker(monkeypatch) -> None:
-    """AC-runtime.workers.4: the helper sends SIGTERM to the parent of a worker, and nothing in a single process."""
+    """AC-runtime.workers.4: the helper signals only the live supervisor of a multi-worker uvicorn."""
     import multiprocessing
 
     from src.runtime import stop_worker_supervisor
@@ -260,14 +260,35 @@ def test_AC_runtime_workers_4_stop_worker_supervisor_signals_only_a_worker(monke
     kills: list[tuple[int, int]] = []
     monkeypatch.setattr(os, "kill", lambda pid, sig: kills.append((pid, sig)))
 
+    class Supervisor:
+        pid = 4242
+        alive = True
+
+        def is_alive(self) -> bool:
+            return self.alive
+
+    supervisor = Supervisor()
+    monkeypatch.setenv("WEB_CONCURRENCY", "2")
+
+    # A single uvicorn process has no multiprocessing parent.
     monkeypatch.setattr(multiprocessing, "parent_process", lambda: None)
+    assert stop_worker_supervisor() is False
+
+    # ``uvicorn --reload``: the reloader is the parent, and WEB_CONCURRENCY does not ask for workers.
+    monkeypatch.setattr(multiprocessing, "parent_process", lambda: supervisor)
+    monkeypatch.delenv("WEB_CONCURRENCY")
+    assert stop_worker_supervisor() is False
+    monkeypatch.setenv("WEB_CONCURRENCY", "not-a-number")
+    assert stop_worker_supervisor() is False
+
+    # A parent that is not alive any more (its pid can belong to another process now).
+    monkeypatch.setenv("WEB_CONCURRENCY", "2")
+    supervisor.alive = False
     assert stop_worker_supervisor() is False
     assert kills == []
 
-    class Supervisor:
-        pid = 4242
-
-    monkeypatch.setattr(multiprocessing, "parent_process", lambda: Supervisor())
+    # A worker of a live supervisor.
+    supervisor.alive = True
     assert stop_worker_supervisor() is True
     assert kills == [(4242, signal.SIGTERM)]
 
