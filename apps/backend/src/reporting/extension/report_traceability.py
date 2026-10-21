@@ -14,41 +14,35 @@ from typing import Any
 from src.reporting.base.package_contribution import PackageSectionContribution
 from src.reporting.base.report_package_contract import PERSONAL_REPORT_PACKAGE_TRACEABILITY
 
-
-def _dedupe_identifiers(values: list[str]) -> list[str]:
-    return sorted({value for value in values if value})
-
-
-def _dedupe_details(values: list[dict[str, str | Decimal | None]]) -> list[dict[str, str | Decimal | None]]:
-    seen: set[str] = set()
-    details: list[dict[str, str | Decimal | None]] = []
-    for value in values:
-        identifier = str(value.get("identifier") or "")
-        if not identifier or identifier in seen:
-            continue
-        seen.add(identifier)
-        details.append(value)
-    return details
+# Details of one (line_id, anchor_name), keyed by identifier, in first-occurrence order.
+_CollectedDetails = dict[tuple[str, str], dict[str, dict[str, str | Decimal | None]]]
 
 
-def _add_anchor_details(
-    lines_by_id: dict[str, dict[str, Any]],
+def _collect_anchor_details(
+    collected: _CollectedDetails,
     line_id: str,
     anchor_name: str,
     details: list[dict[str, str | Decimal | None]],
 ) -> None:
-    """Attach deduplicated contribution details and maintain the visible count."""
-    line = lines_by_id.get(line_id)
-    if line is None:
-        return
-    anchor = line[anchor_name]
-    anchor["details"] = _dedupe_details([*anchor.get("details", []), *details])
-    anchor["identifiers"] = _dedupe_identifiers(
-        [*anchor.get("identifiers", []), *(str(detail["identifier"]) for detail in anchor["details"])]
-    )
-    line["anchor_count"] = len(line["source_anchor"].get("identifiers", [])) + len(
-        line["ledger_anchor"].get("identifiers", [])
-    )
+    """Keep the first detail of each identifier. The cost is linear in the number of details."""
+    by_identifier = collected.setdefault((line_id, anchor_name), {})
+    for detail in details:
+        identifier = str(detail.get("identifier") or "")
+        if identifier and identifier not in by_identifier:
+            by_identifier[identifier] = detail
+
+
+def _write_anchor_details(lines_by_id: dict[str, dict[str, Any]], collected: _CollectedDetails) -> None:
+    """Write the details, the sorted identifiers and the visible count once for each touched anchor."""
+    for (line_id, anchor_name), by_identifier in collected.items():
+        anchor = lines_by_id[line_id][anchor_name]
+        anchor["details"] = list(by_identifier.values())
+        anchor["identifiers"] = sorted(by_identifier)
+    for line_id in dict.fromkeys(line_id for line_id, _ in collected):
+        line = lines_by_id[line_id]
+        line["anchor_count"] = len(line["source_anchor"].get("identifiers", [])) + len(
+            line["ledger_anchor"].get("identifiers", [])
+        )
 
 
 def _append_blocker(line: dict[str, Any], blocker_code: str) -> None:
@@ -178,6 +172,7 @@ async def build_personal_report_package_traceability_payload(
     """
     payload = deepcopy(PERSONAL_REPORT_PACKAGE_TRACEABILITY)
     lines_by_id = {line["line_id"]: line for line in payload["lines"]}
+    collected: _CollectedDetails = {}
     for line in payload["lines"]:
         line_id = line["line_id"]
         section_id = line["section_id"]
@@ -185,13 +180,13 @@ async def build_personal_report_package_traceability_payload(
             if section_id not in contribution.section_ids:
                 continue
             anchor_name, details = _details_for_line(contribution, line_id=line_id)
-            _add_anchor_details(lines_by_id, line_id, anchor_name, details)
+            _collect_anchor_details(collected, line_id, anchor_name, details)
             if not contribution.is_authoritative:
                 _append_blocker(line, "unproven_package_input")
 
     notes_line = lines_by_id["notes.non_compliance_statement"]
-    _add_anchor_details(
-        lines_by_id,
+    _collect_anchor_details(
+        collected,
         "notes.non_compliance_statement",
         "source_anchor",
         [
@@ -209,6 +204,7 @@ async def build_personal_report_package_traceability_payload(
             }
         ],
     )
+    _write_anchor_details(lines_by_id, collected)
     notes_line["anchor_count"] = len(notes_line["source_anchor"]["identifiers"])
     for line in payload["lines"]:
         source_anchor = line["source_anchor"]
