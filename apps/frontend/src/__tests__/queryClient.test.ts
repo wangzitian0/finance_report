@@ -19,6 +19,8 @@ describe("app query client (#2583 S4)", () => {
   it("AC-reporting.fe-fetch-budget.4 marks every ledger-derived read stale after a successful mutation", async () => {
     const client = createAppQueryClient();
     const seeded = LEDGER_DERIVED_QUERY_KEYS.map((key) => [...key, PROBE]);
+    // An empty list would make the loop below assert nothing.
+    expect(seeded.length).toBeGreaterThanOrEqual(8);
     for (const key of seeded) client.setQueryData(key, { probe: true });
     const unrelated = ["settings", "profile", PROBE];
     client.setQueryData(unrelated, { probe: true });
