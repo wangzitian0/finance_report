@@ -166,11 +166,22 @@ export interface PersonalReportPackageSectionsViewModel {
   investment_performance: InvestmentPerformanceReportSchedule;
   annualized_income_long_term: AnnualizedIncomeScheduleResponse;
   notes: PersonalReportPackageNotesResponse;
-  traceability_appendix: PersonalReportPackageTraceabilityResponse;
+  /** One summary per line. The details load page by page (#2583). */
+  traceability_appendix: PersonalReportPackageTraceabilitySummary;
 }
 
 export type PersonalReportPackageSections =
   PersonalReportPackageSectionsViewModel;
+
+/**
+ * The complete evidence lists of a frozen snapshot. The page reads them without a request.
+ * A preview does not have them: the page loads them page by page (#2583).
+ */
+export interface PersonalReportPackageFrozenEvidence {
+  snapshot_id: string;
+  traceability_appendix: PersonalReportPackageTraceabilityResponse;
+  input_manifest: PersonalReportPackageTraceManifestEntry[];
+}
 
 export interface PersonalReportPackageReadinessViewModel {
   package_id: string;
@@ -208,9 +219,10 @@ export interface PersonalReportPackageDocumentViewModel {
       evidence_anchors?: Schemas["FrameworkPolicyEvidenceAnchor"][];
     })[];
   };
-  input_manifest: PersonalReportPackageTraceManifestEntry[];
   statement_disposition_policy?: PersonalReportPackageStatementDispositionPolicy | null;
   sections: PersonalReportPackageSectionsViewModel;
+  /** Null for a preview. */
+  frozen_evidence: PersonalReportPackageFrozenEvidence | null;
 }
 
 export type PersonalReportPackageDocument =
@@ -264,14 +276,34 @@ export type PersonalReportPackageNotesResponse =
 export type PersonalReportPackageTraceabilityAnchor =
   Schemas["PersonalReportPackageTraceabilityAnchor"];
 
-export type PersonalReportPackageTraceabilityLine =
-  Schemas["PersonalReportPackageTraceabilityLine"];
-
 export type PersonalReportPackageCompletenessWarning =
   Schemas["PersonalReportPackageCompletenessWarning"];
 
 export type PersonalReportPackageTraceabilityResponse =
   Schemas["PersonalReportPackageTraceabilityResponse"];
+
+export type PersonalReportPackageTraceabilityAnchorName =
+  Schemas["PersonalReportPackageTraceabilityAnchorName"];
+
+export type PersonalReportPackageTraceabilityAnchorSummary =
+  Schemas["PersonalReportPackageTraceabilityAnchorSummary"];
+
+export type PersonalReportPackageTraceabilityLineSummary =
+  Schemas["PersonalReportPackageTraceabilityLineSummary"];
+
+export type PersonalReportPackageTraceabilitySummary =
+  Schemas["PersonalReportPackageTraceabilitySummaryResponse"];
+
+export type PersonalReportPackagePreview = Schemas["PersonalReportPackagePreview"];
+
+export type PersonalReportPackageLineDetailsPage =
+  Schemas["PersonalReportPackageLineDetailsPage"];
+
+export type PersonalReportPackageTraceabilityDetail =
+  NonNullable<PersonalReportPackageLineDetailsPage["details"]>[number];
+
+export type PersonalReportPackageManifestEntriesPage =
+  Schemas["PersonalReportPackageManifestEntriesPage"];
 
 export type EvidenceLineageNode = Schemas["EvidenceLineageNode"];
 
@@ -308,8 +340,93 @@ export function normalizeAdvisorSuggestions(
   }));
 }
 
+function summarizeTraceabilityAnchor(
+  anchor: PersonalReportPackageTraceabilityAnchor,
+): PersonalReportPackageTraceabilityAnchorSummary {
+  return {
+    state: anchor.state,
+    source_types: anchor.source_types ?? [],
+    entry_statuses: anchor.entry_statuses ?? [],
+    identifier_fields: anchor.identifier_fields ?? [],
+    unavailable_reason: anchor.unavailable_reason ?? null,
+    detail_count: (anchor.details ?? []).length,
+  };
+}
+
+/**
+ * The summary of a complete appendix. It equals the summary that the backend sends for a
+ * preview (`traceability_summary` in `package_document.py`), so one page renders both.
+ */
+export function summarizeTraceabilityAppendix(
+  appendix: PersonalReportPackageTraceabilityResponse,
+): PersonalReportPackageTraceabilitySummary {
+  return {
+    section_id: appendix.section_id,
+    label: appendix.label,
+    status: appendix.status,
+    lines: appendix.lines.map((line) => ({
+      line_id: line.line_id,
+      section_id: line.section_id,
+      label: line.label,
+      amount_field: line.amount_field ?? null,
+      currency_field: line.currency_field ?? null,
+      source_state: line.source_state,
+      source_anchor: summarizeTraceabilityAnchor(line.source_anchor),
+      ledger_anchor: summarizeTraceabilityAnchor(line.ledger_anchor),
+      anchor_count: line.anchor_count ?? 0,
+      blocker_codes: line.blocker_codes ?? [],
+    })),
+    completeness_warnings: appendix.completeness_warnings,
+  };
+}
+
+/** A frozen snapshot document: the page reads its complete evidence lists without a request. */
 export function normalizePersonalReportPackageDocument(
   document: Schemas["PersonalReportPackageDocument"],
+): PersonalReportPackageDocument {
+  const snapshotId = document.snapshot_id ?? null;
+  return normalizePackagePayload(document, {
+    snapshot_id: snapshotId,
+    package_decision_id: document.package_decision_id ?? null,
+    frozen_at: document.frozen_at ?? null,
+    traceability_appendix: summarizeTraceabilityAppendix(
+      document.sections.traceability_appendix,
+    ),
+    frozen_evidence:
+      snapshotId && document.lifecycle === "frozen"
+        ? {
+            snapshot_id: snapshotId,
+            traceability_appendix: document.sections.traceability_appendix,
+            input_manifest: document.input_manifest,
+          }
+        : null,
+  });
+}
+
+/** The live preview: the page loads the details and the manifest entries page by page (#2583). */
+export function normalizePersonalReportPackagePreview(
+  preview: PersonalReportPackagePreview,
+): PersonalReportPackageDocument {
+  return normalizePackagePayload(preview, {
+    snapshot_id: null,
+    package_decision_id: null,
+    frozen_at: null,
+    traceability_appendix: preview.sections.traceability_appendix,
+    frozen_evidence: null,
+  });
+}
+
+function normalizePackagePayload(
+  document:
+    | Schemas["PersonalReportPackageDocument"]
+    | PersonalReportPackagePreview,
+  identity: {
+    snapshot_id: string | null;
+    package_decision_id: string | null;
+    frozen_at: string | null;
+    traceability_appendix: PersonalReportPackageTraceabilitySummary;
+    frozen_evidence: PersonalReportPackageFrozenEvidence | null;
+  },
 ): PersonalReportPackageDocument {
   const coverage = document.readiness.input_coverage ?? {
     manifest_decision_count: 0,
@@ -317,10 +434,17 @@ export function normalizePersonalReportPackageDocument(
     unproven_input_count: 0,
   };
   return {
-    ...document,
-    snapshot_id: document.snapshot_id ?? null,
-    package_decision_id: document.package_decision_id ?? null,
-    frozen_at: document.frozen_at ?? null,
+    schema_version: document.schema_version,
+    lifecycle: document.lifecycle,
+    snapshot_id: identity.snapshot_id,
+    package_decision_id: identity.package_decision_id,
+    generated_at: document.generated_at,
+    frozen_at: identity.frozen_at,
+    package_id: document.package_id,
+    status: document.status,
+    context: document.context,
+    statement_disposition_policy: document.statement_disposition_policy ?? null,
+    frozen_evidence: identity.frozen_evidence,
     contract: {
       ...document.contract,
       supported_frameworks: document.contract.supported_frameworks ?? [],
@@ -364,6 +488,7 @@ export function normalizePersonalReportPackageDocument(
           document.sections.cash_flow.fx_warnings,
         ),
       },
+      traceability_appendix: identity.traceability_appendix,
     },
   };
 }

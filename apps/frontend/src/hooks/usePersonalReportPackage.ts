@@ -15,7 +15,7 @@ import {
 } from "@/lib/reportPackage";
 import { SHARED_STALE_MS } from "@/lib/sharedQueries";
 import {
-  normalizePersonalReportPackageDocument,
+  normalizePersonalReportPackagePreview,
   normalizePersonalReportPackageSnapshot,
 } from "@/lib/types";
 import type {
@@ -62,7 +62,7 @@ async function fetchPersonalReportPackage(
       signal,
     },
   );
-  return normalizePersonalReportPackageDocument(document);
+  return normalizePersonalReportPackagePreview(document);
 }
 
 export interface PersonalReportPackageQueryParams {
@@ -73,7 +73,7 @@ export interface PersonalReportPackageQueryParams {
 }
 
 /**
- * The preview document of the personal report package (about 4 MB for a year of data).
+ * The preview of the personal report package (about 60 KB for a year of data, #2583 S8).
  *
  * The package page and the Reports hub read it through this one query, so they share one cache
  * entry. A date change keeps the previous document on screen while the next one loads
@@ -110,7 +110,7 @@ export function personalReportPackageQuery({
 
 /**
  * After a package snapshot is generated: read the snapshot list again, and mark the cached
- * previews stale. The open page keeps its preview, so it does not read 4 MB again.
+ * previews stale. The open page keeps its preview, so it does not read the preview again.
  */
 export async function invalidateReportPackageQueries(
   queryClient: QueryClient,

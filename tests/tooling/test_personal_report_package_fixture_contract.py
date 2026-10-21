@@ -1,3 +1,4 @@
+import ast
 from decimal import Decimal
 from pathlib import Path
 
@@ -156,7 +157,19 @@ def test_AC8_13_88_personal_package_e2e_consumes_audit_grade_expected_outputs() 
     assert "latest_price_date = date.fromisoformat(" in journey
     assert 'schedule["data_freshness"]["latest_price_date"]' in journey
     assert "latest_price_date >= expected.market_price_date" in journey
-    assert "assert _has_dynamic_traceability_identifiers(traceability)" in journey
+    # The preview carries detail counts; the journey reads the details and the manifest
+    # entries from their evidence pages (#2583 S8). Comments do not count: read the calls.
+    assert "assert _has_dynamic_traceability_details(traceability)" in journey
+    evidence_paths = {
+        node.args[1].value
+        for node in ast.walk(ast.parse(journey))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_all_evidence_pages"
+        and len(node.args) >= 2
+        and isinstance(node.args[1], ast.Constant)
+    }
+    assert evidence_paths == {"/reports/package/line-details", "/reports/package/manifest-entries"}
 
 
 def test_AC8_14_3_personal_package_has_deterministic_package_document_mirror() -> None:

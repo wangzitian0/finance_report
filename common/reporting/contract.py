@@ -316,6 +316,7 @@ CONTRACT = PackageContract(
         "diagnose_equation_imbalance",
         "run_balance_sheet_diagnostics",
         "current_package_readiness",
+        "package_preview",
         "AnnualizedIncomeTotals",
         "CashFlowItem",
         "CashFlowResponse",
@@ -548,6 +549,8 @@ CONTRACT = PackageContract(
         ac('AC-reporting.package-traceability.4', 'The package traceability endpoint returns current-user dynamic source identifiers and excludes unrelated-user anchors.', 'apps/backend/tests/api/test_personal_report_package_contract.py::test_AC5_13_5_package_traceability_returns_dynamic_current_user_identifiers'),
         ac('AC-reporting.package-traceability.5', 'The traceability appendix builder returns the pre-#2583 output for a fixed contribution set. Detail order, sorted identifiers, anchor counts, blocker codes, key order and value types do not change.', 'apps/backend/tests/reporting/test_report_traceability_linear.py::test_AC_reporting_package_traceability_5_output_equals_pre_change_golden', priority='P1', proof_kind='exact'),
         ac('AC-reporting.package-traceability.6', 'The traceability appendix builder is linear in the number of contributions: 5000 contributions on one report line build in less than 100 ms (#2583).', 'apps/backend/tests/reporting/test_report_traceability_linear.py::test_AC_reporting_package_traceability_6_builder_is_linear_in_contributions', priority='P1', proof_kind='property'),
+        ac('AC-reporting.package-traceability.7', 'At one year of anchored activity (1000 entries), GET /reports/package returns less than 300 KB with no more SQL statements than before #2583 S8. The preview has a detail count per anchor and no identifiers, details or input manifest entries. Its readiness equals the readiness of the full document.', 'apps/backend/tests/reporting/test_package_preview_payload.py::test_AC_reporting_package_traceability_7_year_scale_preview_is_bounded', priority='P1', proof_kind='property'),
+        ac('AC-reporting.package-traceability.8', 'GET /reports/package/line-details returns, page by page, the same details for each line anchor as a frozen snapshot of the same data, in the same order. GET /reports/package/manifest-entries returns the input manifest of that snapshot (#2583 S8).', 'apps/backend/tests/reporting/test_package_preview_payload.py::test_AC_reporting_package_traceability_8_evidence_pages_equal_snapshot', priority='P1', proof_kind='exact'),
         # ── group integration: backend reporting integration journey (was
         # EPIC-005 AC5.15.1, migration closeout continuation,
         # #1663 / #1716) ──
@@ -823,6 +826,7 @@ CONTRACT = PackageContract(
         ac('AC-reporting.fe-fetch-budget.4', 'A successful mutation marks the ledger-derived cached reads stale, so a cached page never keeps data that the mutation changed.', 'apps/frontend/src/__tests__/queryClient.test.ts::AC-reporting.fe-fetch-budget.4 marks every ledger-derived read stale after a successful mutation', priority='P1'),
         ac('AC-reporting.fe-fetch-budget.5', 'The Reports hub and the package page share one cached package preview. A date change keeps the previous document visible, labelled with its own period, while the new one loads.', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC-reporting.fe-fetch-budget.5 the Reports hub and the package page share one preview request', priority='P1'),
         ac('AC-reporting.fe-fetch-budget.6', 'The shell polls the workflow status every 30 s while work is pending and every 120 s otherwise, and keeps the refetch on window focus.', 'apps/frontend/src/__tests__/workflowStatusPolling.test.tsx::AC-reporting.fe-fetch-budget.6 polls every 120 s while nothing is pending', priority='P1'),
+        ac('AC-reporting.fe-fetch-budget.7', 'The package page requests the details of a traceability line only after the user opens that line, and the authority manifest entries only after the user opens the manifest. A frozen snapshot shows its stored details without a request (#2583 S8).', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC-reporting.fe-fetch-budget.7 loads the details of a traceability line only after the user opens the line', priority='P1'),
     ],
     governance=[
         GovernanceInitiative(

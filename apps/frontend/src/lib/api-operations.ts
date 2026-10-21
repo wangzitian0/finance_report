@@ -92,6 +92,8 @@ export const API_OPERATIONS = {
   "list_matches_reconciliation_matches_get": { method: "GET", path: "/api/reconciliation/matches" },
   "list_notifications_endpoint_notifications_get": { method: "GET", path: "/api/notifications" },
   "list_pending_review_statements_pending_review_get": { method: "GET", path: "/api/statements/pending-review" },
+  "list_personal_report_package_line_details_reports_package_line_details_get": { method: "GET", path: "/api/reports/package/line-details" },
+  "list_personal_report_package_manifest_entries_reports_package_manifest_entries_get": { method: "GET", path: "/api/reports/package/manifest-entries" },
   "list_personal_report_package_snapshots_reports_package_snapshots_get": { method: "GET", path: "/api/reports/package/snapshots" },
   "list_positions_assets_positions_get": { method: "GET", path: "/api/assets/positions" },
   "list_processing_pending_accounts_processing_pending_get": { method: "GET", path: "/api/accounts/processing/pending" },

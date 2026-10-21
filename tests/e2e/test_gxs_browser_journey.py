@@ -309,10 +309,24 @@ async def test_gxs_browser_upload_to_saved_package(
         for line in mid_sections["traceability_appendix"]["lines"]
         if line["line_id"] == "income_statement.total_income"
     )
-    assert income_line["source_anchor"]["details"]
-    assert any(
-        detail["decision_id"] for detail in income_line["source_anchor"]["details"]
+    # The preview carries the count; the details load page by page (#2583).
+    assert income_line["source_anchor"]["detail_count"] > 0
+    income_details_response = await page.request.get(
+        f"{APP_URL}/api/reports/package/line-details",
+        params={
+            "start_date": statement["period_start"],
+            "end_date": cutoff,
+            "as_of_date": cutoff,
+            "currency": statement["currency"],
+            "line_id": "income_statement.total_income",
+            "anchor": "source_anchor",
+            "limit": 500,
+        },
     )
+    assert income_details_response.status == 200
+    income_details = (await income_details_response.json())["details"]
+    assert len(income_details) == income_line["source_anchor"]["detail_count"]
+    assert any(detail["decision_id"] for detail in income_details)
     checkpoint(record_property, "U11")
     (tmp_path / "midperiod-package.json").write_text(json.dumps(midperiod, indent=2))
     record_property("midperiod_source_and_amount_oracle", "passed")

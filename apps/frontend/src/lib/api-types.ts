@@ -821,7 +821,10 @@ export interface paths {
         parameters: { query?: never; header?: never; path?: never; cookie?: never; };
         /**
          * Preview Personal Report Package
-         * @description Build the one typed preview document without persisting a snapshot.
+         * @description Build the typed preview document without persisting a snapshot, and return its bounded projection.
+         *
+         *     The traceability details and the input manifest entries load page by page from
+         *     ``GET /reports/package/line-details`` and ``GET /reports/package/manifest-entries`` (#2583).
          */
         get: operations["preview_personal_report_package_reports_package_get"];
         put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
@@ -845,6 +848,28 @@ export interface paths {
          */
         post: operations["generate_personal_report_package_snapshot_reports_package_generate_post"];
         delete?: never; options?: never; head?: never; patch?: never; trace?: never;
+    };
+    "/reports/package/line-details": {
+        parameters: { query?: never; header?: never; path?: never; cookie?: never; };
+        /**
+         * List Personal Report Package Line Details
+         * @description Return one page of the details of one traceability line anchor of the preview.
+         *
+         *     The details equal the details that a snapshot of the same period stores, in the same order.
+         */
+        get: operations["list_personal_report_package_line_details_reports_package_line_details_get"];
+        put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
+    };
+    "/reports/package/manifest-entries": {
+        parameters: { query?: never; header?: never; path?: never; cookie?: never; };
+        /**
+         * List Personal Report Package Manifest Entries
+         * @description Return one page of the input manifest of the preview.
+         *
+         *     The entries equal the input manifest that a snapshot of the same period stores, in the same order.
+         */
+        get: operations["list_personal_report_package_manifest_entries_reports_package_manifest_entries_get"];
+        put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
     };
     "/reports/package/snapshots": {
         parameters: { query?: never; header?: never; path?: never; cookie?: never; };
@@ -4530,6 +4555,63 @@ export interface components {
             unproven_input_count: number;
         };
         /**
+         * PersonalReportPackageLineDetailsPage
+         * @description One page of the details of one traceability line anchor, in appendix order.
+         */
+        PersonalReportPackageLineDetailsPage: {
+            anchor: components["schemas"]["PersonalReportPackageTraceabilityAnchorName"];
+            /**
+             * Details
+             * @description Typed contribution details of this page.
+             */
+            details?: {
+                [key: string]: string | null;
+            }[];
+            /**
+             * Limit
+             * @description Maximum number of details in this page.
+             */
+            limit: number;
+            /** Line Id */
+            line_id: string;
+            /**
+             * Offset
+             * @description Number of details before this page.
+             */
+            offset: number;
+            /**
+             * Total
+             * @description Number of details of this anchor.
+             */
+            total: number;
+        };
+        /**
+         * PersonalReportPackageManifestEntriesPage
+         * @description One page of the input manifest of a package document, in manifest order.
+         */
+        PersonalReportPackageManifestEntriesPage: {
+            /**
+             * Entries
+             * @description Manifest entries of this page.
+             */
+            entries?: components["schemas"]["PersonalReportPackageTraceManifestEntry"][];
+            /**
+             * Limit
+             * @description Maximum number of entries in this page.
+             */
+            limit: number;
+            /**
+             * Offset
+             * @description Number of entries before this page.
+             */
+            offset: number;
+            /**
+             * Total
+             * @description Number of manifest entries.
+             */
+            total: number;
+        };
+        /**
          * PersonalReportPackageNote
          * @description Disclosure note included in the personal financial-report package.
          */
@@ -4564,6 +4646,58 @@ export interface components {
             section_id: string;
             /** Status */
             status: string;
+        };
+        /**
+         * PersonalReportPackagePreview
+         * @description The live preview of one package document (#2583).
+         *
+         *     It is a projection of ``PersonalReportPackageDocument``. Its appendix lines carry detail
+         *     counts, not details. It has no input manifest entries: ``readiness.input_coverage`` gives
+         *     their counts. ``GET /reports/package/line-details`` and ``GET /reports/package/manifest-entries``
+         *     return the entries page by page. A frozen snapshot stores the complete document.
+         */
+        PersonalReportPackagePreview: {
+            context: components["schemas"]["PersonalReportPackageContext"];
+            contract: components["schemas"]["PersonalReportPackageContractResponse"];
+            framework_policy: components["schemas"]["FrameworkPolicyResult"];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /**
+             * Lifecycle
+             * @constant
+             */
+            lifecycle: "preview";
+            /** Package Id */
+            package_id: string;
+            readiness: components["schemas"]["PersonalReportPackageReadinessResponse"];
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "2";
+            sections: components["schemas"]["PersonalReportPackagePreviewSections"];
+            statement_disposition_policy?: components["schemas"]["PersonalReportPackageStatementDispositionPolicy"] | null;
+            /**
+             * Status
+             * @constant
+             */
+            status: "draft";
+        };
+        /**
+         * PersonalReportPackagePreviewSections
+         * @description The sections of a preview. The traceability appendix has one summary per line.
+         */
+        PersonalReportPackagePreviewSections: {
+            annualized_income_long_term: components["schemas"]["AnnualizedIncomeScheduleResponse"];
+            balance_sheet: components["schemas"]["BalanceSheetResponse"];
+            cash_flow: components["schemas"]["CashFlowResponse"];
+            income_statement: components["schemas"]["IncomeStatementResponse"];
+            investment_performance: components["schemas"]["InvestmentPerformanceReportScheduleResponse"];
+            notes: components["schemas"]["PersonalReportPackageNotesResponse"];
+            traceability_appendix: components["schemas"]["PersonalReportPackageTraceabilitySummaryResponse"];
         };
         /**
          * PersonalReportPackageReadinessBlocker
@@ -4886,6 +5020,42 @@ export interface components {
             unavailable_reason?: string | null;
         };
         /**
+         * PersonalReportPackageTraceabilityAnchorName
+         * @description The two anchors of one traceability line.
+         * @enum {string}
+         */
+        PersonalReportPackageTraceabilityAnchorName: "source_anchor" | "ledger_anchor";
+        /**
+         * PersonalReportPackageTraceabilityAnchorSummary
+         * @description Source or ledger anchor of one preview line, without its identifiers and details (#2583).
+         */
+        PersonalReportPackageTraceabilityAnchorSummary: {
+            /**
+             * Detail Count
+             * @description Number of details of this anchor. GET /reports/package/line-details returns them page by page.
+             */
+            detail_count: number;
+            /**
+             * Entry Statuses
+             * @description Ledger entry states disclosed for this anchor.
+             */
+            entry_statuses?: string[];
+            /**
+             * Identifier Fields
+             * @description Identifier field names available for this anchor.
+             */
+            identifier_fields?: string[];
+            /**
+             * Source Types
+             * @description Source types disclosed for this anchor.
+             */
+            source_types?: string[];
+            /** State */
+            state: string;
+            /** Unavailable Reason */
+            unavailable_reason?: string | null;
+        };
+        /**
          * PersonalReportPackageTraceabilityLine
          * @description Traceability metadata for one personal report package line.
          */
@@ -4916,6 +5086,36 @@ export interface components {
             source_state: string;
         };
         /**
+         * PersonalReportPackageTraceabilityLineSummary
+         * @description Traceability metadata and anchor counts for one preview line.
+         */
+        PersonalReportPackageTraceabilityLineSummary: {
+            /** Amount Field */
+            amount_field?: string | null;
+            /**
+             * Anchor Count
+             * @default 0
+             */
+            anchor_count: number;
+            /**
+             * Blocker Codes
+             * @description Explicit completeness or authority blockers for this line.
+             */
+            blocker_codes?: string[];
+            /** Currency Field */
+            currency_field?: string | null;
+            /** Label */
+            label: string;
+            ledger_anchor: components["schemas"]["PersonalReportPackageTraceabilityAnchorSummary"];
+            /** Line Id */
+            line_id: string;
+            /** Section Id */
+            section_id: string;
+            source_anchor: components["schemas"]["PersonalReportPackageTraceabilityAnchorSummary"];
+            /** Source State */
+            source_state: string;
+        };
+        /**
          * PersonalReportPackageTraceabilityResponse
          * @description Package-level source-ledger-report traceability appendix.
          */
@@ -4926,6 +5126,22 @@ export interface components {
             label: string;
             /** Lines */
             lines: components["schemas"]["PersonalReportPackageTraceabilityLine"][];
+            /** Section Id */
+            section_id: string;
+            /** Status */
+            status: string;
+        };
+        /**
+         * PersonalReportPackageTraceabilitySummaryResponse
+         * @description The traceability appendix of a preview: one summary per line, without the details.
+         */
+        PersonalReportPackageTraceabilitySummaryResponse: {
+            /** Completeness Warnings */
+            completeness_warnings: components["schemas"]["PersonalReportPackageCompletenessWarning"][];
+            /** Label */
+            label: string;
+            /** Lines */
+            lines: components["schemas"]["PersonalReportPackageTraceabilityLineSummary"][];
             /** Section Id */
             section_id: string;
             /** Status */
@@ -9176,7 +9392,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["PersonalReportPackageDocument"]; }; };
+            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["PersonalReportPackagePreview"]; }; };
             /** @description Bad request */
             400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
             /** @description Unauthorized */
@@ -9233,6 +9449,82 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["PersonalReportPackageSnapshotResponse"]; }; };
+            /** @description Bad request */
+            400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Unauthorized */
+            401: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Forbidden */
+            403: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Not found */
+            404: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Conflict */
+            409: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Validation Error */
+            422: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["HTTPValidationError"]; }; };
+            /** @description Too many requests */
+            429: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Internal server error */
+            500: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+        };
+    };
+    list_personal_report_package_line_details_reports_package_line_details_get: {
+        parameters: {
+            query: {
+                /** @description Traceability line, for example balance_sheet.total_assets */
+                line_id: string;
+                /** @description The anchor of the line */
+                anchor: components["schemas"]["PersonalReportPackageTraceabilityAnchorName"];
+                start_date?: string | null;
+                end_date?: string | null;
+                as_of_date?: string | null;
+                currency?: string | null;
+                /** @description Maximum items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
+            header?: never; path?: never; cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["PersonalReportPackageLineDetailsPage"]; }; };
+            /** @description Bad request */
+            400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Unauthorized */
+            401: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Forbidden */
+            403: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Not found */
+            404: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Conflict */
+            409: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Validation Error */
+            422: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["HTTPValidationError"]; }; };
+            /** @description Too many requests */
+            429: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Internal server error */
+            500: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+        };
+    };
+    list_personal_report_package_manifest_entries_reports_package_manifest_entries_get: {
+        parameters: {
+            query?: {
+                start_date?: string | null;
+                end_date?: string | null;
+                as_of_date?: string | null;
+                currency?: string | null;
+                /** @description Maximum items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
+            header?: never; path?: never; cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["PersonalReportPackageManifestEntriesPage"]; }; };
             /** @description Bad request */
             400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
             /** @description Unauthorized */
