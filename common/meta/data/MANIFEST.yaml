@@ -41,6 +41,15 @@ concepts:
       - docs/agents/red-lines.md
       - apps/frontend/src/lib/api.ts
 
+  frontend_route_map:
+    owner: apps/frontend/src/lib/route-map.json
+    description: "Every frontend route with its state (target, shell, merge, redirect), lane and merge target. next.config.mjs redirects and the route guards read it."
+    family: frontend
+    kind: data
+    cross_refs:
+      - apps/frontend/next.config.mjs
+      - apps/frontend/src/__tests__/routeMap.test.ts
+
   security_red_lines:
     owner: docs/agents/red-lines.md
     description: Hard security and integrity rules agents must never violate.

@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "description": "Single source of truth for every frontend route. State target: one of the 10 final pages. State shell: a page outside the 10 that the app shell needs. State merge: a page that still exists and moves into its target. State redirect: a path with no page that next.config.mjs redirects to its target. Lanes: LA audit queues, LB upload chain, LC three statements, LD reconciliation, portfolio and settings.",
+  "target_page_count": 10,
+  "routes": [
+    { "path": "/", "state": "target" },
+    { "path": "/reports", "state": "target" },
+    { "path": "/upload", "state": "target" },
+    { "path": "/statements/[id]", "state": "target" },
+    { "path": "/audit", "state": "target" },
+    { "path": "/reconciliation", "state": "target" },
+    { "path": "/journal", "state": "target" },
+    { "path": "/chat", "state": "target" },
+    { "path": "/portfolio", "state": "target" },
+    { "path": "/settings", "state": "target" },
+
+    { "path": "/login", "state": "shell" },
+    { "path": "/more", "state": "shell" },
+    { "path": "/ping-pong", "state": "shell" },
+
+    { "path": "/attention", "state": "merge", "into": "/audit", "lane": "LA" },
+    { "path": "/confidence", "state": "merge", "into": "/audit", "lane": "LA" },
+    { "path": "/review/ai-suggestions", "state": "merge", "into": "/audit", "lane": "LA" },
+    { "path": "/review/run/[runId]", "state": "merge", "into": "/audit", "lane": "LA" },
+
+    { "path": "/notifications", "state": "merge", "into": "/upload", "lane": "LB" },
+    { "path": "/processing", "state": "merge", "into": "/upload", "lane": "LB" },
+    { "path": "/accounts/processing", "state": "merge", "into": "/upload", "lane": "LB" },
+    { "path": "/statements/[id]/review", "state": "merge", "into": "/statements/[id]", "lane": "LB" },
+
+    { "path": "/reports/balance-sheet", "state": "merge", "into": "/reports", "lane": "LC" },
+    { "path": "/reports/income-statement", "state": "merge", "into": "/reports", "lane": "LC" },
+    { "path": "/reports/cash-flow", "state": "merge", "into": "/reports", "lane": "LC" },
+    { "path": "/reports/package", "state": "merge", "into": "/reports", "lane": "LC" },
+
+    { "path": "/reconciliation/unmatched", "state": "merge", "into": "/reconciliation", "lane": "LD" },
+    { "path": "/reconciliation/review-queue", "state": "merge", "into": "/reconciliation", "lane": "LD" },
+    { "path": "/portfolio/[ticker]", "state": "merge", "into": "/portfolio", "lane": "LD" },
+    { "path": "/portfolio/prices", "state": "merge", "into": "/portfolio", "lane": "LD" },
+    { "path": "/portfolio/evidence", "state": "merge", "into": "/portfolio", "lane": "LD" },
+    { "path": "/accounts", "state": "merge", "into": "/settings", "lane": "LD" },
+
+    { "path": "/dashboard", "state": "redirect", "into": "/" },
+    { "path": "/events", "state": "redirect", "into": "/notifications" },
+    { "path": "/assets", "state": "redirect", "into": "/portfolio" },
+    { "path": "/statements/upload", "state": "redirect", "into": "/upload" },
+    { "path": "/statements", "state": "redirect", "into": "/upload" },
+    { "path": "/review", "state": "redirect", "into": "/notifications" },
+    { "path": "/settings/general", "state": "redirect", "into": "/settings?tab=general" },
+    { "path": "/settings/ai", "state": "redirect", "into": "/settings?tab=ai" },
+    { "path": "/settings/llm", "state": "redirect", "into": "/settings?tab=llm" }
+  ]
+}
