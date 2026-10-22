@@ -98,6 +98,17 @@ MANIFEST accepts them only through a versioned policy's complete parent set. An
 LLM-produced financial observation requires a same-target CODE-ONLY
 invariant/promotion decision parent before an authoritative decision can exist.
 
+`TraceEmitter.emit_many()` hands an ordered causal set to `append_many()` when
+the repository has it. `append_many()` applies the checks of `append()` and
+persists the same rows. It sends a fixed number of statements, whatever the size
+of the set: one lock statement, one existence read, one head read, and two
+inserts. A set with a supersession keeps the per-record path, because a
+supersession changes the heads that the later records of the set read. After an
+append, the repository knows the new record, its head state, its current
+ancestry and the decision head of its lineage. Later reads in the same unit of
+work use that memo without a statement (#2612). The memo ends at a commit, and at
+a rollback of the unit of work or of a savepoint.
+
 Each package injects `TraceEmitter` at its composition boundary and flushes the
 complete causal set into the same caller-owned transaction as the authoritative
 side effect; the emitter never commits or rolls back independently. Any append

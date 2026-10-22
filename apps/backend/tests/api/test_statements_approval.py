@@ -610,11 +610,11 @@ async def test_AC_extraction_disposition_6_auto_post_requires_authoritative_trac
     )
     await db.commit()
 
-    async def emit_non_authoritative(*_args, **_kwargs):
-        return (SimpleNamespace(result=TraceResult.REVIEW),)
+    async def emit_non_authoritative(*, inputs, **_kwargs):
+        return [(SimpleNamespace(result=TraceResult.REVIEW),) for _ in inputs]
 
     monkeypatch.setattr(
-        "src.extraction.extension.statement_posting.emit_disposition_trace_records",
+        "src.extraction.extension.statement_posting.emit_disposition_trace_records_many",
         emit_non_authoritative,
     )
 

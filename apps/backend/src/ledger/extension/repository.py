@@ -7,6 +7,8 @@ lifecycle verbs; voiding creates its reversal through the system anchored comman
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import cast
 from uuid import UUID, uuid4
@@ -41,6 +43,7 @@ from src.ledger.orm.journal import (
 
 __all__ = [
     "active_journal_entry_filter",
+    "post_journal_entries",
     "post_journal_entry",
     "validate_line_account_ownership",
     "void_journal_entry",
@@ -99,6 +102,18 @@ async def validate_line_account_ownership(
     return accounts
 
 
+@dataclass(frozen=True, slots=True)
+class AnchoredEntryDraft:
+    """The persistence-neutral fields of one anchored journal entry before it exists."""
+
+    entry_date: date
+    memo: str
+    lines_data: list[dict]
+    source_type: JournalEntrySourceType
+    source_id: UUID | None
+    decision_anchor: DecisionAnchor
+
+
 async def _create_anchored_journal_entry(
     db: AsyncSession,
     user_id: UUID,
@@ -117,10 +132,70 @@ async def _create_anchored_journal_entry(
         user_id,
         {line_data["account_id"] for line_data in lines_data},
     )
+    entry, lines = _build_anchored_journal_entry(
+        user_id,
+        AnchoredEntryDraft(
+            entry_date=entry_date,
+            memo=memo,
+            lines_data=lines_data,
+            source_type=source_type,
+            source_id=source_id,
+            decision_anchor=decision_anchor,
+        ),
+        accounts=accounts,
+        base_currency=base_currency,
+    )
+    db.add(entry)
+    db.add_all(lines)
+    await db.flush()
+    return entry
 
+
+async def _create_anchored_journal_entries(
+    db: AsyncSession,
+    user_id: UUID,
+    drafts: Sequence[AnchoredEntryDraft],
+    *,
+    base_currency: str | None = None,
+) -> list[JournalEntry]:
+    """Create many draft entries with one account read and one flush.
+
+    Each entry equals the one that ``_create_anchored_journal_entry`` creates for the same draft. No
+    entry is added to the session before every draft has passed its checks.
+    """
+    if not drafts:
+        return []
+    base_currency = await _set_transaction_base_currency(db, base_currency)
+    accounts = await validate_line_account_ownership(
+        db,
+        user_id,
+        {line_data["account_id"] for draft in drafts for line_data in draft.lines_data},
+    )
+    built = [
+        _build_anchored_journal_entry(user_id, draft, accounts=accounts, base_currency=base_currency)
+        for draft in drafts
+    ]
+    db.add_all([entry for entry, _lines in built])
+    db.add_all([line for _entry, lines in built for line in lines])
+    await db.flush()
+    return [entry for entry, _lines in built]
+
+
+def _build_anchored_journal_entry(
+    user_id: UUID,
+    draft: AnchoredEntryDraft,
+    *,
+    accounts: dict[UUID, Account],
+    base_currency: str,
+) -> tuple[JournalEntry, list[JournalLine]]:
+    """Check one draft against the ledger rules and build its entry and lines. Nothing is persisted."""
+    entry_date, memo, lines_data = draft.entry_date, draft.memo, draft.lines_data
+    source_type, source_id, decision_anchor = draft.source_type, draft.source_id, draft.decision_anchor
     normalized_source = normalize_source_type(source_type)
+    # ``accounts`` may hold the accounts of other drafts. The rules apply to the accounts of this draft.
+    draft_accounts = {line_data["account_id"]: accounts[line_data["account_id"]] for line_data in lines_data}
     if normalized_source != JournalEntrySourceType.SYSTEM:
-        for account in accounts.values():
+        for account in draft_accounts.values():
             if account.code == PROCESSING_ACCOUNT_CODE:
                 raise ValidationError(
                     f"Processing account (code {PROCESSING_ACCOUNT_CODE}) is reserved for internal transfer reconciliation and cannot be used in {normalized_source.value} journal entries"
@@ -164,10 +239,16 @@ async def _create_anchored_journal_entry(
     validate_fx_rates(cast("list[JournalLinePostingProtocol]", lines), base_currency=base_currency)
 
     entry.lines = lines
-    db.add(entry)
-    db.add_all(lines)
-    await db.flush()
-    return entry
+    return entry, lines
+
+
+async def _load_entry_with_lines(db: AsyncSession, entry_id: UUID) -> JournalEntry | None:
+    result = await db.execute(
+        select(JournalEntry)
+        .where(JournalEntry.id == entry_id)
+        .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
+    )
+    return result.scalar_one_or_none()
 
 
 async def post_journal_entry(
@@ -197,19 +278,9 @@ async def post_journal_entry(
     if isinstance(entry_id, JournalEntry):
         entry = entry_id
         if not entry.lines:
-            result = await db.execute(
-                select(JournalEntry)
-                .where(JournalEntry.id == entry.id)
-                .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
-            )
-            entry = result.scalar_one_or_none()
+            entry = await _load_entry_with_lines(db, entry.id)
     else:
-        result = await db.execute(
-            select(JournalEntry)
-            .where(JournalEntry.id == entry_id)
-            .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
-        )
-        entry = result.scalar_one_or_none()
+        entry = await _load_entry_with_lines(db, entry_id)
 
     if not entry:
         raise ValidationError(f"Journal entry {entry_id} not found")
@@ -231,6 +302,40 @@ async def post_journal_entry(
     await db.flush()
 
     return entry
+
+
+async def post_journal_entries(
+    db: AsyncSession,
+    entries: Sequence[JournalEntry],
+    user_id: UUID,
+    *,
+    base_currency: str | None = None,
+) -> list[JournalEntry]:
+    """Post many draft entries with one flush.
+
+    Each entry gets the checks and the result of ``post_journal_entry``. An entry whose lines are not
+    loaded is read again with its lines, as ``post_journal_entry`` does.
+    """
+    from src.ledger.extension.anchored_posting import validate_manual_journal_entry_for_post
+
+    transaction_base: str | None = None
+    for loaded_entry in entries:
+        entry = loaded_entry if loaded_entry.lines else await _load_entry_with_lines(db, loaded_entry.id)
+        if entry is None:
+            raise ValidationError(f"Journal entry {loaded_entry.id} not found")
+        if entry.user_id != user_id:
+            raise ValidationError("Journal entry does not belong to user")
+        if entry.status != JournalEntryStatus.DRAFT:
+            raise ValidationError(f"Can only post draft entries, current status: {entry.status}")
+        entry_base = entry.stored_base_currency(base_currency)
+        if entry_base != transaction_base:
+            transaction_base = await _set_transaction_base_currency(db, entry_base)
+        validate_journal_posting_invariants(cast("JournalEntryPostingProtocol", entry), base_currency=entry_base)
+        await validate_manual_journal_entry_for_post(db, user_id=user_id, entry=entry, base_currency=entry_base)
+        entry.status = JournalEntryStatus.POSTED
+        entry.updated_at = datetime.now(UTC)
+    await db.flush()
+    return list(entries)
 
 
 async def void_journal_entry(

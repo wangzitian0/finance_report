@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -15,6 +15,7 @@ from src.audit import (
     TraceAuthorityProfile,
     TraceCausality,
     TraceDecisionOutcome,
+    TraceLineage,
     TraceRecord,
     TraceResult,
     TraceScope,
@@ -397,6 +398,124 @@ async def emit_disposition_trace_records(
     return await emitter.emit_many(records)
 
 
+def _require_authoritative_source_decision(
+    upstream_decision: TraceRecord,
+    *,
+    scope: TraceScope,
+    source_id: UUID,
+) -> None:
+    if (
+        upstream_decision.scope != scope
+        or upstream_decision.result is not TraceResult.AUTHORITATIVE
+        or upstream_decision.target.kind != "statement_transaction"
+        or upstream_decision.target.id != str(source_id)
+    ):
+        raise ValueError("financial command requires a current authoritative source decision")
+
+
+def _payload_observation(
+    *,
+    scope: TraceScope,
+    target: VersionedTraceRef,
+    execution_id: str,
+    upstream: TraceRecord,
+) -> TraceRecord:
+    """The observation that the canonical payload of a journal command was materialized."""
+    return TraceRecord.observation(
+        scope=scope,
+        target=target,
+        target_class=TraceTargetClass.FINANCIAL,
+        assertion=VersionedTraceRef(kind="ledger_command", id="canonical-payload", version="1"),
+        authority=JournalCommandPayloadTracePolicy().authority,
+        result=TraceResult.PASS,
+        execution_id=execution_id,
+        evidence_manifest_digest=target.version,
+        occurred_at=upstream.occurred_at,
+        score=Ratio(Decimal("1")),
+        reason_code="journal_command_payload_canonical",
+    )
+
+
+async def _lineages_with_decision_head(
+    emitter: TraceEmitter,
+    scope: TraceScope,
+    lineages: Collection[TraceLineage],
+) -> set[TraceLineage] | None:
+    """The lineages that hold a decision head, read in one statement.
+
+    A repository without the batch read gives ``None``. The caller then keeps the per-record path.
+    """
+    read = getattr(type(emitter.repository), "lineages_with_decision_head", None)
+    if read is None:
+        return None
+    return await emitter.repository.lineages_with_decision_head(scope, lineages)  # type: ignore[attr-defined]
+
+
+@dataclass(frozen=True, slots=True)
+class DispositionTraceInput:
+    """One transaction whose disposition needs its trace records."""
+
+    transaction: StatementTransaction
+    proposal: IntentProposal | None
+    decision: DispositionDecision
+
+
+async def emit_disposition_trace_records_many(
+    *,
+    emitter: TraceEmitter,
+    user_id: UUID,
+    execution_id: str,
+    occurred_at: datetime,
+    inputs: Sequence[DispositionTraceInput],
+    policy_snapshot: StatementDispositionPolicySnapshot | None = None,
+) -> list[tuple[TraceRecord, ...]]:
+    """Emit the disposition records of many transactions with a fixed number of statements.
+
+    Each result equals the one that ``emit_disposition_trace_records`` returns for the same input. A
+    transaction whose guard or disposition lineage already holds a head keeps that per-record path,
+    because it may supersede the head.
+    """
+    built = [
+        build_disposition_trace_records(
+            user_id=user_id,
+            execution_id=execution_id,
+            occurred_at=occurred_at,
+            transaction=item.transaction,
+            proposal=item.proposal,
+            decision=item.decision,
+            policy_snapshot=policy_snapshot,
+        )
+        for item in inputs
+    ]
+    scope = TraceScope.tenant(user_id)
+    heads = await _lineages_with_decision_head(
+        emitter, scope, [lineage for records in built for lineage in (records[2].lineage, records[3].lineage)]
+    )
+    results: list[tuple[TraceRecord, ...] | None] = [None] * len(inputs)
+    fresh = [
+        index
+        for index, records in enumerate(built)
+        if heads is not None and records[2].lineage not in heads and records[3].lineage not in heads
+    ]
+    if fresh:
+        emitted = await emitter.emit_many([record for index in fresh for record in built[index]])
+        for position, index in enumerate(fresh):
+            results[index] = tuple(emitted[position * 4 : (position + 1) * 4])
+    for index, item in enumerate(inputs):
+        if results[index] is None:
+            results[index] = await emit_disposition_trace_records(
+                emitter=emitter,
+                user_id=user_id,
+                execution_id=execution_id,
+                occurred_at=occurred_at,
+                transaction=item.transaction,
+                proposal=item.proposal,
+                decision=item.decision,
+                policy_snapshot=policy_snapshot,
+            )
+    return [result for result in results if result is not None]
+
+
 async def authorize_financial_command(
     *,
     emitter: TraceEmitter,
@@ -428,13 +547,7 @@ async def authorize_financial_command(
         source_identity=source_identity,
     )
     scope = TraceScope.tenant(user_id)
-    if (
-        upstream_decision.scope != scope
-        or upstream_decision.result is not TraceResult.AUTHORITATIVE
-        or upstream_decision.target.kind != "statement_transaction"
-        or upstream_decision.target.id != str(source_id)
-    ):
-        raise ValueError("financial command requires a current authoritative source decision")
+    _require_authoritative_source_decision(upstream_decision, scope=scope, source_id=source_id)
 
     authorization_policy = FinancialCommandAuthorizationTracePolicy()
     auth_head = await emitter.repository.decision_head(
@@ -453,19 +566,8 @@ async def authorize_financial_command(
     authorization_supersedes_id = auth_head.record.record_id if auth_head is not None else None
 
     execution_id = f"journal-command:{target.id}:{target.version}"
-    payload_digest = target.version
-    observation = TraceRecord.observation(
-        scope=scope,
-        target=target,
-        target_class=TraceTargetClass.FINANCIAL,
-        assertion=VersionedTraceRef(kind="ledger_command", id="canonical-payload", version="1"),
-        authority=JournalCommandPayloadTracePolicy().authority,
-        result=TraceResult.PASS,
-        execution_id=execution_id,
-        evidence_manifest_digest=payload_digest,
-        occurred_at=upstream_decision.occurred_at,
-        score=Ratio(Decimal("1")),
-        reason_code="journal_command_payload_canonical",
+    observation = _payload_observation(
+        scope=scope, target=target, execution_id=execution_id, upstream=upstream_decision
     )
     payload_policy = JournalCommandPayloadTracePolicy()
     guard_head = await emitter.repository.decision_head(
@@ -509,3 +611,98 @@ async def authorize_financial_command(
         supersedes_id=authorization_supersedes_id,
     )
     return DecisionAnchor.from_record(await emitter.emit(authorization))
+
+
+@dataclass(frozen=True, slots=True)
+class FinancialCommandRequest:
+    """The arguments of ``authorize_financial_command`` for one journal command."""
+
+    upstream_decision: TraceRecord
+    entry_date: date
+    memo: str
+    lines_data: list[dict]
+    base_currency: str
+    source_id: UUID
+
+
+async def authorize_financial_commands_many(
+    *,
+    emitter: TraceEmitter,
+    user_id: UUID,
+    requests: Sequence[FinancialCommandRequest],
+) -> list[DecisionAnchor]:
+    """Authorize many journal commands with a fixed number of statements.
+
+    Each anchor equals the one that ``authorize_financial_command`` returns for the same request. A
+    command whose authorization or payload-guard lineage already holds a head keeps that per-command
+    path, because it may reuse or supersede the head.
+    """
+    scope = TraceScope.tenant(user_id)
+    authorization_policy = FinancialCommandAuthorizationTracePolicy()
+    payload_policy = JournalCommandPayloadTracePolicy()
+    targets: list[VersionedTraceRef] = []
+    for request in requests:
+        _require_authoritative_source_decision(request.upstream_decision, scope=scope, source_id=request.source_id)
+        targets.append(
+            journal_command_target(
+                entry_date=request.entry_date,
+                memo=request.memo,
+                lines_data=request.lines_data,
+                base_currency=request.base_currency,
+                source_identity=f"statement-transaction:{request.source_id}",
+            )
+        )
+    lineages = [
+        (
+            TraceLineage.from_refs(target, authorization_policy.assertion),
+            TraceLineage.from_refs(target, payload_policy.assertion),
+        )
+        for target in targets
+    ]
+    heads = await _lineages_with_decision_head(emitter, scope, [lineage for pair in lineages for lineage in pair])
+
+    anchors: list[DecisionAnchor | None] = [None] * len(requests)
+    fresh = [
+        index
+        for index, (authorization_lineage, guard_lineage) in enumerate(lineages)
+        if heads is not None and authorization_lineage not in heads and guard_lineage not in heads
+    ]
+    records: list[TraceRecord] = []
+    for index in fresh:
+        upstream, target = requests[index].upstream_decision, targets[index]
+        execution_id = f"journal-command:{target.id}:{target.version}"
+        observation = _payload_observation(scope=scope, target=target, execution_id=execution_id, upstream=upstream)
+        payload_guard = TraceRecord.decision(
+            scope=scope,
+            target=target,
+            policy=payload_policy,
+            execution_id=execution_id,
+            occurred_at=upstream.occurred_at,
+            parents=(observation,),
+        )
+        authorization = TraceRecord.decision(
+            scope=scope,
+            target=target,
+            policy=authorization_policy,
+            execution_id=execution_id,
+            occurred_at=upstream.occurred_at,
+            parents=(upstream, payload_guard),
+        )
+        records.extend((observation, payload_guard, authorization))
+    if records:
+        emitted = await emitter.emit_many(records)
+        for position, index in enumerate(fresh):
+            anchors[index] = DecisionAnchor.from_record(emitted[position * 3 + 2])
+    for index, request in enumerate(requests):
+        if anchors[index] is None:
+            anchors[index] = await authorize_financial_command(
+                emitter=emitter,
+                user_id=user_id,
+                upstream_decision=request.upstream_decision,
+                entry_date=request.entry_date,
+                memo=request.memo,
+                lines_data=request.lines_data,
+                base_currency=request.base_currency,
+                source_id=request.source_id,
+            )
+    return [anchor for anchor in anchors if anchor is not None]

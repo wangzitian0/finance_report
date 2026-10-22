@@ -6,7 +6,8 @@ explicit reviewed-disposition command. It lives in extraction because
 invent an account or an economic meaning.
 """
 
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Sequence
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Protocol
@@ -22,7 +23,11 @@ from src.extraction.base.disposition import DispositionDecision, DispositionStat
 from src.extraction.base.source_vocabulary import DocumentType, TransactionDirection
 from src.extraction.base.types import extract_source_document_ids
 from src.extraction.extension.currency_resolution import CurrencyUnresolvedError
-from src.extraction.extension.disposition_trace import authorize_financial_command
+from src.extraction.extension.disposition_trace import (
+    FinancialCommandRequest,
+    authorize_financial_command,
+    authorize_financial_commands_many,
+)
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
@@ -31,11 +36,13 @@ from src.ledger import (
     Account,
     AccountType,
     AnchoredJournalCommandV2,
+    DecisionAnchor,
     Direction,
     JournalEntry,
     ValidationError,
     account_service,
     fit_journal_memo,
+    submit_anchored_journal_entries_v2,
     submit_anchored_journal_entry_v2,
 )
 from src.observability import get_logger
@@ -182,7 +189,19 @@ async def get_or_create_account(
     return account
 
 
-async def _create_entry_from_txn(
+@dataclass(frozen=True, slots=True)
+class PlannedEntryCommand:
+    """The validated journal command of one transaction, before the decision anchor exists."""
+
+    txn: AtomicTransaction
+    lines_data: list[dict]
+    memo: str
+    base_currency: str
+    source_type: JournalEntrySourceType
+    auto_post: bool
+
+
+async def _plan_entry_command(
     db: AsyncSession,
     txn: AtomicTransaction,
     *,
@@ -196,17 +215,12 @@ async def _create_entry_from_txn(
     fx_rate_error: type[Exception] | None = None,
     disposition: DispositionDecision | None = None,
     counter_account: Account | None = None,
-    source_decision: TraceRecord | None = None,
-    trace_emitter: TraceEmitter | None = None,
-    record_evidence: bool = True,
-) -> JournalEntry:
-    """Create a journal entry from an atomic transaction.
+) -> PlannedEntryCommand:
+    """Validate a transaction and its disposition, then build the journal command lines.
 
     Uses the owning statement summary's linked account if available. Draft entries
     may still use the legacy default account, but posted entries require an explicit
-    mapping. When auto_post is True, the generated entry is first persisted as
-    DRAFT with its lines and then promoted to POSTED; otherwise it remains DRAFT.
-    preloaded_statement/preloaded_bank_account may be passed by trusted callers
+    mapping. preloaded_statement/preloaded_bank_account may be passed by trusted callers
     that already loaded them for the same authenticated user context.
 
     The owning statement is resolved via ``txn.source_documents -> UploadedDocument
@@ -333,43 +347,98 @@ async def _create_entry_from_txn(
         for line in lines_data:
             if line["account_id"] == counter_account.id:
                 line["tags"] = {"economic_category": disposition.category}
+    # The description has no length limit, but the memo column does. Cut it once:
+    # the decision anchor and the command must hold the same memo.
+    return PlannedEntryCommand(
+        txn=txn,
+        lines_data=lines_data,
+        memo=fit_journal_memo(txn.description),
+        base_currency=base_currency,
+        source_type=source_type,
+        auto_post=auto_post,
+    )
+
+
+def _journal_command(plan: PlannedEntryCommand, decision_anchor: DecisionAnchor) -> AnchoredJournalCommandV2:
+    return AnchoredJournalCommandV2.from_mappings(
+        entry_date=plan.txn.txn_date,
+        memo=plan.memo,
+        lines_data=plan.lines_data,
+        base_currency=plan.base_currency,
+        source_type=plan.source_type,
+        source_id=plan.txn.id,
+        source_identity=f"statement-transaction:{plan.txn.id}",
+        decision_anchor=decision_anchor,
+        post_immediately=plan.auto_post,
+    )
+
+
+def _posting_error(plan: PlannedEntryCommand, exc: ValidationError) -> ValueError:
+    if plan.auto_post:
+        return ValueError(f"Generated entry violates accounting invariants: {exc}")
+    return ValueError(f"Generated entry does not balance: {exc}")
+
+
+async def _create_entry_from_txn(
+    db: AsyncSession,
+    txn: AtomicTransaction,
+    *,
+    user_id: UUID,
+    base_currency: str | None = None,
+    auto_post: bool = False,
+    source_type: JournalEntrySourceType = JournalEntrySourceType.AUTO_PARSED,
+    preloaded_statement: StatementSummary | None = None,
+    preloaded_bank_account: Account | None = None,
+    fx_rate_provider: FxRateProvider | None = None,
+    fx_rate_error: type[Exception] | None = None,
+    disposition: DispositionDecision | None = None,
+    counter_account: Account | None = None,
+    source_decision: TraceRecord | None = None,
+    trace_emitter: TraceEmitter | None = None,
+    record_evidence: bool = True,
+) -> JournalEntry:
+    """Create a journal entry from an atomic transaction.
+
+    When auto_post is True, the generated entry is first persisted as DRAFT with its lines
+    and then promoted to POSTED; otherwise it remains DRAFT. ``_plan_entry_command`` states
+    which account, currency and disposition checks run before the entry exists.
+    """
+    plan = await _plan_entry_command(
+        db,
+        txn,
+        user_id=user_id,
+        base_currency=base_currency,
+        auto_post=auto_post,
+        source_type=source_type,
+        preloaded_statement=preloaded_statement,
+        preloaded_bank_account=preloaded_bank_account,
+        fx_rate_provider=fx_rate_provider,
+        fx_rate_error=fx_rate_error,
+        disposition=disposition,
+        counter_account=counter_account,
+    )
     try:
         if source_decision is None or trace_emitter is None:
             raise ValueError("Statement posting requires a source-owned authoritative decision")
-        # The description has no length limit, but the memo column does. Cut it once:
-        # the decision anchor and the command must hold the same memo.
-        memo = fit_journal_memo(txn.description)
         decision_anchor = await authorize_financial_command(
             emitter=trace_emitter,
             user_id=user_id,
             upstream_decision=source_decision,
             entry_date=txn.txn_date,
-            memo=memo,
-            lines_data=lines_data,
-            base_currency=base_currency,
+            memo=plan.memo,
+            lines_data=plan.lines_data,
+            base_currency=plan.base_currency,
             source_id=txn.id,
         )
         entry = await submit_anchored_journal_entry_v2(
             db,
             user_id=user_id,
-            command=AnchoredJournalCommandV2.from_mappings(
-                entry_date=txn.txn_date,
-                memo=memo,
-                lines_data=lines_data,
-                base_currency=base_currency,
-                source_type=source_type,
-                source_id=txn.id,
-                source_identity=f"statement-transaction:{txn.id}",
-                decision_anchor=decision_anchor,
-                post_immediately=auto_post,
-            ),
-            base_currency=base_currency,
+            command=_journal_command(plan, decision_anchor),
+            base_currency=plan.base_currency,
             trace_repository=trace_emitter.repository,
         )
     except ValidationError as exc:
-        if auto_post:
-            raise ValueError(f"Generated entry violates accounting invariants: {exc}") from exc
-        raise ValueError(f"Generated entry does not balance: {exc}") from exc
+        raise _posting_error(plan, exc) from exc
 
     # ``post_journal_entry`` returns an aggregate whose lines are not guaranteed
     # to be loaded. The evidence write and every caller need the same complete
@@ -445,6 +514,98 @@ async def create_entry_from_txn(
             record_evidence=record_evidence,
         )
 
+    if auto_post:
+        async with db.begin_nested():
+            return await create()
+    return await create()
+
+
+@dataclass(frozen=True, slots=True)
+class StatementEntryRequest:
+    """One transaction of a statement whose accepted disposition posts a journal entry."""
+
+    txn: AtomicTransaction
+    disposition: DispositionDecision
+    counter_account: Account | None
+    source_decision: TraceRecord
+    source_type: JournalEntrySourceType
+
+
+async def create_entries_from_txns(
+    db: AsyncSession,
+    requests: Sequence[StatementEntryRequest],
+    *,
+    user_id: UUID,
+    base_currency: str | None,
+    auto_post: bool,
+    preloaded_statement: StatementSummary,
+    preloaded_bank_account: Account,
+    fx_rate_provider: FxRateProvider | None,
+    fx_rate_error: type[Exception] | None,
+    trace_emitter: TraceEmitter,
+) -> list[JournalEntry]:
+    """Create the journal entries of many transactions of one statement.
+
+    Each entry equals the one that ``create_entry_from_txn`` creates for the same request with
+    ``record_evidence=False``. The command authorizations are written as one set, and the batch
+    runs in one savepoint: one failed entry rolls back every entry of the batch, and the caller
+    already aborts the posting in that case.
+    """
+
+    async def create() -> list[JournalEntry]:
+        plans = [
+            await _plan_entry_command(
+                db,
+                request.txn,
+                user_id=user_id,
+                base_currency=base_currency,
+                auto_post=auto_post,
+                source_type=request.source_type,
+                preloaded_statement=preloaded_statement,
+                preloaded_bank_account=preloaded_bank_account,
+                fx_rate_provider=fx_rate_provider,
+                fx_rate_error=fx_rate_error,
+                disposition=request.disposition,
+                counter_account=request.counter_account,
+            )
+            for request in requests
+        ]
+        try:
+            anchors = await authorize_financial_commands_many(
+                emitter=trace_emitter,
+                user_id=user_id,
+                requests=[
+                    FinancialCommandRequest(
+                        upstream_decision=request.source_decision,
+                        entry_date=plan.txn.txn_date,
+                        memo=plan.memo,
+                        lines_data=plan.lines_data,
+                        base_currency=plan.base_currency,
+                        source_id=plan.txn.id,
+                    )
+                    for request, plan in zip(requests, plans, strict=True)
+                ],
+            )
+            created = await submit_anchored_journal_entries_v2(
+                db,
+                user_id=user_id,
+                commands=[_journal_command(plan, anchor) for plan, anchor in zip(plans, anchors, strict=True)],
+                base_currency=plans[0].base_currency,
+                trace_repository=trace_emitter.repository,
+            )
+        except ValidationError as exc:
+            raise _posting_error(plans[0], exc) from exc
+        # ``post_journal_entry`` returns aggregates whose lines are not guaranteed to be loaded.
+        loaded = await db.execute(
+            select(JournalEntry)
+            .where(JournalEntry.id.in_([entry.id for entry in created]))
+            .options(selectinload(JournalEntry.lines))
+        )
+        by_id = {entry.id: entry for entry in loaded.scalars().all()}
+        return [by_id[entry.id] for entry in created]
+
+    if not requests:
+        return []
     if auto_post:
         async with db.begin_nested():
             return await create()
