@@ -103,7 +103,7 @@ Each section shows one line for each counterpart and direction, for example
 "Outflow - Groceries". A line shows its total and its number of events. Select
 the event count to see the events of the line: the date, the description and
 the amount of each event. The page loads the events only when you open the
-line, 200 at a time. The CSV export keeps one row for each event.
+line, 200 at a time. The CSV export keeps one row for each classified event.
 
 ### Investment Performance
 

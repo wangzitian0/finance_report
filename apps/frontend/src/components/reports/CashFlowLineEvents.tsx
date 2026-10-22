@@ -63,11 +63,8 @@ export function CashFlowLineEvents({ period, line }: { period: CashFlowPeriod; l
         <p role="status" className="mt-1 text-xs text-muted">
           Loading events...
         </p>
-      ) : query.error ? (
-        <p className="mt-1 text-xs text-[var(--error)]">
-          {query.error instanceof Error ? query.error.message : "Failed to load the events."}
-        </p>
-      ) : (
+      ) : null}
+      {events.length > 0 ? (
         <ul className="mt-1 max-h-64 space-y-1 overflow-y-auto pr-1">
           {events.map((event) => (
             <li key={`${event.journal_entry_id}-${event.reason_code ?? ""}`} className="flex justify-between gap-2 text-xs">
@@ -79,7 +76,12 @@ export function CashFlowLineEvents({ period, line }: { period: CashFlowPeriod; l
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
+      {query.error ? (
+        <p className="mt-1 text-xs text-[var(--error)]">
+          {query.error instanceof Error ? query.error.message : "Failed to load the events."}
+        </p>
+      ) : null}
       {query.hasNextPage ? (
         <button
           type="button"

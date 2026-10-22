@@ -283,10 +283,10 @@ describe("CashFlowPage", () => {
 
     render(<CashFlowPage />)
 
-    const toggle = await screen.findByRole("button", { name: "Show events for Outflow - Groceries" })
+    const toggle = await screen.findByRole("button", { name: "201 events for Outflow - Groceries" })
     expect(toggle).toHaveAttribute("aria-expanded", "false")
     expect(toggle).toHaveTextContent("201 events")
-    expect(screen.getByRole("button", { name: "Show events for Inflow - Salary" })).toHaveTextContent("3 events")
+    expect(screen.getByRole("button", { name: "3 events for Inflow - Salary" })).toHaveTextContent("3 events")
     expect(screen.getByText("Salary")).toBeInTheDocument()
     expect(lineEventCalls()).toHaveLength(0)
     expect(screen.queryByText("Groceries Jan 3")).not.toBeInTheDocument()
@@ -297,7 +297,7 @@ describe("CashFlowPage", () => {
     await waitFor(() => expect(within(events).getByText("Groceries Jan 3")).toBeInTheDocument())
     expect(within(events).getByText("Groceries Jan 9")).toBeInTheDocument()
     expect(within(events).getByText("2 of 201 events")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Hide events for Outflow - Groceries" })).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("button", { name: "201 events for Outflow - Groceries" })).toHaveAttribute("aria-expanded", "true")
     expect(lineEventCalls()).toHaveLength(1)
     expect(lineEventCalls()[0][1]).toMatchObject({
       query: { start_date: "2026-01-01", end_date: "2026-01-31", currency: "SGD", line_id: "operating-groceries", limit: 200, offset: 0 },
@@ -310,12 +310,62 @@ describe("CashFlowPage", () => {
     expect(lineEventCalls()[1][1]).toMatchObject({ query: { line_id: "operating-groceries", offset: 200 } })
 
     // Closing and opening the line again reads the cached pages without a request.
-    fireEvent.click(screen.getByRole("button", { name: "Hide events for Outflow - Groceries" }))
+    fireEvent.click(screen.getByRole("button", { name: "201 events for Outflow - Groceries" }))
     expect(screen.queryByRole("region", { name: "Events for Outflow - Groceries" })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Show events for Outflow - Groceries" }))
+    fireEvent.click(screen.getByRole("button", { name: "201 events for Outflow - Groceries" }))
     expect(await screen.findByText("Groceries Jan 12")).toBeInTheDocument()
     expect(lineEventCalls()).toHaveLength(2)
     expect(lineEventCalls().every(([, request]) => (request as { query: { line_id: string } }).query.line_id === "operating-groceries")).toBe(true)
+  })
+
+  it("keeps the loaded events of a line visible when a later page fails", async () => {
+    mockedApiFetch.mockImplementation((operationId: string, request?: unknown) => {
+      if (operationId === "cash_flow_reports_cash_flow_get") {
+        return Promise.resolve({
+          start_date: "2026-01-01",
+          end_date: "2026-01-31",
+          currency: "SGD",
+          operating: [
+            { line_id: "operating-groceries", category: "Operating", subcategory: "Groceries", amount: "-40.00", description: "Outflow - Groceries", account_id: "acc-groceries", event_count: 201 },
+          ],
+          investing: [],
+          financing: [],
+          summary: {
+            operating_activities: "-40.00", investing_activities: "0.00", financing_activities: "0.00",
+            net_cash_flow: "-40.00", beginning_cash: "100.00", ending_cash: "60.00",
+          },
+          lineage_summary: { event_count: 201, classified_event_count: 201, unclassified_event_count: 0, opening_stock_event_count: 0 },
+          proof_state: "proven",
+          proof_reasons: [],
+        })
+      }
+      if ((request as { query: { offset: number } }).query.offset > 0) {
+        return Promise.reject(new Error("events page failed"))
+      }
+      return Promise.resolve({
+        line_id: "operating-groceries",
+        total: 201,
+        limit: 200,
+        offset: 0,
+        events: [
+          {
+            journal_entry_id: "entry-1", journal_line_ids: ["l1", "l2"], source_type: "system", source_id: null,
+            decision_anchor_id: null, decision_authority_state: "anchored", event_types: [], activity: "Operating",
+            reason_code: null, entry_date: "2026-01-03", memo: "Groceries Jan 3", amount: "-40.00",
+          },
+        ],
+      })
+    })
+
+    render(<CashFlowPage />)
+    fireEvent.click(await screen.findByRole("button", { name: "201 events for Outflow - Groceries" }))
+    const events = await screen.findByRole("region", { name: "Events for Outflow - Groceries" })
+    await waitFor(() => expect(within(events).getByText("Groceries Jan 3")).toBeInTheDocument())
+
+    fireEvent.click(within(events).getByRole("button", { name: "Load more events" }))
+
+    await waitFor(() => expect(within(events).getByText("events page failed")).toBeInTheDocument())
+    expect(within(events).getByText("Groceries Jan 3")).toBeInTheDocument()
   })
 
   // AC-reporting.fe-report-surfaces.18

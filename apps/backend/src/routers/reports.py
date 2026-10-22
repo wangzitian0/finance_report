@@ -849,10 +849,11 @@ async def list_cash_flow_line_events(
             db, user_id, line_id=line_id, start_date=resolved_start_date, end_date=resolved_end_date, currency=currency
         )
     except ReportError as exc:
+        logger.warning("Cash flow line events failed", line_id=line_id, error=str(exc))
         raise_bad_request(str(exc), cause=exc)
+    await db.commit()
     if events is None:
         raise_not_found("Cash-flow line")
-    await db.commit()
     page = events[pagination.offset : pagination.offset + pagination.limit]
     bounds = {"line_id": line_id, "total": len(events), "limit": pagination.limit, "offset": pagination.offset}
     return CashFlowLineEventsPage.model_validate({**bounds, "events": page})

@@ -103,7 +103,7 @@ export default function CashFlowPage() {
                     type="button"
                     aria-expanded={open}
                     aria-controls={`cash-flow-events-${line.line_id}`}
-                    aria-label={`${open ? "Hide" : "Show"} events for ${label}`}
+                    aria-label={`${countLabel(line.event_count, "event")} for ${label}`}
                     onClick={() => toggleLine(key)}
                     className="mt-1 text-xs text-muted underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
                   >

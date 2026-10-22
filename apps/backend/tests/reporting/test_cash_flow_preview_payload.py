@@ -278,36 +278,60 @@ async def test_AC_reporting_cash_flow_7_line_events_pages_equal_document(client,
         "opening_coverage_starts_after_period",
     ]
     assert {
-        section: [(item["description"], _json(item["amount"])) for item in document[section]] for section in SECTIONS
+        section: [
+            (
+                item["category"],
+                item["subcategory"],
+                item["description"],
+                _json(item["amount"]),
+                item["account_id"] is None,
+            )
+            for item in document[section]
+        ]
+        for section in SECTIONS
     } == {
         "operating": [
-            ("Inflow - Salary", "3000.00"),
-            ("Inflow - Salary", "3000.00"),
-            ("Inflow - Salary", "3000.00"),
-            ("Outflow - Dining, Groceries", "-50.00"),
-            ("Outflow - Groceries", "-40.00"),
-            ("Outflow - Groceries", "-25.00"),
-            ("Outflow - Groceries", "-25.00"),
-            ("Outflow - Groceries", "-15.00"),
-            ("Inflow - Groceries", "10.00"),
+            ("Operating", "Salary", "Inflow - Salary", "3000.00", False),
+            ("Operating", "Salary", "Inflow - Salary", "3000.00", False),
+            ("Operating", "Salary", "Inflow - Salary", "3000.00", False),
+            ("Operating", "Dining, Groceries", "Outflow - Dining, Groceries", "-50.00", True),
+            ("Operating", "Groceries", "Outflow - Groceries", "-40.00", False),
+            ("Operating", "Groceries", "Outflow - Groceries", "-25.00", False),
+            ("Operating", "Groceries", "Outflow - Groceries", "-25.00", False),
+            ("Operating", "Groceries", "Outflow - Groceries", "-15.00", False),
+            ("Operating", "Groceries", "Inflow - Groceries", "10.00", False),
         ],
-        "investing": [("Outflow - Equipment", "-100.00")],
-        "financing": [("Outflow - Loans Payable", "-400.00")],
+        "investing": [("Investing", "Equipment", "Outflow - Equipment", "-100.00", False)],
+        "financing": [("Financing", "Loans Payable", "Outflow - Loans Payable", "-400.00", False)],
     }
-    assert [(item["activity"], item["reason_code"]) for item in document["event_lineage"]] == [
-        ("Operating", None),
-        ("Operating", None),
-        (None, "opening_stock"),
-        ("Operating", None),
-        ("Financing", None),
-        ("Operating", None),
-        ("Investing", None),
-        ("Operating", None),
-        ("Operating", None),
-        ("Operating", None),
-        ("Operating", None),
-        (None, "cash_event_classification_ambiguous"),
-        ("Operating", None),
+    anchored = ("system", "anchored", False)
+    manual = ("manual", "legacy_unproven", True)
+    assert [
+        (
+            item["activity"],
+            item["reason_code"],
+            item["source_type"],
+            item["decision_authority_state"],
+            item["decision_anchor_id"] is None,
+            item["source_id"],
+            item["event_types"],
+            len(item["journal_line_ids"]),
+        )
+        for item in document["event_lineage"]
+    ] == [
+        ("Operating", None, *anchored, None, [], 2),
+        ("Operating", None, *anchored, None, [], 2),
+        (None, "opening_stock", *anchored, None, [], 2),
+        ("Operating", None, *anchored, None, [], 2),
+        ("Financing", None, "auto_parsed", "anchored", False, None, ["bank_txn"], 2),
+        ("Operating", None, *anchored, None, [], 2),
+        ("Investing", None, *anchored, None, ["investment_buy"], 2),
+        ("Operating", None, *anchored, None, [], 2),
+        ("Operating", None, *manual, None, [], 2),
+        ("Operating", None, *anchored, None, [], 2),
+        ("Operating", None, *anchored, None, [], 3),
+        (None, "cash_event_classification_ambiguous", *manual, None, [], 2),
+        ("Operating", None, *anchored, None, [], 2),
     ]
 
     response = await client.get("/reports/cash-flow", params=PERIOD)
@@ -357,36 +381,40 @@ async def test_AC_reporting_cash_flow_7_line_events_pages_equal_document(client,
         for entry in (await db.execute(select(JournalEntry).where(JournalEntry.user_id == test_user.id))).scalars()
     }
     paged: list[dict] = []
-    line_ids = [line["line_id"] for section in SECTIONS for line in preview[section]]
-    for line_id in [*line_ids, UNCLASSIFIED_LINE_ID, OPENING_STOCK_LINE_ID]:
+
+    async def _line_records(line_id: str) -> list[dict]:
         total, events = await _all_pages(client, line_id)
         assert total == len(events)
         positions = [lineage_position[(item["journal_entry_id"], item["reason_code"])] for item in events]
         assert positions == sorted(positions), line_id
         for item in events:
             assert (item["memo"], item["entry_date"]) == memo_by_entry[item["journal_entry_id"]]
-        line = next((line for section in SECTIONS for line in preview[section] if line["line_id"] == line_id), None)
-        if line is not None:
-            group_amounts = Counter(
-                _json(item["amount"])
-                for item in document[line["category"].lower()]
-                if (item["description"], _json(item["account_id"])) == (line["description"], line["account_id"])
-            )
-            assert total == line["event_count"]
-            assert Counter(item["amount"] for item in events) == group_amounts, line_id
-            assert sum((Decimal(item["amount"]) for item in events), Decimal("0")) == Decimal(line["amount"])
-            assert {item["activity"] for item in events} == {line["category"]}
         paged.extend(events)
+        return events
+
+    for line in [line for section in SECTIONS for line in preview[section]]:
+        events = await _line_records(line["line_id"])
+        group_amounts = Counter(
+            _json(item["amount"])
+            for item in document[line["category"].lower()]
+            if (item["description"], _json(item["account_id"])) == (line["description"], line["account_id"])
+        )
+        assert len(events) == line["event_count"]
+        assert Counter(item["amount"] for item in events) == group_amounts, line["line_id"]
+        assert sum((Decimal(item["amount"]) for item in events), Decimal("0")) == Decimal(line["amount"])
+        assert {item["activity"] for item in events} == {line["category"]}
+    unclassified = await _line_records(UNCLASSIFIED_LINE_ID)
+    opening = await _line_records(OPENING_STOCK_LINE_ID)
+    assert [(item["memo"], item["amount"], item["reason_code"]) for item in unclassified] == [
+        ("card-settlement", "-60.00", "cash_event_classification_ambiguous")
+    ]
+    assert [(item["amount"], item["reason_code"]) for item in opening] == [("100.00", "opening_stock")]
 
     lineage_keys = set(document["event_lineage"][0])
     assert sorted(
         ({key: item[key] for key in lineage_keys} for item in paged),
         key=lambda record: lineage_position[(record["journal_entry_id"], record["reason_code"])],
     ) == _json(document["event_lineage"])
-    unclassified = [item for item in paged if item["reason_code"] == "cash_event_classification_ambiguous"]
-    opening = [item for item in paged if item["reason_code"] == "opening_stock"]
-    assert [(item["memo"], item["amount"]) for item in unclassified] == [("card-settlement", "-60.00")]
-    assert [item["amount"] for item in opening] == ["100.00"]
 
     missing = await client.get(
         "/reports/cash-flow/line-events", params={**PERIOD, "line_id": "operating-0000000000000000"}
