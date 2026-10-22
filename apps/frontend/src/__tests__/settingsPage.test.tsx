@@ -20,6 +20,9 @@ vi.mock("@/components/settings/AiSettingsPanel", () => ({
 vi.mock("@/components/settings/LlmSettingsPanel", () => ({
     default: () => <div data-testid="llm-settings">LlmMock</div>,
 }));
+vi.mock("@/components/settings/AccountsPanel", () => ({
+    default: () => <div data-testid="accounts-settings">AccountsMock</div>,
+}));
 
 describe("Merged Settings page (EPIC-022 AC22.21.4)", () => {
     beforeEach(() => {
@@ -61,6 +64,22 @@ describe("Merged Settings page (EPIC-022 AC22.21.4)", () => {
         const panel = screen.getByRole("tabpanel");
         expect(tab).toHaveAttribute("aria-controls", "settings-panel-general");
         expect(panel).toHaveAttribute("aria-labelledby", "settings-tab-general");
+    });
+
+    // AC-ledger.fe-accounts-tab.1
+    it("AC-ledger.fe-accounts-tab.1 shows the chart of accounts in the Accounts tab that ?tab=accounts opens", () => {
+        navigationState.searchParams = new URLSearchParams("tab=accounts");
+        render(<SettingsPage />);
+        expect(screen.getByRole("tab", { name: "Accounts" })).toHaveAttribute("aria-selected", "true");
+        expect(screen.getByTestId("accounts-settings")).toBeInTheDocument();
+        expect(screen.queryByTestId("general-settings")).toBeNull();
+        expect(screen.queryByRole("link", { name: /Chart of Accounts/i })).toBeNull();
+
+        fireEvent.click(screen.getByRole("tab", { name: "General" }));
+        expect(screen.queryByTestId("accounts-settings")).toBeNull();
+        fireEvent.click(screen.getByRole("tab", { name: "Accounts" }));
+        expect(replaceMock).toHaveBeenLastCalledWith("/settings?tab=accounts", { scroll: false });
+        expect(screen.getByTestId("accounts-settings")).toBeInTheDocument();
     });
 
     it("opens the tab named by the ?tab= query (e.g. /settings/ai → ?tab=ai)", () => {

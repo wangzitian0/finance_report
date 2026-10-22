@@ -4,17 +4,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import HoldingDetailPage from "@/app/(main)/portfolio/[ticker]/page"
+import { HoldingDetail } from "@/components/portfolio/HoldingDetail"
 import { apiOperation } from "@/lib/api-client"
 import type { DividendEvent, PortfolioHolding, RealizedLot } from "@/lib/types"
 
 vi.mock("@/lib/api-client", () => ({
   apiOperation: vi.fn(),
-}))
-
-vi.mock("next/navigation", () => ({
-  useParams: () => ({ ticker: "AAPL" }),
-  useRouter: () => ({ push: vi.fn() }),
 }))
 
 function createWrapper() {
@@ -113,7 +108,7 @@ function mockHoldingDetailApi(options: {
   }) as any)
 }
 
-describe("HoldingDetailPage", () => {
+describe("HoldingDetail drawer", () => {
   const mockedApiOperation = vi.mocked(apiOperation)
 
   beforeEach(() => {
@@ -130,7 +125,7 @@ describe("HoldingDetailPage", () => {
       return Promise.resolve([])
     }) as any)
 
-    render(<HoldingDetailPage />, { wrapper: createWrapper() })
+    render(<HoldingDetail ticker="AAPL" />, { wrapper: createWrapper() })
 
     expect(screen.getByText("Loading holding details...")).toBeInTheDocument()
   })
@@ -138,7 +133,7 @@ describe("HoldingDetailPage", () => {
   it("renders error state with retry button", async () => {
     mockedApiOperation.mockRejectedValue(new Error("server error"))
 
-    render(<HoldingDetailPage />, { wrapper: createWrapper() })
+    render(<HoldingDetail ticker="AAPL" />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.getByText("Failed to load holding")).toBeInTheDocument())
     expect(screen.getByText("server error")).toBeInTheDocument()
@@ -150,7 +145,7 @@ describe("HoldingDetailPage", () => {
   it("renders not-found state when no holdings match ticker", async () => {
     mockHoldingDetailApi({ holdings: [{ ...mockActiveHolding, id: "h3", asset_identifier: "TSLA" }] })
 
-    render(<HoldingDetailPage />, { wrapper: createWrapper() })
+    render(<HoldingDetail ticker="AAPL" />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.getByText(/No holdings found for/)).toBeInTheDocument())
     expect(screen.getByText("AAPL")).toBeInTheDocument()
@@ -160,7 +155,7 @@ describe("HoldingDetailPage", () => {
   it("AC17.7.1 renders Overview, Dividends, and Realized P&L tabs", async () => {
     mockHoldingDetailApi()
 
-    render(<HoldingDetailPage />, { wrapper: createWrapper() })
+    render(<HoldingDetail ticker="AAPL" />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.getByRole("tab", { name: "Overview" })).toBeInTheDocument())
     expect(screen.getByRole("tab", { name: "Dividends" })).toBeInTheDocument()
@@ -170,7 +165,7 @@ describe("HoldingDetailPage", () => {
   it("renders KPI cards and active/disposed lots in the overview tab", async () => {
     mockHoldingDetailApi({ holdings: [{ ...mockActiveHolding, quantity: "10.123456789" }, mockDisposedHolding] })
 
-    render(<HoldingDetailPage />, { wrapper: createWrapper() })
+    render(<HoldingDetail ticker="AAPL" />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.getAllByText("Market Value").length).toBeGreaterThanOrEqual(1))
     expect(screen.getAllByText("Cost Basis").length).toBeGreaterThanOrEqual(1)
@@ -185,7 +180,7 @@ describe("HoldingDetailPage", () => {
   it("AC17.7.2/AC17.7.6 switches to Dividends tab and renders dividend row labels", async () => {
     mockHoldingDetailApi()
 
-    render(<HoldingDetailPage />, { wrapper: createWrapper() })
+    render(<HoldingDetail ticker="AAPL" />, { wrapper: createWrapper() })
 
     fireEvent.click(await screen.findByRole("tab", { name: "Dividends" }))
 
@@ -202,7 +197,7 @@ describe("HoldingDetailPage", () => {
   it("AC17.7.3 persists cost-basis method and refetches realized P&L", async () => {
     mockHoldingDetailApi()
 
-    render(<HoldingDetailPage />, { wrapper: createWrapper() })
+    render(<HoldingDetail ticker="AAPL" />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.getByLabelText("Cost basis method")).toBeInTheDocument())
     fireEvent.change(screen.getByLabelText("Cost basis method"), { target: { value: "LIFO" } })
@@ -226,7 +221,7 @@ describe("HoldingDetailPage", () => {
   it("AC17.7.4 renders lot-level realized P&L table", async () => {
     mockHoldingDetailApi()
 
-    render(<HoldingDetailPage />, { wrapper: createWrapper() })
+    render(<HoldingDetail ticker="AAPL" />, { wrapper: createWrapper() })
 
     fireEvent.click(await screen.findByRole("tab", { name: "Realized P&L" }))
 
@@ -241,10 +236,10 @@ describe("HoldingDetailPage", () => {
     expect(within(table as HTMLElement).getByText("$150.00")).toBeInTheDocument()
   })
 
-  it("fetches all holdings with include_disposed param and renders back link", async () => {
+  it("fetches all holdings with include_disposed param", async () => {
     mockHoldingDetailApi()
 
-    render(<HoldingDetailPage />, { wrapper: createWrapper() })
+    render(<HoldingDetail ticker="AAPL" />, { wrapper: createWrapper() })
 
     await waitFor(() =>
       expect(mockedApiOperation).toHaveBeenCalledWith(
@@ -252,7 +247,5 @@ describe("HoldingDetailPage", () => {
         { query: { include_disposed: true } },
       ),
     )
-    const link = (await screen.findByText("Back to Portfolio")).closest("a")
-    expect(link).toHaveAttribute("href", "/portfolio")
   })
 })

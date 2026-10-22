@@ -83,7 +83,7 @@ const makeWfEvent = (id: string, severity: string, status: string, title: string
 const workflowEvents: WorkflowEventListResponse = {
   total: 4,
   items: [
-    makeWfEvent("blocked-event", "blocked", "unread", "Reconciliation blocked", "Two transactions need matching before the report can be trusted.", "reconciliation", "/reconciliation/unmatched", "blocked") as any,
+    makeWfEvent("blocked-event", "blocked", "unread", "Reconciliation blocked", "Two transactions need matching before the report can be trusted.", "reconciliation", "/reconciliation?tab=unmatched", "blocked") as any,
     makeWfEvent("review-event", "action_required", "unread", "Review required", "A statement has low-confidence entries that need confirmation.", "bank_statement", "/review", "blocked") as any,
     makeWfEvent("success-event", "success", "read", "Safe entries posted", "Automation posted high-confidence entries.", "journal", "/journal", "ready") as any,
     makeWfEvent("info-event", "info", "read", "Statement uploaded", "The file is queued for processing.", "bank_statement", "/statements/source-4", "processing") as any,
@@ -150,7 +150,7 @@ describe("workflow notification surfaces", () => {
     expect(within(dialog).getByRole("list", { name: "Upload-to-report session timeline" })).toBeInTheDocument()
     expect(within(dialog).getAllByRole("link", { name: "Open Reconciliation blocked" })[0]).toHaveAttribute(
       "href",
-      "/reconciliation/unmatched",
+      "/reconciliation?tab=unmatched",
     )
 
     fireEvent.click(within(dialog).getAllByRole("button", { name: "Mark as read" })[0])
@@ -333,7 +333,7 @@ describe("workflow notification surfaces", () => {
       <UploadToReportHome
         status={{
           primary_state: "blocked",
-          next_action: { type: "resolve_blocker", count: 1, href: "/reconciliation/unmatched", label: "Resolve blocker", summary: "Resolve the blocking condition before the report package can be trusted." },
+          next_action: { type: "resolve_blocker", count: 1, href: "/reconciliation?tab=unmatched", label: "Resolve blocker", summary: "Resolve the blocking condition before the report package can be trusted." },
           report_readiness: { state: "stale", blocking_count: 1, href: "/reports/package" },
           event_counts: { unread: 1, action_required: 0, blocked: 1 },
         }}
@@ -342,7 +342,7 @@ describe("workflow notification surfaces", () => {
     )
 
     expect(screen.getByText("A blocker is holding report readiness.")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /Resolve blocker/i })).toHaveAttribute("href", "/reconciliation/unmatched")
+    expect(screen.getByRole("link", { name: /Resolve blocker/i })).toHaveAttribute("href", "/reconciliation?tab=unmatched")
     expect(screen.getAllByText("Report stale")[0]).toBeInTheDocument()
     expect(screen.getByText("1 blocker")).toBeInTheDocument()
   })
@@ -388,7 +388,7 @@ describe("workflow notification surfaces", () => {
     ]> = [
       ["upload", "Upload statements", "/statements/upload"],
       ["review_required", "Review required", "/review"],
-      ["resolve_blocker", "Resolve blocker", "/reconciliation/unmatched"],
+      ["resolve_blocker", "Resolve blocker", "/reconciliation?tab=unmatched"],
       ["open_report", "Open report package", "/reports/package"],
       ["wait", "View processing", "/events"],
     ]
@@ -447,7 +447,7 @@ describe("workflow notification surfaces", () => {
     expect(screen.getByRole("heading", { name: "Upload-to-report session" })).toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: "Open Reconciliation blocked" })[0]).toHaveAttribute(
       "href",
-      "/reconciliation/unmatched",
+      "/reconciliation?tab=unmatched",
     )
 
     fireEvent.click(screen.getAllByRole("button", { name: "Mark as read" })[0])

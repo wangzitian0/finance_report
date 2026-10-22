@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { SmartBackLink } from "@/components/ui/SmartBackLink";
 import AccountFormModal from "@/components/accounts/AccountFormModal";
 import { apiOperation } from "@/lib/api-client";
 import { formatCurrencyLocale } from "@/lib/audit/money";
@@ -207,25 +206,16 @@ export default function UnmatchedBoard() {
     );
   }, [selected]);
   const canSubmit = activeDraft !== null && isReviewedDispositionComplete(activeDraft.intent, activeDraft.counterAccountId, activeDraft.category, activeDraft.rationale);
-  const backLabel = safeReturnHref ? "Return to statement review" : "Back to Reconciliation";
 
   return (
-    <div className="p-6">
-      <div className="mb-4">
-        <SmartBackLink fallbackHref={safeReturnHref ?? "/reconciliation"} fallbackLabel={backLabel}>
-          {backLabel}
-        </SmartBackLink>
-      </div>
+    <div>
       <div className="page-header flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="page-title">Unmatched Transactions</h1>
           <p className="page-description">Confirm the economic meaning before a source transaction can be posted.</p>
           <p className="mt-1 text-xs text-muted">Flags and hidden rows are local workspace triage only.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/reconciliation" className="btn-secondary text-sm">← Workbench</Link>
-          <span className="badge badge-warning">{items.length} unmatched · {flagged.size} flagged</span>
-        </div>
+        <span className="badge badge-warning">{items.length} unmatched · {flagged.size} flagged</span>
       </div>
 
       {error && <div className="mb-4 alert-error">{error}</div>}

@@ -73,7 +73,7 @@ describe("Audit hub (EPIC-022 AC22.21.3)", () => {
         const queue = screen.getByTestId("needs-confirmation-queue");
         const hrefs = (await within(queue).findAllByRole("link")).map((link) => link.getAttribute("href"));
         expect(hrefs).toEqual([
-            "/reconciliation/unmatched?from=attention",
+            "/reconciliation?tab=unmatched&from=attention",
             "/statements/s1?from=attention",
             "/reconciliation?from=attention",
         ]);

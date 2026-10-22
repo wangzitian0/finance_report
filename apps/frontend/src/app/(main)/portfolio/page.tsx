@@ -2,13 +2,18 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, X } from "lucide-react";
 
 import { apiOperation } from "@/lib/api-client";
 import { useBaseCurrency } from "@/hooks/useBaseCurrency";
+import GuidedEvidenceForm, { SOURCE_CLASS_CONFIGS, type EvidenceSourceClass } from "@/components/assets/GuidedEvidenceForm";
+import { APP_ROUTES } from "@/components/navigation";
 import { PerformanceCard } from "@/components/portfolio/PerformanceCard";
 import { LoadingState } from "@/components/ui";
+import Sheet from "@/components/ui/Sheet";
+import { HoldingDetail } from "@/components/portfolio/HoldingDetail";
 import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { AllocationChart } from "@/components/portfolio/AllocationChart";
 import { InvestmentPerformanceSchedule } from "@/components/portfolio/InvestmentPerformanceSchedule";
@@ -27,7 +32,16 @@ export default function PortfolioPage() {
   const [showDisposed, setShowDisposed] = useState(false);
   const [asOfDate, setAsOfDate] = useState("");
   const [includeRestrictedAllocation, setIncludeRestrictedAllocation] = useState(true);
-  const [priceSheetOpen, setPriceSheetOpen] = useState(false);
+
+  // The URL opens one drawer: `?ticker=` a holding, `?panel=prices` the price update, `?panel=evidence` the evidence form.
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const ticker = searchParams?.get("ticker")?.trim() || null;
+  const panel = searchParams?.get("panel");
+  const drawer = ticker ? "holding" : panel === "prices" || panel === "evidence" ? panel : null;
+  const rawSourceClass = searchParams?.get("source_class");
+  const evidenceSourceClass = SOURCE_CLASS_CONFIGS.some((c) => c.value === rawSourceClass) ? (rawSourceClass as EvidenceSourceClass) : undefined;
+  const closeDrawer = () => router.replace(APP_ROUTES.PORTFOLIO, { scroll: false });
 
   const { data: holdings, isLoading, error, refetch } = useQuery({
     queryKey: ["portfolio-holdings", showDisposed, asOfDate],
@@ -67,38 +81,40 @@ export default function PortfolioPage() {
 
   return (
     <div className="p-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="page-title">Portfolio</h1>
           <p className="page-description">Track your investment holdings, performance, and allocation</p>
         </div>
-        <Link
-          href="/portfolio/prices"
-          onClick={(e) => { e.preventDefault(); setPriceSheetOpen((prev) => !prev); }}
-          className="btn-primary flex items-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          Update Prices
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href={APP_ROUTES.PORTFOLIO_EVIDENCE} scroll={false} className="btn-secondary">
+            Add evidence
+          </Link>
+          <Link href={APP_ROUTES.PORTFOLIO_PRICES} scroll={false} className="btn-primary flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Update Prices
+          </Link>
+        </div>
       </div>
 
-      {priceSheetOpen && (
-        <section data-testid="portfolio-price-update-sheet" className="mb-6 card p-5 border-[var(--accent)]/30">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold">Update Market Prices</h2>
-              <p className="text-xs text-muted">Enter latest market prices to refresh portfolio valuations inline.</p>
-            </div>
-            <button type="button" onClick={() => setPriceSheetOpen(false)} className="btn-secondary text-xs px-2.5 py-1">Close</button>
-          </div>
-          <PriceUpdateForm
-            knownTickers={Array.from(new Set(activeHoldings.map((h) => h.asset_identifier)))}
-            onSuccess={() => { setPriceSheetOpen(false); void refetch(); }}
-          />
-        </section>
-      )}
+      <Sheet isOpen={drawer === "holding"} onClose={closeDrawer} title={ticker ?? ""} width="max-w-3xl">
+        {ticker && <HoldingDetail ticker={ticker} />}
+      </Sheet>
+      <Sheet isOpen={drawer === "prices"} onClose={closeDrawer} title="Update Market Prices" width="max-w-2xl">
+        <p className="mb-4 text-sm text-muted">Enter the latest market prices to refresh the portfolio valuations.</p>
+        <PriceUpdateForm
+          knownTickers={Array.from(new Set(activeHoldings.map((h) => h.asset_identifier))).sort()}
+          onSuccess={() => { closeDrawer(); void refetch(); }}
+        />
+      </Sheet>
+      <Sheet isOpen={drawer === "evidence"} onClose={closeDrawer} title="Guided evidence intake" width="max-w-2xl">
+        <p className="mb-4 text-sm text-muted">
+          Record ESOP/RSU, property, and liability evidence with a structured valuation basis and source anchor. Manually entered values are clearly labelled manual-trusted across reports and the traceability appendix.
+        </p>
+        <GuidedEvidenceForm initialSourceClass={evidenceSourceClass} />
+      </Sheet>
 
       {!isLoading && !error && activeHoldings.length > 0 && (
         <div className="mb-6 card p-5" data-testid="total-portfolio-value">

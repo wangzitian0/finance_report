@@ -38,14 +38,14 @@ export const APP_ROUTES = {
     AUDIT: "/audit",
     MORE: "/more",
     CHAT: "/chat",
-    ACCOUNTS: "/accounts",
+    ACCOUNTS: "/settings?tab=accounts",
     JOURNAL: "/journal",
     PORTFOLIO: "/portfolio",
-    PORTFOLIO_EVIDENCE: "/portfolio/evidence",
-    PORTFOLIO_PRICES: "/portfolio/prices",
+    PORTFOLIO_EVIDENCE: "/portfolio?panel=evidence",
+    PORTFOLIO_PRICES: "/portfolio?panel=prices",
     RECONCILIATION: "/reconciliation",
-    RECONCILIATION_UNMATCHED: "/reconciliation/unmatched",
-    RECONCILIATION_REVIEW_QUEUE: "/reconciliation/review-queue",
+    RECONCILIATION_UNMATCHED: "/reconciliation?tab=unmatched",
+    RECONCILIATION_REVIEW_QUEUE: "/reconciliation?tab=review-queue",
     REPORTS: "/reports",
     SETTINGS: "/settings",
     PING_PONG: "/ping-pong",
@@ -53,6 +53,11 @@ export const APP_ROUTES = {
 } as const;
 
 export type AppRoute = (typeof APP_ROUTES)[keyof typeof APP_ROUTES];
+
+/** The `/portfolio` URL that opens the holding drawer of one ticker. */
+export function portfolioHoldingHref(ticker: string): string {
+    return `${APP_ROUTES.PORTFOLIO}?ticker=${encodeURIComponent(ticker)}`;
+}
 
 // EPIC-022 AC22.21: mobile/PWA-first bottom tab bar, mirrored by the desktop
 // sidebar. Exactly four routed tabs plus a center "Add" action (see ADD_ACTION).
@@ -97,20 +102,15 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     // Legacy routes redirect to the new IA; keep label/icon mappings so any
     // persisted workspace tabs or breadcrumbs render with the new names.
     "/dashboard": { label: "Home", Icon: Home },
-    "/accounts": { label: "Accounts", Icon: Landmark },
     "/journal": { label: "Journal", Icon: BookOpen },
     "/statements": { label: "Statements", Icon: UploadCloud },
     "/review": { label: "Review", Icon: ClipboardCheck },
     "/portfolio": { label: "Portfolio", Icon: Wallet },
-    "/portfolio/evidence": { label: "Guided Evidence", Icon: FileText },
     // Legacy /assets route redirects to /portfolio; keep its label mapping for
     // breadcrumbs and any persisted workspace tabs.
     "/assets": { label: "Portfolio", Icon: Wallet },
-    "/portfolio/prices": { label: "Prices", Icon: Wallet },
     "/reports": { label: "Reports", Icon: BarChart3 },
     "/reconciliation": { label: "Reconciliation", Icon: Link2 },
-    "/reconciliation/unmatched": { label: "Unmatched", Icon: Link2 },
-    "/reconciliation/review-queue": { label: "Review Queue", Icon: Link2 },
     "/chat": { label: "Chat", Icon: MessageSquare },
     "/settings": { label: "Settings", Icon: SlidersHorizontal },
     "/settings/general": { label: "General Settings", Icon: Coins },

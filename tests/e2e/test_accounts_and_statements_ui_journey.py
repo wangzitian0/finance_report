@@ -1,4 +1,4 @@
-"""End-to-End interactive browser journey tests for Accounts and Statements (/accounts, /statements).
+"""End-to-End interactive browser journey tests for Accounts and Statements (/settings?tab=accounts, /statements).
 
 Covers:
 - AC-ledger.account-registry.1: Account list, types, balances, and filter tabs.
@@ -49,8 +49,8 @@ async def test_accounts_surface_and_balance_display(page: Page):
         page, runner.last_auth_context, APP_URL
     )
 
-    # 2. Navigate to /accounts
-    await page.goto(f"{APP_URL}/accounts", wait_until="domcontentloaded")
+    # 2. Navigate to the Accounts tab of /settings
+    await page.goto(f"{APP_URL}/settings?tab=accounts", wait_until="domcontentloaded")
     assert "/login" not in page.url
 
     # 3. Assert header and action button

@@ -41,7 +41,7 @@ export interface MutationInvalidationRule {
 export const MUTATION_INVALIDATION_MATRIX: readonly MutationInvalidationRule[] = [
   {
     flow: "accounts.delete",
-    file: "app/(main)/accounts/page.tsx",
+    file: "components/settings/AccountsPanel.tsx",
     invalidates: [["accounts"]],
   },
   {

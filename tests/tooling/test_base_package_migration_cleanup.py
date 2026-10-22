@@ -28,7 +28,7 @@ FRONTEND_PERCENT_FILES = [
     Path("apps/frontend/src/components/portfolio/HoldingsTable.tsx"),
     Path("apps/frontend/src/components/portfolio/AllocationChart.tsx"),
     Path("apps/frontend/src/app/(main)/portfolio/page.tsx"),
-    Path("apps/frontend/src/app/(main)/portfolio/[ticker]/page.tsx"),
+    Path("apps/frontend/src/components/portfolio/HoldingDetail.tsx"),
     # The savings rate of the three-statement cockpit (Home and the /reports Overview, #2621 LC).
     Path("apps/frontend/src/components/reports/StatementCockpit.tsx"),
     Path("apps/frontend/src/components/reconciliation/Workbench.tsx"),

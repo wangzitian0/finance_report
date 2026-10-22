@@ -609,7 +609,7 @@ def test_AC22_14_3_chat_grounding_metadata_links_pending_review_without_write_ac
                             "confidence_tier": "review_required",
                             "source_refs": ["cash_flow", "reconciliation"],
                             "limitation": "Unreviewed reconciliation items should not be treated as trusted.",
-                            "next_action_href": "/reconciliation/review-queue",
+                            "next_action_href": "/reconciliation?tab=review-queue",
                         }
                     ]
                 }
@@ -628,7 +628,7 @@ def test_AC22_14_3_chat_grounding_metadata_links_pending_review_without_write_ac
         {
             "kind": "reconciliation_review",
             "label": "Review 2",
-            "href": "/reconciliation/review-queue",
+            "href": "/reconciliation?tab=review-queue",
             "count": 2,
         }
     ]

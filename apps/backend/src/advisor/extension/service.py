@@ -562,7 +562,7 @@ class AIAdvisorService:
                     confidence_tier="stale",
                     source_refs=["market_data"],
                     limitation="Portfolio valuation and market-sensitive report facts should be refreshed before relying on them.",
-                    next_action_href="/portfolio/prices/update",
+                    next_action_href="/portfolio?panel=prices",
                 )
             )
 
@@ -587,7 +587,7 @@ class AIAdvisorService:
                     confidence_tier="review_required",
                     source_refs=["cash_flow", "reconciliation"],
                     limitation="Unreviewed reconciliation items should not be used as trusted cash-flow conclusions.",
-                    next_action_href="/reconciliation/review-queue",
+                    next_action_href="/reconciliation?tab=review-queue",
                 )
             )
 
@@ -663,7 +663,7 @@ class AIAdvisorService:
             add_action(
                 "reconciliation_review",
                 f"Review {pending_review}",
-                "/reconciliation/review-queue",
+                "/reconciliation?tab=review-queue",
                 pending_review,
             )
 

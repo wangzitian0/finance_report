@@ -413,7 +413,7 @@ export default function StatementDetailPage() {
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <button type="button" onClick={() => approveMutation.mutate({ autoFill: true })} disabled={approveMutation.isPending} className="btn-primary inline-flex items-center gap-2">{approveMutation.isPending ? "Approving..." : "Auto-Fill Default Categories & Approve"}</button>
             <Link href={`/audit?statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}#ai-suggestions`} className="btn-secondary inline-flex">Review AI suggestions</Link>
-            <Link href={`/reconciliation/unmatched?statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}`} className="btn-secondary inline-flex">Review transaction classifications</Link>
+            <Link href={`/reconciliation?tab=unmatched&statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}`} className="btn-secondary inline-flex">Review transaction classifications</Link>
           </div>
         </section>
       )}

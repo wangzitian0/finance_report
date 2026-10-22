@@ -387,18 +387,14 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
     expect(screen.queryByLabelText("API key")).not.toBeInTheDocument();
   });
 
-  it("renders Settings header quick-navigation links to Accounts and Portfolio", async () => {
+  it("renders the Settings header quick-navigation link to Portfolio", async () => {
     primeHappyLoad();
     render(<SettingsPage />);
 
-    const accountsLink = screen.getByRole("link", {
-      name: "Manage Chart of Accounts",
-    });
     const portfolioLink = screen.getByRole("link", {
       name: "Portfolio Holdings",
     });
 
-    expect(accountsLink).toHaveAttribute("href", "/accounts");
     expect(portfolioLink).toHaveAttribute("href", "/portfolio");
   });
 });

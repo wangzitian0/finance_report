@@ -52,7 +52,7 @@ const workflowEvents = {
       summary: "Pending matches need review before reports are ready.",
       source_type: "reconciliation",
       source_id: "run-1",
-      action_href: "/reconciliation/review-queue",
+      action_href: "/reconciliation?tab=review-queue",
       report_impact: "blocked",
     },
   ],
@@ -100,7 +100,7 @@ test.describe("AC22.2.6 unified inbox smoke", () => {
 
       // Each card deep-links to its specific follow-up surface.
       await expect(page.locator('a[href="/statements/stmt-1"]').first()).toBeVisible();
-      await expect(page.locator('a[href="/reconciliation/review-queue"]').first()).toBeVisible();
+      await expect(page.locator('a[href="/reconciliation?tab=review-queue"]').first()).toBeVisible();
 
       await expectNoDocumentHorizontalScroll(page);
     });

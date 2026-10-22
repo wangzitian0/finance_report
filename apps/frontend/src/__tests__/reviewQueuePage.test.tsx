@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
-import ReviewQueuePage from "@/app/(main)/reconciliation/review-queue/page";
+import { Stage2ReviewQueue } from "@/components/review/Stage2ReviewQueue";
 import { apiOperation } from "@/lib/api-client";
 
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
@@ -13,7 +13,7 @@ vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 vi.mock("next/navigation", () => ({
     useRouter: vi.fn(() => ({ replace: replaceMock, push: pushMock })),
     useSearchParams: vi.fn(() => new URLSearchParams()),
-    usePathname: vi.fn(() => "/reconciliation/review-queue"),
+    usePathname: vi.fn(() => "/reconciliation"),
 }));
 
 function mapStage2OperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
@@ -88,7 +88,7 @@ const duplicateCheck = {
     updated_at: "2024-01-01T00:00:00Z",
 };
 
-describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
+describe("AC4.6.4 review queue tab interactive flows", () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
@@ -102,7 +102,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
             return Promise.resolve({ items: [] });
         });
 
-        renderReviewComponent(<ReviewQueuePage /> as never);
+        renderReviewComponent(<Stage2ReviewQueue /> as never);
 
         expect(screen.getByText("Loading review queue...")).toBeInTheDocument();
     });
@@ -128,7 +128,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
-        renderReviewComponent(<ReviewQueuePage /> as never);
+        renderReviewComponent(<Stage2ReviewQueue /> as never);
 
         expect(await screen.findByText("Failed to load review queue")).toBeInTheDocument();
 
@@ -155,7 +155,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
-        renderReviewComponent(<ReviewQueuePage /> as never);
+        renderReviewComponent(<Stage2ReviewQueue /> as never);
 
         expect(await screen.findByText("No pending checks")).toBeInTheDocument();
         expect(screen.getByText("No pending matches")).toBeInTheDocument();
@@ -179,7 +179,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
-        renderReviewComponent(<ReviewQueuePage /> as never);
+        renderReviewComponent(<Stage2ReviewQueue /> as never);
 
         expect(await screen.findByText("Unresolved consistency checks block batch approval")).toBeInTheDocument();
 
@@ -208,7 +208,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
-        renderReviewComponent(<ReviewQueuePage /> as never);
+        renderReviewComponent(<Stage2ReviewQueue /> as never);
 
         expect(await screen.findByText("No pending checks")).toBeInTheDocument();
         expect(requestedCheckUrl).toContain("limit=500");
@@ -240,7 +240,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
-        renderReviewComponent(<ReviewQueuePage /> as never);
+        renderReviewComponent(<Stage2ReviewQueue /> as never);
 
         const desktopRegion = await screen.findByTestId("stage2-desktop-match-region");
         fireEvent.click(within(desktopRegion).getByText("Transfer"));
@@ -275,7 +275,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
-        renderReviewComponent(<ReviewQueuePage /> as never);
+        renderReviewComponent(<Stage2ReviewQueue /> as never);
 
         const desktopRegion = await screen.findByTestId("stage2-desktop-match-region");
         fireEvent.click(within(desktopRegion).getByText("Transfer"));
@@ -307,7 +307,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
-        renderReviewComponent(<ReviewQueuePage /> as never);
+        renderReviewComponent(<Stage2ReviewQueue /> as never);
 
         const desktopRegion = await screen.findByTestId("stage2-desktop-match-region");
         fireEvent.click(within(desktopRegion).getByText("Transfer"));
@@ -349,7 +349,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
-        renderReviewComponent(<ReviewQueuePage /> as never);
+        renderReviewComponent(<Stage2ReviewQueue /> as never);
 
         fireEvent.click(await screen.findByRole("button", { name: "Resolve" }));
 
@@ -371,7 +371,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
     });
 
     // AC-reconciliation.fe-stage2-review.28
-    it("AC16.36.1 renders the Stage-2 review queue as a standalone page", async () => {
+    it("AC16.36.1 renders the Stage-2 review queue with its heading in the reconciliation tab", async () => {
         mockedApi.mockImplementation((path: string) => {
             if (path.startsWith("/api/statements/stage2/queue")) {
                 return Promise.resolve(queueData as never);
@@ -390,14 +390,14 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
-        renderReviewComponent(<ReviewQueuePage /> as never);
+        renderReviewComponent(<Stage2ReviewQueue /> as never);
 
         expect(await screen.findByText("Review queue")).toBeInTheDocument();
         await waitFor(() => expect(screen.getAllByText("Transfer").length).toBeGreaterThan(0));
     });
 
     // AC-reconciliation.fe-stage2-review.29
-    it("AC16.36.2 loads the global queue (no run filter) on the dedicated route", async () => {
+    it("AC16.36.2 loads the global queue (no run filter) in the reconciliation tab", async () => {
         mockedApi.mockImplementation((path: string) => {
             if (path.startsWith("/api/statements/stage2/queue")) {
                 return Promise.resolve(queueData as never);
@@ -416,7 +416,7 @@ describe("AC4.6.4 ReviewQueuePage interactive flows", () => {
             return Promise.reject(new Error(`Unexpected path ${path}`));
         });
 
-        renderReviewComponent(<ReviewQueuePage /> as never);
+        renderReviewComponent(<Stage2ReviewQueue /> as never);
 
         await waitFor(() => {
             const queueCall = mockedApi.mock.calls.find((call) =>

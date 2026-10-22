@@ -58,7 +58,7 @@ const workflowEvents = {
       summary: "Pending reconciliation matches must be accepted or rejected (2 items).",
       source_type: "readiness_blocker",
       source_id: "22222222-2222-4222-8222-222222222222",
-      action_href: "/reconciliation/review-queue",
+      action_href: "/reconciliation?tab=review-queue",
       report_impact: "blocked",
     },
   ],
@@ -106,7 +106,7 @@ test.describe("AC22.4.5 everyday-user attention journey", () => {
 
       // Stage 1 deep-links to the specific statement review; Stage 2 to the queue.
       await expect(page.locator(`a[href="/statements/${STMT_ID}"]`).first()).toBeVisible();
-      await expect(page.locator('a[href="/reconciliation/review-queue"]').first()).toBeVisible();
+      await expect(page.locator('a[href="/reconciliation?tab=review-queue"]').first()).toBeVisible();
     });
   }
 });

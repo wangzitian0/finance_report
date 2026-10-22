@@ -218,7 +218,7 @@ Every UI-system change must leave both semantic and visual proof in the same PR.
 
 ### Applied In
 
-- `app/(main)/accounts/page.tsx`
+- `components/settings/AccountsPanel.tsx`
 - `app/(main)/statements/page.tsx`
 - `playwright/ui-visual-smoke.spec.ts`
 - `src/__tests__/uiPrimitives.test.tsx`
@@ -401,7 +401,7 @@ document-level horizontal scrolling.
   mobile card affordances.
 
 **Applied In:**
-- `app/(main)/accounts/page.tsx`
+- `components/settings/AccountsPanel.tsx`
 - `app/(main)/review/ai-suggestions/page.tsx`
 - `app/(main)/statements/[id]/review/page.tsx`
 - `components/review/Stage2ReviewQueue.tsx`

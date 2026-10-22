@@ -45,7 +45,7 @@ describe("Unified notification inbox (EPIC-022 AC22.2)", () => {
         summary: "Pending matches need review before reports are ready.",
         source_type: "reconciliation",
         source_id: "run-1",
-        action_href: "/reconciliation/review-queue",
+        action_href: "/reconciliation?tab=review-queue",
       }),
     ]
 
@@ -55,7 +55,7 @@ describe("Unified notification inbox (EPIC-022 AC22.2)", () => {
     expect(stage1).toHaveAttribute("href", "/statements/stmt-1")
 
     const stage2 = screen.getByRole("link", { name: /Open Reconciliation review required/i })
-    expect(stage2).toHaveAttribute("href", "/reconciliation/review-queue")
+    expect(stage2).toHaveAttribute("href", "/reconciliation?tab=review-queue")
   })
 
   it("AC22.2.1 shows a no-action empty state with no review queue page to visit", () => {

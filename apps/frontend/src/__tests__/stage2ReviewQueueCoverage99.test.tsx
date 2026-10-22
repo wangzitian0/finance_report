@@ -9,7 +9,7 @@ import { renderReviewComponent } from "./helpers/renderReviewComponent"
 const runIdState = vi.hoisted(() => ({ current: null as string | null }))
 
 const navState = vi.hoisted(() => ({
-  pathname: "/reconciliation/review-queue",
+  pathname: "/reconciliation",
   replace: vi.fn(),
   push: vi.fn(),
   searchParams: new URLSearchParams(),
@@ -138,7 +138,7 @@ const Queue = () => <Stage2ReviewQueue runId={runIdState.current} />
 describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   beforeEach(() => {
     mockedApiFetch.mockReset()
-    navState.pathname = "/reconciliation/review-queue"
+    navState.pathname = "/reconciliation"
     runIdState.current = null
     navState.searchParams = new URLSearchParams()
     navState.replace.mockReset()
@@ -170,19 +170,14 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     expect(screen.getByRole("button", { name: "Approve Selected" })).toBeEnabled()
   })
 
-  it("AC22.11.3 preserves attention origin while the Stage 2 queue updates filters", async () => {
-    navState.searchParams = new URLSearchParams("from=attention")
+  it("AC22.11.3 keeps the tab and the attention origin in the URL while the Stage 2 queue updates filters", async () => {
+    navState.searchParams = new URLSearchParams("tab=review-queue&from=attention&min_score=0")
     mockApi(queue({ pending_matches: [] }))
 
     renderReviewComponent(<Queue />)
 
-    expect(await screen.findByRole("link", { name: /Back to Needs Confirmation/i })).toHaveAttribute(
-      "href",
-      "/audit",
-    )
-
     await waitFor(() =>
-      expect(navState.replace).toHaveBeenCalledWith("/reconciliation/review-queue?from=attention", {
+      expect(navState.replace).toHaveBeenCalledWith("/reconciliation?tab=review-queue&from=attention", {
         scroll: false,
       }),
     )
@@ -282,7 +277,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     })
     await waitFor(() => {
       expect(navState.replace).toHaveBeenCalledWith(
-        "/reconciliation/review-queue?check_type=anomaly&status=resolved&severity=medium&min_score=60",
+        "/reconciliation?check_type=anomaly&status=resolved&severity=medium&min_score=60",
         { scroll: false },
       )
     })

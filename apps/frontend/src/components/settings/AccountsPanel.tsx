@@ -17,7 +17,8 @@ import { Account } from "@/lib/types";
 
 const ACCOUNT_TYPES = ["All", "ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"] as const;
 
-export default function AccountsPage() {
+// The chart of accounts in the Accounts tab of `/settings` (`/settings?tab=accounts`).
+export default function AccountsPanel() {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [activeFilter, setActiveFilter] = useState<string>("All");

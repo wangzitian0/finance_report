@@ -295,7 +295,7 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
         family=WorkflowEventFamily.RECONCILIATION_BLOCKED,
         severity=WorkflowEventSeverity.BLOCKED,
         report_impact=WorkflowReportImpact.BLOCKED,
-        action_href="/reconciliation/unmatched",
+        action_href="/reconciliation?tab=unmatched",
         title="Reconciliation blocked",
     )
     await db.commit()
@@ -305,7 +305,7 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     assert blocked["next_action"] == _next_action(
         "resolve_blocker",
         count=1,
-        href="/reconciliation/unmatched",
+        href="/reconciliation?tab=unmatched",
         label="Resolve blocker",
         summary="Resolve the blocking condition before the report package can be trusted.",
     )

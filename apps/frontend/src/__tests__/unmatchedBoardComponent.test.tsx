@@ -292,18 +292,9 @@ describe("UnmatchedBoard", () => {
     expect(screen.queryByRole("option", { name: /Expense - Dining/ })).not.toBeInTheDocument();
   });
 
-  it("AC22.11.3 returns attention-origin unmatched review to the attention queue", async () => {
-    navigationState.searchParams = new URLSearchParams("from=attention");
-    mockInitialLoad();
-    render(<UnmatchedBoard />);
-
-    const backLink = await screen.findByRole("link", { name: /Back to Needs Confirmation/i });
-    expect(backLink).toHaveAttribute("href", "/audit");
-  });
-
   it("AC-reconciliation.fe-stage2-review.30 scopes the queue and returns to statement review", async () => {
     navigationState.searchParams = new URLSearchParams(
-      "statement_id=s1&return_to=%2Fstatements%2Fs1%2Freview",
+      "statement_id=s1&return_to=%2Fstatements%2Fs1",
     );
     let completeRefresh!: (value: { items: typeof unmatchedItem[]; total: number }) => void;
     const refreshResult = new Promise<{ items: typeof unmatchedItem[]; total: number }>((resolve) => {
@@ -344,18 +335,18 @@ describe("UnmatchedBoard", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Confirm and Post" }));
 
-    const returnLink = await screen.findByRole("link", {
-      name: "Return to statement review",
-    });
-    expect(returnLink).toHaveAttribute("href", "/statements/s1/review");
-    // Navigation already exists before the post/refresh has completed.
-    // It is not evidence that the selected statement's queue is empty.
-    expect(screen.queryByText(/All transactions for this statement are classified/i)).not.toBeInTheDocument();
+    // The page back link holds return_to. The board shows its return action only after the refresh empties the scoped queue.
     await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledTimes(5));
+    expect(screen.queryByText(/All transactions for this statement are classified/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Return to statement review" })).not.toBeInTheDocument();
     completeRefresh({ items: [], total: 0 });
     expect(
       await screen.findByText(/All transactions for this statement are classified/i),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Return to statement review" })).toHaveAttribute(
+      "href",
+      "/statements/s1",
+    );
   });
 
   it("AC-reconciliation.fe-stage2-review.10 / AC-reconciliation.fe-stage2-review.25 keeps local flags and hiding separate from an accounting decision", async () => {

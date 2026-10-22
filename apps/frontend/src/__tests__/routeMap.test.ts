@@ -2,6 +2,9 @@ import fs from "fs"
 import path from "path"
 import { describe, expect, it } from "vitest"
 
+import { getPathMatch } from "next/dist/shared/lib/router/utils/path-match"
+import { prepareDestination } from "next/dist/shared/lib/router/utils/prepare-destination"
+
 import nextConfig from "../../next.config.mjs"
 import {
   advancedItems,
@@ -41,6 +44,19 @@ function discoverPageRoutes(dir: string, segments: string[] = []): string[] {
 }
 
 const stripQuery = (href: string) => href.split("?")[0]
+
+// Resolve a URL with the Next.js matcher: the first redirect that matches wins.
+async function resolveRedirect(url: string) {
+  const parsed = new URL(url, "http://app.test")
+  const query = Object.fromEntries(parsed.searchParams)
+  for (const rule of (await nextConfig.redirects?.()) ?? []) {
+    const params = getPathMatch(rule.source, { strict: true, removeUnnamedParams: true })(parsed.pathname)
+    if (!params) continue
+    const { parsedDestination } = prepareDestination({ appendParamsToQuery: false, destination: rule.destination, params, query })
+    return { pathname: parsedDestination.pathname, query: { ...parsedDestination.query } }
+  }
+  return null
+}
 
 describe("route map (single source of truth for routes)", () => {
   // AC-meta.fe-ia-nav.31
@@ -129,7 +145,7 @@ describe("route map (single source of truth for routes)", () => {
     const surfaces = flows.domains.flatMap((d) => d.flows)
     expect(surfaces.length).toBe(30)
     for (const flow of surfaces) {
-      const normalized = flow.ui_surface.replace(/\{(\w+)\}/g, "[$1]")
+      const normalized = stripQuery(flow.ui_surface).replace(/\{(\w+)\}/g, "[$1]")
       const entry = byPath.get(normalized)
       expect(entry, `flow #${flow.id} ui_surface ${flow.ui_surface} is not in route-map.json`).toBeDefined()
       expect(entry?.state, `flow #${flow.id} ui_surface ${flow.ui_surface} is a redirect`).not.toBe("redirect")
@@ -167,5 +183,36 @@ describe("route map (single source of truth for routes)", () => {
     }
     // Next.js merges the request query into the destination query, so `?currency=USD` survives the redirect.
     expect(redirects.filter((r: { source: string }) => r.source.startsWith("/reports/"))).toHaveLength(4)
+  })
+
+  // AC-meta.fe-tab-routes.1
+  it("AC-meta.fe-tab-routes.1 redirects each old reconciliation, portfolio and accounts route to a tab or a panel and keeps its query", async () => {
+    const expected: [string, string, Record<string, string>][] = [
+      ["/reconciliation/unmatched", "/reconciliation", { tab: "unmatched" }],
+      ["/reconciliation/review-queue", "/reconciliation", { tab: "review-queue" }],
+      ["/portfolio/prices", "/portfolio", { panel: "prices" }],
+      ["/portfolio/evidence", "/portfolio", { panel: "evidence" }],
+      ["/portfolio/AAPL", "/portfolio", { ticker: "AAPL" }],
+      ["/accounts", "/settings", { tab: "accounts" }],
+      [
+        "/reconciliation/unmatched?statement_id=s1&return_to=%2Fstatements%2Fs1",
+        "/reconciliation",
+        { tab: "unmatched", statement_id: "s1", return_to: "/statements/s1" },
+      ],
+      ["/portfolio/evidence?source_class=property", "/portfolio", { panel: "evidence", source_class: "property" }],
+    ]
+    for (const [from, pathname, query] of expected) {
+      expect(await resolveRedirect(from), `${from} must redirect to ${pathname} with ${JSON.stringify(query)}`).toEqual({
+        pathname,
+        query,
+      })
+    }
+
+    const pages = discoverPageRoutes(APP_DIR)
+    const oldRoutes = ["/reconciliation/unmatched", "/reconciliation/review-queue", "/portfolio/[ticker]", "/portfolio/prices", "/portfolio/evidence", "/accounts"]
+    for (const oldRoute of oldRoutes) {
+      expect(byPath.get(oldRoute)?.state, `${oldRoute} must be a redirect`).toBe("redirect")
+      expect(pages, `${oldRoute} must have no page.tsx`).not.toContain(oldRoute)
+    }
   })
 })

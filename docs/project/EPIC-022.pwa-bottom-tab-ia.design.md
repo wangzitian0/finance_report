@@ -109,8 +109,8 @@ for a non-accountant:
 |---|---|
 | **Redesign** | `/` (Home: net-worth + 3-statement segments + bell); `/settings/*` → merged `/settings` |
 | **New** | `/audit` hub; bottom tab-bar component; ⊕ Add bottom sheet |
-| **Folded into Audit** | `/journal`, `/reconciliation` (+`/unmatched`, `/review-queue`), `/confidence`, `/processing` (pages kept + back-link to `/audit`) |
-| **Folded into More** | `/portfolio*` (conditional), `/accounts`, Advanced |
+| **Folded into Audit** | `/journal`, `/reconciliation` (+ unmatched and review-queue tabs), `/confidence`, `/processing` (pages kept + back-link to `/audit`) |
+| **Folded into More** | `/portfolio` (conditional), Accounts (`/settings?tab=accounts`), Advanced |
 | **Inbox (reuse)** | `/attention`, `WorkflowNotificationCenter` (the bell) |
 | **Delete / redirect** | `/statements/upload` → `/upload`; `/assets` → `/portfolio`; `/events` → `/notifications` |
 | **Unchanged** | `/statements/[id]` (+`/review`), `/login`, `/ping-pong` (dev) |
@@ -135,8 +135,9 @@ to instead route via the bottom bar / inbox / Audit hub.
 1. **Audit vs Verify** — tab label. "Audit" is accurate but mildly jargon-y;
    "Verify" reads friendlier to a non-accountant. Default: keep **Audit**, with
    the subtitle "see the books behind your reports".
-2. **`/accounts`** placement — chart-of-accounts is accounting structure; goes
-   under **More → Advanced** (default) or could sit inside Audit.
+2. **Accounts** placement — chart-of-accounts is accounting structure; goes
+   under **More → Advanced** (default) or could sit inside Audit. It is now the
+   Accounts tab of `/settings` (#2621).
 3. **Desktop form factor** — sidebar mirrors the 5 destinations; the ⊕ Add
    becomes a button. Bottom bar is mobile-only.
 4. **WorkspaceTabs** (the browser-style tab strip in the header) is extra chrome;

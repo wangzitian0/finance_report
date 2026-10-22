@@ -411,7 +411,7 @@ is a typed `Stage2PendingMatch`, not `list[dict]`.
 ### AC16.36: Dedicated Stage-2 Review Surface ([#1001](https://github.com/wangzitian0/finance_report/issues/1001))
 
 Tier 1 of #1000. Stage-2 review gets a first-class `/review` route instead of being
-reachable only via `/reconciliation/review-queue` (nested under the reconciliation
+reachable only via the reconciliation review queue (now `/reconciliation?tab=review-queue`, nested in the reconciliation
 workbench — "parasitic on statements"). The Attention center and the home Risk-radar
 deep-link to `/review`; the run-scoped variant stays at `/review/run/[runId]`. Per the
 EPIC-022 IA, review stays out of the sidebar — it is reached from the

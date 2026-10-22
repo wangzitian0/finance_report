@@ -226,7 +226,7 @@ async def test_compute_personal_data_quality_unmatched_and_unanchored_activity(
 
     recon_actions = [a for a in res.action_items if a.id == "reconcile_unmatched_transactions"]
     assert len(recon_actions) == 1
-    assert recon_actions[0].action_url == "/reconciliation/unmatched"
+    assert recon_actions[0].action_url == "/reconciliation?tab=unmatched"
 
 
 @pytest.mark.asyncio

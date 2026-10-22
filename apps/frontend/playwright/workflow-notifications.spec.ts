@@ -36,7 +36,7 @@ const workflowEvents = {
       summary: "Match two transactions before reports can be trusted.",
       source_type: "reconciliation",
       source_id: "source-blocked",
-      action_href: "/reconciliation/unmatched",
+      action_href: "/reconciliation?tab=unmatched",
       report_impact: "blocked",
       dedupe_key: "workflow:blocker",
       created_at: "2026-06-03T08:00:00Z",
@@ -174,7 +174,7 @@ test.describe("AC19.3.7 workflow notification smoke", () => {
       await expect(dialog.getByRole("list", { name: "Upload-to-report session timeline" })).toBeVisible();
       await expect(dialog.getByRole("link", { name: "Open" }).first()).toHaveAttribute(
         "href",
-        "/reconciliation/unmatched",
+        "/reconciliation?tab=unmatched",
       );
 
       await expectNoDocumentHorizontalScroll(page);

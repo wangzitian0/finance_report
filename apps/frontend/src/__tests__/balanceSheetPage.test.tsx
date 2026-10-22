@@ -251,7 +251,7 @@ describe("BalanceSheetPage", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument())
     // Warning banner + CTA are shown on the report surface, not just /accounts.
     expect(screen.getByText("Opening balances not recorded")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /set opening balances/i })).toHaveAttribute("href", "/accounts")
+    expect(screen.getByRole("link", { name: /set opening balances/i })).toHaveAttribute("href", "/settings?tab=accounts")
     expect(screen.getByText("✓ Balanced")).toBeInTheDocument()
   })
 

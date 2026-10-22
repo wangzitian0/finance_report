@@ -52,7 +52,7 @@ describe("Attention queue (EPIC-022 AC22.6)", () => {
 
     const rows = await screen.findAllByRole("link");
     // Unmatched (confidence 0) comes before the parsed statement (40) before pending review (80).
-    expect(rows[0]).toHaveAttribute("href", "/reconciliation/unmatched?from=attention");
+    expect(rows[0]).toHaveAttribute("href", "/reconciliation?tab=unmatched&from=attention");
     expect(rows[1]).toHaveAttribute("href", "/statements/bad?from=attention");
     expect(rows[2]).toHaveAttribute("href", "/reconciliation?from=attention");
 

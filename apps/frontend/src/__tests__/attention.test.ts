@@ -63,7 +63,7 @@ describe("attention model (EPIC-022 AC22.6)", () => {
     const byId = Object.fromEntries(buildAttentionItems(sources).map((i) => [i.id, i.href]));
     expect(byId["statement:bad"]).toBe("/statements/bad");
     expect(byId["reconciliation:pending"]).toBe("/reconciliation");
-    expect(byId["reconciliation:unmatched"]).toBe("/reconciliation/unmatched");
+    expect(byId["reconciliation:unmatched"]).toBe("/reconciliation?tab=unmatched");
     expect(byId["processing:stalled"]).toBe("/upload");
   });
 

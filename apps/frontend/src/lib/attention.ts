@@ -125,7 +125,7 @@ export function buildAttentionItems(
       reason:
         "These transactions have no matching ledger entry at all — either new activity you haven't recorded yet, or a reference the matcher couldn't link.",
       confidence: 0,
-      href: "/reconciliation/unmatched",
+      href: "/reconciliation?tab=unmatched",
     });
   }
 

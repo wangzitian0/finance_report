@@ -20,6 +20,14 @@ vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }))
 
+vi.mock("@/components/reconciliation/UnmatchedBoard", () => ({
+  default: () => <div>Mock Unmatched Board</div>,
+}))
+
+vi.mock("@/components/review/Stage2ReviewQueue", () => ({
+  Stage2ReviewQueue: () => <div>Mock Review Queue</div>,
+}))
+
 function mapWorkbenchOperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
   switch (operationId) {
     case "reconciliation_stats_reconciliation_stats_get":
@@ -368,18 +376,18 @@ describe("ReconciliationWorkbench", () => {
     const workspaceNav = await screen.findByRole("navigation", {
       name: "Reconciliation workspace views",
     })
-    const matchedTab = within(workspaceNav).getByRole("link", { name: "Matched & Pending" })
+    const matchedTab = within(workspaceNav).getByRole("link", { name: "Matches" })
     expect(matchedTab).toHaveAttribute("href", "/reconciliation")
     expect(matchedTab).toHaveAttribute("aria-current", "page")
 
     const unmatchedTab = within(workspaceNav).getByRole("link", {
-      name: /Unmatched Bank Lines/i,
+      name: /Unmatched/i,
     })
-    expect(unmatchedTab).toHaveAttribute("href", "/reconciliation/unmatched")
+    expect(unmatchedTab).toHaveAttribute("href", "/reconciliation?tab=unmatched")
     expect(await within(unmatchedTab).findByText("3")).toBeInTheDocument()
 
-    const checksTab = within(workspaceNav).getByRole("link", { name: "Consistency Checks" })
-    expect(checksTab).toHaveAttribute("href", "/reconciliation/review-queue")
+    const reviewQueueTab = within(workspaceNav).getByRole("link", { name: "Review queue" })
+    expect(reviewQueueTab).toHaveAttribute("href", "/reconciliation?tab=review-queue")
 
     await waitFor(() =>
       expect(
@@ -502,16 +510,29 @@ describe("Workbench invalidation matrix flows (#1827 G-async-seam)", () => {
     await waitFor(() => probe.expectDeclaredInvalidated())
   })
 
-  it("switches reconciliation workspace views inline across Matched, Unmatched, and Consistency tabs", async () => {
-    await renderWithProbe("reconciliation.run")
-    const nav = screen.getByRole("navigation", { name: "Reconciliation workspace views" })
-    fireEvent.click(within(nav).getByRole("link", { name: /Unmatched Bank Lines/i }))
-    expect(within(nav).getByRole("link", { name: /Unmatched Bank Lines/i })).toHaveAttribute("aria-current", "page")
-
-    fireEvent.click(within(nav).getByRole("link", { name: /Consistency Checks/i }))
-    expect(within(nav).getByRole("link", { name: /Consistency Checks/i })).toHaveAttribute("aria-current", "page")
-
-    fireEvent.click(within(nav).getByRole("link", { name: /Matched & Pending/i }))
-    expect(within(nav).getByRole("link", { name: /Matched & Pending/i })).toHaveAttribute("aria-current", "page")
+  // AC-reconciliation.fe-tabs.1
+  it("AC-reconciliation.fe-tabs.1 shows the tab that the tab query parameter names and links each tab to its URL", async () => {
+    const cases: [string, RegExp, string][] = [
+      ["", /Matches/, "Reconciliation Workbench"],
+      ["tab=unmatched&statement_id=s1", /Unmatched/, "Mock Unmatched Board"],
+      ["tab=review-queue&check_type=duplicate", /Review queue/, "Mock Review Queue"],
+      ["tab=unknown", /Matches/, "Reconciliation Workbench"],
+    ]
+    for (const [query, activeTab, content] of cases) {
+      navigationState.searchParams = new URLSearchParams(query)
+      const { unmount } = render(<ReconciliationWorkbench />, { wrapper: createWrapper() })
+      const nav = screen.getByRole("navigation", { name: "Reconciliation workspace views" })
+      const links = within(nav).getAllByRole("link")
+      expect(links.map((link) => link.getAttribute("href"))).toEqual([
+        "/reconciliation",
+        "/reconciliation?tab=unmatched",
+        "/reconciliation?tab=review-queue",
+      ])
+      const current = links.filter((link) => link.getAttribute("aria-current") === "page")
+      expect(current, `?${query} must mark one tab as current`).toHaveLength(1)
+      expect(current[0]).toHaveTextContent(activeTab)
+      expect(screen.getByText(content)).toBeInTheDocument()
+      unmount()
+    }
   })
 })

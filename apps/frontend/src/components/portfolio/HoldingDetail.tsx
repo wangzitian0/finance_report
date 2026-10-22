@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -12,9 +10,8 @@ import { formatDateDisplay } from "@/lib/date";
 import { formatSignedPercentFromPercentValue } from "@/lib/audit/ratio/format";
 import { pnlColorClass } from "@/lib/statusLabels";
 
-export default function HoldingDetailPage() {
-  const params = useParams();
-  const ticker = decodeURIComponent(params.ticker as string);
+// The body of the holding drawer that `/portfolio?ticker=` opens.
+export function HoldingDetail({ ticker }: { ticker: string }) {
   const [activeTab, setActiveTab] = useState<"overview" | "dividends" | "realized">("overview");
   const [savingMethod, setSavingMethod] = useState(false);
 
@@ -37,42 +34,27 @@ export default function HoldingDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6">
-        <div className="card p-8 text-center text-muted">
-          <div className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
-          <p className="text-sm">Loading holding details...</p>
-        </div>
+      <div className="card p-8 text-center text-muted">
+        <div className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
+        <p className="text-sm">Loading holding details...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-6">
-        <div className="card p-8 text-center" role="alert" aria-live="polite">
-          <p className="text-[var(--foreground)] font-medium mb-2">Failed to load holding</p>
-          <p className="text-sm text-muted mb-6">{error instanceof Error ? error.message : "Unknown error"}</p>
-          <button onClick={() => refetch()} className="btn-secondary">Retry</button>
-        </div>
+      <div className="card p-8 text-center" role="alert" aria-live="polite">
+        <p className="text-[var(--foreground)] font-medium mb-2">Failed to load holding</p>
+        <p className="text-sm text-muted mb-6">{error instanceof Error ? error.message : "Unknown error"}</p>
+        <button onClick={() => refetch()} className="btn-secondary">Retry</button>
       </div>
     );
   }
 
-  const backLink = (
-    <div className="mb-4">
-      <Link href="/portfolio" className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1">
-        <span aria-hidden="true">←</span> Back to Portfolio
-      </Link>
-    </div>
-  );
-
   if (holdings.length === 0) {
     return (
-      <div className="p-6">
-        {backLink}
-        <div className="card p-8 text-center">
-          <p className="text-muted">No holdings found for <span className="font-mono font-medium">{ticker}</span></p>
-        </div>
+      <div className="card p-8 text-center">
+        <p className="text-muted">No holdings found for <span className="font-mono font-medium">{ticker}</span></p>
       </div>
     );
   }
@@ -94,16 +76,12 @@ export default function HoldingDetailPage() {
   };
 
   return (
-    <div className="p-6">
-      {backLink}
-      <div className="page-header">
-        <h1 className="page-title font-mono">{ticker}</h1>
-        <p className="page-description">
-          {primary.sector && `${primary.sector} · `}
-          {primary.geography && `${primary.geography} · `}
-          {primary.asset_type ?? "Equity"}
-        </p>
-      </div>
+    <div>
+      <p className="mb-4 text-sm text-muted">
+        {primary.sector && `${primary.sector} · `}
+        {primary.geography && `${primary.geography} · `}
+        {primary.asset_type ?? "Equity"}
+      </p>
 
       <div className="mb-6 flex flex-col gap-3 border-b border-[var(--border)] pb-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-2" role="tablist" aria-label="Holding detail views">
@@ -137,7 +115,7 @@ export default function HoldingDetailPage() {
 
       {activeTab === "overview" && (
         <>
-          <div className="grid gap-4 md:grid-cols-4 mb-6">
+          <div className="grid gap-4 sm:grid-cols-2 mb-6">
             <div className="card p-5">
               <p className="text-xs text-muted uppercase tracking-wide">Market Value</p>
               <p className="text-2xl font-semibold mt-1">{formatCurrencyLocale(primary.market_value, primary.currency)}</p>
