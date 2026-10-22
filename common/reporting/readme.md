@@ -235,6 +235,18 @@ exact. Package readiness consumes this proof state as a blocking section
 invariant, so lineage visibility or a balanced bridge alone cannot authorize,
 freeze, reopen, or export an unproven cash-flow section as trusted.
 
+`GET /reports/cash-flow` returns `CashFlowPreview`, the projection
+`cash_flow_preview(document)` of the complete document (#2583 S10). Each section
+has one line for each activity, description and account (`cash_flow_line_id`),
+with the sum and the count of its items. The preview has no per-event lineage;
+`lineage_summary` counts the lineage records. `GET /reports/cash-flow/line-events`
+returns the records of one line page by page, in document order, with the entry
+date, the memo and the cash movement. Unclassified records use the line id
+`unclassified`. Opening-stock records use the line id `opening_stock`. The
+document, the preview lines and the pages come from one builder. The CSV export
+and the package snapshot keep the complete document. The event read selects
+columns, not ORM rows: one year of data has about 2000 lines.
+
 For a trusted `PersonalReportPackageDocument`, cash/bank identity is supplied as
 typed `PackageCashInputs` derived from authoritative bank-statement
 contributions and their exact custody `account_id` refs. The package path never

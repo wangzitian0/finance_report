@@ -28,6 +28,8 @@ from src.platform import raise_bad_request, raise_not_found
 from src.portfolio import active_stock_symbols
 from src.pricing import FxRate, ensure_market_data_fresh
 from src.reporting import (
+    CashFlowLineEventsPage,
+    CashFlowPreview,
     EquationDiagnosticResult,
     PackageAssembler,
     PackageDocumentVersionError,
@@ -35,6 +37,9 @@ from src.reporting import (
     ReportingSnapshotService,
     ReportSnapshot,
     ReportType as SnapshotReportType,
+    cash_flow_line_events,
+    cash_flow_period,
+    cash_flow_preview,
     compute_personal_data_quality,
     generate_balance_sheet,
     generate_cash_flow,
@@ -792,7 +797,7 @@ async def income_statement(
     return IncomeStatementResponse.model_validate(report)
 
 
-@router.get("/cash-flow", response_model=CashFlowResponse)
+@router.get("/cash-flow", response_model=CashFlowPreview)
 async def cash_flow(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
@@ -800,10 +805,9 @@ async def cash_flow(
     *,
     db: DbSession,
     user_id: CurrentUserId,
-) -> CashFlowResponse:
-    """Get cash flow statement for a period."""
-    resolved_end_date = end_date or date.today()
-    resolved_start_date = start_date or date(resolved_end_date.year, 1, 1)
+) -> CashFlowPreview:
+    """Get the bounded cash-flow statement; GET /reports/cash-flow/line-events pages the events of a line."""
+    resolved_start_date, resolved_end_date = cash_flow_period(start_date, end_date)
     try:
         await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=resolved_end_date)
         report = await generate_cash_flow(
@@ -823,7 +827,35 @@ async def cash_flow(
         )
         raise_bad_request(str(exc), cause=exc)
     await db.commit()
-    return CashFlowResponse.model_validate(report)
+    return CashFlowPreview.model_validate(cash_flow_preview(report))
+
+
+@router.get("/cash-flow/line-events", response_model=CashFlowLineEventsPage)
+async def list_cash_flow_line_events(
+    line_id: str = Query(min_length=1, max_length=64, description="A line_id of GET /reports/cash-flow"),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+    pagination: Pagination,
+) -> CashFlowLineEventsPage:
+    """Return one page of the lineage records of one cash-flow line, in document order (#2583)."""
+    resolved_start_date, resolved_end_date = cash_flow_period(start_date, end_date)
+    try:
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=resolved_end_date)
+        events = await cash_flow_line_events(
+            db, user_id, line_id=line_id, start_date=resolved_start_date, end_date=resolved_end_date, currency=currency
+        )
+    except ReportError as exc:
+        raise_bad_request(str(exc), cause=exc)
+    if events is None:
+        raise_not_found("Cash-flow line")
+    await db.commit()
+    page = events[pagination.offset : pagination.offset + pagination.limit]
+    bounds = {"line_id": line_id, "total": len(events), "limit": pagination.limit, "offset": pagination.offset}
+    return CashFlowLineEventsPage.model_validate({**bounds, "events": page})
 
 
 @router.get("/trend", response_model=AccountTrendResponse)

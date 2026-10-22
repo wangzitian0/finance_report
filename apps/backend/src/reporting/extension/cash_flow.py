@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
+from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy import Select, exists, select
@@ -85,15 +88,46 @@ _STATEMENT_CATEGORY_ACTIVITIES: dict[str, tuple[CashActivity, AccountType]] = {
     "LOAN_PRINCIPAL": ("Financing", AccountType.LIABILITY),
     "INVESTMENT_TRADE": ("Investing", AccountType.ASSET),
 }
+_SECTIONS = ("operating", "investing", "financing")
+#: Line id of the lineage records of unclassified cash events (#2583).
+CASH_FLOW_UNCLASSIFIED_LINE_ID = "unclassified"
+#: Line id of the lineage records of opening stock that the period first evidences (#2583).
+CASH_FLOW_OPENING_STOCK_LINE_ID = "opening_stock"
+_FIXED_LINE_IDS = frozenset({CASH_FLOW_UNCLASSIFIED_LINE_ID, CASH_FLOW_OPENING_STOCK_LINE_ID})
+
+
+@dataclass(frozen=True, slots=True)
+class _EntryFacts:
+    """The journal-entry columns that cash-event classification and lineage read."""
+
+    id: UUID
+    entry_date: date
+    memo: str
+    source_type: JournalEntrySourceType
+    source_id: UUID | None
+    decision_anchor_id: UUID | None
+    decision_authority_state: JournalEntryAuthorityState
+
+
+@dataclass(frozen=True, slots=True)
+class _LineFacts:
+    """The journal-line columns that cash-event classification and lineage read."""
+
+    id: UUID
+    direction: Direction
+    amount: Decimal
+    currency: str
+    event_type: str | None
+    economic_category: str | None
 
 
 @dataclass(frozen=True, slots=True)
 class _CashEvent:
     """One tenant-safe journal event that touches an authoritative cash identity."""
 
-    entry: JournalEntry
-    cash_lines: tuple[tuple[JournalLine, Account], ...]
-    counterpart_lines: tuple[tuple[JournalLine, Account], ...]
+    entry: _EntryFacts
+    cash_lines: tuple[tuple[_LineFacts, Account], ...]
+    counterpart_lines: tuple[tuple[_LineFacts, Account], ...]
 
     @property
     def has_authoritative_decision(self) -> bool:
@@ -125,7 +159,7 @@ class _CashEvent:
         ):
             cash_line, _cash_account = self.cash_lines[0]
             counter_line, counter_account = self.counterpart_lines[0]
-            category = (counter_line.tags or {}).get("economic_category")
+            category = counter_line.economic_category
             if (
                 cash_line.event_type == "bank_txn"
                 and counter_line.event_type == "bank_txn"
@@ -144,7 +178,7 @@ class _CashEvent:
         return None
 
 
-def _cash_delta(line: JournalLine) -> Decimal:
+def _cash_delta(line: _LineFacts) -> Decimal:
     return line.amount if line.direction == Direction.DEBIT else -line.amount
 
 
@@ -174,12 +208,47 @@ async def _load_cash_events(
     *,
     end_date: date,
     cash_account_ids: frozenset[UUID],
+    account_by_id: dict[UUID, Account],
 ) -> tuple[_CashEvent, ...]:
-    """Load complete entries only when both the entry and every account belong to the tenant."""
+    """Load complete entries only when both the entry and every account belong to the tenant.
+
+    The read selects columns, not ORM rows: one year of data has about 2000 lines (#2583).
+    ``account_by_id`` holds the accounts of the tenant. The read adds an account that the
+    caller did not load, for example an account that a concurrent request created.
+    """
     stmt = _cash_event_rows_statement(user_id, end_date=end_date, cash_account_ids=cash_account_ids)
-    grouped: dict[UUID, tuple[JournalEntry, list[tuple[JournalLine, Account]]]] = {}
-    for line, account, entry in (await db.execute(stmt)).all():
-        grouped.setdefault(entry.id, (entry, []))[1].append((line, account))
+    rows = (await db.execute(stmt)).all()
+    missing_account_ids = {row.account_id for row in rows}.difference(account_by_id)
+    if missing_account_ids:
+        added = await db.execute(
+            select(Account).where(Account.user_id == user_id).where(Account.id.in_(missing_account_ids))
+        )
+        account_by_id.update((account.id, account) for account in added.scalars())
+    grouped: dict[UUID, tuple[_EntryFacts, list[tuple[_LineFacts, Account]]]] = {}
+    for row in rows:
+        group = grouped.get(row.entry_id)
+        if group is None:
+            group = grouped[row.entry_id] = (
+                _EntryFacts(
+                    id=row.entry_id,
+                    entry_date=row.entry_date,
+                    memo=row.memo,
+                    source_type=row.source_type,
+                    source_id=row.source_id,
+                    decision_anchor_id=row.decision_anchor_id,
+                    decision_authority_state=row.decision_authority_state,
+                ),
+                [],
+            )
+        line = _LineFacts(
+            id=row.line_id,
+            direction=row.direction,
+            amount=row.amount,
+            currency=row.currency,
+            event_type=row.event_type,
+            economic_category=row.economic_category,
+        )
+        group[1].append((line, account_by_id[row.account_id]))
 
     events: list[_CashEvent] = []
     for entry, lines in grouped.values():
@@ -201,8 +270,11 @@ def _cash_event_rows_statement(
     *,
     end_date: date,
     cash_account_ids: frozenset[UUID] | None = None,
-) -> Select[tuple[JournalLine, Account, JournalEntry]]:
-    """Build the complete-entry query so tenant predicates remain directly provable."""
+) -> Select[tuple[Any, ...]]:
+    """Build the complete-entry query so tenant predicates remain directly provable.
+
+    Each row holds the columns of ``_LineFacts`` and ``_EntryFacts`` and the line's account id.
+    """
     foreign_line = aliased(JournalLine)
     foreign_account = aliased(Account)
     cash_line = aliased(JournalLine)
@@ -214,7 +286,22 @@ def _cash_event_rows_statement(
         .where(foreign_account.user_id != user_id)
     )
     stmt = (
-        select(JournalLine, Account, JournalEntry)
+        select(
+            JournalLine.id.label("line_id"),
+            JournalLine.direction,
+            JournalLine.amount,
+            JournalLine.currency,
+            JournalLine.event_type,
+            JournalLine.tags["economic_category"].astext.label("economic_category"),
+            Account.id.label("account_id"),
+            JournalEntry.id.label("entry_id"),
+            JournalEntry.entry_date,
+            JournalEntry.memo,
+            JournalEntry.source_type,
+            JournalEntry.source_id,
+            JournalEntry.decision_anchor_id,
+            JournalEntry.decision_authority_state,
+        )
         .join(Account, JournalLine.account_id == Account.id)
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(JournalEntry.user_id == user_id)
@@ -235,6 +322,43 @@ def _cash_event_rows_statement(
     return stmt
 
 
+@dataclass(frozen=True, slots=True)
+class _LineRecord:
+    """One lineage record of the period and the statement line that shows it (#2583)."""
+
+    line_id: str
+    entry_date: date
+    memo: str
+    amount: Decimal
+    lineage: dict[str, object]
+
+    def event(self) -> dict[str, object]:
+        return {**self.lineage, "entry_date": self.entry_date, "memo": self.memo, "amount": self.amount}
+
+
+@dataclass(frozen=True, slots=True)
+class _CashFlowBuild:
+    document: dict[str, object]
+    records: tuple[_LineRecord, ...]
+
+
+def cash_flow_period(start_date: date | None, end_date: date | None) -> tuple[date, date]:
+    """Return the requested cash-flow period. The default is the year to date of the end date."""
+    resolved_end_date = end_date or date.today()
+    return start_date or date(resolved_end_date.year, 1, 1), resolved_end_date
+
+
+def cash_flow_line_id(item: Mapping[str, Any]) -> str:
+    """Return the id of the statement line that shows one activity item (#2583).
+
+    Items with equal category, description and account id are on one line. The description
+    holds the flow direction and the counterpart names, so each line has one direction.
+    """
+    category = str(item["category"])
+    key = "\x1f".join((category, str(item.get("description") or ""), str(item.get("account_id") or "")))
+    return f"{category.lower()}-{hashlib.sha256(key.encode()).hexdigest()[:16]}"
+
+
 async def generate_cash_flow(
     db: AsyncSession,
     user_id: UUID,
@@ -245,6 +369,91 @@ async def generate_cash_flow(
     cash_account_ids: frozenset[UUID] | None = None,
 ) -> dict[str, object]:
     """Generate cash flow from journal-entry cash-touch events, never account-period inference."""
+    build = await _build_cash_flow(
+        db, user_id, start_date=start_date, end_date=end_date, currency=currency, cash_account_ids=cash_account_ids
+    )
+    return build.document
+
+
+async def cash_flow_line_events(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    line_id: str,
+    start_date: date,
+    end_date: date,
+    currency: str | None = None,
+    cash_account_ids: frozenset[UUID] | None = None,
+) -> list[dict[str, object]] | None:
+    """Return the lineage records of one statement line in document order, or None for no line (#2583).
+
+    The records come from the builder of ``generate_cash_flow``. Each record adds the entry
+    date, the entry memo and the cash movement to its lineage. The line ids are the ids of
+    ``cash_flow_preview`` and the two fixed ids of the unclassified and opening-stock records.
+    """
+    build = await _build_cash_flow(
+        db, user_id, start_date=start_date, end_date=end_date, currency=currency, cash_account_ids=cash_account_ids
+    )
+    events = [record.event() for record in build.records if record.line_id == line_id]
+    if not events and line_id not in _FIXED_LINE_IDS:
+        return None
+    return events
+
+
+def cash_flow_preview(document: Mapping[str, Any]) -> dict[str, object]:
+    """Project a cash-flow document to its bounded preview (#2583).
+
+    Each section has one line for each ``cash_flow_line_id``, with the sum and the count of its
+    items, largest absolute amount first. ``lineage_summary`` counts the lineage records.
+    ``cash_flow_line_events`` returns the records of one line.
+    """
+    preview: dict[str, object] = {
+        key: value for key, value in document.items() if key not in (*_SECTIONS, "event_lineage")
+    }
+    for section in _SECTIONS:
+        lines: dict[str, dict[str, Any]] = {}
+        for item in document.get(section) or ():
+            line_id = cash_flow_line_id(item)
+            amount = Decimal(str(item["amount"]))
+            line = lines.get(line_id)
+            if line is None:
+                lines[line_id] = {**item, "line_id": line_id, "amount": amount, "event_count": 1}
+            else:
+                line["amount"] += amount
+                line["event_count"] += 1
+        for line in lines.values():
+            line["amount"] = _quantize_money(line["amount"])
+        preview[section] = sorted(lines.values(), key=lambda line: (-abs(line["amount"]), line["line_id"]))
+    reasons = Counter(record["reason_code"] for record in document.get("event_lineage") or ())
+    preview["lineage_summary"] = {
+        "event_count": sum(reasons.values()),
+        "classified_event_count": reasons[None],
+        "unclassified_event_count": reasons["cash_event_classification_ambiguous"],
+        "opening_stock_event_count": reasons["opening_stock"],
+    }
+    return preview
+
+
+def _line_record(event: _CashEvent, line_id: str, amount: Decimal, lineage: dict[str, object]) -> _LineRecord:
+    return _LineRecord(
+        line_id=line_id,
+        entry_date=event.entry.entry_date,
+        memo=event.entry.memo,
+        amount=_quantize_money(amount),
+        lineage=lineage,
+    )
+
+
+async def _build_cash_flow(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    start_date: date,
+    end_date: date,
+    currency: str | None,
+    cash_account_ids: frozenset[UUID] | None,
+) -> _CashFlowBuild:
+    """Build the cash-flow document and its line records in one pass over the cash events."""
     if start_date > end_date:
         raise ReportError("start_date must be before end_date")
     target_currency = _normalize_currency(currency)
@@ -275,7 +484,9 @@ async def generate_cash_flow(
         if account.is_system and account.code == _PROCESSING_ACCOUNT.code and account.type == AccountType.ASSET
     )
     effective_cash_ids = frozenset(selected_ids)
-    events = await _load_cash_events(db, user_id, end_date=end_date, cash_account_ids=effective_cash_ids)
+    events = await _load_cash_events(
+        db, user_id, end_date=end_date, cash_account_ids=effective_cash_ids, account_by_id=account_by_id
+    )
     from src.ledger import list_opening_positions
 
     opening_positions = tuple(
@@ -311,7 +522,7 @@ async def generate_cash_flow(
             )
             raise ReportError(str(exc)) from exc
 
-    def converted_delta(line: JournalLine, rate_date: date) -> Decimal:
+    def converted_delta(line: _LineFacts, rate_date: date) -> Decimal:
         source = line.currency.upper()
         rate = Decimal("1") if source == target_currency else fx_rates.get_rate(source, target_currency, rate_date)
         if rate is None:
@@ -324,6 +535,7 @@ async def generate_cash_flow(
     investing_items: list[dict[str, object]] = []
     financing_items: list[dict[str, object]] = []
     event_lineage: list[dict[str, object]] = []
+    records: list[_LineRecord] = []
     unclassified_cash = Decimal("0")
     opening_stock_adjustment = Decimal("0")
     proof_reasons: set[str] = set()
@@ -370,7 +582,9 @@ async def generate_cash_flow(
                 beginning_cash += opening_amount
             else:
                 opening_stock_adjustment += opening_amount
-            event_lineage.append(_event_lineage(event, activity=None, reason_code="opening_stock"))
+            lineage = _event_lineage(event, activity=None, reason_code="opening_stock")
+            event_lineage.append(lineage)
+            records.append(_line_record(event, CASH_FLOW_OPENING_STOCK_LINE_ID, opening_amount, lineage))
         opening_line_ids = {line.id for line, _account in opening_lines}
         movement = sum(
             (
@@ -386,13 +600,9 @@ async def generate_cash_flow(
         if activity is None:
             unclassified_cash += movement
             proof_reasons.add("cash_event_classification_ambiguous")
-            event_lineage.append(
-                _event_lineage(
-                    event,
-                    activity=None,
-                    reason_code="cash_event_classification_ambiguous",
-                )
-            )
+            lineage = _event_lineage(event, activity=None, reason_code="cash_event_classification_ambiguous")
+            event_lineage.append(lineage)
+            records.append(_line_record(event, CASH_FLOW_UNCLASSIFIED_LINE_ID, movement, lineage))
             continue
         counterpart_accounts = {account.id: account for _line, account in event.counterpart_lines}
         item = {
@@ -403,7 +613,9 @@ async def generate_cash_flow(
             + ", ".join(sorted(account.name for account in counterpart_accounts.values())),
             "account_id": next(iter(counterpart_accounts)) if len(counterpart_accounts) == 1 else None,
         }
-        event_lineage.append(_event_lineage(event, activity=activity, reason_code=None))
+        lineage = _event_lineage(event, activity=activity, reason_code=None)
+        event_lineage.append(lineage)
+        records.append(_line_record(event, cash_flow_line_id(item), movement, lineage))
         if activity == "Operating":
             operating_items.append(item)
         elif activity == "Investing":
@@ -443,7 +655,7 @@ async def generate_cash_flow(
         fx_effect=fx_effect,
     )
 
-    return {
+    document: dict[str, object] = {
         "start_date": start_date,
         "end_date": end_date,
         "currency": target_currency,
@@ -471,3 +683,4 @@ async def generate_cash_flow(
         "proof_state": "proven" if not proof_reasons else "unproven",
         "proof_reasons": sorted(proof_reasons),
     }
+    return _CashFlowBuild(document=document, records=tuple(records))

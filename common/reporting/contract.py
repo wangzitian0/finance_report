@@ -319,6 +319,8 @@ CONTRACT = PackageContract(
         "package_preview",
         "AnnualizedIncomeTotals",
         "CashFlowItem",
+        "CashFlowLineEventsPage",
+        "CashFlowPreview",
         "CashFlowResponse",
         "CashFlowSummary",
         "PersonalDataQualityHealthResponse",
@@ -352,6 +354,9 @@ CONTRACT = PackageContract(
         "derive_user_framework_policy_result",
         "generate_balance_sheet",
         "generate_annualized_income_schedule",
+        "cash_flow_line_events",
+        "cash_flow_period",
+        "cash_flow_preview",
         "generate_cash_flow",
         "generate_income_statement",
         "get_account_lineage",
@@ -490,6 +495,8 @@ CONTRACT = PackageContract(
         ac('AC-reporting.cash-flow.3', 'GET /reports/trend returns account trend data across different period granularities.', 'apps/backend/tests/api/test_reports_router.py::test_account_trend_with_period', priority='P1'),
         ac('AC-reporting.cash-flow.4', 'GET /reports/breakdown returns the category breakdown.', 'apps/backend/tests/api/test_reports_router.py::test_category_breakdown_success', priority='P1'),
         ac('AC-reporting.cash-flow.5', 'GET /reports/breakdown honors the requested period parameter.', 'apps/backend/tests/api/test_reports_router.py::test_category_breakdown_with_period', priority='P1'),
+        ac('AC-reporting.cash-flow.6', 'At one year of activity (1000 entries), GET /reports/cash-flow returns less than 100 KB with no more SQL statements than before #2583 S10. Each statement line has an event count. The response has no per-event lineage, and its totals equal the complete document.', 'apps/backend/tests/reporting/test_cash_flow_preview_payload.py::test_AC_reporting_cash_flow_6_year_scale_preview_is_bounded', priority='P1', proof_kind='property'),
+        ac('AC-reporting.cash-flow.7', 'Each GET /reports/cash-flow line is the sum and count of the document items of one activity, description and account. GET /reports/cash-flow/line-events returns, page by page, every lineage record of the document on exactly one line, in document order. The document equals the output before #2583 S10.', 'apps/backend/tests/reporting/test_cash_flow_preview_payload.py::test_AC_reporting_cash_flow_7_line_events_pages_equal_document', priority='P1', proof_kind='exact'),
         # ── group fx: multi-currency conversion fallbacks (was EPIC-005
         # AC5.4.1-4, migration closeout continuation, #1663 / #1716) ──
         ac('AC-reporting.fx.1', 'Report FX conversion falls back through the documented rate-resolution chain.', 'apps/backend/tests/reporting/test_reporting_fx.py::test_reporting_fx_fallbacks', priority='P1'),
@@ -827,6 +834,7 @@ CONTRACT = PackageContract(
         ac('AC-reporting.fe-fetch-budget.5', 'The Reports hub and the package page share one cached package preview. A date change keeps the previous document visible, labelled with its own period, while the new one loads.', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC-reporting.fe-fetch-budget.5 the Reports hub and the package page share one preview request', priority='P1'),
         ac('AC-reporting.fe-fetch-budget.6', 'The shell polls the workflow status every 30 s while work is pending and every 120 s otherwise, and keeps the refetch on window focus.', 'apps/frontend/src/__tests__/workflowStatusPolling.test.tsx::AC-reporting.fe-fetch-budget.6 polls every 120 s while nothing is pending', priority='P1'),
         ac('AC-reporting.fe-fetch-budget.7', 'The package page requests the details of a traceability line only after the user opens that line, and the authority manifest entries only after the user opens the manifest. A frozen snapshot shows its stored details without a request (#2583 S8).', 'apps/frontend/src/__tests__/personalReportPackagePage.test.tsx::AC-reporting.fe-fetch-budget.7 loads the details of a traceability line only after the user opens the line', priority='P1'),
+        ac('AC-reporting.fe-fetch-budget.8', 'The cash-flow page requests the events of a statement line only after the user opens that line. It loads more events page by page, and a reopened line shows its cached events without a request (#2583 S10).', 'apps/frontend/src/__tests__/cashFlowPage.test.tsx::AC-reporting.fe-fetch-budget.8 loads the events of a cash-flow line only after the user expands the line', priority='P1'),
     ],
     governance=[
         GovernanceInitiative(
