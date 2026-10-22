@@ -114,7 +114,7 @@ describe("navigation metadata", () => {
     expect(isActive("/", "/")).toBe(true);
     expect(isActive("/reports", "/")).toBe(false);
     expect(isActive("/reports", "/reports")).toBe(true);
-    expect(isActive("/reports/balance-sheet", "/reports")).toBe(true);
+    expect(isActive("/portfolio/prices", "/portfolio")).toBe(true);
     expect(isActive("/reportsomething", "/reports")).toBe(false);
     expect(isActive("/journal", "/reports")).toBe(false);
   });

@@ -182,7 +182,7 @@ describe("Sidebar and WorkspaceTabs", () => {
 
   // AC-meta.fe-app-shell.9
   it("AC16.19.4 adds and manages workspace tabs from route changes", async () => {
-    pathnameMock = "/reports/balance-sheet"
+    pathnameMock = "/reports"
     render(<WorkspaceTabs />)
 
     await waitFor(() => expect(addTabMock).toHaveBeenCalled())
