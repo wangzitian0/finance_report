@@ -5,7 +5,7 @@ import { SHARED_STALE_MS } from "@/lib/sharedQueries";
 /**
  * Query-key prefixes that hold data derived from the ledger (#2583 S4).
  *
- * Home, /attention and the report pages keep these reads in the cache for `SHARED_STALE_MS`.
+ * Home, /audit and the report pages keep these reads in the cache for `SHARED_STALE_MS`.
  * A successful mutation can change them, so `createAppQueryClient` marks them stale after every
  * successful mutation. Active queries refetch at once. Inactive queries refetch on the next mount.
  */

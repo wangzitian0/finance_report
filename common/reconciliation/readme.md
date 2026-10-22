@@ -426,7 +426,7 @@ account.
 
 The Stage-2 queue response derives `confidence_tier` from the actual
 `ReconciliationMatch.match_score`: `>= 85` → `HIGH`, `60-84` → `MEDIUM`,
-`< 60` or `null` → `LOW`. The `/review/run/[runId]` frontend page currently
+`< 60` or `null` → `LOW`. The run-scoped review on `/audit?run_id=<id>` currently
 uses the shared global `/statements/stage2/queue` endpoint and shows `runId`
 only as navigation context — until a backend run-scoped queue contract
 exists, the UI must not imply the payload is isolated to a persisted
@@ -480,7 +480,7 @@ pending --> flagged: Needs manual review
 | Frontend | `apps/frontend/src/app/(main)/statements/[id]/review/page.tsx` |
 | Frontend | `apps/frontend/src/components/review/Stage2ReviewQueue.tsx` |
 | Frontend | `apps/frontend/src/app/(main)/reconciliation/review-queue/page.tsx` |
-| Frontend | `apps/frontend/src/app/(main)/review/run/[runId]/page.tsx` |
+| Frontend | `apps/frontend/src/app/(main)/audit/page.tsx` |
 
 ## Recovery after rejecting a suggestion
 

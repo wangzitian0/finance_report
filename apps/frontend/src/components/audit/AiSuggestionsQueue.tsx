@@ -17,9 +17,11 @@ const EFFECT_LABEL: Record<string, string> = {
   recorded: "Feedback saved. It did not change the suggestion.",
 };
 
-export default function AiSuggestionsPage() {
+/** Pending AI suggestions that the user accepts, rejects or corrects. */
+export function AiSuggestionsQueue() {
   const searchParams = useSearchParams();
   const statementId = searchParams?.get("statement_id")?.trim() || undefined;
+  const returnTo = searchParams?.get("return_to")?.trim() || undefined;
   const [suggestions, setSuggestions] = useState<AiSuggestion[]>([]);
   const [correctedValues, setCorrectedValues] = useState<Record<string, string>>({});
   const [decisions, setDecisions] = useState<Record<string, string>>({});
@@ -98,17 +100,17 @@ export default function AiSuggestionsPage() {
   );
 
   if (loading) {
-    return <div className="p-4 md:p-6"><div className="card p-6 text-center text-muted md:p-8">Loading AI suggestions...</div></div>;
+    return <section id="ai-suggestions"><div className="card p-6 text-center text-muted md:p-8">Loading AI suggestions...</div></section>;
   }
 
   return (
-    <div className="p-4 md:p-6">
-      <div className="mb-4"><BackLink>Back to Notifications</BackLink></div>
-      <div className="page-header">
-        <h1 className="page-title">Suggestions to review</h1>
-        <p className="page-description">Approve or correct the AI&apos;s suggested categories and matches that need a human eye.</p>
+    <section id="ai-suggestions" className="space-y-3">
+      {returnTo && <div><BackLink href="/audit">Back</BackLink></div>}
+      <div>
+        <h2 className="text-sm font-semibold">Suggestions to review</h2>
+        <p className="text-xs text-muted">Approve or correct the AI&apos;s suggested categories and matches that need a human eye.</p>
       </div>
-      {error && <div className="mb-4 alert-error">{error}</div>}
+      {error && <div className="alert-error">{error}</div>}
       <div className="card overflow-hidden">
         {suggestions.length === 0 ? (
           <div className="p-8 text-center text-muted">No pending AI suggestions</div>
@@ -158,6 +160,6 @@ export default function AiSuggestionsPage() {
           </>
         )}
       </div>
-    </div>
+    </section>
   );
 }

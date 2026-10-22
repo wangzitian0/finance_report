@@ -178,8 +178,8 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
 
     render(<ProcessingPage />);
 
-    const backLink = await screen.findByRole("link", { name: /Back to Attention queue/i });
-    expect(backLink).toHaveAttribute("href", "/attention");
+    const backLink = await screen.findByRole("link", { name: /Back to Needs Confirmation/i });
+    expect(backLink).toHaveAttribute("href", "/audit");
   });
 
   // AC-ledger.fe-processing.4

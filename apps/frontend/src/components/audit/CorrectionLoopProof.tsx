@@ -1,15 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { AuditBackLink } from "@/components/ui/SmartBackLink";
-import { Badge, EmptyState, LoadingState, PageHeader } from "@/components/ui";
+import { Badge, EmptyState, LoadingState } from "@/components/ui";
 import { apiOperation } from "@/lib/api-client";
 import { summarizeReplay } from "@/lib/confidence";
 import type { CorrectionLoopReplayResponse } from "@/lib/types";
 
-export default function CorrectionLoopPage() {
+/** Shows how past confirmations reduce extraction errors on new statements. */
+export function CorrectionLoopProof() {
   const [replay, setReplay] = useState<CorrectionLoopReplayResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -32,22 +31,17 @@ export default function CorrectionLoopPage() {
   const summary = replay ? summarizeReplay(replay) : null;
 
   return (
-    <div className="p-6">
-      <div className="mb-4"><AuditBackLink /></div>
-      <PageHeader title="Correction Loop Proof" description="See items that need your confirmation and how your past reviews improve automatic statement reading." />
-      <div className="card p-4 mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-sm font-semibold">Review items needing attention</h2>
-          <p className="mt-0.5 text-xs text-muted">Inspect low-confidence statement lines and unmatched transactions in one ranked queue.</p>
-        </div>
-        <Link href="/attention" className="btn-primary text-xs px-3 py-1.5 w-fit">Open attention queue</Link>
+    <div className="space-y-3">
+      <div>
+        <h2 className="text-sm font-semibold">Correction Loop Proof</h2>
+        <p className="text-xs text-muted">See how your past reviews improve automatic statement reading.</p>
       </div>
       {replay === null && !error && <LoadingState label="Loading correction-loop proof" />}
       {error && <EmptyState role="alert" title="Couldn't load correction-loop proof" description={error} action={<button onClick={() => setAttempt((v) => v + 1)} className="btn-secondary text-sm">Retry</button>} />}
       {summary && !error && (
         <section className="card p-5">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="font-semibold">Held-out replay</h2>
+            <h3 className="font-semibold">Held-out replay</h3>
             {summary.hasHoldout && <Badge variant={summary.reduced ? "success" : "muted"}>{summary.reduced ? "Improves extraction" : "No measurable improvement"}</Badge>}
           </div>
           <p className="mt-1 text-sm text-muted">Shows how past review corrections reduce extraction errors on new statements.</p>

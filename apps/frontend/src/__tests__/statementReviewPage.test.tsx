@@ -420,7 +420,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     );
     expect(screen.getByRole("link", { name: "Review AI suggestions" })).toHaveAttribute(
       "href",
-      "/review/ai-suggestions?statement_id=s1&return_to=%2Fstatements%2Fs1%2Freview",
+      "/audit?statement_id=s1&return_to=%2Fstatements%2Fs1%2Freview#ai-suggestions",
     );
   });
 
@@ -473,12 +473,12 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     });
 
     renderReviewComponent(<StatementReviewPage /> as never);
-    expect(await screen.findByRole("link", { name: /Back to Attention queue/i })).toHaveAttribute("href", "/attention");
+    expect(await screen.findByRole("link", { name: /Back to Needs Confirmation/i })).toHaveAttribute("href", "/audit");
 
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     const dialog = await screen.findByRole("dialog", { name: "Approve Statement" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Approve" }));
-    await waitFor(() => expect(pushMock).toHaveBeenLastCalledWith("/attention"));
+    await waitFor(() => expect(pushMock).toHaveBeenLastCalledWith("/audit"));
   });
 
   // AC-extraction.fe-stage1-review.7

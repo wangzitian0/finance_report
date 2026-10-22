@@ -38,7 +38,7 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
     expect(screen.getByRole("link", { name: /Review AI suggestions/i })).toHaveAttribute(
       "href",
-      "/review/ai-suggestions",
+      "/audit#ai-suggestions",
     )
   })
 

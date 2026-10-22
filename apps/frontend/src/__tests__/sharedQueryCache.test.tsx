@@ -9,7 +9,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import AttentionPage from "@/app/(main)/attention/page";
+import { NeedsConfirmationQueue } from "@/components/audit/NeedsConfirmationQueue";
 import UploadPage from "@/app/(main)/upload/page";
 import { TrustMeter } from "@/components/home/TrustMeter";
 import { apiOperation } from "@/lib/api-client";
@@ -96,7 +96,7 @@ describe("shared query cache (#2583 S4)", () => {
       sharedClient(),
       <>
         <TrustMeter />
-        <AttentionPage />
+        <NeedsConfirmationQueue />
       </>,
     );
 
@@ -118,7 +118,7 @@ describe("shared query cache (#2583 S4)", () => {
     upload.unmount();
     expect(callsTo("list_statements_statements_get")).toBe(1);
 
-    renderOn(client, <AttentionPage />);
+    renderOn(client, <NeedsConfirmationQueue />);
     await screen.findByText("5 unmatched transactions");
     expect(callsTo("list_statements_statements_get")).toBe(1);
   });

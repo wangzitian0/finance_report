@@ -409,7 +409,7 @@ its form factor:
   `lib/api.ts`. The shell must not calculate separate review-badge semantics with
   bespoke sidebar polling.
 - Workflow attention is surfaced through the notification bell plus the
-  `/attention` inbox; the accounting machinery (journal, reconciliation,
+  Needs Confirmation queue on `/audit`; the accounting machinery (journal, reconciliation,
   processing, statements, reports, package readiness) is reachable on demand via
   the Audit hub and event `action_href` deep links.
 - Direct routes and event `action_href` links into review, reconciliation,
@@ -484,7 +484,7 @@ Future slices may add deterministic derivation for:
 Stage 2 run review uses workflow/session scope without changing event
 lifecycle semantics:
 
-- Route: `/review/run/{run_id}`.
+- Route: `/audit?run_id={run_id}`.
 - Backend scope fields: `ReconciliationMatch.run_id` and
   `ConsistencyCheck.run_id`.
 - Queue endpoint: `GET /api/statements/stage2/queue?run_id={run_id}`.

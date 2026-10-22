@@ -75,9 +75,9 @@ test.describe("AC22.6.4 attention surface smoke", () => {
     test(`${label} renders the attention queue ranked by confidence without overflow`, async ({ page }) => {
       await page.setViewportSize({ width, height });
 
-      await page.goto("/attention", { waitUntil: "networkidle" });
+      await page.goto("/audit", { waitUntil: "networkidle" });
 
-      await expect(page.getByRole("heading", { name: "Needs your attention" })).toBeVisible({
+      await expect(page.getByRole("heading", { name: "Needs Confirmation" })).toBeVisible({
         timeout: COLD_ROUTE_TIMEOUT_MS,
       });
       // Both the reconciliation and statement-review sources render as rows
@@ -98,7 +98,7 @@ test.describe("AC22.6.4 attention surface smoke", () => {
 
       const trustMeter = page.getByRole("link", { name: "Items that need your attention" });
       await expect(trustMeter).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
-      await expect(trustMeter).toHaveAttribute("href", "/attention");
+      await expect(trustMeter).toHaveAttribute("href", "/audit");
 
       await expectNoDocumentHorizontalScroll(page);
     });

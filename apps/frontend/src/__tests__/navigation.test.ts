@@ -20,7 +20,6 @@ const ACCOUNTING_JARGON_HREFS = [
   "/statements",
   "/settings",
   "/processing",
-  "/confidence",
 ];
 
 describe("navigation metadata", () => {
@@ -57,7 +56,7 @@ describe("navigation metadata", () => {
   it("AC22.21.3 folds the accounting machinery into the /audit hub, out of navigation", () => {
     const auditHrefs = auditHubItems.map((item) => item.href);
     expect(auditHrefs).toEqual(
-      expect.arrayContaining(["/confidence", "/reconciliation", "/journal", "/processing"]),
+      expect.arrayContaining(["/reconciliation", "/journal", "/processing"]),
     );
     // None of these machinery routes is reachable as a bottom tab.
     const tabHrefs = bottomTabItems.map((item) => item.href);
@@ -89,7 +88,6 @@ describe("navigation metadata", () => {
   it("AC16.19.4 AC19.6.6 resolves exact, parent, advanced, and home route labels", () => {
     expect(getRouteConfig("/reports/balance-sheet").label).toBe("Balance Sheet");
     expect(getRouteConfig("/reports/balance-sheet/detail").label).toBe("Balance Sheet");
-    expect(getRouteConfig("/review/run/123").label).toBe("Review");
     expect(getRouteConfig("/reconciliation/unmatched").label).toBe("Unmatched");
     expect(getRouteConfig("/processing").label).toBe("Processing");
     expect(getRouteConfig("/chat").label).toBe("Chat");

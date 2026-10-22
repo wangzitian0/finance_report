@@ -18,7 +18,7 @@ import {
 // the north-star (low-confidence data trending down) visible on Home. It stays
 // silent when nothing needs attention.
 //
-// The three sources come from the shared query cache (#2583 S4): Home, /attention and
+// The three sources come from the shared query cache (#2583 S4): Home, /audit and
 // the reconciliation Workbench read the same keys, so a source loads once per stale time.
 export function TrustMeter() {
   const statements = useApiQuery(
@@ -62,7 +62,7 @@ export function TrustMeter() {
 
   return (
     <Link
-      href="/attention"
+      href="/audit"
       aria-label="Items that need your attention"
       className="card block p-5 transition-colors hover:border-[var(--accent)]"
     >

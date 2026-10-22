@@ -232,7 +232,7 @@ describe("Personal Data Quality Observatory (#2294)", () => {
   });
 
   describe("AuditPage", () => {
-    it("loads and displays full observatory with deep links and inline attention queue", async () => {
+    it("loads and displays full observatory with deep links and the needs-confirmation queue", async () => {
       mockedApiOperation.mockImplementation(async (op: string) => {
         if (op === "list_statements_statements_get") {
           return {
@@ -264,6 +264,7 @@ describe("Personal Data Quality Observatory (#2294)", () => {
         if (op === "list_processing_pending_accounts_processing_pending_get") {
           return { items: [] } as any;
         }
+        if (op === "list_ai_suggestions_ai_suggestions_get") return { items: [] } as any;
         return mockHealthData as any;
       });
 
@@ -285,7 +286,7 @@ describe("Personal Data Quality Observatory (#2294)", () => {
 
       // Underlying ledgers deep links
       expect(screen.getByText("Accounting Machinery & Ledgers")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Trust/ })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /Trust/ })).not.toBeInTheDocument();
       expect(screen.getAllByRole("link", { name: /Reconciliation/ }).length).toBeGreaterThanOrEqual(1);
       expect(screen.getByRole("link", { name: /Journal/ })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: /Processing/ })).toBeInTheDocument();
@@ -307,12 +308,13 @@ describe("Personal Data Quality Observatory (#2294)", () => {
             match_rate: 70,
           } as any;
         }
+        if (op === "list_ai_suggestions_ai_suggestions_get") return { items: [] } as any;
         return mockHealthData as any;
       });
 
       render(<AuditPage />, { wrapper: createWrapper() });
 
-      const bar = screen.getByTestId("audit-needs-confirmation-bar");
+      const bar = screen.getByTestId("needs-confirmation-queue");
       const row = await within(bar).findByRole("link", { name: /3 unmatched transactions/ });
       expect(row).toHaveAttribute("href", "/reconciliation/unmatched?from=attention");
       expect(within(row).getByText("0% confidence")).toBeInTheDocument();
@@ -335,12 +337,13 @@ describe("Personal Data Quality Observatory (#2294)", () => {
             ],
           } as any;
         }
+        if (op === "list_ai_suggestions_ai_suggestions_get") return { items: [] } as any;
         return mockHealthData as any;
       });
 
       render(<AuditPage />, { wrapper: createWrapper() });
 
-      const bar = screen.getByTestId("audit-needs-confirmation-bar");
+      const bar = screen.getByTestId("needs-confirmation-queue");
       const row = await within(bar).findByRole("link", { name: /OCBC_2026_02\.pdf/ });
       expect(row).toHaveAttribute("href", "/statements/stmt-2/review?from=attention");
       expect(within(row).getByText("Balance needs review")).toBeInTheDocument();
@@ -348,9 +351,15 @@ describe("Personal Data Quality Observatory (#2294)", () => {
     });
 
     it("renders error state with retry button when query fails", async () => {
-      mockedApiOperation
-        .mockRejectedValueOnce(new Error("Network failure"))
-        .mockResolvedValue(mockHealthData as any);
+      let healthReads = 0;
+      mockedApiOperation.mockImplementation(async (op: string) => {
+        if (op === "get_data_quality_health_reports_data_quality_get") {
+          healthReads += 1;
+          if (healthReads === 1) throw new Error("Network failure");
+          return mockHealthData as any;
+        }
+        return { items: [] } as any;
+      });
 
       render(<AuditPage />, { wrapper: createWrapper() });
 
