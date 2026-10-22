@@ -46,7 +46,7 @@ Clean baseline on `main` reports `CODE_LANDED_STAGE1` for prior tasks. Do not pr
 1. Formulate a read-only, non-mutating Business Reality Probe `<CMD>` verifying live behavior.
    Prohibit bare `echo`/`printf`, trivial prints, mutating commands, and active exemptions.
 2. Execute gate: `ws-delivery-status --assert-complete --reality-probe "<CMD>"`.
-3. If exit code is 0 (`VERIFIED_COMPLETE`), proceed to Branch E; if exit code is 2, fix and re-probe.
+3. If `ws-delivery-status` exits 0 (`VERIFIED_COMPLETE`), proceed to Branch E. If it exits 3, fix the probe and re-run it.
 
 ### Branch E: `VERIFIED_COMPLETE` (Physical proof achieved)
 1. Invoke `close` to record evidence and clean up.
@@ -56,6 +56,6 @@ Clean baseline on `main` reports `CODE_LANDED_STAGE1` for prior tasks. Do not pr
 
 1. **Continuous Autonomous Drive (Zero Decision Offloading)**: Never ask permission between phases. The agent owns technical execution end-to-end. Stop only for Stage 3 production deploy.
 2. **Multi-Phase Goal Progression**: When goals require multiple phases, chain them sequentially through the state machine until all goals reach `VERIFIED_COMPLETE`.
-3. **Zero self-grading**: Completion requires `ws-delivery-status` exit code 0 (`VERIFIED_COMPLETE`).
+3. **Zero self-grading**: Completion requires `ws-delivery-status --assert-complete --reality-probe '<cmd>'` to exit 0 (`VERIFIED_COMPLETE`). Without `--assert-complete`, exit 0 means only Stage 1 Landed.
 4. **Anti-Exclusion Invariant**: Exclusion is not resolution. Probes with active exemptions fail.
 5. **Compaction resilience**: When resuming after disruption, run `ws-delivery-status --json` to recover state without asking the user what to do.
