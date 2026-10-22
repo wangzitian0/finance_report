@@ -43,6 +43,8 @@ _EXPORTS = {
     "run_balance_sheet_diagnostics": "src.reporting.extension.diagnostics",
     "AnnualizedIncomeTotals": "src.reporting.extension.reporting_calc",
     "CashFlowItem": "src.reporting.base.cash_flow_types",
+    "CashFlowLineEventsPage": "src.reporting.base.cash_flow_types",
+    "CashFlowPreview": "src.reporting.base.cash_flow_types",
     "CashFlowResponse": "src.reporting.base.cash_flow_types",
     "CashFlowSummary": "src.reporting.base.cash_flow_types",
     "PersonalDataQualityHealthResponse": "src.reporting.base.data_quality_types",
@@ -76,6 +78,9 @@ _EXPORTS = {
     "derive_user_framework_policy_result": "src.reporting.extension.framework_policy",
     "generate_balance_sheet": "src.reporting.extension.balance_sheet",
     "generate_annualized_income_schedule": "src.reporting.extension.annualized_income",
+    "cash_flow_line_events": "src.reporting.extension.cash_flow",
+    "cash_flow_period": "src.reporting.extension.cash_flow",
+    "cash_flow_preview": "src.reporting.extension.cash_flow",
     "generate_cash_flow": "src.reporting.extension.cash_flow",
     "generate_income_statement": "src.reporting.extension.income_statement",
     "get_account_lineage": "src.reporting.extension.lineage",
@@ -114,6 +119,8 @@ __all__ = [
     "run_balance_sheet_diagnostics",
     "AnnualizedIncomeTotals",
     "CashFlowItem",
+    "CashFlowLineEventsPage",
+    "CashFlowPreview",
     "CashFlowResponse",
     "CashFlowSummary",
     "PersonalDataQualityHealthResponse",
@@ -147,6 +154,9 @@ __all__ = [
     "derive_user_framework_policy_result",
     "generate_balance_sheet",
     "generate_annualized_income_schedule",
+    "cash_flow_line_events",
+    "cash_flow_period",
+    "cash_flow_preview",
     "generate_cash_flow",
     "generate_income_statement",
     "get_account_lineage",
@@ -180,7 +190,13 @@ def __getattr__(name: str) -> object:
 
 
 if TYPE_CHECKING:
-    from src.reporting.base.cash_flow_types import CashFlowItem, CashFlowResponse, CashFlowSummary
+    from src.reporting.base.cash_flow_types import (
+        CashFlowItem,
+        CashFlowLineEventsPage,
+        CashFlowPreview,
+        CashFlowResponse,
+        CashFlowSummary,
+    )
     from src.reporting.base.data_quality_types import (
         InvariantStatus,
         MonthContinuityBucket,
@@ -206,7 +222,12 @@ if TYPE_CHECKING:
         generate_balance_sheet,
         register_manual_valuation_lines_provider,
     )
-    from src.reporting.extension.cash_flow import generate_cash_flow
+    from src.reporting.extension.cash_flow import (
+        cash_flow_line_events,
+        cash_flow_period,
+        cash_flow_preview,
+        generate_cash_flow,
+    )
     from src.reporting.extension.data_quality_service import compute_personal_data_quality
     from src.reporting.extension.diagnostics import (
         diagnose_equation_imbalance,

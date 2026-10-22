@@ -87,6 +87,7 @@ export const API_OPERATIONS = {
   "list_accounts_accounts_get": { method: "GET", path: "/api/accounts" },
   "list_ai_suggestions_ai_suggestions_get": { method: "GET", path: "/api/ai/suggestions" },
   "list_anomalies_reconciliation_transactions__txn_id__anomalies_get": { method: "GET", path: "/api/reconciliation/transactions/{txn_id}/anomalies" },
+  "list_cash_flow_line_events_reports_cash_flow_line_events_get": { method: "GET", path: "/api/reports/cash-flow/line-events" },
   "list_consistency_checks_statements_consistency_checks_list_get": { method: "GET", path: "/api/statements/consistency-checks/list" },
   "list_journal_entries_journal_entries_get": { method: "GET", path: "/api/journal-entries" },
   "list_matches_reconciliation_matches_get": { method: "GET", path: "/api/reconciliation/matches" },

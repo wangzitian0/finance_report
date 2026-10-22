@@ -133,6 +133,20 @@ export type CashFlowResponse = Omit<
   fx_warnings?: FxWarning[];
 };
 
+/** One line of the bounded cash-flow statement. Its events load page by page (#2583). */
+export type CashFlowLine = Schemas["CashFlowLine"];
+
+export type CashFlowPreview = Omit<
+  Schemas["CashFlowPreview"],
+  "fx_warnings"
+> & {
+  fx_warnings?: FxWarning[];
+};
+
+export type CashFlowLineEvent = Schemas["CashFlowLineEvent"];
+
+export type CashFlowLineEventsPage = Schemas["CashFlowLineEventsPage"];
+
 export type PersonalReportPackageSectionContract =
   Schemas["PersonalReportPackageSectionContract"];
 

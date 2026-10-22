@@ -758,9 +758,18 @@ export interface paths {
         parameters: { query?: never; header?: never; path?: never; cookie?: never; };
         /**
          * Cash Flow
-         * @description Get cash flow statement for a period.
+         * @description Get the bounded cash-flow statement; GET /reports/cash-flow/line-events pages the events of a line.
          */
         get: operations["cash_flow_reports_cash_flow_get"];
+        put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
+    };
+    "/reports/cash-flow/line-events": {
+        parameters: { query?: never; header?: never; path?: never; cookie?: never; };
+        /**
+         * List Cash Flow Line Events
+         * @description Return one page of the lineage records of one cash-flow line, in document order (#2583).
+         */
+        get: operations["list_cash_flow_line_events_reports_cash_flow_line_events_get"];
         put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
     };
     "/reports/currencies": {
@@ -2353,6 +2362,184 @@ export interface components {
             description?: string | null;
             /** Subcategory */
             subcategory: string;
+        };
+        /**
+         * CashFlowLine
+         * @description One statement line: the items of one activity, flow direction and counterpart (#2583).
+         */
+        CashFlowLine: {
+            /**
+             * Account Id
+             * @description Account this line's movement belongs to, for report drill-down.
+             */
+            account_id?: string | null;
+            /** Amount */
+            amount: string;
+            /** Category */
+            category: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Event Count
+             * @description Number of cash events on this line.
+             */
+            event_count: number;
+            /**
+             * Line Id
+             * @description Line id for GET /reports/cash-flow/line-events.
+             */
+            line_id: string;
+            /** Subcategory */
+            subcategory: string;
+        };
+        /**
+         * CashFlowLineEvent
+         * @description One lineage record of a cash-flow line, with its journal entry and amount (#2583).
+         */
+        CashFlowLineEvent: {
+            /** Activity */
+            activity: ("Operating" | "Investing" | "Financing") | null;
+            /**
+             * Amount
+             * @description Cash movement of this record in the presentation currency.
+             */
+            amount: string;
+            /** Decision Anchor Id */
+            decision_anchor_id?: string | null;
+            decision_authority_state: components["schemas"]["JournalEntryAuthorityState"];
+            /**
+             * Entry Date
+             * Format: date
+             */
+            entry_date: string;
+            /**
+             * Event Types
+             * @description Distinct journal-line event semantics evaluated by cash-flow classification.
+             */
+            event_types?: string[];
+            /**
+             * Journal Entry Id
+             * Format: uuid
+             */
+            journal_entry_id: string;
+            /** Journal Line Ids */
+            journal_line_ids: string[];
+            /** Memo */
+            memo: string;
+            /** Reason Code */
+            reason_code?: string | null;
+            /** Source Id */
+            source_id?: string | null;
+            source_type: components["schemas"]["JournalEntrySourceType"];
+        };
+        /**
+         * CashFlowLineEventsPage
+         * @description One page of the lineage records of one cash-flow line, in document order (#2583).
+         */
+        CashFlowLineEventsPage: {
+            /**
+             * Events
+             * @description Records of this page.
+             */
+            events?: components["schemas"]["CashFlowLineEvent"][];
+            /**
+             * Limit
+             * @description Maximum number of records in this page.
+             */
+            limit: number;
+            /** Line Id */
+            line_id: string;
+            /**
+             * Offset
+             * @description Number of records before this page.
+             */
+            offset: number;
+            /**
+             * Total
+             * @description Number of records on this line.
+             */
+            total: number;
+        };
+        /**
+         * CashFlowLineageSummary
+         * @description Counts of the lineage records of the complete cash-flow document (#2583).
+         *
+         *     GET /reports/cash-flow/line-events returns the records page by page: a classified record
+         *     under the line_id of its line, other records under "unclassified" and "opening_stock".
+         */
+        CashFlowLineageSummary: {
+            /**
+             * Classified Event Count
+             * @description Records on an operating, investing or financing line.
+             */
+            classified_event_count: number;
+            /**
+             * Event Count
+             * @description Number of lineage records.
+             */
+            event_count: number;
+            /**
+             * Opening Stock Event Count
+             * @description Records under the line_id "opening_stock".
+             */
+            opening_stock_event_count: number;
+            /**
+             * Unclassified Event Count
+             * @description Records under the line_id "unclassified".
+             */
+            unclassified_event_count: number;
+        };
+        /**
+         * CashFlowPreview
+         * @description Bounded projection of one cash-flow document (#2583).
+         *
+         *     Each section has one line for each activity, flow direction and counterpart, with its event
+         *     count. The lineage records load page by page from GET /reports/cash-flow/line-events. The
+         *     CSV export and a package snapshot keep the complete document.
+         */
+        CashFlowPreview: {
+            /** @description Cash-delta reconciliation proof. */
+            cash_bridge?: components["schemas"]["CashFlowBridge"] | null;
+            /**
+             * Currency
+             * @description Cash-flow presentation currency.
+             */
+            currency: string;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /** Financing */
+            financing: components["schemas"]["CashFlowLine"][];
+            /**
+             * Fx Warnings
+             * @description Foreign-exchange conversion warnings.
+             */
+            fx_warnings?: {
+                [key: string]: string;
+            }[];
+            /** Investing */
+            investing: components["schemas"]["CashFlowLine"][];
+            lineage_summary: components["schemas"]["CashFlowLineageSummary"];
+            /** Operating */
+            operating: components["schemas"]["CashFlowLine"][];
+            /**
+             * Proof Reasons
+             * @description Machine-readable reasons that prevent authoritative cash-flow output.
+             */
+            proof_reasons: string[];
+            /**
+             * Proof State
+             * @enum {string}
+             */
+            proof_state: "proven" | "unproven";
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            summary: components["schemas"]["CashFlowSummary"];
         };
         /**
          * CashFlowResponse
@@ -9177,7 +9364,44 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["CashFlowResponse"]; }; };
+            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["CashFlowPreview"]; }; };
+            /** @description Bad request */
+            400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Unauthorized */
+            401: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Forbidden */
+            403: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Not found */
+            404: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Conflict */
+            409: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Validation Error */
+            422: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["HTTPValidationError"]; }; };
+            /** @description Too many requests */
+            429: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Internal server error */
+            500: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+        };
+    };
+    list_cash_flow_line_events_reports_cash_flow_line_events_get: {
+        parameters: {
+            query: {
+                /** @description A line_id of GET /reports/cash-flow */
+                line_id: string;
+                start_date?: string | null;
+                end_date?: string | null;
+                currency?: string | null;
+                /** @description Maximum items to return */
+                limit?: number;
+                /** @description Number of items to skip */
+                offset?: number;
+            };
+            header?: never; path?: never; cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["CashFlowLineEventsPage"]; }; };
             /** @description Bad request */
             400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
             /** @description Unauthorized */

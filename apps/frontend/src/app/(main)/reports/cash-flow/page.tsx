@@ -5,6 +5,7 @@ import { keepPreviousData } from "@tanstack/react-query";
 
 import { SankeyChart } from "@/components/charts/SankeyChart";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
+import { CashFlowLineEvents, cashFlowLineLabel, type CashFlowPeriod } from "@/components/reports/CashFlowLineEvents";
 import { ExportCsvButton, FxWarningBanner, ReportPageShell, ReportToolbar } from "@/components/reports/ReportPageShell";
 import { CurrencyFilterControl, DateFilterControl, PeriodPresetFilterControl } from "@/components/reports/ReportFilters";
 import { formatDateInput } from "@/lib/date";
@@ -12,7 +13,8 @@ import { compareAmounts, formatCurrencyLocale, toDecimal } from "@/lib/audit/mon
 import { useCurrencies } from "@/hooks/useCurrencies";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useReportFilters } from "@/hooks/useReportFilters";
-import { normalizeFxWarningRows, type CashFlowItem } from "@/lib/types";
+import { countLabel } from "@/lib/statusLabels";
+import { normalizeFxWarningRows, type CashFlowLine } from "@/lib/types";
 
 const defaultStartDate = () => {
   const d = new Date();
@@ -26,6 +28,8 @@ export default function CashFlowPage() {
     initialStartDate: defaultStartDate(),
   });
   const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(null);
+  // Open lines, keyed by the report period and the line id: a new period starts with every line closed.
+  const [openLines, setOpenLines] = useState<ReadonlySet<string>>(new Set());
   const { currencies } = useCurrencies();
 
   const reportQuery = useApiQuery(
@@ -38,6 +42,16 @@ export default function CashFlowPage() {
     },
   );
   const report = reportQuery.data ?? null;
+  const period: CashFlowPeriod | null = report
+    ? { start_date: report.start_date, end_date: report.end_date, currency: report.currency }
+    : null;
+  const openKey = (line: CashFlowLine) => (period ? `${period.start_date}|${period.end_date}|${period.currency}|${line.line_id}` : "");
+  const toggleLine = (key: string) =>
+    setOpenLines((current) => {
+      const next = new Set(current);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
 
   const incompleteOpeningCoverage = report?.proof_reasons?.includes("opening_coverage_starts_after_period") ?? false;
   const unverified = report?.proof_state === "unproven";
@@ -47,39 +61,59 @@ export default function CashFlowPage() {
     [currency, endDate, startDate],
   );
 
-  const renderSection = (title: string, items: CashFlowItem[], colorClass: string) => (
+  const renderSection = (title: string, lines: CashFlowLine[], colorClass: string) => (
     <div className="card p-5">
       <h3 className={`font-semibold mb-4 ${colorClass}`}>{title}</h3>
-      {items.length > 0 ? (
+      {lines.length > 0 ? (
         <div className="space-y-2">
-          {items.map((item, idx) => (
-            <div key={item.account_id ?? `${item.subcategory}-${idx}`} className="flex justify-between items-center p-2 rounded-md bg-[var(--background-muted)] text-sm">
-              <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{item.subcategory}</p>
-                {item.description && <p className="text-xs text-muted truncate">{item.description}</p>}
+          {lines.map((line, idx) => {
+            const key = openKey(line);
+            const open = period !== null && openLines.has(key);
+            const label = cashFlowLineLabel(line);
+            return (
+              <div key={line.line_id ?? `${line.subcategory}-${idx}`} className="p-2 rounded-md bg-[var(--background-muted)] text-sm">
+                <div className="flex justify-between items-center">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{line.subcategory}</p>
+                    {line.description && <p className="text-xs text-muted truncate">{line.description}</p>}
+                  </div>
+                  {line.account_id ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDrillTarget({
+                          accountId: line.account_id!,
+                          accountName: line.subcategory,
+                          asOfDate: endDate,
+                          startDate,
+                          currency: report?.currency || currency,
+                        })
+                      }
+                      className="font-medium ml-2 underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+                      aria-label={`View source transactions for ${line.subcategory}`}
+                    >
+                      {report ? formatCurrencyLocale(line.amount, report.currency) : "—"}
+                    </button>
+                  ) : (
+                    <span className="font-medium ml-2">{report ? formatCurrencyLocale(line.amount, report.currency) : "—"}</span>
+                  )}
+                </div>
+                {period && line.event_count > 0 ? (
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    aria-controls={`cash-flow-events-${line.line_id}`}
+                    aria-label={`${countLabel(line.event_count, "event")} for ${label}`}
+                    onClick={() => toggleLine(key)}
+                    className="mt-1 text-xs text-muted underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+                  >
+                    {countLabel(line.event_count, "event")}
+                  </button>
+                ) : null}
+                {open && period ? <CashFlowLineEvents period={period} line={line} /> : null}
               </div>
-              {item.account_id ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDrillTarget({
-                      accountId: item.account_id!,
-                      accountName: item.subcategory,
-                      asOfDate: endDate,
-                      startDate,
-                      currency: report?.currency || currency,
-                    })
-                  }
-                  className="font-medium ml-2 underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
-                  aria-label={`View source transactions for ${item.subcategory}`}
-                >
-                  {report ? formatCurrencyLocale(item.amount, report.currency) : "—"}
-                </button>
-              ) : (
-                <span className="font-medium ml-2">{report ? formatCurrencyLocale(item.amount, report.currency) : "—"}</span>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <p className="text-sm text-muted">No items in this category.</p>
