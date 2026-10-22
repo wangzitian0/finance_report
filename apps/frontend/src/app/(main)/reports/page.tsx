@@ -65,6 +65,9 @@ export default function ReportsPage() {
 
 type ReadinessLoadState = "loading" | "loaded" | "error";
 
+/** A readiness action that opens the report package. It opens the Package tab with the bar period. */
+const REPORT_PACKAGE_HREF = /^\/reports(\/package)?([?#].*)?$/;
+
 function isPackageReadiness(value: unknown): value is PersonalReportPackageReadinessResponse {
   const c = value as Partial<PersonalReportPackageReadinessResponse> | null;
   return Boolean(c && typeof c.label === "string" && typeof c.action_href === "string" && typeof c.blocking_count === "number" && Array.isArray(c.blockers) && typeof c.input_coverage === "object");
@@ -144,7 +147,7 @@ function ReportsReadinessCockpit({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant={readinessVariant(readiness.state)}>{readiness.label}</Badge>
-          <Link href={readiness.action_href} className="btn-secondary text-sm">
+          <Link href={REPORT_PACKAGE_HREF.test(readiness.action_href) ? packageHref : readiness.action_href} className="btn-secondary text-sm">
             {readiness.blocking_count > 0 ? "Resolve report blockers" : "Open readiness path"}
           </Link>
         </div>

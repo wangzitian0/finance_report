@@ -22,7 +22,7 @@ import { isValidReportDate } from "@/lib/reportPackage";
 
 export const REPORT_PERIOD_PRESETS = ["1M", "1Q", "1Y", "YTD", "3Y", "All"] as const;
 export type ReportPeriodPreset = (typeof REPORT_PERIOD_PRESETS)[number];
-export const DEFAULT_REPORT_PERIOD: ReportPeriodPreset = "1Y";
+const DEFAULT_REPORT_PERIOD: ReportPeriodPreset = "1Y";
 
 /** The first day of the `All` period. The ledger has no entry before this date. */
 const ALL_PERIOD_START = "2000-01-01";
@@ -46,6 +46,8 @@ export type ReportTab = (typeof REPORT_TABS)[number]["id"];
 
 /** The URL parameters of the dimensions. A tab link keeps them and changes only `tab`. */
 const DIMENSION_PARAMS = ["period", "start", "end", "currency", "include_restricted"] as const;
+/** The parameters that a dimension change rewrites: the dimensions and the old route parameters. */
+const REPLACED_PARAMS = new Set<string>([...DIMENSION_PARAMS, "start_date", "end_date", "as_of_date"]);
 
 export interface ReportFilters {
   tab: ReportTab;
@@ -182,28 +184,29 @@ export function useReportFilters(): UseReportFiltersResult {
 
   const update = useCallback(
     (changes: Partial<Record<(typeof DIMENSION_PARAMS)[number], string>>) => {
-      const params = new URLSearchParams(search);
+      const current = new URLSearchParams(search);
+      // Start from the canonical dimensions: the parameters of an old route link
+      // (`start_date`, `end_date`, `as_of_date`) are already `start` and `end` there.
+      const dimensions = new URLSearchParams(filters.dimensionQuery);
       for (const [key, value] of Object.entries(changes)) {
-        if (value) params.set(key, value);
-        else params.delete(key);
+        if (value) dimensions.set(key, value);
+        else dimensions.delete(key);
       }
-      // The old route parameters must not shadow the new period.
-      params.delete("end_date");
-      params.delete("as_of_date");
-      params.delete("start_date");
       // One parameter order for every URL: the tab, the dimensions, then the other parameters.
       const ordered = new URLSearchParams();
-      for (const key of ["tab", ...DIMENSION_PARAMS]) {
-        const value = params.get(key);
+      const tab = current.get("tab");
+      if (tab) ordered.set("tab", tab);
+      for (const key of DIMENSION_PARAMS) {
+        const value = dimensions.get(key);
         if (value) ordered.set(key, value);
       }
-      params.forEach((value, key) => {
-        if (!ordered.has(key)) ordered.append(key, value);
+      current.forEach((value, key) => {
+        if (!ordered.has(key) && !REPLACED_PARAMS.has(key)) ordered.append(key, value);
       });
       const query = ordered.toString();
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     },
-    [pathname, router, search],
+    [filters.dimensionQuery, pathname, router, search],
   );
 
   return {

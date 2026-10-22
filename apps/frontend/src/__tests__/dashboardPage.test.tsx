@@ -165,12 +165,17 @@ describe("HomePage", () => {
     mockHomeApi({
       balance_sheet_reports_balance_sheet_get: () =>
         Promise.resolve({ ...liquidBalance, assets: [], liabilities: [], total_assets: "0", total_liabilities: "0", total_equity: "0" }),
+      income_statement_reports_income_statement_get: () =>
+        Promise.resolve({ ...income, income: [], expenses: [], total_income: "0", total_expenses: "0", net_income: "0" }),
     })
     render(<HomePage />)
 
     const balance = screen.getByTestId("cockpit-card-balance-sheet")
     await waitFor(() => expect(within(balance).getByText("Net worth").nextElementSibling).toHaveTextContent("$0"))
     expect(screen.queryByText(/Largest lines/)).toBeNull()
+    // No income: no savings rate.
+    const incomeCard = screen.getByTestId("cockpit-card-income-statement")
+    await waitFor(() => expect(within(incomeCard).getByText("Savings rate").nextElementSibling).toHaveTextContent("—"))
   })
 
   // AC-reporting.fe-ia-reports.7

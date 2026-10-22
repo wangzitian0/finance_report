@@ -20,16 +20,16 @@ import { normalizeFxWarningRows, type CashFlowLine, type CashFlowLineEventsPage 
 // again, so a page holds 200 events and the open and reopened line share one cache entry.
 
 /** Page size of the line events. The backend maximum is 500. */
-export const CASH_FLOW_LINE_EVENTS_PAGE_SIZE = 200;
+const CASH_FLOW_LINE_EVENTS_PAGE_SIZE = 200;
 
-export interface CashFlowPeriod {
+interface CashFlowPeriod {
   start_date: string;
   end_date: string;
   currency: string;
 }
 
 /** The accessible name of a line: its description holds the direction and the counterparts. */
-export function cashFlowLineLabel(line: CashFlowLine): string {
+function cashFlowLineLabel(line: CashFlowLine): string {
   return line.description || line.subcategory;
 }
 
@@ -39,7 +39,7 @@ function nextOffset(page: CashFlowLineEventsPage): number | undefined {
 }
 
 /** The one cache entry of the events of a line. The "report" key prefix is ledger-derived. */
-export function cashFlowLineEventsQueryOptions(period: CashFlowPeriod, lineId: string) {
+function cashFlowLineEventsQueryOptions(period: CashFlowPeriod, lineId: string) {
   return infiniteQueryOptions({
     queryKey: ["report", "cash-flow", "line-events", period.start_date, period.end_date, period.currency, lineId] as const,
     queryFn: ({ pageParam, signal }) =>

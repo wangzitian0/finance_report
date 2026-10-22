@@ -52,7 +52,7 @@ const cashFlow = {
     currency: "SGD",
     operating: [{ line_id: "op-1", category: "operating", subcategory: "Salary received", amount: "9000", account_id: "acc-cash", event_count: 3 }],
     investing: [{ line_id: "inv-1", category: "investing", subcategory: "Broker transfer", amount: "-3000", account_id: null, event_count: 1 }],
-    financing: [],
+    financing: [{ line_id: "fin-1", category: "financing", subcategory: "Card repayment", description: "Outflow - DBS Multiplier", amount: "-500", account_id: "acc-cash", event_count: 1 }],
     summary: {
         operating_activities: "4500",
         investing_activities: "-3000",
@@ -134,6 +134,9 @@ describe("Three-statement cockpit (#2621 LC, #2548 P1)", () => {
         mockedApiOperation.mockClear();
 
         rerender(<StatementCockpit filters={readReportFilters(new URLSearchParams("period=All&end=2026-03-31"), new Date(2026, 9, 22))} />);
+        // A card never shows the numbers of the previous period under the new period.
+        expect(within(screen.getByTestId("cockpit-card-income-statement")).getByRole("status")).toHaveTextContent("Loading…");
+        expect(within(screen.getByTestId("cockpit-card-cash-flow")).getByRole("status")).toHaveTextContent("Loading…");
         await waitFor(() =>
             expect(mockedApiOperation).toHaveBeenCalledWith(
                 "income_statement_reports_income_statement_get",
@@ -187,8 +190,15 @@ describe("Three-statement cockpit (#2621 LC, #2548 P1)", () => {
         fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
 
         fireEvent.click(within(switcher).getByRole("tab", { name: "Cash" }));
-        // A cash-flow line without an account has no source drill-down.
+        // A cash-flow line without an account has no source drill-down. Two lines of one account
+        // (an inflow and an outflow) are two rows, named by their description.
         expect(await screen.findByRole("button", { name: "View source transactions for Salary received" })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "View source transactions for Outflow - DBS Multiplier" }));
+        await waitFor(() =>
+            expect(mockedApiOperation).toHaveBeenCalledWith("account_lineage_reports_account_lineage_get", {
+                query: { account_id: "acc-cash", as_of_date: "2026-03-31", currency: "SGD", start_date: "2026-01-01" },
+            }),
+        );
         expect(screen.queryByRole("button", { name: "View source transactions for Broker transfer" })).toBeNull();
     });
 

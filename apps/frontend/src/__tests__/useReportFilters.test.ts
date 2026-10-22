@@ -103,6 +103,21 @@ describe("useReportFilters", () => {
     setTestUrl("/reports?from=audit&tab=income-statement&end_date=2025-06-30")
   })
 
+  // AC-reporting.fe-period-cockpit.2 / AC-reporting.fe-viz-reports.23
+  it("AC-reporting.fe-period-cockpit.2 keeps the period of an old route link when another dimension changes", () => {
+    setTestUrl("/reports?tab=balance-sheet&as_of_date=2025-12-31&currency=SGD")
+    const { result } = renderHook(() => useReportFilters())
+
+    act(() => result.current.setIncludeRestricted(true))
+    expect(testUrl()).toBe("/reports?tab=balance-sheet&end=2025-12-31&currency=SGD&include_restricted=true")
+    expect(result.current.endDate).toBe("2025-12-31")
+
+    act(() => setTestUrl("/reports?tab=income-statement&start_date=2025-01-01&end_date=2025-06-30"))
+    act(() => result.current.setCurrency("USD"))
+    expect(testUrl()).toBe("/reports?tab=income-statement&start=2025-01-01&end=2025-06-30&currency=USD")
+    expect(result.current).toMatchObject({ preset: null, startDate: "2025-01-01", endDate: "2025-06-30" })
+  })
+
   // AC-reporting.fe-period-cockpit.2 / AC-reporting.fe-viz-reports.22
   it("AC-reporting.fe-period-cockpit.2 writes each dimension change to the URL and omits default values", () => {
     // Other parameters, such as `from`, stay after the dimensions.

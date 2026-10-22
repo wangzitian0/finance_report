@@ -36,6 +36,8 @@ const signedMoney = (value: MonetaryInput, currency: string) =>
   `${toDecimal(value).isPositive() && !toDecimal(value).isZero() ? "+" : ""}${money(value, currency)}`;
 
 interface DrillRow {
+  /** Unique in its statement: a cash-flow line id, or an account id. */
+  key: string;
   accountId: string;
   name: string;
   amount: string;
@@ -67,7 +69,7 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
     ? subtractAmounts(openingBalanceSheet.total_assets, openingBalanceSheet.total_liabilities)
     : null;
   const savingsRate =
-    incomeStatement && toDecimal(incomeStatement.total_income).isPositive()
+    incomeStatement && toDecimal(incomeStatement.total_income).greaterThan(0)
       ? formatPercentFromPercentValue(
           String(percentNumberFromParts(incomeStatement.net_income, incomeStatement.total_income, { dp: 0 })),
           { dp: 0 },
@@ -112,6 +114,7 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
   const rowsByStatement: Record<StatementId, DrillRow[]> = {
     balance: largestRows(
       [...(balanceSheet?.assets ?? []), ...(balanceSheet?.liabilities ?? [])].map((line) => ({
+        key: line.account_id,
         accountId: line.account_id,
         name: line.name,
         amount: String(line.amount),
@@ -119,6 +122,7 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
     ),
     income: largestRows(
       [...(incomeStatement?.income ?? []), ...(incomeStatement?.expenses ?? [])].map((line) => ({
+        key: line.account_id,
         accountId: line.account_id,
         name: line.name,
         amount: String(line.amount),
@@ -126,7 +130,11 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
     ),
     cash: largestRows(
       [...(cashFlow?.operating ?? []), ...(cashFlow?.investing ?? []), ...(cashFlow?.financing ?? [])].flatMap((line) =>
-        line.account_id ? [{ accountId: line.account_id, name: line.subcategory, amount: String(line.amount) }] : [],
+        // One counterpart account can have an inflow line and an outflow line: the line id and the
+        // description (it names the direction) tell them apart.
+        line.account_id
+          ? [{ key: line.line_id, accountId: line.account_id, name: line.description || line.subcategory, amount: String(line.amount) }]
+          : [],
       ),
     ),
   };
@@ -212,7 +220,7 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
           <p className="mb-2 text-xs text-muted">Largest lines. Select a line to see its source transactions.</p>
           <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
             {activeRows.map((row) => (
-              <li key={row.accountId}>
+              <li key={row.key}>
                 <button
                   type="button"
                   aria-label={`View source transactions for ${row.name}`}

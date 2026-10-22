@@ -1,6 +1,5 @@
 "use client";
 
-import { keepPreviousData } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 
 import { useApiQuery } from "@/hooks/useApiQuery";
@@ -49,7 +48,9 @@ export interface StatementCockpitData {
   retry: () => void;
 }
 
-const QUERY_OPTIONS = { staleTime: SHARED_STALE_MS, placeholderData: keepPreviousData } as const;
+// No placeholder data: a card never shows the numbers of the previous period under the new
+// period of the dimension bar. It shows its loading line until its own new statement arrives.
+const QUERY_OPTIONS = { staleTime: SHARED_STALE_MS } as const;
 
 /** The currency of a statement whose payload names none. It equals the old Home default. */
 const FALLBACK_CURRENCY = "SGD";
@@ -158,11 +159,7 @@ export function useStatementCockpit({
 
   return {
     balanceSheet: balanceQuery.data ?? null,
-    // A delta of two periods is wrong: while a new period loads, the opening balance sheet is absent.
-    openingBalanceSheet:
-      openingDate === null || openingQuery.isPlaceholderData || balanceQuery.isPlaceholderData
-        ? null
-        : (openingQuery.data ?? null),
+    openingBalanceSheet: openingDate === null ? null : (openingQuery.data ?? null),
     incomeStatement: incomeQuery.data ?? null,
     cashFlow: cashFlowQuery.data ?? null,
     pending: {

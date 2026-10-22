@@ -256,6 +256,17 @@ describe("Reports page (#2621 LC)", () => {
     }
   })
 
+  it("AC5.37.1 opens the Package tab with the bar period when the readiness action opens the report package", async () => {
+    mockReports(() => Promise.resolve(normalizablePackageDocument({ readiness: { ...readiness, action_href: "/reports/package" } })))
+    setTestUrl("/reports?period=1M&currency=USD")
+    render(<ReportsPage />)
+
+    expect(await screen.findByRole("link", { name: "Resolve report blockers" })).toHaveAttribute(
+      "href",
+      "/reports?period=1M&currency=USD&tab=package",
+    )
+  })
+
   it("AC5.37.1 renders an all-clear source gap state when readiness has no gaps", async () => {
     mockReports(() => Promise.resolve(normalizablePackageDocument({ readiness: readyReadiness })))
     render(<ReportsPage />)
