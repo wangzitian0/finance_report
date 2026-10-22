@@ -1,3 +1,5 @@
+import routeMap from './src/lib/route-map.json' with { type: 'json' };
+
 export function shouldProxyApiToLocalBackend() {
     return process.env.NODE_ENV !== 'production' && (process.env.NEXT_PUBLIC_API_URL ?? '') === '';
 }
@@ -147,23 +149,18 @@ const nextConfig = {
             },
         ];
     },
-    // EPIC-022: align legacy routes onto the everyday-user IA. `/` now renders
-    // the smart Home inside the app shell, so it is no longer redirected.
+    // Redirects come from the route map (src/lib/route-map.json), the single
+    // source of truth for routes. A path with state "redirect" has no page.
+    // A route map entry written as /a/[id] becomes the Next.js source /a/:id.
     async redirects() {
-        return [
-            { source: '/dashboard', destination: '/', permanent: true },
-            { source: '/events', destination: '/notifications', permanent: true },
-            { source: '/assets', destination: '/portfolio', permanent: true },
-            { source: '/statements/upload', destination: '/upload', permanent: true },
-            { source: '/statements', destination: '/upload', permanent: true },
-            // EPIC-022 PR2: the standalone Review Queue folds into the notification center.
-            { source: '/review', destination: '/notifications', permanent: true },
-            // EPIC-022 AC22.21.4: the three settings pages merge into one tabbed
-            // /settings surface; the old paths resolve to the matching tab.
-            { source: '/settings/general', destination: '/settings?tab=general', permanent: true },
-            { source: '/settings/ai', destination: '/settings?tab=ai', permanent: true },
-            { source: '/settings/llm', destination: '/settings?tab=llm', permanent: true },
-        ];
+        const toNextPath = (path) => path.replace(/\[([^\]]+)\]/g, ':$1');
+        return routeMap.routes
+            .filter((route) => route.state === 'redirect')
+            .map((route) => ({
+                source: toNextPath(route.path),
+                destination: toNextPath(route.into),
+                permanent: true,
+            }));
     },
     // Local development without an explicit API URL proxies /api/* to the backend.
     // Containerized and production deployments keep same-origin /api/* routes intact.
