@@ -133,12 +133,20 @@ def test_ledger_anchored_persistence_boundary():
 
     # The physical writer is deliberately not a public package export. The only
     # production call site is the generic command boundary after anchor validation.
-    assert '"_create_anchored_journal_entry"' not in published
-    assert '"_create_anchored_journal_entry"' not in extension_published
-    assert (
-        "from src.ledger.extension.repository import _create_anchored_journal_entry"
-        in anchor
-    )
+    for sink in ("_create_anchored_journal_entry", "_create_anchored_journal_entries"):
+        assert f'"{sink}"' not in published
+        assert f'"{sink}"' not in extension_published
+    imported_from_repository = {
+        alias.name
+        for node in ast.walk(ast.parse(anchor))
+        if isinstance(node, ast.ImportFrom)
+        and node.module == "src.ledger.extension.repository"
+        for alias in node.names
+    }
+    assert {
+        "_create_anchored_journal_entry",
+        "_create_anchored_journal_entries",
+    } <= imported_from_repository
     assert "await validate_decision_anchor(" in anchor
 
 

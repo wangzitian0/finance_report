@@ -166,27 +166,53 @@ def test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry():
         ("_submit_anchored_journal_entry", "_create_anchored_journal_entry"),
     ):
         assert delegates(function("anchored_posting", caller), callee)
-    repository = function("repository", "_create_anchored_journal_entry")
+    # One builder checks a draft against the ledger rules and persists nothing. Both sinks (one entry and
+    # many entries) call it before their first write, so balance validation precedes journal persistence.
+    repository_tree = ast.parse(
+        _read("apps/backend/src/ledger/extension/repository.py")
+    )
+    builder = next(
+        node
+        for node in repository_tree.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_build_anchored_journal_entry"
+    )
     guard = next(
         node
-        for node in repository.body
+        for node in builder.body
         if isinstance(node, ast.Expr)
         and isinstance(node.value, ast.Call)
         and isinstance(node.value.func, ast.Name)
         and node.value.func.id == "validate_journal_balance"
     )
-    writes = [
-        call.lineno
-        for call in ast.walk(repository)
-        if isinstance(call, ast.Call)
+    assert guard is not None
+    assert not any(
+        isinstance(call, ast.Call)
         and isinstance(call.func, ast.Attribute)
-        and isinstance(call.func.value, ast.Name)
-        and call.func.value.id == "db"
         and call.func.attr in {"add", "add_all", "flush"}
-    ]
-    assert writes and guard.lineno < min(writes), (
-        "balance validation must precede journal persistence"
-    )
+        for call in ast.walk(builder)
+    ), "the builder must not persist"
+    for sink in ("_create_anchored_journal_entry", "_create_anchored_journal_entries"):
+        repository = function("repository", sink)
+        builds = [
+            call.lineno
+            for call in ast.walk(repository)
+            if isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Name)
+            and call.func.id == "_build_anchored_journal_entry"
+        ]
+        writes = [
+            call.lineno
+            for call in ast.walk(repository)
+            if isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Attribute)
+            and isinstance(call.func.value, ast.Name)
+            and call.func.value.id == "db"
+            and call.func.attr in {"add", "add_all", "flush"}
+        ]
+        assert builds and writes and min(builds) < min(writes), (
+            f"balance validation must precede journal persistence in {sink}"
+        )
 
     # External callers import the published ledger Entry; in-package edges import
     # the base type directly. Both forms still prove "an Entry guards balance".
@@ -220,10 +246,18 @@ def test_AC12_34_6_ledger_owns_posting_pipeline_no_upward_edge():
     post = _read("apps/backend/src/ledger/extension/post.py")
     anchored = _read("apps/backend/src/ledger/extension/anchored_posting.py")
     assert "from src.ledger.extension.anchored_posting import" in post
-    assert (
-        "from src.ledger.extension.repository import _create_anchored_journal_entry"
-        in anchored
-    )
+    # The anchored command owner imports both private sinks (one entry, many entries) of the repository.
+    imported_from_repository = {
+        alias.name
+        for node in ast.walk(ast.parse(anchored))
+        if isinstance(node, ast.ImportFrom)
+        and node.module == "src.ledger.extension.repository"
+        for alias in node.names
+    }
+    assert {
+        "_create_anchored_journal_entry",
+        "_create_anchored_journal_entries",
+    } <= imported_from_repository
     assert "from src.ledger.extension.repository import" not in post
     assert "from src.ledger.extension.accounting import" not in post, (
         "ledger.extension must not import upward into services.accounting"

@@ -517,9 +517,9 @@ def test_production_financial_writers_have_one_anchored_persistence_boundary() -
             name = node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", None)
             if name in {"JournalEntry", "JournalLine"}:
                 constructor_files.add(relative)
-            elif name == "_create_anchored_journal_entry":
+            elif name in {"_create_anchored_journal_entry", "_create_anchored_journal_entries"}:
                 raw_create_files.add(relative)
-            elif name == "post_journal_entry":
+            elif name in {"post_journal_entry", "post_journal_entries"}:
                 raw_post_files.add(relative)
 
     assert constructor_files == allowed_constructors

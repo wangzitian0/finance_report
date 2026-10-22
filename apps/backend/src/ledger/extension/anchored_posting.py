@@ -9,7 +9,9 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import String, bindparam, func, select, text, tuple_
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import (
@@ -33,7 +35,14 @@ from src.audit.extension.trace_emitter import TraceEmitter
 from src.audit.extension.trace_repository import SqlTraceRecordRepository
 from src.ledger.base.decision_anchor import DecisionAnchor, DecisionAnchorError, journal_command_target
 from src.ledger.base.validators import ValidationError
-from src.ledger.extension.repository import _create_anchored_journal_entry, post_journal_entry, void_journal_entry
+from src.ledger.extension.repository import (
+    AnchoredEntryDraft,
+    _create_anchored_journal_entries,
+    _create_anchored_journal_entry,
+    post_journal_entries,
+    post_journal_entry,
+    void_journal_entry,
+)
 from src.ledger.orm.journal import (
     Direction,
     JournalEntry,
@@ -47,6 +56,7 @@ __all__ = [
     "AnchoredJournalCommandV2",
     "current_anchored_journal_entries",
     "ledger_trace_policy_registry",
+    "submit_anchored_journal_entries_v2",
     "submit_anchored_journal_entry",
     "submit_anchored_journal_entry_v2",
     "submit_manual_journal_entry",
@@ -626,6 +636,55 @@ async def _existing_for_target(
     return result.scalar_one_or_none()
 
 
+#: A read names at most this many targets, so that its bind parameters stay below the driver limit.
+_TARGET_READ_CHUNK_SIZE = 1000
+
+
+async def _existing_for_targets(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    targets: Sequence[VersionedTraceRef],
+) -> dict[tuple[str, str], JournalEntry]:
+    """The entry that owns each target, read with two statements: one lock set and one read.
+
+    The result equals ``_existing_for_target`` for each target. The locks are taken in key order, so
+    two writers of overlapping sets cannot wait on each other.
+    """
+    keys = sorted({f"ledger-target\x1f{user_id}\x1f{target.kind}\x1f{target.id}" for target in targets})
+    await db.execute(
+        text(
+            "SELECT pg_advisory_xact_lock(hashtextextended(lock_key, 0)) "
+            "FROM (SELECT lock_key FROM unnest(CAST(:keys AS text[])) AS locks(lock_key) "
+            "ORDER BY lock_key OFFSET 0) AS ordered_keys"
+        ).bindparams(bindparam("keys", keys, type_=ARRAY(String)))
+    )
+    decisions = trace_decision_projection(TraceScope.tenant(user_id)).subquery("ledger_target_decisions")
+    owners: dict[tuple[str, str], JournalEntry] = {}
+    pairs = sorted({(target.kind, target.id) for target in targets})
+    for start in range(0, len(pairs), _TARGET_READ_CHUNK_SIZE):
+        rows = (
+            await db.execute(
+                select(JournalEntry, decisions.c.target_kind, decisions.c.target_id)
+                .join(decisions, decisions.c.decision_id == JournalEntry.decision_anchor_id)
+                .where(JournalEntry.user_id == user_id)
+                .where(JournalEntry.decision_authority_state == JournalEntryAuthorityState.ANCHORED)
+                .where(JournalEntry.status != JournalEntryStatus.VOID)
+                .where(
+                    tuple_(decisions.c.target_kind, decisions.c.target_id).in_(
+                        pairs[start : start + _TARGET_READ_CHUNK_SIZE]
+                    )
+                )
+                .with_for_update()
+            )
+        ).all()
+        for entry, target_kind, target_id in rows:
+            if (target_kind, target_id) in owners:
+                raise MultipleResultsFound(f"more than one journal entry owns the target {target_kind}:{target_id}")
+            owners[(target_kind, target_id)] = entry
+    return owners
+
+
 async def submit_anchored_journal_entry(
     db: AsyncSession,
     *,
@@ -660,6 +719,86 @@ async def submit_anchored_journal_entry_v2(
         base_currency=base_currency,
         trace_repository=trace_repository,
     )
+
+
+async def submit_anchored_journal_entries_v2(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    commands: Sequence[AnchoredJournalCommandV2],
+    base_currency: str,
+    trace_repository: TraceRecordRepository | None = None,
+) -> list[JournalEntry]:
+    """Verify many decisions and persist their journal facts exactly once each.
+
+    Each entry equals the one that ``submit_anchored_journal_entry_v2`` returns for the same command. The
+    set costs one existence read, one insert pair and one update, whatever its size. The anchors, the
+    owners of the targets and the ledger rules of every command are checked before the first entry is
+    added to the session. One failed check therefore persists none of the commands. A failure at the
+    flush or at the posting leaves the unit of work to the caller, which rolls it back, as for the
+    single command. Commands that share a target keep the single path: the second command must see
+    the entry of the first.
+    """
+    repository = trace_repository or SqlTraceRecordRepository(db)
+    targets = [
+        journal_command_target(
+            entry_date=command.entry_date,
+            memo=command.memo,
+            lines_data=command.lines_data,
+            base_currency=base_currency,
+            source_identity=command.source_identity,
+        )
+        for command in commands
+    ]
+    if len({target.id for target in targets}) != len(targets):
+        return [
+            await submit_anchored_journal_entry_v2(
+                db, user_id=user_id, command=command, base_currency=base_currency, trace_repository=repository
+            )
+            for command in commands
+        ]
+    for command, target in zip(commands, targets, strict=True):
+        await validate_decision_anchor(
+            repository, user_id=user_id, anchor=command.decision_anchor, expected_target=target
+        )
+    existing = await _existing_for_targets(db, user_id=user_id, targets=targets) if commands else {}
+
+    results: dict[int, JournalEntry] = {}
+    fresh: list[int] = []
+    for index, (command, target) in enumerate(zip(commands, targets, strict=True)):
+        owner = existing.get((target.kind, target.id))
+        if owner is None:
+            fresh.append(index)
+        elif owner.decision_anchor_id == command.decision_anchor.decision_id:
+            results[index] = owner
+        else:
+            raise DecisionAnchorError("a different decision already owns this immutable source target")
+
+    created = await _create_anchored_journal_entries(
+        db,
+        user_id,
+        [
+            AnchoredEntryDraft(
+                entry_date=commands[index].entry_date,
+                memo=commands[index].memo,
+                lines_data=commands[index].lines_data,
+                source_type=commands[index].source_type,
+                source_id=commands[index].source_id,
+                decision_anchor=commands[index].decision_anchor,
+            )
+            for index in fresh
+        ],
+        base_currency=base_currency,
+    )
+    await post_journal_entries(
+        db,
+        [entry for entry, index in zip(created, fresh, strict=True) if commands[index].post_immediately],
+        user_id,
+        base_currency=base_currency,
+    )
+    for entry, index in zip(created, fresh, strict=True):
+        results[index] = entry
+    return [results[index] for index in range(len(commands))]
 
 
 async def _submit_anchored_journal_entry(
