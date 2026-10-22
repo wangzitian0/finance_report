@@ -490,10 +490,18 @@ async def test_AC_reporting_package_document_9_requires_exact_decision_coordinat
     with pytest.raises(TraceRecordValidationError, match="decision assertion must be a VersionedTraceRef"):
         TraceDecisionRef(decision_id=uuid4(), target=expected_target, assertion="not-a-ref")
 
+    class _Row:
+        """A result row: columns as attributes and as ``_mapping``, as ``sqlalchemy.Row`` gives them."""
+
+        def __init__(self, values):
+            self._mapping = values
+            self.__dict__.update(values)
+
     class _Rows:
-        def mappings(self):
+        def __iter__(self):
             return iter(
-                (
+                _Row(values)
+                for values in (
                     {
                         "decision_id": exact_id,
                         "target_kind": expected_target.kind,
@@ -528,6 +536,8 @@ async def test_AC_reporting_package_document_9_requires_exact_decision_coordinat
             )
 
     class _Session:
+        info: dict = {}
+
         async def execute(self, _query):
             return _Rows()
 
