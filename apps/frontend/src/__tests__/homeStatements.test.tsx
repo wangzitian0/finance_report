@@ -1,197 +1,225 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 
-import { ThreeStatementNav, resolvePeriodRange } from "@/components/home/ThreeStatementNav";
+import { StatementCockpit } from "@/components/reports/StatementCockpit";
+import { readReportFilters } from "@/hooks/useReportFilters";
 import { apiOperation } from "@/lib/api-client";
-import type { BalanceSheetResponse, IncomeStatementResponse } from "@/lib/types";
+
+vi.mock("next/link", () => ({
+    default: ({ href, children, ...props }: { href: string; children: ReactNode; [key: string]: unknown }) => (
+        <a href={href} {...props}>{children}</a>
+    ),
+}));
 
 vi.mock("@/lib/api-client", () => ({
     apiOperation: vi.fn(),
 }));
 
-const sampleBalanceSheet: BalanceSheetResponse = {
-    as_of_date: "2026-03-31",
+const balanceSheetAt = (asOfDate: string, totalAssets: string, totalLiabilities: string) => ({
+    as_of_date: asOfDate,
     currency: "SGD",
     assets: [
         { account_id: "acc-cash", name: "DBS Multiplier", type: "ASSET", amount: "12000" },
         { account_id: "acc-broker", name: "IBKR Portfolio", type: "ASSET", amount: "28000" },
+        { account_id: "acc-empty", name: "Closed Account", type: "ASSET", amount: "0" },
     ],
-    liabilities: [
-        { account_id: "acc-card", name: "Visa Infinite", type: "LIABILITY", amount: "2000" },
-    ],
+    liabilities: [{ account_id: "acc-card", name: "Visa Infinite", type: "LIABILITY", amount: "2000" }],
     equity: [],
-    total_assets: "40000",
-    total_liabilities: "2000",
+    total_assets: totalAssets,
+    total_liabilities: totalLiabilities,
     total_equity: "38000",
-    net_income: "4500",
-    net_worth_adjustment_gain_loss: "0",
-    unrealized_fx_gain_loss: "0",
     equation_delta: "0",
-    cta_adjustment: "0",
     is_balanced: true,
-};
+    opening_balance_warnings: [{ type: "missing_opening_balance", message: "Record opening balances to trust this total." }],
+});
 
-const sampleIncomeStatement: IncomeStatementResponse = {
+const incomeStatement = {
     start_date: "2026-01-01",
     end_date: "2026-03-31",
     currency: "SGD",
-    income: [
-        { account_id: "acc-salary", name: "Base Salary", type: "INCOME", amount: "9000" },
-    ],
-    expenses: [
-        { account_id: "acc-rent", name: "Apartment Rent", type: "EXPENSE", amount: "4500" },
-    ],
+    income: [{ account_id: "acc-salary", name: "Base Salary", type: "INCOME", amount: "9000" }],
+    expenses: [{ account_id: "acc-rent", name: "Apartment Rent", type: "EXPENSE", amount: "4500" }],
     total_income: "9000",
     total_expenses: "4500",
     net_income: "4500",
-    trends: [
-        { period_start: "2026-01-01", period_end: "2026-01-31", total_income: "3000", total_expenses: "1500", net_income: "1500" },
-        { period_start: "2026-02-01", period_end: "2026-02-28", total_income: "3000", total_expenses: "1500", net_income: "1500" },
-        { period_start: "2026-03-01", period_end: "2026-03-31", total_income: "3000", total_expenses: "1500", net_income: "1500" },
-    ],
+    trends: [],
 };
 
-describe("Home three-statement entry (EPIC-022 AC22.21.6 & #2548)", () => {
+const cashFlow = {
+    start_date: "2026-01-01",
+    end_date: "2026-03-31",
+    currency: "SGD",
+    operating: [{ line_id: "op-1", category: "operating", subcategory: "Salary received", amount: "9000", account_id: "acc-cash", event_count: 3 }],
+    investing: [{ line_id: "inv-1", category: "investing", subcategory: "Broker transfer", amount: "-3000", account_id: null, event_count: 1 }],
+    financing: [{ line_id: "fin-1", category: "financing", subcategory: "Card repayment", description: "Outflow - DBS Multiplier", amount: "-500", account_id: "acc-cash", event_count: 1 }],
+    summary: {
+        operating_activities: "4500",
+        investing_activities: "-3000",
+        financing_activities: "0",
+        net_cash_flow: "1500",
+        beginning_cash: "10000",
+        ending_cash: "11500",
+    },
+};
+
+const Q1_2026 = readReportFilters(new URLSearchParams("period=1Q&end=2026-03-31"), new Date(2026, 9, 22));
+
+describe("Three-statement cockpit (#2621 LC, #2548 P1)", () => {
     const mockedApiOperation = vi.mocked(apiOperation);
 
     beforeEach(() => {
         mockedApiOperation.mockReset();
+        mockedApiOperation.mockImplementation(((operationId: string, request: { query?: Record<string, unknown> }) => {
+            if (operationId === "balance_sheet_reports_balance_sheet_get") {
+                return Promise.resolve(
+                    request.query?.as_of_date === "2025-12-31"
+                        ? balanceSheetAt("2025-12-31", "32000", "2000")
+                        : balanceSheetAt("2026-03-31", "40000", "2000"),
+                );
+            }
+            if (operationId === "income_statement_reports_income_statement_get") return Promise.resolve(incomeStatement);
+            if (operationId === "cash_flow_reports_cash_flow_get") return Promise.resolve(cashFlow);
+            if (operationId === "account_lineage_reports_account_lineage_get") return new Promise(() => undefined);
+            return Promise.reject(new Error(`unexpected ${operationId}`));
+        }) as never);
     });
 
     // AC-reporting.fe-ia-reports.26
-    it("deep-links each of the three statements to its full report", () => {
-        render(<ThreeStatementNav />);
+    it("deep-links each of the three statements to its report tab and keeps the period", () => {
+        render(<StatementCockpit filters={Q1_2026} />);
 
-        expect(screen.getByRole("navigation", { name: "Financial statements" })).toBeInTheDocument();
-        expect(screen.getByRole("link", { name: /Balance Sheet/ })).toHaveAttribute(
-            "href",
-            "/reports/balance-sheet",
-        );
-        expect(screen.getByRole("link", { name: /Income/ })).toHaveAttribute(
-            "href",
-            "/reports/income-statement",
-        );
-        expect(screen.getByRole("link", { name: /Cash Flow/ })).toHaveAttribute(
-            "href",
-            "/reports/cash-flow",
-        );
+        expect(screen.getByRole("region", { name: "Three-statement cockpit" })).toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Open the balance sheet report" })).toHaveAttribute("href", "/reports?period=1Q&end=2026-03-31&tab=balance-sheet");
+        expect(screen.getByRole("link", { name: "Open the income statement report" })).toHaveAttribute("href", "/reports?period=1Q&end=2026-03-31&tab=income-statement");
+        expect(screen.getByRole("link", { name: "Open the cash flow report" })).toHaveAttribute("href", "/reports?period=1Q&end=2026-03-31&tab=cash-flow");
     });
 
+    // AC-reporting.fe-period-cockpit.4
     // AC-reporting.2548.1
-    it("AC-reporting.2548.1 switches reporting period preset and updates three-statement cockpit metrics", () => {
-        const onPeriodPresetChange = vi.fn();
-        const onIncludeRestrictedChange = vi.fn();
-        const onCurrencyChange = vi.fn();
-        render(
-            <ThreeStatementNav
-                balanceSheet={sampleBalanceSheet}
-                incomeStatement={sampleIncomeStatement}
-                periodPreset="1Q"
-                onPeriodPresetChange={onPeriodPresetChange}
-                includeRestricted={false}
-                onIncludeRestrictedChange={onIncludeRestrictedChange}
-                onCurrencyChange={onCurrencyChange}
-            />,
-        );
+    it("AC-reporting.fe-period-cockpit.4 shows the live metrics of the period on each statement card", async () => {
+        render(<StatementCockpit filters={Q1_2026} />);
 
-        const currencySelect = screen.getByRole("combobox", { name: "Reporting currency" });
-        fireEvent.change(currencySelect, { target: { value: "USD" } });
-        expect(onCurrencyChange).toHaveBeenCalledWith("USD");
+        const balance = screen.getByTestId("cockpit-card-balance-sheet");
+        await waitFor(() => expect(within(balance).getByText("Net worth").nextElementSibling).toHaveTextContent("SGD 38,000"));
+        // Net worth 38,000 at 2026-03-31 minus 30,000 at the opening date 2025-12-31.
+        expect(within(balance).getByText("Change in period").nextElementSibling).toHaveTextContent("+SGD 8,000");
+        expect(within(balance).getByText("Total assets").nextElementSibling).toHaveTextContent("SGD 40,000");
+        expect(within(balance).getByText("Total liabilities").nextElementSibling).toHaveTextContent("SGD 2,000");
 
-        const scopeToggle = screen.getByRole("button", { name: "Include restricted holdings" });
-        expect(scopeToggle).toHaveAttribute("aria-pressed", "false");
-        expect(scopeToggle).toHaveTextContent("Scope: Liquid");
-        fireEvent.click(scopeToggle);
-        expect(onIncludeRestrictedChange).toHaveBeenCalledWith(true);
+        const income = screen.getByTestId("cockpit-card-income-statement");
+        await waitFor(() => expect(within(income).getByText("Income").nextElementSibling).toHaveTextContent("SGD 9,000"));
+        expect(within(income).getByText("Expenses").nextElementSibling).toHaveTextContent("SGD 4,500");
+        expect(within(income).getByText("Net income").nextElementSibling).toHaveTextContent("+SGD 4,500");
+        expect(within(income).getByText("Savings rate").nextElementSibling).toHaveTextContent("50%");
 
-        const periodGroup = screen.getByRole("group", { name: "Reporting period" });
-        expect(periodGroup).toBeInTheDocument();
-        for (const preset of ["1M", "1Q", "1Y", "YTD", "3Y", "All"]) {
-            expect(screen.getByRole("button", { name: `Period ${preset}` })).toBeInTheDocument();
-        }
-        expect(screen.getByRole("button", { name: "Period 1Q" })).toHaveAttribute("aria-pressed", "true");
+        const cash = screen.getByTestId("cockpit-card-cash-flow");
+        await waitFor(() => expect(within(cash).getByText("Operating").nextElementSibling).toHaveTextContent("+SGD 4,500"));
+        expect(within(cash).getByText("Investing").nextElementSibling).toHaveTextContent("-SGD 3,000");
+        expect(within(cash).getByText("Financing").nextElementSibling).toHaveTextContent("SGD 0");
+        expect(within(cash).getByText("Net change").nextElementSibling).toHaveTextContent("+SGD 1,500");
 
-        expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent(/38,000/);
-        expect(screen.getByTestId("cockpit-card-income-statement")).toHaveTextContent(/4,500/);
-        expect(screen.getByTestId("cockpit-card-income-statement")).toHaveTextContent(/50%/);
-        expect(screen.getByTestId("cockpit-card-cash-flow")).toHaveTextContent(/12,000/);
-
-        fireEvent.click(screen.getByRole("button", { name: "Period 3Y" }));
-        expect(onPeriodPresetChange).toHaveBeenCalledWith("3Y");
-
-        const range1M = resolvePeriodRange("1M", new Date(2026, 2, 15));
-        const range1Q = resolvePeriodRange("1Q", new Date(2026, 2, 15));
-        const range1Y = resolvePeriodRange("1Y", new Date(2026, 2, 15));
-        const rangeYTD = resolvePeriodRange("YTD", new Date(2026, 2, 15));
-        const range3Y = resolvePeriodRange("3Y", new Date(2026, 2, 15));
-        const rangeAll = resolvePeriodRange("All", new Date(2026, 2, 15));
-        expect(range1M.startDate).toBe("2026-03-01");
-        expect(range1M.endDate).toBe("2026-03-15");
-        expect(range1Q.startDate).toBe("2026-01-01");
-        expect(range1Y.startDate).toBe("2025-04-01");
-        expect(rangeYTD.startDate).toBe("2026-01-01");
-        expect(range3Y.startDate).toBe("2023-04-01");
-        expect(rangeAll.startDate).toBe("2000-01-01");
+        const queries = (operationId: string) =>
+            mockedApiOperation.mock.calls.filter(([id]) => id === operationId).map(([, request]) => (request as { query: Record<string, unknown> }).query);
+        expect(queries("balance_sheet_reports_balance_sheet_get").map((q) => q.as_of_date).sort()).toEqual(["2025-12-31", "2026-03-31"]);
+        expect(queries("income_statement_reports_income_statement_get")).toEqual([expect.objectContaining({ start_date: "2026-01-01", end_date: "2026-03-31" })]);
+        expect(queries("cash_flow_reports_cash_flow_get")).toEqual([expect.objectContaining({ start_date: "2026-01-01", end_date: "2026-03-31" })]);
+        expect(screen.getByText("Opening balances not recorded")).toBeInTheDocument();
     });
 
-    // AC-reporting.2548.2
-    it("AC-reporting.2548.2 switches active statement breakdown and opens AccountLineageDrawer on account click", async () => {
-        mockedApiOperation.mockResolvedValue({
-            account_id: "acc-salary",
-            account_name: "Base Salary",
-            as_of_date: "2026-03-31",
-            currency: "SGD",
-            balance: "9000",
-            lines: [],
-        } as never);
+    // AC-reporting.fe-period-cockpit.4
+    it("AC-reporting.fe-period-cockpit.4 reloads all three cards for a new period and reads no opening balance sheet for All", async () => {
+        const { rerender } = render(<StatementCockpit filters={Q1_2026} />);
+        await waitFor(() => expect(screen.getByText("Change in period").nextElementSibling).toHaveTextContent("+SGD 8,000"));
+        mockedApiOperation.mockClear();
 
-        render(
-            <ThreeStatementNav
-                balanceSheet={sampleBalanceSheet}
-                incomeStatement={sampleIncomeStatement}
-                periodPreset="1Q"
-            />,
-        );
-
-        fireEvent.click(screen.getByRole("button", { name: "Period YTD" }));
-        expect(screen.getByRole("button", { name: "Period YTD" })).toHaveAttribute("aria-pressed", "true");
-
-        const switcher = screen.getByRole("tablist", { name: "Statement breakdown switcher" });
-        expect(switcher).toBeInTheDocument();
-
-        const visualChart = screen.getByTestId("cockpit-visual-chart");
-        expect(visualChart).toHaveAttribute("aria-label", "Cockpit balance visual chart");
-        expect(visualChart).toHaveTextContent(/Assets vs Liabilities/i);
-
-        expect(screen.getByRole("button", { name: /Drill down DBS Multiplier/i })).toBeInTheDocument();
-
-        fireEvent.click(screen.getByRole("tab", { name: "Cash Breakdown" }));
-        expect(screen.getByTestId("cockpit-visual-chart")).toHaveAttribute("aria-label", "Cockpit cash visual chart");
-        expect(screen.getByTestId("cockpit-visual-chart")).toHaveTextContent(/Liquid Cash vs Total Assets/i);
-        expect(screen.getByRole("button", { name: /Drill down DBS Multiplier/i })).toBeInTheDocument();
-
-        fireEvent.click(screen.getByRole("tab", { name: "Income Breakdown" }));
-        expect(screen.getByTestId("cockpit-visual-chart")).toHaveAttribute("aria-label", "Cockpit income visual chart");
-        expect(screen.getByTestId("cockpit-visual-chart")).toHaveTextContent(/Income vs Expenses/i);
-        const salaryButton = screen.getByRole("button", { name: /Drill down Base Salary/i });
-        expect(salaryButton).toBeInTheDocument();
-
-        fireEvent.click(salaryButton);
-
+        rerender(<StatementCockpit filters={readReportFilters(new URLSearchParams("period=All&end=2026-03-31"), new Date(2026, 9, 22))} />);
+        // A card never shows the numbers of the previous period under the new period.
+        expect(within(screen.getByTestId("cockpit-card-income-statement")).getByRole("status")).toHaveTextContent("Loading…");
+        expect(within(screen.getByTestId("cockpit-card-cash-flow")).getByRole("status")).toHaveTextContent("Loading…");
         await waitFor(() =>
             expect(mockedApiOperation).toHaveBeenCalledWith(
-                "account_lineage_reports_account_lineage_get",
-                expect.objectContaining({
-                    query: expect.objectContaining({
-                        account_id: "acc-salary",
-                        currency: "SGD",
-                    }),
-                }),
+                "income_statement_reports_income_statement_get",
+                expect.objectContaining({ query: expect.objectContaining({ start_date: "2000-01-01", end_date: "2026-03-31" }) }),
             ),
         );
-        expect(await screen.findByText(/Sources · Base Salary/)).toBeInTheDocument();
+        expect(mockedApiOperation).toHaveBeenCalledWith(
+            "cash_flow_reports_cash_flow_get",
+            expect.objectContaining({ query: expect.objectContaining({ start_date: "2000-01-01" }) }),
+        );
+        await waitFor(() => expect(screen.getByText("Change in period").nextElementSibling).toHaveTextContent("—"));
+        // The balance sheet at the period end comes from the cache, and `All` has no opening balance sheet.
+        expect(mockedApiOperation.mock.calls.filter(([id]) => id === "balance_sheet_reports_balance_sheet_get")).toEqual([]);
+    });
 
+    // AC-reporting.fe-period-cockpit.5
+    // AC-reporting.2548.2
+    it("AC-reporting.fe-period-cockpit.5 switches the statement with the segmented control and drills a row into its source transactions", async () => {
+        render(<StatementCockpit filters={Q1_2026} />);
+
+        const switcher = screen.getByRole("tablist", { name: "Statement switcher" });
+        expect(within(switcher).getByRole("tab", { name: "Balance" })).toHaveAttribute("aria-selected", "true");
+        // On a phone only the selected card shows.
+        expect(screen.getByTestId("cockpit-card-balance-sheet")).not.toHaveClass("hidden");
+        expect(screen.getByTestId("cockpit-card-income-statement")).toHaveClass("hidden", "sm:block");
+
+        const rows = await screen.findAllByRole("button", { name: /View source transactions for/ });
+        // The largest lines first. A zero line has no row.
+        expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual([
+            "View source transactions for IBKR Portfolio",
+            "View source transactions for DBS Multiplier",
+            "View source transactions for Visa Infinite",
+        ]);
+        fireEvent.click(rows[0]);
+        await waitFor(() =>
+            expect(mockedApiOperation).toHaveBeenCalledWith("account_lineage_reports_account_lineage_get", {
+                query: { account_id: "acc-broker", as_of_date: "2026-03-31", currency: "SGD", start_date: undefined },
+            }),
+        );
         fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
-        expect(screen.queryByText(/Sources · Base Salary/)).toBeNull();
+
+        fireEvent.click(within(switcher).getByRole("tab", { name: "Income" }));
+        expect(screen.getByTestId("cockpit-card-income-statement")).not.toHaveClass("hidden");
+        expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveClass("hidden");
+        fireEvent.click(await screen.findByRole("button", { name: "View source transactions for Base Salary" }));
+        await waitFor(() =>
+            expect(mockedApiOperation).toHaveBeenCalledWith("account_lineage_reports_account_lineage_get", {
+                query: { account_id: "acc-salary", as_of_date: "2026-03-31", currency: "SGD", start_date: "2026-01-01" },
+            }),
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+
+        fireEvent.click(within(switcher).getByRole("tab", { name: "Cash" }));
+        // A cash-flow line without an account has no source drill-down. Two lines of one account
+        // (an inflow and an outflow) are two rows, named by their description.
+        expect(await screen.findByRole("button", { name: "View source transactions for Salary received" })).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "View source transactions for Outflow - DBS Multiplier" }));
+        await waitFor(() =>
+            expect(mockedApiOperation).toHaveBeenCalledWith("account_lineage_reports_account_lineage_get", {
+                query: { account_id: "acc-cash", as_of_date: "2026-03-31", currency: "SGD", start_date: "2026-01-01" },
+            }),
+        );
+        expect(screen.queryByRole("button", { name: "View source transactions for Broker transfer" })).toBeNull();
+    });
+
+    it("shows a retry when a statement fails and a loading line while a card waits", async () => {
+        let failIncome = true;
+        mockedApiOperation.mockImplementation(((operationId: string) => {
+            if (operationId === "income_statement_reports_income_statement_get") {
+                return failIncome ? Promise.reject(new Error("income down")) : Promise.resolve(incomeStatement);
+            }
+            if (operationId === "cash_flow_reports_cash_flow_get") return new Promise(() => undefined);
+            return Promise.resolve(balanceSheetAt("2026-03-31", "40000", "2000"));
+        }) as never);
+        render(<StatementCockpit filters={Q1_2026} />);
+
+        expect((await screen.findByText("Statements unavailable: income down")).closest("[role='alert']")).not.toBeNull();
+        expect(within(screen.getByTestId("cockpit-card-cash-flow")).getByRole("status")).toHaveTextContent("Loading…");
+        expect(within(screen.getByTestId("cockpit-card-income-statement")).getByText("No data for this period.")).toBeInTheDocument();
+
+        failIncome = false;
+        fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+        await waitFor(() => expect(screen.queryByText(/Statements unavailable/)).toBeNull());
+        expect(within(screen.getByTestId("cockpit-card-income-statement")).getByText("Savings rate").nextElementSibling).toHaveTextContent("50%");
     });
 });

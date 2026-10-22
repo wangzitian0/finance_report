@@ -487,12 +487,12 @@ describe("StatementsPage", () => {
     const viewReportSecondary = screen.getByRole("button", { name: "View Report" })
     expect(viewReportSecondary).toBeInTheDocument()
     fireEvent.click(viewReportSecondary)
-    expect(routerPushMock).toHaveBeenCalledWith("/reports/balance-sheet")
+    expect(routerPushMock).toHaveBeenCalledWith("/reports?tab=balance-sheet")
 
     const viewReportBtn = screen.getByRole("button", { name: "View Report →" })
     expect(viewReportBtn).toBeInTheDocument()
     fireEvent.click(viewReportBtn)
-    expect(routerPushMock).toHaveBeenCalledWith("/reports/balance-sheet")
+    expect(routerPushMock).toHaveBeenCalledWith("/reports?tab=balance-sheet")
 
     const viewTxnsBtn = screen.getByRole("button", { name: "View Transactions" })
     expect(viewTxnsBtn).toBeInTheDocument()
@@ -501,7 +501,7 @@ describe("StatementsPage", () => {
 
     expect(screen.getByRole("link", { name: "Open Reports →" })).toHaveAttribute(
       "href",
-      "/reports/balance-sheet",
+      "/reports?tab=balance-sheet",
     )
     expect(screen.getByTestId("upload-processing-summary")).toHaveTextContent(
       "0 parsing · 1 parsed · 1 approved",

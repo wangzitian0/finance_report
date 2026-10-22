@@ -2,15 +2,19 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import CashFlowPage from "@/app/(main)/reports/cash-flow/page"
+import ReportsPage from "@/app/(main)/reports/page"
 import { apiOperation, apiOperationDownload } from "@/lib/api-client"
+
+import { setTestUrl } from "./helpers/nextNavigation"
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }))
 
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => ({ get: () => null }),
+vi.mock("next/navigation", async () => (await import("./helpers/nextNavigation")).nextNavigationMock)
+
+vi.mock("@/hooks/useBaseCurrency", () => ({
+  useBaseCurrency: () => ({ baseCurrency: "SGD", loading: false }),
 }))
 
 vi.mock("@/components/charts/SankeyChart", () => ({
@@ -27,6 +31,8 @@ vi.mock("@/lib/api-client", () => ({
   apiOperationDownload: vi.fn(),
 }))
 
+const CashFlowPage = () => <ReportsPage />
+
 describe("CashFlowPage", () => {
   const mockedApiDownload = vi.mocked(apiOperationDownload)
   const mockedApiFetch = vi.mocked(apiOperation)
@@ -34,6 +40,7 @@ describe("CashFlowPage", () => {
   beforeEach(() => {
     mockedApiDownload.mockReset()
     mockedApiFetch.mockReset()
+    setTestUrl("/reports?tab=cash-flow")
     vi.stubGlobal("URL", Object.assign(URL, {
       createObjectURL: vi.fn(() => "blob:cash-flow-export"),
       revokeObjectURL: vi.fn(),
@@ -77,7 +84,7 @@ describe("CashFlowPage", () => {
 
     render(<CashFlowPage />)
 
-    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Cash Flow Statement" })).toBeInTheDocument())
     expect(screen.getByText("Net Cash Flow")).toBeInTheDocument()
     expect(screen.getByText("Operating Activities")).toBeInTheDocument()
     expect(screen.getByText("Investing Activities")).toBeInTheDocument()
@@ -90,7 +97,8 @@ describe("CashFlowPage", () => {
       "href",
       expect.stringContaining("/chat?prompt=")
     )
-    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/")
+    // A tab of /reports has no Home link: the app shell navigates.
+    expect(screen.queryByRole("link", { name: "Home" })).toBeNull()
     expect(screen.getByRole("button", { name: "Export CSV" })).toBeInTheDocument()
 
     const netCashFlowCard = screen.getByText("Net Cash Flow").closest("div")
@@ -414,12 +422,10 @@ describe("CashFlowPage", () => {
       filename: "cash-flow-2026-01-01-to-2026-01-31.csv",
     })
 
+    // January 2026 in SGD: one link reproduces the period and the currency.
+    setTestUrl("/reports?tab=cash-flow&period=1M&end=2026-01-31&currency=SGD")
     render(<CashFlowPage />)
 
-    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
-    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-01-01" } })
-    await waitFor(() => expect(screen.getByLabelText("End date")).toBeInTheDocument())
-    fireEvent.change(screen.getByLabelText("End date"), { target: { value: "2026-01-31" } })
     await waitFor(() => expect(screen.getByRole("button", { name: "Export CSV" })).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Export CSV" }))
 
@@ -456,49 +462,32 @@ describe("CashFlowPage", () => {
       },
     })
 
+    setTestUrl("/reports?tab=cash-flow&period=1M&end=2026-02-28")
     const { container } = render(<CashFlowPage />)
 
-    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Cash Flow Statement" })).toBeInTheDocument())
+    expect(container.querySelector('input[type="date"]')).toBeNull()
 
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "USD" } })
+    fireEvent.change(screen.getByRole("combobox", { name: "Reporting currency" }), { target: { value: "USD" } })
 
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenLastCalledWith(
         "cash_flow_reports_cash_flow_get",
         expect.objectContaining({
-          query: expect.objectContaining({ currency: "USD" }),
+          query: expect.objectContaining({ currency: "USD", start_date: "2026-02-01", end_date: "2026-02-28" }),
         }),
       ),
     )
-    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
 
-    const dateInputs = container.querySelectorAll('input[type="date"]')
-    expect(dateInputs).toHaveLength(2)
-    fireEvent.change(dateInputs[0], { target: { value: "2026-01-15" } })
+    fireEvent.click(screen.getByRole("button", { name: "Previous period" }))
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenLastCalledWith(
         "cash_flow_reports_cash_flow_get",
         expect.objectContaining({
-          query: expect.objectContaining({ start_date: "2026-01-15" }),
+          query: expect.objectContaining({ currency: "USD", start_date: "2026-01-01", end_date: "2026-01-31" }),
         }),
       ),
     )
-    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
-    fireEvent.change(container.querySelectorAll('input[type="date"]')[1], { target: { value: "2026-02-15" } })
-    await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenLastCalledWith(
-        "cash_flow_reports_cash_flow_get",
-        expect.objectContaining({
-          query: expect.objectContaining({ end_date: "2026-02-15" }),
-        }),
-      ),
-    )
-    const lastCall = mockedApiFetch.mock.calls.at(-1)
-    expect(lastCall?.[0]).toBe("cash_flow_reports_cash_flow_get")
-    expect((lastCall?.[1] as any)?.query).toMatchObject({
-      start_date: "2026-01-15",
-      end_date: "2026-02-15",
-    })
     expect(screen.getAllByText("No items in this category.")).toHaveLength(3)
 
     fireEvent.click(screen.getByRole("button", { name: "Period 1Q" }))

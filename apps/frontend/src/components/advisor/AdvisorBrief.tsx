@@ -16,10 +16,10 @@ import type { AdvisorSuggestion } from "@/lib/types";
 const SAFE_ROUTE_FALLBACK = "/";
 
 const ROUTE_MAP: Array<[RegExp, string]> = [
-  [/^\/reports\/balance-sheet(?:[/?#].*)?$/, "/reports/balance-sheet"],
-  [/^\/reports\/income-statement(?:[/?#].*)?$/, "/reports/income-statement"],
-  [/^\/reports\/cash-flow(?:[/?#].*)?$/, "/reports/cash-flow"],
-  [/^\/reports\/package(?:[/?#].*)?$/, "/reports/package"],
+  [/^\/reports\/balance-sheet(?:[/?#].*)?$/, "/reports?tab=balance-sheet"],
+  [/^\/reports\/income-statement(?:[/?#].*)?$/, "/reports?tab=income-statement"],
+  [/^\/reports\/cash-flow(?:[/?#].*)?$/, "/reports?tab=cash-flow"],
+  [/^\/reports\/package(?:[/?#].*)?$/, "/reports?tab=package"],
   [/^\/review(?:[/?#].*)?$/, "/upload"],
   [/^\/reconciliation\/review-queue(?:[/?#].*)?$/, "/reconciliation/review-queue"],
   [/^\/portfolio\/prices(?:\/update)?(?:[/?#].*)?$/, "/portfolio/prices"],

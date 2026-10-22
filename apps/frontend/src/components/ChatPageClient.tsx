@@ -47,7 +47,7 @@ export default function ChatPageClient() {
         </div>
         <div className="flex gap-2">
           <Link href="/" className="btn-secondary text-sm">Home</Link>
-          <Link href="/reports/balance-sheet" className="btn-secondary text-sm">Reports</Link>
+          <Link href="/reports?tab=balance-sheet" className="btn-secondary text-sm">Reports</Link>
         </div>
       </div>
 

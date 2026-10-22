@@ -346,7 +346,7 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
 
         # 8. Verify reports and statements in the real browser UI.
         await page.goto(
-            f"{APP_URL.rstrip('/')}/reports/balance-sheet?as_of_date={YEAR_END}&currency={CURRENCY}",
+            f"{APP_URL.rstrip('/')}/reports?tab=balance-sheet&end={YEAR_END}&currency={CURRENCY}",
             wait_until="domcontentloaded",
         )
         await expect(page.locator("#assets")).to_contain_text(
@@ -357,7 +357,7 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
         )
 
         await page.goto(
-            f"{APP_URL.rstrip('/')}/reports/income-statement?start_date={YEAR_START}&end_date={YEAR_END}&currency={CURRENCY}",
+            f"{APP_URL.rstrip('/')}/reports?tab=income-statement&start={YEAR_START}&end={YEAR_END}&currency={CURRENCY}",
             wait_until="domcontentloaded",
         )
         await expect(
@@ -371,7 +371,7 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
         ).to_contain_text(f"{EXPECTED_NET_INCOME:,.2f}", timeout=30000)
 
         await page.goto(
-            f"{APP_URL.rstrip('/')}/reports/cash-flow?start_date={YEAR_START}&end_date={YEAR_END}&currency={CURRENCY}",
+            f"{APP_URL.rstrip('/')}/reports?tab=cash-flow&start={YEAR_START}&end={YEAR_END}&currency={CURRENCY}",
             wait_until="domcontentloaded",
         )
         await expect(_summary_card(page, "Net Cash Flow")).to_contain_text(

@@ -36,10 +36,6 @@ vi.mock("@/components/charts/PieChart", () => ({
   PieChart: () => <div>PieChartMock</div>,
 }))
 
-vi.mock("@/components/charts/TrendChart", () => ({
-  TrendChart: () => <div>TrendChartMock</div>,
-}))
-
 vi.mock("@/components/charts/NetWorthTimeSeriesChart", () => ({
   NetWorthTimeSeriesChart: () => <div>NetWorthTimeSeriesMock</div>,
 }))

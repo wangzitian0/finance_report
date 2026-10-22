@@ -219,7 +219,7 @@ def test_AC_meta_governance_ratchet_5_operation_consumer_truth() -> None:
     findings = _check_operation_consumer_truth(synthetic_low_ops, REPO_ROOT)
     assert len(findings) == 2
     assert any("expected >= 80 consumed operations" in f for f in findings)
-    assert any("expected >= 130 frontend consumer call sites" in f for f in findings)
+    assert any("expected >= 100 frontend consumer call sites" in f for f in findings)
 
 
 @ac_proof(

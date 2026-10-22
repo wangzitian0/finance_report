@@ -57,6 +57,10 @@ def _check_frontend_export_denominator(
     return []
 
 
+#: Lower bound of the frontend consumer call sites that the census must find.
+MIN_CONSUMER_CALL_SITES = 100
+
+
 def _check_operation_consumer_truth(
     result: dict[str, Any], repo_root: Path
 ) -> list[str]:
@@ -66,11 +70,12 @@ def _check_operation_consumer_truth(
     consumed = operations.get("consumed_operations", 0)
     if consumed < 80:
         findings.append(f"expected >= 80 consumed operations, got {consumed}")
-    # Verify api.ts wrapper calls are discovered
+    # Verify api.ts wrapper calls are discovered. The floor is a scanner sanity bound, not a
+    # size target: #2621 merges pages and deletes duplicate consumers, so the count shrinks.
     call_sites = operations.get("total_consumer_call_sites", 0)
-    if call_sites < 130:
+    if call_sites < MIN_CONSUMER_CALL_SITES:
         findings.append(
-            f"expected >= 130 frontend consumer call sites, got {call_sites}"
+            f"expected >= {MIN_CONSUMER_CALL_SITES} frontend consumer call sites, got {call_sites}"
         )
     return findings
 

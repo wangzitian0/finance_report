@@ -101,7 +101,7 @@ test.describe("AC22.7.4 cash-flow drill-down smoke", () => {
       await page.setViewportSize(scenario.viewport);
       await installCashFlowMocks(page);
 
-      await page.goto("/reports/cash-flow", { waitUntil: "networkidle" });
+      await page.goto("/reports?tab=cash-flow", { waitUntil: "networkidle" });
 
       await page.getByRole("button", { name: /View source transactions for Salary/i }).click();
       const drawer = page.getByRole("dialog", { name: "Sources · Salary" });

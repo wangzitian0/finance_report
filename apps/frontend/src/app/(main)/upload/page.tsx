@@ -133,7 +133,7 @@ export default function UploadPage() {
           </div>
           <div className="flex items-center gap-3">
             {statements.some((s) => s.status === "approved" || s.status === "parsed") && (
-              <Link href="/reports/balance-sheet" className="text-xs font-medium text-[var(--accent)] hover:underline">Open Reports →</Link>
+              <Link href="/reports?tab=balance-sheet" className="text-xs font-medium text-[var(--accent)] hover:underline">Open Reports →</Link>
             )}
             <span className="text-xs text-muted">{statements.length} total</span>
           </div>
@@ -186,7 +186,7 @@ export default function UploadPage() {
                         <Button variant="primary" className="text-sm" onClick={() => router.push(`/statements/${statement.id}`)}>
                           Review & Approve →
                         </Button>
-                        <Button variant="secondary" className="text-xs hidden sm:inline-flex" onClick={() => router.push("/reports/balance-sheet")}>
+                        <Button variant="secondary" className="text-xs hidden sm:inline-flex" onClick={() => router.push("/reports?tab=balance-sheet")}>
                           View Report
                         </Button>
                       </div>
@@ -196,7 +196,7 @@ export default function UploadPage() {
                         <Button variant="secondary" className="text-sm" onClick={() => router.push(`/statements/${statement.id}`)}>
                           View Transactions
                         </Button>
-                        <Button variant="secondary" className="text-sm" onClick={() => router.push("/reports/balance-sheet")}>
+                        <Button variant="secondary" className="text-sm" onClick={() => router.push("/reports?tab=balance-sheet")}>
                           View Report →
                         </Button>
                       </div>

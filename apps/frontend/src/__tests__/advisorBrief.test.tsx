@@ -69,8 +69,9 @@ describe("AdvisorBrief", () => {
 
     const cards = screen.getAllByTestId(/advisor-brief-card-/);
     const cardLinks = cards.map((card) => within(card).getByRole("link", { name: "Open next action" }));
+    // The backend still names the old report routes; the brief links to their /reports tabs.
     expect(cardLinks.map((link) => link.getAttribute("href"))).toEqual([
-      "/reports/package",
+      "/reports?tab=package",
       "/reports",
       "/upload",
       "/portfolio/prices",

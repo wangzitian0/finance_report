@@ -718,8 +718,10 @@ source, independently checks cutoff amounts, and requires concrete source decisi
 anchors (`AC-reporting.report-integrity.8`). Full-month JSON/CSV snapshot assertions
 remain separate from this live midperiod projection.
 
-### Unified period-first three-statement cockpit and chart scales (#2548)
+### Unified period-first three-statement cockpit and chart scales (#2548, #2621)
 
-- **Period-first three-statement cockpit (`AC-reporting.2548.1`)**: `ThreeStatementNav` on Home (`/`) provides a global period preset selector (`1M`, `1Q`, `1Y`, `YTD`, `3Y`, `All`) that computes `[startDate, endDate]`, updates `useDashboardSnapshot` / `useDashboardData`, and displays period summary figures across the Balance Sheet, Income Statement, and Cash Flow entry cards.
-- **Segmented breakdown and lineage drill-down (`AC-reporting.2548.2`)**: A segmented tab switcher (`Balance Breakdown`, `Income Breakdown`, `Cash Breakdown`) surfaces the active statement's top account lines and opens `AccountLineageDrawer` when a user clicks an account amount.
-- **Chart axis scales and share labels (`AC-reporting.2548.3`)**: `BarChart`, `PieChart`, and `TrendChart` render compact axis scale bounds, net period deltas, and segment percentage shares while preserving accessible SVG/DOM roles.
+- **One dimension bar (`AC-reporting.fe-period-cockpit.1`, `.2`)**: `ReportDimensionBar` sets the period preset (`1M`, `1Q`, `1Y`, `YTD`, `3Y`, `All`) or a custom start and end, steps to the previous or next period, and sets the currency. Home and every `/reports` tab show it. The URL is the only store of these dimensions (`useReportFilters`: `period`, `start`, `end`, `currency`, `include_restricted`, `tab`), so a link reproduces the view.
+- **`/reports` tabs (`AC-reporting.fe-period-cockpit.3`)**: Overview, Balance sheet, Income statement, Cash flow and Full package are tabs of one page. The old routes `/reports/balance-sheet`, `/reports/income-statement`, `/reports/cash-flow` and `/reports/package` redirect to `/reports?tab=<name>` and keep their query (`AC-meta.fe-reports-tabs.1`).
+- **Three-statement cockpit (`AC-reporting.fe-period-cockpit.4`, `.5`)**: `StatementCockpit` on Home and on the Overview shows net worth and its change in the period (the balance sheet at the period end minus the balance sheet on the day before the period starts), income, expenses, net income and savings rate, and operating, investing, financing and net cash change. A segmented control selects one statement; a row of its largest lines opens `AccountLineageDrawer`.
+- **One action banner (`AC-reporting.fe-period-cockpit.6`)**: Home shows workflow items only as `HomeActionBanner`, and only when an item needs the user.
+- **Chart axis scales and share labels (`AC-reporting.2548.3`)**: `BarChart` and `PieChart` render compact axis scale bounds, net period deltas, and segment percentage shares while preserving accessible SVG/DOM roles.

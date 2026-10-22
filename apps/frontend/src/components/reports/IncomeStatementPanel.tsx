@@ -6,13 +6,11 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { BarChart } from "@/components/charts/BarChart";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import { ExportCsvButton, FxWarningBanner, ReportPageShell, ReportToolbar } from "@/components/reports/ReportPageShell";
-import { CurrencyFilterControl, DateFilterControl, PeriodPresetFilterControl } from "@/components/reports/ReportFilters";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
-import { formatDateInput, formatMonthLabel } from "@/lib/date";
+import { formatMonthLabel } from "@/lib/date";
 import { amountToChartNumber, formatCurrencyLocale } from "@/lib/audit/money";
-import { useCurrencies } from "@/hooks/useCurrencies";
 import { useApiQuery } from "@/hooks/useApiQuery";
-import { useReportFilters } from "@/hooks/useReportFilters";
+import type { ReportFilters } from "@/hooks/useReportFilters";
 import { incomeStatementQueryKey } from "@/lib/sharedQueries";
 import { normalizeFxWarningRows, type ReportLine } from "@/lib/types";
 
@@ -32,22 +30,12 @@ const TAG_OPTIONS = [
   { value: "food", label: "Food & Dining" },
 ];
 
-const defaultStartDate = () => {
-  const d = new Date();
-  d.setMonth(d.getMonth() - 11);
-  d.setDate(1);
-  return formatDateInput(d);
-};
-
-export default function IncomeStatementPage() {
-  const { startDate, setStartDate, endDate, setEndDate, currency, setCurrency } = useReportFilters({
-    reportType: "income-statement",
-    initialStartDate: defaultStartDate(),
-  });
+/** The Income statement tab of `/reports`: income and expenses of the dimension-bar period. */
+export function IncomeStatementPanel({ filters }: { filters: ReportFilters }) {
+  const { startDate, endDate, currency } = filters;
   const [accountTypeFilter, setAccountTypeFilter] = useState<(typeof ACCOUNT_TYPE_OPTIONS)[number]["value"]>("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(null);
-  const { currencies } = useCurrencies();
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
@@ -82,7 +70,7 @@ export default function IncomeStatementPage() {
   const barItems = useMemo(
     () =>
       report
-        ? report.trends.slice(-6).map((t) => ({
+        ? report.trends.slice(-12).map((t) => ({
             label: formatMonthLabel(t.period_start),
             income: amountToChartNumber(t.total_income),
             expense: amountToChartNumber(t.total_expenses),
@@ -90,10 +78,7 @@ export default function IncomeStatementPage() {
         : [],
     [report],
   );
-  const aiPrompt = useMemo(
-    () => `Summarize my income statement from ${startDate} to ${endDate} in ${currency}. Highlight key trends.`,
-    [currency, endDate, startDate],
-  );
+  const aiPrompt = `Summarize my income statement from ${startDate} to ${endDate} in ${report?.currency ?? currency ?? "my base currency"}. Highlight key trends.`;
 
   const renderLineRow = (l: ReportLine) => (
     <div key={l.account_id} className="flex justify-between p-2 rounded-md bg-[var(--background-muted)] text-sm">
@@ -139,10 +124,6 @@ export default function IncomeStatementPage() {
       }
     >
       <div className="flex flex-wrap gap-3 mb-6 text-sm">
-        <PeriodPresetFilterControl onSelectRange={(range) => { setStartDate(range.startDate); setEndDate(range.endDate); }} />
-        <DateFilterControl label="Start date" value={startDate} onChange={setStartDate} />
-        <DateFilterControl label="End date" value={endDate} onChange={setEndDate} />
-        <CurrencyFilterControl value={currency} currencies={currencies} onChange={setCurrency} />
         <label className="flex flex-col gap-1">
           <span className="text-xs text-muted uppercase">Account type</span>
           <select

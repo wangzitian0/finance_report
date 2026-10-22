@@ -493,7 +493,7 @@ def test_AC8_13_1_to_5_full_statement_journey_contract() -> None:
         'get_by_role("button", name="Approve", exact=True)',
         "approved",
         "# === AC8.13.5: Balance sheet report loads ===",
-        "/reports/balance-sheet",
+        "/reports?tab=balance-sheet",
     )
 
 
@@ -4646,6 +4646,7 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
         "/assets/valuation-snapshots",
         "/assets/valuation-components",
         "/reports/balance-sheet",
+        "/reports?tab=balance-sheet",
         "include_restricted=true",
         "/dashboard",
         'BANK_CASH = Decimal("2500.00")',

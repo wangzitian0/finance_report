@@ -1,15 +1,13 @@
 "use client";
 
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
-import { formatCurrencyLocale } from "@/lib/audit/money";
-import { useCurrencies } from "@/hooks/useCurrencies";
+import { formatCurrencyLocale, sumAmounts, toDecimal } from "@/lib/audit/money";
 import { useApiQuery } from "@/hooks/useApiQuery";
-import { useReportFilters } from "@/hooks/useReportFilters";
+import type { ReportFilters } from "@/hooks/useReportFilters";
 import { balanceSheetQueryKey } from "@/lib/sharedQueries";
+import { NetWorthTimeSeriesChart } from "@/components/charts/NetWorthTimeSeriesChart";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import {
   ExportCsvButton,
@@ -18,7 +16,6 @@ import {
   ReportPageShell,
   ReportToolbar,
 } from "@/components/reports/ReportPageShell";
-import { CurrencyFilterControl, DateFilterControl, PeriodPresetFilterControl } from "@/components/reports/ReportFilters";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 import { InfoHint } from "@/components/ui/InfoHint";
 import { liabilityToneClass } from "@/lib/statusLabels";
@@ -44,18 +41,14 @@ const buildTree = (lines: ReportLine[]): AccountNode[] => {
   return roots;
 };
 
-export default function BalanceSheetPage() {
-  const { asOfDate, setAsOfDate, currency, setCurrency } = useReportFilters({ reportType: "balance-sheet" });
-  const searchParams = useSearchParams();
-  const includeRestrictedParam = searchParams.get("include_restricted");
-  const [includeRestricted, setIncludeRestricted] = useState(includeRestrictedParam === "true");
+/** The Balance sheet tab of `/reports`: the position at the end of the dimension-bar period. */
+export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
+  const { startDate, endDate: asOfDate, currency, includeRestricted } = filters;
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(null);
-  const { currencies } = useCurrencies();
 
-  const reportKey = balanceSheetQueryKey({ asOfDate, currency, includeRestricted });
   const reportQuery = useApiQuery(
-    reportKey,
+    balanceSheetQueryKey({ asOfDate, currency, includeRestricted }),
     "balance_sheet_reports_balance_sheet_get",
     { query: { as_of_date: asOfDate, currency, include_restricted: includeRestricted } },
     {
@@ -78,14 +71,13 @@ export default function BalanceSheetPage() {
     setExpanded(rootIds);
   }, [report]);
 
-  useEffect(() => {
-    setIncludeRestricted(includeRestrictedParam === "true");
-  }, [includeRestrictedParam]);
-
   const assetsTree = useMemo(() => (report ? buildTree(report.assets) : []), [report]);
   const liabilitiesTree = useMemo(() => (report ? buildTree(report.liabilities) : []), [report]);
   const equityTree = useMemo(() => (report ? buildTree(report.equity) : []), [report]);
-  const aiPrompt = useMemo(() => `Explain my balance sheet as of ${asOfDate} in ${currency}. Highlight any risks.`, [asOfDate, currency]);
+  const adjustments = report
+    ? sumAmounts([report.unrealized_fx_gain_loss ?? 0, report.cta_adjustment ?? 0, report.net_worth_adjustment_gain_loss ?? 0])
+    : null;
+  const aiPrompt = `Explain my balance sheet as of ${asOfDate} in ${report?.currency ?? currency ?? "my base currency"}. Highlight any risks.`;
 
   const toggle = (id: string) =>
     setExpanded((prev) => {
@@ -163,25 +155,16 @@ export default function BalanceSheetPage() {
               request={{ query: { report_type: "balance-sheet", format: "csv", as_of_date: asOfDate, currency, include_restricted: includeRestricted } }}
             />
           }
-        />
+        >
+          <span className="inline-flex items-center">
+            <span className={`badge ${report?.is_balanced ? "badge-success" : "badge-warning"}`}>
+              {report?.is_balanced ? "✓ Balanced" : "⚠ Drift"}
+            </span>
+            <InfoHint term={report?.is_balanced ? "balanced" : "drift"} label={report?.is_balanced ? "Balanced" : "Drift"} />
+          </span>
+        </ReportToolbar>
       }
     >
-      <div className="flex flex-wrap gap-3 mb-6 text-sm">
-        <PeriodPresetFilterControl onSelectRange={(range) => setAsOfDate(range.endDate)} />
-        <DateFilterControl label="As of date" value={asOfDate} onChange={setAsOfDate} />
-        <CurrencyFilterControl value={currency} currencies={currencies} onChange={setCurrency} />
-        <label className="self-end flex items-center gap-2 rounded-md border border-[var(--border)] px-3 py-2">
-          <input type="checkbox" checked={includeRestricted} onChange={(e) => setIncludeRestricted(e.target.checked)} />
-          <span>Include restricted holdings</span>
-        </label>
-        <span className="self-end inline-flex items-center">
-          <span className={`badge ${report?.is_balanced ? "badge-success" : "badge-warning"}`}>
-            {report?.is_balanced ? "✓ Balanced" : "⚠ Drift"}
-          </span>
-          <InfoHint term={report?.is_balanced ? "balanced" : "drift"} label={report?.is_balanced ? "Balanced" : "Drift"} />
-        </span>
-      </div>
-
       <FxWarningBanner warnings={report?.fx_warnings} />
       <OpeningBalanceWarningBanner warnings={report?.opening_balance_warnings} />
 
@@ -195,16 +178,6 @@ export default function BalanceSheetPage() {
           </div>
         </div>
       )}
-
-      <div className="flex flex-col gap-2 mb-6">
-        <span className="text-xs text-muted uppercase">Quick filters</span>
-        <div className="flex flex-wrap gap-2">
-          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--accent)] text-white">All</Link>
-          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#assets`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--success-muted)] hover:text-[var(--success)]">Assets</Link>
-          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#liabilities`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--error-muted)] hover:text-[var(--error)]">Liabilities</Link>
-          <Link href={`/reports/balance-sheet?as_of_date=${asOfDate}&currency=${currency}#equity`} className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--background-muted)] text-muted hover:bg-[var(--accent-muted)] hover:text-[var(--accent)]">Equity</Link>
-        </div>
-      </div>
 
       <details className="card mb-6 group" data-testid="balance-equation-detail">
         <summary className="p-4 font-semibold cursor-pointer list-none flex items-center justify-between hover:bg-[var(--background-muted)] rounded-lg transition-colors select-none">
@@ -248,7 +221,7 @@ export default function BalanceSheetPage() {
         </div>
       </details>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3 mb-6">
         <div className="card p-5" id="assets">
           <h2 className="font-semibold mb-3">Assets</h2>
           <div role="tree" aria-label="Balance Sheet - Assets" className="space-y-1">
@@ -279,44 +252,29 @@ export default function BalanceSheetPage() {
             </div>
             <div className="flex justify-between text-muted">
               <span>Net Income (P&L):</span>
-              <span className={report && Number(report.net_income ?? 0) >= 0 ? "text-[var(--success)] font-medium" : "text-[var(--error)] font-medium"}>
+              <span className={report && toDecimal(report.net_income ?? 0).isNegative() ? "text-[var(--error)] font-medium" : "text-[var(--success)] font-medium"}>
                 {report ? formatCurrencyLocale(report.net_income ?? 0, report.currency) : "—"}
               </span>
             </div>
-            {report &&
-              (Number(report.unrealized_fx_gain_loss ?? 0) !== 0 ||
-                Number(report.cta_adjustment ?? 0) !== 0 ||
-                Number(report.net_worth_adjustment_gain_loss ?? 0) !== 0) && (
-                <div className="flex justify-between text-muted">
-                  <span>Adjustments (FX/CTA):</span>
-                  <span>
-                    {formatCurrencyLocale(
-                      Number(report.unrealized_fx_gain_loss ?? 0) +
-                        Number(report.cta_adjustment ?? 0) +
-                        Number(report.net_worth_adjustment_gain_loss ?? 0),
-                      report.currency,
-                    )}
-                  </span>
-                </div>
-              )}
+            {report && adjustments && !adjustments.isZero() && (
+              <div className="flex justify-between text-muted">
+                <span>Adjustments (FX/CTA):</span>
+                <span>{formatCurrencyLocale(adjustments, report.currency)}</span>
+              </div>
+            )}
             <div className="pt-2 border-t border-[var(--border)] font-semibold flex justify-between">
               <span>Total:</span>
               <span>
-                {report
-                  ? formatCurrencyLocale(
-                      Number(report.total_equity) +
-                        Number(report.net_income ?? 0) +
-                        Number(report.unrealized_fx_gain_loss ?? 0) +
-                        Number(report.cta_adjustment ?? 0) +
-                        Number(report.net_worth_adjustment_gain_loss ?? 0),
-                      report.currency,
-                    )
+                {report && adjustments
+                  ? formatCurrencyLocale(sumAmounts([report.total_equity, report.net_income ?? 0, adjustments]), report.currency)
                   : "—"}
               </span>
             </div>
           </div>
         </div>
       </div>
+
+      <NetWorthTimeSeriesChart from={startDate} to={asOfDate} currency={currency} />
 
       <AccountLineageDrawer target={drillTarget} onClose={() => setDrillTarget(null)} />
     </ReportPageShell>

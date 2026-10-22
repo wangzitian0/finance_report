@@ -162,7 +162,7 @@ describe("ChatPanel", () => {
     const brief = await screen.findByLabelText("Advisor Brief")
     expect(within(brief).getByText("Report package is blocked by one review-required item.")).toBeInTheDocument()
     expect(within(brief).getByText("Review the blocker before relying on this report.")).toBeInTheDocument()
-    expect(within(brief).getByRole("link", { name: "Open next action" })).toHaveAttribute("href", "/reports/package")
+    expect(within(brief).getByRole("link", { name: "Open next action" })).toHaveAttribute("href", "/reports?tab=package")
     expect(within(brief).getByRole("link", { name: "Ask about this" })).toHaveAttribute(
       "href",
       expect.stringContaining("/chat?prompt="),
@@ -207,7 +207,7 @@ describe("ChatPanel", () => {
     expect(await screen.findByText("Your net worth is SGD 900.00")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Balance Sheet TRUSTED" })).toHaveAttribute(
       "href",
-      "/reports/balance-sheet",
+      "/reports?tab=balance-sheet",
     )
     expect(screen.getByRole("link", { name: "Review 2" })).toHaveAttribute(
       "href",

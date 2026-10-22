@@ -1,15 +1,26 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PersonalReportPackageSections } from "@/lib/types";
-import PersonalReportPackagePage from "@/app/(main)/reports/package/page";
 import ReportsPage from "@/app/(main)/reports/page";
 import { PackageSectionCards, renderCsv, renderSourceClasses } from "@/components/reports/package/shared";
 import { personalReportPackageQuery } from "@/hooks/usePersonalReportPackage";
-import { formatDateInput } from "@/lib/date";
+import { readReportFilters } from "@/hooks/useReportFilters";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
+
+import { setTestUrl } from "./helpers/nextNavigation";
+
+vi.mock("next/navigation", async () => (await import("./helpers/nextNavigation")).nextNavigationMock);
+
+vi.mock("@/hooks/useCurrencies", () => ({
+  useCurrencies: () => ({ currencies: ["SGD", "USD"], loading: false }),
+}));
+
+vi.mock("@/hooks/useBaseCurrency", () => ({
+  useBaseCurrency: () => ({ baseCurrency: "SGD", loading: false }),
+}));
 
 const mockedApiDownload = vi.fn();
 const mockedApiFetch = vi.fn();
@@ -77,6 +88,8 @@ const uploadedDocumentId = "44444444-4444-4444-8444-444444444444";
 const atomicTransactionId = "55555555-5555-4555-8555-555555555555";
 const reportLineNodeId = "66666666-6666-4666-8666-666666666666";
 
+// The Full package tab of /reports. The URL holds the period of the package.
+const PersonalReportPackagePage = () => <ReportsPage />;
 const renderPackagePage = () => render(<PersonalReportPackagePage />);
 
 const contract = {
@@ -484,6 +497,10 @@ function expectInsideClosedAuditDetails(text: string | RegExp) {
 }
 
 describe("PersonalReportPackagePage", () => {
+  beforeEach(() => {
+    setTestUrl("/reports?tab=package");
+  });
+
   afterEach(() => {
     mockedApiDownload.mockReset();
     mockedApiFetch.mockReset();
@@ -492,10 +509,10 @@ describe("PersonalReportPackagePage", () => {
 
   it("AC-reporting.package-document.12 previews and generates the selected month through the page", async () => {
     mockPackageApi();
+    // March 2025 in SGD, set by the dimension bar (1M, end 2025-03-31).
+    setTestUrl("/reports?tab=package&period=1M&end=2025-03-31&currency=SGD");
     renderPackagePage();
-    fireEvent.change(await screen.findByLabelText("Package report date"), { target: { value: "2025-03-31" } });
-    fireEvent.change(screen.getByLabelText("Package period start"), { target: { value: "2025-03-01" } });
-    fireEvent.click(screen.getByRole("button", { name: "US-like" }));
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByRole("button", { name: /Generate Snapshot/i });
     const preview = mockedApiFetch.mock.calls.map(([path]) => String(path)).find((p) => p.includes("framework_id=personal_us_gaap_like") && p.includes("start_date=2025-03-01"));
     expect(preview).toBeDefined();
@@ -512,22 +529,18 @@ describe("PersonalReportPackagePage", () => {
     );
   });
 
-  it.each([
-    ["Package period start", ""],
-    ["Package period start", "2027-01-01"],
-    ["Package report date", ""],
-  ])("AC-reporting.package-document.12 blocks invalid %s %s locally", async (label, value) => {
+  it("AC-reporting.package-document.12 replaces an invalid period in the URL with the current period and never requests it", async () => {
     mockPackageApi();
+    setTestUrl("/reports?tab=package&period=1M&end=2025-02-30");
     renderPackagePage();
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByRole("button", { name: /Generate Snapshot/i });
-    fireEvent.change(screen.getByLabelText("Package report date"), { target: { value: "2025-03-31" } });
-    await screen.findByRole("button", { name: /Generate Snapshot/i });
-    mockedApiFetch.mockClear();
-    fireEvent.change(screen.getByLabelText(label), { target: { value } });
-    expect(screen.getByRole("alert")).toHaveTextContent(value ? /start.*on or before/i : /enter.*start.*end/i);
-    expect(screen.queryByRole("button", { name: /Generate Snapshot/i })).not.toBeInTheDocument();
-    expect(mockedApiFetch).not.toHaveBeenCalled();
+    const current = readReportFilters(new URLSearchParams("period=1M"));
+    const previews = mockedApiFetch.mock.calls.map(([path]) => String(path)).filter((p) => p.startsWith("/api/reports/package?"));
+    expect(previews.length).toBeGreaterThan(0);
+    previews.forEach((p) => expectPackageDates(p, current.endDate, current.startDate));
+    expect(previews.some((p) => p.includes("2025-02-30"))).toBe(false);
+    expect(screen.queryByLabelText("Package report date")).toBeNull();
   });
 
   it("AC-reporting.package-document.12 refreshes preview when only the start changes and reopens the saved monthly period", async () => {
@@ -539,24 +552,29 @@ describe("PersonalReportPackagePage", () => {
       document: { ...packageSnapshot.document, context: { ...packageSnapshot.document.context, start_date: "2025-03-01", end_date: "2025-03-31", as_of_date: "2025-04-01" } },
     };
     mockPackageApi(readiness, frameworkPolicy, traceabilityAppendix, lineageResponse, [monthly], monthly);
+    setTestUrl("/reports?tab=package&start=2025-03-01&end=2025-03-31");
     renderPackagePage();
-    fireEvent.change(await screen.findByLabelText("Package report date"), { target: { value: "2025-03-31" } });
-    fireEvent.click(screen.getByRole("button", { name: "US-like" }));
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByRole("button", { name: /Generate Snapshot/i });
     mockedApiFetch.mockClear();
-    fireEvent.change(screen.getByLabelText("Package period start"), { target: { value: "2025-03-02" } });
+    // The custom period of the dimension bar: only the start changes.
+    fireEvent.change(screen.getByLabelText("Period start"), { target: { value: "2025-03-02" } });
+    await waitFor(() => expect(mockedApiFetch.mock.calls.some(([path]) => String(path).includes("start_date=2025-03-02"))).toBe(true));
     await screen.findByRole("button", { name: /Generate Snapshot/i });
-    expectPackageDates(String(mockedApiFetch.mock.calls[0][0]), "2025-03-31", "2025-03-02");
+    expectPackageDates(String(mockedApiFetch.mock.calls.find(([path]) => String(path).startsWith("/api/reports/package?"))![0]), "2025-03-31", "2025-03-02");
     mockedApiFetch.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Reopen" }));
     await screen.findByText("Frozen snapshot snap-001");
-    expect(screen.getByLabelText("Package period start")).toHaveValue("2025-03-01");
-    expect(screen.getByLabelText("Package report date")).toHaveValue("2025-03-31");
     const cover = within(screen.getByRole("region", { name: "Report package cover" }));
     expect(cover.getByText("2025-03-01 to 2025-03-31")).toBeInTheDocument();
     expect(cover.getByText("2025-04-01")).toBeInTheDocument();
     expect(cover.getByText("Balances as of").nextElementSibling).toHaveTextContent("2025-04-01");
     expect(mockedApiFetch.mock.calls.some(([path]) => String(path).includes("/package?"))).toBe(false);
+
+    // A new period in the dimension bar closes the snapshot and previews the new period.
+    act(() => setTestUrl("/reports?tab=package&start=2025-04-01&end=2025-04-30"));
+    await waitFor(() => expect(screen.queryByText("Frozen snapshot snap-001")).toBeNull());
+    await waitFor(() => expect(mockedApiFetch.mock.calls.some(([path]) => String(path).includes("start_date=2025-04-01"))).toBe(true));
   });
 
   it("AC8.13.92 surfaces package API failures as a visible loading error", async () => {
@@ -668,36 +686,30 @@ describe("PersonalReportPackagePage", () => {
     renderPackagePage();
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByRole("heading", { name: "Reporting Basis" });
-    fireEvent.change(screen.getByLabelText("Package report date"), { target: { value: "2026-04-30" } });
+    act(() => setTestUrl("/reports?tab=package&end=2026-04-30"));
     await waitFor(() => expect(mockedApiFetch.mock.calls.some(([path]) => String(path).includes("end_date=2026-04-30"))).toBe(true));
     const selectedDateCalls = mockedApiFetch.mock.calls.map(([path]) => String(path)).filter((p) => p.includes("end_date=2026-04-30"));
     expect(selectedDateCalls).toHaveLength(1);
     expect(selectedDateCalls[0]).toContain("/api/reports/package?framework_id=personal_us_gaap_like");
-    selectedDateCalls.forEach((p) => expectPackageDates(p, "2026-04-30", "2025-04-30"));
+    selectedDateCalls.forEach((p) => expectPackageDates(p, "2026-04-30", "2025-05-01"));
   });
 
-  it("AC20.6.1 uses calendar-year report period starts across leap years", async () => {
+  it("AC20.6.1 uses the dimension-bar period across leap years", async () => {
     mockPackageApi();
+    setTestUrl("/reports?tab=package&period=1M&end=2024-02-29");
     renderPackagePage();
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByRole("heading", { name: "Reporting Basis" });
-    fireEvent.change(screen.getByLabelText("Package report date"), { target: { value: "2024-03-01" } });
-    await waitFor(() => expect(mockedApiFetch.mock.calls.some(([path]) => String(path).includes("end_date=2024-03-01"))).toBe(true));
-    mockedApiFetch.mock.calls.map(([path]) => String(path)).filter((p) => p.includes("end_date=2024-03-01")).forEach((p) => expectPackageDates(p, "2024-03-01", "2023-03-01"));
-    fireEvent.change(screen.getByLabelText("Package report date"), { target: { value: "2024-02-29" } });
-    await waitFor(() => expect(mockedApiFetch.mock.calls.some(([path]) => String(path).includes("end_date=2024-02-29"))).toBe(true));
-    mockedApiFetch.mock.calls.map(([path]) => String(path)).filter((p) => p.includes("end_date=2024-02-29")).forEach((p) => expectPackageDates(p, "2024-02-29", "2023-02-28"));
-  });
-
-  it("AC20.6.1 skips framework package reload while report date input is empty", async () => {
-    mockPackageApi();
-    renderPackagePage();
-    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
-    await screen.findByRole("heading", { name: "Reporting Basis" });
-    const callCountBeforeEmptyDate = mockedApiFetch.mock.calls.length;
-    fireEvent.change(screen.getByLabelText("Package report date"), { target: { value: "" } });
-    expect(mockedApiFetch).toHaveBeenCalledTimes(callCountBeforeEmptyDate);
-    expect(mockedApiFetch.mock.calls.some(([path]) => String(path).includes("end_date=&"))).toBe(false);
+    const datedCalls = (end: string) => mockedApiFetch.mock.calls.map(([path]) => String(path)).filter((p) => p.includes(`end_date=${end}`));
+    expect(datedCalls("2024-02-29").length).toBeGreaterThan(0);
+    datedCalls("2024-02-29").forEach((p) => expectPackageDates(p, "2024-02-29", "2024-02-01"));
+    fireEvent.click(screen.getByRole("button", { name: "Previous period" }));
+    await waitFor(() => expect(datedCalls("2024-01-31").length).toBeGreaterThan(0));
+    datedCalls("2024-01-31").forEach((p) => expectPackageDates(p, "2024-01-31", "2024-01-01"));
+    fireEvent.click(screen.getByRole("button", { name: "Next period" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next period" }));
+    await waitFor(() => expect(datedCalls("2024-03-31").length).toBeGreaterThan(0));
+    datedCalls("2024-03-31").forEach((p) => expectPackageDates(p, "2024-03-31", "2024-03-01"));
   });
 
   // AC-reporting.fe-viz-reports.11
@@ -882,8 +894,8 @@ describe("PersonalReportPackagePage", () => {
   // AC-reporting.fe-ia-reports.15
   it("AC22.8.2 AC22.13.3 renders a readable package cover and linked table of contents", async () => {
     mockPackageApi();
+    setTestUrl("/reports?tab=package&end=2026-05-20");
     renderPackagePage();
-    fireEvent.change(await screen.findByLabelText("Package report date"), { target: { value: "2026-05-20" } });
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByRole("button", { name: /Generate Snapshot/i });
     const cover = await screen.findByRole("region", { name: "Report package cover" });
@@ -1051,7 +1063,8 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getAllByText(/atomic_position:private-token/).length).toBeGreaterThanOrEqual(1);
   });
 
-  // AC-reporting.fe-viz-reports.5
+  // AC-reporting.fe-viz-reports.5 / AC-reporting.fe-viz-reports.1
+  // AC-portfolio.fe-assets2.7 / AC-portfolio.fe-assets2.8 / AC-portfolio.fe-assets2.10
   it("AC5.11.2 renders annualized income schedule values and restricted treatment", async () => {
     mockPackageApi();
     renderPackagePage();
@@ -1068,6 +1081,8 @@ describe("PersonalReportPackagePage", () => {
     expect(screen.getByText("SGD 12,500")).toBeInTheDocument();
     expect(screen.getByText("exclude_restricted_holdings")).toBeInTheDocument();
     expect(screen.getByText("Personal management report only; not tax advice.")).toBeInTheDocument();
+    // The figures come from the package document: no separate annualized-income request.
+    expect(mockedApiFetch.mock.calls.some(([path]) => String(path).startsWith("/api/income/annualized"))).toBe(false);
   });
 
   // AC-reporting.fe-viz-reports.6
@@ -1385,13 +1400,15 @@ describe("PersonalReportPackagePage", () => {
   it("AC-reporting.fe-fetch-budget.5 the Reports hub and the package page share one preview request", async () => {
     mockPackageApi();
     const client = sharedClient();
+    setTestUrl("/reports");
     const hub = render(<ReportsPage />, withClient(client));
     await screen.findByLabelText("Report readiness cockpit");
     await waitFor(() => expect(previewRequests()).toHaveLength(1));
     await waitFor(() => expect(screen.queryByText("Checking")).not.toBeInTheDocument());
     hub.unmount();
+    setTestUrl("/reports?tab=package");
     renderPackageWith(client);
-    await screen.findByLabelText("Package report date");
+    await screen.findByRole("button", { name: "US-like" });
     expect(previewRequests()).toHaveLength(1);
   });
 
@@ -1420,13 +1437,12 @@ describe("PersonalReportPackagePage", () => {
     mockedApiFetch.mockImplementation((path: string, options?: RequestInit) =>
       path.startsWith("/api/reports/package?") ? new Promise((resolve) => { releasePreview = () => resolve(packagePreview()); }) : settled(path, options),
     );
-    fireEvent.change(screen.getByLabelText("Package report date"), { target: { value: "2025-03-31" } });
+    act(() => setTestUrl("/reports?tab=package&end=2025-03-31"));
 
-    const notice = await screen.findByRole("status");
-    expect(notice).toHaveTextContent("The report below still shows 2025-05-20 to 2026-05-20");
+    const notice = await screen.findByText(/The report below still shows/);
+    expect(notice).toHaveTextContent("Loading the package for 2024-04-01 to 2025-03-31. The report below still shows 2025-05-20 to 2026-05-20");
     expect(screen.getByRole("heading", { name: "Reporting Basis" })).toBeInTheDocument();
     expect(screen.queryByRole("status", { name: "Loading report package" })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Package report date")).toHaveValue("2025-03-31");
     const cover = within(screen.getByRole("region", { name: "Report package cover" }));
     expect(cover.getByText("2025-05-20 to 2026-05-20")).toBeInTheDocument();
     expect(cover.queryByText(/2025-03-31/)).not.toBeInTheDocument();
@@ -1461,7 +1477,8 @@ describe("PersonalReportPackagePage", () => {
     await screen.findByText("Frozen snapshot snap-001");
     const snapshotListReads = mockedApiFetch.mock.calls.filter(([path]) => path === "/api/reports/package/snapshots");
     expect(snapshotListReads.length).toBeGreaterThanOrEqual(2);
-    const previewKey = personalReportPackageQuery({ frameworkId: "personal_us_gaap_like", reportDate: formatDateInput(new Date()) }).queryKey;
+    const current = readReportFilters(new URLSearchParams());
+    const previewKey = personalReportPackageQuery({ frameworkId: "personal_us_gaap_like", reportDate: current.endDate, startDate: current.startDate }).queryKey;
     expect(client.getQueryState(previewKey)?.isInvalidated).toBe(true);
   });
 });

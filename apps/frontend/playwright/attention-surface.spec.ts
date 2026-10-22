@@ -91,14 +91,15 @@ test.describe("AC22.6.4 attention surface smoke", () => {
       await expectNoDocumentHorizontalScroll(page);
     });
 
-    test(`${label} surfaces the Home trust meter linking to the attention queue`, async ({ page }) => {
+    test(`${label} surfaces the Home action banner linking to the audit queue`, async ({ page }) => {
       await page.setViewportSize({ width, height });
 
       await page.goto("/", { waitUntil: "networkidle" });
 
-      const trustMeter = page.getByRole("link", { name: "Items that need your attention" });
-      await expect(trustMeter).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
-      await expect(trustMeter).toHaveAttribute("href", "/audit");
+      const banner = page.getByRole("region", { name: "Needs attention" });
+      await expect(banner).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+      await expect(banner.getByRole("heading", { name: /need(s)? your confirmation/ })).toBeVisible();
+      await expect(banner.getByRole("link", { name: "Open Needs Confirmation" })).toHaveAttribute("href", "/audit");
 
       await expectNoDocumentHorizontalScroll(page);
     });

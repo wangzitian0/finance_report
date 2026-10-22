@@ -155,7 +155,7 @@ test.describe("AC21.3.4 Advisor Brief responsive layout", () => {
       await expect(brief.getByRole("heading", { name: "Advisor Brief" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
       await expect(brief.getByText("Readiness blocker")).toBeVisible();
       await expect(brief.getByText("Refresh market data")).toBeVisible();
-      await expect(brief.getByRole("link", { name: "Open next action" }).nth(0)).toHaveAttribute("href", "/reports/package");
+      await expect(brief.getByRole("link", { name: "Open next action" }).nth(0)).toHaveAttribute("href", "/reports?tab=package");
       await expect(brief.getByRole("link", { name: "Open next action" }).nth(1)).toHaveAttribute("href", "/portfolio/prices");
       await expect(brief.getByRole("link", { name: "Ask about this" }).nth(0)).toHaveAttribute("href", /\/chat\?prompt=/);
       await expectNoDocumentHorizontalScroll(page);

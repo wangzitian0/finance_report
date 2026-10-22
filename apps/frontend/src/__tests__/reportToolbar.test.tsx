@@ -14,7 +14,7 @@ vi.mock("next/link", () => ({
 
 describe("ReportToolbar", () => {
   // AC-reporting.fe-viz-reports.16
-  it("AC5.33.4 renders AI prompt, home link, and caller-provided export control", () => {
+  it("AC5.33.4 renders the AI prompt and the caller-provided export control, without a Home link", () => {
     // The export control is caller-provided (#751: this primitive must not import
     // API/transport code). The page wires the actual export behavior in.
     const onExport = vi.fn();
@@ -34,7 +34,8 @@ describe("ReportToolbar", () => {
       "href",
       `/chat?prompt=${encodeURIComponent("Explain my balance sheet")}`,
     );
-    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+    // The toolbar sits inside a /reports tab: the app shell navigates to Home.
+    expect(screen.queryByRole("link", { name: "Home" })).toBeNull();
 
     const exportButton = screen.getByRole("button", { name: "Export CSV" });
     expect(exportButton).toBeInTheDocument();

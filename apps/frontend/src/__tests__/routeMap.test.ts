@@ -152,4 +152,20 @@ describe("route map (single source of truth for routes)", () => {
       expect(pages, `${oldRoute} must have no page.tsx`).not.toContain(oldRoute)
     }
   })
+
+  // AC-meta.fe-reports-tabs.1
+  it("AC-meta.fe-reports-tabs.1 redirects each old report route to its /reports tab and keeps the query", async () => {
+    const redirects = (await nextConfig.redirects?.()) ?? []
+    const destinationOf = (source: string) =>
+      redirects.find((r: { source: string }) => r.source === source)?.destination
+    const pages = discoverPageRoutes(APP_DIR)
+    for (const tab of ["balance-sheet", "income-statement", "cash-flow", "package"]) {
+      const oldRoute = `/reports/${tab}`
+      expect(destinationOf(oldRoute), `${oldRoute} must redirect to its tab`).toBe(`/reports?tab=${tab}`)
+      expect(byPath.get(oldRoute)?.state, `${oldRoute} must be a redirect`).toBe("redirect")
+      expect(pages, `${oldRoute} must have no page.tsx`).not.toContain(oldRoute)
+    }
+    // Next.js merges the request query into the destination query, so `?currency=USD` survives the redirect.
+    expect(redirects.filter((r: { source: string }) => r.source.startsWith("/reports/"))).toHaveLength(4)
+  })
 })

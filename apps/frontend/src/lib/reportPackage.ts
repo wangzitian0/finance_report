@@ -1,17 +1,11 @@
 /**
- * Pure personal-report-package date/query helpers (was hand-declared inside
- * hooks/usePersonalReportPackage.ts, with reports/page.tsx unable to reuse
- * the unexported `packageQuery` and reimplementing it locally as
- * `packageReadinessQuery` instead, #1868 S5 PR-C).
+ * Pure personal-report-package date and request helpers.
+ *
+ * The period of a package always comes from the dimension bar of `/reports` (#2621 LC):
+ * a request names its start and end. No currency means the base currency of the user.
  */
 
 const REPORT_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-/**
- * Currency of the package preview and of the snapshot that the page generates. The package
- * page and the Reports hub use it by default, so both read the same cached preview (#2583 S4).
- */
-export const PACKAGE_DEFAULT_CURRENCY = "SGD";
 
 export function isValidReportDate(reportDate: string): boolean {
   if (!REPORT_DATE_PATTERN.test(reportDate)) return false;
@@ -22,32 +16,6 @@ export function isValidReportDate(reportDate: string): boolean {
     parsed.getUTCMonth() === month - 1 &&
     parsed.getUTCDate() === day
   );
-}
-
-/** One year before `reportDate`, clamped to the last valid day of that month. */
-export function reportPeriodStart(reportDate: string): string {
-  const [year, month, day] = reportDate.split("-").map(Number);
-  if (!year || !month || !day) return reportDate;
-  const previousYear = year - 1;
-  const lastDayOfMonth = new Date(
-    Date.UTC(previousYear, month, 0),
-  ).getUTCDate();
-  const clampedDay = Math.min(day, lastDayOfMonth);
-  return `${previousYear}-${String(month).padStart(2, "0")}-${String(clampedDay).padStart(2, "0")}`;
-}
-
-export function packageSnapshotRequest(
-  frameworkId: import("./api-schema").Schemas["PersonalReportingFrameworkId"],
-  reportDate: string,
-  currency = PACKAGE_DEFAULT_CURRENCY,
-  startDate = reportPeriodStart(reportDate),
-) {
-  return {
-    framework_id: frameworkId,
-    ...packagePeriodRequest(reportDate, startDate),
-    currency,
-    include_restricted: false,
-  };
 }
 
 export function reportPeriodError(
@@ -62,27 +30,23 @@ export function reportPeriodError(
     : null;
 }
 
-/** Point-in-time sections use the period end; defaults preserve the existing year window. */
-export function packagePeriodRequest(
-  endDate: string,
-  startDate = reportPeriodStart(endDate),
-) {
+/** Point-in-time sections use the period end. */
+export function packagePeriodRequest(endDate: string, startDate: string) {
   const error = reportPeriodError(startDate, endDate);
   if (error) throw new Error(error);
   return { start_date: startDate, end_date: endDate, as_of_date: endDate };
 }
 
-/** `?start_date=...&end_date=...&as_of_date=...[&framework_id=...]` for a package-scoped GET. */
-export function packageQuery(
+export function packageSnapshotRequest(
+  frameworkId: import("./api-schema").Schemas["PersonalReportingFrameworkId"],
   reportDate: string,
-  frameworkId?: string,
-  startDate = reportPeriodStart(reportDate),
-): string {
-  const params = new URLSearchParams(
-    frameworkId ? { framework_id: frameworkId } : undefined,
-  );
-  Object.entries(packagePeriodRequest(reportDate, startDate)).forEach(
-    ([key, value]) => params.set(key, value),
-  );
-  return `?${params.toString()}`;
+  startDate: string,
+  currency?: string,
+) {
+  return {
+    framework_id: frameworkId,
+    ...packagePeriodRequest(reportDate, startDate),
+    ...(currency ? { currency } : {}),
+    include_restricted: false,
+  };
 }

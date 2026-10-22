@@ -1,7 +1,7 @@
 /**
  * Query keys that several routes share (#2583 S4).
  *
- * Home, /audit, /upload, the Reports hub and the reconciliation Workbench read the same
+ * Home, /audit, /upload, the `/reports` tabs and the reconciliation Workbench read the same
  * endpoints with the same parameters. One key per endpoint-and-parameters pair lets react-query
  * serve a second reader from the cache and merge two readers that mount together into one request.
  * A route must build these keys here. It must not write its own key for the same request.
@@ -57,4 +57,19 @@ export function incomeStatementQueryKey({
   if (accountType) search.set("account_type", accountType);
   for (const tag of tags ?? []) search.append("tags", tag);
   return ["report", "income-statement", search.toString()] as const;
+}
+
+export interface CashFlowKeyParams {
+  startDate: string;
+  endDate: string;
+  currency?: string;
+}
+
+/** Key of `GET /reports/cash-flow`. Home and the Cash flow tab share it. */
+export function cashFlowQueryKey({ startDate, endDate, currency }: CashFlowKeyParams) {
+  const search = new URLSearchParams();
+  search.set("start_date", startDate);
+  search.set("end_date", endDate);
+  if (currency) search.set("currency", currency);
+  return ["report", "cash-flow", search.toString()] as const;
 }

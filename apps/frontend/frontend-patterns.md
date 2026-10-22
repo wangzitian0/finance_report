@@ -275,7 +275,7 @@ workspace packages. Each layer lives under `apps/frontend/src/`:
 | **Transport** | `lib/api.ts` | The only place that calls the native `fetch()`. Exposes `apiFetch`, `apiUpload`, `apiDownload`, `apiStream`, `apiDelete`, and typed endpoint helpers. |
 | **Money boundary** | `lib/audit/money` | Decimal-safe monetary parsing, arithmetic, and formatting (`decimal.js`). |
 | **Quantity boundary** | `lib/audit/quantity` | Decimal-safe quantity value type and quantity formatting. |
-| **Query helpers** | `hooks/*` | React Query wrappers over the transport layer (e.g. `useApiQuery`) and feature data hooks (`useDashboardData`, `useReportFilters`, `useCurrencies`). |
+| **Query helpers** | `hooks/*` | React Query wrappers over the transport layer (e.g. `useApiQuery`) and feature data hooks (`useStatementCockpit`, `useReportFilters`, `useCurrencies`). |
 | **UI primitives** | `components/ui/*` | Presentational, token-backed controls and state surfaces (`Button`, `Alert`, `EmptyState`, `Sheet`, `Toast`, badges), with local DOM accessibility hooks under `components/ui/hooks/`. |
 | **Feature modules** | `components/<feature>/*` | Domain UI aligned with backend bounded contexts (e.g. `components/statements/*` for `ledger/source`, `components/review/*` for `reconciliation`, `components/reports/*` for `reporting`). |
 | **Route pages** | `app/(main)/**/page.tsx` | Thin composition + page-level intent only (<300 lines). |

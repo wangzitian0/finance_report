@@ -92,7 +92,7 @@ test.describe("AC22.4.6 report drill-down to source journey", () => {
       page,
     }) => {
       await page.setViewportSize({ width, height });
-      await page.goto("/reports/balance-sheet", { waitUntil: "networkidle" });
+      await page.goto("/reports?tab=balance-sheet", { waitUntil: "networkidle" });
 
       // 1) Click the account amount to open its contributing transactions.
       await page

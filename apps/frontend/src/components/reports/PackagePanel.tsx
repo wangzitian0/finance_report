@@ -30,11 +30,10 @@ import {
   invalidateReportPackageQueries,
   usePersonalReportPackage,
 } from "@/hooks/usePersonalReportPackage";
+import type { ReportFilters } from "@/hooks/useReportFilters";
 import { apiOperation, apiOperationDownload } from "@/lib/api-client";
-import { formatDateInput } from "@/lib/date";
 import { lineageQuery } from "@/lib/lineage";
 import { loadLineageAnchorForLine } from "@/lib/packageEvidence";
-import { reportPeriodError, reportPeriodStart } from "@/lib/reportPackage";
 import type {
   PersonalReportPackageDocument,
   PersonalReportPackageSnapshotSummary,
@@ -42,14 +41,18 @@ import type {
   PersonalReportingFrameworkId,
 } from "@/lib/types";
 
-export default function PersonalReportPackagePage() {
+/**
+ * The Full package tab of `/reports`. The dimension bar sets the period and the currency of the
+ * preview and of a new snapshot. An open snapshot shows its own frozen period. It closes when the
+ * bar period changes.
+ */
+export function PackagePanel({ filters }: { filters: ReportFilters }) {
+  const { startDate, endDate: reportDate, currency } = filters;
   const queryClient = useQueryClient();
   const [selectedFrameworkId, setSelectedFrameworkId] = useState<PersonalReportingFrameworkId | null>(null);
-  const [reportDate, setReportDate] = useState(() => formatDateInput(new Date()));
-  const [selectedStartDate, setSelectedStartDate] = useState<string | null>(null);
-  const startDate = selectedStartDate ?? reportPeriodStart(reportDate);
-  const periodError = reportPeriodError(startDate, reportDate);
-  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
+  const periodKey = `${startDate}|${reportDate}|${currency ?? ""}`;
+  const [openSnapshot, setOpenSnapshot] = useState<{ id: string; periodKey: string } | null>(null);
+  const selectedSnapshotId = openSnapshot?.periodKey === periodKey ? openSnapshot.id : null;
   const [lineagePanel, setLineagePanel] = useState<LineagePanelState | null>(null);
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [generatingSnapshot, setGeneratingSnapshot] = useState(false);
@@ -62,7 +65,7 @@ export default function PersonalReportPackagePage() {
     isPackageRefreshing,
     isPackageLoading,
     error,
-  } = usePersonalReportPackage(selectedFrameworkId, reportDate, selectedSnapshotId, startDate);
+  } = usePersonalReportPackage(selectedFrameworkId, reportDate, selectedSnapshotId, startDate, currency);
 
   async function openLineagePanel(shownDocument: PersonalReportPackageDocument, line: PersonalReportPackageTraceabilityLineSummary) {
     setLineagePanel({ line, response: null, isLoading: true, error: null });
@@ -108,14 +111,13 @@ export default function PersonalReportPackagePage() {
     }
   }
 
-  async function createPackageSnapshot() {
-    if (!selectedFrameworkId || periodError) return;
+  async function createPackageSnapshot(frameworkId: PersonalReportingFrameworkId) {
     setGeneratingSnapshot(true);
     setSnapshotError(null);
     try {
-      const snapshot = await generatePackageSnapshot(selectedFrameworkId, reportDate, startDate);
-      setSelectedSnapshotId(snapshot.id);
-      track(ANALYTICS_EVENTS.REPORT_GENERATED, { framework_id: selectedFrameworkId });
+      const snapshot = await generatePackageSnapshot(frameworkId, reportDate, startDate, currency);
+      setOpenSnapshot({ id: snapshot.id, periodKey });
+      track(ANALYTICS_EVENTS.REPORT_GENERATED, { framework_id: frameworkId });
       await invalidateReportPackageQueries(queryClient);
     } catch (err) {
       setSnapshotError(err instanceof Error ? err.message : "Failed to generate package snapshot.");
@@ -126,10 +128,8 @@ export default function PersonalReportPackagePage() {
 
   function openPackageSnapshot(snapshot: PersonalReportPackageSnapshotSummary) {
     setSnapshotError(null);
-    setSelectedSnapshotId(snapshot.id);
+    setOpenSnapshot({ id: snapshot.id, periodKey });
     setSelectedFrameworkId(snapshot.framework_id);
-    setReportDate(snapshot.end_date);
-    setSelectedStartDate(snapshot.start_date);
   }
 
   async function downloadPackageSnapshot(snapshot: PersonalReportPackageSnapshotSummary, format: "json" | "csv") {
@@ -155,23 +155,17 @@ export default function PersonalReportPackagePage() {
     }
   }
 
-  if (error) return <div className="p-6 text-[var(--error)]">{error}</div>;
+  if (error) return <div className="text-[var(--error)]">{error}</div>;
 
   if (!contract) {
     return (
-      <div role="status" aria-label="Loading report package" aria-busy="true" aria-live="polite" className="p-6 text-muted">
+      <div role="status" aria-label="Loading report package" aria-busy="true" aria-live="polite" className="text-muted">
         Loading package document...
       </div>
     );
   }
 
   const selectedFrameworkLabel = selectedFrameworkId ? (FRAMEWORK_LABELS[selectedFrameworkId] ?? selectedFrameworkId) : null;
-  const header = (
-    <div className="page-header">
-      <h1 className="page-title">Personal Report Package</h1>
-      <p className="page-description">{contract.package_id}</p>
-    </div>
-  );
   const frameworkSelection = (
     <PackageFrameworkSelection
       contract={contract}
@@ -179,27 +173,17 @@ export default function PersonalReportPackagePage() {
       selectedFrameworkLabel={selectedFrameworkLabel}
       reportDate={reportDate}
       startDate={startDate}
-      periodError={periodError}
-      onStartDateChange={(nextDate) => {
-        setSelectedSnapshotId(null);
-        setSelectedStartDate(nextDate);
-      }}
       onSelectFramework={(frameworkId) => {
         if (frameworkId !== "personal_us_gaap_like" && frameworkId !== "personal_hkfrs_like") return;
-        setSelectedSnapshotId(null);
+        setOpenSnapshot(null);
         setSelectedFrameworkId(frameworkId);
-      }}
-      onReportDateChange={(nextDate) => {
-        setSelectedSnapshotId(null);
-        setReportDate(nextDate);
       }}
     />
   );
 
   if (!selectedFrameworkId) {
     return (
-      <div className="p-6">
-        {header}
+      <div>
         <PackageCover contract={contract} reportDate={reportDate} startDate={startDate} selectedFrameworkLabel={selectedFrameworkLabel} />
         {frameworkSelection}
         <PackageTableOfContents links={packageTocLinks(contract, false)} />
@@ -210,25 +194,23 @@ export default function PersonalReportPackagePage() {
 
   const outputTocLinks = packageTocLinks(packageDocument?.contract ?? contract, true);
 
-  if (periodError || isPackageLoading || !packageDocument) {
+  if (isPackageLoading || !packageDocument) {
     return (
-      <div className="p-6">
-        {header}
+      <div>
         <PackageCover contract={contract} reportDate={reportDate} startDate={startDate} selectedFrameworkLabel={selectedFrameworkLabel} />
         {frameworkSelection}
         <PackageTableOfContents links={outputTocLinks} />
-        {!periodError && <PackageLoadingSkeleton />}
+        <PackageLoadingSkeleton />
       </div>
     );
   }
 
   const evidenceReferences = evidenceBundleReferences(packageDocument.framework_policy);
-  const canGenerateSnapshot = Boolean(selectedFrameworkId && !periodError && !generatingSnapshot && !isPackageRefreshing);
+  const canGenerateSnapshot = !generatingSnapshot && !isPackageRefreshing;
   const shownContext = packageDocument.lifecycle === "frozen" || isPackageRefreshing ? packageDocument.context : null;
 
   return (
-    <div className="p-6" aria-busy={isPackageRefreshing || undefined}>
-      {header}
+    <div aria-busy={isPackageRefreshing || undefined}>
       {isPackageRefreshing && shownContext ? (
         <div role="status" aria-live="polite" className="card mb-4 p-3 text-sm text-muted">
           {`Loading the package for ${startDate} to ${reportDate}. The report below still shows ${shownContext.start_date} to ${shownContext.end_date}.`}
@@ -251,7 +233,7 @@ export default function PersonalReportPackagePage() {
         generating={generatingSnapshot}
         downloading={downloadingSnapshot}
         selectedSnapshotId={selectedSnapshotId}
-        onGenerate={createPackageSnapshot}
+        onGenerate={() => void createPackageSnapshot(selectedFrameworkId)}
         onOpen={openPackageSnapshot}
         onDownload={downloadPackageSnapshot}
       />

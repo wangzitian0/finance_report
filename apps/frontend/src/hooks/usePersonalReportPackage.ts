@@ -7,11 +7,9 @@ import {
 
 import { apiOperation } from "@/lib/api-client";
 import {
-  PACKAGE_DEFAULT_CURRENCY,
   packagePeriodRequest,
   reportPeriodError,
   packageSnapshotRequest,
-  reportPeriodStart,
 } from "@/lib/reportPackage";
 import { SHARED_STALE_MS } from "@/lib/sharedQueries";
 import {
@@ -28,18 +26,12 @@ import type {
 export async function generatePackageSnapshot(
   frameworkId: PersonalReportingFrameworkId,
   reportDate: string,
-  startDate = reportPeriodStart(reportDate),
+  startDate: string,
+  currency?: string,
 ): Promise<PersonalReportPackageSnapshotViewModel> {
   const snapshot = await apiOperation(
     "generate_personal_report_package_snapshot_reports_package_generate_post",
-    {
-      body: packageSnapshotRequest(
-        frameworkId,
-        reportDate,
-        PACKAGE_DEFAULT_CURRENCY,
-        startDate,
-      ),
-    },
+    { body: packageSnapshotRequest(frameworkId, reportDate, startDate, currency) },
   );
   return normalizePersonalReportPackageSnapshot(snapshot);
 }
@@ -48,7 +40,7 @@ async function fetchPersonalReportPackage(
   frameworkId: PersonalReportingFrameworkId | null,
   reportDate: string,
   startDate: string,
-  currency: string,
+  currency: string | undefined,
   signal?: AbortSignal,
 ): Promise<PersonalReportPackageDocument> {
   const document = await apiOperation(
@@ -68,23 +60,24 @@ async function fetchPersonalReportPackage(
 export interface PersonalReportPackageQueryParams {
   frameworkId: PersonalReportingFrameworkId | null;
   reportDate: string;
-  startDate?: string;
+  startDate: string;
+  /** No currency means the base currency of the user. */
   currency?: string;
 }
 
 /**
  * The preview of the personal report package (about 60 KB for a year of data, #2583 S8).
  *
- * The package page and the Reports hub read it through this one query, so they share one cache
- * entry. A date change keeps the previous document on screen while the next one loads
+ * The Package tab and the Overview tab of `/reports` read it through this one query, so they share
+ * one cache entry. A date change keeps the previous document on screen while the next one loads
  * (`isPlaceholderData`). A change of framework or currency does not: another framework gives
  * another document, and the page must never show it as the document of the new selection.
  */
 export function personalReportPackageQuery({
   frameworkId,
   reportDate,
-  startDate = reportPeriodStart(reportDate),
-  currency = PACKAGE_DEFAULT_CURRENCY,
+  startDate,
+  currency,
 }: PersonalReportPackageQueryParams) {
   return queryOptions({
     queryKey: [
@@ -128,7 +121,8 @@ export function usePersonalReportPackage(
   selectedFrameworkId: PersonalReportingFrameworkId | null,
   reportDate: string,
   selectedSnapshotId: string | null,
-  startDate = reportPeriodStart(reportDate),
+  startDate: string,
+  currency?: string,
 ) {
   const [lastContract, setLastContract] =
     useState<PersonalReportPackageContractResponse | null>(null);
@@ -137,6 +131,7 @@ export function usePersonalReportPackage(
       frameworkId: selectedFrameworkId,
       reportDate,
       startDate,
+      currency,
     }),
     enabled: !reportPeriodError(startDate, reportDate) && !selectedSnapshotId,
   });

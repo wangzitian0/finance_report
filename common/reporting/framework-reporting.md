@@ -90,7 +90,7 @@ Code-owned contract surfaces:
 - Package API: `GET /api/reports/package` returns the one preview
   `PersonalReportPackageDocument`, including its selected framework, policy
   result, readiness, sections, and traceability. Generate/reopen/export use the
-  same document shape. The frontend `/reports/package` route requires an
+  same document shape. The Full package tab of `/reports` (`/reports?tab=package`) requires an
   explicit user framework selection before loading the document and never
   fetches or derives framework readiness through a second endpoint.
 - Proof: `apps/backend/tests/reporting/test_framework_policy.py` verifies that

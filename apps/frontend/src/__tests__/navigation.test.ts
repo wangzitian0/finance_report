@@ -85,8 +85,8 @@ describe("navigation metadata", () => {
   });
 
   it("AC16.19.4 AC19.6.6 resolves exact, parent, advanced, and home route labels", () => {
-    expect(getRouteConfig("/reports/balance-sheet").label).toBe("Balance Sheet");
-    expect(getRouteConfig("/reports/balance-sheet/detail").label).toBe("Balance Sheet");
+    expect(getRouteConfig("/reports").label).toBe("Reports");
+    expect(getRouteConfig("/portfolio/prices/detail").label).toBe("Prices");
     expect(getRouteConfig("/reconciliation/unmatched").label).toBe("Unmatched");
     expect(getRouteConfig("/chat").label).toBe("Chat");
     expect(getRouteConfig("/audit").label).toBe("Audit");
@@ -114,7 +114,7 @@ describe("navigation metadata", () => {
     expect(isActive("/", "/")).toBe(true);
     expect(isActive("/reports", "/")).toBe(false);
     expect(isActive("/reports", "/reports")).toBe(true);
-    expect(isActive("/reports/balance-sheet", "/reports")).toBe(true);
+    expect(isActive("/portfolio/prices", "/portfolio")).toBe(true);
     expect(isActive("/reportsomething", "/reports")).toBe(false);
     expect(isActive("/journal", "/reports")).toBe(false);
   });
@@ -133,6 +133,6 @@ describe("navigation metadata", () => {
     expect(APP_ROUTES.AUDIT).toBe("/audit");
     expect(APP_ROUTES.CHAT).toBe("/chat");
     expect(APP_ROUTES.RECONCILIATION_REVIEW_QUEUE).toBe("/reconciliation/review-queue");
-    expect(APP_ROUTES.REPORTS_CASH_FLOW).toBe("/reports/cash-flow");
+    expect(APP_ROUTES.REPORTS).toBe("/reports");
   });
 });

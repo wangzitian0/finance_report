@@ -259,7 +259,9 @@ async def _all_evidence_pages(
     items: list[dict] = []
     offset = 0
     while True:
-        response = await client.get(_api_url(f"{path}?{query}&limit=500&offset={offset}"))
+        response = await client.get(
+            _api_url(f"{path}?{query}&limit=500&offset={offset}")
+        )
         assert response.status_code == 200, (
             f"{path} failed: {response.status_code} {response.text}"
         )
@@ -823,8 +825,13 @@ async def test_personal_financial_report_package_post_merge_journey(
         manifest_entries = await _all_evidence_pages(
             client, "/reports/package/manifest-entries", package_period_query, "entries"
         )
-        assert len(manifest_entries) == (
-            package_document["readiness"]["input_coverage"]["manifest_decision_count"]
+        assert (
+            len(manifest_entries)
+            == (
+                package_document["readiness"]["input_coverage"][
+                    "manifest_decision_count"
+                ]
+            )
         )
         manifest_decisions = {item["decision_id"] for item in manifest_entries}
         for line_id in trusted_total_line_ids:
@@ -1043,16 +1050,13 @@ async def test_personal_financial_report_package_post_merge_journey(
 
     await page.goto(_get_url("/dashboard"))
     await page.wait_for_load_state("domcontentloaded")
-    await expect(page.get_by_label("Upload-to-report home")).to_be_visible(
-        timeout=10_000
-    )
-    await expect(page.get_by_label("Dashboard analytics", exact=True)).to_be_visible(
-        timeout=10_000
-    )
+    await expect(
+        page.get_by_label("Three-statement cockpit", exact=True)
+    ).to_be_visible(timeout=10_000)
 
     await page.goto(
         _get_url(
-            f"/reports/balance-sheet?as_of_date={fixture_period_end.isoformat()}&currency=SGD"
+            f"/reports?tab=balance-sheet&end={fixture_period_end.isoformat()}&currency=SGD"
         )
     )
     await page.wait_for_load_state("domcontentloaded")
@@ -1062,7 +1066,7 @@ async def test_personal_financial_report_package_post_merge_journey(
 
     await page.goto(
         _get_url(
-            f"/reports/income-statement?start_date={fixture_period_start.isoformat()}&end_date={fixture_period_end.isoformat()}&currency=SGD"
+            f"/reports?tab=income-statement&start={fixture_period_start.isoformat()}&end={fixture_period_end.isoformat()}&currency=SGD"
         )
     )
     await page.wait_for_load_state("domcontentloaded")
@@ -1072,7 +1076,7 @@ async def test_personal_financial_report_package_post_merge_journey(
 
     await page.goto(
         _get_url(
-            f"/reports/cash-flow?start_date={fixture_period_start.isoformat()}&end_date={fixture_period_end.isoformat()}&currency=SGD"
+            f"/reports?tab=cash-flow&start={fixture_period_start.isoformat()}&end={fixture_period_end.isoformat()}&currency=SGD"
         )
     )
     await page.wait_for_load_state("domcontentloaded")

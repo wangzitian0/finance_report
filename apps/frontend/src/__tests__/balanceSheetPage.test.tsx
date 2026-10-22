@@ -2,26 +2,24 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import BalanceSheetPage from "@/app/(main)/reports/balance-sheet/page"
+import ReportsPage from "@/app/(main)/reports/page"
 import { apiOperation, apiOperationDownload } from "@/lib/api-client"
 
 import { balanceSheetVector } from "./fixtures/apiVectors"
+import { setTestUrl } from "./helpers/nextNavigation"
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }))
 
-const searchParamsGet = vi.fn((key: string) => {
-  const params = new URLSearchParams(window.location.search)
-  return params.get(key)
-})
-
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => ({ get: searchParamsGet }),
-}))
+vi.mock("next/navigation", async () => (await import("./helpers/nextNavigation")).nextNavigationMock)
 
 vi.mock("@/hooks/useCurrencies", () => ({
   useCurrencies: () => ({ currencies: ["SGD", "USD"] }),
+}))
+
+vi.mock("@/hooks/useBaseCurrency", () => ({
+  useBaseCurrency: () => ({ baseCurrency: "SGD", loading: false }),
 }))
 
 vi.mock("@/lib/api-client", () => ({
@@ -30,6 +28,10 @@ vi.mock("@/lib/api-client", () => ({
   apiOperationDownload: vi.fn(),
 }))
 
+const BalanceSheetPage = () => <ReportsPage />
+const balanceSheetCalls = () =>
+  vi.mocked(apiOperation).mock.calls.filter(([operationId]) => operationId === "balance_sheet_reports_balance_sheet_get")
+
 describe("BalanceSheetPage", () => {
   const mockedApiDownload = vi.mocked(apiOperationDownload)
   const mockedApiFetch = vi.mocked(apiOperation)
@@ -37,11 +39,7 @@ describe("BalanceSheetPage", () => {
   beforeEach(() => {
     mockedApiDownload.mockReset()
     mockedApiFetch.mockReset()
-    searchParamsGet.mockImplementation((key: string) => {
-      const params = new URLSearchParams(window.location.search)
-      return params.get(key)
-    })
-    window.history.replaceState({}, "", "/reports/balance-sheet")
+    setTestUrl("/reports?tab=balance-sheet")
   })
 
   // AC-reporting.fe-report-surfaces.10
@@ -70,7 +68,7 @@ describe("BalanceSheetPage", () => {
 
     const { container } = render(<BalanceSheetPage />)
 
-    await waitFor(() => expect(screen.getByText("Balance Sheet")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument())
     expect(screen.getByRole("heading", { name: "Assets", level: 2 })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Liabilities", level: 2 })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Equity", level: 2 })).toBeInTheDocument()
@@ -99,28 +97,29 @@ describe("BalanceSheetPage", () => {
 
     fireEvent.click(screen.getByLabelText("Include restricted holdings"))
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenLastCalledWith(
-        "balance_sheet_reports_balance_sheet_get",
+      expect(balanceSheetCalls().at(-1)?.[1]).toEqual(
         expect.objectContaining({ query: expect.objectContaining({ include_restricted: true }) }),
       ),
     )
 
-    const dateInput = container.querySelector('input[type="date"]')
-    expect(dateInput).not.toBeNull()
-    fireEvent.change(dateInput!, { target: { value: "2026-03-01" } })
+    // The dimension bar moves the balance sheet date to the end of the previous period.
+    fireEvent.click(screen.getByRole("button", { name: "Period 1M" }))
+    fireEvent.click(screen.getByRole("button", { name: "Previous period" }))
+    const today = new Date()
+    const lastDayOfPreviousMonth = new Date(today.getFullYear(), today.getMonth(), 0)
+    const expectedDate = `${lastDayOfPreviousMonth.getFullYear()}-${String(lastDayOfPreviousMonth.getMonth() + 1).padStart(2, "0")}-${String(lastDayOfPreviousMonth.getDate()).padStart(2, "0")}`
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenLastCalledWith(
-        "balance_sheet_reports_balance_sheet_get",
-        expect.objectContaining({ query: expect.objectContaining({ as_of_date: "2026-03-01" }) }),
+      expect(balanceSheetCalls().at(-1)?.[1]).toEqual(
+        expect.objectContaining({ query: expect.objectContaining({ as_of_date: expectedDate }) }),
       ),
     )
-
-    fireEvent.click(screen.getByRole("button", { name: "Period 1Q" }))
-    expect(screen.getByRole("button", { name: "Period 1Q" })).toHaveAttribute("aria-pressed", "true")
+    expect(container.querySelector('input[type="date"]')).toBeNull()
+    expect(screen.getByRole("button", { name: "Period 1M" })).toHaveAttribute("aria-pressed", "true")
   })
 
   it("AC8.13.42 honors include_restricted=true from the balance-sheet URL", async () => {
-    window.history.replaceState({}, "", "/reports/balance-sheet?include_restricted=true")
+    // The old route /reports/balance-sheet?include_restricted=true redirects here with its query.
+    setTestUrl("/reports?tab=balance-sheet&include_restricted=true")
     mockedApiFetch.mockResolvedValue({
       as_of_date: "2026-02-01",
       currency: "SGD",
@@ -249,7 +248,7 @@ describe("BalanceSheetPage", () => {
 
     render(<BalanceSheetPage />)
 
-    await waitFor(() => expect(screen.getByText("Balance Sheet")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument())
     // Warning banner + CTA are shown on the report surface, not just /accounts.
     expect(screen.getByText("Opening balances not recorded")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /set opening balances/i })).toHaveAttribute("href", "/accounts")
@@ -268,7 +267,7 @@ describe("BalanceSheetPage", () => {
 
     render(<BalanceSheetPage />)
 
-    await waitFor(() => expect(screen.getByText("Balance Sheet")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument())
     expect(screen.getByText("CTA Adjustment")).toBeInTheDocument()
     expect(screen.getByTestId("equation-detail-cta")).toHaveTextContent("142.50")
     expect(screen.getByText("✓ Balanced")).toBeInTheDocument()
@@ -288,7 +287,7 @@ describe("BalanceSheetPage", () => {
 
     render(<BalanceSheetPage />)
 
-    await waitFor(() => expect(screen.getByText("Balance Sheet")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument())
 
     const equationDetail = screen.getByTestId("balance-equation-detail")
     expect(equationDetail.tagName.toLowerCase()).toBe("details")

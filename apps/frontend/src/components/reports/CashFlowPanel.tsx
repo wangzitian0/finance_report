@@ -1,39 +1,117 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { keepPreviousData } from "@tanstack/react-query";
+import { useState } from "react";
+import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 
 import { SankeyChart } from "@/components/charts/SankeyChart";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
-import { CashFlowLineEvents, cashFlowLineLabel, type CashFlowPeriod } from "@/components/reports/CashFlowLineEvents";
 import { ExportCsvButton, FxWarningBanner, ReportPageShell, ReportToolbar } from "@/components/reports/ReportPageShell";
-import { CurrencyFilterControl, DateFilterControl, PeriodPresetFilterControl } from "@/components/reports/ReportFilters";
-import { formatDateInput } from "@/lib/date";
+import { apiOperation } from "@/lib/api-client";
 import { compareAmounts, formatCurrencyLocale, toDecimal } from "@/lib/audit/money";
-import { useCurrencies } from "@/hooks/useCurrencies";
+import { formatDateDisplay } from "@/lib/date";
 import { useApiQuery } from "@/hooks/useApiQuery";
-import { useReportFilters } from "@/hooks/useReportFilters";
+import type { ReportFilters } from "@/hooks/useReportFilters";
+import { cashFlowQueryKey, SHARED_STALE_MS } from "@/lib/sharedQueries";
 import { countLabel } from "@/lib/statusLabels";
-import { normalizeFxWarningRows, type CashFlowLine } from "@/lib/types";
+import { normalizeFxWarningRows, type CashFlowLine, type CashFlowLineEventsPage } from "@/lib/types";
+// The cash-flow statement carries an event count for each line (#2583 S10). The events of a
+// line load page by page when the user opens the line. This component mounts only for an open
+// line, so a closed line never issues a request. Each page request runs the cash-flow builder
+// again, so a page holds 200 events and the open and reopened line share one cache entry.
 
-const defaultStartDate = () => {
-  const d = new Date();
-  d.setMonth(d.getMonth() - 1);
-  return formatDateInput(d);
-};
+/** Page size of the line events. The backend maximum is 500. */
+const CASH_FLOW_LINE_EVENTS_PAGE_SIZE = 200;
 
-export default function CashFlowPage() {
-  const { startDate, setStartDate, endDate, setEndDate, currency, setCurrency, queryString } = useReportFilters({
-    reportType: "cash-flow",
-    initialStartDate: defaultStartDate(),
+interface CashFlowPeriod {
+  start_date: string;
+  end_date: string;
+  currency: string;
+}
+
+/** The accessible name of a line: its description holds the direction and the counterparts. */
+function cashFlowLineLabel(line: CashFlowLine): string {
+  return line.description || line.subcategory;
+}
+
+function nextOffset(page: CashFlowLineEventsPage): number | undefined {
+  const next = page.offset + page.limit;
+  return next < page.total ? next : undefined;
+}
+
+/** The one cache entry of the events of a line. The "report" key prefix is ledger-derived. */
+function cashFlowLineEventsQueryOptions(period: CashFlowPeriod, lineId: string) {
+  return infiniteQueryOptions({
+    queryKey: ["report", "cash-flow", "line-events", period.start_date, period.end_date, period.currency, lineId] as const,
+    queryFn: ({ pageParam, signal }) =>
+      apiOperation("list_cash_flow_line_events_reports_cash_flow_line_events_get", {
+        query: { ...period, line_id: lineId, limit: CASH_FLOW_LINE_EVENTS_PAGE_SIZE, offset: pageParam },
+        signal,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: nextOffset,
+    staleTime: SHARED_STALE_MS,
   });
+}
+
+/** The events of one open cash-flow line, with the amounts in the report currency. */
+function CashFlowLineEvents({ period, line }: { period: CashFlowPeriod; line: CashFlowLine }) {
+  const query = useInfiniteQuery(cashFlowLineEventsQueryOptions(period, line.line_id));
+  const events = query.data?.pages.flatMap((page) => page.events ?? []) ?? [];
+  const total = query.data?.pages[0]?.total ?? line.event_count;
+
+  return (
+    <section
+      id={`cash-flow-events-${line.line_id}`}
+      aria-label={`Events for ${cashFlowLineLabel(line)}`}
+      className="mt-2 rounded-md border border-[var(--border)] p-2"
+    >
+      <p className="text-xs font-medium">{`${events.length} of ${countLabel(total, "event")}`}</p>
+      {query.isLoading ? (
+        <p role="status" className="mt-1 text-xs text-muted">
+          Loading events...
+        </p>
+      ) : null}
+      {events.length > 0 ? (
+        <ul className="mt-1 max-h-64 space-y-1 overflow-y-auto pr-1">
+          {events.map((event) => (
+            <li key={`${event.journal_entry_id}-${event.reason_code ?? ""}`} className="flex justify-between gap-2 text-xs">
+              <span className="min-w-0">
+                <span className="text-muted">{formatDateDisplay(event.entry_date)}</span>{" "}
+                <span className="break-words">{event.memo}</span>
+              </span>
+              <span className="shrink-0 font-medium">{formatCurrencyLocale(event.amount, period.currency)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {query.error ? (
+        <p className="mt-1 text-xs text-[var(--error)]">
+          {query.error instanceof Error ? query.error.message : "Failed to load the events."}
+        </p>
+      ) : null}
+      {query.hasNextPage ? (
+        <button
+          type="button"
+          className="btn-secondary mt-2 text-xs"
+          disabled={query.isFetchingNextPage}
+          onClick={() => void query.fetchNextPage()}
+        >
+          {query.isFetchingNextPage ? "Loading..." : "Load more events"}
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+/** The Cash flow tab of `/reports`: cash movements of the dimension-bar period. */
+export function CashFlowPanel({ filters }: { filters: ReportFilters }) {
+  const { startDate, endDate, currency } = filters;
   const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(null);
   // Open lines, keyed by the report period and the line id: a new period starts with every line closed.
   const [openLines, setOpenLines] = useState<ReadonlySet<string>>(new Set());
-  const { currencies } = useCurrencies();
 
   const reportQuery = useApiQuery(
-    ["report", "cash-flow", queryString],
+    cashFlowQueryKey({ startDate, endDate, currency }),
     "cash_flow_reports_cash_flow_get",
     { query: { start_date: startDate, end_date: endDate, currency } },
     {
@@ -55,11 +133,8 @@ export default function CashFlowPage() {
 
   const incompleteOpeningCoverage = report?.proof_reasons?.includes("opening_coverage_starts_after_period") ?? false;
   const unverified = report?.proof_state === "unproven";
-  const summary = useMemo(() => report?.summary, [report]);
-  const aiPrompt = useMemo(
-    () => `Analyze my cash flow from ${startDate} to ${endDate} in ${currency}. What are the main sources and uses of cash?`,
-    [currency, endDate, startDate],
-  );
+  const summary = report?.summary;
+  const aiPrompt = `Analyze my cash flow from ${startDate} to ${endDate} in ${report?.currency ?? currency ?? "my base currency"}. What are the main sources and uses of cash?`;
 
   const renderSection = (title: string, lines: CashFlowLine[], colorClass: string) => (
     <div className="card p-5">
@@ -86,7 +161,7 @@ export default function CashFlowPage() {
                           accountName: line.subcategory,
                           asOfDate: endDate,
                           startDate,
-                          currency: report?.currency || currency,
+                          currency: report!.currency,
                         })
                       }
                       className="font-medium ml-2 underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
@@ -137,13 +212,6 @@ export default function CashFlowPage() {
         />
       }
     >
-      <div className="flex flex-wrap gap-3 mb-6 text-sm">
-        <PeriodPresetFilterControl defaultPreset="1M" onSelectRange={(range) => { setStartDate(range.startDate); setEndDate(range.endDate); }} />
-        <DateFilterControl label="Start date" value={startDate} onChange={setStartDate} />
-        <DateFilterControl label="End date" value={endDate} onChange={setEndDate} />
-        <CurrencyFilterControl value={currency} currencies={currencies} onChange={setCurrency} />
-      </div>
-
       <FxWarningBanner warnings={report?.fx_warnings} />
 
       {summary && (

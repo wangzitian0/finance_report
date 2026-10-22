@@ -250,7 +250,7 @@ test.describe("AC19.8.7 AC19.8.8 AC22.8.4 AC22.19 report package smoke", () => {
       await page.setViewportSize(scenario.viewport);
       await installReportReadinessMocks(page);
 
-      await page.goto("/reports/package", { waitUntil: "domcontentloaded" });
+      await page.goto("/reports?tab=package", { waitUntil: "domcontentloaded" });
       await page.getByRole("button", { name: "US-like" }).click();
 
       await expect(
