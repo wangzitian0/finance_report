@@ -9,7 +9,6 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import (
@@ -22,7 +21,8 @@ from src.audit import (
     TraceScope,
     TraceTargetClass,
     VersionedTraceRef,
-    current_authoritative_trace_decision_projection,
+    current_authoritative_trace_decisions,
+    shared_current_authority,
 )
 from src.config import settings
 from src.extraction import (
@@ -623,82 +623,86 @@ class PackageAssembler:
         currency: str,
         include_restricted: bool,
     ) -> _PackageEvaluation:
-        """Compute every readiness input and the readiness. This is the one readiness path."""
-        policy = await derive_user_framework_policy_result(
-            db,
-            user_id,
-            framework_id=framework_id,
-            report_period_start=start_date,
-            report_period_end=end_date,
-            as_of_date=as_of_date,
-        )
-        decisions_by_source_id = _policy_decisions_by_source_id(policy)
-        base_contributions = await self._contributions(
-            db,
-            user_id=user_id,
-            start_date=start_date,
-            end_date=end_date,
-            as_of_date=as_of_date,
-        )
-        cash_inputs = _cash_inputs_from_contributions(base_contributions)
-        sections = await self._sections(
-            db,
-            user_id=user_id,
-            framework_id=framework_id,
-            start_date=start_date,
-            end_date=end_date,
-            as_of_date=as_of_date,
-            currency=currency,
-            include_restricted=include_restricted,
-            decisions_by_source_id=decisions_by_source_id,
-            contributions=base_contributions,
-            cash_inputs=cash_inputs,
-        )
-        contributions = await self._with_market_contributions(
-            db,
-            user_id=user_id,
-            base_contributions=base_contributions,
-            investment_performance=sections.investment_performance,
-        )
-        input_manifest, unproven_input_refs = await self._input_manifest(
-            db,
-            user_id=user_id,
-            contributions=contributions,
-        )
-        coverage = PersonalReportPackageInputCoverage(
-            manifest_decision_count=len(input_manifest),
-            authoritative_input_count=sum(len(item.input_refs) for item in input_manifest),
-            unproven_input_count=len(unproven_input_refs),
-        )
-        # Position and flow sections have different periods and FX averaging
-        # windows. Compare each against its matching ledger projection rather
-        # than comparing lifetime income with the selected month's income.
-        cumulative_net_income = _quantize_money(await _aggregate_net_income_sql(db, user_id, currency, as_of_date))
-        period_net_income = _quantize_money(
-            await _aggregate_net_income_sql(db, user_id, currency, end_date, start_date=start_date)
-        )
-        readiness = self._readiness(
-            policy=policy,
-            coverage=coverage,
-            section_blockers=_section_invariant_blockers(
-                sections,
+        """Compute every readiness input and the readiness. This is the one readiness path.
+
+        Every current-authority read of the evaluation uses one read of the projection (#2602).
+        """
+        async with shared_current_authority(db, TraceScope.tenant(user_id)):
+            policy = await derive_user_framework_policy_result(
+                db,
+                user_id,
+                framework_id=framework_id,
+                report_period_start=start_date,
+                report_period_end=end_date,
+                as_of_date=as_of_date,
+            )
+            decisions_by_source_id = _policy_decisions_by_source_id(policy)
+            base_contributions = await self._contributions(
+                db,
+                user_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
+                as_of_date=as_of_date,
+            )
+            cash_inputs = _cash_inputs_from_contributions(base_contributions)
+            sections = await self._sections(
+                db,
+                user_id=user_id,
+                framework_id=framework_id,
                 start_date=start_date,
                 end_date=end_date,
                 as_of_date=as_of_date,
                 currency=currency,
-                contributions=contributions,
+                include_restricted=include_restricted,
+                decisions_by_source_id=decisions_by_source_id,
+                contributions=base_contributions,
                 cash_inputs=cash_inputs,
-                cumulative_net_income=cumulative_net_income,
-                period_net_income=period_net_income,
-            ),
-        )
-        return _PackageEvaluation(
-            policy=policy,
-            contributions=contributions,
-            sections=sections,
-            input_manifest=input_manifest,
-            readiness=readiness,
-        )
+            )
+            contributions = await self._with_market_contributions(
+                db,
+                user_id=user_id,
+                base_contributions=base_contributions,
+                investment_performance=sections.investment_performance,
+            )
+            input_manifest, unproven_input_refs = await self._input_manifest(
+                db,
+                user_id=user_id,
+                contributions=contributions,
+            )
+            coverage = PersonalReportPackageInputCoverage(
+                manifest_decision_count=len(input_manifest),
+                authoritative_input_count=sum(len(item.input_refs) for item in input_manifest),
+                unproven_input_count=len(unproven_input_refs),
+            )
+            # Position and flow sections have different periods and FX averaging
+            # windows. Compare each against its matching ledger projection rather
+            # than comparing lifetime income with the selected month's income.
+            cumulative_net_income = _quantize_money(await _aggregate_net_income_sql(db, user_id, currency, as_of_date))
+            period_net_income = _quantize_money(
+                await _aggregate_net_income_sql(db, user_id, currency, end_date, start_date=start_date)
+            )
+            readiness = self._readiness(
+                policy=policy,
+                coverage=coverage,
+                section_blockers=_section_invariant_blockers(
+                    sections,
+                    start_date=start_date,
+                    end_date=end_date,
+                    as_of_date=as_of_date,
+                    currency=currency,
+                    contributions=contributions,
+                    cash_inputs=cash_inputs,
+                    cumulative_net_income=cumulative_net_income,
+                    period_net_income=period_net_income,
+                ),
+            )
+            return _PackageEvaluation(
+                policy=policy,
+                contributions=contributions,
+                sections=sections,
+                input_manifest=input_manifest,
+                readiness=readiness,
+            )
 
     async def _emit_package_decision(
         self,
@@ -1017,6 +1021,8 @@ class PackageAssembler:
         """Return all details of one appendix anchor, as ``assemble`` writes them. Return None for an unknown line."""
         if line_id not in {line["line_id"] for line in PERSONAL_REPORT_PACKAGE_TRACEABILITY["lines"]}:
             return None
+        # Two filtered authority reads (opening positions, journal entries) read fewer rows
+        # than one shared read of every current decision, so this path opens no shared block.
         appendix = await _traceability_appendix(
             await self._evidence_contributions(
                 db,
@@ -1041,19 +1047,23 @@ class PackageAssembler:
         as_of_date: date,
         currency: str,
     ) -> list[PersonalReportPackageTraceManifestEntry]:
-        """Return the input manifest that ``assemble`` writes for the same arguments."""
-        manifest, _unproven_input_refs = await self._input_manifest(
-            db,
-            user_id=user_id,
-            contributions=await self._evidence_contributions(
+        """Return the input manifest that ``assemble`` writes for the same arguments.
+
+        The contributions and the manifest use one read of the current-authority projection (#2602).
+        """
+        async with shared_current_authority(db, TraceScope.tenant(user_id)):
+            manifest, _unproven_input_refs = await self._input_manifest(
                 db,
                 user_id=user_id,
-                start_date=start_date,
-                end_date=end_date,
-                as_of_date=as_of_date,
-                currency=currency,
-            ),
-        )
+                contributions=await self._evidence_contributions(
+                    db,
+                    user_id=user_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                    as_of_date=as_of_date,
+                    currency=currency,
+                ),
+            )
         return manifest
 
     async def _selected_market_contributions(
@@ -1098,24 +1108,12 @@ class PackageAssembler:
 
         if not contributions_by_decision:
             return [], sorted(unproven_refs)
-        projection = current_authoritative_trace_decision_projection(TraceScope.tenant(user_id)).subquery(
-            "package_authority_decisions"
-        )
-        trusted_result = await db.execute(
-            select(
-                projection.c.decision_id,
-                projection.c.target_kind,
-                projection.c.target_id,
-                projection.c.target_version,
-                projection.c.assertion_kind,
-                projection.c.assertion_id,
-                projection.c.assertion_version,
-                projection.c.authority_tier,
-            ).where(projection.c.decision_id.in_(contributions_by_decision))
-        )
-        current_decisions: dict[UUID, dict[str, Any]] = {}
-        for row in trusted_result.mappings():
-            current_decisions[row["decision_id"]] = dict(row)
+        current_decisions: dict[UUID, dict[str, Any]] = {
+            decision_id: dict(row._mapping)
+            for decision_id, row in (
+                await current_authoritative_trace_decisions(db, TraceScope.tenant(user_id), contributions_by_decision)
+            ).items()
+        }
         accepted_refs_by_decision: dict[UUID, set[str]] = defaultdict(set)
         for decision_id, decision_contributions in contributions_by_decision.items():
             current = current_decisions.get(decision_id)
@@ -1216,13 +1214,15 @@ def package_preview(document: PersonalReportPackageDocument) -> PersonalReportPa
     """
     if document.lifecycle is not PersonalReportPackageDocumentLifecycle.PREVIEW:
         raise ValueError("only a preview document has a preview payload")
+    if document.status is not PersonalReportPackageSnapshotStatus.DRAFT:
+        raise ValueError("a preview document has no package decision, so its status is draft")
     sections = document.sections
     return PersonalReportPackagePreview(
         schema_version=document.schema_version,
         lifecycle=document.lifecycle,
         generated_at=document.generated_at,
         package_id=document.package_id,
-        status=document.status,
+        status=PersonalReportPackageSnapshotStatus.DRAFT,
         context=document.context,
         contract=document.contract,
         readiness=document.readiness,

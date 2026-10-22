@@ -42,6 +42,15 @@ the trace ORM. It returns only financial decisions whose own and parent records
 remain current; consumers join it to their immutable local reference and never
 reconstruct trace validity.
 
+A consumer that knows its decision ids calls
+`current_authoritative_trace_decisions(db, scope, decision_ids)`. One statement
+reads only these ids. A caller that runs many such reads for one result opens
+`shared_current_authority(db, scope)`: in the block, each read of the same
+session and scope uses one read of the projection. A TraceRecord write on the
+session in the block ends that reuse, so the block never reports a superseded
+decision as current. The package evaluation opens one block per evaluation
+(#2602).
+
 Cross-package contributions carry a `TraceDecisionRef`, the lightweight exact
 coordinates `(decision_id, target, assertion)` of the decision they resolved.
 The consuming package must compare all three coordinates with its scope-bound

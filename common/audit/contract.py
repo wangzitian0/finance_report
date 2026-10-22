@@ -217,6 +217,16 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/trace_decision_projection.py",
         ),
+        Unit(
+            name="current_authoritative_trace_decisions",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/trace_decision_projection.py",
+        ),
+        Unit(
+            name="shared_current_authority",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/trace_decision_projection.py",
+        ),
     ],
     implementations={
         "be": "apps/backend/src/audit",
@@ -277,6 +287,8 @@ CONTRACT = PackageContract(
         "TraceRecordValidationError",
         "TraceRecordPersistenceError",
         "current_authoritative_trace_decision_projection",
+        "current_authoritative_trace_decisions",
+        "shared_current_authority",
         "trace_decision_projection",
         "SqlTraceRecordRepository",
         "TraceConfidenceProjection",
@@ -516,6 +528,7 @@ CONTRACT = PackageContract(
         ac('AC-audit.trace-record.5', 'An LLM-produced financial observation can become authoritative only through a final CODE-ONLY DECISION that includes an authoritative CODE-ONLY invariant or promotion DECISION over the same exact target; an LLM-ONLY record can never own the persisted financial-number decision.', 'apps/backend/tests/audit/trace/test_trace_causality.py::test_AC_audit_trace_record_5_financial_authority_requires_code_parent'),
         ac('AC-audit.trace-record.6', 'The public current-authoritative TraceRecord projection returns only financial decisions whose complete parent graph is current, so a cross-package read can fail closed without importing audit ORM internals.', 'apps/backend/tests/audit/trace/test_trace_decision_projection.py::test_AC_audit_trace_record_6_current_projection_matches_repository_current_ancestry'),
         ac('AC-audit.trace-record.7', 'The TraceRecord repository exposes a typed physical decision head that distinguishes an absent lineage from a head whose complete ancestry is current or stale; current_decision remains the fail-closed authoritative view, while a writer can supersede the exact stale head without guessing from a missing result or importing audit persistence internals.', 'apps/backend/tests/audit/trace/test_trace_repository.py::test_AC_audit_trace_record_7_decision_head_preserves_absent_current_and_stale_states'),
+        ac('AC-audit.trace-record.8', 'current_authoritative_trace_decisions returns the current authoritative decisions among the requested ids with one statement. In a shared_current_authority block, every such read of the same session and scope uses the one projection read of the block. A TraceRecord write on the session in the block ends that reuse, so a superseded decision is never reported as current (#2602).', 'apps/backend/tests/audit/trace/test_shared_current_authority.py::test_AC_audit_trace_record_8_trace_write_inside_the_block_drops_the_shared_read', priority='P1', proof_kind='exact'),
         ac('AC-audit.terminal-trace.1', 'Exact selected package and manifest decision refs resolve in one tenant scope; the package direct decision parents equal the selected manifest while canonical non-decision parents remain part of the replayed graph.', 'apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_1_verifies_exact_frozen_graph', proof_kind='exact'),
         ac('AC-audit.terminal-trace.2', 'Missing, cross-scope, wrong type, result, target, assertion, disconnected, and repository-read failures fail closed; available owner diagnostics derive from the canonical record authority rather than caller input.', 'apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_2_counterexamples_fail_closed', proof_kind='exact'),
         ac('AC-audit.terminal-trace.3', 'Exact testing executed-proof coordinates are mandatory and successful composition emits only a canonical TraceRecord round-trippable through the existing TraceRecordCodec.', 'apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_3_emits_only_canonical_trace_record', proof_kind='exact'),

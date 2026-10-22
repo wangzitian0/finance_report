@@ -869,7 +869,9 @@ not cash earned or spent on that date. `list_opening_positions` publishes immuta
 original currency, historical FX rate, optional journal id, and current trace
 decision. Reporting consumes this evidence; memo text and arbitrary event tags
 never prove an opening. Existing anchored `opening-balance` system commands can
-be projected without rewriting their history.
+be projected without rewriting their history. The projection reads current
+authority only for the decisions of its own facts: the opening records, their
+journal entries and the historical opening commands (#2602).
 
 Manual and automatic statement approval initialize the first trusted account
 position in the same transaction as source posting. A tenant-scoped database

@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import TraceDecisionRef, TraceScope, VersionedTraceRef, current_authoritative_trace_decision_projection
+from src.audit import TraceDecisionRef, TraceScope, VersionedTraceRef, current_authoritative_trace_decisions
 from src.ledger.base.contribution import JournalLineContribution, ResolvedJournalContribution
 from src.ledger.orm.account import Account
 from src.ledger.orm.journal import (
@@ -25,76 +25,74 @@ async def list_journal_contributions(
     start_date: date,
     end_date: date,
 ) -> tuple[ResolvedJournalContribution, ...]:
-    """Publish only ledger-owned facts with explicit current-authority state."""
-    decisions = current_authoritative_trace_decision_projection(TraceScope.tenant(user_id)).subquery(
-        "ledger_contribution_decisions"
-    )
-    rows = await db.execute(
-        select(
-            JournalEntry,
-            JournalLine,
-            Account,
-            decisions.c.decision_id,
-            decisions.c.target_kind,
-            decisions.c.target_id,
-            decisions.c.target_version,
-            decisions.c.assertion_kind,
-            decisions.c.assertion_id,
-            decisions.c.assertion_version,
-        )
-        .join(JournalLine, JournalLine.journal_entry_id == JournalEntry.id)
-        .join(Account, Account.id == JournalLine.account_id)
-        .outerjoin(decisions, decisions.c.decision_id == JournalEntry.decision_anchor_id)
-        .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.entry_date >= start_date)
-        .where(JournalEntry.entry_date <= end_date)
-        .where(active_journal_entry_filter(JournalEntry))
-        .order_by(JournalEntry.entry_date, JournalEntry.id, JournalLine.id)
-    )
-    grouped: dict[UUID, tuple[JournalEntry, TraceDecisionRef | None, list[JournalLineContribution]]] = {}
-    for (
-        entry,
-        line,
-        account,
-        decision_id,
-        target_kind,
-        target_id,
-        target_version,
-        assertion_kind,
-        assertion_id,
-        assertion_version,
-    ) in rows:
-        decision = (
-            TraceDecisionRef(
-                decision_id=decision_id,
-                target=VersionedTraceRef(target_kind, target_id, target_version),
-                assertion=VersionedTraceRef(assertion_kind, assertion_id, assertion_version),
+    """Publish only ledger-owned facts with explicit current-authority state.
+
+    The query reads the columns of the contribution, not ORM entities. The current-authority
+    read covers only the decision anchors of the selected entries (#2602).
+    """
+    rows = (
+        await db.execute(
+            select(
+                JournalEntry.id,
+                JournalEntry.entry_date,
+                JournalEntry.decision_anchor_id,
+                JournalLine.id,
+                Account.id,
+                Account.type,
+                JournalLine.direction,
+                JournalLine.amount,
+                JournalLine.currency,
             )
-            if decision_id is not None
-            else None
+            .join(JournalLine, JournalLine.journal_entry_id == JournalEntry.id)
+            .join(Account, Account.id == JournalLine.account_id)
+            .where(JournalEntry.user_id == user_id)
+            .where(JournalEntry.entry_date >= start_date)
+            .where(JournalEntry.entry_date <= end_date)
+            .where(active_journal_entry_filter(JournalEntry))
+            .order_by(JournalEntry.entry_date, JournalEntry.id, JournalLine.id)
         )
-        current = grouped.get(entry.id)
+    ).all()
+    authorities = await current_authoritative_trace_decisions(
+        db,
+        TraceScope.tenant(user_id),
+        {anchor_id for _entry_id, _entry_date, anchor_id, *_line in rows if anchor_id is not None},
+    )
+    grouped: dict[UUID, tuple[date, TraceDecisionRef | None, list[JournalLineContribution]]] = {}
+    for entry_id, entry_date, anchor_id, line_id, account_id, account_type, direction, amount, currency in rows:
+        current = grouped.get(entry_id)
         if current is None:
-            current = (entry, decision, [])
-            grouped[entry.id] = current
+            evidence = authorities.get(anchor_id) if anchor_id is not None else None
+            decision = (
+                TraceDecisionRef(
+                    decision_id=evidence.decision_id,
+                    target=VersionedTraceRef(evidence.target_kind, evidence.target_id, evidence.target_version),
+                    assertion=VersionedTraceRef(
+                        evidence.assertion_kind, evidence.assertion_id, evidence.assertion_version
+                    ),
+                )
+                if evidence is not None
+                else None
+            )
+            current = (entry_date, decision, [])
+            grouped[entry_id] = current
         current[2].append(
             JournalLineContribution(
-                line_id=line.id,
-                account_id=account.id,
-                account_type=account.type,
-                direction=line.direction,
-                amount=line.amount,
-                currency=line.currency,
+                line_id=line_id,
+                account_id=account_id,
+                account_type=account_type,
+                direction=direction,
+                amount=amount,
+                currency=currency,
             )
         )
     return tuple(
         ResolvedJournalContribution(
-            entry_id=entry.id,
-            entry_date=entry.entry_date,
+            entry_id=entry_id,
+            entry_date=entry_date,
             lines=tuple(lines),
             state="authoritative" if decision is not None else "unproven",
             reason_code=None if decision is not None else "missing_current_decision_anchor",
             decision=decision,
         )
-        for entry, decision, lines in grouped.values()
+        for entry_id, (entry_date, decision, lines) in grouped.items()
     )

@@ -420,7 +420,10 @@ Package readiness is a deterministic field of the document and is produced
 only by `PackageAssembler`. `assemble` and `evaluate_readiness` share one
 evaluation step, so both return the same readiness. `evaluate_readiness` does
 not build the traceability appendix, the notes, or a package decision, because
-readiness does not read them (#2583). Workflow and advisor consume
+readiness does not read them (#2583). The evaluation step opens one
+`shared_current_authority` block, so its current-authority reads (opening
+positions, journal contributions, input manifest) share one read of the audit
+projection (#2602). The manifest-entries page does the same. Workflow and advisor consume
 `current_package_readiness`; frontend surfaces render the document.
 None may retain a readiness route, service, or local derivation. A document is
 `ready` only when exact current contribution decisions and section invariants
