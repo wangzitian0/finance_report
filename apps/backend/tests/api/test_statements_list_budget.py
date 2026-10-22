@@ -1,8 +1,7 @@
 """GET /statements list budget (#2583 S4).
 
 The list endpoint feeds Home, /attention and the /upload poll. It must issue a
-bounded number of SQL statements and must not embed transactions unless the
-caller asks for them.
+bounded number of SQL statements and must not embed transactions.
 """
 
 from __future__ import annotations
@@ -73,12 +72,17 @@ async def test_AC_extraction_statement_list_1_sql_count_does_not_grow_with_state
     assert len(large_sql) <= 8, f"expected a bounded list, got {len(large_sql)} SQL statements"
 
 
-async def test_AC_extraction_statement_list_2_default_response_omits_transactions(client, db, db_engine, test_user):
-    """AC-extraction.statement-list.2: transactions are absent by default and present only with include_transactions=true."""
+async def test_AC_extraction_statement_list_2_list_has_no_transactions_option(
+    client, db, db_engine, test_user, openapi_schema
+):
+    """AC-extraction.statement-list.2: the list has no include_transactions option and every item has an empty transactions list."""
     seeded = await _seed_statements(db, test_user.id, 3)
     assert all(len(item.transactions) == ROWS_PER_STATEMENT for item in seeded)
 
-    default_response, _ = await _count_sql(db_engine, client, "/statements")
+    parameters = openapi_schema["paths"]["/statements"]["get"].get("parameters", [])
+    assert "include_transactions" not in {parameter["name"] for parameter in parameters}
+
+    default_response, default_sql = await _count_sql(db_engine, client, "/statements")
     default_items = default_response.json()["items"]
     assert len(default_items) == 3
     assert all(item["transactions"] == [] for item in default_items)
@@ -86,10 +90,14 @@ async def test_AC_extraction_statement_list_2_default_response_omits_transaction
     assert {item["original_filename"] for item in default_items} == {f"list_budget_{i:02d}.pdf" for i in range(3)}
     assert all(item["file_path"] for item in default_items)
 
-    opted_in, _ = await _count_sql(db_engine, client, "/statements", params={"include_transactions": "true"})
-    opted_items = opted_in.json()["items"]
-    assert len(opted_items) == 3
-    assert all(len(item["transactions"]) == ROWS_PER_STATEMENT for item in opted_items)
+    # A caller that still sends the removed option gets the same lean answer with the same SQL count.
+    ignored_response, ignored_sql = await _count_sql(
+        db_engine, client, "/statements", params={"include_transactions": "true"}
+    )
+    ignored_items = ignored_response.json()["items"]
+    assert len(ignored_items) == 3
+    assert all(item["transactions"] == [] for item in ignored_items)
+    assert len(ignored_sql) == len(default_sql)
 
 
 async def test_AC_extraction_statement_list_3_document_lookup_keeps_user_isolation_and_hash_fallback(
