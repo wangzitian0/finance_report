@@ -322,10 +322,10 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
             timeout=15_000
         )
     else:
-        # === AC8.13.4: Start Review → approve via ConfirmDialog ===
-        await page.get_by_role("link", name=re.compile("Start Review")).click()
+        # === AC8.13.4: approve via ConfirmDialog on the statement page ===
+        # The statement page is the review page, so there is no link to follow.
         await expect(page).to_have_url(
-            re.compile(r"/statements/[^/]+/review$"), timeout=15_000
+            re.compile(r"/statements/[^/]+$"), timeout=15_000
         )
         await page.get_by_role("button", name="Approve", exact=True).click()
         dialog = page.locator('[role="dialog"]')

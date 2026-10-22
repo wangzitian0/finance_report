@@ -102,9 +102,7 @@ async def test_statement_detail_and_review_surface(page: Page):
         timeout=15_000
     )
 
-    # 3. Navigate to Statement Review page
-    await page.goto(
-        f"{APP_URL}/statements/{stmt_id}/review", wait_until="domcontentloaded"
-    )
+    # 3. Reload the statement page, which is also the review page
+    await page.goto(f"{APP_URL}/statements/{stmt_id}", wait_until="domcontentloaded")
     assert "/login" not in page.url
     await expect(page.locator("body")).to_be_visible(timeout=15_000)

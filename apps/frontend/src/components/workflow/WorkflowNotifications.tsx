@@ -17,7 +17,7 @@ import {
 export type FlowStep = "upload" | "review" | "reports";
 const STEPS: { key: FlowStep; label: string; href: string }[] = [
   { key: "upload", label: "Upload", href: "/upload" },
-  { key: "review", label: "Review & approve", href: "/notifications" },
+  { key: "review", label: "Review & approve", href: "/upload#statements" },
   { key: "reports", label: "Reports", href: "/reports" },
 ];
 const NEXT_HINT: Record<FlowStep, string> = {
@@ -30,7 +30,7 @@ export function FlowStepBanner({ current }: { current: FlowStep }) {
   const currentIndex = STEPS.findIndex((s) => s.key === current);
   return (
     <nav aria-label="Upload to reports progress" className="card flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
-      <ol className="flex items-center gap-1 text-sm">
+      <ol className="flex flex-wrap items-center gap-1 text-sm">
         {STEPS.map((step, index) => {
           const isCurrent = step.key === current;
           const isDone = index < currentIndex;
@@ -215,29 +215,25 @@ export function WorkflowStatusFeed({ status, events }: WorkflowStatusFeedProps) 
   );
 }
 
-export function WorkflowEventsPageContent() {
+/** Workflow notices for the /upload page: the status summary and the full event timeline. */
+export function WorkflowNotices() {
   const statusQuery = useWorkflowStatusQuery();
   const eventsQuery = useWorkflowEventsQuery(100, "page");
   const lifecycleMutation = useWorkflowLifecycleMutation();
+  const events = eventsQuery.data?.items ?? [];
+  const status = isWorkflowStatusResponse(statusQuery.data) ? statusQuery.data : null;
+  if (statusQuery.isLoading || eventsQuery.isLoading) return <section className="card mb-6 p-5" aria-label="Workflow status"><div className="flex items-center gap-2 text-sm text-muted" role="status"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Loading workflow status...</div></section>;
+  if (!status || !eventsQuery.data) return <Alert variant="warning" className="mb-6">Workflow status is unavailable.</Alert>;
+  if (status.primary_state === "empty" && events.length === 0) return null;
   return (
-    <div className="p-6">
-      <div className="page-header flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div><h1 className="page-title">Notifications</h1><p className="page-description">Your action center — everything that needs your review across uploads, reconciliation, and reports.</p></div>
-        <Link href="/upload" className="btn-primary inline-flex justify-center text-sm">Upload statements</Link>
-      </div>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-        <div>
-          {statusQuery.isLoading || eventsQuery.isLoading ? <section className="card p-5" aria-label="Workflow status"><div className="flex items-center gap-2 text-sm text-muted" role="status"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Loading workflow status...</div></section>
-            : statusQuery.data && eventsQuery.data ? <WorkflowStatusFeed status={statusQuery.data} events={eventsQuery.data.items} />
-            : <section className="card p-5" aria-label="Workflow status"><div className="alert-warning">Workflow status is unavailable.</div></section>}
-        </div>
-        <section className="card p-5" aria-label="Workflow event inbox">
-          <div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Workflow events</h2><Badge variant="muted">{eventsQuery.data?.total ?? 0} total</Badge></div>
-          {eventsQuery.isLoading && <div className="flex items-center gap-2 text-sm text-muted" role="status"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Loading workflow events...</div>}
-          {eventsQuery.isError && <Alert variant="error">Unable to load workflow events.</Alert>}
-          {eventsQuery.data && <WorkflowInbox events={eventsQuery.data.items} sessions={eventsQuery.data.sessions} onStatusChange={(eventId, status) => lifecycleMutation.mutate({ eventId, status })} />}
-        </section>
-      </div>
+    <div className="mb-6 space-y-3">
+      <WorkflowStatusFeed status={status} events={events} />
+      {events.length > 0 && (
+        <details className="card p-5" aria-label="Workflow event inbox">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3"><h2 className="text-lg font-semibold">Workflow events</h2><Badge variant="muted">{eventsQuery.data.total} total</Badge></summary>
+          <div className="mt-4"><WorkflowInbox events={events} sessions={eventsQuery.data.sessions ?? []} onStatusChange={(eventId, nextStatus) => lifecycleMutation.mutate({ eventId, status: nextStatus })} /></div>
+        </details>
+      )}
     </div>
   );
 }

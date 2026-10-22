@@ -97,7 +97,7 @@ export default function UnmatchedBoard() {
   const searchParams = useSearchParams();
   const statementId = searchParams.get("statement_id");
   const requestedReturnTo = searchParams.get("return_to");
-  const statementReviewHref = statementId ? `/statements/${encodeURIComponent(statementId)}/review` : null;
+  const statementReviewHref = statementId ? `/statements/${encodeURIComponent(statementId)}` : null;
   const safeReturnHref = statementReviewHref && requestedReturnTo === statementReviewHref ? requestedReturnTo : statementReviewHref;
 
   const [items, setItems] = useState<BankTransactionSummary[]>([]);

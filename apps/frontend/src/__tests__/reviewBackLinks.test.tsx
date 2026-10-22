@@ -34,11 +34,11 @@ describe("Review surfaces back-link + plain copy (EPIC-022 AC22.5.3, AC22.5.4)",
     });
 
     // AC-platform.fe-ia-inbox.4
-    it("AC22.5.3 BackLink defaults to the notification center", () => {
-        render(<BackLink>Back to Notifications</BackLink>);
-        expect(screen.getByRole("link", { name: /Back to Notifications/i })).toHaveAttribute(
+    it("AC22.5.3 BackLink defaults to the upload page", () => {
+        render(<BackLink>Back to Upload</BackLink>);
+        expect(screen.getByRole("link", { name: /Back to Upload/i })).toHaveAttribute(
             "href",
-            "/notifications",
+            "/upload",
         );
     });
 

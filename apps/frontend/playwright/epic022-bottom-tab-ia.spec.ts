@@ -105,7 +105,7 @@ test.describe("AC22.21.7 mobile/PWA bottom-tab IA smoke", () => {
         await expect(page.getByRole("heading", { name: "Audit" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
         await expect(page.getByRole("link", { name: /Reconciliation/ })).toHaveAttribute("href", "/reconciliation");
         await expect(page.getByRole("link", { name: /Journal/ })).toHaveAttribute("href", "/journal");
-        await expect(page.getByRole("link", { name: /Processing/ })).toHaveAttribute("href", "/processing");
+        await expect(page.getByRole("link", { name: /Statements/ })).toHaveAttribute("href", "/upload");
 
         await expectNoHorizontalScroll(page);
     });

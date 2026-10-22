@@ -21,8 +21,7 @@ import { useDataQualityHealth } from "@/hooks/useDataQualityHealth";
 const DESCRIPTIONS: Record<string, string> = {
   "/reconciliation": "How well your statements reconcile, and anything still unmatched.",
   "/journal": "The double-entry ledger behind every figure in your reports.",
-  "/upload": "Uploaded bank, brokerage, and card statements with extraction status.",
-  "/processing": "In-flight transfer holdings awaiting paired institution statements.",
+  "/upload": "Uploaded bank, brokerage, and card statements with extraction status and transfers still in flight.",
 };
 
 export default function AuditPage() {

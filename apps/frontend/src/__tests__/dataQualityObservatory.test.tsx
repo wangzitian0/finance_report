@@ -289,7 +289,7 @@ describe("Personal Data Quality Observatory (#2294)", () => {
       expect(screen.queryByRole("link", { name: /Trust/ })).not.toBeInTheDocument();
       expect(screen.getAllByRole("link", { name: /Reconciliation/ }).length).toBeGreaterThanOrEqual(1);
       expect(screen.getByRole("link", { name: /Journal/ })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Processing/ })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Statements/ })).toHaveAttribute("href", "/upload");
     });
 
     it("keeps the attention rows of the sources that load when the statement and processing reads fail", async () => {
@@ -345,7 +345,7 @@ describe("Personal Data Quality Observatory (#2294)", () => {
 
       const bar = screen.getByTestId("needs-confirmation-queue");
       const row = await within(bar).findByRole("link", { name: /OCBC_2026_02\.pdf/ });
-      expect(row).toHaveAttribute("href", "/statements/stmt-2/review?from=attention");
+      expect(row).toHaveAttribute("href", "/statements/stmt-2?from=attention");
       expect(within(row).getByText("Balance needs review")).toBeInTheDocument();
       expect(within(row).getByText("40% confidence")).toBeInTheDocument();
     });

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   WorkflowNotificationCenter,
-  WorkflowEventsPageContent,
+  WorkflowNotices,
   WorkflowInbox,
   UploadToReportHome,
   UploadToReportHomePanel,
@@ -417,33 +417,31 @@ describe("workflow notification surfaces", () => {
     }
   })
 
-  it("AC19.3.5 renders the events page loading and unavailable states", async () => {
+  it("AC19.3.5 renders the upload-page notices loading and unavailable states", async () => {
     vi.mocked(fetchWorkflowStatus).mockImplementation(() => new Promise(() => undefined))
     vi.mocked(fetchWorkflowEvents).mockImplementation(() => new Promise(() => undefined))
 
-    const { unmount } = renderWithQuery(<WorkflowEventsPageContent />)
+    const { unmount } = renderWithQuery(<WorkflowNotices />)
 
-    expect(screen.getByRole("heading", { name: "Notifications" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Upload statements" })).toHaveAttribute("href", "/upload")
     expect(screen.getByText("Loading workflow status...")).toBeInTheDocument()
-    expect(screen.getByText("Loading workflow events...")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Workflow events" })).not.toBeInTheDocument()
 
     unmount()
 
     vi.mocked(fetchWorkflowStatus).mockRejectedValue(new Error("status unavailable"))
     vi.mocked(fetchWorkflowEvents).mockRejectedValue(new Error("events unavailable"))
 
-    renderWithQuery(<WorkflowEventsPageContent />)
+    renderWithQuery(<WorkflowNotices />)
 
     expect(await screen.findByText("Workflow status is unavailable.")).toBeInTheDocument()
-    expect(await screen.findByText("Unable to load workflow events.")).toBeInTheDocument()
+    expect(screen.queryByText("Loading workflow status...")).not.toBeInTheDocument()
   })
 
-  it("AC19.3.5 renders the events page status feed, inbox total, and lifecycle actions", async () => {
-    renderWithQuery(<WorkflowEventsPageContent />)
+  // AC-platform.fe-workflow.3
+  it("AC19.3.5 renders the upload-page status feed, inbox total, and lifecycle actions", async () => {
+    renderWithQuery(<WorkflowNotices />)
 
     expect(await screen.findByRole("heading", { name: "Workflow status" })).toBeInTheDocument()
-    expect(screen.getByText("Your action center — everything that needs your review across uploads, reconciliation, and reports.")).toBeInTheDocument()
     expect(screen.getByText("4 total")).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Workflow events" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Upload-to-report session" })).toBeInTheDocument()

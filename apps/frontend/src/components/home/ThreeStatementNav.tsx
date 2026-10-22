@@ -219,10 +219,10 @@ export function ThreeStatementNav({
             <div className="grid gap-2 sm:grid-cols-3">
               {[
                 { label: "Upload a bank statement", href: "/upload", done: (onboardingStatus?.statementCount ?? 0) > 0 },
-                { label: "Review and approve", href: "/notifications", done: isCoreFlowComplete },
+                { label: "Review and approve", href: "/upload", done: isCoreFlowComplete },
                 { label: "Read your reports", href: "/reports", done: isCoreFlowComplete },
               ].map(({ label, href, done }) => (
-                <Link key={href} href={href} className="flex items-center justify-between gap-2 rounded-md border border-[var(--border)] px-2.5 py-1.5 text-xs hover:border-[var(--accent)]">
+                <Link key={label} href={href} className="flex items-center justify-between gap-2 rounded-md border border-[var(--border)] px-2.5 py-1.5 text-xs hover:border-[var(--accent)]">
                   <span className="font-medium">{label}</span>
                   <span className="text-muted">{done ? "Done" : "Next"}</span>
                 </Link>

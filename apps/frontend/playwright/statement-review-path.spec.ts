@@ -75,21 +75,17 @@ test.describe("AC-extraction.human-source-review.4 statement review click path",
     await installMocks(page);
   });
 
-  test("upload list -> statement detail -> Start Review shows a disabled Approve", async ({ page }) => {
+  test("upload list -> statement page shows a disabled Approve", async ({ page }) => {
     await page.goto("/upload", { waitUntil: "networkidle" });
-    const reviewPath = `/statements/${STMT_ID}/review`;
-
     const statementLink = page.locator(`a[href="/statements/${STMT_ID}"]`);
     await expect(statementLink).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
     await statementLink.click();
     await expect(page).toHaveURL(new RegExp(`/statements/${STMT_ID}$`), { timeout: COLD_ROUTE_TIMEOUT_MS });
 
-    const reviewLink = page.getByRole("link", { name: "Start Review →", exact: true });
-    await expect(reviewLink).toHaveAttribute("href", reviewPath, { timeout: COLD_ROUTE_TIMEOUT_MS });
-    await reviewLink.click();
-    await expect(page).toHaveURL(new RegExp(`${reviewPath}$`), { timeout: COLD_ROUTE_TIMEOUT_MS });
+    // The statement page is the review page: there is no separate review link to follow.
+    await expect(page.locator(`a[href="/statements/${STMT_ID}/review"]`)).toHaveCount(0);
 
-    // Without a confirmed source envelope and a custody account, the review page blocks approval.
+    // Without a confirmed source envelope and a custody account, the statement page blocks approval.
     await expect(page.getByText("Confirm source facts")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
     await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeDisabled();
   });

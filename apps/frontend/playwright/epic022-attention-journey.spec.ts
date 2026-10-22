@@ -10,7 +10,7 @@ const STMT_ID = "11111111-1111-4111-8111-111111111111";
 
 const workflowStatus = {
   primary_state: "needs_action",
-  next_action: { type: "review_required", count: 2, href: `/statements/${STMT_ID}/review` },
+  next_action: { type: "review_required", count: 2, href: `/statements/${STMT_ID}` },
   report_readiness: { state: "blocked", blocking_count: 2, href: "/reports/package" },
   event_counts: { unread: 2, action_required: 1, blocked: 1 },
   active_session: {
@@ -43,7 +43,7 @@ const workflowEvents = {
       summary: "statement.pdf needs source review before report readiness can advance.",
       source_type: "bank_statement",
       source_id: STMT_ID,
-      action_href: `/statements/${STMT_ID}/review`,
+      action_href: `/statements/${STMT_ID}`,
       report_impact: "blocked",
     },
     {
@@ -93,19 +93,19 @@ test.describe("AC22.4.5 everyday-user attention journey", () => {
     { label: "mobile", width: 390, height: 844 },
   ]) {
     // AC-reconciliation.fe-ia-reconciliation.2
-    test(`${label}: both Stage 1 and Stage 2 attention surface in the notification center with deep links`, async ({
+    test(`${label}: both Stage 1 and Stage 2 attention surface in the upload workflow notices with deep links`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height });
 
-      // Open the dedicated notification center (also reached via the header bell).
-      await page.goto("/notifications", { waitUntil: "networkidle" });
+      // Open the Upload page, where the workflow notices live (also reached via the header bell).
+      await page.goto("/upload", { waitUntil: "networkidle" });
 
       await expect(page.getByText("Source review required").first()).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
       await expect(page.getByText("Reconciliation blockers").first()).toBeVisible();
 
       // Stage 1 deep-links to the specific statement review; Stage 2 to the queue.
-      await expect(page.locator(`a[href="/statements/${STMT_ID}/review"]`).first()).toBeVisible();
+      await expect(page.locator(`a[href="/statements/${STMT_ID}"]`).first()).toBeVisible();
       await expect(page.locator('a[href="/reconciliation/review-queue"]').first()).toBeVisible();
     });
   }

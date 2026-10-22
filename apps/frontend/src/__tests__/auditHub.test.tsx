@@ -23,7 +23,7 @@ describe("Audit hub (EPIC-022 AC22.21.3)", () => {
     });
 
     // AC-ledger.fe-processing.5
-    it("AC15.7.6 aggregates the verify-on-demand machinery (incl. Processing) as deep-linking cards", () => {
+    it("AC15.7.6 aggregates the verify-on-demand machinery as deep-linking cards", () => {
         render(<AuditPage />);
 
         expect(screen.getByRole("heading", { name: "Audit" })).toBeInTheDocument();
@@ -32,7 +32,6 @@ describe("Audit hub (EPIC-022 AC22.21.3)", () => {
             { name: /Reconciliation/, href: "/reconciliation" },
             { name: /Journal/, href: "/journal" },
             { name: /Statements/, href: "/upload" },
-            { name: /Processing/, href: "/processing" },
         ];
         for (const { name, href } of links) {
             expect(screen.getByRole("link", { name }).closest("a")).toHaveAttribute("href", href);
@@ -75,7 +74,7 @@ describe("Audit hub (EPIC-022 AC22.21.3)", () => {
         const hrefs = (await within(queue).findAllByRole("link")).map((link) => link.getAttribute("href"));
         expect(hrefs).toEqual([
             "/reconciliation/unmatched?from=attention",
-            "/statements/s1/review?from=attention",
+            "/statements/s1?from=attention",
             "/reconciliation?from=attention",
         ]);
         expect((await screen.findAllByText("COFFEE SHOP")).length).toBeGreaterThan(0);

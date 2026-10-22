@@ -286,7 +286,7 @@ owner.)*
 
 ### Stage 1 — record-level review
 
-**Location**: `/statements/{id}/review`. Validates extracted transaction data
+**Location**: `/statements/{id}` (the one statement page: PDF original on the left, extracted transactions on the right). Validates extracted transaction data
 against the original document.
 
 1. Parse statement → `status=PARSED`.
@@ -477,7 +477,7 @@ pending --> flagged: Needs manual review
 | Service | `apps/backend/src/extraction/extension/statement_validation.py` |
 | Service | `apps/backend/src/reconciliation/extension/consistency_checks.py` |
 | Router | `apps/backend/src/routers/statements.py` |
-| Frontend | `apps/frontend/src/app/(main)/statements/[id]/review/page.tsx` |
+| Frontend | `apps/frontend/src/app/(main)/statements/[id]/page.tsx` |
 | Frontend | `apps/frontend/src/components/review/Stage2ReviewQueue.tsx` |
 | Frontend | `apps/frontend/src/app/(main)/reconciliation/review-queue/page.tsx` |
 | Frontend | `apps/frontend/src/app/(main)/audit/page.tsx` |

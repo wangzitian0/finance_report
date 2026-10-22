@@ -20,13 +20,13 @@ const ROUTE_MAP: Array<[RegExp, string]> = [
   [/^\/reports\/income-statement(?:[/?#].*)?$/, "/reports/income-statement"],
   [/^\/reports\/cash-flow(?:[/?#].*)?$/, "/reports/cash-flow"],
   [/^\/reports\/package(?:[/?#].*)?$/, "/reports/package"],
-  [/^\/review(?:[/?#].*)?$/, "/review"],
+  [/^\/review(?:[/?#].*)?$/, "/upload"],
   [/^\/reconciliation\/review-queue(?:[/?#].*)?$/, "/reconciliation/review-queue"],
   [/^\/portfolio\/prices(?:\/update)?(?:[/?#].*)?$/, "/portfolio/prices"],
   [/^\/portfolio(?:[/?#].*)?$/, "/portfolio"],
   [/^\/assets(?:[/?#].*)?$/, "/assets"],
   [/^\/reports(?:[/?#].*)?$/, "/reports"],
-  [/^\/statements\/upload(?:[/?#].*)?$/, "/statements/upload"],
+  [/^\/statements\/upload(?:[/?#].*)?$/, "/upload"],
 ];
 
 export function safeAdvisorHref(href: string): string {

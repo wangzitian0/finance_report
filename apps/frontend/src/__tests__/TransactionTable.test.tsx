@@ -186,4 +186,27 @@ describe("TransactionTable (read-only)", () => {
         fireEvent.click(mobileReviewBtn);
         expect(onSelect).toHaveBeenCalledTimes(2);
     });
+
+    // AC-reconciliation.2465.2
+    it("AC-reconciliation.2465.2 defaults transaction status to matched when the statement is approved", () => {
+        const { status: _omittedStatus, ...withoutStatus } = sample[0];
+        void _omittedStatus;
+        render(<TransactionTable transactions={[withoutStatus as BankStatementTransaction]} currency="SGD" statementStatus="approved" />);
+        expect(screen.getAllByText("matched").length).toBeGreaterThan(0);
+        expect(screen.queryByText("pending")).not.toBeInTheDocument();
+    });
+
+    it("shows an explicit transaction status and defaults to pending for an unapproved statement", () => {
+        const { status: _omittedStatus, ...withoutStatus } = sample[0];
+        void _omittedStatus;
+        render(<TransactionTable transactions={[{ ...sample[0], id: "t-unmatched", status: "unmatched" }, { ...withoutStatus, id: "t-default" } as BankStatementTransaction]} currency="SGD" statementStatus="parsed" />);
+        expect(screen.getByText("unmatched")).toBeInTheDocument();
+        expect(screen.getByText("pending")).toBeInTheDocument();
+        expect(screen.queryByText("matched")).not.toBeInTheDocument();
+    });
+
+    it("omits the Status column when no statement status is given", () => {
+        render(<TransactionTable transactions={sample} currency="SGD" />);
+        expect(screen.queryByRole("columnheader", { name: "Status" })).not.toBeInTheDocument();
+    });
 });

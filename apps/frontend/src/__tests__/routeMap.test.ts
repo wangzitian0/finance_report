@@ -90,6 +90,29 @@ describe("route map (single source of truth for routes)", () => {
     expect(actual).toEqual(expected)
   })
 
+  // AC-meta.fe-ia-nav.35
+  it("AC-meta.fe-ia-nav.35 redirects the upload-chain routes and keeps the legacy aliases off the retired notifications path", async () => {
+    const expected: Record<string, string> = {
+      "/notifications": "/upload",
+      "/processing": "/upload",
+      "/accounts/processing": "/upload",
+      "/statements/[id]/review": "/statements/[id]",
+      "/events": "/upload",
+      "/review": "/upload",
+    }
+    const toNext = (p: string) => p.replace(/\[([^\]]+)\]/g, ":$1")
+    const actual = new Map(
+      ((await nextConfig.redirects?.()) ?? []).map((r: { source: string; destination: string }) => [r.source, r.destination]),
+    )
+    for (const [from, into] of Object.entries(expected)) {
+      expect(byPath.get(from)?.state, `${from} must be a redirect entry`).toBe("redirect")
+      expect(byPath.get(from)?.into, `${from} must redirect into ${into}`).toBe(into)
+      expect(byPath.get(from)?.lane, `${from} must not keep a lane`).toBeUndefined()
+      expect(actual.get(toNext(from)), `next.config must redirect ${from}`).toBe(toNext(into))
+    }
+    expect(actual.get("/statements/:id/review")).toBe("/statements/:id")
+  })
+
   // AC-meta.fe-ia-nav.34
   it("AC-meta.fe-ia-nav.34 points navigation links and the 30 flow UI surfaces only at paths that are not redirects", () => {
     const navHrefs = [...bottomTabItems, ...auditHubItems, ...moreItems, ...advancedItems].map((i) => i.href)

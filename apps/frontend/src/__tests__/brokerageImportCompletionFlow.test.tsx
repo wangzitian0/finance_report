@@ -17,6 +17,7 @@ vi.mock("@/lib/api-client", () => ({
 }))
 
 vi.mock("next/navigation", () => ({
+  useRouter: vi.fn(() => ({ push: vi.fn(), replace: vi.fn() })),
   useParams: vi.fn(() => {
     const statementMatch = window.location.pathname.match(/^\/statements\/([^/]+)/)
     return statementMatch ? { id: statementMatch[1] } : {}

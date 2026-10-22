@@ -99,7 +99,7 @@ describe("lineage helpers (EPIC-022 AC22.3.4)", () => {
         entity_id: UUID,
         node_kind: "source_document",
       }),
-    ).toBe("/statements")
+    ).toBe("/upload")
     expect(
       nodeSourceHref({
         entity_type: "uploaded_document",
@@ -107,7 +107,7 @@ describe("lineage helpers (EPIC-022 AC22.3.4)", () => {
         node_kind: "source_document",
         properties: { statement_id: "stmt-1" },
       }),
-    ).toBe("/statements/stmt-1/review")
+    ).toBe("/statements/stmt-1")
     expect(
       nodeSourceHref({
         entity_type: "journal_line",

@@ -135,7 +135,7 @@ export function nodeSourceHref(node: {
     node.entity_type === "uploaded_document" ||
     node.entity_type === "bank_statement_transaction"
   ) {
-    return statementId ? `/statements/${statementId}/review` : "/statements";
+    return statementId ? `/statements/${statementId}` : "/upload";
   }
   if (
     node.node_kind === "ledger_line" ||

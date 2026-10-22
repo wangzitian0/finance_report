@@ -40,7 +40,7 @@ const packageDocument = {
     package_id: "personal-financial-report-package",
     state: "blocked",
     label: "Blocked",
-    action_href: "/accounts/processing",
+    action_href: "/upload",
     blocking_count: 1,
     input_coverage: {
       manifest_decision_count: 0,
@@ -55,7 +55,7 @@ const packageDocument = {
         count: 1,
         reason:
           "Processing account balance cannot be converted to SGD: No FX rate available for USD/SGD.",
-        action_href: "/accounts/processing",
+        action_href: "/upload",
       },
     ],
   },
@@ -203,7 +203,7 @@ async function installReportReadinessMocks(page: Page) {
         next_action: {
           type: "resolve_blocker",
           count: 1,
-          href: "/accounts/processing",
+          href: "/upload",
         },
         report_readiness: {
           state: "blocked",
@@ -283,7 +283,7 @@ test.describe("AC19.8.7 AC19.8.8 AC22.8.4 AC22.19 report package smoke", () => {
       ).toBeVisible();
       await expect(page.getByRole("link", { name: "Blocked" })).toHaveAttribute(
         "href",
-        "/accounts/processing",
+        "/upload",
       );
 
       const readinessAuditDetails = readinessSection.locator("details", {

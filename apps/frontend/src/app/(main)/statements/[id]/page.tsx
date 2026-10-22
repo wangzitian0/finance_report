@@ -2,27 +2,47 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/Toast";
 import { LoadingState } from "@/components/ui";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { FlowStepBanner } from "@/components/workflow/WorkflowNotifications";
-import { apiOperation } from "@/lib/api-client";
+import { ApiError, apiOperation } from "@/lib/api-client";
+import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
+import { confirmStatementReviewEnvelope } from "@/lib/statementReviewApi";
+import { ATTENTION_RETURN_HREF, ATTENTION_RETURN_LABEL, isAttentionOrigin, withAttentionSource } from "@/lib/attentionNavigation";
 import { BankStatement, BrokerageImportResponse, normalizeBankStatement } from "@/lib/types";
 import { currencyCodeOrDash } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
 import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
-import { BrokerageImportResultBanner, StatementHeader, StatementSummaryCards, StatementTransactionsTable } from "@/components/review/TransactionTable";
+import { LowConfidenceReviewModal } from "@/components/review/LowConfidenceReviewModal";
+import {
+  BalanceIndicator,
+  BrokerageImportResultBanner,
+  ConflictResolutionDialog,
+  ReviewActionBar,
+  SourceEnvelopeConfirmation,
+  StatementHeader,
+  TransactionTable,
+  type EnvelopeDraft,
+  type Transaction,
+} from "@/components/review/TransactionTable";
 
 const PARSING_TIMEOUT_MS = 5 * 60 * 1000;
+const MISSING_FACT_LABELS: Record<string, string> = { statement_currency: "statement currency", period: "statement period", balances: "opening and closing balances", transaction_currency: "transaction currency" };
 
 export default function StatementDetailPage() {
   const { showToast } = useToast();
   const params = useParams();
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const statementId = params.id as string;
-  const approvedRedirect = searchParams.get("approved") === "1";
-  const entriesCreated = Number(searchParams.get("entriesCreated")) || 0;
+  const fromAttention = isAttentionOrigin(searchParams);
+  const returnHref = fromAttention ? ATTENTION_RETURN_HREF : "/upload";
+  const returnLabel = fromAttention ? ATTENTION_RETURN_LABEL : "Back to Upload";
+  const statementHref = (id: string) => (fromAttention ? withAttentionSource(`/statements/${id}`) : `/statements/${id}`);
 
   const [statement, setStatement] = useState<BankStatement | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,11 +57,22 @@ export default function StatementDetailPage() {
   const [importResult, setImportResult] = useState<BrokerageImportResponse | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [approvedEntries, setApprovedEntries] = useState<number | null>(null);
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [conflictsResolved, setConflictsResolved] = useState(false);
+  const [economicReviewRequired, setEconomicReviewRequired] = useState(false);
+  const [reviewingTxn, setReviewingTxn] = useState<Transaction | null>(null);
+  const [envelopeDraft, setEnvelopeDraft] = useState<EnvelopeDraft>({
+    accountId: "", currency: "", periodStart: "", periodEnd: "", openingBalance: "", closingBalance: "", rationale: "",
+  });
   const mountedRef = useRef(false);
   const pollingRef = useRef(false);
   const requestSequenceRef = useRef(0);
   const activeRequestRef = useRef<{ controller: AbortController; requestId: number } | null>(null);
-  const approvedNow = approvedRedirect && statement?.status === "approved";
+  const approvedNow = approvedEntries !== null && statement?.status === "approved";
+  const isParsed = statement?.status === "parsed";
 
   const updatePolling = useCallback((enabled: boolean) => {
     pollingRef.current = enabled;
@@ -63,6 +94,12 @@ export default function StatementDetailPage() {
     try {
       const data = await apiOperation("get_statement_statements__statement_id__get", { path: { statement_id: statementId }, signal: controller.signal });
       if (!ownsResult()) return;
+      if (!data) {
+        setStatement(null);
+        setError(null);
+        updatePolling(false);
+        return;
+      }
       setStatement(normalizeBankStatement(data));
       setError(null);
       setConsecutiveErrors(0);
@@ -105,6 +142,10 @@ export default function StatementDetailPage() {
   useEffect(() => {
     mountedRef.current = true;
     setLoading(true);
+    setEconomicReviewRequired(false);
+    setConflictsResolved(false);
+    setReviewingTxn(null);
+    setApprovedEntries(null);
     void fetchStatement();
     return () => {
       mountedRef.current = false;
@@ -131,6 +172,135 @@ export default function StatementDetailPage() {
     }, 3000);
     return () => clearInterval(interval);
   }, [polling, fetchStatement, parsingStartTime, showToast, updatePolling]);
+
+  const reviewReady = Boolean(statement) && statement?.status !== "parsing";
+  const { data: review, refetch: refetchReview } = useQuery({
+    queryKey: ["statement-review", statementId],
+    queryFn: () => apiOperation("get_statement_for_review_statements__statement_id__review_get", { path: { statement_id: statementId } }),
+    enabled: reviewReady,
+  });
+  const { data: pendingStatementsData } = useQuery({
+    queryKey: ["pending-statements"],
+    queryFn: () => apiOperation("list_pending_review_statements_pending_review_get"),
+    enabled: isParsed,
+  });
+  const { data: conflicts } = useQuery({
+    queryKey: ["statement-conflicts", statementId],
+    queryFn: () => apiOperation("get_review_conflicts_review_conflicts__statement_id__get", { path: { statement_id: statementId } }),
+    enabled: isParsed,
+  });
+
+  const pendingStatements = pendingStatementsData?.items || [];
+  const duplicateCandidates = conflicts?.duplicates || [];
+  const transferPairCandidates = conflicts?.transfer_pairs || [];
+  const sourceMissingFacts = review?.source_missing_facts || [];
+  const sourceEnvelopeReviewable = Boolean(review?.source_envelope_reviewable);
+  const requiresEnvelopeConfirmation = isParsed && sourceEnvelopeReviewable && !review?.reviewed_envelope;
+  const requiresOtherSourceReview = isParsed && !sourceEnvelopeReviewable && sourceMissingFacts.length > 0 && !review?.reviewed_envelope;
+
+  const { data: custodyAccountsData } = useQuery({
+    queryKey: ["statement-review-custody-accounts", statementId],
+    queryFn: () => apiOperation("list_accounts_accounts_get", { query: { account_type: "ASSET", is_active: true } }),
+    enabled: requiresEnvelopeConfirmation,
+  });
+
+  const refreshAfterReview = () => {
+    void queryClient.invalidateQueries({ queryKey: ["pending-statements"] });
+    void queryClient.invalidateQueries({ queryKey: ["statement-review", statementId] });
+    return fetchStatement({ supersede: true });
+  };
+
+  const approveMutation = useMutation({
+    mutationFn: (variables: { autoFill?: boolean } | void) => apiOperation(
+      "approve_statement_stage1_statements__statement_id__review_approve_post",
+      { path: { statement_id: statementId }, body: { create_account_if_missing: !review?.account_id, auto_fill_default_categories: Boolean(variables?.autoFill) } },
+    ),
+    onSuccess: (result) => {
+      setEconomicReviewRequired(false);
+      const createdCount = result.journal_entries_created ?? 0;
+      track(ANALYTICS_EVENTS.REVIEW_APPROVED, { statement_id: statementId });
+      showToast(`Statement approved. ${createdCount} journal entries posted.`, "success");
+      setApproveDialogOpen(false);
+      setApprovedEntries(createdCount);
+      void refreshAfterReview();
+      if (fromAttention) router.push(ATTENTION_RETURN_HREF);
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 409 && err.message.startsWith("Economic review required:")) {
+        setEconomicReviewRequired(true);
+        setApproveDialogOpen(false);
+        showToast("Economic classification needs review before entries can be posted.", "error");
+        void refetchReview();
+        return;
+      }
+      showToast(err instanceof Error ? err.message : "Failed to approve", "error");
+    },
+  });
+
+  const envelopeMutation = useMutation({
+    mutationFn: () => {
+      if (!review?.source_result_digest) return Promise.reject(new Error("The source result is unavailable. Re-parse the statement before confirming it."));
+      return confirmStatementReviewEnvelope(statementId, {
+        source_result_digest: review.source_result_digest,
+        account_id: envelopeDraft.accountId,
+        currency: envelopeDraft.currency,
+        period_start: envelopeDraft.periodStart,
+        period_end: envelopeDraft.periodEnd,
+        opening_balance: envelopeDraft.openingBalance,
+        closing_balance: envelopeDraft.closingBalance,
+        rationale: envelopeDraft.rationale,
+      });
+    },
+    onSuccess: () => {
+      showToast("Source envelope confirmed. You can now continue the review.", "success");
+      queryClient.invalidateQueries({ queryKey: ["statement-review", statementId] });
+    },
+    onError: (err) => showToast(err instanceof Error ? err.message : "Failed to confirm source facts", "error"),
+  });
+
+  const createCustodyAccountMutation = useMutation({
+    mutationFn: (name: string) => apiOperation("create_account_accounts_post", { body: { name, type: "ASSET", currency: envelopeDraft.currency } }),
+    onSuccess: async (account) => {
+      await queryClient.invalidateQueries({ queryKey: ["statement-review-custody-accounts", statementId] });
+      setEnvelopeDraft((current) => ({ ...current, accountId: account.id }));
+      showToast(`Account "${account.name}" created and selected.`, "success");
+    },
+    onError: (err) => showToast(err instanceof Error ? err.message : "Failed to create account", "error"),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (notes?: string) => apiOperation("reject_statement_stage1_statements__statement_id__review_reject_post", { path: { statement_id: statementId }, body: { notes: notes || null } }),
+    onSuccess: () => {
+      showToast("Statement rejected", "success");
+      setRejectDialogOpen(false);
+      void refreshAfterReview();
+      if (fromAttention) router.push(ATTENTION_RETURN_HREF);
+    },
+    onError: (err) => showToast(err instanceof Error ? err.message : "Failed to reject", "error"),
+  });
+
+  const resolveConflictsMutation = useMutation({
+    mutationFn: (action: "confirm_distinct" | "link_transfer") => apiOperation("resolve_review_conflicts_review_conflicts__statement_id__resolve_post", { path: { statement_id: statementId }, body: { action } }),
+    onSuccess: () => {
+      showToast("Conflicts resolved", "success");
+      setConflictsResolved(true);
+      setConflictDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["statement-conflicts", statementId] });
+    },
+    onError: (err) => showToast(err instanceof Error ? err.message : "Failed to resolve conflicts", "error"),
+  });
+
+  useEffect(() => {
+    if (!conflicts?.resolved && (duplicateCandidates.length || transferPairCandidates.length)) setConflictDialogOpen(true);
+  }, [duplicateCandidates.length, transferPairCandidates.length, conflicts?.resolved]);
+
+  useEffect(() => {
+    if (!review || !requiresEnvelopeConfirmation) return;
+    setEnvelopeDraft({
+      accountId: review.account_id || "", currency: review.currency || "", periodStart: review.period_start || "", periodEnd: review.period_end || "",
+      openingBalance: review.opening_balance?.toString() || "", closingBalance: review.closing_balance?.toString() || "", rationale: "",
+    });
+  }, [review, requiresEnvelopeConfirmation]);
 
   const handleRetry = async () => {
     setRetryLoading(true);
@@ -180,16 +350,47 @@ export default function StatementDetailPage() {
   };
 
   if (loading) return <div className="p-6"><LoadingState label="Loading statement" /></div>;
-  if (!statement) return <div className="p-6"><div className="card p-8 text-center"><p className="text-muted mb-4">Statement not found</p><Link href="/statements" className="btn-primary">Back to Statements</Link></div></div>;
+  if (!statement) {
+    return (
+      <div className="p-6">
+        <div className="card p-8 text-center">
+          {error ? (
+            <>
+              <h2 className="text-lg font-medium mb-2">Failed to load statement</h2>
+              <p className="text-muted mb-4">{error}</p>
+              <button type="button" onClick={() => { setLoading(true); void fetchStatement({ supersede: true }); }} className="btn-primary mr-3">Retry</button>
+            </>
+          ) : <p className="text-muted mb-4">Statement not found</p>}
+          <Link href={returnHref} className={error ? "btn-secondary" : "btn-primary"}>{returnLabel}</Link>
+        </div>
+      </div>
+    );
+  }
 
-  const canRetry = statement.status === "parsed" || statement.status === "rejected" || (statement.status === "parsing" && Boolean(pollingStoppedReason));
+  const canRetry = statement.status === "parsed" || (statement.status === "parsing" && Boolean(pollingStoppedReason));
   const canImport = !importResult && (statement.status === "parsed" || statement.status === "approved");
+  const validationResult = review?.balance_validation_result ?? null;
+  const balanceValid = Boolean(validationResult?.opening_match && validationResult?.closing_match);
+  const hasUnresolvedConflicts = !(conflictsResolved || conflicts?.resolved) && (duplicateCandidates.length > 0 || transferPairCandidates.length > 0);
+  const approvalBlockedReason = requiresEnvelopeConfirmation ? "Confirm the source facts before approving this statement."
+    : requiresOtherSourceReview ? "This source has facts that a cash statement envelope cannot confirm."
+    : hasUnresolvedConflicts ? "Resolve duplicate and transfer-pair candidates before approval" : null;
+  const currentIndex = pendingStatements.findIndex((s) => s.id === statementId);
+  const prevId = currentIndex > 0 ? pendingStatements[currentIndex - 1].id : null;
+  const nextId = currentIndex >= 0 && currentIndex < pendingStatements.length - 1 ? pendingStatements[currentIndex + 1].id : null;
+  const returnTo = encodeURIComponent(`/statements/${statementId}`);
 
   return (
     <div className="p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <Link href="/statements" className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1">← Back to Statements</Link>
-        {statement.original_filename && <span className="text-xs text-muted">Original PDF: {statement.original_filename}</span>}
+        <Link href={returnHref} className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1">← {returnLabel}</Link>
+        {isParsed && pendingStatements.length > 0 && (
+          <div className="flex items-center gap-2">
+            <button onClick={() => prevId && router.push(statementHref(prevId))} disabled={!prevId} className="btn-ghost btn-sm disabled:opacity-30" title="Previous pending statement">← Prev</button>
+            <span className="text-xs text-muted">{currentIndex + 1} / {pendingStatements.length}</span>
+            <button onClick={() => nextId && router.push(statementHref(nextId))} disabled={!nextId} className="btn-ghost btn-sm disabled:opacity-30" title="Next pending statement">Next →</button>
+          </div>
+        )}
       </div>
       <div className="mb-6"><FlowStepBanner current="review" /></div>
       {pollingStoppedReason && (
@@ -199,10 +400,26 @@ export default function StatementDetailPage() {
           <button onClick={resumePolling} className="btn-secondary text-sm">Resume Auto-Refresh</button>
         </div>
       )}
-      <StatementHeader statement={statement} statementId={statementId} canImport={canImport} canRetry={canRetry} canDelete={statement.status !== "approved"} importLoading={importLoading} retryLoading={retryLoading} deleteLoading={deleteLoading} onBrokerageImport={handleBrokerageImport} onRetry={handleRetry} onDelete={() => setDeleteDialogOpen(true)} formatCode={currencyCodeOrDash} formatPeriod={formatPeriod} />
+      <StatementHeader statement={statement} canImport={canImport} canRetry={canRetry} canDelete={statement.status !== "approved"} importLoading={importLoading} retryLoading={retryLoading} deleteLoading={deleteLoading} onBrokerageImport={handleBrokerageImport} onRetry={handleRetry} onDelete={() => setDeleteDialogOpen(true)} formatCode={currencyCodeOrDash} formatPeriod={formatPeriod} />
+      {isParsed && review && (
+        <div className="mb-4 flex justify-end">
+          <ReviewActionBar onApprove={() => setApproveDialogOpen(true)} onReject={() => setRejectDialogOpen(true)} actionLoading={approveMutation.isPending || rejectMutation.isPending} balanceValid={balanceValid} statementStatus={statement.status} approvalBlockedReason={approvalBlockedReason} onResolveConflicts={hasUnresolvedConflicts ? () => setConflictDialogOpen(true) : undefined} onReparse={handleRetry} reparsePending={retryLoading} />
+        </div>
+      )}
+      {(economicReviewRequired || statement.validation_error?.startsWith("Economic review required:")) && isParsed && (
+        <section className="mb-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-4">
+          <h2 className="font-semibold text-[var(--foreground)]">Transaction classifications need review</h2>
+          <p className="mt-1 text-sm text-muted">These transactions need your confirmation before they can be posted into the journal. Auto-fill accepts the AI suggestion for each row and uses a general category for rows without one. A transfer or a card repayment is posted to the Processing account until the other side of the movement arrives. A loan payment goes to Loans Payable and a trade to Investments. A row in a foreign currency stays here for you. You can also review every row manually.</p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button type="button" onClick={() => approveMutation.mutate({ autoFill: true })} disabled={approveMutation.isPending} className="btn-primary inline-flex items-center gap-2">{approveMutation.isPending ? "Approving..." : "Auto-Fill Default Categories & Approve"}</button>
+            <Link href={`/audit?statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}#ai-suggestions`} className="btn-secondary inline-flex">Review AI suggestions</Link>
+            <Link href={`/reconciliation/unmatched?statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}`} className="btn-secondary inline-flex">Review transaction classifications</Link>
+          </div>
+        </section>
+      )}
       {approvedNow && (
         <div className="mb-4 p-4 border border-[var(--success)]/30 bg-[var(--success-muted)] rounded-lg">
-          <p className="font-medium text-[var(--success)]">Statement approved. {entriesCreated} journal entries created.</p>
+          <p className="font-medium text-[var(--success)]">Statement approved. {approvedEntries} journal entries created.</p>
           <div className="mt-2 flex items-center gap-2"><Link href="/journal" className="btn-secondary text-sm">View in Journal</Link><Link href="/reports" className="btn-secondary text-sm">Go to Reports</Link></div>
         </div>
       )}
@@ -225,11 +442,16 @@ export default function StatementDetailPage() {
           <button type="button" onClick={handleRetry} disabled={retryLoading} className="btn-secondary text-sm">{retryLoading ? "Retrying..." : "Retry Parse"}</button>
         </div>
       )}
-      <StatementSummaryCards statement={statement} />
+      {review && <BalanceIndicator openingBalance={review.opening_balance} closingBalance={review.closing_balance} validationResult={validationResult} currency={review.currency || "SGD"} />}
+      <SourceEnvelopeConfirmation requiresEnvelopeConfirmation={requiresEnvelopeConfirmation} requiresOtherSourceReview={requiresOtherSourceReview} sourceMissingFacts={sourceMissingFacts} missingFactLabels={MISSING_FACT_LABELS} envelopeDraft={envelopeDraft} onDraftChange={setEnvelopeDraft} custodyAccounts={custodyAccountsData?.items || []} onConfirm={() => envelopeMutation.mutate()} isPending={envelopeMutation.isPending} reviewedEnvelope={review?.reviewed_envelope} onCreateAccount={(name) => createCustodyAccountMutation.mutate(name)} isCreatingAccount={createCustodyAccountMutation.isPending} defaultAccountName={statement.institution ? `${statement.institution} account` : ""} />
       <div data-testid="statement-side-by-side-workbench" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-5 min-h-[540px] h-[600px]"><PdfPreviewPane statementId={statementId} hasDocument={Boolean(statement.file_path) && (statement.status === "parsed" || statement.status === "approved")} /></div>
-        <div className="lg:col-span-7 min-w-0"><StatementTransactionsTable statement={statement} onTransactionUpdated={() => fetchStatement({ supersede: true })} /></div>
+        <div className="lg:col-span-5 min-h-[540px] h-[600px]"><PdfPreviewPane statementId={statementId} hasDocument={Boolean(statement.file_path) && statement.status !== "parsing"} /></div>
+        <div className="lg:col-span-7 min-w-0 min-h-[540px] h-[600px]"><TransactionTable transactions={statement.transactions} currency={statement.currency || "SGD"} onSelectTransaction={setReviewingTxn} statementStatus={statement.status} /></div>
       </div>
+      <LowConfidenceReviewModal isOpen={reviewingTxn !== null} onClose={() => setReviewingTxn(null)} transaction={reviewingTxn} currency={reviewingTxn?.currency || statement.currency || "SGD"} onSuccess={() => { void refreshAfterReview(); }} />
+      <ConflictResolutionDialog isOpen={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} duplicateCandidates={duplicateCandidates} transferPairCandidates={transferPairCandidates} onResolve={(action) => resolveConflictsMutation.mutate(action)} isResolving={resolveConflictsMutation.isPending} />
+      <ConfirmDialog isOpen={approveDialogOpen} onCancel={() => !approveMutation.isPending && setApproveDialogOpen(false)} onConfirm={() => approveMutation.mutate()} title="Approve Statement" message={review?.account_id ? "This will approve the statement with balance validation. Proceed?" : "This will create and map an asset account for this statement, then approve it with balance validation. Proceed?"} confirmLabel="Approve" loading={approveMutation.isPending} />
+      <ConfirmDialog isOpen={rejectDialogOpen} onCancel={() => !rejectMutation.isPending && setRejectDialogOpen(false)} onConfirm={(reason) => rejectMutation.mutate(reason)} title="Reject Statement" message="Parsed transactions can't be edited. To fix a mis-parse, reject this statement and re-parse it (Retry Parse) on this page. This will mark the statement as rejected." confirmLabel="Reject" confirmVariant="danger" input={{ label: "Rejection Reason (optional)", placeholder: "Enter reason for rejection..." }} loading={rejectMutation.isPending} />
       <ConfirmDialog isOpen={deleteDialogOpen} title="Delete Statement" message="Are you sure you want to delete this statement? This action cannot be undone and will remove all associated parsed transactions and errors." confirmLabel="Delete" confirmVariant="danger" loading={deleteLoading} onConfirm={handleDeleteStatement} onCancel={() => setDeleteDialogOpen(false)} />
     </div>
   );

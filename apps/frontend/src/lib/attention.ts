@@ -90,7 +90,7 @@ export function buildAttentionItems(
         ? "The statement's closing balance didn't reconcile against the parsed transactions, so the extraction may have missed or misread a line."
         : "Parsed from your upload and waiting for you to confirm the entries before they post to the ledger.",
       confidence: clampConfidence(balanceFailed ? Math.min(score, 40) : score),
-      href: `/statements/${statement.id}/review`,
+      href: `/statements/${statement.id}`,
     });
   }
 
@@ -145,7 +145,7 @@ export function buildAttentionItems(
       detail: `Oldest ${oldest} days outstanding`,
       reason: `Funds left one account but haven't been confirmed arriving in another for over ${PROCESSING_STALE_DAYS} days — the transfer may need a matching deposit or a manual close.`,
       confidence: 30,
-      href: "/processing",
+      href: "/upload",
     });
   }
 

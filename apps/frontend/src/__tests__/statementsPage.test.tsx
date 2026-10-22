@@ -73,12 +73,25 @@ describe("StatementsPage", () => {
     return next instanceof Error ? Promise.reject(next) : Promise.resolve(next)
   }
 
+  const emptyWorkflowStatus = {
+    primary_state: "empty",
+    next_action: { type: "upload", count: 0, href: "/upload", label: "Upload statements", summary: "Add source documents." },
+    report_readiness: { state: "none", blocking_count: 0, href: "/reports" },
+    event_counts: { unread: 0, action_required: 0, blocked: 0 },
+  }
+
   function mockStatementsPageApi({
     statements,
     deletes = [],
+    workflowStatus = emptyWorkflowStatus,
+    workflowEvents = { total: 0, items: [], sessions: [] },
+    pendingTransfers = { items: [], total: 0 },
   }: {
     statements: unknown[]
     deletes?: unknown[]
+    workflowStatus?: unknown
+    workflowEvents?: unknown
+    pendingTransfers?: unknown
   }) {
     const statementQueue = [...statements]
     const deleteQueue = [...deletes]
@@ -88,6 +101,9 @@ describe("StatementsPage", () => {
       if (url === "/api/statements" || url === "list_statements_statements_get") {
         return resolveQueued(statementQueue, { items: [] })
       }
+      if (url === "get_workflow_status_endpoint_workflow_status_get") return Promise.resolve(workflowStatus)
+      if (url === "list_workflow_events_endpoint_workflow_events_get") return Promise.resolve(workflowEvents)
+      if (url === "list_processing_pending_accounts_processing_pending_get") return Promise.resolve(pendingTransfers)
       if (
         url === "delete_statement_statements__statement_id__delete" ||
         (url.startsWith("/api/statements/") && options?.method === "DELETE")
@@ -117,6 +133,9 @@ describe("StatementsPage", () => {
     let statementReads = 0
     mockedApiFetch.mockImplementation((path) => {
       const url = String(path)
+      if (url === "get_workflow_status_endpoint_workflow_status_get") return Promise.resolve(emptyWorkflowStatus)
+      if (url === "list_workflow_events_endpoint_workflow_events_get") return Promise.resolve({ total: 0, items: [], sessions: [] })
+      if (url === "list_processing_pending_accounts_processing_pending_get") return Promise.resolve({ items: [], total: 0 })
       if (url !== "/api/statements" && url !== "list_statements_statements_get") {
         return Promise.reject(new Error(`Unexpected api call: ${url}`))
       }
@@ -134,7 +153,8 @@ describe("StatementsPage", () => {
       await vi.advanceTimersByTimeAsync(3000)
     })
     expect(statementReads).toBe(2)
-    const pollSignal = mockedApiFetch.mock.calls[1]?.[1]?.signal
+    const statementCalls = () => mockedApiFetch.mock.calls.filter(([id]) => id === "list_statements_statements_get")
+    const pollSignal = statementCalls()[1]?.[1]?.signal
     expect(pollSignal).toBeInstanceOf(AbortSignal)
 
     await act(async () => {
@@ -155,7 +175,7 @@ describe("StatementsPage", () => {
 
     fireEvent.click(screen.getByText("UploadMock-statement"))
     await waitFor(() => expect(statementReads).toBe(4))
-    const teardownSignal = mockedApiFetch.mock.calls[3]?.[1]?.signal
+    const teardownSignal = statementCalls()[3]?.[1]?.signal
     view.unmount()
     expect(teardownSignal?.aborted).toBe(true)
     latestUploadComplete?.()
@@ -256,9 +276,9 @@ describe("StatementsPage", () => {
     expect(screen.getByText("Ready to review")).toBeInTheDocument()
     expect(screen.queryByText("parsed")).toBeNull()
 
-    // Direct deep-link into the review page, skipping the detail-page hop.
+    // Direct deep-link into the one statement page, where the review happens.
     fireEvent.click(screen.getByRole("button", { name: /Review/i }))
-    expect(routerPushMock).toHaveBeenCalledWith("/statements/s9/review")
+    expect(routerPushMock).toHaveBeenCalledWith("/statements/s9")
   })
 
   it("AC22.5.x maps every status to a plain-language label (no raw 'uploaded')", async () => {
@@ -486,14 +506,15 @@ describe("StatementsPage", () => {
     expect(screen.getByTestId("upload-processing-summary")).toHaveTextContent(
       "0 parsing · 1 parsed · 1 approved",
     )
-    expect(screen.queryByRole("link", { name: "Processing Queue →" })).toBeNull()
-    const compareLinks = screen.getAllByRole("link", { name: "Compare with PDF" })
-    expect(compareLinks).toHaveLength(2)
-    expect(compareLinks[0]).toHaveAttribute("href", "/statements/s-parsed/review")
-    expect(compareLinks[1]).toHaveAttribute("href", "/statements/s-approved/review")
+    expect(screen.queryByRole("link", { name: "Compare with PDF" })).toBeNull()
+    expect(screen.getByRole("link", { name: "parsed.pdf" })).toHaveAttribute("href", "/statements/s-parsed")
+    expect(screen.getByRole("link", { name: "approved.pdf" })).toHaveAttribute("href", "/statements/s-approved")
+    fireEvent.click(screen.getByRole("button", { name: "Review & Approve →" }))
+    expect(routerPushMock).toHaveBeenCalledWith("/statements/s-parsed")
+    expect(document.querySelector('a[href$="/review"]')).toBeNull()
   })
 
-  it("renders inline processing queue link when active parsing jobs exist and falls back to institution period title", async () => {
+  it("counts active parsing jobs in place and falls back to institution period title", async () => {
     mockStatementsPageApi({
       statements: [
         {
@@ -519,11 +540,53 @@ describe("StatementsPage", () => {
     expect(screen.getByTestId("upload-processing-summary")).toHaveTextContent(
       "1 parsing · 0 parsed · 0 approved",
     )
-    expect(
-      screen.getByRole("link", { name: "Processing Queue →" }),
-    ).toHaveAttribute("href", "/processing")
-    expect(
-      screen.getByRole("link", { name: "Compare with PDF" }),
-    ).toHaveAttribute("href", "/statements/s-fallback/review")
+    expect(screen.queryByRole("link", { name: "Processing Queue →" })).toBeNull()
+    expect(document.querySelector('a[href="/processing"]')).toBeNull()
+  })
+
+  // AC-extraction.fe-stage1-review.20
+  it("AC-extraction.fe-stage1-review.20 shows workflow notices and in-flight transfers on the upload page", async () => {
+    mockStatementsPageApi({
+      statements: [{ items: [makeStmt("s1", "march.pdf", "parsed", { period_start: "2026-03-01", period_end: "2026-03-31", currency: "SGD" })] }],
+      workflowStatus: {
+        primary_state: "needs_action",
+        next_action: { type: "review_required", count: 1, href: "/statements/s1", label: "Review required", summary: "Confirm the statement." },
+        report_readiness: { state: "blocked", blocking_count: 1, href: "/reports/package" },
+        event_counts: { unread: 1, action_required: 1, blocked: 0 },
+      },
+      workflowEvents: {
+        total: 1,
+        items: [{
+          id: "e1", user_id: "u1", session_id: "ses1", occurred_at: "2026-03-02T00:00:00Z", family: "bank_statement.action_required",
+          severity: "action_required", status: "unread", title: "March statement needs review", summary: "Low-confidence rows wait for you.",
+          source_type: "bank_statement", source_id: "s1", action_href: "/statements/s1", report_impact: "blocked",
+          dedupe_key: "event:e1", created_at: "2026-03-02T00:00:00Z", updated_at: "2026-03-02T00:00:00Z",
+        }],
+        sessions: [{
+          id: "ses1", status: "active", title: "Upload-to-report session", summary: "Current work.", started_at: "2026-03-01T00:00:00Z",
+          last_event_at: "2026-03-02T00:00:00Z", source_count: 1, primary_state: "needs_action",
+          report_readiness: { state: "blocked", blocking_count: 1, href: "/reports/package" },
+          event_counts: { unread: 1, action_required: 1, blocked: 0 },
+        }],
+      },
+      pendingTransfers: {
+        items: [{ entry_id: "t1", from_account: "DBS Savings", to_account: "OCBC Current", amount: "250.00", currency: "SGD", initiated_date: "2026-03-05", days_outstanding: 10, description: "Move to OCBC" }],
+        total: 1,
+      },
+    })
+
+    render(<StatementsPage />)
+
+    expect(await screen.findByRole("heading", { name: "Workflow status" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Workflow events" })).toBeInTheDocument()
+    const noticeLinks = screen.getAllByRole("link", { name: "Open March statement needs review" })
+    expect(noticeLinks.length).toBeGreaterThan(0)
+    for (const link of noticeLinks) expect(link).toHaveAttribute("href", "/statements/s1")
+    const transfers = await screen.findByRole("region", { name: "Transfers in flight" })
+    expect(transfers).toHaveTextContent("DBS Savings")
+    expect(transfers).toHaveTextContent("OCBC Current")
+    expect(transfers).toHaveTextContent("10d")
+    expect(screen.getByText("march.pdf")).toBeInTheDocument()
+    expect(document.querySelector('a[href="/notifications"], a[href="/processing"]')).toBeNull()
   })
 })

@@ -415,7 +415,7 @@ its form factor:
 - Direct routes and event `action_href` links into review, reconciliation,
   processing, statements, reports, and package readiness must continue to work.
 - Legacy routes must keep resolving: `/dashboard` redirects to `/` (the
-  authenticated Home) and `/events` redirects to `/notifications`.
+  authenticated Home) and `/events` redirects to `/upload`, where the workflow notices live.
 
 ---
 

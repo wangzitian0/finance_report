@@ -68,7 +68,7 @@ const visualStatementReview = {
   period_end: "2026-06-30",
   opening_balance: "1000.00",
   closing_balance: "1123.45",
-  status: "pending_review",
+  status: "parsed",
   stage1_status: "pending_review",
   balance_validation_result: {
     opening_balance: "1000.00",
@@ -119,7 +119,7 @@ async function installVisualApiMocks(page: Page) {
       body = visualStatements;
     } else if (path === "/api/statements/pending-review") {
       body = { items: [{ id: "stmt-visual" }], total: 1 };
-    } else if (path === "/api/statements/stmt-visual/review") {
+    } else if (path === "/api/statements/stmt-visual" || path === "/api/statements/stmt-visual/review") {
       body = visualStatementReview;
     } else if (path === "/api/statements/stage2/queue") {
       body = { pending_matches: [], consistency_checks: [], has_unresolved_checks: false };
@@ -186,7 +186,7 @@ test.describe("AC16.30.5 desktop visual smoke", () => {
     await expectVisualSmokePage(page, "/upload", "Upload", false);
     await expect(page.getByText("visual-smoke-statement-june-2026.pdf")).toBeVisible();
 
-    await expectVisualSmokePage(page, "/statements/stmt-visual/review", "visual-smoke-statement-june-2026.pdf", false);
+    await expectVisualSmokePage(page, "/statements/stmt-visual", "visual-smoke-statement-june-2026.pdf", false);
     await expect(page.getByTestId("stage1-desktop-transaction-region").getByText("Visual smoke transaction")).toBeVisible();
   });
 });
@@ -209,7 +209,7 @@ test.describe("AC16.30.5 mobile visual smoke", () => {
     await expectVisualSmokePage(page, "/upload", "Upload", true);
     await expect(page.getByText("visual-smoke-statement-june-2026.pdf")).toBeVisible();
 
-    await expectVisualSmokePage(page, "/statements/stmt-visual/review", "visual-smoke-statement-june-2026.pdf", true);
+    await expectVisualSmokePage(page, "/statements/stmt-visual", "visual-smoke-statement-june-2026.pdf", true);
     await expect(page.getByTestId("stage1-mobile-transaction-card-txn-visual-1").getByText("Visual smoke transaction")).toBeVisible();
   });
 });

@@ -84,7 +84,7 @@ async def test_statement_upload_full_flow(authenticated_page_unique: Page) -> No
     pdf_path = _unique_pdf_copy(generated_pdf_path("dbs"))
 
     page = authenticated_page_unique
-    await page.goto(_get_url("/statements"))
+    await page.goto(_get_url("/upload"))
     await page.wait_for_load_state("domcontentloaded")
     await page.locator('[data-testid="uploader-institution-statement"]').fill(
         "E2E Upload Test Bank"
@@ -146,7 +146,7 @@ async def test_model_selection_and_upload(authenticated_page_unique: Page) -> No
     pdf_path = _unique_pdf_copy(generated_pdf_path("dbs"))
 
     page = authenticated_page_unique
-    await page.goto(_get_url("/statements"))
+    await page.goto(_get_url("/upload"))
     await page.wait_for_load_state("domcontentloaded")
 
     model_select = page.locator('[data-testid="uploader-model-statement"]')
@@ -191,7 +191,7 @@ async def test_stale_model_id_auto_cleanup(authenticated_page_unique: Page) -> N
     """
     _skip_if_no_url()
     page = authenticated_page_unique
-    await page.goto(_get_url("/statements"), wait_until="domcontentloaded")
+    await page.goto(_get_url("/upload"), wait_until="domcontentloaded")
     await expect(
         page.locator('[data-testid="uploader-model-statement"]')
     ).to_be_visible(timeout=15_000)
