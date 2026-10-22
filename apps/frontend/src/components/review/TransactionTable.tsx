@@ -9,7 +9,6 @@ import { confidenceLabel } from "@/lib/statusLabels";
 import type { BankStatement, BankStatementTransaction, BalanceValidationResult, BrokerageImportResponse, MoneyValue } from "@/lib/types";
 import { StatusBadge } from "@/components/ui";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
-import { LowConfidenceReviewModal } from "@/components/review/LowConfidenceReviewModal";
 
 export type Transaction = BankStatementTransaction;
 
@@ -191,8 +190,9 @@ export function SourceEnvelopeConfirmation({ requiresEnvelopeConfirmation, requi
   );
 }
 
-export function TransactionTable({ transactions, currency, onSelectTransaction }: { transactions: Transaction[]; currency: string; onSelectTransaction?: (txn: Transaction) => void }) {
+export function TransactionTable({ transactions, currency, onSelectTransaction, statementStatus }: { transactions: Transaction[]; currency: string; onSelectTransaction?: (txn: Transaction) => void; statementStatus?: string }) {
   const rows = transactions ?? [];
+  const renderStatus = (txn: Transaction) => <StatusBadge status={txn.status ?? (statementStatus === "approved" ? "matched" : "pending")} variants={{ pending: "warning", matched: "success", unmatched: "error" }} />;
   const renderConf = (txn: Transaction) => txn.confidence_tier ? <ConfidenceBadge tier={txn.confidence_tier} /> : <span className={`badge ${txn.confidence === "high" ? "badge-success" : txn.confidence === "medium" ? "badge-warning" : "badge-error"}`}>{txn.confidence ?? "unavailable"}</span>;
   return (
     <div className="card flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden">
@@ -218,7 +218,7 @@ export function TransactionTable({ transactions, currency, onSelectTransaction }
       </div>
       <div data-testid="stage1-desktop-transaction-region" className="hidden flex-1 overflow-hidden md:block">
         <table className="table-fixed border-collapse text-sm" style={{ width: onSelectTransaction ? "calc(100% - 16px)" : "calc(100% - 4px)" }}>
-          <thead className="sticky top-0 bg-[var(--background)]"><tr className="border-b border-[var(--border)]"><th className="text-left px-4 py-2 font-medium w-28">Date</th><th className="text-left px-4 py-2 font-medium">Description</th><th className="text-right px-4 py-2 font-medium w-32">Amount</th><th className="text-center px-4 py-2 font-medium w-24">Confidence</th>{onSelectTransaction && <th className="text-right px-2 py-2 font-medium w-20">Action</th>}</tr></thead>
+          <thead className="sticky top-0 bg-[var(--background)]"><tr className="border-b border-[var(--border)]"><th className="text-left px-4 py-2 font-medium w-28">Date</th><th className="text-left px-4 py-2 font-medium">Description</th><th className="text-right px-4 py-2 font-medium w-32">Amount</th><th className="text-center px-4 py-2 font-medium w-24">Confidence</th>{statementStatus && <th className="text-center px-4 py-2 font-medium w-24">Status</th>}{onSelectTransaction && <th className="text-right px-2 py-2 font-medium w-20">Action</th>}</tr></thead>
           <tbody className="divide-y divide-[var(--border)]">
             {rows.map((txn) => {
               const cat = formatCategoryLabel(txn.category ?? txn.proposed_category);
@@ -228,6 +228,7 @@ export function TransactionTable({ transactions, currency, onSelectTransaction }
                   <td className="px-4 py-2"><div className="max-w-xs truncate" title={txn.description}>{txn.description}</div>{cat && <span className="mt-0.5 inline-block rounded-full bg-[var(--background-muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">{cat}</span>}</td>
                   <td className={`px-4 py-2 text-right font-medium whitespace-nowrap ${txn.direction === "IN" ? "text-[var(--success)]" : "text-[var(--error)]"}`}>{txn.direction === "IN" ? "+" : "-"}{formatCurrencyLocale(txn.amount, txn.currency || currency)}</td>
                   <td className="px-4 py-2 text-center">{renderConf(txn)}</td>
+                  {statementStatus && <td className="px-4 py-2 text-center">{renderStatus(txn)}</td>}
                   {onSelectTransaction && <td className="px-2 py-2 text-right whitespace-nowrap"><button type="button" onClick={() => onSelectTransaction(txn)} className="rounded px-2 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)]/10">Review</button></td>}
                 </tr>
               );
@@ -239,8 +240,8 @@ export function TransactionTable({ transactions, currency, onSelectTransaction }
   );
 }
 
-export function StatementHeader({ statement, statementId, canImport, canRetry, canDelete = true, importLoading, retryLoading, deleteLoading = false, onBrokerageImport, onRetry, onDelete, formatCode, formatPeriod }: {
-  statement: BankStatement; statementId: string; canImport: boolean; canRetry: boolean; canDelete?: boolean; importLoading: boolean; retryLoading: boolean; deleteLoading?: boolean; onBrokerageImport: () => void; onRetry: () => void; onDelete?: () => void; formatCode: (c?: string | null) => string; formatPeriod: (s?: string | null, e?: string | null) => string;
+export function StatementHeader({ statement, canImport, canRetry, canDelete = true, importLoading, retryLoading, deleteLoading = false, onBrokerageImport, onRetry, onDelete, formatCode, formatPeriod }: {
+  statement: BankStatement; canImport: boolean; canRetry: boolean; canDelete?: boolean; importLoading: boolean; retryLoading: boolean; deleteLoading?: boolean; onBrokerageImport: () => void; onRetry: () => void; onDelete?: () => void; formatCode: (c?: string | null) => string; formatPeriod: (s?: string | null, e?: string | null) => string;
 }) {
   const displayTitle = statement.original_filename || `${statement.institution} (${statement.period_start ?? ""} – ${statement.period_end ?? ""})`;
   return (
@@ -251,11 +252,9 @@ export function StatementHeader({ statement, statementId, canImport, canRetry, c
           <StatusBadge status={statement.status} variants={{ approved: "success", rejected: "error", parsed: "warning" }} />
           {statement.original_filename && <span data-testid="statement-original-filename-badge" className="inline-flex items-center rounded-md border border-[var(--border)] bg-[var(--background-muted)] px-2.5 py-0.5 text-xs font-medium text-[var(--foreground-muted)]">Source file: {statement.original_filename}</span>}
         </div>
-        <p className="page-description">{statement.institution} • {formatCode(statement.currency)} • {formatPeriod(statement.period_start, statement.period_end)}</p>
+        <p className="page-description">{statement.institution} • {formatCode(statement.currency)} • {formatPeriod(statement.period_start, statement.period_end)}{statement.confidence_score != null && <> • Confidence {statement.confidence_score}% ({confidenceLabel(statement.confidence_score)})</>}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Link href={`/statements/${statement.id || statementId}/review`} className="btn-secondary flex items-center gap-2">Compare PDF & Review</Link>
-        <Link href={`/statements/${statementId}/review`} className="btn-primary flex items-center gap-2">Start Review →</Link>
         {canImport && <button type="button" onClick={onBrokerageImport} disabled={importLoading} className="btn-secondary flex items-center gap-2" aria-label="Import brokerage positions to portfolio">{importLoading ? "Importing..." : "Import to Portfolio"}</button>}
         {canRetry && <button type="button" onClick={onRetry} disabled={retryLoading} className="btn-secondary flex items-center gap-2">Retry Parse</button>}
         {canDelete && onDelete && <button type="button" onClick={onDelete} disabled={deleteLoading} className="btn-secondary text-[var(--error)] border-[var(--error)]/30 hover:bg-[var(--error-muted)] flex items-center gap-2" aria-label="Delete statement">Delete</button>}
@@ -276,50 +275,6 @@ export function BrokerageImportResultBanner({ importResult }: { importResult: Br
         {importResult.skipped > 0 && <div><span className="text-muted">Skipped:</span> <span className="font-medium">{importResult.skipped}</span></div>}
       </div>
       <Link href="/portfolio" className="btn-secondary text-sm" aria-label="View portfolio after import">View Portfolio →</Link>
-    </div>
-  );
-}
-
-export function StatementSummaryCards({ statement }: { statement: BankStatement }) {
-  const score = statement.confidence_score;
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-      <div className="card p-4"><div className="text-xs text-muted mb-1">Opening Balance</div><div className="text-lg font-semibold">{formatCurrencyLocale(statement.opening_balance ?? 0, statement.currency || "SGD")}</div></div>
-      <div className="card p-4"><div className="text-xs text-muted mb-1">Closing Balance</div><div className="text-lg font-semibold">{formatCurrencyLocale(statement.closing_balance ?? 0, statement.currency || "SGD")}</div></div>
-      <div className="card p-4"><div className="text-xs text-muted mb-1">Confidence Score</div><div className={`text-lg font-semibold ${(score ?? 0) >= 85 ? "text-[var(--success)]" : (score ?? 0) >= 60 ? "text-[var(--warning)]" : score == null ? "text-muted" : "text-[var(--error)]"}`}>{score ?? "—"}%</div>{score != null && <div className="text-xs text-muted mt-0.5">{confidenceLabel(score)}</div>}</div>
-      <div className="card p-4"><div className="text-xs text-muted mb-1">Balance Validation</div><div className="flex items-center gap-2">{statement.balance_validated == null ? <><span className="text-muted">…</span><span className="text-sm font-medium text-muted">Parsing</span></> : statement.balance_validated ? <><span className="text-[var(--success)]">✓</span><span className="text-sm font-medium">Verified</span></> : <><span className="text-[var(--warning)]">⚠</span><span className="text-sm font-medium">Needs Review</span></>}</div>{statement.validation_error && <div className="text-xs text-[var(--error)] mt-1">{statement.validation_error}</div>}</div>
-    </div>
-  );
-}
-
-export function StatementTransactionsTable({ statement, onTransactionUpdated }: { statement: BankStatement; onTransactionUpdated?: () => void }) {
-  const [selectedTxn, setSelectedTxn] = useState<BankStatementTransaction | null>(null);
-  return (
-    <div className="card">
-      <div className="card-header flex items-center justify-between"><h3 className="text-sm font-medium">Transactions</h3><span className="text-xs text-muted">{statement.transactions.length} total</span></div>
-      {statement.transactions.length === 0 ? <div className="p-8 text-center text-muted"><p className="text-sm">No transactions found</p></div> : (
-        <div className="max-h-[600px] overflow-auto overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead><tr className="border-b border-[var(--border)] bg-[var(--background-muted)]"><th scope="col" className="text-left px-4 py-3 font-medium">Date</th><th scope="col" className="text-left px-4 py-3 font-medium">Description</th><th scope="col" className="text-left px-4 py-3 font-medium">Reference</th><th scope="col" className="text-right px-4 py-3 font-medium">Amount</th><th scope="col" className="text-left px-4 py-3 font-medium">Currency</th><th scope="col" className="text-left px-4 py-3 font-medium">Balance</th><th scope="col" className="text-left px-4 py-3 font-medium">Category</th><th scope="col" className="text-center px-4 py-3 font-medium">Confidence</th><th scope="col" className="text-center px-4 py-3 font-medium">Status</th></tr></thead>
-            <tbody className="divide-y divide-[var(--border)]">
-              {statement.transactions.map((txn) => (
-                <tr key={txn.id} className="hover:bg-[var(--background-muted)]/50">
-                  <td className="px-4 py-3 whitespace-nowrap">{txn.txn_date}</td>
-                  <td className="px-4 py-3"><div className="max-w-xs truncate" title={txn.description}>{txn.description}</div></td>
-                  <td className="px-4 py-3 text-muted">{txn.reference || "-"}</td>
-                  <td className={`px-4 py-3 text-right font-medium whitespace-nowrap ${txn.direction === "IN" ? "text-[var(--success)]" : "text-[var(--error)]"}`}>{txn.direction === "IN" ? "+" : "-"}{formatCurrencyLocale(txn.amount, (txn.currency ?? statement.currency) || "SGD")}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground-muted)]">{txn.currency || "—"}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground-muted)]">{txn.balance_after != null ? formatCurrencyLocale(txn.balance_after, (txn.currency ?? statement.currency) || "SGD") : "—"}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--foreground)]"><div className="flex items-center gap-2"><span>{formatCategoryLabel(txn.category ?? txn.proposed_category) || "—"}</span><button type="button" onClick={() => setSelectedTxn(txn)} className="rounded px-1.5 py-0.5 text-xs text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)] transition" title="Edit category">Edit</button></div></td>
-                  <td className="px-4 py-3 text-center"><StatusBadge status={txn.confidence ?? (txn.confidence_tier === "TRUSTED" ? "high" : txn.confidence_tier ? txn.confidence_tier.toLowerCase() : "unavailable")} variants={{ high: "success", medium: "warning", low: "muted" }} fallback="error" /></td>
-                  <td className="px-4 py-3 text-center"><StatusBadge status={txn.status ?? (statement.status === "approved" ? "matched" : "pending")} variants={{ pending: "warning", matched: "success", unmatched: "error" }} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {selectedTxn && <LowConfidenceReviewModal isOpen={true} onClose={() => setSelectedTxn(null)} transaction={selectedTxn} currency={(selectedTxn.currency ?? statement.currency) || "SGD"} onSuccess={() => onTransactionUpdated?.()} />}
     </div>
   );
 }

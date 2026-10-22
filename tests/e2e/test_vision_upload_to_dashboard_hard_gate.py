@@ -81,7 +81,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
     )
     assert no_classifier.status == 200, await no_classifier.text()
 
-    await page.goto(_get_url("/statements"), wait_until="domcontentloaded")
+    await page.goto(_get_url("/upload"), wait_until="domcontentloaded")
     csv_section = page.locator("details").filter(has_text="CSV import")
     await csv_section.locator("summary").click()
     await csv_section.locator('[data-testid="uploader-institution-csv"]').fill(
@@ -108,19 +108,10 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
         len(parsed_statement.get("transactions") or []) == _fixture_transaction_count()
     )
 
-    review_path = f"/statements/{statement_id}/review"
-    # The upload list also links to review_path ("Compare with PDF", #2577). Wait for the detail page
-    # before the next click. A click during the first navigation starts a second navigation, and the
-    # browser then shows the detail page at the review URL (#2586).
+    # The statement page is the review page: one click from the upload list opens it.
     await statement_link.click()
     await expect(page).to_have_url(
         re.compile(rf"/statements/{re.escape(statement_id)}$"), timeout=15_000
-    )
-    review_link = page.get_by_role("link", name="Start Review →", exact=True)
-    await expect(review_link).to_have_attribute("href", review_path, timeout=10_000)
-    await review_link.click()
-    await expect(page).to_have_url(
-        re.compile(rf"/statements/{re.escape(statement_id)}/review$"), timeout=15_000
     )
 
     approve_button = page.get_by_role("button", name="Approve", exact=True)
@@ -164,9 +155,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
     assert approve_response.status == 409, approve_body
     assert approve_body["detail"] == "Economic review required: intent_missing"
 
-    await expect(page).to_have_url(
-        re.compile(r"/statements/[^/]+/review$"), timeout=15_000
-    )
+    await expect(page).to_have_url(re.compile(r"/statements/[^/]+$"), timeout=15_000)
     await expect(
         page.get_by_text(
             "Economic classification needs review before entries can be posted."

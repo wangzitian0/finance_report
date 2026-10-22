@@ -8,7 +8,8 @@ import { Trash2 } from "lucide-react";
 
 import StatementUploader from "@/components/statements/StatementUploader";
 import GuidedEvidenceForm from "@/components/assets/GuidedEvidenceForm";
-import { FlowStepBanner } from "@/components/workflow/WorkflowNotifications";
+import { ProcessingTransfers } from "@/components/statements/ProcessingTransfers";
+import { FlowStepBanner, WorkflowNotices } from "@/components/workflow/WorkflowNotifications";
 import { InfoHint } from "@/components/ui/InfoHint";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
@@ -92,7 +93,7 @@ export default function UploadPage() {
     <div className="p-6">
       <PageHeader
         title="Upload"
-        description="Drop a statement and we identify the type for you. CSV imports and manual records are tucked away until you need them."
+        description="Drop a statement and we identify the type for you. Track parsing, review what needs you, and approve here. CSV imports and manual records are tucked away until you need them."
         className="sm:block"
       />
 
@@ -116,7 +117,9 @@ export default function UploadPage() {
         </div>
       )}
 
-      <div className="card mb-6">
+      <WorkflowNotices />
+
+      <div id="statements" className="card mb-6">
         <div className="card-header flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-sm font-medium">Uploaded Statements</h3>
@@ -129,9 +132,6 @@ export default function UploadPage() {
             )}
           </div>
           <div className="flex items-center gap-3">
-            {statements.some((s) => s.status === "parsing") && (
-              <Link href="/processing" className="text-xs font-medium text-[var(--accent)] hover:underline">Processing Queue →</Link>
-            )}
             {statements.some((s) => s.status === "approved" || s.status === "parsed") && (
               <Link href="/reports/balance-sheet" className="text-xs font-medium text-[var(--accent)] hover:underline">Open Reports →</Link>
             )}
@@ -178,16 +178,12 @@ export default function UploadPage() {
                       <span>{formatPeriod(statement.period_start, statement.period_end)}</span>
                       <span>•</span>
                       <span>{currencyCodeOrDash(statement.currency)}</span>
-                      <span>•</span>
-                      <Link href={`/statements/${statement.id}/review`} className="relative z-10 font-medium text-[var(--accent)] hover:underline">
-                        Compare with PDF
-                      </Link>
                     </div>
                   </div>
                   <div className="relative z-10 text-right flex-shrink-0 flex flex-col items-end gap-2">
                     {statement.status === "parsed" && (
                       <div className="flex items-center gap-2">
-                        <Button variant="primary" className="text-sm" onClick={() => router.push(`/statements/${statement.id}/review`)}>
+                        <Button variant="primary" className="text-sm" onClick={() => router.push(`/statements/${statement.id}`)}>
                           Review & Approve →
                         </Button>
                         <Button variant="secondary" className="text-xs hidden sm:inline-flex" onClick={() => router.push("/reports/balance-sheet")}>
@@ -248,6 +244,8 @@ export default function UploadPage() {
           </div>
         )}
       </div>
+
+      <ProcessingTransfers />
 
       <details className="card mb-3 group">
         <summary className="card-header flex items-center justify-between cursor-pointer list-none">

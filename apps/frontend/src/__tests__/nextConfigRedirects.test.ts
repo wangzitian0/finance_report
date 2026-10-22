@@ -21,9 +21,9 @@ describe("next.config redirects (EPIC-022 route alignment)", () => {
   });
 
   // AC-meta.fe-ia-nav.4
-  it("AC22.1.5 redirects /events to /notifications", async () => {
+  it("AC22.1.5 redirects /events to /upload", async () => {
     const map = await redirectMap();
-    expect(map.get("/events")).toBe("/notifications");
+    expect(map.get("/events")).toBe("/upload");
   });
 
   it("AC22.1.6 redirects /assets to /portfolio", async () => {
@@ -38,9 +38,9 @@ describe("next.config redirects (EPIC-022 route alignment)", () => {
     expect(map.get("/statements")).toBe("/upload");
   });
 
-  it("AC22.2.4 redirects the standalone Review Queue to the notification center", async () => {
+  it("AC22.2.4 redirects the standalone Review Queue to the upload page", async () => {
     const map = await redirectMap();
-    expect(map.get("/review")).toBe("/notifications");
+    expect(map.get("/review")).toBe("/upload");
   });
 
   // AC-meta.fe-ia-nav.28

@@ -116,7 +116,7 @@ async def test_gxs_browser_upload_to_saved_package(
     )
     checkpoint(record_property, "U2")
 
-    await page.goto(f"{APP_URL}/statements/{statement_id}/review")
+    await page.goto(f"{APP_URL}/statements/{statement_id}")
     await page.get_by_role("link", name="Review transaction classifications").click()
     created_account_types: set[str] = set()
     for row in expected["events"]:

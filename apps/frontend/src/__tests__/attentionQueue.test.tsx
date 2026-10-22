@@ -53,7 +53,7 @@ describe("Attention queue (EPIC-022 AC22.6)", () => {
     const rows = await screen.findAllByRole("link");
     // Unmatched (confidence 0) comes before the parsed statement (40) before pending review (80).
     expect(rows[0]).toHaveAttribute("href", "/reconciliation/unmatched?from=attention");
-    expect(rows[1]).toHaveAttribute("href", "/statements/bad/review?from=attention");
+    expect(rows[1]).toHaveAttribute("href", "/statements/bad?from=attention");
     expect(rows[2]).toHaveAttribute("href", "/reconciliation?from=attention");
 
     expect(within(rows[1]).getByText("bad.pdf")).toBeInTheDocument();
@@ -116,7 +116,7 @@ describe("Attention queue (EPIC-022 AC22.6)", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
 
     const row = await screen.findByRole("link", { name: /late\.pdf/ });
-    expect(row).toHaveAttribute("href", "/statements/late/review?from=attention");
+    expect(row).toHaveAttribute("href", "/statements/late?from=attention");
     expect(screen.queryByText("Couldn't load the items that need confirmation")).not.toBeInTheDocument();
     const reads = (operationId: string) =>
       mockedApiOperation.mock.calls.filter(([calledId]) => calledId === operationId).length;

@@ -38,7 +38,7 @@ const baseStatementReview = {
   period_end: "2026-06-30",
   opening_balance: "1000.00",
   closing_balance: "1123.45",
-  status: "pending_review",
+  status: "parsed",
   stage1_status: "pending_review",
   balance_validation_result: {
     opening_balance: "1000.00",
@@ -135,7 +135,7 @@ async function installMobileApiMocks(page: Page) {
       body = { items: [] };
     } else if (path === "/api/statements/pending-review") {
       body = { items: [{ id: "stmt-mobile" }], total: 1 };
-    } else if (path === "/api/statements/stmt-mobile/review") {
+    } else if (path === "/api/statements/stmt-mobile" || path === "/api/statements/stmt-mobile/review") {
       body = baseStatementReview;
     } else if (path === "/api/statements/stmt-mobile/review/edit") {
       body = { success: true };
@@ -235,7 +235,7 @@ test("AC16.25.2 AI suggestions mobile cards expose feedback actions", async ({ p
 
 // AC-extraction.fe-stage1-review.10
 test("AC16.26.1 stage 1 mobile review exposes read-only transaction cards and completion actions", async ({ page }) => {
-  await gotoReady(page, "/statements/stmt-mobile/review");
+  await gotoReady(page, "/statements/stmt-mobile");
 
   await expect(page.getByTestId("stage1-mobile-transaction-card-txn-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
   // Parsed transactions are read-only (EPIC-011 Stage 3 removed inline editing; a mis-parse
@@ -304,7 +304,7 @@ test.describe("375px mobile review proof", () => {
 
   // AC-testing.fe-coverage.2
   test("AC8.13.76 stage 1 and stage 2 review routes remain usable at 375px", async ({ page }) => {
-    await gotoReady(page, "/statements/stmt-mobile/review");
+    await gotoReady(page, "/statements/stmt-mobile");
     await expect(page.getByTestId("stage1-mobile-transaction-card-txn-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
     await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
     await expectNoDocumentHorizontalScroll(page);
@@ -331,7 +331,7 @@ test.describe("1440px desktop review proof", () => {
   // AC-extraction.fe-stage1-review.11
   // AC-testing.fe-coverage.3
   test("AC8.13.82/AC16.27.2 desktop stage 1 review keeps transaction table readable at 1440px", async ({ page }) => {
-    await gotoReady(page, "/statements/stmt-mobile/review");
+    await gotoReady(page, "/statements/stmt-mobile");
 
     const desktopRegion = page.getByTestId("stage1-desktop-transaction-region");
     await expect(desktopRegion).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });

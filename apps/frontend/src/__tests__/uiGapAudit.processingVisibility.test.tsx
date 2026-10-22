@@ -1,13 +1,20 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import ProcessingPage from '@/app/(main)/processing/page';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ProcessingTransfers } from '@/components/statements/ProcessingTransfers';
 import { ProcessingSummaryCard } from '@/components/audit/TrustScoreHero';
 import { apiOperation } from '@/lib/api-client';
+import { PROCESSING_PENDING_QUERY_KEY } from '@/lib/sharedQueries';
 import type { ReactNode } from 'react';
 
 const navigationState = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
 }));
+
+function renderTransfers() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return { client, ...render(<QueryClientProvider client={client}><ProcessingTransfers /></QueryClientProvider>) };
+}
 
 vi.mock('@/lib/api-client', () => ({
   apiOperation: vi.fn(),
@@ -83,7 +90,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
   });
 
   // AC-ledger.fe-processing.2
-  it('AC15.7.3 — /processing listing renders pending transfers', async () => {
+  it('AC15.7.3 — Upload page transfers-in-flight card renders pending transfers', async () => {
     mockedApiOperation.mockResolvedValue({
       items: [
         {
@@ -110,10 +117,10 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
       total: 2
     });
 
-    render(<ProcessingPage />);
+    renderTransfers();
 
     await waitFor(() => {
-      expect(mockedApiOperation).toHaveBeenCalledWith('list_processing_pending_accounts_processing_pending_get');
+      expect(mockedApiOperation).toHaveBeenCalledWith('list_processing_pending_accounts_processing_pending_get', {});
       expect(screen.getByText('Bank A')).toBeInTheDocument();
       expect(screen.getByText('Bank B')).toBeInTheDocument();
       expect(screen.getByText(/500\.00/)).toBeInTheDocument();
@@ -141,7 +148,7 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
       total: 1
     });
 
-    render(<ProcessingPage />);
+    renderTransfers();
 
     await waitFor(() => {
       const badge = screen.getByLabelText(/warning/i);
@@ -150,36 +157,22 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
     });
   });
 
-  it('test_AC8_13_48 — /processing listing renders load errors', async () => {
+  it('test_AC8_13_48 — transfers-in-flight card renders load errors', async () => {
     mockedApiOperation.mockRejectedValueOnce(new Error("processing unavailable"));
 
-    render(<ProcessingPage />);
+    renderTransfers();
 
     expect(await screen.findByText("processing unavailable")).toBeInTheDocument();
   });
 
-  it('AC22.11.3 — /processing returns attention-origin users to the attention queue', async () => {
-    navigationState.searchParams = new URLSearchParams("from=attention");
-    mockedApiOperation.mockResolvedValue({
-      items: [
-        {
-          entry_id: "e1",
-          from_account: "Bank A",
-          to_account: "Bank B",
-          amount: "500.00",
-          currency: "SGD",
-          initiated_date: "2026-05-01",
-          days_outstanding: 9,
-          description: "Transfer 1"
-        }
-      ],
-      total: 1
-    });
+  it('AC15.7.3 — transfers-in-flight card renders nothing when no transfer is waiting', async () => {
+    mockedApiOperation.mockResolvedValue({ items: [], total: 0 });
 
-    render(<ProcessingPage />);
+    const { container, client } = renderTransfers();
 
-    const backLink = await screen.findByRole("link", { name: /Back to Needs Confirmation/i });
-    expect(backLink).toHaveAttribute("href", "/audit");
+    await waitFor(() => expect(client.getQueryState(PROCESSING_PENDING_QUERY_KEY)?.status).toBe('success'));
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText('Transfers in flight')).not.toBeInTheDocument();
   });
 
   // AC-ledger.fe-processing.4

@@ -11,7 +11,7 @@ import {
   isAttentionOrigin,
 } from "@/lib/attentionNavigation";
 
-export function BackLink({ href = "/notifications", children }: { href?: string; children: ReactNode }) {
+export function BackLink({ href = "/upload", children }: { href?: string; children: ReactNode }) {
   const searchParams = useSearchParams();
   const attentionOrigin = isAttentionOrigin(searchParams);
   const rawReturnTo = searchParams?.get("return_to")?.trim() ?? "";

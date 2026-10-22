@@ -1,8 +1,6 @@
 import {
     BarChart3,
-    Bell,
     BookOpen,
-    Clock,
     Coins,
     Cpu,
     ClipboardCheck,
@@ -37,11 +35,9 @@ export interface RouteConfig {
 export const APP_ROUTES = {
     HOME: "/",
     UPLOAD: "/upload",
-    NOTIFICATIONS: "/notifications",
     AUDIT: "/audit",
     MORE: "/more",
     CHAT: "/chat",
-    PROCESSING: "/processing",
     ACCOUNTS: "/accounts",
     JOURNAL: "/journal",
     PORTFOLIO: "/portfolio",
@@ -56,7 +52,6 @@ export const APP_ROUTES = {
     REPORTS_CASH_FLOW: "/reports/cash-flow",
     REPORTS_PACKAGE: "/reports/package",
     SETTINGS: "/settings",
-    ACCOUNTS_PROCESSING: "/accounts/processing",
     PING_PONG: "/ping-pong",
     LOGIN: "/login",
 } as const;
@@ -83,7 +78,6 @@ export const auditHubItems: NavItem[] = [
     { icon: Link2, label: "Reconciliation", href: APP_ROUTES.RECONCILIATION, protected: true },
     { icon: BookOpen, label: "Journal", href: APP_ROUTES.JOURNAL, protected: true },
     { icon: UploadCloud, label: "Statements", href: APP_ROUTES.UPLOAD, protected: true },
-    { icon: Clock, label: "Processing", href: APP_ROUTES.PROCESSING, protected: true },
 ];
 
 // `/more` overflow — low-frequency destinations. Portfolio is conditional
@@ -102,14 +96,10 @@ export const advancedItems: NavItem[] = [
 export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/": { label: "Home", Icon: Home },
     "/upload": { label: "Upload", Icon: UploadCloud },
-    "/notifications": { label: "Notifications", Icon: Bell },
     "/audit": { label: "Audit", Icon: ShieldCheck },
     "/more": { label: "More", Icon: MoreHorizontal },
     // Legacy routes redirect to the new IA; keep label/icon mappings so any
     // persisted workspace tabs or breadcrumbs render with the new names.
-    // #1118: `/events` is permanently redirected to `/notifications` and is no
-    // longer aliased here — `/notifications` is the single canonical path/label,
-    // so the legacy "Notifications" label can no longer leak via the stale path.
     "/dashboard": { label: "Home", Icon: Home },
     "/accounts": { label: "Accounts", Icon: Landmark },
     "/journal": { label: "Journal", Icon: BookOpen },
@@ -126,11 +116,9 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/reports/income-statement": { label: "Income Statement", Icon: BarChart3 },
     "/reports/cash-flow": { label: "Cash Flow", Icon: BarChart3 },
     "/reports/package": { label: "Personal Report Package", Icon: FileText },
-    "/accounts/processing": { label: "Processing Accounts", Icon: Landmark },
     "/reconciliation": { label: "Reconciliation", Icon: Link2 },
     "/reconciliation/unmatched": { label: "Unmatched", Icon: Link2 },
     "/reconciliation/review-queue": { label: "Review Queue", Icon: Link2 },
-    "/processing": { label: "Processing", Icon: Clock },
     "/chat": { label: "Chat", Icon: MessageSquare },
     "/settings": { label: "Settings", Icon: SlidersHorizontal },
     "/settings/general": { label: "General Settings", Icon: Coins },

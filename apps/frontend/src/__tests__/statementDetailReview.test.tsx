@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
-import StatementReviewPage from "@/app/(main)/statements/[id]/review/page";
+import StatementReviewPage from "@/app/(main)/statements/[id]/page";
 import { ToastProvider } from "@/components/ui/Toast";
 import { ApiError } from "@/lib/api";
 import { apiOperation } from "@/lib/api-client";
@@ -36,6 +36,7 @@ vi.mock("@/lib/analytics", async (importOriginal) => ({
 
 function mapOperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
   switch (operationId) {
+    case "get_statement_statements__statement_id__get":
     case "get_statement_for_review_statements__statement_id__review_get":
       return [`/api/statements/${req?.path?.statement_id ?? "s1"}/review`, undefined];
     case "list_pending_review_statements_pending_review_get":
@@ -86,7 +87,7 @@ mockedApi.mockImplementation = (fn: any) =>
 const baseStatement = {
   id: "s1", original_filename: "statement.pdf", institution: "DBS", currency: "SGD",
   period_start: "2024-01-01", period_end: "2024-01-31", opening_balance: 100, closing_balance: 120,
-  status: "pending", stage1_status: null,
+  status: "parsed", stage1_status: null,
   balance_validation_result: {
     opening_balance: "100.00", closing_balance: "120.00", calculated_closing: "120.00",
     opening_delta: "0.00", closing_delta: "0.00", opening_match: true, closing_match: true, validated_at: "2024-01-31T00:00:00Z",
@@ -144,13 +145,14 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     });
 
     renderReviewComponent(<StatementReviewPage /> as never);
-    expect(screen.getByText("Loading review data...")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Loading statement" })).toBeInTheDocument();
     expect(await screen.findByText("Failed to load statement")).toBeInTheDocument();
     expect(screen.getByText("network fail")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("statement.pdf")).toBeInTheDocument();
-    expect(reviewAttempts).toBe(2);
+    // The failed statement read, the retried statement read, then the review read.
+    expect(reviewAttempts).toBe(3);
   });
 
   // AC-extraction.fe-stage1-review.8
@@ -331,14 +333,19 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
   });
 
   // AC-extraction.fe-stage1-review.9
-  it("AC16.18.6 approves the statement and routes back to statement detail", async () => {
+  it("AC16.18.6 approves and rejects in place on the statement page without leaving it", async () => {
+    let status = "parsed";
     mockedApi.mockImplementation((path: string, options?: RequestInit) => {
-      if (path === "/api/statements/s1/review") return Promise.resolve(baseStatement);
+      if (path === "/api/statements/s1/review") return Promise.resolve({ ...baseStatement, status, validation_error: status === "rejected" ? "Rejected by reviewer" : null });
       if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s0" }, { id: "s1" }, { id: "s2" }], total: 3 });
       if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
-      if (path === "/api/statements/s1/review/approve") return Promise.resolve({ journal_entries_created: 2 });
+      if (path === "/api/statements/s1/review/approve") {
+        status = "approved";
+        return Promise.resolve({ journal_entries_created: 2 });
+      }
       if (path === "/api/statements/s1/review/reject") {
         expect(options).toMatchObject({ method: "POST", body: JSON.stringify({ notes: "Needs re-parse" }) });
+        status = "rejected";
         return Promise.resolve({ success: true });
       }
       return Promise.reject(new Error(`Unexpected path ${path}`));
@@ -348,25 +355,45 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "← Prev" }));
     fireEvent.click(screen.getByRole("button", { name: "Next →" }));
-    expect(pushMock).toHaveBeenNthCalledWith(1, "/statements/s0/review");
-    expect(pushMock).toHaveBeenNthCalledWith(2, "/statements/s2/review");
+    expect(pushMock).toHaveBeenNthCalledWith(1, "/statements/s0");
+    expect(pushMock).toHaveBeenNthCalledWith(2, "/statements/s2");
 
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     const approveDialog = await screen.findByRole("dialog", { name: "Approve Statement" });
     fireEvent.click(within(approveDialog).getByRole("button", { name: "Approve" }));
 
-    await waitFor(() => {
-      expect(pushMock).toHaveBeenCalledWith("/statements/s1?approved=1&entriesCreated=2");
-      // AC22.18.3
-      expect(vi.mocked(track)).toHaveBeenCalledWith(ANALYTICS_EVENTS.REVIEW_APPROVED, expect.objectContaining({ statement_id: "s1" }));
+    expect(await screen.findByText("Statement approved. 2 journal entries created.")).toBeInTheDocument();
+    // AC22.18.3
+    expect(vi.mocked(track)).toHaveBeenCalledWith(ANALYTICS_EVENTS.REVIEW_APPROVED, expect.objectContaining({ statement_id: "s1" }));
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    expect(pushMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("AC16.18.6 rejects with a reason and shows the failed-parse recovery on the same page", async () => {
+    let status = "parsed";
+    mockedApi.mockImplementation((path: string, options?: RequestInit) => {
+      if (path === "/api/statements/s1/review") return Promise.resolve({ ...baseStatement, status, validation_error: status === "rejected" ? "Rejected by reviewer" : null });
+      if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+      if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
+      if (path === "/api/statements/s1/review/reject") {
+        expect(options).toMatchObject({ method: "POST", body: JSON.stringify({ notes: "Needs re-parse" }) });
+        status = "rejected";
+        return Promise.resolve({ success: true });
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`));
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+    renderReviewComponent(<StatementReviewPage /> as never);
+    fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
     const rejectDialog = await screen.findByRole("dialog", { name: "Reject Statement" });
     fireEvent.change(within(rejectDialog).getByRole("textbox"), { target: { value: "Needs re-parse" } });
     fireEvent.click(within(rejectDialog).getByRole("button", { name: "Reject" }));
 
-    await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/statements"));
+    expect(await screen.findByText("Parsing Failed")).toBeInTheDocument();
+    expect(screen.getByText("Rejected by reviewer")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry Parse" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   // AC-extraction.fe-stage1-review.17
@@ -416,11 +443,11 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     await waitFor(() => expect(screen.getByText("Economic classification needs review before entries can be posted.")).toBeInTheDocument());
     expect(await screen.findByRole("link", { name: "Review transaction classifications" })).toHaveAttribute(
       "href",
-      "/reconciliation/unmatched?statement_id=s1&return_to=%2Fstatements%2Fs1%2Freview",
+      "/reconciliation/unmatched?statement_id=s1&return_to=%2Fstatements%2Fs1",
     );
     expect(screen.getByRole("link", { name: "Review AI suggestions" })).toHaveAttribute(
       "href",
-      "/audit?statement_id=s1&return_to=%2Fstatements%2Fs1%2Freview#ai-suggestions",
+      "/audit?statement_id=s1&return_to=%2Fstatements%2Fs1#ai-suggestions",
     );
   });
 
@@ -475,7 +502,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     renderReviewComponent(<StatementReviewPage /> as never);
     expect(await screen.findByRole("link", { name: /Back to Needs Confirmation/i })).toHaveAttribute("href", "/audit");
 
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
     const dialog = await screen.findByRole("dialog", { name: "Approve Statement" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Approve" }));
     await waitFor(() => expect(pushMock).toHaveBeenLastCalledWith("/audit"));

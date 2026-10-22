@@ -19,7 +19,6 @@ const ACCOUNTING_JARGON_HREFS = [
   "/accounts",
   "/statements",
   "/settings",
-  "/processing",
 ];
 
 describe("navigation metadata", () => {
@@ -56,7 +55,7 @@ describe("navigation metadata", () => {
   it("AC22.21.3 folds the accounting machinery into the /audit hub, out of navigation", () => {
     const auditHrefs = auditHubItems.map((item) => item.href);
     expect(auditHrefs).toEqual(
-      expect.arrayContaining(["/reconciliation", "/journal", "/processing"]),
+      expect.arrayContaining(["/reconciliation", "/journal", "/upload"]),
     );
     // None of these machinery routes is reachable as a bottom tab.
     const tabHrefs = bottomTabItems.map((item) => item.href);
@@ -89,7 +88,6 @@ describe("navigation metadata", () => {
     expect(getRouteConfig("/reports/balance-sheet").label).toBe("Balance Sheet");
     expect(getRouteConfig("/reports/balance-sheet/detail").label).toBe("Balance Sheet");
     expect(getRouteConfig("/reconciliation/unmatched").label).toBe("Unmatched");
-    expect(getRouteConfig("/processing").label).toBe("Processing");
     expect(getRouteConfig("/chat").label).toBe("Chat");
     expect(getRouteConfig("/audit").label).toBe("Audit");
     expect(getRouteConfig("/more").label).toBe("More");
@@ -98,16 +96,17 @@ describe("navigation metadata", () => {
     expect(getRouteConfig("/settings/llm").label).toBe("LLM Models");
     expect(getRouteConfig("/").label).toBe("Home");
     expect(getRouteConfig("/upload").label).toBe("Upload");
-    expect(getRouteConfig("/notifications").label).toBe("Notifications");
     expect(getRouteConfig("/custom-report_page").label).toBe("Custom Report Page");
     expect(getRouteConfig("/totally-unknown-xyz").Icon).toBe(DEFAULT_ROUTE_ICON);
   });
 
   // AC-meta.fe-ia-nav.20
-  it("AC22.18.1 drops the legacy /events alias so /notifications is the one canonical label", () => {
-    expect(ROUTE_CONFIG["/events"]).toBeUndefined();
+  it("AC22.18.1 keeps retired upload-chain aliases out of ROUTE_CONFIG so no stale label leaks", () => {
+    for (const retired of ["/events", "/notifications", "/processing", "/accounts/processing"]) {
+      expect(ROUTE_CONFIG[retired], `${retired} must not have a ROUTE_CONFIG entry`).toBeUndefined();
+      if (!retired.startsWith("/accounts")) expect(getRouteConfig(retired).Icon, `${retired} must fall back to the default icon`).toBe(DEFAULT_ROUTE_ICON);
+    }
     expect(getRouteConfig("/events").label).toBe("Events");
-    expect(getRouteConfig("/notifications").label).toBe("Notifications");
   });
 
   // Single-homed from Sidebar.tsx/BottomTabBar.tsx byte-identical duplicates (#1868 S5).
@@ -131,7 +130,6 @@ describe("navigation metadata", () => {
 
     expect(APP_ROUTES.HOME).toBe("/");
     expect(APP_ROUTES.UPLOAD).toBe("/upload");
-    expect(APP_ROUTES.NOTIFICATIONS).toBe("/notifications");
     expect(APP_ROUTES.AUDIT).toBe("/audit");
     expect(APP_ROUTES.CHAT).toBe("/chat");
     expect(APP_ROUTES.RECONCILIATION_REVIEW_QUEUE).toBe("/reconciliation/review-queue");

@@ -72,7 +72,7 @@ describe("AdvisorBrief", () => {
     expect(cardLinks.map((link) => link.getAttribute("href"))).toEqual([
       "/reports/package",
       "/reports",
-      "/review",
+      "/upload",
       "/portfolio/prices",
       "/assets",
     ]);

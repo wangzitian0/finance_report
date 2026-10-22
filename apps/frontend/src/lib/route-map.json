@@ -23,10 +23,10 @@
     { "path": "/review/ai-suggestions", "state": "redirect", "into": "/audit" },
     { "path": "/review/run/[runId]", "state": "redirect", "into": "/audit?run_id=:runId" },
 
-    { "path": "/notifications", "state": "merge", "into": "/upload", "lane": "LB" },
-    { "path": "/processing", "state": "merge", "into": "/upload", "lane": "LB" },
-    { "path": "/accounts/processing", "state": "merge", "into": "/upload", "lane": "LB" },
-    { "path": "/statements/[id]/review", "state": "merge", "into": "/statements/[id]", "lane": "LB" },
+    { "path": "/notifications", "state": "redirect", "into": "/upload" },
+    { "path": "/processing", "state": "redirect", "into": "/upload" },
+    { "path": "/accounts/processing", "state": "redirect", "into": "/upload" },
+    { "path": "/statements/[id]/review", "state": "redirect", "into": "/statements/[id]" },
 
     { "path": "/reports/balance-sheet", "state": "merge", "into": "/reports", "lane": "LC" },
     { "path": "/reports/income-statement", "state": "merge", "into": "/reports", "lane": "LC" },
@@ -41,11 +41,11 @@
     { "path": "/accounts", "state": "merge", "into": "/settings", "lane": "LD" },
 
     { "path": "/dashboard", "state": "redirect", "into": "/" },
-    { "path": "/events", "state": "redirect", "into": "/notifications" },
+    { "path": "/events", "state": "redirect", "into": "/upload" },
     { "path": "/assets", "state": "redirect", "into": "/portfolio" },
     { "path": "/statements/upload", "state": "redirect", "into": "/upload" },
     { "path": "/statements", "state": "redirect", "into": "/upload" },
-    { "path": "/review", "state": "redirect", "into": "/notifications" },
+    { "path": "/review", "state": "redirect", "into": "/upload" },
     { "path": "/settings/general", "state": "redirect", "into": "/settings?tab=general" },
     { "path": "/settings/ai", "state": "redirect", "into": "/settings?tab=ai" },
     { "path": "/settings/llm", "state": "redirect", "into": "/settings?tab=llm" }

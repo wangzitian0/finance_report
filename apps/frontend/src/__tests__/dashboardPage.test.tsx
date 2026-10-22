@@ -650,7 +650,7 @@ describe("HomePage", () => {
     // AC22.16.1: the first step is Upload (everyday tier); no step links to the
     // accounting-jargon "/accounts" route anymore.
     expect(screen.getByRole("link", { name: /Upload a bank statement/i })).toHaveAttribute("href", "/upload")
-    expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/notifications")
+    expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/upload")
     expect(screen.getByRole("link", { name: /Read your reports/i })).toHaveAttribute("href", "/reports")
     expect(screen.queryByRole("link", { name: /Add your first account/i })).toBeNull()
     expect(
@@ -678,7 +678,7 @@ describe("HomePage", () => {
     // approved statement + posted entry complete the core flow.
     expect(screen.getAllByText("Done")).toHaveLength(1)
     expect(screen.getAllByText("Next")).toHaveLength(2)
-    expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/notifications")
+    expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/upload")
   })
 
   // AC-reporting.fe-report-surfaces.7

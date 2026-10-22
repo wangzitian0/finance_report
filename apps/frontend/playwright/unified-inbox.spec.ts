@@ -4,7 +4,7 @@ const COLD_ROUTE_TIMEOUT_MS = 10_000;
 
 const workflowStatus = {
   primary_state: "needs_action",
-  next_action: { type: "review_required", count: 2, href: "/statements/stmt-1/review" },
+  next_action: { type: "review_required", count: 2, href: "/statements/stmt-1" },
   report_readiness: { state: "blocked", blocking_count: 1, href: "/reports/package" },
   event_counts: { unread: 2, action_required: 1, blocked: 1 },
   active_session: {
@@ -37,7 +37,7 @@ const workflowEvents = {
       summary: "statement.pdf needs source review before report readiness can advance.",
       source_type: "bank_statement",
       source_id: "stmt-1",
-      action_href: "/statements/stmt-1/review",
+      action_href: "/statements/stmt-1",
       report_impact: "blocked",
     },
     {
@@ -90,16 +90,16 @@ test.describe("AC22.2.6 unified inbox smoke", () => {
     { label: "mobile", width: 390, height: 844 },
   ]) {
     // AC-platform.fe-ia-inbox.3
-    test(`${label} surfaces review attention in the notification center with deep links`, async ({ page }) => {
+    test(`${label} surfaces review attention in the upload workflow notices with deep links`, async ({ page }) => {
       await page.setViewportSize({ width, height });
-      await page.goto("/notifications", { waitUntil: "networkidle" });
+      await page.goto("/upload", { waitUntil: "networkidle" });
 
       // Both Stage 1 review and Stage 2 reconciliation attention show in one place.
       await expect(page.getByText("Source review required").first()).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
       await expect(page.getByText("Reconciliation review required").first()).toBeVisible();
 
       // Each card deep-links to its specific follow-up surface.
-      await expect(page.locator('a[href="/statements/stmt-1/review"]').first()).toBeVisible();
+      await expect(page.locator('a[href="/statements/stmt-1"]').first()).toBeVisible();
       await expect(page.locator('a[href="/reconciliation/review-queue"]').first()).toBeVisible();
 
       await expectNoDocumentHorizontalScroll(page);

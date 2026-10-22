@@ -46,45 +46,28 @@ export const MUTATION_INVALIDATION_MATRIX: readonly MutationInvalidationRule[] =
   },
   {
     flow: "statements.review.approve",
-    file: "app/(main)/statements/[id]/review/page.tsx",
-    invalidates: [],
-    noInvalidationReason:
-      "Navigates to the statement detail (or attention) route on success; " +
-      "the app query client marks the ledger-derived reads stale after every " +
-      "successful mutation, so the destination reads them again.",
+    file: "app/(main)/statements/[id]/page.tsx",
+    invalidates: [["statement-review"], ["pending-statements"]],
   },
   {
     flow: "statements.review.reject",
-    file: "app/(main)/statements/[id]/review/page.tsx",
-    invalidates: [],
-    noInvalidationReason:
-      "Navigates back to /statements on success; the app query client marks " +
-      "the ledger-derived reads stale after every successful mutation, so the " +
-      "list route reads them again.",
+    file: "app/(main)/statements/[id]/page.tsx",
+    invalidates: [["statement-review"], ["pending-statements"]],
   },
   {
     flow: "statements.review.resolve-conflicts",
-    file: "app/(main)/statements/[id]/review/page.tsx",
+    file: "app/(main)/statements/[id]/page.tsx",
     invalidates: [["statement-conflicts"]],
   },
   {
     flow: "statements.review.confirm-envelope",
-    file: "app/(main)/statements/[id]/review/page.tsx",
+    file: "app/(main)/statements/[id]/page.tsx",
     invalidates: [["statement-review"]],
   },
   {
     flow: "statements.review.create-custody-account",
-    file: "app/(main)/statements/[id]/review/page.tsx",
+    file: "app/(main)/statements/[id]/page.tsx",
     invalidates: [["statement-review-custody-accounts"]],
-  },
-  {
-    flow: "statements.review.reparse",
-    file: "app/(main)/statements/[id]/review/page.tsx",
-    invalidates: [],
-    noInvalidationReason:
-      "Navigates to the statement detail route to watch the re-parse; the app " +
-      "query client marks the ledger-derived reads stale after every " +
-      "successful mutation, so the detail route reads them again.",
   },
   {
     flow: "reconciliation.run",

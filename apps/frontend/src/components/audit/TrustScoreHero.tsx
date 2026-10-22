@@ -342,7 +342,7 @@ export function TemporalTimelineGrid({ timeline }: { timeline: MonthContinuityBu
                     <Upload className="h-3 w-3" /> Upload
                   </Link>
                 ) : isPending ? (
-                  <Link href="/processing" className="inline-flex items-center gap-1 font-medium text-[var(--accent)] hover:underline">
+                  <Link href="/upload" className="inline-flex items-center gap-1 font-medium text-[var(--accent)] hover:underline">
                     Review <ArrowUpRight className="h-3 w-3" />
                   </Link>
                 ) : bucket.net_movement !== null && bucket.net_movement !== undefined ? (
@@ -390,7 +390,7 @@ export function ProcessingSummaryCard() {
   const hasUnresolvedBalance = !isAmountZero(currentBalance, 0);
 
   return (
-    <Link href="/processing" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
+    <Link href="/upload" className="card p-5 hover:border-[var(--accent)] transition-colors cursor-pointer block">
       <div className="flex justify-between items-start">
         <div>
           <p className="text-xs text-muted uppercase">Processing</p>
