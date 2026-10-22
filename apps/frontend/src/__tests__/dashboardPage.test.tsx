@@ -5,781 +5,326 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import HomePage from "@/app/(main)/page"
 import { apiOperation } from "@/lib/api-client"
 
+import { setTestUrl } from "./helpers/nextNavigation"
+
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode }) => <a href={href} {...props}>{children}</a>,
 }))
 
-vi.mock("@/components/charts/BarChart", () => ({
-  BarChart: () => <div>BarChartMock</div>,
-}))
-
-vi.mock("@/components/charts/PieChart", () => ({
-  PieChart: () => <div>PieChartMock</div>,
-}))
-
-vi.mock("@/components/charts/TrendChart", () => ({
-  TrendChart: () => <div>TrendChartMock</div>,
-}))
-
-vi.mock("@/components/charts/NetWorthTimeSeriesChart", () => ({
-  NetWorthTimeSeriesChart: () => <div>NetWorthTimeSeriesMock</div>,
-}))
+vi.mock("next/navigation", async () => (await import("./helpers/nextNavigation")).nextNavigationMock)
 
 vi.mock("@/lib/api-client", () => ({
   apiOperation: vi.fn(),
 }))
 
-function mapDashboardOperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
-  switch (operationId) {
-    case "balance_sheet_reports_balance_sheet_get": {
-      const q = req?.query;
-      let path = "/api/reports/balance-sheet";
-      if (q?.include_restricted) path += "?include_restricted=true";
-      else if (q?.include_restricted === false) path += "?include_restricted=false";
-      return [path, undefined];
-    }
-    case "income_statement_reports_income_statement_get":
-      return ["/api/reports/income-statement", undefined];
-    case "get_annualized_income_income_annualized_get":
-      return ["/api/income/annualized", undefined];
-    case "list_restricted_holdings_assets_restricted_get":
-      return ["/api/assets/restricted", undefined];
-    case "reconciliation_stats_reconciliation_stats_get":
-      return ["/api/reconciliation/stats", undefined];
-    case "list_unmatched_reconciliation_unmatched_get":
-      return ["/api/reconciliation/unmatched", undefined];
-    case "list_journal_entries_journal_entries_get": {
-      const q = req?.query;
-      let path = "/api/journal-entries";
-      if (q?.status_filter) path += `?status_filter=${q.status_filter}`;
-      return [path, undefined];
-    }
-    case "list_accounts_accounts_get":
-      return ["/api/accounts", undefined];
-    case "list_statements_statements_get":
-      return ["/api/statements", undefined];
-    case "suggestions_chat_suggestions_get":
-      return ["/api/chat/suggestions?language=en&include_structured=true", undefined];
-    case "account_trend_reports_trend_get": {
-      const q = req?.query;
-      let path = "/api/reports/trend";
-      if (q?.account_id) path += `?account_id=${q.account_id}&period=${q.period ?? "monthly"}`;
-      return [path, undefined];
-    }
-    case "get_workflow_status_endpoint_workflow_status_get":
-      return ["/api/workflow/status", undefined];
-    case "list_workflow_events_endpoint_workflow_events_get": {
-      const q = req?.query;
-      let path = "/api/workflow/events";
-      if (q?.limit) path += `?limit=${q.limit}`;
-      return [path, undefined];
-    }
-    case "update_workflow_event_status_endpoint_workflow_events__event_id__patch":
-      return [`/api/workflow/events/${req?.path?.event_id}`, { method: "PATCH", body: JSON.stringify(req?.body ?? {}) }];
-    case "list_processing_pending_accounts_processing_pending_get":
-      return ["/api/accounts/processing/pending", undefined];
-    default:
-      return [operationId, req];
-  }
-}
-
-const baseBalance = {
-  assets: [{ account_id: "a1", name: "Cash", amount: 5000 }],
-  liabilities: [],
-  equity: [],
-  total_assets: 5000,
-  total_liabilities: 1000,
-  total_equity: 4000,
-  equation_delta: 0,
+const liquidBalance = {
+  as_of_date: "2026-10-22",
   currency: "USD",
-  as_of_date: "2026-02-01",
+  assets: [{ account_id: "a1", name: "Cash", type: "ASSET", amount: "5000" }],
+  liabilities: [{ account_id: "l1", name: "Card", type: "LIABILITY", amount: "1000" }],
+  equity: [],
+  total_assets: "5000",
+  total_liabilities: "1000",
+  total_equity: "4000",
+  equation_delta: "0",
   is_balanced: true,
 }
 
-const baseIncome = {
+const income = {
+  start_date: "2025-11-01",
+  end_date: "2026-10-22",
   currency: "USD",
-  trends: [{ period_start: "2026-01-01", total_income: 3500, total_expenses: 1200, net_income: 2300 }],
+  income: [{ account_id: "i1", name: "Salary", type: "INCOME", amount: "3500" }],
+  expenses: [{ account_id: "e1", name: "Rent", type: "EXPENSE", amount: "1200" }],
+  total_income: "3500",
+  total_expenses: "1200",
+  net_income: "2300",
+  trends: [],
 }
 
-function mockDashboardApi(overrides: Record<string, unknown> = {}) {
-  const mockedApiOperation = vi.mocked(apiOperation)
-  const hasOverride = (key: string) => Object.prototype.hasOwnProperty.call(overrides, key)
-  let trendCalls = 0
-  mockedApiOperation.mockImplementation((operationId: any, req: any) => {
-    let path = operationId
-    if (typeof operationId === "string" && !operationId.startsWith("/")) {
-      const mapped = mapDashboardOperationToLegacy(operationId, req)
-      path = mapped[0]
-    }
-    if (path.startsWith("/api/reports/balance-sheet")) {
-      if (overrides.balanceError) return Promise.reject(overrides.balanceError)
-      const includeRestricted = path.includes("include_restricted=true")
-      const defaultBalance = includeRestricted
-        ? { ...baseBalance, total_assets: 17500, total_equity: 16500 }
-        : baseBalance
-      return Promise.resolve(hasOverride("balance") ? overrides.balance : defaultBalance)
-    }
-    if (path.startsWith("/api/chat/suggestions")) {
-      if (overrides.chatSuggestionsError) return Promise.reject(overrides.chatSuggestionsError)
-      return Promise.resolve(hasOverride("chatSuggestions") ? overrides.chatSuggestions : {
-        suggestions: ["How is my report readiness?"],
-        structured_suggestions: [{ basis: "Report package is blocked by one review-required item.", confidence_tier: "blocked", source_refs: ["workflow.status", "report_package.readiness"], limitation: "Review the blocker before relying on this report.", next_action_href: "/reports/package" }],
-      })
-    }
-    if (path.startsWith("/api/workflow/status")) {
-      return Promise.resolve(hasOverride("workflowStatus") ? overrides.workflowStatus : {
-        primary_state: "needs_action",
-        next_action: { type: "review_required", count: 1, href: "/review", label: "Review required", summary: "Confirm the source or review item so trusted report preparation can continue." },
-        report_readiness: { state: "blocked", blocking_count: 1, href: "/reports/package" },
-        event_counts: { unread: 2, action_required: 1, blocked: 0 },
-      })
-    }
-    if (path.startsWith("/api/workflow/events")) {
-      return Promise.resolve(hasOverride("workflowEvents") ? overrides.workflowEvents : {
-        total: 1,
-        items: [
-          { id: "workflow-dashboard", user_id: "user-dashboard", session_id: "dashboard-session", occurred_at: "2026-06-03T08:00:00Z", family: "review.required", severity: "action_required", status: "unread", title: "Review required", summary: "A statement needs confirmation before reports are ready.", source_type: "bank_statement", source_id: "statement-dashboard", action_href: "/review", report_impact: "blocked", dedupe_key: "workflow:dashboard", created_at: "2026-06-03T08:00:00Z", updated_at: "2026-06-03T08:00:00Z" },
-          { id: "workflow-routine-dashboard", user_id: "user-dashboard", session_id: "dashboard-session", occurred_at: "2026-06-03T07:00:00Z", family: "ledger.auto_posted", severity: "success", status: "read", title: "Safe entries posted", summary: "Automation posted high-confidence entries.", source_type: "journal", source_id: "journal-dashboard", action_href: "/journal", report_impact: "ready", dedupe_key: "workflow:routine-dashboard", created_at: "2026-06-03T07:00:00Z", updated_at: "2026-06-03T07:00:00Z" },
-        ],
-        sessions: [
-          { id: "dashboard-session", status: "active", title: "Upload-to-report session", summary: "Current upload, processing, review, and report-readiness work.", started_at: "2026-06-03T07:00:00Z", last_event_at: "2026-06-03T08:00:00Z", source_count: 2, primary_state: "needs_action", report_readiness: { state: "blocked", blocking_count: 1, href: "/reports/package" }, event_counts: { unread: 1, action_required: 1, blocked: 0 } },
-        ],
-      })
-    }
-    if (path.startsWith("/api/reports/income-statement")) return Promise.resolve(hasOverride("income") ? overrides.income : baseIncome)
-    if (path.startsWith("/api/income/annualized")) {
-      return Promise.resolve(hasOverride("annualized") ? overrides.annualized : {
-        annualized_salary: 120000, annualized_bonus: 15000, annualized_dividend: 2400, annualized_total: 137400, currency: "USD", as_of: "2026-05-20",
-      })
-    }
-    if (path.startsWith("/api/assets/restricted")) {
-      return Promise.resolve(hasOverride("restricted") ? overrides.restricted : [
-        { ticker: "SHOP-RSU", quantity: "1.000000", vesting_schedule: "25% annual vesting", unlock_date: "2027-01-01", fair_value: 12500, currency: "USD" },
-      ])
-    }
-    if (path.startsWith("/api/reconciliation/stats")) {
-      return Promise.resolve(hasOverride("stats") ? overrides.stats : {
-        total_transactions: 20, matched_transactions: 16, unmatched_transactions: 4, pending_review: 2, auto_accepted: 4, match_rate: 80, score_distribution: {},
-      })
-    }
-    if (path.startsWith("/api/reconciliation/unmatched")) {
-      return Promise.resolve(hasOverride("unmatched") ? overrides.unmatched : { items: [{ id: "u1", description: "Missing txn", txn_date: "2026-01-10", amount: 99 }], total: 1 })
-    }
-    if (path.startsWith("/api/journal-entries?status_filter=posted")) {
-      return Promise.resolve(hasOverride("postedJournal") ? overrides.postedJournal : { items: [{ id: "j1", status: "posted" }], total: 1 })
-    }
-    if (path.startsWith("/api/journal-entries")) {
-      return Promise.resolve(hasOverride("journal") ? overrides.journal : { items: [{ id: "j1", memo: "Rent", entry_date: "2026-01-05", status: "posted" }], total: 1 })
-    }
-    if (path.startsWith("/api/accounts")) {
-      return Promise.resolve(hasOverride("accounts") ? overrides.accounts : { items: [{ id: "a1" }], total: 1 })
-    }
-    if (path.startsWith("/api/statements")) {
-      return Promise.resolve(hasOverride("statements") ? overrides.statements : { items: [{ id: "s1", status: "approved" }], total: 1 })
-    }
-    if (path.startsWith("/api/reports/trend")) {
-      trendCalls += 1
-      if (overrides.trendError) return Promise.reject(overrides.trendError)
-      if (overrides.rejectTrendAfterFirst && trendCalls > 1) {
-        return Promise.reject(new Error("trend fetch failed"))
-      }
-      return Promise.resolve(overrides.trend ?? { points: [{ period_start: "2026-01-01", amount: 5000 }] })
-    }
-    return Promise.reject(new Error(`unhandled path ${path}`))
-  })
+const cashFlow = {
+  start_date: "2025-11-01",
+  end_date: "2026-10-22",
+  currency: "USD",
+  operating: [],
+  investing: [],
+  financing: [],
+  summary: {
+    operating_activities: "2300",
+    investing_activities: "0",
+    financing_activities: "-300",
+    net_cash_flow: "2000",
+    beginning_cash: "3000",
+    ending_cash: "5000",
+  },
 }
 
-async function waitForDashboardAnalyticsReady() {
-  await waitFor(() =>
-    expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument(),
-  )
-  // EPIC-022 PR4: heavy charts/analytics are opt-in on the lean Home. Expand them
-  // when available so the analytics assertions below can see the charts.
-  const analyticsToggle = screen.queryByRole("button", { name: /Show analytics/i })
-  if (analyticsToggle) {
-    fireEvent.click(analyticsToggle)
-  }
-  // #2583 S4: the analytics-only sources start when the panel opens, and each card shows a
-  // loading line until its own source answers. Wait until every card has its data.
-  await waitFor(() => expect(document.querySelector("[data-loading]")).toBeNull())
+const readyWorkflow = {
+  primary_state: "ready",
+  next_action: { type: "open_report", count: 1, href: "/reports?tab=package", label: "Open report package", summary: "Reports are ready." },
+  report_readiness: { state: "ready", blocking_count: 0, href: "/reports?tab=package" },
+  event_counts: { unread: 0, action_required: 0, blocked: 0 },
 }
+
+type Overrides = Partial<Record<string, () => Promise<unknown>>>
+
+function mockHomeApi(overrides: Overrides = {}) {
+  vi.mocked(apiOperation).mockImplementation(((operationId: string, request: { query?: Record<string, unknown> } = {}) => {
+    if (overrides[operationId]) return overrides[operationId]!()
+    switch (operationId) {
+      case "balance_sheet_reports_balance_sheet_get":
+        return Promise.resolve(
+          request.query?.include_restricted
+            ? { ...liquidBalance, total_assets: "17500", assets: [...liquidBalance.assets, { account_id: "r1", name: "SHOP RSU", type: "ASSET", amount: "12500" }] }
+            : liquidBalance,
+        )
+      case "income_statement_reports_income_statement_get":
+        return Promise.resolve(income)
+      case "cash_flow_reports_cash_flow_get":
+        return Promise.resolve(cashFlow)
+      case "get_workflow_status_endpoint_workflow_status_get":
+        return Promise.resolve(readyWorkflow)
+      case "list_statements_statements_get":
+        return Promise.resolve({ items: [{ id: "s1", status: "approved", original_filename: "dbs.pdf" }], total: 1 })
+      case "reconciliation_stats_reconciliation_stats_get":
+        return Promise.resolve({ total_transactions: 20, matched_transactions: 20, unmatched_transactions: 0, pending_review: 0, auto_accepted: 4, match_rate: 100, score_distribution: {} })
+      case "list_processing_pending_accounts_processing_pending_get":
+        return Promise.resolve({ items: [], total: 0 })
+      case "suggestions_chat_suggestions_get":
+        return Promise.resolve({ suggestions: [], structured_suggestions: [] })
+      case "get_available_currencies_reports_currencies_get":
+        return Promise.resolve(["SGD", "USD"])
+      case "get_base_currency_app_config_base_currency_get":
+        return Promise.resolve({ base_currency: "USD" })
+      default:
+        return Promise.reject(new Error(`unhandled operation ${operationId}`))
+    }
+  }) as never)
+}
+
+const workflow = (state: string, nextAction: Record<string, unknown>) => () =>
+  Promise.resolve({ ...readyWorkflow, primary_state: state, next_action: { count: 1, summary: "", ...nextAction } })
 
 describe("HomePage", () => {
   const mockedApiOperation = vi.mocked(apiOperation)
 
   beforeEach(() => {
     mockedApiOperation.mockReset()
+    mockHomeApi()
+    setTestUrl("/")
   })
 
   // AC-reporting.fe-report-surfaces.1
   it("AC16.12.1 shows loading state before dashboard data resolves", () => {
-    mockedApiOperation.mockImplementation(() => new Promise(() => {}))
-
+    mockHomeApi({
+      balance_sheet_reports_balance_sheet_get: () => new Promise(() => undefined),
+      income_statement_reports_income_statement_get: () => new Promise(() => undefined),
+      cash_flow_reports_cash_flow_get: () => new Promise(() => undefined),
+    })
     render(<HomePage />)
 
-    expect(screen.getByLabelText("Upload-to-report home")).toBeInTheDocument()
-    expect(screen.getByText("Loading dashboard analytics...")).toBeInTheDocument()
+    for (const card of ["balance-sheet", "income-statement", "cash-flow"]) {
+      expect(within(screen.getByTestId(`cockpit-card-${card}`)).getByRole("status")).toHaveTextContent("Loading…")
+    }
   })
 
   // AC-reporting.fe-report-surfaces.2
   it("AC16.12.2 renders error fallback and retry action on failure", async () => {
-    mockedApiOperation.mockRejectedValue(new Error("dashboard failed"))
-
+    let failures = 0
+    mockHomeApi({
+      income_statement_reports_income_statement_get: () => (failures++ === 0 ? Promise.reject(new Error("income down")) : Promise.resolve(income)),
+    })
     render(<HomePage />)
 
-    await waitFor(() => expect(screen.getByText("Upload to report")).toBeInTheDocument())
-    expect(screen.getByText("Workflow status is unavailable. You can still upload files or open reports.")).toBeInTheDocument()
-    expect(screen.getByText("Dashboard analytics unavailable")).toBeInTheDocument()
-    expect(screen.getByText("dashboard failed")).toBeInTheDocument()
-    const callCountBeforeRetry = mockedApiOperation.mock.calls.length
-    fireEvent.click(screen.getByRole("button", { name: "Retry analytics" }))
-    await waitFor(() => expect(mockedApiOperation.mock.calls.length).toBeGreaterThan(callCountBeforeRetry))
+    expect(await screen.findByText("Statements unavailable: income down")).toBeInTheDocument()
+    // The other cards keep their own data.
+    await waitFor(() => expect(screen.getByText("Net worth").nextElementSibling).toHaveTextContent("$4,000"))
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }))
+    await waitFor(() => expect(screen.queryByText(/Statements unavailable/)).toBeNull())
+    expect(within(screen.getByTestId("cockpit-card-income-statement")).getByText("Net income").nextElementSibling).toHaveTextContent("+$2,300")
   })
 
-  // AC-reporting.fe-report-surfaces.3
-  // AC-reporting.fe-ia-reports.1
-  it("AC16.12.3 AC22.1.2 renders KPI, chart, activity, and alert sections when API succeeds", async () => {
-    mockDashboardApi()
-
+  // AC-reporting.fe-report-surfaces.3 / AC-reporting.fe-ia-reports.1 / AC-meta.fe-app-shell.4
+  it("AC16.12.3 AC22.1.2 renders the dimension bar and the three statement cards of the period", async () => {
     render(<HomePage />)
 
-    await waitForDashboardAnalyticsReady()
-    expect(mockedApiOperation).toHaveBeenCalledWith(
-      "suggestions_chat_suggestions_get",
-      expect.objectContaining({ query: expect.objectContaining({ language: "en", include_structured: true }) }),
-    )
-    expect(screen.getByText("Total Assets")).toBeInTheDocument()
-    expect(screen.getByText("Total Liabilities")).toBeInTheDocument()
-    // Net worth position is shown once in the Unified Statement Cockpit.
-    expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000")
-    expect(screen.getByText("PieChartMock")).toBeInTheDocument()
-    expect(screen.getByText("BarChartMock")).toBeInTheDocument()
-    expect(screen.getByText("Recent Entries")).toBeInTheDocument()
-    expect(screen.getByText("Unmatched Alerts")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Home", level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole("group", { name: "Report dimensions" })).toBeInTheDocument()
+    const balance = screen.getByTestId("cockpit-card-balance-sheet")
+    await waitFor(() => expect(within(balance).getByText("Net worth").nextElementSibling).toHaveTextContent("$4,000"))
+    expect(within(balance).getByText("Total assets").nextElementSibling).toHaveTextContent("$5,000")
+    const incomeCard = screen.getByTestId("cockpit-card-income-statement")
+    await waitFor(() => expect(within(incomeCard).getByText("Savings rate").nextElementSibling).toHaveTextContent("66%"))
+    const cash = screen.getByTestId("cockpit-card-cash-flow")
+    await waitFor(() => expect(within(cash).getByText("Financing").nextElementSibling).toHaveTextContent("-$300"))
+    expect(within(cash).getByText("Net change").nextElementSibling).toHaveTextContent("+$2,000")
+  })
+
+  // AC-reporting.fe-report-surfaces.4
+  it("AC16.12.4 shows zero metrics and no line list for an empty period", async () => {
+    mockHomeApi({
+      balance_sheet_reports_balance_sheet_get: () =>
+        Promise.resolve({ ...liquidBalance, assets: [], liabilities: [], total_assets: "0", total_liabilities: "0", total_equity: "0" }),
+    })
+    render(<HomePage />)
+
+    const balance = screen.getByTestId("cockpit-card-balance-sheet")
+    await waitFor(() => expect(within(balance).getByText("Net worth").nextElementSibling).toHaveTextContent("$0"))
+    expect(screen.queryByText(/Largest lines/)).toBeNull()
   })
 
   // AC-reporting.fe-ia-reports.7
-  it("AC22.4.4 defaults to a lean Home with heavy analytics behind an opt-in toggle", async () => {
-    mockDashboardApi()
-
+  it("AC22.4.4 keeps Home lean: one cockpit and no analytics panel or duplicate metric block", async () => {
     render(<HomePage />)
 
-    await waitFor(() =>
-      expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument(),
-    )
-    // Lean default: action-required home + financial key numbers are visible…
-    expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000")
-    expect(screen.getByText("Total Assets")).toBeInTheDocument()
-    // …but the heavy charts are collapsed until opted into.
-    expect(screen.queryByText("BarChartMock")).toBeNull()
-    expect(screen.queryByText("PieChartMock")).toBeNull()
+    await waitFor(() => expect(screen.getByText("Net worth").nextElementSibling).toHaveTextContent("$4,000"))
+    expect(screen.queryByRole("button", { name: /Show analytics/i })).toBeNull()
+    for (const label of ["Net worth", "Total assets", "Expenses", "Net income", "Savings rate", "Operating"]) {
+      expect(screen.getAllByText(label)).toHaveLength(1)
+    }
+    for (const removed of ["Annualized Income", "Restricted Holdings", "Risk radar", "Recent Entries", "Unmatched Alerts"]) {
+      expect(screen.queryByText(removed)).toBeNull()
+    }
+  })
 
-    fireEvent.click(screen.getByRole("button", { name: /Show analytics/i }))
-    await waitFor(() => expect(screen.getByText("BarChartMock")).toBeInTheDocument())
+  // AC-reporting.fe-remainder-reports.6 / AC-reporting.fe-remainder-reports.4
+  it("AC19.4.3 shows one action banner that follows the workflow next action", async () => {
+    mockHomeApi({
+      get_workflow_status_endpoint_workflow_status_get: workflow("needs_action", { type: "review_required", href: "/audit", label: "Review required", summary: "Confirm the source." }),
+    })
+    const view = render(<HomePage />)
+
+    const banner = await screen.findByRole("region", { name: "Needs attention" })
+    expect(within(banner).getByRole("heading", { name: "An item needs your review" })).toBeInTheDocument()
+    expect(banner).toHaveTextContent("Confirm the source.")
+    expect(within(banner).getByRole("link", { name: "Review required" })).toHaveAttribute("href", "/audit")
+    view.unmount()
+
+    mockHomeApi({
+      get_workflow_status_endpoint_workflow_status_get: workflow("blocked", { type: "resolve_blocker", href: "/journal", label: "Resolve blocker" }),
+    })
+    render(<HomePage />)
+    const blocked = await screen.findByRole("region", { name: "Needs attention" })
+    expect(within(blocked).getByRole("heading", { name: "A blocker holds your reports" })).toBeInTheDocument()
+    // With no summary from the backend, the banner states the workflow state.
+    expect(blocked).toHaveTextContent("A blocker is holding report readiness.")
+    expect(within(blocked).getByRole("link", { name: "Resolve blocker" })).toHaveAttribute("href", "/journal")
+    expect(screen.getAllByRole("region", { name: "Needs attention" })).toHaveLength(1)
+  })
+
+  // AC-reporting.fe-report-surfaces.5 / AC-reporting.fe-report-surfaces.6 / AC-reporting.fe-ia-reports.20
+  it("AC22.16.1 AC16.12.17 AC16.12.18 asks a new user to upload the first statement", async () => {
+    mockHomeApi({
+      get_workflow_status_endpoint_workflow_status_get: workflow("empty", { type: "upload", count: 0, href: "/statements/upload" }),
+      list_statements_statements_get: () => Promise.resolve({ items: [], total: 0 }),
+    })
+    render(<HomePage />)
+
+    const banner = await screen.findByRole("region", { name: "Needs attention" })
+    expect(within(banner).getByRole("heading", { name: "Upload your first statement" })).toBeInTheDocument()
+    expect(within(banner).getByRole("link", { name: "Upload statements" })).toHaveAttribute("href", "/upload")
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.getAttribute("href")).not.toBe("/accounts")
+    }
+  })
+
+  // AC-reporting.fe-report-surfaces.7
+  it("AC16.12.19 hides the action banner when nothing needs attention", async () => {
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByText("Net worth").nextElementSibling).toHaveTextContent("$4,000"))
+    await waitFor(() =>
+      expect(mockedApiOperation).toHaveBeenCalledWith("list_processing_pending_accounts_processing_pending_get", expect.anything()),
+    )
+    expect(screen.queryByRole("region", { name: "Needs attention" })).toBeNull()
   })
 
   // AC-reporting.fe-ia-reports.9 / AC-reporting.fe-ia-reports.21
-  it("AC22.16.2 AC22.5.6 routes the risk radar and unmatched CTA to the unified /audit queue", async () => {
-    mockDashboardApi()
-
+  it("AC22.16.2 AC22.5.6 routes the confirmation count to the one /audit queue", async () => {
+    mockHomeApi({
+      list_statements_statements_get: () =>
+        Promise.resolve({
+          items: [
+            { id: "s1", status: "parsed", original_filename: "dbs.pdf", confidence_score: 60 },
+            { id: "s2", status: "parsed", original_filename: "ocbc.pdf", confidence_score: 90 },
+          ],
+          total: 2,
+        }),
+    })
     render(<HomePage />)
 
-    await waitFor(() =>
-      expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument(),
-    )
-    fireEvent.click(screen.getByRole("button", { name: /Show analytics/i }))
-    await waitFor(() => expect(screen.getByText("BarChartMock")).toBeInTheDocument())
-
-    // The Home no longer leaks Advanced reconciliation internals as parallel
-    // destinations — every "needs attention" affordance funnels into the single
-    // confidence-ranked /audit queue (Axiom B).
-    const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"))
-    expect(hrefs).not.toContain("/reconciliation")
-    expect(hrefs).not.toContain("/reconciliation/unmatched")
-    // Both the risk-radar card and the unmatched-alerts CTA point at /audit.
-    const attentionLinks = hrefs.filter((href) => href === "/audit")
-    expect(attentionLinks.length).toBeGreaterThanOrEqual(2)
+    const banner = await screen.findByRole("region", { name: "Needs attention" })
+    expect(within(banner).getByRole("heading", { name: "2 items need your confirmation" })).toBeInTheDocument()
+    expect(within(banner).getByRole("link", { name: "Open Needs Confirmation" })).toHaveAttribute("href", "/audit")
   })
 
-  // AC-reporting.fe-remainder-reports.4
-  it("AC19.3.6 renders the workflow status feed on the dashboard landing surface", async () => {
-    mockDashboardApi()
-
-    render(<HomePage />)
-
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Workflow status" })).toBeInTheDocument())
-    expect(mockedApiOperation).toHaveBeenCalledWith("get_workflow_status_endpoint_workflow_status_get", expect.anything())
-    expect(mockedApiOperation).toHaveBeenCalledWith(
-      "list_workflow_events_endpoint_workflow_events_get",
-      expect.objectContaining({ query: expect.objectContaining({ limit: 5 }) }),
-    )
-    expect(screen.getAllByText("Review required").length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText("Report blocked").length).toBeGreaterThanOrEqual(1)
-  })
-
-  // AC-meta.fe-app-shell.4
   // AC-reporting.fe-remainder-reports.5
-  it("AC19.4.2 AC16.16.1 renders the upload-to-report home before secondary dashboard metrics", async () => {
-    mockDashboardApi()
-
-    render(<HomePage />)
-
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Upload to report" })).toBeInTheDocument())
-    const workflowHome = screen.getByLabelText("Upload-to-report home")
-    const analyticsSection = screen.getByLabelText("Dashboard analytics")
-    expect(Boolean(workflowHome.compareDocumentPosition(analyticsSection) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
-  })
-
-  it("AC21.3.3 test_AC21_3_3_dashboard_renders_advisor_brief_before_analytics", async () => {
-    mockDashboardApi()
-
-    render(<HomePage />)
-
-    const brief = await screen.findByLabelText("Advisor Brief")
-    expect(within(brief).getByText("Report package is blocked by one review-required item.")).toBeInTheDocument()
-    expect(within(brief).getByRole("link", { name: "Open next action" })).toHaveAttribute("href", "/reports/package")
-    expect(within(brief).getByRole("link", { name: "Ask about this" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("/chat?prompt="),
-    )
-    const analytics = screen.getByLabelText("Dashboard analytics")
-    expect(Boolean(brief.compareDocumentPosition(analytics) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
-  })
-
-  it("AC21.3.3 keeps dashboard analytics usable when Advisor Brief suggestions are unavailable", async () => {
-    mockDashboardApi({ chatSuggestionsError: new Error("advisor suggestions failed") })
-
-    render(<HomePage />)
-
-    await waitForDashboardAnalyticsReady()
-    expect(screen.queryByLabelText("Advisor Brief")).not.toBeInTheDocument()
-    expect(screen.getByText("Total Assets")).toBeInTheDocument()
-  })
-
-  // AC-reporting.fe-remainder-reports.6
-  it("AC19.4.3 follows workflow next_action for blocker and upload primary CTAs", async () => {
-    mockDashboardApi()
-
-    const { unmount } = render(<HomePage />)
-
-    await waitFor(() => {
-      const uploadHome = within(screen.getByLabelText("Upload-to-report home"))
-      expect(uploadHome.getAllByRole("link", { name: /Review required/i })[0]).toHaveAttribute("href", "/review")
+  it("AC19.4.2 AC16.16.1 renders the action banner before the dimension bar and the statement cards", async () => {
+    mockHomeApi({
+      get_workflow_status_endpoint_workflow_status_get: workflow("needs_action", { type: "review_required", href: "/audit", label: "Review required" }),
     })
-    unmount()
-    mockedApiOperation.mockReset()
-
-    mockDashboardApi({
-      workflowStatus: {
-        primary_state: "empty",
-        next_action: {
-          type: "upload",
-          count: 0,
-          href: "/statements/upload",
-          label: "Upload statements",
-          summary: "Add source documents to start the upload-to-report workflow.",
-        },
-        report_readiness: { state: "none", blocking_count: 0, href: "/reports/package" },
-        event_counts: { unread: 0, action_required: 0, blocked: 0 },
-      },
-      workflowEvents: { total: 0, items: [], sessions: [] },
-    })
-
     render(<HomePage />)
 
-    await waitFor(() => {
-      const uploadHome = within(screen.getByLabelText("Upload-to-report home"))
-      expect(uploadHome.getAllByRole("link", { name: /Upload statements/i })[0]).toHaveAttribute("href", "/statements/upload")
-    })
-  })
-
-  // AC-reporting.fe-remainder-reports.7
-  it("AC19.4.4 renders report readiness above analytics with blocker count and link", async () => {
-    mockDashboardApi()
-
-    render(<HomePage />)
-
-    await waitFor(() => expect(screen.getByLabelText("Report readiness")).toHaveAttribute("href", "/reports/package"))
-    expect(screen.getAllByText("Report blocked").length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText("1 blocker")).toBeInTheDocument()
-    const readiness = screen.getByLabelText("Report readiness")
-    const analyticsSection = screen.getByLabelText("Dashboard analytics")
-    expect(Boolean(readiness.compareDocumentPosition(analyticsSection) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
-  })
-
-  // AC-reporting.fe-remainder-reports.8
-  it("AC19.4.5 shows actionable recent events and summarizes routine automation", async () => {
-    mockDashboardApi()
-
-    render(<HomePage />)
-
-    await waitFor(() => expect(screen.getByText("Action required: Review required")).toBeInTheDocument())
-    expect(screen.getAllByText(/Review required/).length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText("Routine automation")).toBeInTheDocument()
-    expect(screen.getByText(/1 routine event/)).toBeInTheDocument()
-    expect(screen.getByText(/Safe entries posted/)).toBeInTheDocument()
+    const banner = await screen.findByRole("region", { name: "Needs attention" })
+    const bar = screen.getByRole("group", { name: "Report dimensions" })
+    const cockpit = screen.getByRole("region", { name: "Three-statement cockpit" })
+    expect(banner.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(bar.compareDocumentPosition(cockpit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   // AC-reporting.fe-remainder-reports.9
-  it("AC19.4.6 keeps upload-to-report home visible when secondary analytics fail", async () => {
-    mockDashboardApi({ balanceError: new Error("balance failed") })
-
+  it("AC19.4.6 keeps the statement cards visible when the workflow status fails", async () => {
+    mockHomeApi({
+      get_workflow_status_endpoint_workflow_status_get: () => Promise.reject(new Error("workflow down")),
+    })
     render(<HomePage />)
 
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Upload to report" })).toBeInTheDocument())
-    const uploadHome = within(screen.getByLabelText("Upload-to-report home"))
-    expect(uploadHome.getAllByRole("link", { name: /Review required/i })[0]).toHaveAttribute("href", "/review")
-    expect(screen.getByText("Dashboard analytics unavailable")).toBeInTheDocument()
-    expect(screen.getByText("balance failed")).toBeInTheDocument()
-  })
-
-  // AC-reporting.fe-viz-reports.1
-  // AC-portfolio.fe-assets2.7 / AC-portfolio.fe-assets2.10
-  it("AC11.8.2/AC11.8.6/AC5.6.4 renders Annualized Income card with the four metric labels", async () => {
-    mockDashboardApi()
-
-    render(<HomePage />)
-
-    await waitForDashboardAnalyticsReady()
-    await waitFor(() => expect(screen.getByText("Annualized Income")).toBeInTheDocument())
-    expect(screen.getByText("Salary")).toBeInTheDocument()
-    expect(screen.getByText("Bonus")).toBeInTheDocument()
-    expect(screen.getByText("Dividend")).toBeInTheDocument()
-    expect(screen.getByText("$137,400")).toBeInTheDocument()
-    expect(screen.getByText(/As of May 20, 2026/)).toBeInTheDocument()
-  })
-
-  // AC-portfolio.fe-assets2.8
-  it("AC11.8.4 renders Restricted Holdings separately with vesting metadata", async () => {
-    mockDashboardApi()
-
-    render(<HomePage />)
-
-    await waitForDashboardAnalyticsReady()
-    await waitFor(() => expect(screen.getByText("Restricted Holdings")).toBeInTheDocument())
-    expect(screen.getByText("SHOP-RSU")).toBeInTheDocument()
-    expect(screen.getByText(/Unlock Jan 1, 2027/)).toBeInTheDocument()
-    expect(screen.getByText("$12,500")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText("Net worth").nextElementSibling).toHaveTextContent("$4,000"))
+    expect(screen.queryByRole("region", { name: "Needs attention" })).toBeNull()
+    expect(screen.queryByText(/workflow down/)).toBeNull()
   })
 
   // AC-portfolio.fe-assets2.9
   it("AC11.8.5 defaults to liquid net worth and refetches when restricted holdings are included", async () => {
-    mockDashboardApi()
-
     render(<HomePage />)
 
-    await waitFor(() => expect(screen.getByText("Include restricted holdings")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("Net worth").nextElementSibling).toHaveTextContent("$4,000"))
     expect(mockedApiOperation).toHaveBeenCalledWith(
       "balance_sheet_reports_balance_sheet_get",
       expect.objectContaining({ query: expect.objectContaining({ include_restricted: false }) }),
     )
-    await waitFor(() => expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000"))
+    const scope = screen.getByLabelText("Include restricted holdings")
+    expect(scope).not.toBeChecked()
+    fireEvent.click(scope)
 
-    fireEvent.click(screen.getByLabelText("Include restricted holdings"))
-
-    await waitFor(() =>
-      expect(mockedApiOperation).toHaveBeenCalledWith(
-        "balance_sheet_reports_balance_sheet_get",
-        expect.objectContaining({ query: expect.objectContaining({ include_restricted: true }) }),
-      ),
+    await waitFor(() => expect(screen.getByText("Net worth").nextElementSibling).toHaveTextContent("$16,500"))
+    expect(mockedApiOperation).toHaveBeenCalledWith(
+      "balance_sheet_reports_balance_sheet_get",
+      expect.objectContaining({ query: expect.objectContaining({ include_restricted: true }) }),
     )
-    await waitFor(() => expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $16,500"))
+    expect(screen.getByLabelText("Include restricted holdings")).toBeChecked()
   })
 
-  it("uses empty fallbacks when optional asset APIs return null", async () => {
-    mockDashboardApi({ restricted: null })
-
-    render(<HomePage />)
-
-    await waitForDashboardAnalyticsReady()
-    await waitFor(() => expect(screen.getByText("Restricted Holdings")).toBeInTheDocument())
-    expect(screen.getByText("No restricted holdings.")).toBeInTheDocument()
-    expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000")
-  })
-
-  it("uses empty fallbacks when primary dashboard APIs return null", async () => {
-    mockDashboardApi({
-      balance: null,
-      income: null,
-      annualized: null,
-      stats: null,
-      unmatched: null,
-      journal: null,
-      accounts: null,
-      statements: null,
-      postedJournal: null,
+  // AC-reporting.fe-viz-reports.27
+  it("renders the advisor brief after the statement cards and keeps the cockpit when suggestions fail", async () => {
+    mockHomeApi({
+      suggestions_chat_suggestions_get: () =>
+        Promise.resolve({
+          suggestions: [],
+          structured_suggestions: [
+            { basis: "Report package is blocked by one review item.", confidence_tier: "blocked", source_refs: ["report_package.readiness"], limitation: "Review the blocker first.", next_action_href: "/audit" },
+          ],
+        }),
     })
+    const view = render(<HomePage />)
 
+    const brief = await screen.findByLabelText("Advisor Brief")
+    expect(screen.getByRole("region", { name: "Three-statement cockpit" }).compareDocumentPosition(brief) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    view.unmount()
+
+    mockHomeApi({ suggestions_chat_suggestions_get: () => Promise.reject(new Error("suggestions down")) })
     render(<HomePage />)
-
-    await waitForDashboardAnalyticsReady()
-    expect(screen.getByText("No assets to chart yet.")).toBeInTheDocument()
-    expect(screen.getByText("No income data available.")).toBeInTheDocument()
-    expect(screen.getByText("No recent journal entries.")).toBeInTheDocument()
-    expect(screen.getByText("No unmatched transactions.")).toBeInTheDocument()
-  })
-
-  it("AC16.23.1 renders This Month KPI row with income, expenses, and net from last trend period", async () => {
-    mockDashboardApi()
-
-    render(<HomePage />)
-
-    await waitFor(() => expect(screen.getByTestId("cockpit-card-income-statement")).toHaveTextContent("Net $2,300 · Save rate 66%"))
-    expect(screen.getByTestId("cockpit-card-income-statement")).toHaveTextContent("Surplus")
-  })
-
-  it("AC16.23.2 This Month KPI cards link to income statement report and show deficit", async () => {
-    mockDashboardApi({
-      income: {
-        currency: "USD",
-        trends: [{ period_start: "2026-01-01", total_income: 2000, total_expenses: 2500, net_income: -500 }],
-      },
-    })
-
-    render(<HomePage />)
-
-    await waitFor(() => expect(screen.getByTestId("cockpit-card-income-statement")).toHaveTextContent("Deficit"))
-    const link = screen.getByTestId("cockpit-card-income-statement")
-    expect(link).toHaveAttribute("href", "/reports/income-statement")
-    expect(link).toHaveTextContent("Net -$500")
-  })
-
-  // AC-reporting.fe-report-surfaces.4
-  it("AC16.12.4 renders empty-state messages for missing datasets", async () => {
-    mockDashboardApi({
-      balance: { ...baseBalance, assets: [], total_assets: 0, total_liabilities: 0 },
-      income: { currency: "USD", trends: [] },
-      restricted: [],
-      unmatched: { items: [], total: 0 },
-      journal: { items: [], total: 0 },
-      trend: { points: [] },
-      accounts: { items: [], total: 0 },
-      statements: { items: [], total: 0 },
-      postedJournal: { items: [], total: 0 },
-    })
-
-    render(<HomePage />)
-
-    await waitForDashboardAnalyticsReady()
-    expect(screen.getByText(/No trend data/)).toBeInTheDocument()
-    expect(screen.getByText("No assets to chart yet.")).toBeInTheDocument()
-    expect(screen.getByText("No income data available.")).toBeInTheDocument()
-    expect(screen.getByText("No restricted holdings.")).toBeInTheDocument()
-    expect(screen.getByText("No recent journal entries.")).toBeInTheDocument()
-    expect(screen.getByText("No unmatched transactions.")).toBeInTheDocument()
-  })
-
-  it("AC16.23.6 data health bar uses matched_transactions/total_transactions not auto_accepted", async () => {
-    mockDashboardApi()
-
-    render(<HomePage />)
-
-    await waitForDashboardAnalyticsReady()
-    await waitFor(() => expect(screen.getByText("Reconciliation coverage")).toBeInTheDocument())
-    expect(screen.getByText("80%")).toBeInTheDocument()
-    expect(screen.queryByText("20%")).not.toBeInTheDocument()
-    expect(screen.getByText("16 matched")).toBeInTheDocument()
-  })
-
-  it("renders account selector and handles trend error when multiple assets exist", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
-    mockDashboardApi({
-      rejectTrendAfterFirst: true,
-      balance: {
-        ...baseBalance,
-        assets: [
-          { account_id: "a1", name: "Cash", amount: 5000 },
-          { account_id: "a2", name: "Savings", amount: 3000 },
-        ],
-        total_assets: 8000,
-      },
-    })
-
-    render(<HomePage />)
-
-    await waitForDashboardAnalyticsReady()
-    const selector = within(screen.getByLabelText("Dashboard analytics")).getByRole("combobox") as HTMLSelectElement
-    expect(selector).toBeInTheDocument()
-    expect(screen.getByText("Top Asset")).toBeInTheDocument()
-    expect(screen.getByText("Savings")).toBeInTheDocument()
-
-    fireEvent.change(selector, { target: { value: "a2" } })
-
-    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledWith(
-      "account_trend_reports_trend_get",
-      expect.objectContaining({ query: expect.objectContaining({ account_id: "a2", period: "monthly" }) }),
-    ))
-    await waitFor(() =>
-      expect(consoleError).toHaveBeenCalledWith("Failed to fetch trend data:", expect.any(Error)),
-    )
-    consoleError.mockRestore()
-  })
-
-  it("keeps the dashboard usable when trend fetch fails", async () => {
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined)
-    mockDashboardApi({ trendError: new Error("trend failed") })
-
-    render(<HomePage />)
-
-    await waitForDashboardAnalyticsReady()
-    await waitFor(() => expect(screen.getByText(/No trend data/)).toBeInTheDocument())
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Failed to fetch trend data:", expect.any(Error))
-
-    consoleErrorSpy.mockRestore()
-  })
-
-  // AC-reporting.fe-report-surfaces.5 / AC-reporting.fe-report-surfaces.6
-  // AC-reporting.fe-ia-reports.20
-  it("AC22.16.1 AC16.12.17 AC16.12.18 renders first-time onboarding with everyday-surface links only", async () => {
-    mockDashboardApi({
-      balance: { ...baseBalance, assets: [], total_assets: 0, total_liabilities: 0 },
-      income: { currency: "USD", trends: [] },
-      restricted: [],
-      unmatched: { items: [], total: 0 },
-      journal: { items: [], total: 0 },
-      accounts: { items: [], total: 0 },
-      statements: { items: [], total: 0 },
-      postedJournal: { items: [], total: 0 },
-      trend: { points: [] },
-    })
-
-    render(<HomePage />)
-
-    await waitFor(() => expect(screen.getByLabelText("Getting started")).toBeInTheDocument())
-    expect(screen.getByText("Build your first accurate financial view")).toBeInTheDocument()
-    // AC22.16.1: the first step is Upload (everyday tier); no step links to the
-    // accounting-jargon "/accounts" route anymore.
-    expect(screen.getByRole("link", { name: /Upload a bank statement/i })).toHaveAttribute("href", "/upload")
-    expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/upload")
-    expect(screen.getByRole("link", { name: /Read your reports/i })).toHaveAttribute("href", "/reports")
-    expect(screen.queryByRole("link", { name: /Add your first account/i })).toBeNull()
-    expect(
-      screen.getAllByRole("link").map((link) => link.getAttribute("href")),
-    ).not.toContain("/accounts")
-  })
-
-  it("AC16.12.17 keeps onboarding visible with partial progress markers", async () => {
-    mockDashboardApi({
-      balance: { ...baseBalance, assets: [], total_assets: 0, total_liabilities: 0 },
-      income: { currency: "USD", trends: [] },
-      restricted: [],
-      unmatched: { items: [], total: 0 },
-      journal: { items: [], total: 0 },
-      accounts: { items: [{ id: "a1" }], total: 1 },
-      statements: { items: [{ id: "s1", status: "parsed" }], total: 1 },
-      postedJournal: { items: [], total: 0 },
-      trend: { points: [] },
-    })
-
-    render(<HomePage />)
-
-    await waitFor(() => expect(screen.getByLabelText("Getting started")).toBeInTheDocument())
-    // Upload is done (a statement exists); Review and Reports remain Next until an
-    // approved statement + posted entry complete the core flow.
-    expect(screen.getAllByText("Done")).toHaveLength(1)
-    expect(screen.getAllByText("Next")).toHaveLength(2)
-    expect(screen.getByRole("link", { name: /Review and approve/i })).toHaveAttribute("href", "/upload")
-  })
-
-  // AC-reporting.fe-report-surfaces.7
-  it("AC16.12.19 hides first-time onboarding after approved statement and posted journal entry exist", async () => {
-    mockDashboardApi({
-      balance: { ...baseBalance, assets: [{ account_id: "a1", name: "Cash", amount: 5000 }], total_liabilities: 0 },
-      income: { currency: "USD", trends: [] },
-      unmatched: { items: [], total: 0 },
-      journal: { items: [{ id: "j1", memo: "Approved import", entry_date: "2026-01-05", status: "posted" }], total: 1 },
-      accounts: { items: [{ id: "a1" }], total: 1 },
-      statements: { items: [{ id: "s1", status: "approved" }], total: 1 },
-      postedJournal: { items: [{ id: "j1", status: "posted" }], total: 1 },
-    })
-
-    render(<HomePage />)
-
-    await waitForDashboardAnalyticsReady()
-    await waitFor(() => expect(screen.getByText("Total Assets")).toBeInTheDocument())
-    expect(screen.queryByLabelText("Getting started")).not.toBeInTheDocument()
-    expect(screen.getByText("Total Assets")).toBeInTheDocument()
-  })
-
-  it("renders articulated net worth breakdown with opening equity and net income", async () => {
-    mockDashboardApi({
-      balance: {
-        ...baseBalance,
-        total_assets: 15242,
-        total_liabilities: 0,
-        total_equity: 12000,
-        net_income: 3242,
-        is_balanced: true,
-        currency: "SGD",
-      },
-    })
-
-    render(<HomePage />)
-
-    await waitForDashboardAnalyticsReady()
-    const bsCard = await screen.findByTestId("cockpit-card-balance-sheet")
-    expect(bsCard).toHaveTextContent(/Position SGD\s*15,242 · Own SGD\s*15,242 \/ Owe SGD\s*0/)
-  })
-
-  it("renders period P&L fallback cards when trends array is empty but income data exists", async () => {
-    mockDashboardApi({
-      income: {
-        currency: "USD",
-        trends: [],
-        total_income: "5000",
-        total_expenses: "3000",
-        net_income: "2000",
-      },
-    })
-
-    render(<HomePage />)
-
-    await waitForDashboardAnalyticsReady()
-    const incomeCard = await screen.findByTestId("cockpit-card-income-statement")
-    expect(incomeCard).toHaveTextContent("Net $2,000 · Save rate 40%")
-    expect(incomeCard).toHaveTextContent("Surplus")
-  })
-
-  it("renders dashboard analytics without waiting for chat suggestions and avoids duplicate TrustMeter fetches", async () => {
-    mockDashboardApi({
-      chatSuggestions: new Promise(() => {}),
-    })
-
-    render(<HomePage />)
-
-    await waitFor(() =>
-      expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument(),
-    )
-    expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000")
-    expect(screen.getByText("Total Assets")).toBeInTheDocument()
-
-    const statementCalls = mockedApiOperation.mock.calls.filter(
-      ([op]) => op === "list_statements_statements_get",
-    )
-    const statsCalls = mockedApiOperation.mock.calls.filter(
-      ([op]) => op === "reconciliation_stats_reconciliation_stats_get",
-    )
-    expect(statementCalls).toHaveLength(1)
-    expect(statsCalls).toHaveLength(1)
-  })
-
-  it("keeps dashboard DOM mounted without flipping loading back to true on subsequent period or scope switch", async () => {
-    mockDashboardApi()
-
-    render(<HomePage />)
-
-    await waitFor(() =>
-      expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument(),
-    )
-    expect(screen.getByText("Total Assets")).toBeInTheDocument()
-
-    // Make the next refetch hang indefinitely so we can observe the in-flight state
-    mockedApiOperation.mockImplementation(() => new Promise(() => {}))
-
-    fireEvent.click(screen.getByRole("button", { name: "Period YTD" }))
-
-    expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument()
-    expect(screen.getByText("Total Assets")).toBeInTheDocument()
-    expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000")
+    await waitFor(() => expect(screen.getByText("Net worth").nextElementSibling).toHaveTextContent("$4,000"))
+    expect(screen.queryByLabelText("Advisor Brief")).toBeNull()
   })
 })

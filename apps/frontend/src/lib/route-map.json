@@ -28,10 +28,10 @@
     { "path": "/accounts/processing", "state": "redirect", "into": "/upload" },
     { "path": "/statements/[id]/review", "state": "redirect", "into": "/statements/[id]" },
 
-    { "path": "/reports/balance-sheet", "state": "merge", "into": "/reports", "lane": "LC" },
-    { "path": "/reports/income-statement", "state": "merge", "into": "/reports", "lane": "LC" },
-    { "path": "/reports/cash-flow", "state": "merge", "into": "/reports", "lane": "LC" },
-    { "path": "/reports/package", "state": "merge", "into": "/reports", "lane": "LC" },
+    { "path": "/reports/balance-sheet", "state": "redirect", "into": "/reports?tab=balance-sheet" },
+    { "path": "/reports/income-statement", "state": "redirect", "into": "/reports?tab=income-statement" },
+    { "path": "/reports/cash-flow", "state": "redirect", "into": "/reports?tab=cash-flow" },
+    { "path": "/reports/package", "state": "redirect", "into": "/reports?tab=package" },
 
     { "path": "/reconciliation/unmatched", "state": "merge", "into": "/reconciliation", "lane": "LD" },
     { "path": "/reconciliation/review-queue", "state": "merge", "into": "/reconciliation", "lane": "LD" },

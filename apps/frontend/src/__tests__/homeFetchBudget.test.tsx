@@ -1,9 +1,7 @@
-// #2583 S4 — Home fetch budget.
+// #2583 S4 — Home fetch budget, for the period-driven Home of #2621 LC.
 //
-// The Home route used to fire ten raw `apiOperation` calls in one Promise.all with
-// no cache. Each visit and each toggle ran all of them again. These tests count
-// the calls per operation and request, through the same `apiOperation` mock the
-// other Home tests use.
+// These tests count the calls per operation and request, through the same `apiOperation`
+// mock the other Home tests use.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -13,6 +11,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import HomePage from "@/app/(main)/page";
 import { apiOperation } from "@/lib/api-client";
 
+import { setTestUrl } from "./helpers/nextNavigation";
+
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode }) => (
     <a href={href} {...props}>
@@ -20,22 +20,16 @@ vi.mock("next/link", () => ({
     </a>
   ),
 }));
-vi.mock("@/components/charts/BarChart", () => ({ BarChart: () => <div>BarChartMock</div> }));
-vi.mock("@/components/charts/PieChart", () => ({ PieChart: () => <div>PieChartMock</div> }));
-vi.mock("@/components/charts/TrendChart", () => ({ TrendChart: () => <div>TrendChartMock</div> }));
-vi.mock("@/components/charts/NetWorthTimeSeriesChart", () => ({
-  NetWorthTimeSeriesChart: () => <div>NetWorthTimeSeriesMock</div>,
-}));
+vi.mock("next/navigation", async () => (await import("./helpers/nextNavigation")).nextNavigationMock);
 vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 
 const mockedApiOperation = vi.mocked(apiOperation);
 
-// Operations that only feed cards inside the opt-in analytics panel.
-const ANALYTICS_ONLY_OPERATIONS = [
-  "get_annualized_income_income_annualized_get",
-  "list_restricted_holdings_assets_restricted_get",
-  "list_unmatched_reconciliation_unmatched_get",
-  "account_trend_reports_trend_get",
+/** The statement operations of one period: the balance sheet (at the end and the opening date), the income statement and the cash flow. */
+const STATEMENT_OPERATIONS = [
+  "balance_sheet_reports_balance_sheet_get",
+  "income_statement_reports_income_statement_get",
+  "cash_flow_reports_cash_flow_get",
 ];
 
 const BALANCE = {
@@ -54,48 +48,36 @@ const BALANCE = {
 function respond(operationId: string, request?: { query?: Record<string, unknown> }) {
   switch (operationId) {
     case "balance_sheet_reports_balance_sheet_get":
-      return request?.query?.include_restricted
-        ? { ...BALANCE, total_assets: "17500", total_equity: "16500" }
-        : BALANCE;
+      return request?.query?.include_restricted ? { ...BALANCE, total_assets: "17500", total_equity: "16500" } : BALANCE;
     case "income_statement_reports_income_statement_get":
+      return { currency: "USD", trends: [], income: [], expenses: [], total_income: "3500", total_expenses: "1200", net_income: "2300" };
+    case "cash_flow_reports_cash_flow_get":
       return {
         currency: "USD",
-        trends: [{ period_start: "2026-01-01", total_income: "3500", total_expenses: "1200", net_income: "2300" }],
-        income: [],
-        expenses: [],
-        total_income: "3500",
-        total_expenses: "1200",
-        net_income: "2300",
+        operating: [],
+        investing: [],
+        financing: [],
+        summary: { operating_activities: "2300", investing_activities: "0", financing_activities: "0", net_cash_flow: "2300", beginning_cash: "0", ending_cash: "2300" },
       };
-    case "get_annualized_income_income_annualized_get":
-      return { annualized_salary: "1", annualized_bonus: "0", annualized_dividend: "0", annualized_total: "1", currency: "USD", as_of: "2026-05-20" };
-    case "list_restricted_holdings_assets_restricted_get":
-      return [];
     case "reconciliation_stats_reconciliation_stats_get":
       return { total_transactions: 20, matched_transactions: 16, unmatched_transactions: 4, pending_review: 2, auto_accepted: 4, match_rate: 80, score_distribution: {} };
-    case "list_unmatched_reconciliation_unmatched_get":
-      return { items: [], total: 0 };
-    case "list_journal_entries_journal_entries_get":
-      return { items: [{ id: "j1", memo: "Rent", entry_date: "2026-01-05", status: "posted" }], total: 1 };
-    case "list_accounts_accounts_get":
-      return { items: [{ id: "a1" }], total: 1 };
     case "list_statements_statements_get":
       return { items: [{ id: "s1", status: "approved" }], total: 1 };
     case "list_processing_pending_accounts_processing_pending_get":
       return { items: [], total: 0 };
     case "suggestions_chat_suggestions_get":
       return { suggestions: [], structured_suggestions: [] };
-    case "account_trend_reports_trend_get":
-      return { points: [{ period_start: "2026-01-01", amount: "5000" }] };
+    case "get_available_currencies_reports_currencies_get":
+      return ["SGD", "USD"];
+    case "get_base_currency_app_config_base_currency_get":
+      return { base_currency: "USD" };
     case "get_workflow_status_endpoint_workflow_status_get":
       return {
         primary_state: "ready",
         next_action: { type: "open_report", count: 0, href: "/reports", label: "Open reports", summary: "Reports are ready." },
-        report_readiness: { state: "ready", blocking_count: 0, href: "/reports/package" },
+        report_readiness: { state: "ready", blocking_count: 0, href: "/reports" },
         event_counts: { unread: 0, action_required: 0, blocked: 0 },
       };
-    case "list_workflow_events_endpoint_workflow_events_get":
-      return { total: 0, items: [], sessions: [] };
     default:
       return null;
   }
@@ -135,10 +117,14 @@ function renderHome(client: QueryClient) {
   });
 }
 
-async function settleClosedHome() {
-  await waitFor(() => expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000"));
-  await waitFor(() => expect(screen.queryByLabelText("Dashboard analytics loading")).not.toBeInTheDocument());
-  await waitFor(() => expect(screen.getByText("Upload to report")).toBeInTheDocument());
+const netWorth = () => screen.getByText("Net worth").nextElementSibling;
+
+async function settleHome() {
+  await waitFor(() => expect(netWorth()).toHaveTextContent("$4,000"));
+  await waitFor(() => expect(screen.getByText("Net change").nextElementSibling).toHaveTextContent("+$2,300"));
+  await waitFor(() =>
+    expect(callKeys().map(operationIdOf)).toContain("list_processing_pending_accounts_processing_pending_get"),
+  );
 }
 
 describe("Home fetch budget (#2583 S4)", () => {
@@ -146,102 +132,91 @@ describe("Home fetch budget (#2583 S4)", () => {
     mockedApiOperation.mockReset();
     mockedApiOperation.mockImplementation(((operationId: string, request?: { query?: Record<string, unknown> }) =>
       Promise.resolve(respond(operationId, request))) as never);
+    setTestUrl("/");
   });
 
   // AC-reporting.fe-fetch-budget.1
-  it("AC-reporting.fe-fetch-budget.1 cold mount issues each request at most once and defers the analytics-only requests", async () => {
+  it("AC-reporting.fe-fetch-budget.1 cold mount issues each request at most once and reads only the cockpit sources", async () => {
     renderHome(createClient());
-    await settleClosedHome();
+    await settleHome();
 
-    const closed = countByKey(callKeys());
-    const repeated = [...closed].filter(([, count]) => count > 1);
+    const counts = countByKey(callKeys());
+    const repeated = [...counts].filter(([, count]) => count > 1);
     expect(repeated, `requests issued more than once: ${JSON.stringify(repeated)}`).toEqual([]);
-
-    // The analytics panel is closed: its four card feeds, the recent entries and the trend must not run yet.
-    const closedOperations = new Set([...closed.keys()].map(operationIdOf));
-    for (const operationId of ANALYTICS_ONLY_OPERATIONS) {
-      expect(closedOperations.has(operationId), `${operationId} ran while the analytics panel was closed`).toBe(false);
-    }
-    expect([...closed.keys()].filter((key) => key.startsWith("list_journal_entries_journal_entries_get"))).toEqual([
-      'list_journal_entries_journal_entries_get {"query":{"status_filter":"posted","limit":1}}',
-    ]);
-    expect(closed.size).toBeLessThanOrEqual(10);
-
-    fireEvent.click(screen.getByRole("button", { name: /Show analytics/i }));
-    await waitFor(() => expect(screen.getByText("BarChartMock")).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByText("TrendChartMock")).toBeInTheDocument());
-
-    const opened = countByKey(callKeys());
-    expect([...opened].filter(([, count]) => count > 1)).toEqual([]);
-    for (const operationId of ANALYTICS_ONLY_OPERATIONS) {
-      expect(new Set([...opened.keys()].map(operationIdOf)).has(operationId), `${operationId} never ran`).toBe(true);
-    }
+    expect([...counts.keys()].map(operationIdOf).sort()).toEqual(
+      [
+        "balance_sheet_reports_balance_sheet_get",
+        "balance_sheet_reports_balance_sheet_get",
+        "cash_flow_reports_cash_flow_get",
+        "get_available_currencies_reports_currencies_get",
+        "get_base_currency_app_config_base_currency_get",
+        "get_workflow_status_endpoint_workflow_status_get",
+        "income_statement_reports_income_statement_get",
+        "list_processing_pending_accounts_processing_pending_get",
+        "list_statements_statements_get",
+        "reconciliation_stats_reconciliation_stats_get",
+        "suggestions_chat_suggestions_get",
+      ].sort(),
+    );
   });
 
   // AC-reporting.fe-fetch-budget.1
   it("AC-reporting.fe-fetch-budget.1 a second visit inside the stale time issues no request for cached data", async () => {
     const client = createClient();
     const first = renderHome(client);
-    await settleClosedHome();
+    await settleHome();
     first.unmount();
     mockedApiOperation.mockClear();
 
     renderHome(client);
-    await settleClosedHome();
+    await waitFor(() => expect(netWorth()).toHaveTextContent("$4,000"));
 
-    const homeOperations = [
-      "balance_sheet_reports_balance_sheet_get",
-      "income_statement_reports_income_statement_get",
-      "reconciliation_stats_reconciliation_stats_get",
-      "list_accounts_accounts_get",
-      "list_statements_statements_get",
-      "list_journal_entries_journal_entries_get",
-      "list_processing_pending_accounts_processing_pending_get",
-      "suggestions_chat_suggestions_get",
-    ];
-    const secondVisit = callKeys().filter((key) => homeOperations.includes(operationIdOf(key)));
+    const secondVisit = callKeys().filter((key) => operationIdOf(key) !== "get_workflow_status_endpoint_workflow_status_get");
     expect(secondVisit).toEqual([]);
   });
 
   // AC-reporting.fe-fetch-budget.1
-  it("AC-reporting.fe-fetch-budget.1 toggling restricted holdings refetches only the balance sheet", async () => {
+  it("AC-reporting.fe-fetch-budget.1 toggling restricted holdings refetches only the two balance sheets", async () => {
     renderHome(createClient());
-    await settleClosedHome();
+    await settleHome();
     mockedApiOperation.mockClear();
 
     fireEvent.click(screen.getByLabelText("Include restricted holdings"));
-    await waitFor(() => expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $16,500"));
+    await waitFor(() => expect(netWorth()).toHaveTextContent("$16,500"));
 
-    expect(callKeys()).toEqual([
-      'balance_sheet_reports_balance_sheet_get {"query":{"include_restricted":true}}',
-    ]);
+    const keys = callKeys();
+    expect(keys.map(operationIdOf)).toEqual(["balance_sheet_reports_balance_sheet_get", "balance_sheet_reports_balance_sheet_get"]);
+    for (const key of keys) expect(key).toContain('"include_restricted":true');
   });
 
   // AC-reporting.fe-fetch-budget.1
-  it("AC-reporting.fe-fetch-budget.1 changing the period refetches only the income statement", async () => {
+  it("AC-reporting.fe-fetch-budget.1 changing the period refetches only the statement requests whose dates changed", async () => {
     renderHome(createClient());
-    await settleClosedHome();
+    await settleHome();
     mockedApiOperation.mockClear();
 
+    // 1Y and 1M both end today: the balance sheet at the period end comes from the cache.
     fireEvent.click(screen.getByRole("button", { name: "Period 1M" }));
-    await waitFor(() => expect(callKeys().length).toBeGreaterThan(0));
+    await waitFor(() => expect(callKeys()).toHaveLength(3));
     await waitFor(() => expect(screen.getByRole("button", { name: "Period 1M" })).toHaveAttribute("aria-pressed", "true"));
 
-    expect(callKeys().map(operationIdOf)).toEqual(["income_statement_reports_income_statement_get"]);
+    expect(callKeys().map(operationIdOf).sort()).toEqual([...STATEMENT_OPERATIONS].sort());
+    const openingDate = callKeys().find((key) => key.startsWith("balance_sheet"))!;
+    expect(openingDate).toMatch(/"as_of_date":"\d{4}-\d{2}-\d{2}"/);
   });
 
   // AC-reporting.fe-fetch-budget.1
-  it("AC-reporting.fe-fetch-budget.1 renders the cockpit from its own data while a slower request is still pending", async () => {
+  it("AC-reporting.fe-fetch-budget.1 renders each card from its own data while a slower request is still pending", async () => {
     mockedApiOperation.mockImplementation(((operationId: string, request?: { query?: Record<string, unknown> }) =>
-      operationId === "list_accounts_accounts_get"
+      operationId === "cash_flow_reports_cash_flow_get"
         ? new Promise(() => {})
         : Promise.resolve(respond(operationId, request))) as never);
 
     renderHome(createClient());
 
-    await waitFor(() => expect(screen.getByTestId("cockpit-card-balance-sheet")).toHaveTextContent("Position $4,000"));
-    expect(screen.getByTestId("cockpit-card-income-statement")).toHaveTextContent("Net $2,300");
-    expect(screen.getByLabelText("Dashboard analytics loading")).toBeInTheDocument();
+    await waitFor(() => expect(netWorth()).toHaveTextContent("$4,000"));
+    expect(screen.getByText("Net income").nextElementSibling).toHaveTextContent("+$2,300");
+    expect(screen.getByTestId("cockpit-card-cash-flow")).toHaveTextContent("Loading…");
   });
 
   // AC-reporting.fe-fetch-budget.2
@@ -256,7 +231,7 @@ describe("Home fetch budget (#2583 S4)", () => {
 
     const client = createClient();
     renderHome(client);
-    await settleClosedHome();
+    await settleHome();
 
     const suggestionKeys = client
       .getQueryCache()

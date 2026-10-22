@@ -198,10 +198,11 @@ async def test_gxs_browser_upload_to_saved_package(
     assert (await pending.value).status == 200
     checkpoint(record_property, "U4")
 
-    await page.goto(f"{APP_URL}/reports/package")
     statement = expected["statement"]
-    await page.get_by_label("Package period start").fill(statement["period_start"])
-    await page.get_by_label("Package report date").fill(statement["period_end"])
+    # The dimension bar of /reports holds the package period in the URL.
+    await page.goto(
+        f"{APP_URL}/reports?tab=package&start={statement['period_start']}&end={statement['period_end']}"
+    )
     await page.get_by_role("button", name="US-like", exact=True).click()
     async with page.expect_response(
         lambda response: "/reports/package/generate" in response.url

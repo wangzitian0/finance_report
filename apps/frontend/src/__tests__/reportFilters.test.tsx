@@ -1,96 +1,109 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import {
-  CurrencyFilterControl,
-  DateFilterControl,
-  PeriodPresetFilterControl,
-  StatementQuickTabs,
-} from "@/components/reports/ReportFilters";
+import { ReportDimensionBar } from "@/components/reports/ReportFilters"
+import { useReportFilters } from "@/hooks/useReportFilters"
+import { apiOperation } from "@/lib/api-client"
 
-describe("Report filter controls", () => {
+import { setTestUrl, testUrl } from "./helpers/nextNavigation"
+
+vi.mock("next/navigation", async () => (await import("./helpers/nextNavigation")).nextNavigationMock)
+
+vi.mock("@/lib/api-client", () => ({
+  apiOperation: vi.fn(),
+}))
+
+function Bar({ showScope = false }: { showScope?: boolean }) {
+  const filters = useReportFilters()
+  return <ReportDimensionBar filters={filters} showScope={showScope} />
+}
+
+describe("ReportDimensionBar", () => {
+  beforeEach(() => {
+    vi.mocked(apiOperation).mockReset()
+    vi.mocked(apiOperation).mockImplementation(((operationId: string) => {
+      if (operationId === "get_available_currencies_reports_currencies_get") return Promise.resolve(["SGD", "USD", "EUR"])
+      if (operationId === "get_base_currency_app_config_base_currency_get") return Promise.resolve({ base_currency: "EUR" })
+      return Promise.reject(new Error(`unexpected ${operationId}`))
+    }) as never)
+    setTestUrl("/reports?tab=cash-flow&period=1M&end=2026-01-31")
+  })
+
   // AC-reporting.fe-viz-reports.18
-  it("AC5.34.1 renders labelled date input and emits change", () => {
-    const onChange = vi.fn();
-    render(<DateFilterControl label="As of date" value="2026-06-30" onChange={onChange} />);
+  // AC-reporting.fe-period-cockpit.2
+  it("AC-reporting.fe-period-cockpit.2 sets the preset and steps the period through the URL", () => {
+    render(<Bar />)
 
-    const input = screen.getByLabelText("As of date");
-    expect(input).toHaveValue("2026-06-30");
+    expect(screen.getByRole("group", { name: "Reporting period" })).toBeInTheDocument()
+    for (const preset of ["1M", "1Q", "1Y", "YTD", "3Y", "All"]) {
+      expect(screen.getByRole("button", { name: `Period ${preset}` })).toHaveAttribute("aria-pressed", String(preset === "1M"))
+    }
+    expect(screen.getByTestId("report-period-range")).toHaveTextContent("Jan 1, 2026 – Jan 31, 2026")
 
-    fireEvent.change(input, { target: { value: "2026-07-01" } });
-    expect(onChange).toHaveBeenCalledWith("2026-07-01");
-  });
+    fireEvent.click(screen.getByRole("button", { name: "Previous period" }))
+    expect(testUrl()).toBe("/reports?tab=cash-flow&period=1M&end=2025-12-31")
+    expect(screen.getByTestId("report-period-range")).toHaveTextContent("Dec 1, 2025 – Dec 31, 2025")
+
+    fireEvent.click(screen.getByRole("button", { name: "Next period" }))
+    expect(testUrl()).toBe("/reports?tab=cash-flow&period=1M&end=2026-01-31")
+
+    fireEvent.click(screen.getByRole("button", { name: "Period YTD" }))
+    expect(testUrl()).toBe("/reports?tab=cash-flow&period=YTD")
+    expect(screen.getByRole("button", { name: "Period YTD" })).toHaveAttribute("aria-pressed", "true")
+    // The current period has no next period.
+    expect(screen.getByRole("button", { name: "Next period" })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Period All" }))
+    expect(screen.getByRole("button", { name: "Previous period" })).toBeDisabled()
+    expect(screen.queryByLabelText("Include restricted holdings")).toBeNull()
+  })
+
+  // AC-reporting.fe-period-cockpit.2
+  it("AC-reporting.fe-period-cockpit.2 sets a custom period through the URL and keeps its start on or before its end", () => {
+    render(<Bar />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Custom period" }))
+    expect(testUrl()).toBe("/reports?tab=cash-flow&start=2026-01-01&end=2026-01-31")
+    expect(screen.getByRole("button", { name: "Custom period" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "Period 1M" })).toHaveAttribute("aria-pressed", "false")
+    // A custom period has no previous or next step.
+    expect(screen.queryByRole("button", { name: "Previous period" })).toBeNull()
+
+    fireEvent.change(screen.getByLabelText("Period start"), { target: { value: "2025-12-15" } })
+    expect(testUrl()).toBe("/reports?tab=cash-flow&start=2025-12-15&end=2026-01-31")
+    fireEvent.change(screen.getByLabelText("Period end"), { target: { value: "2025-12-01" } })
+    expect(testUrl()).toBe("/reports?tab=cash-flow&start=2025-12-01&end=2025-12-01")
+    fireEvent.change(screen.getByLabelText("Period start"), { target: { value: "2025-12-20" } })
+    expect(testUrl()).toBe("/reports?tab=cash-flow&start=2025-12-20&end=2025-12-20")
+    fireEvent.change(screen.getByLabelText("Period end"), { target: { value: "" } })
+    expect(testUrl()).toBe("/reports?tab=cash-flow&start=2025-12-20&end=2025-12-20")
+
+    fireEvent.click(screen.getByRole("button", { name: "Period 1Q" }))
+    expect(testUrl()).toBe("/reports?tab=cash-flow&period=1Q")
+    expect(screen.queryByLabelText("Period start")).toBeNull()
+  })
 
   // AC-reporting.fe-viz-reports.19
-  it("AC5.34.2 renders currency options and emits change", () => {
-    const onChange = vi.fn();
-    render(
-      <CurrencyFilterControl
-        value="SGD"
-        currencies={["SGD", "USD", "EUR"]}
-        onChange={onChange}
-      />,
-    );
+  it("AC5.34.2 shows the base currency until the URL names one and writes the selected currency to the URL", async () => {
+    render(<Bar showScope />)
 
-    const select = screen.getByLabelText("Currency");
-    expect(select).toHaveValue("SGD");
-    expect(screen.getByRole("option", { name: "USD" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "EUR" })).toBeInTheDocument();
+    const select = screen.getByRole("combobox", { name: "Reporting currency" })
+    expect(await screen.findByRole("option", { name: "USD" })).toBeInTheDocument()
+    expect(await screen.findByDisplayValue("EUR")).toBe(select)
 
-    fireEvent.change(select, { target: { value: "USD" } });
-    expect(onChange).toHaveBeenCalledWith("USD");
-  });
+    fireEvent.change(select, { target: { value: "USD" } })
+    expect(testUrl()).toBe("/reports?tab=cash-flow&period=1M&end=2026-01-31&currency=USD")
+    expect(select).toHaveValue("USD")
 
-  it("renders quick period presets and emits resolved date range", () => {
-    window.sessionStorage.setItem("finance_report.cockpit_period", "1Q");
-    const onSelectRange = vi.fn();
-    render(<PeriodPresetFilterControl onSelectRange={onSelectRange} defaultPreset="1Y" />);
+    fireEvent.click(screen.getByLabelText("Include restricted holdings"))
+    expect(testUrl()).toContain("include_restricted=true")
+    expect(screen.getByLabelText("Include restricted holdings")).toBeChecked()
+  })
 
-    expect(screen.getByRole("button", { name: "Period 1Q" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Period YTD" }));
-    expect(screen.getByRole("button", { name: "Period YTD" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(onSelectRange).toHaveBeenCalledWith(
-      expect.objectContaining({
-        startDate: expect.stringMatching(/^\d{4}-01-01$/),
-        endDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-      }),
-      "YTD",
-    );
-    expect(window.sessionStorage.getItem("finance_report.cockpit_period")).toBe("YTD");
-    window.sessionStorage.removeItem("finance_report.cockpit_period");
-  });
+  it("keeps a URL currency that the currency list does not name", () => {
+    setTestUrl("/reports?currency=JPY")
+    render(<Bar />)
 
-  it("renders StatementQuickTabs and respects controlled activePreset on PeriodPresetFilterControl", () => {
-    const onSelectRange = vi.fn();
-    render(
-      <div>
-        <StatementQuickTabs activeHref="/reports/balance-sheet" />
-        <PeriodPresetFilterControl onSelectRange={onSelectRange} activePreset="3Y" />
-      </div>,
-    );
-
-    expect(screen.getByRole("tablist", { name: "Statement view switcher" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Balance Sheet" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute(
-      "aria-selected",
-      "false",
-    );
-    expect(screen.getByRole("tab", { name: "Full package" })).toHaveAttribute(
-      "href",
-      "/reports/package",
-    );
-    expect(screen.getByRole("button", { name: "Period 3Y" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-  });
-});
+    expect(screen.getByRole("combobox", { name: "Reporting currency" })).toHaveValue("JPY")
+  })
+})

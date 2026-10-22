@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { NeedsConfirmationQueue } from "@/components/audit/NeedsConfirmationQueue";
 import UploadPage from "@/app/(main)/upload/page";
-import { TrustMeter } from "@/components/home/TrustMeter";
+import { HomeActionBanner } from "@/components/home/HomeActionBanner";
 import { apiOperation } from "@/lib/api-client";
 import { createAppQueryClient } from "@/lib/queryClient";
 
@@ -89,18 +89,18 @@ describe("shared query cache (#2583 S4)", () => {
   });
 
   // AC-reporting.fe-fetch-budget.3
-  it("AC-reporting.fe-fetch-budget.3 the trust meter and the attention queue mounted together request each source once", async () => {
+  it("AC-reporting.fe-fetch-budget.3 the Home action banner and the attention queue mounted together request each source once", async () => {
     mockApi([{ items: [statement("s1", "parsed")], total: 1 }]);
 
     renderOn(
       sharedClient(),
       <>
-        <TrustMeter />
+        <HomeActionBanner />
         <NeedsConfirmationQueue />
       </>,
     );
 
-    await waitFor(() => expect(screen.getByText("Data trust")).toBeInTheDocument());
+    await screen.findByRole("region", { name: "Needs attention" });
     await screen.findByText("5 unmatched transactions");
 
     expect(callsTo("list_statements_statements_get")).toBe(1);

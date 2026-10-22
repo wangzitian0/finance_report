@@ -97,16 +97,24 @@ async function installDashboardMocks(page: Page) {
       };
     } else if (path.startsWith("/api/reports/income-statement")) {
       body = { start_date: "2026-01-01", end_date: "2026-06-03", currency: "SGD", income: [], expenses: [], total_income: "0.00", total_expenses: "0.00", net_income: "0.00", trends: [] };
-    } else if (path.startsWith("/api/reports/trend")) {
-      body = { points: [] };
-    } else if (path === "/api/income/annualized") {
-      body = { annualized_salary: "0.00", annualized_bonus: "0.00", annualized_dividend: "0.00", annualized_total: "0.00", currency: "SGD", as_of: "2026-06-03" };
-    } else if (path === "/api/assets/restricted") {
-      body = [];
+    } else if (path.startsWith("/api/reports/cash-flow")) {
+      body = {
+        start_date: "2026-01-01",
+        end_date: "2026-06-03",
+        currency: "SGD",
+        operating: [],
+        investing: [],
+        financing: [],
+        summary: { operating_activities: "0.00", investing_activities: "0.00", financing_activities: "0.00", net_cash_flow: "0.00", beginning_cash: "0.00", ending_cash: "0.00" },
+      };
+    } else if (path === "/api/reports/currencies") {
+      body = ["SGD", "USD"];
+    } else if (path === "/api/app-config/base-currency") {
+      body = { base_currency: "SGD" };
+    } else if (path === "/api/accounts/processing/pending") {
+      body = { items: [], total: 0 };
     } else if (path === "/api/reconciliation/stats") {
       body = { total_transactions: 0, matched_transactions: 0, unmatched_transactions: 0, pending_review: 0, auto_accepted: 0, match_rate: 0, score_distribution: {} };
-    } else if (path === "/api/reconciliation/unmatched") {
-      body = { items: [], total: 0 };
     }
 
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
@@ -130,24 +138,24 @@ test.describe("AC19.4.7 upload-first dashboard smoke", () => {
     { name: "mobile", viewport: { width: 390, height: 844 } },
   ]) {
     // AC-reporting.fe-remainder-reports.10
-    test(`${scenario.name} renders upload-to-report home before secondary analytics`, async ({ page }) => {
+    test(`${scenario.name} renders the action banner before the statement cockpit`, async ({ page }) => {
       await page.setViewportSize(scenario.viewport);
       await installDashboardMocks(page);
 
       await page.goto("/", { waitUntil: "networkidle" });
 
-      const uploadHome = page.getByLabel("Upload-to-report home");
-      await expect(uploadHome.getByRole("heading", { name: "Upload-to-report session" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
-      await expect(uploadHome.getByRole("link", { name: "Review required", exact: true })).toHaveAttribute("href", "/review");
-      await expect(uploadHome.getByRole("link", { name: "Report readiness" })).toHaveAttribute("href", "/reports");
-      await expect(uploadHome.getByText("Action required: Review required")).toBeVisible();
-      await expect(uploadHome.getByText("Routine automation")).toBeVisible();
+      const banner = page.getByRole("region", { name: "Needs attention" });
+      await expect(banner.getByRole("heading", { name: "An item needs your review" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+      await expect(banner.getByRole("link", { name: "Review required" })).toHaveAttribute("href", "/review");
+      await expect(page.getByRole("region", { name: "Needs attention" })).toHaveCount(1);
 
-      const homeBox = await uploadHome.boundingBox();
-      const analyticsBox = await page.getByLabel("Dashboard analytics").boundingBox();
-      expect(homeBox).not.toBeNull();
-      expect(analyticsBox).not.toBeNull();
-      expect(homeBox!.y).toBeLessThan(analyticsBox!.y);
+      const cockpit = page.getByLabel("Three-statement cockpit", { exact: true });
+      await expect(cockpit.getByTestId("cockpit-card-balance-sheet")).toContainText("SGD 1,000");
+      const bannerBox = await banner.boundingBox();
+      const cockpitBox = await cockpit.boundingBox();
+      expect(bannerBox).not.toBeNull();
+      expect(cockpitBox).not.toBeNull();
+      expect(bannerBox!.y).toBeLessThan(cockpitBox!.y);
       await expectNoDocumentHorizontalScroll(page);
     });
   }

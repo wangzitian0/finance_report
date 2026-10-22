@@ -82,7 +82,7 @@ describe("ChatPageClient", () => {
     render(<ChatPageClient />)
 
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/")
-    expect(screen.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports/balance-sheet")
+    expect(screen.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports?tab=balance-sheet")
   })
 
   it("AC16.20.2 renders ChatPanel with page variant", () => {

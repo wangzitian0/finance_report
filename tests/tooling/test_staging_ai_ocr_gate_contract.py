@@ -115,6 +115,8 @@ def test_AC8_13_49_main_supports_shell_and_human_output(monkeypatch, capsys) -> 
 
 
 CANARY_FILE = "tests/e2e/test_brokerage_upload_to_portfolio_value.py"
+#: The accessible name of the Home statement cockpit region (apps/frontend StatementCockpit).
+HOME_LANDMARK_LABEL = "Three-statement cockpit"
 
 HEAVY_AUDIT_JOURNEYS = (
     "tests/e2e/test_statement_full_journey.py",
@@ -275,8 +277,13 @@ def test_AC8_13_109_ai_ocr_gate_httpx_calls_use_absolute_api_urls() -> None:
 
 
 def test_AC8_13_109_ai_ocr_gate_dashboard_analytics_locator_is_exact() -> None:
-    """AC8.13.109: Dashboard checks must not also match loading status labels."""
+    """AC8.13.109: Home cockpit checks must not also match other labels.
+
+    The Home landmark is the "Three-statement cockpit" region (#2621 LC). A
+    substring label match would also hit other regions, so the locator is exact.
+    """
     offenders: list[str] = []
+    landmark_calls = 0
 
     for relative_path in contract.gate_files():
         tree = ast.parse((ROOT / relative_path).read_text(encoding="utf-8"))
@@ -294,20 +301,23 @@ def test_AC8_13_109_ai_ocr_gate_dashboard_analytics_locator_is_exact() -> None:
                 (kw for kw in node.keywords if kw.arg == "exact"),
                 None,
             )
-            is_dashboard_analytics = (
+            is_home_landmark = (
                 isinstance(first_arg, ast.Constant)
-                and first_arg.value == "Dashboard analytics"
+                and first_arg.value == HOME_LANDMARK_LABEL
             )
             is_exact = (
                 exact_keyword is not None
                 and isinstance(exact_keyword.value, ast.Constant)
                 and exact_keyword.value.value is True
             )
-            if is_dashboard_analytics and not is_exact:
+            if is_home_landmark and not is_exact:
                 offenders.append(
-                    f"{relative_path}:{node.lineno} uses inexact Dashboard analytics label"
+                    f"{relative_path}:{node.lineno} uses inexact {HOME_LANDMARK_LABEL} label"
                 )
+            landmark_calls += int(is_home_landmark)
 
+    # The guard checks real calls: at least one gate journey asserts the Home landmark.
+    assert landmark_calls > 0
     assert offenders == []
 
 

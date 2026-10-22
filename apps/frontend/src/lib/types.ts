@@ -584,14 +584,6 @@ export type Stage2Data = Schemas["Stage2ReviewQueueResponse"];
 export type UnmatchedTransactionsResponse =
   ListResponse<BankStatementTransactionSummary>;
 
-export type AccountTrendPoint = Schemas["AccountTrendPoint"];
-export type TrendPoint = AccountTrendPoint;
-
-export type AccountTrendResponse = Schemas["AccountTrendResponse"];
-export type TrendResponse = AccountTrendResponse;
-
-export type NetWorthRange = "1M" | "3M" | "6M" | "1Y" | "All";
-
 export type NetWorthTimeSeriesPoint = Schemas["NetWorthTimeSeriesPoint"];
 
 export type NetWorthTimeSeriesResponse = Schemas["NetWorthTimeSeriesResponse"];

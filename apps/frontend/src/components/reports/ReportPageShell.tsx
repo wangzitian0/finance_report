@@ -101,19 +101,16 @@ export function AiPromptAction({ prompt, label = "AI Interpretation" }: { prompt
 export function ReportToolbar({
   aiPrompt,
   exportControl,
-  homeHref = "/",
   children,
 }: {
   aiPrompt: string;
   exportControl?: ReactNode;
-  homeHref?: string;
   children?: ReactNode;
 }) {
   return (
-    <div className="flex gap-2 flex-wrap">
+    <div className="flex items-center gap-2 flex-wrap">
       {children}
       <AiPromptAction prompt={aiPrompt} />
-      <Link href={homeHref} className="btn-secondary text-sm">Home</Link>
       {exportControl}
     </div>
   );
@@ -121,7 +118,7 @@ export function ReportToolbar({
 
 export function ReportPageSkeleton({ label, sections = 3 }: { label: string; sections?: number }) {
   return (
-    <div className="p-6" role="status" aria-label={label} aria-live="polite" aria-busy="true">
+    <div role="status" aria-label={label} aria-live="polite" aria-busy="true">
       <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between" aria-hidden="true">
         <div className="space-y-2">
           <SkeletonBlock className="h-7 w-48" />
@@ -191,24 +188,22 @@ export function ReportPageShell({
   if (isLoading) return <ReportPageSkeleton label={loadingLabel} sections={loadingSections} />;
   if (isError) {
     return (
-      <div className="p-6">
-        <div className="card p-8 text-center max-w-md mx-auto">
-          <p className="text-muted mb-4">{errorMessage ?? "Failed to load report."}</p>
-          {onRetry && <button type="button" onClick={onRetry} className="btn-secondary">Retry</button>}
-        </div>
+      <div className="card p-8 text-center max-w-md mx-auto">
+        <p className="text-muted mb-4">{errorMessage ?? "Failed to load report."}</p>
+        {onRetry && <button type="button" onClick={onRetry} className="btn-secondary">Retry</button>}
       </div>
     );
   }
   return (
-    <div className="p-6">
-      <div className="page-header flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+    <section aria-label={title}>
+      <div className="mb-6 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
-          <h1 className="page-title">{title}</h1>
-          {description && <p className="page-description">{description}</p>}
+          <h2 className="text-xl font-semibold">{title}</h2>
+          {description && <p className="text-sm text-muted">{description}</p>}
         </div>
         {toolbar}
       </div>
       {children}
-    </div>
+    </section>
   );
 }

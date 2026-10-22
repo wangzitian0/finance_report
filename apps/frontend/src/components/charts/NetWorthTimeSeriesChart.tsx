@@ -1,46 +1,35 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import ReactECharts from "echarts-for-react";
+import dynamic from "next/dynamic";
+import { useMemo } from "react";
 
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { amountToChartNumber, formatCurrencyLocale } from "@/lib/audit/money";
-import { formatDateInput, formatMonthLabel } from "@/lib/date";
-import type { NetWorthRange, NetWorthTimeSeriesResponse } from "@/lib/types";
+import { formatMonthLabel } from "@/lib/date";
+import type { NetWorthTimeSeriesResponse } from "@/lib/types";
 
-const RANGE_OPTIONS: NetWorthRange[] = ["1M", "3M", "6M", "1Y", "All"];
+// ECharts loads only when a chart renders, so a page without this chart does not carry it.
+const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
 
-function addMonths(date: Date, months: number): Date {
-  return new Date(date.getFullYear(), date.getMonth() + months, date.getDate());
+/** A period up to this many days draws one point per day. A longer period draws one point per month. */
+const DAILY_GRANULARITY_MAX_DAYS = 92;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function granularityFor(from: string, to: string): "daily" | "monthly" {
+  const days = (Date.parse(to) - Date.parse(from)) / DAY_MS;
+  return days <= DAILY_GRANULARITY_MAX_DAYS ? "daily" : "monthly";
 }
 
-function getRangeParams(range: NetWorthRange): {
-  from: string;
-  granularity: "daily" | "monthly";
-} {
-  const today = new Date();
-  if (range === "All") {
-    return { from: "1970-01-01", granularity: "monthly" };
-  }
-  const months =
-    range === "1M" ? -1 : range === "3M" ? -3 : range === "6M" ? -6 : -12;
-  return {
-    from: formatDateInput(addMonths(today, months)),
-    granularity: "daily",
-  };
-}
-
-// A revisit of Home or of a range within this time reuses the cached series (#2583).
+// A revisit of the tab or of a period within this time reuses the cached series (#2583).
 const NET_WORTH_SERIES_STALE_TIME_MS = 60_000;
 
-export function NetWorthTimeSeriesChart() {
-  const [range, setRange] = useState<NetWorthRange>("6M");
-  const { from, granularity } = getRangeParams(range);
-  const to = formatDateInput(new Date());
+/** The net worth history of the dimension-bar period (#2621 LC). The bar is the only period control. */
+export function NetWorthTimeSeriesChart({ from, to, currency }: { from: string; to: string; currency?: string }) {
+  const granularity = granularityFor(from, to);
   const seriesQuery = useApiQuery(
-    ["report", "net-worth-timeseries", range, from, to, granularity],
+    ["report", "net-worth-timeseries", from, to, granularity, currency ?? ""],
     "net_worth_timeseries_reports_net_worth_timeseries_get",
-    { query: { from, to, granularity } },
+    { query: { from, to, granularity, currency } },
     { staleTime: NET_WORTH_SERIES_STALE_TIME_MS },
   );
   const data: NetWorthTimeSeriesResponse | undefined = seriesQuery.data;
@@ -87,29 +76,7 @@ export function NetWorthTimeSeriesChart() {
           <p className="text-xs text-muted uppercase tracking-wide">
             Net Worth History
           </p>
-          <h3 className="font-semibold mt-1">Daily net worth</h3>
-        </div>
-        <div
-          className="flex gap-1 bg-[var(--background-muted)] p-1 rounded-lg w-fit"
-          role="tablist"
-          aria-label="Net worth range"
-        >
-          {RANGE_OPTIONS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              role="tab"
-              aria-selected={range === option}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                range === option
-                  ? "bg-[var(--background-card)]"
-                  : "text-muted hover:text-[var(--foreground)]"
-              }`}
-              onClick={() => setRange(option)}
-            >
-              {option}
-            </button>
-          ))}
+          <h3 className="font-semibold mt-1">{granularity === "daily" ? "Daily net worth" : "Monthly net worth"}</h3>
         </div>
       </div>
       {loading ? (

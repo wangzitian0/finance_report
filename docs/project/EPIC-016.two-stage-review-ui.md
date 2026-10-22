@@ -303,17 +303,11 @@ The April 2026 FE/UI audit snapshot was removed from this EPIC. Current review U
 
 ### Acceptance Criteria — Feature (group 23)
 
-> **Documented exceptions (#1821 Wave B):** the `AC16.23.1`, `AC16.23.2`, and
-> `AC16.23.5` ids below are each coincidentally reused by an unrelated later test
-> (dashboardPage.test.tsx's "This Month KPI" tests for `.1`/`.2`; reportsPage.test.tsx's
-> "renders SVG icons for report cards" for `.5`) that does not verify this row's own
-> stated standard. No real test proves the original claim, so these three stay
-> `fe-only` residue rather than migrating on a false anchor.
-- [x] **AC16.23.1** Stage 1 page split into `<PdfPreviewPane />`, `<TransactionTable />`, `<ReviewActionBar />`, `<BalanceIndicator />` components, each independently mountable <!-- epic-owned: fe-only -->
-- [x] **AC16.23.2** TransactionTable supports inline edit of `amount`, `description`, `date` with optimistic update + server confirm; failed write reverts row and shows error toast <!-- epic-owned: fe-only -->
+> (AC16.23.1 removed, #2621 LC: its only test anchor was a reused id on a deleted Home test. `AC-extraction.fe-stage1-review.12` proves that each Stage 1 component mounts on its own.)
+> (AC16.23.2 removed, #2621 LC: its only test anchor was a reused id on a deleted Home test. TransactionTable has no inline edit: `TransactionTable.test.tsx` asserts that it renders transactions read-only.)
 > (AC16.23.3 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.18`, #1821 Wave B)
 > (AC16.23.4 removed, canonical: migrated to the `reconciliation` package roadmap as `AC-reconciliation.fe-stage2-review.19`, #1821 Wave B)
-- [x] **AC16.23.5** Mobile navigation renders below 768 px (originally the `<MobileNav />` drawer; replaced by the `<BottomTabBar />` bottom tab bar per EPIC-022 AC22.21); the desktop sidebar is hidden on mobile <!-- epic-owned: fe-only -->
+> (AC16.23.5 removed, #2621 LC: its only test anchor was a reused id on a deleted Reports test. `AC-meta.fe-ia-nav.26` and `AC-meta.fe-ia-nav.30` prove the mobile bottom tab bar and the desktop sidebar.)
 > (AC16.23.6 removed, canonical: migrated to the `extraction` package roadmap as `AC-extraction.fe-stage1-review.12`, #1821 Wave B)
 
 ### Acceptance Criteria — Feature (group 24, run-level Stage 2)

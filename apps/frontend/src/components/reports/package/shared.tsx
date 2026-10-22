@@ -207,20 +207,14 @@ export function PackageFrameworkSelection({
   selectedFrameworkLabel,
   reportDate,
   startDate,
-  periodError,
-  onStartDateChange,
   onSelectFramework,
-  onReportDateChange,
 }: {
   contract: PersonalReportPackageContractResponse;
   selectedFrameworkId: string | null;
   selectedFrameworkLabel: string | null;
   reportDate: string;
   startDate: string;
-  periodError: string | null;
-  onStartDateChange: (startDate: string) => void;
   onSelectFramework: (frameworkId: string) => void;
-  onReportDateChange: (reportDate: string) => void;
 }) {
   const supported = contract.supported_frameworks ?? [];
   return (
@@ -233,14 +227,6 @@ export function PackageFrameworkSelection({
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-xs text-muted uppercase">Period start</span>
-            <input type="date" value={startDate} onChange={(e) => onStartDateChange(e.target.value)} className="input w-auto" aria-label="Package period start" />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-xs text-muted uppercase">Period end (report date)</span>
-            <input type="date" value={reportDate} onChange={(e) => onReportDateChange(e.target.value)} className="input w-auto" aria-label="Package report date" />
-          </label>
           <div className="flex flex-wrap gap-2">
             {supported.map((frameworkId) => {
               const isSelected = selectedFrameworkId === frameworkId;
@@ -260,9 +246,8 @@ export function PackageFrameworkSelection({
         </div>
       </div>
       <p className="mt-3 text-sm text-muted">
-        Choose any period, such as March 1–31. Account balances use the period end. The default covers the previous year until you change the start date.
+        The period bar above sets the package period, for example one month with 1M. Account balances use the period end.
       </p>
-      {periodError && <p role="alert" className="mt-3 text-sm text-[var(--error)]">{periodError}</p>}
       {selectedFrameworkId ? (
         <>
           <dl className="mt-5 grid gap-3 text-sm md:grid-cols-2">

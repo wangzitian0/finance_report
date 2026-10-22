@@ -2,15 +2,19 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import IncomeStatementPage from "@/app/(main)/reports/income-statement/page"
+import ReportsPage from "@/app/(main)/reports/page"
 import { apiOperation, apiOperationDownload } from "@/lib/api-client"
+
+import { setTestUrl } from "./helpers/nextNavigation"
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }))
 
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => ({ get: () => null }),
+vi.mock("next/navigation", async () => (await import("./helpers/nextNavigation")).nextNavigationMock)
+
+vi.mock("@/hooks/useBaseCurrency", () => ({
+  useBaseCurrency: () => ({ baseCurrency: "SGD", loading: false }),
 }))
 
 vi.mock("@/components/charts/BarChart", () => ({
@@ -27,6 +31,8 @@ vi.mock("@/lib/api-client", () => ({
   apiOperationDownload: vi.fn(),
 }))
 
+const IncomeStatementPage = () => <ReportsPage />
+
 describe("IncomeStatementPage", () => {
   const mockedApiDownload = vi.mocked(apiOperationDownload)
   const mockedApiFetch = vi.mocked(apiOperation)
@@ -34,6 +40,7 @@ describe("IncomeStatementPage", () => {
   beforeEach(() => {
     mockedApiDownload.mockReset()
     mockedApiFetch.mockReset()
+    setTestUrl("/reports?tab=income-statement")
   })
 
   // AC-reporting.fe-report-surfaces.13
@@ -68,7 +75,7 @@ describe("IncomeStatementPage", () => {
 
     render(<IncomeStatementPage />)
 
-    await waitFor(() => expect(screen.getByText("Income Statement")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Income Statement" })).toBeInTheDocument())
     expect(screen.getByText("Total Income")).toBeInTheDocument()
     expect(screen.getByText("Total Expenses")).toBeInTheDocument()
     expect(screen.getByText("Net Income")).toBeInTheDocument()
@@ -82,7 +89,8 @@ describe("IncomeStatementPage", () => {
       "href",
       expect.stringContaining("/chat?prompt=")
     )
-    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/")
+    // A tab of /reports has no Home link: the app shell navigates.
+    expect(screen.queryByRole("link", { name: "Home" })).toBeNull()
     expect(screen.getByRole("button", { name: "Export CSV" })).toBeInTheDocument()
     expect(screen.getByText("Total Income").closest("div")).toHaveTextContent("5,000.00")
     expect(screen.getByText("Total Expenses").closest("div")).toHaveTextContent("1,200.00")
@@ -160,7 +168,7 @@ describe("IncomeStatementPage", () => {
 
     render(<IncomeStatementPage />)
 
-    await waitFor(() => expect(screen.getByText("Income Statement")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Income Statement" })).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Business" }))
     await waitFor(() => {
       const lastCall = mockedApiFetch.mock.calls.at(-1)
@@ -168,6 +176,14 @@ describe("IncomeStatementPage", () => {
       expect((lastCall?.[1] as any)?.query).toMatchObject({
         tags: ["business"],
       })
+    })
+
+    // A second click on a selected tag removes only that tag.
+    fireEvent.click(screen.getByRole("button", { name: "Personal" }))
+    fireEvent.click(screen.getByRole("button", { name: "Business" }))
+    await waitFor(() => {
+      const lastCall = mockedApiFetch.mock.calls.at(-1)
+      expect((lastCall?.[1] as any)?.query).toMatchObject({ tags: ["personal"] })
     })
 
     const clearAllButton = await screen.findByRole("button", { name: "Clear all" })
@@ -219,9 +235,11 @@ describe("IncomeStatementPage", () => {
       trends: [],
     })
 
+    setTestUrl("/reports?tab=income-statement&period=1Q&end=2026-03-31")
     const { container } = render(<IncomeStatementPage />)
 
-    await waitFor(() => expect(screen.getByText("Income Statement")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Income Statement" })).toBeInTheDocument())
+    expect(container.querySelector('input[type="date"]')).toBeNull()
     const selects = screen.getAllByRole("combobox")
     fireEvent.change(selects[1], { target: { value: "INCOME" } })
 
@@ -230,33 +248,22 @@ describe("IncomeStatementPage", () => {
       expect(lastCall?.[0]).toBe("income_statement_reports_income_statement_get")
       expect((lastCall?.[1] as any)?.query).toMatchObject({
         account_type: "INCOME",
+        start_date: "2026-01-01",
+        end_date: "2026-03-31",
       })
     })
-    await waitFor(() => expect(screen.getByText("Income Statement")).toBeInTheDocument())
 
-    const dateInputs = container.querySelectorAll('input[type="date"]')
-    fireEvent.change(dateInputs[0], { target: { value: "2026-01-15" } })
-    await waitFor(() => {
-      const lastCall = mockedApiFetch.mock.calls.at(-1)
-      expect(lastCall?.[0]).toBe("income_statement_reports_income_statement_get")
-      expect((lastCall?.[1] as any)?.query).toMatchObject({
-        start_date: "2026-01-15",
-      })
-    })
-    await waitFor(() => expect(screen.getByText("Income Statement")).toBeInTheDocument())
-    fireEvent.change(container.querySelectorAll('input[type="date"]')[1], { target: { value: "2026-02-15" } })
-
+    // The dimension bar steps back one quarter. The account type filter stays.
+    fireEvent.click(screen.getByRole("button", { name: "Previous period" }))
     await waitFor(() => {
       const lastCall = mockedApiFetch.mock.calls.at(-1)
       expect(lastCall?.[0]).toBe("income_statement_reports_income_statement_get")
       expect((lastCall?.[1] as any)?.query).toMatchObject({
         account_type: "INCOME",
-        start_date: "2026-01-15",
-        end_date: "2026-02-15",
+        start_date: "2025-10-01",
+        end_date: "2025-12-31",
       })
     })
-
-    fireEvent.click(screen.getByRole("button", { name: "Period 1Q" }))
     expect(screen.getByRole("button", { name: "Period 1Q" })).toHaveAttribute("aria-pressed", "true")
   })
 })
