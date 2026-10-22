@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import Counter
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -473,7 +474,8 @@ async def emit_disposition_trace_records_many(
 
     Each result equals the one that ``emit_disposition_trace_records`` returns for the same input. A
     transaction whose guard or disposition lineage already holds a head keeps that per-record path,
-    because it may supersede the head.
+    because it may supersede the head. So does a transaction that appears twice in the inputs: the
+    second input must see the head of the first.
     """
     built = [
         build_disposition_trace_records(
@@ -491,18 +493,22 @@ async def emit_disposition_trace_records_many(
     heads = await _lineages_with_decision_head(
         emitter, scope, [lineage for records in built for lineage in (records[2].lineage, records[3].lineage)]
     )
-    results: list[tuple[TraceRecord, ...] | None] = [None] * len(inputs)
+    uses = Counter(lineage for records in built for lineage in (records[2].lineage, records[3].lineage))
     fresh = [
         index
         for index, records in enumerate(built)
-        if heads is not None and records[2].lineage not in heads and records[3].lineage not in heads
+        if heads is not None
+        and records[2].lineage not in heads
+        and records[3].lineage not in heads
+        and uses[records[2].lineage] == uses[records[3].lineage] == 1
     ]
+    results: dict[int, tuple[TraceRecord, ...]] = {}
     if fresh:
         emitted = await emitter.emit_many([record for index in fresh for record in built[index]])
         for position, index in enumerate(fresh):
             results[index] = tuple(emitted[position * 4 : (position + 1) * 4])
     for index, item in enumerate(inputs):
-        if results[index] is None:
+        if index not in results:
             results[index] = await emit_disposition_trace_records(
                 emitter=emitter,
                 user_id=user_id,
@@ -513,7 +519,7 @@ async def emit_disposition_trace_records_many(
                 decision=item.decision,
                 policy_snapshot=policy_snapshot,
             )
-    return [result for result in results if result is not None]
+    return [results[index] for index in range(len(inputs))]
 
 
 async def authorize_financial_command(
@@ -635,7 +641,8 @@ async def authorize_financial_commands_many(
 
     Each anchor equals the one that ``authorize_financial_command`` returns for the same request. A
     command whose authorization or payload-guard lineage already holds a head keeps that per-command
-    path, because it may reuse or supersede the head.
+    path, because it may reuse or supersede the head. So does a command whose target appears twice in
+    the requests: the second request must see the head of the first.
     """
     scope = TraceScope.tenant(user_id)
     authorization_policy = FinancialCommandAuthorizationTracePolicy()
@@ -661,12 +668,16 @@ async def authorize_financial_commands_many(
     ]
     heads = await _lineages_with_decision_head(emitter, scope, [lineage for pair in lineages for lineage in pair])
 
-    anchors: list[DecisionAnchor | None] = [None] * len(requests)
+    uses = Counter(lineage for pair in lineages for lineage in pair)
     fresh = [
         index
         for index, (authorization_lineage, guard_lineage) in enumerate(lineages)
-        if heads is not None and authorization_lineage not in heads and guard_lineage not in heads
+        if heads is not None
+        and authorization_lineage not in heads
+        and guard_lineage not in heads
+        and uses[authorization_lineage] == uses[guard_lineage] == 1
     ]
+    anchors: dict[int, DecisionAnchor] = {}
     records: list[TraceRecord] = []
     for index in fresh:
         upstream, target = requests[index].upstream_decision, targets[index]
@@ -694,7 +705,7 @@ async def authorize_financial_commands_many(
         for position, index in enumerate(fresh):
             anchors[index] = DecisionAnchor.from_record(emitted[position * 3 + 2])
     for index, request in enumerate(requests):
-        if anchors[index] is None:
+        if index not in anchors:
             anchors[index] = await authorize_financial_command(
                 emitter=emitter,
                 user_id=user_id,
@@ -705,4 +716,4 @@ async def authorize_financial_commands_many(
                 base_currency=request.base_currency,
                 source_id=request.source_id,
             )
-    return [anchor for anchor in anchors if anchor is not None]
+    return [anchors[index] for index in range(len(requests))]

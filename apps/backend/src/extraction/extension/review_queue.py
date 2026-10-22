@@ -520,6 +520,10 @@ async def create_entry_from_txn(
     return await create()
 
 
+#: The reload of created entries names at most this many ids in one statement (bind parameter limit of the driver).
+_ENTRY_RELOAD_CHUNK_SIZE = 1000
+
+
 @dataclass(frozen=True, slots=True)
 class StatementEntryRequest:
     """One transaction of a statement whose accepted disposition posts a journal entry."""
@@ -596,12 +600,15 @@ async def create_entries_from_txns(
         except ValidationError as exc:
             raise _posting_error(plans[0], exc) from exc
         # ``post_journal_entry`` returns aggregates whose lines are not guaranteed to be loaded.
-        loaded = await db.execute(
-            select(JournalEntry)
-            .where(JournalEntry.id.in_([entry.id for entry in created]))
-            .options(selectinload(JournalEntry.lines))
-        )
-        by_id = {entry.id: entry for entry in loaded.scalars().all()}
+        by_id: dict[UUID, JournalEntry] = {}
+        created_ids = [entry.id for entry in created]
+        for start in range(0, len(created_ids), _ENTRY_RELOAD_CHUNK_SIZE):
+            loaded = await db.execute(
+                select(JournalEntry)
+                .where(JournalEntry.id.in_(created_ids[start : start + _ENTRY_RELOAD_CHUNK_SIZE]))
+                .options(selectinload(JournalEntry.lines))
+            )
+            by_id.update({entry.id: entry for entry in loaded.scalars().all()})
         return [by_id[entry.id] for entry in created]
 
     if not requests:

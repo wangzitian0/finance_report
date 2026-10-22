@@ -732,9 +732,12 @@ async def submit_anchored_journal_entries_v2(
     """Verify many decisions and persist their journal facts exactly once each.
 
     Each entry equals the one that ``submit_anchored_journal_entry_v2`` returns for the same command. The
-    set costs one existence read, one insert pair and one update, whatever its size. The commands are
-    checked together, so one invalid command persists none of them. Commands that share a target keep
-    the single path, because the second command must see the entry of the first.
+    set costs one existence read, one insert pair and one update, whatever its size. The anchors, the
+    owners of the targets and the ledger rules of every command are checked before the first entry is
+    added to the session. One failed check therefore persists none of the commands. A failure at the
+    flush or at the posting leaves the unit of work to the caller, which rolls it back, as for the
+    single command. Commands that share a target keep the single path: the second command must see
+    the entry of the first.
     """
     repository = trace_repository or SqlTraceRecordRepository(db)
     targets = [
@@ -760,7 +763,7 @@ async def submit_anchored_journal_entries_v2(
         )
     existing = await _existing_for_targets(db, user_id=user_id, targets=targets) if commands else {}
 
-    results: list[JournalEntry | None] = [None] * len(commands)
+    results: dict[int, JournalEntry] = {}
     fresh: list[int] = []
     for index, (command, target) in enumerate(zip(commands, targets, strict=True)):
         owner = existing.get((target.kind, target.id))
@@ -795,7 +798,7 @@ async def submit_anchored_journal_entries_v2(
     )
     for entry, index in zip(created, fresh, strict=True):
         results[index] = entry
-    return [entry for entry in results if entry is not None]
+    return [results[index] for index in range(len(commands))]
 
 
 async def _submit_anchored_journal_entry(

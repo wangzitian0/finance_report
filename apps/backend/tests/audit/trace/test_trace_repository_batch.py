@@ -291,11 +291,28 @@ async def test_AC_audit_trace_record_9_batch_with_a_supersession_keeps_the_per_r
     )
     mixed = SqlTraceRecordRepository(db, TraceDecisionPolicyRegistry((decision_policy(assertion_version="v2"),)))
 
-    emitted = await mixed.append_many([correction, decision])
+    with _Statements(db) as statements:
+        emitted = await mixed.append_many([correction, decision])
 
     assert emitted == (correction, decision)
     assert not await mixed._is_lineage_head(scope, original.record_id)
     assert await mixed.current_decision(scope, decision.lineage) == decision
+    # The per-record path starts with the one statement that takes the locks of the set in key order.
+    assert "pg_advisory_xact_lock" in statements.texts[0] and "unnest" in statements.texts[0]
+
+
+async def test_AC_audit_trace_record_9_batch_read_of_a_stored_record_fails_with_the_read_prefix(db):
+    """AC-audit.trace-record.9: Batch read of a stored record fails with the read prefix."""
+    policy = decision_policy()
+    registry = TraceDecisionPolicyRegistry((policy,))
+    record = observation()
+    await SqlTraceRecordRepository(db, registry).append(record)
+    db.info.clear()  # a repository without a memo must read the stored row
+    repository = SqlTraceRecordRepository(db, registry)
+
+    with patch.object(repository, "_restore", AsyncMock(side_effect=RuntimeError("row is corrupt"))):
+        with pytest.raises(TraceRecordPersistenceError, match="TraceRecord read failed: row is corrupt"):
+            await repository.append_many([record])
 
 
 async def test_AC_audit_trace_record_9_batch_of_two_scopes_keeps_the_per_record_path(db):

@@ -350,7 +350,7 @@ async def test_AC_ledger_anchored_batch_8_post_journal_entries_checks_each_entry
     empty.lines = []
     db.add(empty)
     await db.flush()
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="at least 2 lines"):
         await post_journal_entries(db, [empty], test_user.id, base_currency="SGD")
 
     stranger = JournalEntry(id=uuid4(), user_id=test_user.id, entry_date=ENTRY_DATE, memo="not stored")

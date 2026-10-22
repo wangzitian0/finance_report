@@ -6,6 +6,7 @@ per-item path for an item whose trace lineage already holds a head.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -192,6 +193,23 @@ async def test_AC_extraction_statement_approve_4_a_lineage_with_a_head_keeps_the
     assert batch[2][2].supersedes_id is None and batch[2][3].supersedes_id is None
 
 
+async def test_AC_extraction_statement_approve_4_a_transaction_in_two_inputs_keeps_the_single_path(db, test_user):
+    """AC-extraction.statement-approve.4: A transaction in two inputs keeps the single path."""
+    transactions = await _transactions(db, test_user.id, 2)
+    first_decision = [item for item, _decision, _counter in await _inputs(db, test_user.id, transactions)]
+    second_decision = [item for item, _decision, _counter in await _inputs(db, test_user.id, transactions)]
+    # The first transaction appears twice with two different decisions. The second input must supersede the first.
+    items = [first_decision[0], first_decision[1], second_decision[0]]
+
+    nested = await db.begin_nested()
+    batch = await _emit_batch(db, test_user.id, items)
+    await nested.rollback()
+    single = await _emit_each(db, test_user.id, items)
+
+    assert batch == single
+    assert batch[2][3].supersedes_id == batch[0][3].record_id
+
+
 async def test_AC_extraction_statement_approve_4_a_repository_without_the_batch_read_keeps_the_single_path(
     db, test_user
 ):
@@ -291,17 +309,10 @@ async def test_AC_extraction_statement_approve_5_batch_command_anchors_equal_the
 
 async def test_AC_extraction_statement_approve_5_a_command_with_a_head_keeps_the_single_path(db, test_user):
     """AC-extraction.statement-approve.5: A command with a head keeps the single path."""
-    transactions = await _transactions(db, test_user.id, 3)
-    requests, emitter = await _requests(db, test_user.id, transactions)
-    first = await _authorize_each(emitter, test_user.id, requests[:1])
-    # The first command is authorized: the batch must reuse its anchor. The others are new.
-    batch = await authorize_financial_commands_many(emitter=emitter, user_id=test_user.id, requests=requests)
 
-    assert batch[0] == first[0]
-    assert batch[1:] == await _authorize_each(emitter, test_user.id, requests[1:])
-
-    # A repository without the batch read gives the same anchors through the single path.
     class SingleRepository:
+        """Only the per-record port: no ``append_many`` and no ``lineages_with_decision_head``."""
+
         def __init__(self, inner) -> None:
             self.inner = inner
 
@@ -311,8 +322,46 @@ async def test_AC_extraction_statement_approve_5_a_command_with_a_head_keeps_the
         async def append(self, record):
             return await self.inner.append(record)
 
-    legacy = TraceEmitter(SingleRepository(emitter.repository))
-    assert await authorize_financial_commands_many(emitter=legacy, user_id=test_user.id, requests=requests) == batch
+    transactions = await _transactions(db, test_user.id, 3)
+    requests, emitter = await _requests(db, test_user.id, transactions)
+    # The first command is authorized before. Each variant below runs in a savepoint that is rolled
+    # back, so that no variant reads a head that another variant wrote.
+    first = await _authorize_each(emitter, test_user.id, requests[:1])
+
+    nested = await db.begin_nested()
+    batch = await authorize_financial_commands_many(emitter=emitter, user_id=test_user.id, requests=requests)
+    await nested.rollback()
+    nested = await db.begin_nested()
+    legacy = await authorize_financial_commands_many(
+        emitter=TraceEmitter(SingleRepository(emitter.repository)), user_id=test_user.id, requests=requests
+    )
+    await nested.rollback()
+    single = [*first, *await _authorize_each(emitter, test_user.id, requests[1:])]
+
+    assert len({anchor.decision_id for anchor in single}) == 3
+    assert batch == single
+    assert legacy == single
+
+
+async def test_AC_extraction_statement_approve_5_two_requests_for_one_command_keep_the_single_path(db, test_user):
+    """AC-extraction.statement-approve.5: Two requests for one command keep the single path."""
+    transactions = await _transactions(db, test_user.id, 2)
+    requests, emitter = await _requests(db, test_user.id, transactions)
+    # The disposition of the first transaction changes. The first request now carries the new source
+    # decision, and the second request still carries the superseded one. Both name one command target.
+    # The single path gives the anchor of the first request to the second request.
+    changed = [item for item, _decision, _counter in await _inputs(db, test_user.id, transactions[:1])]
+    new_source = (await _emit_each(db, test_user.id, changed, emitter=emitter))[0][-1]
+    assert new_source.record_id != requests[0].upstream_decision.record_id
+    doubled = [replace(requests[0], upstream_decision=new_source), requests[0]]
+
+    nested = await db.begin_nested()
+    batch = await authorize_financial_commands_many(emitter=emitter, user_id=test_user.id, requests=doubled)
+    await nested.rollback()
+    single = await _authorize_each(emitter, test_user.id, doubled)
+
+    assert batch == single
+    assert batch[0] == batch[1]
 
 
 async def test_AC_extraction_statement_approve_5_a_command_needs_an_authoritative_source_decision(db, test_user):
@@ -425,9 +474,11 @@ async def test_AC_extraction_statement_approve_6_batch_entries_equal_the_single_
     batch_statement, batch_bank, batch_emitter, batch_requests = await _posting_context(db, test_user.id, 4)
     single_statement, single_bank, single_emitter, single_requests = await _posting_context(db, test_user.id, 4)
 
-    batch = await create_entries_from_txns(
-        db, batch_requests, trace_emitter=batch_emitter, **_common(test_user, batch_statement, batch_bank)
-    )
+    # Four entries in chunks of three: the reload reads twice.
+    with patch.object(review_queue, "_ENTRY_RELOAD_CHUNK_SIZE", 3):
+        batch = await create_entries_from_txns(
+            db, batch_requests, trace_emitter=batch_emitter, **_common(test_user, batch_statement, batch_bank)
+        )
     single = [
         await create_entry_from_txn(
             db,

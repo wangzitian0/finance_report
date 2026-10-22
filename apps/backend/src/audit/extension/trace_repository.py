@@ -131,6 +131,9 @@ class SqlTraceRecordRepository(TraceRecordRepository):
             return ()
         try:
             if len({record.scope for record in batch}) > 1 or any(record.supersedes_id is not None for record in batch):
+                # Take the locks in key order first, as the fresh path does. Two writers of one set then
+                # wait in the same order, whichever path each of them takes.
+                await self._lock_lineages(batch)
                 return tuple([await self.append(record) for record in batch])
             return await self._append_fresh_set(batch)
         except TraceRecordPersistenceError:
@@ -162,7 +165,10 @@ class SqlTraceRecordRepository(TraceRecordRepository):
                 .all()
             )
             for row in rows:
-                self._cache[(scope, row.id)] = await self._restore(row, frozenset({row.id}))
+                try:
+                    self._cache[(scope, row.id)] = await self._restore(row, frozenset({row.id}))
+                except (SQLAlchemyError, TraceRecordValidationError, RuntimeError) as exc:
+                    raise TraceRecordPersistenceError(f"TraceRecord read failed: {exc}") from exc
         for record_id, record in by_id.items():
             stored = self._cache.get((scope, record_id))
             if stored is not None and stored.content_digest != record.content_digest:
