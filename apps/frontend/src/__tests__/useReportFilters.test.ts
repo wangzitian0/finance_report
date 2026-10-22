@@ -100,31 +100,37 @@ describe("report period dimensions", () => {
 describe("useReportFilters", () => {
   beforeEach(() => {
     routerReplace.mockClear()
-    setTestUrl("/reports?tab=income-statement&end_date=2025-06-30")
+    setTestUrl("/reports?from=audit&tab=income-statement&end_date=2025-06-30")
   })
 
   // AC-reporting.fe-period-cockpit.2 / AC-reporting.fe-viz-reports.22
   it("AC-reporting.fe-period-cockpit.2 writes each dimension change to the URL and omits default values", () => {
+    // Other parameters, such as `from`, stay after the dimensions.
     const { result } = renderHook(() => useReportFilters())
     expect(result.current.tab).toBe("income-statement")
     expect(result.current.endDate).toBe("2025-06-30")
 
     act(() => result.current.setPreset("1M"))
-    expect(testUrl()).toBe("/reports?tab=income-statement&period=1M")
+    expect(testUrl()).toBe("/reports?tab=income-statement&period=1M&from=audit")
     expect(result.current.isCurrent).toBe(true)
 
     act(() => result.current.goToPeriodEnd(result.current.openingDate!))
     expect(result.current.isCurrent).toBe(false)
-    expect(testUrl()).toMatch(/&end=\d{4}-\d{2}-\d{2}$/)
+    expect(testUrl()).toMatch(/&end=\d{4}-\d{2}-\d{2}&from=audit$/)
+    // A preset starts at the current period: it clears the period end.
+    act(() => result.current.setPreset("1Q"))
+    expect(testUrl()).toBe("/reports?tab=income-statement&period=1Q&from=audit")
+    act(() => result.current.setPreset("1M"))
+    act(() => result.current.goToPeriodEnd(result.current.openingDate!))
 
     act(() => result.current.goToPeriodEnd(""))
     act(() => result.current.setCurrency("USD"))
     act(() => result.current.setIncludeRestricted(true))
-    expect(testUrl()).toBe("/reports?tab=income-statement&period=1M&currency=USD&include_restricted=true")
+    expect(testUrl()).toBe("/reports?tab=income-statement&period=1M&currency=USD&include_restricted=true&from=audit")
 
     act(() => result.current.setIncludeRestricted(false))
     act(() => result.current.setPreset("1Y"))
-    expect(testUrl()).toBe("/reports?tab=income-statement&currency=USD")
-    expect(routerReplace).toHaveBeenLastCalledWith("/reports?tab=income-statement&currency=USD", { scroll: false })
+    expect(testUrl()).toBe("/reports?tab=income-statement&currency=USD&from=audit")
+    expect(routerReplace).toHaveBeenLastCalledWith("/reports?tab=income-statement&currency=USD&from=audit", { scroll: false })
   })
 })

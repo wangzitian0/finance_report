@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -68,8 +68,12 @@ describe("Home action banner (#2621 LC, EPIC-022 AC22.6.2)", () => {
 
     const { container } = render(<HomeActionBanner />);
 
-    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalled());
-    await waitFor(() => expect(container).toBeEmptyDOMElement());
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledWith("list_statements_statements_get", expect.anything()));
+    // Let the rejected source settle: the banner must stay empty after the failure, not only while it loads.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(container).toBeEmptyDOMElement();
   });
 
   // AC-reporting.fe-period-cockpit.6

@@ -570,6 +570,11 @@ describe("PersonalReportPackagePage", () => {
     expect(cover.getByText("2025-04-01")).toBeInTheDocument();
     expect(cover.getByText("Balances as of").nextElementSibling).toHaveTextContent("2025-04-01");
     expect(mockedApiFetch.mock.calls.some(([path]) => String(path).includes("/package?"))).toBe(false);
+
+    // A new period in the dimension bar closes the snapshot and previews the new period.
+    act(() => setTestUrl("/reports?tab=package&start=2025-04-01&end=2025-04-30"));
+    await waitFor(() => expect(screen.queryByText("Frozen snapshot snap-001")).toBeNull());
+    await waitFor(() => expect(mockedApiFetch.mock.calls.some(([path]) => String(path).includes("start_date=2025-04-01"))).toBe(true));
   });
 
   it("AC8.13.92 surfaces package API failures as a visible loading error", async () => {

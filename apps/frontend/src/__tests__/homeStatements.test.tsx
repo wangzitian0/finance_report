@@ -145,10 +145,8 @@ describe("Three-statement cockpit (#2621 LC, #2548 P1)", () => {
             expect.objectContaining({ query: expect.objectContaining({ start_date: "2000-01-01" }) }),
         );
         await waitFor(() => expect(screen.getByText("Change in period").nextElementSibling).toHaveTextContent("—"));
-        const balanceDates = mockedApiOperation.mock.calls
-            .filter(([id]) => id === "balance_sheet_reports_balance_sheet_get")
-            .map(([, request]) => (request as { query: Record<string, unknown> }).query.as_of_date);
-        expect(balanceDates).not.toContain("1999-12-31");
+        // The balance sheet at the period end comes from the cache, and `All` has no opening balance sheet.
+        expect(mockedApiOperation.mock.calls.filter(([id]) => id === "balance_sheet_reports_balance_sheet_get")).toEqual([]);
     });
 
     // AC-reporting.fe-period-cockpit.5
