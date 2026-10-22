@@ -42,6 +42,12 @@ describe("Review surfaces back-link + plain copy (EPIC-022 AC22.5.3, AC22.5.4)",
         );
     });
 
+    it("the AI suggestion queue shows the empty state when the response has no items field", async () => {
+        vi.mocked(apiOperation).mockResolvedValue({} as any);
+        render(<AiSuggestionsQueue />);
+        expect(await screen.findByText("No pending AI suggestions")).toBeInTheDocument();
+    });
+
     it("the AI suggestion queue shows a back-link only when the caller passes return_to", async () => {
         vi.mocked(apiOperation).mockResolvedValue({ items: [] } as any);
         render(<AiSuggestionsQueue />);

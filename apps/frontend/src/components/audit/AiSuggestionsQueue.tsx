@@ -36,7 +36,7 @@ export function AiSuggestionsQueue() {
       const data = statementId
         ? await apiOperation("list_ai_suggestions_ai_suggestions_get", { query: { statement_id: statementId } })
         : await apiOperation("list_ai_suggestions_ai_suggestions_get");
-      setSuggestions(data.items);
+      setSuggestions(data.items ?? []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load AI suggestions");
