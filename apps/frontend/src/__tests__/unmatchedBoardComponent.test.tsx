@@ -297,8 +297,8 @@ describe("UnmatchedBoard", () => {
     mockInitialLoad();
     render(<UnmatchedBoard />);
 
-    const backLink = await screen.findByRole("link", { name: /Back to Attention queue/i });
-    expect(backLink).toHaveAttribute("href", "/attention");
+    const backLink = await screen.findByRole("link", { name: /Back to Needs Confirmation/i });
+    expect(backLink).toHaveAttribute("href", "/audit");
   });
 
   it("AC-reconciliation.fe-stage2-review.30 scopes the queue and returns to statement review", async () => {

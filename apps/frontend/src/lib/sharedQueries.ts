@@ -1,7 +1,7 @@
 /**
  * Query keys that several routes share (#2583 S4).
  *
- * Home, /attention, /upload, the Reports hub and the reconciliation Workbench read the same
+ * Home, /audit, /upload, the Reports hub and the reconciliation Workbench read the same
  * endpoints with the same parameters. One key per endpoint-and-parameters pair lets react-query
  * serve a second reader from the cache and merge two readers that mount together into one request.
  * A route must build these keys here. It must not write its own key for the same request.

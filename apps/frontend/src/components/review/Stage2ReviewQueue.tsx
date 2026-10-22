@@ -229,7 +229,7 @@ export function ResolveCheckDialog({ check, actionLoading, onClose, onResolve }:
   );
 }
 
-export function Stage2ReviewQueue({ embedded = false }: { embedded?: boolean } = {}) {
+export function Stage2ReviewQueue({ embedded = false, runId = null }: { embedded?: boolean; runId?: string | null } = {}) {
   const { showToast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -250,8 +250,6 @@ export function Stage2ReviewQueue({ embedded = false }: { embedded?: boolean } =
   const [minScore, setMinScore] = useState<number>(Number(searchParams.get("min_score")) || 0);
   const [filteredChecks, setFilteredChecks] = useState<ConsistencyCheck[] | null>(null);
 
-  const runIdMatch = pathname.match(/^\/review\/run\/([^/?#]+)/);
-  const runId = runIdMatch ? decodeURIComponent(runIdMatch[1]) : null;
   const isRunReview = Boolean(runId);
 
   const fetchData = useCallback(async () => {

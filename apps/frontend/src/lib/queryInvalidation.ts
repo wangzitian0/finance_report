@@ -20,7 +20,7 @@
  *
  * The app query client adds a rule on top of this matrix (#2583 S4): after EVERY
  * successful mutation it marks the ledger-derived reads stale
- * (`LEDGER_DERIVED_QUERY_KEYS` in `lib/queryClient.ts`), because Home, /attention
+ * (`LEDGER_DERIVED_QUERY_KEYS` in `lib/queryClient.ts`), because Home, /audit
  * and the report pages keep those reads in the cache for one minute. A row with an
  * empty `invalidates` list relies on that rule.
  */

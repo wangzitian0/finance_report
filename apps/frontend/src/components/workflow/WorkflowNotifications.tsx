@@ -271,7 +271,7 @@ export function WorkflowNotificationCenter() {
           {eventsQuery.isLoading && <div className="flex items-center gap-2 text-sm text-muted" role="status"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Loading workflow events...</div>}
           {eventsQuery.isError && <Alert variant="error">Unable to load workflow events.</Alert>}
           {!eventsQuery.isLoading && !eventsQuery.isError && <WorkflowInbox events={eventsQuery.data?.items ?? []} sessions={eventsQuery.data?.sessions ?? []} onStatusChange={(eventId, nextStatus) => lifecycleMutation.mutate({ eventId, status: nextStatus })} />}
-          <Link href="/attention" onClick={() => setIsOpen(false)} className="flex items-center justify-center gap-1 rounded-md border border-border px-3 py-2 text-sm text-content transition-colors hover:bg-surface-muted">Open the full attention queue<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
+          <Link href="/audit" onClick={() => setIsOpen(false)} className="flex items-center justify-center gap-1 rounded-md border border-border px-3 py-2 text-sm text-content transition-colors hover:bg-surface-muted">Open everything that needs confirmation<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
         </div>
       </Sheet>
     </div>

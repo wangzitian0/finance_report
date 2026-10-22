@@ -162,7 +162,7 @@ export function HomeAnalyticsSection({
                 </>
               ) : pending.incomeStatement ? <LoadingLine label="Income and expense loading" /> : <p className="text-sm text-muted">No income data available.</p>}
             </div>
-            <Link href="/attention" className="card p-5 block hover:border-[var(--accent)] transition-colors">
+            <Link href="/audit" className="card p-5 block hover:border-[var(--accent)] transition-colors">
               <p className="text-xs text-muted uppercase tracking-wide">Reconciliation</p>
               <h3 className="font-semibold mt-1 mb-4">Risk radar</h3>
               <div className="space-y-2">
@@ -170,7 +170,7 @@ export function HomeAnalyticsSection({
                   <div key={label} className={`flex justify-between p-3 rounded-md ${bg} text-sm`}><span>{label}</span><span className="font-semibold">{pending.stats ? "…" : val}</span></div>
                 ))}
               </div>
-              <span className="mt-3 inline-flex items-center gap-1 text-sm text-[var(--accent)]">Review in attention queue →</span>
+              <span className="mt-3 inline-flex items-center gap-1 text-sm text-[var(--accent)]">Review what needs confirmation →</span>
             </Link>
           </div>
 
@@ -195,7 +195,7 @@ export function HomeAnalyticsSection({
                     <span className="font-semibold">{balanceSheet ? formatCurrencyLocale(t.amount, balanceSheet.currency, "en-US", NO_FRAC) : t.amount}</span>
                   </div>
                 )) : <p className="text-sm text-muted">No unmatched transactions.</p>}
-                <Link href="/attention" className="text-sm text-[var(--warning)] hover:underline inline-flex items-center gap-1">Review unmatched →</Link>
+                <Link href="/audit" className="text-sm text-[var(--warning)] hover:underline inline-flex items-center gap-1">Review unmatched →</Link>
               </div>
             </div>
           </div>

@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import RunReviewPage from "@/app/(main)/review/run/[runId]/page";
+import AuditPage from "@/app/(main)/audit/page";
 import { apiOperation } from "@/lib/api-client";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
 vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 vi.mock("next/navigation", () => ({
     useRouter: vi.fn(() => ({ replace: vi.fn(), push: vi.fn() })),
-    useSearchParams: vi.fn(() => new URLSearchParams()),
-    usePathname: vi.fn(() => "/review/run/run-123"),
+    useSearchParams: vi.fn(() => new URLSearchParams("run_id=run-123")),
+    usePathname: vi.fn(() => "/audit"),
 }));
 
 function mapStage2OperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
@@ -49,7 +49,7 @@ mockedApi.mockImplementation = (fn: any) => {
     });
 };
 
-describe("RunReviewPage", () => {
+describe("Run-scoped review on /audit", () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
@@ -101,12 +101,9 @@ describe("RunReviewPage", () => {
             return Promise.resolve(null as any);
         });
 
-        renderReviewComponent(<RunReviewPage /> as any);
+        renderReviewComponent(<AuditPage /> as any);
 
-        expect(await screen.findByText("Review queue")).toBeInTheDocument();
-        expect(
-            screen.getByText("Matches and checks from this reconciliation run that need a human check before they post."),
-        ).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Review this reconciliation run" })).toBeInTheDocument();
         expect(screen.getByText("run-123")).toBeInTheDocument();
         expect(screen.getByText("1 unresolved transfer")).toBeInTheDocument();
         expect(screen.getByText("1 duplicate")).toBeInTheDocument();
@@ -143,7 +140,7 @@ describe("RunReviewPage", () => {
             return Promise.resolve(null as any);
         });
 
-        renderReviewComponent(<RunReviewPage /> as any);
+        renderReviewComponent(<AuditPage /> as any);
 
         const approveRun = await screen.findByRole("button", { name: /Approve Run/i });
         expect(approveRun).toBeEnabled();

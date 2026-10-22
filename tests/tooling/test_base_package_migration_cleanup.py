@@ -164,7 +164,7 @@ def test_AC12_31_5_backend_money_adapters_are_not_duplicated():
 def test_AC12_31_6_confidence_percent_wrapper_is_retired():
     """AC-audit.31.6: correction-loop UI calls Ratio formatting directly, with no local percent facade."""
     confidence = _read(Path("apps/frontend/src/lib/confidence.ts"))
-    page = _read(Path("apps/frontend/src/app/(main)/confidence/page.tsx"))
+    page = _read(Path("apps/frontend/src/components/audit/CorrectionLoopProof.tsx"))
 
     assert "formatProportionPercent" not in confidence
     assert "formatProportionPercent" not in page

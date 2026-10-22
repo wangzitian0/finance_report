@@ -279,7 +279,7 @@ describe("HomePage", () => {
   })
 
   // AC-reporting.fe-ia-reports.9 / AC-reporting.fe-ia-reports.21
-  it("AC22.16.2 AC22.5.6 routes the risk radar and unmatched CTA to the unified /attention queue", async () => {
+  it("AC22.16.2 AC22.5.6 routes the risk radar and unmatched CTA to the unified /audit queue", async () => {
     mockDashboardApi()
 
     render(<HomePage />)
@@ -292,12 +292,12 @@ describe("HomePage", () => {
 
     // The Home no longer leaks Advanced reconciliation internals as parallel
     // destinations — every "needs attention" affordance funnels into the single
-    // confidence-ranked /attention queue (Axiom B).
+    // confidence-ranked /audit queue (Axiom B).
     const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"))
     expect(hrefs).not.toContain("/reconciliation")
     expect(hrefs).not.toContain("/reconciliation/unmatched")
-    // Both the risk-radar card and the unmatched-alerts CTA point at /attention.
-    const attentionLinks = hrefs.filter((href) => href === "/attention")
+    // Both the risk-radar card and the unmatched-alerts CTA point at /audit.
+    const attentionLinks = hrefs.filter((href) => href === "/audit")
     expect(attentionLinks.length).toBeGreaterThanOrEqual(2)
   })
 

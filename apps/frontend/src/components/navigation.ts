@@ -16,7 +16,6 @@ import {
     Plus,
     ShieldCheck,
     SlidersHorizontal,
-    TrendingDown,
     UploadCloud,
     Wallet,
     Zap,
@@ -42,7 +41,6 @@ export const APP_ROUTES = {
     AUDIT: "/audit",
     MORE: "/more",
     CHAT: "/chat",
-    CONFIDENCE: "/confidence",
     PROCESSING: "/processing",
     ACCOUNTS: "/accounts",
     JOURNAL: "/journal",
@@ -58,9 +56,7 @@ export const APP_ROUTES = {
     REPORTS_CASH_FLOW: "/reports/cash-flow",
     REPORTS_PACKAGE: "/reports/package",
     SETTINGS: "/settings",
-    ATTENTION: "/attention",
     ACCOUNTS_PROCESSING: "/accounts/processing",
-    REVIEW_AI_SUGGESTIONS: "/review/ai-suggestions",
     PING_PONG: "/ping-pong",
     LOGIN: "/login",
 } as const;
@@ -84,7 +80,6 @@ export const ADD_ACTION = { icon: Plus, label: "Add" } as const;
 // `/audit` hub cards — verify-on-demand machinery folded out of navigation.
 // Each deep-links to an existing page (which back-links to `/audit`).
 export const auditHubItems: NavItem[] = [
-    { icon: TrendingDown, label: "Trust", href: APP_ROUTES.CONFIDENCE, protected: true },
     { icon: Link2, label: "Reconciliation", href: APP_ROUTES.RECONCILIATION, protected: true },
     { icon: BookOpen, label: "Journal", href: APP_ROUTES.JOURNAL, protected: true },
     { icon: UploadCloud, label: "Statements", href: APP_ROUTES.UPLOAD, protected: true },
@@ -108,7 +103,6 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/": { label: "Home", Icon: Home },
     "/upload": { label: "Upload", Icon: UploadCloud },
     "/notifications": { label: "Notifications", Icon: Bell },
-    "/attention": { label: "Needs attention", Icon: ShieldCheck },
     "/audit": { label: "Audit", Icon: ShieldCheck },
     "/more": { label: "More", Icon: MoreHorizontal },
     // Legacy routes redirect to the new IA; keep label/icon mappings so any
@@ -136,9 +130,7 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/reconciliation": { label: "Reconciliation", Icon: Link2 },
     "/reconciliation/unmatched": { label: "Unmatched", Icon: Link2 },
     "/reconciliation/review-queue": { label: "Review Queue", Icon: Link2 },
-    "/review/ai-suggestions": { label: "AI Suggestions", Icon: ClipboardCheck },
     "/processing": { label: "Processing", Icon: Clock },
-    "/confidence": { label: "Confidence Trend", Icon: TrendingDown },
     "/chat": { label: "Chat", Icon: MessageSquare },
     "/settings": { label: "Settings", Icon: SlidersHorizontal },
     "/settings/general": { label: "General Settings", Icon: Coins },

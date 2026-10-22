@@ -42,7 +42,7 @@ describe("Home trust meter (EPIC-022 AC22.6.2)", () => {
     expect(screen.getByText("Needs your confirmation").previousSibling).toHaveTextContent("2");
     // unmatched is below the low-confidence threshold.
     expect(screen.getByText("Low confidence").previousSibling).toHaveTextContent("1");
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/attention");
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/audit");
   });
 
   it("AC22.6.2 stays silent when nothing needs attention", async () => {

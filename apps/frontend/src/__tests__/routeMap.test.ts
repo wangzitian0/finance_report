@@ -112,4 +112,21 @@ describe("route map (single source of truth for routes)", () => {
       expect(entry?.state, `flow #${flow.id} ui_surface ${flow.ui_surface} is a redirect`).not.toBe("redirect")
     }
   })
+
+  // AC-meta.fe-audit-queue.1
+  it("AC-meta.fe-audit-queue.1 redirects each old audit-queue route to /audit and keeps the run id", async () => {
+    const redirects = (await nextConfig.redirects?.()) ?? []
+    const destinationOf = (source: string) =>
+      redirects.find((r: { source: string }) => r.source === source)?.destination
+    expect(destinationOf("/attention")).toBe("/audit")
+    expect(destinationOf("/confidence")).toBe("/audit")
+    expect(destinationOf("/review/ai-suggestions")).toBe("/audit")
+    expect(destinationOf("/review/run/:runId")).toBe("/audit?run_id=:runId")
+
+    const pages = discoverPageRoutes(APP_DIR)
+    for (const oldRoute of ["/attention", "/confidence", "/review/ai-suggestions", "/review/run/[runId]"]) {
+      expect(byPath.get(oldRoute)?.state, `${oldRoute} must be a redirect`).toBe("redirect")
+      expect(pages, `${oldRoute} must have no page.tsx`).not.toContain(oldRoute)
+    }
+  })
 })

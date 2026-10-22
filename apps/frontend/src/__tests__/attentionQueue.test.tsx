@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import AttentionPage from "@/app/(main)/attention/page";
+import { NeedsConfirmationQueue } from "@/components/audit/NeedsConfirmationQueue";
 import { apiOperation } from "@/lib/api-client";
 
 vi.mock("next/link", () => ({
@@ -48,13 +48,13 @@ describe("Attention queue (EPIC-022 AC22.6)", () => {
       processing: [],
     });
 
-    render(<AttentionPage />);
+    render(<NeedsConfirmationQueue />);
 
     const rows = await screen.findAllByRole("link");
     // Unmatched (confidence 0) comes before the parsed statement (40) before pending review (80).
     expect(rows[0]).toHaveAttribute("href", "/reconciliation/unmatched?from=attention");
     expect(rows[1]).toHaveAttribute("href", "/statements/bad/review?from=attention");
-    expect(rows[2]).toHaveAttribute("href", "/review?from=attention");
+    expect(rows[2]).toHaveAttribute("href", "/reconciliation?from=attention");
 
     expect(within(rows[1]).getByText("bad.pdf")).toBeInTheDocument();
     expect(within(rows[0]).getByText("0% confidence")).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe("Attention queue (EPIC-022 AC22.6)", () => {
       processing: [],
     });
 
-    render(<AttentionPage />);
+    render(<NeedsConfirmationQueue />);
 
     await waitFor(() => expect(screen.getByText("All clear")).toBeInTheDocument());
     expect(screen.queryAllByRole("link")).toHaveLength(0);
@@ -87,9 +87,9 @@ describe("Attention queue (EPIC-022 AC22.6)", () => {
         : Promise.resolve(null as any),
     );
 
-    render(<AttentionPage />);
+    render(<NeedsConfirmationQueue />);
 
-    await waitFor(() => expect(screen.getByText("Couldn't load your attention items")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Couldn't load the items that need confirmation")).toBeInTheDocument());
     expect(screen.getByText("offline")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
@@ -111,13 +111,13 @@ describe("Attention queue (EPIC-022 AC22.6)", () => {
       return Promise.resolve({ items: [], total: 0 } as any);
     });
 
-    render(<AttentionPage />);
+    render(<NeedsConfirmationQueue />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
 
     const row = await screen.findByRole("link", { name: /late\.pdf/ });
     expect(row).toHaveAttribute("href", "/statements/late/review?from=attention");
-    expect(screen.queryByText("Couldn't load your attention items")).not.toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load the items that need confirmation")).not.toBeInTheDocument();
     const reads = (operationId: string) =>
       mockedApiOperation.mock.calls.filter(([calledId]) => calledId === operationId).length;
     expect(reads("list_statements_statements_get")).toBe(2);

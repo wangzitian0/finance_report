@@ -1,14 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import CorrectionLoopPage from "@/app/(main)/confidence/page";
+import { CorrectionLoopProof } from "@/components/audit/CorrectionLoopProof";
 import { apiOperation } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 
 const mockedApiOperation = vi.mocked(apiOperation);
 
-describe("Correction loop proof page", () => {
+describe("Correction loop proof", () => {
   beforeEach(() => mockedApiOperation.mockReset());
 
   it("renders held-out replay without a source-type confidence trend", async () => {
@@ -20,15 +20,13 @@ describe("Correction loop proof page", () => {
       reduced: true,
     });
 
-    render(<CorrectionLoopPage />);
+    render(<CorrectionLoopProof />);
 
     expect(await screen.findByText("30.0%")).toBeInTheDocument();
     expect(screen.getByText("18.0%")).toBeInTheDocument();
     expect(screen.getByText("Improves extraction")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open attention queue" })).toHaveAttribute(
-      "href",
-      "/attention",
-    );
+    expect(screen.getByRole("heading", { name: "Correction Loop Proof" })).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(screen.queryByText(/TraceRecord/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/posted facts/i)).not.toBeInTheDocument();
   });
@@ -44,7 +42,7 @@ describe("Correction loop proof page", () => {
         proportion_after: "0.18000",
         reduced: true,
       });
-      render(<CorrectionLoopPage />);
+      render(<CorrectionLoopProof />);
       await waitFor(() =>
         expect(screen.getByText("Couldn't load correction-loop proof")).toBeInTheDocument(),
       );

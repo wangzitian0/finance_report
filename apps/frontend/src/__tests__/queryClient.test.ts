@@ -1,6 +1,6 @@
 // #2583 S4 — cache invalidation after a mutation.
 //
-// Home, /attention and the report pages keep ledger-derived reads in the cache for one minute.
+// Home, /audit and the report pages keep ledger-derived reads in the cache for one minute.
 // A successful mutation can change them, so the app client marks them stale. These tests drive a
 // real QueryClient from `createAppQueryClient`; only the mutation function is a stub.
 

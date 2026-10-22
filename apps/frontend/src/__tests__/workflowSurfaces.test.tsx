@@ -131,8 +131,8 @@ describe("workflow notification surfaces", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Workflow events/i }))
     const dialog = await screen.findByRole("dialog", { name: "Workflow events" })
 
-    const link = within(dialog).getByRole("link", { name: /attention queue/i })
-    expect(link).toHaveAttribute("href", "/attention")
+    const link = within(dialog).getByRole("link", { name: /needs confirmation/i })
+    expect(link).toHaveAttribute("href", "/audit")
 
     // Following the link closes the notification sheet.
     fireEvent.click(link)

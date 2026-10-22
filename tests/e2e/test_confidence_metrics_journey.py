@@ -17,7 +17,7 @@ deployed revision that:
 * The system-wide low-confidence statement ratio is strictly computed from non-empty
   statements (total_statements == 2, low_confidence_statements == 1, ratio == 0.5)
   with no empty-database fallback.
-* The browser UI renders the replay metrics on /confidence and the uploaded
+* The browser UI renders the replay metrics on /audit and the uploaded
   statements on /statements.
 """
 
@@ -326,10 +326,8 @@ async def test_proportion_of_low_confidence_data_is_measured(
         )
         assert statement_low_confidence_ratio == EXPECTED_LOW_CONFIDENCE_RATIO
 
-        # 5. Verify browser UI rendering on /confidence and /statements.
-        await page.goto(
-            f"{APP_URL.rstrip('/')}/confidence", wait_until="domcontentloaded"
-        )
+        # 5. Verify browser UI rendering on /audit and /statements.
+        await page.goto(f"{APP_URL.rstrip('/')}/audit", wait_until="domcontentloaded")
         await expect(page.locator("main")).to_contain_text(
             "Correction Loop Proof", timeout=30000
         )

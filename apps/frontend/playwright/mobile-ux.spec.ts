@@ -206,7 +206,7 @@ test.beforeEach(async ({ page }) => {
 
 // AC-reconciliation.fe-stage2-review.12
 test("AC16.25.1 mobile review routes avoid document horizontal scrolling", async ({ page }) => {
-  await gotoReady(page, "/review/ai-suggestions");
+  await gotoReady(page, "/audit");
   await expect(page.getByTestId("ai-suggestions-mobile-list")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
   await expectNoDocumentHorizontalScroll(page);
   // The mobile bottom tab bar is always present and must not cause overflow.
@@ -221,7 +221,7 @@ test("AC16.25.1 mobile review routes avoid document horizontal scrolling", async
 
 // AC-reconciliation.fe-stage2-review.13
 test("AC16.25.2 AI suggestions mobile cards expose feedback actions", async ({ page }) => {
-  await gotoReady(page, "/review/ai-suggestions");
+  await gotoReady(page, "/audit");
 
   const card = page.getByTestId("ai-suggestion-mobile-card-suggestion-mobile");
   await expect(card).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
@@ -261,7 +261,7 @@ test("AC16.26.2 stage 2 mobile queue exposes selectable match cards and batch ac
 });
 
 test("AC16.26.3 stage 2 run review preserves mobile approval gate and match workflow", async ({ page }) => {
-  await gotoReady(page, "/review/run/run-mobile-1");
+  await gotoReady(page, "/audit?run_id=run-mobile-1");
 
   await expect(page.getByText("Run approval gate")).toBeVisible();
   await expect(page.getByRole("button", { name: "Approve Run", exact: true })).toBeVisible();
@@ -314,7 +314,7 @@ test.describe("375px mobile review proof", () => {
     await expect(page.getByRole("button", { name: "Approve Selected", exact: true })).toBeVisible();
     await expectNoDocumentHorizontalScroll(page);
 
-    await gotoReady(page, "/review/run/run-mobile-1");
+    await gotoReady(page, "/audit?run_id=run-mobile-1");
     await expect(page.getByRole("button", { name: "Approve Run", exact: true })).toBeVisible();
     await expect(page.getByTestId("stage2-mobile-match-card-match-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
     await expectNoDocumentHorizontalScroll(page);

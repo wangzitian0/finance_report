@@ -35,12 +35,12 @@ describe("SmartBackLink (BUG-10 dynamic back navigation)", () => {
     expect(screen.getByText("Return to Reports")).toBeInTheDocument();
   });
 
-  it("routes to attention queue when attention origin is present", () => {
+  it("routes to the needs-confirmation queue when attention origin is present", () => {
     navigationState.searchParams = new URLSearchParams("from=attention");
     render(<SmartBackLink fallbackHref="/reports" fallbackLabel="Back to Reports" />);
     const link = screen.getByTestId("smart-back-link");
-    expect(link).toHaveAttribute("href", "/attention");
-    expect(screen.getByText("Back to Attention queue")).toBeInTheDocument();
+    expect(link).toHaveAttribute("href", "/audit");
+    expect(screen.getByText("Back to Needs Confirmation")).toBeInTheDocument();
 
     // Click should not prevent default
     fireEvent.click(link);
