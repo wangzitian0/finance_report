@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Body, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from sqlalchemy import func, select
@@ -572,18 +572,12 @@ async def retry_statement_parsing(
 async def list_statements(
     db: DbSession,
     user_id: CurrentUserId,
-    include_transactions: Annotated[
-        bool,
-        Query(
-            description=(
-                "Embed the atomic transactions of each statement. Default is false. "
-                "Then each item has an empty transactions list and the list uses a fixed number of SQL statements. "
-                "Use GET /statements/{id}/transactions to read the rows of one statement."
-            )
-        ),
-    ] = False,
 ) -> BankStatementListResponse:
-    """List all statements for the current user."""
+    """List all statements for the current user.
+
+    Each item has an empty transactions list, and the list uses a fixed number of SQL statements.
+    Use GET /statements/{id}/transactions to read the rows of one statement.
+    """
     result = await db.execute(
         select(StatementSummary)
         .where(
@@ -604,11 +598,8 @@ async def list_statements(
     )
     total = total_result.scalar() or 0
 
-    if include_transactions:
-        items = [await _compose_statement_response(db, s, user_id) for s in statements]
-    else:
-        documents = await _resolve_uploaded_documents(db, statements, user_id)
-        items = [compose_statement_response(s, documents[s.id], []) for s in statements]
+    documents = await _resolve_uploaded_documents(db, statements, user_id)
+    items = [compose_statement_response(s, documents[s.id], []) for s in statements]
     return BankStatementListResponse(items=items, total=total)
 
 

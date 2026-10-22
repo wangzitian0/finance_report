@@ -961,6 +961,9 @@ export interface paths {
         /**
          * List Statements
          * @description List all statements for the current user.
+         *
+         *     Each item has an empty transactions list, and the list uses a fixed number of SQL statements.
+         *     Use GET /statements/{id}/transactions to read the rows of one statement.
          */
         get: operations["list_statements_statements_get"];
         put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
@@ -9803,13 +9806,7 @@ export interface operations {
         };
     };
     list_statements_statements_get: {
-        parameters: {
-            query?: {
-                /** @description Embed the atomic transactions of each statement. Default is false. Then each item has an empty transactions list and the list uses a fixed number of SQL statements. Use GET /statements/{id}/transactions to read the rows of one statement. */
-                include_transactions?: boolean;
-            };
-            header?: never; path?: never; cookie?: never;
-        };
+        parameters: { query?: never; header?: never; path?: never; cookie?: never; };
         requestBody?: never;
         responses: {
             /** @description Successful Response */
@@ -9824,8 +9821,6 @@ export interface operations {
             404: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
             /** @description Conflict */
             409: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
-            /** @description Validation Error */
-            422: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["HTTPValidationError"]; }; };
             /** @description Too many requests */
             429: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
             /** @description Internal server error */
