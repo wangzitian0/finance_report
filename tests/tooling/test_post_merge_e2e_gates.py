@@ -480,13 +480,17 @@ def test_AC8_13_1_to_5_full_statement_journey_contract() -> None:
         test_body,
         'a[href="/statements/{statement_id}"]',
         "filter(has_text=INSTITUTION_LABEL).first",
+        # The statement page is the review page (#2621 LB); no separate review route.
+        "/review$",
+        "Start Review",
     )
     _has(
         test_body,
         '"parsed"',
         "# === AC8.13.3: Detail page shows transactions ===",
         "Transactions",
-        "# === AC8.13.4: Start Review",
+        "# === AC8.13.4: approve via ConfirmDialog on the statement page ===",
+        'get_by_role("button", name="Approve", exact=True)',
         "approved",
         "# === AC8.13.5: Balance sheet report loads ===",
         "/reports/balance-sheet",
@@ -4605,12 +4609,10 @@ def test_AC8_13_28_vision_hard_gate_requires_economic_review_before_approval() -
 
     _has(
         test_body,
-        'review_path = f"/statements/{statement_id}/review"',
-        # #2586: the upload list also links to review_path. The gate waits for the detail page,
-        # then selects the detail-page link by role and name.
+        # The statement page is the review page (#2621 LB): one click from the upload list.
+        'await page.goto(_get_url("/upload")',
+        "await statement_link.click()",
         'rf"/statements/{re.escape(statement_id)}$"',
-        'get_by_role("link", name="Start Review →", exact=True)',
-        'to_have_attribute("href", review_path',
         "page.expect_response(",
         'get_by_role("button", name="Approve", exact=True)',
         "approve_response.status == 409",
@@ -4618,8 +4620,8 @@ def test_AC8_13_28_vision_hard_gate_requires_economic_review_before_approval() -
         'reviewed_statement["stage1_status"] == "pending_review"',
         'journal_body["total"] == 0',
     )
-    # An href-only locator matches the upload-list link before the detail page loads (#2586).
-    _lacks(test_body, "f\"a[href='{review_path}']\"")
+    # The retired review route must not come back (#2621 LB).
+    _lacks(test_body, "review_path", "/review$", "Start Review")
 
 
 def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> None:

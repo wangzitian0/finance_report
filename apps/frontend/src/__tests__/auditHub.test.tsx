@@ -74,7 +74,7 @@ describe("Audit hub (EPIC-022 AC22.21.3)", () => {
         const hrefs = (await within(queue).findAllByRole("link")).map((link) => link.getAttribute("href"));
         expect(hrefs).toEqual([
             "/reconciliation/unmatched?from=attention",
-            "/statements/s1/review?from=attention",
+            "/statements/s1?from=attention",
             "/reconciliation?from=attention",
         ]);
         expect((await screen.findAllByText("COFFEE SHOP")).length).toBeGreaterThan(0);
