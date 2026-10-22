@@ -16,6 +16,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -23,6 +24,7 @@ from sqlalchemy import (
     event,
     exists,
     select,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, aliased, mapped_column, relationship
@@ -105,6 +107,14 @@ class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
             "OR (decision_authority_state = 'legacy_unproven' "
             "AND decision_anchor_id IS NULL)",
             name="ck_journal_entries_decision_anchor_complete",
+        ),
+        # Each report statement excludes an entry that a void-reversal entry points to
+        # (``active_journal_entry_filter``). Without this index, each statement scans the
+        # journal entries of all users. Most entries are not void, so the index is partial (#2617).
+        Index(
+            "ix_journal_entries_void_reversal_entry_id",
+            "void_reversal_entry_id",
+            postgresql_where=text("void_reversal_entry_id IS NOT NULL"),
         ),
     )
 

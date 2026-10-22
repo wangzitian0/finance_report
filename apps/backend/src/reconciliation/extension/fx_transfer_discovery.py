@@ -122,6 +122,7 @@ async def _load_asset_legs(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
         .where(Account.type == AccountType.ASSET)
+        .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.status.in_(_DISCOVERY_STATUSES))
         .where(JournalEntry.entry_date <= as_of_date)
     )

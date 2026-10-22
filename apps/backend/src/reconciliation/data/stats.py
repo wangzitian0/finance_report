@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import distinct, func, or_, select
+from sqlalchemy import any_, bindparam, distinct, func, or_, select
+from sqlalchemy.dialects.postgresql import ARRAY, UUID as PGUUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE
@@ -52,16 +53,21 @@ async def get_reconciliation_stats(
     A transaction is "matched" when it has an active (non-superseded)
     accepted/auto-accepted match; "unmatched" otherwise.
     """
-    # Total effective atomic transactions for the user
+    # The effective transactions of the user. The membership filter is costly, so it runs once.
+    # Each later statement names these ids. A statement on ``reconciliation_matches`` then reads
+    # the matches of these transactions through the ``atomic_txn_id`` index. A match has no
+    # ``user_id``: a join without the ids lets the planner scan the matches of all users (#2617).
     effective_filter = effective_statement_transaction_filter(user_id)
-    total_result = await db.execute(select(func.count(AtomicTransaction.id)).where(effective_filter))
-    total = total_result.scalar_one()
+    effective_ids = list((await db.execute(select(AtomicTransaction.id).where(effective_filter))).scalars())
+    total = len(effective_ids)
+    effective_ids_array = bindparam("effective_ids", effective_ids, type_=ARRAY(PGUUID(as_uuid=True)), unique=True)
+    is_effective = AtomicTransaction.id == any_(effective_ids_array)
+    match_is_effective = ReconciliationMatch.atomic_txn_id == any_(effective_ids_array)
 
-    # Match status counts via ReconciliationMatch joined on atomic_txn_id
+    # Match status counts over the matches of the effective transactions
     match_base = (
         select(func.count(ReconciliationMatch.id))
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(effective_filter)
+        .where(match_is_effective)
         .where(ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED)
         .where(ReconciliationMatch.superseded_by_id.is_(None))
     )
@@ -71,6 +77,7 @@ async def get_reconciliation_stats(
     # statement (#2465). Counting distinct ids keeps match_rate at most 100%.
     accepted_match_ids = (
         select(ReconciliationMatch.atomic_txn_id)
+        .where(match_is_effective)
         .where(ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED)
         .where(ReconciliationMatch.superseded_by_id.is_(None))
         .where(
@@ -85,7 +92,7 @@ async def get_reconciliation_stats(
     posted_source_ids = posted_statement_source_ids(user_id)
     matched_result = await db.execute(
         select(func.count(distinct(AtomicTransaction.id)))
-        .where(effective_filter)
+        .where(is_effective)
         .where(
             or_(
                 AtomicTransaction.id.in_(accepted_match_ids),
@@ -95,12 +102,11 @@ async def get_reconciliation_stats(
     )
     pending_result = await db.execute(
         select(func.count(distinct(ReconciliationMatch.atomic_txn_id)))
-        .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-        .where(effective_filter)
+        .where(match_is_effective)
         .where(ReconciliationMatch.status == ReconciliationStatus.PENDING_REVIEW)
         .where(ReconciliationMatch.superseded_by_id.is_(None))
-        .where(AtomicTransaction.id.notin_(accepted_match_ids))
-        .where(AtomicTransaction.id.notin_(posted_source_ids))
+        .where(ReconciliationMatch.atomic_txn_id.notin_(accepted_match_ids))
+        .where(ReconciliationMatch.atomic_txn_id.notin_(posted_source_ids))
     )
     auto_result = await db.execute(match_base.where(ReconciliationMatch.status == ReconciliationStatus.AUTO_ACCEPTED))
 
@@ -114,8 +120,7 @@ async def get_reconciliation_stats(
     if include_distribution:
         score_result = await db.execute(
             select(ReconciliationMatch.match_score)
-            .join(AtomicTransaction, ReconciliationMatch.atomic_txn_id == AtomicTransaction.id)
-            .where(effective_filter)
+            .where(match_is_effective)
             .where(ReconciliationMatch.status.notin_((ReconciliationStatus.REJECTED, ReconciliationStatus.SUPERSEDED)))
             .where(ReconciliationMatch.superseded_by_id.is_(None))
         )
