@@ -124,7 +124,7 @@ Full observability reference: [common/observability/observability.md](../../comm
 
 **Variable classification**:
 - **Required** (`secrets.ctmpl`): `DATABASE_URL`, `S3_*`
-- **Optional** (`config.py` defaults): `DEBUG`, `BASE_CURRENCY`, `AI_PROVIDER`, `ZAI_API_KEY`, `AI_BASE_URL`, `PRIMARY_MODEL`, `OCR_MODEL`, `VISION_MODEL`, `AI_JSON_TIMEOUT_SECONDS`, `AI_JSON_MAX_TOKENS`, `AI_JSON_DISABLE_THINKING`, `REDIS_URL`
+- **Optional** (`config.py` defaults): `DEBUG`, `BASE_CURRENCY`, `AI_PROVIDER`, `ZAI_API_KEY`, `AI_BASE_URL`, `LARGE_MODEL`, `SMALL_MODEL`, `MULTIMODAL_MODEL`, `AI_JSON_TIMEOUT_SECONDS`, `AI_JSON_MAX_TOKENS`, `AI_JSON_DISABLE_THINKING`, `REDIS_URL`
 - **Infrastructure** (direnv managed): `DOKPLOY_*`, `VAULT_*`, `VPS_*`
 
 Full reference: [common/meta/development.md](../../common/meta/development.md)

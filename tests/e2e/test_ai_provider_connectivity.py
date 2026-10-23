@@ -28,11 +28,9 @@ def _sdk_default_model_ids() -> frozenset[str]:
 
     sdk = LlmSettings()
     ids = (
-        sdk.primary_model,
-        sdk.ocr_model,
-        sdk.vision_model,
-        *sdk.fallback_models,
-        *sdk.vision_fallback_models,
+        sdk.role_model("large"),
+        sdk.role_model("small"),
+        sdk.role_model("multimodal"),
     )
     return frozenset(model_id for model_id in ids if model_id)
 

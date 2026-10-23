@@ -585,3 +585,26 @@ async def test_AC_llm_provider_error_code_1_real_429_message_text_never_reaches_
     assert text == "LLM provider call failed (RateLimitError, http 429, provider code 1113)"
     for leaked in ("sk-SECRET", "Bearer", "https://"):
         assert leaked not in text
+
+
+@pytest.mark.parametrize(
+    ("model_id", "adapted"),
+    [
+        ("glm-5.3", True),
+        ("glm-5.3-flash", True),
+        ("openai/GLM-5.3-FlashX", True),
+        ("glm-5.3-turbo", True),  # a later member of the family: no id list to update
+        ("glm-5.2", False),
+        ("glm-5.3-flash-extra", False),
+        ("gpt-4o", False),
+    ],
+)
+def test_glm53_adapter_applies_by_model_family_not_by_id_list(model_id, adapted):
+    """AC-llm.2.7: the GLM 5.3 wire adapter decides by model family, so no model id is listed in the client."""
+    decode = DecodeParams(reasoning=ReasoningEffort.NONE, extra_body={"thinking": {"type": "disabled"}})
+    kwargs = client_mod._base_kwargs(
+        provider=_provider(), model_id=model_id, messages=[{"role": "user", "content": "x"}], decode=decode
+    )
+
+    assert (kwargs["extra_body"]["thinking"]["type"] == "enabled") is adapted
+    assert ("allowed_openai_params" in kwargs) is adapted

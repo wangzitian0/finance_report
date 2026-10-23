@@ -229,7 +229,7 @@ async def _queue_statement_reparse(
         await db.commit()
         await db.refresh(statement)
     request_id = ensure_request_id()
-    model_to_use = None if model == settings.ocr_model else model
+    model_to_use = None if model == settings.multimodal_model else model
     task = await submit_parse_pipeline(
         job=ParseJob(
             statement_id=statement.id,
@@ -404,7 +404,7 @@ async def upload_statement(
 
     statement_id = uuid4()
     request_id = ensure_request_id()
-    model_to_use = None if model == settings.ocr_model else model
+    model_to_use = None if model == settings.multimodal_model else model
     logger.info(
         "statement.upload.accepted",
         audit_event="statement.upload.accepted",

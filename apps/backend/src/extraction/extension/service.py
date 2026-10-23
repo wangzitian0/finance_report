@@ -96,11 +96,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
     def __init__(self) -> None:
         self.api_key = settings.ai_api_key
         self.base_url = settings.ai_base_url
-        self.primary_model = settings.primary_model
-        self.vision_model = settings.vision_model
-        self.ocr_model = settings.ocr_model
-        self.fallback_models = settings.fallback_models
-        self.vision_fallback_models = settings.vision_fallback_models
+        self.small_model = settings.small_model
+        self.multimodal_model = settings.multimodal_model
+        # One multimodal role serves OCR and vision, so the dedicated layout OCR path
+        # (`ocr_model != vision_model`) never runs. A follow-up deletes that dead path.
+        self.vision_model = self.multimodal_model
+        self.ocr_model = self.multimodal_model
         self.deduplication_service = DeduplicationService()
         # Injectable region re-extraction backend for the under-extraction repair
         # pass (#1140 / AC13.20). ``None`` => the repair hook is a safe no-op: the
@@ -1305,9 +1306,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             file_type=file_type,
             institution=institution,
             provider=settings.ai_provider,
-            primary_model=self.primary_model,
-            ocr_model=self.ocr_model,
-            vision_model=self.vision_model,
+            small_model=self.small_model,
+            multimodal_model=self.multimodal_model,
             force_model=force_model,
             pii_warning="PDF/image content may contain PII - prompt instructs AI to ignore it",
         )
@@ -1359,7 +1359,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 )
                 return await self._extract_json_with_models(
                     messages=[{"role": "user", "content": text_prompt}],
-                    models=[self.primary_model, *self.fallback_models],
+                    models=[self.small_model],
                     prompt=text_prompt,
                     institution=institution,
                     file_type=file_type,

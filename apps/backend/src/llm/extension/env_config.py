@@ -70,34 +70,18 @@ def _binding_for(scene: Scene) -> SceneBinding:
     """Map a scene to the model and reasoning of its infra2 SDK role (#2572).
 
     advisor.chat answers the user, so it uses the large role. Vision and OCR use the
-    multimodal role. Every other scene uses the small role (PRIMARY_MODEL).
+    multimodal role. Every other scene uses the small role. There is no fallback chain.
     """
     llm = settings.to_llm_settings()
 
-    if scene is Scene.EXTRACTION_VISION:
-        return SceneBinding(
-            scene,
-            llm.vision_model,
-            fallback_model_ids=llm.vision_fallback_models,
-            reasoning=ReasoningEffort(llm.role_reasoning_effort("multimodal")),
-        )
-    if scene is Scene.EXTRACTION_OCR:
-        return SceneBinding(
-            scene,
-            llm.ocr_model,
-            fallback_model_ids=llm.vision_fallback_models,
-            reasoning=ReasoningEffort(llm.role_reasoning_effort("multimodal")),
-        )
-    if scene is Scene.ADVISOR_CHAT:
-        return SceneBinding(
-            scene,
-            llm.large_model,
-            fallback_model_ids=llm.fallback_models,
-            reasoning=ReasoningEffort(llm.role_reasoning_effort("large")),
-        )
+    if scene in (Scene.EXTRACTION_VISION, Scene.EXTRACTION_OCR):
+        role = "multimodal"
+    elif scene is Scene.ADVISOR_CHAT:
+        role = "large"
+    else:
+        role = "small"
     return SceneBinding(
         scene,
-        llm.primary_model,
-        fallback_model_ids=llm.fallback_models,
-        reasoning=ReasoningEffort(llm.role_reasoning_effort("small")),
+        llm.role_model(role),
+        reasoning=ReasoningEffort(llm.role_reasoning_effort(role)),
     )

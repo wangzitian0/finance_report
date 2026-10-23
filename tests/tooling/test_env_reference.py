@@ -17,7 +17,7 @@ def test_collect_backend_fields_are_grouped_env_fields():
     fields = gen.collect_backend_fields()
     keys = {f["key"] for f in fields}
     # A representative spread of backend env keys, all carrying a group.
-    assert {"DATABASE_URL", "PRIMARY_MODEL", "OTEL_EXPORTER_OTLP_ENDPOINT"} <= keys
+    assert {"DATABASE_URL", "SMALL_MODEL", "OTEL_EXPORTER_OTLP_ENDPOINT"} <= keys
     assert all(f["group"] for f in fields)
     # cached_property helpers are not model_fields and must not appear.
     assert "CORS_ORIGINS_STR" not in keys
@@ -36,8 +36,8 @@ def test_backend_block_uses_example_override_and_real_default():
     block = gen.render_backend_block(fields)
     # Example override (localhost) is what .env.example shows.
     assert "DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432" in block
-    # PRIMARY_MODEL has no override, so its default is shown (AC-runtime.18.2 contract).
-    assert "PRIMARY_MODEL=glm-5.3-flash" in block
+    # SMALL_MODEL has no override, so its default is shown (AC-runtime.18.2 contract).
+    assert "SMALL_MODEL=glm-5.3-flash" in block
 
 
 def test_render_env_example_replaces_managed_region_and_keeps_frontend():

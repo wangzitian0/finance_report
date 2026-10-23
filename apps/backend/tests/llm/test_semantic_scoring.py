@@ -34,7 +34,7 @@ async def test_ai_semantic_score_returns_score():
         ),
     ):
         mock_settings.ai_api_key = "test-key"
-        mock_settings.primary_model = "test-model"
+        mock_settings.small_model = "test-model"
         mock_settings.ai_base_url = "https://test.api"
 
         score = await ai_semantic_score('Bank Transaction: "SALARY ACME CORP"\nJournal Entry: "Monthly salary payment"')
@@ -60,7 +60,7 @@ async def test_ai_semantic_score_returns_low_for_unrelated():
         ),
     ):
         mock_settings.ai_api_key = "test-key"
-        mock_settings.primary_model = "test-model"
+        mock_settings.small_model = "test-model"
         mock_settings.ai_base_url = "https://test.api"
 
         score = await ai_semantic_score(
@@ -83,7 +83,7 @@ async def test_ai_semantic_score_fallback_on_error():
         ),
     ):
         mock_settings.ai_api_key = "test-key"
-        mock_settings.primary_model = "test-model"
+        mock_settings.small_model = "test-model"
         mock_settings.ai_base_url = "https://test.api"
 
         score = await ai_semantic_score("test prompt")
@@ -134,7 +134,7 @@ async def test_ai_semantic_score_empty_response_returns_50():
         ),
     ):
         mock_settings.ai_api_key = "test-key"
-        mock_settings.primary_model = "test-model"
+        mock_settings.small_model = "test-model"
         mock_settings.ai_base_url = "https://test.api"
 
         score = await ai_semantic_score("test prompt")
@@ -160,7 +160,7 @@ async def test_ai_semantic_score_clamps_to_range():
         ),
     ):
         mock_settings.ai_api_key = "test-key"
-        mock_settings.primary_model = "test-model"
+        mock_settings.small_model = "test-model"
         mock_settings.ai_base_url = "https://test.api"
 
         score = await ai_semantic_score("test prompt")

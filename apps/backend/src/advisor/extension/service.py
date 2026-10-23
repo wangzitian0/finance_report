@@ -122,10 +122,9 @@ class AIAdvisorService:
     def __init__(self) -> None:
         self.api_key = settings.ai_api_key
         self.base_url = settings.ai_base_url
-        self.primary_model = settings.primary_model
-        # User-facing answers use the large role of the infra2 SDK (#2572).
+        # User-facing answers use the large role of the infra2 SDK (#2572); no fallback chain.
         self.large_model = settings.large_model
-        self.fallback_models = settings.fallback_models
+        self.small_model = settings.small_model
 
     async def chat_stream(
         self,
@@ -909,7 +908,7 @@ class AIAdvisorService:
         from src.llm import AIStreamError
         from src.observability import ErrorIds
 
-        models = [self.large_model, *self.fallback_models]
+        models = [self.large_model]
         if preferred_model is None and bound is not None:
             try:
                 client = get_llm_client(user_id)

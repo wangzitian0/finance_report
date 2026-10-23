@@ -20,8 +20,13 @@ from infra2_sdk.runtime.llm import LlmSettings
 ROOT = Path(__file__).resolve().parents[2]
 # "glm-5", "glm-5.3-flashx", "GLM-5.1" and "glm5.2" all match.
 GLM_ID = re.compile(r"\bglm-?[0-9](?:[a-z0-9.\-]*[a-z0-9])?", re.IGNORECASE)
+# The three roles, then the retired slots. The retired names stay in the list on purpose:
+# a workflow or compose file that assigns one of them is a model variable and fails the guard.
 # Longest names first, so VISION_FALLBACK_MODELS never reads as FALLBACK_MODELS.
 MODEL_VARS = (
+    "MULTIMODAL_MODEL",
+    "SMALL_MODEL",
+    "LARGE_MODEL",
     "VISION_FALLBACK_MODELS",
     "FALLBACK_MODELS",
     "PRIMARY_MODEL",
@@ -41,12 +46,14 @@ DOCKER_ENV = re.compile(rf"^\s*ENV\s+(?:[A-Z0-9]+_)*?({_VARS})\s+([^\s=]+)\s*$")
 QUOTED = re.compile(r"'([^']*)'|\"([^\"]*)\"")
 # Python or JSON mapping form: "PRIMARY_MODEL": "value".
 MAPPING = re.compile(rf"[\"'](?:[A-Z0-9]+_)*?({_VARS})[\"']\s*:\s*[\"']([^\"']+)[\"']")
-# The GLM 5.3 wire adapter matches these family names to enable thinking; it
-# chooses no model, so its three lines are exempt by exact content.
+# The GLM 5.3 wire adapter matches the model family to enable thinking; it chooses no
+# model, so its one line is exempt by exact content. The SDK should own this rule
+# (step 2 of #2624); then the exemption goes.
 EXEMPT_LINES = {
-    ("apps/backend/src/llm/extension/client.py", '"glm-5.3",'),
-    ("apps/backend/src/llm/extension/client.py", '"glm-5.3-flash",'),
-    ("apps/backend/src/llm/extension/client.py", '"glm-5.3-flashx",'),
+    (
+        "apps/backend/src/llm/extension/client.py",
+        '_GLM_53_FAMILY = re.compile(r"glm-5\\.3(-[a-z]+)?", re.IGNORECASE)',
+    ),
 }
 # The manual cassette recorder calls the z.ai coding plan with thinking disabled,
 # which the glm-5.3 models reject; it records fixtures offline and is no app model
@@ -89,11 +96,9 @@ DOCS = (
 def _sdk_default_model_ids() -> frozenset[str]:
     sdk = LlmSettings()
     ids = (
-        sdk.primary_model,
-        sdk.ocr_model,
-        sdk.vision_model,
-        *sdk.fallback_models,
-        *sdk.vision_fallback_models,
+        sdk.role_model("large"),
+        sdk.role_model("small"),
+        sdk.role_model("multimodal"),
     )
     return frozenset(model_id for model_id in ids if model_id)
 

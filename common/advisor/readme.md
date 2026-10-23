@@ -269,9 +269,9 @@ disclaimer.
 - **Model selection**: the UI pulls available models from
   `/api/llm/catalog` (superseded the retired `/api/ai/models`); the client
   sends the selected `model` in `POST /api/chat`; if omitted, the service
-  uses `PRIMARY_MODEL` and may try `FALLBACK_MODELS`. Statement OCR uses
-  `OCR_MODEL` (falls back to the shared vision OCR path when no separate
-  layout-parsing API exists) and stores transaction amounts as non-negative
+  uses the large role (`LARGE_MODEL`), with no fallback chain. Statement OCR uses
+  the multimodal role (`MULTIMODAL_MODEL`) on the vision OCR path, with no separate
+  layout-parsing API, and stores transaction amounts as non-negative
   `Decimal` with `direction` as the sign source — signed model outputs like
   `{"amount": "-500.00", "direction": "OUT"}` are normalized before balance
   validation and routing.

@@ -123,7 +123,7 @@ services:
       # the environment it runs with actually has it (shell/direnv, or the root
       # `.env` it loads), and omits the key entirely otherwise.
       AI_API_KEY:
-      # AI provider/endpoint paths and model ids (PRIMARY/OCR/VISION/FALLBACK_MODELS)
+      # AI provider/endpoint paths and model ids (LARGE/SMALL/MULTIMODAL_MODEL)
       # are deliberately not pinned here: the infra2 SDK defaults apply (#2566).
       # A duplicate pin here drifted from the code for months (#2005, #2501); the
       # retired AI_MODEL_CATALOG_SOURCE / AI_DAILY_LIMIT_USD knobs (dropped per

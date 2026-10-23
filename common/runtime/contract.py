@@ -122,8 +122,8 @@ CONTRACT = PackageContract(
         # preserved from the original EPIC-012 lineage (AC12.18.* / AC12.20.*
         # -> AC-config.18.*/.20.* -> AC-runtime.18.*/.20.*) so the history stays
         # traceable; they don't collide with runtime's own groups 1-7. ──
-        ac('AC-runtime.18.1', 'PRIMARY_MODEL follows the expected provider pattern (the zai GLM model-id form). Was EPIC-012 AC12.18.1.', 'apps/backend/tests/infra/test_config_contract.py::test_primary_model_format'),
-        ac('AC-runtime.18.2', 'The config.py default for PRIMARY_MODEL matches the .env.example documentation (config↔docs sync). Was EPIC-012 AC12.18.2.', 'apps/backend/tests/infra/test_config_contract.py::test_config_sync_with_env_example'),
+        ac('AC-runtime.18.1', 'SMALL_MODEL follows the expected provider pattern (the zai GLM model-id form). Was EPIC-012 AC12.18.1.', 'apps/backend/tests/infra/test_config_contract.py::test_small_model_format'),
+        ac('AC-runtime.18.2', 'The config.py default for SMALL_MODEL matches the .env.example documentation (config↔docs sync). Was EPIC-012 AC12.18.2.', 'apps/backend/tests/infra/test_config_contract.py::test_config_sync_with_env_example'),
         ac('AC-runtime.18.3', 'BASE_CURRENCY is a valid ISO 4217 currency code (3 uppercase alphabetic chars). Was EPIC-012 AC12.18.3.', 'apps/backend/tests/infra/test_config_contract.py::test_base_currency_format'),
         ac('AC-runtime.18.4', 'S3_BUCKET follows S3 naming conventions (lowercase, 3-63 chars, hyphen-safe). Was EPIC-012 AC12.18.4.', 'apps/backend/tests/infra/test_config_contract.py::test_s3_bucket_format'),
         ac('AC-runtime.18.5', 'JWT_ALGORITHM is one of the allowed secure algorithms (HS256/RS256). Was EPIC-012 AC12.18.5.', 'apps/backend/tests/infra/test_config_contract.py::test_jwt_algorithm_allowed'),
