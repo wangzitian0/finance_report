@@ -59,12 +59,18 @@ _ADJECTIVE = (
 )
 _VERB_OBJECT = r"(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)"
 _FIND_VERB = r"(?:find|see|detect|identify|notice|show|reveal)"
-# These prefixes explain a point. They are no verdict on the ledger: "this does not indicate a
+# These forms explain a point. They are no verdict on the ledger: "this does not indicate a
 # mismatch" (#2633). The section rule below reads a verdict only, never an explanation.
-_EXPLANATION_PREFIX = (
-    rf"(?:not\s+{_VERB_OBJECT}|does\s*n[\x27\']t\s+{_VERB_OBJECT}|does\s+not\s+{_VERB_OBJECT}"
-    rf"|cannot\s+{_VERB_OBJECT}|not\s+a|not\s+an|neither|rather\s+than)"
+_EXPLANATION_FORMS = (
+    rf"not\s+{_VERB_OBJECT}",
+    rf"does\s*n[\x27\']t\s+{_VERB_OBJECT}",
+    rf"does\s+not\s+{_VERB_OBJECT}",
+    rf"cannot\s+{_VERB_OBJECT}",
+    r"not\s+an?",
+    r"neither",
+    r"rather\s+than",
 )
+_EXPLANATION_PREFIX = "(?:" + "|".join(_EXPLANATION_FORMS) + ")"
 _NEGATION_PREFIX = (
     rf"(?:no|zero|without|{_EXPLANATION_PREFIX}|no\s+balance|no\s+ledger"
     rf"|(?:did|do|does)\s*(?:not|n[\x27\']t)\s+{_FIND_VERB}(?:\s+any)?"
@@ -104,19 +110,20 @@ NEGATED_DISCREPANCY_PATTERNS: list[str] = [
 
 # A markdown heading can stand apart from its verdict. The advisor writes the heading, then one
 # sentence of prose, then the verdict (#2633). The heading is neutral when all rules hold:
-#   1. The heading is a label. It ends with a review noun or a question mark. Its words are topic
-#      words and label words only. It has no digit and no symbol. A heading that ends with a topic
-#      word states a finding ("There Is a Discrepancy") and stays a failure.
-#   2. The section of the heading holds a negated verdict. A section ends at the next heading.
-#      An explanation such as "this does not indicate a mismatch" is no verdict.
-#   3. The sentence of that verdict has no hedge word, such as "but", "except" or "if".
+#   1. The heading is a label. It is an ATX line outside a code fence. Its last word is a review
+#      noun, or it ends with "?". Its other words are label words. It has no digit, colon, dash,
+#      comma, slash or symbol. A heading that ends with a topic word states a finding.
+#   2. The section of the heading holds a negated verdict. A section ends at the next ATX heading
+#      outside a code fence. An explanation such as "this does not indicate a mismatch" is no verdict.
+#   3. No verdict sentence holds a hedge word, and none ends with "?".
 #   4. No forbidden token remains in the answer. The final scan checks this rule.
-_NEGATED_MARKER = "[negated_consistency_assertion]"
-_VERDICT_MARKER = "[negated_verdict]"
+# The verdict marker holds upper-case letters. The scan reads a lower-cased answer. So the text of
+# an answer never equals the marker.
+_VERDICT_MARKER = "[NEGATED_VERDICT]"
 _EXPLANATION_START = re.compile(_EXPLANATION_PREFIX, re.IGNORECASE)
 _ATX_HEADING = re.compile(r"^ {0,3}#{1,6}(?:[ \t]|$)")
 _HEADING_MARKS = re.compile(r"^ {0,3}#{1,6}")
-_FENCE = re.compile(r"^ {0,3}(?:```|~~~)")
+_FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 _TOPIC_WORD = re.compile(r"discrepanc(?:y|ies)|imbalances?|mismatch(?:es)?|差额|不一致")
 _END_NOUNS = frozenset(
     {
@@ -126,9 +133,9 @@ _END_NOUNS = frozenset(
     }
 )  # fmt: skip
 _MODIFIER_WORDS = frozenset(
-    {"account", "accounts", "accounting", "balance", "ledger", "and", "the", "your",
-     "are", "there", "any"}
+    {"account", "accounts", "accounting", "balance", "ledger", "and", "the", "your"}
 )  # fmt: skip
+_QUESTION_WORDS = frozenset({"are", "there", "any"})
 _LABEL_WORDS = _MODIFIER_WORDS | _END_NOUNS
 _END_TERMS_ZH = ("检查", "核对", "校验", "复核", "审核", "对账", "结果", "情况")
 _MODIFIER_TERMS_ZH = ("账目", "账务", "余额", "和", "与", "及")
@@ -137,16 +144,21 @@ _HEADING_END = re.compile(
     r"(?<![a-z])(?:" + "|".join(sorted(_END_NOUNS, key=len, reverse=True)) + r")$"
     r"|(?:" + "|".join(_END_TERMS_ZH) + r")$"
 )
-# Only these marks may stand in a label heading. A symbol such as a warning sign is a finding.
-_HEADING_MARK_ONLY = re.compile(r"[\s&:：()（）/,，、.\-—–*_#]*")
+# Only these marks may stand in a label heading: space, "&" and markdown bold or italic marks.
+# A colon, a dash, a comma, a slash or a symbol splits the heading into a title and a finding.
+_HEADING_MARK_ONLY = re.compile(r"[\s&*_]*")
 _HEDGE_WORDS = (
+    "yet", "save for", "besides", "barring", "mostly", "nevertheless", "beyond", "might",
+    "outside", "not true", "false", "untrue", "doubt", "would(?:n't| not) say",
+    "(?:does|do)(?:n't| not) mean",
     "but", "however", "except", "exception", "excluding", "although", "though", "unless",
     "whereas", "while", "only", "if", "assuming", "almost", "nearly", "apart from",
     "other than", "aside from", "wrong", "unclear", "unable", "not sure", "cannot confirm",
     "can't confirm",
 )  # fmt: skip
 _HEDGE_TERMS_ZH = (
-    "但", "不过", "除", "而", "可是", "却", "仅", "只是", "如果", "假设", "几乎", "无法",
+    "但", "不过", "(?<!扣)除", "而", "可是", "却", "仅", "只是", "如果", "假如", "假设", "几乎",
+    "无法", "虽然", "尽管", "以外", "可能", "并非", "不是", "错误",
 )  # fmt: skip
 _HEDGE = re.compile(
     r"(?<![a-z])(?:"
@@ -166,9 +178,9 @@ _NEGATION_SCAN = re.compile(
 
 
 def _mark_negation(match: re.Match[str]) -> str:
-    """Return the marker for a negation. An explanation gets its own marker."""
+    """Return the marker for a verdict. Return a space for an explanation."""
     is_explanation = _EXPLANATION_START.match(match.group(0)) is not None
-    return f" {_NEGATED_MARKER if is_explanation else _VERDICT_MARKER} "
+    return " " if is_explanation else f" {_VERDICT_MARKER} "
 
 
 def _is_label_heading(line: str) -> bool:
@@ -179,9 +191,8 @@ def _is_label_heading(line: str) -> bool:
     if not _TOPIC_WORD.search(text) or not (asks or _HEADING_END.search(text)):
         return False
     rest = _TOPIC_WORD.sub(" ", text)
-    rest = re.sub(
-        r"[a-z]+", lambda m: " " if m.group(0) in _LABEL_WORDS else m.group(0), rest
-    )
+    words = _LABEL_WORDS | _QUESTION_WORDS if asks else _LABEL_WORDS
+    rest = re.sub(r"[a-z]+", lambda m: " " if m.group(0) in words else m.group(0), rest)
     for term in _LABEL_TERMS_ZH:
         rest = rest.replace(term, " ")
     return _HEADING_MARK_ONLY.fullmatch(rest) is not None
@@ -194,17 +205,32 @@ def _has_unhedged_verdict(section_body: str) -> bool:
     return bool(verdicts) and not any(_HEDGE.search(s) for s in verdicts)
 
 
+def _fenced_rows(lines: list[str]) -> list[bool]:
+    """Return one flag per line. True means the line is a code fence line or is inside a fence."""
+    rows: list[bool] = []
+    opener = ""
+    for line in lines:
+        if opener:
+            rows.append(True)
+            stripped = line.strip()
+            indent = len(line) - len(line.lstrip(" "))
+            if (
+                indent <= 3
+                and len(stripped) >= len(opener)
+                and set(stripped) == {opener[0]}
+            ):
+                opener = ""
+        else:
+            match = _FENCE_OPEN.match(line)
+            opener = match.group(1) if match else ""
+            rows.append(match is not None)
+    return rows
+
+
 def _neutralize_review_headings(text: str) -> str:
     """Replace the topic word of a label heading when its own section holds an unhedged verdict."""
     lines = text.split("\n")
-    fenced: list[bool] = []
-    inside_fence = False
-    for line in lines:
-        if _FENCE.match(line):
-            inside_fence = not inside_fence
-            fenced.append(True)
-        else:
-            fenced.append(inside_fence)
+    fenced = _fenced_rows(lines)
     heading_rows = [
         row
         for row, line in enumerate(lines)
@@ -214,7 +240,7 @@ def _neutralize_review_headings(text: str) -> str:
         end = heading_rows[index + 1] if index + 1 < len(heading_rows) else len(lines)
         body = "\n".join(lines[i] for i in range(row + 1, end) if not fenced[i])
         if _is_label_heading(lines[row]) and _has_unhedged_verdict(body):
-            lines[row] = _TOPIC_WORD.sub(f" {_NEGATED_MARKER} ", lines[row])
+            lines[row] = _TOPIC_WORD.sub(" ", lines[row])
     return "\n".join(lines)
 
 
@@ -285,11 +311,8 @@ def assert_ai_advisor_semantic_grounding(
     )
     # One pass over the answer. A look-ahead reads the words of the answer.
     # It does not read the marker of an earlier pattern (#2484).
-    # The markers are private. A marker in the answer text must not count as a verdict.
-    plain_answer = (
-        answer.lower().replace(_VERDICT_MARKER, " ").replace(_NEGATED_MARKER, " ")
-    )
-    sanitized_answer = _NEGATION_SCAN.sub(_mark_negation, plain_answer)
+    # The private markers hold upper-case letters. A lower-cased answer never holds them.
+    sanitized_answer = _NEGATION_SCAN.sub(_mark_negation, answer.lower())
     # A heading with prose before its verdict is read per section (#2633).
     sanitized_answer = _neutralize_review_headings(sanitized_answer)
 

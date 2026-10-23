@@ -9,11 +9,11 @@ AC-testing.benchmarks.17 and 18 (#2633) add the section rule. A markdown label h
 when the section of the heading holds a negated verdict with no hedge word. AC 17 holds the
 accepted shapes. AC 18 holds the bounds: a heading that states a finding, an explanation, a hedge
 word, a verdict in another section and a claim in the section stay failures. Real advisor answer H01
-comes from run 39755911927. Mutated claims F01 to F76 must fail.
+comes from run 39755911927. Mutated claims F01 to F144 must fail. S01 and S02 are known limits.
 
 This file has three groups of tests:
 - Rule tests. Each rule has a test that fails when the rule is removed.
-- A labeled corpus of 165 advisor answers in English and Chinese. The label says what the oracle must do.
+- A labeled corpus of 244 advisor answers in English and Chinese. The label says what the oracle must do.
   One answer is a real advisor answer from a staging run (2026-10-09, run 37968832947).
   One answer is the real failing answer of #2633 (2026-10-22, run 39755911927).
 - Known limits. A limit is a corpus answer that the oracle judges wrongly. It has a strict xfail.
@@ -384,7 +384,7 @@ HEADING_PROSE_FINDING: list[tuple[str, str, str]] = [
         "F13",
         "Net worth: SGD 24,200.00\n\n"
         "## Balance Discrepancy Check\n\n"
-        "I reviewed every account. There are no discrepancies in assets, "
+        "- There are no discrepancies in assets, "
         "but liabilities are SGD 2,900.00 short.\n",
         "discrepancy",
     ),
@@ -392,14 +392,14 @@ HEADING_PROSE_FINDING: list[tuple[str, str, str]] = [
         "F14",
         "Net worth: SGD 24,200.00\n\n"
         "## Balance Discrepancy Check\n\n"
-        "I reviewed every account. There are no discrepancies, except in the brokerage account.\n",
+        "- There are no discrepancies, except in the brokerage account.\n",
         "discrepancy",
     ),
     (
         "F15",
         "Net worth: SGD 24,200.00\n\n"
         "## Balance Discrepancy Check\n\n"
-        "I reviewed every account. There are no discrepancies if you ignore the brokerage account.\n",
+        "- There are no discrepancies if you ignore the brokerage account.\n",
         "discrepancy",
     ),
     (
@@ -635,6 +635,222 @@ HEADING_PROSE_FINDING += [
         "discrepancy",
     ),
 ]
+
+
+# Review round 2 of PR #2638. The reviewer named the flipped verdicts, more hedge words, headings
+# that split into a title and a finding, the fence rules and four surviving mutants.
+HEDGED_VERDICTS_EN_2 = [
+    "There are no discrepancies, yet the brokerage account is SGD 40.00 short.",
+    "Save for the brokerage account, there are no discrepancies.",
+    "Besides the brokerage account, there are no discrepancies.",
+    "Barring the brokerage account, there are no discrepancies.",
+    "There are mostly no discrepancies.",
+    "There are no discrepancies, nevertheless the brokerage account is SGD 40.00 short.",
+    "Beyond the brokerage account, there are no discrepancies.",
+    "There might be no discrepancies.",
+    "Outside the brokerage account, there are no discrepancies.",
+    # A flipped or doubted verdict is no verdict. The inner "no discrepancies" does not count.
+    "It is not true that there are no discrepancies.",
+    "It is false that there are no discrepancies.",
+    "It is untrue that there are no discrepancies.",
+    "I would not say that there are no discrepancies.",
+    "I wouldn't say that there are no discrepancies.",
+    "I doubt that there are no discrepancies.",
+    "This does not mean that there are no discrepancies.",
+    "That doesn't mean there are no discrepancies.",
+    # An abbreviation does not end a sentence, so the hedge word stays in the verdict sentence.
+    "There are no discrepancies in the bank, the card, etc. but the brokerage account is SGD 40.00 short.",
+    "There are no discrepancies, e.g. in the bank, but the brokerage account is SGD 40.00 short.",
+    "There are no discrepancies, i.e. none at all, but the brokerage account is SGD 40.00 short.",
+]
+HEDGED_VERDICTS_ZH_2 = [
+    "假如忽略券商账户，没有发现任何差额。",
+    "虽然券商账户有出入，没有发现任何差额。",
+    "尽管券商账户有出入，没有发现任何差额。",
+    "银行账户以外，没有发现任何差额。",
+    "可能没有发现任何差额。",
+    "并非没有差额。",
+    "不是没有差额。",
+    "说没有差额是错误的。",
+]
+# A late fee is another item. A sentence about it gives no verdict on the ledger.
+NO_VERDICT_SENTENCES = [
+    "Late fees do not create an imbalance.",
+    "A late fee doesn't cause an imbalance.",
+    "A late fee does not cause a mismatch.",
+    "A late fee cannot create a mismatch.",
+    "A late fee is not a discrepancy.",
+    "A late fee is not an imbalance.",
+    "Neither imbalance nor mismatch applies to a late fee.",
+]
+# A heading that splits into a title and a finding, or that asks without a question mark.
+SPLIT_HEADINGS = [
+    (
+        "## There Are Discrepancies \u2014 Review",
+        "The bank accounts show no mismatch.",
+        "discrepancies",
+    ),
+    (
+        "## Discrepancies Are There: Results",
+        "The bank accounts show no mismatch.",
+        "discrepancies",
+    ),
+    (
+        "## Your Accounts Mismatch: Status",
+        "There are no discrepancies in the bank accounts.",
+        "mismatch",
+    ),
+    (
+        "## Imbalance \u2014 Result",
+        "There are no discrepancies in the bank accounts.",
+        "imbalance",
+    ),
+    (
+        "## There Are Discrepancies Review",
+        "The bank accounts show no mismatch.",
+        "discrepancies",
+    ),
+    (
+        "## Discrepancies Are There Results",
+        "The bank accounts show no mismatch.",
+        "discrepancies",
+    ),
+]
+STRAY_MARKS_EN = [":", "\u2014", "\u2013", "/", ",", "-", "!", "(", ")", ".", "#", "?"]
+STRAY_MARKS_ZH = ["\uff1a", "\uff0c", "\u3001", "\uff08", "\uff09", "\u2014"]
+HEADING_PROSE_FINDING += [
+    (f"F{number}", f"{NET}{REVIEWED}{sentence}\n", "discrepancy")
+    for number, sentence in enumerate(HEDGED_VERDICTS_EN_2, start=77)
+]
+HEADING_PROSE_FINDING += [
+    (f"F{number}", f"{NET_ZH}{REVIEWED_ZH}{sentence}\n", "\u5dee\u989d")
+    for number, sentence in enumerate(
+        HEDGED_VERDICTS_ZH_2, start=77 + len(HEDGED_VERDICTS_EN_2)
+    )
+]
+_NEXT = 77 + len(HEDGED_VERDICTS_EN_2) + len(HEDGED_VERDICTS_ZH_2)
+HEADING_PROSE_FINDING += [
+    (f"F{number}", f"{NET}{REVIEWED}{sentence}\n", "discrepancy")
+    for number, sentence in enumerate(NO_VERDICT_SENTENCES, start=_NEXT)
+]
+_NEXT += len(NO_VERDICT_SENTENCES)
+HEADING_PROSE_FINDING += [
+    (f"F{number}", f"{NET}{heading}\n\n{body}\n", token)
+    for number, (heading, body, token) in enumerate(SPLIT_HEADINGS, start=_NEXT)
+]
+_NEXT += len(SPLIT_HEADINGS)
+HEADING_PROSE_FINDING.append(
+    (
+        f"F{_NEXT}",
+        f"{NET_ZH}## \u8d26\u76ee\u4f59\u989d\u4e0d\u4e00\u81f4\uff1a\u7ed3\u679c\n\n\u94f6\u884c\u8d26\u6237\u6ca1\u6709\u53d1\u73b0\u4efb\u4f55\u5dee\u989d\u3002\n",
+        "\u4e0d\u4e00\u81f4",
+    )
+)
+_NEXT += 1
+HEADING_PROSE_FINDING += [
+    (
+        f"F{number}",
+        f"{NET}## Balance {mark} Discrepancy Check\n\n{PROSE_EN}\n",
+        "discrepancy",
+    )
+    for number, mark in enumerate(STRAY_MARKS_EN, start=_NEXT)
+]
+_NEXT += len(STRAY_MARKS_EN)
+HEADING_PROSE_FINDING += [
+    (
+        f"F{number}",
+        f"{NET_ZH}## \u8d26\u76ee{mark}\u5dee\u989d\u68c0\u67e5\n\n{PROSE_ZH}\n",
+        "\u5dee\u989d",
+    )
+    for number, mark in enumerate(STRAY_MARKS_ZH, start=_NEXT)
+]
+_NEXT += len(STRAY_MARKS_ZH)
+HEADING_PROSE_FINDING += [
+    # A verdict inside a tilde fence is no verdict.
+    (
+        f"F{_NEXT}",
+        f"{NET}## Balance Discrepancy Check\n\n~~~\nthere are no discrepancies\n~~~\n",
+        "discrepancy",
+    ),
+    # A fence closes with the same character and with at least as many characters as it opened.
+    (
+        f"F{_NEXT + 1}",
+        f"{NET}````\n```\n## Balance Discrepancy Check\nthere are no discrepancies\n````\n",
+        "discrepancy",
+    ),
+    (
+        f"F{_NEXT + 2}",
+        f"{NET}~~~\n```\n## Balance Discrepancy Check\nthere are no discrepancies\n~~~\n",
+        "discrepancy",
+    ),
+    # A fence line that is indented by 4 spaces is no closing fence.
+    (
+        f"F{_NEXT + 8}",
+        f"{NET}```\n    ```\n## Balance Discrepancy Check\nthere are no discrepancies\n```\n",
+        "discrepancy",
+    ),
+    # The private markers hold upper-case letters. Text of an answer never equals a marker.
+    (
+        f"F{_NEXT + 3}",
+        f"{NET}{REVIEWED}Assets exceed liabilities plus equity by SGD 2,900.00 [negated_consistency_assertion]\n",
+        "discrepancy",
+    ),
+    (
+        f"F{_NEXT + 4}",
+        f"{NET}{REVIEWED}Assets exceed liabilities plus equity by SGD 2,900.00 [NEGATED_VERDICT]\n",
+        "discrepancy",
+    ),
+    (
+        f"F{_NEXT + 5}",
+        f"{NET}{REVIEWED}Assets exceed liabilities plus equity by SGD 2,900.00 [Negated_Verdict]\n",
+        "discrepancy",
+    ),
+    (
+        f"F{_NEXT + 6}",
+        f"{NET}## Balance Discrepancy Check [negated_verdict]\n\nThere are no discrepancies.\n",
+        "discrepancy",
+    ),
+    (
+        f"F{_NEXT + 7}",
+        f"{NET}{REVIEWED}[NEGATED_VERDICT] The brokerage account shows a discrepancy of SGD 40.00.\n",
+        "discrepancy",
+    ),
+]
+# A clean answer. The text of a marker in it changes nothing.
+HEADING_PROSE_CLEAN += [
+    (
+        "H29",
+        f"{NET}No discrepancies found. [negated_verdict] [negated_consistency_assertion] [NEGATED_VERDICT]\n",
+    ),
+    ("H30", f"{NET}## Balance & Ledger Discrepancy Check\n\n{PROSE_EN}\n"),
+    ("H31", f"{NET}## _Balance Discrepancy Check_\n\n{PROSE_EN}\n"),
+    (
+        "H32",
+        f"{NET_ZH}{REVIEWED_ZH}\u6263\u9664\u624b\u7eed\u8d39\u540e\uff0c\u6ca1\u6709\u53d1\u73b0\u4efb\u4f55\u5dee\u989d\u3002\n",
+    ),
+]
+
+
+def test_AC_testing_benchmarks_17_the_ac_text_lists_the_word_lists_of_the_code() -> (
+    None
+):
+    """AC-testing.benchmarks.17: the AC text names the review nouns and the label words of the code."""
+    from common.testing.benchmarks import oracles
+    from common.testing.contract import CONTRACT
+
+    statement = next(
+        record.statement
+        for record in CONTRACT.roadmap
+        if record.id == "AC-testing.benchmarks.17"
+    )
+    for words in (
+        sorted(oracles._END_NOUNS),
+        list(oracles._END_TERMS_ZH),
+        sorted(oracles._MODIFIER_WORDS),
+        list(oracles._MODIFIER_TERMS_ZH),
+        sorted(oracles._QUESTION_WORDS),
+    ):
+        assert ", ".join(words) in statement, words
 
 
 def test_AC_testing_benchmarks_17_the_real_answer_of_run_39755911927_passes() -> None:
@@ -964,6 +1180,24 @@ KNOWN_LIMITS = [
         marks=pytest.mark.xfail(
             strict=True,
             reason="The section rule reads markdown headings that start with '#'. It does not read a bold line as a heading (#2633).",
+        ),
+    ),
+    pytest.param(
+        "S01",
+        "FINDING",
+        "Net worth: SGD 24,200.00\n\n## Balance Discrepancy Check\n\nAssets exceed liabilities plus equity by SGD 2,900.00.\n\nBank accounts\n-------------\nNo discrepancies found in the bank accounts.\n",
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="A setext heading is not a section end. The verdict of the sub-section counts for the section above it (#2633).",
+        ),
+    ),
+    pytest.param(
+        "S02",
+        "FINDING",
+        "Net worth: SGD 24,200.00\n\n## Balance Discrepancy Check\n\nAssets exceed liabilities plus equity by SGD 2,900.00.\n\n**Bank accounts**\n\nNo discrepancies found in the bank accounts.\n",
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="A bold line is not a section end. The verdict of the sub-section counts for the section above it (#2633).",
         ),
     ),
     pytest.param(
