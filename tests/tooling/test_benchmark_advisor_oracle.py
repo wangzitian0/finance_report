@@ -5,10 +5,15 @@ answer that only negates one. The oracle is a keyword check. It reads the first 
 heading. It does not read a clause that contradicts them.
 
 The earlier oracle passed every answer with the words "discrepancy check", whatever followed.
+AC-testing.benchmarks.17 (#2633) adds the section rule. A markdown label heading is neutral when
+the section of the heading holds a negated verdict with no hedge word. Real advisor answer H01
+comes from run 39755911927. Mutated claims F01 to F21 must still fail.
+
 This file has three groups of tests:
 - Rule tests. Each rule has a test that fails when the rule is removed.
-- A labeled corpus of 62 advisor answers in English and Chinese. The label says what the oracle must do.
+- A labeled corpus of 91 advisor answers in English and Chinese. The label says what the oracle must do.
   One answer is a real advisor answer from a staging run (2026-10-09, run 37968832947).
+  One answer is the real failing answer of #2633 (2026-10-22, run 39755911927).
 - Known limits. A limit is a corpus answer that the oracle judges wrongly. It has a strict xfail.
   When a change fixes a limit, the strict xfail fails. Then move the entry to the passing list.
 """
@@ -743,6 +748,24 @@ KNOWN_LIMITS = [
         "净资产 SGD 24,200.00。**差异检查：** 资产比负债加权益多 SGD 2,900，存在两处差异。",
         marks=pytest.mark.xfail(
             strict=True, reason="A Chinese finding without a token word is not read."
+        ),
+    ),
+    pytest.param(
+        "E51",
+        "FINDING",
+        "Net worth: SGD 24,200.00\n\n## Balance Discrepancy Check\n\nThere are no discrepancies in the bank accounts. The brokerage account is SGD 40.00 short.\n",
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="The section rule reads a clean sentence. It does not read a later sentence in the same section that has no token word (#2633).",
+        ),
+    ),
+    pytest.param(
+        "E52",
+        "CLEAN",
+        "Net worth: SGD 24,200.00\n\n**Balance Discrepancy Check**\n\nI verified your records. There are no discrepancies.\n",
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="The section rule reads markdown headings that start with '#'. It does not read a bold line as a heading (#2633).",
         ),
     ),
 ]

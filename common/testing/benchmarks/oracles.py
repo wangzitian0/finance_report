@@ -130,14 +130,12 @@ _HEDGE_WORD = re.compile(
 _SENTENCE_END = re.compile(r"(?<=[.!?;])\s+|[\n。！？；]")
 
 
-def _is_label_heading(line: str, tokens: list[str]) -> bool:
+def _is_label_heading(line: str) -> bool:
     """Return True when the heading has a topic word and no other word except label words."""
     text = _HEADING_MARKS.sub("", line).replace(_NEGATED_MARKER, " ")
     if not _TOPIC_WORD.search(text):
         return False
     text = _TOPIC_WORD.sub(" ", text)
-    if any(token.lower() in text for token in tokens):
-        return False
     text = re.sub(
         r"[a-z]+", lambda m: " " if m.group(0) in _LABEL_WORDS else m.group(0), text
     )
@@ -152,13 +150,13 @@ def _has_unhedged_verdict(section_body: str) -> bool:
     return bool(verdicts) and not any(_HEDGE_WORD.search(s) for s in verdicts)
 
 
-def _neutralize_review_headings(text: str, tokens: list[str]) -> str:
+def _neutralize_review_headings(text: str) -> str:
     """Replace the topic word of a label heading when its own section holds an unhedged verdict."""
     lines = text.split("\n")
     heading_rows = [row for row, line in enumerate(lines) if _ATX_HEADING.match(line)]
     for index, row in enumerate(heading_rows):
         end = heading_rows[index + 1] if index + 1 < len(heading_rows) else len(lines)
-        if _is_label_heading(lines[row], tokens) and _has_unhedged_verdict(
+        if _is_label_heading(lines[row]) and _has_unhedged_verdict(
             "\n".join(lines[row + 1 : end])
         ):
             lines[row] = _TOPIC_WORD.sub(f" {_NEGATED_MARKER} ", lines[row])
@@ -239,7 +237,7 @@ def assert_ai_advisor_semantic_grounding(
         flags=re.IGNORECASE,
     )
     # A heading with prose before its verdict is read per section (#2633).
-    sanitized_answer = _neutralize_review_headings(sanitized_answer, tokens)
+    sanitized_answer = _neutralize_review_headings(sanitized_answer)
 
     for token in tokens:
         assert token.lower() not in sanitized_answer, (
