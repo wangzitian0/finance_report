@@ -78,7 +78,7 @@ def test_empty_seed_env_is_treated_as_none():
 
 def test_seed_is_off_by_default(monkeypatch):
     """AC-extraction.116.5: the seed is off (None) by default, so it is never sent to
-    providers that reject unknown params (e.g. glm-4.6v returns HTTP 400) unless
+    providers that reject unknown params (e.g. test-vision-model returns HTTP 400) unless
     explicitly opted in for a seed-supporting model (#989)."""
     from src.config import Settings
 

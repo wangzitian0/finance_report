@@ -215,7 +215,7 @@ async def test_extract_financial_data_uses_ocr_first_pipeline():
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = "dedicated-layout-model"
-    service.vision_model = "glm-4.6v"
+    service.vision_model = "test-vision-model"
 
     mock_ocr = AsyncMock(return_value="| Date | Amount |\n| 2025-01-01 | 10.00 |")
     mock_extract = AsyncMock(return_value={"transactions": []})
@@ -239,8 +239,8 @@ async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
     """
     service = ExtractionService()
     service.api_key = "test-key"
-    service.ocr_model = "glm-4.6v"
-    service.vision_model = "glm-4.6v"
+    service.ocr_model = "test-vision-model"
+    service.vision_model = "test-vision-model"
     service.vision_fallback_models = ["glm-4.5v"]
 
     mock_ocr = AsyncMock()
@@ -258,7 +258,7 @@ async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
     assert result == {"transactions": []}
     mock_ocr.assert_not_awaited()
     call = mock_extract.await_args.kwargs
-    assert call["models"] == ["glm-4.6v", "glm-4.5v"]
+    assert call["models"] == ["test-vision-model", "glm-4.5v"]
     assert call["messages"][0]["content"][1] == image_payload
 
 
@@ -270,17 +270,17 @@ async def test_vision_path_falls_back_to_secondary_model_on_non_retryable_error(
 
     service = ExtractionService()
     service.api_key = "test-key"
-    service.ocr_model = "glm-4.6v"
-    service.vision_model = "glm-4.6v"
+    service.ocr_model = "test-vision-model"
+    service.vision_model = "test-vision-model"
     service.vision_fallback_models = ["glm-4.5v"]
 
     attempted_models: list[str] = []
 
     def fake_stream_ai_json(*, model, **kwargs):
         attempted_models.append(model)
-        if model == "glm-4.6v":
+        if model == "test-vision-model":
             raise AIStreamError(
-                'provider=zai model=glm-4.6v status_code=400 {"code":"1210","message":"Invalid API parameter"}',
+                'provider=zai model=test-vision-model status_code=400 {"code":"1210","message":"Invalid API parameter"}',
                 retryable=False,
             )
         return f"stream:{model}"
@@ -303,7 +303,7 @@ async def test_vision_path_falls_back_to_secondary_model_on_non_retryable_error(
 
     assert result == {"transactions": []}
     # The primary vision model is attempted first, then the configured fallback.
-    assert attempted_models == ["glm-4.6v", "glm-4.5v"]
+    assert attempted_models == ["test-vision-model", "glm-4.5v"]
 
 
 def test_ocr_model_selection_helpers_deduplicate_vision_models():
@@ -316,42 +316,42 @@ def test_ocr_model_selection_helpers_deduplicate_vision_models():
     service = ExtractionService()
     service.vision_fallback_models = ["glm-4.5v"]
 
-    service.ocr_model = "glm-4.6v"
-    service.vision_model = "glm-4.6v"
+    service.ocr_model = "test-vision-model"
+    service.vision_model = "test-vision-model"
     assert service._uses_dedicated_layout_ocr() is False
-    assert service._vision_extraction_models() == ["glm-4.6v", "glm-4.5v"]
+    assert service._vision_extraction_models() == ["test-vision-model", "glm-4.5v"]
 
     service.ocr_model = "layout-ocr-model"
-    service.vision_model = "glm-4.6v"
+    service.vision_model = "test-vision-model"
     assert service._uses_dedicated_layout_ocr() is True
-    assert service._vision_extraction_models() == ["layout-ocr-model", "glm-4.6v", "glm-4.5v"]
+    assert service._vision_extraction_models() == ["layout-ocr-model", "test-vision-model", "glm-4.5v"]
 
     service.ocr_model = ""
-    service.vision_model = "glm-4.6v"
+    service.vision_model = "test-vision-model"
     assert service._uses_dedicated_layout_ocr() is False
-    assert service._vision_extraction_models() == ["glm-4.6v", "glm-4.5v"]
+    assert service._vision_extraction_models() == ["test-vision-model", "glm-4.5v"]
 
 
 def test_vision_extraction_models_dedupes_fallback_against_primary():
     """AC-extraction.118.1: a vision fallback equal to the primary vision/OCR model is not
     attempted twice; ordering of the remaining fallbacks is preserved (#1034)."""
     service = ExtractionService()
-    service.ocr_model = "glm-4.6v"
-    service.vision_model = "glm-4.6v"
-    service.vision_fallback_models = ["glm-4.6v", "glm-4.5v", "glm-4.5v"]
+    service.ocr_model = "test-vision-model"
+    service.vision_model = "test-vision-model"
+    service.vision_fallback_models = ["test-vision-model", "glm-4.5v", "glm-4.5v"]
 
-    assert service._vision_extraction_models() == ["glm-4.6v", "glm-4.5v"]
+    assert service._vision_extraction_models() == ["test-vision-model", "glm-4.5v"]
 
 
 def test_vision_extraction_models_without_fallbacks_returns_primary_only():
     """AC-extraction.118.1: with no configured vision fallbacks the list is unchanged, so
     deployments that opt out keep the prior single-model behavior (#1034)."""
     service = ExtractionService()
-    service.ocr_model = "glm-4.6v"
-    service.vision_model = "glm-4.6v"
+    service.ocr_model = "test-vision-model"
+    service.vision_model = "test-vision-model"
     service.vision_fallback_models = []
 
-    assert service._vision_extraction_models() == ["glm-4.6v"]
+    assert service._vision_extraction_models() == ["test-vision-model"]
 
 
 def test_render_pdf_pages_rejects_empty_content():
@@ -471,7 +471,7 @@ async def test_extract_json_with_models_handles_httpx_timeout():
         with pytest.raises(ExtractionError, match="All 1 models failed.*timeout"):
             await service._extract_json_with_models(
                 messages=[{"role": "user", "content": "Extract"}],
-                models=["glm-4.6v"],
+                models=["test-vision-model"],
                 prompt="Extract",
                 institution="DBS",
                 file_type="pdf",
@@ -506,7 +506,7 @@ async def test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision
     service = ExtractionService()
     service.api_key = "test-key"
     service.ocr_model = "layout-ocr-model"
-    service.vision_model = "glm-4.6v"
+    service.vision_model = "test-vision-model"
     service.vision_fallback_models = ["glm-4.5v"]
 
     mock_ocr = AsyncMock(side_effect=ExtractionError("layout parser unavailable"))
@@ -525,7 +525,7 @@ async def test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision
     mock_ocr.assert_awaited_once_with(b"content", None, "pdf", "application/pdf")
     call = mock_extract.await_args.kwargs
     # AC-extraction.118.1: the vision fallback model is appended after the primary vision model.
-    assert call["models"] == ["layout-ocr-model", "glm-4.6v", "glm-4.5v"]
+    assert call["models"] == ["layout-ocr-model", "test-vision-model", "glm-4.5v"]
     assert call["messages"][0]["content"][1] == image_payload
 
 

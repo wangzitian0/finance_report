@@ -3,7 +3,7 @@
 EPIC-023 AC-llm.6 / issue #1306. These wire the first batch of LLM-touching
 extraction tests onto the cassette replay path so the parse pipeline's LLM path
 is exercised in CI WITHOUT a key or network. The frozen responses are REAL GLM
-(glm-5.2 / glm-4.6v) completions recorded via the GLM coding plan; in replay
+(glm-5.2 / test-vision-model) completions recorded via the GLM coding plan; in replay
 they are served from committed cassettes (zero key, zero network).
 
 Recording (operator-only, needs the provider key): `make llm-record ARGS='tests/extraction/test_extraction_cassette_replay.py'`
@@ -108,12 +108,12 @@ _VISION_PDF = Path(__file__).resolve().parents[1] / "fixtures" / "vision" / "sim
 # serves frozen again — zero key, zero network, no skip.
 async def test_AC23_6_extraction_vision_happy_path_via_replay() -> None:
     """Text+image (vision) extraction happy-path through the default-config vision
-    path (OCR_MODEL == VISION_MODEL == glm-4.6v), in replay.
+    path (OCR_MODEL == VISION_MODEL == test-vision-model), in replay.
 
     Drives a committed FIXED-BYTES statement PDF through ``ExtractionService``: the
     app renders it to a PNG (deterministic), the vision OCR call replays the frozen
-    glm-4.6v response, and the result must pass the app's own balance validation —
-    which uses amount+direction (IN/OUT), exactly how glm-4.6v reads a statement.
+    test-vision-model response, and the result must pass the app's own balance validation —
+    which uses amount+direction (IN/OUT), exactly how test-vision-model reads a statement.
     NO network, NO key in replay.
     """
     from src.extraction.base.validation import validate_balance

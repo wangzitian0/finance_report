@@ -386,7 +386,7 @@ async def test_AC23_5_4_cassette_completion_all_decode_params_and_dict_response(
         [{"role": "user", "content": "hi"}],
         role="extraction.vision",
         provider=_provider(),
-        model_id="glm-4.6V",
+        model_id="test-vision-model",
         recorder=CassetteRecorder(store, mode=CassetteMode.RECORD),
         decode=DecodeParams(
             reasoning=ReasoningEffort.MEDIUM,

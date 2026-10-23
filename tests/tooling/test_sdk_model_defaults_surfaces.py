@@ -18,7 +18,7 @@ from pathlib import Path
 from infra2_sdk.runtime.llm import LlmSettings
 
 ROOT = Path(__file__).resolve().parents[2]
-# "glm-5", "glm-5.3-flashx", "GLM-5.1" and "glm4.6v" all match.
+# "glm-5", "glm-5.3-flashx", "GLM-5.1" and "glm5.2" all match.
 GLM_ID = re.compile(r"\bglm-?[0-9](?:[a-z0-9.\-]*[a-z0-9])?", re.IGNORECASE)
 # Longest names first, so VISION_FALLBACK_MODELS never reads as FALLBACK_MODELS.
 MODEL_VARS = (
@@ -183,8 +183,8 @@ def test_AC_llm_sdk_model_defaults_2_slot_parser_reads_every_assignment_form() -
         "| `PRIMARY_MODEL` | `glm-5.2` |  |  | AI Provider |": [
             ("PRIMARY_MODEL", "glm-5.2")
         ],
-        "| `FALLBACK_MODELS` |  | `glm-4.6v` |  | AI Provider |": [
-            ("FALLBACK_MODELS", "glm-4.6v")
+        "| `FALLBACK_MODELS` |  | `glm-5.2` |  | AI Provider |": [
+            ("FALLBACK_MODELS", "glm-5.2")
         ],
         "ENV VISION_FALLBACK_MODELS=glm-4.5v": [("VISION_FALLBACK_MODELS", "glm-4.5v")],
         "echo primary=${STAGING_E2E_PRIMARY_MODEL}": [],

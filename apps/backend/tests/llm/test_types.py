@@ -42,7 +42,7 @@ def test_AC23_1_1_scene_enumerates_the_fixed_call_sites():
 def test_AC23_1_1_model_spec_carries_capabilities_so_selection_is_data():
     """AC-llm.1.1: a model's modalities/free/pricing are data on ModelSpec, not code branches."""
     spec = ModelSpec(
-        id="zai/glm-4.6v",
+        id="zai/test-vision-model",
         provider_id="zai",
         modalities=frozenset({Modality.IMAGE, Modality.PDF}),
         is_free=False,
@@ -59,7 +59,7 @@ def test_AC23_1_1_model_spec_carries_capabilities_so_selection_is_data():
 
 def test_AC23_1_1_scene_binding_defaults_are_conservative():
     """AC-llm.1.1: a binding maps scene x model with safe defaults (no reasoning, no free pref)."""
-    binding = SceneBinding(scene=Scene.EXTRACTION_VISION, model_id="zai/glm-4.6v")
+    binding = SceneBinding(scene=Scene.EXTRACTION_VISION, model_id="zai/test-vision-model")
     assert binding.reasoning is ReasoningEffort.NONE
     assert binding.prefer_free is False
     assert binding.fallback_model_ids == ()

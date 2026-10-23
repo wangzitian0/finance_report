@@ -17,8 +17,8 @@ def configured(monkeypatch):
     monkeypatch.setattr(settings, "ai_base_url", "https://api.z.ai", raising=False)
     monkeypatch.setattr(settings, "primary_model", "glm-5.1", raising=False)
     monkeypatch.setattr(settings, "large_model", "large-test-model", raising=False)
-    monkeypatch.setattr(settings, "vision_model", "glm-4.6v", raising=False)
-    monkeypatch.setattr(settings, "ocr_model", "glm-4.6v", raising=False)
+    monkeypatch.setattr(settings, "vision_model", "test-vision-model", raising=False)
+    monkeypatch.setattr(settings, "ocr_model", "test-vision-model", raising=False)
     return EnvConfigSource()
 
 
@@ -61,8 +61,8 @@ async def test_AC23_2_4_get_provider_by_id(configured):
 
 async def test_AC23_2_4_scene_bindings_match_configured_models(configured):
     """AC-llm.2.4: vision/ocr -> vision/ocr models; advisor.chat -> large model; the rest -> primary model."""
-    assert (await configured.get_binding(Scene.EXTRACTION_VISION)).model_id == "glm-4.6v"
-    assert (await configured.get_binding(Scene.EXTRACTION_OCR)).model_id == "glm-4.6v"
+    assert (await configured.get_binding(Scene.EXTRACTION_VISION)).model_id == "test-vision-model"
+    assert (await configured.get_binding(Scene.EXTRACTION_OCR)).model_id == "test-vision-model"
     assert (await configured.get_binding(Scene.EXTRACTION_JSON)).model_id == "glm-5.1"
     advisor = await configured.get_binding(Scene.ADVISOR_CHAT)
     assert advisor.model_id == "large-test-model"

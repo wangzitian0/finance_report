@@ -7,8 +7,9 @@ source PDF or its rendered images. So there is no document to leak (PII) and no 
 bloat, while the graded-eval (field accuracy) and balance-chain gates still run on the
 committed response.
 
-Engine: **GLM-4.6V** on the z.ai coding plan (no daily quota), thinking disabled so
-the visible output isn't truncated, pages rendered as compressed JPEG so even scanned
+Engine: the infra2 SDK multimodal role (``LlmSettings().multimodal_model``, glm-5.3-flash) on the
+z.ai coding plan. GLM 5.3 requires enabled thinking; the reasoning text comes back in a separate
+field, so the visible answer is not truncated. Pages rendered as compressed JPEG so even scanned
 statements fit the context (a raw scanned render is ~22MB → 1261). Records both HF
 schemas (Type1/Type2, digital + scanned).
 
@@ -53,6 +54,8 @@ sys.path.insert(0, str(ROOT))  # for the tools.* package
 from src.extraction.extension.prompts.statement import SYSTEM_PROMPT  # noqa: E402
 from src.llm.extension.cassette import fingerprint  # noqa: E402
 
+from infra2_sdk.runtime.llm import LlmSettings  # noqa: E402
+
 from common.testing.fixtures.extraction_pii_mask import (  # noqa: E402
     mask_extraction,
     source_ref,
@@ -72,7 +75,9 @@ HF_TYPES = (
 )
 PER_TYPE = 5
 CODING_URL = "https://api.z.ai/api/coding/paas/v4/chat/completions"
-MODEL = "glm-4.6v"
+_ROLE = LlmSettings()
+MODEL = _ROLE.multimodal_model  # the SDK owns the model; no id is written here
+REASONING_EFFORT = _ROLE.multimodal_reasoning_effort
 MAX_TOKENS = 32768
 JPEG_MAX_DIM = 1500
 JPEG_QUALITY = 75
@@ -180,7 +185,7 @@ def strip_request_images(messages: list[dict[str, Any]]) -> list[dict[str, Any]]
 
 
 def glm_extract(messages: list[dict[str, Any]], token: str) -> str:  # pragma: no cover
-    """Live GLM-4.6V call (thinking disabled) with transient-error backoff; return raw text."""
+    """Live multimodal-role call (thinking enabled) with transient-error backoff; return raw text."""
     import httpx
 
     body = {
@@ -188,7 +193,8 @@ def glm_extract(messages: list[dict[str, Any]], token: str) -> str:  # pragma: n
         "stream": False,
         "max_tokens": MAX_TOKENS,
         "temperature": 0,
-        "thinking": {"type": "disabled"},
+        "thinking": {"type": "enabled"},
+        "reasoning_effort": REASONING_EFFORT,
         "messages": messages,
     }
     last = ""
