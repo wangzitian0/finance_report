@@ -39,6 +39,7 @@ from common.testing.provider_review import (
 )
 from deployment_pin import assert_pinned_deployment, resolve_expected_commit
 from journey_checkpoint import checkpoint
+from transport_retry import ReconnectCount, get_with_reconnect
 from playwright.async_api import Locator, Page, expect
 
 APP_URL = os.getenv("APP_URL", "http://localhost:3000")
@@ -141,11 +142,15 @@ def _month_csv(
     return "\n".join(rows)
 
 
-async def _wait_for_parsed(client: httpx.AsyncClient, statement_id: str) -> dict:
+async def _wait_for_parsed(
+    client: httpx.AsyncClient, statement_id: str, reconnects: ReconnectCount
+) -> dict:
     deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000
     last_payload: dict | None = None
     while asyncio.get_running_loop().time() < deadline:
-        response = await client.get(_api_url(f"/statements/{statement_id}"))
+        response = await get_with_reconnect(
+            client, _api_url(f"/statements/{statement_id}"), reconnects
+        )
         assert response.status_code == 200, (
             f"statement poll failed for {statement_id}: {response.text}"
         )
@@ -181,6 +186,7 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
     await _assert_pinned_before_journey(page, record_property)
 
     headers = await _auth_headers(page)
+    reconnects = ReconnectCount()
     async with httpx.AsyncClient(
         headers=headers, verify=False, timeout=120.0
     ) as client:
@@ -247,7 +253,7 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
             )
             statement_id = upload_resp.json()["id"]
 
-            parsed = await _wait_for_parsed(client, statement_id)
+            parsed = await _wait_for_parsed(client, statement_id, reconnects)
             assert len(parsed["transactions"]) == 2
 
             approval = await approve_statement_with_fixture_review(
@@ -400,4 +406,7 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
             await expect(row).to_contain_text("Approved")
 
         # 9. Record checkpoint U9.
+        # A reset connection on a status poll is retried, bounded. Report every one (#2610).
+        record_property("poll_reconnects", reconnects.value)
+        print(f"twelve-month journey: poll reconnects = {reconnects.value}")
         checkpoint(record_property, "U9")
