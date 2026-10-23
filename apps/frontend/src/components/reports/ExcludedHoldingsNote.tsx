@@ -5,12 +5,18 @@ import type { BalanceSheetResponse } from "@/lib/types";
 type ExcludedHoldingRow = NonNullable<BalanceSheetResponse["excluded_holdings"]>[number];
 type FormatMoney = (value: MonetaryInput, currency: string) => string;
 
-/** A row without amounts has a valuation with no FX rate: the text names the currency pair. */
+/** One conversion gap: a missing rate, or a rate that did not convert. */
+function gapText(warning: Record<string, string>): string {
+  const pair = `${warning.currency} to ${warning.target_currency}`;
+  return warning.type === "missing_fx_rate_excluded_holding" ? `no FX rate for ${pair}` : `FX conversion failed for ${pair}`;
+}
+
+/** A row without amounts has a valuation that did not convert: the text names each gap. */
 function rowText(row: ExcludedHoldingRow, currency: string, formatMoney: FormatMoney): string {
   const label = allocationClassLabel(row.asset_class);
   if (row.net_worth === null || row.total_liabilities === null) {
-    const pairs = [...new Set((row.warnings ?? []).map((w) => `${w.currency} to ${w.target_currency}`))].sort();
-    return `${label}: amount not available (no FX rate for ${pairs.join(", ")})`;
+    const gaps = [...new Set((row.warnings ?? []).map(gapText))].sort();
+    return `${label}: amount not available (${gaps.join(", ")})`;
   }
   const liabilities = toDecimal(row.total_liabilities).isZero()
     ? ""

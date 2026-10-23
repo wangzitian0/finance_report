@@ -348,7 +348,9 @@ async def generate_personal_report_package_snapshot(
         end_date=report_end,
         as_of_date=report_as_of,
         currency=target_currency,
-        include_restricted=request.include_restricted,
+        include_restricted=(
+            PACKAGE_INCLUDE_RESTRICTED if request.include_restricted is None else request.include_restricted
+        ),
         lifecycle=PersonalReportPackageDocumentLifecycle.FROZEN,
         snapshot_id=snapshot_id,
         frozen_at=frozen_at,

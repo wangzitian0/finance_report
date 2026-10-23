@@ -47,8 +47,7 @@ export function packageSnapshotRequest(
     framework_id: frameworkId,
     ...packagePeriodRequest(reportDate, startDate),
     ...(currency ? { currency } : {}),
-    // The package presents the liquid scope (backend PACKAGE_INCLUDE_RESTRICTED). Its
-    // restricted-asset-treatment note names each excluded class with its amount (#2645).
-    include_restricted: false,
+    // No include_restricted: the backend body default PACKAGE_INCLUDE_RESTRICTED is the one
+    // definition of the package scope (#2645).
   };
 }

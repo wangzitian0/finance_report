@@ -95,10 +95,6 @@ async def generate_annualized_income_schedule(
         source_currency = line_money.currency.code
         if source_currency != reporting_currency:
             fx_pairs.append((source_currency, reporting_currency, report_date, start_date, report_date))
-    for snapshot in snapshots:
-        holding_currency = normalize_currency_code(snapshot.currency)
-        if holding_currency != reporting_currency:
-            fx_pairs.append((holding_currency, reporting_currency, report_date, None, None))
 
     prefetched_fx = fx_gateway.PrefetchedFxRates(lazy_load=True)
     if fx_pairs:
@@ -106,6 +102,15 @@ async def generate_annualized_income_schedule(
             await prefetched_fx.prefetch(db, fx_pairs)
         except fx_gateway.FxRateError as exc:
             raise_bad_request(str(exc), cause=exc)
+    # A restricted holding is outside the liquid net worth. An FX error on it must not
+    # fail the schedule: the holding stays listed in its own currency, and the total
+    # names it as left out (#2645). An FX error on an income line still fails.
+    unconverted_currencies: set[str] = set()
+    for holding_currency in sorted({normalize_currency_code(s.currency) for s in snapshots} - {reporting_currency}):
+        try:
+            await prefetched_fx.prefetch(db, [(holding_currency, reporting_currency, report_date, None, None)])
+        except fx_gateway.FxRateError:
+            unconverted_currencies.add(holding_currency)
 
     totals = AnnualizedIncomeTotals()
     for line, account, line_money in resolved_lines:
@@ -125,6 +130,7 @@ async def generate_annualized_income_schedule(
 
     holdings: list[AnnualizedIncomeScheduleHolding] = []
     restricted_total = Decimal("0.00")
+    left_out_of_total: list[str] = []
     for snapshot in snapshots:
         holdings.append(
             AnnualizedIncomeScheduleHolding(
@@ -140,15 +146,22 @@ async def generate_annualized_income_schedule(
             )
         )
         holding_currency = normalize_currency_code(snapshot.currency)
-        if holding_currency != reporting_currency:
-            holding_ccy = Currency(holding_currency)
-            rate = prefetched_fx.get_rate(holding_currency, reporting_currency, report_date) or Decimal("1")
-            restricted_total += convert_money_with_rate(
-                Money(snapshot.value, holding_ccy),
-                ExchangeRate(holding_ccy, target_ccy, rate),
-            ).amount
-        else:
+        if holding_currency == reporting_currency:
             restricted_total += snapshot.value
+            continue
+        holding_rate = (
+            None
+            if holding_currency in unconverted_currencies
+            else prefetched_fx.get_rate(holding_currency, reporting_currency, report_date)
+        )
+        if holding_rate is None:
+            left_out_of_total.append(f"{snapshot.source} ({holding_currency} {to_money(snapshot.value):,.2f})")
+            continue
+        holding_ccy = Currency(holding_currency)
+        restricted_total += convert_money_with_rate(
+            Money(snapshot.value, holding_ccy),
+            ExchangeRate(holding_ccy, target_ccy, holding_rate),
+        ).amount
 
     return AnnualizedIncomeScheduleResponse(
         section_id="annualized_income_long_term",
@@ -168,6 +181,7 @@ async def generate_annualized_income_schedule(
         restricted_holdings=holdings,
         restricted_fair_value_total=to_money(restricted_total),
         restricted_fair_value_total_currency=reporting_currency,
+        restricted_fair_value_total_excludes=left_out_of_total,
         net_worth_treatment=AnnualizedIncomeScheduleNetWorthTreatment(
             liquid_net_worth_default="exclude_restricted_holdings",
             restricted_wealth_basis="manual_valuation_snapshot_fair_value",
@@ -177,5 +191,13 @@ async def generate_annualized_income_schedule(
         notes=[
             "Personal management report only; not tax advice.",
             "Restricted holdings are excluded from liquid net worth by default.",
+            *(
+                [
+                    f"The restricted fair-value total leaves out these holdings, which have no FX rate to "
+                    f"{reporting_currency} on {report_date.isoformat()}: {'; '.join(left_out_of_total)}."
+                ]
+                if left_out_of_total
+                else []
+            ),
         ],
     )

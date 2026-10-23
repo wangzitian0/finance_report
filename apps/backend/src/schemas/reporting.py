@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.ledger import AccountType, Direction
 from src.reporting import (
-    PACKAGE_INCLUDE_RESTRICTED,
     CashFlowResponse,
     InvariantStatus as InvariantStatus,
     MonthContinuityBucket as MonthContinuityBucket,
@@ -642,9 +641,10 @@ class PersonalReportPackageGenerateRequest(BaseModel):
         min_length=3,
         max_length=3,
     )
-    include_restricted: bool = Field(
-        default=PACKAGE_INCLUDE_RESTRICTED,
-        description="Whether restricted manual valuations are included in generated section payloads",
+    # No schema default: the generated client then sends no value, and the route reads the one
+    # package default, PACKAGE_INCLUDE_RESTRICTED (#2645).
+    include_restricted: bool | None = Field(
+        default=None, description="Include restricted holdings. Absent: PACKAGE_INCLUDE_RESTRICTED (liquid)."
     )
 
 
@@ -844,6 +844,7 @@ class AnnualizedIncomeScheduleResponse(BaseModel):
     restricted_fair_value_total_currency: str = Field(
         min_length=3, max_length=3, description="Currency of the restricted fair-value total."
     )
+    restricted_fair_value_total_excludes: list[str] = Field(default_factory=list, description="Holdings without FX.")
     net_worth_treatment: AnnualizedIncomeScheduleNetWorthTreatment
     notes: list[str]
 

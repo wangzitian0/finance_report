@@ -281,7 +281,9 @@ def test_AC_platform_29_9_report_wire_shape_and_policy_are_single(
     assert generation["requestBody"]["required"] is True
     body_ref = generation["requestBody"]["content"]["application/json"]["schema"]["$ref"].rsplit("/", 1)[-1]
     body = openapi_schema["components"]["schemas"][body_ref]
-    assert body["properties"]["include_restricted"]["default"] is PACKAGE_INCLUDE_RESTRICTED
+    # The body has no scope default of its own: an absent value reads PACKAGE_INCLUDE_RESTRICTED in
+    # the route (AC-reporting.net-worth-scope.12 proves the behaviour), so the client sends no copy.
+    assert body["properties"]["include_restricted"].get("default") is None
 
     defaults = {
         path: {item["name"]: item for item in paths[path]["get"]["parameters"]}["include_restricted"]["schema"][

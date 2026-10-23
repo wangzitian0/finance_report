@@ -1794,6 +1794,11 @@ export interface components {
              * @description Currency of the restricted fair-value total.
              */
             restricted_fair_value_total_currency: string;
+            /**
+             * Restricted Fair Value Total Excludes
+             * @description Holdings without FX.
+             */
+            restricted_fair_value_total_excludes?: string[];
             /** Restricted Holdings */
             restricted_holdings: components["schemas"]["AnnualizedIncomeScheduleHolding"][];
             /** Section Id */
@@ -4750,10 +4755,9 @@ export interface components {
             framework_id: components["schemas"]["PersonalReportingFrameworkId"];
             /**
              * Include Restricted
-             * @description Whether restricted manual valuations are included in generated section payloads
-             * @default false
+             * @description Include restricted holdings. Absent: PACKAGE_INCLUDE_RESTRICTED (liquid).
              */
-            include_restricted: boolean;
+            include_restricted?: boolean | null;
             /**
              * Start Date
              * @description Requested reporting period start date
@@ -5606,7 +5610,7 @@ export interface components {
              * @description Categorical action type triggering workflow navigation.
              * @enum {string}
              */
-            action_type: "UPLOAD_STATEMENT" | "REVIEW_STATEMENT" | "RECONCILE_TRANSACTIONS" | "RESOLVE_EQUATION";
+            action_type: "UPLOAD_STATEMENT" | "REVIEW_STATEMENT" | "RECONCILE_TRANSACTIONS" | "RESOLVE_EQUATION" | "RESOLVE_FX_RATE";
             /**
              * Action Url
              * @description Relative application URL to navigate and resolve the item.

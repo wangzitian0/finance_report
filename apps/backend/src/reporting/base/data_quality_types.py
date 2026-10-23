@@ -68,6 +68,7 @@ class QualityActionItem(BaseModel):
         "REVIEW_STATEMENT",
         "RECONCILE_TRANSACTIONS",
         "RESOLVE_EQUATION",
+        "RESOLVE_FX_RATE",
     ] = Field(description="Categorical action type triggering workflow navigation.")
     action_url: str = Field(description="Relative application URL to navigate and resolve the item.")
 
