@@ -9,11 +9,11 @@ few small committed config files (`.claude/settings.json`, `.mcp.json`,
 | Runtime | Instructions | Skills | MCP |
 |---|---|---|---|
 | OpenCode | `AGENTS.md` (native) | `skills` (canonical) | `opencode.json` |
-| Claude Code | `CLAUDE.md` → `AGENTS.md` | `.claude/skills/*` → `skills/*` | `.mcp.json` |
+| Claude Code | `AGENTS.md` (native; no `CLAUDE.md` may exist, dev_env#393) | `.claude/skills/*` → `skills/*` | `.mcp.json` |
 | Codex | `AGENTS.md` (native) | `.codex/skills/*` → `skills/*` | global only |
 | Gemini / Antigravity | `GEMINI.md` → `AGENTS.md` | `.agents/skills/*` → `skills/*` | `.gemini/settings.json` |
 
-- `../CLAUDE.md` and `../GEMINI.md` are symlinks to `../AGENTS.md` — edit
+- `../GEMINI.md` is a symlink to `../AGENTS.md`. A `CLAUDE.md` in any directory stops Claude Code from loading `AGENTS.md`, so none exists. Edit
   `AGENTS.md`, never the symlinks (and note `AGENTS.md` is policy-protected).
 - `.claude/skills/<name>`, `.codex/skills/<name>`, and `.agents/skills/<name>`
   are flat symlinks onto the canonical library in `../skills`. Add or rename a skill
