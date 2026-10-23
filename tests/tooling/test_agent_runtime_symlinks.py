@@ -4,9 +4,10 @@ The repo is wired so Claude Code, Codex, OpenCode, and the Gemini/Antigravity
 CLI can all be opened in this checkout and start developing with the same
 instructions, skills, and MCP tools:
 
-* ``AGENTS.md`` is the single source of truth (read natively by Codex and
-  OpenCode); ``CLAUDE.md`` and ``GEMINI.md`` symlink to it for Claude Code and
-  the Gemini CLI.
+* ``AGENTS.md`` is the single source of truth. Codex, OpenCode and Claude Code
+  read it natively. ``CLAUDE.md`` must not exist: it suppresses the native
+  ``AGENTS.md`` load of Claude Code (dev_env#393). ``GEMINI.md`` symlinks to
+  ``AGENTS.md`` for the Gemini CLI.
 * ``.claude/skills``, ``.codex/skills`` and ``.agents/skills`` hold
   materialized copies of the canonical skill library in ``skills`` so every
   runtime discovers the same SKILL.md files (agy reads ``.agents/skills``).
@@ -97,10 +98,12 @@ def _canonical_leaf_skill_dirs() -> dict[str, Path]:
 
 
 def test_instruction_md_symlinks_to_agents_md() -> None:
-    """Each runtime's entry-point doc is a symlink to the AGENTS.md source."""
+    """AGENTS.md is the one real carrier, CLAUDE.md is absent, GEMINI.md links to AGENTS.md."""
     agents_md = ROOT / "AGENTS.md"
-    assert agents_md.is_file()
-    for entry in ("CLAUDE.md", "GEMINI.md"):
+    assert agents_md.is_file() and not agents_md.is_symlink()
+    # A CLAUDE.md file or link stops Claude Code from loading AGENTS.md natively (dev_env#393).
+    assert not os.path.lexists(ROOT / "CLAUDE.md"), "CLAUDE.md must not exist"
+    for entry in ("GEMINI.md",):
         link = ROOT / entry
         assert link.is_symlink(), f"{entry} must be a symlink, not a copy"
         # Relative target keeps the link portable across clones.
@@ -116,8 +119,8 @@ def test_instruction_mirrors_exempt_from_ssot_ownership_check() -> None:
     """
     from common.meta.extension import check_ssot_ownership
 
-    for entry in ("CLAUDE.md", "GEMINI.md"):
-        assert (ROOT / entry) in check_ssot_ownership.CHECK4_EXEMPT_PATHS
+    assert (ROOT / "GEMINI.md") in check_ssot_ownership.CHECK4_EXEMPT_PATHS
+    assert (ROOT / "CLAUDE.md") not in check_ssot_ownership.CHECK4_EXEMPT_PATHS
 
 
 def test_every_canonical_skill_is_mirrored() -> None:
