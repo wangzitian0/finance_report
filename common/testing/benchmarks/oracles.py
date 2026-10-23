@@ -59,22 +59,17 @@ _ADJECTIVE = (
 )
 _VERB_OBJECT = r"(?:create|cause|result\s+in|lead\s+to|mean|indicate|represent|imply)"
 _FIND_VERB = r"(?:find|see|detect|identify|notice|show|reveal)"
-# These forms explain a point. They are no verdict on the ledger: "this does not indicate a
-# mismatch" (#2633). The section rule below reads a verdict only, never an explanation.
-_EXPLANATION_FORMS = (
-    rf"not\s+{_VERB_OBJECT}",
-    rf"does\s*n[\x27\']t\s+{_VERB_OBJECT}",
-    rf"does\s+not\s+{_VERB_OBJECT}",
-    rf"cannot\s+{_VERB_OBJECT}",
-    r"not\s+an?",
-    r"neither",
-    r"rather\s+than",
+# A verdict says that the ledger has no issue: "no discrepancies", "did not find any imbalance". Other
+# negations explain a point: "without a discrepancy", "this does not indicate a mismatch". Only a
+# verdict counts for the section rule below (#2633).
+_VERDICT_PREFIX = (
+    r"(?:no|zero"
+    rf"|(?:did|do|does)\s*(?:not|n[\x27\']t)\s+{_FIND_VERB}(?:\s+any)?)"
 )
-_EXPLANATION_PREFIX = "(?:" + "|".join(_EXPLANATION_FORMS) + ")"
 _NEGATION_PREFIX = (
-    rf"(?:no|zero|without|{_EXPLANATION_PREFIX}|no\s+balance|no\s+ledger"
-    rf"|(?:did|do|does)\s*(?:not|n[\x27\']t)\s+{_FIND_VERB}(?:\s+any)?"
-    r"|(?:found|find|see|saw|detected)\s+no)"
+    rf"(?:{_VERDICT_PREFIX}|without"
+    rf"|not\s+{_VERB_OBJECT}|does\s*n[\x27\']t\s+{_VERB_OBJECT}|does\s+not\s+{_VERB_OBJECT}"
+    rf"|cannot\s+{_VERB_OBJECT}|not\s+a|not\s+an|neither|rather\s+than)"
 )
 
 # A review heading is a negation only when the words after it negate (#2484).
@@ -98,31 +93,54 @@ _CLEAN_VERDICT = (
     r"|无|没有|未发现|并未发现|不存在)"
 )
 
+_NEGATION_ZH = (
+    r"(?:不存在|没有(?:发现|出现)?|无|未(?:发现|见|出现)|并未(?:发现|出现)|并无)"
+    r"\s*(?:任何)?\s*(?:不一致|不平|差额|对不上)"
+)
+
 NEGATED_DISCREPANCY_PATTERNS: list[str] = [
     rf"{_WORD_START}{_NEGATION_PREFIX}\s*(?:a|an|any)?\s*{_ADJECTIVE}{_ISSUE}",
     rf"{_HEADING}(?={_BETWEEN}{_CLEAN_VERDICT})",
     rf"{_WORD_START}no\s+(?:balance\s+)?discrepanc(?:y|ies)\s+found",
     rf"{_WORD_START}no\s+ledger\s+imbalance",
     rf"{_WORD_START}not\s+unbalanced",
-    r"(?:不存在|没有(?:发现|出现)?|无|未(?:发现|见|出现)|并未(?:发现|出现)|并无)"
-    r"\s*(?:任何)?\s*(?:不一致|不平|差额|对不上)",
+    _NEGATION_ZH,
 ]
 
 # A markdown heading can stand apart from its verdict. The advisor writes the heading, then one
 # sentence of prose, then the verdict (#2633). The heading is neutral when all rules hold:
-#   1. The heading is a label. It is an ATX line outside a code fence. Its last word is a review
+#   1. The heading is a label. It is an ATX line outside an ignored block. Its last word is a review
 #      noun, or it ends with "?". Its other words are label words. It has no digit, colon, dash,
 #      comma, slash or symbol. A heading that ends with a topic word states a finding.
-#   2. The section of the heading holds a negated verdict. A section ends at the next ATX heading
-#      outside a code fence. An explanation such as "this does not indicate a mismatch" is no verdict.
-#   3. No verdict sentence holds a hedge word, and none ends with "?".
+#   2. The section of the heading holds a verdict. A section ends at the next heading-like line.
+#      A verdict is "no", "zero" or "did not find" with an issue word, or a Chinese
+#      equivalent. "without a discrepancy" and "this does not indicate a mismatch" are no verdict.
+#   3. The paragraph of the verdict has no hedge word, no semicolon and no question mark.
 #   4. No forbidden token remains in the answer. The final scan checks this rule.
 # The verdict marker holds upper-case letters. The scan reads a lower-cased answer. So the text of
 # an answer never equals the marker.
 _VERDICT_MARKER = "[NEGATED_VERDICT]"
-_EXPLANATION_START = re.compile(_EXPLANATION_PREFIX, re.IGNORECASE)
+_VERDICT_SCAN = re.compile(
+    "|".join(
+        f"(?:{pattern})"
+        for pattern in (
+            rf"{_WORD_START}{_VERDICT_PREFIX}\s*(?:a|an|any)?\s*{_ADJECTIVE}{_ISSUE}",
+            _NEGATION_ZH,
+        )
+    ),
+    re.IGNORECASE,
+)
+# ATX heading: 1 to 6 "#" marks, then a space or the end of the line.
 _ATX_HEADING = re.compile(r"^ {0,3}#{1,6}(?:[ \t]|$)")
 _HEADING_MARKS = re.compile(r"^ {0,3}#{1,6}")
+# A heading-like line ends a section: "#" with no space, "#" in a quote or a list, an HTML heading.
+_HEADING_LIKE = re.compile(
+    r"^[ \t>]*(?:(?:[-*+]|\d+[.)])[ \t]+)*(?:#{1,6}|<h[1-6][\s>])"
+)
+_BOLD_LINE = re.compile(r"^\s*(?:[-*+]\s+)?(?:\*\*|__)[^\n]+(?:\*\*|__)\s*:?\s*$")
+_SETEXT_UNDERLINE = re.compile(r"^ {0,3}(?:=+|-{2,})\s*$")
+# Indented code and a quote are no verdict of the advisor on the current ledger.
+_IGNORED_LINE = re.compile(r"^(?: {4,}|\t)|^ {0,3}>")
 _FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 _TOPIC_WORD = re.compile(r"discrepanc(?:y|ies)|imbalances?|mismatch(?:es)?|差额|不一致")
 _END_NOUNS = frozenset(
@@ -150,7 +168,8 @@ _HEADING_MARK_ONLY = re.compile(r"[\s&*_]*")
 _HEDGE_WORDS = (
     "yet", "save for", "besides", "barring", "mostly", "nevertheless", "beyond", "might",
     "outside", "not true", "false", "untrue", "doubt", "would(?:n't| not) say",
-    "(?:does|do)(?:n't| not) mean",
+    "(?:does|do)(?:n't| not) mean", "whether", "despite", "last month", "last year",
+    "previously", "earlier",
     "but", "however", "except", "exception", "excluding", "although", "though", "unless",
     "whereas", "while", "only", "if", "assuming", "almost", "nearly", "apart from",
     "other than", "aside from", "wrong", "unclear", "unable", "not sure", "cannot confirm",
@@ -160,17 +179,13 @@ _HEDGE_TERMS_ZH = (
     "但", "不过", "(?<!扣)除", "而", "可是", "却", "仅", "只是", "如果", "假如", "假设", "几乎",
     "无法", "虽然", "尽管", "以外", "可能", "并非", "不是", "错误",
 )  # fmt: skip
+# A semicolon joins a second clause. A question is no verdict.
 _HEDGE = re.compile(
     r"(?<![a-z])(?:"
     + "|".join(word.replace(" ", r"\s+") for word in _HEDGE_WORDS)
     + r")(?![a-z])"
-    r"|"
-    + "|".join(_HEDGE_TERMS_ZH)
-    # A question is no verdict.
-    + r"|\?\s*$"
+    r"|" + "|".join(_HEDGE_TERMS_ZH) + r"|[;；?？]"
 )
-_SENTENCE_END = re.compile(r"(?<=[.!?;])\s+|[\n。！？；]")
-_ABBREVIATION = re.compile(r"\b(?:vs|etc)\.|\b(?:e\.g|i\.e)\.")
 _NEGATION_SCAN = re.compile(
     "|".join(f"(?:{pattern})" for pattern in NEGATED_DISCREPANCY_PATTERNS),
     re.IGNORECASE,
@@ -178,9 +193,9 @@ _NEGATION_SCAN = re.compile(
 
 
 def _mark_negation(match: re.Match[str]) -> str:
-    """Return the marker for a verdict. Return a space for an explanation."""
-    is_explanation = _EXPLANATION_START.match(match.group(0)) is not None
-    return " " if is_explanation else f" {_VERDICT_MARKER} "
+    """Return the marker for a verdict. Return a space for any other negation."""
+    is_verdict = _VERDICT_SCAN.fullmatch(match.group(0)) is not None
+    return f" {_VERDICT_MARKER} " if is_verdict else " "
 
 
 def _is_label_heading(line: str) -> bool:
@@ -198,48 +213,69 @@ def _is_label_heading(line: str) -> bool:
     return _HEADING_MARK_ONLY.fullmatch(rest) is not None
 
 
-def _has_unhedged_verdict(section_body: str) -> bool:
-    """Return True when the section has a negated verdict and no verdict sentence has a hedge word."""
-    body = _ABBREVIATION.sub(lambda m: m.group(0)[:-1], section_body)
-    verdicts = [s for s in _SENTENCE_END.split(body) if _VERDICT_MARKER in s]
-    return bool(verdicts) and not any(_HEDGE.search(s) for s in verdicts)
-
-
-def _fenced_rows(lines: list[str]) -> list[bool]:
-    """Return one flag per line. True means the line is a code fence line or is inside a fence."""
-    rows: list[bool] = []
-    opener = ""
+def _line_kinds(lines: list[str]) -> list[str]:
+    """Label each line: "atx" (heading), "break" (other heading-like line), "ignore" or "text"."""
+    kinds: list[str] = []
+    fence = ""
+    in_comment = False
     for line in lines:
-        if opener:
-            rows.append(True)
+        if fence:
+            kinds.append("ignore")
             stripped = line.strip()
             indent = len(line) - len(line.lstrip(" "))
             if (
                 indent <= 3
-                and len(stripped) >= len(opener)
-                and set(stripped) == {opener[0]}
+                and len(stripped) >= len(fence)
+                and set(stripped) == {fence[0]}
             ):
-                opener = ""
+                fence = ""
+        elif in_comment or "<!--" in line:
+            kinds.append("ignore")
+            in_comment = "-->" not in line[line.rfind("<!--") :]
+        elif _FENCE_OPEN.match(line):
+            fence = _FENCE_OPEN.match(line).group(1)
+            kinds.append("ignore")
+        elif _HEADING_LIKE.match(line):
+            kinds.append("atx" if _ATX_HEADING.match(line) else "break")
+        elif _IGNORED_LINE.match(line):
+            kinds.append("ignore")
+        elif _BOLD_LINE.match(line) and _VERDICT_MARKER not in line:
+            kinds.append("break")
         else:
-            match = _FENCE_OPEN.match(line)
-            opener = match.group(1) if match else ""
-            rows.append(match is not None)
-    return rows
+            kinds.append("text")
+    for row in range(1, len(lines)):
+        if (
+            kinds[row] == "text"
+            and kinds[row - 1] == "text"
+            and lines[row - 1].strip()
+            and _SETEXT_UNDERLINE.match(lines[row])
+        ):
+            kinds[row - 1] = kinds[row] = "break"
+    return kinds
+
+
+def _has_unhedged_verdict(section_lines: list[str]) -> bool:
+    """Return True when a paragraph of the section holds a verdict and no verdict paragraph is hedged."""
+    paragraphs = re.split(r"\n\s*\n", "\n".join(section_lines))
+    verdicts = [p for p in paragraphs if _VERDICT_MARKER in p]
+    return bool(verdicts) and not any(_HEDGE.search(p) for p in verdicts)
 
 
 def _neutralize_review_headings(text: str) -> str:
     """Replace the topic word of a label heading when its own section holds an unhedged verdict."""
     lines = text.split("\n")
-    fenced = _fenced_rows(lines)
-    heading_rows = [
-        row
-        for row, line in enumerate(lines)
-        if not fenced[row] and _ATX_HEADING.match(line)
-    ]
-    for index, row in enumerate(heading_rows):
-        end = heading_rows[index + 1] if index + 1 < len(heading_rows) else len(lines)
-        body = "\n".join(lines[i] for i in range(row + 1, end) if not fenced[i])
-        if _is_label_heading(lines[row]) and _has_unhedged_verdict(body):
+    kinds = _line_kinds(lines)
+    for row, kind in enumerate(kinds):
+        if kind != "atx" or not _is_label_heading(lines[row]):
+            continue
+        end = next(
+            (i for i in range(row + 1, len(lines)) if kinds[i] in ("atx", "break")),
+            len(lines),
+        )
+        section = [
+            "" if kinds[i] == "ignore" else lines[i] for i in range(row + 1, end)
+        ]
+        if _has_unhedged_verdict(section):
             lines[row] = _TOPIC_WORD.sub(" ", lines[row])
     return "\n".join(lines)
 
