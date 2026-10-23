@@ -265,7 +265,7 @@ export function TransactionTable({ transactions, currency, onSelectTransaction, 
 }
 
 export function StatementHeader({ statement, canImport, canRetry, canDelete = true, importLoading, retryLoading, deleteLoading = false, onBrokerageImport, onRetry, onDelete, formatCode, formatPeriod }: {
-  statement: BankStatement; canImport: boolean; canRetry: boolean; canDelete?: boolean; importLoading: boolean; retryLoading: boolean; deleteLoading?: boolean; onBrokerageImport: () => void; onRetry: () => void; onDelete?: () => void; formatCode: (c?: string | null) => string; formatPeriod: (s?: string | null, e?: string | null) => string;
+  statement: BankStatement; canImport: boolean; canRetry: boolean; canDelete?: boolean; importLoading: boolean; retryLoading: boolean; deleteLoading?: boolean; onBrokerageImport: () => void; onRetry: () => void; onDelete?: () => void; formatCode: (c?: string | null) => string; formatPeriod: (s?: string | null, e?: string | null, missing?: string) => string;
 }) {
   const displayTitle = statement.original_filename || `${statement.institution} (${statement.period_start ?? ""} – ${statement.period_end ?? ""})`;
   return (
@@ -276,7 +276,7 @@ export function StatementHeader({ statement, canImport, canRetry, canDelete = tr
           <StatusBadge status={statement.status} variants={{ approved: "success", rejected: "error", parsed: "warning" }} />
           {statement.original_filename && <span data-testid="statement-original-filename-badge" className="inline-flex items-center rounded-md border border-[var(--border)] bg-[var(--background-muted)] px-2.5 py-0.5 text-xs font-medium text-[var(--foreground-muted)]">Source file: {statement.original_filename}</span>}
         </div>
-        <p className="page-description">{statement.institution} • {formatCode(statement.currency)} • {formatPeriod(statement.period_start, statement.period_end)}{statement.confidence_score != null && <> • Confidence {statement.confidence_score}% ({confidenceLabel(statement.confidence_score)})</>}</p>
+        <p className="page-description">{statement.institution} • {formatCode(statement.currency)} • {formatPeriod(statement.period_start, statement.period_end, statement.status === "parsing" ? "Parsing..." : undefined)}{statement.confidence_score != null && <> • Confidence {statement.confidence_score}% ({confidenceLabel(statement.confidence_score)})</>}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {canImport && <button type="button" onClick={onBrokerageImport} disabled={importLoading} className="btn-secondary flex items-center gap-2" aria-label="Import brokerage positions to portfolio">{importLoading ? "Importing..." : "Import to Portfolio"}</button>}

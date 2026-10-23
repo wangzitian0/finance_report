@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -428,7 +428,9 @@ describe("StatementsPage", () => {
     render(<StatementsPage />)
 
     await waitFor(() => expect(screen.getByText("needs-review.pdf")).toBeInTheDocument())
-    expect(screen.getByText("Parsing...")).toBeInTheDocument()
+    // A parsed file without a period is not parsing (#2648).
+    expect(screen.getByText("No statement period")).toBeInTheDocument()
+    expect(screen.queryByText("Parsing...")).toBeNull()
     expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText("Needs Review")).toBeInTheDocument()
 
@@ -441,6 +443,69 @@ describe("StatementsPage", () => {
     fireEvent.click(screen.getByText("Confirm Delete"))
 
     await waitFor(() => expect(screen.getAllByText("delete failed").length).toBeGreaterThan(0))
+  })
+
+  // AC-extraction.fe-upload-layout.4
+  it("AC-extraction.fe-upload-layout.4 shows a failed brokerage import as Import failed with Retry, never as parsing or ready", async () => {
+    const failure = "Brokerage import failed: the positions could not be imported. Retry, or delete the file and upload it again."
+    const brokerage = makeStmt("s-ibkr", "Interactive_Brokers_Positions_U1234567_20261031.csv", "parsed", {
+      institution: "Interactive Brokers", confidence_score: 20, balance_validated: null, opening_balance: null, closing_balance: null,
+      period_start: null, period_end: null, validation_error: failure, brokerage_import_failed: true,
+    })
+    const retried = { ...brokerage, validation_error: null, brokerage_import_failed: false }
+    mockStatementsPageApi({ statements: [{ items: [brokerage] }, { items: [retried] }] })
+    const baseImplementation = mockedApiFetch.getMockImplementation()!
+    mockedApiFetch.mockImplementation(((path: string, options?: unknown) =>
+      path === "import_brokerage_statement_positions_statements__statement_id__brokerage_import_post"
+        ? Promise.resolve({ broker: "Interactive Brokers", parsed_positions: 2 })
+        : baseImplementation(path as never, options as never)) as never)
+
+    render(<StatementsPage />)
+
+    const row = await screen.findByTestId("upload-statement-row-s-ibkr")
+    expect(within(row).getByText("Import failed")).toBeInTheDocument()
+    expect(within(row).getByText(failure)).toBeInTheDocument()
+    expect(within(row).getByText("No statement period")).toBeInTheDocument()
+    expect(within(row).getByText("Not checked")).toBeInTheDocument()
+    expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(2)
+    for (const forbidden of [/Parsing/, /Ready to review/, /Review & Approve/]) {
+      expect(within(row).queryByText(forbidden), String(forbidden)).toBeNull()
+    }
+    expect(within(row).getByRole("button", { name: "Delete Statement" })).toBeInTheDocument()
+
+    fireEvent.click(within(row).getByRole("button", { name: "Retry import" }))
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith("import_brokerage_statement_positions_statements__statement_id__brokerage_import_post", {
+        path: { statement_id: "s-ibkr" },
+      }),
+    )
+    await waitFor(() => expect(within(screen.getByTestId("upload-statement-row-s-ibkr")).getByText("Ready to review")).toBeInTheDocument())
+    expect(showToastMock).toHaveBeenCalledWith("Brokerage positions imported", "success")
+  })
+
+  // AC-extraction.fe-upload-layout.4
+  it("AC-extraction.fe-upload-layout.4 shows the specific reason of a rejected import", async () => {
+    // #2649 returns HTTP 422 with a reason; the backend records it in validation_error (#2648).
+    const reason =
+      "Brokerage import failed: The positions source does not state an as-of date for 2 of 2 positions. The import needs the date that the source states."
+    mockStatementsPageApi({
+      statements: [
+        {
+          items: [
+            makeStmt("s-moomoo", "moomoo-positions.csv", "parsed", {
+              institution: "Moomoo", validation_error: reason, brokerage_import_failed: true, balance_validated: null,
+            }),
+          ],
+        },
+      ],
+    })
+
+    render(<StatementsPage />)
+
+    const row = await screen.findByTestId("upload-statement-row-s-moomoo")
+    expect(within(row).getByText("Import failed")).toBeInTheDocument()
+    expect(within(row).getByText(reason)).toBeInTheDocument()
+    expect(within(row).queryByText(/could not be imported/)).toBeNull()
   })
 
   it("test_AC8_13_49 ignores delete confirmation when no statement is selected", async () => {

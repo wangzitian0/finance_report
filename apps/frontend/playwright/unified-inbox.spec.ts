@@ -93,6 +93,8 @@ test.describe("AC22.2.6 unified inbox smoke", () => {
     test(`${label} surfaces review attention in the upload workflow notices with deep links`, async ({ page }) => {
       await page.setViewportSize({ width, height });
       await page.goto("/upload", { waitUntil: "networkidle" });
+      // The notices fold under one summary line (#2648): open it.
+      await page.getByTestId("upload-workflow-summary").locator(":scope > summary").click({ timeout: COLD_ROUTE_TIMEOUT_MS });
 
       // Both Stage 1 review and Stage 2 reconciliation attention show in one place.
       await expect(page.getByText("Source review required").first()).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });

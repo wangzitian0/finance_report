@@ -37,12 +37,14 @@ from src.extraction import (
     _brokerage_payload_from_statement,
     approve_statement_workflow,
     auto_create_posted_entries_for_statement,
+    brokerage_import_failure_note,
     classification_suggestions,
     confirm_reviewed_statement_envelope,
     current_reviewed_statement_envelope,
     edit_and_approve,
     get_current_statement_extraction_result,
     is_bank_custody_source,
+    is_brokerage_import_failure,
     pending_stage1_review_filter,
     register_statement_source,
     reject_statement_workflow,
@@ -706,6 +708,31 @@ async def list_statement_transactions(
     return BankStatementTransactionListResponse(items=items, total=len(items))
 
 
+async def _record_brokerage_import_failure(
+    db: AsyncSession, *, statement_id: UUID, user_id: UUID, request_id: str | None, reason: str | None
+) -> None:
+    """Persist a failed brokerage import on the statement, so the upload list shows it (#2648).
+
+    The statement stays ``parsed``. The note replaces ``validation_error`` and states ``reason``
+    when the source was rejected (HTTP 422, #2649); a successful import clears it. A failure of
+    this write is logged and does not replace the original error.
+    """
+    try:
+        statement = await db.get(StatementSummary, statement_id)
+        if statement is None or statement.user_id != user_id:
+            return
+        statement.validation_error = brokerage_import_failure_note(reason)
+        await db.commit()
+    except Exception as exc:  # noqa: BLE001 - the caller re-raises the import error
+        await db.rollback()
+        logger.warning(
+            "statement.brokerage_import.failure_not_recorded",
+            request_id=request_id,
+            statement_id=str(statement_id),
+            error_type=type(exc).__name__,
+        )
+
+
 # Synchronous 200: the import runs inline and returns the full BrokerageImportResponse
 # (counts + reconciliation results), so the operation is complete on response — not a
 # 202 background job (cf. #1099 AC-platform.29.1).
@@ -757,6 +784,9 @@ async def import_brokerage_statement_positions(
         # linked the same way during posting). Only set it when not already linked.
         if statement.account_id is None and import_result.account_id is not None:
             statement.account_id = import_result.account_id
+        # #2648: a successful retry clears the note of an earlier failed import.
+        if is_brokerage_import_failure(statement.validation_error):
+            statement.validation_error = None
         await db.commit()
     except Exception as exc:
         # #2649: a rejected source (HTTP 422 with a reason) is a warning, not a server fault.
@@ -765,13 +795,20 @@ async def import_brokerage_statement_positions(
             "statement.brokerage_import.failed",
             audit_event="statement.brokerage_import.failed",
             request_id=request_id,
-            statement_id=str(statement.id),
+            statement_id=str(statement_id),
             phase="brokerage_import_failed",
             model_to_use=None,
             error_type=type(exc).__name__,
             safe_error_message=safe_error_message(str(exc)),
         )
         await db.rollback()
+        await _record_brokerage_import_failure(
+            db,
+            statement_id=statement_id,
+            user_id=user_id,
+            request_id=request_id,
+            reason=exc.message if isinstance(exc, BrokerageImportRejectedError) else None,
+        )
         raise
     logger.info(
         "statement.brokerage_import.completed",

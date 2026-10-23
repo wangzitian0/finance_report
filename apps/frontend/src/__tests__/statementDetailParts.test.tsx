@@ -32,6 +32,7 @@ const baseStatement: BankStatement = {
     confidence_score: 92,
     balance_validated: true,
     validation_error: null,
+    brokerage_import_failed: false,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     transactions: [],

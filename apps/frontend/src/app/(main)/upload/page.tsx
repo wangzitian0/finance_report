@@ -33,6 +33,22 @@ function statusDisplay(status: string): { label: string; variant: BadgeVariant }
   }
 }
 
+/**
+ * The state label of an upload row (#2648). A failed brokerage import wins over the parse state:
+ * the file is parsed, but its positions are not in the portfolio.
+ */
+function rowStateDisplay(statement: BankStatement): { label: string; variant: BadgeVariant } {
+  if (statement.brokerage_import_failed && statement.status !== "parsing") return { label: "Import failed", variant: "error" };
+  return statusDisplay(statement.status);
+}
+
+/** The balance check badge. Only a parsing statement says "Parsing" (#2648). */
+function balanceCheckDisplay(statement: BankStatement): { label: string; variant: BadgeVariant } {
+  if (statement.status === "parsing") return { label: "Parsing", variant: "muted" };
+  if (statement.balance_validated === null || statement.balance_validated === undefined) return { label: "Not checked", variant: "muted" };
+  return statement.balance_validated ? { label: "✓ Verified", variant: "success" } : { label: "Needs Review", variant: "warning" };
+}
+
 function statementDisplayTitle(statement: BankStatement): string {
   return statement.original_filename || `${statement.institution} (${statement.period_start ?? ""} – ${statement.period_end ?? ""})`;
 }
@@ -47,6 +63,7 @@ export default function UploadPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingStatementId, setDeletingStatementId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [retryingImportId, setRetryingImportId] = useState<string | null>(null);
   const mountedRef = useRef(false);
 
   const statementsQuery = useQuery({
@@ -72,6 +89,20 @@ export default function UploadPage() {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
+
+  const retryBrokerageImport = async (statementId: string) => {
+    setRetryingImportId(statementId);
+    try {
+      await apiOperation("import_brokerage_statement_positions_statements__statement_id__brokerage_import_post", { path: { statement_id: statementId } });
+      showToast("Brokerage positions imported", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Brokerage import failed", "error");
+    } finally {
+      setRetryingImportId(null);
+      // The server records the outcome on the statement: read the list again.
+      await invalidateLedgerDerivedQueries(queryClient);
+    }
+  };
 
   const handleDeleteConfirm = async () => {
     if (!deletingStatementId || deleting) return;
@@ -99,9 +130,12 @@ export default function UploadPage() {
 
       <div className="mb-6"><FlowStepBanner current="upload" /></div>
 
-      <div className="mb-6">
+      <div className="mb-3">
         <StatementUploader kind="statement" onUploadComplete={refreshStatements} onError={setActionError} />
       </div>
+
+      {/* #2648: one workflow line under the upload control; the details fold under it. */}
+      <WorkflowNotices />
 
       {error && <Alert variant="error" className="mb-4">{error}</Alert>}
 
@@ -116,8 +150,6 @@ export default function UploadPage() {
           </div>
         </div>
       )}
-
-      <WorkflowNotices />
 
       <div id="statements" className="card mb-6">
         <div className="card-header flex flex-wrap items-center justify-between gap-2">
@@ -154,35 +186,50 @@ export default function UploadPage() {
           <EmptyState framed={false} title="No statements uploaded yet" />
         ) : (
           <div className="divide-y divide-[var(--border)]">
-            {statements.map((statement) => (
-              <div key={statement.id} className="relative block px-6 py-4 hover:bg-[var(--background-muted)]/50 transition-colors">
-                <div className="flex items-start justify-between gap-4">
+            {statements.map((statement) => {
+              const state = rowStateDisplay(statement);
+              const balanceCheck = balanceCheckDisplay(statement);
+              const importFailed = state.label === "Import failed";
+              const currency = statement.currency || "SGD";
+              return (
+              <div key={statement.id} data-testid={`upload-statement-row-${statement.id}`} className="relative block px-4 py-4 hover:bg-[var(--background-muted)]/50 transition-colors sm:px-6">
+                {/* On a phone the actions go under the title, so the row never widens the page (#2648). */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Link href={`/statements/${statement.id}`} className="font-medium truncate hover:text-[var(--accent)] after:absolute after:inset-0">
+                    <div className="flex min-w-0 items-center gap-2 mb-1">
+                      <Link href={`/statements/${statement.id}`} className="min-w-0 font-medium truncate hover:text-[var(--accent)] after:absolute after:inset-0">
                         {statementDisplayTitle(statement)}
                       </Link>
-                      <Badge variant={statusDisplay(statement.status).variant}>
+                      <Badge variant={state.variant}>
                         {statement.status === "parsing" && (
                           <span className="inline-block w-3 h-3 mr-1 border-2 border-current border-t-transparent rounded-full animate-spin" />
                         )}
-                        {statusDisplay(statement.status).label}
+                        {state.label}
                       </Badge>
                     </div>
-                    {statement.status === "rejected" && statement.validation_error && (
-                      <div className="text-xs text-[var(--error)] mt-1 line-clamp-2">{statement.validation_error}</div>
+                    {(statement.status === "rejected" || importFailed) && statement.validation_error && (
+                      <div className="text-xs text-[var(--error)] mt-1 line-clamp-2 [overflow-wrap:anywhere]">{statement.validation_error}</div>
                     )}
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
-                      <span>{statement.institution}</span>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                      <span className="[overflow-wrap:anywhere]">{statement.institution}</span>
                       <span>•</span>
-                      <span>{formatPeriod(statement.period_start, statement.period_end)}</span>
+                      <span>{formatPeriod(statement.period_start, statement.period_end, statement.status === "parsing" ? "Parsing..." : undefined)}</span>
                       <span>•</span>
                       <span>{currencyCodeOrDash(statement.currency)}</span>
                     </div>
                   </div>
-                  <div className="relative z-10 text-right flex-shrink-0 flex flex-col items-end gap-2">
-                    {statement.status === "parsed" && (
-                      <div className="flex items-center gap-2">
+                  <div className="relative z-10 flex flex-wrap items-center gap-2 sm:flex-shrink-0 sm:flex-col sm:items-end">
+                    {importFailed ? (
+                      <Button
+                        variant="primary"
+                        className="text-sm"
+                        disabled={retryingImportId === statement.id}
+                        onClick={() => void retryBrokerageImport(statement.id)}
+                      >
+                        {retryingImportId === statement.id ? "Retrying..." : "Retry import"}
+                      </Button>
+                    ) : statement.status === "parsed" ? (
+                      <div className="flex flex-wrap items-center gap-2">
                         <Button variant="primary" className="text-sm" onClick={() => router.push(`/statements/${statement.id}`)}>
                           Review & Approve →
                         </Button>
@@ -190,9 +237,8 @@ export default function UploadPage() {
                           View Report
                         </Button>
                       </div>
-                    )}
-                    {statement.status === "approved" && (
-                      <div className="flex items-center gap-2">
+                    ) : statement.status === "approved" ? (
+                      <div className="flex flex-wrap items-center gap-2">
                         <Button variant="secondary" className="text-sm" onClick={() => router.push(`/statements/${statement.id}`)}>
                           View Transactions
                         </Button>
@@ -200,7 +246,7 @@ export default function UploadPage() {
                           View Report →
                         </Button>
                       </div>
-                    )}
+                    ) : null}
                     <IconButton
                       icon={Trash2}
                       label="Delete Statement"
@@ -212,35 +258,34 @@ export default function UploadPage() {
                       }}
                       className="text-muted hover:text-[var(--error)]"
                     />
-                    <div>
+                    <div className="sm:text-right">
                       <div className="text-lg font-semibold text-[var(--accent)]">{statement.confidence_score ?? "—"}%</div>
                       <div className="text-xs text-muted">confidence</div>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-3 flex items-center gap-6 text-xs">
+                <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
                   <div>
                     <span className="text-muted">Opening:</span>{" "}
-                    <span>{formatCurrencyLocale(statement.opening_balance ?? 0, statement.currency || "SGD")}</span>
+                    <span>{statement.opening_balance == null ? "—" : formatCurrencyLocale(statement.opening_balance, currency)}</span>
                   </div>
                   <div>
                     <span className="text-muted">Closing:</span>{" "}
-                    <span>{formatCurrencyLocale(statement.closing_balance ?? 0, statement.currency || "SGD")}</span>
+                    <span>{statement.closing_balance == null ? "—" : formatCurrencyLocale(statement.closing_balance, currency)}</span>
                   </div>
-                  {statement.balance_validated === null || statement.balance_validated === undefined ? (
-                    <Badge variant="muted">Parsing</Badge>
-                  ) : statement.balance_validated ? (
-                    <Badge variant="success">✓ Verified</Badge>
-                  ) : (
+                  {balanceCheck.label === "Needs Review" ? (
                     <span className="relative z-10 inline-flex items-center">
                       <Badge variant="warning">Needs Review</Badge>
                       <InfoHint term="needs_review" label="Needs review" />
                     </span>
+                  ) : (
+                    <Badge variant={balanceCheck.variant}>{balanceCheck.label}</Badge>
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

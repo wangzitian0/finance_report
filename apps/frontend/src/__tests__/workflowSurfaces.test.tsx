@@ -130,7 +130,7 @@ describe("workflow notification surfaces", () => {
     const dialog = await screen.findByRole("dialog", { name: "Workflow events" })
 
     const link = within(dialog).getByRole("link", { name: /needs confirmation/i })
-    expect(link).toHaveAttribute("href", "/audit")
+    expect(link).toHaveAttribute("href", "/audit?tab=needs-you")
 
     // Following the link closes the notification sheet.
     fireEvent.click(link)
@@ -351,6 +351,20 @@ describe("workflow notification surfaces", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "Mark as read" })[0])
     await waitFor(() => expect(updateWorkflowEventStatus).toHaveBeenCalledWith("blocked-event", "read"))
+  })
+
+  // AC-platform.fe-workflow.9
+  it("AC-platform.fe-workflow.9 folds the upload-page notices under one summary line", async () => {
+    renderWithQuery(<WorkflowNotices />)
+
+    const notices = await screen.findByTestId("upload-workflow-summary")
+    expect(notices.tagName).toBe("DETAILS")
+    expect(notices).not.toHaveAttribute("open")
+    const summary = notices.querySelector("summary")
+    expect(summary).toHaveTextContent("Workflow: Needs Action · 1 blocker · 2 actions · 4 events")
+    expect(summary).toHaveTextContent("Show details")
+    // The status feed is inside the folded part, not in the summary line.
+    expect(summary).not.toContainElement(screen.getByRole("heading", { name: "Workflow status" }))
   })
 
   it("humanizeWorkflowText replaces all five invariant jargon patterns and preserves ordinary copy", () => {

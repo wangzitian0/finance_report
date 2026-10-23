@@ -100,6 +100,8 @@ test.describe("AC22.4.5 everyday-user attention journey", () => {
 
       // Open the Upload page, where the workflow notices live (also reached via the header bell).
       await page.goto("/upload", { waitUntil: "networkidle" });
+      // The notices fold under one summary line (#2648): open it.
+      await page.getByTestId("upload-workflow-summary").locator(":scope > summary").click({ timeout: COLD_ROUTE_TIMEOUT_MS });
 
       await expect(page.getByText("Source review required").first()).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
       await expect(page.getByText("Reconciliation blockers").first()).toBeVisible();
