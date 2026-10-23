@@ -9,7 +9,7 @@ AC-testing.benchmarks.17 and 18 (#2633) add the section rule. A markdown label h
 when the section of the heading holds a negated verdict with no hedge word. AC 17 holds the
 accepted shapes. AC 18 holds the bounds: a heading that states a finding, an explanation, a hedge
 word, a verdict in another section and a claim in the section stay failures. Real advisor answer H01
-comes from run 39755911927. Mutated claims F01 to F75 must fail.
+comes from run 39755911927. Mutated claims F01 to F76 must fail.
 
 This file has three groups of tests:
 - Rule tests. Each rule has a test that fails when the rule is removed.
@@ -618,19 +618,19 @@ HEADING_PROSE_FINDING += [
 HEADING_PROSE_FINDING += [
     # A heading that states the finding before its label words stays a failure.
     (
-        "F73",
+        "F74",
         f"{NET}## Assets Exceed Liabilities Discrepancy Check\n\n{PROSE_EN}\n",
         "discrepancy",
     ),
     # A verdict inside a code fence is no verdict.
     (
-        "F74",
+        "F75",
         f"{NET}## Balance Discrepancy Check\n\n```\nthere are no discrepancies\n```\n",
         "discrepancy",
     ),
     # A heading inside a code fence is no heading, also when a verdict follows the fence.
     (
-        "F75",
+        "F76",
         f"{NET}```\n## Balance Discrepancy Check\n```\nThere are no discrepancies.\n",
         "discrepancy",
     ),
