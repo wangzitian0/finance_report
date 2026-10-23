@@ -17,8 +17,8 @@ NEXT_DAY = date(2026, 1, 3)
 async def test_AC23_2_6_counts_requests_and_tokens() -> None:
     """AC-llm.2.6: each record bumps the request count and accumulates tokens."""
     meter = LlmUsageMeter()
-    await meter.record("glm-4.6v", "extraction.json", 100, 40, today=DAY)
-    await meter.record("glm-4.6v", "advisor.chat", 10, 5, today=DAY)
+    await meter.record("test-vision-model", "extraction.json", 100, 40, today=DAY)
+    await meter.record("test-vision-model", "advisor.chat", 10, 5, today=DAY)
     assert meter.requests_today == 2
     assert meter.tokens_today == 155
 

@@ -685,7 +685,7 @@ def test_wait_for_statement_parsed_retries_on_rate_limit_error() -> None:
     resp_rejected.json.return_value = {
         "id": "stmt-rl-1",
         "status": "rejected",
-        "validation_error": "Model glm-4.6v failed: LLM provider call failed (RateLimitError)",
+        "validation_error": "Model test-vision-model failed: LLM provider call failed (RateLimitError)",
     }
 
     resp_parsed = MagicMock()

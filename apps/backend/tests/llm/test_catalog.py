@@ -27,8 +27,8 @@ def _clear_settings_model_caches():
 @pytest.fixture
 def patched(monkeypatch):
     monkeypatch.setattr(settings, "primary_model", "glm-5.1", raising=False)
-    monkeypatch.setattr(settings, "vision_model", "glm-4.6v", raising=False)
-    monkeypatch.setattr(settings, "ocr_model", "glm-4.6v", raising=False)
+    monkeypatch.setattr(settings, "vision_model", "test-vision-model", raising=False)
+    monkeypatch.setattr(settings, "ocr_model", "test-vision-model", raising=False)
     monkeypatch.setattr(settings, "fallback_models_str", "free-mini", raising=False)
     monkeypatch.setattr(settings, "vision_fallback_models_str", None, raising=False)
     # litellm pricing table: glm-5.1 priced, free-mini free.
@@ -67,7 +67,7 @@ async def test_AC23_2_5_flags_free_tier(patched):
 async def test_AC23_2_5_filters_by_modality(patched):
     """AC-llm.2.5: modality filter returns only models that accept it (vision models carry image)."""
     image_models = await patched.list_models(modality=Modality.IMAGE)
-    assert "glm-4.6v" in {m.id for m in image_models}
+    assert "test-vision-model" in {m.id for m in image_models}
     assert "glm-5.1" not in {m.id for m in image_models}  # text-only primary
 
 
@@ -88,7 +88,7 @@ async def test_AC23_2_5_dedupes_models(patched):
     """AC-llm.2.5: vision_model == ocr_model collapses to a single catalogue entry."""
     models = await patched.list_models()
     ids = [m.id for m in models]
-    assert ids.count("glm-4.6v") == 1
+    assert ids.count("test-vision-model") == 1
 
 
 async def test_AC23_2_5_merges_modalities_for_duplicate_model_ids(monkeypatch):
@@ -98,14 +98,14 @@ async def test_AC23_2_5_merges_modalities_for_duplicate_model_ids(monkeypatch):
     monkeypatch.setattr(settings, "vision_model", "glm-5.3-flashx", raising=False)
     monkeypatch.setattr(settings, "ocr_model", "glm-5.3-flashx", raising=False)
     monkeypatch.setattr(settings, "fallback_models_str", "glm-5.2,glm-5-turbo", raising=False)
-    monkeypatch.setattr(settings, "vision_fallback_models_str", "glm-5.3-flash,glm-4.6v", raising=False)
+    monkeypatch.setattr(settings, "vision_fallback_models_str", "glm-5.3-flash,test-vision-model", raising=False)
     monkeypatch.setattr(catalog_mod.litellm, "model_cost", {}, raising=False)
     monkeypatch.setattr(catalog_mod.litellm, "supports_reasoning", lambda model: False, raising=False)
 
     catalog = LitellmCatalog()
     models = await catalog.list_models()
     by_id = {m.id: m for m in models}
-    assert list(by_id) == ["glm-5.3-flash", "glm-5.3-flashx", "glm-5.2", "glm-5-turbo", "glm-4.6v"]
+    assert list(by_id) == ["glm-5.3-flash", "glm-5.3-flashx", "glm-5.2", "glm-5-turbo", "test-vision-model"]
     for model_id in ("glm-5.3-flash", "glm-5.3-flashx"):
         assert Modality.TEXT in by_id[model_id].modalities
         assert Modality.IMAGE in by_id[model_id].modalities
@@ -116,12 +116,12 @@ async def test_AC23_2_5_merges_modalities_for_duplicate_model_ids(monkeypatch):
         "glm-5.3-flashx",
         "glm-5.2",
         "glm-5-turbo",
-        "glm-4.6v",
+        "test-vision-model",
     ]
     for vision_modality in (Modality.IMAGE, Modality.PDF, Modality.FILE):
         vision_models = await catalog.list_models(modality=vision_modality)
         assert [m.id for m in vision_models] == [
             "glm-5.3-flashx",
             "glm-5.3-flash",
-            "glm-4.6v",
+            "test-vision-model",
         ]

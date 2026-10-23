@@ -12,8 +12,10 @@ def _provider(protocol: ProtocolFamily, api_base: str | None = None) -> Provider
 
 def test_AC23_2_1_openai_compatible_prefixes_and_keeps_api_base():
     """AC-llm.2.1: openai-compatible (Z.AI/GLM, vLLM…) -> openai/ prefix + custom api_base."""
-    call = build_call(_provider(ProtocolFamily.OPENAI_COMPATIBLE, "https://api.z.ai/api/coding/paas/v4"), "glm-4.6v")
-    assert call.model == "openai/glm-4.6v"
+    call = build_call(
+        _provider(ProtocolFamily.OPENAI_COMPATIBLE, "https://api.z.ai/api/coding/paas/v4"), "test-vision-model"
+    )
+    assert call.model == "openai/test-vision-model"
     assert call.api_base == "https://api.z.ai/api/coding/paas/v4"
     assert call.extra_headers == {}
 

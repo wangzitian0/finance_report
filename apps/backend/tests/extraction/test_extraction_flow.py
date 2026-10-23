@@ -306,7 +306,7 @@ class TestExtractionServiceFlow:
                 file_url=None,
                 institution="DBS",
                 file_type="pdf",
-                force_model="glm-4.6v",
+                force_model="test-vision-model",
             )
 
             mock_render.assert_called_once_with(pdf_bytes)
