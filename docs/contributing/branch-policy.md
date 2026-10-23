@@ -31,7 +31,7 @@
 
    | File | Checklist |
    |------|-----------|
-   | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` | These files are generated from dev_env. Do not hand-edit them. Change the dev_env rule source, then re-render. The publish manifest `.ws-publish/manifest.json` records the SHA-256 of each generated file. dev_env `ws-check-drift` guards the generated files. This repository has no CI job that compares them with the manifest. |
+   | `AGENTS.md`, `GEMINI.md` | These files are generated from dev_env. Do not hand-edit them. Change the dev_env rule source, then re-render. The publish manifest `.ws-publish/manifest.json` records the SHA-256 of each generated file. dev_env `ws-check-drift` guards the generated files. This repository has no CI job that compares them with the manifest. |
    | `README.md`, `vision.md` | The normal review checklist applies: required checks are green on the head SHA, and every actionable review thread is resolved. |
 
    `common/meta/extension/check_ssot_ownership.py` does not enforce this list. That script exempts these files from its rule-keyword cross-reference check (`CHECK4_EXEMPT_PATHS`) and checks nothing else about them.

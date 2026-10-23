@@ -102,7 +102,17 @@ def test_instruction_md_symlinks_to_agents_md() -> None:
     agents_md = ROOT / "AGENTS.md"
     assert agents_md.is_file() and not agents_md.is_symlink()
     # A CLAUDE.md file or link stops Claude Code from loading AGENTS.md natively (dev_env#393).
+    # The root check covers an untracked file; a tracked CLAUDE.md in any directory also stops the load.
     assert not os.path.lexists(ROOT / "CLAUDE.md"), "CLAUDE.md must not exist"
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True
+    ).stdout.split(b"\0")
+    tracked_claude_md = [
+        p.decode() for p in tracked if p and Path(p.decode()).name == "CLAUDE.md"
+    ]
+    assert tracked_claude_md == [], (
+        f"tracked CLAUDE.md files stop AGENTS.md loading: {tracked_claude_md}"
+    )
     for entry in ("GEMINI.md",):
         link = ROOT / entry
         assert link.is_symlink(), f"{entry} must be a symlink, not a copy"
@@ -112,7 +122,7 @@ def test_instruction_md_symlinks_to_agents_md() -> None:
 
 
 def test_instruction_mirrors_exempt_from_ssot_ownership_check() -> None:
-    """The AGENTS.md mirrors must stay registered in the SSOT-ownership guard.
+    """GEMINI.md, the one AGENTS.md mirror, stays registered in the SSOT-ownership guard; CLAUDE.md does not.
 
     Otherwise their mirrored content trips check4 (rule keyword without a
     cross-reference) and breaks CI.
