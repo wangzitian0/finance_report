@@ -54,5 +54,3 @@ export default function GeneralSettingsPanel() {
     </div>
   );
 }
-
-export { GeneralSettingsPanel as GeneralSettingsPage };

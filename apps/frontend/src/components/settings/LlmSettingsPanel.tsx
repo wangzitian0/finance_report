@@ -282,5 +282,3 @@ export default function LlmSettingsPanel() {
     </div>
   );
 }
-
-export { LlmSettingsPanel as LlmSettingsPage };

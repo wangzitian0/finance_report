@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import GeneralSettingsPage from "@/components/settings/GeneralSettingsPanel"
+import GeneralSettingsPanel from "@/components/settings/GeneralSettingsPanel"
 import { apiOperation } from "@/lib/api-client"
 
 vi.mock("@/lib/api-client", () => ({
@@ -26,10 +26,10 @@ beforeEach(() => {
   })
 })
 
-describe("GeneralSettingsPage (EPIC-012 AC12.39.3)", () => {
+describe("GeneralSettingsPanel (EPIC-012 AC12.39.3)", () => {
   // AC-pricing.fe-settings.1
   it("AC12.39.3 renders the effective base currency and keeps Save disabled until edited", async () => {
-    render(<GeneralSettingsPage />)
+    render(<GeneralSettingsPanel />)
     await waitFor(() => expect(screen.getByText("General Settings")).toBeInTheDocument())
 
     expect(screen.getByLabelText("Base currency")).toHaveValue("SGD")
@@ -46,7 +46,7 @@ describe("GeneralSettingsPage (EPIC-012 AC12.39.3)", () => {
       }
       return {} as any
     })
-    render(<GeneralSettingsPage />)
+    render(<GeneralSettingsPanel />)
     await waitFor(() => expect(screen.getByText("General Settings")).toBeInTheDocument())
 
     fireEvent.change(screen.getByLabelText("Base currency"), { target: { value: "eur" } })
@@ -73,7 +73,7 @@ describe("GeneralSettingsPage (EPIC-012 AC12.39.3)", () => {
       }
       return {} as any
     })
-    render(<GeneralSettingsPage />)
+    render(<GeneralSettingsPanel />)
     await waitFor(() => expect(screen.getByText("General Settings")).toBeInTheDocument())
 
     fireEvent.change(screen.getByLabelText("Base currency"), { target: { value: "XYZ" } })
@@ -87,12 +87,12 @@ describe("GeneralSettingsPage (EPIC-012 AC12.39.3)", () => {
   it("AC12.39.3 surfaces a load error when fetching the base currency fails", async () => {
     mockedApiOperation.mockReset()
     mockedApiOperation.mockRejectedValueOnce(new Error("Network Error"))
-    render(<GeneralSettingsPage />)
+    render(<GeneralSettingsPanel />)
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Network Error"))
   })
 
   it("AC12.39.3 Reset restores the saved value and clears the dirty state", async () => {
-    render(<GeneralSettingsPage />)
+    render(<GeneralSettingsPanel />)
     await waitFor(() => expect(screen.getByText("General Settings")).toBeInTheDocument())
 
     fireEvent.change(screen.getByLabelText("Base currency"), { target: { value: "usd" } })

@@ -12,7 +12,6 @@ import {
   LoadingState,
   PageHeader,
   SkeletonBlock,
-  TableSkeleton,
 } from "@/components/ui"
 
 describe("UI primitives", () => {
@@ -81,13 +80,13 @@ describe("UI primitives", () => {
     const { container } = render(
       <div>
         <SkeletonBlock label="Loading metric" className="h-6 w-24" />
-        <TableSkeleton label="Loading report rows" rows={2} columns={3} />
+        <SkeletonBlock className="h-4 w-full" />
       </div>,
     )
 
     expect(screen.getByRole("status", { name: "Loading metric" })).toHaveAttribute("aria-busy", "true")
-    expect(screen.getByRole("status", { name: "Loading report rows" })).toHaveAttribute("aria-busy", "true")
-    expect(container.querySelectorAll("[data-testid='skeleton-block']").length).toBeGreaterThanOrEqual(7)
+    expect(screen.getAllByRole("status")).toHaveLength(1)
+    expect(container.querySelectorAll("[data-testid='skeleton-block'].animate-pulse.bg-surface-muted")).toHaveLength(2)
     expect(container.querySelector(".animate-spin")).toBeNull()
   })
 })

@@ -24,8 +24,8 @@ vi.mock("next/link", () => ({
 
 vi.mock("@/components/ChatPanel", () => ({
   __esModule: true,
-  default: ({ variant, initialPrompt }: { variant: string; initialPrompt?: string | null }) => (
-    <div data-testid="chat-panel" data-variant={variant} data-prompt={initialPrompt ?? ""}>
+  default: ({ initialPrompt }: { initialPrompt?: string | null }) => (
+    <div data-testid="chat-panel" data-prompt={initialPrompt ?? ""}>
       Chat Panel
     </div>
   ),
@@ -85,12 +85,11 @@ describe("ChatPageClient", () => {
     expect(screen.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports?tab=balance-sheet")
   })
 
-  it("AC16.20.2 renders ChatPanel with page variant", () => {
+  it("AC16.20.2 renders the ChatPanel", () => {
     getMock.mockReturnValue(null)
     render(<ChatPageClient />)
 
-    expect(screen.getByTestId("chat-panel")).toBeInTheDocument()
-    expect(screen.getByTestId("chat-panel")).toHaveAttribute("data-variant", "page")
+    expect(screen.getByTestId("chat-panel")).toHaveTextContent("Chat Panel")
   })
 
   it("AC16.20.2 passes initialPrompt to ChatPanel", () => {

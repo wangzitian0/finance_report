@@ -137,19 +137,24 @@ def test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces() -> No
 
 
 def test_AC19_4_1_upload_first_home_ssot_documents_dashboard_contract() -> None:
-    """AC-platform.32.3: AC19.4.1: /dashboard is the upload-first home and metrics are secondary."""
+    """AC-platform.32.3: AC19.4.1: Home at / shows one workflow action through HomeActionBanner."""
     ssot = (ROOT_DIR / "common" / "workflow" / "workflow-events.md").read_text(encoding="utf-8")
     epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
+    banner = ROOT_DIR / "apps" / "frontend" / "src" / "components" / "home" / "HomeActionBanner.tsx"
+    normalized_ssot = " ".join(ssot.split())
 
+    # The SSOT names the live Home surface, and that surface exists.
+    assert "export function HomeActionBanner(" in banner.read_text(encoding="utf-8")
     for phrase in (
-        "`/dashboard` is the authenticated home for the upload-to-report workflow",
-        "UploadToReportHome",
-        "Dashboard first viewport",
+        "`/` is the authenticated home. The `/dashboard` route redirects to `/`.",
+        "HomeActionBanner (/)",
+        "`HomeActionBanner` shows one action at most.",
         "workflow.status.next_action.label",
+        "An empty summary shows the workflow-state sentence one time.",
         "Ready actions route directly to `/reports/package`",
-        "Secondary dashboard metric loading or failure must not hide the workflow",
+        "It must not hide the statement cards of Home.",
     ):
-        assert phrase in ssot
+        assert phrase in normalized_ssot, phrase
 
     assert "AC19.4.1" in epic
     assert "AC19.4.8" in epic

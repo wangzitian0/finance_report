@@ -5,7 +5,6 @@ import {
     Cpu,
     ClipboardCheck,
     FileText,
-    FolderOpen,
     Home,
     Landmark,
     Link2,
@@ -121,9 +120,6 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
 };
 
 export const DEFAULT_ROUTE_ICON = UploadCloud;
-
-// Re-exported so the `/more` page can render the genuine power escape hatch.
-export { FolderOpen };
 
 /** Whether a nav item's href matches the current pathname (exact, or a path prefix). */
 export function isActive(pathname: string, href: string): boolean {

@@ -8,7 +8,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AiSuggestionsQueue } from "@/components/audit/AiSuggestionsQueue";
-import AiSettingsPage from "@/components/settings/AiSettingsPanel";
+import AiSettingsPanel from "@/components/settings/AiSettingsPanel";
 import { AuditTrailPanel } from "@/components/journal/JournalEntryDetailsModal";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
 import { apiOperation } from "@/lib/api-client";
@@ -358,7 +358,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       return {} as any;
     });
 
-    render(<AiSettingsPage />);
+    render(<AiSettingsPanel />);
 
     const reconciliationToggle = await screen.findByLabelText(
       "Enable AI reconciliation",
@@ -417,7 +417,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       return {} as any;
     });
 
-    render(<AiSettingsPage />);
+    render(<AiSettingsPanel />);
 
     expect(
       await screen.findByLabelText("Enable AI reconciliation"),
@@ -430,7 +430,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       new Error("settings unavailable"),
     );
 
-    render(<AiSettingsPage />);
+    render(<AiSettingsPanel />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "settings unavailable",
@@ -452,7 +452,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       return {} as any;
     });
 
-    render(<AiSettingsPage />);
+    render(<AiSettingsPanel />);
 
     const reconciliationToggle = await screen.findByLabelText(
       "Enable AI reconciliation",
