@@ -48,6 +48,13 @@ class RetryableStatementIngestionError(StatementIngestionError):
     """Infrastructure/application failure that durable execution may retry."""
 
 
+class StatementClassificationBusy(ValueError):
+    """Another task still classifies this statement, and the wait limit has passed.
+
+    The caller changed nothing. A later call can succeed (#2637).
+    """
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class RetireStatementCommand:
     """Idempotently retire one user-owned statement without purging facts."""

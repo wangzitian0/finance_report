@@ -27,6 +27,7 @@ from src.extraction import (
     RetireStatementCommand,
     ReviewedStatementEnvelopeCommand,
     ReviewedStatementEnvelopeConflict,
+    StatementClassificationBusy,
     StatementPostingOutcome,
     StatementPostingStatus,
     StatementSummary,
@@ -993,6 +994,9 @@ async def approve_statement_stage1(
             user_id,
             dependencies=compose_statement_posting_dependencies(),
         )
+    except StatementClassificationBusy as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

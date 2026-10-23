@@ -33,6 +33,7 @@ from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
     try_auto_approve_high_confidence_statement,
 )
+from src.extraction.extension.statement_preclassification import classify_parsed_statement
 from src.extraction.extension.transaction_identity import TransactionIdentityReviewRequired
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.statement_summary import StatementSummary
@@ -89,7 +90,7 @@ class StatementIngestionUseCase:
                 content = await self.content_loader(job.storage_key)
             except Exception as exc:
                 raise RetryableStatementIngestionError(f"Statement content load failed: {exc}") from exc
-        return await _execute_statement_ingestion(
+        outcome = await _execute_statement_ingestion(
             job=job,
             content=content,
             session_maker=self.session_maker,
@@ -99,6 +100,13 @@ class StatementIngestionUseCase:
             trace_emitter_factory=self.trace_emitter_factory,
             clock=self.clock,
         )
+        if outcome.status is StatementIngestionStatus.COMPLETED:
+            # Second phase, after the commit that made the statement PARSED (#2637). It is best effort and never
+            # raises, so a model failure cannot fail the parse or make a durable runner retry it. The source bytes
+            # are not needed any more.
+            del content
+            await classify_parsed_statement(self.session_maker, statement_id=job.statement_id, user_id=job.user_id)
+        return outcome
 
 
 def build_statement_ingestion_use_case(
