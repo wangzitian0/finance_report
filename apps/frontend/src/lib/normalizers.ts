@@ -76,7 +76,9 @@ export function toTransactionViewModel(
     reference: ("reference" in raw ? raw.reference : null) ?? null,
     currency: ("currency" in raw ? raw.currency : null) ?? null,
     balance_after: overrides?.balance_after ?? rawBalanceAfter ?? null,
-    status: overrides?.status ?? "pending",
+    // The wire has no transaction status. The statement table derives it from the statement
+    // state, so the view model does not invent one (#2647: an approved statement showed "pending").
+    status: overrides?.status,
     confidence: overrides?.confidence ?? derivedConfidence ?? "low",
     confidence_tier:
       overrides?.confidence_tier ??

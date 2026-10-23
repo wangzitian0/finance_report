@@ -15,7 +15,7 @@ import { ATTENTION_RETURN_HREF, ATTENTION_RETURN_LABEL, NEEDS_YOU_HREF, isAttent
 import { BankStatement, BrokerageImportResponse, normalizeBankStatement } from "@/lib/types";
 import { currencyCodeOrDash } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
-import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
+import { PdfPreviewPane, hasInlinePreview } from "@/components/review/PdfPreviewPane";
 import { LowConfidenceReviewModal } from "@/components/review/LowConfidenceReviewModal";
 import {
   BalanceIndicator,
@@ -379,6 +379,8 @@ export default function StatementDetailPage() {
   const prevId = currentIndex > 0 ? pendingStatements[currentIndex - 1].id : null;
   const nextId = currentIndex >= 0 && currentIndex < pendingStatements.length - 1 ? pendingStatements[currentIndex + 1].id : null;
   const returnTo = encodeURIComponent(`/statements/${statementId}`);
+  // A CSV source has no preview panel, and the table takes the full width (#2647).
+  const showPreview = hasInlinePreview(statement.original_filename || statement.file_path);
 
   return (
     <div className="p-6">
@@ -444,9 +446,11 @@ export default function StatementDetailPage() {
       )}
       {review && <BalanceIndicator openingBalance={review.opening_balance} closingBalance={review.closing_balance} validationResult={validationResult} currency={review.currency || "SGD"} />}
       <SourceEnvelopeConfirmation requiresEnvelopeConfirmation={requiresEnvelopeConfirmation} requiresOtherSourceReview={requiresOtherSourceReview} sourceMissingFacts={sourceMissingFacts} missingFactLabels={MISSING_FACT_LABELS} envelopeDraft={envelopeDraft} onDraftChange={setEnvelopeDraft} custodyAccounts={custodyAccountsData?.items || []} onConfirm={() => envelopeMutation.mutate()} isPending={envelopeMutation.isPending} reviewedEnvelope={review?.reviewed_envelope} onCreateAccount={(name) => createCustodyAccountMutation.mutate(name)} isCreatingAccount={createCustodyAccountMutation.isPending} defaultAccountName={statement.institution ? `${statement.institution} account` : ""} />
+      {/* Only the desktop table beside a preview has a fixed height. Without a preview, and on a phone, the
+          rows grow with the page. On a phone the rows come before the preview (#2647). */}
       <div data-testid="statement-side-by-side-workbench" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-5 min-h-[540px] h-[600px]"><PdfPreviewPane statementId={statementId} hasDocument={Boolean(statement.file_path) && statement.status !== "parsing"} /></div>
-        <div className="lg:col-span-7 min-w-0 min-h-[540px] h-[600px]"><TransactionTable transactions={statement.transactions} currency={statement.currency || "SGD"} onSelectTransaction={setReviewingTxn} statementStatus={statement.status} /></div>
+        {showPreview && <div className="order-2 h-[480px] lg:order-1 lg:col-span-5 lg:min-h-[540px] lg:h-[600px]"><PdfPreviewPane statementId={statementId} hasDocument={Boolean(statement.file_path) && statement.status !== "parsing"} /></div>}
+        <div className={`order-1 min-w-0 lg:order-2 ${showPreview ? "lg:col-span-7 lg:min-h-[540px] lg:h-[600px]" : "lg:col-span-12"}`}><TransactionTable transactions={statement.transactions} currency={statement.currency || "SGD"} onSelectTransaction={setReviewingTxn} statementStatus={statement.status} /></div>
       </div>
       <LowConfidenceReviewModal isOpen={reviewingTxn !== null} onClose={() => setReviewingTxn(null)} transaction={reviewingTxn} currency={reviewingTxn?.currency || statement.currency || "SGD"} onSuccess={() => { void refreshAfterReview(); }} />
       <ConflictResolutionDialog isOpen={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} duplicateCandidates={duplicateCandidates} transferPairCandidates={transferPairCandidates} onResolve={(action) => resolveConflictsMutation.mutate(action)} isResolving={resolveConflictsMutation.isPending} />

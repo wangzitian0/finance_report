@@ -190,14 +190,39 @@ export function SourceEnvelopeConfirmation({ requiresEnvelopeConfirmation, requi
   );
 }
 
+const CONFIDENCE_TIER_RANK: Record<string, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, TRUSTED: 3 };
+const CONFIDENCE_RANK: Record<string, number> = { low: 0, medium: 1, high: 2 };
+
+/** The confidence rank of a row: 0 is low. The tier wins over the coarse confidence, as the badge shows. */
+export function confidenceRank(txn: Pick<Transaction, "confidence_tier" | "confidence">): number {
+  if (txn.confidence_tier && txn.confidence_tier in CONFIDENCE_TIER_RANK) return CONFIDENCE_TIER_RANK[txn.confidence_tier];
+  return CONFIDENCE_RANK[txn.confidence ?? "low"] ?? 0;
+}
+
+/** The rows with the lowest confidence first (#2647). Rows of equal confidence keep their order. */
+export function lowestConfidenceFirst<T extends Pick<Transaction, "confidence_tier" | "confidence">>(rows: readonly T[]): T[] {
+  return rows
+    .map((txn, index) => ({ txn, index, rank: confidenceRank(txn) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map(({ txn }) => txn);
+}
+
 export function TransactionTable({ transactions, currency, onSelectTransaction, statementStatus }: { transactions: Transaction[]; currency: string; onSelectTransaction?: (txn: Transaction) => void; statementStatus?: string }) {
-  const rows = transactions ?? [];
+  const rows = lowestConfidenceFirst(transactions ?? []);
+  const lowCount = rows.filter((txn) => confidenceRank(txn) === 0).length;
   const renderStatus = (txn: Transaction) => <StatusBadge status={txn.status ?? (statementStatus === "approved" ? "matched" : "pending")} variants={{ pending: "warning", matched: "success", unmatched: "error" }} />;
   const renderConf = (txn: Transaction) => txn.confidence_tier ? <ConfidenceBadge tier={txn.confidence_tier} /> : <span className={`badge ${txn.confidence === "high" ? "badge-success" : txn.confidence === "medium" ? "badge-warning" : "badge-error"}`}>{txn.confidence ?? "unavailable"}</span>;
   return (
     <div className="card flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden">
-      <div className="card-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><h3 className="text-sm font-medium">Transactions</h3><span className="text-xs text-muted">{rows.length} total</span></div>
-      <div data-testid="stage1-mobile-transaction-list" className="min-w-0 flex-1 divide-y divide-[var(--border)] overflow-y-auto md:hidden">
+      <div className="card-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="text-sm font-medium">Transactions</h3>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {lowCount > 0 && <span data-testid="low-confidence-count" className="badge badge-error">{`${lowCount} low confidence · shown first`}</span>}
+          <span className="text-muted">{rows.length} total</span>
+        </div>
+      </div>
+      {/* The mobile list grows with the page: one page scroll, no inner scroll box (#2647). */}
+      <div data-testid="stage1-mobile-transaction-list" className="min-w-0 divide-y divide-[var(--border)] md:hidden">
         {rows.map((txn) => {
           const cat = formatCategoryLabel(txn.category ?? txn.proposed_category);
           return (
@@ -225,7 +250,7 @@ export function TransactionTable({ transactions, currency, onSelectTransaction, 
               return (
                 <tr key={txn.id} className="hover:bg-[var(--background-muted)]/50 group">
                   <td className="px-4 py-2 whitespace-nowrap">{txn.txn_date}</td>
-                  <td className="px-4 py-2"><div className="max-w-xs truncate" title={txn.description}>{txn.description}</div><div className="mt-0.5 flex flex-wrap items-center gap-1">{cat && <span className="inline-block rounded-full bg-[var(--background-muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">{cat}</span>}{statementStatus && renderStatus(txn)}</div></td>
+                  <td className="px-4 py-2"><div className="break-words" title={txn.description}>{txn.description}</div><div className="mt-0.5 flex flex-wrap items-center gap-1">{cat && <span className="inline-block rounded-full bg-[var(--background-muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">{cat}</span>}{statementStatus && renderStatus(txn)}</div></td>
                   <td className={`px-4 py-2 text-right font-medium whitespace-nowrap ${txn.direction === "IN" ? "text-[var(--success)]" : "text-[var(--error)]"}`}>{txn.direction === "IN" ? "+" : "-"}{formatCurrencyLocale(txn.amount, txn.currency || currency)}</td>
                   <td className="px-4 py-2 text-center">{renderConf(txn)}</td>
                   {onSelectTransaction && <td className="px-2 py-2 text-right whitespace-nowrap"><button type="button" onClick={() => onSelectTransaction(txn)} className="rounded px-2 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)]/10">Review</button></td>}

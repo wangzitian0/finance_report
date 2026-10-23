@@ -32,7 +32,8 @@ describe("normalizers (AC-meta.fe-contract-types.3, #1985)", () => {
       expect(vm.reference).toBe("REF123");
       expect(vm.currency).toBe("SGD");
       expect(vm.balance_after).toBeNull();
-      expect(vm.status).toBe("pending");
+      // The wire has no transaction status: the view model leaves it unset (#2647).
+      expect(vm.status).toBeUndefined();
       expect(vm.created_at).toBe("2026-03-01T10:00:00Z");
       expect(vm.updated_at).toBe("2026-03-01T10:00:00Z");
     });
