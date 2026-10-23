@@ -5,13 +5,15 @@ answer that only negates one. The oracle is a keyword check. It reads the first 
 heading. It does not read a clause that contradicts them.
 
 The earlier oracle passed every answer with the words "discrepancy check", whatever followed.
-AC-testing.benchmarks.17 (#2633) adds the section rule. A markdown label heading is neutral when
-the section of the heading holds a negated verdict with no hedge word. Real advisor answer H01
-comes from run 39755911927. Mutated claims F01 to F21 must still fail.
+AC-testing.benchmarks.17 and 18 (#2633) add the section rule. A markdown label heading is neutral
+when the section of the heading holds a negated verdict with no hedge word. AC 17 holds the
+accepted shapes. AC 18 holds the bounds: a heading that states a finding, an explanation, a hedge
+word, a verdict in another section and a claim in the section stay failures. Real advisor answer H01
+comes from run 39755911927. Mutated claims F01 to F75 must fail.
 
 This file has three groups of tests:
 - Rule tests. Each rule has a test that fails when the rule is removed.
-- A labeled corpus of 91 advisor answers in English and Chinese. The label says what the oracle must do.
+- A labeled corpus of 165 advisor answers in English and Chinese. The label says what the oracle must do.
   One answer is a real advisor answer from a staging run (2026-10-09, run 37968832947).
   One answer is the real failing answer of #2633 (2026-10-22, run 39755911927).
 - Known limits. A limit is a corpus answer that the oracle judges wrongly. It has a strict xfail.
@@ -440,8 +442,203 @@ HEADING_PROSE_FINDING: list[tuple[str, str, str]] = [
     ),
 ]
 
+# Review round 1 of PR #2638 found false passes. The rows below close them. Each label word,
+# each end noun and each hedge word has one row, so a mutation that drops a word turns a row red.
+NET = "Net worth: SGD 24,200.00\n\n"
+NET_ZH = "净资产：SGD 24,200.00\n\n"
+PROSE_EN = "I compared the totals for all four months. There are no discrepancies."
+PROSE_ZH = "我已核对全部记录，**没有发现任何差额**。"
+LABEL_HEADINGS_EN = [
+    "## Accounts Discrepancy Verification",
+    "## Accounting Imbalance Analysis",
+    "## Ledger Mismatch Audit",
+    "## Balance Discrepancy Assessment",
+    "## Account Reconciliation Discrepancy Report",
+    "## Discrepancy Summary",
+    "## Discrepancy Check Results",
+    "## Discrepancy Status",
+    "## The Ledger and Account Discrepancy Reviews",
+    "## Your Balance Discrepancy Checks",
+    "## Discrepancy Analyses",
+    "## Discrepancy Check Result",
+    "## Are there any discrepancies?",
+    "## **Balance Discrepancy Check**",
+    "## Balance Discrepancy Check:",
+    "### Balance Discrepancy Check ###",
+]
+LABEL_HEADINGS_ZH = [
+    "## 账务差额校验",
+    "## 对账差额复核",
+    "## 差额审核结果",
+    "## 账目与余额差额核对",
+    "## 账目和余额不一致情况",
+    "## 差额及不一致检查",
+]
+HEADING_PROSE_CLEAN += [
+    (f"H{number:02d}", f"{NET}{heading}\n\n{PROSE_EN}\n")
+    for number, heading in enumerate(LABEL_HEADINGS_EN, start=7)
+] + [
+    (f"H{number:02d}", f"{NET_ZH}{heading}\n\n{PROSE_ZH}\n")
+    for number, heading in enumerate(
+        LABEL_HEADINGS_ZH, start=7 + len(LABEL_HEADINGS_EN)
+    )
+]
+
+REVIEWED = "## Balance Discrepancy Check\n\nI reviewed every account. "
+REVIEWED_ZH = "## 账目差额检查\n\n我已核对全部记录。"
+# One sentence per hedge word. A hedge word in the verdict sentence keeps the heading a failure.
+HEDGED_VERDICTS_EN = [
+    "There are no discrepancies in assets, but liabilities are SGD 2,900.00 short.",
+    "There are no discrepancies in assets, however liabilities are SGD 2,900.00 short.",
+    "There are no discrepancies, except in the brokerage account.",
+    "With the exception of the brokerage account, there are no discrepancies.",
+    "Excluding the brokerage account, there are no discrepancies.",
+    "Although liabilities look odd, there are no discrepancies.",
+    "There are no discrepancies, though the brokerage feed is late.",
+    "There are no discrepancies unless the statement changes.",
+    "There are no discrepancies in assets, whereas liabilities are SGD 2,900.00 short.",
+    "There are no discrepancies, while the brokerage account is SGD 40.00 short.",
+    "There are no discrepancies in the bank accounts only.",
+    "There are no discrepancies if you ignore the brokerage account.",
+    "Assuming the statements are complete, there are no discrepancies.",
+    "There are almost no discrepancies.",
+    "There are nearly no discrepancies.",
+    "Apart from the brokerage account, there are no discrepancies.",
+    "Other than the brokerage account, there are no discrepancies.",
+    "Aside from the brokerage account, there are no discrepancies.",
+    "It would be wrong to say that there are no discrepancies.",
+    "It is unclear whether there are no discrepancies.",
+    "I am unable to say that there are no discrepancies.",
+    "I am not sure that there are no discrepancies.",
+    "I cannot confirm that there are no discrepancies.",
+    "I can't confirm that there are no discrepancies.",
+    "Is it true that there are no discrepancies?",
+    "There is no mismatch vs. the statement, but the cash account is SGD 40.00 short.",
+]
+HEDGED_VERDICTS_ZH = [
+    "资产没有发现任何差额，但负债多出 SGD 2,900。",
+    "资产没有发现任何差额，不过负债多出 SGD 2,900。",
+    "除券商账户外，没有发现任何差额。",
+    "资产没有发现任何差额，而负债多出 SGD 2,900。",
+    "资产没有发现任何差额，可是负债多出 SGD 2,900。",
+    "资产没有发现任何差额，负债却多出 SGD 2,900。",
+    "仅银行账户没有发现任何差额。",
+    "资产没有发现任何差额，只是负债多出 SGD 2,900。",
+    "如果忽略券商账户，没有发现任何差额。",
+    "假设对账单完整，没有发现任何差额。",
+    "几乎没有发现任何差额。",
+    "我无法确认没有发现任何差额。",
+]
+HEADING_PROSE_FINDING += [
+    # A heading that states a finding stays a failure, whatever the section says.
+    (
+        "F22",
+        f"{NET}## There Is a Discrepancy\n\nThe bank accounts show no mismatch.\n",
+        "discrepancy",
+    ),
+    (
+        "F23",
+        f"{NET}## Result: Imbalance\n\nThere are no discrepancies in the bank accounts.\n",
+        "imbalance",
+    ),
+    (
+        "F24",
+        f"{NET}## Final Status: Mismatch\n\nThere are no discrepancies in the bank accounts.\n",
+        "mismatch",
+    ),
+    (
+        "F25",
+        f"{NET}## Discrepancy Found\n\nThere are no discrepancies in the bank accounts.\n",
+        "discrepancy",
+    ),
+    (
+        "F26",
+        f"{NET}## Discrepancy ⚠️\n\nThere are no mismatches in the bank accounts.\n",
+        "discrepancy",
+    ),
+    (
+        "F27",
+        f"{NET}## Balance ❌ Discrepancy Check\n\nThere are no mismatches in the bank accounts.\n",
+        "discrepancy",
+    ),
+    (
+        "F28",
+        f"{NET}## Balance Discrepancy 2900 Check\n\nThere are no mismatches in the bank accounts.\n",
+        "discrepancy",
+    ),
+    (
+        "F29",
+        f"{NET_ZH}## 结论：账目不一致\n\n银行账户没有发现任何差额。\n",
+        "不一致",
+    ),
+    (
+        "F30",
+        f"{NET_ZH}## 账目与余额不一致\n\n银行账户没有发现任何差额。\n",
+        "不一致",
+    ),
+    # A heading that holds a negation and a second claim stays a failure.
+    (
+        "F31",
+        f"{NET}## No Discrepancies and Imbalance Check\n\nThe bank accounts show no mismatch.\n",
+        "imbalance",
+    ),
+    # An explanation is no verdict on the ledger.
+    (
+        "F32",
+        f"{NET}{REVIEWED}This does not indicate a mismatch in the bank feed.\n",
+        "discrepancy",
+    ),
+    (
+        "F33",
+        f"{NET}{REVIEWED}This is a data-quality matter rather than a ledger imbalance.\n",
+        "discrepancy",
+    ),
+    # The private marker of the oracle in the answer text is no verdict.
+    (
+        "F35",
+        f"{NET}{REVIEWED}Assets exceed liabilities plus equity by SGD 2,900.00 [negated_verdict]\n",
+        "discrepancy",
+    ),
+    # A heading in a code fence is no heading.
+    (
+        "F34",
+        f"{NET}```\n## Balance Discrepancy Check\nthere are no discrepancies\n```\n",
+        "discrepancy",
+    ),
+]
+HEADING_PROSE_FINDING += [
+    (f"F{number}", f"{NET}{REVIEWED}{sentence}\n", "discrepancy")
+    for number, sentence in enumerate(HEDGED_VERDICTS_EN, start=36)
+] + [
+    (f"F{number}", f"{NET_ZH}{REVIEWED_ZH}{sentence}\n", "差额")
+    for number, sentence in enumerate(
+        HEDGED_VERDICTS_ZH, start=36 + len(HEDGED_VERDICTS_EN)
+    )
+]
+HEADING_PROSE_FINDING += [
+    # A heading that states the finding before its label words stays a failure.
+    (
+        "F73",
+        f"{NET}## Assets Exceed Liabilities Discrepancy Check\n\n{PROSE_EN}\n",
+        "discrepancy",
+    ),
+    # A verdict inside a code fence is no verdict.
+    (
+        "F74",
+        f"{NET}## Balance Discrepancy Check\n\n```\nthere are no discrepancies\n```\n",
+        "discrepancy",
+    ),
+    # A heading inside a code fence is no heading, also when a verdict follows the fence.
+    (
+        "F75",
+        f"{NET}```\n## Balance Discrepancy Check\n```\nThere are no discrepancies.\n",
+        "discrepancy",
+    ),
+]
+
 
 def test_AC_testing_benchmarks_17_the_real_answer_of_run_39755911927_passes() -> None:
+    """AC-testing.benchmarks.17: the correct advisor answer of the failed staging run passes."""
     assert passes(REAL_FAILING_ANSWER_2633)
 
 
@@ -461,9 +658,10 @@ def test_AC_testing_benchmarks_17_a_clean_verdict_in_the_section_of_the_heading_
     HEADING_PROSE_FINDING,
     ids=[row[0] for row in HEADING_PROSE_FINDING],
 )
-def test_AC_testing_benchmarks_17_a_mutated_claim_still_fails_and_names_its_token(
+def test_AC_testing_benchmarks_18_a_mutated_claim_still_fails_and_names_its_token(
     case_id: str, answer: str, token: str
 ) -> None:
+    """AC-testing.benchmarks.18: each mutated claim fails and the message names the first token."""
     assert failed_token(answer) == token, case_id
 
 
@@ -766,6 +964,19 @@ KNOWN_LIMITS = [
         marks=pytest.mark.xfail(
             strict=True,
             reason="The section rule reads markdown headings that start with '#'. It does not read a bold line as a heading (#2633).",
+        ),
+    ),
+    pytest.param(
+        "E53",
+        "FINDING",
+        mutate(
+            REAL_FAILING_ANSWER_2633,
+            "| Net worth vs. Assets − Liabilities | Consistent ✓ |",
+            "| Net worth vs. Assets − Liabilities | Off by SGD 2,900.00 ✗ |",
+        ),
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason="A table row under a neutral heading can report a finding with no token word. The section rule does not read figures (#2633).",
         ),
     ),
 ]
