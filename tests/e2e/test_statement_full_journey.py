@@ -309,9 +309,11 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
     # waits can resolve before the Next.js router commits the URL change.
     await expect(page).to_have_url(re.compile(r"/statements/[^/]+$"), timeout=15_000)
 
-    await expect(page.get_by_text("Transactions", exact=False)).to_be_visible(
-        timeout=10_000
-    )
+    # The statement page is also the review page (#2621 LB): its review hint also contains
+    # "transactions", so the check reads the heading of the transactions card.
+    await expect(
+        page.get_by_role("heading", name="Transactions", exact=True)
+    ).to_be_visible(timeout=10_000)
     await expect(page.locator("table tbody tr").first).to_be_visible(timeout=10_000)
 
     if already_approved:
