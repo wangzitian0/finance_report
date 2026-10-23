@@ -216,19 +216,18 @@ export function TransactionTable({ transactions, currency, onSelectTransaction, 
           );
         })}
       </div>
-      <div data-testid="stage1-desktop-transaction-region" className="hidden flex-1 overflow-hidden md:block">
+      <div data-testid="stage1-desktop-transaction-region" className="hidden min-h-0 flex-1 overflow-y-auto overflow-x-hidden md:block">
         <table className="table-fixed border-collapse text-sm" style={{ width: onSelectTransaction ? "calc(100% - 16px)" : "calc(100% - 4px)" }}>
-          <thead className="sticky top-0 bg-[var(--background)]"><tr className="border-b border-[var(--border)]"><th className="text-left px-4 py-2 font-medium w-28">Date</th><th className="text-left px-4 py-2 font-medium">Description</th><th className="text-right px-4 py-2 font-medium w-32">Amount</th><th className="text-center px-4 py-2 font-medium w-24">Confidence</th>{statementStatus && <th className="text-center px-4 py-2 font-medium w-24">Status</th>}{onSelectTransaction && <th className="text-right px-2 py-2 font-medium w-20">Action</th>}</tr></thead>
+          <thead className="sticky top-0 bg-[var(--background)]"><tr className="border-b border-[var(--border)]"><th className="text-left px-4 py-2 font-medium w-24">Date</th><th className="text-left px-4 py-2 font-medium">Description</th><th className="text-right px-4 py-2 font-medium w-32">Amount</th><th className="text-center px-4 py-2 font-medium w-24">Confidence</th>{onSelectTransaction && <th className="text-right px-2 py-2 font-medium w-16">Action</th>}</tr></thead>
           <tbody className="divide-y divide-[var(--border)]">
             {rows.map((txn) => {
               const cat = formatCategoryLabel(txn.category ?? txn.proposed_category);
               return (
                 <tr key={txn.id} className="hover:bg-[var(--background-muted)]/50 group">
                   <td className="px-4 py-2 whitespace-nowrap">{txn.txn_date}</td>
-                  <td className="px-4 py-2"><div className="max-w-xs truncate" title={txn.description}>{txn.description}</div>{cat && <span className="mt-0.5 inline-block rounded-full bg-[var(--background-muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">{cat}</span>}</td>
+                  <td className="px-4 py-2"><div className="max-w-xs truncate" title={txn.description}>{txn.description}</div><div className="mt-0.5 flex flex-wrap items-center gap-1">{cat && <span className="inline-block rounded-full bg-[var(--background-muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">{cat}</span>}{statementStatus && renderStatus(txn)}</div></td>
                   <td className={`px-4 py-2 text-right font-medium whitespace-nowrap ${txn.direction === "IN" ? "text-[var(--success)]" : "text-[var(--error)]"}`}>{txn.direction === "IN" ? "+" : "-"}{formatCurrencyLocale(txn.amount, txn.currency || currency)}</td>
                   <td className="px-4 py-2 text-center">{renderConf(txn)}</td>
-                  {statementStatus && <td className="px-4 py-2 text-center">{renderStatus(txn)}</td>}
                   {onSelectTransaction && <td className="px-2 py-2 text-right whitespace-nowrap"><button type="button" onClick={() => onSelectTransaction(txn)} className="rounded px-2 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)]/10">Review</button></td>}
                 </tr>
               );
