@@ -126,6 +126,8 @@ async function settleHome() {
   await waitFor(() =>
     expect(callKeys().map(operationIdOf)).toContain("list_processing_pending_accounts_processing_pending_get"),
   );
+  // The stats report unmatched rows: the banner reads the newest one to name the item (#2646).
+  await waitFor(() => expect(callKeys().map(operationIdOf)).toContain("list_unmatched_reconciliation_unmatched_get"));
 }
 
 describe("Home fetch budget (#2583 S4)", () => {
@@ -155,6 +157,7 @@ describe("Home fetch budget (#2583 S4)", () => {
         "income_statement_reports_income_statement_get",
         "list_processing_pending_accounts_processing_pending_get",
         "list_statements_statements_get",
+        "list_unmatched_reconciliation_unmatched_get",
         "reconciliation_stats_reconciliation_stats_get",
         "suggestions_chat_suggestions_get",
       ].sort(),
@@ -216,7 +219,8 @@ describe("Home fetch budget (#2583 S4)", () => {
     renderHome(createClient());
 
     await waitFor(() => expect(netWorth()).toHaveTextContent("$4,000"));
-    expect(screen.getByText("Net income").nextElementSibling).toHaveTextContent("+$2,300");
+    // The income statement waits for the statement list, then renders before the cash flow (#2646).
+    await waitFor(() => expect(screen.getByText("Net income").nextElementSibling).toHaveTextContent("+$2,300"));
     expect(screen.getByTestId("cockpit-card-cash-flow")).toHaveTextContent("Loading…");
   });
 

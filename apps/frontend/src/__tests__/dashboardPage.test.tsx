@@ -195,6 +195,9 @@ describe("HomePage", () => {
     render(<HomePage />)
 
     await waitFor(() => expect(screen.getByText("Net worth").nextElementSibling).toHaveTextContent("$4,000"))
+    // The period sources wait for the statement list (#2646).
+    await screen.findByText("Savings rate")
+    await screen.findByText("Operating")
     expect(screen.queryByRole("button", { name: /Show analytics/i })).toBeNull()
     for (const label of ["Net worth", "Total assets", "Expenses", "Net income", "Savings rate", "Operating"]) {
       expect(screen.getAllByText(label)).toHaveLength(1)
@@ -271,8 +274,10 @@ describe("HomePage", () => {
     render(<HomePage />)
 
     const banner = await screen.findByRole("region", { name: "Needs attention" })
-    expect(within(banner).getByRole("heading", { name: "2 items need your confirmation" })).toBeInTheDocument()
-    expect(within(banner).getByRole("link", { name: "Open Needs Confirmation" })).toHaveAttribute("href", "/audit")
+    expect(within(banner).getByRole("heading", { name: "2 items need you" })).toBeInTheDocument()
+    // The banner names the lowest-confidence item and links to it (#2646).
+    expect(within(banner).getByRole("link", { name: "dbs.pdf" })).toHaveAttribute("href", "/statements/s1?from=attention")
+    expect(within(banner).getByRole("link", { name: "Open Needs you" })).toHaveAttribute("href", "/audit?tab=needs-you")
   })
 
   // AC-reporting.fe-remainder-reports.5

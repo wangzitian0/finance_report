@@ -364,6 +364,15 @@ unambiguous 1:1 match — an ambiguous leg is left alone, biasing toward
 and feed the reporting consumer alongside any recorded rows, deduplicated by
 the unordered pair of anchored journal entries.
 
+### Workbench tabs
+
+`/reconciliation` has three tabs, selected by `?tab=`: `matches`, `unmatched` and
+`review-queue` (`AC-reconciliation.fe-tabs.1`). With no valid `tab`, the page waits
+for the statistics and opens on Unmatched when an unmatched row exists, and on
+Matches otherwise (`AC-reconciliation.fe-tabs.2`, #2646). The unmatched item of the
+confidence queue takes the description of the newest unmatched row as its title
+(`AC-reconciliation.fe-ia-reconciliation.10`).
+
 ### Stage 2 — consistency checks
 
 **Location**: the review queue tab of `/reconciliation` (`/reconciliation?tab=review-queue`). Runs deduplication, transfer

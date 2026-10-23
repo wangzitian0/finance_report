@@ -123,6 +123,8 @@ export function usePersonalReportPackage(
   selectedSnapshotId: string | null,
   startDate: string,
   currency?: string,
+  /** False while the period can still move (`ReportFilters.ready`): the preview waits. */
+  ready = true,
 ) {
   const [lastContract, setLastContract] =
     useState<PersonalReportPackageContractResponse | null>(null);
@@ -133,7 +135,7 @@ export function usePersonalReportPackage(
       startDate,
       currency,
     }),
-    enabled: !reportPeriodError(startDate, reportDate) && !selectedSnapshotId,
+    enabled: ready && !reportPeriodError(startDate, reportDate) && !selectedSnapshotId,
   });
   const snapshotsQuery = useQuery({
     queryKey: ["report-package", "snapshots"],
@@ -180,7 +182,7 @@ export function usePersonalReportPackage(
     packageSnapshots: snapshotsQuery.data ?? [],
     isPackageRefreshing,
     isPackageLoading:
-      packageQueryResult.isLoading || selectedSnapshotQuery.isLoading,
+      (!ready && !selectedSnapshotId) || packageQueryResult.isLoading || selectedSnapshotQuery.isLoading,
     error:
       packageQueryResult.error?.message ??
       selectedSnapshotQuery.error?.message ??

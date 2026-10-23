@@ -1,6 +1,8 @@
 export const ATTENTION_SOURCE_PARAM = "from";
 export const ATTENTION_SOURCE_VALUE = "attention";
-export const ATTENTION_RETURN_HREF = "/audit";
+/** The Needs you tab of `/audit`: the confidence queue and the AI suggestions (#2646). */
+export const NEEDS_YOU_HREF = "/audit?tab=needs-you";
+export const ATTENTION_RETURN_HREF = NEEDS_YOU_HREF;
 export const ATTENTION_RETURN_LABEL = "Back to Needs Confirmation";
 
 interface SearchParamReader {

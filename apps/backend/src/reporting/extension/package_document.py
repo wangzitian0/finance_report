@@ -9,6 +9,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import (
@@ -26,7 +27,9 @@ from src.audit import (
 )
 from src.config import settings
 from src.extraction import (
+    BankStatementStatus,
     StatementSourceType,
+    StatementSummary,
     current_statement_disposition_policy_snapshot,
     list_statement_contributions,
     statement_disposition_policy_for_user,
@@ -1299,19 +1302,42 @@ def package_preview(document: PersonalReportPackageDocument) -> PersonalReportPa
     )
 
 
+async def first_statement_date(db: AsyncSession, *, user_id: UUID) -> date | None:
+    """Return the first day of the earliest approved statement of the user, or None (#2646).
+
+    The ledger holds no balance before this day. The frontend applies the same rule to its
+    report period (``firstStatementDate`` in ``apps/frontend/src/hooks/useReportFilters.ts``).
+    """
+    return await db.scalar(
+        select(func.min(StatementSummary.period_start)).where(
+            StatementSummary.user_id == user_id,
+            StatementSummary.status == BankStatementStatus.APPROVED,
+        )
+    )
+
+
 async def current_package_readiness(
     db: AsyncSession,
     *,
     user_id: UUID,
     as_of_date: date | None = None,
 ) -> PersonalReportPackageReadinessResponse:
-    """Evaluate readiness of the current default-framework candidate through the sole assembler."""
+    """Evaluate readiness of the current default-framework candidate through the sole assembler.
+
+    The period is the 365 days before ``as_of_date``. It starts no earlier than the first
+    approved statement (#2646): an earlier start has no opening balance, so the cash-flow
+    coverage check blocks every new user.
+    """
     report_end = as_of_date or date.today()
+    report_start = report_end - timedelta(days=365)
+    first_statement = await first_statement_date(db, user_id=user_id)
+    if first_statement is not None and report_start < first_statement <= report_end:
+        report_start = first_statement
     return await PackageAssembler().evaluate_readiness(
         db,
         user_id=user_id,
         framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        start_date=report_end - timedelta(days=365),
+        start_date=report_start,
         end_date=report_end,
         as_of_date=report_end,
         currency=settings.base_currency,

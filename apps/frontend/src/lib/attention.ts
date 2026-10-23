@@ -46,6 +46,8 @@ export interface AttentionSources {
   }> | null;
   stats?: ReconciliationStatsResponse | null;
   processing?: ProcessingPendingItem[] | null;
+  /** The newest unmatched row. Its description names the unmatched item (#2646). */
+  firstUnmatched?: { description?: string | null } | null;
 }
 
 /** A processing transfer is "stuck" once it has been in transit this long. */
@@ -115,13 +117,19 @@ export function buildAttentionItems(
 
   // Unmatched transactions have no ledger match at all — the lowest confidence.
   if (stats && stats.unmatched_transactions > 0) {
+    const count = stats.unmatched_transactions;
+    const countText = `${count} unmatched transaction${count > 1 ? "s" : ""}`;
+    const description = sources.firstUnmatched?.description?.trim();
     items.push({
       id: "reconciliation:unmatched",
       kind: "unmatched_transactions",
-      title: `${stats.unmatched_transactions} unmatched transaction${
-        stats.unmatched_transactions > 1 ? "s" : ""
-      }`,
-      detail: "No ledger match yet",
+      // The row description tells the user which transaction it is, so it leads the title.
+      title: description
+        ? count > 1
+          ? `${description} and ${count - 1} more`
+          : description
+        : countText,
+      detail: description ? `${countText} · no ledger match yet` : "No ledger match yet",
       reason:
         "These transactions have no matching ledger entry at all — either new activity you haven't recorded yet, or a reference the matcher couldn't link.",
       confidence: 0,

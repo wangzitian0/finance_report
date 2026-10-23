@@ -82,6 +82,29 @@ describe("attention model (EPIC-022 AC22.6)", () => {
     expect(byId["reconciliation:unmatched"]).toMatch(/no matching ledger/i);
   });
 
+  // AC-reconciliation.fe-ia-reconciliation.10
+  it("AC-reconciliation.fe-ia-reconciliation.10 names the unmatched item by its newest row", () => {
+    const unmatched = (firstUnmatched: AttentionSources["firstUnmatched"], count: number) =>
+      buildAttentionItems({ ...sources, stats: { ...sources.stats!, unmatched_transactions: count }, firstUnmatched }).find(
+        (item) => item.kind === "unmatched_transactions",
+      )!;
+
+    expect(unmatched({ description: "PayNow Transfer REF 4471" }, 1)).toMatchObject({
+      title: "PayNow Transfer REF 4471",
+      detail: "1 unmatched transaction · no ledger match yet",
+      href: "/reconciliation?tab=unmatched",
+      confidence: 0,
+    });
+    expect(unmatched({ description: "  PayNow Transfer REF 4471 " }, 3)).toMatchObject({
+      title: "PayNow Transfer REF 4471 and 2 more",
+      detail: "3 unmatched transactions · no ledger match yet",
+    });
+    // Without a row description, the item keeps its count title.
+    for (const row of [null, undefined, { description: "" }, { description: null }]) {
+      expect(unmatched(row, 2)).toMatchObject({ title: "2 unmatched transactions", detail: "No ledger match yet" });
+    }
+  });
+
   it("AC22.6.1 is empty when everything is reconciled and approved", () => {
     expect(
       buildAttentionItems({
