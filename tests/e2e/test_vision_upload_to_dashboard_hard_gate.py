@@ -101,7 +101,12 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
     assert upload_response.status == 202, upload_body
     statement_id = upload_body["id"]
 
-    statement_link = page.locator(f'a[href="/statements/{statement_id}"]')
+    # The workflow notification card also links to the statement ("Open Statement uploaded"). It appears
+    # when the workflow event arrives, so the bare href matches one or two links (#2653). The file name
+    # selects the upload-list row only.
+    statement_link = page.locator(f'a[href="/statements/{statement_id}"]').filter(
+        has_text=fixture_path.name
+    )
     await expect(statement_link).to_be_visible(timeout=15_000)
     parsed_statement = await _wait_for_statement_status(page, statement_id, "parsed")
     assert (
@@ -115,7 +120,9 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
     )
 
     approve_button = page.get_by_role("button", name="Approve", exact=True)
-    await expect(approve_button).to_be_disabled()
+    # The page shows "Loading statement" until the statement request returns; staging can need more than
+    # the 5 s default for it (#2653).
+    await expect(approve_button).to_be_disabled(timeout=15_000)
     # Source confirmation and economic intent are independent trust boundaries.
     # Provision only custody; do not seed a classification or bypass review.
     account_response = await page.request.post(
