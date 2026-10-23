@@ -507,8 +507,8 @@ async def test_chat_with_allowed_model():
         mock_stream_obj.model_name = "allowed_model"
 
         mock_service = MagicMock()
-        mock_service.primary_model = "allowed_model"
-        mock_service.fallback_models = ["fallback1"]
+        mock_service.large_model = "large_model"
+        mock_service.small_model = "allowed_model"
         mock_service.chat_stream = AsyncMock(return_value=mock_stream_obj)
         MockService.return_value = mock_service
 
@@ -549,8 +549,8 @@ async def test_chat_with_known_external_model():
         mock_stream_obj.model_name = "external_model"
 
         mock_service = MagicMock()
-        mock_service.primary_model = "allowed_model"
-        mock_service.fallback_models = ["fallback1"]
+        mock_service.large_model = "large_model"
+        mock_service.small_model = "allowed_model"
         mock_service.chat_stream = AsyncMock(return_value=mock_stream_obj)
         MockService.return_value = mock_service
 
@@ -583,8 +583,8 @@ async def test_chat_with_unknown_external_model():
         MockCatalog.return_value.get = mock_get
 
         mock_service = MagicMock()
-        mock_service.primary_model = "allowed_model"
-        mock_service.fallback_models = ["fallback1"]
+        mock_service.large_model = "large_model"
+        mock_service.small_model = "allowed_model"
         MockService.return_value = mock_service
 
         payload = MagicMock()
@@ -617,8 +617,8 @@ async def test_chat_with_model_validation_error():
         MockCatalog.return_value.get = mock_get
 
         mock_service = MagicMock()
-        mock_service.primary_model = "allowed_model"
-        mock_service.fallback_models = ["fallback1"]
+        mock_service.large_model = "large_model"
+        mock_service.small_model = "allowed_model"
         MockService.return_value = mock_service
 
         payload = MagicMock()

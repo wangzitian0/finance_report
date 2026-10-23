@@ -81,8 +81,8 @@ def test_AC_runtime_env_ai_key_alias_1_the_old_name_alone_makes_the_llm_check_pr
     check = LlmCheck(
         api_key=settings.ai_api_key,
         provider=settings.ai_provider,
-        primary_model=settings.primary_model,
-        ocr_model=settings.ocr_model,
+        small_model=settings.small_model,
+        multimodal_model=settings.multimodal_model,
     )
 
     result = asyncio.run(check.probe())
@@ -95,8 +95,8 @@ def test_AC_runtime_env_ai_key_alias_1_no_name_makes_the_llm_check_absent(monkey
     check = LlmCheck(
         api_key=settings.ai_api_key,
         provider=settings.ai_provider,
-        primary_model=settings.primary_model,
-        ocr_model=settings.ocr_model,
+        small_model=settings.small_model,
+        multimodal_model=settings.multimodal_model,
     )
 
     result = asyncio.run(check.probe())

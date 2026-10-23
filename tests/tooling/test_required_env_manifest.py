@@ -188,14 +188,16 @@ def test_AC_runtime_guard_proofs_13_every_field_names_its_producer_and_the_offli
     assert (
         by_env["OPENPANEL_CLIENT_ID"].empty_ok and by_env["S3_PUBLIC_BUCKET"].empty_ok
     )
-    for model_env in (
+    for model_env in ("LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL"):
+        assert by_env[model_env].source == "code", model_env
+    for retired in (
         "PRIMARY_MODEL",
         "FALLBACK_MODELS",
         "OCR_MODEL",
         "VISION_MODEL",
         "VISION_FALLBACK_MODELS",
     ):
-        assert by_env[model_env].source == "code", model_env
+        assert retired not in by_env, retired
     for entry in committed["fields"]:
         assert entry["source"] in {"human", "runtime", "release", "decision", "code"}, (
             entry["env"]

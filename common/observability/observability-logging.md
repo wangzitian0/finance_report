@@ -85,7 +85,7 @@ sequenceDiagram
 2. Frontend: Upload submission (file + model validation)
 3. Backend: Upload request reception (model_requested parameter)
 4. Backend: Background task enqueue (force_model decision)
-5. Extraction: Model selection logic (force_model vs primary_model)
+5. Extraction: Model selection logic (force_model vs small_model)
 6. Extraction: HTTP error with status code extraction
 7. AI provider: API error with headers and retryability
 
@@ -230,7 +230,7 @@ approval gates.
    - `timestamp` for chronological ordering
 
 4. **Log Decision Points**
-   - "Using force_model=X vs primary_model=Y"
+   - "Using force_model=X vs small_model=Y"
    - "Cache hit/miss" with TTL remaining
    - "Model found/not found in catalog"
 
@@ -389,7 +389,7 @@ approval gates.
 
 3. ✅ **Force Model vs Primary Model**
    - [ ] Upload with custom model → Check `force_model` used in logs
-   - [ ] Upload without model (CSV) → Check `primary_model` used in logs
+   - [ ] Upload without model (CSV) → Check `small_model` used in logs
 
 4. ✅ **HTTP Error Logging**
    - [ ] Trigger HTTP 400 error (use invalid model)

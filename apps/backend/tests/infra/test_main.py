@@ -257,17 +257,15 @@ class TestConfig:
         # Clear S3_BUCKET so we test the class default, not whatever the test
         # lifecycle script set for namespace isolation.
         monkeypatch.delenv("S3_BUCKET", raising=False)
-        monkeypatch.delenv("PRIMARY_MODEL", raising=False)
-        monkeypatch.delenv("OCR_MODEL", raising=False)
-        monkeypatch.delenv("VISION_MODEL", raising=False)
+        for name in ("LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL"):
+            monkeypatch.delenv(name, raising=False)
         settings = Settings(_env_file=None)
         # The infra2 SDK owns the default models (#2566); no model id is written here.
         sdk = LlmSettings()
         assert settings.ai_provider == "zai"
-        assert settings.primary_model == sdk.primary_model
-        # config.py falls back to the primary model when the SDK leaves a slot empty.
-        assert settings.ocr_model == (sdk.ocr_model or sdk.primary_model)
-        assert settings.vision_model == (sdk.vision_model or sdk.primary_model)
+        assert settings.large_model == sdk.role_model("large")
+        assert settings.small_model == sdk.role_model("small")
+        assert settings.multimodal_model == sdk.role_model("multimodal")
         assert settings.s3_bucket == "statements"
 
     def test_config_database_url(self):

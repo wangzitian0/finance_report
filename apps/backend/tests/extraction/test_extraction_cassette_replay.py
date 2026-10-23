@@ -108,7 +108,7 @@ _VISION_PDF = Path(__file__).resolve().parents[1] / "fixtures" / "vision" / "sim
 # serves frozen again — zero key, zero network, no skip.
 async def test_AC23_6_extraction_vision_happy_path_via_replay() -> None:
     """Text+image (vision) extraction happy-path through the default-config vision
-    path (OCR_MODEL == VISION_MODEL == test-vision-model), in replay.
+    path (one multimodal model serves OCR and vision), in replay.
 
     Drives a committed FIXED-BYTES statement PDF through ``ExtractionService``: the
     app renders it to a PNG (deterministic), the vision OCR call replays the frozen

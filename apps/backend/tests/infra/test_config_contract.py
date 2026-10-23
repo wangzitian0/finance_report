@@ -11,16 +11,16 @@ from pathlib import Path
 class TestConfigContract:
     """Test configuration contracts and synchronization."""
 
-    def test_primary_model_format(self):
-        """AC-runtime.18.1: Ensure PRIMARY_MODEL follows expected pattern."""
+    def test_small_model_format(self):
+        """AC-runtime.18.1: Ensure SMALL_MODEL follows expected pattern."""
         from src.config import settings
 
         assert settings.ai_provider == "zai"
-        assert settings.primary_model.startswith("glm-"), (
-            f"Invalid model provider: {settings.primary_model}. Expected GLM model ID"
+        assert settings.small_model.startswith("glm-"), (
+            f"Invalid model provider: {settings.small_model}. Expected GLM model ID"
         )
-        assert re.match(r"^glm-[\d.a-z-]+", settings.primary_model), (
-            f"Invalid model format: {settings.primary_model}. Expected pattern: glm-<version>"
+        assert re.match(r"^glm-[\d.a-z-]+", settings.small_model), (
+            f"Invalid model format: {settings.small_model}. Expected pattern: glm-<version>"
         )
 
     def test_config_sync_with_env_example(self):
@@ -31,14 +31,14 @@ class TestConfigContract:
         env_example_path = Path(__file__).parent.parent.parent.parent.parent / ".env.example"
         env_example = env_example_path.read_text()
 
-        # Parse PRIMARY_MODEL from .env.example
-        match = re.search(r"^PRIMARY_MODEL=(.+)$", env_example, re.MULTILINE)
-        assert match, ".env.example missing PRIMARY_MODEL definition"
+        # Parse SMALL_MODEL from .env.example
+        match = re.search(r"^SMALL_MODEL=(.+)$", env_example, re.MULTILINE)
+        assert match, ".env.example missing SMALL_MODEL definition"
 
         expected = match.group(1).strip()
-        assert settings.primary_model == expected, (
+        assert settings.small_model == expected, (
             f"Config default mismatch:\n"
-            f"  config.py:        {settings.primary_model}\n"
+            f"  config.py:        {settings.small_model}\n"
             f"  .env.example:     {expected}\n"
             f"Please update config.py default to match .env.example"
         )
@@ -134,17 +134,23 @@ class TestConfigContract:
         s = Settings()
         assert s.db_pool_max_overflow == 25
 
-    def test_fallback_models_default_and_code_source_class(self, monkeypatch):
-        """Ensure fallback_models defaults to the infra2 SDK default (#2566) and model fields use code source class."""
-        monkeypatch.delenv("FALLBACK_MODELS", raising=False)
+    def test_model_roles_default_to_the_sdk_and_use_the_code_source_class(self, monkeypatch):
+        """The three model roles default to the infra2 SDK (#2566) and use the code source class (#2643)."""
+        for name in ("LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL"):
+            monkeypatch.delenv(name, raising=False)
+        from infra2_sdk.runtime.llm import LlmSettings
+
         from src.config import ENV_SOURCE_CLASSES, Settings
 
         s = Settings(_env_file=None)
-        from infra2_sdk.runtime.llm import LlmSettings
-
-        assert s.fallback_models == list(LlmSettings().fallback_models)
-        assert "primary_model" not in ENV_SOURCE_CLASSES
-        assert "fallback_models_str" not in ENV_SOURCE_CLASSES
+        sdk = LlmSettings()
+        assert (s.large_model, s.small_model, s.multimodal_model) == (
+            sdk.role_model("large"),
+            sdk.role_model("small"),
+            sdk.role_model("multimodal"),
+        )
+        for field in ("large_model", "small_model", "multimodal_model"):
+            assert field not in ENV_SOURCE_CLASSES
 
     def test_empty_next_public_app_url_and_otel_resource_attributes_normalize(self, monkeypatch):
         """Ensure empty string env overrides for NEXT_PUBLIC_APP_URL and OTEL_RESOURCE_ATTRIBUTES normalize cleanly."""

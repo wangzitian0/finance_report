@@ -217,7 +217,7 @@ async def test_chat_stream_uses_cached_response(db: AsyncSession, test_user, mon
 
     ai_advisor_service._CACHE._store.clear()
     context_hash = hashlib.sha256(json.dumps(context, sort_keys=True, default=str).encode("utf-8")).hexdigest()
-    model_key = service.primary_model
+    model_key = service.large_model
     cache_key = f"{test_user.id}:en:{normalize_question(message)}:{context_hash}:{model_key}"
     ai_advisor_service._CACHE.set(cache_key, "cached response")
 
@@ -228,12 +228,11 @@ async def test_chat_stream_uses_cached_response(db: AsyncSession, test_user, mon
     assert response.endswith(DISCLAIMER_EN)
 
 
-async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
-    """AC-advisor.stream.1: AC6.7.1: Stream falls back to fallback model on primary failure."""
+async def test_stream_openrouter_uses_the_large_role_with_high_reasoning(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC-advisor.stream.1: AC6.7.1: the advisor streams from the large role, never the small role, with high reasoning."""
     service = AIAdvisorService()
-    service.primary_model = "primary"
+    service.small_model = "small"
     service.large_model = "large"
-    service.fallback_models = ["fallback"]
     calls: list[str] = []
     efforts: list[ReasoningEffort | None] = []
 
@@ -242,8 +241,6 @@ async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> 
     ):
         calls.append(model)
         efforts.append(reasoning)
-        if model == "large":
-            raise AIStreamError(message="fail large", retryable=True)
         yield "hello"
 
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
@@ -252,32 +249,32 @@ async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> 
     async for chunk, model in service._stream_openrouter([{"role": "user", "content": "hi"}], None):
         results.append((chunk, model))
 
-    # The advisor tries the large role first, never the small-role primary model.
-    assert calls == ["large", "fallback"]
-    assert efforts == [ReasoningEffort.HIGH, ReasoningEffort.HIGH]
-    assert results == [("hello", "fallback")]
+    assert calls == ["large"]
+    assert efforts == [ReasoningEffort.HIGH]
+    assert results == [("hello", "large")]
 
 
-async def test_stream_openrouter_raises_when_all_fail(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC-advisor.stream.2: AC6.7.2: Stream raises error when all models fail."""
+async def test_stream_openrouter_does_not_fall_back_to_another_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC-advisor.stream.2: AC6.7.2: a failed large model raises. No other model is tried (owner rule: no fallbacks)."""
     service = AIAdvisorService()
-    service.primary_model = "primary"
+    service.small_model = "small"
     service.large_model = "large"
-    service.fallback_models = ["fallback"]
+    calls: list[str] = []
 
     async def fake_stream_model(
         model: str, _messages: list[dict[str, str]], _user_id=None, _reasoning=None, _max_tokens=None
     ):
+        calls.append(model)
         raise AIStreamError(message=f"fail {model}", retryable=True)
         yield  # pragma: no cover
 
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
 
-    with pytest.raises(AIStreamError, match="fallback"):
+    with pytest.raises(AIStreamError, match="fail large"):
         async for _chunk, _model in service._stream_openrouter([{"role": "user", "content": "hi"}], None):
             pass
+
+    assert calls == ["large"]
 
 
 async def test_chat_stream_requires_api_key(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -963,9 +960,8 @@ async def test_record_message_refresh_exception_logs_warning(
 async def test_stream_openrouter_with_preferred_model(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC-advisor.stream.7: AC6.13.2: preferred_model is prepended to the model list."""
     service = AIAdvisorService()
-    service.primary_model = "primary"
+    service.small_model = "small"
     service.large_model = "large"
-    service.fallback_models = []
     called_with: list[str] = []
 
     async def fake_stream_model(
@@ -988,9 +984,8 @@ async def test_stream_openrouter_with_preferred_model(monkeypatch: pytest.Monkey
 async def test_stream_openrouter_raises_on_programming_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC-advisor.stream.8: AC6.13.3: ValueError/TypeError in _stream_model raises AIAdvisorError."""
     service = AIAdvisorService()
-    service.primary_model = "primary"
+    service.small_model = "small"
     service.large_model = "large"
-    service.fallback_models = []
 
     async def broken_stream_model(model, _messages, _user_id=None, _reasoning=None, _max_tokens=None):
         raise ValueError("bad internal state")
@@ -1013,8 +1008,7 @@ async def test_AC23_4_5_advisor_uses_user_bound_model_and_threads_user_id(
     from src.llm.base import ReasoningEffort, Scene, SceneBinding
 
     service = AIAdvisorService()
-    service.primary_model = "env-primary"
-    service.fallback_models = ["env-fallback"]
+    service.small_model = "env-small"
     uid = uuid4()
     bound = SceneBinding(
         scene=Scene.ADVISOR_CHAT,

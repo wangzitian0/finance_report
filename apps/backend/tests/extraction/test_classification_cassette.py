@@ -6,7 +6,7 @@ Deleting the cassette turns this RED in CI (hard miss) — never a skip. Re-reco
 with the layer refresh knob:
 
     AI_PROVIDER=zai AI_BASE_URL=https://api.z.ai/api/coding/paas/v4 \
-    AI_API_KEY=$GLM_CODING_TOKEN PRIMARY_MODEL=glm-5.2 \
+    AI_API_KEY=$GLM_CODING_TOKEN \
     make llm-record ARGS='tests/extraction/test_classification_cassette.py'
 """
 

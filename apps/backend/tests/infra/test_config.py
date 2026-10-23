@@ -174,7 +174,9 @@ def test_settings_infra2_builders() -> None:
     llm = settings.to_llm_settings()
     assert llm.provider == settings.ai_provider
     assert llm.base_url == settings.ai_base_url
-    assert llm.primary_model == settings.primary_model
+    assert llm.role_model("small") == settings.small_model
+    assert llm.role_model("large") == settings.large_model
+    assert llm.role_model("multimodal") == settings.multimodal_model
 
     s3 = settings.to_s3_settings()
     assert s3.bucket == settings.s3_bucket

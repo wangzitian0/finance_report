@@ -79,6 +79,11 @@ def _disable_litellm_aiohttp_transport() -> None:
 _harden_litellm_logging()
 _disable_litellm_aiohttp_transport()
 
+# The GLM 5.3 family: the base model and its one-word variants, including later ones.
+# The wire adapter below applies to the family, so no model id is listed here. The SDK
+# should own this rule (step 2 of #2624).
+_GLM_53_FAMILY = re.compile(r"glm-5\.3(-[a-z]+)?", re.IGNORECASE)
+
 # litellm exception names that represent transient conditions worth retrying.
 _RETRYABLE_EXC = frozenset(
     {"RateLimitError", "Timeout", "APIConnectionError", "ServiceUnavailableError", "InternalServerError"}
@@ -183,11 +188,9 @@ def _base_kwargs(
             body.pop("thinking", None)
         if body:
             kwargs["extra_body"] = body
-    if provider.protocol is ProtocolFamily.OPENAI_COMPATIBLE and model_id.removeprefix("openai/").lower() in {
-        "glm-5.3",
-        "glm-5.3-flash",
-        "glm-5.3-flashx",
-    }:
+    if provider.protocol is ProtocolFamily.OPENAI_COMPATIBLE and _GLM_53_FAMILY.fullmatch(
+        model_id.removeprefix("openai/")
+    ):
         # GLM 5.3 requires thinking and accepts low/high/max, not disabled or
         # medium. Adapt only live wire kwargs so caller intent/cassette keys
         # remain provider-independent. Avoid the provider's default max effort

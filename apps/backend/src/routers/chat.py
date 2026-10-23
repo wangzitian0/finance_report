@@ -50,7 +50,7 @@ async def chat_message(
     """Send a chat message and stream the AI response."""
     service = AIAdvisorService()
     if payload.model:
-        allowed_models = {service.large_model, service.primary_model, *service.fallback_models}
+        allowed_models = {service.large_model, service.small_model}
         allowed = payload.model in allowed_models
         if not allowed:
             try:

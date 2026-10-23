@@ -15,10 +15,9 @@ def configured(monkeypatch):
     monkeypatch.setattr(settings, "ai_api_key", "test-key", raising=False)
     monkeypatch.setattr(settings, "ai_provider", "zai", raising=False)
     monkeypatch.setattr(settings, "ai_base_url", "https://api.z.ai", raising=False)
-    monkeypatch.setattr(settings, "primary_model", "glm-5.1", raising=False)
-    monkeypatch.setattr(settings, "large_model", "large-test-model", raising=False)
-    monkeypatch.setattr(settings, "vision_model", "test-vision-model", raising=False)
-    monkeypatch.setattr(settings, "ocr_model", "test-vision-model", raising=False)
+    monkeypatch.setattr(settings, "small_model", "glm-5.1")
+    monkeypatch.setattr(settings, "large_model", "large-test-model")
+    monkeypatch.setattr(settings, "multimodal_model", "test-vision-model")
     return EnvConfigSource()
 
 
@@ -60,7 +59,7 @@ async def test_AC23_2_4_get_provider_by_id(configured):
 
 
 async def test_AC23_2_4_scene_bindings_match_configured_models(configured):
-    """AC-llm.2.4: vision/ocr -> vision/ocr models; advisor.chat -> large model; the rest -> primary model."""
+    """AC-llm.2.4: vision/ocr -> the multimodal model; advisor.chat -> the large model; the rest -> the small model."""
     assert (await configured.get_binding(Scene.EXTRACTION_VISION)).model_id == "test-vision-model"
     assert (await configured.get_binding(Scene.EXTRACTION_OCR)).model_id == "test-vision-model"
     assert (await configured.get_binding(Scene.EXTRACTION_JSON)).model_id == "glm-5.1"
@@ -75,14 +74,7 @@ async def test_default_glm_models_reach_scene_bindings(monkeypatch):
     """AC-llm.2.8: the actual defaults route text and images to supported models."""
     import src.llm.extension.env_config as env_config
 
-    for variable in (
-        "PRIMARY_MODEL",
-        "LARGE_MODEL",
-        "VISION_MODEL",
-        "OCR_MODEL",
-        "FALLBACK_MODELS",
-        "VISION_FALLBACK_MODELS",
-    ):
+    for variable in ("LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL"):
         monkeypatch.delenv(variable, raising=False)
     defaults = Settings(_env_file=None, AI_PROVIDER="zai", AI_API_KEY="test-key")
     monkeypatch.setattr(env_config, "settings", defaults)
@@ -90,19 +82,18 @@ async def test_default_glm_models_reach_scene_bindings(monkeypatch):
     sdk = LlmSettings()
     for scene in (Scene.EXTRACTION_JSON, Scene.STATEMENT_SUMMARY):
         binding = await source.get_binding(scene)
-        assert binding.model_id == sdk.primary_model
+        assert binding.model_id == sdk.role_model("small")
         assert binding.reasoning == ReasoningEffort(sdk.role_reasoning_effort("small"))
-        assert binding.fallback_model_ids == sdk.fallback_models
+        assert not binding.fallback_model_ids
     advisor = await source.get_binding(Scene.ADVISOR_CHAT)
     assert advisor.model_id == sdk.role_model("large")
     assert advisor.reasoning == ReasoningEffort(sdk.role_reasoning_effort("large"))
-    assert advisor.fallback_model_ids == sdk.fallback_models
-    vision = await source.get_binding(Scene.EXTRACTION_VISION)
-    assert vision.model_id == (sdk.vision_model or sdk.primary_model)
-    assert vision.fallback_model_ids == sdk.vision_fallback_models
-    ocr = await source.get_binding(Scene.EXTRACTION_OCR)
-    assert ocr.model_id == (sdk.ocr_model or sdk.primary_model)
-    assert ocr.fallback_model_ids == sdk.vision_fallback_models
+    assert not advisor.fallback_model_ids
+    for scene in (Scene.EXTRACTION_VISION, Scene.EXTRACTION_OCR):
+        binding = await source.get_binding(scene)
+        assert binding.model_id == sdk.role_model("multimodal")
+        assert binding.reasoning == ReasoningEffort(sdk.role_reasoning_effort("multimodal"))
+        assert not binding.fallback_model_ids
 
 
 @pytest.mark.no_db

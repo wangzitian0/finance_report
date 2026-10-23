@@ -200,7 +200,7 @@ Each cassette is tagged:
 
 The real extraction transport is **streaming** (`src.llm.stream_ai_json` →
 `src.llm.extension.client.litellm_stream` → `src.llm.accumulate_stream`), and
-both text and default-config vision (`OCR_MODEL == VISION_MODEL`, layout
+both text and default-config vision (one multimodal model for OCR and vision, layout
 parser skipped) flow through it. `litellm_stream` is cassette-aware **while
 preserving streaming**:
 

@@ -179,9 +179,9 @@ class Bootloader:
             "base_currency",
             "ai_provider",
             "ai_base_url",
-            "primary_model",
-            "ocr_model",
-            "vision_model",
+            "large_model",
+            "small_model",
+            "multimodal_model",
             "s3_endpoint",
             "s3_bucket",
             "cors_origin_regex",
@@ -301,8 +301,8 @@ class Bootloader:
         result = await LlmCheck(
             api_key=getattr(settings, "ai_api_key", None),
             provider=settings.ai_provider,
-            primary_model=settings.primary_model,
-            ocr_model=settings.ocr_model,
+            small_model=settings.small_model,
+            multimodal_model=settings.multimodal_model,
         ).probe()
         status = "ok" if result.status is DependencyStatus.PRESENT else "error"
         return ServiceStatus("ai_provider", status, result.detail)

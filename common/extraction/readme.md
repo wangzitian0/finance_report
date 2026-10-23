@@ -20,7 +20,7 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use `OCR_MODEL` (default: the infra2 SDK default) as the OCR-capable model. When `OCR_MODEL` is a separate model from `VISION_MODEL`, the service uses the provider layout parser first, then structures Markdown with `PRIMARY_MODEL` (default: the infra2 SDK default). When `OCR_MODEL` equals `VISION_MODEL`, the service skips layout parsing and uses the shared vision OCR path directly. Z.AI PDF vision extraction renders the uploaded PDF bytes into a bounded set of in-memory PNG `image_url` payloads; short-lived external URLs are used only when no bytes are available. Inline base64 PDF payloads are reserved for dedicated layout parsing and non-Z.AI compatibility. JSON extraction requests minimal reasoning and caps output tokens to keep provider latency bounded: older GLM models can disable thinking, while reasoning-only GLM 5.3 models use enabled thinking with low effort through the LLM transport. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use the multimodal role (`MULTIMODAL_MODEL`; default: the infra2 SDK default) for OCR and vision. One model serves both, so the service skips layout parsing and uses the vision OCR path directly. Text structuring and CSV mapping use the small role (`SMALL_MODEL`). Z.AI PDF vision extraction renders the uploaded PDF bytes into a bounded set of in-memory PNG `image_url` payloads; short-lived external URLs are used only when no bytes are available. Inline base64 PDF payloads are reserved for dedicated layout parsing and non-Z.AI compatibility. JSON extraction requests minimal reasoning and caps output tokens to keep provider latency bounded: older GLM models can disable thinking, while reasoning-only GLM 5.3 models use enabled thinking with low effort through the LLM transport. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
 ## Statement ingestion application boundary
 
@@ -269,8 +269,8 @@ flowchart TB
     S --> O[Create ODS Source Artifact]
     O --> P[Bind PARSING Statement]
     P --> B{File Type}
-    B -->|PDF/Image| C["OCR_MODEL OCR path"]
-    C --> C2["PRIMARY_MODEL JSON structuring"]
+    B -->|PDF/Image| C["Multimodal role: OCR path"]
+    C --> C2["Small role: JSON structuring"]
     B -->|CSV| D[Structured Parser]
     C2 --> E[Extract JSON]
     D --> E
@@ -661,7 +661,7 @@ AI_LAYOUT_PARSING_PATH=/layout_parsing
 # Model variables stay unset outside production: the infra2 SDK
 # (infra2_sdk.runtime.llm.LlmSettings) owns the defaults (#2566). Set them only
 # to customize production.
-# PRIMARY_MODEL= OCR_MODEL= VISION_MODEL= FALLBACK_MODELS= VISION_FALLBACK_MODELS=
+# LARGE_MODEL= SMALL_MODEL= MULTIMODAL_MODEL=
 AI_JSON_TIMEOUT_SECONDS=360
 AI_JSON_MAX_TOKENS=8192
 AI_JSON_DISABLE_THINKING=true
@@ -781,13 +781,12 @@ slice is registered.
 
 ## Model Selection
 
-- **Default**: Uses `OCR_MODEL` (the infra2 SDK default) on the vision OCR path. Dedicated layout parsing is used only when `OCR_MODEL` differs from `VISION_MODEL`.
+- **Default**: Uses the multimodal role (`MULTIMODAL_MODEL`, the infra2 SDK default) on the vision OCR path. OCR and vision are the same model, so dedicated layout parsing does not run.
 - **Upload model field**: optional for PDF/image uploads. If omitted, the OCR-first pipeline is used.
-- **Manual override**: a selected image-capable model bypasses the default OCR path and is used directly as a vision chat model. Selecting the shared `OCR_MODEL` uses the same vision OCR model.
+- **Manual override**: a selected image-capable model bypasses the default OCR path and is used directly as a vision chat model. Selecting the multimodal model uses the same vision OCR model.
 - **Retry**: `/api/statements/{id}/retry` accepts a model override; omitted uses OCR-first mode.
 - **Catalog**: `/api/llm/catalog` returns the configured provider catalog for UI dropdowns (filterable by modality). _(EPIC-023: supersedes the retired `/api/ai/models`.)_
-- **Fallback models (text path)**: `FALLBACK_MODELS` (default: the infra2 SDK default, empty today) are attempted after OCR text extraction when `PRIMARY_MODEL` fails. These structure OCR Markdown and are text-only.
-- **Fallback models (vision path)**: `VISION_FALLBACK_MODELS` (default: the infra2 SDK default, empty today) are appended after the primary OCR/vision model on the vision/image path, deduplicated and order-preserving. Because the vision request carries image content, these fallbacks must be vision-capable; the text-only `FALLBACK_MODELS` are intentionally **not** reused here. With the default empty list, a non-retryable failure of the primary vision model (e.g. a provider `400`) rejects the upload with `ERR_EXT_003`; a configured vision fallback is tried first (#1034, #2566).
+- **No fallback models**: there is no fallback chain (owner rule, #2643). A transient provider error is retried on the same model. A non-retryable error (for example a provider `400`) rejects the upload with `ERR_EXT_003` and an error that names that one model.
 
 ## Data Integrity & Typing
 

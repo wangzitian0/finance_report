@@ -174,7 +174,15 @@ def test_AC8_13_71_preview_env_contains_stable_metadata() -> None:
         "COMPOSE_PROFILES": "infra,app",
     }
     assert "COMPOSE_PROJECT_NAME" not in env
-    for model_key in ("PRIMARY_MODEL", "OCR_MODEL", "VISION_MODEL", "FALLBACK_MODELS"):
+    for model_key in (
+        "LARGE_MODEL",
+        "SMALL_MODEL",
+        "MULTIMODAL_MODEL",
+        "PRIMARY_MODEL",
+        "OCR_MODEL",
+        "VISION_MODEL",
+        "FALLBACK_MODELS",
+    ):
         assert model_key not in env
     for k, v in expected.items():
         assert env[k] == v

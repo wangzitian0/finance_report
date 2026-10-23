@@ -46,9 +46,9 @@ def mock_settings():
         mock.base_currency = "USD"
         mock.ai_provider = "zai"
         mock.ai_base_url = ZAI_CODING_BASE_URL
-        mock.primary_model = "test-model"
-        mock.ocr_model = "test-vision-model"
-        mock.vision_model = "test-vision-model"
+        mock.large_model = "test-large-model"
+        mock.small_model = "test-model"
+        mock.multimodal_model = "test-vision-model"
         mock.cors_origin_regex = ".*"
         mock.otel_exporter_otlp_endpoint = None
         mock.otel_service_name = "test"
@@ -333,11 +333,10 @@ class TestBootloaderPrintConfig:
         mock_settings.debug = True
         mock_settings.environment = "development"
         mock_settings.base_currency = "USD"
-        mock_settings.primary_model = "gemini"
+        mock_settings.small_model = "gemini"
         mock_settings.ai_provider = "zai"
         mock_settings.ai_base_url = ZAI_CODING_BASE_URL
-        mock_settings.ocr_model = "test-vision-model"
-        mock_settings.vision_model = "test-vision-model"
+        mock_settings.multimodal_model = "test-vision-model"
         mock_settings.s3_endpoint = "http://localhost:9000"
         mock_settings.s3_bucket = "statements"
         mock_settings.cors_origin_regex = ".*"
@@ -358,11 +357,10 @@ class TestBootloaderPrintConfig:
         mock_settings.debug = True
         mock_settings.environment = "development"
         mock_settings.base_currency = "USD"
-        mock_settings.primary_model = "gemini"
+        mock_settings.small_model = "gemini"
         mock_settings.ai_provider = "zai"
         mock_settings.ai_base_url = ZAI_CODING_BASE_URL
-        mock_settings.ocr_model = "test-vision-model"
-        mock_settings.vision_model = "test-vision-model"
+        mock_settings.multimodal_model = "test-vision-model"
         mock_settings.s3_endpoint = "http://localhost:9000"
         mock_settings.s3_bucket = "statements"
         mock_settings.cors_origin_regex = ".*"
@@ -386,11 +384,11 @@ class TestBootloaderPrintConfig:
         mock_settings.debug = True
         mock_settings.environment = "development"
         mock_settings.base_currency = "USD"
-        mock_settings.primary_model = "gemini"
+        mock_settings.large_model = "test-large-model"
+        mock_settings.small_model = "gemini"
         mock_settings.ai_provider = "zai"
         mock_settings.ai_base_url = ZAI_CODING_BASE_URL
-        mock_settings.ocr_model = "test-vision-model"
-        mock_settings.vision_model = "test-vision-model"
+        mock_settings.multimodal_model = "test-vision-model"
         mock_settings.s3_endpoint = "http://localhost:9000"
         mock_settings.s3_bucket = "statements"
         mock_settings.cors_origin_regex = ".*"
@@ -407,11 +405,11 @@ class TestBootloaderPrintConfig:
                 "DEBUG": "true",
                 "ENVIRONMENT": "development",
                 "BASE_CURRENCY": "USD",
-                "PRIMARY_MODEL": "gemini",
+                "LARGE_MODEL": "test-large-model",
+                "SMALL_MODEL": "gemini",
                 "AI_PROVIDER": "zai",
                 "AI_BASE_URL": ZAI_CODING_BASE_URL,
-                "OCR_MODEL": "test-vision-model",
-                "VISION_MODEL": "test-vision-model",
+                "MULTIMODAL_MODEL": "test-vision-model",
                 "S3_ENDPOINT": "http://localhost:9000",
                 "S3_BUCKET": "statements",
                 "CORS_ORIGIN_REGEX": ".*",

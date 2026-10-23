@@ -77,7 +77,6 @@ async def uploaded_pdf(client, db, test_user, monkeypatch):
     monkeypatch.setattr(settings, "ai_provider", "zai")
     monkeypatch.setattr(settings, "enable_ai_classification", True)
     monkeypatch.setattr(settings, "statement_disposition_mode", "enforce")
-    monkeypatch.setattr(settings, "ocr_model", settings.vision_model)
     seen_images: list[bytes] = []
 
     async def extraction_response(*, messages, **kwargs):

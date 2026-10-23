@@ -45,7 +45,7 @@ async def ai_semantic_score(prompt: str) -> int:
     try:
         stream = stream_ai_json(
             messages=messages,
-            model=settings.primary_model,
+            model=settings.small_model,
             timeout=30.0,
         )
         content = await accumulate_stream(stream)
@@ -60,7 +60,7 @@ async def ai_semantic_score(prompt: str) -> int:
         logger.debug(
             "AI semantic score computed",
             score=score,
-            model=settings.primary_model,
+            model=settings.small_model,
         )
 
         return max(0, min(100, score))
