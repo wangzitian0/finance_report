@@ -232,8 +232,9 @@ async def _seed(db: AsyncSession, user_id: UUID, rows: list[dict], *, name: str 
     seeded = await seed_parsed_statement(
         db, user_id, institution="DBS", original_filename=name, opening_balance=Decimal("1000.00"), transactions=rows
     )
-    seeded.statement.period_start = rows[0]["date"]
-    seeded.statement.period_end = rows[-1]["date"]
+    if rows:
+        seeded.statement.period_start = rows[0]["date"]
+        seeded.statement.period_end = rows[-1]["date"]
     await db.commit()
     return seeded
 
@@ -879,6 +880,34 @@ async def test_AC_extraction_statement_classify_4_the_phase_leaves_a_statement_t
     }
     assert proposer.calls == []
     assert await _classification_rows(sessions, test_user.id) == []
+
+
+async def test_AC_extraction_statement_classify_4_a_statement_without_rows_or_with_unresolvable_rows_is_left_alone(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.4: the approval raises the error of unresolvable rows, so the pass leaves them."""
+    from src.extraction.extension import statement_preclassification
+
+    proposer = _install(monkeypatch, CountingProposer())
+    empty = await _seed(db, test_user.id, [])
+    seeded = await _seed(db, test_user.id, _rows(3))
+    sessions = _sessions(db)
+
+    empty_result = await statement_preclassification.classify_parsed_statement(
+        sessions, statement_id=empty.id, user_id=test_user.id
+    )
+
+    async def unresolvable(_session, _statement):
+        raise ValueError("Current source transaction identity requires review")
+
+    monkeypatch.setattr(statement_preclassification, "resolve_statement_transactions", unresolvable)
+    unresolvable_result = await statement_preclassification.classify_parsed_statement(
+        sessions, statement_id=seeded.id, user_id=test_user.id
+    )
+
+    assert empty_result is statement_preclassification.StatementClassificationPhase.NOTHING_TO_CLASSIFY
+    assert unresolvable_result is statement_preclassification.StatementClassificationPhase.SKIPPED_STATE
+    assert proposer.calls == []
 
 
 # ---------------------------------------------------------------------------------------------------------
