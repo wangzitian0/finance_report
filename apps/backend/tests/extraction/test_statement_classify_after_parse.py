@@ -653,6 +653,33 @@ async def test_AC_extraction_statement_classify_3_the_one_click_fill_takes_the_s
     assert proposer.calls == []
 
 
+async def test_AC_extraction_statement_classify_3_the_fill_function_takes_the_lock_without_the_route(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.3: a caller other than the route is safe too, because the fill locks itself."""
+    from src.composition import auto_fill_default_statement_dispositions
+    from src.extraction import StatementClassificationBusy
+    from src.extraction.extension.transaction_classification import try_lock_statement_classification
+
+    monkeypatch.setattr(transaction_classification, "CLASSIFICATION_LOCK_WAIT_SECONDS", 0.2)
+    monkeypatch.setattr(transaction_classification, "_LOCK_POLL_SECONDS", 0.01)
+    proposer = _install(monkeypatch, CountingProposer())
+    seeded = await _seed(db, test_user.id, _rows(4))
+    sessions = _sessions(db)
+
+    async with sessions() as holder, sessions() as caller:
+        assert await try_lock_statement_classification(holder, seeded.id)
+        statement = await caller.get(StatementSummary, seeded.id)
+        with pytest.raises(StatementClassificationBusy):
+            await asyncio.wait_for(
+                auto_fill_default_statement_dispositions(caller, statement, test_user.id), timeout=WAIT_SECONDS
+            )
+        await holder.rollback()
+        await caller.rollback()
+
+    assert proposer.calls == []
+
+
 async def test_AC_extraction_statement_classify_6_the_source_bytes_are_released_before_the_model_is_asked(
     db, test_user, monkeypatch
 ):
