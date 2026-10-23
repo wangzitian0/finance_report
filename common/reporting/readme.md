@@ -257,11 +257,12 @@ legacy cash-name vocabulary; it cannot authorize, persist, reopen, or export
 a package. Brokerage cash decomposition remains a separate evidence problem: a
 brokerage container is not assigned a global binary cash role.
 
-**Net worth time-series** — `GET /reports/net-worth/timeseries?from=...&to=...&granularity=daily|monthly`
+**Net worth time-series** — `GET /reports/net-worth/timeseries?from=...&to=...&granularity=daily|monthly&include_restricted=...`
 returns `{date, total_assets, total_liabilities, net_worth, currency}`
 points; `daily` is capped at 366 points, `monthly` uses the period end
-date, and for the same stored FX rates each point equals the balance sheet
-on that point's date (AC-reporting.net-worth-timeseries.3). It does not
+date, and for the same stored FX rates and the same `include_restricted`
+scope each point equals the balance sheet on that point's date
+(AC-reporting.net-worth-timeseries.3). It does not
 compute net income, so an FX miss on an income or expense line does not fail
 it. The series does not build one
 balance sheet per point (#2583). Two grouped queries give the ledger balance
@@ -280,7 +281,10 @@ sheet. `value` is signed in the report currency (assets positive,
 liabilities negative; the sum of all rows equals `net_worth`);
 `percentage_of_net_worth = value / net_worth * 100` (2dp, `null` when net
 worth is zero); rows group by `asset_class × liquidity_class ×
-source_currency` and retain drill-through `source_lines`. Portfolio
+source_currency` and retain drill-through `source_lines`. A source line
+carries `source_type`, `source_id`, `label` and `value`, and no link: the
+app opens the lineage drawer for a `ledger_account` and the evidence drawer
+for a `manual_valuation` (AC-reporting.net-worth-scope.8). Portfolio
 ledger-backed cost basis groups with `public_equity`; broker account
 residual value after cost-basis split remains `cash`. Manual valuation
 component types map: property/mortgage → `real_estate`; CPF/provident
@@ -575,7 +579,7 @@ def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) 
 |--------|------|
 | Journal lines | Aggregate posted/reconciled asset, liability, and equity account balances through the report date |
 | Active portfolio positions | Add a market valuation adjustment per broker account equal to `current market value - ledger-backed position cost basis`; current-day reports may use the latest imported brokerage snapshot date to match `/portfolio/holdings` |
-| Manual valuation snapshots | Add latest in-scope asset/liability snapshots as synthetic report lines; restricted retirement/benefit assets contribute when `include_restricted=true` |
+| Manual valuation snapshots | Add latest in-scope asset/liability snapshots as synthetic report lines; the scope rule is `pricing.split_net_worth_scope` (see **Net worth scope** below) |
 
 Portfolio adjustments prevent double counting without removing broker
 cash: if position cost basis already exists as a debit to the broker
@@ -587,6 +591,32 @@ sheet source classes also carry report-line provenance (see above): ledger
 lines derive it from contributing journal source types, active portfolio
 market adjustments are `derived`, manual valuation synthetic lines are
 `manual`.
+
+<a id="net-worth-scope"></a>**Net worth scope (#2645).** One net worth serves
+Home, the `/reports` Overview, the Balance sheet tab, the net worth chart and
+Portfolio. Each one reads `total_assets - total_liabilities` of
+`generate_balance_sheet` (the series computes the same totals with a running
+sum) for one as-of date and one `include_restricted` scope
+(AC-reporting.net-worth-scope.1).
+
+- The default scope of each route and of the app is the full net worth
+  (`DEFAULT_INCLUDE_RESTRICTED = True` in `routers/reports.py`;
+  `DEFAULT_INCLUDE_RESTRICTED = true` in `hooks/useReportFilters.ts`).
+- `include_restricted=false` is the liquid scope. `pricing.split_net_worth_scope`
+  is its only definition: it excludes each restricted or illiquid asset
+  valuation and each liability valuation of the same asset class, for example
+  the mortgage of an excluded property. A liability counts only when its asset
+  counts (AC-pricing.manualvaluation.12).
+- A scoped response returns `excluded_holdings`: one row per excluded asset
+  class with its excluded assets, excluded liabilities and net. Home, the
+  Balance sheet tab and Portfolio label the figure "Liquid net worth" and list
+  each row (AC-reporting.net-worth-scope.3, .5, .7).
+- The Balance sheet tab shows `net_worth_adjustment_gain_loss` on its own
+  equity line, "Manual and market valuations". The "FX and translation (CTA)"
+  line carries only `unrealized_fx_gain_loss` and `cta_adjustment`
+  (AC-reporting.net-worth-scope.6).
+- The report package keeps its own explicit liquid treatment
+  (`include_restricted=false`, `restricted-asset-treatment` note).
 
 `unrealized_fx_gain_loss` is **not a balancing plug** — it's calculated
 from foreign-currency asset/liability accounts by comparing `native

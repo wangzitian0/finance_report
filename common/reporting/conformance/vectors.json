@@ -63,6 +63,7 @@
         ],
         "portfolio_warnings": [],
         "opening_balance_warnings": [],
+        "excluded_holdings": [],
         "equation_delta": "0.00",
         "is_balanced": true
       }

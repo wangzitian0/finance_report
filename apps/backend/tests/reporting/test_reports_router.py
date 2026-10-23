@@ -78,14 +78,19 @@ async def test_balance_sheet_endpoint(client, test_data_setup_reports):
     assert data["currency"] == "SGD"
 
 
-async def test_AC5_16_1_balance_sheet_defaults_to_excluding_restricted_holdings(
+async def test_AC5_16_1_balance_sheet_defaults_to_the_full_scope(
     client,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """AC-reporting.trust-signals.1: AC5.16.1: Balance sheet endpoint defaults restricted holdings to excluded."""
+    """AC-reporting.trust-signals.1: AC5.16.1: the balance sheet endpoint includes restricted holdings by default.
+
+    The full net worth is the default of each net worth route (#2645). A scope
+    without restricted holdings is an explicit request.
+    """
+    received: list[bool] = []
 
     async def fake_generate_balance_sheet(*_args, **kwargs):
-        assert kwargs["include_restricted"] is False
+        received.append(kwargs["include_restricted"])
         return {
             "as_of_date": date(2026, 1, 31),
             "currency": "SGD",
@@ -106,8 +111,14 @@ async def test_AC5_16_1_balance_sheet_defaults_to_excluding_restricted_holdings(
     monkeypatch.setattr(reports_router, "generate_balance_sheet", fake_generate_balance_sheet)
 
     response = await client.get("/reports/balance-sheet", params={"as_of_date": "2026-01-31", "currency": "SGD"})
-
     assert response.status_code == 200
+    excluded = await client.get(
+        "/reports/balance-sheet",
+        params={"as_of_date": "2026-01-31", "currency": "SGD", "include_restricted": "false"},
+    )
+    assert excluded.status_code == 200
+
+    assert received == [True, False]
 
 
 async def test_income_statement_endpoint(client, test_data_setup_reports):
@@ -272,7 +283,6 @@ async def test_AC17_14_2_net_worth_allocation_endpoint_returns_contract(
                             "source_id": None,
                             "label": "Main Bank",
                             "value": Decimal("1500.00"),
-                            "href": "/reports/account-lineage",
                         }
                     ],
                 },
@@ -289,7 +299,6 @@ async def test_AC17_14_2_net_worth_allocation_endpoint_returns_contract(
                             "source_id": None,
                             "label": "Credit Card",
                             "value": Decimal("-500.00"),
-                            "href": "/reports/account-lineage",
                         }
                     ],
                 },

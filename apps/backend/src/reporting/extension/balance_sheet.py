@@ -43,7 +43,8 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
 
     # Always called as (db, user_id, *, as_of_date=..., target_currency=...,
-    # include_restricted=...) — see _build_manual_valuation_lines below.
+    # include_restricted=..., warnings=..., excluded_lines=...) — see
+    # _build_manual_valuation_lines below.
     ManualValuationLinesProvider = Callable[..., "Awaitable[tuple[list[dict], list[dict]]]"]
     # Always called as (db, user_id, *, as_of_dates=..., target_currency=...,
     # include_restricted=...) — see _build_manual_valuation_lines_series below.
@@ -86,6 +87,7 @@ async def _build_manual_valuation_lines(
     target_currency: str,
     include_restricted: bool = True,
     warnings: list[FxWarning] | None = None,
+    excluded_lines: list[dict] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Dispatch to the registered manual-valuation lines provider."""
     if _manual_valuation_lines_provider is None:
@@ -101,7 +103,33 @@ async def _build_manual_valuation_lines(
         target_currency=target_currency,
         include_restricted=include_restricted,
         warnings=warnings,
+        excluded_lines=excluded_lines,
     )
+
+
+def _excluded_holdings(excluded_lines: Sequence[dict]) -> list[dict[str, object]]:
+    """Group the manual valuation lines that the scope excludes by asset class (#2645).
+
+    Each row holds the excluded assets, the excluded liabilities and their net, in
+    the report currency. A surface that shows a scoped net worth names each row.
+    """
+    totals: dict[str, dict[str, Decimal]] = {}
+    for line in excluded_lines:
+        row = totals.setdefault(
+            str(line["allocation_asset_class"]),
+            {"total_assets": Decimal("0"), "total_liabilities": Decimal("0")},
+        )
+        side = "total_liabilities" if line["type"] == AccountType.LIABILITY else "total_assets"
+        row[side] += Decimal(str(line["amount"]))
+    return [
+        {
+            "asset_class": asset_class,
+            "total_assets": _quantize_money(row["total_assets"]),
+            "total_liabilities": _quantize_money(row["total_liabilities"]),
+            "net_worth": _quantize_money(row["total_assets"] - row["total_liabilities"]),
+        }
+        for asset_class, row in sorted(totals.items())
+    ]
 
 
 async def _build_manual_valuation_lines_series(
@@ -272,6 +300,7 @@ async def generate_balance_sheet(
         asset_lines=assets,
         warnings=portfolio_warnings,
     )
+    excluded_valuation_lines: list[dict] = []
     try:
         valuation_assets, valuation_liabilities = await _build_manual_valuation_lines(
             db,
@@ -280,6 +309,7 @@ async def generate_balance_sheet(
             target_currency=target_currency,
             include_restricted=include_restricted,
             warnings=portfolio_warnings,
+            excluded_lines=excluded_valuation_lines,
         )
     except fx_gateway.FxRateError as exc:
         # pricing.build_manual_valuation_lines (registered above) raises its
@@ -444,6 +474,7 @@ async def generate_balance_sheet(
         "fx_warnings": fx_warnings,
         "portfolio_warnings": portfolio_warnings,
         "opening_balance_warnings": opening_balance_warnings,
+        "excluded_holdings": _excluded_holdings(excluded_valuation_lines),
         "equation_delta": totals.equation_delta,
         "is_balanced": totals.is_balanced,
     }

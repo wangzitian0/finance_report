@@ -81,6 +81,17 @@ class AccountLineageResponse(BaseModel):
     lines: list[AccountLineageLine] = Field(description="Posted/reconciled lines contributing to the balance")
 
 
+class ExcludedHoldingRow(BaseModel):
+    """One asset class that a scope without restricted holdings excludes (#2645)."""
+
+    asset_class: str = Field(description="Allocation asset class of the excluded manual valuations.")
+    total_assets: Decimal = Field(description="Excluded asset valuations of the class, in the report currency.")
+    total_liabilities: Decimal = Field(
+        description="Excluded liability valuations of the class, for example a mortgage, in the report currency."
+    )
+    net_worth: Decimal = Field(description="Excluded assets minus excluded liabilities of the class.")
+
+
 class BalanceSheetResponse(BaseModel):
     """Balance sheet response schema."""
 
@@ -111,6 +122,12 @@ class BalanceSheetResponse(BaseModel):
     # no recorded opening balance; the total then reflects only period movement and
     opening_balance_warnings: list[dict[str, str]] = Field(
         default_factory=list, description="Opening-balance completeness warnings."
+    )
+    excluded_holdings: list[ExcludedHoldingRow] = Field(
+        default_factory=list,
+        description=(
+            "Asset classes that the scope excludes from the totals, one row per class. Empty for the full scope."
+        ),
     )
     equation_delta: Decimal
     is_balanced: bool
@@ -181,14 +198,6 @@ class NetWorthAllocationSourceLine(BaseModel):
     source_id: UUID | None = Field(default=None, description="Source record id when the contributor has one.")
     label: str = Field(description="Human-readable contributor label.")
     value: Decimal = Field(description="Signed contributor value in the report currency.")
-    href: str | None = Field(default=None, description="Internal drill-through href for the contributor.")
-
-    @field_validator("href")
-    @classmethod
-    def validate_href(cls, value: str | None) -> str | None:
-        if value is None:
-            return value
-        return _validate_internal_action_href(value)
 
 
 class NetWorthAllocationRow(BaseModel):
@@ -222,6 +231,12 @@ class NetWorthAllocationResponse(BaseModel):
     portfolio_warnings: list[dict[str, str]] = Field(
         default_factory=list,
         description="Same portfolio point-in-time gaps as the balance sheet (#1791 follow-up).",
+    )
+    excluded_holdings: list[ExcludedHoldingRow] = Field(
+        default_factory=list,
+        description=(
+            "The asset classes that the scope excludes, the same rows as the balance sheet. Empty for the full scope."
+        ),
     )
 
 

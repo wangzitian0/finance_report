@@ -95,9 +95,11 @@ describe("ReportDimensionBar", () => {
     expect(testUrl()).toBe("/reports?tab=cash-flow&period=1M&end=2026-01-31&currency=USD")
     expect(select).toHaveValue("USD")
 
-    fireEvent.click(screen.getByLabelText("Include restricted holdings"))
-    expect(testUrl()).toContain("include_restricted=true")
+    // The default scope includes restricted holdings (#2645). Unchecking writes the liquid scope.
     expect(screen.getByLabelText("Include restricted holdings")).toBeChecked()
+    fireEvent.click(screen.getByLabelText("Include restricted holdings"))
+    expect(testUrl()).toContain("include_restricted=false")
+    expect(screen.getByLabelText("Include restricted holdings")).not.toBeChecked()
   })
 
   it("keeps a URL currency that the currency list does not name", () => {

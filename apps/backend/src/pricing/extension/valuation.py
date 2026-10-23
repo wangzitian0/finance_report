@@ -68,6 +68,45 @@ class ValuationComponentsResult:
     total_liabilities: Decimal
     net_worth_delta: Decimal
     warnings: list[dict[str, str]] = field(default_factory=list)
+    # The current components that the scope excludes (#2645). The totals above do not include them.
+    excluded_items: list[ValuationComponentItem] = field(default_factory=list)
+
+
+# A scope without restricted holdings excludes the assets of these liquidity classes.
+_RESTRICTED_LIQUIDITY_CLASSES = frozenset(
+    {ManualValuationLiquidityClass.RESTRICTED.value, ManualValuationLiquidityClass.ILLIQUID.value}
+)
+
+
+def split_net_worth_scope(
+    items: Sequence[ValuationComponentItem],
+    *,
+    include_restricted: bool,
+) -> tuple[list[ValuationComponentItem], list[ValuationComponentItem]]:
+    """Return the components inside and outside one restricted-holdings scope (#2645).
+
+    This function is the only definition of the scope. The full scope holds each
+    component. The scope without restricted holdings excludes each restricted or
+    illiquid asset. It also excludes each liability of the same asset class, for
+    example the mortgage of an excluded property. Thus a liability counts only
+    when its asset counts. A liability of a class with no excluded asset counts.
+    """
+    if include_restricted:
+        return list(items), []
+    excluded_classes = {
+        _manual_valuation_allocation_asset_class(item.component_type)
+        for item in items
+        if item.liquidity_class in _RESTRICTED_LIQUIDITY_CLASSES
+    }
+    included: list[ValuationComponentItem] = []
+    excluded: list[ValuationComponentItem] = []
+    for item in items:
+        is_excluded = item.liquidity_class in _RESTRICTED_LIQUIDITY_CLASSES or (
+            item.liquidity_class == ManualValuationLiquidityClass.LIABILITY.value
+            and _manual_valuation_allocation_asset_class(item.component_type) in excluded_classes
+        )
+        (excluded if is_excluded else included).append(item)
+    return included, excluded
 
 
 _DEFAULT_LIQUIDITY_CLASS: dict[ManualValuationComponentType, ManualValuationLiquidityClass] = {
@@ -442,44 +481,34 @@ class ValuationService:
             if include_restricted or row.latest_liquidity_class not in hidden_classes
         ]
 
-        total_assets = Decimal("0.00")
-        total_liabilities = Decimal("0.00")
-        items: list[ValuationComponentItem] = []
-
-        for snapshot in snapshots:
-            if not include_restricted and snapshot.liquidity_class in (
-                ManualValuationLiquidityClass.RESTRICTED,
-                ManualValuationLiquidityClass.ILLIQUID,
-            ):
-                continue
-
-            value = to_money(snapshot.value)
-            if snapshot.liquidity_class == ManualValuationLiquidityClass.LIABILITY:
-                total_liabilities += value
-            else:
-                total_assets += value
-
-            items.append(
+        items, excluded_items = split_net_worth_scope(
+            [
                 ValuationComponentItem(
                     id=snapshot.id,
                     component_type=snapshot.component_type.value,
                     liquidity_class=snapshot.liquidity_class.value,
                     as_of_date=snapshot.as_of_date,
-                    value=value,
+                    value=to_money(snapshot.value),
                     currency=snapshot.currency,
                     source=snapshot.source,
                     provenance="manual",
                 )
-            )
-
-        total_assets = to_money(total_assets)
-        total_liabilities = to_money(total_liabilities)
+                for snapshot in snapshots
+            ],
+            include_restricted=include_restricted,
+        )
+        liability = ManualValuationLiquidityClass.LIABILITY.value
+        total_assets = to_money(sum((item.value for item in items if item.liquidity_class != liability), Decimal("0")))
+        total_liabilities = to_money(
+            sum((item.value for item in items if item.liquidity_class == liability), Decimal("0"))
+        )
         return ValuationComponentsResult(
             items=items,
             total_assets=total_assets,
             total_liabilities=total_liabilities,
             net_worth_delta=to_money(total_assets - total_liabilities),
             warnings=warnings,
+            excluded_items=excluded_items,
         )
 
 
@@ -561,6 +590,7 @@ async def build_manual_valuation_lines(
     target_currency: str,
     include_restricted: bool = True,
     warnings: list[dict[str, str]] | None = None,
+    excluded_lines: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Build balance sheet lines from latest manual valuation components.
 
@@ -568,6 +598,10 @@ async def build_manual_valuation_lines(
     market-adjustment builder): components whose only snapshot postdates
     ``as_of_date`` are absent from the lines, and the caller's report should
     disclose that instead of presenting a silently incomplete total (#1796).
+
+    ``excluded_lines`` is an optional accumulator too. It receives one line in
+    ``target_currency`` for each component that the scope excludes
+    (``split_net_worth_scope``), so the caller can name what it left out (#2645).
 
     Raises the pricing error family
     (:class:`~src.pricing.base.errors.PricingError`) when a required FX rate
@@ -591,9 +625,8 @@ async def build_manual_valuation_lines(
     )
     if warnings is not None:
         warnings.extend(components.warnings)
-    lines: list[dict[str, Any]] = []
 
-    for component in components.items:
+    async def line_of(component: ValuationComponentItem) -> dict[str, Any]:
         amount = component.value
         source_currency = component.currency.upper()
         if source_currency != target_currency:
@@ -605,8 +638,11 @@ async def build_manual_valuation_lines(
                 rate_date=as_of_date,
                 lazy_load=True,
             )
-        lines.append(_manual_valuation_line(component, amount))
+        return _manual_valuation_line(component, amount)
 
+    lines = [await line_of(component) for component in components.items]
+    if excluded_lines is not None:
+        excluded_lines.extend([await line_of(component) for component in components.excluded_items])
     return _split_manual_valuation_lines(lines)
 
 

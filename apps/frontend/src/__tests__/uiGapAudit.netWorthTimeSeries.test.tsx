@@ -21,7 +21,7 @@ vi.mock("@/lib/api-client", () => ({
   apiOperation: vi.fn(),
 }));
 
-const QUARTER = { from: "2026-04-01", to: "2026-06-30" } as const;
+const QUARTER = { from: "2026-04-01", to: "2026-06-30", includeRestricted: true } as const;
 
 function createQueryClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -74,19 +74,19 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
     const { rerender } = renderWithClient(<NetWorthTimeSeriesChart {...QUARTER} currency="USD" />);
     await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledTimes(1));
     expect(mockedApiOperation).toHaveBeenLastCalledWith("net_worth_timeseries_reports_net_worth_timeseries_get", {
-      query: { from: "2026-04-01", to: "2026-06-30", granularity: "daily", currency: "USD" },
+      query: { from: "2026-04-01", to: "2026-06-30", granularity: "daily", currency: "USD", include_restricted: true },
     });
     expect(screen.getByRole("heading", { name: "Daily net worth" })).toBeInTheDocument();
     expect(screen.queryByRole("tab")).toBeNull();
 
     rerender(
       <QueryClientProvider client={createQueryClient()}>
-        <NetWorthTimeSeriesChart from="2025-07-01" to="2026-06-30" />
+        <NetWorthTimeSeriesChart from="2025-07-01" to="2026-06-30" includeRestricted />
       </QueryClientProvider>,
     );
     await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledTimes(2));
     expect(mockedApiOperation).toHaveBeenLastCalledWith("net_worth_timeseries_reports_net_worth_timeseries_get", {
-      query: { from: "2025-07-01", to: "2026-06-30", granularity: "monthly", currency: undefined },
+      query: { from: "2025-07-01", to: "2026-06-30", granularity: "monthly", currency: undefined, include_restricted: true },
     });
     expect(screen.getByRole("heading", { name: "Monthly net worth" })).toBeInTheDocument();
   });
@@ -114,6 +114,20 @@ describe("EPIC-005 / UI Gap Audit / Net Worth Time Series", () => {
     renderWithClient(<NetWorthTimeSeriesChart {...QUARTER} />);
 
     expect(await screen.findByText("history failed")).toBeInTheDocument();
+  });
+
+  // AC-reporting.net-worth-scope.4
+  it("#2645 requests the series in the restricted-holdings scope of the dimension bar", async () => {
+    mockedApiOperation.mockResolvedValue(TWO_POINTS);
+    const client = createQueryClient();
+
+    const full = renderWithClient(<NetWorthTimeSeriesChart {...QUARTER} />, client);
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledTimes(1));
+    full.unmount();
+    renderWithClient(<NetWorthTimeSeriesChart {...QUARTER} includeRestricted={false} />, client);
+    await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledTimes(2));
+
+    expect(mockedApiOperation.mock.calls.map(([, request]) => (request as { query: { include_restricted: boolean } }).query.include_restricted)).toEqual([true, false]);
   });
 
   // AC-reporting.fe-viz-reports.34

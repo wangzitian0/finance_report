@@ -43,45 +43,23 @@ from src.reporting.extension.reporting_calc import (
 logger = get_logger(__name__)
 
 
-def _allocation_source_href(
-    source_type: str,
-    source_id: UUID | None,
-    *,
-    as_of_date: date,
-    currency: str,
-) -> str | None:
-    if source_type == "ledger_account" and source_id is not None:
-        return (
-            f"/reports/account-lineage?account_id={source_id}&as_of_date={as_of_date.isoformat()}&currency={currency}"
-        )
-    if source_type == "manual_valuation":
-        return "/assets/valuation-components"
-    if source_type == "portfolio_market_adjustment":
-        return "/portfolio/holdings"
-    return None
-
-
 def _allocation_source_line(
     line: dict[str, Any],
     *,
     value: Decimal,
     label: str,
     source_type: str,
-    as_of_date: date,
-    currency: str,
 ) -> dict[str, Any]:
-    source_id = line.get("account_id")
+    """Return one contributor of an allocation row.
+
+    The line carries no link (#2645). The app chooses the surface from
+    ``source_type`` and ``source_id``: the API cannot know the app routes.
+    """
     return {
         "source_type": source_type,
-        "source_id": source_id,
+        "source_id": line.get("account_id"),
         "label": label,
         "value": _quantize_money(value),
-        "href": _allocation_source_href(
-            source_type,
-            source_id if isinstance(source_id, UUID) else None,
-            as_of_date=as_of_date,
-            currency=currency,
-        ),
     }
 
 
@@ -117,7 +95,6 @@ def _add_asset_allocation_line(
     line: dict[str, Any],
     *,
     portfolio_basis_by_account: dict[UUID, dict[str, Any]],
-    as_of_date: date,
     currency: str,
 ) -> None:
     amount = _quantize_money(Decimal(str(line["amount"])))
@@ -145,8 +122,6 @@ def _add_asset_allocation_line(
                 value=cost_basis,
                 label=f"{line['name']} ledger cost basis",
                 source_type=source_type,
-                as_of_date=as_of_date,
-                currency=currency,
             ),
         )
         residual = _quantize_money(amount - cost_basis)
@@ -161,8 +136,6 @@ def _add_asset_allocation_line(
                 value=residual,
                 label=f"{line['name']} residual cash",
                 source_type=source_type,
-                as_of_date=as_of_date,
-                currency=currency,
             ),
         )
         return
@@ -178,8 +151,6 @@ def _add_asset_allocation_line(
             value=amount,
             label=str(line["name"]),
             source_type=source_type,
-            as_of_date=as_of_date,
-            currency=currency,
         ),
     )
 
@@ -188,7 +159,6 @@ def _add_liability_allocation_line(
     grouped: dict[tuple[str, str, str], dict[str, Any]],
     line: dict[str, Any],
     *,
-    as_of_date: date,
     currency: str,
 ) -> None:
     value = -_quantize_money(Decimal(str(line["amount"])))
@@ -204,8 +174,6 @@ def _add_liability_allocation_line(
             value=value,
             label=str(line["name"]),
             source_type=source_type,
-            as_of_date=as_of_date,
-            currency=currency,
         ),
     )
 
@@ -249,16 +217,10 @@ async def get_net_worth_allocation_schedule(
             grouped,
             line,
             portfolio_basis_by_account=portfolio_basis_by_account,
-            as_of_date=as_of_date,
             currency=target_currency,
         )
     for line in liability_lines:
-        _add_liability_allocation_line(
-            grouped,
-            line,
-            as_of_date=as_of_date,
-            currency=target_currency,
-        )
+        _add_liability_allocation_line(grouped, line, currency=target_currency)
 
     total_assets = _quantize_money(Decimal(str(balance_sheet["total_assets"])))
     total_liabilities = _quantize_money(Decimal(str(balance_sheet["total_liabilities"])))
@@ -294,6 +256,8 @@ async def get_net_worth_allocation_schedule(
         # -- generate_balance_sheet already ran the same as_of_date/currency
         # through _build_portfolio_market_adjustment_lines above.
         "portfolio_warnings": balance_sheet.get("portfolio_warnings", []),
+        # The classes that the scope leaves out, from the same balance sheet (#2645).
+        "excluded_holdings": balance_sheet["excluded_holdings"],
     }
 
 
@@ -558,13 +522,15 @@ async def get_net_worth_timeseries(
     end_date: date,
     granularity: str,
     currency: str | None = None,
+    include_restricted: bool = True,
 ) -> dict[str, object]:
     """Get historical net worth points.
 
-    For the same stored FX rates, each point equals ``total_assets`` and
-    ``total_liabilities`` of ``generate_balance_sheet`` on the point date:
-    ledger balances at the spot FX rate of that date, portfolio market-value
-    adjustments and manual valuations. The ledger balances come from a running
+    For the same stored FX rates and the same ``include_restricted`` scope, each
+    point equals ``total_assets`` and ``total_liabilities`` of
+    ``generate_balance_sheet`` on the point date: ledger balances at the spot FX
+    rate of that date, portfolio market-value adjustments and the manual
+    valuations in the scope (#2645). The ledger balances come from a running
     sum, not from one balance sheet per point (#2583). The series does not
     compute net income, unrealized FX or CTA, so an FX miss on an income or
     expense line does not fail it.
@@ -596,7 +562,11 @@ async def get_net_worth_timeseries(
     portfolio_totals = await _portfolio_adjustment_totals(db, user_id, point_dates, ledger_assets, target_currency)
     try:
         valuation_lines = await _build_manual_valuation_lines_series(
-            db, user_id, as_of_dates=point_dates, target_currency=target_currency
+            db,
+            user_id,
+            as_of_dates=point_dates,
+            target_currency=target_currency,
+            include_restricted=include_restricted,
         )
     except fx_gateway.FxRateError as exc:
         raise ReportError(str(exc)) from exc

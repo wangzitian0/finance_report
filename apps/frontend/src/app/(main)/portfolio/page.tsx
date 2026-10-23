@@ -18,20 +18,55 @@ import { HoldingsTable } from "@/components/portfolio/HoldingsTable";
 import { AllocationChart } from "@/components/portfolio/AllocationChart";
 import { InvestmentPerformanceSchedule } from "@/components/portfolio/InvestmentPerformanceSchedule";
 import { PriceUpdateForm } from "@/components/portfolio/PriceUpdateForm";
+import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
+import { ExcludedHoldingsNote } from "@/components/reports/ExcludedHoldingsNote";
+import { DEFAULT_INCLUDE_RESTRICTED } from "@/hooks/useReportFilters";
 import { amountToChartNumber, formatCurrencyLocale, sumAmounts } from "@/lib/audit/money";
 import { clampPercentWidthFromPercentValue, formatPercentFromPercentValue } from "@/lib/audit/ratio/format";
-import type { NetWorthAllocationRow } from "@/lib/types";
+import { allocationClassLabel } from "@/lib/statusLabels";
+import type { NetWorthAllocationRow, NetWorthAllocationSourceLine } from "@/lib/types";
 
-function formatAllocationLabel(value: string): string {
-  if (value === "retirement_and_benefit_assets") return "Retirement & Benefit Assets";
-  return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+/**
+ * One contributor of an allocation row (#2645). A ledger account opens its source transactions in
+ * the lineage drawer. A manual valuation links to the evidence drawer, which lists the recorded
+ * valuations. Any other contributor is plain text: its value shows in the holdings table below.
+ */
+function AllocationSource({
+  line,
+  onOpenLineage,
+}: {
+  line: NetWorthAllocationSourceLine;
+  onOpenLineage: (accountId: string, accountName: string) => void;
+}) {
+  if (line.source_type === "ledger_account" && line.source_id) {
+    const accountId = line.source_id;
+    return (
+      <button
+        type="button"
+        onClick={() => onOpenLineage(accountId, line.label)}
+        aria-label={`View source transactions for ${line.label}`}
+        className="max-w-full truncate text-left hover:text-[var(--foreground)] hover:underline"
+      >
+        {line.label}
+      </button>
+    );
+  }
+  if (line.source_type === "manual_valuation") {
+    return (
+      <Link href={APP_ROUTES.PORTFOLIO_EVIDENCE} scroll={false} className="hover:text-[var(--foreground)]">
+        {line.label}
+      </Link>
+    );
+  }
+  return <>{line.label}</>;
 }
 
 export default function PortfolioPage() {
   const { baseCurrency: reportCurrency } = useBaseCurrency();
   const [showDisposed, setShowDisposed] = useState(false);
   const [asOfDate, setAsOfDate] = useState("");
-  const [includeRestrictedAllocation, setIncludeRestrictedAllocation] = useState(true);
+  const [includeRestrictedAllocation, setIncludeRestrictedAllocation] = useState(DEFAULT_INCLUDE_RESTRICTED);
+  const [lineageTarget, setLineageTarget] = useState<AccountLineageTarget | null>(null);
 
   // The URL opens one drawer: `?ticker=` a holding, `?panel=prices` the price update, `?panel=evidence` the evidence form.
   const router = useRouter();
@@ -174,7 +209,7 @@ export default function PortfolioPage() {
             {([
               ["Total assets", netWorthAllocation.total_assets],
               ["Total liabilities", netWorthAllocation.total_liabilities],
-              ["Net worth", netWorthAllocation.net_worth],
+              [netWorthAllocation.include_restricted ? "Net worth" : "Liquid net worth", netWorthAllocation.net_worth],
             ] as const).map(([dt, val]) => (
               <div key={dt} className="rounded border border-[var(--border)] p-3">
                 <dt className="text-xs text-muted uppercase">{dt}</dt>
@@ -182,6 +217,13 @@ export default function PortfolioPage() {
               </div>
             ))}
           </dl>
+        )}
+        {netWorthAllocation && (
+          <ExcludedHoldingsNote
+            rows={netWorthAllocation.excluded_holdings}
+            currency={netWorthAllocation.currency}
+            formatMoney={formatCurrencyLocale}
+          />
         )}
 
         <div className="mt-4 overflow-hidden rounded border border-[var(--border)]">
@@ -207,8 +249,8 @@ export default function PortfolioPage() {
                   className="grid gap-2 border-b border-[var(--border)] px-3 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.4fr)_minmax(6rem,0.6fr)_minmax(6rem,0.6fr)_minmax(5rem,0.4fr)_minmax(8rem,0.8fr)] md:items-center"
                 >
                   <div className="min-w-0">
-                    <p className="font-medium text-[var(--foreground)]">{formatAllocationLabel(row.asset_class)}</p>
-                    <p className="mt-1 text-xs text-muted">{formatAllocationLabel(row.liquidity_class)}</p>
+                    <p className="font-medium text-[var(--foreground)]">{allocationClassLabel(row.asset_class)}</p>
+                    <p className="mt-1 text-xs text-muted">{allocationClassLabel(row.liquidity_class)}</p>
                     <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--background-muted)]" aria-hidden="true">
                       <div
                         className={`h-full rounded-full ${isNeg ? "bg-[var(--error)]" : "bg-[var(--accent)]"}`}
@@ -228,7 +270,17 @@ export default function PortfolioPage() {
                     <ul className="mt-1 space-y-1">
                       {row.source_lines.slice(0, 2).map((line) => (
                         <li key={`${line.source_type}-${line.source_id ?? line.label}`} className="truncate" title={line.label}>
-                          {line.href ? <Link href={line.href} className="hover:text-[var(--foreground)]">{line.label}</Link> : line.label}
+                          <AllocationSource
+                            line={line}
+                            onOpenLineage={(accountId, accountName) =>
+                              setLineageTarget({
+                                accountId,
+                                accountName,
+                                asOfDate: netWorthAllocation?.as_of_date ?? asOfDate,
+                                currency: netWorthAllocation?.currency ?? reportCurrency,
+                              })
+                            }
+                          />
                         </li>
                       ))}
                     </ul>
@@ -295,6 +347,7 @@ export default function PortfolioPage() {
           <p className="text-sm text-muted mb-6">Upload brokerage statements and reconcile to see your portfolio here.</p>
         </div>
       )}
+      <AccountLineageDrawer target={lineageTarget} onClose={() => setLineageTarget(null)} />
     </div>
   );
 }

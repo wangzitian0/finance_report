@@ -169,7 +169,8 @@ describe("Reports page (#2621 LC)", () => {
     expect(await screen.findByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument()
     expect(screen.getByText("Assets = Liabilities + Equity")).toBeInTheDocument()
     expect(screen.getByText("✓ Balanced")).toBeInTheDocument()
-    expect(screen.getByLabelText("Include restricted holdings")).not.toBeChecked()
+    // The default scope includes restricted holdings (#2645).
+    expect(screen.getByLabelText("Include restricted holdings")).toBeChecked()
   })
 
   // AC-reporting.fe-ia-reports.2

@@ -434,7 +434,11 @@ async def test_balance_sheet_can_exclude_restricted_and_illiquid_valuation_asset
     db: AsyncSession,
     test_user,
 ):
-    """AC11.9.3: Balance sheet restricted toggle excludes restricted and illiquid asset snapshots."""
+    """AC11.9.3: Balance sheet restricted toggle excludes restricted and illiquid asset snapshots.
+
+    The excluded property takes its mortgage out too (#2645): a liability counts
+    only when its asset counts. The liquid tax refund stays.
+    """
     report_date = date(2025, 3, 31)
     await _create_valuation(
         db,
@@ -494,9 +498,24 @@ async def test_balance_sheet_can_exclude_restricted_and_illiquid_valuation_asset
     )
 
     assert liquid_report["total_assets"] == Decimal("1200.00")
-    assert liquid_report["total_liabilities"] == Decimal("600000.00")
+    assert liquid_report["total_liabilities"] == Decimal("0.00")
+    assert liquid_report["excluded_holdings"] == [
+        {
+            "asset_class": "real_estate",
+            "total_assets": Decimal("1200000.00"),
+            "total_liabilities": Decimal("600000.00"),
+            "net_worth": Decimal("600000.00"),
+        },
+        {
+            "asset_class": "restricted_comp",
+            "total_assets": Decimal("42000.00"),
+            "total_liabilities": Decimal("0.00"),
+            "net_worth": Decimal("42000.00"),
+        },
+    ]
     assert full_report["total_assets"] == Decimal("1243200.00")
     assert full_report["total_liabilities"] == Decimal("600000.00")
+    assert full_report["excluded_holdings"] == []
 
 
 async def test_AC11_20_1_retirement_and_benefit_assets_are_restricted_assets_in_balance_sheet(

@@ -1962,6 +1962,11 @@ export interface components {
             /** Equity */
             equity: components["schemas"]["ReportLine"][];
             /**
+             * Excluded Holdings
+             * @description Asset classes that the scope excludes from the totals, one row per class. Empty for the full scope.
+             */
+            excluded_holdings?: components["schemas"]["ExcludedHoldingRow"][];
+            /**
              * Fx Warnings
              * @description Foreign-exchange conversion warnings.
              */
@@ -3114,6 +3119,32 @@ export interface components {
             max_depth: number;
             /** Nodes */
             nodes: components["schemas"]["EvidenceLineageNode"][];
+        };
+        /**
+         * ExcludedHoldingRow
+         * @description One asset class that a scope without restricted holdings excludes (#2645).
+         */
+        ExcludedHoldingRow: {
+            /**
+             * Asset Class
+             * @description Allocation asset class of the excluded manual valuations.
+             */
+            asset_class: string;
+            /**
+             * Net Worth
+             * @description Excluded assets minus excluded liabilities of the class.
+             */
+            net_worth: string;
+            /**
+             * Total Assets
+             * @description Excluded asset valuations of the class, in the report currency.
+             */
+            total_assets: string;
+            /**
+             * Total Liabilities
+             * @description Excluded liability valuations of the class, for example a mortgage, in the report currency.
+             */
+            total_liabilities: string;
         };
         /**
          * ExportFormat
@@ -4316,6 +4347,11 @@ export interface components {
              */
             currency: string;
             /**
+             * Excluded Holdings
+             * @description The asset classes that the scope excludes, the same rows as the balance sheet. Empty for the full scope.
+             */
+            excluded_holdings?: components["schemas"]["ExcludedHoldingRow"][];
+            /**
              * Include Restricted
              * @description Whether restricted and illiquid valuation snapshots are included.
              */
@@ -4401,11 +4437,6 @@ export interface components {
          * @description Source line retained behind one net-worth allocation row.
          */
         NetWorthAllocationSourceLine: {
-            /**
-             * Href
-             * @description Internal drill-through href for the contributor.
-             */
-            href?: string | null;
             /**
              * Label
              * @description Human-readable contributor label.
@@ -9579,6 +9610,7 @@ export interface operations {
                 to: string;
                 granularity?: components["schemas"]["NetWorthGranularity"];
                 currency?: string | null;
+                include_restricted?: boolean;
             };
             header?: never; path?: never; cookie?: never;
         };
