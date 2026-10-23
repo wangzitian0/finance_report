@@ -366,7 +366,7 @@ the unordered pair of anchored journal entries.
 
 ### Stage 2 — consistency checks
 
-**Location**: `/reconciliation/review-queue`. Runs deduplication, transfer
+**Location**: the review queue tab of `/reconciliation` (`/reconciliation?tab=review-queue`). Runs deduplication, transfer
 detection, and anomaly checks before batch approval.
 
 | Type | Description | Severity |
@@ -479,7 +479,7 @@ pending --> flagged: Needs manual review
 | Router | `apps/backend/src/routers/statements.py` |
 | Frontend | `apps/frontend/src/app/(main)/statements/[id]/page.tsx` |
 | Frontend | `apps/frontend/src/components/review/Stage2ReviewQueue.tsx` |
-| Frontend | `apps/frontend/src/app/(main)/reconciliation/review-queue/page.tsx` |
+| Frontend | `apps/frontend/src/components/reconciliation/Workbench.tsx` |
 | Frontend | `apps/frontend/src/app/(main)/audit/page.tsx` |
 
 ## Recovery after rejecting a suggestion

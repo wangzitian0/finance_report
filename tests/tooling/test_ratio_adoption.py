@@ -31,7 +31,7 @@ FRONTEND_RATIO_ADOPTION_FILES = [
     Path("apps/frontend/src/components/portfolio/InvestmentPerformanceSchedule.tsx"),
     Path("apps/frontend/src/components/portfolio/HoldingsTable.tsx"),
     Path("apps/frontend/src/app/(main)/portfolio/page.tsx"),
-    Path("apps/frontend/src/app/(main)/portfolio/[ticker]/page.tsx"),
+    Path("apps/frontend/src/components/portfolio/HoldingDetail.tsx"),
 ]
 
 

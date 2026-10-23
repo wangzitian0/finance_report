@@ -14,7 +14,7 @@ applyTo: "**/*.{ts,tsx}"
 
 ### Server Components (Default)
 ```tsx
-// app/accounts/page.tsx
+// app/(main)/example/page.tsx
 import { getAccounts } from '@/lib/api'
 
 export default async function AccountsPage() {

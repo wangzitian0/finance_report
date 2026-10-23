@@ -229,7 +229,7 @@ describe("HomePage", () => {
     expect(within(banner).getByRole("heading", { name: "Upload your first statement" })).toBeInTheDocument()
     expect(within(banner).getByRole("link", { name: "Upload statements" })).toHaveAttribute("href", "/upload")
     for (const link of screen.getAllByRole("link")) {
-      expect(link.getAttribute("href")).not.toBe("/accounts")
+      expect(["/accounts", "/settings?tab=accounts"]).not.toContain(link.getAttribute("href"))
     }
   })
 

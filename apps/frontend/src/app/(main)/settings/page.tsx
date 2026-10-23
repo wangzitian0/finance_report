@@ -4,25 +4,27 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import AccountsPanel from "@/components/settings/AccountsPanel";
 import GeneralSettingsPanel from "@/components/settings/GeneralSettingsPanel";
 import AiSettingsPanel from "@/components/settings/AiSettingsPanel";
 import LlmSettingsPanel from "@/components/settings/LlmSettingsPanel";
 
-type SettingsTab = "general" | "ai" | "llm";
+type SettingsTab = "general" | "ai" | "llm" | "accounts";
 
 const TABS: { id: SettingsTab; label: string }[] = [
     { id: "general", label: "General" },
     { id: "ai", label: "AI" },
     { id: "llm", label: "LLM Models" },
+    { id: "accounts", label: "Accounts" },
 ];
 
 function normalizeTab(raw: string | null): SettingsTab {
-    return raw === "ai" || raw === "llm" ? raw : "general";
+    return TABS.find((t) => t.id === raw)?.id ?? "general";
 }
 
-// EPIC-022 AC22.21.4: the three formerly-separate Settings pages are merged into
-// one tabbed surface. `/settings/general|ai|llm` redirect here with `?tab=`, so
-// every settings entry point lands on the same page with the right tab active.
+// EPIC-022 AC22.21.4: the formerly-separate Settings pages are merged into one
+// tabbed surface. `/settings/general|ai|llm` and `/accounts` redirect here with
+// `?tab=`, so every settings entry point lands on the right tab.
 // The active tab stays in sync with `?tab=` so deep links and back/forward work.
 export default function SettingsPage() {
     const router = useRouter();
@@ -87,12 +89,6 @@ export default function SettingsPage() {
                     className="flex flex-wrap items-center gap-2 pb-2"
                 >
                     <Link
-                        href="/accounts"
-                        className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-medium text-[var(--foreground)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                    >
-                        Manage Chart of Accounts
-                    </Link>
-                    <Link
                         href="/portfolio"
                         className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-medium text-[var(--foreground)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
                     >
@@ -111,6 +107,7 @@ export default function SettingsPage() {
                 {tab === "general" && <GeneralSettingsPanel />}
                 {tab === "ai" && <AiSettingsPanel />}
                 {tab === "llm" && <LlmSettingsPanel />}
+                {tab === "accounts" && <AccountsPanel />}
             </div>
         </div>
     );

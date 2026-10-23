@@ -223,7 +223,7 @@ def verify_browser_ui_hygiene(
             "/reconciliation",
             "/chat",
             "/journal",
-            "/accounts",
+            "/settings?tab=accounts",
         ]
     if not routes:
         raise ValueError("verify_browser_ui_hygiene requires at least one route")

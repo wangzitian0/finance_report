@@ -877,7 +877,7 @@ async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, tes
     async def fake_readiness(_db, **_kwargs):
         return {
             "state": "blocked",
-            "action_href": "/reconciliation/review-queue",
+            "action_href": "/reconciliation?tab=review-queue",
             "blocking_count": 3,
             "blockers": [
                 {
@@ -885,7 +885,7 @@ async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, tes
                     "label": "Reconciliation blockers",
                     "count": 2,
                     "reason": "Pending reconciliation matches must be accepted or rejected.",
-                    "action_href": "/reconciliation/review-queue",
+                    "action_href": "/reconciliation?tab=review-queue",
                 },
                 {
                     "code": "processing_account_unresolved",
@@ -920,7 +920,7 @@ async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, tes
     assert [(event.family, event.action_href, event.source_type) for event in events] == [
         (
             WorkflowEventFamily.RECONCILIATION_BLOCKED,
-            "/reconciliation/review-queue",
+            "/reconciliation?tab=review-queue",
             "readiness_blocker",
         ),
         (WorkflowEventFamily.REPORT_BLOCKED, "/accounts/processing", "readiness_blocker"),
@@ -1039,7 +1039,7 @@ async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(
 
 async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_event(db, test_user):
     """AC-platform.36.3: AC22.4.1: a pending Stage 2 reconciliation match surfaces a reconciliation-review
-    event in the inbox that deep-links to /reconciliation/review-queue, and re-syncing
+    event in the inbox that deep-links to /reconciliation?tab=review-queue, and re-syncing
     does not duplicate it."""
     from tests.factories import AtomicTransactionFactory, ReconciliationMatchFactory
 
@@ -1052,7 +1052,7 @@ async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_even
     recon = [e for e in events if e.family == WorkflowEventFamily.RECONCILIATION_BLOCKED]
     # Exactly one aggregate reconciliation-review card (not one per pending match).
     assert len(recon) == 1, "pending Stage 2 matches must surface a single reconciliation-review card"
-    assert recon[0].action_href == "/reconciliation/review-queue"
+    assert recon[0].action_href == "/reconciliation?tab=review-queue"
     original_event_id = recon[0].id
 
     # Re-sync is idempotent: still exactly one event, and the same row is reused.

@@ -94,7 +94,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 ### Frontend UI (Frontend)
 
 - [x] `/reconciliation` - Reconciliation workbench
-- [x] `/reconciliation/unmatched` - Unmatched handling
+- [x] `/reconciliation?tab=unmatched` - Unmatched handling
 - [x] Visualization (progress bar, score distribution)
 
 ---

@@ -4,12 +4,10 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
 import { InfoHint } from "@/components/ui/InfoHint";
-import { SmartBackLink } from "@/components/ui/SmartBackLink";
 import { useToast } from "@/components/ui/Toast";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { apiOperation } from "@/lib/api-client";
 import type { Schemas } from "@/lib/api-schema";
-import { ATTENTION_SOURCE_PARAM, ATTENTION_SOURCE_VALUE, isAttentionOrigin } from "@/lib/attentionNavigation";
 import { formatAmount } from "@/lib/audit/money";
 import { formatDateDisplay, formatDateTimeDisplay } from "@/lib/date";
 import { checkSeverityColor, checkTypeLabel } from "@/lib/statusLabels";
@@ -277,14 +275,20 @@ export function Stage2ReviewQueue({ embedded = false, runId = null }: { embedded
 
   useEffect(() => { fetchProcessingSummary(); }, [fetchProcessingSummary]);
 
+  // Write the filters to the URL and keep the other parameters, for example `tab` and `from`.
   const updateUrlParams = useCallback(() => {
     if (embedded) return;
-    const params = new URLSearchParams();
-    if (isAttentionOrigin(searchParams)) params.set(ATTENTION_SOURCE_PARAM, ATTENTION_SOURCE_VALUE);
-    if (checkTypeFilter) params.set("check_type", checkTypeFilter);
-    if (statusFilter) params.set("status", statusFilter);
-    if (severityFilter.length > 0) params.set("severity", severityFilter.join(","));
-    if (minScore > 0) params.set("min_score", minScore.toString());
+    const params = new URLSearchParams(searchParams?.toString());
+    const filters: [string, string][] = [
+      ["check_type", checkTypeFilter],
+      ["status", statusFilter],
+      ["severity", severityFilter.join(",")],
+      ["min_score", minScore > 0 ? minScore.toString() : ""],
+    ];
+    for (const [name, value] of filters) {
+      if (value) params.set(name, value);
+      else params.delete(name);
+    }
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [embedded, checkTypeFilter, statusFilter, severityFilter, minScore, router, pathname, searchParams]);
@@ -393,7 +397,7 @@ export function Stage2ReviewQueue({ embedded = false, runId = null }: { embedded
 
   if (loading) {
     return (
-      <div className={embedded ? "py-4" : "p-6"}>
+      <div className="py-4">
         <div className="card p-8 text-center text-muted">
           <div className="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin mb-2" />
           <p className="text-sm">Loading review queue...</p>
@@ -404,7 +408,7 @@ export function Stage2ReviewQueue({ embedded = false, runId = null }: { embedded
 
   if (!data) {
     return (
-      <div className={embedded ? "py-4" : "p-6"}>
+      <div className="py-4">
         <div className="card p-8 text-center">
           <p className="text-muted mb-4">Failed to load review queue</p>
           <button type="button" onClick={fetchData} className="btn-primary">Retry</button>
@@ -421,15 +425,12 @@ export function Stage2ReviewQueue({ embedded = false, runId = null }: { embedded
   const runApprovalTitle = data.has_unresolved_checks ? "Resolve consistency checks first" : processingPendingCount > 0 ? "Clear Processing Account pending transfers first" : data.pending_matches.length === 0 ? "No pending matches remain" : "Approve all pending matches in this run";
 
   return (
-    <div className={embedded ? "space-y-4" : "p-6"}>
+    <div className="space-y-4">
       {!embedded && (
-        <>
-          <div className="mb-4"><SmartBackLink fallbackHref="/reconciliation" fallbackLabel="Back to Reconciliation" /></div>
-          <div className="mb-6">
-            <h1 className="page-title">Review queue</h1>
-            <p className="page-description">{isRunReview ? "Matches and checks from this reconciliation run that need a human check before they post." : "Matches and checks that need a human check before they post to your books."}</p>
-          </div>
-        </>
+        <div className="mb-6">
+          <h1 className="page-title">Review queue</h1>
+          <p className="page-description">{isRunReview ? "Matches and checks from this reconciliation run that need a human check before they post." : "Matches and checks that need a human check before they post to your books."}</p>
+        </div>
       )}
       {isRunReview && (
         <RunSummaryPanel

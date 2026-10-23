@@ -369,7 +369,7 @@ async def compute_personal_data_quality(
                 description="Match or classify unmatched statement transactions in the reconciliation workbench.",
                 score_boost=min(15, max(2, 20 - recon_pts)),
                 action_type="RECONCILE_TRANSACTIONS",
-                action_url="/reconciliation/unmatched",
+                action_url="/reconciliation?tab=unmatched",
             )
         )
 

@@ -443,7 +443,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     await waitFor(() => expect(screen.getByText("Economic classification needs review before entries can be posted.")).toBeInTheDocument());
     expect(await screen.findByRole("link", { name: "Review transaction classifications" })).toHaveAttribute(
       "href",
-      "/reconciliation/unmatched?statement_id=s1&return_to=%2Fstatements%2Fs1",
+      "/reconciliation?tab=unmatched&statement_id=s1&return_to=%2Fstatements%2Fs1",
     );
     expect(screen.getByRole("link", { name: "Review AI suggestions" })).toHaveAttribute(
       "href",

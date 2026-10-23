@@ -316,7 +316,7 @@ describe("Personal Data Quality Observatory (#2294)", () => {
 
       const bar = screen.getByTestId("needs-confirmation-queue");
       const row = await within(bar).findByRole("link", { name: /3 unmatched transactions/ });
-      expect(row).toHaveAttribute("href", "/reconciliation/unmatched?from=attention");
+      expect(row).toHaveAttribute("href", "/reconciliation?tab=unmatched&from=attention");
       expect(within(row).getByText("0% confidence")).toBeInTheDocument();
     });
 

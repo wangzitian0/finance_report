@@ -152,6 +152,7 @@ const nextConfig = {
     // Redirects come from the route map (src/lib/route-map.json), the single
     // source of truth for routes. A path with state "redirect" has no page.
     // A route map entry written as /a/[id] becomes the Next.js source /a/:id.
+    // Next.js uses the first redirect that matches, so this keeps the list order.
     async redirects() {
         const toNextPath = (path) => path.replace(/\[([^\]]+)\]/g, ':$1');
         return routeMap.routes

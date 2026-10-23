@@ -158,6 +158,10 @@ async function installMobileApiMocks(page: Page) {
       };
     } else if (path === "/api/accounts") {
       body = baseAccounts;
+    } else if (path === "/api/reconciliation/stats") {
+      body = { total_transactions: 0, matched_transactions: 0, unmatched_transactions: 0, pending_review: 0, auto_accepted: 0, match_rate: 0, score_distribution: {} };
+    } else if (path === "/api/reconciliation/pending") {
+      body = { items: [], total: 0 };
     }
 
     await route.fulfill({
@@ -249,7 +253,7 @@ test("AC16.26.1 stage 1 mobile review exposes read-only transaction cards and co
 });
 
 test("AC16.26.2 stage 2 mobile queue exposes selectable match cards and batch actions", async ({ page }) => {
-  await gotoReady(page, "/reconciliation/review-queue");
+  await gotoReady(page, "/reconciliation?tab=review-queue");
 
   const card = page.getByTestId("stage2-mobile-match-card-match-mobile-1");
   await expect(card).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
@@ -271,7 +275,7 @@ test("AC16.26.3 stage 2 run review preserves mobile approval gate and match work
 
 // AC-ledger.fe-accounts2.1
 test("AC2.17.1 mobile accounts avoids document horizontal scroll and overlapping row controls", async ({ page }) => {
-  await gotoReady(page, "/accounts");
+  await gotoReady(page, "/settings?tab=accounts");
 
   await expect(page.getByRole("heading", { name: "Accounts" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
   await expect(page.getByTestId("account-row-account-mobile-long")).toBeVisible();
@@ -309,7 +313,7 @@ test.describe("375px mobile review proof", () => {
     await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
     await expectNoDocumentHorizontalScroll(page);
 
-    await gotoReady(page, "/reconciliation/review-queue");
+    await gotoReady(page, "/reconciliation?tab=review-queue");
     await expect(page.getByTestId("stage2-mobile-match-card-match-mobile-1")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
     await expect(page.getByRole("button", { name: "Approve Selected", exact: true })).toBeVisible();
     await expectNoDocumentHorizontalScroll(page);
@@ -341,7 +345,7 @@ test.describe("1440px desktop review proof", () => {
   });
 
   test("AC8.13.82/AC16.27.3 desktop stage 2 review keeps pending matches readable at 1440px", async ({ page }) => {
-    await gotoReady(page, "/reconciliation/review-queue");
+    await gotoReady(page, "/reconciliation?tab=review-queue");
 
     const desktopRegion = page.getByTestId("stage2-desktop-match-region");
     await expect(desktopRegion).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });

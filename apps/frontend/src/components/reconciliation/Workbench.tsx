@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { APP_ROUTES } from "@/components/navigation";
 import UnmatchedBoard from "@/components/reconciliation/UnmatchedBoard";
 import { Stage2ReviewQueue } from "@/components/review/Stage2ReviewQueue";
 import { InfoHint } from "@/components/ui/InfoHint";
@@ -18,9 +20,17 @@ function formatQueueAmount(value: MoneyValue): string {
   return amount.endsWith(".00") ? amount.slice(0, -3) : amount;
 }
 
+// The `tab` query parameter selects the view. No value or an unknown value shows the matches.
+const TABS = [
+  { id: "matches", href: APP_ROUTES.RECONCILIATION, label: "Matches" },
+  { id: "unmatched", href: APP_ROUTES.RECONCILIATION_UNMATCHED, label: "Unmatched" },
+  { id: "review-queue", href: APP_ROUTES.RECONCILIATION_REVIEW_QUEUE, label: "Review queue" },
+] as const;
+
 export default function ReconciliationWorkbench() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"matched" | "unmatched" | "consistency">("matched");
+  const tabParam = useSearchParams()?.get("tab");
+  const activeTab = TABS.find((tab) => tab.id === tabParam)?.id ?? "matches";
   const [selected, setSelected] = useState<ReconciliationMatchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -116,30 +126,26 @@ export default function ReconciliationWorkbench() {
   return (
     <div className="p-6">
       <nav role="navigation" aria-label="Reconciliation workspace views" className="mb-6 flex flex-wrap gap-2 border-b border-[var(--border)] pb-3">
-        {([
-          ["matched", "/reconciliation", "Matched & Pending", null],
-          ["unmatched", "/reconciliation/unmatched", "Unmatched Bank Lines", stats?.unmatched_transactions ?? 0],
-          ["consistency", "/reconciliation/review-queue", "Consistency Checks", null],
-        ] as const).map(([tabKey, href, label, badgeCount]) => (
+        {TABS.map((tab) => (
           <Link
-            key={tabKey}
-            href={href}
-            aria-current={activeTab === tabKey ? "page" : undefined}
-            onClick={(e) => { e.preventDefault(); setActiveTab(tabKey); }}
-            className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${
-              activeTab === tabKey ? "bg-[var(--accent-muted)] text-[var(--accent)]" : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
+            key={tab.id}
+            href={tab.href}
+            scroll={false}
+            aria-current={activeTab === tab.id ? "page" : undefined}
+            className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ${
+              activeTab === tab.id ? "bg-[var(--accent-muted)] text-[var(--accent)]" : "text-muted hover:bg-[var(--background-muted)] hover:text-[var(--foreground)]"
             }`}
           >
-            <span>{label}</span>
-            {badgeCount !== null && <span className="badge badge-warning text-[10px]">{badgeCount}</span>}
+            <span>{tab.label}</span>
+            {tab.id === "unmatched" && <span className="badge badge-warning text-[10px]">{stats?.unmatched_transactions ?? 0}</span>}
           </Link>
         ))}
       </nav>
 
       {activeTab === "unmatched" ? (
         <UnmatchedBoard />
-      ) : activeTab === "consistency" ? (
-        <Stage2ReviewQueue embedded />
+      ) : activeTab === "review-queue" ? (
+        <Stage2ReviewQueue />
       ) : (
         <>
           <div className="page-header flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
@@ -153,8 +159,6 @@ export default function ReconciliationWorkbench() {
                 <button onClick={() => batchAcceptMutation.mutate(highScoreIds)} disabled={batchAcceptMutation.isPending || highScoreIds.length === 0} className="btn-secondary">
                   {batchAcceptMutation.isPending ? "Batching..." : "Batch Accept ≥ 85"}
                 </button>
-                <Link href="/reconciliation/unmatched" className="btn-secondary">Unmatched Studio</Link>
-                <Link href="/reconciliation/review-queue" className="btn-secondary">Consistency Checks</Link>
                 <Link href="/upload" className="btn-secondary">Uploaded Statements</Link>
               </div>
               {error && <div className="mt-3 alert-error">{error}</div>}

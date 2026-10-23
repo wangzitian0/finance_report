@@ -245,8 +245,8 @@ from poisoning the outer transaction and cascading 500s.
 ```text
 /statements/{statement_id}
 /review
-/reconciliation/review-queue
-/reconciliation/unmatched
+/reconciliation?tab=review-queue
+/reconciliation?tab=unmatched
 /reports/package
 ```
 

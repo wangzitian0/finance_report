@@ -86,7 +86,7 @@ test.describe("AC22.6.4 attention surface smoke", () => {
       await expect(page.getByText("march-statement.pdf")).toBeVisible();
       // Each row deep-links to its action surface and preserves the attention origin.
       await expect(page.locator('a[href="/statements/stmt-1?from=attention"]')).toBeVisible();
-      await expect(page.locator('a[href="/reconciliation/unmatched?from=attention"]')).toBeVisible();
+      await expect(page.locator('a[href="/reconciliation?tab=unmatched&from=attention"]')).toBeVisible();
 
       await expectNoDocumentHorizontalScroll(page);
     });

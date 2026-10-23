@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Single source of truth for every frontend route. State target: one of the 10 final pages. State shell: a page outside the 10 that the app shell needs. State merge: a page that still exists and moves into its target. State redirect: a path with no page that next.config.mjs redirects to its target. Lanes: LA audit queues, LB upload chain, LC three statements, LD reconciliation, portfolio and settings.",
+  "description": "Single source of truth for every frontend route. State target: one of the 10 final pages. State shell: a page outside the 10 that the app shell needs. State merge: a page that still exists and moves into its target. State redirect: a path with no page that next.config.mjs redirects to its target, in the order of this list. Put a static path before a dynamic path that matches it. Lanes: LA audit queues, LB upload chain, LC three statements, LD reconciliation, portfolio and settings.",
   "target_page_count": 10,
   "routes": [
     { "path": "/", "state": "target" },
@@ -33,12 +33,12 @@
     { "path": "/reports/cash-flow", "state": "redirect", "into": "/reports?tab=cash-flow" },
     { "path": "/reports/package", "state": "redirect", "into": "/reports?tab=package" },
 
-    { "path": "/reconciliation/unmatched", "state": "merge", "into": "/reconciliation", "lane": "LD" },
-    { "path": "/reconciliation/review-queue", "state": "merge", "into": "/reconciliation", "lane": "LD" },
-    { "path": "/portfolio/[ticker]", "state": "merge", "into": "/portfolio", "lane": "LD" },
-    { "path": "/portfolio/prices", "state": "merge", "into": "/portfolio", "lane": "LD" },
-    { "path": "/portfolio/evidence", "state": "merge", "into": "/portfolio", "lane": "LD" },
-    { "path": "/accounts", "state": "merge", "into": "/settings", "lane": "LD" },
+    { "path": "/reconciliation/unmatched", "state": "redirect", "into": "/reconciliation?tab=unmatched" },
+    { "path": "/reconciliation/review-queue", "state": "redirect", "into": "/reconciliation?tab=review-queue" },
+    { "path": "/portfolio/prices", "state": "redirect", "into": "/portfolio?panel=prices" },
+    { "path": "/portfolio/evidence", "state": "redirect", "into": "/portfolio?panel=evidence" },
+    { "path": "/portfolio/[ticker]", "state": "redirect", "into": "/portfolio?ticker=:ticker" },
+    { "path": "/accounts", "state": "redirect", "into": "/settings?tab=accounts" },
 
     { "path": "/dashboard", "state": "redirect", "into": "/" },
     { "path": "/events", "state": "redirect", "into": "/upload" },

@@ -190,7 +190,7 @@ describe("ChatPanel", () => {
             {
               kind: "reconciliation_review",
               label: "Review 2",
-              href: "/reconciliation/review-queue",
+              href: "/reconciliation?tab=review-queue",
               count: 2,
             },
           ],
@@ -211,7 +211,7 @@ describe("ChatPanel", () => {
     )
     expect(screen.getByRole("link", { name: "Review 2" })).toHaveAttribute(
       "href",
-      "/reconciliation/review-queue",
+      "/reconciliation?tab=review-queue",
     )
   })
 

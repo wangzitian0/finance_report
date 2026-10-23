@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import PricesPage from "@/app/(main)/portfolio/prices/page"
 import { PriceUpdateForm } from "@/components/portfolio/PriceUpdateForm"
 import { apiOperation } from "@/lib/api-client"
 import type { PortfolioHolding, PriceUpdateResponse } from "@/lib/types"
@@ -75,8 +74,10 @@ const mockHoldings: PortfolioHolding[] = [
 ]
 
 const mockHoldingsResponse = { items: mockHoldings, total: mockHoldings.length, warnings: [] }
+const knownTickers = mockHoldings.map((holding) => holding.asset_identifier)
 
-describe("PricesPage", () => {
+// The `/portfolio?panel=prices` drawer renders this form with the tickers of the active holdings.
+describe("PriceUpdateForm in the price drawer", () => {
   const mockedApiOperation = vi.mocked(apiOperation)
 
   beforeEach(() => {
@@ -88,24 +89,11 @@ describe("PricesPage", () => {
     vi.unstubAllGlobals()
   })
 
-  it("renders page header and back link", async () => {
+  it("renders the price update form with its submit and Add Row actions", async () => {
     mockedApiOperation.mockResolvedValue(mockHoldingsResponse)
 
-    render(<PricesPage />, { wrapper: createWrapper() })
+    render(<PriceUpdateForm knownTickers={knownTickers} />, { wrapper: createWrapper() })
 
-    expect(screen.getByText("Update Market Prices")).toBeInTheDocument()
-    expect(screen.getByText(/Manually update market prices/)).toBeInTheDocument()
-
-    const backLink = screen.getByText("Back to Portfolio").closest("a")
-    expect(backLink).toHaveAttribute("href", "/portfolio")
-  })
-
-  it("renders price update form with known tickers from holdings", async () => {
-    mockedApiOperation.mockResolvedValue(mockHoldingsResponse)
-
-    render(<PricesPage />, { wrapper: createWrapper() })
-
-    await waitFor(() => expect(screen.getByText("Batch Price Update")).toBeInTheDocument())
     expect(screen.getByText("Update Prices")).toBeInTheDocument()
     expect(screen.getByText("Add Row")).toBeInTheDocument()
   })
@@ -113,7 +101,7 @@ describe("PricesPage", () => {
   it("renders ticker select with known tickers", async () => {
     mockedApiOperation.mockResolvedValue(mockHoldingsResponse)
 
-    render(<PricesPage />, { wrapper: createWrapper() })
+    render(<PriceUpdateForm knownTickers={knownTickers} />, { wrapper: createWrapper() })
 
     await waitFor(() => {
       const options = screen.getAllByRole("option")
@@ -125,7 +113,7 @@ describe("PricesPage", () => {
 
   it("adds and removes rows", async () => {
     mockedApiOperation.mockResolvedValue(mockHoldingsResponse)
-    render(<PricesPage />, { wrapper: createWrapper() })
+    render(<PriceUpdateForm knownTickers={knownTickers} />, { wrapper: createWrapper() })
     await waitFor(() => {
       const options = screen.getAllByRole("option")
       expect(options.map((o) => o.textContent)).toContain("AAPL")
@@ -161,7 +149,7 @@ describe("PricesPage", () => {
       return Promise.resolve(mockHoldingsResponse)
     }) as any)
 
-    render(<PricesPage />, { wrapper: createWrapper() })
+    render(<PriceUpdateForm knownTickers={knownTickers} />, { wrapper: createWrapper() })
 
     await waitFor(() => {
       const options = screen.getAllByRole("option")
@@ -191,7 +179,7 @@ describe("PricesPage", () => {
 
   it("shows error toast when submitting empty form", async () => {
     mockedApiOperation.mockResolvedValue(mockHoldingsResponse)
-    render(<PricesPage />, { wrapper: createWrapper() })
+    render(<PriceUpdateForm knownTickers={knownTickers} />, { wrapper: createWrapper() })
 
     await waitFor(() => {
       const options = screen.getAllByRole("option")

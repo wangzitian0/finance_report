@@ -40,7 +40,7 @@ const advisorSuggestions: AdvisorSuggestion[] = [
     confidence_tier: "stale",
     source_refs: ["market_data.freshness"],
     limitation: "Portfolio value may be outdated until prices refresh.",
-    next_action_href: "/portfolio/prices/update",
+    next_action_href: "/portfolio?panel=prices",
   },
   {
     basis: "Manual evidence exists for one asset but it is not yet trusted.",
@@ -74,11 +74,12 @@ describe("AdvisorBrief", () => {
       "/reports?tab=package",
       "/reports",
       "/upload",
-      "/portfolio/prices",
+      "/portfolio?panel=prices",
       "/assets",
     ]);
     expect(safeAdvisorHref("https://evil.example/review")).toBe("/");
-    expect(safeAdvisorHref("/portfolio/prices/update?source=advisor")).toBe("/portfolio/prices");
+    expect(safeAdvisorHref("/portfolio?panel=prices&source=advisor")).toBe("/portfolio?panel=prices");
+    expect(safeAdvisorHref("/reconciliation?tab=review-queue")).toBe("/reconciliation?tab=review-queue");
     expect(within(cards[0]).getByRole("link", { name: "Ask about this" })).toHaveAttribute(
       "href",
       expect.stringContaining("/chat?prompt="),

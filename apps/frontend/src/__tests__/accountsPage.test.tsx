@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import AccountsPage from "@/app/(main)/accounts/page"
+import AccountsPanel from "@/components/settings/AccountsPanel"
 import { apiOperation } from "@/lib/api-client"
 import type { Account, AccountListResponse } from "@/lib/types"
 
@@ -82,7 +82,7 @@ function createWrapper() {
   return TestWrapper
 }
 
-describe("AccountsPage", () => {
+describe("AccountsPanel", () => {
   const mockedApiFetch = vi.mocked(apiOperation)
 
   beforeEach(() => {
@@ -96,7 +96,7 @@ describe("AccountsPage", () => {
       mockedApiFetch.mock.calls.filter((c) => c[0] === "list_accounts_accounts_get").length
     mockedApiFetch.mockRejectedValue(new Error("accounts failed"))
 
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.queryByText("Failed to load accounts")).not.toBeNull())
     const before = accountsCalls()
@@ -113,7 +113,7 @@ describe("AccountsPage", () => {
     expect(vector.total).toBe(3)
     mockedApiFetch.mockResolvedValue(vector)
 
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.queryByText("Vector Checking")).not.toBeNull())
     expect(screen.queryByText("Vector Credit Card")).not.toBeNull()
@@ -135,7 +135,7 @@ describe("AccountsPage", () => {
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({ items: [], total: 0 } satisfies AccountListResponse)
 
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
     fireEvent.click(screen.getByTitle("Delete Account"))
@@ -156,7 +156,7 @@ describe("AccountsPage", () => {
   it("AC-testing.fe-async.2 delete flow invalidates the matrix-declared query keys against a real QueryClient", async () => {
     // #1827 G-async-seam: only the network fn is mocked; react-query runs
     // for real. Red-team: removing the invalidateQueries call in
-    // accounts/page.tsx reds this test.
+    // components/settings/AccountsPanel.tsx reds this test.
     const probe = createInvalidationProbe("accounts.delete")
     mockedApiFetch.mockImplementation((operationId: string) => {
       if (operationId === "get_opening_balance_readiness_status_accounts_opening_balance_readiness_get") return Promise.resolve({ needs_opening_balance: false })
@@ -167,7 +167,7 @@ describe("AccountsPage", () => {
       } satisfies AccountListResponse)
     })
 
-    render(<AccountsPage />, { wrapper: probe.wrapper })
+    render(<AccountsPanel />, { wrapper: probe.wrapper })
 
     await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
     probe.expectNothingInvalidated()
@@ -193,7 +193,7 @@ describe("AccountsPage", () => {
         total: 1,
       } satisfies AccountListResponse)
     })
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
     await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
     fireEvent.click(screen.getByTitle("Delete Account"))
     await waitFor(() => expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument())
@@ -209,7 +209,7 @@ describe("AccountsPage", () => {
   it("AC16.15.5 shows empty state with create button", async () => {
     mockedApiFetch.mockResolvedValueOnce({ items: [], total: 0 } satisfies AccountListResponse)
 
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.getByText("No accounts yet")).toBeInTheDocument())
     expect(screen.getByText("Create First Account")).toBeInTheDocument()
@@ -227,7 +227,7 @@ describe("AccountsPage", () => {
       } satisfies AccountListResponse)
     })
 
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
     fireEvent.click(screen.getByTitle("Delete Account"))
@@ -249,7 +249,7 @@ describe("AccountsPage", () => {
       total: 1,
     } satisfies AccountListResponse)
 
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
     fireEvent.click(screen.getByTitle("Edit Account"))
@@ -263,7 +263,7 @@ describe("AccountsPage", () => {
       total: 1,
     } satisfies AccountListResponse)
 
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
     expect(screen.getByRole("button", { name: "Edit Account" })).toBeInTheDocument()
@@ -277,7 +277,7 @@ describe("AccountsPage", () => {
       total: 1,
     } satisfies AccountListResponse)
 
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
     fireEvent.click(screen.getByText("Add Account"))
@@ -297,7 +297,7 @@ describe("AccountsPage", () => {
       return Promise.resolve({ items, total: items.length } satisfies AccountListResponse)
     })
 
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
     fireEvent.click(screen.getByText("Add Account"))
@@ -315,7 +315,7 @@ describe("AccountsPage", () => {
       total: 1,
     } satisfies AccountListResponse)
 
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.queryByText("Cash")).not.toBeNull())
     fireEvent.click(screen.getByTitle("Edit Account"))
@@ -348,7 +348,7 @@ describe("AccountsPage", () => {
       return Promise.resolve({ needs_opening_balance: false })
     })
 
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.getByText("Cash")).toBeInTheDocument())
     fireEvent.click(screen.getByText("Cash"))
@@ -367,7 +367,7 @@ describe("AccountsPage", () => {
       total: 1,
     } satisfies AccountListResponse)
 
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
     await waitFor(() => expect(screen.getByText("Cash")).toBeInTheDocument())
 
     fireEvent.click(screen.getByRole("button", { name: /Set opening balances/i }))
@@ -392,7 +392,7 @@ describe("AccountsPage", () => {
       } satisfies AccountListResponse)
     })
 
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
 
     const nudgeText = await screen.findByText(/Your balance sheet may be incomplete/)
     expect(screen.getByText(/since 2026-01-15/)).toBeInTheDocument()
@@ -415,7 +415,7 @@ describe("AccountsPage", () => {
       } satisfies AccountListResponse)
     })
 
-    render(<AccountsPage />, { wrapper: createWrapper() })
+    render(<AccountsPanel />, { wrapper: createWrapper() })
 
     await waitFor(() => expect(screen.queryByText("Cash")).toBeInTheDocument())
     expect(screen.queryByText(/Your balance sheet may be incomplete/)).not.toBeInTheDocument()

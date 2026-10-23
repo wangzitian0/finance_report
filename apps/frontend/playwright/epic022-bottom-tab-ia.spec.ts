@@ -113,7 +113,7 @@ test.describe("AC22.21.7 mobile/PWA bottom-tab IA smoke", () => {
     test("the merged Settings page exposes General/AI/LLM tabs", async ({ page }) => {
         await page.goto("/settings", { waitUntil: "networkidle" });
 
-        // The merged settings surface is identified by its three tabs (a heading
+        // The merged settings surface is identified by its tabs (a heading
         // match would be ambiguous — child sections also contain "Settings").
         await expect(page.getByRole("tablist", { name: "Settings sections" })).toBeVisible({
             timeout: COLD_ROUTE_TIMEOUT_MS,
@@ -121,6 +121,7 @@ test.describe("AC22.21.7 mobile/PWA bottom-tab IA smoke", () => {
         await expect(page.getByRole("tab", { name: "General" })).toBeVisible();
         await expect(page.getByRole("tab", { name: "AI" })).toBeVisible();
         await expect(page.getByRole("tab", { name: "LLM Models" })).toBeVisible();
+        await expect(page.getByRole("tab", { name: "Accounts" })).toBeVisible();
 
         await expectNoHorizontalScroll(page);
     });

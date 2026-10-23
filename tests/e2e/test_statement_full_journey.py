@@ -346,7 +346,7 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
             await expect(review_action).to_be_visible(timeout=15_000)
             await expect(review_action).to_have_attribute(
                 "href",
-                f"/reconciliation/unmatched?statement_id={statement_id}&return_to=%2Fstatements%2F{statement_id}%2Freview",
+                f"/reconciliation?tab=unmatched&statement_id={statement_id}&return_to=%2Fstatements%2F{statement_id}",
             )
             assert last_statement is not None
             async with httpx.AsyncClient(

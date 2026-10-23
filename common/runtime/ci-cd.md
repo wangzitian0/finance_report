@@ -222,7 +222,7 @@ BASE_URL=https://report.zitian.party bash tools/smoke_test.sh
 | Endpoint | Check |
 |----------|-------|
 | `/` | Home / dashboard page loads (there is no separate `/dashboard` route) |
-| `/accounts` | Accounts page loads |
+| `/settings` | Settings page loads |
 | `/journal` | Journal page loads |
 | `/statements/upload` | Statement upload page loads (there is no bare `/statements` page) |
 | `/reports` | Reports page loads |

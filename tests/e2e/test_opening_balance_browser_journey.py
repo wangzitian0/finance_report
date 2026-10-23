@@ -77,7 +77,7 @@ async def test_opening_balance_recorded_through_browser(
     checkpoint(record_property, "U12")
 
     # Create the SGD asset account through the browser.
-    await page.goto(f"{APP_URL}/accounts")
+    await page.goto(f"{APP_URL}/settings?tab=accounts")
     await page.get_by_role("button", name="Add Account", exact=True).click()
     account_dialog = page.get_by_role("dialog", name="New Account", exact=True)
     await account_dialog.get_by_placeholder("e.g., Cash on Hand").fill(ACCOUNT_NAME)

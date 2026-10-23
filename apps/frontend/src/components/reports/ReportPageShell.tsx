@@ -49,7 +49,7 @@ export function OpeningBalanceWarningBanner({ warnings }: { warnings?: FxWarning
     <div role="alert" className="mb-6 rounded-md border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-4 text-sm">
       <p className="font-medium text-[var(--warning)]">Opening balances not recorded</p>
       <p className="mt-1 text-muted">{message}</p>
-      <Link href="/accounts" className="mt-2 inline-flex items-center gap-1 font-medium text-[var(--warning)] hover:underline">
+      <Link href="/settings?tab=accounts" className="mt-2 inline-flex items-center gap-1 font-medium text-[var(--warning)] hover:underline">
         Set opening balances →
       </Link>
     </div>

@@ -15,6 +15,12 @@ import type { PortfolioHolding } from "@/lib/types";
 
 const showToastMock = vi.fn();
 const mockedApiFetch = vi.fn();
+const navState = vi.hoisted(() => ({ searchParams: new URLSearchParams(), replace: vi.fn() }));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: navState.replace, push: vi.fn() }),
+  useSearchParams: () => navState.searchParams,
+}));
 
 vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast: showToastMock }),
@@ -165,6 +171,12 @@ function mockPortfolioApi(
       const items = path.includes("include_disposed=true") ? [mockHolding, mockHolding2] : holdings;
       return Promise.resolve({ items, total: items.length, warnings: [] });
     }
+    if (path === "/api/portfolio/AAPL/dividends" || path === "/api/portfolio/AAPL/realized") {
+      return Promise.resolve([]);
+    }
+    if (path.startsWith("/api/assets/valuation-snapshots")) {
+      return Promise.resolve({ items: [], total: 0 });
+    }
     return Promise.reject(new Error(`unhandled path ${path}`));
   });
 }
@@ -173,6 +185,8 @@ describe("PortfolioPage", () => {
   beforeEach(() => {
     mockedApiFetch.mockReset();
     showToastMock.mockReset();
+    navState.searchParams = new URLSearchParams();
+    navState.replace.mockReset();
   });
 
   afterEach(() => {
@@ -287,29 +301,46 @@ describe("PortfolioPage", () => {
     );
   });
 
-  it("has a link to the prices page and toggles inline price update sheet", async () => {
+  // AC-portfolio.fe-panels.1
+  it("AC-portfolio.fe-panels.1 opens one drawer from the ticker or panel query parameter and closes it to /portfolio", async () => {
     mockPortfolioApi([mockHolding]);
 
+    const { unmount } = render(<PortfolioPage />, { wrapper: createWrapper() });
+    await waitFor(() => expect(screen.getByRole("link", { name: "AAPL" })).toHaveAttribute("href", "/portfolio?ticker=AAPL"));
+    expect(screen.getByRole("link", { name: /Update Prices/ })).toHaveAttribute("href", "/portfolio?panel=prices");
+    expect(screen.getByRole("link", { name: "Add evidence" })).toHaveAttribute("href", "/portfolio?panel=evidence");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    unmount();
+
+    const cases: [string, string, () => void][] = [
+      ["ticker=AAPL", "AAPL", () => expect(screen.getByRole("tab", { name: "Realized P&L" })).toBeInTheDocument()],
+      ["panel=prices", "Update Market Prices", () => expect(screen.getByRole("option", { name: "AAPL" })).toBeInTheDocument()],
+      [
+        "panel=evidence&source_class=liability_statement",
+        "Guided evidence intake",
+        () => expect(screen.getByLabelText("Source class")).toHaveValue("liability_statement"),
+      ],
+    ];
+    for (const [query, title, expectBody] of cases) {
+      navState.searchParams = new URLSearchParams(query);
+      navState.replace.mockReset();
+      const view = render(<PortfolioPage />, { wrapper: createWrapper() });
+      const dialog = await screen.findByRole("dialog", { name: title });
+      await waitFor(expectBody);
+      expect(screen.getAllByRole("dialog"), `?${query} must open one drawer`).toHaveLength(1);
+      fireEvent.click(within(dialog).getByRole("button", { name: "Close panel" }));
+      expect(navState.replace).toHaveBeenCalledWith("/portfolio", { scroll: false });
+      view.unmount();
+    }
+
+    navState.searchParams = new URLSearchParams("panel=unknown");
     render(<PortfolioPage />, { wrapper: createWrapper() });
-
-    await waitFor(() => expect(screen.getByText("AAPL")).toBeInTheDocument());
-
-    const link = screen.getByText("Update Prices").closest("a");
-    expect(link).toHaveAttribute("href", "/portfolio/prices");
-
-    fireEvent.click(link!);
-    expect(
-      screen.getByTestId("portfolio-price-update-sheet"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Update Market Prices")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    expect(
-      screen.queryByTestId("portfolio-price-update-sheet"),
-    ).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("link", { name: "AAPL" })).toBeInTheDocument());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("closes the inline price sheet and reloads the holdings after a price update succeeds", async () => {
+  it("closes the price drawer and reloads the holdings after a price update succeeds", async () => {
+    navState.searchParams = new URLSearchParams("panel=prices");
     mockPortfolioApi([mockHolding]);
     const portfolioApi = mockedApiFetch.getMockImplementation()!;
     mockedApiFetch.mockImplementation((path: string, init?: RequestInit) =>
@@ -321,18 +352,15 @@ describe("PortfolioPage", () => {
       mockedApiFetch.mock.calls.filter(([path]) => String(path).startsWith("/api/portfolio/holdings")).length;
 
     render(<PortfolioPage />, { wrapper: createWrapper() });
-    await waitFor(() => expect(screen.getByText("AAPL")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("link", { name: "AAPL" })).toBeInTheDocument());
     const readsBeforeUpdate = holdingsReads();
 
-    fireEvent.click(screen.getByText("Update Prices").closest("a")!);
-    const sheet = screen.getByTestId("portfolio-price-update-sheet");
+    const sheet = screen.getByRole("dialog", { name: "Update Market Prices" });
     fireEvent.change(within(sheet).getByRole("combobox"), { target: { value: "AAPL" } });
     fireEvent.change(within(sheet).getByPlaceholderText("0.00"), { target: { value: "190.50" } });
     fireEvent.submit(within(sheet).getByRole("button", { name: "Update Prices" }).closest("form")!);
 
-    await waitFor(() =>
-      expect(screen.queryByTestId("portfolio-price-update-sheet")).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(navState.replace).toHaveBeenCalledWith("/portfolio", { scroll: false }));
     const [, request] = mockedApiFetch.mock.calls.find(([path]) => path === "/api/portfolio/prices/update")!;
     expect(JSON.parse(String(request.body))).toEqual({
       updates: [expect.objectContaining({ asset_identifier: "AAPL", price: "190.50" })],

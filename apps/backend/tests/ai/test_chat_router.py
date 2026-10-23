@@ -274,7 +274,7 @@ async def test_AC22_14_1_chat_response_exposes_grounding_metadata_header() -> No
             {
                 "kind": "reconciliation_review",
                 "label": "Review 2",
-                "href": "/reconciliation/review-queue",
+                "href": "/reconciliation?tab=review-queue",
                 "count": 2,
             }
         ],

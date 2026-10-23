@@ -180,7 +180,7 @@ test.describe("AC16.30.5 desktop visual smoke", () => {
 
   // AC-meta.fe-app-shell.34
   test("captures representative app-shell, accounts, statements, and review pages", async ({ page }) => {
-    await expectVisualSmokePage(page, "/accounts", "Accounts", false);
+    await expectVisualSmokePage(page, "/settings?tab=accounts", "Accounts", false);
     await expect(page.getByText("Operating Cash")).toBeVisible();
 
     await expectVisualSmokePage(page, "/upload", "Upload", false);
@@ -203,7 +203,7 @@ test.describe("AC16.30.5 mobile visual smoke", () => {
   });
 
   test("captures representative app-shell, accounts, statements, and review pages", async ({ page }) => {
-    await expectVisualSmokePage(page, "/accounts", "Accounts", true);
+    await expectVisualSmokePage(page, "/settings?tab=accounts", "Accounts", true);
     await expect(page.getByText("Operating Cash")).toBeVisible();
 
     await expectVisualSmokePage(page, "/upload", "Upload", true);

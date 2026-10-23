@@ -29,7 +29,7 @@ APP_URL: str = os.getenv("APP_URL", TestConfig.APP_URL)
 async def test_reconciliation_workbench_surface_and_navigation(
     authenticated_page: Page,
 ):
-    """EPIC-004 EPIC-007 EPIC-008 / AC-reconciliation.workbench.1 AC8.13.9: Reconciliation workbench layout and studio navigation."""
+    """EPIC-004 EPIC-007 EPIC-008 / AC-reconciliation.workbench.1 AC8.13.9: Reconciliation workbench layout and tab navigation."""
     page = authenticated_page
     await page.goto(f"{APP_URL}/reconciliation", wait_until="domcontentloaded")
     assert "/login" not in page.url
@@ -43,14 +43,22 @@ async def test_reconciliation_workbench_surface_and_navigation(
         page.get_by_role("heading", name="Score Distribution", exact=True)
     ).to_be_visible(timeout=10_000)
 
-    # 2. Navigate to Unmatched Transactions Studio
-    await page.get_by_role("link", name="Unmatched Studio").click()
+    # 2. Open the unmatched tab
+    tabs = page.get_by_role("navigation", name="Reconciliation workspace views")
+    await tabs.get_by_role("link", name="Unmatched").click()
     await expect(
         page.get_by_role("heading", name="Unmatched Transactions", exact=True)
     ).to_be_visible(timeout=15_000)
+    await expect(page).to_have_url(f"{APP_URL}/reconciliation?tab=unmatched")
 
-    # 3. Return to Workbench
-    await page.get_by_role("link", name="← Workbench").click()
+    # 3. Open the review queue tab
+    await tabs.get_by_role("link", name="Review queue").click()
+    await expect(
+        page.get_by_role("heading", name="Review queue", exact=True)
+    ).to_be_visible(timeout=15_000)
+
+    # 4. Return to the workbench tab
+    await tabs.get_by_role("link", name="Matches").click()
     await expect(
         page.get_by_role("heading", name="Reconciliation Workbench", exact=True)
     ).to_be_visible(timeout=15_000)
@@ -58,10 +66,10 @@ async def test_reconciliation_workbench_surface_and_navigation(
 
 @pytest.mark.e2e
 async def test_reconciliation_review_queue_surface(authenticated_page: Page):
-    """EPIC-007 EPIC-008 / AC-reconciliation.review-queue.1 AC8.13.9: Reconciliation dedicated review queue."""
+    """EPIC-007 EPIC-008 / AC-reconciliation.review-queue.1 AC8.13.9: Reconciliation review queue tab."""
     page = authenticated_page
     await page.goto(
-        f"{APP_URL}/reconciliation/review-queue", wait_until="domcontentloaded"
+        f"{APP_URL}/reconciliation?tab=review-queue", wait_until="domcontentloaded"
     )
     assert "/login" not in page.url
 
@@ -93,9 +101,9 @@ async def test_reconciliation_unmatched_interactive_disposition(page: Page):
         page, runner.last_auth_context, APP_URL
     )
 
-    # 3. Navigate to Unmatched Transactions
+    # 3. Navigate to the unmatched tab
     await page.goto(
-        f"{APP_URL}/reconciliation/unmatched", wait_until="domcontentloaded"
+        f"{APP_URL}/reconciliation?tab=unmatched", wait_until="domcontentloaded"
     )
     assert "/login" not in page.url
 

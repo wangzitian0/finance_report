@@ -108,7 +108,7 @@
      "basis": "Market data is stale for 1 observed scope(s).",
      "confidence_tier": "stale",
      "limitation": "Portfolio valuation and market-sensitive report facts should be refreshed before relying on them.",
-     "next_action_href": "/portfolio/prices/update",
+     "next_action_href": "/portfolio?panel=prices",
      "source_refs": [
       "market_data"
      ]
@@ -117,7 +117,7 @@
      "basis": "Cash-flow context has 1 pending reconciliation review item(s).",
      "confidence_tier": "review_required",
      "limitation": "Unreviewed reconciliation items should not be used as trusted cash-flow conclusions.",
-     "next_action_href": "/reconciliation/review-queue",
+     "next_action_href": "/reconciliation?tab=review-queue",
      "source_refs": [
       "cash_flow",
       "reconciliation"
@@ -275,7 +275,7 @@
       "basis": "Market data is stale for 1 observed scope(s).",
       "confidence_tier": "stale",
       "limitation": "Portfolio valuation and market-sensitive report facts should be refreshed before relying on them.",
-      "next_action_href": "/portfolio/prices/update",
+      "next_action_href": "/portfolio?panel=prices",
       "source_refs": [
        "market_data"
       ]
@@ -284,7 +284,7 @@
       "basis": "Cash-flow context has 1 pending reconciliation review item(s).",
       "confidence_tier": "review_required",
       "limitation": "Unreviewed reconciliation items should not be used as trusted cash-flow conclusions.",
-      "next_action_href": "/reconciliation/review-queue",
+      "next_action_href": "/reconciliation?tab=review-queue",
       "source_refs": [
        "cash_flow",
        "reconciliation"
@@ -459,7 +459,7 @@
      "basis": "Market data is stale for 1 observed scope(s).",
      "confidence_tier": "stale",
      "limitation": "Portfolio valuation and market-sensitive report facts should be refreshed before relying on them.",
-     "next_action_href": "/portfolio/prices/update",
+     "next_action_href": "/portfolio?panel=prices",
      "source_refs": [
       "market_data"
      ]
@@ -468,7 +468,7 @@
      "basis": "Cash-flow context has 1 pending reconciliation review item(s).",
      "confidence_tier": "review_required",
      "limitation": "Unreviewed reconciliation items should not be used as trusted cash-flow conclusions.",
-     "next_action_href": "/reconciliation/review-queue",
+     "next_action_href": "/reconciliation?tab=review-queue",
      "source_refs": [
       "cash_flow",
       "reconciliation"
@@ -626,7 +626,7 @@
       "basis": "Market data is stale for 1 observed scope(s).",
       "confidence_tier": "stale",
       "limitation": "Portfolio valuation and market-sensitive report facts should be refreshed before relying on them.",
-      "next_action_href": "/portfolio/prices/update",
+      "next_action_href": "/portfolio?panel=prices",
       "source_refs": [
        "market_data"
       ]
@@ -635,7 +635,7 @@
       "basis": "Cash-flow context has 1 pending reconciliation review item(s).",
       "confidence_tier": "review_required",
       "limitation": "Unreviewed reconciliation items should not be used as trusted cash-flow conclusions.",
-      "next_action_href": "/reconciliation/review-queue",
+      "next_action_href": "/reconciliation?tab=review-queue",
       "source_refs": [
        "cash_flow",
        "reconciliation"
