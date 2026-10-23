@@ -48,10 +48,11 @@ class RetryableStatementIngestionError(StatementIngestionError):
     """Infrastructure/application failure that durable execution may retry."""
 
 
-class StatementClassificationBusy(ValueError):
+class StatementClassificationBusy(RuntimeError):
     """Another task still classifies this statement, and the wait limit has passed.
 
-    The caller changed nothing. A later call can succeed (#2637).
+    The caller changed nothing. A later call can succeed (#2637). The class is not a ``ValueError``: a handler
+    of domain errors must not turn this wait into a domain answer such as a 400 or a 404.
     """
 
 

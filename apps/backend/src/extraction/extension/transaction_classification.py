@@ -922,6 +922,25 @@ async def classify_transactions(
             policy_rule = await _ensure_policy_rule(db, user_id, policy)
         return policy_rule
 
+    if commit_basis and any(proposal is not None for proposal in proposals):
+        # Two statements can share a row, and the pass of the other statement can answer that row while the model
+        # works here. The policy lock makes the second writer wait for the commit of the first, and the read after
+        # it sees the rows of the first. Without the read the second flush breaks the unique key (#2637).
+        await ensure_rule()
+        proposed_ids = [txn.id for txn in to_propose]
+        already_classified |= set(
+            (
+                await db.execute(
+                    select(TransactionClassification.atomic_txn_id)
+                    .where(TransactionClassification.atomic_txn_id.in_(proposed_ids))
+                    .where(TransactionClassification.rule_version_id.in_(current_policy_rules))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        already_classified |= await _user_decided_txn_ids(db, user_id, proposed_ids)
+
     async def write_fallback(txn: AtomicTransaction, proposal: CategoryProposal, reason: str) -> None:
         rule = await ensure_rule()
         account = await _general_account(db, user_id, txn)
@@ -1631,10 +1650,11 @@ async def lock_statement_classification(db: AsyncSession, statement_id: UUID) ->
     """Wait for the lock of the classification of one statement.
 
     The wait is a poll with a limit. A blocking lock call has no limit, and a lock timeout of the database aborts
-    the whole transaction of the caller. The holder never waits for a lock of the waiter: the pass reads the
-    statement row without a row lock, and the approval takes this lock before it takes the policy lock. So the
-    wait ends when the holder commits. After ``CLASSIFICATION_LOCK_WAIT_SECONDS`` the call raises
-    ``StatementClassificationBusy``, and the caller changes nothing.
+    the whole transaction of the caller. The database cannot see a wait cycle that goes through a poll, so every
+    caller takes this lock before any row lock of the statement: the approve route takes it first, and the pass
+    takes it before it reads the statement row without a row lock. The wait then ends when the holder commits.
+    After ``CLASSIFICATION_LOCK_WAIT_SECONDS`` the call raises ``StatementClassificationBusy``, and the caller
+    changes nothing.
     """
     loop = asyncio.get_running_loop()
     deadline = loop.time() + CLASSIFICATION_LOCK_WAIT_SECONDS

@@ -14,9 +14,10 @@ the parsed statement first. The pass is best effort:
 * It takes the lock of the statement (see ``lock_statement_classification``). The approval takes the same lock. The
   approval of a statement that the pass still classifies waits for the pass and then asks the model only for the
   rows without an answer. A pass that finds the lock held leaves the statement to the holder.
-* It leaves out what the approval would not classify now: a statement that is not ``PARSED``, a row that a posted
-  entry covers, a row whose currency is not resolved (the account of an answer follows the currency), and every
-  row when the user turned the model off.
+* It leaves out a statement that is not ``PARSED``, a row that a posted entry covers, a row whose currency is not
+  resolved (the account of an answer follows the currency), and every row when the user turned the model off.
+  The approval leaves out more: a statement with an unproven legacy entry or with an overlapping period stops
+  before it classifies. The pass does not check these, so it may classify rows that the approval never reaches.
 * It writes no rule row. A rule row follows the rules of the moment of the approval, as before.
 
 Manual replay: ``POST /classifications/backfill`` classifies the rows of a user that have no answer. A reparse
@@ -80,28 +81,29 @@ async def classify_parsed_statement(
 ) -> StatementClassificationPhase:
     """Classify the rows of a parsed statement. This call never raises, except for a cancellation."""
     started = time.perf_counter()
+    deadline = asyncio.timeout(CLASSIFICATION_PHASE_DEADLINE_SECONDS)
     try:
-        phase = await asyncio.wait_for(
-            _classify(session_maker, statement_id=statement_id, user_id=user_id),
-            timeout=CLASSIFICATION_PHASE_DEADLINE_SECONDS,
-        )
-    except TimeoutError:
-        phase = StatementClassificationPhase.TIMED_OUT
-        logger.warning(
-            "statement.classification.timed_out",
-            audit_event="statement.classification.timed_out",
-            statement_id=str(statement_id),
-            deadline_seconds=CLASSIFICATION_PHASE_DEADLINE_SECONDS,
-        )
+        async with deadline:
+            phase = await _classify(session_maker, statement_id=statement_id, user_id=user_id)
     except Exception as exc:  # noqa: BLE001 - best effort: the approval classifies the rows that have no answer
-        phase = StatementClassificationPhase.FAILED
-        logger.warning(
-            "statement.classification.failed",
-            audit_event="statement.classification.failed",
-            statement_id=str(statement_id),
-            error_type=type(exc).__name__,
-            safe_error_message=safe_error_message(str(exc)),
-        )
+        if isinstance(exc, TimeoutError) and deadline.expired():
+            phase = StatementClassificationPhase.TIMED_OUT
+            logger.warning(
+                "statement.classification.timed_out",
+                audit_event="statement.classification.timed_out",
+                statement_id=str(statement_id),
+                deadline_seconds=CLASSIFICATION_PHASE_DEADLINE_SECONDS,
+            )
+        else:
+            # A TimeoutError of the driver is a failure, not the deadline of the pass.
+            phase = StatementClassificationPhase.FAILED
+            logger.warning(
+                "statement.classification.failed",
+                audit_event="statement.classification.failed",
+                statement_id=str(statement_id),
+                error_type=type(exc).__name__,
+                safe_error_message=safe_error_message(str(exc)),
+            )
     record_statement_classification_outcome(outcome=phase.value)
     logger.info(
         "statement.classification.finished",
