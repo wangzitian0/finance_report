@@ -28,7 +28,6 @@ from src.extraction import (
     RetireStatementCommand,
     ReviewedStatementEnvelopeCommand,
     ReviewedStatementEnvelopeConflict,
-    StatementClassificationBusy,
     StatementPostingOutcome,
     StatementPostingStatus,
     StatementSummary,
@@ -983,11 +982,9 @@ async def approve_statement_stage1(
     """Stage 1: Approve statement with balance validation."""
     try:
         statement = await _get_statement_or_404(db, statement_id, user_id)
-        # Wait for a classification pass of this statement before any other lock. Every approve takes the locks in
-        # one order: classification, then the statement row, then the policy rule (#2637).
+        # Lock order of every approve: classification, then the statement row, then the policy rule (#2637).
         await lock_statement_classification(db, statement_id)
-        # The wait can last seconds. A reject, an envelope confirmation or a balance edit may have committed meanwhile.
-        await db.refresh(statement)
+        await db.refresh(statement)  # the wait may be long, and an edit may have committed meanwhile
         if request and request.create_account_if_missing and not statement.account_id:
             await _create_statement_account_from_confirmation(db, statement, user_id)
         elif not statement.account_id:
@@ -1003,9 +1000,6 @@ async def approve_statement_stage1(
             user_id,
             dependencies=compose_statement_posting_dependencies(),
         )
-    except StatementClassificationBusy as e:
-        await db.rollback()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
