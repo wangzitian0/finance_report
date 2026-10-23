@@ -356,11 +356,12 @@ async def test_AC_extraction_ai_classification_default_1_new_user_gets_model_pro
 
 
 def test_AC18_15_8_production_consumers_are_the_declared_seams():
-    """AC18.15.8: the classify node's production consumers are EXACTLY the two
-    declared seams — the posting path (#1545) and the extraction package root
-    (#1546's backfill entry point, published for the router per #1677: routers
-    import only src.<pkg>, so the router-facing seam is the root re-export).
-    No other module may grow a side-door into classification."""
+    """AC18.15.8: the classify node's production consumers are EXACTLY the declared
+    seams — the posting path (#1545), the extraction package root (#1546's
+    backfill entry point, published for the router per #1677: routers import only
+    src.<pkg>, so the router-facing seam is the root re-export), the correction
+    service, and the pass after parse (#2637). No other module may grow a
+    side-door into classification."""
     src_root = _BACKEND_SRC
     importers = []
     for path in src_root.rglob("*.py"):
@@ -380,6 +381,7 @@ def test_AC18_15_8_production_consumers_are_the_declared_seams():
         "src/extraction/__init__.py",
         "src/extraction/extension/correction_service.py",
         "src/extraction/extension/statement_posting.py",
+        "src/extraction/extension/statement_preclassification.py",
     ]
 
 
