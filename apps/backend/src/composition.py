@@ -52,7 +52,7 @@ from src.extraction import (
     balance_sheet_booking,
     build_statement_ingestion_use_case,
     classification_suggestions,
-    classify_by_effective_policy,
+    classify_statement_by_effective_policy,
     effective_statement_transaction_filter,
     extraction_trace_policy_registry,
     general_account_name,
@@ -313,7 +313,7 @@ async def auto_fill_default_statement_dispositions(
     # A statement that was never classified (a parse that did not post by itself) has no suggestion yet. The
     # classifier runs first, so a row does not fall to the general account while the model could place it (#2405).
     # A row that already has a classification keeps it.
-    await classify_by_effective_policy(db, user_id, unmatched_txns)
+    await classify_statement_by_effective_policy(db, user_id, statement.id, unmatched_txns)
     suggestions = await classification_suggestions(db, [txn.id for txn in unmatched_txns])
     # The posting that follows posts these rows from their applied classification (the score gate of the
     # policy of the user, or a reviewed rule). The disposition policy decides, as in the posting itself. An applied row that the

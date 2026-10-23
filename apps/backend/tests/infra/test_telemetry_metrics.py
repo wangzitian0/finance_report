@@ -459,6 +459,25 @@ def test_AC10_10_4_business_metric_helpers_record_outcomes(monkeypatch) -> None:
     assert meter.histograms["finance.confidence_north_star"].record_calls == [(0.98, {"source": "scheduled"})]
 
 
+def test_AC_extraction_statement_classify_6_classification_outcome_counter_labels_each_outcome(monkeypatch) -> None:
+    """AC-extraction.statement-classify.6: the pass after parse counts each outcome under its own label."""
+    meter = install_fake_otel(monkeypatch)
+    monkeypatch.setattr(
+        telemetry_metrics.settings,
+        "otel_exporter_otlp_endpoint",
+        "http://collector:4318",
+    )
+    telemetry_metrics.configure_otel_metrics()
+
+    telemetry_metrics.record_statement_classification_outcome(outcome="failed")
+    telemetry_metrics.record_statement_classification_outcome(outcome="classified")
+
+    assert meter.counters["finance.statement_classification.outcome"].add_calls == [
+        (1, {"outcome": "failed"}),
+        (1, {"outcome": "classified"}),
+    ]
+
+
 def test_AC10_11_1_rate_limit_rejections_record_alert_metric(monkeypatch) -> None:
     """AC-observability.11.1: rate-limit rejections emit the metric used by saturation alerts."""
     meter = install_fake_otel(monkeypatch)
