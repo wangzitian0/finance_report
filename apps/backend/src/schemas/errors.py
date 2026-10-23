@@ -84,8 +84,9 @@ class ErrorResponse(BaseModel):
 # once and attached to every router (see ``app.include_router(..., responses=...)``).
 #
 # 422 is intentionally NOT listed here: FastAPI auto-documents request-validation
-# errors as ``HTTPValidationError`` (``{"detail": [...]}``) and there is no
-# ``RequestValidationError`` handler overriding that, so declaring 422 as
+# errors as ``HTTPValidationError`` (``{"detail": [...]}``). The ``RequestValidationError``
+# handler in ``main.py`` keeps that ``detail`` list and only adds ``error_id`` and
+# ``request_id`` (#2649). Its ``detail`` is not a string, so declaring 422 as
 # ``ErrorResponse`` would make the OpenAPI/typed client disagree with the runtime
 # body. The codes below are the ones the handlers actually emit as ``ErrorResponse``.
 COMMON_ERROR_RESPONSES: dict[int | str, dict[str, object]] = {

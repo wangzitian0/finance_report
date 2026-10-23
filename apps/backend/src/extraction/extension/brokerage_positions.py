@@ -8,10 +8,10 @@ from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import Numeric, String, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -96,6 +96,8 @@ class BrokerageImportResult:
 
 # The source states no as-of date, so the positions cannot be dated (#2649).
 BROKERAGE_SNAPSHOT_DATE_MISSING = "brokerage_snapshot_date_missing"
+# A position value does not fit the AtomicPosition columns (#2649).
+BROKERAGE_POSITION_OUT_OF_RANGE = "brokerage_position_out_of_range"
 
 
 class BrokerageImportRejectedError(BaseAppException, ValueError):
@@ -131,14 +133,16 @@ def _clean_decimal(value: Any) -> Decimal | None:
     if value is None:
         return None
     if isinstance(value, Decimal):
-        return value
+        return value if value.is_finite() else None
     text = str(value).strip().replace(",", "")
     if not text or text.upper() in {"N/A", "UNKNOWN", "NULL", "NONE"}:
         return None
     try:
-        return Decimal(text)
+        parsed = Decimal(text)
     except InvalidOperation:
         return None
+    # NaN and Infinity are not amounts. Treat them as other text that does not parse (#2649).
+    return parsed if parsed.is_finite() else None
 
 
 def _parse_date(value: Any) -> date | None:
@@ -151,7 +155,10 @@ def _parse_date(value: Any) -> date | None:
         return None
     if re.fullmatch(r"\d{4}-\d{2}", text):
         year, month = (int(part) for part in text.split("-"))
-        return date(year, month, monthrange(year, month)[1])
+        try:
+            return date(year, month, monthrange(year, month)[1])
+        except ValueError:  # month 13 or year 0 is not a date (#2649)
+            return None
     if re.fullmatch(r"\d{4}/\d{2}/\d{2}", text):
         text = text.replace("/", "-")
     try:
@@ -296,13 +303,20 @@ def _parse_structured_positions(
         market_value = _clean_decimal(item.get("market_value") or item.get("value") or item.get("marketValue"))
         if not identifier or quantity is None or market_value is None:
             continue
+        try:
+            money = to_money(market_value)
+        except InvalidOperation as exc:  # too many digits to round to cents (#2649)
+            raise BrokerageImportRejectedError(
+                BROKERAGE_POSITION_OUT_OF_RANGE,
+                f"Position {str(identifier).strip()[:40]!r}: the market value {market_value} is out of range.",
+            ) from exc
         snapshots.append(
             BrokeragePositionSnapshot(
                 snapshot_date=_parse_date(item.get("snapshot_date") or item.get("as_of_date")) or snapshot_date,
                 asset_identifier=str(identifier).strip(),
                 broker=str(item.get("broker") or broker),
                 quantity=quantity,
-                market_value=to_money(market_value),
+                market_value=money,
                 currency=str(item.get("currency") or default_currency).upper(),
                 asset_type=_asset_type(item.get("asset_type") or item.get("asset_class")),
                 sector=str(item["sector"]).strip() if item.get("sector") else None,
@@ -825,6 +839,37 @@ def brokerage_currency_balances(
     return [declared[ccy] for ccy in sorted(declared)]
 
 
+def _reject_unstorable_snapshots(snapshots: list[BrokeragePositionSnapshot]) -> None:
+    """Reject a position that the AtomicPosition columns cannot store, before any insert (#2649).
+
+    The limits come from the ORM columns, so they follow the schema. Without this check the
+    insert fails in the database and the API returns 500.
+    """
+    columns = AtomicPosition.__table__.c
+    for snapshot in snapshots:
+        label = snapshot.asset_identifier[:40]
+        for field in ("asset_identifier", "broker", "currency", "sector", "geography"):
+            text = getattr(snapshot, field)
+            limit = cast(String, columns[field].type).length
+            if text is not None and limit is not None and len(text) > limit:
+                raise BrokerageImportRejectedError(
+                    BROKERAGE_POSITION_OUT_OF_RANGE,
+                    f"Position {label!r}: the {field} has {len(text)} characters. The limit is {limit}.",
+                )
+        for field in ("quantity", "market_value"):
+            amount = getattr(snapshot, field)
+            numeric = cast(Numeric, columns[field].type)
+            if numeric.precision is None:  # an unbounded column stores any finite amount
+                continue
+            integer_digits = numeric.precision - (numeric.scale or 0)
+            if abs(amount) >= Decimal(10) ** integer_digits:
+                raise BrokerageImportRejectedError(
+                    BROKERAGE_POSITION_OUT_OF_RANGE,
+                    f"Position {label!r}: the {field} {amount} is out of range. "
+                    f"The limit is {integer_digits} digits before the decimal point.",
+                )
+
+
 def _dedup_hash(user_id: UUID, snapshot: BrokeragePositionSnapshot) -> str:
     if snapshot.snapshot_date is None:
         raise ValueError("Brokerage position snapshot date is required for import")
@@ -866,8 +911,10 @@ class BrokeragePositionImportService:
                 BROKERAGE_SNAPSHOT_DATE_MISSING,
                 f"The positions source does not state an as-of date for {undated} of "
                 f"{len(snapshots)} positions. The import needs the date that the source states. "
-                "Upload a broker statement or export that shows the as-of date.",
+                "The CSV import does not read a date column. "
+                "Upload the broker statement PDF that shows the as-of date.",
             )
+        _reject_unstorable_snapshots(snapshots)
         created = 0
         existing = 0
         broker = (

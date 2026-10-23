@@ -509,7 +509,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
     # #2649: this handler runs in ServerErrorMiddleware, outside the request task, so the
     # contextvar is empty here. logging_middleware put the same id in the request scope.
-    request_id = current_request_id() or getattr(request.state, "request_id", None)
+    request_id = getattr(request.state, "request_id", None) or current_request_id()
     content: dict[str, Any] = ErrorResponse(
         error_id=ErrorCode.INTERNAL_ERROR.value,
         detail=detail,
