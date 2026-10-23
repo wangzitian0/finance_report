@@ -78,7 +78,7 @@ function ReportsOverview({ filters }: { filters: ReportFilters }) {
   // The Package tab reads the same preview key (#2583 S4): a switch to the Package tab issues no request.
   const packageQuery = useQuery({
     ...personalReportPackageQuery({ frameworkId: null, reportDate: filters.endDate, startDate: filters.startDate, currency: filters.currency }),
-    // The period waits for the first statement (#2646).
+    // The period waits for the coverage start (#2646).
     enabled: filters.ready,
   });
   const readiness = isPackageReadiness(packageQuery.data?.readiness) ? packageQuery.data.readiness : null;

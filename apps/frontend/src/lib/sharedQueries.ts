@@ -14,6 +14,8 @@ export const SHARED_STALE_MS = 60_000;
 
 /** `GET /statements`: the lean list (no transactions). */
 export const STATEMENTS_LIST_QUERY_KEY = ["statements", "list"] as const;
+/** `GET /reports/coverage`: the cash coverage start that bounds a preset report period (#2646). */
+export const REPORT_COVERAGE_QUERY_KEY = ["report", "coverage"] as const;
 /** `GET /reconciliation/stats`. */
 export const RECONCILIATION_STATS_QUERY_KEY = ["reconciliation", "stats"] as const;
 /** `GET /accounts/processing/pending`. */

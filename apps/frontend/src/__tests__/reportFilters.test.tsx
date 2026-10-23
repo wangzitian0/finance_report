@@ -24,8 +24,8 @@ describe("ReportDimensionBar", () => {
     vi.mocked(apiOperation).mockImplementation(((operationId: string) => {
       if (operationId === "get_available_currencies_reports_currencies_get") return Promise.resolve(["SGD", "USD", "EUR"])
       if (operationId === "get_base_currency_app_config_base_currency_get") return Promise.resolve({ base_currency: "EUR" })
-      // No approved statement: the first statement does not bound the period.
-      if (operationId === "list_statements_statements_get") return Promise.resolve({ items: [], total: 0 })
+      // No cash opening position: no coverage start bounds the period.
+      if (operationId === "report_coverage_reports_coverage_get") return Promise.resolve({ as_of_date: "2026-01-31", coverage_start: null })
       return Promise.reject(new Error(`unexpected ${operationId}`))
     }) as never)
     setTestUrl("/reports?tab=cash-flow&period=1M&end=2026-01-31")
@@ -40,7 +40,7 @@ describe("ReportDimensionBar", () => {
     for (const preset of ["1M", "1Q", "1Y", "YTD", "3Y", "All"]) {
       expect(screen.getByRole("button", { name: `Period ${preset}` })).toHaveAttribute("aria-pressed", String(preset === "1M"))
     }
-    // The range waits for the statement list (#2646).
+    // The range waits for the coverage start (#2646).
     expect(screen.getByTestId("report-period-range")).toHaveTextContent("…")
     await waitFor(() => expect(screen.getByTestId("report-period-range")).toHaveTextContent("Jan 1, 2026 – Jan 31, 2026"))
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -444,6 +444,72 @@ def _line_record(event: _CashEvent, line_id: str, amount: Decimal, lineage: dict
     )
 
 
+def _select_cash_account_ids(
+    accounts: Sequence[Account], cash_account_ids: frozenset[UUID] | None
+) -> tuple[frozenset[UUID], frozenset[UUID]]:
+    """Return the cash accounts of a cash flow and the exact identities among them.
+
+    With no explicit identity, a name match selects the cash accounts (a compatibility fallback).
+    The system Processing account is a ledger-defined cash equivalent and is always included.
+    """
+    account_ids = {account.id for account in accounts}
+    exact_selected_ids: set[UUID] = set()
+    if cash_account_ids is None:
+        keywords = ("cash", "bank", "checking", "savings", "money market", "petty cash")
+        selected_ids = {
+            account.id
+            for account in accounts
+            if account.type == AccountType.ASSET
+            and (
+                account.code == _AUTO_BANK_ACCOUNT_CODE or any(keyword in account.name.lower() for keyword in keywords)
+            )
+        }
+    else:
+        selected_ids = {account_id for account_id in cash_account_ids if account_id in account_ids}
+        exact_selected_ids = set(selected_ids)
+
+    # Processing is a ledger-defined cash equivalent: including it makes both legs
+    # of an in-transit internal transfer neutral without name inference.
+    selected_ids.update(
+        account.id
+        for account in accounts
+        if account.is_system and account.code == _PROCESSING_ACCOUNT.code and account.type == AccountType.ASSET
+    )
+    return frozenset(selected_ids), frozenset(exact_selected_ids)
+
+
+async def cash_opening_positions(
+    db: AsyncSession, user_id: UUID, *, as_of: date, cash_account_ids: frozenset[UUID]
+) -> tuple[Any, ...]:
+    """The opening positions of the cash accounts, effective on or before ``as_of``."""
+    from src.ledger import list_opening_positions
+
+    return tuple(
+        position
+        for position in await list_opening_positions(db, user_id=user_id, as_of=as_of)
+        if position.account_id in cash_account_ids
+    )
+
+
+def opening_coverage_start(opening_positions: Iterable[Any]) -> date | None:
+    """The first day that a cash-flow period can start with the opening position of every cash account.
+
+    It is the latest effective date of the positions. A period that starts before it has the proof
+    reason ``opening_coverage_starts_after_period``. Report period bounds read this function (#2646).
+    """
+    return max((position.effective_date for position in opening_positions), default=None)
+
+
+async def account_cash_coverage_start(
+    db: AsyncSession, user_id: UUID, *, as_of: date, cash_account_ids: frozenset[UUID] | None
+) -> date | None:
+    """``opening_coverage_start`` of the cash accounts that ``generate_cash_flow`` selects for these ids."""
+    accounts = list((await db.execute(select(Account).where(Account.user_id == user_id))).scalars().all())
+    effective_cash_ids, _exact = _select_cash_account_ids(accounts, cash_account_ids)
+    positions = await cash_opening_positions(db, user_id, as_of=as_of, cash_account_ids=effective_cash_ids)
+    return opening_coverage_start(positions)
+
+
 async def _build_cash_flow(
     db: AsyncSession,
     user_id: UUID,
@@ -461,39 +527,11 @@ async def _build_cash_flow(
     accounts = list((await db.execute(select(Account).where(Account.user_id == user_id))).scalars().all())
     account_by_id = {account.id: account for account in accounts}
     explicit_cash_identity = cash_account_ids is not None
-    exact_selected_ids: set[UUID] = set()
-    if cash_account_ids is None:
-        keywords = ("cash", "bank", "checking", "savings", "money market", "petty cash")
-        selected_ids = {
-            account.id
-            for account in accounts
-            if account.type == AccountType.ASSET
-            and (
-                account.code == _AUTO_BANK_ACCOUNT_CODE or any(keyword in account.name.lower() for keyword in keywords)
-            )
-        }
-    else:
-        selected_ids = {account_id for account_id in cash_account_ids if account_id in account_by_id}
-        exact_selected_ids = set(selected_ids)
-
-    # Processing is a ledger-defined cash equivalent: including it makes both legs
-    # of an in-transit internal transfer neutral without name inference.
-    selected_ids.update(
-        account.id
-        for account in accounts
-        if account.is_system and account.code == _PROCESSING_ACCOUNT.code and account.type == AccountType.ASSET
-    )
-    effective_cash_ids = frozenset(selected_ids)
+    effective_cash_ids, exact_selected_ids = _select_cash_account_ids(accounts, cash_account_ids)
     events = await _load_cash_events(
         db, user_id, end_date=end_date, cash_account_ids=effective_cash_ids, account_by_id=account_by_id
     )
-    from src.ledger import list_opening_positions
-
-    opening_positions = tuple(
-        position
-        for position in await list_opening_positions(db, user_id=user_id, as_of=end_date)
-        if position.account_id in effective_cash_ids
-    )
+    opening_positions = await cash_opening_positions(db, user_id, as_of=end_date, cash_account_ids=effective_cash_ids)
     proven_openings = {
         (position.journal_entry_id, position.account_id): position
         for position in opening_positions
@@ -547,8 +585,9 @@ async def _build_cash_flow(
     for position in opening_positions:
         if position.state != "authoritative" or position.decision is None:
             proof_reasons.add("opening_position_unproven")
-        if position.effective_date > start_date:
-            proof_reasons.add("opening_coverage_starts_after_period")
+    coverage_start = opening_coverage_start(opening_positions)
+    if coverage_start is not None and coverage_start > start_date:
+        proof_reasons.add("opening_coverage_starts_after_period")
 
     for event in events:
         beginning_movement = Decimal("0")

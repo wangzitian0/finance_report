@@ -61,7 +61,7 @@ export function IncomeStatementPanel({ filters }: { filters: ReportFilters }) {
       },
     },
     {
-      // The period waits for the first statement (#2646).
+      // The period waits for the coverage start (#2646).
       enabled: filters.ready,
       placeholderData: keepPreviousData,
       select: (data) => ({ ...data, fx_warnings: normalizeFxWarningRows(data.fx_warnings) }),

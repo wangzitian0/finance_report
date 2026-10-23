@@ -40,6 +40,7 @@ const status = (primary_state: WorkflowStatusResponse["primary_state"]): Workflo
 describe("Home action banner (#2621 LC, EPIC-022 AC22.6.2)", () => {
   beforeEach(() => mockedApiOperation.mockReset());
 
+  // AC-reconciliation.fe-ia-reconciliation.4
   it("AC22.6.2 shows the confirmation count of the attention sources and links to the /audit queue", async () => {
     mockSources(
       { total_transactions: 100, matched_transactions: 80, unmatched_transactions: 5, pending_review: 3, auto_accepted: 70, match_rate: 80, score_distribution: {} },

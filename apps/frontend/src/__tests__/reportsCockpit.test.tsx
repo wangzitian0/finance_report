@@ -181,7 +181,7 @@ describe("Reports page (#2621 LC)", () => {
     await waitFor(() => expect(balance).toHaveTextContent("Net worth"))
     expect(balance).toHaveTextContent("SGD 10,000")
     const income = screen.getByTestId("cockpit-card-income-statement")
-    // The period sources wait for the statement list (#2646).
+    // The period sources wait for the coverage start (#2646).
     await waitFor(() => expect(income).toHaveTextContent("Savings rate"))
     expect(income).toHaveTextContent("60%")
     const cash = screen.getByTestId("cockpit-card-cash-flow")

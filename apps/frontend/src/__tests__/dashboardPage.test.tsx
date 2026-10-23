@@ -195,7 +195,7 @@ describe("HomePage", () => {
     render(<HomePage />)
 
     await waitFor(() => expect(screen.getByText("Net worth").nextElementSibling).toHaveTextContent("$4,000"))
-    // The period sources wait for the statement list (#2646).
+    // The period sources wait for the coverage start (#2646).
     await screen.findByText("Savings rate")
     await screen.findByText("Operating")
     expect(screen.queryByRole("button", { name: /Show analytics/i })).toBeNull()

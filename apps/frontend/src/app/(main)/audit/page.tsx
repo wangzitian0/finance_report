@@ -69,13 +69,16 @@ export default function AuditPage() {
   const queue = useAttentionQueue();
   const suggestions = useAiSuggestions(statementId);
 
-  const queueCount = queue.items?.length ?? 0;
-  const suggestionCount = suggestions.data?.items?.length ?? 0;
-  const needsYouCount = queueCount + suggestionCount;
+  // The badge counts the confidence queue, as the Home banner does: both read `useAttentionQueue`.
+  // The AI suggestions are not added: their list also holds the pending matches that the queue
+  // counts as one item. They still open this tab, by their `total` (the list is capped).
+  const needsYouCount = queue.items?.length ?? 0;
+  const suggestionTotal = suggestions.data?.total ?? suggestions.data?.items?.length ?? 0;
   const countsSettled = queue.items !== null && !suggestions.isPending;
   // A failed source opens `needs-you`: its error and its retry show there.
   const failed = queue.failed || suggestions.isError;
-  const settledDefault: AuditTab | null = !countsSettled ? null : needsYouCount > 0 || failed ? "needs-you" : "health";
+  const settledDefault: AuditTab | null =
+    !countsSettled ? null : needsYouCount > 0 || suggestionTotal > 0 || failed ? "needs-you" : "health";
   // The first settled default stays: a later count change or a retry of a failed source does not move the tab.
   const [defaultTab, setDefaultTab] = useState<AuditTab | null>(null);
   if (defaultTab === null && settledDefault !== null) setDefaultTab(settledDefault);

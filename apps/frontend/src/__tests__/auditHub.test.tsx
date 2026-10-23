@@ -121,7 +121,7 @@ describe("Audit hub (EPIC-022 AC22.21.3)", () => {
         expect(hrefs).toEqual([
             "/reconciliation?tab=unmatched&from=attention",
             "/statements/s1?from=attention",
-            "/reconciliation?from=attention",
+            "/reconciliation?tab=matches&from=attention",
         ]);
         expect((await screen.findAllByText("COFFEE SHOP")).length).toBeGreaterThan(0);
         expect(screen.getAllByRole("button", { name: "Accept" }).length).toBeGreaterThan(0);
@@ -136,6 +136,7 @@ describe("Audit hub (EPIC-022 AC22.21.3)", () => {
             list_unmatched_reconciliation_unmatched_get: { items: [{ id: "t1", description: "PayNow Transfer REF 4471" }], total: 1 },
             list_ai_suggestions_ai_suggestions_get: {
                 items: [{ suggestion_id: "a1", transaction: "COFFEE SHOP", suggested_category_or_match: "Dining", ai_score: 72, ai_reasoning: "Merchant", direction: "OUT" }],
+                total: 1,
             },
         });
         const view = render(<AuditPage />);
@@ -144,8 +145,9 @@ describe("Audit hub (EPIC-022 AC22.21.3)", () => {
         expect(selectedTab()).toBeUndefined();
         expect(screen.getByRole("status", { name: "Loading the items that need you" })).toBeInTheDocument();
 
-        // Two queue items and one AI suggestion.
-        expect(await screen.findByTestId("needs-you-count")).toHaveTextContent("3");
+        // Two queue items: the badge counts the queue, as the Home banner does. The AI suggestion is
+        // listed in the tab but not counted.
+        expect(await screen.findByTestId("needs-you-count")).toHaveTextContent("2");
         expect(selectedTab()).toHaveTextContent("Needs you");
         const queue = screen.getByTestId("needs-confirmation-queue");
         expect(within(queue).getByRole("link", { name: /PayNow Transfer REF 4471/ })).toHaveAttribute(
@@ -153,7 +155,7 @@ describe("Audit hub (EPIC-022 AC22.21.3)", () => {
             "/reconciliation?tab=unmatched&from=attention",
         );
         expect(tabs().map((tab) => [tab.textContent, tab.getAttribute("href")])).toEqual([
-            ["Needs you3", "/audit?tab=needs-you"],
+            ["Needs you2", "/audit?tab=needs-you"],
             ["Health", "/audit?tab=health"],
             ["Books", "/audit?tab=books"],
         ]);
@@ -166,6 +168,15 @@ describe("Audit hub (EPIC-022 AC22.21.3)", () => {
         expect(selectedTab()).toHaveTextContent("Health");
         expect(screen.getByTestId("needs-you-count")).toHaveTextContent("0");
         expect(screen.queryByTestId("needs-confirmation-queue")).toBeNull();
+    });
+
+    // AC-meta.fe-audit-queue.3
+    it("AC-meta.fe-audit-queue.3 opens on Needs you for AI suggestions alone, by their total", async () => {
+        // The suggestion list is capped: the total decides, not the length of the page.
+        mockAuditApi({ list_ai_suggestions_ai_suggestions_get: { items: [], total: 3 } });
+        render(<AuditPage />);
+        expect(await screen.findByTestId("needs-you-count")).toHaveTextContent("0");
+        expect(selectedTab()).toHaveTextContent("Needs you");
     });
 
     // AC-meta.fe-audit-queue.3

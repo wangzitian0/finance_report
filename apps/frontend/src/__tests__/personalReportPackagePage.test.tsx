@@ -640,7 +640,7 @@ describe("PersonalReportPackagePage", () => {
     });
     const { unmount } = renderPackagePage();
     expect(screen.getByText("Loading package document...")).toBeInTheDocument();
-    // The package request starts after the statement list settles (#2646).
+    // The package request starts after the coverage start loads (#2646).
     await waitFor(() => expect(typeof resolveDocument).toBe("function"));
     unmount();
     await act(async () => { resolveDocument(packagePreview()); });
@@ -663,8 +663,8 @@ describe("PersonalReportPackagePage", () => {
       if (path.startsWith("/api/reports/package?") && !path.includes("framework_id=")) return Promise.resolve(packagePreview());
       if (path === "/api/reports/package/snapshots") return Promise.resolve([]);
       if (path.startsWith("/api/reports/package?framework_id=")) return Promise.reject(new DOMException("Canceled", "AbortError"));
-      // The statement list bounds the period: the package waits for it (#2646).
-      if (path === "/api/statements") return Promise.resolve({ items: [], total: 0 });
+      // The coverage start bounds the period: the package waits for it (#2646).
+      if (path === "/api/reports/coverage") return Promise.resolve({ as_of_date: "2026-05-20", coverage_start: null });
       return new Promise(() => undefined);
     });
     renderPackagePage();
@@ -944,8 +944,8 @@ describe("PersonalReportPackagePage", () => {
     mockedApiFetch.mockImplementation((path: string) => {
       if (path.startsWith("/api/reports/package?") && !path.includes("framework_id=")) return Promise.resolve(packagePreview());
       if (path === "/api/reports/package/snapshots") return Promise.resolve([]);
-      // The statement list bounds the period: the package waits for it (#2646).
-      if (path === "/api/statements") return Promise.resolve({ items: [], total: 0 });
+      // The coverage start bounds the period: the package waits for it (#2646).
+      if (path === "/api/reports/coverage") return Promise.resolve({ as_of_date: "2026-05-20", coverage_start: null });
       return new Promise(() => undefined);
     });
     const { container } = renderPackagePage();

@@ -121,7 +121,7 @@ export function useStatementCockpit({
   includeRestricted,
   ready,
 }: ReportFilters): StatementCockpitData {
-  // The balance at the period end does not depend on the first statement. The other sources wait
+  // The balance at the period end does not depend on the coverage start. The other sources wait
   // for it: it can move the start and the opening date (#2646). A disabled source stays pending.
   const balanceQuery = useApiQuery(
     balanceSheetQueryKey({ asOfDate: endDate, currency, includeRestricted }),
