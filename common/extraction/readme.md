@@ -222,7 +222,7 @@ and the default three statements. The system therefore decides every row that th
   pass runs in the API task and in the Prefect flow, because both run the ingestion use case. Rules of the pass:
   - It is best effort. A model error, an unexpected error or a timeout (180 s) is logged and counted in
     `finance.statement_classification.outcome`. The rows stay unclassified, and the approval asks for them as
-    before. The ingestion stays `COMPLETED`. A pass that passes the deadline writes no row.
+    before. The ingestion stays `COMPLETED`. A pass that passes the deadline writes no row, unless the deadline falls inside its commit.
   - It calls `classify_by_effective_policy`, so each row gets the policy of its own date. It writes no rule row,
     and it does not ask the model for a row that a rule matches. The approval writes the rule rows, so a rule
     that a user made after the parse still wins.
@@ -236,11 +236,14 @@ and the default three statements. The system therefore decides every row that th
   - Two statements can share a row (a dedup hit adds a source document to an existing row). Their passes may ask
     the model for that row both. The second writer waits for the policy lock, reads the rows of the first, and
     skips the rows that now have an answer.
-  - A setting that a user changes between the parse and the approval is not applied to the rows that the pass
-    classified. With the model off at the approval, the approval posts the stored rows and asks nothing. With
-    auto-accept off at the approval, the stored rows that the pass accepted still post. With auto-accept on at
-    the approval and off at the parse, the approval promotes the drafts of the pass. A row that the pass left
-    unanswered follows the setting at the approval.
+  - The auto-approve of a high-confidence parse takes the lock without a wait. The parse already holds the
+    statement row, and a poll would hide a wait cycle with an approve request. A statement that the pass holds
+    stays in review.
+  - A setting that a user changes between the parse and the approval does not change the rows that the pass
+    stored. The approval keeps them and asks nothing. The disposition policy reads the setting at the approval,
+    so the rows below its score gate go to review. With the model off, main answers 409 with the reason
+    `intent_missing` for every row. The approval after the pass answers 409 with the reason
+    `intent_below_threshold` for the rows below the gate. The statement stays in review in both cases.
   - A user with auto-accept off gets no row for a score below the review score (a tail) and for a balance-sheet
     class below it. The approval asks the model for these rows again, as it did before the pass.
 - The classifier and the one-click approval resolve a default account with one resolver

@@ -565,6 +565,16 @@ async def _propose_batch(
     return [_proposal_from_item(item) for item in _normalize_scale(items)]
 
 
+async def _lock_policy_rule(db: AsyncSession, user_id: UUID, policy: ClassificationPolicy) -> None:
+    """Take the lock that serializes the writers of the model rows of one user and one policy version.
+
+    The lock lasts to the end of the transaction. A call takes it again when the session already holds it, so a cached
+    rule never skips the wait for another writer.
+    """
+    lock_key = f"policy_rule:{user_id}:{POLICY_RULE_NAME}:{policy.version}"
+    await db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0))))
+
+
 async def _ensure_policy_rule(db: AsyncSession, user_id: UUID, policy: ClassificationPolicy) -> ClassificationRule:
     """Materialize the policy version as its append-only ``ClassificationRule`` anchor.
 
@@ -579,8 +589,7 @@ async def _ensure_policy_rule(db: AsyncSession, user_id: UUID, policy: Classific
     if cached is not None and cached in db:
         return cached
 
-    lock_key = f"policy_rule:{user_id}:{POLICY_RULE_NAME}:{policy.version}"
-    await db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0))))
+    await _lock_policy_rule(db, user_id, policy)
 
     existing = (
         await db.execute(
@@ -925,8 +934,9 @@ async def classify_transactions(
     if commit_basis and any(proposal is not None for proposal in proposals):
         # Two statements can share a row, and the pass of the other statement can answer that row while the model
         # works here. The policy lock makes the second writer wait for the commit of the first, and the read after
-        # it sees the rows of the first. Without the read the second flush breaks the unique key (#2637).
-        await ensure_rule()
+        # it sees the rows of the first. Without the read the second flush breaks the unique key (#2637). The step
+        # takes the lock and writes no rule row: a pass that writes no answer leaves the rule table as it was.
+        await _lock_policy_rule(db, user_id, policy)
         proposed_ids = [txn.id for txn in to_propose]
         already_classified |= set(
             (

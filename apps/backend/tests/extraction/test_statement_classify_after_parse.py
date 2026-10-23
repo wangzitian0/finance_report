@@ -449,7 +449,7 @@ async def test_AC_extraction_statement_classify_2_a_phase_that_runs_past_its_dea
     from src.extraction.extension.transaction_classification import try_lock_statement_classification
 
     outcomes = _spy_outcomes(monkeypatch)
-    monkeypatch.setattr(statement_preclassification, "CLASSIFICATION_PHASE_DEADLINE_SECONDS", 3.0)
+    monkeypatch.setattr(statement_preclassification, "CLASSIFICATION_PHASE_DEADLINE_SECONDS", 8.0)
     hung = _install(monkeypatch, CountingProposer(gate=asyncio.Event()))  # the gate never opens
     seeded = await _seed(db, test_user.id, _rows(4))
     sessions = _sessions(db)
@@ -804,22 +804,172 @@ async def test_AC_extraction_statement_classify_3_a_setting_turned_off_after_the
 ):
     """AC-extraction.statement-classify.3: the rows of the pass stay as stored when a user changes a setting later.
 
-    This pins the difference from main that the readme states: main reads the setting at the approval.
+    This pins the difference from main that the readme states. Main classifies at the approval under the setting of
+    that moment (it answers 409 with the reason ``intent_missing`` when the model is off). The approval after the
+    pass keeps the stored rows, and the disposition policy still applies the setting of that moment: the rows
+    below its score gate go to review, so the answer is 409 as on main, with other reasons.
     """
     from src.extraction.extension import statement_preclassification
 
     proposer = _install(monkeypatch, CountingProposer())
-    seeded = await _seed(db, test_user.id, _rows(8))
+    seeded = await _seed(db, test_user.id, _rows(6, kinds=["Salary", "Coffee", "Fee", "Mystery", "Odd", "Grab"]))
     sessions = _sessions(db)
     await statement_preclassification.classify_parsed_statement(sessions, statement_id=seeded.id, user_id=test_user.id)
-    assert proposer.rows_asked == 8
+    assert proposer.rows_asked == 6
+    stored = await _classification_rows(sessions, test_user.id)
+    assert len(stored) == 6 and {row.status.value for row in stored} == {"applied"}
 
     monkeypatch.setattr(settings, setting, False)
     response = await _approve(client, seeded.id)
 
-    assert response.status_code == 200, response.text
-    assert response.json()["journal_entries_created"] == 8
-    assert proposer.rows_asked == 8, "the approve asks no row, and it does not drop a stored row"
+    assert response.status_code == 409, response.text
+    assert "Economic review required" in response.json()["detail"]
+    assert proposer.rows_asked == 6, "the approve asks no row"
+    assert len(await _classification_rows(sessions, test_user.id)) == 6, "the approve drops no stored row"
+
+
+async def test_AC_extraction_statement_classify_3_the_auto_approve_of_a_parse_does_not_wait_for_the_lock(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.3: the parse already holds the row, so it leaves a locked statement to review."""
+    from src.composition import compose_statement_posting_dependencies
+    from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
+    from src.extraction.extension.transaction_classification import try_lock_statement_classification
+
+    proposer = _install(monkeypatch, CountingProposer())
+    seeded = await _seed(db, test_user.id, _rows(4))
+    bank = Account(user_id=test_user.id, name="Bank of an auto-approve", type=AccountType.ASSET, currency="SGD")
+    db.add(bank)
+    await db.flush()
+    seeded.statement.account_id = bank.id
+    seeded.statement.status = BankStatementStatus.APPROVED
+    seeded.statement.balance_validated = True
+    await db.commit()
+    sessions = _sessions(db)
+
+    async with sessions() as holder, sessions() as parse:
+        assert await try_lock_statement_classification(holder, seeded.id)
+        posted = await asyncio.wait_for(
+            try_auto_approve_high_confidence_statement(
+                parse, seeded.id, test_user.id, dependencies=compose_statement_posting_dependencies()
+            ),
+            timeout=WAIT_SECONDS,
+        )
+        await parse.commit()
+        await holder.rollback()
+
+    assert posted == 0
+    assert proposer.calls == []
+    async with sessions() as session:
+        statement = await session.get(StatementSummary, seeded.id)
+        assert statement.status is BankStatementStatus.PARSED
+        assert statement.stage1_status.value == "pending_review"
+        assert statement.validation_error is None
+
+
+async def test_AC_extraction_statement_classify_3_the_approve_reads_the_statement_again_after_it_waited(
+    client, db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.3: an edit that commits during the wait is part of the approval.
+
+    The route read the statement before it waited. Without a new read, the approve would validate the balance chain
+    with the closing balance of the moment before the wait.
+    """
+    from sqlalchemy import update
+
+    from src.extraction.extension.transaction_classification import try_lock_statement_classification
+
+    attempts: list[bool] = []
+    real_try_lock = transaction_classification.try_lock_statement_classification
+
+    async def counting_try_lock(session, statement_id):
+        acquired = await real_try_lock(session, statement_id)
+        attempts.append(acquired)
+        return acquired
+
+    monkeypatch.setattr(transaction_classification, "try_lock_statement_classification", counting_try_lock)
+    monkeypatch.setattr(transaction_classification, "_LOCK_POLL_SECONDS", 0.01)
+    _install(monkeypatch, CountingProposer())
+    seeded = await _seed(db, test_user.id, _rows(4))
+    sessions = _sessions(db)
+
+    async with sessions() as holder:
+        assert await try_lock_statement_classification(holder, seeded.id)
+        approve = asyncio.create_task(_approve(client, seeded.id))
+        deadline = asyncio.get_running_loop().time() + WAIT_SECONDS
+        while attempts.count(False) < 3:
+            assert asyncio.get_running_loop().time() < deadline, "the approve never asked for the lock"
+            await asyncio.sleep(0.01)
+        async with sessions() as editor:  # the closing balance no longer matches the rows
+            await editor.execute(
+                update(StatementSummary)
+                .where(StatementSummary.id == seeded.id)
+                .values(closing_balance=StatementSummary.closing_balance + Decimal("1.00"))
+            )
+            await editor.commit()
+        await holder.rollback()
+
+    response = await asyncio.wait_for(approve, timeout=WAIT_SECONDS)
+    assert response.status_code == 400, response.text
+    assert await _status_of(sessions, seeded.id) is BankStatementStatus.PARSED
+
+
+async def test_AC_extraction_statement_classify_3_a_correction_that_cannot_get_the_lock_answers_409(
+    client, db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.3: the busy answer is 409 on the correction route too, not a 404 or a 500."""
+    from src.extraction import StatementClassificationBusy
+    from src.routers import corrections
+
+    async def busy(*_args, **_kwargs):
+        raise StatementClassificationBusy("Classification of this statement is still running. Wait a moment and retry.")
+
+    monkeypatch.setattr(corrections, "record_correction", busy)
+
+    response = await client.post(
+        "/corrections",
+        json={"transaction_id": str(uuid4()), "corrected_category": "DINING"},
+    )
+
+    assert response.status_code == 409, response.text
+    assert "still running" in response.json()["detail"]
+
+
+async def test_AC_extraction_statement_classify_3_a_pass_without_a_usable_answer_writes_no_rule_row(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.3: the policy lock before the write takes no part in the state of the rule table.
+
+    Main writes the policy rule row at the first answer it stores. A pass with no usable answer stores none, so it
+    leaves the rule table as it was.
+    """
+    from src.extraction.extension import statement_preclassification
+
+    async def off_catalog(transactions, _policy):
+        return [
+            CategoryProposal(category="FOOD_AND_DRINK", confidence=95, reason="outside the catalog")
+            for _ in transactions
+        ]
+
+    monkeypatch.setattr(transaction_classification, "propose_categories", off_catalog)
+    seeded = await _seed(db, test_user.id, _rows(3))
+    sessions = _sessions(db)
+
+    result = await statement_preclassification.classify_parsed_statement(
+        sessions, statement_id=seeded.id, user_id=test_user.id
+    )
+
+    assert result is statement_preclassification.StatementClassificationPhase.PARTIAL
+    async with sessions() as session:
+        policy_rows = await session.scalar(
+            select(func.count())
+            .select_from(ClassificationRule)
+            .where(
+                ClassificationRule.user_id == test_user.id,
+                ClassificationRule.rule_name == transaction_classification.POLICY_RULE_NAME,
+            )
+        )
+    assert policy_rows == 0
 
 
 # ---------------------------------------------------------------------------------------------------------

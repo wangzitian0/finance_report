@@ -70,6 +70,7 @@ from src.extraction.extension.statement_validation import (
 from src.extraction.extension.transaction_classification import (
     classification_suggestions,
     classify_statement_by_effective_policy,
+    try_lock_statement_classification,
 )
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
@@ -757,6 +758,15 @@ async def try_auto_approve_high_confidence_statement(
     )
     statement = result.scalar_one_or_none()
     if statement is None or not is_high_confidence_auto_approve_candidate(statement):
+        return 0
+
+    # The parse session holds the statement row already. A wait for the classification lock here could meet an approve
+    # request that holds the lock and waits for the row, and a poll hides that cycle. So the auto-approve does not
+    # wait: it leaves the statement to the review (#2637).
+    if not await try_lock_statement_classification(db, statement_id):
+        statement.status = BankStatementStatus.PARSED
+        statement.stage1_status = Stage1Status.PENDING_REVIEW
+        await db.flush()
         return 0
 
     try:

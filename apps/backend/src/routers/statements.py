@@ -986,6 +986,8 @@ async def approve_statement_stage1(
         # Wait for a classification pass of this statement before any other lock. Every approve takes the locks in
         # one order: classification, then the statement row, then the policy rule (#2637).
         await lock_statement_classification(db, statement_id)
+        # The wait can last seconds. A reject, an envelope confirmation or a balance edit may have committed meanwhile.
+        await db.refresh(statement)
         if request and request.create_account_if_missing and not statement.account_id:
             await _create_statement_account_from_confirmation(db, statement, user_id)
         elif not statement.account_id:
