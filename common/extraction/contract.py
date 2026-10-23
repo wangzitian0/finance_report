@@ -403,6 +403,7 @@ CONTRACT = PackageContract(
         "AtomicPosition",
         "AtomicTransaction",
         "BankStatementStatus",
+        "BrokerageImportRejectedError",
         "BrokeragePositionImportService",
         "ClassificationRule",
         "ClassificationStatus",

@@ -22,6 +22,7 @@ from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
     BankStatementStatus,
+    BrokerageImportRejectedError,
     BrokeragePositionImportService,
     ParseJob,
     RetireStatementCommand,
@@ -758,7 +759,9 @@ async def import_brokerage_statement_positions(
             statement.account_id = import_result.account_id
         await db.commit()
     except Exception as exc:
-        logger.exception(
+        # #2649: a rejected source (HTTP 422 with a reason) is a warning, not a server fault.
+        log = logger.warning if isinstance(exc, BrokerageImportRejectedError) else logger.exception
+        log(
             "statement.brokerage_import.failed",
             audit_event="statement.brokerage_import.failed",
             request_id=request_id,

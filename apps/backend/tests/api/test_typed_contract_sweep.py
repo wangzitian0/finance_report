@@ -32,7 +32,8 @@ async def test_AC12_27_1_http_error_has_structured_error_id(client: AsyncClient)
     body = response.json()
     assert body["error_id"] == "not_found"
     assert isinstance(body["detail"], str) and body["detail"]
-    assert "request_id" in body
+    # #2649: a key with a null value passed here while a 500 sent ``request_id: null``.
+    assert body["request_id"] and body["request_id"] == response.headers["X-Request-ID"]
 
 
 async def test_AC12_27_2_openapi_declares_error_response_contract(

@@ -107,6 +107,7 @@ from src.extraction.extension.ai_settings import (
     reconciliation_enabled,
 )
 from src.extraction.extension.brokerage_positions import (
+    BrokerageImportRejectedError,
     BrokeragePositionImportService,
     looks_like_brokerage_document,
     looks_like_brokerage_payload,
@@ -256,6 +257,7 @@ __all__ = [
     "AtomicPosition",
     "AtomicTransaction",
     "BankStatementStatus",
+    "BrokerageImportRejectedError",
     "BrokeragePositionImportService",
     "ClassificationRule",
     "ClassificationStatus",
