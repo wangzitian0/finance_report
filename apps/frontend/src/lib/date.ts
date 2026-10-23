@@ -21,12 +21,13 @@ export const formatMonthLabel = (value: string): string => {
 };
 
 /**
- * A statement/document period as "start to end", or "Parsing..." while
- * either bound is still unknown. Was two near-duplicate local copies
+ * A statement/document period as "start to end". Was two near-duplicate local copies
  * (upload/page.tsx used "→", statements/[id]/page.tsx used "to") that had
  * already diverged (#1868 S5) — "to" is the single canonical separator.
+ * A missing bound gives `missing`. A caller passes "Parsing..." only while the
+ * statement parses: a parsed file without a period is not parsing (#2648).
  */
-export const formatPeriod = (start?: string | null, end?: string | null): string => {
-  if (!start || !end) return "Parsing...";
+export const formatPeriod = (start?: string | null, end?: string | null, missing = "No statement period"): string => {
+  if (!start || !end) return missing;
   return `${start} to ${end}`;
 };

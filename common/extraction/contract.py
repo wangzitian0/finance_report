@@ -474,6 +474,10 @@ CONTRACT = PackageContract(
         "TransactionClassification",
         "TransactionDirection",
         "UploadedDocument",
+        "BROKERAGE_IMPORT_FAILED_MESSAGE",
+        "BROKERAGE_IMPORT_FAILED_NOTICE",
+        "is_brokerage_import_failure",
+        "brokerage_import_failure_note",
         "_brokerage_import_not_ready_reason",
         "_brokerage_payload_from_persisted_extraction",
         "_brokerage_payload_from_statement",
@@ -1173,6 +1177,13 @@ CONTRACT = PackageContract(
         ac('AC-extraction.fe-stage1-review.25', 'The statement page shows the preview panel only for a PDF, PNG or JPG source. For a CSV source the table takes the full width and has no fixed height (#2647)', 'apps/frontend/src/__tests__/statementDetailReview.test.tsx::AC-extraction.fe-stage1-review.25 shows the preview panel for a PDF source and none for a CSV source', priority='P1'),
         ac('AC-extraction.fe-stage1-review.26', 'At 1280x800 and at 375x812 the first row of the statement table is its lowest-confidence row, and its description renders in full with no ellipsis, also beside a PDF preview. A CSV source shows no preview panel, and the mobile list has no inner scroll (#2647)', 'apps/frontend/playwright/statement-review-path.spec.ts::AC-extraction.fe-stage1-review.26 puts the low row first and in full on one page scroll (${label})', priority='P1'),
         ac('AC-extraction.fe-stage1-review.27', 'A statement row with no confidence tier has no confidence in the view model (`confidence_tier` null, `confidence` unset). The table and the low-confidence review modal label it Not rated with one muted badge. The table does not pin it and does not count it as low (#2647)', 'apps/frontend/src/__tests__/TransactionTable.test.tsx::AC-extraction.fe-stage1-review.27 shows a row with no confidence tier as not rated, not pinned and not counted', priority='P1'),
+        # ── group fe-upload-layout: the upload page at 375 px and a failed import (#2648) ──
+        ac('AC-extraction.fe-upload-layout.1', 'At a 375 px viewport `/upload` has no horizontal overflow (document scrollWidth <= 375), also with file names that are long tokens without spaces (#2648)', 'apps/frontend/playwright/upload-page-layout.spec.ts::AC-extraction.fe-upload-layout.1 has no horizontal overflow at 375 px', priority='P1'),
+        ac('AC-extraction.fe-upload-layout.2', 'At 375x812 the file list of `/upload` starts within 1.5 viewports. The workflow notices show as one summary line under the upload control, and their details are folded (#2648)', 'apps/frontend/playwright/upload-page-layout.spec.ts::AC-extraction.fe-upload-layout.2 starts the file list within 1.5 viewports at 375x812', priority='P1'),
+        ac('AC-extraction.fe-upload-layout.3', 'At 375 px and at 1280 px a file whose brokerage import failed shows "Import failed", the reason, "Retry import" and Delete, and never "Parsing", "Ready to review" or "Review & Approve" (#2648)', 'apps/frontend/playwright/upload-page-layout.spec.ts::AC-extraction.fe-upload-layout.3 shows a failed import as Import failed with Retry and Delete (${label})', priority='P1'),
+        ac('AC-extraction.fe-upload-layout.4', 'An upload row of a failed brokerage import shows "Import failed" and its reason, and Retry import calls the import again. A parsed file without a period or a balance check shows "No statement period" and "Not checked", never "Parsing" (#2648)', 'apps/frontend/src/__tests__/statementsPage.test.tsx::AC-extraction.fe-upload-layout.4 shows a failed brokerage import as Import failed with Retry, never as parsing or ready', priority='P1'),
+        # ── group 2648: a failed brokerage import stays on the statement (#2648) ──
+        ac('AC-extraction.2648.1', 'A brokerage import that fails keeps the statement `parsed` and records a note in `validation_error`: the reason of a rejected source (HTTP 422, #2649), or `BROKERAGE_IMPORT_FAILED_MESSAGE` when no reason exists. `GET /statements` lists the statement with `brokerage_import_failed=true`. A later successful import clears the note and the flag and keeps an unrelated note (#2648)', 'apps/backend/tests/api/test_brokerage_import_failure_state.py::test_AC_extraction_2648_1_failed_brokerage_import_is_recorded_and_a_retry_clears_it', priority='P1', proof_kind='invariant'),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
         # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
         ac('AC-extraction.fe-ia-extraction.1', 'When the statement-review Approve action is blocked (balance validation failed or unresolved duplicate/transfer-pair conflicts), the page shows a visible plain-language reason and an in-place action (open the conflict-resolution dialog, or re-parse the statement) without leaving the page', 'apps/frontend/src/__tests__/reviewActionBar.test.tsx::AC22.5.2 enables Approve and shows no blocker when nothing is wrong', priority='P1'),

@@ -2067,6 +2067,12 @@ export interface components {
             account_last4: string | null;
             /** Balance Validated */
             balance_validated: boolean | null;
+            /**
+             * Brokerage Import Failed
+             * @description True when the last brokerage positions import of this statement failed (#2648). validation_error holds the reason; a successful import clears both.
+             * @default false
+             */
+            brokerage_import_failed: boolean;
             /** Closing Balance */
             closing_balance: string | null;
             /** Confidence Score */
@@ -6298,6 +6304,12 @@ export interface components {
             account_last4: string | null;
             /** Balance Validated */
             balance_validated: boolean | null;
+            /**
+             * Brokerage Import Failed
+             * @description True when the last brokerage positions import of this statement failed (#2648). validation_error holds the reason; a successful import clears both.
+             * @default false
+             */
+            brokerage_import_failed: boolean;
             /** Closing Balance */
             closing_balance: string | null;
             /** Confidence Score */

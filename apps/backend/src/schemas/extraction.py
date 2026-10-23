@@ -10,7 +10,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.extraction import BankStatementStatus, TransactionCategory
+from src.extraction import BankStatementStatus, TransactionCategory, is_brokerage_import_failure
 from src.schemas.base import CurrencyCode, ListResponse
 
 if TYPE_CHECKING:
@@ -160,6 +160,11 @@ class BankStatementResponse(BaseModel):
     confidence_score: int | None
     balance_validated: bool | None
     validation_error: str | None
+    brokerage_import_failed: bool = Field(
+        default=False,
+        description="True when the last brokerage positions import of this statement failed (#2648). "
+        "validation_error holds the reason; a successful import clears both.",
+    )
     created_at: datetime
     updated_at: datetime
     transactions: list[AtomicTransactionResponse] = Field(
@@ -205,6 +210,7 @@ def compose_statement_response(
         confidence_score=summary.confidence_score,
         balance_validated=summary.balance_validated,
         validation_error=summary.validation_error,
+        brokerage_import_failed=is_brokerage_import_failure(summary.validation_error),
         created_at=summary.created_at,
         updated_at=summary.updated_at,
         transactions=[

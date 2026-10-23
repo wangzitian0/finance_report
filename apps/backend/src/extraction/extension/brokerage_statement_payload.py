@@ -139,6 +139,31 @@ def _brokerage_payload_from_persisted_extraction(
     return _enrich_brokerage_payload_from_statement(payload, statement)
 
 
+#: The start of ``validation_error`` after a failed brokerage import (#2648). The statement stays
+#: ``parsed``; a successful retry clears the note. ``is_brokerage_import_failure`` reads it.
+BROKERAGE_IMPORT_FAILED_NOTICE = "Brokerage import failed:"
+BROKERAGE_IMPORT_FAILED_MESSAGE = (
+    f"{BROKERAGE_IMPORT_FAILED_NOTICE} the positions could not be imported. "
+    "Retry, or delete the file and upload it again."
+)
+
+
+def brokerage_import_failure_note(reason: str | None) -> str:
+    """The ``validation_error`` note of a failed import (#2648).
+
+    A rejected source has a specific reason (HTTP 422, #2649): the note states it, so the upload
+    list shows the remedy. Without a reason (a server fault), the note is the generic message.
+    """
+    if reason and reason.strip():
+        return f"{BROKERAGE_IMPORT_FAILED_NOTICE} {reason.strip()}"[:500]
+    return BROKERAGE_IMPORT_FAILED_MESSAGE
+
+
+def is_brokerage_import_failure(validation_error: str | None) -> bool:
+    """Return True when ``validation_error`` records a failed brokerage import."""
+    return bool(validation_error) and str(validation_error).startswith(BROKERAGE_IMPORT_FAILED_NOTICE)
+
+
 def _brokerage_import_not_ready_reason(statement: StatementSummary, transaction_count: int) -> str:
     """Explain why a brokerage statement cannot be imported yet."""
     _ = transaction_count

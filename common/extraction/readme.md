@@ -671,6 +671,7 @@ Import entry points:
 - Automatic: successful statement background parsing stores brokerage OCR output in `BankStatement.extraction_metadata`, inspects the structured extraction payload, and imports positions when it contains brokerage `positions`, `holdings`, or `securities`, or when broker detection recognizes the filename/institution/content. The parser calls `BrokeragePositionImportService` with the current statement ID as `source_document_id`.
 - Statement-scoped manual: `POST /statements/{id}/brokerage/import` first reads the persisted `BankStatement.extraction_metadata` payload, then falls back to Layer 1 `UploadedDocument.extraction_metadata`, and finally reconstructs cash events from parsed statement transactions. This keeps structured holdings importable even when a brokerage PDF has no bank-style transaction rows.
 - Manual/API: `POST /portfolio/brokerage/import` remains available for parsed payload backfills and tests.
+- A failed statement-scoped import keeps the statement `parsed` and writes a note to `validation_error` (`brokerage_import_failure_note`): the reason of a rejected source (HTTP 422, #2649), or `BROKERAGE_IMPORT_FAILED_MESSAGE` when no reason exists. `GET /statements` then reports `brokerage_import_failed=true`, and `/upload` shows "Import failed" with Retry import and Delete. A successful import clears only that note (`AC-extraction.2648.1`, `AC-extraction.fe-upload-layout.3`, #2648).
 
 Import behavior:
 - Creates immutable `AtomicPosition` rows with dedup hash `SHA256(user_id|snapshot_date|asset_identifier|broker)`.

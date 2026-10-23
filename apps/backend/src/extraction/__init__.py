@@ -117,9 +117,13 @@ from src.extraction.extension.brokerage_positions import (
     register_position_reconciler,
 )
 from src.extraction.extension.brokerage_statement_payload import (
+    BROKERAGE_IMPORT_FAILED_MESSAGE,
+    BROKERAGE_IMPORT_FAILED_NOTICE,
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
     _brokerage_payload_from_statement,
+    brokerage_import_failure_note,
+    is_brokerage_import_failure,
     reject_json_floats,
 )
 from src.extraction.extension.correction_loop import CorrectionLoopService
@@ -329,6 +333,10 @@ __all__ = [
     "TransactionClassification",
     "TransactionDirection",
     "UploadedDocument",
+    "BROKERAGE_IMPORT_FAILED_MESSAGE",
+    "BROKERAGE_IMPORT_FAILED_NOTICE",
+    "is_brokerage_import_failure",
+    "brokerage_import_failure_note",
     "_brokerage_import_not_ready_reason",
     "reject_json_floats",
     "_brokerage_payload_from_persisted_extraction",

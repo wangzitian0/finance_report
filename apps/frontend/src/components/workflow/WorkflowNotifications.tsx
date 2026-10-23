@@ -69,10 +69,10 @@ export function WorkflowEventCard({ event, className = workflowEventCardClass(ev
         {showIcon && <Icon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted" aria-hidden="true" />}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-1.5">
-            <div className="flex flex-wrap items-center gap-1.5"><h4 className="text-xs font-medium">{displayTitle}</h4><Badge variant={severityBadgeVariant(event.severity)}>{labelFromSnake(event.severity)}</Badge></div>
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5"><h4 className="min-w-0 text-xs font-medium [overflow-wrap:anywhere]">{displayTitle}</h4><Badge variant={severityBadgeVariant(event.severity)}>{labelFromSnake(event.severity)}</Badge></div>
             <time className="text-[11px] text-muted" dateTime={event.occurred_at}>{formatEventTime(event.occurred_at)}</time>
           </div>
-          <p className="mt-0.5 text-xs text-muted">{displaySummary}</p>
+          <p className="mt-0.5 text-xs text-muted [overflow-wrap:anywhere]">{displaySummary}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <Link href={event.action_href} className="btn-secondary inline-flex items-center gap-1 px-2 py-1 text-[11px]" aria-label={`Open ${displayTitle}`}><ExternalLink className="h-3 w-3" aria-hidden="true" />{openLabel ?? `Open ${displayTitle}`}</Link>
             {event.status === "unread" && onStatusChange && <button type="button" className="btn-ghost px-2 py-1 text-[11px]" onClick={() => onStatusChange(event.id, "read")}>Mark as read</button>}
@@ -94,7 +94,7 @@ export function WorkflowInbox({ events, sessions = [], onStatusChange }: {
         <details key={session.id} className="rounded-md border border-border bg-surface-card p-3" open={session.status === "active"}>
           <summary className="cursor-pointer list-none">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0"><h3 className="text-sm font-semibold">{session.title}</h3><p className="mt-1 text-xs text-muted">{session.summary}</p></div>
+              <div className="min-w-0"><h3 className="text-sm font-semibold [overflow-wrap:anywhere]">{session.title}</h3><p className="mt-1 text-xs text-muted [overflow-wrap:anywhere]">{session.summary}</p></div>
               <Badge variant={session.event_counts.blocked > 0 ? "error" : session.event_counts.action_required > 0 ? "warning" : "muted"}>{countLabel(sessionEvents.length, "event")}</Badge>
             </div>
             <p className="mt-2 text-xs text-muted">Latest: {session.last_event_at ? formatEventTime(session.last_event_at) : "No events yet"}</p>
@@ -143,45 +143,72 @@ export function WorkflowStatusFeed({ status, events }: WorkflowStatusFeedProps) 
         </div>
         <Link href={status.next_action.href} className="btn-secondary inline-flex justify-center text-sm">{nextActionLabel(status)}</Link>
       </div>
-      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]">
-        <div className="space-y-3">
+      {/* #2648: a long file name in a card wraps; it must not widen the page at 375 px. */}
+      <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]">
+        <div className="min-w-0 space-y-3">
           {actionable.slice(0, 3).map((e) => (
             <article key={e.id} className={cx("rounded-md border p-3 text-sm", e.severity === "blocked" ? "border-status-error bg-status-error-muted" : "border-status-warning bg-status-warning-muted")}>
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="font-medium">{e.title}</h3><p className="mt-1 text-sm text-muted">{e.summary}</p></div><Link href={e.action_href} className="btn-secondary shrink-0 px-3 py-1.5 text-xs" aria-label={`Open ${e.title}`}>Open</Link></div>
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="font-medium [overflow-wrap:anywhere]">{e.title}</h3><p className="mt-1 text-sm text-muted [overflow-wrap:anywhere]">{e.summary}</p></div><Link href={e.action_href} className="btn-secondary shrink-0 px-3 py-1.5 text-xs" aria-label={`Open ${e.title}`}>Open</Link></div>
             </article>
           ))}
           {actionable.length === 0 && <div className="rounded-md border border-border bg-surface-muted p-3 text-sm text-muted">No action required</div>}
         </div>
-        <div className="rounded-md border border-border bg-surface-muted p-3">
+        <div className="min-w-0 rounded-md border border-border bg-surface-muted p-3">
           <div className="flex items-center gap-2"><Inbox className="h-4 w-4 text-muted" aria-hidden="true" /><h3 className="text-sm font-semibold">Routine automation</h3></div>
           <p className="mt-2 text-sm text-muted">{countLabel(routine.length, "routine event")}</p>
-          {routine.length > 0 && <p className="mt-1 text-xs text-muted">Latest: {routine[0]?.title}</p>}
+          {routine.length > 0 && <p className="mt-1 text-xs text-muted [overflow-wrap:anywhere]">Latest: {routine[0]?.title}</p>}
         </div>
       </div>
     </section>
   );
 }
 
-/** Workflow notices for the /upload page: the status summary and the full event timeline. */
+/** The one-line summary of the workflow: its state and the counts that need the user (#2648). */
+export function workflowSummaryLine(status: WorkflowStatusResponse, eventTotal: number): string {
+  return [
+    labelFromSnake(status.primary_state),
+    status.event_counts.blocked > 0 ? countLabel(status.event_counts.blocked, "blocker") : null,
+    status.event_counts.action_required > 0 ? countLabel(status.event_counts.action_required, "action") : null,
+    countLabel(eventTotal, "event"),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/**
+ * Workflow notices for the /upload page (#2648): one summary line under the upload control.
+ * The status feed and the full event timeline fold under it, so the file list stays near the top.
+ */
 export function WorkflowNotices() {
   const statusQuery = useWorkflowStatusQuery();
   const eventsQuery = useWorkflowEventsQuery(100, "page");
   const lifecycleMutation = useWorkflowLifecycleMutation();
   const events = eventsQuery.data?.items ?? [];
   const status = isWorkflowStatusResponse(statusQuery.data) ? statusQuery.data : null;
-  if (statusQuery.isLoading || eventsQuery.isLoading) return <section className="card mb-6 p-5" aria-label="Workflow status"><div className="flex items-center gap-2 text-sm text-muted" role="status"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Loading workflow status...</div></section>;
+  if (statusQuery.isLoading || eventsQuery.isLoading) return <div className="mb-6 flex items-center gap-2 text-xs text-muted" role="status" aria-label="Workflow status"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />Loading workflow status...</div>;
   if (!status || !eventsQuery.data) return <Alert variant="warning" className="mb-6">Workflow status is unavailable.</Alert>;
   if (status.primary_state === "empty" && events.length === 0) return null;
+  const needsUser = status.event_counts.blocked > 0 || status.event_counts.action_required > 0;
   return (
-    <div className="mb-6 space-y-3">
-      <WorkflowStatusFeed status={status} events={events} />
-      {events.length > 0 && (
-        <details className="card p-5" aria-label="Workflow event inbox">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3"><h2 className="text-lg font-semibold">Workflow events</h2><Badge variant="muted">{eventsQuery.data.total} total</Badge></summary>
-          <div className="mt-4"><WorkflowInbox events={events} sessions={eventsQuery.data.sessions ?? []} onStatusChange={(eventId, nextStatus) => lifecycleMutation.mutate({ eventId, status: nextStatus })} /></div>
-        </details>
-      )}
-    </div>
+    <details data-testid="upload-workflow-summary" className="card group mb-6">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm">
+        <span className="min-w-0 [overflow-wrap:anywhere]">
+          <span className={cx("font-medium", needsUser && "text-[var(--warning)]")}>Workflow</span>
+          {`: ${workflowSummaryLine(status, eventsQuery.data.total)}`}
+        </span>
+        <span className="shrink-0 text-xs text-[var(--accent)] group-open:hidden">Show details</span>
+        <span className="hidden shrink-0 text-xs text-[var(--accent)] group-open:inline">Hide details</span>
+      </summary>
+      <div className="space-y-3 border-t border-[var(--border)] p-3">
+        <WorkflowStatusFeed status={status} events={events} />
+        {events.length > 0 && (
+          <details className="card p-5" aria-label="Workflow event inbox">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3"><h2 className="text-lg font-semibold">Workflow events</h2><Badge variant="muted">{eventsQuery.data.total} total</Badge></summary>
+            <div className="mt-4"><WorkflowInbox events={events} sessions={eventsQuery.data.sessions ?? []} onStatusChange={(eventId, nextStatus) => lifecycleMutation.mutate({ eventId, status: nextStatus })} /></div>
+          </details>
+        )}
+      </div>
+    </details>
   );
 }
 
@@ -214,7 +241,7 @@ export function WorkflowNotificationCenter() {
           {eventsQuery.isLoading && <div className="flex items-center gap-2 text-sm text-muted" role="status"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Loading workflow events...</div>}
           {eventsQuery.isError && <Alert variant="error">Unable to load workflow events.</Alert>}
           {!eventsQuery.isLoading && !eventsQuery.isError && <WorkflowInbox events={eventsQuery.data?.items ?? []} sessions={eventsQuery.data?.sessions ?? []} onStatusChange={(eventId, nextStatus) => lifecycleMutation.mutate({ eventId, status: nextStatus })} />}
-          <Link href="/audit" onClick={() => setIsOpen(false)} className="flex items-center justify-center gap-1 rounded-md border border-border px-3 py-2 text-sm text-content transition-colors hover:bg-surface-muted">Open everything that needs confirmation<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
+          <Link href="/audit?tab=needs-you" onClick={() => setIsOpen(false)} className="flex items-center justify-center gap-1 rounded-md border border-border px-3 py-2 text-sm text-content transition-colors hover:bg-surface-muted">Open everything that needs confirmation<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
         </div>
       </Sheet>
     </div>
