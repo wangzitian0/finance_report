@@ -53,7 +53,9 @@ from tests.factories import StatementSummaryFactory, seed_parsed_statement
 
 pytestmark = pytest.mark.asyncio
 
-GOLDEN_PATH = Path(__file__).resolve().parents[1] / "fixtures" / "statement_classify_state_golden.json"
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+GOLDEN_PATH = FIXTURES / "statement_classify_state_golden.json"
+REVIEW_PATH_GOLDEN_PATH = FIXTURES / "statement_classify_review_path_golden.json"
 
 #: One answer for each kind of fixture row: category and confidence. The fake never refuses a row.
 ANSWERS: dict[str, tuple[TransactionCategory, int]] = {
@@ -62,8 +64,15 @@ ANSWERS: dict[str, tuple[TransactionCategory, int]] = {
     "Grab": (TransactionCategory.TRANSPORT, 90),
     "Rent": (TransactionCategory.HOUSING, 94),
     "Refund": (TransactionCategory.REFUND, 91),
+    # The kinds below leave the plain path of the gate. They are used by the equivalence tests only.
+    "Transfer": (TransactionCategory.TRANSFER, 90),  # a non-P&L class: a draft and a Processing leg
+    "Loan": (TransactionCategory.LOAN_PRINCIPAL, 90),  # a balance-sheet account
+    "Mystery": (TransactionCategory.DINING, 40),  # below the review score: the general account, or no row
+    "Odd": (TransactionCategory.SALARY, 95),  # an income class on an outgoing row: the general account
+    "Fee": (TransactionCategory.FEES, 70),  # the review band: accepted, or a draft with auto-accept off
 }
-KINDS = list(ANSWERS)
+KINDS = ["Salary", "Coffee", "Grab", "Rent", "Refund"]
+GATE_KINDS = list(ANSWERS)
 #: Seconds. A wait on a gate that nobody opens would hang the run, so every wait has this bound.
 WAIT_SECONDS = 20
 
@@ -127,11 +136,11 @@ def _install(monkeypatch, proposer: CountingProposer) -> CountingProposer:
     return proposer
 
 
-def _rows(count: int, *, first_day: date = date(2026, 1, 1)) -> list[dict]:
+def _rows(count: int, *, first_day: date = date(2026, 1, 1), kinds: list[str] = KINDS) -> list[dict]:
     """Rows in and out. Every description is unique, so a label names one row."""
     rows = []
     for index in range(count):
-        kind = KINDS[index % len(KINDS)]
+        kind = kinds[index % len(kinds)]
         incoming = kind in ("Salary", "Refund")
         rows.append(
             {
@@ -1043,16 +1052,8 @@ async def test_AC_extraction_statement_classify_4_a_statement_without_rows_or_wi
 # ---------------------------------------------------------------------------------------------------------
 
 
-async def build_classified_state(client, db: AsyncSession, user_id: UUID) -> dict:
-    """Ingest, review and approve two CSV statements with the fake model, then read every table and the reports."""
-    january = _rows(8, first_day=date(2026, 1, 1))
-    february = _rows(5, first_day=date(2026, 2, 10))
-    for name, rows in (("classify_equivalence_jan.csv", january), ("classify_equivalence_feb.csv", february)):
-        statement_id = await _ingest_csv(db, user_id, name, rows)
-        await _confirm_csv_envelope(client, db, user_id, statement_id, rows)
-        response = await _approve(client, statement_id)
-        assert response.status_code == 200, response.text
-        assert response.json()["journal_entries_created"] == len(rows)
+async def _read_state(client, db: AsyncSession) -> dict:
+    """Every table that holds rows, with identifiers labelled by meaning, and the two reports."""
     balance = await client.get("/reports/balance-sheet", params={"as_of_date": "2026-03-31", "currency": "SGD"})
     assert balance.status_code == 200, balance.text
     income = await client.get(
@@ -1070,6 +1071,38 @@ async def build_classified_state(client, db: AsyncSession, user_id: UUID) -> dic
     }
 
 
+async def build_classified_state(client, db: AsyncSession, user_id: UUID) -> dict:
+    """Ingest, review and approve two CSV statements with the fake model, then read every table and the reports.
+
+    The first statement has one row of each kind, so the state covers the gate: applied rows, a non-P&L draft with
+    its Processing leg, a balance-sheet account, the review band, a score below it and a class that contradicts the
+    direction of its row.
+    """
+    january = _rows(len(GATE_KINDS), first_day=date(2026, 1, 1), kinds=GATE_KINDS)
+    february = _rows(5, first_day=date(2026, 2, 10))
+    for name, rows in (("classify_equivalence_jan.csv", january), ("classify_equivalence_feb.csv", february)):
+        statement_id = await _ingest_csv(db, user_id, name, rows)
+        await _confirm_csv_envelope(client, db, user_id, statement_id, rows)
+        response = await _approve(client, statement_id)
+        assert response.status_code == 200, response.text
+        assert response.json()["journal_entries_created"] == len(rows)
+    return await _read_state(client, db)
+
+
+async def build_review_path_state(client, db: AsyncSession, user_id: UUID) -> dict:
+    """Ingest, review and approve one CSV statement for a user with auto-accept off.
+
+    Rows with a score from 60 to 84 stay drafts, and a row below 60 gets no row. The approve then answers 409, and
+    the state holds what the attempt wrote.
+    """
+    rows = _rows(6, kinds=["Salary", "Coffee", "Fee", "Mystery", "Transfer", "Grab"])
+    statement_id = await _ingest_csv(db, user_id, "classify_review_path.csv", rows)
+    await _confirm_csv_envelope(client, db, user_id, statement_id, rows)
+    response = await _approve(client, statement_id)
+    assert response.status_code == 409, response.text
+    return await _read_state(client, db)
+
+
 async def test_AC_extraction_statement_classify_5_state_after_parse_classify_approve_equals_main(
     client, db, test_user, monkeypatch
 ):
@@ -1084,14 +1117,33 @@ async def test_AC_extraction_statement_classify_5_state_after_parse_classify_app
     state = await build_classified_state(client, db, test_user.id)
 
     # The fixture covers what the golden must hold. An empty golden would pass a broken change.
-    assert len(state["tables"]["transaction_classification"]) == 13
-    assert len(state["tables"]["journal_entries"]) >= 13
+    assert len(state["tables"]["transaction_classification"]) == len(GATE_KINDS) + 5
+    assert len(state["tables"]["journal_entries"]) >= len(GATE_KINDS) + 5
     assert state["reports"]["income_statement"]
-    assert proposer.rows_asked == 13
+    assert proposer.rows_asked == len(GATE_KINDS) + 5
     assert state == json.loads(GOLDEN_PATH.read_text())
 
 
-async def test_AC_extraction_statement_classify_5_the_golden_has_one_row_to_a_line():
+async def test_AC_extraction_statement_classify_5_review_path_state_equals_main(client, db, test_user, monkeypatch):
+    """AC-extraction.statement-classify.5: with auto-accept off the drafts, the tail and the 409 equal the state of main.
+
+    On main the approve asks for the six rows and writes the drafts. Here the pass writes them, and the approve asks
+    again only for the row that got no row.
+    """
+    monkeypatch.setattr(settings, "auto_accept_ai_suggestions", False)
+    proposer = _install(monkeypatch, CountingProposer())
+
+    state = await build_review_path_state(client, db, test_user.id)
+
+    stored = state["tables"]["transaction_classification"]
+    assert {row["status"] for row in stored} == {"applied", "draft"}, "the fixture holds applied rows and drafts"
+    assert len(stored) == 5, "the row below the review score has no row"
+    assert proposer.rows_asked == 6 + 1, "the pass asks for six rows, the approve for the one without a row"
+    assert state == json.loads(REVIEW_PATH_GOLDEN_PATH.read_text())
+
+
+async def test_AC_extraction_statement_classify_5_the_goldens_have_one_row_to_a_line():
     """AC-extraction.statement-classify.5: one row to a line, so that a review reads a change as a line diff."""
-    text_of_golden = GOLDEN_PATH.read_text()
-    assert text_of_golden == format_golden(json.loads(text_of_golden))
+    for path in (GOLDEN_PATH, REVIEW_PATH_GOLDEN_PATH):
+        text_of_golden = path.read_text()
+        assert text_of_golden == format_golden(json.loads(text_of_golden)), path.name
