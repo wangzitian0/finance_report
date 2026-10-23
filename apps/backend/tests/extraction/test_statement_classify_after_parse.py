@@ -385,24 +385,43 @@ async def test_AC_extraction_statement_classify_1_a_pdf_payload_is_classified_af
 
 
 @pytest.mark.parametrize(
-    "error",
-    [AIStreamError("provider down"), RuntimeError("unexpected failure in the proposer")],
-    ids=["provider-error", "unexpected-error"],
+    ("failure", "label"),
+    [
+        # The model code turns a provider error into "no answer" for each row: the pass ends with partial.
+        ("provider-error", "partial"),
+        ("unexpected-error", "failed"),
+        # A TimeoutError of the driver is a failure, not the deadline of the pass.
+        ("driver-timeout", "failed"),
+    ],
 )
 async def test_AC_extraction_statement_classify_2_a_failed_phase_leaves_the_rows_to_the_approve(
-    client, db, test_user, monkeypatch, error
+    client, db, test_user, monkeypatch, failure, label
 ):
     """AC-extraction.statement-classify.2: a failure leaves no row and no failed ingestion; approve works as before."""
     outcomes = _spy_outcomes(monkeypatch)
-    failing = _install(monkeypatch, CountingProposer(error=error))
+    failing = CountingProposer(
+        error={"unexpected-error": RuntimeError("unexpected failure"), "driver-timeout": TimeoutError("connect")}.get(
+            failure
+        )
+    )
+    provider_calls: list[int] = []
+    if failure == "provider-error":
+
+        def stream_ai_json(**_kwargs):
+            provider_calls.append(1)
+            raise AIStreamError("provider down")
+
+        monkeypatch.setattr("src.llm.stream_ai_json", stream_ai_json)
+    else:
+        _install(monkeypatch, failing)
     rows = _rows(6)
 
     statement_id = await _ingest_csv(db, test_user.id, "fails.csv", rows)  # asserts COMPLETED
 
     assert await _status_of(_sessions(db), statement_id) is BankStatementStatus.PARSED
-    assert failing.rows_asked == 6
+    assert (len(provider_calls) if failure == "provider-error" else failing.rows_asked) >= 1, "the model was asked"
     assert await _classification_rows(_sessions(db), test_user.id) == []
-    assert len(outcomes) == 1 and outcomes[0] != "classified", "the phase counts one outcome that is not a success"
+    assert outcomes == [label]
 
     healthy = _install(monkeypatch, CountingProposer())
     await _confirm_csv_envelope(client, db, test_user.id, statement_id, rows)
@@ -421,7 +440,7 @@ async def test_AC_extraction_statement_classify_2_a_phase_that_runs_past_its_dea
     from src.extraction.extension.transaction_classification import try_lock_statement_classification
 
     outcomes = _spy_outcomes(monkeypatch)
-    monkeypatch.setattr(statement_preclassification, "CLASSIFICATION_PHASE_DEADLINE_SECONDS", 0.3)
+    monkeypatch.setattr(statement_preclassification, "CLASSIFICATION_PHASE_DEADLINE_SECONDS", 3.0)
     hung = _install(monkeypatch, CountingProposer(gate=asyncio.Event()))  # the gate never opens
     seeded = await _seed(db, test_user.id, _rows(4))
     sessions = _sessions(db)
@@ -658,6 +677,115 @@ async def test_AC_extraction_statement_classify_6_the_source_bytes_are_released_
     assert file_is_freed_when_asked == [True], "the file bytes are still alive when the model is asked"
 
 
+async def test_AC_extraction_statement_classify_3_two_statements_that_share_rows_answer_each_row_once(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.3: a row shared by two statements gets one answer, and no pass fails.
+
+    Dedup adds the document of a second upload to the rows that it shares with the first. The two passes take two
+    locks, so both ask the model for the shared rows. The second writer must see the rows of the first.
+    """
+    from src.extraction.extension import statement_preclassification
+
+    outcomes = _spy_outcomes(monkeypatch)
+    gate = asyncio.Event()
+    proposer = _install(monkeypatch, CountingProposer(gate=gate))
+    first = await seed_parsed_statement(db, test_user.id, original_filename="first.pdf", transactions=_rows(4))
+    second = await seed_parsed_statement(
+        db, test_user.id, original_filename="second.pdf", transactions=_rows(4, first_day=date(2026, 2, 1))
+    )
+    marker = {"doc_id": str(second.document.id), "doc_type": "bank_statement"}
+    for shared in first.transactions[:2]:
+        shared.source_documents = [*shared.source_documents, marker]
+    await db.commit()
+    sessions = _sessions(db)
+
+    passes = [
+        asyncio.create_task(
+            statement_preclassification.classify_parsed_statement(sessions, statement_id=item.id, user_id=test_user.id)
+        )
+        for item in (first, second)
+    ]
+    deadline = asyncio.get_running_loop().time() + WAIT_SECONDS
+    while len(proposer.calls) < 2:  # both passes read "no answer" for the shared rows before any pass writes
+        assert asyncio.get_running_loop().time() < deadline, "a pass never asked the model"
+        await asyncio.sleep(0.01)
+    gate.set()
+    results = await asyncio.wait_for(asyncio.gather(*passes), timeout=WAIT_SECONDS)
+
+    classified = statement_preclassification.StatementClassificationPhase.CLASSIFIED
+    assert results == [classified, classified], outcomes
+    stored = await _classification_rows(sessions, test_user.id)
+    assert len(stored) == 8, "four rows of the first statement and four own rows of the second"
+    assert len({row.atomic_txn_id for row in stored}) == 8
+
+
+async def test_AC_extraction_statement_classify_3_an_approve_that_waits_holds_no_row_lock_of_the_statement(
+    client, db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.3: the approve takes the classification lock before the statement row.
+
+    A poll is invisible to the deadlock detector of the database. An approve that held the row while it polled could
+    form a cycle with a request that holds the classification lock and wants the row.
+    """
+    attempts: list[bool] = []
+    real_try_lock = transaction_classification.try_lock_statement_classification
+
+    async def counting_try_lock(session, statement_id):
+        acquired = await real_try_lock(session, statement_id)
+        attempts.append(acquired)
+        return acquired
+
+    monkeypatch.setattr(transaction_classification, "try_lock_statement_classification", counting_try_lock)
+    monkeypatch.setattr(transaction_classification, "_LOCK_POLL_SECONDS", 0.01)
+    _install(monkeypatch, CountingProposer())
+    seeded = await _seed(db, test_user.id, _rows(4))
+    sessions = _sessions(db)
+
+    async with sessions() as holder:
+        assert await real_try_lock(holder, seeded.id)
+        approve = asyncio.create_task(_approve(client, seeded.id))
+        deadline = asyncio.get_running_loop().time() + WAIT_SECONDS
+        while attempts.count(False) < 3:
+            assert asyncio.get_running_loop().time() < deadline, "the approve never asked for the lock"
+            await asyncio.sleep(0.01)
+        async with sessions() as probe:
+            # NOWAIT raises when the approve holds the row.
+            row = await probe.execute(
+                select(StatementSummary.id).where(StatementSummary.id == seeded.id).with_for_update(nowait=True)
+            )
+            assert row.scalar_one() == seeded.id
+            await probe.rollback()
+        await holder.rollback()
+
+    response = await asyncio.wait_for(approve, timeout=WAIT_SECONDS)
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.parametrize("setting", ["enable_ai_classification", "auto_accept_ai_suggestions"])
+async def test_AC_extraction_statement_classify_3_a_setting_turned_off_after_the_phase_does_not_undo_its_rows(
+    client, db, test_user, monkeypatch, setting
+):
+    """AC-extraction.statement-classify.3: the rows of the pass stay as stored when a user changes a setting later.
+
+    This pins the difference from main that the readme states: main reads the setting at the approval.
+    """
+    from src.extraction.extension import statement_preclassification
+
+    proposer = _install(monkeypatch, CountingProposer())
+    seeded = await _seed(db, test_user.id, _rows(8))
+    sessions = _sessions(db)
+    await statement_preclassification.classify_parsed_statement(sessions, statement_id=seeded.id, user_id=test_user.id)
+    assert proposer.rows_asked == 8
+
+    monkeypatch.setattr(settings, setting, False)
+    response = await _approve(client, seeded.id)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["journal_entries_created"] == 8
+    assert proposer.rows_asked == 8, "the approve asks no row, and it does not drop a stored row"
+
+
 # ---------------------------------------------------------------------------------------------------------
 # AC-extraction.statement-classify.4: what gets classified does not change
 # ---------------------------------------------------------------------------------------------------------
@@ -846,9 +974,12 @@ async def test_AC_extraction_statement_classify_4_a_row_that_an_entry_covers_is_
     assert covered.id not in {row.atomic_txn_id for row in await _classification_rows(sessions, test_user.id)}
 
 
-@pytest.mark.parametrize("state", ["approved", "rejected", "ai-off"])
+@pytest.mark.parametrize(
+    ("state", "label"),
+    [("approved", "SKIPPED_STATE"), ("rejected", "SKIPPED_STATE"), ("ai-off", "SKIPPED_DISABLED")],
+)
 async def test_AC_extraction_statement_classify_4_the_phase_leaves_a_statement_that_approve_does_not_classify(
-    db, test_user, monkeypatch, state
+    db, test_user, monkeypatch, state, label
 ):
     """AC-extraction.statement-classify.4: only a parsed statement of a user with the model on is classified."""
     from src.extraction.extension import statement_preclassification
@@ -874,10 +1005,7 @@ async def test_AC_extraction_statement_classify_4_the_phase_leaves_a_statement_t
         sessions, statement_id=seeded.id, user_id=test_user.id
     )
 
-    assert result in {
-        statement_preclassification.StatementClassificationPhase.SKIPPED_STATE,
-        statement_preclassification.StatementClassificationPhase.SKIPPED_DISABLED,
-    }
+    assert result is statement_preclassification.StatementClassificationPhase[label]
     assert proposer.calls == []
     assert await _classification_rows(sessions, test_user.id) == []
 

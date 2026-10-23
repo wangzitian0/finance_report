@@ -222,6 +222,7 @@ from src.extraction.extension.transaction_classification import (
     classify_by_effective_policy,
     classify_statement_by_effective_policy,
     general_account_name,
+    lock_statement_classification,
     settle_drafts_after_posting,
 )
 from src.extraction.extension.transaction_membership import effective_statement_transaction_filter
@@ -344,6 +345,7 @@ __all__ = [
     "classification_suggestions",
     "classify_by_effective_policy",
     "classify_statement_by_effective_policy",
+    "lock_statement_classification",
     "effective_auto_accept",
     "effective_classification",
     "effective_reconciliation",

@@ -33,7 +33,8 @@ ALLOWED_SERVICE_COMMIT_BOUNDARIES = {
     ("statement_workflow.py", "approve_statement_workflow"),
     ("statement_workflow.py", "reject_statement_workflow"),
     # #2637: the pass after parse owns its session (a background task of the ingestion). Its single commit
-    # writes the classification rows of one statement and releases the lock of that statement.
+    # writes the classification rows of one statement, the policy rule row that anchors them and the rows that
+    # the pass supersedes or promotes. The commit releases the lock of that statement.
     ("statement_preclassification.py", "_classify"),
 }
 

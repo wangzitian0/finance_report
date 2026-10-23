@@ -550,6 +550,7 @@ def test_AC18_17_1_no_classify_writer_is_defined_but_uninvoked():
     seam_import_paths = (seam_module, "src.extraction")
     entry_seams = (
         "classify_by_effective_policy",
+        "classify_statement_by_effective_policy",
         "backfill_classifications",
         "apply_user_transaction_correction",
     )
