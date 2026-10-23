@@ -33,7 +33,8 @@ def passes(answer: str) -> bool:
 def failed_token(answer: str) -> str:
     with pytest.raises(AssertionError, match=r"token '([^']+)'") as error:
         assert_ai_advisor_semantic_grounding(answer, FIGURES)
-    return error.value.args[0].split("token '")[1].split("'")[0]
+    # A token can hold an apostrophe: "doesn't balance". Cut at the end of the quoted token.
+    return error.value.args[0].split("token '")[1].split("' in response:")[0]
 
 
 def net(text: str) -> str:

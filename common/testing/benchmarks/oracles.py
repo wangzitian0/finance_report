@@ -98,6 +98,72 @@ NEGATED_DISCREPANCY_PATTERNS: list[str] = [
     r"\s*(?:任何)?\s*(?:不一致|不平|差额|对不上)",
 ]
 
+# A markdown heading can stand apart from its verdict. The advisor writes the heading, then one
+# sentence of prose, then the verdict (#2633). The heading is neutral when all four rules hold:
+#   1. The heading is a label. Its words are topic words and label words only. It has no digit.
+#   2. The section of the heading holds a negated verdict. A section ends at the next heading.
+#   3. The sentence of that verdict has no hedge word, such as "but", "except" or "if".
+#   4. No forbidden token remains in the answer. The final scan checks this rule.
+_NEGATED_MARKER = "[negated_consistency_assertion]"
+_ATX_HEADING = re.compile(r"^ {0,3}#{1,6}(?:[ \t]|$)")
+_HEADING_MARKS = re.compile(r"^ {0,3}#{1,6}")
+_TOPIC_WORD = re.compile(r"discrepanc(?:y|ies)|imbalances?|mismatch(?:es)?|差额|不一致")
+_LABEL_WORDS = frozenset(
+    {
+        "a", "an", "and", "any", "are", "is", "my", "of", "the", "there", "your",
+        "account", "accounting", "accounts", "analysis", "assessment", "audit",
+        "balance", "books", "check", "checks", "consistency", "data", "final",
+        "integrity", "ledger", "net", "overall", "quick", "reconciliation",
+        "records", "report", "result", "results", "review", "status", "summary",
+        "verification", "worth",
+    }
+)  # fmt: skip
+_LABEL_TERMS_ZH = (
+    "账目", "账务", "余额", "检查", "核对", "校验", "复核", "审核", "对账",
+    "结果", "结论", "情况", "状态", "一致性", "净资产", "和", "与", "及",
+)  # fmt: skip
+_HEDGE_WORD = re.compile(
+    r"(?<![a-z])(?:but|however|except|although|though|unless|whereas|yet|only|if|"
+    r"assuming|apart\s+from|other\s+than|aside\s+from)(?![a-z])"
+    r"|但|不过|然而|除了|除非|只是|仅|如果|假如|假设"
+)
+_SENTENCE_END = re.compile(r"(?<=[.!?;])\s+|[\n。！？；]")
+
+
+def _is_label_heading(line: str, tokens: list[str]) -> bool:
+    """Return True when the heading has a topic word and no other word except label words."""
+    text = _HEADING_MARKS.sub("", line).replace(_NEGATED_MARKER, " ")
+    if not _TOPIC_WORD.search(text):
+        return False
+    text = _TOPIC_WORD.sub(" ", text)
+    if any(token.lower() in text for token in tokens):
+        return False
+    text = re.sub(
+        r"[a-z]+", lambda m: " " if m.group(0) in _LABEL_WORDS else m.group(0), text
+    )
+    for term in _LABEL_TERMS_ZH:
+        text = text.replace(term, " ")
+    return re.search(r"[^\W_]", text) is None
+
+
+def _has_unhedged_verdict(section_body: str) -> bool:
+    """Return True when the section has a negated verdict and no verdict sentence has a hedge word."""
+    verdicts = [s for s in _SENTENCE_END.split(section_body) if _NEGATED_MARKER in s]
+    return bool(verdicts) and not any(_HEDGE_WORD.search(s) for s in verdicts)
+
+
+def _neutralize_review_headings(text: str, tokens: list[str]) -> str:
+    """Replace the topic word of a label heading when its own section holds an unhedged verdict."""
+    lines = text.split("\n")
+    heading_rows = [row for row, line in enumerate(lines) if _ATX_HEADING.match(line)]
+    for index, row in enumerate(heading_rows):
+        end = heading_rows[index + 1] if index + 1 < len(heading_rows) else len(lines)
+        if _is_label_heading(lines[row], tokens) and _has_unhedged_verdict(
+            "\n".join(lines[row + 1 : end])
+        ):
+            lines[row] = _TOPIC_WORD.sub(f" {_NEGATED_MARKER} ", lines[row])
+    return "\n".join(lines)
+
 
 def assert_triple_accounting_articulation(
     bs: dict[str, Any],
@@ -168,10 +234,12 @@ def assert_ai_advisor_semantic_grounding(
     # It does not read the marker of an earlier pattern (#2484).
     sanitized_answer = re.sub(
         "|".join(f"(?:{pattern})" for pattern in NEGATED_DISCREPANCY_PATTERNS),
-        " [negated_consistency_assertion] ",
+        f" {_NEGATED_MARKER} ",
         answer.lower(),
         flags=re.IGNORECASE,
     )
+    # A heading with prose before its verdict is read per section (#2633).
+    sanitized_answer = _neutralize_review_headings(sanitized_answer, tokens)
 
     for token in tokens:
         assert token.lower() not in sanitized_answer, (
