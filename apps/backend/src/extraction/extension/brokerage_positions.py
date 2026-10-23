@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit.money import to_money
 from src.extraction.orm.layer2 import AssetType, AtomicPosition
 from src.ledger import Account, AccountType
+from src.platform import BaseAppException
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -91,6 +92,22 @@ class BrokerageImportResult:
     # caller can anchor the statement to it. None when no single account applies
     # (e.g. zero positions, or a mixed-broker payload).
     account_id: UUID | None = None
+
+
+# The source states no as-of date, so the positions cannot be dated (#2649).
+BROKERAGE_SNAPSHOT_DATE_MISSING = "brokerage_snapshot_date_missing"
+
+
+class BrokerageImportRejectedError(BaseAppException, ValueError):
+    """The parsed source cannot become positions. The API returns HTTP 422 with the reason.
+
+    The error is a property of the source, not a server fault, so it must not become a
+    500 (#2649). It subclasses ``ValueError`` so existing ``except ValueError`` callers
+    still match.
+    """
+
+    def __init__(self, error_id: str, message: str) -> None:
+        super().__init__(error_id=error_id, message=message, status_code=422)
 
 
 _BROKER_ALIASES = (
@@ -841,8 +858,16 @@ class BrokeragePositionImportService:
         # short reduces portfolio value instead of being skipped (which dropped real data)
         # or crashing the import (constraint violation → 500).
         snapshots = parse_brokerage_positions(payload, filename=filename)
-        if any(snapshot.snapshot_date is None for snapshot in snapshots):
-            raise ValueError("Brokerage position import requires a source-declared snapshot date")
+        undated = sum(1 for snapshot in snapshots if snapshot.snapshot_date is None)
+        if undated:
+            # A positions CSV has no date column and no statement period (#2649). The
+            # date must come from the source; this service never invents one.
+            raise BrokerageImportRejectedError(
+                BROKERAGE_SNAPSHOT_DATE_MISSING,
+                f"The positions source does not state an as-of date for {undated} of "
+                f"{len(snapshots)} positions. The import needs the date that the source states. "
+                "Upload a broker statement or export that shows the as-of date.",
+            )
         created = 0
         existing = 0
         broker = (

@@ -648,6 +648,7 @@ Import behavior:
 - Reconciliation runs after import to refresh portfolio's `ManagedPosition` projection with latest quantity, market value, currency, and snapshot metadata; extraction hosts its schema-preserving storage representation but does not own the investment-position aggregate.
 - A successful statement-scoped brokerage import must make the imported position visible through `GET /portfolio/holdings` and through the balance sheet's broker market valuation adjustment for the same as-of date.
 - Import failures do not discard the parsed statement; the statement remains visible and receives a sanitized `validation_error` noting that brokerage positions were not imported.
+- Each position needs an as-of date that the source states (statement period end or a per-row date). The import never invents a date. A source with no date, for example a positions CSV with no date column, gets HTTP 422 with `error_id = brokerage_snapshot_date_missing` and a plain reason. It never gets a 500 (#2649, `AC-portfolio.brokerage-import.11`). `BrokerageImportRejectedError` carries this rejection.
 
 ## Configuration
 
