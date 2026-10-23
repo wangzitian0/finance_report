@@ -130,24 +130,36 @@ _GENERATED_ACCOUNT_LAST4_RE = re.compile(r"Account:\s*\*{2,}(?P<last4>[A-Za-z0-9
 
 
 def _clean_decimal(value: Any) -> Decimal | None:
+    """Parse an amount. Return ``None`` for empty or non-numeric text. Reject NaN and Infinity.
+
+    NaN and Infinity are not amounts, and a comparison on NaN raises ``InvalidOperation``.
+    Each parser reads amounts here, so this is the one place that rejects them with a
+    reason (#2649). A skip would drop the row and report success.
+    """
     if value is None:
         return None
     if isinstance(value, Decimal):
-        return value
-    text = str(value).strip().replace(",", "")
-    if not text or text.upper() in {"N/A", "UNKNOWN", "NULL", "NONE"}:
-        return None
-    try:
-        return Decimal(text)
-    except InvalidOperation:
-        return None
+        parsed = value
+    else:
+        text = str(value).strip().replace(",", "")
+        if not text or text.upper() in {"N/A", "UNKNOWN", "NULL", "NONE"}:
+            return None
+        try:
+            parsed = Decimal(text)
+        except InvalidOperation:
+            return None
+    if not parsed.is_finite():
+        raise BrokerageImportRejectedError(
+            BROKERAGE_POSITION_OUT_OF_RANGE, f"The amount {str(value)[:40]!r} is not a number."
+        )
+    return parsed
 
 
 def _position_money(identifier: object, value: Decimal) -> Decimal:
     """Round a position market value to cents, or reject it with a reason (#2649).
 
-    ``Infinity`` and a value with too many digits cannot round to cents. ``NaN`` rounds to
-    ``NaN``; ``_storable_snapshots`` rejects it before any insert.
+    A value with too many digits cannot round to cents. ``_clean_decimal`` already rejects
+    NaN and Infinity.
     """
     try:
         return to_money(value)
@@ -874,8 +886,6 @@ def _storable_snapshots(snapshots: list[BrokeragePositionSnapshot]) -> list[Brok
         rounded: dict[str, Decimal] = {}
         for field in ("quantity", "market_value"):
             amount = getattr(snapshot, field)
-            if not amount.is_finite():
-                reject(f"the {field} {amount} is not a number.")
             numeric = cast(Numeric, columns[field].type)
             if numeric.precision is None or numeric.scale is None:  # an unbounded column stores any finite amount
                 continue

@@ -201,11 +201,29 @@ def _payload(period_end: str = "2026-01-31", **position_overrides: str) -> dict:
 
 
 _OUT_OF_RANGE = "brokerage_position_out_of_range"
-_FUTU_VALUATION_1E40 = {
-    "institution": "Futu",
-    "statement": {"period_end": "2026-01-31", "currency": "HKD"},
-    "events": [{"date": "2026-01-31", "description": "Stock and options valuation", "amount": "1e40"}],
-}
+
+
+def _broker_payload(institution: str, **rows: list[dict[str, str]]) -> dict:
+    """A dated payload for the broker-specific parsers (Futu valuation, Moomoo rows)."""
+    return {"institution": institution, "statement": {"period_end": "2026-01-31", "currency": "SGD"}, **rows}
+
+
+def _futu_valuation(amount: str) -> dict[str, str]:
+    return {"date": "2026-01-31", "description": "Stock and options valuation", "amount": amount}
+
+
+def _margin_buy(fill_qty: str, fill_amount: str) -> dict[str, str]:
+    return {"Side": "BUY", "Symbol": "AAA", "Fill Qty": fill_qty, "Fill Amount": fill_amount, "Currency": "USD"}
+
+
+def _money_market(amount: str) -> dict[str, str]:
+    return {"date": "2026-01-31", "description": "Fullerton SGD Money Market Fund", "amount": amount}
+
+
+def _subscription(value: str) -> dict[str, str]:
+    return {"raw_text": f"Subscription REF1 Fullerton Fund SGD 2026/01/31 Settled 1.00 10 {value}"}
+
+
 _UNSTORABLE_CASES = [
     ("month_13", _payload(period_end="2026-13"), "brokerage_snapshot_date_missing", "as-of date"),
     ("quantity_too_large", _payload(quantity="1000000000000"), _OUT_OF_RANGE, "the quantity 1000000000000 is out"),
@@ -215,7 +233,7 @@ _UNSTORABLE_CASES = [
         _OUT_OF_RANGE,
         "the quantity 999999999999.9999995 is out of range",
     ),
-    ("quantity_nan", _payload(quantity="NaN"), _OUT_OF_RANGE, "the quantity NaN is not a number."),
+    ("quantity_nan", _payload(quantity="NaN"), _OUT_OF_RANGE, "The amount 'NaN' is not a number."),
     (
         "market_value_above_column",
         _payload(market_value="10000000000000000"),
@@ -223,8 +241,8 @@ _UNSTORABLE_CASES = [
         "the market_value 10000000000000000.00 is out of range",
     ),
     ("market_value_too_many_digits", _payload(market_value="1e40"), _OUT_OF_RANGE, "the market value 1E+40 is out"),
-    ("market_value_infinity", _payload(market_value="Infinity"), _OUT_OF_RANGE, "the market value Infinity is out"),
-    ("market_value_nan", _payload(market_value="NaN"), _OUT_OF_RANGE, "the market_value NaN is not a number."),
+    ("market_value_infinity", _payload(market_value="Infinity"), _OUT_OF_RANGE, "The amount 'Infinity' is not a"),
+    ("market_value_nan", _payload(market_value="NaN"), _OUT_OF_RANGE, "The amount 'NaN' is not a number."),
     (
         "identifier_too_long",
         _payload(symbol="A" * 101),
@@ -234,7 +252,48 @@ _UNSTORABLE_CASES = [
     ("identifier_with_nul", _payload(symbol="AA\x00A"), _OUT_OF_RANGE, "the asset_identifier contains a NUL"),
     ("currency_too_long", _payload(currency="USDT"), _OUT_OF_RANGE, "the currency has 4 characters. The limit is 3."),
     ("currency_not_iso", _payload(currency="ABC"), _OUT_OF_RANGE, "the currency 'ABC' is not an ISO-4217 code."),
-    ("futu_valuation_too_many_digits", _FUTU_VALUATION_1E40, _OUT_OF_RANGE, "the market value 1E+40 is out"),
+    (
+        "futu_valuation_too_many_digits",
+        _broker_payload("Futu", events=[_futu_valuation("1e40")]),
+        _OUT_OF_RANGE,
+        "'FUTU_STOCK_AND_OPTIONS': the market value 1E+40 is out",
+    ),
+    (
+        "futu_valuation_nan",
+        _broker_payload("Futu", events=[_futu_valuation("NaN")]),
+        _OUT_OF_RANGE,
+        "The amount 'NaN' is not a number.",
+    ),
+    (
+        "moomoo_margin_fill_qty_nan",
+        _broker_payload("Moomoo", margin_history_rows=[_margin_buy("NaN", "100.00")]),
+        _OUT_OF_RANGE,
+        "The amount 'NaN' is not a number.",
+    ),
+    (
+        "moomoo_margin_amount_too_many_digits",
+        _broker_payload("Moomoo", margin_history_rows=[_margin_buy("1", "1e40")]),
+        _OUT_OF_RANGE,
+        "'AAA': the market value 1.000000000000000000000000000E+40 is out",
+    ),
+    (
+        "moomoo_money_market_too_many_digits",
+        _broker_payload("Moomoo", events=[_money_market("1e40")]),
+        _OUT_OF_RANGE,
+        "'Fullerton SGD Money Market Fund': the market value 1E+40 is out",
+    ),
+    (
+        "moomoo_money_market_nan",
+        _broker_payload("Moomoo", events=[_money_market("NaN")]),
+        _OUT_OF_RANGE,
+        "The amount 'NaN' is not a number.",
+    ),
+    (
+        "moomoo_subscription_too_many_digits",
+        _broker_payload("Moomoo", events=[_subscription("1" + "0" * 40)]),
+        _OUT_OF_RANGE,
+        "'Fullerton Fund': the market value 1" + "0" * 40 + " is out",
+    ),
 ]
 
 
