@@ -234,6 +234,8 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
             as_of_date=period_end,
             income=SimpleNamespace(currency="USD"),
             restricted_fair_value_total_currency="USD",
+            # A restricted holding without an FX rate (#2645): the total leaves it out.
+            restricted_fair_value_total_excludes=["Employer RSU (HKD 1,000.00)"],
         ),
     )
     blockers = _section_invariant_blockers(
@@ -263,6 +265,7 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
         "section_currency_mismatch",
         "statement_net_income_mismatch",
         "cash_balance_input_missing",
+        "restricted_holding_fx_unavailable",
     }
     empty_input_blockers = _section_invariant_blockers(
         sections,

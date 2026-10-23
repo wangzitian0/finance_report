@@ -630,11 +630,26 @@ sum) for one as-of date and one `include_restricted` scope
   line carries only `unrealized_fx_gain_loss` and `cta_adjustment`
   (AC-reporting.net-worth-scope.6).
 - The personal report package presents the liquid scope by default
-  (`PACKAGE_INCLUDE_RESTRICTED = False`, read by `GET /reports/package`, the
-  generate body, `PackageAssembler` and `assemble_framework_balance_sheet`). Its
-  balance sheet carries `excluded_holdings`, and its `restricted-asset-treatment`
-  note names each excluded class with its net, assets and liabilities
-  (AC-reporting.net-worth-scope.11).
+  (`PACKAGE_INCLUDE_RESTRICTED = False`, read by `GET /reports/package`,
+  `PackageAssembler` and `assemble_framework_balance_sheet`; the generate body has
+  no scope default, so an absent value reads the constant in the route and the
+  app sends none, AC-reporting.net-worth-scope.12, .16). Its balance sheet
+  carries `excluded_holdings`, and its `restricted-asset-treatment` note names
+  each excluded class with its net, assets and liabilities
+  (AC-reporting.net-worth-scope.11). The Package tab card shows "Liquid net
+  worth" and the excluded classes when the package excludes one
+  (AC-reporting.net-worth-scope.15).
+- An FX gap on a restricted holding does not fail a report:
+  - `/reports/data-quality` runs the equation check without restricted holdings
+    and adds a `RESOLVE_FX_RATE` action item; the score does not change
+    (AC-reporting.net-worth-scope.13). The equation result does not depend on
+    the scope, because a manual valuation adds the same amount to one side and
+    to `net_worth_adjustment_gain_loss`.
+  - The annualized schedule lists the holding in its own currency, leaves it
+    out of `restricted_fair_value_total`, names it in
+    `restricted_fair_value_total_excludes`, and the package readiness has the
+    `restricted_holding_fx_unavailable` blocker
+    (AC-reporting.net-worth-scope.14). An FX gap on an income line still fails.
 
 `unrealized_fx_gain_loss` is **not a balancing plug** — it's calculated
 from foreign-currency asset/liability accounts by comparing `native

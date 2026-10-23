@@ -22,7 +22,7 @@ from src.reporting.base.data_quality_types import (
     QualityGrade,
 )
 from src.reporting.extension.diagnostics import run_balance_sheet_diagnostics
-from src.reporting.extension.reporting_calc import _normalize_currency
+from src.reporting.extension.reporting_calc import ReportError, _normalize_currency
 
 __all__ = [
     "compute_personal_data_quality",
@@ -53,12 +53,28 @@ async def compute_personal_data_quality(
     report_currency = _normalize_currency(currency)
 
     # 1. Equation Invariant
-    diag_result = await run_balance_sheet_diagnostics(
-        db,
-        user_id,
-        as_of_date=report_date,
-        currency=report_currency,
-    )
+    # The default (full) scope converts each restricted and illiquid valuation. When one has
+    # no FX rate, the check runs again without restricted holdings (#2645). The result of the
+    # equation does not depend on the scope: a manual valuation adds the same amount to the
+    # assets or liabilities and to net_worth_adjustment_gain_loss. The missing rate becomes
+    # an action item, so the page stays available.
+    fx_gap: str | None = None
+    try:
+        diag_result = await run_balance_sheet_diagnostics(
+            db,
+            user_id,
+            as_of_date=report_date,
+            currency=report_currency,
+        )
+    except ReportError as exc:
+        fx_gap = str(exc)
+        diag_result = await run_balance_sheet_diagnostics(
+            db,
+            user_id,
+            as_of_date=report_date,
+            currency=report_currency,
+            include_restricted=False,
+        )
     equation_healthy = diag_result.is_balanced
     equation_status = InvariantStatus(
         is_healthy=equation_healthy,
@@ -307,6 +323,22 @@ async def compute_personal_data_quality(
                 score_boost=40,
                 action_type="RESOLVE_EQUATION",
                 action_url="/journal",
+            )
+        )
+
+    if fx_gap is not None:
+        action_items.append(
+            QualityActionItem(
+                id="resolve_valuation_fx_rate",
+                priority="P1",
+                title="Restricted Holdings Lack an FX Rate",
+                description=(
+                    f"The full net worth cannot convert a restricted or illiquid valuation: {fx_gap}. "
+                    f"The rate sync adds the rate; you can also record the valuation in {report_currency}."
+                ),
+                score_boost=0,
+                action_type="RESOLVE_FX_RATE",
+                action_url="/portfolio?panel=evidence",
             )
         )
 

@@ -13,6 +13,7 @@ from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
 from src.ledger import AccountType
+from src.reporting.base.types import DEFAULT_INCLUDE_RESTRICTED
 
 
 @runtime_checkable
@@ -43,7 +44,7 @@ class ValuationLinesProvider(Protocol):
         *,
         as_of_date: date,
         target_currency: str,
-        include_restricted: bool = True,
+        include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
         warnings: list[dict[str, str]] | None = None,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """Build (asset_lines, liability_lines) from manual valuation snapshots."""
