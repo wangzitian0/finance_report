@@ -12,6 +12,7 @@ the test.
 from __future__ import annotations
 
 import asyncio
+import gc
 import hashlib
 import json
 from dataclasses import replace
@@ -78,13 +79,20 @@ class CountingProposer:
     """A stand-in for ``propose_categories``, the single boundary to the model.
 
     ``calls`` holds the descriptions of the rows of each call. ``gate`` holds back every answer until a test opens
-    it. ``error`` makes every call raise.
+    it. ``error`` makes every call raise. ``refuse`` names the kinds of row that get no answer.
     """
 
-    def __init__(self, *, gate: asyncio.Event | None = None, error: Exception | None = None):
+    def __init__(
+        self,
+        *,
+        gate: asyncio.Event | None = None,
+        error: Exception | None = None,
+        refuse: frozenset[str] = frozenset(),
+    ):
         self.calls: list[list[str]] = []
         self.gate = gate
         self.error = error
+        self.refuse = refuse
         self.started = asyncio.Event()
 
     @property
@@ -98,11 +106,16 @@ class CountingProposer:
             await asyncio.wait_for(self.gate.wait(), timeout=WAIT_SECONDS)
         if self.error is not None:
             raise self.error
-        answers = [ANSWERS[transaction.description.split()[0]] for transaction in transactions]
-        return [
-            CategoryProposal(category=category.value, confidence=confidence, reason="fixture")
-            for category, confidence in answers
-        ]
+        proposals: list[CategoryProposal | None] = []
+        for transaction in transactions:
+            kind = transaction.description.split()[0]
+            category, confidence = ANSWERS[kind]
+            proposals.append(
+                None
+                if kind in self.refuse
+                else CategoryProposal(category=category.value, confidence=confidence, reason="fixture")
+            )
+        return proposals
 
 
 def _install(monkeypatch, proposer: CountingProposer) -> CountingProposer:
@@ -551,6 +564,95 @@ async def test_AC_extraction_statement_classify_3_a_second_phase_asks_no_row_tha
     assert len(await _classification_rows(sessions, test_user.id)) == 6
 
 
+async def test_AC_extraction_statement_classify_3_the_approve_asks_only_for_the_rows_without_an_answer(
+    client, db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.3: a partial pass leaves the missing rows to the approve, and no other row."""
+    from src.extraction.extension import statement_preclassification
+
+    outcomes = _spy_outcomes(monkeypatch)
+    partial = _install(monkeypatch, CountingProposer(refuse=frozenset({"Coffee"})))
+    rows = _rows(10)
+    seeded = await _seed(db, test_user.id, rows)
+    sessions = _sessions(db)
+
+    result = await statement_preclassification.classify_parsed_statement(
+        sessions, statement_id=seeded.id, user_id=test_user.id
+    )
+
+    assert result is statement_preclassification.StatementClassificationPhase.PARTIAL
+    assert outcomes == ["partial"]
+    assert partial.rows_asked == 10
+    assert len(await _classification_rows(sessions, test_user.id)) == 8, "the two Coffee rows have no answer"
+
+    healthy = _install(monkeypatch, CountingProposer())
+    response = await _approve(client, seeded.id)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["journal_entries_created"] == 10
+    assert sorted(description for call in healthy.calls for description in call) == ["Coffee 001", "Coffee 006"]
+
+
+async def test_AC_extraction_statement_classify_3_the_one_click_fill_takes_the_same_lock(
+    client, db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.3: the fill of the default categories waits for the lock like the approve."""
+    from src.extraction.extension.transaction_classification import try_lock_statement_classification
+
+    monkeypatch.setattr(transaction_classification, "CLASSIFICATION_LOCK_WAIT_SECONDS", 0.2)
+    monkeypatch.setattr(transaction_classification, "_LOCK_POLL_SECONDS", 0.01)
+    proposer = _install(monkeypatch, CountingProposer())
+    seeded = await _seed(db, test_user.id, _rows(4))
+    sessions = _sessions(db)
+
+    async with sessions() as holder:
+        assert await try_lock_statement_classification(holder, seeded.id)
+        response = await asyncio.wait_for(
+            client.post(
+                f"/statements/{seeded.id}/review/approve",
+                json={"create_account_if_missing": True, "auto_fill_default_categories": True},
+            ),
+            timeout=WAIT_SECONDS,
+        )
+        await holder.rollback()
+
+    assert response.status_code == 409, response.text
+    assert proposer.calls == []
+
+
+async def test_AC_extraction_statement_classify_6_the_source_bytes_are_released_before_the_model_is_asked(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.6: the pass holds no copy of the uploaded file (the memory limit of #2595)."""
+    freed: list[bool] = []
+
+    class Payload(bytes):  # a bytes object that tells when the interpreter frees it
+        def __del__(self):
+            freed.append(True)
+
+    file_is_freed_when_asked: list[bool] = []
+
+    async def probing_proposer(transactions, _policy):
+        gc.collect()
+        file_is_freed_when_asked.append(bool(freed))
+        return [
+            CategoryProposal(category=ANSWERS[t.description.split()[0]][0].value, confidence=95, reason="fixture")
+            for t in transactions
+        ]
+
+    monkeypatch.setattr(transaction_classification, "propose_categories", probing_proposer)
+    payload = Payload(_csv(_rows(3)))
+    file_hash = hashlib.sha256(payload).hexdigest()
+    statement_id = await _new_parsing_statement(db, test_user.id, file_hash)
+    run = _use_case(db).execute(_job(statement_id, test_user.id, "release.csv", file_hash), content=payload)
+    del payload  # the test keeps no copy either
+
+    outcome = await run
+
+    assert outcome.status is StatementIngestionStatus.COMPLETED
+    assert file_is_freed_when_asked == [True], "the file bytes are still alive when the model is asked"
+
+
 # ---------------------------------------------------------------------------------------------------------
 # AC-extraction.statement-classify.4: what gets classified does not change
 # ---------------------------------------------------------------------------------------------------------
@@ -794,7 +896,7 @@ async def test_AC_extraction_statement_classify_5_state_after_parse_classify_app
     assert state == json.loads(GOLDEN_PATH.read_text())
 
 
-def test_AC_extraction_statement_classify_5_the_golden_has_one_row_to_a_line():
+async def test_AC_extraction_statement_classify_5_the_golden_has_one_row_to_a_line():
     """AC-extraction.statement-classify.5: one row to a line, so that a review reads a change as a line diff."""
     text_of_golden = GOLDEN_PATH.read_text()
     assert text_of_golden == format_golden(json.loads(text_of_golden))
