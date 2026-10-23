@@ -159,6 +159,7 @@ describe("Home fetch budget (#2583 S4)", () => {
         "list_statements_statements_get",
         "list_unmatched_reconciliation_unmatched_get",
         "reconciliation_stats_reconciliation_stats_get",
+        "report_coverage_reports_coverage_get",
         "suggestions_chat_suggestions_get",
       ].sort(),
     );
@@ -219,7 +220,7 @@ describe("Home fetch budget (#2583 S4)", () => {
     renderHome(createClient());
 
     await waitFor(() => expect(netWorth()).toHaveTextContent("$4,000"));
-    // The income statement waits for the statement list, then renders before the cash flow (#2646).
+    // The income statement waits for the coverage start, then renders before the cash flow (#2646).
     await waitFor(() => expect(screen.getByText("Net income").nextElementSibling).toHaveTextContent("+$2,300"));
     expect(screen.getByTestId("cockpit-card-cash-flow")).toHaveTextContent("Loading…");
   });

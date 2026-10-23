@@ -215,11 +215,11 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
                 {statement.id === "balance" && balanceSheet && (
                   <ExcludedHoldingsNote rows={balanceSheet.excluded_holdings} currency={balanceSheet.currency} formatMoney={money} />
                 )}
-                {statement.id === "balance" && filters.opensAtFirstStatement && filters.openingDate && (
-                  // #2646: the ledger has no balance before the first statement. Its opening balances
-                  // post on its first day, so the change starts at the end of that day.
+                {statement.id === "balance" && filters.opensAtCoverageStart && filters.openingDate && (
+                  // #2646: the period starts on the cash coverage start. The last cash opening balance
+                  // posts on that day, so the change starts at the end of that day.
                   <p data-testid="change-in-period-basis" className="mt-2 text-[11px] text-muted">
-                    {`Change in period is measured from the end of ${formatDateDisplay(filters.openingDate)}, the first day of your first statement.`}
+                    {`Change in period is measured from the end of ${formatDateDisplay(filters.openingDate)}, when your cash opening balances are complete.`}
                   </p>
                 )}
               </>

@@ -59,7 +59,7 @@ describe("CashFlowPage", () => {
 
     await waitFor(() => expect(screen.getByText("cashflow failed")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Retry" }))
-    // The statement list is a separate request: count only the cash-flow requests.
+    // The coverage start is a separate request: count only the cash-flow requests.
     await waitFor(() =>
       expect(mockedApiFetch.mock.calls.filter(([operationId]) => operationId === "cash_flow_reports_cash_flow_get")).toHaveLength(2),
     )

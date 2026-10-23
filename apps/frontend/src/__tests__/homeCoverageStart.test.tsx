@@ -1,5 +1,5 @@
-// #2646: Home bounds its default period by the first statement, so the period of a new user has no
-// coverage blocker and its "Change in period" is not the whole net worth.
+// #2646: Home bounds its default period by the cash coverage start (GET /reports/coverage), so the
+// period of a new user has no coverage blocker and its "Change in period" is not the whole net worth.
 
 import { render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -22,8 +22,9 @@ vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 
 const mockedApiOperation = vi.mocked(apiOperation);
 
-/** The first day of the earliest approved statement of the #2646 review data. */
+/** The cash coverage start of the #2646 review data: the opening balances of the July statement. */
 const FIRST_STATEMENT = "2026-07-01";
+let coverageStart: string | null = FIRST_STATEMENT;
 
 const balanceSheet = (asOfDate: string, totalAssets: string) => ({
   as_of_date: asOfDate,
@@ -41,19 +42,11 @@ const balanceSheet = (asOfDate: string, totalAssets: string) => ({
 function respond(operationId: string, request: { query?: Record<string, unknown> } = {}) {
   const query = request.query ?? {};
   switch (operationId) {
-    case "list_statements_statements_get":
-      return {
-        items: [
-          { id: "s-aug", status: "approved", period_start: "2026-08-01", original_filename: "aug.csv" },
-          { id: "s-jul", status: "approved", period_start: FIRST_STATEMENT, original_filename: "jul.csv" },
-          // An unapproved statement posts nothing: it does not move the first day.
-          { id: "s-old", status: "parsed", period_start: "2026-01-01", original_filename: "old.csv", confidence_score: 95 },
-        ],
-        total: 3,
-      };
+    case "report_coverage_reports_coverage_get":
+      return { as_of_date: "2026-10-22", coverage_start: coverageStart };
     case "balance_sheet_reports_balance_sheet_get":
-      // The opening balances of the first statement post on its first day.
-      return query.as_of_date === FIRST_STATEMENT ? balanceSheet(FIRST_STATEMENT, "3500") : balanceSheet(String(query.as_of_date), "5000");
+      // The opening balances post on the coverage start.
+      return query.as_of_date === coverageStart ? balanceSheet(String(coverageStart), "3500") : balanceSheet(String(query.as_of_date), "5000");
     case "income_statement_reports_income_statement_get":
       return { currency: "SGD", trends: [], income: [], expenses: [], total_income: "3000", total_expenses: "1500", net_income: "1500" };
     case "cash_flow_reports_cash_flow_get":
@@ -86,19 +79,20 @@ describe("Home period and the first statement (#2646)", () => {
     mockedApiOperation.mockReset();
     mockedApiOperation.mockImplementation(((operationId: string, request?: { query?: Record<string, unknown> }) =>
       Promise.resolve(respond(operationId, request))) as never);
-    // The default 1Y period that ends on 2026-10-22 starts on 2025-11-01, before the first statement.
+    // The default 1Y period that ends on 2026-10-22 starts on 2025-11-01, before the coverage start.
     setTestUrl("/?end=2026-10-22");
+    coverageStart = FIRST_STATEMENT;
   });
 
   // AC-reporting.fe-period-cockpit.8
-  it("AC-reporting.fe-period-cockpit.8 starts the Home period on the first statement and measures the change from it", async () => {
+  it("AC-reporting.fe-period-cockpit.8 starts the Home period on the coverage start and measures the change from it", async () => {
     render(<HomePage />);
 
     const balance = await screen.findByTestId("cockpit-card-balance-sheet");
     await waitFor(() => expect(within(balance).getByText("Change in period").nextElementSibling).toHaveTextContent("+SGD 1,500"));
     expect(within(balance).getByText("Net worth").nextElementSibling).toHaveTextContent("SGD 4,000");
     expect(within(balance).getByTestId("change-in-period-basis")).toHaveTextContent(
-      "Change in period is measured from the end of Jul 1, 2026, the first day of your first statement.",
+      "Change in period is measured from the end of Jul 1, 2026, when your cash opening balances are complete.",
     );
     expect(screen.getByTestId("report-period-range")).toHaveTextContent("Jul 1, 2026 – Oct 22, 2026");
     expect(screen.getByRole("button", { name: "Previous period" })).toBeDisabled();
@@ -115,5 +109,29 @@ describe("Home period and the first statement (#2646)", () => {
       FIRST_STATEMENT,
       "2026-10-22",
     ]);
+  });
+
+  // AC-reporting.fe-period-cockpit.8
+  it("AC-reporting.fe-period-cockpit.8 keeps an opening balance before the first statement in the default period", async () => {
+    // A guided opening balance on 2026-01-01: the coverage start is that day, not the first statement.
+    coverageStart = "2026-01-01";
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByTestId("report-period-range")).toHaveTextContent("Jan 1, 2026 – Oct 22, 2026"));
+    await waitFor(() => expect(requestsOf("income_statement_reports_income_statement_get")).toHaveLength(1));
+    expect(requestsOf("income_statement_reports_income_statement_get")[0]).toMatchObject({ start_date: "2026-01-01" });
+    await waitFor(() =>
+      expect(requestsOf("balance_sheet_reports_balance_sheet_get").map((query) => query.as_of_date).sort()).toEqual(["2026-01-01", "2026-10-22"]),
+    );
+  });
+
+  // AC-reporting.fe-period-cockpit.8
+  it("AC-reporting.fe-period-cockpit.8 applies no bound when no cash account has an opening balance", async () => {
+    coverageStart = null;
+    render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByTestId("report-period-range")).toHaveTextContent("Nov 1, 2025 – Oct 22, 2026"));
+    expect(screen.queryByTestId("change-in-period-basis")).toBeNull();
+    expect(screen.getByRole("button", { name: "Previous period" })).toBeEnabled();
   });
 });
