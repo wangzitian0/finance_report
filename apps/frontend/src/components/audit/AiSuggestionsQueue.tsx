@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { apiOperation } from "@/lib/api-client";
 import { getCategoriesForDirection } from "@/lib/categories";
 import { BackLink } from "@/components/ui/SmartBackLink";
@@ -17,35 +18,33 @@ const EFFECT_LABEL: Record<string, string> = {
   recorded: "Feedback saved. It did not change the suggestion.",
 };
 
+/**
+ * The pending AI suggestions, optionally of one statement. The `/audit` tab label counts them
+ * and the queue lists them through this one cache entry. Each mount reads the list again: a
+ * decision does not remove a suggestion from the cached list.
+ */
+export function useAiSuggestions(statementId?: string) {
+  return useApiQuery(
+    ["ai", "suggestions", statementId ?? null],
+    "list_ai_suggestions_ai_suggestions_get",
+    statementId ? { query: { statement_id: statementId } } : {},
+    { staleTime: 0 },
+  );
+}
+
 /** Pending AI suggestions that the user accepts, rejects or corrects. */
 export function AiSuggestionsQueue() {
   const searchParams = useSearchParams();
   const statementId = searchParams?.get("statement_id")?.trim() || undefined;
   const returnTo = searchParams?.get("return_to")?.trim() || undefined;
-  const [suggestions, setSuggestions] = useState<AiSuggestion[]>([]);
+  const suggestionsQuery = useAiSuggestions(statementId);
+  const suggestions: AiSuggestion[] = suggestionsQuery.data?.items ?? [];
+  const loading = suggestionsQuery.isPending;
+  const error = suggestionsQuery.isError ? suggestionsQuery.error.message || "Failed to load AI suggestions" : null;
   const [correctedValues, setCorrectedValues] = useState<Record<string, string>>({});
   const [decisions, setDecisions] = useState<Record<string, string>>({});
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchSuggestions = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = statementId
-        ? await apiOperation("list_ai_suggestions_ai_suggestions_get", { query: { statement_id: statementId } })
-        : await apiOperation("list_ai_suggestions_ai_suggestions_get");
-      setSuggestions(data.items ?? []);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load AI suggestions");
-    } finally {
-      setLoading(false);
-    }
-  }, [statementId]);
-
-  useEffect(() => { fetchSuggestions(); }, [fetchSuggestions]);
 
   const submitFeedback = async (suggestion: AiSuggestion, action: FeedbackAction) => {
     const id = suggestion.suggestion_id;

@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/Toast";
 import { apiOperation } from "@/lib/api-client";
 import { useSettingsForm } from "@/hooks/useSettingsForm";
 import type { UserAiSettings, UserAiSettingsUpdate } from "@/lib/types";
+import { NEEDS_YOU_HREF } from "@/lib/attentionNavigation";
 
 const DEFAULT_SETTINGS: UserAiSettings = {
   enable_ai_reconciliation: false,
@@ -61,7 +62,7 @@ export default function AiSettingsPanel() {
         <p className="page-description">Control AI-assisted reconciliation, classification and automatic acceptance.</p>
       </div>
       <div className="mb-4">
-        <Link href="/audit#ai-suggestions" className="btn-secondary inline-flex text-sm">Review AI suggestions</Link>
+        <Link href={`${NEEDS_YOU_HREF}#ai-suggestions`} className="btn-secondary inline-flex text-sm">Review AI suggestions</Link>
       </div>
       {error && <div role="alert" className="mb-4 alert-error">{error}</div>}
       <form onSubmit={handleSubmit}>

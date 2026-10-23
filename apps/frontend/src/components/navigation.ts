@@ -43,6 +43,7 @@ export const APP_ROUTES = {
     PORTFOLIO_EVIDENCE: "/portfolio?panel=evidence",
     PORTFOLIO_PRICES: "/portfolio?panel=prices",
     RECONCILIATION: "/reconciliation",
+    RECONCILIATION_MATCHES: "/reconciliation?tab=matches",
     RECONCILIATION_UNMATCHED: "/reconciliation?tab=unmatched",
     RECONCILIATION_REVIEW_QUEUE: "/reconciliation?tab=review-queue",
     REPORTS: "/reports",

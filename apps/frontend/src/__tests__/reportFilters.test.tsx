@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ReportDimensionBar } from "@/components/reports/ReportFilters"
@@ -24,6 +24,8 @@ describe("ReportDimensionBar", () => {
     vi.mocked(apiOperation).mockImplementation(((operationId: string) => {
       if (operationId === "get_available_currencies_reports_currencies_get") return Promise.resolve(["SGD", "USD", "EUR"])
       if (operationId === "get_base_currency_app_config_base_currency_get") return Promise.resolve({ base_currency: "EUR" })
+      // No cash opening position: no coverage start bounds the period.
+      if (operationId === "report_coverage_reports_coverage_get") return Promise.resolve({ as_of_date: "2026-01-31", coverage_start: null })
       return Promise.reject(new Error(`unexpected ${operationId}`))
     }) as never)
     setTestUrl("/reports?tab=cash-flow&period=1M&end=2026-01-31")
@@ -31,14 +33,16 @@ describe("ReportDimensionBar", () => {
 
   // AC-reporting.fe-viz-reports.18
   // AC-reporting.fe-period-cockpit.2
-  it("AC-reporting.fe-period-cockpit.2 sets the preset and steps the period through the URL", () => {
+  it("AC-reporting.fe-period-cockpit.2 sets the preset and steps the period through the URL", async () => {
     render(<Bar />)
 
     expect(screen.getByRole("group", { name: "Reporting period" })).toBeInTheDocument()
     for (const preset of ["1M", "1Q", "1Y", "YTD", "3Y", "All"]) {
       expect(screen.getByRole("button", { name: `Period ${preset}` })).toHaveAttribute("aria-pressed", String(preset === "1M"))
     }
-    expect(screen.getByTestId("report-period-range")).toHaveTextContent("Jan 1, 2026 – Jan 31, 2026")
+    // The range waits for the coverage start (#2646).
+    expect(screen.getByTestId("report-period-range")).toHaveTextContent("…")
+    await waitFor(() => expect(screen.getByTestId("report-period-range")).toHaveTextContent("Jan 1, 2026 – Jan 31, 2026"))
 
     fireEvent.click(screen.getByRole("button", { name: "Previous period" }))
     expect(testUrl()).toBe("/reports?tab=cash-flow&period=1M&end=2025-12-31")

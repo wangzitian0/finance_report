@@ -115,6 +115,8 @@ export function CashFlowPanel({ filters }: { filters: ReportFilters }) {
     "cash_flow_reports_cash_flow_get",
     { query: { start_date: startDate, end_date: endDate, currency } },
     {
+      // The period waits for the coverage start (#2646).
+      enabled: filters.ready,
       placeholderData: keepPreviousData,
       select: (data) => ({ ...data, fx_warnings: normalizeFxWarningRows(data.fx_warnings) }),
     },
@@ -201,7 +203,7 @@ export function CashFlowPanel({ filters }: { filters: ReportFilters }) {
       title="Cash Flow Statement"
       description="Operating, Investing, and Financing activities"
       loadingLabel="Loading cash flow"
-      isLoading={reportQuery.isLoading}
+      isLoading={!filters.ready || reportQuery.isLoading}
       isError={reportQuery.isError}
       errorMessage={reportQuery.error?.message}
       onRetry={() => void reportQuery.refetch()}

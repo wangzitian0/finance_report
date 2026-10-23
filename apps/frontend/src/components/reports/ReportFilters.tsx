@@ -99,7 +99,8 @@ export function ReportDimensionBar({
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </button>
           <span data-testid="report-period-range" aria-live="polite" className="min-w-[11rem] text-center text-xs font-medium tabular-nums">
-            {`${formatDateDisplay(filters.startDate)} – ${formatDateDisplay(filters.endDate)}`}
+            {/* The coverage start can move the start: the range waits for it (#2646). */}
+            {filters.ready ? `${formatDateDisplay(filters.startDate)} – ${formatDateDisplay(filters.endDate)}` : "…"}
           </span>
           <button
             type="button"

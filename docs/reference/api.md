@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `139`
-- Schema count: `281`
+- Endpoint count: `140`
+- Schema count: `282`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -33,7 +33,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `notifications` | 1 |
 | `portfolio` | 13 |
 | `reconciliation` | 11 |
-| `reports` | 22 |
+| `reports` | 23 |
 | `review` | 9 |
 | `statements` | 15 |
 | `untagged` | 3 |
@@ -224,6 +224,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/breakdown` | yes | `type`* (query), `period` (query), `currency` (query) | - | `200` `CategoryBreakdownResponse` | Category Breakdown |
 | `GET` | `/reports/cash-flow` | yes | `start_date` (query), `end_date` (query), `currency` (query) | - | `200` `CashFlowPreview` | Cash Flow |
 | `GET` | `/reports/cash-flow/line-events` | yes | `line_id`* (query), `start_date` (query), `end_date` (query), `currency` (query), `limit` (query), `offset` (query) | - | `200` `CashFlowLineEventsPage` | List Cash Flow Line Events |
+| `GET` | `/reports/coverage` | yes | `as_of_date` (query) | - | `200` `ReportCoverageResponse` | Report Coverage |
 | `GET` | `/reports/currencies` | no | - | - | `200` array[string] | Get Available Currencies |
 | `GET` | `/reports/data-quality` | yes | `as_of_date` (query), `currency` (query) | - | `200` `PersonalDataQualityHealthResponse` | Get Data Quality Health |
 | `GET` | `/reports/export` | yes | `report_type`* (query), `format` (query), `as_of_date` (query), `start_date` (query), `end_date` (query), `currency` (query), `include_restricted` (query), `framework_id` (query) | - | `200` - | Export Report |
