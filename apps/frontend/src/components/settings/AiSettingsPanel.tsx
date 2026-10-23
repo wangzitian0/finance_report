@@ -61,7 +61,7 @@ export default function AiSettingsPanel() {
         <p className="page-description">Control AI-assisted reconciliation, classification and automatic acceptance.</p>
       </div>
       <div className="mb-4">
-        <Link href="/audit#ai-suggestions" className="btn-secondary inline-flex text-sm">Review AI suggestions</Link>
+        <Link href="/audit?tab=needs-you#ai-suggestions" className="btn-secondary inline-flex text-sm">Review AI suggestions</Link>
       </div>
       {error && <div role="alert" className="mb-4 alert-error">{error}</div>}
       <form onSubmit={handleSubmit}>

@@ -327,7 +327,10 @@ async def test_proportion_of_low_confidence_data_is_measured(
         assert statement_low_confidence_ratio == EXPECTED_LOW_CONFIDENCE_RATIO
 
         # 5. Verify browser UI rendering on /audit and /statements.
-        await page.goto(f"{APP_URL.rstrip('/')}/audit", wait_until="domcontentloaded")
+        # The correction proof is on the Health tab of /audit (#2646).
+        await page.goto(
+            f"{APP_URL.rstrip('/')}/audit?tab=health", wait_until="domcontentloaded"
+        )
         await expect(page.locator("main")).to_contain_text(
             "Correction Loop Proof", timeout=30000
         )

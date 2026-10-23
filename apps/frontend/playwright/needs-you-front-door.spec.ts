@@ -114,8 +114,8 @@ test.describe("#2646 the front door to the items that need the user", () => {
       const queue = page.getByTestId("needs-confirmation-queue");
       const firstRow = queue.getByRole("link", { name: /PayNow Transfer REF 4471/ });
       await expect(firstRow).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
-      await expect(page.getByRole("tab", { name: /Needs you/ })).toHaveAttribute("aria-selected", "true");
 
+      // The page is not scrolled: the boxes are in the first viewport.
       const heading = await queue.getByRole("heading", { name: "Needs Confirmation" }).boundingBox();
       const row = await firstRow.boundingBox();
       const bottom = await visibleBottom(page, height);
@@ -123,6 +123,7 @@ test.describe("#2646 the front door to the items that need the user", () => {
       expect(row, "first queue row box").not.toBeNull();
       expect(heading!.y, "heading top in px").toBeGreaterThanOrEqual(0);
       expect(row!.y + row!.height, `first row bottom in px (visible bottom ${bottom})`).toBeLessThanOrEqual(bottom);
+      await expect(page.getByRole("tab", { name: /Needs you/ })).toHaveAttribute("aria-selected", "true");
     });
 
     test(`AC-reporting.fe-period-cockpit.9 Home names the count and the first item above the statement cards (${label})`, async ({ page }) => {
