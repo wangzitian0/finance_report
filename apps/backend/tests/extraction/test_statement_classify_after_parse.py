@@ -400,7 +400,7 @@ async def test_AC_extraction_statement_classify_2_a_phase_that_runs_past_its_dea
 ):
     """AC-extraction.statement-classify.2: a hung model ends at the deadline, writes nothing and frees the lock."""
     from src.extraction.extension import statement_preclassification
-    from src.extraction.extension.classification_lock import try_lock_statement_classification
+    from src.extraction.extension.transaction_classification import try_lock_statement_classification
 
     outcomes = _spy_outcomes(monkeypatch)
     monkeypatch.setattr(statement_preclassification, "CLASSIFICATION_PHASE_DEADLINE_SECONDS", 0.3)
@@ -434,18 +434,18 @@ async def test_AC_extraction_statement_classify_3_approve_waits_for_a_running_ph
     Without the lock the approve would not see the rows of the phase (they are not committed), ask the model for the
     same rows, and fail on the unique key of the classification table.
     """
-    from src.extraction.extension import classification_lock, statement_preclassification
+    from src.extraction.extension import statement_preclassification
 
     attempts: list[bool] = []
-    real_try_lock = classification_lock.try_lock_statement_classification
+    real_try_lock = transaction_classification.try_lock_statement_classification
 
     async def counting_try_lock(session, statement_id):
         acquired = await real_try_lock(session, statement_id)
         attempts.append(acquired)
         return acquired
 
-    monkeypatch.setattr(classification_lock, "try_lock_statement_classification", counting_try_lock)
-    monkeypatch.setattr(classification_lock, "_LOCK_POLL_SECONDS", 0.01)
+    monkeypatch.setattr(transaction_classification, "try_lock_statement_classification", counting_try_lock)
+    monkeypatch.setattr(transaction_classification, "_LOCK_POLL_SECONDS", 0.01)
     gate = asyncio.Event()
     proposer = _install(monkeypatch, CountingProposer(gate=gate))
     seeded = await _seed(db, test_user.id, _rows(10))
@@ -483,7 +483,7 @@ async def test_AC_extraction_statement_classify_3_the_phase_skips_when_an_approv
 ):
     """AC-extraction.statement-classify.3: a phase that finds the lock held leaves the rows to the holder."""
     from src.extraction.extension import statement_preclassification
-    from src.extraction.extension.classification_lock import try_lock_statement_classification
+    from src.extraction.extension.transaction_classification import try_lock_statement_classification
 
     outcomes = _spy_outcomes(monkeypatch)
     proposer = _install(monkeypatch, CountingProposer())
@@ -509,11 +509,10 @@ async def test_AC_extraction_statement_classify_3_an_approval_that_cannot_get_th
     client, db, test_user, monkeypatch
 ):
     """AC-extraction.statement-classify.3: past the wait limit the approve answers 409 and asks no model."""
-    from src.extraction.extension import classification_lock
-    from src.extraction.extension.classification_lock import try_lock_statement_classification
+    from src.extraction.extension.transaction_classification import try_lock_statement_classification
 
-    monkeypatch.setattr(classification_lock, "CLASSIFICATION_LOCK_WAIT_SECONDS", 0.2)
-    monkeypatch.setattr(classification_lock, "_LOCK_POLL_SECONDS", 0.01)
+    monkeypatch.setattr(transaction_classification, "CLASSIFICATION_LOCK_WAIT_SECONDS", 0.2)
+    monkeypatch.setattr(transaction_classification, "_LOCK_POLL_SECONDS", 0.01)
     proposer = _install(monkeypatch, CountingProposer())
     seeded = await _seed(db, test_user.id, _rows(4))
     sessions = _sessions(db)
@@ -716,6 +715,12 @@ async def test_AC_extraction_statement_classify_4_the_phase_leaves_a_statement_t
     proposer = _install(monkeypatch, CountingProposer())
     seeded = await _seed(db, test_user.id, _rows(4))
     if state == "approved":
+        bank = Account(
+            user_id=test_user.id, name="Bank of an approved statement", type=AccountType.ASSET, currency="SGD"
+        )
+        db.add(bank)
+        await db.flush()
+        seeded.statement.account_id = bank.id
         seeded.statement.status = BankStatementStatus.APPROVED
     elif state == "rejected":
         seeded.statement.status = BankStatementStatus.REJECTED
