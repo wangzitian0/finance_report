@@ -103,7 +103,11 @@ class CountingProposer:
         self.calls.append([transaction.description for transaction in transactions])
         self.started.set()
         if self.gate is not None:
-            await asyncio.wait_for(self.gate.wait(), timeout=WAIT_SECONDS)
+            try:
+                await asyncio.wait_for(self.gate.wait(), timeout=WAIT_SECONDS)
+            except TimeoutError:
+                # Not a TimeoutError: the pass maps that one to its own deadline and would hide a missing deadline.
+                raise AssertionError("the test never opened the gate") from None
         if self.error is not None:
             raise self.error
         proposals: list[CategoryProposal | None] = []
@@ -805,6 +809,40 @@ async def test_AC_extraction_statement_classify_4_a_row_with_an_unresolved_curre
             select(func.count()).select_from(Account).where(Account.user_id == test_user.id, Account.currency == "XXX")
         )
     assert accounts_in_placeholder == 0
+
+
+async def test_AC_extraction_statement_classify_4_a_row_that_an_entry_covers_is_left_alone(
+    client, db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.4: the approval skips a row that has an entry, and so does the pass."""
+    from src.extraction.extension import statement_preclassification
+
+    proposer = _install(monkeypatch, CountingProposer())
+    seeded = await _seed(db, test_user.id, _rows(4))
+    bank = Account(user_id=test_user.id, name="Bank of a covered row", type=AccountType.ASSET, currency="SGD")
+    expense = Account(user_id=test_user.id, name="Expense - Reviewed", type=AccountType.EXPENSE, currency="SGD")
+    db.add_all([bank, expense])
+    await db.flush()
+    seeded.statement.account_id = bank.id
+    await db.commit()
+    covered = seeded.transactions[1]  # "Coffee 001", an outgoing row
+    posted = await client.post(
+        f"/reconciliation/unmatched/{covered.id}/reviewed-disposition",
+        json={
+            "intent": "expense",
+            "counter_account_id": str(expense.id),
+            "category": "GENERAL",
+            "rationale": "Reviewed against the source.",
+        },
+    )
+    assert posted.status_code == 200, posted.text
+    sessions = _sessions(db)
+
+    await statement_preclassification.classify_parsed_statement(sessions, statement_id=seeded.id, user_id=test_user.id)
+
+    assert proposer.rows_asked == 3
+    assert covered.description not in {description for call in proposer.calls for description in call}
+    assert covered.id not in {row.atomic_txn_id for row in await _classification_rows(sessions, test_user.id)}
 
 
 @pytest.mark.parametrize("state", ["approved", "rejected", "ai-off"])
