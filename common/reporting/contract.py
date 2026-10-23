@@ -329,6 +329,8 @@ CONTRACT = PackageContract(
         "MonthContinuityBucket",
         "QualityActionItem",
         "compute_personal_data_quality",
+        "DEFAULT_INCLUDE_RESTRICTED",
+        "PACKAGE_INCLUDE_RESTRICTED",
         "PersonalReportingFrameworkId",
         "PolicyDimension",
         "ReportError",
@@ -674,6 +676,9 @@ CONTRACT = PackageContract(
         ac('AC-reporting.net-worth-scope.6', 'The Balance sheet tab shows manual and market valuations on their own equity line; the FX and translation (CTA) line carries only unrealized FX and CTA, and the equity side total equals the net worth.', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::#2645 shows manual valuations on their own equity line, never in the FX and CTA line', priority='P1'),
         ac('AC-reporting.net-worth-scope.7', 'The Balance sheet tab lists each asset class that the scope without restricted holdings excludes, with its net and its excluded liabilities.', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::#2645 names each class and amount that the scope without restricted holdings excludes', priority='P1'),
         ac('AC-reporting.net-worth-scope.8', 'Each net worth allocation source line carries source_type, source_id, label and value, and no link: the app chooses the lineage drawer or the evidence drawer from the type and the id.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_8_allocation_sources_carry_no_link', priority='P1'),
+        ac('AC-reporting.net-worth-scope.9', 'With restricted holdings excluded, an excluded valuation with no FX rate to the report currency does not fail the report: its excluded_holdings row has null amounts and one warning for each such valuation, the other rows keep their amounts, and the liquid totals are unchanged.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_9_excluded_valuation_without_fx_rate_does_not_fail_the_report', priority='P0'),
+        ac('AC-reporting.net-worth-scope.10', 'An included valuation with no FX rate to the report currency still fails the balance sheet with the FX ReportError (HTTP 400).', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_10_included_valuation_without_fx_rate_still_fails_the_report', priority='P0'),
+        ac('AC-reporting.net-worth-scope.11', 'The personal report package carries excluded_holdings in its balance sheet, and its restricted-asset-treatment note names each excluded class with its net, assets and liabilities; with restricted holdings included, the note says so and no class is excluded.', 'apps/backend/tests/reporting/test_net_worth_one_definition.py::test_AC_reporting_net_worth_scope_11_package_discloses_each_excluded_class', priority='P0'),
         # ── group portfolio-valuation-gate: brokerage portfolio value gate
         # (was EPIC-008 AC8.13.18/AC8.13.19, reporting-owned per the EPIC's own
         # migration note, #1821 Wave A pending-package move) ──

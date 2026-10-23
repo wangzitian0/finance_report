@@ -505,12 +505,14 @@ async def test_balance_sheet_can_exclude_restricted_and_illiquid_valuation_asset
             "total_assets": Decimal("1200000.00"),
             "total_liabilities": Decimal("600000.00"),
             "net_worth": Decimal("600000.00"),
+            "warnings": [],
         },
         {
             "asset_class": "restricted_comp",
             "total_assets": Decimal("42000.00"),
             "total_liabilities": Decimal("0.00"),
             "net_worth": Decimal("42000.00"),
+            "warnings": [],
         },
     ]
     assert full_report["total_assets"] == Decimal("1243200.00")

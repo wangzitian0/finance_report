@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 
 from src.audit.money import to_money
 from src.reporting.base.diagnostics import EquationDiagnosticCategory, EquationDiagnosticResult
+from src.reporting.base.types import DEFAULT_INCLUDE_RESTRICTED
 
 __all__ = [
     "diagnose_equation_imbalance",
@@ -116,7 +117,7 @@ async def run_balance_sheet_diagnostics(
     *,
     as_of_date: date | None = None,
     currency: str | None = None,
-    include_restricted: bool = False,
+    include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
 ) -> EquationDiagnosticResult:
     """Execute end-to-end accounting equation diagnostics against ledger & statements."""
     from src.extraction import BankStatementStatus, StatementSummary

@@ -1963,7 +1963,7 @@ export interface components {
             equity: components["schemas"]["ReportLine"][];
             /**
              * Excluded Holdings
-             * @description Asset classes that the scope excludes from the totals, one row per class. Empty for the full scope.
+             * @description Excluded classes.
              */
             excluded_holdings?: components["schemas"]["ExcludedHoldingRow"][];
             /**
@@ -3123,6 +3123,8 @@ export interface components {
         /**
          * ExcludedHoldingRow
          * @description One asset class that a scope without restricted holdings excludes (#2645).
+         *
+         *     The amounts are null when a valuation of the class has no FX rate; ``warnings`` names each one.
          */
         ExcludedHoldingRow: {
             /**
@@ -3132,19 +3134,26 @@ export interface components {
             asset_class: string;
             /**
              * Net Worth
-             * @description Excluded assets minus excluded liabilities of the class.
+             * @description Excluded assets minus excluded liabilities.
              */
-            net_worth: string;
+            net_worth: string | null;
             /**
              * Total Assets
-             * @description Excluded asset valuations of the class, in the report currency.
+             * @description Excluded asset valuations, in the report currency.
              */
-            total_assets: string;
+            total_assets: string | null;
             /**
              * Total Liabilities
-             * @description Excluded liability valuations of the class, for example a mortgage, in the report currency.
+             * @description Excluded liability valuations, in the report currency.
              */
-            total_liabilities: string;
+            total_liabilities: string | null;
+            /**
+             * Warnings
+             * @description One per valuation with no FX rate.
+             */
+            warnings?: {
+                [key: string]: string;
+            }[];
         };
         /**
          * ExportFormat
@@ -4348,7 +4357,7 @@ export interface components {
             currency: string;
             /**
              * Excluded Holdings
-             * @description The asset classes that the scope excludes, the same rows as the balance sheet. Empty for the full scope.
+             * @description Excluded classes.
              */
             excluded_holdings?: components["schemas"]["ExcludedHoldingRow"][];
             /**

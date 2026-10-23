@@ -16,6 +16,7 @@ from src.ledger import Account, AccountType, JournalEntry, JournalLine
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
 from src.pricing import ManualValuationLiquidityClass
+from src.reporting.base.types import DEFAULT_INCLUDE_RESTRICTED
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import _load_accounts, _single_source_currency
 from src.reporting.extension.balance_sheet import _build_manual_valuation_lines_series, generate_balance_sheet
@@ -191,7 +192,7 @@ async def get_net_worth_allocation_schedule(
     *,
     as_of_date: date,
     currency: str | None = None,
-    include_restricted: bool = True,
+    include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
 ) -> dict[str, object]:
     """Return signed net-worth allocation rows grouped by asset/liquidity/currency."""
     target_currency = _normalize_currency(currency)
@@ -522,7 +523,7 @@ async def get_net_worth_timeseries(
     end_date: date,
     granularity: str,
     currency: str | None = None,
-    include_restricted: bool = True,
+    include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
 ) -> dict[str, object]:
     """Get historical net worth points.
 

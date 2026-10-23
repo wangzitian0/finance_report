@@ -599,24 +599,42 @@ Portfolio. Each one reads `total_assets - total_liabilities` of
 sum) for one as-of date and one `include_restricted` scope
 (AC-reporting.net-worth-scope.1).
 
-- The default scope of each route and of the app is the full net worth
-  (`DEFAULT_INCLUDE_RESTRICTED = True` in `routers/reports.py`;
-  `DEFAULT_INCLUDE_RESTRICTED = true` in `hooks/useReportFilters.ts`).
+- The default scope of each net worth route and of the app is the full net
+  worth: `DEFAULT_INCLUDE_RESTRICTED = True` (`reporting/base/types.py`, read by
+  the balance sheet, its diagnostics and export, the allocation, the series and
+  `/reports/data-quality`) and `DEFAULT_INCLUDE_RESTRICTED = true` in
+  `hooks/useReportFilters.ts` (Home, `/reports`, Portfolio) (AC-platform.29.9).
 - `include_restricted=false` is the liquid scope. `pricing.split_net_worth_scope`
   is its only definition: it excludes each restricted or illiquid asset
-  valuation and each liability valuation of the same asset class, for example
-  the mortgage of an excluded property. A liability counts only when its asset
-  counts (AC-pricing.manualvaluation.12).
+  valuation and each liability valuation whose allocation class (a fixed map
+  from the component type) is the class of an excluded asset. Only
+  `mortgage_balance` shares a class with an asset type (`real_estate`), so a
+  mortgage valuation leaves with an excluded property valuation
+  (AC-pricing.manualvaluation.12).
+- Limits of the rule (#2659): no record links one liability to one asset. A
+  ledger liability account, for example a mortgage kept as a loan account,
+  always counts. When one property valuation is excluded, every mortgage
+  valuation leaves, also the mortgage of a property valuation set to liquid.
+  The rule reads the valuations current on each as-of date, so a mortgage
+  valuation older than its property valuation counts until the property date.
 - A scoped response returns `excluded_holdings`: one row per excluded asset
   class with its excluded assets, excluded liabilities and net. Home, the
   Balance sheet tab and Portfolio label the figure "Liquid net worth" and list
-  each row (AC-reporting.net-worth-scope.3, .5, .7).
+  each row (AC-reporting.net-worth-scope.3, .5, .7). The totals do not depend
+  on these rows: an excluded valuation with no FX rate gives its row null
+  amounts and a warning, and the report does not fail
+  (AC-reporting.net-worth-scope.9). An included valuation with no FX rate fails
+  the report as before (AC-reporting.net-worth-scope.10).
 - The Balance sheet tab shows `net_worth_adjustment_gain_loss` on its own
   equity line, "Manual and market valuations". The "FX and translation (CTA)"
   line carries only `unrealized_fx_gain_loss` and `cta_adjustment`
   (AC-reporting.net-worth-scope.6).
-- The report package keeps its own explicit liquid treatment
-  (`include_restricted=false`, `restricted-asset-treatment` note).
+- The personal report package presents the liquid scope by default
+  (`PACKAGE_INCLUDE_RESTRICTED = False`, read by `GET /reports/package`, the
+  generate body, `PackageAssembler` and `assemble_framework_balance_sheet`). Its
+  balance sheet carries `excluded_holdings`, and its `restricted-asset-treatment`
+  note names each excluded class with its net, assets and liabilities
+  (AC-reporting.net-worth-scope.11).
 
 `unrealized_fx_gain_loss` is **not a balancing plug** — it's calculated
 from foreign-currency asset/liability accounts by comparing `native

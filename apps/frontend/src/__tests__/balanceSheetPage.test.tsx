@@ -209,8 +209,16 @@ describe("BalanceSheetPage", () => {
           total_equity: "15000.00",
           net_income: "5360.65",
           excluded_holdings: [
-            { asset_class: "real_estate", total_assets: "1200000.00", total_liabilities: "650000.00", net_worth: "550000.00" },
-            { asset_class: "restricted_comp", total_assets: "42000.00", total_liabilities: "0.00", net_worth: "42000.00" },
+            { asset_class: "real_estate", total_assets: "1200000.00", total_liabilities: "650000.00", net_worth: "550000.00", warnings: [] },
+            { asset_class: "restricted_comp", total_assets: "42000.00", total_liabilities: "0.00", net_worth: "42000.00", warnings: [] },
+            // A USD valuation with no USD rate: the row has no amounts and names the currency pair.
+            {
+              asset_class: "retirement_and_benefit_assets",
+              total_assets: null,
+              total_liabilities: null,
+              net_worth: null,
+              warnings: [{ type: "missing_fx_rate_excluded_holding", source: "401k", currency: "USD", target_currency: "SGD", message: "No FX rate available" }],
+            },
           ],
           equation_delta: "0.00",
           is_balanced: true,
@@ -222,7 +230,8 @@ describe("BalanceSheetPage", () => {
     render(<BalanceSheetPage />)
 
     expect(await screen.findByTestId("excluded-holdings-note")).toHaveTextContent(
-      "Excludes restricted and illiquid holdings:Real Estate SGD 550,000.00 (net of SGD 650,000.00 liabilities)Restricted Comp SGD 42,000.00",
+      "Excludes restricted and illiquid holdings:Real Estate SGD 550,000.00 (net of SGD 650,000.00 liabilities)Restricted Comp SGD 42,000.00" +
+        "Retirement & Benefit Assets: amount not available (no FX rate for USD to SGD)",
     )
     expect(screen.getByText("Excluded")).toBeInTheDocument()
     expect(screen.queryByTestId("equity-valuations")).toBeNull()

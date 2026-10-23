@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import AccountType
 from src.reporting.base.l1_registry import get_framework_ordered_lines, is_valid_line_for_framework
-from src.reporting.base.types import PersonalReportingFrameworkId, ReportLineId
+from src.reporting.base.types import PACKAGE_INCLUDE_RESTRICTED, PersonalReportingFrameworkId, ReportLineId
 from src.reporting.extension.balance_sheet import generate_balance_sheet
 from src.reporting.extension.framework_policy import derive_user_framework_policy_result
 from src.reporting.extension.income_statement import generate_income_statement
@@ -163,7 +163,7 @@ async def assemble_framework_balance_sheet(
     framework_id: PersonalReportingFrameworkId,
     as_of_date: date,
     currency: str | None = None,
-    include_restricted: bool = False,
+    include_restricted: bool = PACKAGE_INCLUDE_RESTRICTED,
     decisions_by_source_id: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Assemble a framework-ordered and framework-categorized balance sheet.
@@ -275,6 +275,8 @@ async def assemble_framework_balance_sheet(
         "fx_warnings": raw_bs.get("fx_warnings", []),
         "portfolio_warnings": raw_bs.get("portfolio_warnings", []),
         "opening_balance_warnings": raw_bs.get("opening_balance_warnings", []),
+        # The classes that the scope leaves out; the package notes name each one (#2645).
+        "excluded_holdings": raw_bs["excluded_holdings"],
         "equation_delta": equation_delta,
         "is_balanced": abs(equation_delta) < Decimal("0.01"),
     }

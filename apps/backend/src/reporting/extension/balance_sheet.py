@@ -18,6 +18,7 @@ from src.reporting.base.balance_sheet_calculator import (
     calculate_balance_sheet_equation,
     calculate_currency_translation_adjustment,
 )
+from src.reporting.base.types import DEFAULT_INCLUDE_RESTRICTED
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
     _aggregate_account_provenance,
@@ -85,7 +86,7 @@ async def _build_manual_valuation_lines(
     *,
     as_of_date: date,
     target_currency: str,
-    include_restricted: bool = True,
+    include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
     warnings: list[FxWarning] | None = None,
     excluded_lines: list[dict] | None = None,
 ) -> tuple[list[dict], list[dict]]:
@@ -112,24 +113,43 @@ def _excluded_holdings(excluded_lines: Sequence[dict]) -> list[dict[str, object]
 
     Each row holds the excluded assets, the excluded liabilities and their net, in
     the report currency. A surface that shows a scoped net worth names each row.
+    A line with no FX rate has no amount. Its row then has no amounts, because a
+    partial sum would understate the class, and the row carries the warning of
+    each such line. The totals of the report do not depend on these rows.
     """
-    totals: dict[str, dict[str, Decimal]] = {}
+    grouped: dict[str, list[dict]] = {}
     for line in excluded_lines:
-        row = totals.setdefault(
-            str(line["allocation_asset_class"]),
-            {"total_assets": Decimal("0"), "total_liabilities": Decimal("0")},
+        grouped.setdefault(str(line["allocation_asset_class"]), []).append(line)
+    rows: list[dict[str, object]] = []
+    for asset_class, lines in sorted(grouped.items()):
+        warnings = [line["conversion_warning"] for line in lines if line["amount"] is None]
+        if warnings:
+            rows.append(
+                {
+                    "asset_class": asset_class,
+                    "total_assets": None,
+                    "total_liabilities": None,
+                    "net_worth": None,
+                    "warnings": warnings,
+                }
+            )
+            continue
+        total_assets = sum(
+            (Decimal(str(line["amount"])) for line in lines if line["type"] != AccountType.LIABILITY), Decimal("0")
         )
-        side = "total_liabilities" if line["type"] == AccountType.LIABILITY else "total_assets"
-        row[side] += Decimal(str(line["amount"]))
-    return [
-        {
-            "asset_class": asset_class,
-            "total_assets": _quantize_money(row["total_assets"]),
-            "total_liabilities": _quantize_money(row["total_liabilities"]),
-            "net_worth": _quantize_money(row["total_assets"] - row["total_liabilities"]),
-        }
-        for asset_class, row in sorted(totals.items())
-    ]
+        total_liabilities = sum(
+            (Decimal(str(line["amount"])) for line in lines if line["type"] == AccountType.LIABILITY), Decimal("0")
+        )
+        rows.append(
+            {
+                "asset_class": asset_class,
+                "total_assets": _quantize_money(total_assets),
+                "total_liabilities": _quantize_money(total_liabilities),
+                "net_worth": _quantize_money(total_assets - total_liabilities),
+                "warnings": [],
+            }
+        )
+    return rows
 
 
 async def _build_manual_valuation_lines_series(
@@ -138,7 +158,7 @@ async def _build_manual_valuation_lines_series(
     *,
     as_of_dates: Sequence[date],
     target_currency: str,
-    include_restricted: bool = True,
+    include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
 ) -> dict[date, tuple[list[dict], list[dict]]]:
     """Dispatch to the registered manual-valuation lines series provider."""
     if _manual_valuation_lines_series_provider is None:
@@ -222,7 +242,7 @@ async def generate_balance_sheet(
     *,
     as_of_date: date,
     currency: str | None = None,
-    include_restricted: bool = True,
+    include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
     include_allocation_metadata: bool = False,
     include_trust_signals: bool = True,
 ) -> dict[str, object]:

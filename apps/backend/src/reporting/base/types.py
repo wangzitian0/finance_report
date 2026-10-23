@@ -2,6 +2,17 @@
 
 from enum import Enum
 
+#: The default restricted-holdings scope of each net worth view (#2645): the
+#: balance sheet, its export and diagnostics, the net worth series and the
+#: allocation. The default is the full net worth. A scope without restricted
+#: holdings is an explicit request, and it names each class that it excludes.
+DEFAULT_INCLUDE_RESTRICTED = True
+
+#: The default scope of the personal report package: the liquid net worth. The
+#: package discloses each excluded class with its amount in the
+#: restricted-asset-treatment note (#2645).
+PACKAGE_INCLUDE_RESTRICTED = False
+
 
 class PersonalReportingFrameworkId(str, Enum):
     """Supported personal reporting framework targets."""

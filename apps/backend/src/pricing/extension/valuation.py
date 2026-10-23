@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import normalize_currency_code
 from src.audit.money import to_money
 from src.observability import get_logger
+from src.pricing.base.errors import PricingError
 from src.pricing.base.manual_valuation import (
     ManualValuationBasis,
     ManualValuationComponentType,
@@ -83,13 +84,23 @@ def split_net_worth_scope(
     *,
     include_restricted: bool,
 ) -> tuple[list[ValuationComponentItem], list[ValuationComponentItem]]:
-    """Return the components inside and outside one restricted-holdings scope (#2645).
+    """Return the manual valuations inside and outside one restricted-holdings scope (#2645).
 
     This function is the only definition of the scope. The full scope holds each
     component. The scope without restricted holdings excludes each restricted or
-    illiquid asset. It also excludes each liability of the same asset class, for
-    example the mortgage of an excluded property. Thus a liability counts only
-    when its asset counts. A liability of a class with no excluded asset counts.
+    illiquid asset valuation. It also excludes each liability valuation whose
+    allocation class (``_manual_valuation_allocation_asset_class``, a fixed map
+    from the component type) is the class of an excluded asset. Only
+    ``mortgage_balance`` shares a class with an asset type (``real_estate``), so
+    a mortgage valuation leaves with an excluded property valuation.
+
+    Limits (#2659). There is no link from one liability to one asset:
+    - A ledger liability account, for example a mortgage kept as a loan account,
+      always counts. Only manual valuations take part in the scope.
+    - When one property valuation is excluded, every mortgage valuation leaves,
+      also the mortgage of a property valuation that is set to liquid.
+    - The rule reads the components current on the as-of date. A mortgage valuation
+      that is older than its property valuation counts until the property date.
     """
     if include_restricted:
         return list(items), []
@@ -460,10 +471,6 @@ class ValuationService:
             .having(func.min(ManualValuationSnapshot.as_of_date) > as_of_date)
             .order_by(ManualValuationSnapshot.component_type, ManualValuationSnapshot.source)
         )
-        hidden_classes = (
-            ManualValuationLiquidityClass.RESTRICTED,
-            ManualValuationLiquidityClass.ILLIQUID,
-        )
         warnings: list[dict[str, str]] = [
             {
                 "type": "valuation_component_not_yet_recorded",
@@ -478,7 +485,7 @@ class ValuationService:
                 ),
             }
             for row in gap_rows
-            if include_restricted or row.latest_liquidity_class not in hidden_classes
+            if include_restricted or row.latest_liquidity_class not in _RESTRICTED_LIQUIDITY_CLASSES
         ]
 
         items, excluded_items = split_net_worth_scope(
@@ -551,8 +558,12 @@ def _manual_valuation_allocation_asset_class(component_type: str) -> str:
     return "other"
 
 
-def _manual_valuation_line(component: ValuationComponentItem, amount: Decimal) -> dict[str, Any]:
-    """Build one balance-sheet line from a component and its target-currency amount."""
+def _manual_valuation_line(component: ValuationComponentItem, amount: Decimal | None) -> dict[str, Any]:
+    """Build one balance-sheet line from a component and its target-currency amount.
+
+    ``amount`` is None only for an excluded component with no FX rate (see
+    ``build_manual_valuation_lines``). An included line always has an amount.
+    """
     is_liability = component.liquidity_class == ManualValuationLiquidityClass.LIABILITY.value
     return {
         "account_id": component.id,
@@ -563,7 +574,7 @@ def _manual_valuation_line(component: ValuationComponentItem, amount: Decimal) -
         # the enum members every consumer of this line dict expects.
         "type": "LIABILITY" if is_liability else "ASSET",
         "parent_id": None,
-        "amount": to_money(amount),
+        "amount": None if amount is None else to_money(amount),
         "provenance": "manual",
         "source_currency": component.currency.upper(),
         "allocation_asset_class": _manual_valuation_allocation_asset_class(component.component_type),
@@ -602,6 +613,9 @@ async def build_manual_valuation_lines(
     ``excluded_lines`` is an optional accumulator too. It receives one line in
     ``target_currency`` for each component that the scope excludes
     (``split_net_worth_scope``), so the caller can name what it left out (#2645).
+    The totals do not depend on an excluded line. Thus an FX miss on an excluded
+    component does not raise: its line has the amount None and a
+    ``conversion_warning`` that names the component and the currency pair.
 
     Raises the pricing error family
     (:class:`~src.pricing.base.errors.PricingError`) when a required FX rate
@@ -642,7 +656,24 @@ async def build_manual_valuation_lines(
 
     lines = [await line_of(component) for component in components.items]
     if excluded_lines is not None:
-        excluded_lines.extend([await line_of(component) for component in components.excluded_items])
+        for component in components.excluded_items:
+            try:
+                excluded_lines.append(await line_of(component))
+            except PricingError as exc:
+                excluded_lines.append(
+                    {
+                        **_manual_valuation_line(component, None),
+                        "conversion_warning": {
+                            "type": "missing_fx_rate_excluded_holding",
+                            "component_type": component.component_type,
+                            "source": component.source,
+                            "currency": component.currency.upper(),
+                            "target_currency": target_currency,
+                            "as_of_date": as_of_date.isoformat(),
+                            "message": str(exc),
+                        },
+                    }
+                )
     return _split_manual_valuation_lines(lines)
 
 

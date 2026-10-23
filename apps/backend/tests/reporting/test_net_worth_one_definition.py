@@ -297,3 +297,121 @@ async def test_AC_reporting_net_worth_scope_8_allocation_sources_carry_no_link(
     condo = by_label["Valuation: Condo (property value)"]
     assert condo["source_type"] == "manual_valuation"
     assert condo["source_id"] is not None
+
+
+async def _add_usd_rsu_without_fx_rate(db: AsyncSession, user_id: UUID) -> None:
+    """Add a restricted USD valuation. The test database holds no USD rate, so it cannot convert."""
+    db.add(
+        ManualValuationSnapshot(
+            user_id=user_id,
+            component_type=ManualValuationComponentType.RSU,
+            liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+            value=Decimal("1000.00"),
+            currency="USD",
+            as_of_date=VALUATION_DATE,
+            source="Employer RSU",
+        )
+    )
+    await db.commit()
+
+
+async def test_AC_reporting_net_worth_scope_9_excluded_valuation_without_fx_rate_does_not_fail_the_report(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-reporting.net-worth-scope.9: an FX miss on an excluded valuation is a row warning, not an error.
+
+    The liquid totals do not depend on the excluded rows. The row of the class with
+    the unconverted valuation has no amounts and names the valuation. The other
+    rows keep their amounts.
+    """
+    await _seed_issue_2645_account(db, test_user.id)
+    await _add_usd_rsu_without_fx_rate(db, test_user.id)
+
+    liquid = await _get(
+        client, f"/reports/balance-sheet?as_of_date={AS_OF.isoformat()}&currency=SGD&include_restricted=false"
+    )
+
+    assert _money(liquid["total_assets"]) - _money(liquid["total_liabilities"]) == LIQUID_NET_WORTH
+    rows = {row["asset_class"]: row for row in liquid["excluded_holdings"]}
+    assert _money(rows["real_estate"]["net_worth"]) == PROPERTY - MORTGAGE
+    assert rows["real_estate"]["warnings"] == []
+    restricted = rows["restricted_comp"]
+    assert (restricted["total_assets"], restricted["total_liabilities"], restricted["net_worth"]) == (None, None, None)
+    assert [(w["type"], w["source"], w["currency"], w["target_currency"]) for w in restricted["warnings"]] == [
+        ("missing_fx_rate_excluded_holding", "Employer RSU", "USD", "SGD")
+    ]
+
+
+async def test_AC_reporting_net_worth_scope_10_included_valuation_without_fx_rate_still_fails_the_report(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-reporting.net-worth-scope.10: an FX miss on an included valuation fails the report as before.
+
+    The full scope includes the USD RSU, so its total needs the rate: the route
+    answers 400 with the FX error of ``ReportError``.
+    """
+    await _seed_issue_2645_account(db, test_user.id)
+    await _add_usd_rsu_without_fx_rate(db, test_user.id)
+
+    response = await client.get(
+        f"/reports/balance-sheet?as_of_date={AS_OF.isoformat()}&currency=SGD&include_restricted=true"
+    )
+
+    assert response.status_code == 400, response.text
+    assert "No FX rate available" in response.text
+
+
+async def _assemble_package(db: AsyncSession, user_id: UUID, *, include_restricted: bool):
+    from src.reporting import PersonalReportingFrameworkId
+    from src.reporting.extension.package_document import PackageAssembler
+
+    return await PackageAssembler().assemble(
+        db,
+        user_id=user_id,
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        start_date=PERIOD_START,
+        end_date=AS_OF,
+        as_of_date=AS_OF,
+        currency="SGD",
+        include_restricted=include_restricted,
+    )
+
+
+def _restricted_treatment_note(document) -> str:
+    return next(
+        note.disclosure for note in document.sections.notes.notes if note.note_id == "restricted-asset-treatment"
+    )
+
+
+async def test_AC_reporting_net_worth_scope_11_package_discloses_each_excluded_class(
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-reporting.net-worth-scope.11: the report package names each class that its scope excludes, with amounts.
+
+    The package presents the liquid net worth by default. Its balance sheet carries
+    the excluded rows, and the restricted-asset-treatment note names each class with
+    its net, assets and liabilities, so the total reconciles to the full net worth.
+    """
+    await _seed_issue_2645_account(db, test_user.id)
+
+    liquid = await _assemble_package(db, test_user.id, include_restricted=False)
+    full = await _assemble_package(db, test_user.id, include_restricted=True)
+
+    sheet = liquid.sections.balance_sheet
+    assert [(row.asset_class, row.net_worth) for row in sheet.excluded_holdings] == [
+        ("real_estate", PROPERTY - MORTGAGE),
+        ("restricted_comp", ESOP),
+    ]
+    assert sheet.total_assets - sheet.total_liabilities == LIQUID_NET_WORTH
+    note = _restricted_treatment_note(liquid)
+    assert "real estate SGD 550,000.00 net (assets SGD 1,200,000.00, liabilities SGD 650,000.00)" in note, note
+    assert "restricted comp SGD 42,000.00 net (assets SGD 42,000.00, liabilities SGD 0.00)" in note, note
+
+    assert full.sections.balance_sheet.excluded_holdings == []
+    assert full.sections.balance_sheet.total_assets - full.sections.balance_sheet.total_liabilities == FULL_NET_WORTH
+    assert "This package includes restricted and illiquid holdings" in _restricted_treatment_note(full)

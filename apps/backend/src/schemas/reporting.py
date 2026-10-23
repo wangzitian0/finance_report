@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.ledger import AccountType, Direction
 from src.reporting import (
+    PACKAGE_INCLUDE_RESTRICTED,
     CashFlowResponse,
     InvariantStatus as InvariantStatus,
     MonthContinuityBucket as MonthContinuityBucket,
@@ -82,14 +83,16 @@ class AccountLineageResponse(BaseModel):
 
 
 class ExcludedHoldingRow(BaseModel):
-    """One asset class that a scope without restricted holdings excludes (#2645)."""
+    """One asset class that a scope without restricted holdings excludes (#2645).
+
+    The amounts are null when a valuation of the class has no FX rate; ``warnings`` names each one.
+    """
 
     asset_class: str = Field(description="Allocation asset class of the excluded manual valuations.")
-    total_assets: Decimal = Field(description="Excluded asset valuations of the class, in the report currency.")
-    total_liabilities: Decimal = Field(
-        description="Excluded liability valuations of the class, for example a mortgage, in the report currency."
-    )
-    net_worth: Decimal = Field(description="Excluded assets minus excluded liabilities of the class.")
+    total_assets: Decimal | None = Field(description="Excluded asset valuations, in the report currency.")
+    total_liabilities: Decimal | None = Field(description="Excluded liability valuations, in the report currency.")
+    net_worth: Decimal | None = Field(description="Excluded assets minus excluded liabilities.")
+    warnings: list[dict[str, str]] = Field(default_factory=list, description="One per valuation with no FX rate.")
 
 
 class BalanceSheetResponse(BaseModel):
@@ -123,12 +126,7 @@ class BalanceSheetResponse(BaseModel):
     opening_balance_warnings: list[dict[str, str]] = Field(
         default_factory=list, description="Opening-balance completeness warnings."
     )
-    excluded_holdings: list[ExcludedHoldingRow] = Field(
-        default_factory=list,
-        description=(
-            "Asset classes that the scope excludes from the totals, one row per class. Empty for the full scope."
-        ),
-    )
+    excluded_holdings: list[ExcludedHoldingRow] = Field(default_factory=list, description="Excluded classes.")
     equation_delta: Decimal
     is_balanced: bool
 
@@ -232,12 +230,7 @@ class NetWorthAllocationResponse(BaseModel):
         default_factory=list,
         description="Same portfolio point-in-time gaps as the balance sheet (#1791 follow-up).",
     )
-    excluded_holdings: list[ExcludedHoldingRow] = Field(
-        default_factory=list,
-        description=(
-            "The asset classes that the scope excludes, the same rows as the balance sheet. Empty for the full scope."
-        ),
-    )
+    excluded_holdings: list[ExcludedHoldingRow] = Field(default_factory=list, description="Excluded classes.")
 
 
 class AccountTrendPoint(BaseModel):
@@ -650,7 +643,7 @@ class PersonalReportPackageGenerateRequest(BaseModel):
         max_length=3,
     )
     include_restricted: bool = Field(
-        default=False,
+        default=PACKAGE_INCLUDE_RESTRICTED,
         description="Whether restricted manual valuations are included in generated section payloads",
     )
 
