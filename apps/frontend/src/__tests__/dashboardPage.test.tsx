@@ -17,10 +17,14 @@ vi.mock("@/lib/api-client", () => ({
   apiOperation: vi.fn(),
 }))
 
-const liquidBalance = {
+// The default scope includes restricted holdings (#2645): the full net worth is 4,000.
+const fullBalance = {
   as_of_date: "2026-10-22",
   currency: "USD",
-  assets: [{ account_id: "a1", name: "Cash", type: "ASSET", amount: "5000" }],
+  assets: [
+    { account_id: "a1", name: "Cash", type: "ASSET", amount: "3000" },
+    { account_id: "r1", name: "SHOP RSU", type: "ASSET", amount: "2000" },
+  ],
   liabilities: [{ account_id: "l1", name: "Card", type: "LIABILITY", amount: "1000" }],
   equity: [],
   total_assets: "5000",
@@ -28,6 +32,16 @@ const liquidBalance = {
   total_equity: "4000",
   equation_delta: "0",
   is_balanced: true,
+  excluded_holdings: [],
+}
+
+// The scope without restricted holdings leaves the RSU out and names it.
+const liquidBalance = {
+  ...fullBalance,
+  assets: [fullBalance.assets[0]],
+  total_assets: "3000",
+  total_equity: "2000",
+  excluded_holdings: [{ asset_class: "restricted_comp", total_assets: "2000", total_liabilities: "0", net_worth: "2000" }],
 }
 
 const income = {
@@ -74,9 +88,7 @@ function mockHomeApi(overrides: Overrides = {}) {
     switch (operationId) {
       case "balance_sheet_reports_balance_sheet_get":
         return Promise.resolve(
-          request.query?.include_restricted
-            ? { ...liquidBalance, total_assets: "17500", assets: [...liquidBalance.assets, { account_id: "r1", name: "SHOP RSU", type: "ASSET", amount: "12500" }] }
-            : liquidBalance,
+          request.query?.include_restricted === false ? liquidBalance : fullBalance,
         )
       case "income_statement_reports_income_statement_get":
         return Promise.resolve(income)
@@ -164,7 +176,7 @@ describe("HomePage", () => {
   it("AC16.12.4 shows zero metrics and no line list for an empty period", async () => {
     mockHomeApi({
       balance_sheet_reports_balance_sheet_get: () =>
-        Promise.resolve({ ...liquidBalance, assets: [], liabilities: [], total_assets: "0", total_liabilities: "0", total_equity: "0" }),
+        Promise.resolve({ ...fullBalance, assets: [], liabilities: [], total_assets: "0", total_liabilities: "0", total_equity: "0" }),
       income_statement_reports_income_statement_get: () =>
         Promise.resolve({ ...income, income: [], expenses: [], total_income: "0", total_expenses: "0", net_income: "0" }),
     })
@@ -289,25 +301,27 @@ describe("HomePage", () => {
     expect(screen.queryByText(/workflow down/)).toBeNull()
   })
 
-  // AC-portfolio.fe-assets2.9
-  it("AC11.8.5 defaults to liquid net worth and refetches when restricted holdings are included", async () => {
+  // AC-portfolio.fe-assets2.9 / AC-reporting.net-worth-scope.5
+  it("AC11.8.5 defaults to the full net worth and labels each excluded class when restricted holdings are excluded", async () => {
     render(<HomePage />)
 
     await waitFor(() => expect(screen.getByText("Net worth").nextElementSibling).toHaveTextContent("$4,000"))
     expect(mockedApiOperation).toHaveBeenCalledWith(
       "balance_sheet_reports_balance_sheet_get",
-      expect.objectContaining({ query: expect.objectContaining({ include_restricted: false }) }),
-    )
-    const scope = screen.getByLabelText("Include restricted holdings")
-    expect(scope).not.toBeChecked()
-    fireEvent.click(scope)
-
-    await waitFor(() => expect(screen.getByText("Net worth").nextElementSibling).toHaveTextContent("$16,500"))
-    expect(mockedApiOperation).toHaveBeenCalledWith(
-      "balance_sheet_reports_balance_sheet_get",
       expect.objectContaining({ query: expect.objectContaining({ include_restricted: true }) }),
     )
-    expect(screen.getByLabelText("Include restricted holdings")).toBeChecked()
+    expect(screen.queryByTestId("excluded-holdings-note")).toBeNull()
+    const scope = screen.getByLabelText("Include restricted holdings")
+    expect(scope).toBeChecked()
+    fireEvent.click(scope)
+
+    await waitFor(() => expect(screen.getByText("Liquid net worth").nextElementSibling).toHaveTextContent("$2,000"))
+    expect(mockedApiOperation).toHaveBeenCalledWith(
+      "balance_sheet_reports_balance_sheet_get",
+      expect.objectContaining({ query: expect.objectContaining({ include_restricted: false }) }),
+    )
+    expect(screen.getByLabelText("Include restricted holdings")).not.toBeChecked()
+    expect(screen.getByTestId("excluded-holdings-note")).toHaveTextContent("Excludes restricted and illiquid holdings:Restricted Comp $2,000")
   })
 
   // AC-reporting.fe-viz-reports.27

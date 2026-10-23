@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.ledger import AccountType, Direction
 from src.reporting import (
+    PACKAGE_INCLUDE_RESTRICTED,
     CashFlowResponse,
     InvariantStatus as InvariantStatus,
     MonthContinuityBucket as MonthContinuityBucket,
@@ -81,6 +82,19 @@ class AccountLineageResponse(BaseModel):
     lines: list[AccountLineageLine] = Field(description="Posted/reconciled lines contributing to the balance")
 
 
+class ExcludedHoldingRow(BaseModel):
+    """One asset class that a scope without restricted holdings excludes (#2645).
+
+    The amounts are null when a valuation of the class has no FX rate; ``warnings`` names each one.
+    """
+
+    asset_class: str = Field(description="Allocation asset class of the excluded manual valuations.")
+    total_assets: Decimal | None = Field(description="Excluded asset valuations, in the report currency.")
+    total_liabilities: Decimal | None = Field(description="Excluded liability valuations, in the report currency.")
+    net_worth: Decimal | None = Field(description="Excluded assets minus excluded liabilities.")
+    warnings: list[dict[str, str]] = Field(default_factory=list, description="One per valuation with no FX rate.")
+
+
 class BalanceSheetResponse(BaseModel):
     """Balance sheet response schema."""
 
@@ -112,6 +126,7 @@ class BalanceSheetResponse(BaseModel):
     opening_balance_warnings: list[dict[str, str]] = Field(
         default_factory=list, description="Opening-balance completeness warnings."
     )
+    excluded_holdings: list[ExcludedHoldingRow] = Field(default_factory=list, description="Excluded classes.")
     equation_delta: Decimal
     is_balanced: bool
 
@@ -181,14 +196,6 @@ class NetWorthAllocationSourceLine(BaseModel):
     source_id: UUID | None = Field(default=None, description="Source record id when the contributor has one.")
     label: str = Field(description="Human-readable contributor label.")
     value: Decimal = Field(description="Signed contributor value in the report currency.")
-    href: str | None = Field(default=None, description="Internal drill-through href for the contributor.")
-
-    @field_validator("href")
-    @classmethod
-    def validate_href(cls, value: str | None) -> str | None:
-        if value is None:
-            return value
-        return _validate_internal_action_href(value)
 
 
 class NetWorthAllocationRow(BaseModel):
@@ -223,6 +230,7 @@ class NetWorthAllocationResponse(BaseModel):
         default_factory=list,
         description="Same portfolio point-in-time gaps as the balance sheet (#1791 follow-up).",
     )
+    excluded_holdings: list[ExcludedHoldingRow] = Field(default_factory=list, description="Excluded classes.")
 
 
 class AccountTrendPoint(BaseModel):
@@ -635,7 +643,7 @@ class PersonalReportPackageGenerateRequest(BaseModel):
         max_length=3,
     )
     include_restricted: bool = Field(
-        default=False,
+        default=PACKAGE_INCLUDE_RESTRICTED,
         description="Whether restricted manual valuations are included in generated section payloads",
     )
 

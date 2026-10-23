@@ -28,6 +28,8 @@ from src.platform import raise_bad_request, raise_not_found
 from src.portfolio import active_stock_symbols
 from src.pricing import FxRate, ensure_market_data_fresh
 from src.reporting import (
+    DEFAULT_INCLUDE_RESTRICTED,
+    PACKAGE_INCLUDE_RESTRICTED,
     CashFlowLineEventsPage,
     CashFlowPreview,
     EquationDiagnosticResult,
@@ -86,7 +88,6 @@ from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = get_logger(__name__)
-DEFAULT_INCLUDE_RESTRICTED = False
 
 
 def _target_currency_pair(currency: str | None) -> list[str]:
@@ -216,7 +217,7 @@ async def preview_personal_report_package(
     end_date: date | None = Query(default=None),
     as_of_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    include_restricted: bool = Query(default=False),
+    include_restricted: bool = Query(default=PACKAGE_INCLUDE_RESTRICTED),
     *,
     db: DbSession,
     user_id: CurrentUserId,
@@ -897,6 +898,7 @@ async def net_worth_timeseries(
     to_date: date = Query(..., alias="to"),
     granularity: NetWorthGranularity = Query(default=NetWorthGranularity.MONTHLY),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
+    include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
     *,
     db: DbSession,
     user_id: CurrentUserId,
@@ -911,6 +913,7 @@ async def net_worth_timeseries(
             end_date=to_date,
             granularity=granularity.value,
             currency=currency,
+            include_restricted=include_restricted,
         )
     except ReportError as exc:
         logger.warning(
@@ -1000,7 +1003,7 @@ async def export_report(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    include_restricted: bool = Query(default=False),
+    include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
     framework_id: PersonalReportingFrameworkId | None = Query(default=None),
     *,
     db: DbSession,

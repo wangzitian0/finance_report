@@ -53,6 +53,8 @@ _EXPORTS = {
     "MonthContinuityBucket": "src.reporting.base.data_quality_types",
     "QualityActionItem": "src.reporting.base.data_quality_types",
     "compute_personal_data_quality": "src.reporting.extension.data_quality_service",
+    "DEFAULT_INCLUDE_RESTRICTED": "src.reporting.base.types",
+    "PACKAGE_INCLUDE_RESTRICTED": "src.reporting.base.types",
     "PersonalReportingFrameworkId": "src.reporting.base.types",
     "PolicyDimension": "src.reporting.base.types",
     "ReportError": "src.reporting.extension.reporting_calc",
@@ -129,6 +131,8 @@ __all__ = [
     "MonthContinuityBucket",
     "QualityActionItem",
     "compute_personal_data_quality",
+    "DEFAULT_INCLUDE_RESTRICTED",
+    "PACKAGE_INCLUDE_RESTRICTED",
     "PersonalReportingFrameworkId",
     "PolicyDimension",
     "ReportError",
@@ -215,7 +219,13 @@ if TYPE_CHECKING:
         PERSONAL_REPORT_PACKAGE_CONTRACT,
         PERSONAL_REPORT_PACKAGE_NOTES,
     )
-    from src.reporting.base.types import PersonalReportingFrameworkId, PolicyDimension, ReportLineId
+    from src.reporting.base.types import (
+        DEFAULT_INCLUDE_RESTRICTED,
+        PACKAGE_INCLUDE_RESTRICTED,
+        PersonalReportingFrameworkId,
+        PolicyDimension,
+        ReportLineId,
+    )
     from src.reporting.extension._core import _aggregate_balances_sql, _aggregate_net_income_sql
     from src.reporting.extension.annualized_income import generate_annualized_income_schedule
     from src.reporting.extension.balance_sheet import (

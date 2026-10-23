@@ -95,6 +95,12 @@ export function humanizeIdentifier(value?: string | null): string {
         .join(" ");
 }
 
+/** Display label of a net worth allocation class, e.g. "real_estate" -> "Real Estate". */
+export function allocationClassLabel(value: string): string {
+    if (value === "retirement_and_benefit_assets") return "Retirement & Benefit Assets";
+    return humanizeIdentifier(value);
+}
+
 /** Display label for a source-document class, e.g. "bank_statement" -> "Bank statements". */
 export function sourceClassLabel(sourceClass: string): string {
     return SOURCE_CLASS_LABELS[sourceClass] ?? humanizeIdentifier(sourceClass);

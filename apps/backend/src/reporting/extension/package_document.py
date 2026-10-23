@@ -54,7 +54,7 @@ from src.reporting.base.report_package_contract import (
     PERSONAL_REPORT_PACKAGE_NOTES,
     PERSONAL_REPORT_PACKAGE_TRACEABILITY,
 )
-from src.reporting.base.types import PersonalReportingFrameworkId
+from src.reporting.base.types import PACKAGE_INCLUDE_RESTRICTED, PersonalReportingFrameworkId
 from src.reporting.extension._core import _aggregate_net_income_sql, _quantize_money
 from src.reporting.extension.annualized_income import generate_annualized_income_schedule
 from src.reporting.extension.cash_flow import cash_flow_proof_reason_text, generate_cash_flow
@@ -67,6 +67,7 @@ from src.reporting.extension.report_traceability import build_personal_report_pa
 from src.schemas.portfolio import InvestmentPerformanceReportScheduleResponse
 from src.schemas.reporting import (
     BalanceSheetResponse,
+    ExcludedHoldingRow,
     IncomeStatementResponse,
     PersonalReportPackageContext,
     PersonalReportPackageContractResponse,
@@ -142,12 +143,66 @@ async def _package_statement_disposition_policy(
     )
 
 
+RESTRICTED_ASSET_TREATMENT_NOTE_ID = "restricted-asset-treatment"
+
+
+def _excluded_holding_text(row: ExcludedHoldingRow, currency: str) -> str:
+    label = row.asset_class.replace("_", " ")
+    if row.net_worth is None or row.total_assets is None or row.total_liabilities is None:
+        pairs = ", ".join(sorted({f"{w['currency']} to {w['target_currency']}" for w in row.warnings}))
+        return f"{label}: amount not available, no FX rate for {pairs}"
+    return (
+        f"{label} {currency} {row.net_worth:,.2f} net "
+        f"(assets {currency} {row.total_assets:,.2f}, liabilities {currency} {row.total_liabilities:,.2f})"
+    )
+
+
+def _restricted_asset_treatment_disclosure(
+    base_disclosure: str,
+    *,
+    include_restricted: bool,
+    excluded_holdings: list[ExcludedHoldingRow],
+    currency: str,
+) -> str:
+    """Name the scope of this package and each excluded class with its amount (#2645).
+
+    The liquid scope excludes restricted and illiquid valuations and the liabilities of
+    their class, for example a mortgage with its property. The package states each
+    excluded class, so the reader can reconcile the total to the full net worth.
+    """
+    if include_restricted:
+        return f"{base_disclosure} This package includes restricted and illiquid holdings in the balance sheet."
+    if not excluded_holdings:
+        return f"{base_disclosure} This package excludes no restricted or illiquid holding: none is recorded."
+    rows = "; ".join(_excluded_holding_text(row, currency) for row in excluded_holdings)
+    return (
+        f"{base_disclosure} This package excludes these restricted and illiquid holdings, with the "
+        f"liabilities of their class, from the balance sheet: {rows}."
+    )
+
+
 def _package_notes(
     statement_disposition_policy: PersonalReportPackageStatementDispositionPolicy,
+    *,
+    balance_sheet: BalanceSheetResponse,
+    include_restricted: bool,
 ) -> PersonalReportPackageNotesResponse:
     payload = dict(PERSONAL_REPORT_PACKAGE_NOTES)
     payload["notes"] = [
-        *PERSONAL_REPORT_PACKAGE_NOTES["notes"],
+        *(
+            {
+                **note,
+                "disclosure": _restricted_asset_treatment_disclosure(
+                    note["disclosure"],
+                    include_restricted=include_restricted,
+                    excluded_holdings=balance_sheet.excluded_holdings,
+                    currency=balance_sheet.currency,
+                ),
+            }
+            if note["note_id"] == RESTRICTED_ASSET_TREATMENT_NOTE_ID
+            else note
+            for note in PERSONAL_REPORT_PACKAGE_NOTES["notes"]
+        ),
         {
             "note_id": "statement-disposition-policy",
             "label": "Statement Disposition Policy",
@@ -506,7 +561,7 @@ class PackageAssembler:
         end_date: date,
         as_of_date: date,
         currency: str,
-        include_restricted: bool = False,
+        include_restricted: bool = PACKAGE_INCLUDE_RESTRICTED,
         lifecycle: PersonalReportPackageDocumentLifecycle = PersonalReportPackageDocumentLifecycle.PREVIEW,
         snapshot_id: UUID | None = None,
         frozen_at: datetime | None = None,
@@ -529,7 +584,11 @@ class PackageAssembler:
         input_manifest = evaluation.input_manifest
         readiness = evaluation.readiness
         sections.traceability_appendix = await _traceability_appendix(evaluation.contributions)
-        sections.notes = _package_notes(statement_disposition_policy)
+        sections.notes = _package_notes(
+            statement_disposition_policy,
+            balance_sheet=sections.balance_sheet,
+            include_restricted=include_restricted,
+        )
         now = datetime.now(UTC)
         package_decision_id = None
         if (
@@ -592,7 +651,7 @@ class PackageAssembler:
         end_date: date,
         as_of_date: date,
         currency: str,
-        include_restricted: bool = False,
+        include_restricted: bool = PACKAGE_INCLUDE_RESTRICTED,
     ) -> PersonalReportPackageReadinessResponse:
         """Return the readiness that ``assemble`` returns for the same arguments.
 

@@ -259,7 +259,13 @@ async def test_AC_pricing_manualvaluation_11_series_equals_one_build_per_date(
                 db, test_user.id, as_of_date=as_of, target_currency="sgd", include_restricted=include_restricted
             )
     assert series[date(2026, 5, 2)] == ([], [])
-    assert [line["amount"] for line in series[date(2026, 5, 16)][1]] == [Decimal("410000.00")]
+    # The loop ends with the scope without restricted holdings: the illiquid
+    # property takes its mortgage out of that scope (#2645).
+    assert series[date(2026, 5, 16)][1] == []
+    full_scope = await build_manual_valuation_lines_series(
+        db, test_user.id, as_of_dates=[date(2026, 5, 16)], target_currency="sgd", include_restricted=True
+    )
+    assert [line["amount"] for line in full_scope[date(2026, 5, 16)][1]] == [Decimal("410000.00")]
 
 
 async def test_AC_pricing_manualvaluation_11_series_fx_miss_raises_pricing_error(db: AsyncSession, test_user) -> None:

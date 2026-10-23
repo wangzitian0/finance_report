@@ -9,6 +9,7 @@ import type { ReportFilters } from "@/hooks/useReportFilters";
 import { balanceSheetQueryKey } from "@/lib/sharedQueries";
 import { NetWorthTimeSeriesChart } from "@/components/charts/NetWorthTimeSeriesChart";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
+import { ExcludedHoldingsNote } from "@/components/reports/ExcludedHoldingsNote";
 import {
   ExportCsvButton,
   FxWarningBanner,
@@ -74,9 +75,11 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
   const assetsTree = useMemo(() => (report ? buildTree(report.assets) : []), [report]);
   const liabilitiesTree = useMemo(() => (report ? buildTree(report.liabilities) : []), [report]);
   const equityTree = useMemo(() => (report ? buildTree(report.equity) : []), [report]);
-  const adjustments = report
-    ? sumAmounts([report.unrealized_fx_gain_loss ?? 0, report.cta_adjustment ?? 0, report.net_worth_adjustment_gain_loss ?? 0])
-    : null;
+  // Two equity lines (#2645): FX and CTA come from currency translation. The valuation line is
+  // the net of the manual valuations and the portfolio market adjustments. A manual liability
+  // valuation, for example a mortgage, is never an FX or CTA amount.
+  const fxAndCta = report ? sumAmounts([report.unrealized_fx_gain_loss ?? 0, report.cta_adjustment ?? 0]) : null;
+  const valuationAdjustment = report ? toDecimal(report.net_worth_adjustment_gain_loss ?? 0) : null;
   const aiPrompt = `Explain my balance sheet as of ${asOfDate} in ${report?.currency ?? currency ?? "my base currency"}. Highlight any risks.`;
 
   const toggle = (id: string) =>
@@ -215,7 +218,7 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
             </div>
             <div>
               <dt className="text-xs text-muted uppercase">Restricted Treatment</dt>
-              <dd className="mt-1 font-medium">{includeRestricted ? "Included" : "Excluded by default"}</dd>
+              <dd className="mt-1 font-medium">{includeRestricted ? "Included" : "Excluded"}</dd>
             </div>
           </dl>
         </div>
@@ -256,25 +259,37 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
                 {report ? formatCurrencyLocale(report.net_income ?? 0, report.currency) : "—"}
               </span>
             </div>
-            {report && adjustments && !adjustments.isZero() && (
-              <div className="flex justify-between text-muted">
-                <span>Adjustments (FX/CTA):</span>
-                <span>{formatCurrencyLocale(adjustments, report.currency)}</span>
+            {report && fxAndCta && !fxAndCta.isZero() && (
+              <div className="flex justify-between text-muted" data-testid="equity-fx-cta">
+                <span>FX and translation (CTA):</span>
+                <span>{formatCurrencyLocale(fxAndCta, report.currency)}</span>
+              </div>
+            )}
+            {report && valuationAdjustment && !valuationAdjustment.isZero() && (
+              <div className="flex justify-between text-muted" data-testid="equity-valuations">
+                <span>Manual and market valuations:</span>
+                <span>{formatCurrencyLocale(valuationAdjustment, report.currency)}</span>
               </div>
             )}
             <div className="pt-2 border-t border-[var(--border)] font-semibold flex justify-between">
               <span>Total:</span>
               <span>
-                {report && adjustments
-                  ? formatCurrencyLocale(sumAmounts([report.total_equity, report.net_income ?? 0, adjustments]), report.currency)
+                {report && fxAndCta && valuationAdjustment
+                  ? formatCurrencyLocale(
+                      sumAmounts([report.total_equity, report.net_income ?? 0, fxAndCta, valuationAdjustment]),
+                      report.currency,
+                    )
                   : "—"}
               </span>
             </div>
+            {report && (
+              <ExcludedHoldingsNote rows={report.excluded_holdings} currency={report.currency} formatMoney={formatCurrencyLocale} />
+            )}
           </div>
         </div>
       </div>
 
-      <NetWorthTimeSeriesChart from={startDate} to={asOfDate} currency={currency} />
+      <NetWorthTimeSeriesChart from={startDate} to={asOfDate} currency={currency} includeRestricted={includeRestricted} />
 
       <AccountLineageDrawer target={drillTarget} onClose={() => setDrillTarget(null)} />
     </ReportPageShell>

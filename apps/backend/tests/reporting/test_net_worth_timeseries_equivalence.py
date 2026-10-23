@@ -35,10 +35,17 @@ RANGE_START = date(2024, 12, 30)
 RANGE_END = date(2025, 2, 14)
 
 
-async def _reference_point(db: AsyncSession, user_id: UUID, point_date: date, currency: str) -> dict[str, Decimal]:
+async def _reference_point(
+    db: AsyncSession, user_id: UUID, point_date: date, currency: str, *, include_restricted: bool = True
+) -> dict[str, Decimal]:
     """Compute one point the way the series did before #2583: one balance sheet per point."""
     sheet = await generate_balance_sheet(
-        db, user_id, as_of_date=point_date, currency=currency, include_trust_signals=False
+        db,
+        user_id,
+        as_of_date=point_date,
+        currency=currency,
+        include_trust_signals=False,
+        include_restricted=include_restricted,
     )
     total_assets = Decimal(str(sheet["total_assets"]))
     total_liabilities = Decimal(str(sheet["total_liabilities"]))
@@ -402,6 +409,57 @@ async def test_AC_reporting_net_worth_timeseries_3_daily_points_equal_balance_sh
     # The property valuation starts on 9 January; the AAPL override applies on 3 February only.
     assert by_date[date(2025, 1, 9)]["total_assets"] - by_date[date(2025, 1, 8)]["total_assets"] == Decimal("500000.00")
     assert by_date[date(2025, 2, 3)]["total_assets"] != by_date[date(2025, 2, 4)]["total_assets"]
+
+
+async def test_AC_reporting_net_worth_timeseries_3_liquid_scope_points_equal_balance_sheets(
+    db: AsyncSession, test_user
+):
+    """AC-reporting.net-worth-timeseries.3: in the scope without restricted holdings, each daily point equals
+    the balance sheet of that scope on its date (#2645).
+
+    The fixture holds an illiquid property with its mortgage, a restricted RSU and a
+    restricted CPF balance. The scope leaves all four out, so a liquid point differs
+    from a full point by their net.
+    """
+    await _seed_mixed_household(db, test_user.id)
+    seeded_fx_rates = await _stored_fx_rate_ids(db)
+
+    for currency in ("SGD", "USD"):
+        await _drop_fx_rates_except(db, seeded_fx_rates)
+        liquid = await get_net_worth_timeseries(
+            db,
+            test_user.id,
+            start_date=RANGE_START,
+            end_date=RANGE_END,
+            granularity="daily",
+            currency=currency,
+            include_restricted=False,
+        )
+        await _drop_fx_rates_except(db, seeded_fx_rates)
+        mismatches = []
+        for point in liquid["points"]:
+            expected = await _reference_point(db, test_user.id, point["date"], currency, include_restricted=False)
+            if _values(point) != expected:
+                mismatches.append((point["date"], _values(point), expected))
+        assert mismatches == [], f"{currency}: {len(mismatches)} points differ: {mismatches[:3]}"
+
+    await _drop_fx_rates_except(db, seeded_fx_rates)
+    full = await get_net_worth_timeseries(
+        db, test_user.id, start_date=RANGE_END, end_date=RANGE_END, granularity="daily", currency="SGD"
+    )
+    liquid = await get_net_worth_timeseries(
+        db,
+        test_user.id,
+        start_date=RANGE_END,
+        end_date=RANGE_END,
+        granularity="daily",
+        currency="SGD",
+        include_restricted=False,
+    )
+    # On the last day the property is 520,000.00 and the mortgage 300,000.00: the liquid
+    # point has neither, and it also has no RSU or CPF value.
+    assert full["points"][-1]["total_liabilities"] - liquid["points"][-1]["total_liabilities"] == Decimal("300000.00")
+    assert full["points"][-1]["total_assets"] - liquid["points"][-1]["total_assets"] > Decimal("532000.00")
 
 
 async def test_AC_reporting_net_worth_timeseries_3_monthly_points_equal_balance_sheets(db: AsyncSession, test_user):

@@ -48,7 +48,8 @@ const BALANCE = {
 function respond(operationId: string, request?: { query?: Record<string, unknown> }) {
   switch (operationId) {
     case "balance_sheet_reports_balance_sheet_get":
-      return request?.query?.include_restricted ? { ...BALANCE, total_assets: "17500", total_equity: "16500" } : BALANCE;
+      // The default scope includes restricted holdings (#2645). The liquid scope excludes 2,500 of them.
+      return request?.query?.include_restricted === false ? { ...BALANCE, total_assets: "2500", total_equity: "1500" } : BALANCE;
     case "income_statement_reports_income_statement_get":
       return { currency: "USD", trends: [], income: [], expenses: [], total_income: "3500", total_expenses: "1200", net_income: "2300" };
     case "cash_flow_reports_cash_flow_get":
@@ -182,11 +183,11 @@ describe("Home fetch budget (#2583 S4)", () => {
     mockedApiOperation.mockClear();
 
     fireEvent.click(screen.getByLabelText("Include restricted holdings"));
-    await waitFor(() => expect(netWorth()).toHaveTextContent("$16,500"));
+    await waitFor(() => expect(screen.getByText("Liquid net worth").nextElementSibling).toHaveTextContent("$1,500"));
 
     const keys = callKeys();
     expect(keys.map(operationIdOf)).toEqual(["balance_sheet_reports_balance_sheet_get", "balance_sheet_reports_balance_sheet_get"]);
-    for (const key of keys) expect(key).toContain('"include_restricted":true');
+    for (const key of keys) expect(key).toContain('"include_restricted":false');
   });
 
   // AC-reporting.fe-fetch-budget.1

@@ -1962,6 +1962,11 @@ export interface components {
             /** Equity */
             equity: components["schemas"]["ReportLine"][];
             /**
+             * Excluded Holdings
+             * @description Excluded classes.
+             */
+            excluded_holdings?: components["schemas"]["ExcludedHoldingRow"][];
+            /**
              * Fx Warnings
              * @description Foreign-exchange conversion warnings.
              */
@@ -3114,6 +3119,41 @@ export interface components {
             max_depth: number;
             /** Nodes */
             nodes: components["schemas"]["EvidenceLineageNode"][];
+        };
+        /**
+         * ExcludedHoldingRow
+         * @description One asset class that a scope without restricted holdings excludes (#2645).
+         *
+         *     The amounts are null when a valuation of the class has no FX rate; ``warnings`` names each one.
+         */
+        ExcludedHoldingRow: {
+            /**
+             * Asset Class
+             * @description Allocation asset class of the excluded manual valuations.
+             */
+            asset_class: string;
+            /**
+             * Net Worth
+             * @description Excluded assets minus excluded liabilities.
+             */
+            net_worth: string | null;
+            /**
+             * Total Assets
+             * @description Excluded asset valuations, in the report currency.
+             */
+            total_assets: string | null;
+            /**
+             * Total Liabilities
+             * @description Excluded liability valuations, in the report currency.
+             */
+            total_liabilities: string | null;
+            /**
+             * Warnings
+             * @description One per valuation with no FX rate.
+             */
+            warnings?: {
+                [key: string]: string;
+            }[];
         };
         /**
          * ExportFormat
@@ -4316,6 +4356,11 @@ export interface components {
              */
             currency: string;
             /**
+             * Excluded Holdings
+             * @description Excluded classes.
+             */
+            excluded_holdings?: components["schemas"]["ExcludedHoldingRow"][];
+            /**
              * Include Restricted
              * @description Whether restricted and illiquid valuation snapshots are included.
              */
@@ -4401,11 +4446,6 @@ export interface components {
          * @description Source line retained behind one net-worth allocation row.
          */
         NetWorthAllocationSourceLine: {
-            /**
-             * Href
-             * @description Internal drill-through href for the contributor.
-             */
-            href?: string | null;
             /**
              * Label
              * @description Human-readable contributor label.
@@ -9579,6 +9619,7 @@ export interface operations {
                 to: string;
                 granularity?: components["schemas"]["NetWorthGranularity"];
                 currency?: string | null;
+                include_restricted?: boolean;
             };
             header?: never; path?: never; cookie?: never;
         };

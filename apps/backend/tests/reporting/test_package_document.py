@@ -37,6 +37,7 @@ from src.reporting.extension.package_document import (
     _valuation_section_contribution,
 )
 from src.schemas.reporting import (
+    BalanceSheetResponse,
     PersonalReportPackageDocument,
     PersonalReportPackageDocumentLifecycle,
     PersonalReportPackageInputCoverage,
@@ -763,9 +764,23 @@ async def test_AC_extraction_auto_accept_8_the_package_discloses_the_score_gate_
     assert str(automatic.machine_confidence_threshold) == "0"
     assert str(manual.machine_confidence_threshold) == "0.85"
     assert automatic.semantic_digest != manual.semantic_digest
+    balance_sheet = BalanceSheetResponse.model_validate(
+        {
+            "as_of_date": "2026-07-31",
+            "currency": "SGD",
+            "assets": [],
+            "liabilities": [],
+            "equity": [],
+            "total_assets": "0.00",
+            "total_liabilities": "0.00",
+            "total_equity": "0.00",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        }
+    )
     note = lambda policy: next(  # noqa: E731
         item["disclosure"]
-        for item in _package_notes(policy).model_dump()["notes"]
+        for item in _package_notes(policy, balance_sheet=balance_sheet, include_restricted=False).model_dump()["notes"]
         if item["note_id"] == "statement-disposition-policy"
     )
     assert "accepts AI suggestions at any score" in note(automatic)

@@ -15,10 +15,18 @@ import { isValidReportDate } from "@/lib/reportPackage";
  *    allowed: a link to a planned or synthetic period reproduces its dates.
  *  - `start`: the first day of a custom period. A custom period has no preset and no step.
  *  - `currency`: an ISO 4217 code. No `currency` means the base currency of the user.
- *  - `include_restricted=true`: the balance sheet includes restricted holdings.
+ *  - `include_restricted=false`: the net worth excludes restricted and illiquid holdings. The
+ *    default includes them (`DEFAULT_INCLUDE_RESTRICTED`), so the default figure is the full net worth.
  *  - `tab`: the open tab of `/reports`.
  * A default value is not written to the URL.
  */
+
+/**
+ * The default restricted-holdings scope of every net worth surface: Home, `/reports` and
+ * `/portfolio` (#2645). It equals the default of the API routes. The default net worth includes
+ * restricted and illiquid holdings, for example a property, its mortgage and an ESOP.
+ */
+export const DEFAULT_INCLUDE_RESTRICTED = true;
 
 export const REPORT_PERIOD_PRESETS = ["1M", "1Q", "1Y", "YTD", "3Y", "All"] as const;
 export type ReportPeriodPreset = (typeof REPORT_PERIOD_PRESETS)[number];
@@ -124,7 +132,9 @@ export function readReportFilters(
   const preset: ReportPeriodPreset | null = start ? null : isPreset(rawPreset) ? rawPreset : DEFAULT_REPORT_PERIOD;
   const rawCurrency = params.get("currency") ?? "";
   const currency = /^[A-Z]{3}$/.test(rawCurrency) ? rawCurrency : undefined;
-  const includeRestricted = params.get("include_restricted") === "true";
+  const rawIncludeRestricted = params.get("include_restricted");
+  const includeRestricted =
+    rawIncludeRestricted === "true" ? true : rawIncludeRestricted === "false" ? false : DEFAULT_INCLUDE_RESTRICTED;
 
   const { startDate, endDate } = preset
     ? resolvePeriodRange(preset, end ? toLocalDate(end) : now)
@@ -139,7 +149,7 @@ export function readReportFilters(
   if (start) dimensions.set("start", start);
   if (end) dimensions.set("end", end);
   if (currency) dimensions.set("currency", currency);
-  if (includeRestricted) dimensions.set("include_restricted", "true");
+  if (includeRestricted !== DEFAULT_INCLUDE_RESTRICTED) dimensions.set("include_restricted", String(includeRestricted));
 
   return {
     tab: isTab(rawTab) ? rawTab : "overview",
@@ -223,7 +233,7 @@ export function useReportFilters(): UseReportFiltersResult {
     goToPeriodEnd: useCallback((end: string) => update({ end }), [update]),
     setCurrency: useCallback((currency: string) => update({ currency }), [update]),
     setIncludeRestricted: useCallback(
-      (include: boolean) => update({ include_restricted: include ? "true" : "" }),
+      (include: boolean) => update({ include_restricted: include === DEFAULT_INCLUDE_RESTRICTED ? "" : String(include) }),
       [update],
     ),
   };

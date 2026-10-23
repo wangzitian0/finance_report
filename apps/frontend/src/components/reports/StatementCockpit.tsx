@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
+import { ExcludedHoldingsNote } from "@/components/reports/ExcludedHoldingsNote";
 import { OpeningBalanceWarningBanner } from "@/components/reports/ReportPageShell";
 import { reportsHref, type ReportFilters, type ReportTab } from "@/hooks/useReportFilters";
 import { useStatementCockpit } from "@/hooks/useStatementCockpit";
@@ -79,7 +80,7 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
   const metrics: Record<StatementId, ReactNode> = {
     balance: netWorth && balanceSheet && (
       <>
-        <Metric label="Net worth" value={money(netWorth, balanceSheet.currency)} />
+        <Metric label={filters.includeRestricted ? "Net worth" : "Liquid net worth"} value={money(netWorth, balanceSheet.currency)} />
         <Metric
           label="Change in period"
           value={openingNetWorth ? signedMoney(netWorth.minus(openingNetWorth), balanceSheet.currency) : "—"}
@@ -208,7 +209,12 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
                 Loading…
               </p>
             ) : metrics[statement.id] ? (
-              <dl className="space-y-1.5 text-sm">{metrics[statement.id]}</dl>
+              <>
+                <dl className="space-y-1.5 text-sm">{metrics[statement.id]}</dl>
+                {statement.id === "balance" && balanceSheet && (
+                  <ExcludedHoldingsNote rows={balanceSheet.excluded_holdings} currency={balanceSheet.currency} formatMoney={money} />
+                )}
+              </>
             ) : (
               <p className="text-xs text-muted">No data for this period.</p>
             )}

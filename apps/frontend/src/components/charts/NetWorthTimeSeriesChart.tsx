@@ -23,13 +23,27 @@ function granularityFor(from: string, to: string): "daily" | "monthly" {
 // A revisit of the tab or of a period within this time reuses the cached series (#2583).
 const NET_WORTH_SERIES_STALE_TIME_MS = 60_000;
 
-/** The net worth history of the dimension-bar period (#2621 LC). The bar is the only period control. */
-export function NetWorthTimeSeriesChart({ from, to, currency }: { from: string; to: string; currency?: string }) {
+/**
+ * The net worth history of the dimension-bar period (#2621 LC). The bar is the only period control.
+ * The series uses the restricted-holdings scope of the bar, so its last point equals the net worth
+ * of the balance sheet on the same date (#2645).
+ */
+export function NetWorthTimeSeriesChart({
+  from,
+  to,
+  currency,
+  includeRestricted,
+}: {
+  from: string;
+  to: string;
+  currency?: string;
+  includeRestricted: boolean;
+}) {
   const granularity = granularityFor(from, to);
   const seriesQuery = useApiQuery(
-    ["report", "net-worth-timeseries", from, to, granularity, currency ?? ""],
+    ["report", "net-worth-timeseries", from, to, granularity, currency ?? "", includeRestricted],
     "net_worth_timeseries_reports_net_worth_timeseries_get",
-    { query: { from, to, granularity, currency } },
+    { query: { from, to, granularity, currency, include_restricted: includeRestricted } },
     { staleTime: NET_WORTH_SERIES_STALE_TIME_MS },
   );
   const data: NetWorthTimeSeriesResponse | undefined = seriesQuery.data;

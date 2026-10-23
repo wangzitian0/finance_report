@@ -51,22 +51,25 @@ describe("report period dimensions", () => {
 
   // AC-reporting.fe-period-cockpit.2 / AC-reporting.fe-viz-reports.20 / AC-reporting.fe-viz-reports.23
   it("AC-reporting.fe-period-cockpit.2 reads the dimensions from the URL and falls back to defaults on invalid values", () => {
-    expect(read("tab=cash-flow&period=YTD&end=2026-03-31&currency=USD&include_restricted=true")).toMatchObject({
+    // The default scope includes restricted holdings (#2645). Only the liquid scope is written to the URL.
+    expect(read("tab=cash-flow&period=YTD&end=2026-03-31&currency=USD&include_restricted=false")).toMatchObject({
       tab: "cash-flow",
       preset: "YTD",
       startDate: "2026-01-01",
       endDate: "2026-03-31",
       currency: "USD",
-      includeRestricted: true,
-      dimensionQuery: "period=YTD&end=2026-03-31&currency=USD&include_restricted=true",
+      includeRestricted: false,
+      dimensionQuery: "period=YTD&end=2026-03-31&currency=USD&include_restricted=false",
     })
+    // An old link that names the default scope still reads it, and the canonical query omits it.
+    expect(read("include_restricted=true")).toMatchObject({ includeRestricted: true, dimensionQuery: "" })
     expect(read("tab=ledger&period=2W&end=2026-13-01&currency=usd&include_restricted=yes")).toMatchObject({
       tab: "overview",
       preset: "1Y",
       endDate: "2026-10-22",
       isCurrent: true,
       currency: undefined,
-      includeRestricted: false,
+      includeRestricted: true,
       dimensionQuery: "",
     })
     expect(read("end=2026-02-30").isCurrent).toBe(true)
@@ -108,8 +111,8 @@ describe("useReportFilters", () => {
     setTestUrl("/reports?tab=balance-sheet&as_of_date=2025-12-31&currency=SGD")
     const { result } = renderHook(() => useReportFilters())
 
-    act(() => result.current.setIncludeRestricted(true))
-    expect(testUrl()).toBe("/reports?tab=balance-sheet&end=2025-12-31&currency=SGD&include_restricted=true")
+    act(() => result.current.setIncludeRestricted(false))
+    expect(testUrl()).toBe("/reports?tab=balance-sheet&end=2025-12-31&currency=SGD&include_restricted=false")
     expect(result.current.endDate).toBe("2025-12-31")
 
     act(() => setTestUrl("/reports?tab=income-statement&start_date=2025-01-01&end_date=2025-06-30"))
@@ -140,10 +143,10 @@ describe("useReportFilters", () => {
 
     act(() => result.current.goToPeriodEnd(""))
     act(() => result.current.setCurrency("USD"))
-    act(() => result.current.setIncludeRestricted(true))
-    expect(testUrl()).toBe("/reports?tab=income-statement&period=1M&currency=USD&include_restricted=true&from=audit")
-
     act(() => result.current.setIncludeRestricted(false))
+    expect(testUrl()).toBe("/reports?tab=income-statement&period=1M&currency=USD&include_restricted=false&from=audit")
+
+    act(() => result.current.setIncludeRestricted(true))
     act(() => result.current.setPreset("1Y"))
     expect(testUrl()).toBe("/reports?tab=income-statement&currency=USD&from=audit")
     expect(routerReplace).toHaveBeenLastCalledWith("/reports?tab=income-statement&currency=USD&from=audit", { scroll: false })
