@@ -216,6 +216,25 @@ and the default three statements. The system therefore decides every row that th
   has its row keeps it (the disposition `already_classified`). A retry asks again only for the rows that had no
   answer. The one-click approval asks the model once for each row that gets an answer. A row without an answer
   is asked again by the posting.
+- The ingestion classifies the rows of a statement once, after the commit that makes the statement `PARSED`
+  (`statement_preclassification.classify_parsed_statement`, #2637). The approval then asks the model for no row.
+  On staging `v0.2.27` the model call took 24 s of the 26 s of an approval of 80 rows. The pass runs in the API
+  task and in the Prefect flow, because both run the ingestion use case. Rules of the pass:
+  - It is best effort. A model error, an unexpected error or a timeout (180 s) is logged and counted in
+    `finance.statement_classification.outcome`. The rows stay unclassified, and the approval asks for them as
+    before. The ingestion stays `COMPLETED`.
+  - It calls `classify_by_effective_policy`, so each row gets the policy of its own date. It writes no rule row,
+    and it does not ask the model for a row that a rule matches. The approval writes the rule rows, so a rule
+    that a user made after the parse still wins.
+  - It leaves out a statement that is not `PARSED`, a row that a posted entry covers, a row with an unresolved
+    currency (the account of an answer follows the currency) and every row of a user who turned the model off.
+  - A lock per statement (`pg_advisory_xact_lock`, key `statement_classification:<id>`) allows one reader and
+    writer of the answers at a time. The pass takes it without waiting and stops when the approval holds it. The
+    approval and the one-click fill wait for it for 200 s. Then they read the answers of the pass and ask the
+    model only for the rows without an answer. When the wait limit passes, the approval answers 409 and changes
+    nothing.
+  - A setting that a user changes between the parse and the approval (the model, auto-accept) has the value of
+    the parse for the rows that the pass classified.
 - The classifier and the one-click approval resolve a default account with one resolver
   (`get_or_create_account`, AC `default-account.1`). An inactive account is not the default, because posting
   refuses it. Two active rows with one name resolve to the oldest. The account commits in its own short
