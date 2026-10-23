@@ -11,7 +11,7 @@ import { useToast } from "@/components/ui/Toast";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
-import { PENDING_CHAT_PROMPT_KEY } from "@/components/ChatPageClient";
+import { PENDING_CHAT_PROMPT_KEY } from "@/lib/chatStorage";
 import type { BankStatementTransaction } from "@/lib/types";
 
 export interface LowConfidenceReviewModalProps {

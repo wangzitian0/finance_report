@@ -7,8 +7,6 @@ import {
   WorkflowNotificationCenter,
   WorkflowNotices,
   WorkflowInbox,
-  UploadToReportHome,
-  UploadToReportHomePanel,
   WorkflowStatusFeed,
 } from "@/components/workflow/WorkflowNotifications"
 import { humanizeWorkflowText } from "@/components/workflow/workflowFormat"
@@ -254,119 +252,20 @@ describe("workflow notification surfaces", () => {
     expect(screen.queryByText(/journal line id/i)).not.toBeInTheDocument()
   })
 
-  it("AC19.4.2 renders the upload-to-report home as the first workflow entry surface", () => {
-    render(<UploadToReportHome status={statusNeedsAction} events={workflowEvents.items} />)
-
-    expect(screen.getByRole("region", { name: "Upload-to-report home" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Upload-to-report session" })).toBeInTheDocument()
-    expect(screen.getByText("Review the required action so automation can continue.")).toBeInTheDocument()
-    expect(screen.getByText(statusNeedsAction.next_action.summary)).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /^Review required$/i })).toHaveAttribute("href", "/review")
-    expect(screen.getByRole("link", { name: "Report readiness" })).toHaveAttribute("href", "/reports/package")
-    expect(screen.getByRole("heading", { name: "Workflow status" })).toBeInTheDocument()
-    expect(screen.getByText("Blocked: Reconciliation blocked")).toBeInTheDocument()
-    expect(screen.getByText("Action required: Review required")).toBeInTheDocument()
-    expect(screen.getByText("Routine automation")).toBeInTheDocument()
-    expect(screen.getByText(/2 routine events/)).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /Archive/i })).not.toBeInTheDocument()
-  })
-
-  it("AC19.4.3 keeps the upload-first CTA and quiet state aligned to workflow next action", async () => {
-    vi.mocked(fetchWorkflowStatus).mockResolvedValue(statusEmpty)
-    vi.mocked(fetchWorkflowEvents).mockResolvedValue({ total: 0, items: [], sessions: [] })
-
-    renderWithQuery(<UploadToReportHomePanel />)
-
-    expect(await screen.findByText("Upload files to start the automated reporting workflow.")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /Upload statements/i })).toHaveAttribute("href", "/statements/upload")
-    expect(screen.getAllByText("No reports generated yet")[0]).toBeInTheDocument()
-    expect(screen.getByText("0 blockers")).toBeInTheDocument()
-    expect(screen.getByText("No action required")).toBeInTheDocument()
-    expect(screen.queryByRole("heading", { name: "Routine automation" })).not.toBeInTheDocument()
-  })
-
   // AC-platform.fe-workflow.8
-  it("AC-platform.fe-workflow.8 requests home workflow events in parallel with the status", async () => {
+  it("AC-platform.fe-workflow.8 requests upload-page workflow events in parallel with the status", async () => {
     vi.mocked(fetchWorkflowStatus).mockReturnValue(new Promise<WorkflowStatusResponse>(() => {}))
 
-    renderWithQuery(<UploadToReportHomePanel />)
+    renderWithQuery(<WorkflowNotices />)
 
     await waitFor(() => expect(fetchWorkflowEvents).toHaveBeenCalledTimes(1))
     expect(fetchWorkflowStatus).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole("status", { name: "Upload-to-report home" })).toHaveAttribute("aria-busy", "true")
+    expect(screen.getByText("Loading workflow status...")).toBeInTheDocument()
   })
 
-  it("AC19.4.4 exposes ready, processing, and stale report readiness states above analytics", () => {
-    const { rerender } = render(
-      <UploadToReportHome
-        status={{
-          primary_state: "ready",
-          next_action: { type: "open_report", count: 0, href: "/reports/package", label: "Open report package", summary: "Inspect the personal report package and its readiness evidence." },
-          report_readiness: { state: "ready", blocking_count: 0, href: "/reports/package" },
-          event_counts: { unread: 0, action_required: 0, blocked: 0 },
-        }}
-        events={workflowEvents.items.slice(2)}
-      />,
-    )
-
-    expect(screen.getByText("Reports are ready to inspect.")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /Open report package/i })).toHaveAttribute("href", "/reports/package")
-    expect(screen.getAllByText("Report ready")[0]).toBeInTheDocument()
-
-    rerender(
-      <UploadToReportHome
-        status={{
-          primary_state: "processing",
-          next_action: { type: "wait", count: 0, href: "/events", label: "View processing", summary: "Automation is processing source files; open the session timeline for progress." },
-          report_readiness: { state: "processing", blocking_count: 0, href: "/reports/package" },
-          event_counts: { unread: 1, action_required: 0, blocked: 0 },
-        }}
-        events={[workflowEvents.items[3]]}
-      />,
-    )
-
-    expect(screen.getByText("Automation is processing uploaded source files.")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /View processing/i })).toHaveAttribute("href", "/events")
-    expect(screen.getAllByText("Report processing")[0]).toBeInTheDocument()
-
-    rerender(
-      <UploadToReportHome
-        status={{
-          primary_state: "blocked",
-          next_action: { type: "resolve_blocker", count: 1, href: "/reconciliation?tab=unmatched", label: "Resolve blocker", summary: "Resolve the blocking condition before the report package can be trusted." },
-          report_readiness: { state: "stale", blocking_count: 1, href: "/reports/package" },
-          event_counts: { unread: 1, action_required: 0, blocked: 1 },
-        }}
-        events={[workflowEvents.items[0]]}
-      />,
-    )
-
-    expect(screen.getByText("A blocker is holding report readiness.")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /Resolve blocker/i })).toHaveAttribute("href", "/reconciliation?tab=unmatched")
-    expect(screen.getAllByText("Report stale")[0]).toBeInTheDocument()
-    expect(screen.getByText("1 blocker")).toBeInTheDocument()
-  })
-
-  // AC-platform.fe-workflow.5
-  it("AC19.4.8 AC19.12.5 does not duplicate the workflow-state sentence when next-action summary is absent", () => {
+  it("AC8.13.92 status feed falls back to the generic workflow action label for unknown next actions", () => {
     render(
-      <UploadToReportHome
-        status={{
-          primary_state: "ready",
-          next_action: { type: "open_report", count: 0, href: "/reports/package", label: "Open report package", summary: "" },
-          report_readiness: { state: "ready", blocking_count: 0, href: "/reports/package" },
-          event_counts: { unread: 0, action_required: 0, blocked: 0 },
-        }}
-        events={[]}
-      />,
-    )
-
-    expect(screen.getAllByText("Reports are ready to inspect.")).toHaveLength(1)
-  })
-
-  it("AC8.13.92 upload home falls back to the generic workflow action label for unknown next actions", () => {
-    render(
-      <UploadToReportHome
+      <WorkflowStatusFeed
         status={{
           primary_state: "ready",
           next_action: { type: "unknown" as WorkflowStatusResponse["next_action"]["type"], count: 0, href: "/events", label: "", summary: "" },

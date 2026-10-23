@@ -22,13 +22,13 @@
 | Report package readiness fact source | `current_package_readiness` in `apps/backend/src/reporting/extension/package_document.py` |
 | Derivation source fingerprint | `apps/backend/src/workflow/extension/source_fingerprint.py` |
 | Header badge, Event inbox, Status feed | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` |
-| Upload-to-Report home | `apps/frontend/src/app/(main)/page.tsx` (the `/dashboard` route redirects here) |
-| Events page | `apps/frontend/src/app/(main)/events/page.tsx` advanced session history surface |
+| Home action banner | `apps/frontend/src/components/home/HomeActionBanner.tsx` on `apps/frontend/src/app/(main)/page.tsx` (the `/dashboard` route redirects here) |
+| Upload-page workflow notices | `WorkflowNotices` in `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` on `/upload` (the `/events` route redirects here) |
 | Workflow navigation IA | `apps/frontend/src/components/navigation.ts` |
 | Desktop workflow navigation | `apps/frontend/src/components/Sidebar.tsx` |
 | Mobile workflow navigation | `apps/frontend/src/components/shell/BottomTabBar.tsx` |
 | Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py`, `apps/backend/migrations/versions/0024_add_workflow_sessions.py`, `apps/backend/migrations/versions/0069_workflow_sync_state.py` |
-| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/workflow/test_workflow_sync_gate.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/navigation.test.ts`, `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx`, `apps/frontend/src/__tests__/bottomTabBar.test.tsx`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts`, `apps/frontend/playwright/workflow-navigation.spec.ts`, `apps/frontend/playwright/report-readiness.spec.ts` |
+| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/workflow/test_workflow_sync_gate.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/navigation.test.ts`, `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx`, `apps/frontend/src/__tests__/bottomTabBar.test.tsx`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/homeActionBanner.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts`, `apps/frontend/playwright/workflow-navigation.spec.ts`, `apps/frontend/playwright/report-readiness.spec.ts` |
 
 ---
 
@@ -333,13 +333,12 @@ WorkflowNotificationCenter
   -> Header badge
   -> Event inbox drawer
 
-WorkflowStatusFeed
-  -> Dashboard status feed
-  -> Events page status summary
+WorkflowNotices (/upload)
+  -> WorkflowStatusFeed status summary
+  -> Workflow event timeline
 
-UploadToReportHome
-  -> Dashboard first viewport
-  -> Secondary analytics boundary
+HomeActionBanner (/)
+  -> One workflow or confirmation action
 ```
 
 Header badge rules:
@@ -373,26 +372,28 @@ Status feed rules:
 - Empty state says `No action required` and routes the user to upload when no
   workflow state exists.
 
-Upload-to-Report home rules:
+Home action banner rules:
 
-- `/dashboard` is the authenticated home for the upload-to-report workflow.
-- The first viewport renders workflow state, the primary next action, report
-  readiness, active workflow session state, and a recent timeline preview before
-  KPI, chart, reconciliation, or activity analytics.
-- The primary CTA uses `workflow.status.next_action.href`,
-  `workflow.status.next_action.label`, and
-  `workflow.status.next_action.summary`. Upload is the default label only when
-  no higher-priority blocker or action-required state wins the workflow
-  priority.
+- `/` is the authenticated home. The `/dashboard` route redirects to `/`.
+- `HomeActionBanner` shows one action at most. It shows nothing when no item
+  applies.
+- When the workflow is blocked or needs an action, the action uses
+  `workflow.status.next_action.href`, `workflow.status.next_action.label`, and
+  `workflow.status.next_action.summary`. An empty summary shows the
+  workflow-state sentence one time.
+- When no source exists, the action asks the user to upload the first
+  statement on `/upload`.
+- Otherwise, when items need confirmation, the action shows their count and
+  links to the Needs Confirmation queue on `/audit`.
+- A banner source that loads or fails shows no banner and no error. It must not
+  hide the statement cards of Home.
+
+Next-action routing rules of the workflow status:
+
+- Upload is the default label only when no higher-priority blocker or
+  action-required state wins the workflow priority.
 - Processing actions route to `/events` so the user sees session history rather
   than a raw statement list. Ready actions route directly to `/reports/package`.
-- Report readiness appears above secondary analytics and links to the report or
-  readiness action route from the workflow status contract.
-- Routine automation is summarized; blocked and action-required events remain
-  visually prominent.
-- Secondary dashboard metric loading or failure must not hide the workflow
-  home. Analytics render below the workflow surface with an isolated loading,
-  empty, retry, or error state.
 
 ---
 

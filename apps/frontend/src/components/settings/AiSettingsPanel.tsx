@@ -127,5 +127,3 @@ export default function AiSettingsPanel() {
     </div>
   );
 }
-
-export { AiSettingsPanel as AiSettingsPage };

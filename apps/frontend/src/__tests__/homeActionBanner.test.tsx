@@ -76,6 +76,28 @@ describe("Home action banner (#2621 LC, EPIC-022 AC22.6.2)", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  // AC-platform.fe-workflow.5
+  it("AC-platform.fe-workflow.5 shows the next-action summary, and the workflow-state sentence once when the summary is empty", async () => {
+    const withSummary = status("needs_action");
+    const withoutSummary = { ...withSummary, next_action: { ...withSummary.next_action, summary: "" } };
+    const mockStatus = (workflow: WorkflowStatusResponse) =>
+      mockedApiOperation.mockImplementation(((operationId: string) =>
+        Promise.resolve(operationId === "get_workflow_status_endpoint_workflow_status_get" ? workflow : null)) as never);
+
+    mockStatus(withSummary);
+    const { unmount } = render(<HomeActionBanner />);
+    const banner = await screen.findByRole("region", { name: "Needs attention" });
+    expect(within(banner).getByText("Confirm the source.")).toBeInTheDocument();
+    expect(within(banner).queryByText("Review the required action so automation can continue.")).not.toBeInTheDocument();
+    unmount();
+
+    mockStatus(withoutSummary);
+    render(<HomeActionBanner />);
+    const fallbackBanner = await screen.findByRole("region", { name: "Needs attention" });
+    expect(within(fallbackBanner).getAllByText("Review the required action so automation can continue.")).toHaveLength(1);
+    expect(within(fallbackBanner).getByRole("link", { name: "Review required" })).toHaveAttribute("href", "/audit");
+  });
+
   // AC-reporting.fe-period-cockpit.6
   it("AC-reporting.fe-period-cockpit.6 picks at most one action: workflow first, then the first upload, then the confirmation count", () => {
     expect(pickHomeAction(status("blocked"), 4)).toMatchObject({ title: "A blocker holds your reports", cta: "Review required", href: "/audit" });

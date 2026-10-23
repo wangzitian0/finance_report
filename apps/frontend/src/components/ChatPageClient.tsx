@@ -5,10 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import ChatPanel from "@/components/ChatPanel";
-
-export const CONSENT_KEY = "ai_advisor_disclaimer_v1";
-
-export const PENDING_CHAT_PROMPT_KEY = "ai_chat_pending_prompt";
+import { CONSENT_KEY, PENDING_CHAT_PROMPT_KEY } from "@/lib/chatStorage";
 
 export default function ChatPageClient() {
   const searchParams = useSearchParams();
@@ -68,7 +65,7 @@ export default function ChatPageClient() {
       )}
 
       <div className="mt-4 sm:mt-6 card p-4 sm:p-6 max-w-full overflow-hidden">
-        <ChatPanel variant="page" initialPrompt={initialPrompt} />
+        <ChatPanel initialPrompt={initialPrompt} />
       </div>
 
       <div className="mt-3 text-center">

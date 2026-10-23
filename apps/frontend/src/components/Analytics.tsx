@@ -105,5 +105,3 @@ export function Analytics({ clientId, apiUrl, scriptUrl, environment }: Analytic
     </AnalyticsErrorBoundary>
   );
 }
-
-export default Analytics;

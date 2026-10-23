@@ -2,14 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ProcessingTransfers } from '@/components/statements/ProcessingTransfers';
-import { ProcessingSummaryCard } from '@/components/audit/TrustScoreHero';
 import { apiOperation } from '@/lib/api-client';
 import { PROCESSING_PENDING_QUERY_KEY } from '@/lib/sharedQueries';
-import type { ReactNode } from 'react';
-
-const navigationState = vi.hoisted(() => ({
-  searchParams: new URLSearchParams(),
-}));
 
 function renderTransfers() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -20,69 +14,11 @@ vi.mock('@/lib/api-client', () => ({
   apiOperation: vi.fn(),
 }));
 
-vi.mock('next/link', () => ({
-  default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
-}));
-
-vi.mock('next/navigation', () => ({
-  useSearchParams: () => navigationState.searchParams,
-}));
-
-vi.mock("@/components/charts/BarChart", () => ({
-  BarChart: () => <div>BarChartMock</div>,
-}))
-
-vi.mock("@/components/charts/PieChart", () => ({
-  PieChart: () => <div>PieChartMock</div>,
-}))
-
-vi.mock("@/components/charts/NetWorthTimeSeriesChart", () => ({
-  NetWorthTimeSeriesChart: () => <div>NetWorthTimeSeriesMock</div>,
-}))
-
 describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
   const mockedApiOperation = vi.mocked(apiOperation);
 
   beforeEach(() => {
     mockedApiOperation.mockReset();
-    navigationState.searchParams = new URLSearchParams();
-  });
-
-  it('AC15.7.1 — GET /api/accounts/processing/summary contract', async () => {
-    mockedApiOperation.mockResolvedValue({
-      pending_count: 1,
-      pending_total: "100.00",
-      current_balance: "100.00",
-      currency: "SGD",
-      oldest_pending_date: "2026-05-01"
-    });
-
-    render(<ProcessingSummaryCard />);
-
-    await waitFor(() => {
-      expect(mockedApiOperation).toHaveBeenCalledWith('get_processing_summary_accounts_processing_summary_get', expect.anything());
-    });
-  });
-
-  // AC-ledger.fe-processing.1
-  it('AC15.7.2 / AC15.7.8 — ProcessingSummaryCard renders fields and current balance warning', async () => {
-    mockedApiOperation.mockResolvedValue({
-      pending_count: 3,
-      pending_total: "150.00",
-      current_balance: "150.00",
-      currency: "SGD",
-      oldest_pending_date: "2026-04-15"
-    });
-
-    render(<ProcessingSummaryCard />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('processing-count')).toHaveTextContent('3 Pending');
-      expect(screen.getByTestId('processing-balance')).toHaveTextContent(/150/);
-      expect(screen.getByLabelText(/unresolved processing account balance/i)).toBeInTheDocument();
-      expect(screen.getByText(/150/)).toBeInTheDocument();
-      expect(screen.getByText(/Apr 15, 2026/)).toBeInTheDocument();
-    });
   });
 
   // AC-ledger.fe-processing.2
@@ -169,43 +105,5 @@ describe('EPIC-015 / UI Gap Audit / Processing Account Visibility', () => {
     await waitFor(() => expect(client.getQueryState(PROCESSING_PENDING_QUERY_KEY)?.status).toBe('success'));
     expect(container).toBeEmptyDOMElement();
     expect(screen.queryByText('Transfers in flight')).not.toBeInTheDocument();
-  });
-
-  // AC-ledger.fe-processing.4
-  it('AC15.7.5 — ProcessingSummaryCard mount test', async () => {
-    mockedApiOperation.mockImplementation(((operationId: string) => {
-      if (operationId === 'get_processing_summary_accounts_processing_summary_get') {
-        return Promise.resolve({ pending_count: 2, pending_total: "200.00", current_balance: "200.00", currency: "SGD", oldest_pending_date: "2026-05-01" });
-      }
-      if (operationId === 'balance_sheet_reports_balance_sheet_get') {
-        return Promise.resolve({ assets: [], total_assets: 0, total_liabilities: 0, currency: "SGD", as_of_date: "2026-05-04", is_balanced: true });
-      }
-      if (operationId === 'income_statement_reports_income_statement_get') {
-        return Promise.resolve({ currency: "SGD", trends: [{ period_start: "2026-01-01", period_end: "2026-01-31", total_income: 1000, total_expenses: 800, net_income: 200 }] });
-      }
-      if (operationId === 'get_reconciliation_stats_reconciliation_stats_get') {
-        return Promise.resolve({ total_transactions: 0, matched_transactions: 0, unmatched_transactions: 0, pending_review: 0, auto_accepted: 0, match_rate: 0, score_distribution: {} });
-      }
-      if (operationId === 'get_unmatched_transactions_reconciliation_unmatched_get') {
-        return Promise.resolve({ items: [], total: 0 });
-      }
-      if (operationId === 'list_journal_entries_journal_entries_get') {
-        return Promise.resolve({ items: [], total: 0 });
-      }
-      if (operationId === 'trend_reports_trend_get') {
-        return Promise.resolve({ points: [], account_id: "a1", currency: "SGD", period: "monthly" });
-      }
-      if (operationId === 'net_worth_timeseries_reports_net_worth_timeseries_get') {
-        return Promise.resolve({ points: [], currency: "SGD" });
-      }
-      return Promise.resolve({});
-    }) as any);
-
-    render(<ProcessingSummaryCard />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('processing-count')).toHaveTextContent('2 Pending');
-      expect(screen.getByTestId('processing-balance')).toHaveTextContent(/200/);
-    }, { timeout: 2000 });
   });
 });

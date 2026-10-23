@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import AiSettingsPage, { changedChoices } from "@/components/settings/AiSettingsPanel"
+import AiSettingsPanel, { changedChoices } from "@/components/settings/AiSettingsPanel"
 import { apiOperation } from "@/lib/api-client"
 
 vi.mock("next/link", () => ({
@@ -31,10 +31,10 @@ beforeEach(() => {
   })
 })
 
-describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
+describe("AiSettingsPanel (EPIC-022 AC22.4.3, AC22.15.2)", () => {
   // AC-reconciliation.fe-ia-reconciliation.1
   it("AC22.4.3 links to the AI suggestion review surface so it is not orphaned", async () => {
-    render(<AiSettingsPage />)
+    render(<AiSettingsPanel />)
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
     expect(screen.getByRole("link", { name: /Review AI suggestions/i })).toHaveAttribute(
       "href",
@@ -44,7 +44,7 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
 
   // AC-llm.fe-ia-ai-settings.1
   it("AC22.15.2 renders the loaded flags and keeps Save disabled until edited", async () => {
-    render(<AiSettingsPage />)
+    render(<AiSettingsPanel />)
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
 
     expect(screen.getByLabelText("Enable AI reconciliation")).toBeChecked()
@@ -62,7 +62,7 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
       }
       return {} as any
     })
-    render(<AiSettingsPage />)
+    render(<AiSettingsPanel />)
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
 
     fireEvent.click(screen.getByLabelText("Enable AI classification"))
@@ -91,7 +91,7 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
       }
       return {} as any
     })
-    render(<AiSettingsPage />)
+    render(<AiSettingsPanel />)
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
 
     expect(screen.getByLabelText("Auto-accept AI suggestions")).toBeChecked()
@@ -106,7 +106,7 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
   })
 
   it("AC-extraction.auto-accept.1 — the switch is off and locked while AI classification is off", async () => {
-    render(<AiSettingsPage />)
+    render(<AiSettingsPanel />)
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
 
     // The mock loads enable_ai_classification = false and auto_accept_ai_suggestions = true.
@@ -134,7 +134,7 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
         auto_accept_ai_suggestions_active: false,
       } as any
     })
-    render(<AiSettingsPage />)
+    render(<AiSettingsPanel />)
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
 
     fireEvent.click(screen.getByLabelText("Enable AI reconciliation"))
@@ -165,7 +165,7 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
       }
       return {} as any
     })
-    render(<AiSettingsPage />)
+    render(<AiSettingsPanel />)
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
 
     const note = screen.queryByRole("note")
@@ -191,7 +191,7 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
       }
       return {} as any
     })
-    render(<AiSettingsPage />)
+    render(<AiSettingsPanel />)
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
 
     fireEvent.click(screen.getByLabelText("Enable AI classification"))
@@ -210,7 +210,7 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
       }
       return {} as any
     })
-    render(<AiSettingsPage />)
+    render(<AiSettingsPanel />)
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
 
     fireEvent.click(screen.getByLabelText("Enable AI classification"))
@@ -223,7 +223,7 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
   })
 
   it("AC22.15.2 Reset reverts the draft to the last saved values", async () => {
-    render(<AiSettingsPage />)
+    render(<AiSettingsPanel />)
     await waitFor(() => expect(screen.getByText("AI Settings")).toBeInTheDocument())
 
     fireEvent.click(screen.getByLabelText("Enable AI classification"))
@@ -237,7 +237,7 @@ describe("AiSettingsPage (EPIC-022 AC22.4.3, AC22.15.2)", () => {
   it("AC22.15.2 shows a load error when fetchUserSettings rejects", async () => {
     mockedApiOperation.mockReset()
     mockedApiOperation.mockRejectedValue(new Error("Load failed"))
-    render(<AiSettingsPage />)
+    render(<AiSettingsPanel />)
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Load failed"))
   })
 })

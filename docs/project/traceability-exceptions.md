@@ -149,7 +149,6 @@ explicit AC IDs for the behavior.
 | `apps/frontend/src/__tests__/useBaseCurrency.test.tsx` | `apps/frontend/frontend-patterns.md` (#1487 base-currency hook) |
 | `apps/frontend/src/__tests__/useBodyScrollLock.test.tsx` | `apps/frontend/frontend-patterns.md` (#1608 modal/sheet body-scroll lock) |
 | `apps/frontend/src/__tests__/useLlmConfigStatus.test.ts` | `common/llm/readme.md` |
-| `apps/frontend/src/__tests__/processingSummaryCard.test.tsx` | `common/ledger/readme.md` |
 | `apps/frontend/src/__tests__/useFocusTrap.test.tsx` | `apps/frontend/frontend-patterns.md` |
 | `tests/tooling/test_agent_runtime_symlinks.py` | `docs/agents/orchestration.md` |
 | `tests/tooling/test_audit_router_contracts.py` | `docs/reference/router-contract-maturity.md` |

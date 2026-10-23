@@ -39,9 +39,7 @@ interface ChatBubbleViewModel {
 type ChatSessionResponse = Schemas["ChatSessionResponse"];
 type ChatHistoryResponse = Schemas["ChatHistoryResponse"];
 interface ChatPanelProps {
-  variant?: "page" | "widget";
   initialPrompt?: string | null;
-  onClose?: () => void;
 }
 
 const getBrowserLanguage = () =>
@@ -101,11 +99,7 @@ const parseChatMetadata = (
   }
 };
 
-export default function ChatPanel({
-  variant = "page",
-  initialPrompt,
-  onClose,
-}: ChatPanelProps) {
+export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatBubbleViewModel[]>([]);
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -410,20 +404,8 @@ export default function ChatPanel({
   };
 
   return (
-    <div
-      className={
-        variant === "widget"
-          ? "flex h-full flex-col"
-          : "flex h-full min-h-[540px] flex-col"
-      }
-    >
-      <div
-        className={
-          variant === "widget"
-            ? "flex items-center justify-between border-b border-[var(--border)] pb-3"
-            : "flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4"
-        }
-      >
+    <div className="flex h-full min-h-[540px] flex-col">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
         <div>
           <p className="text-xs text-[var(--accent)] uppercase tracking-wide">
             AI
@@ -468,14 +450,6 @@ export default function ChatPanel({
           >
             New
           </button>
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="btn-secondary text-xs px-3 py-1"
-            >
-              Close
-            </button>
-          )}
         </div>
       </div>
 
@@ -523,7 +497,7 @@ export default function ChatPanel({
         </div>
       </Sheet>
 
-      {suggestions.length > 0 && variant === "page" && (
+      {suggestions.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">
           {suggestions.map((s) => (
             <button
@@ -537,7 +511,7 @@ export default function ChatPanel({
         </div>
       )}
 
-      {advisorSuggestions.length > 0 && variant === "page" && (
+      {advisorSuggestions.length > 0 && (
         <AdvisorBrief
           suggestions={advisorSuggestions}
           compact
@@ -550,11 +524,7 @@ export default function ChatPanel({
       <div
         ref={scrollRef}
         aria-live="polite"
-        className={
-          variant === "widget"
-            ? "mt-4 flex-1 space-y-3 overflow-y-auto pr-2"
-            : "mt-6 flex-1 space-y-4 overflow-y-auto pr-2"
-        }
+        className="mt-6 flex-1 space-y-4 overflow-y-auto pr-2"
       >
         {loadingHistory && messages.length === 0 && (
           <div className="flex items-center gap-2 text-sm text-muted py-2" role="status">
@@ -670,7 +640,7 @@ export default function ChatPanel({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          rows={variant === "widget" ? 1 : 2}
+          rows={2}
           placeholder="Ask about spending trends, reports, or reconciliation..."
           className="w-full resize-none bg-transparent px-1.5 py-1 text-sm outline-none placeholder:text-muted/70"
         />
