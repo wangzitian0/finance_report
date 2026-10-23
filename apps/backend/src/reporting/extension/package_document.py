@@ -146,11 +146,18 @@ async def _package_statement_disposition_policy(
 RESTRICTED_ASSET_TREATMENT_NOTE_ID = "restricted-asset-treatment"
 
 
+def _conversion_gap_text(warning: dict[str, str]) -> str:
+    pair = f"{warning['currency']} to {warning['target_currency']}"
+    if warning["type"] == "missing_fx_rate_excluded_holding":
+        return f"no FX rate for {pair}"
+    return f"FX conversion failed for {pair}"
+
+
 def _excluded_holding_text(row: ExcludedHoldingRow, currency: str) -> str:
     label = row.asset_class.replace("_", " ")
     if row.net_worth is None or row.total_assets is None or row.total_liabilities is None:
-        pairs = ", ".join(sorted({f"{w['currency']} to {w['target_currency']}" for w in row.warnings}))
-        return f"{label}: amount not available, no FX rate for {pairs}"
+        gaps = ", ".join(sorted({_conversion_gap_text(warning) for warning in row.warnings}))
+        return f"{label}: amount not available, {gaps}"
     return (
         f"{label} {currency} {row.net_worth:,.2f} net "
         f"(assets {currency} {row.total_assets:,.2f}, liabilities {currency} {row.total_liabilities:,.2f})"
@@ -173,7 +180,10 @@ def _restricted_asset_treatment_disclosure(
     if include_restricted:
         return f"{base_disclosure} This package includes restricted and illiquid holdings in the balance sheet."
     if not excluded_holdings:
-        return f"{base_disclosure} This package excludes no restricted or illiquid holding: none is recorded."
+        return (
+            f"{base_disclosure} On the as-of date this package excludes no restricted or illiquid holding: "
+            "no such valuation is current on that date."
+        )
     rows = "; ".join(_excluded_holding_text(row, currency) for row in excluded_holdings)
     return (
         f"{base_disclosure} This package excludes these restricted and illiquid holdings, with the "
@@ -533,6 +543,14 @@ def _section_invariant_blockers(
     if section_currencies != {currency}:
         blockers.append(
             _section_blocker("section_currency_mismatch", "Every package section must use the document currency.")
+        )
+    if annualized.restricted_fair_value_total_excludes:
+        blockers.append(
+            _section_blocker(
+                "restricted_holding_fx_unavailable",
+                "A restricted holding has no FX rate to the document currency, so the restricted fair-value "
+                "total leaves it out.",
+            )
         )
     return blockers
 

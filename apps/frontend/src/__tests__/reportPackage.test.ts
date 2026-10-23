@@ -25,7 +25,8 @@ describe("lib/reportPackage", () => {
     expect(isValidReportDate("")).toBe(false);
   });
 
-  it("packageSnapshotRequest builds the generate-snapshot request body and omits an absent currency", () => {
+  // AC-reporting.net-worth-scope.16
+  it("packageSnapshotRequest builds the generate-snapshot request body and omits an absent currency and the scope", () => {
     expect(
       packageSnapshotRequest("personal_us_gaap_like", "2026-06-15", "2025-06-16"),
     ).toEqual({
@@ -33,8 +34,9 @@ describe("lib/reportPackage", () => {
       start_date: "2025-06-16",
       end_date: "2026-06-15",
       as_of_date: "2026-06-15",
-      include_restricted: false,
     });
+    // The backend reads PACKAGE_INCLUDE_RESTRICTED when the body names no scope (#2645).
+    expect(packageSnapshotRequest("personal_us_gaap_like", "2026-06-15", "2025-06-16")).not.toHaveProperty("include_restricted");
     expect(
       packageSnapshotRequest("personal_hkfrs_like", "2026-01-01", "2025-01-01", "USD")
         .currency,

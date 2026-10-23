@@ -523,7 +523,8 @@ describe("PersonalReportPackagePage", () => {
         "/api/reports/package/generate",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ framework_id: "personal_us_gaap_like", start_date: "2025-03-01", end_date: "2025-03-31", as_of_date: "2025-03-31", currency: "SGD", include_restricted: false }),
+          // No include_restricted: the backend reads PACKAGE_INCLUDE_RESTRICTED (#2645).
+          body: JSON.stringify({ framework_id: "personal_us_gaap_like", start_date: "2025-03-01", end_date: "2025-03-31", as_of_date: "2025-03-31", currency: "SGD" }),
         }),
       ),
     );
@@ -1497,6 +1498,39 @@ it("discloses incomplete opening coverage in package sections", () => {
   expect(screen.getByText("Known Beginning Cash")).toBeInTheDocument();
   expect(screen.getByText("Opening balance adjustment")).toBeInTheDocument();
   expect(screen.getByText(/records start after the selected period begins/i)).toBeInTheDocument();
+});
+
+// AC-reporting.net-worth-scope.15
+it("#2645 labels the liquid net worth of the package and names each excluded class", () => {
+  const sections = packageDocument().sections;
+  const balance = {
+    ...sections.balance_sheet,
+    currency: "SGD",
+    total_assets: "20360.65",
+    total_liabilities: "0.00",
+    excluded_holdings: [
+      { asset_class: "real_estate", total_assets: "1200000.00", total_liabilities: "650000.00", net_worth: "550000.00", warnings: [] },
+      { asset_class: "restricted_comp", total_assets: "42000.00", total_liabilities: "0.00", net_worth: "42000.00", warnings: [] },
+    ],
+  };
+  const { unmount } = render(
+    <PackageSectionCards sections={{ ...sections, balance_sheet: balance } as unknown as PersonalReportPackageSections} />,
+  );
+  expect(screen.getByText("Liquid net worth").nextElementSibling).toHaveTextContent("SGD 20,361");
+  expect(screen.getByTestId("excluded-holdings-note")).toHaveTextContent(
+    "Excludes restricted and illiquid holdings:Real Estate SGD 550,000 (net of SGD 650,000 liabilities)Restricted Comp SGD 42,000",
+  );
+  unmount();
+
+  // With no excluded class the liquid and the full figures are equal: the label is "Net worth".
+  render(
+    <PackageSectionCards
+      sections={{ ...sections, balance_sheet: { ...balance, excluded_holdings: [] } } as unknown as PersonalReportPackageSections}
+    />,
+  );
+  expect(screen.getByText("Net worth").nextElementSibling).toHaveTextContent("SGD 20,361");
+  expect(screen.queryByText("Liquid net worth")).toBeNull();
+  expect(screen.queryByTestId("excluded-holdings-note")).toBeNull();
 });
 
 // AC-reporting.report-integrity.3

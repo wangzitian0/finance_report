@@ -25,6 +25,7 @@ from src.pricing import (
     convert_money,
     list_current_manual_valuation_facts,
 )
+from src.reporting import DEFAULT_INCLUDE_RESTRICTED
 from src.schemas.assets import (
     DepreciationResponse,
     ManagedPositionListResponse,
@@ -255,7 +256,7 @@ async def list_valuation_components(
     db: DbSession,
     user_id: CurrentUserId,
     as_of_date: date | None = Query(default=None),
-    include_restricted: bool = Query(default=True),
+    include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
 ) -> ValuationComponentsResponse:
     """List latest manual valuation components as of a date."""
     result = await _valuations.get_latest_valuation_components(

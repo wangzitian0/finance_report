@@ -4,7 +4,8 @@ import { Download, FileJson, Network, Printer, Save, X } from "lucide-react";
 
 import { ManifestEntries, TraceabilityLineEvidence } from "@/components/reports/package/evidence";
 import { SkeletonBlock } from "@/components/ui";
-import { formatCurrencyLocale } from "@/lib/audit/money";
+import { ExcludedHoldingsNote } from "@/components/reports/ExcludedHoldingsNote";
+import { formatCurrencyLocale, subtractAmounts } from "@/lib/audit/money";
 import { nodeDisplayTitle, nodeLabel, nodeSourceHref } from "@/lib/lineage";
 import type {
   AnnualizedIncomeScheduleResponse,
@@ -451,6 +452,10 @@ function PackageMetric({ label, value, currency }: { label: string; value: strin
 
 export function PackageSectionCards({ sections }: { sections: PersonalReportPackageSections }) {
   const { balance_sheet: bs, income_statement: is, cash_flow: cf, investment_performance: inv } = sections;
+  // The package presents the liquid scope by default, and the Balance sheet tab the full scope (#2645).
+  // A package that excludes a class says so and names each class. With no excluded class the two
+  // scopes give the same figure, so the label is "Net worth".
+  const isLiquid = (bs.excluded_holdings ?? []).length > 0;
   const incompleteOpeningCoverage = cf.proof_reasons?.includes("opening_coverage_starts_after_period") ?? false;
   return (
     <div className="grid lg:grid-cols-2 gap-4 mb-6">
@@ -461,7 +466,17 @@ export function PackageSectionCards({ sections }: { sections: PersonalReportPack
           <PackageMetric label="Total Liabilities" value={bs.total_liabilities} currency={bs.currency} />
           <PackageMetric label="Total Equity" value={bs.total_equity} currency={bs.currency} />
           <PackageMetric label="Net Income" value={bs.net_income} currency={bs.currency} />
+          <PackageMetric
+            label={isLiquid ? "Liquid net worth" : "Net worth"}
+            value={subtractAmounts(bs.total_assets, bs.total_liabilities).toString()}
+            currency={bs.currency}
+          />
         </dl>
+        <ExcludedHoldingsNote
+          rows={bs.excluded_holdings}
+          currency={bs.currency}
+          formatMoney={(value, currency) => formatScheduleCurrency(String(value), currency)}
+        />
       </section>
       <section id={sectionAnchorId("income_statement")} className="card p-5">
         <h2 className="font-semibold">Income Statement</h2>

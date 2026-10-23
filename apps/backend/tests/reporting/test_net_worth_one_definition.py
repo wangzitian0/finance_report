@@ -415,3 +415,111 @@ async def test_AC_reporting_net_worth_scope_11_package_discloses_each_excluded_c
     assert full.sections.balance_sheet.excluded_holdings == []
     assert full.sections.balance_sheet.total_assets - full.sections.balance_sheet.total_liabilities == FULL_NET_WORTH
     assert "This package includes restricted and illiquid holdings" in _restricted_treatment_note(full)
+
+
+def test_AC_reporting_net_worth_scope_11_package_note_names_rows_without_amounts_and_the_empty_scope() -> None:
+    """AC-reporting.net-worth-scope.11: the package note covers a row without amounts and a scope with no row."""
+    from src.reporting.extension.package_document import _restricted_asset_treatment_disclosure
+    from src.schemas.reporting import ExcludedHoldingRow
+
+    unconverted = ExcludedHoldingRow(
+        asset_class="restricted_comp",
+        total_assets=None,
+        total_liabilities=None,
+        net_worth=None,
+        warnings=[
+            {"type": "missing_fx_rate_excluded_holding", "currency": "USD", "target_currency": "SGD"},
+            {"type": "fx_conversion_failed_excluded_holding", "currency": "HKD", "target_currency": "SGD"},
+        ],
+    )
+    note = _restricted_asset_treatment_disclosure(
+        "Base.", include_restricted=False, excluded_holdings=[unconverted], currency="SGD"
+    )
+    assert note == (
+        "Base. This package excludes these restricted and illiquid holdings, with the liabilities of their class, "
+        "from the balance sheet: restricted comp: amount not available, FX conversion failed for HKD to SGD, "
+        "no FX rate for USD to SGD."
+    )
+
+    empty = _restricted_asset_treatment_disclosure(
+        "Base.", include_restricted=False, excluded_holdings=[], currency="SGD"
+    )
+    assert empty == (
+        "Base. On the as-of date this package excludes no restricted or illiquid holding: "
+        "no such valuation is current on that date."
+    )
+
+
+async def test_AC_reporting_net_worth_scope_12_generate_without_scope_reads_the_package_default(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-reporting.net-worth-scope.12: a generate body without include_restricted reads PACKAGE_INCLUDE_RESTRICTED.
+
+    The app sends no scope. The route then builds the liquid package, so the frozen
+    balance sheet names the excluded classes.
+    """
+    await _seed_issue_2645_account(db, test_user.id)
+
+    response = await client.post(
+        "/reports/package/generate",
+        json={
+            "framework_id": "personal_us_gaap_like",
+            "start_date": PERIOD_START.isoformat(),
+            "end_date": AS_OF.isoformat(),
+            "as_of_date": AS_OF.isoformat(),
+            "currency": "SGD",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    sheet = response.json()["document"]["sections"]["balance_sheet"]
+    assert [row["asset_class"] for row in sheet["excluded_holdings"]] == ["real_estate", "restricted_comp"]
+
+
+async def test_AC_reporting_net_worth_scope_13_data_quality_stays_available_without_a_valuation_fx_rate(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-reporting.net-worth-scope.13: a restricted valuation without an FX rate is an action item on data quality.
+
+    The full scope cannot convert the USD RSU. The page still answers 200 with the same
+    score, and one action item names the missing rate.
+    """
+    await _seed_issue_2645_account(db, test_user.id)
+    url = f"/reports/data-quality?as_of_date={AS_OF.isoformat()}&currency=SGD"
+
+    normal = await _get(client, url)
+    await _add_usd_rsu_without_fx_rate(db, test_user.id)
+    gap = await _get(client, url)
+
+    assert "resolve_valuation_fx_rate" not in [item["id"] for item in normal["action_items"]]
+    fx_items = [item for item in gap["action_items"] if item["id"] == "resolve_valuation_fx_rate"]
+    assert [(item["action_type"], item["score_boost"]) for item in fx_items] == [("RESOLVE_FX_RATE", 0)]
+    assert "No FX rate available for USD/SGD" in fx_items[0]["description"]
+    assert gap["score"] == normal["score"]
+    assert gap["equation_invariant"] == normal["equation_invariant"]
+
+
+async def test_AC_reporting_net_worth_scope_14_package_lists_a_restricted_holding_without_fx_rate(
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-reporting.net-worth-scope.14: a restricted holding without an FX rate does not fail the package.
+
+    The annualized schedule lists the USD RSU in its own currency, leaves it out of the
+    restricted fair-value total and names it. The package readiness has a blocker for it.
+    """
+    await _seed_issue_2645_account(db, test_user.id)
+    await _add_usd_rsu_without_fx_rate(db, test_user.id)
+
+    document = await _assemble_package(db, test_user.id, include_restricted=False)
+
+    schedule = document.sections.annualized_income_long_term
+    assert sorted(holding.ticker for holding in schedule.restricted_holdings) == ["Employer ESOP", "Employer RSU"]
+    assert schedule.restricted_fair_value_total == ESOP
+    assert schedule.restricted_fair_value_total_excludes == ["Employer RSU (USD 1,000.00)"]
+    assert any("Employer RSU (USD 1,000.00)" in note for note in schedule.notes)
+    assert "restricted_holding_fx_unavailable" in [blocker.code for blocker in document.readiness.blockers]
