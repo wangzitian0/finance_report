@@ -1630,10 +1630,11 @@ async def try_lock_statement_classification(db: AsyncSession, statement_id: UUID
 async def lock_statement_classification(db: AsyncSession, statement_id: UUID) -> None:
     """Wait for the lock of the classification of one statement.
 
-    A poll with a bound, not a blocking lock call: the caller may hold a row lock of its own (the approval holds the
-    statement row), and a blocking call would hide a wait cycle from the database until the cycle hangs both tasks.
-    After ``CLASSIFICATION_LOCK_WAIT_SECONDS`` the call raises ``StatementClassificationBusy`` and the caller changes
-    nothing.
+    The wait is a poll with a limit. A blocking lock call has no limit, and a lock timeout of the database aborts
+    the whole transaction of the caller. The holder never waits for a lock of the waiter: the pass reads the
+    statement row without a row lock, and the approval takes this lock before it takes the policy lock. So the
+    wait ends when the holder commits. After ``CLASSIFICATION_LOCK_WAIT_SECONDS`` the call raises
+    ``StatementClassificationBusy``, and the caller changes nothing.
     """
     loop = asyncio.get_running_loop()
     deadline = loop.time() + CLASSIFICATION_LOCK_WAIT_SECONDS
