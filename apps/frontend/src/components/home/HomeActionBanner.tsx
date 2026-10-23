@@ -1,32 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 
 import { nextActionLabel, nextActionSummary, workflowStateCopy } from "@/components/workflow/workflowFormat";
-import { useApiQuery } from "@/hooks/useApiQuery";
+import { useAttentionQueue } from "@/hooks/useAttentionQueue";
 import { isWorkflowStatusResponse, useWorkflowStatusQuery } from "@/hooks/useWorkflowStatus";
-import { buildAttentionItems, summarizeTrust } from "@/lib/attention";
-import {
-  PROCESSING_PENDING_QUERY_KEY,
-  RECONCILIATION_STATS_QUERY_KEY,
-  SHARED_STALE_MS,
-  STATEMENTS_LIST_QUERY_KEY,
-} from "@/lib/sharedQueries";
+import type { AttentionItem } from "@/lib/attention";
+import { NEEDS_YOU_HREF, withAttentionSource } from "@/lib/attentionNavigation";
 import { countLabel } from "@/lib/statusLabels";
 import type { WorkflowStatusResponse } from "@/lib/types";
 
 /**
- * The one action banner of Home (#2621 LC, #2548 P1).
+ * The one action banner of Home (#2621 LC, #2548 P1, #2646).
  *
  * Home shows workflow items only when one needs the user. The banner shows the first item
  * of this list and nothing when no item applies:
- *  1. the workflow is blocked or needs an action: the next action of the workflow status,
- *  2. the workflow has no source yet: upload the first statement,
- *  3. the confidence-ranked queue has items: the count, with a link to `/audit`.
- * The sources come from the shared query cache (#2583 S4): `/audit` and the reconciliation
- * Workbench read the same keys.
+ *  1. the confidence queue has items: the count and the first item, with a link to the
+ *     Needs you tab of `/audit`,
+ *  2. the workflow is blocked or needs an action: the next action of the workflow status,
+ *  3. the workflow has no source yet: upload the first statement.
+ * The queue comes first: a blocker of the report package names no item, and the items of the
+ * queue often cause it (#2646). The sources come from the shared query cache (#2583 S4):
+ * `/audit` and the reconciliation Workbench read the same keys.
  */
 
 export interface HomeAction {
@@ -34,9 +30,21 @@ export interface HomeAction {
   summary: string;
   cta: string;
   href: string;
+  /** The first item of the confidence queue. The banner names it and links to it. */
+  firstItem?: { title: string; detail: string; href: string };
 }
 
-export function pickHomeAction(status: WorkflowStatusResponse | null, needsConfirmation: number): HomeAction | null {
+export function pickHomeAction(status: WorkflowStatusResponse | null, queue: readonly AttentionItem[]): HomeAction | null {
+  if (queue.length > 0) {
+    const [first] = queue;
+    return {
+      title: `${countLabel(queue.length, "item")} ${queue.length === 1 ? "needs" : "need"} you`,
+      summary: "Start with the item that the system is least sure about.",
+      cta: "Open Needs you",
+      href: NEEDS_YOU_HREF,
+      firstItem: { title: first.title, detail: first.detail, href: withAttentionSource(first.href) },
+    };
+  }
   if (status?.primary_state === "blocked" || status?.primary_state === "needs_action") {
     return {
       title: status.primary_state === "blocked" ? "A blocker holds your reports" : "An item needs your review",
@@ -53,45 +61,18 @@ export function pickHomeAction(status: WorkflowStatusResponse | null, needsConfi
       href: "/upload",
     };
   }
-  if (needsConfirmation > 0) {
-    return {
-      title: `${countLabel(needsConfirmation, "item")} ${needsConfirmation === 1 ? "needs" : "need"} your confirmation`,
-      summary: "Confirm the lowest-confidence items first so the statements stay accurate.",
-      cta: "Open Needs Confirmation",
-      href: "/audit",
-    };
-  }
   return null;
 }
 
 export function HomeActionBanner() {
   const workflow = useWorkflowStatusQuery();
-  const statements = useApiQuery(STATEMENTS_LIST_QUERY_KEY, "list_statements_statements_get", {}, { staleTime: SHARED_STALE_MS });
-  const stats = useApiQuery(RECONCILIATION_STATS_QUERY_KEY, "reconciliation_stats_reconciliation_stats_get", {}, { staleTime: SHARED_STALE_MS });
-  const processing = useApiQuery(
-    PROCESSING_PENDING_QUERY_KEY,
-    "list_processing_pending_accounts_processing_pending_get",
-    {},
-    { staleTime: SHARED_STALE_MS },
-  );
+  const queue = useAttentionQueue();
 
   const status = isWorkflowStatusResponse(workflow.data) ? workflow.data : null;
-  const trustReady = statements.isSuccess && stats.isSuccess && processing.isSuccess;
-  const statementItems = statements.data?.items;
-  const statsData = stats.data;
-  const processingItems = processing.data?.items;
-  const needsConfirmation = useMemo(() => {
-    if (!trustReady) return 0;
-    const items = buildAttentionItems({
-      statements: statementItems ?? [],
-      stats: statsData ?? null,
-      processing: processingItems ?? [],
-    });
-    return summarizeTrust(items, statsData ?? null).needsConfirmation;
-  }, [trustReady, statementItems, statsData, processingItems]);
-
-  // The banner stays silent while its sources load and when they fail: it is not critical on Home.
-  const action = pickHomeAction(status, needsConfirmation);
+  // The banner stays silent while the queue loads: a workflow banner must not show first and then
+  // change to the queue (#2646). It is not critical on Home, so a failed source shows no error.
+  if (queue.items === null) return null;
+  const action = pickHomeAction(status, queue.items);
   if (!action) return null;
 
   return (
@@ -100,7 +81,17 @@ export function HomeActionBanner() {
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[var(--warning)]" aria-hidden="true" />
         <div className="min-w-0">
           <h2 className="text-sm font-semibold">{action.title}</h2>
-          <p className="text-xs text-muted">{action.summary}</p>
+          {action.firstItem ? (
+            <p className="text-xs text-muted">
+              <span>First: </span>
+              <Link href={action.firstItem.href} className="font-medium text-[var(--foreground)] hover:underline">
+                {action.firstItem.title}
+              </Link>
+              <span>{` · ${action.firstItem.detail}`}</span>
+            </p>
+          ) : (
+            <p className="text-xs text-muted">{action.summary}</p>
+          )}
         </div>
       </div>
       <Link href={action.href} className="btn-primary inline-flex shrink-0 items-center gap-1 px-3 py-1.5 text-xs">

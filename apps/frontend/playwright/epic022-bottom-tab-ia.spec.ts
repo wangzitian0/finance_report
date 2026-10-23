@@ -100,7 +100,8 @@ test.describe("AC22.21.7 mobile/PWA bottom-tab IA smoke", () => {
     });
 
     test("the Audit hub aggregates the verify-on-demand machinery", async ({ page }) => {
-        await page.goto("/audit", { waitUntil: "networkidle" });
+        // The Books tab links to the ledgers (#2646).
+        await page.goto("/audit?tab=books", { waitUntil: "networkidle" });
 
         await expect(page.getByRole("heading", { name: "Audit" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
         await expect(page.getByRole("link", { name: /Reconciliation/ })).toHaveAttribute("href", "/reconciliation");

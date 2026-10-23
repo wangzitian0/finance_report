@@ -3,8 +3,10 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { formatDateInput } from "@/lib/date";
 import { isValidReportDate } from "@/lib/reportPackage";
+import { SHARED_STALE_MS, STATEMENTS_LIST_QUERY_KEY } from "@/lib/sharedQueries";
 
 /**
  * The report dimensions of Home and `/reports` (#2621 LC, #2548 P1).
@@ -19,6 +21,9 @@ import { isValidReportDate } from "@/lib/reportPackage";
  *    default includes them (`DEFAULT_INCLUDE_RESTRICTED`), so the default figure is the full net worth.
  *  - `tab`: the open tab of `/reports`.
  * A default value is not written to the URL.
+ *
+ * The first statement bounds a preset period (#2646). The ledger has no balance before the first
+ * day of the earliest approved statement, so a preset period starts no earlier than that day.
  */
 
 /**
@@ -68,19 +73,56 @@ export interface ReportFilters {
   /** The currency in the URL. Undefined means the base currency of the user. */
   currency?: string;
   includeRestricted: boolean;
-  /** The day before `startDate`: the date of the opening balance sheet. Null for `All`. */
+  /**
+   * The date of the opening balance sheet: the day before `startDate`. Null for `All` when no first
+   * statement is known. When the period starts on or before the first statement, it is the first day
+   * of that statement: the opening balances of the statement post on that day.
+   */
   openingDate: string | null;
+  /** True when `openingDate` is the first day of the first statement, not the day before `startDate`. */
+  opensAtFirstStatement: boolean;
   /** The `end` of the previous period. Null for `All` and for a custom period. */
   previousEnd: string | null;
   /** The `end` of the next period. Null when no next period exists. An empty string is the current period. */
   nextEnd: string | null;
   /** The dimension parameters, without `tab`, as a query string. */
   dimensionQuery: string;
+  /**
+   * False until the statement list settles: the first statement can move `startDate`. A reader of
+   * the period does not fetch and shows its loading state until it is true (#2646).
+   */
+  ready: boolean;
 }
 
 function toLocalDate(value: string): Date {
   const [year, month, day] = value.split("-").map(Number);
   return new Date(year, month - 1, day);
+}
+
+function dayBefore(value: string): string {
+  const date = toLocalDate(value);
+  date.setDate(date.getDate() - 1);
+  return formatDateInput(date);
+}
+
+/** The fields of a `GET /statements` item that bound the ledger. */
+export interface LedgerStatement {
+  status: string;
+  period_start?: string | null;
+}
+
+/**
+ * The first day of the ledger: the earliest `period_start` of an approved statement (#2646).
+ * Null when no approved statement has a valid period start.
+ */
+export function firstStatementDate(statements: readonly LedgerStatement[] | null | undefined): string | null {
+  let first: string | null = null;
+  for (const statement of statements ?? []) {
+    const start = statement.period_start ?? "";
+    if (statement.status !== "approved" || !isValidReportDate(start)) continue;
+    if (first === null || start < first) first = start;
+  }
+  return first;
 }
 
 /** The first and last day of a preset period that ends on `reference`. */
@@ -115,10 +157,14 @@ function isTab(value: string | null): value is ReportTab {
   return REPORT_TABS.some((tab) => tab.id === value);
 }
 
-/** Read the dimensions from URL parameters. Invalid values fall back to the defaults. */
+/**
+ * Read the dimensions from URL parameters. Invalid values fall back to the defaults.
+ * `firstStatement` is the result of `firstStatementDate`. Null applies no bound.
+ */
 export function readReportFilters(
   params: Pick<URLSearchParams, "get">,
   now: Date = new Date(),
+  firstStatement: string | null = null,
 ): ReportFilters {
   const today = formatDateInput(now);
   const rawTab = params.get("tab");
@@ -136,12 +182,15 @@ export function readReportFilters(
   const includeRestricted =
     rawIncludeRestricted === "true" ? true : rawIncludeRestricted === "false" ? false : DEFAULT_INCLUDE_RESTRICTED;
 
-  const { startDate, endDate } = preset
+  const range = preset
     ? resolvePeriodRange(preset, end ? toLocalDate(end) : now)
     : { startDate: start, endDate: end || today };
-  const opening = toLocalDate(startDate);
-  opening.setDate(opening.getDate() - 1);
-  const openingDate = preset === "All" ? null : formatDateInput(opening);
+  const { endDate } = range;
+  const reachesFirstStatement =
+    firstStatement !== null && range.startDate <= firstStatement && firstStatement <= endDate;
+  // A preset period starts no earlier than the first statement. A custom period keeps its start.
+  const startDate = preset && reachesFirstStatement ? firstStatement : range.startDate;
+  const openingDate = reachesFirstStatement ? firstStatement : preset === "All" ? null : dayBefore(startDate);
   const steps = preset !== null && preset !== "All";
 
   const dimensions = new URLSearchParams();
@@ -160,9 +209,12 @@ export function readReportFilters(
     currency,
     includeRestricted,
     openingDate,
-    previousEnd: steps ? openingDate : null,
+    opensAtFirstStatement: reachesFirstStatement,
+    // No previous period exists before the first statement.
+    previousEnd: steps && !reachesFirstStatement ? dayBefore(startDate) : null,
     nextEnd: steps && end && end < today ? nextPeriodEnd(preset, end, today) : null,
     dimensionQuery: dimensions.toString(),
+    ready: true,
   };
 }
 
@@ -190,7 +242,14 @@ export function useReportFilters(): UseReportFiltersResult {
   const router = useRouter();
   const pathname = usePathname();
   const search = searchParams.toString();
-  const filters = useMemo(() => readReportFilters(new URLSearchParams(search)), [search]);
+  // Home, `/upload` and `/audit` read the same cached list.
+  const statements = useApiQuery(STATEMENTS_LIST_QUERY_KEY, "list_statements_statements_get", {}, { staleTime: SHARED_STALE_MS });
+  const statementItems = statements.data?.items;
+  const firstStatement = useMemo(() => firstStatementDate(statementItems), [statementItems]);
+  const filters = useMemo(
+    () => readReportFilters(new URLSearchParams(search), new Date(), firstStatement),
+    [search, firstStatement],
+  );
 
   const update = useCallback(
     (changes: Partial<Record<(typeof DIMENSION_PARAMS)[number], string>>) => {
@@ -221,6 +280,8 @@ export function useReportFilters(): UseReportFiltersResult {
 
   return {
     ...filters,
+    // A failed list applies no bound: the reports still load.
+    ready: !statements.isPending,
     setPreset: useCallback(
       (preset: ReportPeriodPreset) =>
         update({ period: preset === DEFAULT_REPORT_PERIOD ? "" : preset, start: "", end: "" }),

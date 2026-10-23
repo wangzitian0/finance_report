@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { APP_ROUTES } from "@/components/navigation";
 import UnmatchedBoard from "@/components/reconciliation/UnmatchedBoard";
 import { Stage2ReviewQueue } from "@/components/review/Stage2ReviewQueue";
+import { LoadingState } from "@/components/ui";
 import { InfoHint } from "@/components/ui/InfoHint";
 import { apiOperation } from "@/lib/api-client";
 import { formatAmount } from "@/lib/audit/money";
@@ -20,9 +21,11 @@ function formatQueueAmount(value: MoneyValue): string {
   return amount.endsWith(".00") ? amount.slice(0, -3) : amount;
 }
 
-// The `tab` query parameter selects the view. No value or an unknown value shows the matches.
+// The `tab` query parameter selects the view. With no value or an unknown value, the page opens
+// on Unmatched when an unmatched row exists, and on Matches otherwise (#2646). It waits for the
+// statistics to choose. The Matches tab names its view, so its link never opens Unmatched.
 const TABS = [
-  { id: "matches", href: APP_ROUTES.RECONCILIATION, label: "Matches" },
+  { id: "matches", href: APP_ROUTES.RECONCILIATION_MATCHES, label: "Matches" },
   { id: "unmatched", href: APP_ROUTES.RECONCILIATION_UNMATCHED, label: "Unmatched" },
   { id: "review-queue", href: APP_ROUTES.RECONCILIATION_REVIEW_QUEUE, label: "Review queue" },
 ] as const;
@@ -30,14 +33,20 @@ const TABS = [
 export default function ReconciliationWorkbench() {
   const queryClient = useQueryClient();
   const tabParam = useSearchParams()?.get("tab");
-  const activeTab = TABS.find((tab) => tab.id === tabParam)?.id ?? "matches";
   const [selected, setSelected] = useState<ReconciliationMatchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: stats, error: statsError } = useQuery({
+  const { data: stats, error: statsError, isPending: statsPending } = useQuery({
     queryKey: RECONCILIATION_STATS_QUERY_KEY,
     queryFn: () => apiOperation("reconciliation_stats_reconciliation_stats_get"),
   });
+  const namedTab = TABS.find((tab) => tab.id === tabParam)?.id;
+  // Null while the statistics load: the default tab depends on the unmatched count.
+  const settledDefault = statsPending ? null : (stats?.unmatched_transactions ?? 0) > 0 ? "unmatched" : "matches";
+  // The first settled default stays: a refetch of the statistics does not move the tab.
+  const [defaultTab, setDefaultTab] = useState<typeof settledDefault>(null);
+  if (defaultTab === null && settledDefault !== null) setDefaultTab(settledDefault);
+  const activeTab = namedTab ?? defaultTab ?? settledDefault;
 
   const { data: pendingData, isLoading, error: pendingError } = useQuery({
     queryKey: ["reconciliation", "pending"],
@@ -142,7 +151,9 @@ export default function ReconciliationWorkbench() {
         ))}
       </nav>
 
-      {activeTab === "unmatched" ? (
+      {activeTab === null ? (
+        <LoadingState label="Loading reconciliation" />
+      ) : activeTab === "unmatched" ? (
         <UnmatchedBoard />
       ) : activeTab === "review-queue" ? (
         <Stage2ReviewQueue />

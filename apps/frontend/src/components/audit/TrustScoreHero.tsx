@@ -35,11 +35,22 @@ interface TrustScoreHeroProps {
   currency: string;
   isRefreshing?: boolean;
   onRefresh?: () => void;
+  /**
+   * Why the books are not ready yet: a blocker or an unmatched row (#2646). While it is set, the
+   * hero shows no audit-ready grade: the score checks the invariants, not the open items.
+   */
+  heldReason?: string | null;
 }
 
-export function TrustScoreHero({ score, grade, asOfDate, currency, isRefreshing, onRefresh }: TrustScoreHeroProps) {
-  const gradeColor = getGradeColor(grade);
-  const gradeLabel = getGradeLabel(grade);
+/** The grade label, or the hold label while an open item holds the audit-ready grade. */
+export function heldGradeLabel(grade: QualityGrade, heldReason?: string | null): string {
+  return heldReason && grade === "A_AUDIT_READY" ? "Open items remain" : getGradeLabel(grade);
+}
+
+export function TrustScoreHero({ score, grade, asOfDate, currency, isRefreshing, onRefresh, heldReason }: TrustScoreHeroProps) {
+  const held = Boolean(heldReason) && grade === "A_AUDIT_READY";
+  const gradeColor = held ? "var(--warning)" : getGradeColor(grade);
+  const gradeLabel = heldGradeLabel(grade, heldReason);
   const radius = 48;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (score / 100) * circumference;
@@ -84,7 +95,9 @@ export function TrustScoreHero({ score, grade, asOfDate, currency, isRefreshing,
             </div>
             <h2 className="text-xl font-bold">Data Quality & Invariant Trust</h2>
             <p className="max-w-md text-sm text-muted">
-              {score >= 95
+              {held
+                ? heldReason
+                : score >= 95
                 ? "All mathematical invariants verified: Assets = Liabilities + Equity with continuous rollforward."
                 : score >= 80
                   ? "Core accounting equation balanced; complete temporal timeline gaps to achieve full audit readiness."
@@ -119,8 +132,29 @@ export function TrustScoreHero({ score, grade, asOfDate, currency, isRefreshing,
   );
 }
 
-export function ActionChecklist({ actionItems }: { actionItems: QualityActionItem[] }) {
+export function ActionChecklist({
+  actionItems,
+  heldReason,
+}: {
+  actionItems: QualityActionItem[];
+  /** See `TrustScoreHero`. While it is set, an empty checklist states the open items, not audit readiness. */
+  heldReason?: string | null;
+}) {
   const items = actionItems ?? [];
+
+  if (items.length === 0 && heldReason) {
+    return (
+      <div className="card flex items-center gap-4 border-[var(--warning)] p-6">
+        <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-[var(--warning)] text-white">
+          <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <div>
+          <p className="text-base font-bold">The checks pass. Open items remain.</p>
+          <p className="mt-0.5 text-sm text-muted">{heldReason}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (

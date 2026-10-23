@@ -76,9 +76,11 @@ function isPackageReadiness(value: unknown): value is PersonalReportPackageReadi
 /** The Overview tab: trust first. The readiness of the report package, then the three statement cards. */
 function ReportsOverview({ filters }: { filters: ReportFilters }) {
   // The Package tab reads the same preview key (#2583 S4): a switch to the Package tab issues no request.
-  const packageQuery = useQuery(
-    personalReportPackageQuery({ frameworkId: null, reportDate: filters.endDate, startDate: filters.startDate, currency: filters.currency }),
-  );
+  const packageQuery = useQuery({
+    ...personalReportPackageQuery({ frameworkId: null, reportDate: filters.endDate, startDate: filters.startDate, currency: filters.currency }),
+    // The period waits for the first statement (#2646).
+    enabled: filters.ready,
+  });
   const readiness = isPackageReadiness(packageQuery.data?.readiness) ? packageQuery.data.readiness : null;
   const loadState: ReadinessLoadState = packageQuery.isError
     ? "error"
