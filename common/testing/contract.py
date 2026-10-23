@@ -559,6 +559,7 @@ CONTRACT = PackageContract(
         # ── group backend-test-timeout: a hung backend test fails by name (#2398) ──
         ac('AC-testing.backend-test-timeout.1', 'The backend pytest configuration sets timeout_method thread and a per-test timeout of at least five times the slowest green test (8.77 seconds) and at most 120 seconds. pytest-timeout is a dev dependency.', 'tests/tooling/test_backend_test_timeout.py::test_AC_testing_backend_test_timeout_1_config_sets_a_thread_timeout_that_fits_the_pr_budget', priority='P1', proof_kind='property'),
         ac('AC-testing.backend-test-timeout.2', 'A test that never returns fails the pytest run within seconds of the timeout. The output names the test and shows a Timeout banner.', 'tests/tooling/test_backend_test_timeout.py::test_AC_testing_backend_test_timeout_2_a_hung_test_fails_by_name_with_the_project_method', priority='P1', proof_kind='property'),
+        ac('AC-testing.e2e-poll-reconnect.1', 'A journey status poll reconnects when the connection closes before the app answers (httpx ReadError or RemoteProtocolError): at most 3 closed connections in a row, each counted and printed. The fourth fails the poll. A timeout, a refused connection and an HTTP error status are never retried. The app log showed no failure for the two CI replays that died this way (#2610).', 'tests/tooling/test_e2e_transport_retry.py::test_AC_testing_e2e_poll_reconnect_1_the_fourth_closed_connection_in_a_row_fails', priority='P1'),
     ],
     governance=[
         GovernanceInitiative(
