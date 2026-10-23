@@ -447,7 +447,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     );
     expect(screen.getByRole("link", { name: "Review AI suggestions" })).toHaveAttribute(
       "href",
-      "/audit?statement_id=s1&return_to=%2Fstatements%2Fs1#ai-suggestions",
+      "/audit?tab=needs-you&statement_id=s1&return_to=%2Fstatements%2Fs1#ai-suggestions",
     );
   });
 

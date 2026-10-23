@@ -412,7 +412,7 @@ export default function StatementDetailPage() {
           <p className="mt-1 text-sm text-muted">These transactions need your confirmation before they can be posted into the journal. Auto-fill accepts the AI suggestion for each row and uses a general category for rows without one. A transfer or a card repayment is posted to the Processing account until the other side of the movement arrives. A loan payment goes to Loans Payable and a trade to Investments. A row in a foreign currency stays here for you. You can also review every row manually.</p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <button type="button" onClick={() => approveMutation.mutate({ autoFill: true })} disabled={approveMutation.isPending} className="btn-primary inline-flex items-center gap-2">{approveMutation.isPending ? "Approving..." : "Auto-Fill Default Categories & Approve"}</button>
-            <Link href={`/audit?statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}#ai-suggestions`} className="btn-secondary inline-flex">Review AI suggestions</Link>
+            <Link href={`/audit?tab=needs-you&statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}#ai-suggestions`} className="btn-secondary inline-flex">Review AI suggestions</Link>
             <Link href={`/reconciliation?tab=unmatched&statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}`} className="btn-secondary inline-flex">Review transaction classifications</Link>
           </div>
         </section>
