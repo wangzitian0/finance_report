@@ -19,8 +19,10 @@ from httpx import ASGITransport, AsyncClient
 from moto import mock_aws
 from sqlalchemy import func, select
 
+from src.audit.money import Currency, InvalidCurrencyError
 from src.config import settings
-from src.extraction import BankStatementStatus, parse_brokerage_csv_payload
+from src.extraction import BankStatementStatus, parse_brokerage_csv_payload, parse_brokerage_positions
+from src.extraction.extension.service import ExtractionService
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.statement_summary import StatementSummary
 from src.routers import statements as statements_router
@@ -233,7 +235,7 @@ _UNSTORABLE_CASES = [
         _OUT_OF_RANGE,
         "the quantity 999999999999.9999995 is out of range",
     ),
-    ("quantity_nan", _payload(quantity="NaN"), _OUT_OF_RANGE, "The amount 'NaN' is not a number."),
+    ("quantity_nan", _payload(quantity="NaN"), _OUT_OF_RANGE, "Position 'AAA': the quantity 'NaN' is not a number."),
     (
         "market_value_above_column",
         _payload(market_value="10000000000000000"),
@@ -241,8 +243,18 @@ _UNSTORABLE_CASES = [
         "the market_value 10000000000000000.00 is out of range",
     ),
     ("market_value_too_many_digits", _payload(market_value="1e40"), _OUT_OF_RANGE, "the market value 1E+40 is out"),
-    ("market_value_infinity", _payload(market_value="Infinity"), _OUT_OF_RANGE, "The amount 'Infinity' is not a"),
-    ("market_value_nan", _payload(market_value="NaN"), _OUT_OF_RANGE, "The amount 'NaN' is not a number."),
+    (
+        "market_value_infinity",
+        _payload(market_value="Infinity"),
+        _OUT_OF_RANGE,
+        "Position 'AAA': the market_value 'Infinity' is not a number.",
+    ),
+    (
+        "market_value_nan",
+        _payload(market_value="NaN"),
+        _OUT_OF_RANGE,
+        "Position 'AAA': the market_value 'NaN' is not a number.",
+    ),
     (
         "identifier_too_long",
         _payload(symbol="A" * 101),
@@ -251,7 +263,20 @@ _UNSTORABLE_CASES = [
     ),
     ("identifier_with_nul", _payload(symbol="AA\x00A"), _OUT_OF_RANGE, "the asset_identifier contains a NUL"),
     ("currency_too_long", _payload(currency="USDT"), _OUT_OF_RANGE, "the currency has 4 characters. The limit is 3."),
-    ("currency_not_iso", _payload(currency="ABC"), _OUT_OF_RANGE, "the currency 'ABC' is not an ISO-4217 code."),
+    (
+        "currency_not_iso",
+        _payload(currency="ABC"),
+        _OUT_OF_RANGE,
+        "the currency 'ABC' is not an ISO-4217 code. The app converts and prices only ISO-4217 currencies",
+    ),
+    (
+        "currency_cnh",
+        _payload(currency="CNH"),
+        _OUT_OF_RANGE,
+        "the currency 'CNH' (the offshore renminbi) is not an ISO-4217 code. The app converts and prices only "
+        "ISO-4217 currencies, and it has no FX rate for this code. Restate the amounts in an ISO-4217 currency "
+        "(for example CNY)",
+    ),
     (
         "futu_valuation_too_many_digits",
         _broker_payload("Futu", events=[_futu_valuation("1e40")]),
@@ -262,13 +287,13 @@ _UNSTORABLE_CASES = [
         "futu_valuation_nan",
         _broker_payload("Futu", events=[_futu_valuation("NaN")]),
         _OUT_OF_RANGE,
-        "The amount 'NaN' is not a number.",
+        "Position 'Stock and options valuation': the market_value 'NaN' is not a number.",
     ),
     (
         "moomoo_margin_fill_qty_nan",
         _broker_payload("Moomoo", margin_history_rows=[_margin_buy("NaN", "100.00")]),
         _OUT_OF_RANGE,
-        "The amount 'NaN' is not a number.",
+        "Position 'AAA': the quantity 'NaN' is not a number.",
     ),
     (
         "moomoo_margin_amount_too_many_digits",
@@ -286,7 +311,7 @@ _UNSTORABLE_CASES = [
         "moomoo_money_market_nan",
         _broker_payload("Moomoo", events=[_money_market("NaN")]),
         _OUT_OF_RANGE,
-        "The amount 'NaN' is not a number.",
+        "Position 'Fullerton SGD Money Market Fund': the market_value 'NaN' is not a number.",
     ),
     (
         "moomoo_subscription_too_many_digits",
@@ -333,3 +358,82 @@ async def test_AC_portfolio_brokerage_import_12_quantity_is_stored_as_the_column
     rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all()
     # Half away from zero at 6 places, as numeric(18,6) rounds; a tiny exponent stores as zero.
     assert {row.asset_identifier: row.quantity for row in rows} == {"AAA": Decimal("2.000001"), "BBB": Decimal("0")}
+
+
+def test_AC_portfolio_brokerage_import_12_money_layer_reads_no_cnh():
+    """AC-portfolio.brokerage-import.12: the money and FX layers read no CNH, so the import must not store it.
+
+    On main a CNH position imported with 200, then ``GET /portfolio/holdings`` and the next import
+    returned 500 with ``InvalidCurrencyError``. If ``Currency`` learns CNH, revisit the 422 above.
+    """
+    with pytest.raises(InvalidCurrencyError):
+        Currency("CNH")
+
+
+_SUBTOTAL_CSV = b"""Symbol,Quantity,Market Value,Currency
+AAA,10,1000.00,USD
+,nan,1100.00,USD
+"""
+
+
+async def _csv_upload_payload() -> dict:
+    return await ExtractionService()._parse_csv_content(_SUBTOTAL_CSV, "Interactive Brokers")
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["csv_subtotal_row", "structured_row_without_symbol", "moomoo_margin_row_without_symbol", "moomoo_cash_event"],
+)
+async def test_AC_portfolio_brokerage_import_12_rows_that_are_not_positions_skip_before_amounts(case):
+    """AC-portfolio.brokerage-import.12: a NaN amount in a row that is not a position does not reject the file."""
+    if case == "csv_subtotal_row":
+        # The upload path: a subtotal row with no symbol and ``nan`` was skipped on main.
+        payload = await _csv_upload_payload()
+        snapshots = parse_brokerage_positions(payload, filename="positions.csv")
+    else:
+        rows = {
+            "structured_row_without_symbol": _payload(),
+            "moomoo_margin_row_without_symbol": _broker_payload(
+                "Moomoo", margin_history_rows=[_margin_buy("10", "1000.00")]
+            ),
+            "moomoo_cash_event": _broker_payload("Moomoo", events=[_money_market("1000.00")]),
+        }[case]
+        if case == "structured_row_without_symbol":
+            rows["positions"].append({"quantity": "NaN", "market_value": "1.00", "currency": "USD"})
+        elif case == "moomoo_margin_row_without_symbol":
+            rows["margin_history_rows"].append({"Side": "BUY", "Fill Qty": "NaN", "Fill Amount": "1.00"})
+        else:
+            rows["events"].append({"date": "2026-01-31", "description": "Cash interest", "amount": "NaN"})
+        snapshots = parse_brokerage_positions(rows)
+
+    assert len(snapshots) == 1
+    assert snapshots[0].market_value == Decimal("1000.00")
+
+
+_CSV_REMEDY = "The CSV import does not read a date column. Upload the broker statement PDF"
+_DOCUMENT_REMEDY = "The parser did not read a statement date from this document. Retry the parse"
+_PAYLOAD_REMEDY = "Give the source a statement period_end or a snapshot_date for each position"
+
+
+@pytest.mark.parametrize(
+    ("filename", "remedy"),
+    [
+        ("positions.csv", _CSV_REMEDY),
+        ("statement.pdf", _DOCUMENT_REMEDY),
+        ("scan.JPG", _DOCUMENT_REMEDY),
+        ("payload.json", _PAYLOAD_REMEDY),
+        (None, _PAYLOAD_REMEDY),
+    ],
+)
+async def test_AC_portfolio_brokerage_import_11_undated_remedy_follows_the_source_type(app_client, filename, remedy):
+    """AC-portfolio.brokerage-import.11: the 422 remedy for a missing date matches the source type."""
+    payload = parse_brokerage_csv_payload(_POSITIONS_HEADERS, _POSITIONS_ROWS, institution="Interactive Brokers")
+    body = {"payload": payload} if filename is None else {"filename": filename, "payload": payload}
+
+    response = await app_client.post("/portfolio/brokerage/import", json=body)
+
+    assert response.status_code == 422, response.text
+    assert response.json()["error_id"] == "brokerage_snapshot_date_missing"
+    detail = response.json()["detail"]
+    # Exactly one remedy, and it is the one for this source type.
+    assert [text for text in (_CSV_REMEDY, _DOCUMENT_REMEDY, _PAYLOAD_REMEDY) if text in detail] == [remedy]

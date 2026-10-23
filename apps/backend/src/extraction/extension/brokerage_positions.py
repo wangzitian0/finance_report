@@ -8,6 +8,7 @@ from calendar import monthrange
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, Protocol, cast
 from uuid import UUID
 
@@ -129,12 +130,14 @@ _GENERATED_PERIOD_RE = re.compile(r"Statement Period:\s*(?P<period>[A-Za-z]+\s+\
 _GENERATED_ACCOUNT_LAST4_RE = re.compile(r"Account:\s*\*{2,}(?P<last4>[A-Za-z0-9]{4})", re.IGNORECASE)
 
 
-def _clean_decimal(value: Any) -> Decimal | None:
+def _clean_decimal(value: Any, *, field: str = "amount", row: object | None = None) -> Decimal | None:
     """Parse an amount. Return ``None`` for empty or non-numeric text. Reject NaN and Infinity.
 
     NaN and Infinity are not amounts, and a comparison on NaN raises ``InvalidOperation``.
     Each parser reads amounts here, so this is the one place that rejects them with a
-    reason (#2649). A skip would drop the row and report success.
+    reason that names the ``field`` and the ``row`` (#2649). A skip would drop the row and
+    report success. Callers skip a row that is not a position (no symbol, a cash event)
+    before they read its amounts, so such a row never reaches this rejection.
     """
     if value is None:
         return None
@@ -149,8 +152,9 @@ def _clean_decimal(value: Any) -> Decimal | None:
         except InvalidOperation:
             return None
     if not parsed.is_finite():
+        subject = f"Position {str(row).strip()[:40]!r}: the {field}" if row is not None else f"The {field}"
         raise BrokerageImportRejectedError(
-            BROKERAGE_POSITION_OUT_OF_RANGE, f"The amount {str(value)[:40]!r} is not a number."
+            BROKERAGE_POSITION_OUT_OF_RANGE, f"{subject} {str(value)[:40]!r} is not a number."
         )
     return parsed
 
@@ -324,9 +328,17 @@ def _parse_structured_positions(
         # scope (which never resolves a price). A symbol/ticker is the canonical
         # market key; fall back to asset_identifier/isin only when absent.
         identifier = item.get("symbol") or item.get("ticker") or item.get("asset_identifier") or item.get("isin")
-        quantity = _clean_decimal(item.get("quantity") or item.get("qty") or item.get("position"))
-        market_value = _clean_decimal(item.get("market_value") or item.get("value") or item.get("marketValue"))
-        if not identifier or quantity is None or market_value is None:
+        if not identifier:
+            continue  # not a position row; skip it before its amounts are read (#2649)
+        quantity = _clean_decimal(
+            item.get("quantity") or item.get("qty") or item.get("position"), field="quantity", row=identifier
+        )
+        market_value = _clean_decimal(
+            item.get("market_value") or item.get("value") or item.get("marketValue"),
+            field="market_value",
+            row=identifier,
+        )
+        if quantity is None or market_value is None:
             continue
         money = _position_money(identifier, market_value)
         snapshots.append(
@@ -358,13 +370,12 @@ def _parse_moomoo_subscription_positions(
             if str(event.get("direction") or "").strip().upper() == "OUT":
                 continue
             description = str(event.get("description") or "")
-            amount = _clean_decimal(event.get("amount"))
-            if (
-                "Money Market Fund" not in description
-                or any(token in description.lower() for token in _FUTU_NON_POSITION_EVENT_TOKENS)
-                or amount is None
-                or amount <= 0
+            if "Money Market Fund" not in description or any(
+                token in description.lower() for token in _FUTU_NON_POSITION_EVENT_TOKENS
             ):
+                continue  # not a position event; skip it before its amount is read (#2649)
+            amount = _clean_decimal(event.get("amount"), field="market_value", row=description)
+            if amount is None or amount <= 0:
                 continue
             snapshots.append(
                 BrokeragePositionSnapshot(
@@ -379,8 +390,8 @@ def _parse_moomoo_subscription_positions(
             )
             continue
 
-        quantity = _clean_decimal(match.group("quantity"))
-        market_value = _clean_decimal(match.group("value"))
+        quantity = _clean_decimal(match.group("quantity"), field="quantity", row=match.group("name"))
+        market_value = _clean_decimal(match.group("value"), field="market_value", row=match.group("name"))
         if quantity is None or market_value is None or quantity <= 0 or market_value <= 0:
             continue
         snapshots.append(
@@ -413,11 +424,17 @@ def _parse_moomoo_margin_history_positions(
         if side != "BUY":
             continue
         identifier = row.get("Symbol") or row.get("symbol") or row.get("Ticker") or row.get("ticker")
-        quantity = _clean_decimal(row.get("Fill Qty") or row.get("fill_qty") or row.get("Quantity"))
-        market_value = _clean_decimal(
-            row.get("Fill Amount") or row.get("fill_amount") or row.get("Order Amount") or row.get("order_amount")
+        if not identifier:
+            continue  # not a position row; skip it before its amounts are read (#2649)
+        quantity = _clean_decimal(
+            row.get("Fill Qty") or row.get("fill_qty") or row.get("Quantity"), field="quantity", row=identifier
         )
-        if not identifier or quantity is None or market_value is None or quantity <= 0 or market_value <= 0:
+        market_value = _clean_decimal(
+            row.get("Fill Amount") or row.get("fill_amount") or row.get("Order Amount") or row.get("order_amount"),
+            field="market_value",
+            row=identifier,
+        )
+        if quantity is None or market_value is None or quantity <= 0 or market_value <= 0:
             continue
 
         asset_identifier = str(identifier).strip()
@@ -488,7 +505,7 @@ def _parse_futu_aggregate_position(
         description = str(event.get("description") or "").lower()
         if any(token in description for token in _FUTU_NON_POSITION_EVENT_TOKENS):
             continue
-        value = _clean_decimal(event.get("amount"))
+        value = _clean_decimal(event.get("amount"), field="market_value", row=event.get("description") or "event")
         if value is None or value <= 0:
             continue
         if "valuation" in description or best_value is None or value > best_value:
@@ -719,13 +736,15 @@ def parse_brokerage_positions_csv_rows(
     positions: list[dict[str, Any]] = []
     for row in rows:
         identifier = str(row.get(symbol_col, "") or "").strip() if symbol_col else ""
-        quantity = _clean_decimal(row.get(quantity_col)) if quantity_col else None
-        market_value = _clean_decimal(row.get(value_col)) if value_col else None
+        if not identifier:
+            continue  # a subtotal or blank row; skip it before its amounts are read (#2649)
+        quantity = _clean_decimal(row.get(quantity_col), field="quantity", row=identifier) if quantity_col else None
+        market_value = _clean_decimal(row.get(value_col), field="market_value", row=identifier) if value_col else None
         if market_value is None and price_col and quantity is not None:
-            price = _clean_decimal(row.get(price_col))
+            price = _clean_decimal(row.get(price_col), field="price", row=identifier)
             if price is not None:
                 market_value = price * quantity
-        if not identifier or quantity is None or market_value is None:
+        if quantity is None or market_value is None:
             continue
         currency = str(row.get(currency_col, "") or "").strip().upper() if currency_col else ""
         positions.append(
@@ -846,8 +865,8 @@ def brokerage_currency_balances(
             if not isinstance(entry, dict):
                 continue
             ccy = (entry.get("currency") or "*").strip().upper() or "*"
-            opening = _clean_decimal(entry.get("opening"))
-            closing = _clean_decimal(entry.get("closing"))
+            opening = _clean_decimal(entry.get("opening"), field=f"{ccy} opening balance")
+            closing = _clean_decimal(entry.get("closing"), field=f"{ccy} closing balance")
             if opening is None or closing is None:
                 continue
             declared[ccy] = {
@@ -856,6 +875,42 @@ def brokerage_currency_balances(
                 "closing": to_money(closing),
             }
     return [declared[ccy] for ccy in sorted(declared)]
+
+
+# Broker codes that are not ISO-4217. Brokers use CNH for the offshore renminbi (#2649).
+_NON_ISO_BROKER_CURRENCIES: dict[str, str] = {"CNH": "the offshore renminbi"}
+# Upload types that the extraction service reads as a document with OCR or vision.
+_DOCUMENT_EXTENSIONS = frozenset({".pdf", ".png", ".jpg", ".jpeg"})
+
+
+def _unpriceable_currency_reason(code: str) -> str:
+    """Explain a currency that the money and FX layers cannot read, and what to do (#2649).
+
+    ``Currency`` accepts ISO-4217 codes only. The reconciler, the holdings read and the FX
+    conversion all build ``Money`` from the position currency, so a stored non-ISO code
+    returns 500 on each later read. The import rejects it before any row is written.
+    """
+    known = _NON_ISO_BROKER_CURRENCIES.get(code)
+    name = f"{code!r} ({known})" if known else repr(code)
+    return (
+        f"the currency {name} is not an ISO-4217 code. The app converts and prices only ISO-4217 "
+        "currencies, and it has no FX rate for this code. Restate the amounts in an ISO-4217 currency "
+        f"{'(for example CNY) ' if code == 'CNH' else ''}or in the account currency, then import again."
+    )
+
+
+def _undated_remedy(filename: str | None) -> str:
+    """Tell the user how to give the import a date. The text depends on the source type (#2649)."""
+    extension = Path(filename).suffix.lower() if filename else ""
+    if extension == ".csv":
+        return "The CSV import does not read a date column. Upload the broker statement PDF that shows the as-of date."
+    if extension in _DOCUMENT_EXTENSIONS:
+        return (
+            "The parser did not read a statement date from this document. Retry the parse, "
+            "or upload a statement page that shows the as-of date."
+        )
+    # An API payload or a source with no known type: name the fields that carry the date.
+    return "Give the source a statement period_end or a snapshot_date for each position, then import again."
 
 
 def _storable_snapshots(snapshots: list[BrokeragePositionSnapshot]) -> list[BrokeragePositionSnapshot]:
@@ -882,7 +937,7 @@ def _storable_snapshots(snapshots: list[BrokeragePositionSnapshot]) -> list[Brok
         try:
             Currency(snapshot.currency)
         except InvalidCurrencyError:
-            reject(f"the currency {snapshot.currency!r} is not an ISO-4217 code.")
+            reject(_unpriceable_currency_reason(snapshot.currency))
         rounded: dict[str, Decimal] = {}
         for field in ("quantity", "market_value"):
             amount = getattr(snapshot, field)
@@ -945,14 +1000,12 @@ class BrokeragePositionImportService:
         snapshots = parse_brokerage_positions(payload, filename=filename)
         undated = sum(1 for snapshot in snapshots if snapshot.snapshot_date is None)
         if undated:
-            # A positions CSV has no date column and no statement period (#2649). The
-            # date must come from the source; this service never invents one.
+            # The date must come from the source; this service never invents one (#2649).
             raise BrokerageImportRejectedError(
                 BROKERAGE_SNAPSHOT_DATE_MISSING,
                 f"The positions source does not state an as-of date for {undated} of "
                 f"{len(snapshots)} positions. The import needs the date that the source states. "
-                "The CSV import does not read a date column. "
-                "Upload the broker statement PDF that shows the as-of date.",
+                f"{_undated_remedy(filename)}",
             )
         snapshots = _storable_snapshots(snapshots)
         created = 0
