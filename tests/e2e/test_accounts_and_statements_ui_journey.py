@@ -97,10 +97,14 @@ async def test_statement_detail_and_review_surface(page: Page):
 
     # 2. Assert statement summary cards or headers
     await expect(page.locator("body")).to_be_visible(timeout=15_000)
-    # The statement detail renders the transaction rows from the parsed CSV
-    await expect(page.get_by_text("CONSULTING SERVICES REVENUE")).to_be_visible(
-        timeout=15_000
-    )
+    # The statement detail renders the transaction rows from the parsed CSV.
+    # The page renders a mobile card list and a desktop table in the DOM (#2621 LB).
+    # The desktop viewport shows the table, so the check reads the table region.
+    await expect(
+        page.get_by_test_id("stage1-desktop-transaction-region").get_by_text(
+            "CONSULTING SERVICES REVENUE"
+        )
+    ).to_be_visible(timeout=15_000)
 
     # 3. Reload the statement page, which is also the review page
     await page.goto(f"{APP_URL}/statements/{stmt_id}", wait_until="domcontentloaded")

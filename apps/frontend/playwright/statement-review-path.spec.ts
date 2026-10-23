@@ -89,4 +89,18 @@ test.describe("AC-extraction.human-source-review.4 statement review click path",
     await expect(page.getByText("Confirm source facts")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
     await expect(page.getByRole("button", { name: "Approve", exact: true })).toBeDisabled();
   });
+
+  // AC-extraction.fe-stage1-review.22
+  test("AC-extraction.fe-stage1-review.22 keeps the description readable beside the PDF at 1280 px", async ({ page }) => {
+    // #2621: the side-by-side table had fixed columns of 512 px in a 544 px table, so the description
+    // column had no width and the staging journey could not see a transaction row.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`/statements/${STMT_ID}`, { waitUntil: "networkidle" });
+    const region = page.getByTestId("stage1-desktop-transaction-region");
+    const description = region.getByTitle("Salary", { exact: true });
+    await expect(description).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    const box = await description.boundingBox();
+    expect(box?.width ?? 0, "description column content width in px").toBeGreaterThanOrEqual(120);
+    await expect(region).toHaveCSS("overflow-y", "auto");
+  });
 });
