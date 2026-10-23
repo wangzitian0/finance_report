@@ -191,84 +191,86 @@ async def test_AC_platform_27_4_brokerage_import_errors_carry_request_id(
     assert import_calls == (["import_fails_unexpectedly"] if case == "import_fails_unexpectedly" else [])
 
 
-def _dated_position(**overrides: str) -> dict[str, str]:
+def _payload(period_end: str = "2026-01-31", **position_overrides: str) -> dict:
     position = {"symbol": "AAA", "quantity": "10", "market_value": "1000.00", "currency": "USD"}
-    return {**position, **overrides}
+    return {
+        "institution": "Interactive Brokers",
+        "statement": {"period_end": period_end, "currency": "USD"},
+        "positions": [{**position, **position_overrides}],
+    }
 
 
+_OUT_OF_RANGE = "brokerage_position_out_of_range"
+_FUTU_VALUATION_1E40 = {
+    "institution": "Futu",
+    "statement": {"period_end": "2026-01-31", "currency": "HKD"},
+    "events": [{"date": "2026-01-31", "description": "Stock and options valuation", "amount": "1e40"}],
+}
 _UNSTORABLE_CASES = [
-    ("month_13", "2026-13", _dated_position(), 422, "brokerage_snapshot_date_missing", "as-of date"),
+    ("month_13", _payload(period_end="2026-13"), "brokerage_snapshot_date_missing", "as-of date"),
+    ("quantity_too_large", _payload(quantity="1000000000000"), _OUT_OF_RANGE, "the quantity 1000000000000 is out"),
     (
-        "quantity_too_large",
-        "2026-01-31",
-        _dated_position(quantity="1000000000000"),
-        422,
-        "brokerage_position_out_of_range",
-        "the quantity 1000000000000 is out of range",
+        "quantity_rounds_over_column",
+        _payload(quantity="999999999999.9999995"),
+        _OUT_OF_RANGE,
+        "the quantity 999999999999.9999995 is out of range",
     ),
+    ("quantity_nan", _payload(quantity="NaN"), _OUT_OF_RANGE, "the quantity NaN is not a number."),
     (
         "market_value_above_column",
-        "2026-01-31",
-        _dated_position(market_value="10000000000000000"),
-        422,
-        "brokerage_position_out_of_range",
+        _payload(market_value="10000000000000000"),
+        _OUT_OF_RANGE,
         "the market_value 10000000000000000.00 is out of range",
     ),
-    (
-        "market_value_too_many_digits",
-        "2026-01-31",
-        _dated_position(market_value="1e40"),
-        422,
-        "brokerage_position_out_of_range",
-        "the market value 1E+40 is out of range",
-    ),
+    ("market_value_too_many_digits", _payload(market_value="1e40"), _OUT_OF_RANGE, "the market value 1E+40 is out"),
+    ("market_value_infinity", _payload(market_value="Infinity"), _OUT_OF_RANGE, "the market value Infinity is out"),
+    ("market_value_nan", _payload(market_value="NaN"), _OUT_OF_RANGE, "the market_value NaN is not a number."),
     (
         "identifier_too_long",
-        "2026-01-31",
-        _dated_position(symbol="A" * 101),
-        422,
-        "brokerage_position_out_of_range",
+        _payload(symbol="A" * 101),
+        _OUT_OF_RANGE,
         "the asset_identifier has 101 characters. The limit is 100.",
     ),
-    (
-        "currency_too_long",
-        "2026-01-31",
-        _dated_position(currency="USDT"),
-        422,
-        "brokerage_position_out_of_range",
-        "the currency has 4 characters. The limit is 3.",
-    ),
-    ("market_value_infinity", "2026-01-31", _dated_position(market_value="Infinity"), 200, None, None),
+    ("identifier_with_nul", _payload(symbol="AA\x00A"), _OUT_OF_RANGE, "the asset_identifier contains a NUL"),
+    ("currency_too_long", _payload(currency="USDT"), _OUT_OF_RANGE, "the currency has 4 characters. The limit is 3."),
+    ("currency_not_iso", _payload(currency="ABC"), _OUT_OF_RANGE, "the currency 'ABC' is not an ISO-4217 code."),
+    ("futu_valuation_too_many_digits", _FUTU_VALUATION_1E40, _OUT_OF_RANGE, "the market value 1E+40 is out"),
 ]
 
 
 @pytest.mark.parametrize(
-    ("case", "period_end", "position", "expected_status", "expected_error_id", "reason_text"),
+    ("case", "payload", "expected_error_id", "reason_text"),
     _UNSTORABLE_CASES,
     ids=[case[0] for case in _UNSTORABLE_CASES],
 )
 async def test_AC_portfolio_brokerage_import_12_unstorable_positions_return_422_reason(
-    app_client, db, test_user, case, period_end, position, expected_status, expected_error_id, reason_text
+    app_client, db, test_user, case, payload, expected_error_id, reason_text
 ):
     """AC-portfolio.brokerage-import.12: a position that the columns cannot store returns 422, never 500."""
     user_id = test_user.id
-    payload = {
-        "institution": "Interactive Brokers",
-        "statement": {"period_end": period_end, "currency": "USD"},
-        "positions": [position],
-    }
     sent_request_id = f"issue-2649-{case}-{uuid4()}"
     response = await app_client.post(
         "/portfolio/brokerage/import",
-        json={"filename": "positions.csv", "payload": payload},
+        json={"filename": "positions.json", "payload": payload},
         headers={"X-Request-ID": sent_request_id},
     )
 
-    assert response.status_code == expected_status, response.text
-    if expected_status == 422:
-        _assert_carries_request_id(response, sent_request_id=sent_request_id, error_id=expected_error_id)
-        assert reason_text in response.json()["detail"]
-    else:
-        # NaN and Infinity do not parse as amounts, so the row is skipped like other text.
-        assert response.json()["parsed_positions"] == 0
+    assert response.status_code == 422, response.text
+    _assert_carries_request_id(response, sent_request_id=sent_request_id, error_id=expected_error_id)
+    assert reason_text in response.json()["detail"]
     assert await _atomic_position_count(db, user_id) == 0
+
+
+async def test_AC_portfolio_brokerage_import_12_quantity_is_stored_as_the_column_rounds(app_client, db, test_user):
+    """AC-portfolio.brokerage-import.12: a quantity with more decimals than the column imports, rounded as Postgres does."""
+    user_id = test_user.id
+    payload = _payload(quantity="2.0000005")
+    payload["positions"].append({"symbol": "BBB", "quantity": "1e-20000", "market_value": "5.00", "currency": "USD"})
+
+    response = await app_client.post("/portfolio/brokerage/import", json={"filename": "p.json", "payload": payload})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["created_atomic_positions"] == 2
+    rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == user_id))).scalars().all()
+    # Half away from zero at 6 places, as numeric(18,6) rounds; a tiny exponent stores as zero.
+    assert {row.asset_identifier: row.quantity for row in rows} == {"AAA": Decimal("2.000001"), "BBB": Decimal("0")}

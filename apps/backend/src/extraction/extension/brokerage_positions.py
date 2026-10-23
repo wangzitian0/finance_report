@@ -5,17 +5,17 @@ from __future__ import annotations
 import hashlib
 import re
 from calendar import monthrange
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from typing import TYPE_CHECKING, Any, NoReturn, Protocol, cast
 from uuid import UUID
 
 from sqlalchemy import Numeric, String, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit.money import to_money
+from src.audit.money import Currency, InvalidCurrencyError, to_money
 from src.extraction.orm.layer2 import AssetType, AtomicPosition
 from src.ledger import Account, AccountType
 from src.platform import BaseAppException
@@ -133,16 +133,29 @@ def _clean_decimal(value: Any) -> Decimal | None:
     if value is None:
         return None
     if isinstance(value, Decimal):
-        return value if value.is_finite() else None
+        return value
     text = str(value).strip().replace(",", "")
     if not text or text.upper() in {"N/A", "UNKNOWN", "NULL", "NONE"}:
         return None
     try:
-        parsed = Decimal(text)
+        return Decimal(text)
     except InvalidOperation:
         return None
-    # NaN and Infinity are not amounts. Treat them as other text that does not parse (#2649).
-    return parsed if parsed.is_finite() else None
+
+
+def _position_money(identifier: object, value: Decimal) -> Decimal:
+    """Round a position market value to cents, or reject it with a reason (#2649).
+
+    ``Infinity`` and a value with too many digits cannot round to cents. ``NaN`` rounds to
+    ``NaN``; ``_storable_snapshots`` rejects it before any insert.
+    """
+    try:
+        return to_money(value)
+    except InvalidOperation as exc:
+        raise BrokerageImportRejectedError(
+            BROKERAGE_POSITION_OUT_OF_RANGE,
+            f"Position {str(identifier).strip()[:40]!r}: the market value {value} is out of range.",
+        ) from exc
 
 
 def _parse_date(value: Any) -> date | None:
@@ -303,13 +316,7 @@ def _parse_structured_positions(
         market_value = _clean_decimal(item.get("market_value") or item.get("value") or item.get("marketValue"))
         if not identifier or quantity is None or market_value is None:
             continue
-        try:
-            money = to_money(market_value)
-        except InvalidOperation as exc:  # too many digits to round to cents (#2649)
-            raise BrokerageImportRejectedError(
-                BROKERAGE_POSITION_OUT_OF_RANGE,
-                f"Position {str(identifier).strip()[:40]!r}: the market value {market_value} is out of range.",
-            ) from exc
+        money = _position_money(identifier, market_value)
         snapshots.append(
             BrokeragePositionSnapshot(
                 snapshot_date=_parse_date(item.get("snapshot_date") or item.get("as_of_date")) or snapshot_date,
@@ -353,7 +360,7 @@ def _parse_moomoo_subscription_positions(
                     asset_identifier=description.strip(),
                     broker=broker,
                     quantity=Decimal("1"),
-                    market_value=to_money(amount),
+                    market_value=_position_money(description, amount),
                     currency=_payload_currency(payload),
                     asset_type=AssetType.MUTUAL_FUND,
                 )
@@ -370,7 +377,7 @@ def _parse_moomoo_subscription_positions(
                 asset_identifier=match.group("name").strip(),
                 broker=broker,
                 quantity=quantity,
-                market_value=to_money(market_value),
+                market_value=_position_money(match.group("name"), market_value),
                 currency=match.group("currency").upper(),
                 asset_type=AssetType.MUTUAL_FUND,
             )
@@ -425,7 +432,7 @@ def _parse_moomoo_margin_history_positions(
             asset_identifier=asset_identifier,
             broker=broker,
             quantity=aggregate["quantity"],
-            market_value=to_money(aggregate["market_value"]),
+            market_value=_position_money(asset_identifier, aggregate["market_value"]),
             currency=aggregate["currency"],
             asset_type=AssetType.STOCK,
             sector=aggregate["sector"],
@@ -482,7 +489,7 @@ def _parse_futu_aggregate_position(
             asset_identifier="FUTU_STOCK_AND_OPTIONS",
             broker=broker,
             quantity=Decimal("1"),
-            market_value=to_money(best_value),
+            market_value=_position_money("FUTU_STOCK_AND_OPTIONS", best_value),
             currency=_payload_currency(payload, "HKD"),
             asset_type=AssetType.OTHER,
         )
@@ -839,35 +846,58 @@ def brokerage_currency_balances(
     return [declared[ccy] for ccy in sorted(declared)]
 
 
-def _reject_unstorable_snapshots(snapshots: list[BrokeragePositionSnapshot]) -> None:
-    """Reject a position that the AtomicPosition columns cannot store, before any insert (#2649).
+def _storable_snapshots(snapshots: list[BrokeragePositionSnapshot]) -> list[BrokeragePositionSnapshot]:
+    """Return the snapshots as the AtomicPosition columns store them, or reject one with a reason (#2649).
 
-    The limits come from the ORM columns, so they follow the schema. Without this check the
-    insert fails in the database and the API returns 500.
+    The limits come from the ORM columns, so they follow the schema. Each check runs before
+    any insert. Without it the insert or the reconciler fails and the API returns 500.
     """
     columns = AtomicPosition.__table__.c
+    storable: list[BrokeragePositionSnapshot] = []
     for snapshot in snapshots:
         label = snapshot.asset_identifier[:40]
+
+        def reject(reason: str, label: str = label) -> NoReturn:
+            raise BrokerageImportRejectedError(BROKERAGE_POSITION_OUT_OF_RANGE, f"Position {label!r}: {reason}")
+
         for field in ("asset_identifier", "broker", "currency", "sector", "geography"):
             text = getattr(snapshot, field)
             limit = cast(String, columns[field].type).length
+            if text is not None and "\x00" in text:
+                reject(f"the {field} contains a NUL character.")
             if text is not None and limit is not None and len(text) > limit:
-                raise BrokerageImportRejectedError(
-                    BROKERAGE_POSITION_OUT_OF_RANGE,
-                    f"Position {label!r}: the {field} has {len(text)} characters. The limit is {limit}.",
-                )
+                reject(f"the {field} has {len(text)} characters. The limit is {limit}.")
+        try:
+            Currency(snapshot.currency)
+        except InvalidCurrencyError:
+            reject(f"the currency {snapshot.currency!r} is not an ISO-4217 code.")
+        rounded: dict[str, Decimal] = {}
         for field in ("quantity", "market_value"):
             amount = getattr(snapshot, field)
+            if not amount.is_finite():
+                reject(f"the {field} {amount} is not a number.")
             numeric = cast(Numeric, columns[field].type)
-            if numeric.precision is None:  # an unbounded column stores any finite amount
+            if numeric.precision is None or numeric.scale is None:  # an unbounded column stores any finite amount
                 continue
-            integer_digits = numeric.precision - (numeric.scale or 0)
-            if abs(amount) >= Decimal(10) ** integer_digits:
-                raise BrokerageImportRejectedError(
-                    BROKERAGE_POSITION_OUT_OF_RANGE,
-                    f"Position {label!r}: the {field} {amount} is out of range. "
-                    f"The limit is {integer_digits} digits before the decimal point.",
+            integer_digits = numeric.precision - numeric.scale
+            try:
+                # Postgres rounds half away from zero to the column scale; round the same way first.
+                rounded[field] = amount.quantize(Decimal(1).scaleb(-numeric.scale), rounding=ROUND_HALF_UP)
+            except InvalidOperation:
+                reject(f"the {field} {amount} is out of range.")
+            if abs(rounded[field]) >= Decimal(10) ** integer_digits:
+                reject(
+                    f"the {field} {amount} is out of range. "
+                    f"The limit is {integer_digits} digits before the decimal point."
                 )
+        storable.append(
+            replace(
+                snapshot,
+                quantity=rounded.get("quantity", snapshot.quantity),
+                market_value=rounded.get("market_value", snapshot.market_value),
+            )
+        )
+    return storable
 
 
 def _dedup_hash(user_id: UUID, snapshot: BrokeragePositionSnapshot) -> str:
@@ -914,7 +944,7 @@ class BrokeragePositionImportService:
                 "The CSV import does not read a date column. "
                 "Upload the broker statement PDF that shows the as-of date.",
             )
-        _reject_unstorable_snapshots(snapshots)
+        snapshots = _storable_snapshots(snapshots)
         created = 0
         existing = 0
         broker = (
