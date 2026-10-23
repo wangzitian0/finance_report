@@ -178,6 +178,289 @@ Your report package is currently in **Ready** state with no blockers. You can re
 The above analysis is for reference only.
 """
 
+# ------------------------------------------- heading, prose, verdict (#2633)
+
+# The advisor answer of run 39755911927 (Deploy Staging v0.2.26, job 119752716450, Case 1).
+# Every figure ties and the answer says "no discrepancies found". The earlier oracle failed it:
+# a full sentence stands between the heading and the verdict, in the same section.
+REAL_FAILING_ANSWER_2633 = """# Net Worth & Balance Check
+
+## Your Current Net Worth
+
+**Net worth: SGD 24,200.00**
+
+- Total assets: SGD 24,200.00
+- Total liabilities: SGD 0.00
+- Net worth = Total assets − Total liabilities = SGD 24,200.00 − SGD 0.00 = **SGD 24,200.00** ✓
+
+## Balance Discrepancy Check
+
+I verified the accounting consistency of your records, and **everything balances perfectly — no discrepancies found**:
+
+| Check | Result |
+|---|---|
+| Opening equity (SGD 15,450.75) + Cumulative net income (SGD 8,749.25) | = SGD 24,200.00 ✓ |
+| Net worth vs. Assets − Liabilities | Consistent ✓ |
+| Unmatched transactions | 0 |
+| Reconciliation match rate | 100.0% |
+| Transactions pending review | 0 |
+| Balance sheet confidence tier | DETERMINISTIC |
+
+## Summary
+
+Your ledger is fully reconciled: your equity components (opening equity plus cumulative net income of SGD 15,450.75 + SGD 8,749.25) exactly equal your net worth of SGD 24,200.00, and all recorded transactions have been matched. There are no blocking issues flagged in your advisor facts, so your report package is currently marked as **Ready** if you'd like to generate a full report.
+
+The above analysis is for reference only.
+"""
+
+VERDICT_SENTENCE = (
+    "I verified the accounting consistency of your records, and "
+    "**everything balances perfectly — no discrepancies found**:"
+)
+
+
+def mutate(answer: str, old: str, new: str) -> str:
+    """Replace one part of an answer. A part that is missing fails the test, so no mutant is a copy."""
+    assert old in answer, old
+    return answer.replace(old, new, 1)
+
+
+# A clean answer: a review heading, then prose, then a clean verdict in the same section.
+HEADING_PROSE_CLEAN: list[tuple[str, str]] = [
+    ("H01", REAL_FAILING_ANSWER_2633),
+    (
+        "H02",
+        "Net worth: SGD 24,200.00\n\n"
+        "## Ledger Discrepancy Review\n\n"
+        "I compared total assets, total liabilities and the equity roll-forward for all four months.\n"
+        "Every figure ties to SGD 24,200.00, and **there are no discrepancies**.\n\n"
+        "## Summary\n\nYour report package is ready.\n",
+    ),
+    (
+        "H03",
+        "Net worth: SGD 24,200.00\n\n"
+        "### Are there any balance discrepancies?\n\n"
+        "Good news. I computed net worth in two ways, and both give SGD 24,200.00. "
+        "There are no discrepancies between the balance sheet and the ledger.\n",
+    ),
+    (
+        "H04",
+        "净资产：SGD 24,200.00\n\n"
+        "## 账目差额检查\n\n"
+        "我已核对您全部四个月的记录，资产、负债和权益都能相互对上。**没有发现任何差额**。\n\n"
+        "## 小结\n\n您的报告包已就绪。\n",
+    ),
+    (
+        "H05",
+        "净资产：SGD 24,200.00\n\n"
+        "### 余额不一致核对\n\n"
+        "经逐项核对，期初权益加累计净利润等于净资产，资产减负债也等于净资产。结论：未发现任何不一致。\n",
+    ),
+    (
+        "H06",
+        "Net worth: SGD 24,200.00\n\n"
+        "## Ledger Imbalance Check\n\n"
+        "| Check | Result |\n|---|---|\n"
+        "| Assets − Liabilities | SGD 24,200.00 |\n"
+        "| Equity roll-forward | SGD 24,200.00 |\n\n"
+        "Both rows agree, so there is no imbalance in your ledger.\n",
+    ),
+]
+
+# A mutated claim. The oracle must fail it. The third field is the first token that the oracle names.
+HEADING_PROSE_FINDING: list[tuple[str, str, str]] = [
+    (
+        "F01",
+        mutate(
+            REAL_FAILING_ANSWER_2633,
+            VERDICT_SENTENCE,
+            "I verified the accounting consistency of your records, and **found a discrepancy of SGD 2,900.00**:",
+        ),
+        "discrepancy",
+    ),
+    (
+        "F02",
+        mutate(
+            REAL_FAILING_ANSWER_2633,
+            "The above analysis is for reference only.",
+            "The equity roll-forward shows a mismatch of SGD 2,900.00.",
+        ),
+        "mismatch",
+    ),
+    (
+        "F03",
+        mutate(
+            REAL_FAILING_ANSWER_2633,
+            "The above analysis is for reference only.",
+            "Your brokerage account doesn't balance by SGD 40.00.",
+        ),
+        "doesn't balance",
+    ),
+    (
+        "F04",
+        mutate(
+            REAL_FAILING_ANSWER_2633,
+            VERDICT_SENTENCE,
+            "I verified the accounting consistency of your records. "
+            "**Assets exceed liabilities plus equity by SGD 2,900.00**:",
+        ),
+        "discrepancy",
+    ),
+    (
+        "F05",
+        mutate(
+            REAL_FAILING_ANSWER_2633,
+            "everything balances perfectly — no discrepancies found",
+            "your books do not reconcile — discrepancies found",
+        ),
+        "discrepancy",
+    ),
+    (
+        "F06",
+        mutate(
+            REAL_FAILING_ANSWER_2633,
+            "everything balances perfectly — no discrepancies found",
+            "everything is badly off",
+        ),
+        "discrepancy",
+    ),
+    (
+        "F07",
+        mutate(
+            REAL_FAILING_ANSWER_2633,
+            "## Summary",
+            "## Brokerage Account\n\nThe brokerage account is unbalanced by SGD 40.00.\n\n## Summary",
+        ),
+        "unbalanced",
+    ),
+    (
+        "F08",
+        "Net worth: SGD 24,200.00\n\n"
+        "## Balance Discrepancy Check\n\n"
+        "Assets exceed liabilities plus equity by SGD 2,900.00.\n\n"
+        "## Bank Accounts\n\nNo discrepancies found in the bank accounts.\n",
+        "discrepancy",
+    ),
+    (
+        "F09",
+        "Net worth: SGD 24,200.00\n\n"
+        "## Bank Accounts\n\nNo discrepancies found in the bank accounts.\n\n"
+        "## Balance Discrepancy Check\n\n"
+        "Assets exceed liabilities plus equity by SGD 2,900.00.\n",
+        "discrepancy",
+    ),
+    (
+        "F10",
+        "Net worth: SGD 24,200.00\n\n"
+        "## Balance Discrepancy Check\n\n"
+        "Assets exceed liabilities plus equity by SGD 2,900.00.\n\n"
+        "### Bank accounts\n\nNo discrepancies found in the bank accounts.\n",
+        "discrepancy",
+    ),
+    (
+        "F11",
+        "Net worth: SGD 24,200.00\n\n"
+        "### Discrepancy Check\n"
+        "No discrepancies found in assets, but liabilities show a mismatch of SGD 2,900.00.\n",
+        "mismatch",
+    ),
+    (
+        "F12",
+        "Net worth: SGD 24,200.00\n\n"
+        "## Balance Discrepancy Check\n\n"
+        "I reviewed every account. There are no discrepancies in assets, "
+        "but liabilities show a mismatch of SGD 2,900.00.\n",
+        "discrepancy",
+    ),
+    (
+        "F13",
+        "Net worth: SGD 24,200.00\n\n"
+        "## Balance Discrepancy Check\n\n"
+        "I reviewed every account. There are no discrepancies in assets, "
+        "but liabilities are SGD 2,900.00 short.\n",
+        "discrepancy",
+    ),
+    (
+        "F14",
+        "Net worth: SGD 24,200.00\n\n"
+        "## Balance Discrepancy Check\n\n"
+        "I reviewed every account. There are no discrepancies, except in the brokerage account.\n",
+        "discrepancy",
+    ),
+    (
+        "F15",
+        "Net worth: SGD 24,200.00\n\n"
+        "## Balance Discrepancy Check\n\n"
+        "I reviewed every account. There are no discrepancies if you ignore the brokerage account.\n",
+        "discrepancy",
+    ),
+    (
+        "F16",
+        "净资产：SGD 24,200.00\n\n"
+        "## 账目差额检查\n\n"
+        "我已核对全部记录。资产没有发现任何差额，但是负债多出 SGD 2,900。\n",
+        "差额",
+    ),
+    (
+        "F17",
+        "Net worth: SGD 24,200.00\n\n"
+        "## Discrepancy of SGD 2,900.00 Found\n\n"
+        "I confirm that there are no discrepancies in the bank accounts.\n",
+        "discrepancy",
+    ),
+    (
+        "F18",
+        "Net worth: SGD 24,200.00\n\n"
+        "## Discrepancy Found in Brokerage\n\n"
+        "I confirm that there are no discrepancies in the bank accounts.\n",
+        "discrepancy",
+    ),
+    (
+        "F19",
+        "净资产：SGD 24,200.00\n\n## 账目差额检查\n\n我已核对您的记录。资产比负债加权益多 SGD 2,900。\n",
+        "差额",
+    ),
+    (
+        "F20",
+        "净资产：SGD 24,200.00\n\n## 账目差额检查\n\n经核对，存在差额 SGD 2,900，账目不平。\n",
+        "不平",
+    ),
+    (
+        "F21",
+        "净资产：SGD 24,200.00\n\n"
+        "## 账目差额检查\n\n没有发现任何差额。\n\n"
+        "## 券商账户\n\n券商账户与对账单不一致，相差 SGD 40.00。\n",
+        "不一致",
+    ),
+]
+
+
+def test_AC_testing_benchmarks_17_the_real_answer_of_run_39755911927_passes() -> None:
+    assert passes(REAL_FAILING_ANSWER_2633)
+
+
+@pytest.mark.parametrize(
+    ("case_id", "answer"),
+    HEADING_PROSE_CLEAN,
+    ids=[row[0] for row in HEADING_PROSE_CLEAN],
+)
+def test_AC_testing_benchmarks_17_a_clean_verdict_in_the_section_of_the_heading_passes(
+    case_id: str, answer: str
+) -> None:
+    assert passes(answer), case_id
+
+
+@pytest.mark.parametrize(
+    ("case_id", "answer", "token"),
+    HEADING_PROSE_FINDING,
+    ids=[row[0] for row in HEADING_PROSE_FINDING],
+)
+def test_AC_testing_benchmarks_17_a_mutated_claim_still_fails_and_names_its_token(
+    case_id: str, answer: str, token: str
+) -> None:
+    assert failed_token(answer) == token, case_id
+
+
 CORPUS: list[tuple[str, str, str]] = [
     (
         "E01",
@@ -395,6 +678,8 @@ CORPUS: list[tuple[str, str, str]] = [
         "净资产 SGD 24,200.00\n### Discrepancy Check：资产比负债加权益多 SGD 2,900",
     ),
 ]
+CORPUS += [(case_id, "CLEAN", answer) for case_id, answer in HEADING_PROSE_CLEAN]
+CORPUS += [(case_id, "FINDING", answer) for case_id, answer, _ in HEADING_PROSE_FINDING]
 
 
 KNOWN_LIMITS = [
