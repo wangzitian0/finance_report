@@ -8,6 +8,7 @@ import { ExcludedHoldingsNote } from "@/components/reports/ExcludedHoldingsNote"
 import { OpeningBalanceWarningBanner } from "@/components/reports/ReportPageShell";
 import { reportsHref, type ReportFilters, type ReportTab } from "@/hooks/useReportFilters";
 import { useStatementCockpit } from "@/hooks/useStatementCockpit";
+import { formatDateDisplay } from "@/lib/date";
 import { compareAmounts, formatCurrencyLocale, subtractAmounts, toDecimal, type MonetaryInput } from "@/lib/audit/money";
 import { formatPercentFromPercentValue, percentNumberFromParts } from "@/lib/audit/ratio/format";
 
@@ -213,6 +214,13 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
                 <dl className="space-y-1.5 text-sm">{metrics[statement.id]}</dl>
                 {statement.id === "balance" && balanceSheet && (
                   <ExcludedHoldingsNote rows={balanceSheet.excluded_holdings} currency={balanceSheet.currency} formatMoney={money} />
+                )}
+                {statement.id === "balance" && filters.opensAtCoverageStart && filters.openingDate && (
+                  // #2646: the period starts on the cash coverage start. The last cash opening balance
+                  // posts on that day, so the change starts at the end of that day.
+                  <p data-testid="change-in-period-basis" className="mt-2 text-[11px] text-muted">
+                    {`Change in period is measured from the end of ${formatDateDisplay(filters.openingDate)}, when your cash opening balances are complete.`}
+                  </p>
                 )}
               </>
             ) : (

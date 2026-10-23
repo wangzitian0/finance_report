@@ -119,7 +119,10 @@ export function useStatementCockpit({
   openingDate,
   currency,
   includeRestricted,
+  ready,
 }: ReportFilters): StatementCockpitData {
+  // The balance at the period end does not depend on the coverage start. The other sources wait
+  // for it: it can move the start and the opening date (#2646). A disabled source stays pending.
   const balanceQuery = useApiQuery(
     balanceSheetQueryKey({ asOfDate: endDate, currency, includeRestricted }),
     "balance_sheet_reports_balance_sheet_get",
@@ -130,19 +133,19 @@ export function useStatementCockpit({
     balanceSheetQueryKey({ asOfDate: openingDate ?? "", currency, includeRestricted }),
     "balance_sheet_reports_balance_sheet_get",
     { query: { as_of_date: openingDate ?? undefined, currency, include_restricted: includeRestricted } },
-    { ...QUERY_OPTIONS, select: normalizeBalanceSheet, enabled: openingDate !== null },
+    { ...QUERY_OPTIONS, select: normalizeBalanceSheet, enabled: ready && openingDate !== null },
   );
   const incomeQuery = useApiQuery(
     incomeStatementQueryKey({ startDate, endDate, currency }),
     "income_statement_reports_income_statement_get",
     { query: { start_date: startDate, end_date: endDate, currency } },
-    { ...QUERY_OPTIONS, select: normalizeIncomeStatement },
+    { ...QUERY_OPTIONS, select: normalizeIncomeStatement, enabled: ready },
   );
   const cashFlowQuery = useApiQuery(
     cashFlowQueryKey({ startDate, endDate, currency }),
     "cash_flow_reports_cash_flow_get",
     { query: { start_date: startDate, end_date: endDate, currency } },
-    { ...QUERY_OPTIONS, select: normalizeCashFlow },
+    { ...QUERY_OPTIONS, select: normalizeCashFlow, enabled: ready },
   );
 
   const sources = [balanceQuery, openingQuery, incomeQuery, cashFlowQuery];

@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import * as money from "@/lib/audit/money";
 import { TransactionTable } from "@/components/review/TransactionTable";
-import type { BankStatementTransaction } from "@/lib/types";
+import { normalizeBankStatement, type BankStatementTransaction } from "@/lib/types";
+import type { Schemas } from "@/lib/api-schema";
 
 describe("TransactionTable (read-only)", () => {
     const originalMatchMedia = window.matchMedia;
@@ -205,6 +206,66 @@ describe("TransactionTable (read-only)", () => {
         expect(screen.getByText("unmatched")).toBeInTheDocument();
         expect(screen.getByText("pending")).toBeInTheDocument();
         expect(screen.queryByText("matched")).not.toBeInTheDocument();
+    });
+
+    // AC-extraction.fe-stage1-review.23
+    it("AC-extraction.fe-stage1-review.23 lists the lowest-confidence rows first and counts them", () => {
+        const row = (id: string, description: string, tier: BankStatementTransaction["confidence_tier"]): BankStatementTransaction => ({
+            ...sample[0],
+            id,
+            description,
+            confidence_tier: tier,
+        });
+        // The order of the #2647 October statement: the LOW row was the last row.
+        const rows = [
+            row("t-salary", "Salary", "HIGH"),
+            row("t-grab", "Grab ride", "MEDIUM"),
+            row("t-rent", "Rent", "TRUSTED"),
+            row("t-fee", "Card fee", "LOW"),
+            row("t-groceries", "Groceries", "HIGH"),
+            row("t-paynow", "PayNow Transfer REF 4471", "LOW"),
+        ];
+        render(<TransactionTable transactions={rows} currency="SGD" />);
+
+        const expected = ["Card fee", "PayNow Transfer REF 4471", "Grab ride", "Salary", "Groceries", "Rent"];
+        const region = screen.getByTestId("stage1-desktop-transaction-region");
+        const desktopOrder = within(region).getAllByRole("row").slice(1).map((tr) => tr.querySelector("[title]")?.getAttribute("title"));
+        expect(desktopOrder).toEqual(expected);
+        const mobileOrder = within(screen.getByTestId("stage1-mobile-transaction-list"))
+            .getAllByRole("article")
+            .map((card) => card.getAttribute("data-testid")?.replace("stage1-mobile-transaction-card-", ""));
+        expect(mobileOrder).toEqual(["t-fee", "t-paynow", "t-grab", "t-salary", "t-groceries", "t-rent"]);
+        expect(screen.getByTestId("low-confidence-count")).toHaveTextContent("2 low confidence · shown first");
+    });
+
+    // AC-extraction.fe-stage1-review.23
+    it("AC-extraction.fe-stage1-review.23 shows no low-confidence count when no row is low", () => {
+        render(<TransactionTable transactions={[{ ...sample[0], confidence_tier: "HIGH" }]} currency="SGD" />);
+        expect(screen.queryByTestId("low-confidence-count")).toBeNull();
+    });
+
+    // AC-extraction.fe-stage1-review.24
+    it("AC-extraction.fe-stage1-review.24 shows no pending chip on an approved statement read from the API", () => {
+        // The API sends no transaction status. Before #2647 the view model filled in "pending".
+        const wire = {
+            id: "s1", user_id: "u1", file_path: "statements/oct.csv", original_filename: "oct.csv", institution: "DBS",
+            status: "approved", account_id: "a1", currency: "SGD", period_start: "2026-10-01", period_end: "2026-10-31",
+            opening_balance: "100.00", closing_balance: "120.00", confidence_score: 80, balance_validated: true, validation_error: null,
+            created_at: "2026-10-31T00:00:00Z", updated_at: "2026-10-31T00:00:00Z",
+            transactions: [
+                { id: "w1", statement_id: "s1", txn_date: "2026-10-02", description: "Salary", amount: "20.00", direction: "IN", currency: "SGD", confidence_tier: "HIGH", created_at: "", updated_at: "" },
+                { id: "w2", statement_id: "s1", txn_date: "2026-10-14", description: "PayNow Transfer REF 4471", amount: "250.00", direction: "OUT", currency: "SGD", confidence_tier: "LOW", created_at: "", updated_at: "" },
+            ],
+        } as unknown as Schemas["BankStatementResponse"];
+        const statement = normalizeBankStatement(wire);
+
+        const { rerender } = render(<TransactionTable transactions={statement.transactions} currency="SGD" statementStatus="approved" />);
+        expect(screen.queryByText("pending")).toBeNull();
+        expect(screen.getAllByText("matched")).toHaveLength(2);
+
+        // The same rows of a parsed statement still wait for review.
+        rerender(<TransactionTable transactions={statement.transactions} currency="SGD" statementStatus="parsed" />);
+        expect(screen.getAllByText("pending")).toHaveLength(2);
     });
 
     // AC-extraction.fe-stage1-review.21

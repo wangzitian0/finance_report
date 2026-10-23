@@ -11,11 +11,11 @@ import { FlowStepBanner } from "@/components/workflow/WorkflowNotifications";
 import { ApiError, apiOperation } from "@/lib/api-client";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 import { confirmStatementReviewEnvelope } from "@/lib/statementReviewApi";
-import { ATTENTION_RETURN_HREF, ATTENTION_RETURN_LABEL, isAttentionOrigin, withAttentionSource } from "@/lib/attentionNavigation";
+import { ATTENTION_RETURN_HREF, ATTENTION_RETURN_LABEL, NEEDS_YOU_HREF, isAttentionOrigin, withAttentionSource } from "@/lib/attentionNavigation";
 import { BankStatement, BrokerageImportResponse, normalizeBankStatement } from "@/lib/types";
 import { currencyCodeOrDash } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
-import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
+import { PdfPreviewPane, hasInlinePreview } from "@/components/review/PdfPreviewPane";
 import { LowConfidenceReviewModal } from "@/components/review/LowConfidenceReviewModal";
 import {
   BalanceIndicator,
@@ -379,6 +379,8 @@ export default function StatementDetailPage() {
   const prevId = currentIndex > 0 ? pendingStatements[currentIndex - 1].id : null;
   const nextId = currentIndex >= 0 && currentIndex < pendingStatements.length - 1 ? pendingStatements[currentIndex + 1].id : null;
   const returnTo = encodeURIComponent(`/statements/${statementId}`);
+  // A CSV source has no preview panel, and the table takes the full width (#2647).
+  const showPreview = hasInlinePreview(statement.original_filename || statement.file_path);
 
   return (
     <div className="p-6">
@@ -412,7 +414,7 @@ export default function StatementDetailPage() {
           <p className="mt-1 text-sm text-muted">These transactions need your confirmation before they can be posted into the journal. Auto-fill accepts the AI suggestion for each row and uses a general category for rows without one. A transfer or a card repayment is posted to the Processing account until the other side of the movement arrives. A loan payment goes to Loans Payable and a trade to Investments. A row in a foreign currency stays here for you. You can also review every row manually.</p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <button type="button" onClick={() => approveMutation.mutate({ autoFill: true })} disabled={approveMutation.isPending} className="btn-primary inline-flex items-center gap-2">{approveMutation.isPending ? "Approving..." : "Auto-Fill Default Categories & Approve"}</button>
-            <Link href={`/audit?statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}#ai-suggestions`} className="btn-secondary inline-flex">Review AI suggestions</Link>
+            <Link href={`${NEEDS_YOU_HREF}&statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}#ai-suggestions`} className="btn-secondary inline-flex">Review AI suggestions</Link>
             <Link href={`/reconciliation?tab=unmatched&statement_id=${encodeURIComponent(statementId)}&return_to=${returnTo}`} className="btn-secondary inline-flex">Review transaction classifications</Link>
           </div>
         </section>
@@ -444,9 +446,11 @@ export default function StatementDetailPage() {
       )}
       {review && <BalanceIndicator openingBalance={review.opening_balance} closingBalance={review.closing_balance} validationResult={validationResult} currency={review.currency || "SGD"} />}
       <SourceEnvelopeConfirmation requiresEnvelopeConfirmation={requiresEnvelopeConfirmation} requiresOtherSourceReview={requiresOtherSourceReview} sourceMissingFacts={sourceMissingFacts} missingFactLabels={MISSING_FACT_LABELS} envelopeDraft={envelopeDraft} onDraftChange={setEnvelopeDraft} custodyAccounts={custodyAccountsData?.items || []} onConfirm={() => envelopeMutation.mutate()} isPending={envelopeMutation.isPending} reviewedEnvelope={review?.reviewed_envelope} onCreateAccount={(name) => createCustodyAccountMutation.mutate(name)} isCreatingAccount={createCustodyAccountMutation.isPending} defaultAccountName={statement.institution ? `${statement.institution} account` : ""} />
+      {/* Only the desktop table beside a preview has a fixed height. Without a preview, and on a phone, the
+          rows grow with the page. On a phone the rows come before the preview (#2647). */}
       <div data-testid="statement-side-by-side-workbench" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-5 min-h-[540px] h-[600px]"><PdfPreviewPane statementId={statementId} hasDocument={Boolean(statement.file_path) && statement.status !== "parsing"} /></div>
-        <div className="lg:col-span-7 min-w-0 min-h-[540px] h-[600px]"><TransactionTable transactions={statement.transactions} currency={statement.currency || "SGD"} onSelectTransaction={setReviewingTxn} statementStatus={statement.status} /></div>
+        {showPreview && <div className="order-2 h-[480px] lg:order-1 lg:col-span-5 lg:min-h-[540px] lg:h-[600px]"><PdfPreviewPane statementId={statementId} hasDocument={Boolean(statement.file_path) && statement.status !== "parsing"} /></div>}
+        <div className={`order-1 min-w-0 lg:order-2 ${showPreview ? "lg:col-span-7 lg:min-h-[540px] lg:h-[600px]" : "lg:col-span-12"}`}><TransactionTable transactions={statement.transactions} currency={statement.currency || "SGD"} onSelectTransaction={setReviewingTxn} statementStatus={statement.status} /></div>
       </div>
       <LowConfidenceReviewModal isOpen={reviewingTxn !== null} onClose={() => setReviewingTxn(null)} transaction={reviewingTxn} currency={reviewingTxn?.currency || statement.currency || "SGD"} onSuccess={() => { void refreshAfterReview(); }} />
       <ConflictResolutionDialog isOpen={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} duplicateCandidates={duplicateCandidates} transferPairCandidates={transferPairCandidates} onResolve={(action) => resolveConflictsMutation.mutate(action)} isResolving={resolveConflictsMutation.isPending} />

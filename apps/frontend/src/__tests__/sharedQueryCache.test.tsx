@@ -5,7 +5,7 @@
 // one QueryClient and count the requests per operation.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -101,11 +101,12 @@ describe("shared query cache (#2583 S4)", () => {
     );
 
     await screen.findByRole("region", { name: "Needs attention" });
-    await screen.findByText("5 unmatched transactions");
+    await within(screen.getByTestId("needs-confirmation-queue")).findByText("5 unmatched transactions");
 
     expect(callsTo("list_statements_statements_get")).toBe(1);
     expect(callsTo("reconciliation_stats_reconciliation_stats_get")).toBe(1);
     expect(callsTo("list_processing_pending_accounts_processing_pending_get")).toBe(1);
+    expect(callsTo("list_unmatched_reconciliation_unmatched_get")).toBe(1);
   });
 
   // AC-reporting.fe-fetch-budget.3

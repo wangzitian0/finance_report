@@ -12,6 +12,8 @@ import {
 import { routerReplace, setTestUrl, testUrl } from "./helpers/nextNavigation"
 
 vi.mock("next/navigation", async () => (await import("./helpers/nextNavigation")).nextNavigationMock)
+// The hook reads GET /reports/coverage. No cash opening position: no bound.
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn(() => Promise.resolve({ as_of_date: "2026-10-22", coverage_start: null })) }))
 
 const TODAY = new Date(2026, 9, 22)
 const read = (query: string) => readReportFilters(new URLSearchParams(query), TODAY)
@@ -90,6 +92,47 @@ describe("report period dimensions", () => {
     // The redirects of the old report routes keep their query: `as_of_date` and `end_date` still set the period end.
     expect(read("as_of_date=2025-12-31").endDate).toBe("2025-12-31")
     expect(read("start_date=2025-01-01&end_date=2025-06-30")).toMatchObject({ preset: null, startDate: "2025-01-01", endDate: "2025-06-30" })
+  })
+
+  // AC-reporting.fe-period-cockpit.7
+  it("AC-reporting.fe-period-cockpit.7 starts a preset period no earlier than the coverage start", () => {
+    const first = "2026-07-01"
+    const bounded = (query: string) => readReportFilters(new URLSearchParams(query), TODAY, first)
+
+    // The default 1Y period starts on 2025-11-01: the first statement moves its start, and its
+    // opening balance sheet is the first statement day. No previous period exists.
+    expect(bounded("")).toMatchObject({
+      preset: "1Y",
+      startDate: first,
+      endDate: "2026-10-22",
+      openingDate: first,
+      opensAtCoverageStart: true,
+      previousEnd: null,
+      nextEnd: null,
+      dimensionQuery: "",
+    })
+    expect(bounded("period=All")).toMatchObject({ startDate: first, openingDate: first, opensAtCoverageStart: true, previousEnd: null })
+    expect(bounded("period=3Y")).toMatchObject({ startDate: first, openingDate: first })
+    // A period that starts on the first statement day keeps its start and has no previous period.
+    expect(bounded("period=1Q&end=2026-09-30")).toMatchObject({ startDate: first, openingDate: first, previousEnd: null, nextEnd: "" })
+    // A bounded past period keeps its next period.
+    expect(bounded("period=1Q&end=2026-07-31")).toMatchObject({ startDate: first, openingDate: first, previousEnd: null, nextEnd: "" })
+    expect(bounded("period=1M&end=2026-07-31")).toMatchObject({ startDate: first, nextEnd: "2026-08-31" })
+    // A period that starts after the first statement does not change.
+    expect(bounded("period=1M")).toMatchObject({ startDate: "2026-10-01", openingDate: "2026-09-30", opensAtCoverageStart: false, previousEnd: "2026-09-30" })
+    // A period that ends before the first statement does not change.
+    expect(bounded("period=1M&end=2026-05-31")).toMatchObject({ startDate: "2026-05-01", openingDate: "2026-04-30", opensAtCoverageStart: false })
+    // A custom period keeps its start. Its opening balance sheet is the first statement day.
+    expect(bounded("start=2026-01-01&end=2026-09-30")).toMatchObject({
+      preset: null,
+      startDate: "2026-01-01",
+      openingDate: first,
+      opensAtCoverageStart: true,
+      dimensionQuery: "start=2026-01-01&end=2026-09-30",
+    })
+    // No coverage start: no bound. An invalid date applies no bound either.
+    expect(readReportFilters(new URLSearchParams(""), TODAY, null)).toMatchObject({ startDate: "2025-11-01", openingDate: "2025-10-31", opensAtCoverageStart: false })
+    expect(readReportFilters(new URLSearchParams(""), TODAY, "2026-02-30")).toMatchObject({ startDate: "2025-11-01", opensAtCoverageStart: false })
   })
 
   // AC-reporting.fe-period-cockpit.2 / AC-reporting.fe-viz-reports.21

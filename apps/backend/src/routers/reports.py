@@ -57,6 +57,7 @@ from src.reporting import (
     package_snapshot_csv as _package_snapshot_csv,
     package_snapshot_response as _package_snapshot_response,
     package_snapshot_summary as _package_snapshot_summary,
+    report_coverage_start,
     run_balance_sheet_diagnostics,
 )
 from src.schemas import (
@@ -84,6 +85,7 @@ from src.schemas import (
     ReportSnapshotSummary,
     TrendPeriod,
 )
+from src.schemas.reporting import ReportCoverageResponse
 from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -635,6 +637,24 @@ async def export_annual_tax_archive(
             "Content-Disposition": f'attachment; filename="{filename}"',
             "Content-Length": str(len(zip_bytes)),
         },
+    )
+
+
+@router.get("/coverage", response_model=ReportCoverageResponse)
+async def report_coverage(
+    as_of_date: date | None = Query(default=None),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> ReportCoverageResponse:
+    """Return the first day that the default report period can start without a cash coverage gap.
+
+    Home and `/reports` bound a preset period by it (#2646). The workflow readiness uses the same bound.
+    """
+    resolved = as_of_date or date.today()
+    return ReportCoverageResponse(
+        as_of_date=resolved,
+        coverage_start=await report_coverage_start(db, user_id=user_id, as_of=resolved),
     )
 
 

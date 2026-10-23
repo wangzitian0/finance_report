@@ -447,7 +447,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     );
     expect(screen.getByRole("link", { name: "Review AI suggestions" })).toHaveAttribute(
       "href",
-      "/audit?statement_id=s1&return_to=%2Fstatements%2Fs1#ai-suggestions",
+      "/audit?tab=needs-you&statement_id=s1&return_to=%2Fstatements%2Fs1#ai-suggestions",
     );
   });
 
@@ -500,12 +500,12 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     });
 
     renderReviewComponent(<StatementReviewPage /> as never);
-    expect(await screen.findByRole("link", { name: /Back to Needs Confirmation/i })).toHaveAttribute("href", "/audit");
+    expect(await screen.findByRole("link", { name: /Back to Needs Confirmation/i })).toHaveAttribute("href", "/audit?tab=needs-you");
 
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
     const dialog = await screen.findByRole("dialog", { name: "Approve Statement" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Approve" }));
-    await waitFor(() => expect(pushMock).toHaveBeenLastCalledWith("/audit"));
+    await waitFor(() => expect(pushMock).toHaveBeenLastCalledWith("/audit?tab=needs-you"));
   });
 
   // AC-extraction.fe-stage1-review.7
@@ -540,5 +540,30 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockedApi).toHaveBeenCalledWith("create_correction_corrections_post", expect.objectContaining({ body: { transaction_id: "txn-1", corrected_category: "SALARY" } }));
+  });
+
+  // AC-extraction.fe-stage1-review.25
+  it("AC-extraction.fe-stage1-review.25 shows the preview panel for a PDF source and none for a CSV source", async () => {
+    for (const [filename, filePath, hasPreview] of [
+      ["statement.pdf", "statements/statement.pdf", true],
+      ["october.csv", "statements/october.csv", false],
+      ["OCTOBER.CSV", "statements/OCTOBER.CSV", false],
+    ] as const) {
+      mockedApi.mockImplementation((path: string) => {
+        if (path === "/api/statements/s1/review") return Promise.resolve({ ...baseStatement, original_filename: filename, file_path: filePath });
+        if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+        if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
+        return Promise.reject(new Error(`Unexpected path ${path}`));
+      });
+      const view = renderReviewComponent(<StatementReviewPage /> as never);
+      const workbench = await screen.findByTestId("statement-side-by-side-workbench");
+      expect(await within(workbench).findAllByText("Salary")).not.toHaveLength(0);
+      expect(within(workbench).queryAllByRole("heading", { name: "PDF Preview" }), filename).toHaveLength(hasPreview ? 1 : 0);
+      // Without a preview the table takes the full desktop width and has no fixed height.
+      const tableColumn = within(workbench).getByTestId("stage1-desktop-transaction-region").closest(".order-1");
+      expect(tableColumn, filename).toHaveClass(hasPreview ? "lg:col-span-7" : "lg:col-span-12");
+      expect(tableColumn?.className.includes("lg:h-[600px]"), filename).toBe(hasPreview);
+      view.unmount();
+    }
   });
 });

@@ -181,10 +181,11 @@ describe("Reports page (#2621 LC)", () => {
     await waitFor(() => expect(balance).toHaveTextContent("Net worth"))
     expect(balance).toHaveTextContent("SGD 10,000")
     const income = screen.getByTestId("cockpit-card-income-statement")
-    expect(income).toHaveTextContent("Savings rate")
+    // The period sources wait for the coverage start (#2646).
+    await waitFor(() => expect(income).toHaveTextContent("Savings rate"))
     expect(income).toHaveTextContent("60%")
     const cash = screen.getByTestId("cockpit-card-cash-flow")
-    expect(cash).toHaveTextContent("Investing")
+    await waitFor(() => expect(cash).toHaveTextContent("Investing"))
     expect(cash).toHaveTextContent("-SGD 5,000")
     expect(within(balance).getByRole("link", { name: "Open the balance sheet report" })).toHaveAttribute("href", "/reports?tab=balance-sheet")
   })

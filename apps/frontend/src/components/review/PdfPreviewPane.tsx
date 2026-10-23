@@ -11,6 +11,18 @@ interface PdfPreviewPaneProps {
   hasDocument?: boolean;
 }
 
+/** The upload types that the browser shows inline (`StatementUploader` accepts PDF, PNG, JPG and CSV). */
+const INLINE_PREVIEW_EXTENSIONS = new Set(["pdf", "png", "jpg", "jpeg"]);
+
+/**
+ * True when the source file has an inline preview (#2647). A CSV export has none: the
+ * transaction table shows its content, so the page shows no empty preview panel for it.
+ */
+export function hasInlinePreview(filename: string | null | undefined): boolean {
+  const extension = (filename ?? "").split(".").pop()?.toLowerCase() ?? "";
+  return INLINE_PREVIEW_EXTENSIONS.has(extension);
+}
+
 type PreviewState =
   | { status: "idle" }
   | { status: "loading" }

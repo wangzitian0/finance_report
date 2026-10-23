@@ -57,7 +57,11 @@ from src.reporting.base.report_package_contract import (
 from src.reporting.base.types import PACKAGE_INCLUDE_RESTRICTED, PersonalReportingFrameworkId
 from src.reporting.extension._core import _aggregate_net_income_sql, _quantize_money
 from src.reporting.extension.annualized_income import generate_annualized_income_schedule
-from src.reporting.extension.cash_flow import cash_flow_proof_reason_text, generate_cash_flow
+from src.reporting.extension.cash_flow import (
+    account_cash_coverage_start,
+    cash_flow_proof_reason_text,
+    generate_cash_flow,
+)
 from src.reporting.extension.framework_policy import derive_user_framework_policy_result
 from src.reporting.extension.framework_report import (
     assemble_framework_balance_sheet,
@@ -343,6 +347,17 @@ def _valuation_section_contribution(contribution: Any) -> PackageSectionContribu
     )
 
 
+def _is_bank_source(statement: Any) -> bool:
+    """True for a resolved statement of a bank: its custody account holds cash."""
+    result = getattr(statement, "source_result", None)
+    return result is not None and result.source_type is StatementSourceType.BANK
+
+
+def _is_bank_statement_contribution(contribution: Any) -> bool:
+    """True for a statement source contribution of a bank statement (see ``_is_bank_source``)."""
+    return contribution.contribution_type == "statement_source" and _is_bank_source(contribution.payload)
+
+
 def _cash_inputs_from_contributions(
     contributions: tuple[PackageSectionContribution[Any], ...],
 ) -> PackageCashInputs:
@@ -351,13 +366,9 @@ def _cash_inputs_from_contributions(
     input_refs: set[str] = set()
     has_unproven_bank_input = False
     for contribution in contributions:
-        if contribution.contribution_type != "statement_source":
+        if not _is_bank_statement_contribution(contribution):
             continue
-        payload = contribution.payload
-        result = getattr(payload, "source_result", None)
-        if result is None or result.source_type is not StatementSourceType.BANK:
-            continue
-        account_id = getattr(payload, "account_id", None)
+        account_id = getattr(contribution.payload, "account_id", None)
         if contribution.is_authoritative and account_id is not None:
             account_ids.add(account_id)
             input_refs.update(contribution.input_refs)
@@ -1299,20 +1310,57 @@ def package_preview(document: PersonalReportPackageDocument) -> PersonalReportPa
     )
 
 
+async def report_coverage_start(db: AsyncSession, *, user_id: UUID, as_of: date) -> date | None:
+    """The first day that the default report period can start without a cash coverage gap (#2646).
+
+    The cash-flow check reads the opening positions of the cash accounts
+    (``opening_coverage_start``). Two callers select those accounts: ``GET /reports/cash-flow`` by
+    account name, and the report package by the bank custody accounts of its statements. The bound
+    is the later of the two, so a period that starts on it has no
+    ``opening_coverage_starts_after_period`` in either. A card or brokerage statement does not move
+    it, and an opening balance before the first statement keeps its history in the period. None when
+    no cash account has an opening position. ``GET /reports/coverage`` serves it to the frontend.
+    """
+    # Every statement, as the package reads them: a statement that closes after ``as_of`` can still
+    # add movements to the period. Unproven bank statements count too: the bound may only be later.
+    statements = await list_statement_contributions(db, user_id=user_id, as_of=date.max)
+    custody_ids = frozenset(
+        statement.account_id
+        for statement in statements
+        if _is_bank_source(statement) and statement.account_id is not None
+    )
+    bounds = (
+        await account_cash_coverage_start(db, user_id, as_of=as_of, cash_account_ids=None),
+        await account_cash_coverage_start(db, user_id, as_of=as_of, cash_account_ids=custody_ids),
+    )
+    return max((bound for bound in bounds if bound is not None), default=None)
+
+
 async def current_package_readiness(
     db: AsyncSession,
     *,
     user_id: UUID,
     as_of_date: date | None = None,
 ) -> PersonalReportPackageReadinessResponse:
-    """Evaluate readiness of the current default-framework candidate through the sole assembler."""
+    """Evaluate readiness of the current default-framework candidate through the sole assembler.
+
+    The period is the 365 days before ``as_of_date``. It starts no earlier than
+    ``report_coverage_start`` (#2646): an earlier start has no opening position for a cash account,
+    so the cash-flow coverage check blocks a new user. One current-authority read serves the bound
+    and the evaluation.
+    """
     report_end = as_of_date or date.today()
-    return await PackageAssembler().evaluate_readiness(
-        db,
-        user_id=user_id,
-        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        start_date=report_end - timedelta(days=365),
-        end_date=report_end,
-        as_of_date=report_end,
-        currency=settings.base_currency,
-    )
+    report_start = report_end - timedelta(days=365)
+    async with shared_current_authority(db, TraceScope.tenant(user_id)):
+        coverage_start = await report_coverage_start(db, user_id=user_id, as_of=report_end)
+        if coverage_start is not None and report_start < coverage_start <= report_end:
+            report_start = coverage_start
+        return await PackageAssembler().evaluate_readiness(
+            db,
+            user_id=user_id,
+            framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+            start_date=report_start,
+            end_date=report_end,
+            as_of_date=report_end,
+            currency=settings.base_currency,
+        )
