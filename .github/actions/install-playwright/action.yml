@@ -1,5 +1,5 @@
 name: 'Install Playwright browser'
-description: 'Restore the cached Playwright browser, then install system dependencies and the browser with bounded retries. The single Playwright install for every workflow.'
+description: 'Restore the cached Playwright browser, then install that one browser with bounded retries. The single Playwright install for every workflow.'
 
 inputs:
   command:
@@ -45,9 +45,15 @@ runs:
 
     # #1767: retry a transient toolchain download (network flake on the ~400MB
     # browser fetch) with bounded exponential backoff. A warm cache skips the
-    # browser download; --with-deps still installs the system libraries because
-    # every hosted runner starts without them.
-    - name: Install Playwright system dependencies and browser
+    # browser download.
+    #
+    # No --with-deps (#2688): the hosted ubuntu-24.04 image already has every shared
+    # library chromium needs, so --with-deps only fetched fonts through apt. That apt
+    # fetch ran at 35-48 kB/s for 9 and 11 minutes in two runs on 2026-10-23 and
+    # 2026-10-26 (deploy run 39942096178, PR run 40296276421), and the browser itself
+    # downloads in seconds. If an image drops a library, chromium fails to launch with
+    # "Host system is missing dependencies"; then add `playwright install-deps` here.
+    - name: Install Playwright browser
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       env:
@@ -60,7 +66,7 @@ runs:
         delay=10
         for n in $(seq 1 "$attempts"); do
           echo "::group::playwright install ${PLAYWRIGHT_BROWSER} (attempt ${n}/${attempts})"
-          if "${playwright[@]}" install "$PLAYWRIGHT_BROWSER" --with-deps; then
+          if "${playwright[@]}" install "$PLAYWRIGHT_BROWSER"; then
             echo "::endgroup::"
             exit 0
           fi

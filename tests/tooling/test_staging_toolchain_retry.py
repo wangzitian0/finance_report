@@ -108,7 +108,7 @@ def test_AC7_16_1_setup_e2e_composite_retries_toolchain_downloads() -> None:
         if isinstance(step, dict) and str(step.get("run", "")).count(" install ")
     )
     assert _has_bounded_backoff_retry(install_shell)
-    assert '"$PLAYWRIGHT_BROWSER" --with-deps' in install_shell
+    assert 'install "$PLAYWRIGHT_BROWSER"' in install_shell
     assert "::error::playwright install" in install_shell
 
 

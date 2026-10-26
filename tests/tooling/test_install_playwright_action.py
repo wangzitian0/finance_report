@@ -85,15 +85,21 @@ def test_the_cache_key_is_the_playwright_version_and_the_browser() -> None:
     assert ids.index("version") < steps.index(cache)
 
 
-def test_the_install_installs_only_the_requested_browser_with_dependencies() -> None:
-    """AC-testing.toolchain.11: the install adds system dependencies and one browser."""
+def test_the_install_adds_one_browser_and_no_apt_packages() -> None:
+    """AC-testing.toolchain.11: the install adds one browser and takes no apt mirror time.
+
+    `--with-deps` fetched fonts from the Azure Ubuntu mirror at 35-48 kB/s for 9 and
+    11 minutes in two runs (#2688); the hosted image already has the libraries.
+    """
     action = _yaml(ACTION)
 
     assert action["inputs"]["browser"]["default"] == "chromium"
     install = next(
         step["run"]
         for step in action["runs"]["steps"]
-        if "--with-deps" in step.get("run", "")
+        if "$PLAYWRIGHT_BROWSER" in step.get("run", "") and " install " in step["run"]
     )
-    assert 'install "$PLAYWRIGHT_BROWSER" --with-deps' in install
+    assert '"${playwright[@]}" install "$PLAYWRIGHT_BROWSER"' in install
+    assert "--with-deps" not in install and "install-deps" not in install
+    assert "apt" not in install
     assert "firefox" not in install and "webkit" not in install
