@@ -12,7 +12,6 @@ from src.llm.base import (
     ReasoningEffort,
     Scene,
     SceneBinding,
-    Usage,
 )
 
 
@@ -73,9 +72,3 @@ def test_AC23_1_1_provider_ref_never_reprs_its_api_key():
     assert "sk-secret-123" not in str(ref)
     # The key is still accessible programmatically.
     assert ref.api_key == "sk-secret-123"
-
-
-def test_AC23_1_1_usage_totals_tokens():
-    """AC-llm.1.1: Usage exposes total tokens for cost accounting."""
-    usage = Usage(prompt_tokens=1200, completion_tokens=300)
-    assert usage.total_tokens == 1500

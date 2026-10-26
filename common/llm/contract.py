@@ -103,8 +103,6 @@ CONTRACT = PackageContract(
         Unit(name="ModelSpec", kind=Kind.VALUE_OBJECT, module="base/types.py"),
         Unit(name="SceneBinding", kind=Kind.VALUE_OBJECT, module="base/types.py"),
         Unit(name="Encrypted", kind=Kind.VALUE_OBJECT, module="base/types.py"),
-        Unit(name="Usage", kind=Kind.VALUE_OBJECT, module="base/types.py"),
-        Unit(name="ChatResult", kind=Kind.VALUE_OBJECT, module="base/types.py"),
         Unit(name="DecodeParams", kind=Kind.VALUE_OBJECT, module="base/types.py"),
         # the in-memory daily usage counter (per-process running total; the
         # structured ``llm_usage`` log is the durable record it emits).
@@ -127,23 +125,10 @@ CONTRACT = PackageContract(
             module="base/protocols.py",
             impl="extension/client.py",
         ),
-        Unit(
-            name="CatalogProvider",
-            kind=Kind.REPOSITORY,
-            module="base/protocols.py",
-            impl="extension/catalog.py",
-        ),
         # ── extension: domain services + factory ──
         # the single litellm chokepoint's provider routing
         Unit(
             name="build_call", kind=Kind.DOMAIN_SERVICE, module="extension/routing.py"
-        ),
-        # the single chokepoint for the non-chat OCR/layout-parsing HTTP call
-        # (#1670): a separate endpoint litellm does not wrap.
-        Unit(
-            name="ocr_layout_call",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/ocr_client.py",
         ),
         # generic prompt-in/score-out semantic-similarity helper, moved from
         # reconciliation (#1859 — Cross-tier MUST rule 2: a CODE-ONLY package
@@ -193,8 +178,6 @@ CONTRACT = PackageContract(
         "CassetteStore",
         "CassetteTag",
         "CassetteValidationError",
-        "CatalogProvider",
-        "ChatResult",
         "ConfigSource",
         "DecodeParams",
         "DbConfigSource",
@@ -222,7 +205,6 @@ CONTRACT = PackageContract(
         "Scene",
         "SceneBinding",
         "SecretCipher",
-        "Usage",
         "accumulate_stream",
         "ai_semantic_score",
         "build_call",
@@ -236,7 +218,6 @@ CONTRACT = PackageContract(
         "get_usage_meter",
         "litellm_stream",
         "miss_summary",
-        "ocr_layout_call",
         "protocol_for",
         "resolve_provider_and_model",
         "stream_ai_chat",
@@ -319,7 +300,7 @@ CONTRACT = PackageContract(
         ac('AC-llm.1.2', '`FernetCipher` round-trips a provider secret (`encrypt` → `decrypt`) and never persists plaintext', 'apps/backend/tests/llm/test_secrets.py::test_AC23_1_2_round_trips_a_provider_secret_without_storing_plaintext', priority='P1', proof_kind='property'),
         ac('AC-llm.1.3', 'Key rotation is single-pass: a secret sealed by an older key still decrypts after a newer key is prepended, and `rotate()` re-stamps it to the newest `key_version`', 'apps/backend/tests/llm/test_secrets.py::test_AC23_1_3_rotation_is_single_pass_old_ciphertext_still_decrypts', priority='P1', proof_kind='property'),
         ac('AC-llm.1.4', '`build_cipher()` raises `LLMConfigError` when `LLM_ENCRYPTION_KEYS` is unset, and `FernetCipher` rejects malformed keys — DB-backed secrets fail closed', 'apps/backend/tests/llm/test_secrets.py::test_AC23_1_4_build_cipher_fails_closed_without_a_key', priority='P1', proof_kind='property'),
-        ac('AC-llm.1.5', 'The seam protocols (`ConfigSource`, `LLMClient`, `CatalogProvider`, `SecretCipher`) are runtime-checkable and a conforming implementation satisfies `isinstance`, so EPIC A/B can swap implementations behind the contract', 'apps/backend/tests/llm/test_contract.py::test_AC23_1_5_conforming_implementations_satisfy_the_protocols', priority='P1', proof_kind='property'),
+        ac('AC-llm.1.5', 'The seam protocols (`ConfigSource`, `LLMClient`, `SecretCipher`) are runtime-checkable and a conforming implementation satisfies `isinstance`, so EPIC A/B can swap implementations behind the contract', 'apps/backend/tests/llm/test_contract.py::test_AC23_1_5_conforming_implementations_satisfy_the_protocols', priority='P1', proof_kind='property'),
         ac('AC-llm.2.1', 'Provider routing maps each protocol family onto the correct litellm call — `openai`/`anthropic`/`openrouter` prefix, custom `api_base` for OpenAI-compatible endpoints, OpenRouter attribution headers — and normalises an already-qualified model id', 'apps/backend/tests/llm/test_routing.py::test_AC23_2_1_openai_compatible_prefixes_and_keeps_api_base', priority='P1', proof_kind='property'),
         ac('AC-llm.2.2', "The litellm transport streams via litellm with `drop_params` (model-rejected params like `seed` are dropped, not 400'd) and resolves a binding's provider/model through the `ConfigSource` (`resolve_provider_and_model`, honouring the `provider_id/model` qualifier)", 'apps/backend/tests/llm/test_client.py::test_AC23_2_2_stream_yields_only_nonempty_deltas', priority='P1', proof_kind='property'),
         ac('AC-llm.2.3', 'Provider failures are normalised to `LLMError` with a retryable verdict (rate-limit/5xx/timeout → retryable; others not)', 'apps/backend/tests/llm/test_client.py::test_AC23_2_3_provider_error_is_normalised_to_llmerror', priority='P1', proof_kind='property'),

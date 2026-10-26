@@ -6,17 +6,14 @@ from collections.abc import AsyncIterator, Sequence
 from uuid import UUID
 
 from src.llm.base import (
-    ChatResult,
     ConfigSource,
     DecodeParams,
     Message,
     ReasoningEffort,
     Scene,
-    Usage,
-    estimate_tokens,
 )
 from src.llm.extension.factory import get_config_source
-from src.llm.extension.streaming import AIStreamError, _stream_ai_base, accumulate_stream
+from src.llm.extension.streaming import AIStreamError, _stream_ai_base
 
 
 class LitellmClient:
@@ -86,41 +83,3 @@ class LitellmClient:
     ) -> AsyncIterator[str]:
         """Stream plain-text chunks for a configured scene."""
         return self._stream(scene, messages, reasoning=reasoning, mode_label=scene.value)
-
-    def stream_json(
-        self,
-        scene: Scene,
-        messages: Sequence[Message],
-        *,
-        reasoning: ReasoningEffort | None = None,
-    ) -> AsyncIterator[str]:
-        """Stream prompt-driven JSON chunks for a configured scene."""
-        return self._stream(scene, messages, reasoning=reasoning, mode_label=f"{scene.value}.json")
-
-    async def complete(
-        self,
-        scene: Scene,
-        messages: Sequence[Message],
-        *,
-        reasoning: ReasoningEffort | None = None,
-    ) -> ChatResult:
-        """Accumulate the scene stream into the protocol's non-streaming result."""
-        model_id, configured = await self._resolve(scene)
-        decode = DecodeParams(
-            max_tokens=configured.max_tokens,
-            reasoning=reasoning if reasoning is not None else configured.reasoning,
-        )
-        text = await accumulate_stream(
-            self._stream_bound(
-                messages,
-                model_id=model_id,
-                decode=decode,
-                mode_label=scene.value,
-            )
-        )
-        prompt_tokens = sum(estimate_tokens(str(message.get("content", ""))) for message in messages)
-        return ChatResult(
-            text=text,
-            model_id=model_id,
-            usage=Usage(prompt_tokens=prompt_tokens, completion_tokens=estimate_tokens(text)),
-        )

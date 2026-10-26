@@ -62,7 +62,6 @@ NON_DEPENDENCY_ENV_FIELDS: dict[str, str] = {
     "storage_sweep_grace_period_hours": "tuning",
     "storage_sweep_interval_seconds": "tuning",
     "ai_chat_completions_path": "tuning",
-    "ai_layout_parsing_path": "tuning",
     "ai_json_timeout_seconds": "tuning",
     "ai_json_max_tokens": "tuning",
     "ai_json_disable_thinking": "tuning",

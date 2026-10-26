@@ -237,7 +237,6 @@ def test_AC8_13_71_root_compose_passes_git_sha_to_backend_runtime_and_frontend_b
             "AI_PROVIDER:",
             "AI_BASE_URL:",
             "AI_CHAT_COMPLETIONS_PATH:",
-            "AI_LAYOUT_PARSING_PATH:",
         ):
             assert drifted_key not in b_block, (compose_name, drifted_key)
 

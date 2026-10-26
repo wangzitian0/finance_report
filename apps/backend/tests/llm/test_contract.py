@@ -7,23 +7,18 @@ satisfy ``isinstance`` against the protocol, and a non-conforming one must not.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator
 
 from src.llm.base import (
-    CatalogProvider,
-    ChatResult,
     ConfigSource,
     FernetCipher,
     LLMClient,
-    Message,
     Modality,
     ModelSpec,
     ProviderRef,
-    ReasoningEffort,
     Scene,
     SceneBinding,
     SecretCipher,
-    Usage,
 )
 
 
@@ -45,23 +40,6 @@ class _FakeClient:
     def stream(self, scene, messages, *, reasoning=None) -> AsyncIterator[str]:  # noqa: ANN001
         raise NotImplementedError
 
-    def stream_json(self, scene, messages, *, reasoning=None) -> AsyncIterator[str]:  # noqa: ANN001
-        raise NotImplementedError
-
-    async def complete(
-        self,
-        scene: Scene,
-        messages: Sequence[Message],
-        *,
-        reasoning: ReasoningEffort | None = None,
-    ) -> ChatResult:
-        return ChatResult(text="", model_id="x", usage=Usage())
-
-
-class _FakeCatalog:
-    async def list_models(self, *, provider_id=None, modality=None, free_only=False) -> list[ModelSpec]:  # noqa: ANN001
-        return []
-
 
 class _NotAConfigSource:
     async def list_providers(self) -> list[ProviderRef]:
@@ -74,7 +52,6 @@ def test_AC23_1_5_conforming_implementations_satisfy_the_protocols():
     """AC-llm.1.5: a conforming object passes isinstance for each seam protocol."""
     assert isinstance(_FakeConfigSource(), ConfigSource)
     assert isinstance(_FakeClient(), LLMClient)
-    assert isinstance(_FakeCatalog(), CatalogProvider)
 
 
 def test_AC23_1_5_fernet_cipher_is_a_secret_cipher():

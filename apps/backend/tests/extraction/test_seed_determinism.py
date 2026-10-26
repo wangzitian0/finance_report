@@ -19,7 +19,6 @@ async def test_extraction_forwards_configured_seed():
     mock_stream = MagicMock()
     with (
         patch.object(service, "api_key", "test-key"),
-        patch.object(service, "base_url", "https://test.api"),
         patch.object(settings, "ai_json_seed", 1234),
         patch("src.extraction.extension.service.stream_ai_json", return_value=mock_stream) as mock_stream_fn,
         patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value='{"ok": true}')),
@@ -46,7 +45,6 @@ async def test_extraction_decoding_is_deterministic_by_default():
     mock_stream = MagicMock()
     with (
         patch.object(service, "api_key", "test-key"),
-        patch.object(service, "base_url", "https://test.api"),
         patch("src.extraction.extension.service.stream_ai_json", return_value=mock_stream) as mock_stream_fn,
         patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value='{"ok": true}')),
     ):
