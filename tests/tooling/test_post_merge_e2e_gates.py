@@ -2625,12 +2625,11 @@ def test_AC_testing_ci_structure_14_tier1_runs_as_seeded_matrix_legs() -> None:
     assert "backend-integration" in workflow["jobs"]
 
 
-def test_AC8_13_148_backend_shards_use_seeded_4_way_split() -> None:
+def test_AC8_13_148_backend_shards_use_seeded_least_duration_split() -> None:
     """AC-testing.ci-structure.8: AC8.13.148: backend shards use a seeded least-duration split.
 
-    The function name keeps "4_way" because common/testing/contract.py references this node id
-    and cannot change while #2490 holds that file. The shard count is the matrix length (#2688):
-    the job name, `--splits` and the gate inventory must agree with it.
+    The shard count is the matrix length (#2688): the job name, `--splits` and the gate
+    inventory must agree with it.
     """
     workflow_text = read(".github/workflows/ci.yml")
     workflow = yaml.safe_load(workflow_text)
