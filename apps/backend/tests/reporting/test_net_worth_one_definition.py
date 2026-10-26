@@ -13,8 +13,10 @@ Each test reads the API routes that the four surfaces read:
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -415,3 +417,291 @@ async def test_AC_reporting_net_worth_scope_11_package_discloses_each_excluded_c
     assert full.sections.balance_sheet.excluded_holdings == []
     assert full.sections.balance_sheet.total_assets - full.sections.balance_sheet.total_liabilities == FULL_NET_WORTH
     assert "This package includes restricted and illiquid holdings" in _restricted_treatment_note(full)
+
+
+def test_AC_reporting_net_worth_scope_11_package_note_names_rows_without_amounts_and_the_empty_scope() -> None:
+    """AC-reporting.net-worth-scope.11: the package note covers a row without amounts and a scope with no row."""
+    from src.reporting.extension.package_document import _restricted_asset_treatment_disclosure
+    from src.schemas.reporting import ExcludedHoldingRow
+
+    unconverted = ExcludedHoldingRow(
+        asset_class="restricted_comp",
+        total_assets=None,
+        total_liabilities=None,
+        net_worth=None,
+        warnings=[
+            {"type": "missing_fx_rate_excluded_holding", "currency": "USD", "target_currency": "SGD"},
+            {"type": "fx_conversion_failed_excluded_holding", "currency": "HKD", "target_currency": "SGD"},
+        ],
+    )
+    note = _restricted_asset_treatment_disclosure(
+        "Base.", include_restricted=False, excluded_holdings=[unconverted], currency="SGD"
+    )
+    assert note == (
+        "Base. This package excludes these restricted and illiquid holdings, with the liabilities of their class, "
+        "from the balance sheet: restricted comp: amount not available, FX conversion failed for HKD to SGD, "
+        "no FX rate for USD to SGD."
+    )
+
+    empty = _restricted_asset_treatment_disclosure(
+        "Base.", include_restricted=False, excluded_holdings=[], currency="SGD"
+    )
+    assert empty == (
+        "Base. On the as-of date this package excludes no restricted or illiquid holding: "
+        "no such valuation is current on that date."
+    )
+
+
+async def test_AC_reporting_net_worth_scope_12_generate_without_scope_reads_the_package_default(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-reporting.net-worth-scope.12: a generate body without include_restricted reads PACKAGE_INCLUDE_RESTRICTED.
+
+    The app sends no scope. The route then builds the liquid package, so the frozen
+    balance sheet names the excluded classes.
+    """
+    await _seed_issue_2645_account(db, test_user.id)
+
+    response = await client.post(
+        "/reports/package/generate",
+        json={
+            "framework_id": "personal_us_gaap_like",
+            "start_date": PERIOD_START.isoformat(),
+            "end_date": AS_OF.isoformat(),
+            "as_of_date": AS_OF.isoformat(),
+            "currency": "SGD",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    sheet = response.json()["document"]["sections"]["balance_sheet"]
+    assert [row["asset_class"] for row in sheet["excluded_holdings"]] == ["real_estate", "restricted_comp"]
+
+
+async def test_AC_reporting_net_worth_scope_13_data_quality_stays_available_without_a_valuation_fx_rate(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-reporting.net-worth-scope.13: a restricted valuation without an FX rate is an action item on data quality.
+
+    The full scope cannot convert the USD RSU. The page still answers 200 with the same
+    score, and one action item names the missing rate.
+    """
+    await _seed_issue_2645_account(db, test_user.id)
+    url = f"/reports/data-quality?as_of_date={AS_OF.isoformat()}&currency=SGD"
+
+    normal = await _get(client, url)
+    await _add_usd_rsu_without_fx_rate(db, test_user.id)
+    gap = await _get(client, url)
+
+    assert "resolve_valuation_fx_rate" not in [item["id"] for item in normal["action_items"]]
+    fx_items = [item for item in gap["action_items"] if item["id"] == "resolve_valuation_fx_rate"]
+    assert [(item["action_type"], item["score_boost"], item["title"]) for item in fx_items] == [
+        ("RESOLVE_FX_RATE", 0, "A Restricted Holding Has No FX Rate")
+    ]
+    assert "No FX rate available for USD/SGD" in fx_items[0]["description"]
+    assert gap["score"] == normal["score"]
+    assert gap["equation_invariant"] == normal["equation_invariant"]
+
+
+async def test_AC_reporting_net_worth_scope_14_package_lists_a_restricted_holding_without_fx_rate(
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-reporting.net-worth-scope.14: a restricted holding without an FX rate does not fail the package.
+
+    The annualized schedule lists the USD RSU in its own currency, leaves it out of the
+    restricted fair-value total and names it. The package readiness has a blocker for it.
+    """
+    await _seed_issue_2645_account(db, test_user.id)
+    await _add_usd_rsu_without_fx_rate(db, test_user.id)
+
+    document = await _assemble_package(db, test_user.id, include_restricted=False)
+
+    schedule = document.sections.annualized_income_long_term
+    assert sorted(holding.ticker for holding in schedule.restricted_holdings) == ["Employer ESOP", "Employer RSU"]
+    assert schedule.restricted_fair_value_total == ESOP
+    # A structured row with the conversion_warning shape of an excluded balance-sheet valuation.
+    [row] = schedule.restricted_fair_value_total_excludes
+    assert {key: value for key, value in row.items() if key != "message"} == {
+        "type": "missing_fx_rate_excluded_holding",
+        "component_type": "rsu",
+        "source": "Employer RSU",
+        "currency": "USD",
+        "target_currency": "SGD",
+        "as_of_date": AS_OF.isoformat(),
+        "amount": "1000.00",
+    }
+    assert row["message"].startswith("No FX rate available for USD/SGD")
+    assert any("Employer RSU (USD 1,000.00)" in note for note in schedule.notes)
+    assert "restricted_holding_fx_unavailable" in [blocker.code for blocker in document.readiness.blockers]
+
+
+def _diagnostic(*, is_balanced: bool):
+    from src.reporting.base.diagnostics import EquationDiagnosticCategory, EquationDiagnosticResult
+
+    return EquationDiagnosticResult(
+        is_balanced=is_balanced,
+        equation_delta=Decimal("0.00") if is_balanced else Decimal("12.34"),
+        primary_category=(
+            EquationDiagnosticCategory.BALANCED if is_balanced else EquationDiagnosticCategory.UNKNOWN_DISCREPANCY
+        ),
+        confidence=1.0,
+        suggested_action="Check the ledger.",
+    )
+
+
+def _report_error_from(cause: Exception):
+    from src.reporting import ReportError
+
+    error = ReportError(str(cause))
+    error.__cause__ = cause
+    return error
+
+
+@pytest.mark.parametrize(
+    ("cause_name", "title"),
+    [
+        ("NoObservationError", "A Restricted Holding Has No FX Rate"),
+        ("PricingError", "A Restricted Holding Did Not Convert to SGD"),
+    ],
+)
+async def test_AC_reporting_net_worth_scope_18_data_quality_reads_the_liquid_check_after_an_fx_error(
+    db: AsyncSession,
+    test_user,
+    monkeypatch: pytest.MonkeyPatch,
+    cause_name: str,
+    title: str,
+) -> None:
+    """AC-reporting.net-worth-scope.18: after a full-scope FX error, data quality reads the liquid check result.
+
+    The second run excludes restricted holdings, and its result (here: out of balance)
+    is the equation invariant. The action item title names the cause.
+    """
+    import src.pricing as pricing
+    import src.reporting.extension.data_quality_service as service
+
+    calls: list[bool] = []
+
+    async def diagnostics(*_args, include_restricted: bool = True, **_kwargs):
+        calls.append(include_restricted)
+        if include_restricted:
+            raise _report_error_from(getattr(pricing, cause_name)("No FX rate available for USD/SGD on 2026-10-23"))
+        return _diagnostic(is_balanced=False)
+
+    monkeypatch.setattr(service, "run_balance_sheet_diagnostics", diagnostics)
+
+    result = await service.compute_personal_data_quality(db, test_user.id, as_of_date=AS_OF, currency="SGD")
+
+    assert calls == [True, False]
+    assert result.equation_invariant.is_healthy is False
+    assert result.equation_invariant.delta == Decimal("12.34")
+    assert [item.title for item in result.action_items if item.id == "resolve_valuation_fx_rate"] == [title]
+
+
+async def test_AC_reporting_net_worth_scope_19_data_quality_raises_other_errors(
+    db: AsyncSession,
+    test_user,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-reporting.net-worth-scope.19: data quality falls back only for an FX error of the full scope.
+
+    An error of the liquid run propagates. A ReportError whose cause is not a pricing
+    error propagates without a second run.
+    """
+    import src.reporting.extension.data_quality_service as service
+    from src.pricing import NoObservationError
+    from src.reporting import ReportError
+
+    calls: list[bool] = []
+
+    async def both_fail(*_args, include_restricted: bool = True, **_kwargs):
+        calls.append(include_restricted)
+        if include_restricted:
+            raise _report_error_from(NoObservationError("No FX rate available for USD/SGD"))
+        raise ReportError("ledger FX rate missing")
+
+    monkeypatch.setattr(service, "run_balance_sheet_diagnostics", both_fail)
+    with pytest.raises(ReportError, match="ledger FX rate missing"):
+        await service.compute_personal_data_quality(db, test_user.id, as_of_date=AS_OF, currency="SGD")
+    assert calls == [True, False]
+
+    calls.clear()
+
+    async def other_cause(*_args, include_restricted: bool = True, **_kwargs):
+        calls.append(include_restricted)
+        raise _report_error_from(ValueError("unsupported period"))
+
+    monkeypatch.setattr(service, "run_balance_sheet_diagnostics", other_cause)
+    with pytest.raises(ReportError, match="unsupported period"):
+        await service.compute_personal_data_quality(db, test_user.id, as_of_date=AS_OF, currency="SGD")
+    assert calls == [True]
+
+
+async def test_AC_reporting_net_worth_scope_20_package_records_its_scope(
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-reporting.net-worth-scope.20: the package context records include_restricted, and the dump of a
+    document frozen before #2645 (no value) stays without the key, so its decision coordinates stay equal.
+    """
+    from src.schemas.reporting import PersonalReportPackageContext
+
+    await _seed_issue_2645_account(db, test_user.id)
+
+    liquid = await _assemble_package(db, test_user.id, include_restricted=False)
+    full = await _assemble_package(db, test_user.id, include_restricted=True)
+
+    assert liquid.context.include_restricted is False
+    assert full.context.include_restricted is True
+    assert liquid.context.model_dump(mode="json")["include_restricted"] is False
+
+    old = PersonalReportPackageContext.model_validate(
+        {
+            "framework_id": "personal_us_gaap_like",
+            "start_date": "2025-11-01",
+            "end_date": "2026-10-23",
+            "as_of_date": "2026-10-23",
+            "currency": "SGD",
+        }
+    )
+    assert old.include_restricted is None
+    assert "include_restricted" not in old.model_dump(mode="json")
+
+
+MAIN_SHAPE_DOCUMENT = Path(__file__).resolve().parents[1] / "fixtures" / "package_document_main_shape.json"
+# personal_report_package_target over the stored JSON: the version that main bound at freeze time.
+MAIN_SHAPE_DECISION_VERSION = "aacc713256b0f0411ce8c416598a2b75ddbb8a0634fe0e4036f773f2094da538"
+
+
+def test_AC_reporting_net_worth_scope_22_main_shape_document_keeps_its_decision_version() -> None:
+    """AC-reporting.net-worth-scope.22: a package frozen on main reloads to the same JSON and decision version.
+
+    The fixture is a frozen document in the shape of main 685533f0f: its context has no
+    include_restricted and its annualized section has no restricted_fair_value_total_excludes.
+    A field that the reload adds to the dump changes the rebuilt decision version.
+    """
+    from src.reporting import personal_report_package_decision_ref
+    from src.reporting.base.package_decision import personal_report_package_target
+    from src.schemas.reporting import PersonalReportPackageDocument
+
+    stored = json.loads(MAIN_SHAPE_DOCUMENT.read_text(encoding="utf-8"))
+    assert "include_restricted" not in stored["context"]
+    assert "restricted_fair_value_total_excludes" not in stored["sections"]["annualized_income_long_term"]
+    at_freeze = personal_report_package_target(
+        snapshot_id=UUID(stored["snapshot_id"]),
+        context=stored["context"],
+        framework_policy=stored["framework_policy"],
+        statement_disposition_policy=stored["statement_disposition_policy"],
+        input_manifest=stored["input_manifest"],
+        sections=stored["sections"],
+    ).version
+    assert at_freeze == MAIN_SHAPE_DECISION_VERSION
+
+    document = PersonalReportPackageDocument.model_validate(stored)
+
+    assert document.model_dump(mode="json") == stored
+    assert personal_report_package_decision_ref(document).target.version == MAIN_SHAPE_DECISION_VERSION

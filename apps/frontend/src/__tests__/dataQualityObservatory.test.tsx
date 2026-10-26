@@ -222,6 +222,29 @@ describe("Personal Data Quality Observatory (#2294)", () => {
       expect(screen.getByText("Resolve")).toBeInTheDocument();
     });
 
+    // AC-reporting.net-worth-scope.21
+    it("#2645 renders an action without a score boost when the boost is zero", () => {
+      render(
+        <ActionChecklist
+          actionItems={[
+            {
+              id: "resolve_valuation_fx_rate",
+              priority: "P1",
+              title: "A Restricted Holding Has No FX Rate",
+              description: "The full net worth cannot convert a restricted or illiquid valuation.",
+              score_boost: 0,
+              action_type: "RESOLVE_FX_RATE",
+              action_url: "/portfolio?panel=evidence",
+            },
+          ]}
+        />,
+      );
+
+      expect(screen.getByText("A Restricted Holding Has No FX Rate")).toBeInTheDocument();
+      expect(screen.queryByText(/% Trust/)).toBeNull();
+      expect(screen.getByRole("link", { name: /Resolve/ })).toHaveAttribute("href", "/portfolio?panel=evidence");
+    });
+
     it("renders 100% audit-ready message when action items list is empty", () => {
       render(<ActionChecklist actionItems={[]} />);
 

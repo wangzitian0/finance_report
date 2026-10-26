@@ -217,7 +217,10 @@ describe("BalanceSheetPage", () => {
               total_assets: null,
               total_liabilities: null,
               net_worth: null,
-              warnings: [{ type: "missing_fx_rate_excluded_holding", source: "401k", currency: "USD", target_currency: "SGD", message: "No FX rate available" }],
+              warnings: [
+                { type: "missing_fx_rate_excluded_holding", source: "401k", currency: "USD", target_currency: "SGD", message: "No FX rate available" },
+                { type: "fx_conversion_failed_excluded_holding", source: "MPF", currency: "HKD", target_currency: "SGD", message: "invalid FX conversion boundary" },
+              ],
             },
           ],
           equation_delta: "0.00",
@@ -231,7 +234,7 @@ describe("BalanceSheetPage", () => {
 
     expect(await screen.findByTestId("excluded-holdings-note")).toHaveTextContent(
       "Excludes restricted and illiquid holdings:Real Estate SGD 550,000.00 (net of SGD 650,000.00 liabilities)Restricted Comp SGD 42,000.00" +
-        "Retirement & Benefit Assets: amount not available (no FX rate for USD to SGD)",
+        "Retirement & Benefit Assets: amount not available (FX conversion failed for HKD to SGD, no FX rate for USD to SGD)",
     )
     expect(screen.getByText("Excluded")).toBeInTheDocument()
     expect(screen.queryByTestId("equity-valuations")).toBeNull()

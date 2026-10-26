@@ -4,7 +4,8 @@ import { Download, FileJson, Network, Printer, Save, X } from "lucide-react";
 
 import { ManifestEntries, TraceabilityLineEvidence } from "@/components/reports/package/evidence";
 import { SkeletonBlock } from "@/components/ui";
-import { formatCurrencyLocale } from "@/lib/audit/money";
+import { ExcludedHoldingsNote } from "@/components/reports/ExcludedHoldingsNote";
+import { formatCurrencyLocale, subtractAmounts } from "@/lib/audit/money";
 import { nodeDisplayTitle, nodeLabel, nodeSourceHref } from "@/lib/lineage";
 import type {
   AnnualizedIncomeScheduleResponse,
@@ -449,8 +450,27 @@ function PackageMetric({ label, value, currency }: { label: string; value: strin
   );
 }
 
-export function PackageSectionCards({ sections }: { sections: PersonalReportPackageSections }) {
+/**
+ * The net worth label of a package (#2645): the document context records its scope. A document
+ * frozen before #2645 records none. Its liquid figures follow the older rule (an illiquid property
+ * out, its mortgage in), so neither label is true: the card shows no net worth for it.
+ */
+function packageNetWorthLabel(includeRestricted: boolean | null | undefined): string | null {
+  if (includeRestricted === true) return "Net worth";
+  if (includeRestricted === false) return "Liquid net worth";
+  return null;
+}
+
+export function PackageSectionCards({
+  sections,
+  includeRestricted,
+}: {
+  sections: PersonalReportPackageSections;
+  /** `context.include_restricted` of the document. Null or absent: the scope is not recorded. */
+  includeRestricted?: boolean | null;
+}) {
   const { balance_sheet: bs, income_statement: is, cash_flow: cf, investment_performance: inv } = sections;
+  const netWorthLabel = packageNetWorthLabel(includeRestricted);
   const incompleteOpeningCoverage = cf.proof_reasons?.includes("opening_coverage_starts_after_period") ?? false;
   return (
     <div className="grid lg:grid-cols-2 gap-4 mb-6">
@@ -461,7 +481,24 @@ export function PackageSectionCards({ sections }: { sections: PersonalReportPack
           <PackageMetric label="Total Liabilities" value={bs.total_liabilities} currency={bs.currency} />
           <PackageMetric label="Total Equity" value={bs.total_equity} currency={bs.currency} />
           <PackageMetric label="Net Income" value={bs.net_income} currency={bs.currency} />
+          {netWorthLabel && (
+            <PackageMetric
+              label={netWorthLabel}
+              value={subtractAmounts(bs.total_assets, bs.total_liabilities).toString()}
+              currency={bs.currency}
+            />
+          )}
         </dl>
+        {!netWorthLabel && (
+          <p className="mt-3 text-xs text-muted">
+            This snapshot does not record its restricted-holdings scope, so no net worth is shown.
+          </p>
+        )}
+        <ExcludedHoldingsNote
+          rows={bs.excluded_holdings}
+          currency={bs.currency}
+          formatMoney={(value, currency) => formatScheduleCurrency(String(value), currency)}
+        />
       </section>
       <section id={sectionAnchorId("income_statement")} className="card p-5">
         <h2 className="font-semibold">Income Statement</h2>

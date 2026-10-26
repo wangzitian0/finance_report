@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.ledger import AccountType, Direction
 from src.reporting import (
-    PACKAGE_INCLUDE_RESTRICTED,
     CashFlowResponse,
     InvariantStatus as InvariantStatus,
     MonthContinuityBucket as MonthContinuityBucket,
@@ -642,9 +641,10 @@ class PersonalReportPackageGenerateRequest(BaseModel):
         min_length=3,
         max_length=3,
     )
-    include_restricted: bool = Field(
-        default=PACKAGE_INCLUDE_RESTRICTED,
-        description="Whether restricted manual valuations are included in generated section payloads",
+    # No schema default: the generated client then sends no value, and the route reads the one
+    # package default, PACKAGE_INCLUDE_RESTRICTED (#2645).
+    include_restricted: bool | None = Field(
+        default=None, description="Include restricted holdings. Absent: PACKAGE_INCLUDE_RESTRICTED (liquid)."
     )
 
 
@@ -844,6 +844,12 @@ class AnnualizedIncomeScheduleResponse(BaseModel):
     restricted_fair_value_total_currency: str = Field(
         min_length=3, max_length=3, description="Currency of the restricted fair-value total."
     )
+    # An empty list is not dumped: a section frozen before the field keeps its decision version (#2645).
+    restricted_fair_value_total_excludes: list[dict[str, str]] = Field(
+        default_factory=list,
+        exclude_if=lambda value: not value,
+        description="Holdings left out of the total because they did not convert to the total currency.",
+    )
     net_worth_treatment: AnnualizedIncomeScheduleNetWorthTreatment
     notes: list[str]
 
@@ -856,6 +862,13 @@ class PersonalReportPackageContext(BaseModel):
     end_date: date
     as_of_date: date
     currency: CurrencyCode
+    # The restricted-holdings scope of the figures (#2645). A document frozen before #2645
+    # has no value; it is not dumped, so the decision coordinates of such a document stay equal.
+    include_restricted: bool | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Restricted-holdings scope; null: not recorded.",
+    )
 
 
 class PersonalReportPackageStatementDispositionPolicy(BaseModel):

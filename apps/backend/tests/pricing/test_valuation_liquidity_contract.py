@@ -124,3 +124,56 @@ def test_AC_pricing_manualvaluation_12_scope_excludes_a_liability_with_its_asset
     included, excluded = split_net_worth_scope(components, include_restricted=True)
     assert included == components
     assert excluded == []
+
+
+async def test_AC_pricing_manualvaluation_13_excluded_line_errors_by_type(
+    db: AsyncSession, user_id, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC-pricing.manualvaluation.13: an excluded line keeps a pricing FX error as a typed warning; other errors raise.
+
+    A missing rate gives ``missing_fx_rate_excluded_holding``. Another pricing error
+    gives ``fx_conversion_failed_excluded_holding``. An error outside the pricing
+    family is not an FX gap, so it still raises (#2645).
+    """
+    import src.pricing.extension.fx as fx_module
+    from src.pricing.base.errors import NoObservationError, PricingError
+
+    db.add(
+        ManualValuationSnapshot(
+            user_id=user_id,
+            as_of_date=date(2026, 9, 30),
+            source="Employer RSU",
+            component_type=ManualValuationComponentType.RSU,
+            liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+            currency="USD",
+            value=Decimal("1000.00"),
+        )
+    )
+    await db.commit()
+
+    async def build(error: Exception) -> list[dict]:
+        async def fail(*_args, **_kwargs):
+            raise error
+
+        monkeypatch.setattr(fx_module, "convert_amount", fail)
+        excluded: list[dict] = []
+        await build_manual_valuation_lines(
+            db,
+            user_id,
+            as_of_date=date(2026, 10, 23),
+            target_currency="SGD",
+            include_restricted=False,
+            excluded_lines=excluded,
+        )
+        return excluded
+
+    missing = await build(NoObservationError("No FX rate available for USD/SGD on 2026-10-23"))
+    assert [(line["amount"], line["conversion_warning"]["type"]) for line in missing] == [
+        (None, "missing_fx_rate_excluded_holding")
+    ]
+    failed = await build(PricingError("invalid FX conversion boundary for USD/SGD"))
+    assert [(line["amount"], line["conversion_warning"]["type"]) for line in failed] == [
+        (None, "fx_conversion_failed_excluded_holding")
+    ]
+    with pytest.raises(RuntimeError, match="connection lost"):
+        await build(RuntimeError("connection lost"))

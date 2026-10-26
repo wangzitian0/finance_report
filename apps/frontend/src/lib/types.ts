@@ -222,6 +222,8 @@ export interface PersonalReportPackageDocumentViewModel {
     end_date: string;
     as_of_date: string;
     currency: string;
+    /** The restricted-holdings scope (#2645). Absent in a document frozen before #2645. */
+    include_restricted?: boolean | null;
   };
   contract: PersonalReportPackageContractResponse;
   readiness: PersonalReportPackageReadinessViewModel;

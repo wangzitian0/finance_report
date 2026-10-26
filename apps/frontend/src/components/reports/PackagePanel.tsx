@@ -255,7 +255,7 @@ export function PackagePanel({ filters }: { filters: ReportFilters }) {
       <PackageReadinessSection readiness={packageDocument.readiness} />
       <PackageInputManifestSection coverage={packageDocument.readiness.input_coverage} document={packageDocument} />
       <PackageFrameworkPolicySection policy={packageDocument.framework_policy} />
-      <PackageSectionCards sections={packageDocument.sections} />
+      <PackageSectionCards sections={packageDocument.sections} includeRestricted={packageDocument.context.include_restricted} />
       <PackageAnnualizedScheduleSection schedule={packageDocument.sections.annualized_income_long_term} />
       <PackageNotesSection notes={packageDocument.sections.notes} />
       <PackageTraceabilitySection

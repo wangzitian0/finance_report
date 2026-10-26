@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import normalize_currency_code
 from src.audit.money import to_money
 from src.observability import get_logger
-from src.pricing.base.errors import PricingError
+from src.pricing.base.errors import NoObservationError, PricingError
 from src.pricing.base.manual_valuation import (
     ManualValuationBasis,
     ManualValuationComponentType,
@@ -613,9 +613,10 @@ async def build_manual_valuation_lines(
     ``excluded_lines`` is an optional accumulator too. It receives one line in
     ``target_currency`` for each component that the scope excludes
     (``split_net_worth_scope``), so the caller can name what it left out (#2645).
-    The totals do not depend on an excluded line. Thus an FX miss on an excluded
-    component does not raise: its line has the amount None and a
-    ``conversion_warning`` that names the component and the currency pair.
+    The totals do not depend on an excluded line. Thus a pricing-family FX error
+    on an excluded component does not raise: its line has the amount None and a
+    ``conversion_warning`` that names the component, the currency pair and the
+    error type. Any other error still raises.
 
     Raises the pricing error family
     (:class:`~src.pricing.base.errors.PricingError`) when a required FX rate
@@ -664,7 +665,13 @@ async def build_manual_valuation_lines(
                     {
                         **_manual_valuation_line(component, None),
                         "conversion_warning": {
-                            "type": "missing_fx_rate_excluded_holding",
+                            # NoObservationError: no stored or fetched rate. Any other
+                            # pricing error: the rate exists but the conversion failed.
+                            "type": (
+                                "missing_fx_rate_excluded_holding"
+                                if isinstance(exc, NoObservationError)
+                                else "fx_conversion_failed_excluded_holding"
+                            ),
                             "component_type": component.component_type,
                             "source": component.source,
                             "currency": component.currency.upper(),

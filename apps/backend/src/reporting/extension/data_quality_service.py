@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Literal
@@ -13,6 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction import BankStatementStatus, StatementSummary
 from src.ledger import JournalEntry, JournalEntryStatus
 from src.observability import get_logger
+
+# The FX error family arrives through the fx_gateway seam. NoObservationError (no rate)
+# is the one pricing error class that this module names directly.
+from src.pricing import NoObservationError
 from src.reconciliation import get_reconciliation_stats
 from src.reporting.base.data_quality_types import (
     InvariantStatus,
@@ -21,8 +26,9 @@ from src.reporting.base.data_quality_types import (
     QualityActionItem,
     QualityGrade,
 )
+from src.reporting.extension import fx_gateway
 from src.reporting.extension.diagnostics import run_balance_sheet_diagnostics
-from src.reporting.extension.reporting_calc import _normalize_currency
+from src.reporting.extension.reporting_calc import ReportError, _normalize_currency
 
 __all__ = [
     "compute_personal_data_quality",
@@ -41,6 +47,14 @@ def _shift_months(year: int, month: int, delta: int) -> tuple[int, int]:
     return new_year, new_month
 
 
+@dataclass(frozen=True)
+class FxGap:
+    """An FX error of the full scope that the equation check worked around (#2645)."""
+
+    message: str
+    rate_missing: bool
+
+
 async def compute_personal_data_quality(
     db: AsyncSession,
     user_id: UUID,
@@ -53,12 +67,31 @@ async def compute_personal_data_quality(
     report_currency = _normalize_currency(currency)
 
     # 1. Equation Invariant
-    diag_result = await run_balance_sheet_diagnostics(
-        db,
-        user_id,
-        as_of_date=report_date,
-        currency=report_currency,
-    )
+    # The default (full) scope converts each restricted and illiquid valuation. When one has
+    # no FX rate, the check runs again without restricted holdings (#2645). The result of the
+    # equation does not depend on the scope: a manual valuation adds the same amount to the
+    # assets or liabilities and to net_worth_adjustment_gain_loss. The FX gap becomes an
+    # action item, so the page stays available. Only a pricing-family FX error falls back;
+    # any other error, and an error of the second run, fails as before.
+    fx_gap: FxGap | None = None
+    try:
+        diag_result = await run_balance_sheet_diagnostics(
+            db,
+            user_id,
+            as_of_date=report_date,
+            currency=report_currency,
+        )
+    except ReportError as exc:
+        if not isinstance(exc.__cause__, fx_gateway.FxRateError):
+            raise
+        fx_gap = FxGap(message=str(exc), rate_missing=isinstance(exc.__cause__, NoObservationError))
+        diag_result = await run_balance_sheet_diagnostics(
+            db,
+            user_id,
+            as_of_date=report_date,
+            currency=report_currency,
+            include_restricted=False,
+        )
     equation_healthy = diag_result.is_balanced
     equation_status = InvariantStatus(
         is_healthy=equation_healthy,
@@ -307,6 +340,31 @@ async def compute_personal_data_quality(
                 score_boost=40,
                 action_type="RESOLVE_EQUATION",
                 action_url="/journal",
+            )
+        )
+
+    if fx_gap is not None:
+        action_items.append(
+            QualityActionItem(
+                id="resolve_valuation_fx_rate",
+                priority="P1",
+                title=(
+                    "A Restricted Holding Has No FX Rate"
+                    if fx_gap.rate_missing
+                    else f"A Restricted Holding Did Not Convert to {report_currency}"
+                ),
+                description=(
+                    f"The full net worth cannot convert a restricted or illiquid valuation: {fx_gap.message}. "
+                    + (
+                        "The rate sync adds the rate; "
+                        if fx_gap.rate_missing
+                        else "The stored rate does not convert this amount; "
+                    )
+                    + f"you can also record the valuation in {report_currency}."
+                ),
+                score_boost=0,
+                action_type="RESOLVE_FX_RATE",
+                action_url="/portfolio?panel=evidence",
             )
         )
 
