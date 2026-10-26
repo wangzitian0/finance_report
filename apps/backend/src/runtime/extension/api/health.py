@@ -114,7 +114,6 @@ async def health_check(
         }
         if tier is not None:
             content["tier"] = tier.value
-            content["vault_secrets"] = Bootloader.vault_secrets_snapshot()
         return JSONResponse(status_code=200 if all_healthy else 503, content=content)
     except Exception as exc:  # noqa: BLE001 - health must always return a verdict
         logger.error(

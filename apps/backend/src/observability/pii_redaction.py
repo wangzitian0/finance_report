@@ -1,19 +1,15 @@
-"""PII (Personally Identifiable Information) redaction service.
+"""PII (Personally Identifiable Information) detector.
 
-Detects and redacts sensitive information before sending to external AI APIs.
-Focuses on Singapore-specific PII patterns: NRIC, bank account numbers, addresses.
+Finds sensitive information that audit text and extraction's CSV path must not
+pass on. Focuses on Singapore-specific PII patterns: NRIC, bank account
+numbers, phone numbers, email addresses, postal codes.
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 from enum import Enum
 from typing import NamedTuple
-
-from src.observability.logger import get_logger
-
-logger = get_logger(__name__)
 
 
 class PIIType(Enum):
@@ -29,13 +25,6 @@ class PIIMatch(NamedTuple):
     original: str
     start: int
     end: int
-
-
-@dataclass
-class RedactionResult:
-    redacted_text: str
-    matches: list[PIIMatch]
-    redaction_count: int
 
 
 # Singapore NRIC/FIN: S/T/F/G/M followed by 7 digits and a letter
@@ -89,37 +78,3 @@ def detect_pii(text: str) -> list[PIIMatch]:
             )
 
     return matches
-
-
-def redact_text(text: str, replacement: str = "[REDACTED]") -> RedactionResult:
-    _ = replacement
-    matches = detect_pii(text)
-
-    if not matches:
-        return RedactionResult(redacted_text=text, matches=[], redaction_count=0)
-
-    sorted_matches = sorted(matches, key=lambda m: m.start, reverse=True)
-
-    redacted = text
-    for match in sorted_matches:
-        pii_label = f"[{match.pii_type.value.upper()}]"
-        redacted = redacted[: match.start] + pii_label + redacted[match.end :]
-
-    logger.info(
-        "PII redaction completed",
-        redaction_count=len(matches),
-        pii_types=[m.pii_type.value for m in matches],
-    )
-
-    return RedactionResult(
-        redacted_text=redacted,
-        matches=matches,
-        redaction_count=len(matches),
-    )
-
-
-def mask_account_number(account_number: str, visible_digits: int = 4) -> str:
-    if len(account_number) <= visible_digits:
-        return account_number
-    masked_len = len(account_number) - visible_digits
-    return "*" * masked_len + account_number[-visible_digits:]

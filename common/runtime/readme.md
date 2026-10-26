@@ -186,8 +186,8 @@ affected package before it can land.
 
 ## Boundaries with neighbouring packages
 
-- **`config`** — owns the env-var *mechanism*: the three-layer SSOT
-  (`secrets.ctmpl` ↔ `config.py` ↔ `.env.example`), the pydantic `Settings`
+- **`config`** — owns the env-var *mechanism*: the two-layer SSOT
+  (`config.py` ↔ `.env.example`), the pydantic `Settings`
   reader, and schema validation — shared by every package. `runtime` owns the
   *dependency layer* on top: the **manifest is the SSOT for which env vars are
   external-dependency env vars** (`Dependency.env_vars`, bound to `Settings`),

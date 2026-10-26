@@ -76,10 +76,9 @@ published* without a database.
 
 ## Running the relay (wired at the app composition root, #1642)
 
-`run_once(session)` drains one batch; `run_forever(session_factory)` is the shape
-of a durable poll loop. The durable worker is wired at the **app composition
-root** (`apps/backend/src/main.py`), which is also where subscription happens —
-the pattern every consumer package copies:
+`run_once(session)` drains one batch. The durable worker is wired at the
+**app composition root** (`apps/backend/src/main.py`), which is also where
+subscription happens — the pattern every consumer package copies:
 
 1. the composition root builds one shared `SubscriberRegistry`;
 2. each consumer package publishes a wiring helper the root calls with that

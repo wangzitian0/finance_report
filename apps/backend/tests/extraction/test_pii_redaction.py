@@ -1,8 +1,6 @@
 from src.observability.pii_redaction import (
     PIIType,
     detect_pii,
-    mask_account_number,
-    redact_text,
 )
 
 
@@ -64,47 +62,5 @@ class TestDetectPII:
         sensitive_matches = [m for m in matches if m.pii_type in (PIIType.NRIC, PIIType.EMAIL)]
         assert len(sensitive_matches) == 0
 
-
-class TestRedactText:
-    def test_redact_nric(self):
-        text = "Customer NRIC: S1234567A"
-        result = redact_text(text)
-        assert "S1234567A" not in result.redacted_text
-        assert "[NRIC]" in result.redacted_text
-        assert result.redaction_count == 1
-
-    def test_redact_multiple_pii_types(self):
-        text = "NRIC: S1234567A, Email: test@example.com"
-        result = redact_text(text)
-        assert "S1234567A" not in result.redacted_text
-        assert "test@example.com" not in result.redacted_text
-        assert "[NRIC]" in result.redacted_text
-        assert "[EMAIL]" in result.redacted_text
-        assert result.redaction_count == 2
-
-    def test_no_redaction_needed(self):
-        text = "Simple transaction: SALARY 5000.00"
-        result = redact_text(text)
-        assert result.redacted_text == text
-        assert result.redaction_count == 0
-
-    def test_preserves_non_pii_content(self):
-        text = "Payment to John, NRIC S1234567A, amount 500.00"
-        result = redact_text(text)
-        assert "Payment to John" in result.redacted_text
-        assert "amount 500.00" in result.redacted_text
-        assert "S1234567A" not in result.redacted_text
-
-
-class TestMaskAccountNumber:
-    def test_mask_long_account(self):
-        assert mask_account_number("1234567890") == "******7890"
-
-    def test_mask_short_account(self):
-        assert mask_account_number("1234") == "1234"
-
-    def test_mask_custom_visible_digits(self):
-        assert mask_account_number("1234567890", visible_digits=6) == "****567890"
-
-    def test_mask_empty_string(self):
-        assert mask_account_number("") == ""
+    def test_empty_text_has_no_pii(self):
+        assert detect_pii("") == []
