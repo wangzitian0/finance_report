@@ -2632,6 +2632,27 @@ def _is_compatible_public_change(record: dict[str, object]) -> bool:
     return cursor == len(before_members)
 
 
+def _has_computed_empty_consumers(
+    change: dict[str, object], report: dict[str, object]
+) -> bool:
+    """Return true when the consumer graph was computed and has no consumer.
+
+    A removed symbol with no consumer has nothing to migrate. A missing graph,
+    a missing row, a malformed row or a recorded error is not a computed graph.
+    """
+    if change["kind"] != "removed-public-symbol" or report.get("errors"):
+        return False
+    affected = report.get("affected_consumers")
+    if not isinstance(affected, dict):
+        return False
+    row = affected.get(change.get("package"))
+    return (
+        isinstance(row, dict)
+        and row.get("direct") == []
+        and row.get("transitive") == []
+    )
+
+
 def evaluate_boundary_compatibility(
     report: dict[str, object],
     *,
@@ -2742,15 +2763,20 @@ def evaluate_boundary_compatibility(
         if consumer_proofs.get(consumer, {}).get("result") != "passed"
         or consumer_proofs.get(consumer, {}).get("strength") != "exact"
     )
-    migration_required = any(
-        change["kind"]
+    migrations = [
+        change
+        for change in breaking
+        if change["kind"]
         in {
             "removed-public-symbol",
             "changed-public-signature",
             "removed-openapi-operation",
             "changed-openapi-operation",
         }
-        for change in breaking
+    ]
+    migration_required = bool(migrations)
+    consumer_required = any(
+        not _has_computed_empty_consumers(change, report) for change in migrations
     )
     local_violation = any(
         change["kind"]
@@ -2763,7 +2789,9 @@ def evaluate_boundary_compatibility(
     )
     status = (
         "blocked"
-        if local_violation or (migration_required and (unproved or not consumers))
+        if local_violation
+        or (migration_required and unproved)
+        or (consumer_required and not consumers)
         else "compatible"
     )
     return {
