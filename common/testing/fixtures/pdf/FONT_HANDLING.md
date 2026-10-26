@@ -7,7 +7,6 @@ The implementation lives in `generators/font_utils.py`:
 
 - `register_chinese_fonts()`
 - `get_safe_font()`
-- `can_display_chinese()`
 
 Quick check:
 

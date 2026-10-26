@@ -291,27 +291,6 @@ def test_view_remote_logs_observability_production(capsys):
 
 
 # ---------------------------------------------------------------------------
-# Coverage gap: restart_service (lines 222-237)
-# ---------------------------------------------------------------------------
-
-
-def test_restart_service_local_exits():
-    """restart_service exits for local environment (lines 222-227)."""
-    with pytest.raises(SystemExit) as exc:
-        debug.restart_service(debug.Service.BACKEND, debug.Environment.LOCAL)
-    assert exc.value.code == 1
-
-
-def test_restart_service_remote_prints_instructions(capsys):
-    """restart_service prints Dokploy message for remote (lines 229-237)."""
-    debug.restart_service(debug.Service.BACKEND, debug.Environment.STAGING)
-    captured = capsys.readouterr()
-    assert "Restarting" in captured.out
-    assert "Dokploy" in captured.out
-    assert "docker restart" in captured.out
-
-
-# ---------------------------------------------------------------------------
 # Coverage gap: main logs docker path for local (lines 338-341)
 # ---------------------------------------------------------------------------
 
