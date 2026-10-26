@@ -769,8 +769,11 @@ jobs:
 
   financial-benchmark:
     name: Financial Benchmark
-    needs: [build-and-deploy, provider-gate, ai-ocr-gate]
-    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.provider-gate.result == 'success' && needs.ai-ocr-gate.result == 'success' }}
+    # Runs beside the AI/OCR gate, not after it (#2688): the benchmark reads staging and
+    # needs no output of the gate. It keeps the gate's own run conditions, so it still
+    # runs only when the AI/OCR gate runs, and post-merge-delivery fails when either fails.
+    needs: [build-and-deploy, provider-gate]
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' && needs.provider-gate.result == 'success' }}
     # benchmark.yml publishes the report to GitHub Pages. A caller must grant what the called job requests.
     permissions:
       contents: write
