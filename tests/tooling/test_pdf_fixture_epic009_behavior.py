@@ -229,7 +229,7 @@ def test_AC9_4_readmes_document_analysis_generation_templates_and_examples() -> 
 
 
 def test_AC9_5_git_contract_tracks_safe_sources_only() -> None:
-    """AC9.5.1 AC9.5.2 AC9.5.3 AC9.5.4 AC9.5.5: git contract ignores sensitive PDFs and keeps safe tooling committed."""
+    """AC9.5.1 AC9.5.2 AC9.5.3 AC9.5.4: git contract ignores sensitive PDFs and keeps safe tooling committed."""
     gitignore = (PDF_FIXTURES / ".gitignore").read_text()
 
     assert "input/**/*.pdf" in gitignore
@@ -245,7 +245,6 @@ def test_AC9_5_git_contract_tracks_safe_sources_only() -> None:
         "generators/mari_generator.py",
         "analyzers/pdf_analyzer.py",
         "analyzers/template_extractor.py",
-        "validators/pdf_validator.py",
     ):
         assert (PDF_FIXTURES / relative_path).is_file()
 

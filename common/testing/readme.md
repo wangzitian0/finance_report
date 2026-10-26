@@ -464,7 +464,6 @@ and format metadata.
 | `common/testing/fixtures/pdf/generators/` | Source-specific PDF generators |
 | `common/testing/fixtures/pdf/templates/*.yaml` | Committed format templates |
 | `common/testing/fixtures/pdf/data/fake_data.py` | Fictional transaction data |
-| `common/testing/fixtures/pdf/validators/pdf_validator.py` | Local structure validation |
 | `common/testing/fixtures/pdf/input/` | Local real PDFs; gitignored |
 | `common/testing/fixtures/pdf/output/` | Generated PDFs; gitignored |
 | `common/testing/fixtures/pdf/generated/` | Committed generated PDF + expected-JSON pairs |
@@ -514,7 +513,7 @@ contract and generator together.
 Can be committed:
 
 - `common/testing/fixtures/pdf/templates/*.yaml`
-- analyzer, generator, validator, fake-data, and wrapper code
+- analyzer, generator, fake-data, and wrapper code
 - thin local README files that point here
 
 Cannot be committed:
@@ -553,6 +552,6 @@ the platform must use fallback text.
 | AC definitions | [`common/testing/contract.py`](../../common/testing/contract.py) roadmap groups 1-8 (was EPIC-009; the EPIC file was deleted by #1719) |
 | Analyzer, sanitizer, templates, generator registration, gitignore, and docs | `tests/tooling/test_pdf_fixture_epic009_behavior.py` |
 | Source-specific generated PDFs, dates, and balances | `tests/tooling/test_pdf_fixture_parseable.py` |
-| Sanitized real-format contracts and generated-PDF parity checks | `tests/tooling/test_pdf_fixture_real_format_contract.py` |
-| CLI branches and validator behavior | `tests/tooling/test_pdf_fixture_tooling_coverage.py` |
+| Sanitized real-format contracts in the templates | `tests/tooling/test_pdf_fixture_real_format_contract.py` |
+| CLI branches and analyzer behavior | `tests/tooling/test_pdf_fixture_tooling_coverage.py` |
 | E2E consumers | `tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `tests/e2e/test_four_asset_net_worth_golden_path.py`, `tests/e2e/test_personal_financial_report_package.py` |

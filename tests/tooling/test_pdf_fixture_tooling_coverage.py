@@ -27,7 +27,6 @@ from common.testing.fixtures.pdf.data.fake_data import (
     generate_pingan_transactions,
 )
 from common.testing.fixtures.pdf.generators import font_utils
-from common.testing.fixtures.pdf.validators.pdf_validator import PDFValidator
 
 
 class _FakePdf:
@@ -105,108 +104,6 @@ def test_AC9_1_3_template_extractor_emits_source_table_schema(
         template["tables"]["transaction_details"]["columns"][0]["name"]
         == expected_first_column
     )
-
-
-def test_AC9_3_1_validator_reports_page_table_and_key_phrase_findings(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC9.3.1: PDF validator reports structural mismatches without throwing."""
-    page = SimpleNamespace(
-        width=612.0,
-        height=900.0,
-        extract_tables=lambda: [[["Wrong", "Header"], ["v1", "v2"]]],
-        extract_text=lambda: "Account Summary",
-    )
-    monkeypatch.setattr(
-        "common.testing.fixtures.pdf.validators.pdf_validator.pdfplumber.open",
-        lambda _path: _FakePdf([page]),
-    )
-
-    result = PDFValidator().validate_structure(
-        Path("generated.pdf"),
-        {
-            "page": {"width": 595.27, "height": 841.89},
-            "tables": {
-                "transaction_details": {
-                    "key_phrase": "Transaction Details",
-                    "columns": [
-                        {"name": "Date"},
-                        {"name": "Description"},
-                        {"name": "Amount"},
-                    ],
-                }
-            },
-        },
-    )
-
-    assert result["success"] is True
-    assert any("Page width mismatch" in warning for warning in result["warnings"])
-    assert any("Column count mismatch" in warning for warning in result["warnings"])
-    assert any(
-        "Key phrase 'Transaction Details' not found" in warning
-        for warning in result["warnings"]
-    )
-
-
-def test_AC9_3_1_validator_fails_empty_and_unreadable_pdfs(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC9.3.1: Empty or unreadable PDFs fail validation explicitly."""
-    monkeypatch.setattr(
-        "common.testing.fixtures.pdf.validators.pdf_validator.pdfplumber.open",
-        lambda _path: _FakePdf([]),
-    )
-    empty_result = PDFValidator().validate_structure(Path("empty.pdf"), {})
-    assert empty_result["success"] is False
-    assert empty_result["errors"] == ["PDF has no pages"]
-
-    def raise_open(_path: Path) -> object:
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(
-        "common.testing.fixtures.pdf.validators.pdf_validator.pdfplumber.open",
-        raise_open,
-    )
-    bad_result = PDFValidator().validate_structure(Path("bad.pdf"), {})
-    assert bad_result["success"] is False
-    assert bad_result["errors"] == ["Validation error: boom"]
-
-
-def test_AC9_3_1_validator_compares_real_and_generated_structure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC9.3.1: Local real/generated comparison surfaces page and table differences."""
-    real_page = SimpleNamespace(extract_tables=lambda: [[["Date"]]])
-    generated_page = SimpleNamespace(extract_tables=lambda: [])
-    opened = iter([_FakePdf([real_page, real_page]), _FakePdf([generated_page])])
-    monkeypatch.setattr(
-        "common.testing.fixtures.pdf.validators.pdf_validator.pdfplumber.open",
-        lambda _path: next(opened),
-    )
-
-    result = PDFValidator().compare_structure(Path("real.pdf"), Path("generated.pdf"))
-
-    assert result["success"] is True
-    assert "Page count: real=2, generated=1" in result["differences"]
-    assert "Table count: real=1, generated=0" in result["differences"]
-
-
-def test_AC9_3_1_validator_reports_compare_errors(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC9.3.1: Local PDF structure comparison reports parser failures."""
-
-    def raise_open(_path: Path) -> object:
-        raise RuntimeError("compare failed")
-
-    monkeypatch.setattr(
-        "common.testing.fixtures.pdf.validators.pdf_validator.pdfplumber.open",
-        raise_open,
-    )
-
-    result = PDFValidator().compare_structure(Path("real.pdf"), Path("generated.pdf"))
-
-    assert result == {"success": False, "differences": [], "error": "compare failed"}
 
 
 def test_AC9_2_5_font_helpers_choose_safe_fonts(
