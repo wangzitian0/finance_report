@@ -111,8 +111,8 @@ Full observability reference: [common/observability/observability.md](../../comm
 
 ## 🛡️ Environment Variable Rules
 
-**Three-layer SSOT** (all three must stay in sync):
-- `secrets.ctmpl` → Staging/Prod required keys (Vault)
+**Env-key SSOT** (`tools/check_env_keys.py` checks the last two against each other):
+- `secrets.ctmpl` → Staging/Prod required keys (Vault; owned by infra2, fed by `common/runtime/required-env.generated.json`)
 - `.env.example` → Complete variable documentation
 - `apps/backend/src/config.py` → Type definitions + defaults
 

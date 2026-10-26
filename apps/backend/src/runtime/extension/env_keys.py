@@ -86,9 +86,9 @@ def check_consistency(field_keys: dict[str, frozenset[str]], env_example_keys: s
     """
     accepted_env_names = set().union(*field_keys.values())
 
-    # Every Settings field MUST be documented in .env.example. Report one valid
-    # key per undocumented field.
-    undocumented = {min(keys) for keys in field_keys.values() if not keys & env_example_keys}
+    # Every Settings field MUST be documented in .env.example. Report all env
+    # names of an undocumented field ("ENV/ENVIRONMENT" for an aliased one).
+    undocumented = {"/".join(sorted(keys)) for keys in field_keys.values() if not keys & env_example_keys}
 
     # Keys in .env.example NOT in Settings (information only; might be frontend keys).
     suspicious_extra_keys = {
@@ -139,7 +139,9 @@ def generate_fix_suggestions(result: dict) -> None:
     """Generate fix suggestions."""
 
     if result["undocumented_in_example"]:
-        print("\n[FIX] Add to .env.example:")
+        # The backend block of .env.example is generated from Settings.
+        print("\n[FIX] Regenerate the backend block of .env.example:")
+        print("    python tools/generate_env_reference.py")
         print("-" * 40)
         for key in sorted(result["undocumented_in_example"]):
             print(f"{key}=")

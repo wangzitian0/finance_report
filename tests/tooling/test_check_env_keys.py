@@ -207,14 +207,14 @@ class TestCheckConsistency:
         assert check_consistency(field_keys, {"ENVIRONMENT"})["is_consistent"] is True
         assert check_consistency(field_keys, {"ENV"})["is_consistent"] is True
 
-    def test_an_aliased_field_with_no_documented_alias_is_reported_once_by_a_valid_key(
+    def test_an_aliased_field_with_no_documented_alias_is_reported_with_every_name(
         self,
     ):
         field_keys = {"environment": frozenset({"ENV", "ENVIRONMENT"})}
 
         result = check_consistency(field_keys, set())
 
-        assert result["undocumented_in_example"] == {"ENV"}
+        assert result["undocumented_in_example"] == {"ENV/ENVIRONMENT"}
 
     def test_ignores_next_public_keys_in_suspicious(self):
         field_keys = {"database_url": frozenset({"DATABASE_URL"})}
@@ -303,6 +303,7 @@ class TestGenerateFixSuggestions:
 
         captured = capsys.readouterr()
         assert ".env.example" in captured.out
+        assert "tools/generate_env_reference.py" in captured.out
         assert "DEBUG=" in captured.out
 
 
@@ -332,10 +333,15 @@ class TestMainFunction:
         assert self._run(monkeypatch, tmp_path) == 1
 
     def test_main_with_diff_flag_lists_keys_the_example_has_beyond_settings(
-        self, monkeypatch, capsys
+        self, monkeypatch, tmp_path, capsys
     ):
-        assert self._run(monkeypatch, get_project_root(), "--diff") == 0
-        assert "OPENPANEL_SCRIPT_URL" in capsys.readouterr().out
+        documented = "".join(
+            f"{min(keys)}=\n" for keys in settings_env_key_sets().values()
+        )
+        (tmp_path / ".env.example").write_text(documented + "EXTRA_FRONTEND_KEY=1\n")
+
+        assert self._run(monkeypatch, tmp_path, "--diff") == 0
+        assert "EXTRA_FRONTEND_KEY" in capsys.readouterr().out
 
     def test_main_with_fix_flag_prints_the_undocumented_keys(
         self, monkeypatch, tmp_path, capsys
@@ -343,4 +349,6 @@ class TestMainFunction:
         (tmp_path / ".env.example").write_text("")
 
         assert self._run(monkeypatch, tmp_path, "--fix") == 1
-        assert "DEBUG=" in capsys.readouterr().out
+        output = capsys.readouterr().out
+        assert "tools/generate_env_reference.py" in output
+        assert "DEBUG=" in output

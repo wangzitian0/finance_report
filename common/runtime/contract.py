@@ -97,7 +97,7 @@ CONTRACT = PackageContract(
         Invariant(
             id="env-key-extraction-robust",
             statement="Parsing env keys from a missing .env.example yields an empty set with a warning, not an exception, so the consistency check reports every Settings key as undocumented and exits 1 instead of crashing.",
-            test="tests/tooling/test_check_env_keys.py::TestMainFunction::test_main_exits_1_when_the_example_is_missing",
+            test="tests/tooling/test_check_env_keys.py::test_main_exits_1_when_the_example_is_missing",
         ),
     ],
     roadmap=[

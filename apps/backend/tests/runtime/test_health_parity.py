@@ -145,27 +145,34 @@ def test_every_tier_declaration_is_smoke_assertable(tier: EnvTier) -> None:
     assert unprobed == []
 
 
-# ── #2684: the body carries verdict-bearing fields only ──
+# ── #2684: the body carries exactly the pinned fields ──
 # The secrets-file freshness snapshot (#1828) was never part of the verdict, no
-# consumer read it, and it turned stale one hour after each deploy. It is gone;
-# this pins the body so an informational field cannot return unnoticed.
+# consumer read it, and it counted stale one hour after the last write of the
+# secrets file. It is gone; this pins the body keys so an informational field
+# cannot return unnoticed.
 
-_LIVENESS_BODY_KEYS = {"status", "timestamp", "version", "git_sha", "checks", "observability", "sdk_environment_tier"}
+_LIVENESS_BODY_KEYS = {
+    "status",
+    "timestamp",
+    "version",
+    "git_sha",
+    "checks",
+    "observability",
+    "sdk_environment_tier",
+}
 
 
 @pytest.mark.parametrize(
     ("path", "expected_keys"),
-    [("/health", _LIVENESS_BODY_KEYS), ("/health?full=1", _LIVENESS_BODY_KEYS | {"tier"})],
+    [
+        ("/health", _LIVENESS_BODY_KEYS),
+        ("/health?full=1", _LIVENESS_BODY_KEYS | {"tier"}),
+    ],
 )
-async def test_health_body_has_no_secrets_file_freshness_field(
-    client: AsyncClient, monkeypatch, tmp_path, path: str, expected_keys: set[str]
+async def test_health_body_carries_only_the_pinned_fields(
+    client: AsyncClient, monkeypatch, path: str, expected_keys: set[str]
 ) -> None:
-    from src import boot as boot_module
-
     _stub_probes(monkeypatch)
-    secrets_file = tmp_path / ".env"
-    secrets_file.write_text("PLACEHOLDER=1\n", encoding="utf-8")
-    monkeypatch.setattr(boot_module, "VAULT_SECRETS_FILE_PATH", str(secrets_file))
 
     response = await client.get(path)
 
