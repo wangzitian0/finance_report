@@ -47,6 +47,5 @@ export {
   divideAmount,
   compareAmounts,
   isAmountZero,
-  formatCurrency,
   formatCurrencyLocale,
 } from "./format";

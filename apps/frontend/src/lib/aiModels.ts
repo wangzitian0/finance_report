@@ -5,8 +5,6 @@ export interface AiModelInfo {
   id: string;
   name?: string;
   is_free: boolean;
-  input_modalities: string[];
-  pricing: Record<string, string>;
 }
 
 export interface AiModelCatalogViewModel {
@@ -22,8 +20,6 @@ export function toAiModelCatalogViewModel(
     id: m.id,
     name: m.id,
     is_free: m.is_free,
-    input_modalities: m.modalities,
-    pricing: {},
   }));
 
   return {

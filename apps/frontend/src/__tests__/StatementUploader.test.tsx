@@ -33,15 +33,11 @@ const baseModels = [
     id: "google/gemini-3-flash-preview",
     name: "Gemini 3 Flash",
     is_free: true,
-    input_modalities: ["image"],
-    pricing: {},
   },
   {
     id: "qwen/qwen-2.5-vl-7b-instruct:free",
     name: "Qwen 2.5 VL 7B",
     is_free: true,
-    input_modalities: ["image"],
-    pricing: {},
   },
 ];
 

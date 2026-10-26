@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest"
 import {
   anchorFromIdentifiers,
   anchorFromTypedIdentifier,
-  lineageUrl,
   nodeDisplayTitle,
   nodeLabel,
   nodeSourceHref,
@@ -44,18 +43,6 @@ describe("lineage helpers (EPIC-022 AC22.3.4)", () => {
     })
     expect(anchorFromIdentifiers([])).toBeNull()
     expect(anchorFromIdentifiers(["nope"])).toBeNull()
-  })
-
-  it("lineageUrl encodes the anchor and traversal params", () => {
-    const url = lineageUrl({ entity_type: "journal_line", entity_id: UUID, node_kind: "ledger_line" })
-    expect(url).toContain("/api/evidence/lineage?")
-    expect(url).toContain("entity_type=journal_line")
-    expect(url).toContain(`entity_id=${UUID}`)
-    expect(url).toContain("node_kind=ledger_line")
-    expect(url).toContain("direction=both")
-    expect(url).toContain("max_depth=6")
-    // node_kind is omitted when absent.
-    expect(lineageUrl({ entity_type: "journal_line", entity_id: UUID })).not.toContain("node_kind")
   })
 
   it("nodeLabel renders a typed identifier label", () => {

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AdvisorBrief, safeAdvisorHref } from "@/components/advisor/AdvisorBrief";
+import routeMap from "@/lib/route-map.json";
 import type { AdvisorSuggestion } from "@/lib/types";
 
 vi.mock("next/link", () => ({
@@ -75,11 +76,17 @@ describe("AdvisorBrief", () => {
       "/reports",
       "/upload",
       "/portfolio?panel=prices",
-      "/assets",
+      "/portfolio",
     ]);
     expect(safeAdvisorHref("https://evil.example/review")).toBe("/");
+    expect(safeAdvisorHref("//evil.example/reports")).toBe("/");
+    expect(safeAdvisorHref("/ping-pong")).toBe("/");
+    expect(safeAdvisorHref("/portfolio/AAPL")).toBe("/");
     expect(safeAdvisorHref("/portfolio?panel=prices&source=advisor")).toBe("/portfolio?panel=prices");
+    expect(safeAdvisorHref("/portfolio?panel=evil")).toBe("/portfolio");
     expect(safeAdvisorHref("/reconciliation?tab=review-queue")).toBe("/reconciliation?tab=review-queue");
+    expect(safeAdvisorHref("/reports/")).toBe("/reports");
+    expect(safeAdvisorHref("/events#top")).toBe("/upload");
     expect(within(cards[0]).getByRole("link", { name: "Ask about this" })).toHaveAttribute(
       "href",
       expect.stringContaining("/chat?prompt="),
@@ -111,6 +118,27 @@ describe("AdvisorBrief", () => {
       ).toBe(false);
     } finally {
       consoleError.mockRestore();
+    }
+  });
+});
+
+describe("safeAdvisorHref follows route-map.json", () => {
+  const redirects = routeMap.routes.filter(
+    (route) => route.state === "redirect" && !route.path.includes("[") && !route.into?.includes(":"),
+  );
+
+  it("sends every static redirect of the route map to its target", () => {
+    expect(redirects.length).toBeGreaterThan(20);
+    for (const route of redirects) {
+      expect(safeAdvisorHref(route.path), route.path).toBe(route.into);
+    }
+  });
+
+  it("keeps every target page of the route map", () => {
+    const targets = routeMap.routes.filter((route) => route.state === "target" && !route.path.includes("["));
+    expect(targets.length).toBeGreaterThan(5);
+    for (const route of targets) {
+      expect(safeAdvisorHref(route.path), route.path).toBe(route.path);
     }
   });
 });

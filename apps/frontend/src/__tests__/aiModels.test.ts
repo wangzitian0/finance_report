@@ -86,21 +86,17 @@ describe("fetchAiModels", () => {
         expect(result.default_model).toBe("google/gemini-flash");
         // fallback_models are the remaining ids.
         expect(result.fallback_models).toEqual(["anthropic/claude-3"]);
-        // Each model is mapped: name = id, input_modalities from modalities, empty pricing.
+        // Each model is mapped: name = id.
         expect(result.models).toEqual([
             {
                 id: "google/gemini-flash",
                 name: "google/gemini-flash",
                 is_free: true,
-                input_modalities: ["text", "image"],
-                pricing: {},
             },
             {
                 id: "anthropic/claude-3",
                 name: "anthropic/claude-3",
                 is_free: false,
-                input_modalities: ["text"],
-                pricing: {},
             },
         ]);
     });
