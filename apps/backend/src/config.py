@@ -416,12 +416,6 @@ class Settings(BaseSettings):
         description="Chat completions path appended to the AI base URL.",
         json_schema_extra={"group": "AI Provider"},
     )
-    ai_layout_parsing_path: str = Field(
-        default="/layout_parsing",
-        validation_alias="AI_LAYOUT_PARSING_PATH",
-        description="Layout-parsing path appended to the AI base URL.",
-        json_schema_extra={"group": "AI Provider"},
-    )
     large_model: str = Field(
         default=_SDK_LLM_DEFAULTS.large_model,
         validation_alias="LARGE_MODEL",
@@ -862,7 +856,6 @@ class Settings(BaseSettings):
             small_model=self.small_model,
             multimodal_model=self.multimodal_model,
             chat_completions_path=self.ai_chat_completions_path,
-            layout_parsing_path=self.ai_layout_parsing_path,
             json_timeout_seconds=self.ai_json_timeout_seconds,
             json_max_tokens=self.ai_json_max_tokens,
             json_disable_thinking=self.ai_json_disable_thinking,

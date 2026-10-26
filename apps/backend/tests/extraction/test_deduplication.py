@@ -1,7 +1,7 @@
 """Tests for deduplication service.
 
 GIVEN: DeduplicationService for managing Layer 2 deduplicated records
-WHEN: Creating/upserting atomic transactions and positions
+WHEN: Creating/upserting atomic transactions
 THEN: Hash-based deduplication works correctly with source document tracking
 """
 
@@ -215,48 +215,6 @@ class TestDeduplicationService:
         assert first_deposit == _hash(occurrence_index=0)
         assert second_deposit == _hash(occurrence_index=1)
 
-    def test_calculate_position_hash(self):
-        """GIVEN: Position details with broker
-        WHEN: Calculating position hash
-        THEN: SHA256 hash is generated from canonical components (covers lines 54-61)"""
-        user_id = uuid4()
-        snapshot_date = date(2024, 1, 31)
-        asset_identifier = "AAPL"
-        broker = "Interactive Brokers"
-
-        service = DeduplicationService()
-        hash_result = service.calculate_position_hash(user_id, snapshot_date, asset_identifier, broker)
-
-        # Verify hash format
-        assert len(hash_result) == 64  # SHA256 produces 64-char hex
-        assert all(c in "0123456789abcdef" for c in hash_result)
-
-        # Verify deterministic
-        hash_result2 = service.calculate_position_hash(user_id, snapshot_date, asset_identifier, broker)
-        assert hash_result == hash_result2
-
-        # Verify normalization (case-insensitive asset + broker)
-        hash_normalized = service.calculate_position_hash(user_id, snapshot_date, "aapl", "INTERACTIVE BROKERS")
-        assert hash_result == hash_normalized
-
-    def test_calculate_position_hash_without_broker(self):
-        """GIVEN: Position details without broker
-        WHEN: Calculating position hash
-        THEN: Hash is generated with empty string for broker (covers lines 54-61)"""
-        user_id = uuid4()
-        snapshot_date = date(2024, 1, 31)
-        asset_identifier = "AAPL"
-
-        service = DeduplicationService()
-        hash_result = service.calculate_position_hash(user_id, snapshot_date, asset_identifier, broker=None)
-
-        # Verify hash is generated
-        assert len(hash_result) == 64
-
-        # Verify None broker and empty string produce same hash
-        hash_empty_broker = service.calculate_position_hash(user_id, snapshot_date, asset_identifier, broker="")
-        assert hash_result == hash_empty_broker
-
     async def test_upsert_atomic_transaction_new_creates_record(self, db, test_user):
         """GIVEN: No existing atomic transaction with hash
         WHEN: Upserting atomic transaction
@@ -443,155 +401,6 @@ class TestDeduplicationService:
         assert len(txn2.source_documents) == 1
         assert txn2.source_documents[0]["doc_id"] == str(doc_id)
 
-    async def test_upsert_atomic_position_new_creates_record(self, db, test_user):
-        """GIVEN: No existing atomic position with hash
-        WHEN: Upserting atomic position
-        THEN: New record is created with source document (covers lines 158-215)"""
-        service = DeduplicationService()
-        doc_id = uuid4()
-
-        pos = await service.upsert_atomic_position(
-            db=db,
-            user_id=test_user.id,
-            snapshot_date=date(2024, 1, 31),
-            asset_identifier="AAPL",
-            quantity=Decimal("10.5"),
-            market_value=Decimal("1850.50"),
-            currency="USD",
-            source_doc_id=doc_id,
-            source_doc_type=DocumentType.BROKERAGE_STATEMENT,
-            broker="Interactive Brokers",
-        )
-
-        # Verify new record created
-        assert pos.id is not None
-        assert pos.user_id == test_user.id
-        assert pos.snapshot_date == date(2024, 1, 31)
-        assert pos.asset_identifier == "AAPL"
-        assert pos.broker == "Interactive Brokers"
-        assert pos.quantity == Decimal("10.5")
-        assert pos.market_value == Decimal("1850.50")
-        assert pos.currency == "USD"
-        assert len(pos.dedup_hash) == 64
-
-        # Verify source document
-        assert len(pos.source_documents) == 1
-        assert pos.source_documents[0]["doc_id"] == str(doc_id)
-        assert pos.source_documents[0]["doc_type"] == DocumentType.BROKERAGE_STATEMENT.value
-
-    async def test_upsert_atomic_position_duplicate_appends_source(self, db, test_user):
-        """GIVEN: Existing atomic position with same hash
-        WHEN: Upserting duplicate position with different source
-        THEN: Source document is appended to existing record (covers lines 177-178)"""
-        service = DeduplicationService()
-        doc1_id = uuid4()
-        doc2_id = uuid4()
-
-        # Create first position
-        pos1 = await service.upsert_atomic_position(
-            db=db,
-            user_id=test_user.id,
-            snapshot_date=date(2024, 1, 31),
-            asset_identifier="AAPL",
-            quantity=Decimal("10.5"),
-            market_value=Decimal("1850.50"),
-            currency="USD",
-            source_doc_id=doc1_id,
-            source_doc_type=DocumentType.BROKERAGE_STATEMENT,
-            broker="Interactive Brokers",
-        )
-        original_id = pos1.id
-
-        # Upsert duplicate with different source
-        pos2 = await service.upsert_atomic_position(
-            db=db,
-            user_id=test_user.id,
-            snapshot_date=date(2024, 1, 31),
-            asset_identifier="AAPL",  # Same position
-            quantity=Decimal("10.5"),
-            market_value=Decimal("1850.50"),
-            currency="USD",
-            source_doc_id=doc2_id,
-            source_doc_type=DocumentType.BANK_STATEMENT,
-            broker="Interactive Brokers",
-        )
-
-        # Verify same record returned
-        assert pos2.id == original_id
-
-        # Verify both sources in array
-        assert len(pos2.source_documents) == 2
-        doc_ids = {doc["doc_id"] for doc in pos2.source_documents}
-        assert str(doc1_id) in doc_ids
-        assert str(doc2_id) in doc_ids
-
-    async def test_upsert_atomic_position_duplicate_same_source_no_duplicate(self, db, test_user):
-        """GIVEN: Existing atomic position with same hash and source
-        WHEN: Upserting duplicate with same source document
-        THEN: Source document is not duplicated in array (covers line 177)"""
-        service = DeduplicationService()
-        doc_id = uuid4()
-
-        # Create first position
-        pos1 = await service.upsert_atomic_position(
-            db=db,
-            user_id=test_user.id,
-            snapshot_date=date(2024, 1, 31),
-            asset_identifier="AAPL",
-            quantity=Decimal("10.5"),
-            market_value=Decimal("1850.50"),
-            currency="USD",
-            source_doc_id=doc_id,
-            source_doc_type=DocumentType.BROKERAGE_STATEMENT,
-            broker="Interactive Brokers",
-        )
-
-        # Upsert duplicate with SAME source
-        pos2 = await service.upsert_atomic_position(
-            db=db,
-            user_id=test_user.id,
-            snapshot_date=date(2024, 1, 31),
-            asset_identifier="AAPL",
-            quantity=Decimal("10.5"),
-            market_value=Decimal("1850.50"),
-            currency="USD",
-            source_doc_id=doc_id,  # Same source
-            source_doc_type=DocumentType.BROKERAGE_STATEMENT,
-            broker="Interactive Brokers",
-        )
-
-        # Verify same record returned
-        assert pos2.id == pos1.id
-
-        # Verify source document NOT duplicated
-        assert len(pos2.source_documents) == 1
-        assert pos2.source_documents[0]["doc_id"] == str(doc_id)
-
-    async def test_upsert_atomic_position_without_broker(self, db, test_user):
-        """GIVEN: Position details without broker
-        WHEN: Upserting atomic position
-        THEN: Position is created with None broker (covers lines 158-215)"""
-        service = DeduplicationService()
-        doc_id = uuid4()
-
-        pos = await service.upsert_atomic_position(
-            db=db,
-            user_id=test_user.id,
-            snapshot_date=date(2024, 1, 31),
-            asset_identifier="AAPL",
-            quantity=Decimal("10.5"),
-            market_value=Decimal("1850.50"),
-            currency="USD",
-            source_doc_id=doc_id,
-            source_doc_type=DocumentType.BROKERAGE_STATEMENT,
-            broker=None,
-        )
-
-        # Verify record created
-        assert pos.id is not None
-        assert pos.broker is None
-        assert len(pos.dedup_hash) == 64
-
     async def test_different_users_have_different_hashes(self, db, test_user):
         """GIVEN: Two users with identical transaction details
         WHEN: Upserting transactions
@@ -748,39 +557,3 @@ class TestDeduplicationService:
                 source_doc_id=doc2,
                 source_doc_type=DocumentType.BROKERAGE_STATEMENT,
             )
-
-    async def test_upsert_atomic_position_handles_non_list_source_documents(self, db, test_user):
-        """AC-extraction.111.2: Dedup upsert sanitizes malformed source_documents payloads (position)."""
-        service = DeduplicationService()
-        doc1 = uuid4()
-        doc2 = uuid4()
-
-        pos = await service.upsert_atomic_position(
-            db=db,
-            user_id=test_user.id,
-            snapshot_date=date(2024, 2, 1),
-            asset_identifier="MSFT",
-            quantity=Decimal("1"),
-            market_value=Decimal("100"),
-            currency="USD",
-            source_doc_id=doc1,
-            source_doc_type=DocumentType.BROKERAGE_STATEMENT,
-            broker="IBKR",
-        )
-        pos.source_documents = {"bad": "shape"}
-        await db.flush()
-
-        pos2 = await service.upsert_atomic_position(
-            db=db,
-            user_id=test_user.id,
-            snapshot_date=date(2024, 2, 1),
-            asset_identifier="MSFT",
-            quantity=Decimal("1"),
-            market_value=Decimal("100"),
-            currency="USD",
-            source_doc_id=doc2,
-            source_doc_type=DocumentType.BANK_STATEMENT,
-            broker="IBKR",
-        )
-        assert isinstance(pos2.source_documents, list)
-        assert len(pos2.source_documents) == 1

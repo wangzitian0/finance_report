@@ -189,7 +189,6 @@ def build_preview_env(
         "AI_API_KEY": "",
         "AI_BASE_URL": "https://api.z.ai/api/coding/paas/v4",
         "AI_CHAT_COMPLETIONS_PATH": "/chat/completions",
-        "AI_LAYOUT_PARSING_PATH": "/layout_parsing",
         "AI_JSON_TIMEOUT_SECONDS": "360",
         "AI_JSON_MAX_TOKENS": "8192",
         "AI_JSON_DISABLE_THINKING": "true",

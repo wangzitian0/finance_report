@@ -111,7 +111,6 @@ class TestExtractionSalvagesFencedResponse:
 
         with (
             patch.object(service, "api_key", "test-key"),
-            patch.object(service, "base_url", "https://test.api"),
             patch("src.extraction.extension.service.stream_ai_json", return_value=MagicMock()),
             patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value=fenced)),
         ):
@@ -134,7 +133,6 @@ class TestExtractionSalvagesFencedResponse:
 
         with (
             patch.object(service, "api_key", "test-key"),
-            patch.object(service, "base_url", "https://test.api"),
             patch("src.extraction.extension.service.stream_ai_json", return_value=MagicMock()),
             patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value="not json at all")),
         ):

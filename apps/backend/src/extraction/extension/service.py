@@ -95,11 +95,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
 
     def __init__(self) -> None:
         self.api_key = settings.ai_api_key
-        self.base_url = settings.ai_base_url
         self.small_model = settings.small_model
         self.multimodal_model = settings.multimodal_model
-        # One multimodal role serves OCR and vision, so the dedicated layout OCR path
-        # (`ocr_model != vision_model`) never runs. A follow-up deletes that dead path.
+        # One multimodal role serves OCR and vision.
         self.vision_model = self.multimodal_model
         self.ocr_model = self.multimodal_model
         self.deduplication_service = DeduplicationService()
@@ -1285,7 +1283,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         filename: str | None = None,
         user_id: UUID | None = None,
     ) -> dict[str, Any]:
-        """Extract structured statement data using OCR + chat models."""
+        """Extract structured statement data with the vision model."""
         if file_content is None and not file_url:
             raise ExtractionError("File content is required")
 
@@ -1346,41 +1344,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 has_url=bool(file_url),
                 seed_override=seed_override,
                 user_id=user_id,
-            )
-
-        if self._uses_dedicated_layout_ocr():
-            try:
-                ocr_markdown = await self._extract_ocr_markdown(file_content, file_url, file_type, mime_type)
-                text_prompt = (
-                    f"{prompt}\n\n"
-                    "The statement has already been converted to OCR Markdown by the dedicated OCR model. "
-                    "Extract the structured financial data from this OCR text only.\n\n"
-                    f"```markdown\n{ocr_markdown}\n```"
-                )
-                return await self._extract_json_with_models(
-                    messages=[{"role": "user", "content": text_prompt}],
-                    models=[self.small_model],
-                    prompt=text_prompt,
-                    institution=institution,
-                    file_type=file_type,
-                    return_raw=return_raw,
-                    has_content=bool(file_content),
-                    has_url=bool(file_url),
-                    seed_override=seed_override,
-                    user_id=user_id,
-                )
-            except ExtractionError as ocr_error:
-                logger.warning(
-                    "OCR-first extraction failed, falling back to vision model",
-                    ocr_model=self.ocr_model,
-                    vision_model=self.vision_model,
-                    error=str(ocr_error),
-                )
-        elif self.ocr_model:
-            logger.info(
-                "OCR model shares the vision path; skipping dedicated layout parser",
-                ocr_model=self.ocr_model,
-                vision_model=self.vision_model,
             )
 
         vision_models = self._vision_extraction_models()

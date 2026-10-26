@@ -29,7 +29,6 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `AI_JSON_MAX_TOKENS` | `8192` |  |  | AI Provider | Max tokens for AI JSON completion calls. |
 | `AI_JSON_SEED` |  |  |  | AI Provider | Fixed decoding seed for reproducible extraction; off by default (only set for seed-supporting models). |
 | `AI_JSON_TIMEOUT_SECONDS` | `360` |  |  | AI Provider | Timeout (seconds) for AI JSON completion calls. |
-| `AI_LAYOUT_PARSING_PATH` | `/layout_parsing` |  |  | AI Provider | Layout-parsing path appended to the AI base URL. |
 | `AI_PROVIDER` | `zai` |  | yes | AI Provider | AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults). |
 | `LARGE_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Large-role AI model id for user-facing answers (advisor chat). Unset: the infra2 SDK default; set it only to customize production. |
 | `LLM_CASSETTE_ENGAGE` | `false` |  |  | AI Provider | Engage offline LLM cassette replay layer. |

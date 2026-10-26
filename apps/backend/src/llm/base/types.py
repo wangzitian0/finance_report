@@ -159,25 +159,3 @@ class SceneBinding:
     prefer_free: bool = False
     fallback_model_ids: tuple[str, ...] = ()
     max_tokens: int | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class Usage:
-    """Token accounting for a single completion."""
-
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-
-    @property
-    def total_tokens(self) -> int:
-        return self.prompt_tokens + self.completion_tokens
-
-
-@dataclass(frozen=True, slots=True)
-class ChatResult:
-    """A non-streaming completion result with cost telemetry."""
-
-    text: str
-    model_id: str
-    usage: Usage = field(default_factory=Usage)
-    cost_usd: Decimal | None = None

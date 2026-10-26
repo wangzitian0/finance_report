@@ -21,8 +21,6 @@ from src.extraction.extension.transaction_identity import (
 )
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import (
-    AtomicPosition,
-    AtomicPositionSourceDocument,
     AtomicTransaction,
     AtomicTransactionSourceDocument,
 )
@@ -131,26 +129,6 @@ class DeduplicationService:
         if currency is not None and custody_scope is not None:
             return versioned_transaction_hash(legacy_hash, currency, custody_scope)
         return legacy_hash
-
-    @staticmethod
-    def calculate_position_hash(
-        user_id: UUID,
-        snapshot_date: date,
-        asset_identifier: str,
-        broker: str | None = None,
-    ) -> str:
-        """Calculate deduplication hash for atomic position.
-
-        Hash = SHA256(user_id|snapshot_date|asset_identifier|broker)
-        """
-        components = [
-            str(user_id),
-            snapshot_date.isoformat(),
-            asset_identifier.strip().lower(),
-            broker.strip().lower() if broker else "",
-        ]
-        hash_input = "|".join(components).encode("utf-8")
-        return hashlib.sha256(hash_input).hexdigest()
 
     async def upsert_atomic_transaction(
         self,
@@ -339,97 +317,6 @@ class DeduplicationService:
         )
         return new_txn
 
-    async def upsert_atomic_position(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        snapshot_date: date,
-        asset_identifier: str,
-        quantity: Decimal,
-        market_value: Decimal,
-        currency: str,
-        source_doc_id: UUID,
-        source_doc_type: DocumentType,
-        broker: str | None = None,
-    ) -> AtomicPosition:
-        """Upsert atomic position with deduplication.
-
-        If dedup_hash exists -> Append to source_documents array
-        If dedup_hash new -> Insert new record
-        """
-        dedup_hash = self.calculate_position_hash(user_id, snapshot_date, asset_identifier, broker)
-
-        stmt = select(AtomicPosition).where(
-            AtomicPosition.user_id == user_id,
-            AtomicPosition.dedup_hash == dedup_hash,
-        )
-        result = await db.execute(stmt)
-        existing = result.scalar_one_or_none()
-
-        source_doc = {
-            "doc_id": str(source_doc_id),
-            "doc_type": source_doc_type.value,
-        }
-
-        if existing:
-            source_docs = _source_document_list(existing.source_documents)
-
-            if source_doc not in source_docs:
-                source_docs.append(source_doc)
-                existing.source_documents = source_docs
-                await db.flush()
-            await self._upsert_position_source_link(
-                db,
-                user_id=user_id,
-                atomic_position_id=existing.id,
-                source_doc_id=source_doc_id,
-                source_doc_type=source_doc_type,
-                ordinal=source_docs.index(source_doc) if source_doc in source_docs else 0,
-            )
-
-            logger.info(
-                f"Appended source document to existing atomic position {existing.id}",
-                extra={
-                    "dedup_hash": dedup_hash,
-                    "source_doc_id": str(source_doc_id),
-                    "source_doc_type": source_doc_type.value,
-                },
-            )
-            return existing
-
-        new_pos = AtomicPosition(
-            user_id=user_id,
-            snapshot_date=snapshot_date,
-            asset_identifier=asset_identifier,
-            broker=broker,
-            quantity=quantity,
-            market_value=market_value,
-            currency=currency,
-            dedup_hash=dedup_hash,
-            source_documents=[source_doc],
-        )
-        db.add(new_pos)
-        await db.flush()
-        await self._upsert_position_source_link(
-            db,
-            user_id=user_id,
-            atomic_position_id=new_pos.id,
-            source_doc_id=source_doc_id,
-            source_doc_type=source_doc_type,
-            ordinal=0,
-        )
-
-        logger.info(
-            f"Created new atomic position {new_pos.id}",
-            extra={
-                "dedup_hash": dedup_hash,
-                "snapshot_date": str(snapshot_date),
-                "asset_identifier": asset_identifier,
-                "quantity": str(quantity),
-            },
-        )
-        return new_pos
-
     async def _upsert_transaction_source_link(
         self,
         db: AsyncSession,
@@ -449,35 +336,6 @@ class DeduplicationService:
             db.add(
                 AtomicTransactionSourceDocument(
                     atomic_txn_id=atomic_txn_id,
-                    uploaded_document_id=source_doc_id,
-                    doc_type=source_doc_type.value,
-                    ordinal=ordinal,
-                )
-            )
-        else:
-            existing.doc_type = source_doc_type.value
-            existing.ordinal = ordinal
-        await db.flush()
-
-    async def _upsert_position_source_link(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        atomic_position_id: UUID,
-        source_doc_id: UUID,
-        source_doc_type: DocumentType,
-        ordinal: int,
-    ) -> None:
-        document = await db.get(UploadedDocument, source_doc_id)
-        if document is None or document.user_id != user_id:
-            return
-
-        existing = await db.get(AtomicPositionSourceDocument, (atomic_position_id, source_doc_id))
-        if existing is None:
-            db.add(
-                AtomicPositionSourceDocument(
-                    atomic_position_id=atomic_position_id,
                     uploaded_document_id=source_doc_id,
                     doc_type=source_doc_type.value,
                     ordinal=ordinal,
@@ -528,15 +386,7 @@ async def dual_write_layer2(
 
     dedup_service = DeduplicationService()
 
-    doc_type_map = {
-        "dbs": DocumentType.BANK_STATEMENT,
-        "ocbc": DocumentType.BANK_STATEMENT,
-        "standard chartered": DocumentType.BANK_STATEMENT,
-        "citibank": DocumentType.BANK_STATEMENT,
-        "uob": DocumentType.BANK_STATEMENT,
-        "posb": DocumentType.BANK_STATEMENT,
-    }
-    doc_type = document_type or doc_type_map.get((statement.institution or "").lower(), DocumentType.BANK_STATEMENT)
+    doc_type = document_type or DocumentType.BANK_STATEMENT
     file_hash = statement.file_hash
     # The immutable result is passed as persistence metadata. Keep the DWD
     # envelope and its ODS document on that same source-to-fact identity; a

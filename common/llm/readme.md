@@ -90,8 +90,8 @@ litellm client turns it into a `provider/model` call string.
 
 A **dynamic catalogue** that can be much larger than the bound set. Each entry
 (`ModelSpec`) carries its `provider_id`, `modalities` (text/image/pdf/file),
-`is_free`, and pricing. Catalogue loading and free-tier flagging belong to the
-`CatalogProvider` (EPIC A).
+`is_free`, and pricing. Catalogue loading and free-tier flagging belong to
+`LitellmCatalog` (EPIC A).
 
 ### Axis 3 — Scene
 

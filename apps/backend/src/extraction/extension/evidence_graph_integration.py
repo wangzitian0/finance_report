@@ -56,27 +56,6 @@ class EvidenceGraphIntegrationService:
             },
         )
 
-    async def record_layer2_dual_write(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        uploaded_document: UploadedDocument,
-        atomic_transaction: AtomicTransaction,
-        document_type: DocumentType | None = None,
-    ) -> None:
-        """Record ``UploadedDocument -> AtomicTransaction`` dual-write lineage.
-
-        Delegates to ``record_layer2_dual_writes_batch``.
-        """
-        await self.record_layer2_dual_writes_batch(
-            db,
-            user_id=user_id,
-            uploaded_document=uploaded_document,
-            atomic_transactions=[atomic_transaction],
-            document_type=document_type,
-        )
-
     async def record_layer2_dual_writes_batch(
         self,
         db: AsyncSession,
@@ -493,25 +472,3 @@ class EvidenceGraphIntegrationService:
 
         if created_edge:
             await db.flush()
-
-    async def _upsert_atomic_transaction_node(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID,
-        atomic_transaction: AtomicTransaction,
-    ) -> EvidenceNode:
-        return await self.lineage.upsert_node(
-            db,
-            user_id=user_id,
-            node_kind="atomic_fact",
-            entity_type="atomic_transaction",
-            entity_id=atomic_transaction.id,
-            properties={
-                "dedup_hash": atomic_transaction.dedup_hash,
-                "txn_date": atomic_transaction.txn_date.isoformat(),
-                "direction": atomic_transaction.direction.value,
-                "amount": str(atomic_transaction.amount),
-                "currency": atomic_transaction.currency,
-            },
-        )

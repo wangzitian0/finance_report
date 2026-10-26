@@ -1,6 +1,6 @@
 """Dynamic model catalogue (EPIC-023 EPIC A).
 
-Implements ``CatalogProvider`` over the configured models, enriched with litellm's
+Lists the configured models, enriched with litellm's
 pricing table so free-tier and per-token cost are data, not guesses. This is the
 ``src/llm`` replacement for ``services/ai_models``; it deliberately keeps the
 local/configured catalogue (deterministic in CI/prod) and layers litellm pricing
@@ -84,7 +84,7 @@ def _configured_specs(*, modality: Modality | None = None) -> list[ModelSpec]:
 
 
 class LitellmCatalog:
-    """``CatalogProvider`` backed by configured models + litellm pricing."""
+    """The model catalogue backed by configured models + litellm pricing."""
 
     async def list_models(
         self,

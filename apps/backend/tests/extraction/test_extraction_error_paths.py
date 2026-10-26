@@ -113,86 +113,10 @@ async def test_extract_financial_data_no_api_key(monkeypatch):
         await service.extract_financial_data(b"content", "DBS", "pdf")
 
 
-async def test_extract_ocr_markdown_joins_layout_results(monkeypatch):
-    service = ExtractionService()
-    service.api_key = "test-key"
-
-    class FakeResponse:
-        status_code = 200
-        text = ""
-
-        def json(self):
-            return {"md_results": ["# Statement", "", "Balance: 10.00"]}
-
-    class FakeClient:
-        def __init__(self, *args, **kwargs):
-            self.args = args
-            self.kwargs = kwargs
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return None
-
-        async def post(self, url, headers, json):
-            assert url.endswith("/layout_parsing")
-            assert headers["Authorization"] == "Bearer test-key"
-            assert json["model"] == service.ocr_model
-            assert json["file"].startswith("data:application/pdf;base64,")
-            return FakeResponse()
-
-    monkeypatch.setattr("src.extraction.extension.service.httpx.AsyncClient", FakeClient)
-
-    markdown = await service._extract_ocr_markdown(
-        file_content=b"pdf bytes",
-        file_url=None,
-        file_type="pdf",
-        mime_type="application/pdf",
-    )
-
-    assert markdown == "# Statement\n\nBalance: 10.00"
-
-
 def test_validate_external_url_handles_unexpected_input():
     service = ExtractionService()
 
     assert service._validate_external_url(cast(str, object())) is False
-
-
-async def test_extract_ocr_markdown_rejects_empty_layout_result(monkeypatch):
-    service = ExtractionService()
-    service.api_key = "test-key"
-
-    class FakeResponse:
-        status_code = 200
-        text = ""
-
-        def json(self):
-            return {"md_results": []}
-
-    class FakeClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return None
-
-        async def post(self, url, headers, json):
-            return FakeResponse()
-
-    monkeypatch.setattr("src.extraction.extension.service.httpx.AsyncClient", FakeClient)
-
-    with pytest.raises(ExtractionError, match="empty Markdown"):
-        await service._extract_ocr_markdown(
-            file_content=b"pdf bytes",
-            file_url=None,
-            file_type="pdf",
-            mime_type="application/pdf",
-        )
 
 
 async def test_extract_json_with_models_skips_empty_model_entries():
@@ -211,28 +135,8 @@ async def test_extract_json_with_models_skips_empty_model_entries():
         )
 
 
-async def test_extract_financial_data_uses_ocr_first_pipeline():
-    service = ExtractionService()
-    service.api_key = "test-key"
-    service.ocr_model = "dedicated-layout-model"
-    service.vision_model = "test-vision-model"
-
-    mock_ocr = AsyncMock(return_value="| Date | Amount |\n| 2025-01-01 | 10.00 |")
-    mock_extract = AsyncMock(return_value={"transactions": []})
-    service._extract_ocr_markdown = mock_ocr
-    service._extract_json_with_models = mock_extract
-
-    result = await service.extract_financial_data(b"content", "DBS", "pdf")
-
-    assert result == {"transactions": []}
-    mock_ocr.assert_awaited_once_with(b"content", None, "pdf", "application/pdf")
-    call = mock_extract.await_args.kwargs
-    assert call["models"] == [service.small_model]
-    assert "OCR Markdown" in call["messages"][0]["content"]
-
-
 async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
-    """AC-extraction.812.6: Shared OCR/vision model uses one vision call and skips layout parsing.
+    """AC-extraction.812.6: Shared OCR/vision model uses one vision call; no layout parser exists.
 
     AC-extraction.118.1: the vision path uses the multimodal model only. There is no fallback chain.
     """
@@ -241,9 +145,7 @@ async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
     service.ocr_model = "test-vision-model"
     service.vision_model = "test-vision-model"
 
-    mock_ocr = AsyncMock()
     mock_extract = AsyncMock(return_value={"transactions": []})
-    service._extract_ocr_markdown = mock_ocr
     service._extract_json_with_models = mock_extract
     image_payload = {
         "type": "image_url",
@@ -254,7 +156,6 @@ async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
         result = await service.extract_financial_data(b"content", "DBS", "pdf")
 
     assert result == {"transactions": []}
-    mock_ocr.assert_not_awaited()
     call = mock_extract.await_args.kwargs
     assert call["models"] == ["test-vision-model"]
     assert call["messages"][0]["content"][1] == image_payload
@@ -304,27 +205,25 @@ def test_ocr_model_selection_helpers_deduplicate_vision_models():
 
     service.ocr_model = "test-vision-model"
     service.vision_model = "test-vision-model"
-    assert service._uses_dedicated_layout_ocr() is False
     assert service._vision_extraction_models() == ["test-vision-model"]
 
-    service.ocr_model = "layout-ocr-model"
+    service.ocr_model = "other-model"
     service.vision_model = "test-vision-model"
-    assert service._uses_dedicated_layout_ocr() is True
-    assert service._vision_extraction_models() == ["layout-ocr-model", "test-vision-model"]
+    assert service._vision_extraction_models() == ["other-model", "test-vision-model"]
 
     service.ocr_model = ""
     service.vision_model = "test-vision-model"
-    assert service._uses_dedicated_layout_ocr() is False
     assert service._vision_extraction_models() == ["test-vision-model"]
 
 
 def test_a_service_takes_both_vision_models_from_the_multimodal_role():
-    """AC-extraction.118.1: OCR and vision share the multimodal model, so the dedicated layout OCR never runs."""
+    """AC-extraction.118.1: OCR and vision share the multimodal model; the service has no layout-OCR path."""
     service = ExtractionService()
 
     assert service.ocr_model == service.vision_model == service.multimodal_model
-    assert service._uses_dedicated_layout_ocr() is False
     assert service._vision_extraction_models() == [service.multimodal_model]
+    assert not hasattr(service, "_uses_dedicated_layout_ocr")
+    assert not hasattr(service, "_extract_ocr_markdown")
 
 
 def test_render_pdf_pages_rejects_empty_content():
@@ -401,39 +300,6 @@ def test_build_vision_media_payload_batches_reraises_render_error_without_extern
             )
 
 
-async def test_extract_ocr_markdown_surfaces_layout_http_error(monkeypatch):
-    """AC-extraction.812.6: Dedicated OCR layout HTTP failures include status and body."""
-    service = ExtractionService()
-    service.api_key = "test-key"
-
-    class FakeResponse:
-        status_code = 503
-        text = "provider unavailable"
-
-    class FakeClient:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            return None
-
-        async def post(self, url, headers, json):
-            return FakeResponse()
-
-    monkeypatch.setattr("src.extraction.extension.service.httpx.AsyncClient", FakeClient)
-
-    with pytest.raises(ExtractionError, match="HTTP 503: provider unavailable"):
-        await service._extract_ocr_markdown(
-            file_content=b"pdf bytes",
-            file_url=None,
-            file_type="pdf",
-            mime_type="application/pdf",
-        )
-
-
 async def test_extract_json_with_models_handles_httpx_timeout():
     """AC-extraction.812.6: Native httpx timeouts are summarized like provider timeouts."""
     import httpx
@@ -472,33 +338,6 @@ async def test_ai_parse_csv_empty_mapping_response():
                 parse_date=lambda value: date.fromisoformat(value),
                 parse_amount=lambda value: Decimal(value),
             )
-
-
-async def test_extract_financial_data_dedicated_ocr_failure_falls_back_to_vision():
-    """AC-extraction.812.6: Dedicated OCR failure falls back to the vision extraction models (OCR, then vision)."""
-    service = ExtractionService()
-    service.api_key = "test-key"
-    service.ocr_model = "layout-ocr-model"
-    service.vision_model = "test-vision-model"
-
-    mock_ocr = AsyncMock(side_effect=ExtractionError("layout parser unavailable"))
-    mock_extract = AsyncMock(return_value={"transactions": []})
-    service._extract_ocr_markdown = mock_ocr
-    service._extract_json_with_models = mock_extract
-    image_payload = {
-        "type": "image_url",
-        "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="},
-    }
-
-    with patch.object(service, "_build_vision_media_payload_batches", return_value=[[image_payload]]):
-        result = await service.extract_financial_data(b"content", "DBS", "pdf")
-
-    assert result == {"transactions": []}
-    mock_ocr.assert_awaited_once_with(b"content", None, "pdf", "application/pdf")
-    call = mock_extract.await_args.kwargs
-    # AC-extraction.118.1: the dedicated OCR model is tried first, then the vision model. No fallback chain.
-    assert call["models"] == ["layout-ocr-model", "test-vision-model"]
-    assert call["messages"][0]["content"][1] == image_payload
 
 
 async def test_extract_financial_data_all_models_fail():

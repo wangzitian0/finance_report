@@ -1,7 +1,7 @@
 """AC-extraction.normalization.1: Pure domain tests for extraction normalization and identity hashing.
 
-Verifies deterministic merchant token normalization, versioned transaction hashing,
-and pattern matching rules without database or I/O overhead.
+Verifies versioned transaction hashing and account-suffix normalization
+without database or I/O overhead.
 """
 
 import hashlib
@@ -9,10 +9,7 @@ import hashlib
 import pytest
 
 from src.extraction.base.normalization_engine import (
-    clean_statement_description,
     compute_transaction_identity_hash,
-    match_category_pattern,
-    normalize_merchant_token,
     sanitize_account_last4,
 )
 
@@ -47,21 +44,6 @@ def test_compute_transaction_identity_hash_falsification_on_scope_mutation():
     assert h2 != h3
 
 
-def test_normalize_merchant_token():
-    """Strips company suffixes, noise, card transaction codes, and preserves merchant core."""
-    assert normalize_merchant_token("AMAZON SG PTE LTD") == "AMAZON"
-    assert normalize_merchant_token("GRAB *TRANSPORT SINGAPORE") == "GRAB TRANSPORT"
-    assert normalize_merchant_token("FAIRPRICE XTRA INC.") == "FAIRPRICE XTRA"
-    assert normalize_merchant_token("NETFLIX.COM PAYMENT 12345") == "NETFLIX COM PAYMENT"
-    assert normalize_merchant_token("STARBUCKS COFFEE CORP") == "STARBUCKS COFFEE"
-
-
-def test_clean_statement_description():
-    """Cleans multiple spaces and special characters for description matching."""
-    raw = "  PAYMENT   TO   VENDOR   #99812   "
-    assert clean_statement_description(raw) == "PAYMENT TO VENDOR 99812"
-
-
 def test_sanitize_account_last4():
     """Extracts up to the last 4 alphanumeric characters or returns None."""
     assert sanitize_account_last4("123-456-7890") == "7890"
@@ -69,11 +51,3 @@ def test_sanitize_account_last4():
     assert sanitize_account_last4("12") == "12"
     assert sanitize_account_last4("---") is None
     assert sanitize_account_last4(None) is None
-
-
-def test_match_category_pattern():
-    """Deterministic keyword and pattern matching for classification rules."""
-    patterns = ["grab", "uber", "gojek", "comfortdelgro"]
-    assert match_category_pattern("GRAB *RIDE 2025-01-10", patterns) is True
-    assert match_category_pattern("ComfortDelGro Taxi Booking", patterns) is True
-    assert match_category_pattern("STARBUCKS COFFEE", patterns) is False
