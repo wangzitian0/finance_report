@@ -4963,6 +4963,8 @@ def test_AC8_13_34_main_ci_budget_is_enforced_by_a_non_required_job() -> None:
     # Not a merge gate: finish does not wait for it, and the ruleset requires only finish.
     assert "pipeline-budget" not in jobs["finish"]["needs"]
     assert budget["needs"] == ["finish"]
+    # release.yml requires a successful main CI run, so a red budget job must not fail the run.
+    assert budget["continue-on-error"] is True
     assert budget["permissions"]["issues"] == "write"
     assert (
         enforce["if"]
@@ -4995,6 +4997,7 @@ def test_AC8_13_34_release_budget_is_enforced_on_tag_and_main_runs_only() -> Non
     on_tag_or_main = "github.ref_type == 'tag' || github.ref == 'refs/heads/main'"
 
     assert summary_job["permissions"]["issues"] == "write"
+    assert summary_job["continue-on-error"] is True
     # A branch dispatch only prints; the failure must stay hidden there.
     assert (
         printing["if"]

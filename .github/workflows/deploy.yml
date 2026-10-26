@@ -902,6 +902,8 @@ jobs:
     timeout-minutes: 10
     needs: [build-and-deploy, provider-gate, ai-ocr-gate, financial-benchmark, post-merge-delivery]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
+    # #2688: a budget overrun shows on this job but must not turn the deploy run red.
+    continue-on-error: true
     permissions:
       actions: read
       contents: read

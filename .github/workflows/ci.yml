@@ -1771,11 +1771,14 @@ jobs:
 
   # #2688: the time budget of this run. The job is not a required check, so a slow main
   # run turns only this job red and comments on #2688; it blocks no merge and no deploy.
-  # A PR run only prints the verdict and never fails on it.
+  # A PR run only prints the verdict and never fails on it. Job-level continue-on-error keeps
+  # the run green: release.yml requires a successful main CI run (verify_source_ci), so a red
+  # budget job must not turn the run red. The job itself still shows the overrun.
   pipeline-budget:
     name: Pipeline Budget
     needs: [finish]
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
+    continue-on-error: true
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
