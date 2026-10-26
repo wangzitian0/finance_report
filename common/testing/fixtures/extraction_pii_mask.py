@@ -110,22 +110,6 @@ def mask_extraction(extracted: dict[str, Any]) -> dict[str, Any]:
     return mask_obj(extracted)
 
 
-def mask_response_text(text: str) -> str:
-    """Mask a raw model response that is (possibly fenced) JSON; preserve non-JSON as-is."""
-    import json
-
-    body = text.strip()
-    fenced = body.startswith("```")
-    if fenced:
-        body = body.split("\n", 1)[-1].rsplit("```", 1)[0]
-    try:
-        masked = mask_extraction(json.loads(body))
-    except json.JSONDecodeError:
-        return text  # not JSON -> nothing structured to mask
-    out = json.dumps(masked, ensure_ascii=False, indent=2)
-    return f"```json\n{out}\n```" if fenced else out
-
-
 def source_ref(
     *, hf_url: str | None = None, file_bytes: bytes | None = None
 ) -> dict[str, str]:

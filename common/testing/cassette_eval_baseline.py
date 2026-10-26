@@ -37,11 +37,6 @@ CORPUS_COUNT_BASELINE = (
 BASELINE_VERSION = jsonl_baseline.BASELINE_VERSION
 
 
-def cases_to_lines(cases: dict[str, dict[str, Any]]) -> list[str]:
-    """Render the per-case mapping as sorted, deterministic JSONL lines."""
-    return jsonl_baseline.records_to_lines(cases, identifier_key="case_id")
-
-
 def render_jsonl(payload: dict[str, Any]) -> str:
     """Render a ``{"version", "cases"}`` payload as the canonical JSONL text."""
     return jsonl_baseline.render_jsonl(

@@ -222,8 +222,6 @@ def test_AC9_2_5_font_helpers_choose_safe_fonts(
         font_utils.get_safe_font("UnknownFamily", chinese_font="ChineseFont")
         == "ChineseFont"
     )
-    assert font_utils.can_display_chinese("Helvetica") is False
-    assert font_utils.can_display_chinese("ChineseFont") is True
 
 
 def test_AC9_2_5_font_registration_accepts_otf_fonts(
@@ -320,57 +318,6 @@ def test_AC9_2_6_fake_data_generators_keep_running_balances(generator) -> None:
 
     assert len(transactions) >= 3
     assert closing_balance == expected_closing
-
-
-def test_AC9_7_1_legacy_dbs_generator_writes_backward_compatible_pdf(
-    tmp_path: Path,
-) -> None:
-    """AC9.7.1: Legacy fixture generation still emits the original DBS PDF shape."""
-    output_path = tmp_path / "legacy.pdf"
-
-    generate_pdf_fixtures.generate_legacy_dbs_pdf(output_path)
-
-    assert output_path.read_bytes().startswith(b"%PDF")
-
-
-def test_AC9_7_1_main_legacy_mode_uses_backward_compatible_filename(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """AC9.7.1: Legacy CLI mode writes e2e_dbs_statement.pdf for existing E2E callers."""
-    generated: list[Path] = []
-
-    def fake_generate(output_path: Path) -> None:
-        generated.append(output_path)
-        output_path.write_bytes(b"%PDF fake")
-
-    monkeypatch.setattr(sys, "argv", ["generate_pdf_fixtures.py", str(tmp_path)])
-    monkeypatch.setattr(generate_pdf_fixtures, "generate_legacy_dbs_pdf", fake_generate)
-
-    generate_pdf_fixtures.main()
-
-    assert generated == [tmp_path / "e2e_dbs_statement.pdf"]
-    assert generated[0].read_bytes() == b"%PDF fake"
-
-
-def test_AC9_7_1_main_legacy_mode_defaults_to_tmp_fixtures(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """AC9.7.1: Legacy CLI mode keeps the tmp/fixtures default for E2E callers."""
-    generated: list[Path] = []
-
-    def fake_generate(output_path: Path) -> None:
-        generated.append(output_path)
-
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["generate_pdf_fixtures.py"])
-    monkeypatch.setattr(generate_pdf_fixtures, "generate_legacy_dbs_pdf", fake_generate)
-
-    generate_pdf_fixtures.main()
-
-    assert generated == [Path("tmp/fixtures") / "e2e_dbs_statement.pdf"]
-    assert (tmp_path / "tmp" / "fixtures").is_dir()
 
 
 def test_AC9_7_1_AC9_7_2_main_generates_selected_source(

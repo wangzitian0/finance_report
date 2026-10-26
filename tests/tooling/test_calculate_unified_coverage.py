@@ -55,126 +55,6 @@ def _disable_artifact_preflight(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# is_test_file
-# ---------------------------------------------------------------------------
-
-
-class TestIsTestFile:
-    """AC16.3.2: Blacklist patterns correctly exclude test files."""
-
-    @pytest.mark.parametrize(
-        ("path", "expected"),
-        [
-            ("test_foo.py", True),
-            ("apps/backend/tests/test_accounting.py", True),
-            ("apps/frontend/src/__tests__/Button.test.tsx", True),
-            ("apps/frontend/src/Button.test.ts", True),
-            ("apps/frontend/src/Button.spec.ts", True),
-            ("apps/frontend/src/Button.spec.tsx", True),
-            ("foo_test.py", True),
-            ("apps/backend/conftest.py", True),
-            ("pyproject.toml", True),
-            ("apps/frontend/node_modules/lib/index.js", True),
-            ("apps/frontend/.next/static/main.js", True),
-            ("apps/backend/.venv/lib/site.py", True),
-            ("apps/backend/src/routers/accounts.py", False),
-            ("apps/backend/src/services/latest_report.py", False),
-            ("apps/frontend/src/lib/api.ts", False),
-            ("apps/frontend/src/components/Button.tsx", False),
-            ("tools/calculate_unified_coverage.py", False),
-            ("apps\\backend\\tests\\test_foo.py", True),
-        ],
-    )
-    def test_is_test_file(self, path: str, expected: bool) -> None:
-        assert cuc.is_test_file(path) is expected
-
-
-# ---------------------------------------------------------------------------
-# count_lines
-# ---------------------------------------------------------------------------
-
-
-class TestCountLines:
-    """Lines in a real file are counted correctly."""
-
-    def test_counts_nonempty_file(self, tmp_path):
-        f = tmp_path / "sample.py"
-        f.write_text("line1\nline2\nline3\n")
-        assert cuc.count_lines(f) == 3
-
-    def test_counts_single_line_no_newline(self, tmp_path):
-        f = tmp_path / "sample.py"
-        f.write_text("just one line")
-        assert cuc.count_lines(f) == 1
-
-    def test_returns_zero_for_missing_file(self, tmp_path):
-        assert cuc.count_lines(tmp_path / "nonexistent.py") == 0
-
-    def test_empty_file(self, tmp_path):
-        f = tmp_path / "empty.py"
-        f.write_text("")
-        assert cuc.count_lines(f) == 0
-
-
-# ---------------------------------------------------------------------------
-# count_code_lines
-# ---------------------------------------------------------------------------
-
-
-class TestCountCodeLines:
-    """count_code_lines walks a directory and excludes test files."""
-
-    def _write(self, tmp_path, rel, content):
-        p = tmp_path / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content)
-        return p
-
-    def test_counts_py_files(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
-        src = tmp_path / "src"
-        self._write(tmp_path, "src/a.py", "line1\nline2\n")
-        self._write(tmp_path, "src/b.py", "line1\n")
-        result = cuc.count_code_lines(src, [".py"])
-        assert result["total_lines"] == 3
-        assert result["file_count"] == 2
-
-    def test_excludes_test_files(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
-        src = tmp_path / "src"
-        self._write(tmp_path, "src/good.py", "a\nb\n")
-        self._write(tmp_path, "src/test_bad.py", "x\ny\n")
-        result = cuc.count_code_lines(src, [".py"])
-        assert result["file_count"] == 1
-        assert result["total_lines"] == 2
-
-    def test_excludes_tests_dir(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
-        src = tmp_path / "src"
-        self._write(tmp_path, "src/good.py", "a\n")
-        self._write(tmp_path, "src/tests/test_something.py", "b\n")
-        result = cuc.count_code_lines(src, [".py"])
-        assert result["file_count"] == 1
-
-    def test_multiple_extensions(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
-        src = tmp_path / "src"
-        self._write(tmp_path, "src/a.ts", "ts line\n")
-        self._write(tmp_path, "src/b.tsx", "tsx line\n")
-        result = cuc.count_code_lines(src, [".ts", ".tsx"])
-        assert result["file_count"] == 2
-        assert result["total_lines"] == 2
-
-    def test_empty_directory(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
-        src = tmp_path / "empty_src"
-        src.mkdir()
-        result = cuc.count_code_lines(src, [".py"])
-        assert result["total_lines"] == 0
-        assert result["file_count"] == 0
-
-
-# ---------------------------------------------------------------------------
 # parse_lcov_file
 # ---------------------------------------------------------------------------
 
@@ -809,7 +689,6 @@ class TestGetBackendCoverage:
 
         monkeypatch.setattr(cuc, "ROOT_DIR", tmp_path)
         monkeypatch.setattr(cuc, "BACKEND_DIR", tmp_path / "apps" / "backend")
-        # Create src dir so count_code_lines doesn't error
         (tmp_path / "apps" / "backend" / "src").mkdir(parents=True)
         (tmp_path / "apps" / "backend" / "src" / "main.py").write_text("a\n" * 20)
 

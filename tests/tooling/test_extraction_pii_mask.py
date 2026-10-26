@@ -10,7 +10,6 @@ from __future__ import annotations
 from common.testing.fixtures.extraction_pii_mask import (
     mask_description,
     mask_extraction,
-    mask_response_text,
     source_ref,
 )
 
@@ -138,16 +137,6 @@ def test_flow_values_are_kept() -> None:
     assert txn["description"] != "ACME PTE LTD" and len(txn["description"]) == len(
         "ACME PTE LTD"
     )  # pseudonymised, length kept
-
-
-def test_mask_response_text_handles_fenced_json() -> None:
-    out = mask_response_text(
-        '```json\n{"account_holder": "Jane Doe", "transactions": []}\n```'
-    )
-    assert "Jane Doe" not in out
-    assert "**" in out
-    # non-JSON passes through unchanged
-    assert mask_response_text("not json") == "not json"
 
 
 def test_source_ref_url_vs_hash() -> None:

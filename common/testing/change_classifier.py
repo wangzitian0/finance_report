@@ -457,14 +457,6 @@ def _matches_env_stage_rule(path: str, rule: EnvStageRule) -> bool:
     return normalized.startswith(rule.prefixes)
 
 
-def is_pr_preview_relevant(path: str) -> bool:
-    return _matches_env_stage_rule(path, ENV_STAGE_RULES[Environment.PR_PREVIEW])
-
-
-def is_staging_relevant(path: str) -> bool:
-    return _matches_env_stage_rule(path, ENV_STAGE_RULES[Environment.STAGING])
-
-
 def is_staging_ai_ocr_relevant(path: str) -> bool:
     normalized = normalize_path(path)
     return normalized in STAGING_AI_OCR_EXACT or normalized.startswith(

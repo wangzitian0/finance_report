@@ -17,7 +17,6 @@ from common.runtime import (
     release_evidence,
     release_images,
 )
-from common.runtime import wait_post_merge_train_turn as train_wait
 from common.testing import github_workflow_timing_summary, wait_for_cheap_ci
 from tools import app_deploy_transport
 
@@ -30,10 +29,7 @@ def test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers(
 ) -> None:
     """AC-runtime.github-api.1: clients, UTC parsing, and output writing remain shared."""
 
-    assert train_wait.GitHubActionsClient is github_api.GitHubActionsClient
     assert wait_for_cheap_ci.GitHubActionsClient is github_api.GitHubActionsClient
-    assert train_wait.parse_github_time is github_api.parse_github_time
-    assert train_wait.urllib is github_api.urllib
     assert wait_for_cheap_ci.urllib is github_api.urllib
     assert release_evidence._write_github_output is github_api.write_github_output
     assert release_images._write_github_output is github_api.write_github_output
@@ -118,22 +114,12 @@ def test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers(
         requests.append(url)
         if "/jobs" in url:
             return FakeResponse({"jobs": [{"id": 2}]})
-        if "/actions/runs/42" in url:
-            return FakeResponse({"id": 42})
-        if "workflows/5/runs" in url and "&page=1" in url:
-            return FakeResponse(
-                {"workflow_runs": [{"id": number} for number in range(100)]}
-            )
-        if "workflows/5/runs" in url:
-            return FakeResponse({"workflow_runs": []})
         return FakeResponse({"workflow_runs": [{"id": 1}]})
 
     monkeypatch.setattr(github_api.urllib.request, "urlopen", fake_urlopen)
     client = github_api.GitHubActionsClient(repository="owner/repo", token="secret")
     assert client.get_workflow_runs("abc") == [{"id": 1}]
     assert client.get_run_jobs(42) == [{"id": 2}]
-    assert client.get_run_payload(42) == {"id": 42}
-    assert len(client.list_workflow_runs(5)) == 100
     assert any("head_sha=abc" in url for url in requests)
 
     def raise_http_error(_request: object, *, timeout: int) -> FakeResponse:

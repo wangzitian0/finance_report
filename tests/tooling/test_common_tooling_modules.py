@@ -235,9 +235,6 @@ def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
         "tools.resolve_release_coordinate": "common.runtime.release_coordinate",
         "tools.verify_release_evidence": "common.runtime.release_evidence",
         "tools.verify_release_images": "common.runtime.release_images",
-        "tools.wait_post_merge_train_turn": (
-            "common.runtime.wait_post_merge_train_turn"
-        ),
     }
 
     for tool_module, common_module in command_modules.items():
