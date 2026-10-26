@@ -396,7 +396,7 @@ __all__ = [
     "resolve_statement_conflicts",
     "resolve_bank_custody_account",
     "is_bank_custody_source",
-    "approved_bank_custody_account_ids",
+    "reviewed_bank_custody_account_ids",
     "resolve_statement_posting_account",
     "resolve_statement_transactions",
     "effective_statement_transaction_filter",
@@ -412,8 +412,8 @@ __all__ = [
 ]
 
 from src.extraction.extension.custody_binding import (
-    approved_bank_custody_account_ids,
     is_bank_custody_source,
     resolve_bank_custody_account,
+    reviewed_bank_custody_account_ids,
 )
 from src.extraction.orm.bank_custody_binding import BankCustodyBinding as _BankCustodyBinding  # noqa: F401

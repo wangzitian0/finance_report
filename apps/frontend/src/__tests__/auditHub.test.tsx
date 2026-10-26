@@ -1,7 +1,10 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 
 import AuditPage from "@/app/(main)/audit/page";
+import { DATA_QUALITY_HEALTH_QUERY_KEY } from "@/hooks/useDataQualityHealth";
 import { apiOperation } from "@/lib/api-client";
 
 import { setTestUrl } from "./helpers/nextNavigation";
@@ -216,25 +219,40 @@ describe("Audit hub (EPIC-022 AC22.21.3)", () => {
 
     // AC-meta.fe-audit-queue.4
     it("AC-meta.fe-audit-queue.4 shows no audit-ready grade while the open items load or fail", async () => {
-        let resolveStats: (value: unknown) => void = () => undefined;
-        const pendingStats = new Promise((resolve) => {
-            resolveStats = resolve;
-        });
-        mockAuditApi({ get_data_quality_health_reports_data_quality_get: HEALTH_A, reconciliation_stats_reconciliation_stats_get: pendingStats });
-        setTestUrl("/audit?tab=health");
-        const view = render(<AuditPage />);
-        // The health score has loaded, the unmatched count has not: no grade shows.
-        await act(async () => {
-            await Promise.resolve();
-        });
-        expect(screen.getByText("Evaluating accounting invariants and temporal timeline...")).toBeInTheDocument();
-        expect(screen.queryByText(/Audit[- ]Ready/i)).toBeNull();
-        await act(async () => {
-            resolveStats(stats(0));
-            await pendingStats;
-        });
-        expect(await screen.findByText("Grade A · Audit-Ready")).toBeInTheDocument();
-        view.unmount();
+        // The health read settles first. One read of the open items stays pending: the Health tab
+        // shows its loading state and no grade until that read settles too.
+        const cases: [string, unknown][] = [
+            ["reconciliation_stats_reconciliation_stats_get", stats(0)],
+            ["get_workflow_status_endpoint_workflow_status_get", workflowStatus("ready")],
+        ];
+        for (const [pendingOperation, settledValue] of cases) {
+            let release: (value: unknown) => void = () => undefined;
+            const pending = new Promise((resolve) => {
+                release = resolve;
+            });
+            mockAuditApi({ get_data_quality_health_reports_data_quality_get: HEALTH_A, [pendingOperation]: pending });
+            setTestUrl("/audit?tab=health");
+            const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+            const view = render(<AuditPage />, {
+                wrapper: ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+            });
+            await waitFor(() =>
+                expect(client.getQueryCache().findAll({ queryKey: DATA_QUALITY_HEALTH_QUERY_KEY })[0]?.state.status, pendingOperation).toBe("success"),
+            );
+            // React Query notifies its observers in a 0 ms timer: let that render happen first.
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 20));
+            });
+            expect(screen.getByText("Evaluating accounting invariants and temporal timeline..."), pendingOperation).toBeInTheDocument();
+            expect(screen.queryByText(/Audit[- ]Ready/i), pendingOperation).toBeNull();
+
+            await act(async () => {
+                release(settledValue);
+                await pending;
+            });
+            expect(await screen.findByText("Grade A · Audit-Ready"), pendingOperation).toBeInTheDocument();
+            view.unmount();
+        }
 
         // A failed read of the open items holds the grade with its reason.
         mockedApiOperation.mockImplementation((async (op: string) => {

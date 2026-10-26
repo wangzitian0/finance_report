@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from hashlib import sha256
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from common.testing.trusted_year import TRUSTED_YEAR_SCENARIO
@@ -22,7 +22,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.reporting.extension.package_document as package_document_mod
 from src.config import settings
-from src.extraction import BankStatementStatus, RuleType, StatementSummary
+from src.extraction import (
+    BankStatementStatus,
+    RuleType,
+    StatementSourceType,
+    StatementSummary,
+    reviewed_bank_custody_account_ids,
+)
 from src.extraction.extension import transaction_classification
 from src.extraction.extension.transaction_classification import CategoryProposal, TransactionCategory
 from src.extraction.orm.layer3 import ClassificationRule
@@ -53,6 +59,52 @@ async def _approved_statement(db: AsyncSession, user_id: UUID, account: Account,
         )
     )
     await db.flush()
+
+
+async def _statement_with_source(
+    db: AsyncSession,
+    user_id: UUID,
+    account: Account,
+    *,
+    period_start: date,
+    period_end: date,
+    status: BankStatementStatus = BankStatementStatus.APPROVED,
+    source_type: StatementSourceType = StatementSourceType.BANK,
+) -> StatementSummary:
+    """A statement with a current source result of ``source_type``, so the custody query reaches it.
+
+    Only the custody query reads this result: its payload holds the source type, no facts.
+    """
+    statement = StatementSummary(
+        user_id=user_id,
+        file_hash=sha256(f"{user_id}:{account.id}:{period_start}:{status}:{source_type}".encode()).hexdigest(),
+        institution="DBS",
+        account_id=account.id,
+        currency="SGD",
+        period_start=period_start,
+        period_end=period_end,
+        opening_balance=Decimal("1000.00"),
+        closing_balance=Decimal("1200.00"),
+        status=status,
+    )
+    db.add(statement)
+    await db.flush()
+    record = StatementExtractionResultRecord(
+        user_id=user_id,
+        statement_id=statement.id,
+        content_digest=sha256(f"result:{statement.id}".encode()).hexdigest(),
+        source_content_digest=sha256(f"source:{statement.id}".encode()).hexdigest(),
+        schema_version="2",
+        producer_version="coverage-fixture",
+        payload={"source_type": source_type.value},
+        source_trace_record_id=uuid4(),
+        created_at=datetime.now(UTC),
+    )
+    db.add(record)
+    await db.flush()
+    statement.current_extraction_result_id = record.id
+    await db.flush()
+    return statement
 
 
 async def _account(
@@ -144,6 +196,70 @@ async def test_AC_reporting_2646_1_first_statement_opening_has_no_coverage_block
     assert (coverage.start, coverage.limiting_account_names) == (date(2026, 6, 5), ("DBS",))
 
 
+async def test_AC_reporting_2646_2_a_statement_that_closes_after_the_date_bounds_the_period(
+    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC-reporting.2646.2: the bank statement of 2026-06-05 to 2026-06-15 closes after the date
+    2026-06-12, and the package reads its movement before that date. Its custody account bounds the
+    period, so the readiness on 2026-06-12 has no ``opening_coverage_starts_after_period``. A bound
+    that kept only statements that close on or before the date had no start and this blocker."""
+    user_id = test_user.id
+    await _seed_first_bank_statement(db, user_id, monkeypatch)
+    as_of = date(2026, 6, 12)
+
+    coverage = await report_coverage(db, user_id=user_id, as_of=as_of)
+    assert (coverage.start, coverage.limiting_account_names) == (date(2026, 6, 5), ("DBS",))
+    readiness = await current_package_readiness(db, user_id=user_id, as_of_date=as_of)
+    # Only the first sorted proof reason becomes a blocker code: assert that no blocker exists.
+    assert [blocker.code for blocker in readiness.blockers] == []
+
+
+async def test_AC_reporting_2646_2_custody_accounts_are_the_reviewed_bank_statements_of_the_user(
+    db: AsyncSession, test_user
+) -> None:
+    """AC-reporting.2646.2: ``reviewed_bank_custody_account_ids`` keeps the custody account of a
+    bank statement of the user that is approved, retired or rejected and starts on or before the
+    date, also when it closes after it. Each negative control has a current source result, so only
+    its own predicate removes it: a parsed statement, a brokerage source, a statement that starts
+    after the date, and another user's statement."""
+    user_id = test_user.id
+    as_of = date(2026, 6, 12)
+    names = (
+        "Approved",
+        "Closes later",
+        "Retired",
+        "Rejected",
+        "Parsed",
+        "Brokerage",
+        "Starts later",
+    )
+    accounts = {name: await _account(db, user_id, name) for name in names}
+    window = {"period_start": date(2026, 5, 1), "period_end": date(2026, 5, 28)}
+    await _statement_with_source(db, user_id, accounts["Approved"], **window)
+    await _statement_with_source(
+        db, user_id, accounts["Closes later"], period_start=date(2026, 6, 5), period_end=date(2026, 6, 15)
+    )
+    await _statement_with_source(db, user_id, accounts["Retired"], status=BankStatementStatus.RETIRED, **window)
+    await _statement_with_source(db, user_id, accounts["Rejected"], status=BankStatementStatus.REJECTED, **window)
+    await _statement_with_source(db, user_id, accounts["Parsed"], status=BankStatementStatus.PARSED, **window)
+    await _statement_with_source(
+        db, user_id, accounts["Brokerage"], source_type=StatementSourceType.BROKERAGE, **window
+    )
+    await _statement_with_source(
+        db, user_id, accounts["Starts later"], period_start=date(2026, 6, 13), period_end=date(2026, 7, 10)
+    )
+    other = User(email="custody-other@example.com", hashed_password="hashed")
+    db.add(other)
+    await db.flush()
+    other_bank = await _account(db, other.id, "Other Bank")
+    await _statement_with_source(db, other.id, other_bank, **window)
+    await db.commit()
+
+    selected = await reviewed_bank_custody_account_ids(db, user_id=user_id, as_of=as_of)
+    by_id = {account.id: name for name, account in accounts.items()} | {other_bank.id: "Other Bank"}
+    assert sorted(by_id[account_id] for account_id in selected) == ["Approved", "Closes later", "Rejected", "Retired"]
+
+
 async def test_AC_reporting_2646_2_two_cash_accounts_opened_on_the_bound_pass_the_check(
     db: AsyncSession, test_user
 ) -> None:
@@ -180,7 +296,9 @@ async def test_AC_reporting_2646_2_coverage_start_is_the_latest_cash_opening(
 ) -> None:
     """AC-reporting.2646.2: the bound is the latest opening position of a cash account. A card
     statement that starts earlier, an unapproved bank statement, and the statements and openings of
-    another user do not move it. ``GET /reports/coverage`` serves the same date."""
+    another user do not move it. ``GET /reports/coverage`` serves the same date. The accounts here are
+    cash by name; ``..._custody_accounts_are_the_reviewed_bank_statements_of_the_user`` proves each
+    predicate of the custody path with controls that have a current source result."""
     user_id = test_user.id
     periods = _record_readiness_periods(monkeypatch)
 

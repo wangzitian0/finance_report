@@ -37,12 +37,21 @@ def is_bank_custody_source(source: StatementExtractionResult | None, document: U
     return document is None or document.document_type is not DocumentType.BROKERAGE_STATEMENT
 
 
-async def approved_bank_custody_account_ids(db: AsyncSession, *, user_id: UUID, as_of: date) -> frozenset[UUID]:
-    """The custody accounts of approved bank statements that close on or before ``as_of`` (#2646).
+#: The statement statuses whose custody account counts for the cash coverage bound (#2646). A
+#: reviewed statement keeps its current source result and its decision when it is later retired or
+#: rejected, and the report package still reads it.
+REVIEWED_STATEMENT_STATUSES = (BankStatementStatus.APPROVED, BankStatementStatus.RETIRED, BankStatementStatus.REJECTED)
 
-    One query. A bank statement is a statement whose current source result has the source type
-    ``bank_statement``, as the report package selects its cash accounts. Approval stands for the
-    authority of the source: a statement posts its opening balance only on approval.
+
+async def reviewed_bank_custody_account_ids(db: AsyncSession, *, user_id: UUID, as_of: date) -> frozenset[UUID]:
+    """The custody accounts of the reviewed bank statements that start on or before ``as_of`` (#2646).
+
+    One query. The report package reads a bank statement that closes after ``as_of`` when it has
+    movement in the period, so the period end is not a filter: a statement that starts on or before
+    ``as_of`` can have such movement. A bank statement is a statement whose current source result
+    has the source type ``bank_statement``, as the package selects its cash accounts. A statement
+    that waits for review (uploaded, parsing, parsed) does not count. The composite foreign key of
+    the source result holds the user of the statement, so one user filter covers both rows.
     """
     rows = await db.execute(
         select(StatementSummary.account_id)
@@ -52,11 +61,10 @@ async def approved_bank_custody_account_ids(db: AsyncSession, *, user_id: UUID, 
         )
         .where(
             StatementSummary.user_id == user_id,
-            StatementSummary.status == BankStatementStatus.APPROVED,
+            StatementSummary.status.in_(REVIEWED_STATEMENT_STATUSES),
             StatementSummary.account_id.is_not(None),
-            StatementSummary.period_end.is_not(None),
-            StatementSummary.period_end <= as_of,
-            StatementExtractionResultRecord.user_id == user_id,
+            StatementSummary.period_start.is_not(None),
+            StatementSummary.period_start <= as_of,
             StatementExtractionResultRecord.payload["source_type"].astext == StatementSourceType.BANK.value,
         )
         .distinct()

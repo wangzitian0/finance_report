@@ -108,6 +108,39 @@ describe("ReportDimensionBar", () => {
   })
 
   // AC-reporting.fe-period-cockpit.7
+  it("AC-reporting.fe-period-cockpit.7 disables Previous and Custom while the default view waits for the coverage start", async () => {
+    let release: (value: unknown) => void = () => undefined
+    const coverage = new Promise((resolve) => {
+      release = resolve
+    })
+    vi.mocked(apiOperation).mockImplementation(((operationId: string) => {
+      if (operationId === "report_coverage_reports_coverage_get") return coverage
+      if (operationId === "get_available_currencies_reports_currencies_get") return Promise.resolve(["SGD"])
+      if (operationId === "get_base_currency_app_config_base_currency_get") return Promise.resolve({ base_currency: "SGD" })
+      return Promise.reject(new Error(`unexpected ${operationId}`))
+    }) as never)
+    setTestUrl("/reports?end=2026-01-31")
+    render(<Bar />)
+
+    // The shown range is not known yet: neither control may act on the unbounded range.
+    expect(screen.getByTestId("report-period-range")).toHaveTextContent("…")
+    expect(screen.getByRole("button", { name: "Previous period" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Custom period" })).toBeDisabled()
+    fireEvent.click(screen.getByRole("button", { name: "Previous period" }))
+    fireEvent.click(screen.getByRole("button", { name: "Custom period" }))
+    expect(testUrl()).toBe("/reports?end=2026-01-31")
+
+    // No coverage start: no bound, and both controls work.
+    await act(async () => {
+      release({ as_of_date: "2026-01-31", coverage_start: null, limiting_accounts: [] })
+      await coverage
+    })
+    await waitFor(() => expect(screen.getByTestId("report-period-range")).toHaveTextContent("Feb 1, 2025 – Jan 31, 2026"))
+    expect(screen.getByRole("button", { name: "Previous period" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Custom period" })).toBeEnabled()
+  })
+
+  // AC-reporting.fe-period-cockpit.7
   it("AC-reporting.fe-period-cockpit.7 names one, several or no limiting accounts in the coverage note", () => {
     expect(coverageNote("2026-10-01", ["OCBC Bank"])).toBe("Starts Oct 1, 2026: OCBC Bank has no opening balance before this date.")
     expect(coverageNote("2026-10-01", ["A", "B", "C"])).toBe("Starts Oct 1, 2026: A, B and C have no opening balance before this date.")

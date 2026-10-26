@@ -55,6 +55,8 @@ export function ReportDimensionBar({
             type="button"
             aria-label="Custom period"
             aria-pressed={filters.preset === null}
+            // The default view waits for its coverage start: a custom period copies the shown dates.
+            disabled={!filters.ready}
             onClick={() => filters.setCustomPeriod(filters.startDate, filters.endDate)}
             className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
               filters.preset === null
@@ -96,7 +98,8 @@ export function ReportDimensionBar({
             <button
               type="button"
               aria-label="Previous period"
-              disabled={filters.previousEnd === null}
+              // While the default view waits for the coverage start, the previous period is not known.
+              disabled={!filters.ready || filters.previousEnd === null}
               onClick={() => filters.goToPeriodEnd(filters.previousEnd!)}
               className={stepClass}
             >

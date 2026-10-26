@@ -27,9 +27,9 @@ from src.audit import (
 from src.config import settings
 from src.extraction import (
     StatementSourceType,
-    approved_bank_custody_account_ids,
     current_statement_disposition_policy_snapshot,
     list_statement_contributions,
+    reviewed_bank_custody_account_ids,
     statement_disposition_policy_for_user,
 )
 from src.extraction.extension.extraction_trace import extraction_trace_policy_registry
@@ -362,7 +362,7 @@ def _valuation_section_contribution(contribution: Any) -> PackageSectionContribu
 def _is_bank_statement_contribution(contribution: Any) -> bool:
     """True for a statement source contribution of a bank statement: its custody account holds cash.
 
-    ``approved_bank_custody_account_ids`` selects the same source type in one query (#2646).
+    ``reviewed_bank_custody_account_ids`` selects the same source type in one query (#2646).
     """
     if contribution.contribution_type != "statement_source":
         return False
@@ -1332,13 +1332,15 @@ async def report_coverage(db: AsyncSession, *, user_id: UUID, as_of: date) -> Ca
 
     The cash-flow check reads the opening positions of the cash accounts
     (``opening_coverage_start``). Two callers select those accounts: ``GET /reports/cash-flow`` by
-    account name, and the report package by the custody accounts of its bank statements (approved,
-    closed on or before ``as_of``). The bound is the later of the two, so a period that starts on
-    it has no ``opening_coverage_starts_after_period`` in either. A card or brokerage statement does
-    not move it, and an opening balance before the first statement keeps its history. A fixed
-    number of queries: it does not resolve each statement. ``GET /reports/coverage`` serves it.
+    account name, and the report package by the custody accounts of its bank statements
+    (``reviewed_bank_custody_account_ids``: reviewed bank statements that start on or before
+    ``as_of``, also one that closes after it). The bound is the later of the two, so a period that
+    starts on it has no ``opening_coverage_starts_after_period`` in either. A brokerage statement, a
+    statement that waits for review and another user's statement do not move it, and an opening
+    balance before the first statement keeps its history. A fixed number of queries: it does not
+    resolve each statement. ``GET /reports/coverage`` serves it.
     """
-    custody_ids = await approved_bank_custody_account_ids(db, user_id=user_id, as_of=as_of)
+    custody_ids = await reviewed_bank_custody_account_ids(db, user_id=user_id, as_of=as_of)
     return await cash_coverage(db, user_id, as_of=as_of, cash_account_id_sets=(None, custody_ids))
 
 

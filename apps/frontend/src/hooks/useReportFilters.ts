@@ -26,8 +26,9 @@ import { REPORT_COVERAGE_QUERY_KEY, SHARED_STALE_MS } from "@/lib/sharedQueries"
  * The cash coverage start bounds only the default view (#2646). `GET /reports/coverage` serves it for
  * the period end: the latest opening position of a cash account. A period that starts earlier fails
  * the cash-flow coverage check, so the default view starts no earlier than that day. The default view
- * thus depends on server data. A link with a `period` or a `start` reproduces its dates exactly, and
- * a period that starts before the coverage start shows the coverage blocker.
+ * thus depends on server data. A link with a `period` or a `start` does not depend on it: with an
+ * `end` it reproduces its dates exactly, and without an `end` it ends today. A period that starts
+ * before the coverage start shows the coverage blocker.
  */
 
 /**

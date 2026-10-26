@@ -539,7 +539,7 @@ CONTRACT = PackageContract(
         "resolve_statement_conflicts",
         "resolve_bank_custody_account",
         "is_bank_custody_source",
-        "approved_bank_custody_account_ids",
+        "reviewed_bank_custody_account_ids",
         "resolve_statement_posting_account",
         "resolve_statement_transactions",
         "effective_statement_transaction_filter",
