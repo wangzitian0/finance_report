@@ -335,8 +335,8 @@ Endpoints tested: `/`, `/api/health`, `/api/docs`, `/ping-pong`, `/reconciliatio
 
 Environment/config validation is shared library logic under
 `apps/backend/src/runtime/extension/` (folded in from the retired `config`
-package, #1669). `env_keys.py` owns the three-way key comparison across
-`secrets.ctmpl`, `apps/backend/src/config.py`, and `.env.example`;
+package, #1669). `env_keys.py` owns the key comparison between the
+`Settings` model in `apps/backend/src/config.py` and `.env.example`;
 `tools/check_env_keys.py` is the command entry point. Pydantic config/schema
 validation is implemented in `schema_validation.py` and exposed
 through `tools/validate_schemas.py`. The root command namespace is `tools/`;

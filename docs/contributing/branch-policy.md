@@ -54,7 +54,7 @@ uvx pre-commit install
 **What hooks do**:
 
 1. **Ruff lint + format** — Auto-fixes Python style issues
-2. **Env var consistency** — Validates `secrets.ctmpl` ↔ `config.py` ↔ `.env.example`
+2. **Env var consistency** — Validates `config.py` `Settings` ↔ `.env.example`
 3. **File hygiene** — Trailing whitespace, merge conflicts, large files
 4. **Branch protection** — Prevents direct commits to `main`
 

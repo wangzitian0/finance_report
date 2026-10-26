@@ -211,18 +211,11 @@ def test_AC14_1_4_check_env_keys_exits_nonzero_for_config_documentation_drift(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """AC-meta.foundation-tooling.4: check_env_keys.py detects config/documentation drift."""
-    root = tmp_path
-    config_path = root / "apps" / "backend" / "src" / "config.py"
-    env_path = root / ".env.example"
-    config_path.parent.mkdir(parents=True)
-    config_path.write_text(
-        'class Settings:\n    redis_url: str = Field(validation_alias="REDIS_URL")\n',
-        encoding="utf-8",
-    )
+    """AC-meta.foundation-tooling.4: check_env_keys.py detects Settings/.env.example drift."""
+    env_path = tmp_path / ".env.example"
     env_path.write_text("DATABASE_URL=postgres://localhost/db\n", encoding="utf-8")
 
-    monkeypatch.setattr(check_env_keys, "get_project_root", lambda: root)
+    monkeypatch.setattr(check_env_keys, "get_project_root", lambda: tmp_path)
     monkeypatch.setattr(sys, "argv", ["check_env_keys.py"])
 
     with pytest.raises(SystemExit) as exc_info:
