@@ -1,5 +1,6 @@
-// #2646: Home bounds its default period by the cash coverage start (GET /reports/coverage), so the
+// #2646: Home bounds its default view by the cash coverage start (GET /reports/coverage), so the
 // period of a new user has no coverage blocker and its "Change in period" is not the whole net worth.
+// An explicit preset keeps its full period.
 
 import { render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -25,6 +26,8 @@ const mockedApiOperation = vi.mocked(apiOperation);
 /** The cash coverage start of the #2646 review data: the opening balances of the July statement. */
 const FIRST_STATEMENT = "2026-07-01";
 let coverageStart: string | null = FIRST_STATEMENT;
+/** The cash account whose opening balance is on the coverage start. */
+const LIMITING_ACCOUNTS = ["OCBC Bank"];
 
 const balanceSheet = (asOfDate: string, totalAssets: string) => ({
   as_of_date: asOfDate,
@@ -43,7 +46,7 @@ function respond(operationId: string, request: { query?: Record<string, unknown>
   const query = request.query ?? {};
   switch (operationId) {
     case "report_coverage_reports_coverage_get":
-      return { as_of_date: "2026-10-22", coverage_start: coverageStart };
+      return { as_of_date: query.as_of_date, coverage_start: coverageStart, limiting_accounts: coverageStart ? LIMITING_ACCOUNTS : [] };
     case "balance_sheet_reports_balance_sheet_get":
       // The opening balances post on the coverage start.
       return query.as_of_date === coverageStart ? balanceSheet(String(coverageStart), "3500") : balanceSheet(String(query.as_of_date), "5000");
@@ -96,6 +99,13 @@ describe("Home period and the first statement (#2646)", () => {
     );
     expect(screen.getByTestId("report-period-range")).toHaveTextContent("Jul 1, 2026 – Oct 22, 2026");
     expect(screen.getByRole("button", { name: "Previous period" })).toBeDisabled();
+    // The note under the dimension bar names the account that sets the start, and links to the fix.
+    expect(screen.getByTestId("report-coverage-note")).toHaveTextContent(
+      "Starts Jul 1, 2026: OCBC Bank has no opening balance before this date. Add an opening balance",
+    );
+    expect(screen.getByRole("link", { name: "Add an opening balance" })).toHaveAttribute("href", "/settings?tab=accounts");
+    // One coverage request, for the period end.
+    expect(requestsOf("report_coverage_reports_coverage_get")).toEqual([{ as_of_date: "2026-10-22" }]);
 
     // Each period request uses the bounded start. No request uses the unbounded 1Y start.
     await waitFor(() => expect(requestsOf("cash_flow_reports_cash_flow_get")).toHaveLength(1));
@@ -132,6 +142,32 @@ describe("Home period and the first statement (#2646)", () => {
 
     await waitFor(() => expect(screen.getByTestId("report-period-range")).toHaveTextContent("Nov 1, 2025 – Oct 22, 2026"));
     expect(screen.queryByTestId("change-in-period-basis")).toBeNull();
+    expect(screen.queryByTestId("report-coverage-note")).toBeNull();
     expect(screen.getByRole("button", { name: "Previous period" })).toBeEnabled();
+  });
+
+  // AC-reporting.fe-period-cockpit.10
+  it("AC-reporting.fe-period-cockpit.10 shows an explicit 1Y and All in full with no coverage bound", async () => {
+    const cases = [
+      ["1Y", "Nov 1, 2025 – Oct 22, 2026", "2025-11-01", false],
+      ["All", "Jan 1, 2000 – Oct 22, 2026", "2000-01-01", true],
+    ] as const;
+    for (const [preset, range, startDate, previousDisabled] of cases) {
+      mockedApiOperation.mockClear();
+      setTestUrl(`/?period=${preset}&end=2026-10-22`);
+      const view = render(<HomePage />);
+
+      expect(screen.getByTestId("report-period-range"), preset).toHaveTextContent(range);
+      await waitFor(() => expect(requestsOf("income_statement_reports_income_statement_get"), preset).toHaveLength(1));
+      expect(requestsOf("income_statement_reports_income_statement_get")[0], preset).toMatchObject({ start_date: startDate, end_date: "2026-10-22" });
+      await waitFor(() => expect(requestsOf("cash_flow_reports_cash_flow_get"), preset).toHaveLength(1));
+      expect(requestsOf("cash_flow_reports_cash_flow_get")[0], preset).toMatchObject({ start_date: startDate });
+      expect(screen.getByRole("button", { name: "Previous period" }), preset).toHaveProperty("disabled", previousDisabled);
+      expect(screen.queryByTestId("report-coverage-note"), preset).toBeNull();
+      expect(screen.queryByTestId("change-in-period-basis"), preset).toBeNull();
+      // An explicit preset does not read the coverage start.
+      expect(requestsOf("report_coverage_reports_coverage_get"), preset).toEqual([]);
+      view.unmount();
+    }
   });
 });

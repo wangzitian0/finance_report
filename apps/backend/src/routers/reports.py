@@ -57,7 +57,7 @@ from src.reporting import (
     package_snapshot_csv as _package_snapshot_csv,
     package_snapshot_response as _package_snapshot_response,
     package_snapshot_summary as _package_snapshot_summary,
-    report_coverage_start,
+    report_coverage as _report_coverage,
     run_balance_sheet_diagnostics,
 )
 from src.schemas import (
@@ -649,14 +649,17 @@ async def report_coverage(
     db: DbSession,
     user_id: CurrentUserId,
 ) -> ReportCoverageResponse:
-    """Return the first day that the default report period can start without a cash coverage gap.
+    """Return the first day that the default report view can start without a cash coverage gap.
 
-    Home and `/reports` bound a preset period by it (#2646). The workflow readiness uses the same bound.
+    Home and `/reports` bound their default view by it and name the accounts that set it (#2646).
+    The workflow readiness uses the same bound. ``as_of_date`` is the end of the shown period.
     """
     resolved = as_of_date or date.today()
+    coverage = await _report_coverage(db, user_id=user_id, as_of=resolved)
     return ReportCoverageResponse(
         as_of_date=resolved,
-        coverage_start=await report_coverage_start(db, user_id=user_id, as_of=resolved),
+        coverage_start=coverage.start,
+        limiting_accounts=list(coverage.limiting_account_names),
     )
 
 

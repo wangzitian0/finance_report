@@ -213,4 +213,38 @@ describe("Audit hub (EPIC-022 AC22.21.3)", () => {
             view.unmount();
         }
     });
+
+    // AC-meta.fe-audit-queue.4
+    it("AC-meta.fe-audit-queue.4 shows no audit-ready grade while the open items load or fail", async () => {
+        let resolveStats: (value: unknown) => void = () => undefined;
+        const pendingStats = new Promise((resolve) => {
+            resolveStats = resolve;
+        });
+        mockAuditApi({ get_data_quality_health_reports_data_quality_get: HEALTH_A, reconciliation_stats_reconciliation_stats_get: pendingStats });
+        setTestUrl("/audit?tab=health");
+        const view = render(<AuditPage />);
+        // The health score has loaded, the unmatched count has not: no grade shows.
+        await act(async () => {
+            await Promise.resolve();
+        });
+        expect(screen.getByText("Evaluating accounting invariants and temporal timeline...")).toBeInTheDocument();
+        expect(screen.queryByText(/Audit[- ]Ready/i)).toBeNull();
+        await act(async () => {
+            resolveStats(stats(0));
+            await pendingStats;
+        });
+        expect(await screen.findByText("Grade A · Audit-Ready")).toBeInTheDocument();
+        view.unmount();
+
+        // A failed read of the open items holds the grade with its reason.
+        mockedApiOperation.mockImplementation((async (op: string) => {
+            if (op === "get_data_quality_health_reports_data_quality_get") return HEALTH_A;
+            if (op === "reconciliation_stats_reconciliation_stats_get") throw new Error("offline");
+            return { items: [] };
+        }) as never);
+        render(<AuditPage />);
+        expect(await screen.findByText("Open items remain", {}, { timeout: 3000 })).toBeInTheDocument();
+        expect(screen.getAllByText(/The open items could not be read/).length).toBeGreaterThan(0);
+        expect(screen.queryByText(/Audit[- ]Ready/i)).toBeNull();
+    });
 });

@@ -27,6 +27,7 @@ from src.audit import (
 from src.config import settings
 from src.extraction import (
     StatementSourceType,
+    approved_bank_custody_account_ids,
     current_statement_disposition_policy_snapshot,
     list_statement_contributions,
     statement_disposition_policy_for_user,
@@ -58,7 +59,8 @@ from src.reporting.base.types import PACKAGE_INCLUDE_RESTRICTED, PersonalReporti
 from src.reporting.extension._core import _aggregate_net_income_sql, _quantize_money
 from src.reporting.extension.annualized_income import generate_annualized_income_schedule
 from src.reporting.extension.cash_flow import (
-    account_cash_coverage_start,
+    CashCoverage,
+    cash_coverage,
     cash_flow_proof_reason_text,
     generate_cash_flow,
 )
@@ -357,15 +359,15 @@ def _valuation_section_contribution(contribution: Any) -> PackageSectionContribu
     )
 
 
-def _is_bank_source(statement: Any) -> bool:
-    """True for a resolved statement of a bank: its custody account holds cash."""
-    result = getattr(statement, "source_result", None)
-    return result is not None and result.source_type is StatementSourceType.BANK
-
-
 def _is_bank_statement_contribution(contribution: Any) -> bool:
-    """True for a statement source contribution of a bank statement (see ``_is_bank_source``)."""
-    return contribution.contribution_type == "statement_source" and _is_bank_source(contribution.payload)
+    """True for a statement source contribution of a bank statement: its custody account holds cash.
+
+    ``approved_bank_custody_account_ids`` selects the same source type in one query (#2646).
+    """
+    if contribution.contribution_type != "statement_source":
+        return False
+    result = getattr(contribution.payload, "source_result", None)
+    return result is not None and result.source_type is StatementSourceType.BANK
 
 
 def _cash_inputs_from_contributions(
@@ -1325,30 +1327,19 @@ def package_preview(document: PersonalReportPackageDocument) -> PersonalReportPa
     )
 
 
-async def report_coverage_start(db: AsyncSession, *, user_id: UUID, as_of: date) -> date | None:
-    """The first day that the default report period can start without a cash coverage gap (#2646).
+async def report_coverage(db: AsyncSession, *, user_id: UUID, as_of: date) -> CashCoverage:
+    """The coverage start that bounds the default report view, and the accounts that set it (#2646).
 
     The cash-flow check reads the opening positions of the cash accounts
     (``opening_coverage_start``). Two callers select those accounts: ``GET /reports/cash-flow`` by
-    account name, and the report package by the bank custody accounts of its statements. The bound
-    is the later of the two, so a period that starts on it has no
-    ``opening_coverage_starts_after_period`` in either. A card or brokerage statement does not move
-    it, and an opening balance before the first statement keeps its history in the period. None when
-    no cash account has an opening position. ``GET /reports/coverage`` serves it to the frontend.
+    account name, and the report package by the custody accounts of its bank statements (approved,
+    closed on or before ``as_of``). The bound is the later of the two, so a period that starts on
+    it has no ``opening_coverage_starts_after_period`` in either. A card or brokerage statement does
+    not move it, and an opening balance before the first statement keeps its history. A fixed
+    number of queries: it does not resolve each statement. ``GET /reports/coverage`` serves it.
     """
-    # Every statement, as the package reads them: a statement that closes after ``as_of`` can still
-    # add movements to the period. Unproven bank statements count too: the bound may only be later.
-    statements = await list_statement_contributions(db, user_id=user_id, as_of=date.max)
-    custody_ids = frozenset(
-        statement.account_id
-        for statement in statements
-        if _is_bank_source(statement) and statement.account_id is not None
-    )
-    bounds = (
-        await account_cash_coverage_start(db, user_id, as_of=as_of, cash_account_ids=None),
-        await account_cash_coverage_start(db, user_id, as_of=as_of, cash_account_ids=custody_ids),
-    )
-    return max((bound for bound in bounds if bound is not None), default=None)
+    custody_ids = await approved_bank_custody_account_ids(db, user_id=user_id, as_of=as_of)
+    return await cash_coverage(db, user_id, as_of=as_of, cash_account_id_sets=(None, custody_ids))
 
 
 async def current_package_readiness(
@@ -1360,22 +1351,21 @@ async def current_package_readiness(
     """Evaluate readiness of the current default-framework candidate through the sole assembler.
 
     The period is the 365 days before ``as_of_date``. It starts no earlier than
-    ``report_coverage_start`` (#2646): an earlier start has no opening position for a cash account,
-    so the cash-flow coverage check blocks a new user. One current-authority read serves the bound
-    and the evaluation.
+    ``report_coverage`` (#2646): an earlier start has no opening position for a cash account, so the
+    cash-flow coverage check blocks a new user. The workflow status reads this readiness, so the
+    status matches the default report view.
     """
     report_end = as_of_date or date.today()
     report_start = report_end - timedelta(days=365)
-    async with shared_current_authority(db, TraceScope.tenant(user_id)):
-        coverage_start = await report_coverage_start(db, user_id=user_id, as_of=report_end)
-        if coverage_start is not None and report_start < coverage_start <= report_end:
-            report_start = coverage_start
-        return await PackageAssembler().evaluate_readiness(
-            db,
-            user_id=user_id,
-            framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-            start_date=report_start,
-            end_date=report_end,
-            as_of_date=report_end,
-            currency=settings.base_currency,
-        )
+    coverage_start = (await report_coverage(db, user_id=user_id, as_of=report_end)).start
+    if coverage_start is not None and report_start < coverage_start <= report_end:
+        report_start = coverage_start
+    return await PackageAssembler().evaluate_readiness(
+        db,
+        user_id=user_id,
+        framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
+        start_date=report_start,
+        end_date=report_end,
+        as_of_date=report_end,
+        currency=settings.base_currency,
+    )

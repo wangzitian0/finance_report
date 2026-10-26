@@ -135,13 +135,18 @@ export default function AuditPage() {
 }
 
 /**
- * The reason that holds the audit-ready grade, or null (#2646). A blocker of the workflow or an
- * unmatched row is an open item: the books are not ready while one exists.
+ * The hold of the audit-ready grade (#2646). A blocker of the workflow or an unmatched row is an
+ * open item: the books are not ready while one exists. `reason` is null when no item holds the
+ * grade. `settled` is false while a read loads: the Health tab shows no grade until it is true.
+ * A failed read holds the grade, because it cannot show that no open item exists.
  */
-function useAuditHold(): string | null {
+function useAuditHold(): { settled: boolean; reason: string | null } {
   const workflow = useWorkflowStatusQuery();
   const stats = useApiQuery(RECONCILIATION_STATS_QUERY_KEY, "reconciliation_stats_reconciliation_stats_get", {}, { staleTime: SHARED_STALE_MS });
   const reasons: string[] = [];
+  if (workflow.isError || stats.isError) {
+    reasons.push("The open items could not be read.");
+  }
   if (isWorkflowStatusResponse(workflow.data) && workflow.data.primary_state === "blocked") {
     reasons.push("A blocker holds your reports.");
   }
@@ -149,16 +154,17 @@ function useAuditHold(): string | null {
   if (unmatched > 0) {
     reasons.push(`${countLabel(unmatched, "transaction")} ${unmatched === 1 ? "has" : "have"} no ledger match.`);
   }
-  return reasons.length > 0 ? reasons.join(" ") : null;
+  return { settled: !workflow.isPending && !stats.isPending, reason: reasons.length > 0 ? reasons.join(" ") : null };
 }
 
 function HealthTab() {
   const { data, isLoading, isError, refetch, isFetching } = useDataQualityHealth();
-  const heldReason = useAuditHold();
+  const hold = useAuditHold();
+  const heldReason = hold.reason;
 
   return (
     <div className="space-y-8">
-      {isLoading ? (
+      {isLoading || !hold.settled ? (
         <div className="card space-y-4 p-8 text-center">
           <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[var(--border)] border-t-[var(--accent)]" />
           <p className="text-sm text-muted">Evaluating accounting invariants and temporal timeline...</p>

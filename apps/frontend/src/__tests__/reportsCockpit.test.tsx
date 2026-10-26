@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -159,6 +159,32 @@ describe("Reports page (#2621 LC)", () => {
     )
     // The restricted-holdings scope shows only where a balance sheet shows.
     expect(screen.queryByLabelText("Include restricted holdings")).toBeNull()
+  })
+
+  // AC-reporting.fe-period-cockpit.8
+  it("AC-reporting.fe-period-cockpit.8 requests the net worth series of the Balance sheet tab from the bounded start only", async () => {
+    let resolveCoverage: (value: unknown) => void = () => undefined
+    const coverage = new Promise((resolve) => {
+      resolveCoverage = resolve
+    })
+    mockedApiOperation.mockImplementation(((operationId: string) => {
+      if (operationId === "report_coverage_reports_coverage_get") return coverage
+      if (operationId === "balance_sheet_reports_balance_sheet_get") return Promise.resolve(balanceSheet)
+      return Promise.resolve({ currency: "SGD", granularity: "monthly", points: [] })
+    }) as never)
+    setTestUrl("/reports?tab=balance-sheet&end=2026-10-22")
+    render(<ReportsPage />)
+
+    expect(await screen.findByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument()
+    const series = () => mockedApiOperation.mock.calls.filter(([id]) => id === "net_worth_timeseries_reports_net_worth_timeseries_get")
+    // The series waits for the coverage start: no request uses the unbounded 1Y start.
+    expect(series()).toEqual([])
+    await act(async () => {
+      resolveCoverage({ as_of_date: "2026-10-22", coverage_start: "2026-07-01", limiting_accounts: ["OCBC Bank"] })
+      await coverage
+    })
+    await waitFor(() => expect(series()).toHaveLength(1))
+    expect(series()[0][1]).toMatchObject({ query: { from: "2026-07-01", to: "2026-10-22" } })
   })
 
   // AC-reporting.fe-report-surfaces.9

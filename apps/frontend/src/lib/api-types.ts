@@ -776,9 +776,10 @@ export interface paths {
         parameters: { query?: never; header?: never; path?: never; cookie?: never; };
         /**
          * Report Coverage
-         * @description Return the first day that the default report period can start without a cash coverage gap.
+         * @description Return the first day that the default report view can start without a cash coverage gap.
          *
-         *     Home and `/reports` bound a preset period by it (#2646). The workflow readiness uses the same bound.
+         *     Home and `/reports` bound their default view by it and name the accounts that set it (#2646).
+         *     The workflow readiness uses the same bound. ``as_of_date`` is the end of the shown period.
          */
         get: operations["report_coverage_reports_coverage_get"];
         put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
@@ -5918,6 +5919,11 @@ export interface components {
              * @description The latest opening position of a cash account on or before as_of_date. A period that starts earlier has the cash-flow proof reason opening_coverage_starts_after_period. None when no cash account has an opening position.
              */
             coverage_start?: string | null;
+            /**
+             * Limiting Accounts
+             * @description The names of the cash accounts whose opening position is on coverage_start.
+             */
+            limiting_accounts?: string[];
         };
         /**
          * ReportLine

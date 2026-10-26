@@ -500,14 +500,37 @@ def opening_coverage_start(opening_positions: Iterable[Any]) -> date | None:
     return max((position.effective_date for position in opening_positions), default=None)
 
 
-async def account_cash_coverage_start(
-    db: AsyncSession, user_id: UUID, *, as_of: date, cash_account_ids: frozenset[UUID] | None
-) -> date | None:
-    """``opening_coverage_start`` of the cash accounts that ``generate_cash_flow`` selects for these ids."""
+@dataclass(frozen=True, slots=True)
+class CashCoverage:
+    """``opening_coverage_start`` of a set of cash accounts, and the accounts that set it."""
+
+    start: date | None
+    #: The names of the cash accounts whose opening position is on ``start``, sorted.
+    limiting_account_names: tuple[str, ...]
+
+
+async def cash_coverage(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    as_of: date,
+    cash_account_id_sets: Sequence[frozenset[UUID] | None],
+) -> CashCoverage:
+    """The coverage start over the cash accounts that ``generate_cash_flow`` selects for each id set.
+
+    ``None`` in ``cash_account_id_sets`` stands for the name-match selection. The latest opening
+    over the union is the latest of the per-set bounds, so a period that starts on it passes the
+    check of every set. One read of the accounts and one of the opening positions.
+    """
     accounts = list((await db.execute(select(Account).where(Account.user_id == user_id))).scalars().all())
-    effective_cash_ids, _exact = _select_cash_account_ids(accounts, cash_account_ids)
-    positions = await cash_opening_positions(db, user_id, as_of=as_of, cash_account_ids=effective_cash_ids)
-    return opening_coverage_start(positions)
+    cash_ids: set[UUID] = set()
+    for ids in cash_account_id_sets:
+        cash_ids.update(_select_cash_account_ids(accounts, ids)[0])
+    positions = await cash_opening_positions(db, user_id, as_of=as_of, cash_account_ids=frozenset(cash_ids))
+    start = opening_coverage_start(positions)
+    names = {account.id: account.name for account in accounts}
+    limiting = sorted({names[p.account_id] for p in positions if p.effective_date == start and p.account_id in names})
+    return CashCoverage(start=start, limiting_account_names=tuple(limiting))
 
 
 async def _build_cash_flow(

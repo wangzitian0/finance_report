@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import dataclass
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select, text
@@ -34,6 +35,33 @@ def is_bank_custody_source(source: StatementExtractionResult | None, document: U
             and source.evidence_type is StatementEvidenceType.TRANSACTION_LEDGER
         )
     return document is None or document.document_type is not DocumentType.BROKERAGE_STATEMENT
+
+
+async def approved_bank_custody_account_ids(db: AsyncSession, *, user_id: UUID, as_of: date) -> frozenset[UUID]:
+    """The custody accounts of approved bank statements that close on or before ``as_of`` (#2646).
+
+    One query. A bank statement is a statement whose current source result has the source type
+    ``bank_statement``, as the report package selects its cash accounts. Approval stands for the
+    authority of the source: a statement posts its opening balance only on approval.
+    """
+    rows = await db.execute(
+        select(StatementSummary.account_id)
+        .join(
+            StatementExtractionResultRecord,
+            StatementExtractionResultRecord.id == StatementSummary.current_extraction_result_id,
+        )
+        .where(
+            StatementSummary.user_id == user_id,
+            StatementSummary.status == BankStatementStatus.APPROVED,
+            StatementSummary.account_id.is_not(None),
+            StatementSummary.period_end.is_not(None),
+            StatementSummary.period_end <= as_of,
+            StatementExtractionResultRecord.user_id == user_id,
+            StatementExtractionResultRecord.payload["source_type"].astext == StatementSourceType.BANK.value,
+        )
+        .distinct()
+    )
+    return frozenset(account_id for (account_id,) in rows.all() if account_id is not None)
 
 
 async def validate_custody_account(

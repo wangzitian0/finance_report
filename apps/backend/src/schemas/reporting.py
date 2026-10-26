@@ -574,6 +574,10 @@ class ReportCoverageResponse(BaseModel):
         "starts earlier has the cash-flow proof reason opening_coverage_starts_after_period. None when no "
         "cash account has an opening position.",
     )
+    limiting_accounts: list[str] = Field(
+        default_factory=list,
+        description="The names of the cash accounts whose opening position is on coverage_start.",
+    )
 
 
 class PersonalReportPackageReadinessResponse(BaseModel):
