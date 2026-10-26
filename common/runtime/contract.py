@@ -2,7 +2,7 @@
 
 ``runtime`` is the app↔external-world dependency boundary: it owns the *contract*
 for the external backends the application depends on (object storage, the LLM
-provider, cache, telemetry, …), how each of the six environments substitutes
+provider, cache, telemetry, …), how each environment substitutes
 them, and the invariant that a *declared* dependency must be *asserted present*
 (no silent ``skipped``/``warning``/fallback).
 
@@ -244,7 +244,7 @@ CONTRACT = PackageContract(
         ac('AC-runtime.guard-proofs.14', 'Credential-bearing fields DATABASE_URL and REDIS_URL emit sensitive=true through their source-class metadata, and manifest_gate_errors validates the exact filtered consumer artifact, failing on dropped required producers (issue #2016).', 'tests/tooling/test_required_env_manifest.py::test_AC_runtime_guard_proofs_14_sensitive_credentials_and_filtered_consumer_validation', priority='P1'),
         # ── Wave B (#1821): frontend-proof rows migrated from the
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
-        ac('AC-runtime.fe-deploy.1', 'Frontend exposes `/frontend-version.json` with deployed `git_sha`/`version` metadata for PR preview readiness checks', 'apps/frontend/src/__tests__/frontendVersionRoute.test.ts::AC8.13.90 returns deployed frontend version metadata for PR preview readiness'),
+        ac('AC-runtime.fe-deploy.1', 'Frontend exposes `/frontend-version.json` with deployed `git_sha`/`version` metadata for deploy readiness checks', 'apps/frontend/src/__tests__/frontendVersionRoute.test.ts::AC8.13.90 returns deployed frontend version metadata for deploy readiness'),
         # ── group sla-manifest: prod-required = SLA-bearing, machine-readably
         # exposed for infra2's periodic report (2026-07-07 decision, #1654,
         # finance_report#1851 G2) ──
@@ -382,9 +382,9 @@ CONTRACT = PackageContract(
             kind="playbook",
         ),
         ConceptRecord(
-            key="six_environments",
+            key="environments",
             owner="common/runtime/environments.md#environment-overview",
-            description="Local Dev / Local CI / GitHub CI / PR Preview / Staging / Production.",
+            description="Local Dev / Local CI / GitHub CI / Staging / Production.",
             cross_refs=[
                 "common/meta/development.md",
                 "common/testing/ci-cd.md",

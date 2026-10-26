@@ -743,7 +743,7 @@ review and release process.
   `env_stage_required`, `env_stage_reasons`, and provider gate matrices.
 - 2026-06-10: `PR Test Environment` now uses a stable per-PR canonical URL
   (`report-pr-<pr>.<domain>`) with commit-scoped aliases preserved for backward
-  compatibility. This closes #783 and is now documented through AC-testing.preview.10.
+  compatibility. This closes #783. The PR preview stack was deleted later (#2699).
 - 2026-06-12: PR preview follows successful PR `CI` `workflow_run` events and
   runs only a runner-local full-stack preview. PR image build/push/preflight and
   immediate PR image deletion were removed; legacy Dokploy resources are
@@ -808,8 +808,7 @@ The simplification priority remains:
 
 #### 5 counterfactual assumptions + 5 operational guardrails
 
-1. If PR preview was still using commit-only hostnames, old `report-pr-<pr>.<domain>`
-   readers would still pass only by route alias mismatch: fixed by AC-testing.preview.10.
+1. PR preview hostname aliasing: retired with the PR preview stack (#2699).
 2. If `ci_change_classifier` regressed to `docs`-only heavy skip for runtime
    paths, PR CI would stop running backend/frontend/e2e for changed runtime files.
 3. If `env_stage_required` drifted from job conditions, merge authority would
