@@ -29,11 +29,6 @@ from common.testing import jsonl_baseline
 BASELINE_VERSION = jsonl_baseline.BASELINE_VERSION
 
 
-def acs_to_lines(acs: dict[str, dict[str, Any]]) -> list[str]:
-    """Render the per-AC mapping as sorted, deterministic JSONL lines."""
-    return jsonl_baseline.records_to_lines(acs, identifier_key="ac_id")
-
-
 def render_jsonl(payload: dict[str, Any]) -> str:
     """Render a ``{"version", "acs"}`` payload as the canonical JSONL text."""
     return jsonl_baseline.render_jsonl(

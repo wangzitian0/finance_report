@@ -44,8 +44,7 @@ except ImportError:  # pragma: no cover - import guard
     sys.exit(1)
 
 from common.meta.extension.ac_registry_format import load_registry_entries, sort_key
-from common.testing.ac_scan import collect_real_refs, find_test_files
-from common.testing.test_surface import default_ac_test_dirs
+from common.testing.ac_scan import collect_real_refs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -206,10 +205,6 @@ def _load_registry_acs(
                 },
             )
     return acs
-
-
-def _find_test_files(repo_root: Path = REPO_ROOT) -> list[Path]:
-    return find_test_files(list(default_ac_test_dirs(repo_root)))
 
 
 def collect_real_test_refs(repo_root: Path = REPO_ROOT) -> dict[str, list[str]]:

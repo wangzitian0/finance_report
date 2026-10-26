@@ -314,7 +314,7 @@ def test_AC_testing_governance_22_pdf_fixture_import_never_exits_process(
 
     with pytest.raises(ImportError, match="reportlab"):
         runpy.run_path(
-            str(ROOT / "common/testing/fixtures/pdf/generate_pdf_fixtures.py"),
+            str(ROOT / "common/testing/fixtures/generate_test_pdfs.py"),
             run_name="pdf_fixture_import_test",
         )
 

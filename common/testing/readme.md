@@ -531,7 +531,6 @@ handling:
 
 - `register_chinese_fonts()` detects and registers available CJK fonts.
 - `get_safe_font()` falls back to Helvetica when a requested font is missing.
-- `can_display_chinese()` checks whether registered fonts can render CJK text.
 
 Known search paths include macOS system CJK fonts, Linux WQY/AR LLM-ONLY fonts, and
 Windows SimSun/SimHei fonts. CMB and Pingan generators use Chinese headers when

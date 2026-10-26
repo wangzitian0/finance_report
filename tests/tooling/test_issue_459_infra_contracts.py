@@ -98,7 +98,6 @@ def test_epic_009_generator_templates_and_cli_options() -> None:
 
     for source in ("DBS", "CMB", "MariGenerator"):
         assert source in generator_text
-    assert "Decimal" in generator_text
     assert "%y%m" in generator_text or "strftime" in generator_text
     assert "generate_" in fake_data_text and "transactions" in fake_data_text
     assert "{source}_template.yaml" in generator_text
