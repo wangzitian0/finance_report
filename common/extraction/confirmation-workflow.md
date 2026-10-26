@@ -97,8 +97,8 @@ Stage 2 Transitions live in the reconciliation half:
 - ✅ Resolve all consistency checks in the active Stage 2 scope before batch approval
 - ✅ Create journal entry only on `accepted` transition (never on `pending_review`)
 - ✅ Emit an audit log entry on every state transition
-- ✅ On the statement page, put the LOW rows on top with their source row number, keep every other row in source order, and state the LOW count (`AC-extraction.fe-stage1-review.23`, #2647)
-- ✅ Label a row with no confidence tier Not rated. Do not pin it and do not count it as low (`AC-extraction.fe-stage1-review.27`)
+- ✅ On the statement page, put the LOW rows on top and keep every other row in the API order. The API order is date order (transaction date, then creation time), not the line order of the source file. A LOW row states its date-order position ("Row 6 of 6 by date"), and the header states the LOW count (`AC-extraction.fe-stage1-review.23`, #2647)
+- ✅ Label a row with no confidence tier Not rated, in the table and in the review modal, with one badge (`RowConfidenceBadge`). Do not pin it and do not count it as low (`AC-extraction.fe-stage1-review.27`)
 - ✅ Wrap a long description; do not clip it with an ellipsis. On a phone, the rows grow with the page (`AC-extraction.fe-stage1-review.26`)
 - ✅ Show the source preview only for a PDF, PNG or JPG source. A CSV source has no preview panel (`AC-extraction.fe-stage1-review.25`)
 

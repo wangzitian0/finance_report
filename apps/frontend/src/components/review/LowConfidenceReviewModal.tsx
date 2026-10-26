@@ -8,7 +8,7 @@ import { apiOperation } from "@/lib/api-client";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatCategoryLabel, getCategoriesForDirection } from "@/lib/categories";
 import { useToast } from "@/components/ui/Toast";
-import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
+import { RowConfidenceBadge } from "@/components/review/RowConfidenceBadge";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { PENDING_CHAT_PROMPT_KEY } from "@/lib/chatStorage";
@@ -106,7 +106,7 @@ export function LowConfidenceReviewModal({ isOpen, onClose, transaction, currenc
           </div>
           <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--border)]/60 text-xs">
             <span className="text-muted">Date: {transaction.txn_date}</span>
-            <div className="flex items-center gap-1.5"><span className="text-muted">Confidence:</span>{transaction.confidence_tier ? <ConfidenceBadge tier={transaction.confidence_tier} /> : <span className="badge badge-warning">{transaction.confidence ?? "Not rated"}</span>}</div>
+            <div className="flex items-center gap-1.5"><span className="text-muted">Confidence:</span><RowConfidenceBadge txn={transaction} /></div>
           </div>
         </div>
         <form onSubmit={handleSave} className="mt-4 space-y-4">

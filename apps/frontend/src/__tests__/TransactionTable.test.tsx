@@ -209,14 +209,14 @@ describe("TransactionTable (read-only)", () => {
     });
 
     // AC-extraction.fe-stage1-review.23
-    it("AC-extraction.fe-stage1-review.23 pins the low-confidence rows on top and keeps the other rows in source order", () => {
+    it("AC-extraction.fe-stage1-review.23 pins the low-confidence rows on top and keeps the other rows in date order", () => {
         const row = (id: string, description: string, tier: BankStatementTransaction["confidence_tier"]): BankStatementTransaction => ({
             ...sample[0],
             id,
             description,
             confidence_tier: tier,
         });
-        // The order of the #2647 October statement: the LOW row was the last row.
+        // The API order of the #2647 October statement (date order): the LOW row was the last row.
         const rows = [
             row("t-salary", "Salary", "HIGH"),
             row("t-grab", "Grab ride", "MEDIUM"),
@@ -227,21 +227,22 @@ describe("TransactionTable (read-only)", () => {
         ];
         render(<TransactionTable transactions={rows} currency="SGD" />);
 
-        // Only the LOW rows move. MEDIUM, HIGH and TRUSTED rows keep the source order: no sort by tier.
+        // Only the LOW rows move. MEDIUM, HIGH and TRUSTED rows keep the API (date) order: no sort by tier.
         const expected = ["Card fee", "PayNow Transfer REF 4471", "Salary", "Grab ride", "Rent", "Groceries"];
         const region = screen.getByTestId("stage1-desktop-transaction-region");
         const desktopRows = within(region).getAllByRole("row").slice(1);
         expect(desktopRows.map((tr) => tr.querySelector("[title]")?.getAttribute("title"))).toEqual(expected);
-        // A pinned row states its row number in the source; the other rows sit at their source position.
-        expect(desktopRows.map((tr) => tr.querySelector("[data-testid='source-row-number']")?.textContent ?? null)).toEqual([
-            "Row 4", "Row 6", null, null, null, null,
+        // A pinned row states its position in date order; the other rows sit at that position.
+        expect(desktopRows.map((tr) => tr.querySelector("[data-testid='date-row-number']")?.textContent ?? null)).toEqual([
+            "Row 4 of 6 by date", "Row 6 of 6 by date", null, null, null, null,
         ]);
+        expect(screen.getByText("6 total · by date")).toBeInTheDocument();
         const mobileCards = within(screen.getByTestId("stage1-mobile-transaction-list")).getAllByRole("article");
         expect(mobileCards.map((card) => card.getAttribute("data-testid")?.replace("stage1-mobile-transaction-card-", ""))).toEqual([
             "t-fee", "t-paynow", "t-salary", "t-grab", "t-rent", "t-groceries",
         ]);
-        expect(within(mobileCards[1]).getByTestId("source-row-number")).toHaveTextContent("Row 6");
-        expect(within(mobileCards[2]).queryByTestId("source-row-number")).toBeNull();
+        expect(within(mobileCards[1]).getByTestId("date-row-number")).toHaveTextContent("Row 6 of 6 by date");
+        expect(within(mobileCards[2]).queryByTestId("date-row-number")).toBeNull();
         expect(screen.getByTestId("low-confidence-count")).toHaveTextContent("2 low confidence · shown first");
     });
 
@@ -259,18 +260,20 @@ describe("TransactionTable (read-only)", () => {
             direction: "OUT", reference: null, currency: "SGD", created_at: "", updated_at: "",
         } as Schemas["AtomicTransactionResponse"]);
         expect([unrated.confidence_tier, unrated.confidence]).toEqual([null, undefined]);
+        // The unrated row comes before a HIGH row: a sort that moves unrated rows after rated rows fails.
         const rows: BankStatementTransaction[] = [
-            { ...sample[0], id: "t-high", description: "Salary", confidence_tier: "HIGH" },
             unrated as BankStatementTransaction,
+            { ...sample[0], id: "t-high", description: "Salary", confidence_tier: "HIGH" },
             { ...sample[0], id: "t-low", description: "Card fee", confidence_tier: "LOW" },
         ];
         render(<TransactionTable transactions={rows} currency="SGD" />);
 
         const region = screen.getByTestId("stage1-desktop-transaction-region");
         const desktopRows = within(region).getAllByRole("row").slice(1);
-        expect(desktopRows.map((tr) => tr.querySelector("[title]")?.getAttribute("title"))).toEqual(["Card fee", "Salary", "Unrated transfer"]);
-        expect(within(desktopRows[2]).getByText("Not rated")).toBeInTheDocument();
-        expect(within(desktopRows[2]).queryByText(/low/i)).toBeNull();
+        expect(desktopRows.map((tr) => tr.querySelector("[title]")?.getAttribute("title"))).toEqual(["Card fee", "Unrated transfer", "Salary"]);
+        expect(within(desktopRows[1]).getByText("Not rated")).toHaveClass("badge-muted");
+        expect(within(desktopRows[1]).queryByText(/low/i)).toBeNull();
+        expect(within(desktopRows[1]).queryByTestId("date-row-number")).toBeNull();
         expect(screen.getByTestId("low-confidence-count")).toHaveTextContent("1 low confidence · shown first");
     });
 

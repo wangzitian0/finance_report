@@ -8,7 +8,7 @@ import { formatCategoryLabel } from "@/lib/categories";
 import { confidenceLabel } from "@/lib/statusLabels";
 import type { BankStatement, BankStatementTransaction, BalanceValidationResult, BrokerageImportResponse, MoneyValue } from "@/lib/types";
 import { StatusBadge } from "@/components/ui";
-import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
+import { RowConfidenceBadge } from "@/components/review/RowConfidenceBadge";
 
 export type Transaction = BankStatementTransaction;
 
@@ -203,44 +203,50 @@ export function confidenceRank(txn: Pick<Transaction, "confidence_tier" | "confi
   return null;
 }
 
-/** A row of the statement table with its 1-based row number in the source order. */
+/**
+ * A row of the statement table with its 1-based position in the API order. The API sends the rows
+ * in date order (transaction date, then creation time), not in the line order of the source file.
+ */
 export interface OrderedStatementRow<T> {
   txn: T;
-  sourceRow: number;
+  datePosition: number;
   /** True for a low-confidence row: it is above the other rows. */
   pinned: boolean;
 }
 
 /**
- * The low-confidence rows on top, in source order, then every other row in source order (#2647).
+ * The low-confidence rows on top, in date order, then every other row in date order (#2647).
  * Only a low row moves. An unrated row is not low.
  */
 export function pinLowConfidenceRows<T extends Pick<Transaction, "confidence_tier" | "confidence">>(
   rows: readonly T[],
 ): OrderedStatementRow<T>[] {
-  const numbered = rows.map((txn, index) => ({ txn, sourceRow: index + 1, pinned: confidenceRank(txn) === 0 }));
+  const numbered = rows.map((txn, index) => ({ txn, datePosition: index + 1, pinned: confidenceRank(txn) === 0 }));
   return [...numbered.filter((row) => row.pinned), ...numbered.filter((row) => !row.pinned)];
 }
 
-/** The source row number of a pinned row: it no longer sits at that position. */
-function SourceRowNumber({ row }: { row: OrderedStatementRow<Transaction> }) {
+/**
+ * The date-order position of a pinned row ("Row 6 of 6 by date"): the row no longer sits at that
+ * position. It is not the line number of the source file.
+ */
+function DateRowNumber({ row, total }: { row: OrderedStatementRow<Transaction>; total: number }) {
   if (!row.pinned) return null;
-  return <span data-testid="source-row-number" className="text-xs text-muted">{`Row ${row.sourceRow}`}</span>;
+  return <span data-testid="date-row-number" className="text-xs text-muted">{`Row ${row.datePosition} of ${total} by date`}</span>;
 }
 
 export function TransactionTable({ transactions, currency, onSelectTransaction, statementStatus }: { transactions: Transaction[]; currency: string; onSelectTransaction?: (txn: Transaction) => void; statementStatus?: string }) {
   const rows = pinLowConfidenceRows(transactions ?? []);
   const lowCount = rows.filter((row) => row.pinned).length;
   const renderStatus = (txn: Transaction) => <StatusBadge status={txn.status ?? (statementStatus === "approved" ? "matched" : "pending")} variants={{ pending: "warning", matched: "success", unmatched: "error" }} />;
-  // A row with no tier and no confidence is "Not rated": it is not shown as low (#2647).
-  const renderConf = (txn: Transaction) => txn.confidence_tier ? <ConfidenceBadge tier={txn.confidence_tier} /> : txn.confidence ? <span className={`badge ${txn.confidence === "high" ? "badge-success" : txn.confidence === "medium" ? "badge-warning" : "badge-error"}`}>{txn.confidence}</span> : <span className="badge badge-muted">Not rated</span>;
+  const renderConf = (txn: Transaction) => <RowConfidenceBadge txn={txn} />;
   return (
     <div className="card flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden">
       <div className="card-header flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-medium">Transactions</h3>
         <div className="flex flex-wrap items-center gap-2 text-xs">
           {lowCount > 0 && <span data-testid="low-confidence-count" className="badge badge-error">{`${lowCount} low confidence · shown first`}</span>}
-          <span className="text-muted">{rows.length} total</span>
+          {/* The other rows keep the API order: date order (#2647). */}
+          <span className="text-muted">{rows.length > 0 ? `${rows.length} total · by date` : "0 total"}</span>
         </div>
       </div>
       {/* The mobile list grows with the page: one page scroll, no inner scroll box (#2647). */}
@@ -251,7 +257,7 @@ export function TransactionTable({ transactions, currency, onSelectTransaction, 
           return (
             <article key={txn.id} data-testid={`stage1-mobile-transaction-card-${txn.id}`} className="min-w-0 space-y-4 p-4">
               <div className="flex min-w-0 items-start justify-between gap-3">
-                <div className="min-w-0 flex-1"><p className="text-xs font-medium uppercase text-muted">Transaction</p><p className="mt-1 break-words font-medium">{txn.description}</p>{cat && <span className="mt-1 inline-block rounded-full bg-[var(--background-muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">{cat}</span>}<div><SourceRowNumber row={row} /></div></div>
+                <div className="min-w-0 flex-1"><p className="text-xs font-medium uppercase text-muted">Transaction</p><p className="mt-1 break-words font-medium">{txn.description}</p>{cat && <span className="mt-1 inline-block rounded-full bg-[var(--background-muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">{cat}</span>}<div><DateRowNumber row={row} total={rows.length} /></div></div>
                 <div className="flex-shrink-0">{renderConf(txn)}</div>
               </div>
               <div className="grid grid-cols-1 gap-3 text-sm">
@@ -274,7 +280,7 @@ export function TransactionTable({ transactions, currency, onSelectTransaction, 
               return (
                 <tr key={txn.id} className="hover:bg-[var(--background-muted)]/50 group">
                   <td className="px-4 py-2 whitespace-nowrap">{txn.txn_date}</td>
-                  <td className="px-4 py-2"><div className="break-words" title={txn.description}>{txn.description}</div><div className="mt-0.5 flex flex-wrap items-center gap-1">{cat && <span className="inline-block rounded-full bg-[var(--background-muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">{cat}</span>}{statementStatus && renderStatus(txn)}<SourceRowNumber row={row} /></div></td>
+                  <td className="px-4 py-2"><div className="break-words" title={txn.description}>{txn.description}</div><div className="mt-0.5 flex flex-wrap items-center gap-1">{cat && <span className="inline-block rounded-full bg-[var(--background-muted)] px-2 py-0.5 text-xs font-medium text-[var(--foreground)]">{cat}</span>}{statementStatus && renderStatus(txn)}<DateRowNumber row={row} total={rows.length} /></div></td>
                   <td className={`px-4 py-2 text-right font-medium whitespace-nowrap ${txn.direction === "IN" ? "text-[var(--success)]" : "text-[var(--error)]"}`}>{txn.direction === "IN" ? "+" : "-"}{formatCurrencyLocale(txn.amount, txn.currency || currency)}</td>
                   <td className="px-4 py-2 text-center">{renderConf(txn)}</td>
                   {onSelectTransaction && <td className="px-2 py-2 text-right whitespace-nowrap"><button type="button" onClick={() => onSelectTransaction(txn)} className="rounded px-2 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)]/10">Review</button></td>}
