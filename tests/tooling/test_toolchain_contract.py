@@ -33,7 +33,6 @@ def _copy_contract_inputs(target_root: Path) -> None:
         "apps/backend/Dockerfile",
         "apps/frontend/Dockerfile",
         "docker-compose.yml",
-        "docker-compose.pr-preview.yml",
     ):
         source = ROOT / relative_path
         target = target_root / relative_path
@@ -114,16 +113,12 @@ def test_AC8_13_39_contract_reports_missing_toolchain(tmp_path: Path) -> None:
     [
         (".github/actions/setup-minio/action.yml", image, 0)
         for image in ("minio", "minio_client")
-    ]
-    + [
-        ("docker-compose.pr-preview.yml", image, 0)
-        for image in ("minio", "minio_client")
     ],
 )
 def test_minio_image_drift_fails_in_each_environment(
     tmp_path: Path, path: str, image_key: str, occurrence: int
 ) -> None:
-    """AC-testing.toolchain.1: Every CI job and preview use the governed image."""
+    """AC-testing.toolchain.1: Every CI job uses the governed image."""
     _copy_contract_inputs(tmp_path)
     image = contract.load_toolchain(tmp_path)["images"][image_key]
     target = tmp_path / path
@@ -178,7 +173,7 @@ def test_compose_image_formatting_is_not_drift(tmp_path: Path, quote: str) -> No
     """AC-testing.toolchain.1: Compare the image value, not incidental YAML style."""
     _copy_contract_inputs(tmp_path)
     image = contract.load_toolchain(tmp_path)["images"]["minio"]
-    for path in ("docker-compose.yml", "docker-compose.pr-preview.yml"):
+    for path in ("docker-compose.yml",):
         target = tmp_path / path
         target.write_text(
             target.read_text().replace(

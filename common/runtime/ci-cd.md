@@ -22,7 +22,7 @@ test-pipeline scoping. The test-pipeline half is
 
 **Post-merge staging deploy health gate** (`.github/workflows/deploy.yml`):
 - Non-LLM smoke/E2E tests run in parallel with `-n 4`.
-- The shared E2E setup action caches `.venv` and Playwright browsers so staging, manual AI/OCR, PR preview, and production smoke runs do not repeatedly download identical E2E dependencies.
+- The shared E2E setup action caches `.venv` and Playwright browsers so staging, manual AI/OCR, and production smoke runs do not repeatedly download identical E2E dependencies.
 - PR CI validates backend and frontend staging image builds without pushing so Dockerfile, context, and build-argument errors are blocked before merge. Main push CI builds and pushes SHA-tagged staging images in parallel with tests when heavy CI is required. These images are immutable commit artifacts and do not move the live `staging` tag.
 - Staging deploy is manual (`workflow_dispatch`) only and does not auto-follow main; CI is the development quality gate, not an auto-deploy trigger. The deploy job does not poll or wait for CI. A manual dispatch always performs a real deploy for the chosen release `version_ref`, which must be a `vX.Y.Z` tag with images already published by `deploy.yml`.
 - The workflow still emits normalized staging/provider gate outputs for the downstream jobs, but manual dispatch forces staging, provider connectivity, and AI/OCR relevance to `manual-dispatch`. There is no diff-based skip inside the deploy workflow; the diff-based change classifier remains for CI/PR scoping only.
@@ -51,7 +51,7 @@ test-pipeline scoping. The test-pipeline half is
 - There is no app-side per-deploy model override (the former `DEPLOY_*_MODEL_OVERRIDE` inputs no longer exist). The models a deployed backend actually uses come from infra2's compose env for `finance_report/app` (no model key is rendered: the three model roles are `code` class in the required-env manifest) and otherwise from the `config.py` code defaults. The staging gates carry no model configuration (#2566): the AI/OCR gate prints the deployed catalog (`GET /api/llm/catalog`) in its step summary, and the provider gate fails when that catalog differs from the infra2 SDK defaults.
 - Repeated `/api/health` 404 responses are treated as route failures, not generic backend failures: the health script emits structured `route_probe` lines and probes `/api/ping` and `/` so logs distinguish a missing or shadowed Traefik API route from an unhealthy backend container.
 - The infra2 receiver owns deploy dependency preflight: Vault/AppRole token checks and post-deploy effective `IAC_CONFIG_HASH` verification are default-on for fixed staging/prod deploys. Finance Report owns immutable image/evidence selection, canonical request rendering, receiver-run correlation, health, smoke, non-LLM E2E, and provider 4xx/config gates.
-- Dokploy API failures must not print raw response bodies. Shared shell helpers still report only endpoint, HTTP status, safe message fields, and `raw_body_printed=false` for preview/cleanup paths; the fixed deploy_v2 path raises sanitized Python client errors. Compose responses can include environment data and refresh tokens, so raw compose/deployment/env payloads stay out of GitHub Actions logs.
+- Dokploy API failures must not print raw response bodies. Shared shell helpers still report only endpoint, HTTP status, safe message fields, and `raw_body_printed=false`; the fixed deploy_v2 path raises sanitized Python client errors. Compose responses can include environment data and refresh tokens, so raw compose/deployment/env payloads stay out of GitHub Actions logs.
 - Staging and production deploys write only the allowlisted fixed-env keys required for runtime identity, routing, telemetry, and model overrides. The effective-config verification reads back `IAC_CONFIG_HASH`; full environment strings and secret-like keys must not be logged. Stale effective config is fail-closed: correct the Dokploy/env issue and perform a manual rerun of the same deploy_v2 workflow.
 - The post-merge workflow appends a GitHub Step Summary after deploy health and AI/OCR finish, making queue time, serial execution time, and slow jobs visible without manually scraping logs.
 - The deploy workflow also emits a dedicated `Post-merge Delivery` check. This aggregate check fails when build/deploy, provider `4xx`/unknown hard failure, or the exact-SHA AI/OCR statement canary fails, and passes when the release-critical deploy validation unit is complete or when classification proves staging is not required. A green `CI` workflow alone is not sufficient evidence that post-merge delivery passed.
@@ -79,7 +79,7 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
 - The GLM-backed PDF gate allows a longer parsing window than normal UI tests: JSON extraction requests use `AI_JSON_TIMEOUT_SECONDS=360`, and the browser gate waits up to `PARSING_TIMEOUT_MS=480000` so slow but successful `glm-5.3-flash` PDF parsing is not misclassified as a failed provider gate.
 - The full GLM corpus (`corpus: all`) includes `tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_statement_upload_e2e.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `tests/e2e/test_four_asset_net_worth_golden_path.py`, and `tests/e2e/test_personal_financial_report_package.py`. The blocking deploy path runs only the `canary` subset of these (`test_brokerage_upload_to_portfolio_value.py`); the remaining heavy journeys run as the `audit_replay` corpus in `audit-replay.yml` (weekly and on dispatch). The brokerage canary test uploads Moomoo and Futu PDF fixtures through `/api/statements/upload`, waits for parsed statements, imports positions through `/api/statements/{id}/brokerage/import`, and verifies `/api/portfolio/holdings` plus `/api/reports/balance-sheet`. The four-asset gate (audit-replay corpus) uses an isolated user to combine deterministic bank statement posting, brokerage PDF import, property/mortgage/ESOP manual valuation snapshots, exact as-of net worth, and dashboard/report totals. The personal financial report package gate (audit-replay corpus) verifies statements, schedules, notes, restricted-asset treatment, report exports, and source traceability from one fresh user. Failures identify whether OCR parsing, parsed-data state transition, brokerage import, manual valuation, reporting, report packaging, or dashboard aggregation failed. The path-level proof matrix is maintained in [EPIC-017](../../docs/project/EPIC-017.portfolio-management.md#brokerage-pdf-to-asset-report-proof-matrix) with the compact entry-point version in the README; critical product proof anchors are a derived view of the AC graph, validated by the `check_critical_proof_matrix` contract folded into the single `tools/check_ac_index.py` gate (macro outcome source: `common/testing/data/critical-proof-outcomes.yaml`). Every `post_merge_environment` proof in that matrix that carries the `llm` marker appears in exactly one of the two corpora — the minimal `canary` (deploy blocking path) or the comprehensive `audit_replay` (`audit-replay.yml`) — and the on-demand `manual-ai-ocr-gate` recovery diagnostic in `.github/workflows/deploy.yml` runs the full corpus.
 
-**On-demand PR preview & teardown** (`.github/workflows/preview.yml`):
+**PR merge authority** (`.github/workflows/ci.yml`):
 
 > The trigger/blocking contract for every delivery gate is the SSOT
 > [`delivery-gates.yaml`](../meta/data/delivery-gates.yaml) (verified by
@@ -87,76 +87,16 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
 > *behavior*; it does not own the trigger *mechanism* — change a trigger there.
 
 - PR merge authority runs **synchronously on `pull_request`** via `ci.yml#finish`,
-  so a fast or auto merge cannot bypass deterministic CI gates. `preview.yml`
-  triggers on `pull_request` (`closed`) for teardown cleanup and on
-  `workflow_dispatch` for on-demand persistent previews; it no longer follows CI
-  asynchronously via `workflow_run`.
-- PR preview does not push, preflight, pull, or delete PR preview images, and it
-  does not build images in CI. The `build-preview-backend-image`,
-  `build-preview-frontend-image`, `gate-cheap-ci`, and GHCR preflight/delete
-  jobs are removed. The post-merge staging ladder remains the first place
-  registry images are born, pushed, and validated.
-- On-demand preview deployment caps new Dokploy deployment readiness at 600 seconds (`PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS=600`) within a 30-minute job timeout, and PR-close teardown dispatches `preview-teardown` within a 10-minute job timeout.
-- A persistent Dokploy preview is **on-demand only** (P1a-2, #879): the
-  `deploy-preview` job runs solely via manual `workflow_dispatch` (Run workflow →
-  PR number), never automatically per PR. When triggered, it is GitHub-source:
-  Dokploy clones the PR branch and runs `docker compose ... up -d --build` so
-  the backend/frontend are **built from the PR source on the Dokploy host** — no
-  GHCR image is pulled or pushed. This app-side persistent PR preview path is not the infra2 `deploy_v2 preview/*` front door;
-  `deploy_v2 preview/branch` currently owns the `report-branch-main`/canary style preview slots. The job is
-  `continue-on-error` and is not a required check, so a preview failure never
-  blocks the PR. The persistent URL is `https://report-pr-<N>.<domain>`.
-- `tools/pr_preview_lifecycle.py` is the single owner for preview **deploy**
-  (standing previews up). The workflow does not hand-roll separate Dokploy shell
-  blocks, so the deploy keeps one naming, metadata, logging, and redaction
-  contract. Reclaim (teardown/reconcile) is not app-owned — it is dispatched to
-  infra2 on PR close (see the reclaim bullets above).
-- PR preview Dokploy API responses are parsed for required fields only.
-  Workflows must not print raw Dokploy response JSON because compose responses
-  can include environment data and refresh tokens.
-- Persistent preview reclaim is infra2-owned: on PR close `preview.yml#cleanup`
-  dispatches a vendor-neutral `preview-teardown` signal (`repository_dispatch`,
-  `INFRA2_PAT`) to infra2, which performs the authoritative idempotent 1:1
-  teardown by PR number — the app never calls the Dokploy API *for reclaim*. The
-  deploy path is still app-side (get-or-create + redeploy), so it updates the
-  preview in place across commits without a pre-deploy delete.
-- PR preview rollout proof fails fast on a missing deployment record. When
-  Dokploy reports `composeStatus=done` but never exposes a **new** deployment
-  record for the requested SHA within the new-record window,
-  `wait_for_dokploy_deployment_rollout` raises the classified
-  `DokployNoNewDeploymentRecord` error
-  (`platform_failure_domain=dokploy-worker-or-deployment-record`) instead of
-  proceeding to commit-scoped readiness. This stops the lifecycle from
-  false-greening against stale records and then wasting the full readiness
-  window probing a route for a SHA that never rolled out. The diagnostics
-  distinguish "no new deployment created" (control-plane / worker failure) from
-  "new deployment created but route not ready" (a readiness/Traefik 404 window),
-  so a 404 is no longer the only signal. The retry ladder still recovers via
-  `compose.redeploy` and compose recreation because the classified error
-  subclasses `DokployDeploymentDidNotStart`.
-- PR preview deploy never leaves a silent half-update. The deploy mutates the
-  Dokploy compose (source then env) before triggering the rollout, so the
-  failure path captures the last-known-good source/env of an existing compose
-  before mutating. On a deploy/rollout failure it either rolls the compose back
-  to that last-known-good state (`recovery_state=rolled-back`) or, when no good
-  snapshot exists (a freshly created or recreated compose), explicitly marks the
-  record safe-to-reconcile (`recovery_state=marked-safe-to-reconcile`). The
-  failure context records which mutation step (`source`, `env`, `deploy`, or
-  `rollout`) the compose was left at. `update_compose_env` additionally
-  reconciles the **whole** requested env against the effective remote env so a
-  stale non-allowlisted key from a prior deploy cannot diverge unnoticed;
-  divergence fails fast with key-name-only diagnostics that never print env
-  values.
+  so a fast or auto merge cannot bypass deterministic CI gates. The app has no
+  PR preview deployment; the post-merge staging ladder is the first place
+  registry images are pushed and validated.
 - The post-merge `Staging AI/OCR Gate` workflow is the single automated CI entry point that may spend provider quota.
 - Staging core non-LLM E2E is a strict subset **derived from the execution matrix** (`common/testing/matrix.py`, issue #1547): the deploy workflow evals `python tools/test_selection.py --stage staging_core_e2e --shell` at runtime instead of hardcoding a whitelist. A root E2E spec enters the staging core set only when its matrix row is audited, does not require a live LLM provider, and is not exclusive to the core journey lane; an unaudited or provider-dependent spec defaults to the specialized gates.
-- The shared `.github/actions/setup-e2e-tests` action owns E2E Python import setup. It must export the repository root through `PYTHONPATH` via `$GITHUB_ENV` before preview, staging, AI/OCR, or production E2E pytest commands run, because `tests/e2e/conftest.py` imports shared helpers through the `tests.e2e.*` package path while pytest may choose `tests/e2e` as its root directory.
-- PR-preview reclaim is infra2-owned and event-driven: on PR close the app
-  dispatches a `preview-teardown` signal and infra2 performs the idempotent 1:1
-  Dokploy teardown; infra2's hourly `preview-leak-check` detects + alerts on
-  anything a close event missed. The app's scheduled `PR Preview Cleanup` job only
-  prunes legacy closed-PR backend/frontend GHCR tags matching `pr-<number>-<sha>`
-  after the 14-day retention window while preserving tags for open PRs. GitHub
-  workflows must not SSH to the VPS or call the Dokploy API for PR reclaim.
+- The shared `.github/actions/setup-e2e-tests` action owns E2E Python import setup. It must export the repository root through `PYTHONPATH` via `$GITHUB_ENV` before staging, AI/OCR, or production E2E pytest commands run, because `tests/e2e/conftest.py` imports shared helpers through the `tests.e2e.*` package path while pytest may choose `tests/e2e` as its root directory.
+- The scheduled `PR Preview Cleanup` job only prunes legacy closed-PR
+  backend/frontend GHCR tags matching `pr-<number>-<sha>` after the 14-day
+  retention window while preserving tags for open PRs. GitHub workflows must not
+  SSH to the VPS or call the Dokploy API for PR reclaim.
 - The scheduled `GHCR SHA Retention` workflow owns post-merge backend/frontend
   `:<sha>` package retention only. It collects live staging and production
   health refs, resolves release tags back to commit SHAs when needed, and uses
@@ -174,9 +114,8 @@ The provider-backed AI/OCR corpus is split into two distinct gates that share on
   updates one tracking issue per environment and breakage via `GITHUB_TOKEN`
   (`deploy-freshness: <env> is stale` / `could not be measured`). Owner:
   `tools/deploy_freshness.py` → `common/runtime/deploy_freshness.py`.
-- The retired `tools/cleanup_pr_preview_resources.py` compatibility entry point is removed. Closed-PR Dokploy reclaim is infra2-owned (event-driven `preview-teardown` + the hourly `preview-leak-check`); generic VPS host hygiene is also infra2-owned (infra2's `tools/host_hygiene_schedule.py` + the ops-checks re-ensure job).
-- PR preview containers created from `docker-compose.yml` use the `json-file` logging driver with bounded `max-size` and `max-file` options so Docker container logs cannot grow without limit.
-- Generic VPS host hygiene is **infra2-owned** (deployment-environment GC belongs to infra2; see infra2 `docs/ssot/ops.pipeline.md §11`). It runs as a Dokploy `dokploy-server` Schedule Job — provisioned by infra2's `tools/host_hygiene_schedule.py` and kept ensured by infra2's `ops-checks` host-hygiene job — pruning old stopped non-preview containers, build cache, unused images, all unused Docker networks, oversized Docker json logs, and the systemd journal. The app no longer ships a host-hygiene tool or provisions the schedule. PR preview environments are reaped by infra2's preview teardown/leak-check, never by host hygiene; the `PR_PREVIEW_CONTAINER_PATTERN` (now in infra2) only *excludes* preview containers from generic pruning.
+- Containers created from `docker-compose.yml` use the `json-file` logging driver with bounded `max-size` and `max-file` options so Docker container logs cannot grow without limit.
+- Generic VPS host hygiene is **infra2-owned** (deployment-environment GC belongs to infra2; see infra2 `docs/ssot/ops.pipeline.md §11`). It runs as a Dokploy `dokploy-server` Schedule Job — provisioned by infra2's `tools/host_hygiene_schedule.py` and kept ensured by infra2's `ops-checks` host-hygiene job — pruning old stopped non-preview containers, build cache, unused images, all unused Docker networks, oversized Docker json logs, and the systemd journal. The app no longer ships a host-hygiene tool or provisions the schedule.
 - GLM/OCR CI traffic uses `AI_BASE_URL=https://api.z.ai/api/coding/paas/v4`; the URL remains an env override so the base provider can be replaced without code changes.
 
 **Production release dry-run** (`.github/workflows/release.yml`):
@@ -301,6 +240,6 @@ deploy.
 ## Related
 
 - [deployment.md](./deployment.md) — Dual-repo model, Vault secret injection, staging/production flow
-- [environments.md](./environments.md) — Six environment overview
+- [environments.md](./environments.md) — Five environment overview
 - [runtime-incident-response.md](./runtime-incident-response.md) — Runtime incident triage
 - [common/testing/ci-cd.md](../testing/ci-cd.md) — the test-pipeline half (CI job structure, coverage gates, test optimization)

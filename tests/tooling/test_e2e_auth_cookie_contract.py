@@ -5,13 +5,13 @@ import pytest
 from tests.e2e.auth_cookie import build_auth_cookie, build_runner_browser_session
 
 
-def test_AC8_13_50_auth_cookie_uses_domain_path_for_preview() -> None:
-    cookie = build_auth_cookie("https://report-pr-740.zitian.party", "test-token")
+def test_AC8_13_50_auth_cookie_uses_domain_path_for_deployed_host() -> None:
+    cookie = build_auth_cookie("https://report-staging.zitian.party", "test-token")
 
     assert cookie == {
         "name": "finance_access_token",
         "value": "test-token",
-        "domain": "report-pr-740.zitian.party",
+        "domain": "report-staging.zitian.party",
         "path": "/",
         "httpOnly": True,
         "sameSite": "Lax",
@@ -38,7 +38,7 @@ def test_AC8_13_50_auth_cookie_rejects_app_url_without_hostname() -> None:
 
 
 def test_AC8_13_50_runner_browser_session_builds_cookie_and_storage_script() -> None:
-    app_url = "https://report-pr-740.zitian.party"
+    app_url = "https://report-staging.zitian.party"
     cookie, script = build_runner_browser_session(
         {
             "user_email": "qa@test.example.com",

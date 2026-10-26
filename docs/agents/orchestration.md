@@ -14,7 +14,7 @@
 - On a branch, never committed to `main`
 - **No conflicts** — the branch applies cleanly onto current `main`
 - **CI passing** (all required checks green) — behavior is proven by the tests in CI
-  (TDD / root-cause), **not** by manually watching a preview deploy
+  (TDD / root-cause), **not** by manually watching a deploy
 - **All Copilot auto-review (CR) comments resolved** — each fixed, or justified — reply on the thread with what changed (or why not) **before** resolving it, so the resolution has a paper trail independent of the commit history
   - **Escalate for a fresh Copilot pass after a substantial fix round**: if the review round being resolved contained any **high**-severity finding, or **3 or more medium**-severity findings, request a new Copilot review (`request_copilot_review`, or `gh pr comment <n> --body "@copilot review"`) after pushing the fixes, before merging or reporting the PR ready — a diff that changed that much needs a fresh pass, not just its old threads marked resolved
 - **GitHub itself reports `mergeable: MERGEABLE` and `mergeStateStatus: CLEAN`** — a green CI run does not imply this; check both explicitly (see the playbook below) before merging or reporting a PR as ready
@@ -32,10 +32,6 @@ immediately before merging or reporting a PR ready, not just after your last pus
 | `BLOCKED` | Required checks/reviews not yet satisfied | Normal in-flight state — watch, don't rebase pre-emptively |
 | `UNSTABLE` | Non-required checks failing | Usually fine to report ready; note which check and why it's non-required |
 | `UNKNOWN` | GitHub hasn't computed it yet | Wait ~10-20s and re-query before concluding anything |
-
-> Manual preview verification (`report-pr-XX.zitian.party`) is **optional** — useful
-> to eyeball a UI change, but not a required deliverable step. The proof of behavior
-> lives in the test suite, not in watching the app run.
 
 **Agent Workflow (Complete)**:
 
@@ -274,7 +270,7 @@ Judgment, not config (vision.md, Good Taste 6):
 ## Operational Guidelines
 
 1. **Prefer Dokploy API for debugging**: Use `curl` + Dokploy API; SSH only for reading, never modifying.
-2. **Shared network isolation**: Use compose service DNS on project-scoped networks for PR previews; do not use fixed container names as hostnames.
+2. **Shared network isolation**: Use compose service DNS on project-scoped networks; do not use fixed container names as hostnames.
 3. **Infrastructure Boundary**: Never check out infra2 source in this repo. Link
    the independent infra2 PR for Vault/Compose changes and keep the SDK pin exact.
 4. **Probe before claiming inability**: never report "can't access X / no

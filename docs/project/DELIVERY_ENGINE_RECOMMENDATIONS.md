@@ -80,14 +80,12 @@ normalize their gates from that structured matrix:
 
 - PR CI reads `env_stage_required.pr` instead of the legacy `heavy_required`
   output.
-- PR Preview reads `env_stage_required["pr-preview"]` instead of the legacy
-  `pr_preview_required` output.
 - Staging reads `env_stage_required.staging` and
   `provider_gate_required.staging` instead of the legacy `staging_required` and
   `staging_ai_ocr_required` outputs.
 
-The legacy scalar outputs (the per-env `pr_preview_required`, `staging_required`,
-and `staging_ai_ocr_required`) that were retained as compatibility shims have now
+The legacy scalar outputs (the per-env `staging_required` and
+`staging_ai_ocr_required`) that were retained as compatibility shims have now
 been **retired**: every workflow consumer derives its own scalar from the
 structured matrix, so the classifier emits the structured Env x Stage and
 provider-gate JSON only, alongside the top-level `heavy_required` / `reason`
@@ -101,9 +99,8 @@ three newest failed logs for the active CI lanes: `CI`,
 - PR CI is the deterministic merge authority; recent failures were unified
   coverage regressions, which are cheap to diagnose before deploy.
 - PR Preview used to be the noisiest deployed lane; failures concentrated in
-  the former Dokploy deploy lifecycle before browser E2E. The current preview
-  follows successful PR CI, runs in the GitHub runner, and keeps historical
-  Dokploy resources cleanup-only.
+  the former Dokploy deploy lifecycle before browser E2E. The app-side preview
+  stack was deleted (#2699).
 - Staging is correctly acting as the post-merge environment gate; recent
   failures were split between Dokploy deploy health and application E2E, then
   surfaced through `Post-merge Delivery`.
@@ -130,7 +127,7 @@ records delivery-engine evidence and recommendations only.
 | Lane | Three newest successful samples | Three newest failed samples | Observed signal |
 |---|---|---|---|
 | `CI` | `27186502313`, `27183789200`, `27183466331` | `27184608585`, `27183552389`, `27183418593` | Failures concentrated in deterministic pre-deploy gates, especially unified coverage, while successful runs kept lint, AC traceability, backend shards, integration, Tier-1 E2E, frontend, image dry-run, tooling coverage, unified coverage, and `finish` aligned. |
-| `PR Test Environment` | `27186502312`, `27183466349`, `27183418552` | `27184608593`, `27183789205`, `27183223104` | Failures concentrated in deploy/readiness before browser E2E. This supports keeping preview scoped to image, route, health/version, and provider-free UI/API subset proof. |
+| `PR Test Environment` | `27186502312`, `27183466349`, `27183418552` | `27184608593`, `27183789205`, `27183223104` | Failures concentrated in deploy/readiness before browser E2E. The workflow was deleted (#2699). |
 | `Deploy Staging` | `27182443187`, `27150045338`, `27135967250` | `27136569205`, `27133497263`, `27115009456` | Failures were environment/deploy-health/E2E class failures, not first-time deterministic business-proof failures. Staging remains the right post-merge proof for exact merged SHA, real routing, Dokploy, GHCR, and provider wiring. |
 | `Staging AI/OCR Gate` | `26140468725`, `26139861002`, `26100318347` | `26099478674`, `26099042516`, `26097549636` | The gate is sparse and provider-backed. It should stay narrow because it spends external quota and validates provider realism after deterministic PR and staging proof. |
 | `Production Release` | `26636834757`, `26636314940`, `26635994623` | `26636451107`, `26632124221`, `26631695544` | Failures were release/deploy integrity issues such as stale version health mismatch, which is appropriate for production. Production should not become the first business-correctness proof. |
@@ -138,11 +135,10 @@ records delivery-engine evidence and recommendations only.
 Balance conclusion:
 
 - delivery-speed balance: local and PR stay fast because deterministic work runs
-  in parallel after classification, PR preview is deploy-relevant only, staging
+  in parallel after classification, staging
   consumes successful `main` SHAs, and production promotes previously validated
   images.
-- end-to-end consistency: version/SHA checks connect PR images, preview URLs,
-  staging image promotion, and production release health so stale deployments
+- end-to-end consistency: version/SHA checks connect staging image promotion, and production release health so stale deployments
   cannot silently satisfy a newer gate.
 - quality fallback: PR `finish` remains the merge authority for deterministic
   behavior, staging proves real infrastructure/provider paths, and production
@@ -150,9 +146,6 @@ Balance conclusion:
 
 resource leak candidates:
 
-- PR preview Dokploy compose, network, container, and volume leftovers when PRs
-  close, deploy creation fails before a deployment record, or GitHub cleanup is
-  cancelled.
 - Legacy GHCR PR images and SHA images when preview branches churn quickly.
 - Docker build cache and stopped containers on the Dokploy host after repeated
   image build, redeploy, or failed rollout loops.
@@ -167,18 +160,12 @@ resource leak candidates:
 This follow-up is intentionally one PR because the controls are operationally
 coupled but do not require a topology rewrite:
 
-- PR preview leftovers: closed-PR cleanup still deletes the Dokploy compose on
-  PR close, while closed-PR Dokploy reconciliation in the scheduled cleanup
-  reconciles Dokploy preview composes against open PRs every six hours. When a
-  newly created preview compose accepts deploy and redeploy requests but never
-  creates a deployment record, the lifecycle deletes that empty compose shell,
-  recreates it once, and still fails before readiness if the recreated compose
-  cannot produce a deployment record.
-  Host-level Docker leftovers remain owned by the
+- Host-level Docker leftovers remain owned by the
   `finance-report-vps-host-hygiene` Dokploy server schedule instead of GitHub
   Actions SSH.
-- GHCR PR tag accumulation: the current PR preview workflow no longer creates
-  or deletes PR image tags on close; scheduled cleanup prunes legacy closed-PR PR preview GHCR tags older than 14 days while preserving tags for open PRs.
+- GHCR PR tag accumulation: no workflow creates PR image tags; scheduled
+  cleanup prunes legacy closed-PR GHCR tags older than 14 days while preserving
+  tags for open PRs.
 - stale staging or production routes: staging already records before-SHA,
   image build, deploy, E2E, failed step, and failure-domain context. Production
   deploy context now records `production_before_version`, deploy-health
@@ -196,7 +183,6 @@ coupled but do not require a topology rewrite:
   and journal retention.
 
 The speed boundary is unchanged: PR remains the deterministic merge authority,
-PR Preview proves runtime/image/route/version and provider-free behavior,
 staging proves merged-SHA infrastructure/provider realism, and production proves
 release integrity plus health. The quality fallback improves because each leak
 path now has either cleanup or failure context attached to the narrowest stage
@@ -237,8 +223,8 @@ main pushes.
 
 ### retire per-env legacy scalar classifier outputs
 
-The classifier no longer emits the per-env `pr_preview_required`,
-`staging_required`, and `staging_ai_ocr_required` step outputs. The structured
+The classifier no longer emits the per-env
+`staging_required` and `staging_ai_ocr_required` step outputs. The structured
 Env x Stage / provider-gate JSON (plus the top-level `heavy_required` / `reason`
 scalars) is the sole machine-readable gate contract; every workflow consumer
 derives its own scalar from that matrix, and the per-env values survive only in

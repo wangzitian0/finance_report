@@ -18,7 +18,7 @@ path→stage classification (whose generated view is
 `tests/tooling/test_execution_matrix_contract.py`) and per-stage selection
 (marker expression, explicit node sets, parallelism). Workflows consume
 selection at runtime via `tools/test_selection.py --stage <stage> --shell` —
-they never restate test lists (the `preview.yml` whitelist retired by #1547
+they never restate test lists (the whitelist retired by #1547
 is the canonical counterexample). Every JUnit-emitting workflow pytest command,
 including the tooling evidence producer, is registered in
 `WORKFLOW_PYTEST_CONTRACTS`; the conformance gate fails closed on either an
@@ -213,7 +213,7 @@ Independent generated-fixture Decimal expectations and downloaded frozen artifac
 remain the oracle; service versions must match the explicit target. Requested
 model configuration is recorded separately from actual provider execution evidence,
 so a selector value alone cannot certify the serving model. This live-provider proof
-runs in audit replay, never the provider-free PR preview or minimal blocking canary.
+runs in audit replay, never the minimal blocking canary.
 Its extra parse wait is included in the replay counts and timeout budget.
 
 The representative multi-source package fixture takes its report period from the

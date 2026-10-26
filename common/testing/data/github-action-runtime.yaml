@@ -24,9 +24,6 @@ actions:
   - uses: actions/download-artifact@v8
     runtime_status: node24_native
     owner: ci_workflow
-  - uses: actions/github-script@v9
-    runtime_status: node24_native
-    owner: pr_preview_workflow
   - uses: actions/setup-node@v6
     runtime_status: node24_native
     owner: ci_workflow

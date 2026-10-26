@@ -1,21 +1,11 @@
-"""AC8.13.38 AC8.13.74: app-side Dokploy preview reclaim is fully retired (owned by
-infra2); the app keeps no cleanup/reconcile entrypoints or host-hygiene commands."""
+"""AC8.13.38 AC8.13.74: the app keeps no host-hygiene commands; scheduled maintenance
+only prunes stale GHCR PR image tags."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-
-
-def test_AC8_13_38_legacy_cleanup_entrypoints_are_removed() -> None:
-    """AC-testing.preview.1: The app performs no Dokploy preview reclaim — on PR close it
-    dispatches a vendor-neutral teardown to infra2 (which owns the 1:1 reclaim); the app
-    keeps no cleanup/reconcile entrypoints, no host-hygiene commands, and emits no raw
-    Dokploy responses (Was EPIC-008 AC8.13.38).
-    """
-    assert not (ROOT / "tools/cleanup_pr_preview_resources.py").exists()
-    assert not (ROOT / "common/runtime/dev/cleanup_pr_preview_resources.py").exists()
 
 
 def test_AC8_13_73_app_owns_no_vps_host_hygiene() -> None:
@@ -33,23 +23,6 @@ def test_AC8_13_73_app_owns_no_vps_host_hygiene() -> None:
     assert "host_hygiene=infra2-owned" in maintenance
 
 
-def test_AC8_13_38_pr_preview_lifecycle_has_no_host_hygiene_commands() -> None:
-    module = "\n# <<< file-boundary >>>\n".join(
-        p.read_text(encoding="utf-8")
-        for p in sorted(
-            (ROOT / "common/runtime/dev/pr_preview_lifecycle").rglob("*.py")
-        )
-    )
-
-    assert "docker builder prune" not in module
-    assert "docker image prune" not in module
-    assert "docker container prune" not in module
-    assert "journalctl" not in module
-    assert "ssh" not in module
-    assert "VPS_SSH_KEY" not in module
-    assert "DOKPLOY_API_KEY" not in module
-
-
 def test_AC8_13_74_maintenance_cleanup_is_ghcr_pruning_only() -> None:
     """AC-testing.preview.6: The app's scheduled maintenance performs no Dokploy preview
     reconcile and no host hygiene — it only prunes the app's own stale GHCR PR image
@@ -59,12 +32,8 @@ def test_AC8_13_74_maintenance_cleanup_is_ghcr_pruning_only() -> None:
 
     assert 'cron: "37 */6 * * *"' in workflow
     assert "workflow_dispatch:" in workflow
-    # Dokploy preview reclaim moved to infra2: no reconcile, no lifecycle tool here.
-    assert "--action reconcile" not in workflow
-    assert "tools/pr_preview_lifecycle.py" not in workflow
     # The scheduled job only prunes the app's own stale GHCR PR-preview image tags.
     assert "Prune stale PR preview GHCR tags" in workflow
-    assert "tools/cleanup_pr_preview_resources.py" not in workflow
     assert "docker builder prune" not in workflow
     assert "docker image prune" not in workflow
     assert "journal-vacuum" not in workflow
@@ -72,7 +41,7 @@ def test_AC8_13_74_maintenance_cleanup_is_ghcr_pruning_only() -> None:
     assert "ssh-keyscan" not in workflow
 
 
-def test_AC8_13_38_pr_preview_compose_caps_docker_json_logs() -> None:
+def test_AC8_13_38_compose_caps_docker_json_logs() -> None:
     compose = (ROOT / "docker-compose.yml").read_text()
 
     assert "x-json-logging: &json-logging" in compose

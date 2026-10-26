@@ -14,7 +14,6 @@ from pathlib import Path
 class Environment(StrEnum):
     LOCAL = "local"
     PR = "pr"
-    PR_PREVIEW = "pr-preview"
     STAGING = "staging"
     PRODUCTION = "prd"
 
@@ -41,11 +40,6 @@ ENV_STAGE_MATRIX: dict[Environment, tuple[PipelineStage, ...]] = {
         PipelineStage.REGRESSION,
         PipelineStage.E2E,
         PipelineStage.IMAGE_BUILD,
-    ),
-    Environment.PR_PREVIEW: (
-        PipelineStage.IMAGE_BUILD,
-        PipelineStage.DEPLOY_SMOKE,
-        PipelineStage.E2E,
     ),
     Environment.STAGING: (
         PipelineStage.IMAGE_BUILD,
@@ -176,15 +170,6 @@ def _classify_components(files: tuple[str, ...]) -> dict[str, bool]:
     }
 
 
-PR_PREVIEW_ONLY_EXACT = frozenset(
-    {
-        ".github/workflows/maintenance.yml",
-        ".github/workflows/preview.yml",
-        "docker-compose.pr-preview.yml",
-        "tools/pr_preview_lifecycle.py",
-    }
-)
-PR_PREVIEW_ONLY_PREFIXES = ("common/runtime/dev/pr_preview_lifecycle/",)
 STAGING_ONLY_EXACT = frozenset(
     {
         ".github/workflows/ci.yml",
@@ -198,9 +183,6 @@ STAGING_ONLY_EXACT = frozenset(
         "toolchain.toml",
     }
 )
-
-PR_PREVIEW_EXACT = COMMON_DEPLOY_RUNTIME_EXACT | PR_PREVIEW_ONLY_EXACT
-PR_PREVIEW_PREFIXES = COMMON_DEPLOY_RUNTIME_PREFIXES + PR_PREVIEW_ONLY_PREFIXES
 
 PDF_FIXTURE_RUNTIME_EXACT = {
     "common/testing/fixtures/pdf/__init__.py",
@@ -262,14 +244,6 @@ class EnvStageRule:
 
 
 ENV_STAGE_RULES: dict[Environment, EnvStageRule] = {
-    Environment.PR_PREVIEW: EnvStageRule(
-        environment=Environment.PR_PREVIEW,
-        stages=ENV_STAGE_MATRIX[Environment.PR_PREVIEW],
-        exact=frozenset(PR_PREVIEW_EXACT),
-        prefixes=PR_PREVIEW_PREFIXES,
-        changed_reason="pr-preview-paths-changed",
-        unchanged_reason="no-pr-preview-paths-changed",
-    ),
     Environment.STAGING: EnvStageRule(
         environment=Environment.STAGING,
         stages=ENV_STAGE_MATRIX[Environment.STAGING],
@@ -281,7 +255,6 @@ ENV_STAGE_RULES: dict[Environment, EnvStageRule] = {
 }
 
 LEGACY_ENV_OUTPUTS = (
-    (Environment.PR_PREVIEW, "pr_preview", "PR preview", "PR preview", "PR preview"),
     (Environment.STAGING, "staging", "Staging deploy", "Staging", "Staging"),
 )
 
@@ -358,18 +331,6 @@ class ChangeClassification:
     image_build_files: tuple[str, ...]
     image_build_required: bool
     component_changed: Mapping[str, bool]
-
-    @property
-    def pr_preview_files(self) -> tuple[str, ...]:
-        return self.envs[Environment.PR_PREVIEW].files
-
-    @property
-    def pr_preview_required(self) -> bool:
-        return self.envs[Environment.PR_PREVIEW].required
-
-    @property
-    def pr_preview_reason(self) -> str:
-        return self.envs[Environment.PR_PREVIEW].reason
 
     @property
     def staging_files(self) -> tuple[str, ...]:
@@ -577,7 +538,6 @@ def classify_changed_paths(paths: Iterable[str]) -> ChangeClassification:
     envs: dict[Environment, EnvStageClassification] = {
         Environment.LOCAL: _classify_static_stage(files, Environment.LOCAL),
         Environment.PR: _classify_pr_stage(files, heavy_files, heavy_required),
-        Environment.PR_PREVIEW: _classify_env_stage(files, Environment.PR_PREVIEW),
         Environment.STAGING: _classify_env_stage(files, Environment.STAGING),
         Environment.PRODUCTION: _classify_static_stage(files, Environment.PRODUCTION),
     }
@@ -634,10 +594,10 @@ def write_github_outputs(
         )
         fh.write(f"coverage_gate_components={changed_components}\n")
         # The structured Env x Stage / provider-gate JSON above is the sole
-        # machine-readable gate contract. Every workflow consumer (ci.yml,
-        # preview.yml) normalizes its own scalar from that matrix, so the legacy
-        # per-env scalar outputs (`pr_preview_required`, `staging_required`,
-        # `staging_ai_ocr_required`, ...) are no longer emitted (AC8.13.110).
+        # machine-readable gate contract. Every workflow consumer (ci.yml)
+        # normalizes its own scalar from that matrix, so the legacy per-env
+        # scalar outputs (`staging_required`, `staging_ai_ocr_required`, ...)
+        # are no longer emitted (AC8.13.110).
         # Human-readable per-env lines still appear in write_github_summary.
 
 

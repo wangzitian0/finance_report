@@ -5,7 +5,6 @@ App is the "build" half of the boundary: it publishes the env-independent `:<sha
 for `main` and release-branch (`release/**`) commits, and `workflow_dispatch` can publish
 an arbitrary sha on demand (the rare "preview an unmerged commit" escape hatch).
 
-Dropping per-PR auto-preview (deploy-preview job) is P1a-2, tracked separately under #879.
 See EPIC-007 AC7.12.4, root #876.
 """
 
@@ -68,30 +67,3 @@ def test_AC7_12_4_image_push_publishes_for_main_release_and_dispatch():
             f"the registry-login `if:` must cover `{trigger}` so login runs whenever the "
             f"image push runs (AC7.12.4, #879). Login if: {login_if.strip()}"
         )
-
-
-def test_AC7_12_4_persistent_preview_is_on_demand_not_per_pr():
-    """AC-meta.infra-boundary.5: AC7.12.4: the persistent Dokploy preview is on-demand only; cleanup runs on PR close and in-runner e2e is retired."""
-    pr = read(".github/workflows/preview.yml")
-    assert not pr.count("  e2e:")
-    # deploy-preview runs only via manual workflow_dispatch — no per-PR auto-deploy (P1a-2).
-    deploy_block = pr.split("  deploy-preview:", 1)[1].split("\n  cleanup:", 1)[0]
-    deploy_if = next(
-        (ln for ln in deploy_block.splitlines() if ln.strip().startswith("if:")), ""
-    )
-    assert "github.event_name == 'workflow_dispatch'" in deploy_if, (
-        "the persistent Dokploy preview (deploy-preview) must run only via manual "
-        f"workflow_dispatch; per-PR auto-preview is removed (P1a-2, #879). if: {deploy_if.strip()}"
-    )
-    # The preview teardown cleanup stays automatic on PR close — it must NOT require workflow_dispatch.
-    cleanup_block = pr.split("\n  cleanup:", 1)[1]
-    cleanup_if = next(
-        (ln for ln in cleanup_block.splitlines() if ln.strip().startswith("if:")), ""
-    )
-    assert (
-        "workflow_dispatch" not in cleanup_if
-        and "needs.setup.outputs.action == 'cleanup'" in cleanup_if
-    ), (
-        "the preview teardown cleanup must stay automatic on PR close, not gated on workflow_dispatch "
-        f"(P1a-2, #879). cleanup if: {cleanup_if.strip()}"
-    )

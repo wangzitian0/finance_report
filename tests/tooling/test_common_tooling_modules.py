@@ -170,7 +170,6 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
         ("tools.generate_test_pdfs", "common.testing.fixtures.generate_test_pdfs"),
         ("tools.seed_fx_rates", "common.pricing.seed_fx_rates"),
         ("tools.cleanup_orphaned_dbs", "common.runtime.dev.cleanup_orphaned_dbs"),
-        ("tools.pr_preview_lifecycle", "common.runtime.dev.pr_preview_lifecycle"),
         ("tools.cli", "common.runtime.dev.cli"),
         ("tools.debug", "common.runtime.dev.debug"),
         ("tools.dev_backend", "common.runtime.dev.dev_backend"),

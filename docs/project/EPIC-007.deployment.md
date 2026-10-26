@@ -262,16 +262,6 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 > (migration closeout wave 3, #1663) — one record per underlying test
 > function.
 
-### AC7.13: Preview rollout proof & half-update safety (#756, #758)
-
-> The PR preview lifecycle (`common/runtime/dev/pr_preview_lifecycle.py`) must fail
-> fast when Dokploy never creates a new deployment record (#756) and must never
-> leave a silently half-updated compose on a deploy/rollout failure (#758).
-
-| ID | Requirement | Test Function | File | Priority |
-|----|-------------|---------------|------|----------|
-> (AC7.13.1 removed and AC7.13.2 removed and AC7.13.3 removed and AC7.13.4 removed and AC7.13.5 removed, canonical: migrated to the `testing` package roadmap as `AC-testing.preview.16` through `.20`, #1821 Wave A)
-
 ### AC7.14: Effective Production App Env Verification (#575) — RELOCATED to infra2
 
 > **Relocated out of this app EPIC (#1518 / #1435).** Effective-config verification is infra2
@@ -311,8 +301,8 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 
 ### AC7.17: Smoke Gate Asserts Only Real Public Frontend Routes (#411)
 
-> The deploy-smoke gate (`common/runtime/shell/smoke_test.sh`) runs in the staging /
-> PR-preview health gate. Every page route it asserts must correspond to a real,
+> The deploy-smoke gate (`common/runtime/shell/smoke_test.sh`) runs in the staging
+> health gate. Every page route it asserts must correspond to a real,
 > publicly reachable Next.js route under `apps/frontend/src/app` — a smoke check
 > for a non-existent path (e.g. `/dashboard`, which 404s) makes the gate either
 > flap or pass for the wrong reason. The smoke script must not assert a page path

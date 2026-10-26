@@ -4,7 +4,7 @@
 # blocks merge. The behavior contract lives HERE, in one machine-readable place.
 #
 # Why this file exists: the "in-runner e2e is a synchronous required gate" fact used
-# to be restated across ci-cd.md, environments.md, EPIC-008, the preview.yml comment,
+# to be restated across ci-cd.md, environments.md, EPIC-008, a workflow comment,
 # and a dozen string-grep contract tests. Changing one trigger meant editing 7+ files,
 # and a comment reword broke unrelated tests. Now:
 #   - this manifest declares the trigger/blocking contract (one edit),
@@ -26,15 +26,6 @@
 version: "1.0"
 
 gates:
-  - id: pr-persistent-preview
-    workflow: .github/workflows/preview.yml
-    job: deploy-preview
-    trigger: workflow_dispatch     # on-demand only (P1a-2, #879); never per-PR auto
-    blocking: false
-    image_free: false             # manual app-side persistent preview builds PR source on Dokploy host
-    description: >
-      On-demand persistent Dokploy preview. Non-blocking; one click via Run workflow.
-
   - id: staging-deploy
     workflow: .github/workflows/deploy.yml
     job: build-and-deploy
