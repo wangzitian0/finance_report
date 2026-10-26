@@ -34,6 +34,9 @@ describe("normalizers (AC-meta.fe-contract-types.3, #1985)", () => {
       expect(vm.balance_after).toBeNull();
       // The wire has no transaction status: the view model leaves it unset (#2647).
       expect(vm.status).toBeUndefined();
+      // No tier: the row is not rated, not LOW (#2647).
+      expect(vm.confidence_tier).toBeNull();
+      expect(vm.confidence).toBeUndefined();
       expect(vm.created_at).toBe("2026-03-01T10:00:00Z");
       expect(vm.updated_at).toBe("2026-03-01T10:00:00Z");
     });

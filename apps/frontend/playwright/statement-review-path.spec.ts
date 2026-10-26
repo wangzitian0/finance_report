@@ -179,6 +179,8 @@ test.describe("AC-extraction.human-source-review.4 statement review click path",
           : page.getByTestId("stage1-mobile-transaction-list").locator("article").first();
       await expect(firstRow).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
       await expect(firstRow).toContainText(LOW_DESCRIPTION);
+      // The pinned row states its source position: it is the last row of the source.
+      await expect(firstRow.getByTestId("source-row-number")).toHaveText("Row 6");
       await expect(page.getByTestId("low-confidence-count")).toHaveText("1 low confidence · shown first");
 
       // The description renders in full: the text fits its box and no ellipsis clips it.

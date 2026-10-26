@@ -97,7 +97,8 @@ Stage 2 Transitions live in the reconciliation half:
 - ✅ Resolve all consistency checks in the active Stage 2 scope before batch approval
 - ✅ Create journal entry only on `accepted` transition (never on `pending_review`)
 - ✅ Emit an audit log entry on every state transition
-- ✅ On the statement page, list the lowest-confidence rows first and state their count (`AC-extraction.fe-stage1-review.23`, #2647)
+- ✅ On the statement page, put the LOW rows on top with their source row number, keep every other row in source order, and state the LOW count (`AC-extraction.fe-stage1-review.23`, #2647)
+- ✅ Label a row with no confidence tier Not rated. Do not pin it and do not count it as low (`AC-extraction.fe-stage1-review.27`)
 - ✅ Wrap a long description; do not clip it with an ellipsis. On a phone, the rows grow with the page (`AC-extraction.fe-stage1-review.26`)
 - ✅ Show the source preview only for a PDF, PNG or JPG source. A CSV source has no preview panel (`AC-extraction.fe-stage1-review.25`)
 
@@ -109,6 +110,7 @@ Stage 2 Transitions live in the reconciliation half:
 - ❌ Allow `pending_review → approved` bypass when duplicate/transfer checks are unresolved
 - ❌ Hardcode tolerance as `0.10` in Stage 1 — Stage 1 requires `0.001 USD`
 - ❌ Invent a transaction status in the frontend view model. The API sends none, so the statement table derives it from the statement status (`AC-extraction.fe-stage1-review.24`)
+- ❌ Fill in a LOW tier for a row with no tier in the frontend view model (`AC-extraction.fe-stage1-review.27`)
 
 ---
 

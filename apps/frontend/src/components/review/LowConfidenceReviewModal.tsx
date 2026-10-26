@@ -106,7 +106,7 @@ export function LowConfidenceReviewModal({ isOpen, onClose, transaction, currenc
           </div>
           <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--border)]/60 text-xs">
             <span className="text-muted">Date: {transaction.txn_date}</span>
-            <div className="flex items-center gap-1.5"><span className="text-muted">Confidence:</span>{transaction.confidence_tier ? <ConfidenceBadge tier={transaction.confidence_tier} /> : <span className="badge badge-warning">{transaction.confidence ?? "low"}</span>}</div>
+            <div className="flex items-center gap-1.5"><span className="text-muted">Confidence:</span>{transaction.confidence_tier ? <ConfidenceBadge tier={transaction.confidence_tier} /> : <span className="badge badge-warning">{transaction.confidence ?? "Not rated"}</span>}</div>
           </div>
         </div>
         <form onSubmit={handleSave} className="mt-4 space-y-4">

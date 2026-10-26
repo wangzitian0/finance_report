@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import * as money from "@/lib/audit/money";
 import { TransactionTable } from "@/components/review/TransactionTable";
-import { normalizeBankStatement, type BankStatementTransaction } from "@/lib/types";
+import { normalizeBankStatement, toTransactionViewModel, type BankStatementTransaction } from "@/lib/types";
 import type { Schemas } from "@/lib/api-schema";
 
 describe("TransactionTable (read-only)", () => {
@@ -209,7 +209,7 @@ describe("TransactionTable (read-only)", () => {
     });
 
     // AC-extraction.fe-stage1-review.23
-    it("AC-extraction.fe-stage1-review.23 lists the lowest-confidence rows first and counts them", () => {
+    it("AC-extraction.fe-stage1-review.23 pins the low-confidence rows on top and keeps the other rows in source order", () => {
         const row = (id: string, description: string, tier: BankStatementTransaction["confidence_tier"]): BankStatementTransaction => ({
             ...sample[0],
             id,
@@ -227,14 +227,21 @@ describe("TransactionTable (read-only)", () => {
         ];
         render(<TransactionTable transactions={rows} currency="SGD" />);
 
-        const expected = ["Card fee", "PayNow Transfer REF 4471", "Grab ride", "Salary", "Groceries", "Rent"];
+        // Only the LOW rows move. MEDIUM, HIGH and TRUSTED rows keep the source order: no sort by tier.
+        const expected = ["Card fee", "PayNow Transfer REF 4471", "Salary", "Grab ride", "Rent", "Groceries"];
         const region = screen.getByTestId("stage1-desktop-transaction-region");
-        const desktopOrder = within(region).getAllByRole("row").slice(1).map((tr) => tr.querySelector("[title]")?.getAttribute("title"));
-        expect(desktopOrder).toEqual(expected);
-        const mobileOrder = within(screen.getByTestId("stage1-mobile-transaction-list"))
-            .getAllByRole("article")
-            .map((card) => card.getAttribute("data-testid")?.replace("stage1-mobile-transaction-card-", ""));
-        expect(mobileOrder).toEqual(["t-fee", "t-paynow", "t-grab", "t-salary", "t-groceries", "t-rent"]);
+        const desktopRows = within(region).getAllByRole("row").slice(1);
+        expect(desktopRows.map((tr) => tr.querySelector("[title]")?.getAttribute("title"))).toEqual(expected);
+        // A pinned row states its row number in the source; the other rows sit at their source position.
+        expect(desktopRows.map((tr) => tr.querySelector("[data-testid='source-row-number']")?.textContent ?? null)).toEqual([
+            "Row 4", "Row 6", null, null, null, null,
+        ]);
+        const mobileCards = within(screen.getByTestId("stage1-mobile-transaction-list")).getAllByRole("article");
+        expect(mobileCards.map((card) => card.getAttribute("data-testid")?.replace("stage1-mobile-transaction-card-", ""))).toEqual([
+            "t-fee", "t-paynow", "t-salary", "t-grab", "t-rent", "t-groceries",
+        ]);
+        expect(within(mobileCards[1]).getByTestId("source-row-number")).toHaveTextContent("Row 6");
+        expect(within(mobileCards[2]).queryByTestId("source-row-number")).toBeNull();
         expect(screen.getByTestId("low-confidence-count")).toHaveTextContent("2 low confidence · shown first");
     });
 
@@ -242,6 +249,29 @@ describe("TransactionTable (read-only)", () => {
     it("AC-extraction.fe-stage1-review.23 shows no low-confidence count when no row is low", () => {
         render(<TransactionTable transactions={[{ ...sample[0], confidence_tier: "HIGH" }]} currency="SGD" />);
         expect(screen.queryByTestId("low-confidence-count")).toBeNull();
+    });
+
+    // AC-extraction.fe-stage1-review.27
+    it("AC-extraction.fe-stage1-review.27 shows a row with no confidence tier as not rated, not pinned and not counted", () => {
+        // An atomic transaction with no tier, as the API can send it.
+        const unrated = toTransactionViewModel({
+            id: "t-unrated", statement_id: "s1", txn_date: "2026-10-03", description: "Unrated transfer", amount: "10.00",
+            direction: "OUT", reference: null, currency: "SGD", created_at: "", updated_at: "",
+        } as Schemas["AtomicTransactionResponse"]);
+        expect([unrated.confidence_tier, unrated.confidence]).toEqual([null, undefined]);
+        const rows: BankStatementTransaction[] = [
+            { ...sample[0], id: "t-high", description: "Salary", confidence_tier: "HIGH" },
+            unrated as BankStatementTransaction,
+            { ...sample[0], id: "t-low", description: "Card fee", confidence_tier: "LOW" },
+        ];
+        render(<TransactionTable transactions={rows} currency="SGD" />);
+
+        const region = screen.getByTestId("stage1-desktop-transaction-region");
+        const desktopRows = within(region).getAllByRole("row").slice(1);
+        expect(desktopRows.map((tr) => tr.querySelector("[title]")?.getAttribute("title"))).toEqual(["Card fee", "Salary", "Unrated transfer"]);
+        expect(within(desktopRows[2]).getByText("Not rated")).toBeInTheDocument();
+        expect(within(desktopRows[2]).queryByText(/low/i)).toBeNull();
+        expect(screen.getByTestId("low-confidence-count")).toHaveTextContent("1 low confidence · shown first");
     });
 
     // AC-extraction.fe-stage1-review.24
