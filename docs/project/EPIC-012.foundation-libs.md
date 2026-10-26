@@ -578,16 +578,16 @@ other models/services follow incrementally.
 > Migrated `AC-audit.35.<s>` ids (homed in the package roadmap):
 > `AC-audit.35.1` · `AC-audit.35.2` · `AC-audit.35.3` · `AC-audit.35.4`
 
-### AC12.36: Shared Decimal-scalar codec — one SSOT per layer — migrated to the `audit` package ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
+### AC12.36: Shared Decimal-scalar coercion — one SSOT per layer — migrated to the `audit` package ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 
-The raw-`Decimal` boundary codec required by `common/audit/readme.md#base-packages` §3 was re-implemented
-in every base package — a byte-identical `_decimal_to_wire`, a `_decimal_from_wire` /
-`_payload_mapping` / `_field` triad, and a construction-time `_coerce` — differing only
-by which typed error it raised. That codec is now factored once into a single
-`decimal_scalar` module per layer (`decimal_to_wire` / `coerce_decimal` / `WireCodec`);
-each package supplies its own error classes, so the per-domain error hierarchy is
-preserved while the duplicated bodies disappear. The module is dependency-light (it
-imports no base package, so the family stays bounded — not a fifth base package).
+The raw-`Decimal` coercion required by `common/audit/readme.md#base-packages` §3 was re-implemented
+in every base package as a construction-time `_coerce`, differing only by which typed
+error it raised. That coercion is now factored once into a single `decimal_scalar`
+module per layer (`coerce_decimal`); each package supplies its own error class, so the
+per-domain error hierarchy is preserved while the duplicated bodies disappear. The module
+is dependency-light (it imports no base package, so the family stays bounded — not a
+fifth base package). The wire-parse helpers (`decimal_to_wire` / `WireCodec`) that once sat
+beside it had no production caller and #2698 deleted them.
 
 > **The shared Decimal-scalar codec ACs of this group are no longer defined
 > here.** The common-layer and backend-mirror codec-SSOT rows (were AC12.36.*

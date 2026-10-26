@@ -2,9 +2,8 @@
 
 Construction normalizes (``strip().upper()``) and then rejects anything that is
 not an active ISO-4217 alphabetic code, so ``Currency`` cannot hold ``"US"``,
-``"usd "`` (un-normalized), ``"XYZ"``, or ``"EURO"``. The soft
-``normalize_currency_code`` used at the Pydantic boundary only enforces length;
-this type adds the membership check the issue (#1167) requires.
+``"usd "`` (un-normalized), ``"XYZ"``, or ``"EURO"``. The ISO-4217 membership
+check is the requirement of issue #1167.
 """
 
 from __future__ import annotations

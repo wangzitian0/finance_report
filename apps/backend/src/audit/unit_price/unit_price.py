@@ -29,8 +29,6 @@ UNIT_PRICE_DP: int = 6
 UNIT_PRICE_QUANTUM = Decimal("0.000001")
 UNIT_PRICE_ROUNDING: str = ROUND_HALF_UP
 
-_RateInput = Decimal | int
-
 
 def _coerce_rate(value: object) -> Decimal:
     return coerce_decimal(value, "unit-price rate", float_error=FloatNotAllowedError, require_finite=True)

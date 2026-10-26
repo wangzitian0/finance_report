@@ -23,15 +23,13 @@ makes that the only representable form, with one standard quantization
 - **`Unit`** — the validated unit of measure; an invalid unit is unrepresentable
   (`InvalidUnitError`), and combining mismatched units raises `UnitMismatchError`.
 - **scaling** — applying a `Ratio` to a `Quantity` rounds deterministically.
-- **wire/db adapters** — `quantity_{to,from}_{wire,db_fields}` convert at the
-  boundary.
 
 ## Public vs internal
 
-**Public** (`__all__` == `contract.interface`, 14 symbols): `Quantity`, `Unit`,
-the constants (`QUANTITY_DP` / `QUANTITY_QUANTUM` / `QUANTITY_ROUNDING`), the
+**Public** (`__all__` == `contract.interface`, 10 symbols): `Quantity`, `Unit`,
+the constants (`QUANTITY_DP` / `QUANTITY_QUANTUM` / `QUANTITY_ROUNDING`), and the
 errors (`QuantityError`, `FloatNotAllowedError`, `InvalidQuantityPayloadError`,
-`InvalidUnitError`, `UnitMismatchError`), and the wire/db adapters.
+`InvalidUnitError`, `UnitMismatchError`).
 
 ## Three ends, one spec
 

@@ -1,11 +1,9 @@
-"""Byte-identical proof for the Money adoption helpers + wired hot paths.
+"""Byte-identical proof for the Money adoption helper + wired hot path.
 
-EPIC-002 AC-audit.22.2 (reconciliation per-currency) and AC-money.22.3 (reporting
-net-worth restatement; migrated from EPIC-002 AC2.22.3 into the money package
-roadmap), #1167 / #1171. The helpers route through Money/convert for ISO
-currencies and fall back to the identical Decimal arithmetic for the ``"*"``
-sentinel / non-ISO codes — these tests assert the result is the SAME as the
-legacy arithmetic for every branch, so the totals are byte-identical.
+EPIC-002 AC-audit.22.2 (reconciliation per-currency), #1167 / #1171. The helper
+routes through Money for ISO currencies and falls back to the identical Decimal
+arithmetic for the ``"*"`` sentinel / non-ISO codes — these tests assert the result
+is the SAME as the legacy arithmetic for every branch, so the totals are byte-identical.
 """
 
 from decimal import Decimal
@@ -13,34 +11,10 @@ from decimal import Decimal
 import pytest
 from common.testing.ac_proof import ac_proof
 
-from src.audit.money.adopt import balance_check, restate, restate_unrounded
-from src.audit.money.rounding import to_money
+from src.audit.money.adopt import balance_check
 from src.extraction.base.validation import validate_balance_per_currency
 
 pytestmark = pytest.mark.no_db
-
-# (amount, from_ccy, rate, to_ccy): ISO pair, non-ISO source, sentinel.
-_RESTATE_CASES = [
-    (Decimal("100.00"), "USD", Decimal("1.35"), "SGD"),
-    (Decimal("1.005"), "USD", Decimal("1"), "EUR"),  # rounding boundary
-    (Decimal("33.33"), "USD", Decimal("3"), "HKD"),
-    (Decimal("100.00"), "BTC", Decimal("2"), "USD"),  # non-ISO source -> fallback
-    (Decimal("50.00"), "*", Decimal("1.1"), "USD"),  # sentinel -> fallback
-]
-
-
-@ac_proof(proof_id="test_restate_byte_identical", ac_ids=["AC-money.22.3"], ci_tier="pr_ci", issue="#1171")
-@pytest.mark.parametrize("amount,from_ccy,rate,to_ccy", _RESTATE_CASES)
-def test_AC2_22_3_restate_is_byte_identical(amount, from_ccy, rate, to_ccy):
-    """AC-money.22.3: restate equals the legacy to_money(amount * rate) for every input."""
-    assert restate(amount, from_ccy, rate, to_ccy) == to_money(amount * Decimal(rate))
-
-
-@ac_proof(proof_id="test_restate_unrounded_byte_identical", ac_ids=["AC-money.22.3"], ci_tier="pr_ci", issue="#1171")
-@pytest.mark.parametrize("amount,from_ccy,rate,to_ccy", _RESTATE_CASES)
-def test_AC2_22_3_restate_unrounded_is_byte_identical(amount, from_ccy, rate, to_ccy):
-    """AC-money.22.3: restate_unrounded equals the legacy Decimal(str(amount)) * rate."""
-    assert restate_unrounded(amount, from_ccy, rate, to_ccy) == Decimal(str(amount)) * rate
 
 
 @ac_proof(proof_id="test_balance_check_byte_identical", ac_ids=["AC-audit.22.2"], ci_tier="pr_ci", issue="#1171")

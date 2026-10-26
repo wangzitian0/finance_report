@@ -655,12 +655,6 @@ def current_heads(records: Iterable[TraceRecord]) -> list[TraceRecord]:
     return [record for record in candidates if record.record_id in valid_ids]
 
 
-def parent_manifest_digest(parents: Sequence[TraceRecord]) -> str:
-    """Digest the exact unordered parent set for policy-reproducible folds."""
-
-    return _parent_manifest_digest(parents)
-
-
 def _parent_manifest_digest(parents: Sequence[TraceRecord]) -> str:
     return hashlib.sha256(
         json.dumps(
