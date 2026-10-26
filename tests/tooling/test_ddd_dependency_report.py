@@ -682,6 +682,33 @@ def _write_public_surface(
     _write(repo / f"{impl}/api.py", source)
 
 
+@pytest.mark.parametrize(
+    ("package", "status", "unproved"),
+    [
+        pytest.param("consumer", "compatible", [], id="no-consumer"),
+        pytest.param("provider", "blocked", ["consumer", "middle"], id="consumers"),
+    ],
+)
+def test_AC_meta_public_boundary_4_removed_symbol_on_real_snapshots(
+    tmp_path: Path, package: str, status: str, unproved: list[str]
+) -> None:
+    """AC-meta.public-boundary.4: the computed graph decides a removed symbol."""
+    repo, base_ref = _seed_repo(tmp_path)
+    contract = repo / f"common/{package}/contract.py"
+    _write(contract, contract.read_text().replace('["public"]', "[]"))
+    _write(repo / f"apps/backend/src/{package}/__init__.py", "__all__ = []\n")
+
+    report = build_impact_report(repo, base_ref=base_ref)
+    result = dependency_report.evaluate_boundary_compatibility(
+        report, consumer_proofs={}
+    )
+
+    assert report["errors"] == []
+    assert [row["symbol"] for row in report["removed_public_symbols"]] == ["public"]
+    assert result["status"] == status
+    assert result["unproved_consumers"] == unproved
+
+
 def test_AC_meta_dependency_governance_2_impact_includes_indirect_consumers(
     tmp_path: Path,
 ) -> None:

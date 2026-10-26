@@ -184,6 +184,233 @@ def test_AC_meta_public_boundary_4_breaking_consumers_block() -> None:
     assert result["breaking_changes"][0]["kind"] == "removed-public-symbol"
 
 
+_ABSENT = object()
+_REMOVED_SYMBOL = {"package": "provider", "symbol": "old", "signature": "def() -> str"}
+_REMOVED_SYMBOL_ROW = {"direct": [], "transitive": [], "indirect": []}
+_CHANGED_SIGNATURE = {
+    "package": "provider",
+    "symbol": "new",
+    "before": "pkg.py::new => def(value: int) -> str",
+    "after": "pkg.py::new => def(value: str) -> str",
+}
+
+
+def _unconsumed_removal_report(**overrides: object) -> dict[str, object]:
+    """One removed public symbol whose consumer graph was computed and is empty."""
+    report: dict[str, object] = {
+        "removed_public_symbols": [_REMOVED_SYMBOL],
+        "changed_public_symbols": [],
+        "removed_delivery_boundaries": [],
+        "changed_delivery_boundaries": [],
+        "affected_consumers": {"provider": _REMOVED_SYMBOL_ROW},
+        "head": {"public_symbols": [], "delivery_boundaries": []},
+        "errors": [],
+    }
+    report.update(overrides)
+    return {key: value for key, value in report.items() if value is not _ABSENT}
+
+
+def test_AC_meta_public_boundary_4_removed_symbol_with_computed_empty_consumers() -> (
+    None
+):
+    """AC-meta.public-boundary.4: a deletion with nothing to migrate is compatible."""
+    result = dependency_report.evaluate_boundary_compatibility(
+        _unconsumed_removal_report(), consumer_proofs={}
+    )
+
+    assert result["status"] == "compatible"
+    assert result["affected_consumers"] == []
+    assert result["unproved_consumers"] == []
+    assert [row["kind"] for row in result["breaking_changes"]] == [
+        "removed-public-symbol"
+    ]
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param({"affected_consumers": _ABSENT}, id="graph-missing"),
+        pytest.param({"affected_consumers": None}, id="graph-not-a-mapping"),
+        pytest.param({"affected_consumers": {}}, id="no-row-for-package"),
+        pytest.param(
+            {"affected_consumers": {"other": _REMOVED_SYMBOL_ROW}}, id="row-of-other"
+        ),
+        pytest.param({"affected_consumers": {"provider": None}}, id="row-not-a-dict"),
+        pytest.param(
+            {"affected_consumers": {"provider": {"direct": []}}},
+            id="row-without-transitive",
+        ),
+        pytest.param(
+            {"affected_consumers": {"provider": {"transitive": []}}},
+            id="row-without-direct",
+        ),
+        pytest.param(
+            {"affected_consumers": {"provider": {"direct": ["a"], "transitive": []}}},
+            id="direct-consumer-not-in-transitive",
+        ),
+        pytest.param({"errors": ["cannot snapshot base ref"]}, id="graph-failed"),
+    ],
+)
+def test_AC_meta_public_boundary_4_absent_or_failed_consumer_graph_blocks(
+    overrides: dict[str, object],
+) -> None:
+    """AC-meta.public-boundary.4: only a computed consumer set can be empty."""
+    result = dependency_report.evaluate_boundary_compatibility(
+        _unconsumed_removal_report(**overrides), consumer_proofs={}
+    )
+
+    assert result["status"] == "blocked"
+
+
+def test_AC_meta_public_boundary_4_removed_symbol_consumers_still_need_proof() -> None:
+    """AC-meta.public-boundary.4: a removal with consumers is not waived."""
+    report = _unconsumed_removal_report(
+        affected_consumers={
+            "provider": {"direct": ["app"], "transitive": ["app"], "indirect": []}
+        }
+    )
+
+    unproved = dependency_report.evaluate_boundary_compatibility(
+        report, consumer_proofs={}
+    )
+    proved = dependency_report.evaluate_boundary_compatibility(
+        report, consumer_proofs={"app": {"result": "passed", "strength": "exact"}}
+    )
+
+    assert unproved["status"] == "blocked"
+    assert unproved["unproved_consumers"] == ["app"]
+    assert proved["status"] == "compatible"
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param(
+            {
+                "removed_public_symbols": [],
+                "changed_public_symbols": [_CHANGED_SIGNATURE],
+            },
+            id="changed-public-signature",
+        ),
+        pytest.param(
+            {
+                "removed_public_symbols": [],
+                "removed_delivery_boundaries": [
+                    {"kind": "openapi-operation", "id": "get_thing"}
+                ],
+            },
+            id="removed-openapi-operation",
+        ),
+        pytest.param(
+            {
+                "removed_public_symbols": [],
+                "changed_delivery_boundaries": [
+                    {"kind": "openapi-operation", "id": "get_thing"}
+                ],
+            },
+            id="changed-openapi-operation",
+        ),
+        pytest.param(
+            {
+                "changed_public_symbols": [_CHANGED_SIGNATURE],
+            },
+            id="removed-symbol-with-changed-signature",
+        ),
+        pytest.param(
+            {
+                "removed_public_symbols": [
+                    _REMOVED_SYMBOL,
+                    {**_REMOVED_SYMBOL, "package": "orphan", "symbol": "gone"},
+                ],
+            },
+            id="removed-symbol-of-package-without-row",
+        ),
+        pytest.param(
+            {
+                "removed_delivery_boundaries": [
+                    {"kind": "openapi-operation", "id": "get_thing"}
+                ],
+            },
+            id="removed-symbol-with-removed-openapi-operation",
+        ),
+    ],
+)
+def test_AC_meta_public_boundary_4_other_breaking_kinds_without_consumers_block(
+    overrides: dict[str, object],
+) -> None:
+    """AC-meta.public-boundary.4: only removed symbols skip the consumer requirement."""
+    result = dependency_report.evaluate_boundary_compatibility(
+        _unconsumed_removal_report(**overrides), consumer_proofs={}
+    )
+
+    assert result["status"] == "blocked"
+    assert result["affected_consumers"] == []
+
+
+@pytest.mark.parametrize(
+    ("head", "kind"),
+    [
+        pytest.param(
+            {
+                "public_symbols": [],
+                "delivery_boundaries": [
+                    {
+                        "kind": "frontend-operation-consumer",
+                        "id": "untyped@app/page.tsx:1",
+                        "classification": "untyped-api-fetch",
+                    }
+                ],
+            },
+            "untyped-api-fetch",
+            id="untyped-api-fetch",
+        ),
+        pytest.param(
+            {
+                "public_symbols": [],
+                "delivery_boundaries": [
+                    {
+                        "kind": "frontend-operation-consumer",
+                        "id": "missing@app/page.tsx:2",
+                        "classification": "generated-operation",
+                        "operation_id": "missing",
+                    }
+                ],
+            },
+            "unknown-openapi-operation",
+            id="unknown-openapi-operation",
+        ),
+        pytest.param(
+            {
+                "public_symbols": [
+                    {
+                        "package": "ledger",
+                        "symbol": "post_entries",
+                        "signature": "def(entries: list[dict], currency, posted_at) -> Any",
+                        "command_boundary": True,
+                    }
+                ],
+                "delivery_boundaries": [],
+            },
+            "dynamic-financial-signature",
+            id="dynamic-financial-signature",
+        ),
+    ],
+)
+def test_AC_meta_public_boundary_4_local_violations_block_unconsumed_removal(
+    head: dict[str, object], kind: str
+) -> None:
+    """AC-meta.public-boundary.4: local delivery violations stay blocking."""
+    result = dependency_report.evaluate_boundary_compatibility(
+        _unconsumed_removal_report(head=head), consumer_proofs={}
+    )
+
+    assert result["status"] == "blocked"
+    assert [row["kind"] for row in result["breaking_changes"]] == [
+        "removed-public-symbol",
+        kind,
+    ]
+
+
 def test_AC_meta_public_boundary_4_openapi_change_requires_frontend_source_proof() -> (
     None
 ):
