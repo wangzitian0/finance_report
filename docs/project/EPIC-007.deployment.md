@@ -253,11 +253,11 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 > Framework doc-of-record lives in issue #876 (G1–P3).
 >
 > (AC7.12.3 removed, canonical: migrated to `AC-meta.infra-boundary.1` / `.2`.)
-> (AC7.12.4 removed, canonical: migrated to `AC-meta.infra-boundary.3` / `.4` / `.5`.)
+> (AC7.12.4 removed, canonical: migrated to `AC-meta.infra-boundary.3` / `.4`.)
 > (AC7.12.6 removed, canonical: migrated to `AC-meta.infra-boundary.6` / `.7`.)
 > (AC7.12.8 removed, canonical: migrated to `AC-meta.infra-boundary.8`.)
 >
-> All eight records live in
+> All seven records live in
 > [`common/meta/contract.py`](../../common/meta/contract.py)'s `roadmap`
 > (migration closeout wave 3, #1663) — one record per underlying test
 > function.

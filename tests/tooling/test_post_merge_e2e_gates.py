@@ -1210,7 +1210,6 @@ def test_AC8_13_50_critical_llm_post_merge_proofs_are_in_ai_ocr_gates() -> None:
 def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
     """AC8.13.76: CI and deploy gates upload replayable status context."""
     ci = read(".github/workflows/ci.yml")
-    pr_preview = read(".github/workflows/preview.yml")
     staging = read(".github/workflows/deploy.yml")
     ai_gate = read(".github/workflows/staging-ai-ocr-gate.yml")
     production = read(".github/workflows/release.yml")
@@ -1234,12 +1233,6 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
         "apps/frontend/playwright-report/",
     )
     assert "if: ${{ always() }}" in ci.split("Upload backend shard test context", 1)[0]
-
-    _has(
-        pr_preview,
-        "pr-preview-deploy-context",
-        "ci-context/pr-preview-deploy-context.json",
-    )
 
     _has(
         staging,
@@ -1429,7 +1422,6 @@ def test_AC8_13_60_deploy_workflows_have_no_nonblocking_noop_gates() -> None:
     workflows = [
         read(".github/workflows/deploy.yml"),
         read(".github/workflows/deploy.yml"),
-        read(".github/workflows/preview.yml"),
     ]
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
@@ -2149,7 +2141,6 @@ def test_AC8_13_52_release_image_tool_fails_when_a_digest_is_missing() -> None:
 def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
     """AC-testing.classifier.1: AC8.13.16: CI skips heavy jobs for lightweight changes and caches npm."""
     workflow = read(".github/workflows/ci.yml")
-    pr_workflow = read(".github/workflows/preview.yml")
     classifier = read("common/testing/change_classifier.py")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     environments = read("common/runtime/environments.md")
@@ -2174,18 +2165,9 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
         classifier,
         "runtime-or-ci-paths-changed",
         "lightweight-docs-or-docs-workflow-only",
-        "pr-preview-paths-changed",
-        "no-pr-preview-paths-changed",
     )
     _has(
         workflow, "needs: [changes]", "if: needs.changes.outputs.pr_required == 'true'"
-    )
-    _has(
-        pr_workflow,
-        "pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}",
-        "name: Classify PR preview relevance",
-        "name: Normalize PR preview gate",
-        "needs.setup.outputs.pr_preview_required == 'true'",
     )
     _has(
         workflow,
@@ -2206,7 +2188,6 @@ def test_AC8_13_16_ci_change_classification_and_frontend_cache() -> None:
         ci_cd,
         "PR vs Main CI Responsibilities",
         "Lightweight changes do not repeat the heavy path",
-        "PR preview environments deploy only for runtime app, compose, root E2E, dependency, Dockerfile/config, or preview-action changes",
         "Frontend dependency installation uses `actions/setup-node@v6`",
         "Markdown outside the documented lightweight trees is treated as heavy",
     )
@@ -3091,7 +3072,6 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     brokerage = read("tests/e2e/test_brokerage_upload_to_portfolio_value.py")
     four_asset = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
     upload = read("tests/e2e/test_statement_upload_e2e.py")
-    preview_lifecycle = read("common/runtime/dev/pr_preview_lifecycle")
 
     _lacks(workflow, "post-merge-train-turn:", "wait_post_merge_train_turn.py")
     _has(workflow, "workflow_dispatch:")
@@ -3122,21 +3102,6 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     assert "@pytest.mark.llm" in brokerage
     assert "@pytest.mark.llm" in four_asset
     assert upload.count("@pytest.mark.llm") >= 2
-    _has(
-        preview_lifecycle,
-        '"AI_API_KEY": ""',
-        '"AI_BASE_URL": "https://api.z.ai/api/coding/paas/v4"',
-        '"AI_JSON_TIMEOUT_SECONDS": "360"',
-        '"AI_JSON_MAX_TOKENS": "8192"',
-        '"AI_JSON_DISABLE_THINKING": "true"',
-    )
-    _lacks(
-        preview_lifecycle,
-        '"PRIMARY_MODEL":',
-        '"OCR_MODEL":',
-        '"VISION_MODEL":',
-        '"FALLBACK_MODELS":',
-    )
     _has(
         read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md"),
         "https://api.z.ai/api/coding/paas/v4",
@@ -3494,81 +3459,6 @@ def test_AC8_13_40_pr_ci_dry_runs_staging_image_builds_before_merge() -> None:
     )
 
 
-def test_AC8_13_89_pr_preview_follows_ci_without_pr_image_builds() -> None:
-    """AC-testing.preview.7: AC8.13.89: preview.yml is on-demand persistent preview + cleanup without PR image builds."""
-    workflow = read(".github/workflows/preview.yml")
-    ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-    compose = read("docker-compose.yml")
-    frontend_dockerfile = read("apps/frontend/Dockerfile")
-    frontend_version_route = read(
-        "apps/frontend/src/app/frontend-version.json/route.ts"
-    )
-
-    cleanup_block = workflow.split("  cleanup:", 1)[1]
-    deploy_block = workflow.split("  deploy-preview:", 1)[1].split("  cleanup:", 1)[0]
-    pr_preview_compose = read("docker-compose.pr-preview.yml")
-    frontend_compose_block = compose.split("  frontend:", 1)[1].split("networks:", 1)[0]
-
-    assert "workflow_run:" not in workflow
-    _has(
-        workflow,
-        "types: [closed]",
-        'action = "cleanup"',
-        "github.event.pull_request.number",
-    )
-    _lacks(
-        workflow,
-        'action_reason = "pull-request-sync"',
-        'action = "deploy"',
-        "gate-cheap-ci:",
-        "tools/wait_for_cheap_ci.py",
-        "  e2e:",
-    )
-    _lacks(
-        workflow,
-        "build-preview-backend-image:",
-        "build-preview-frontend-image:",
-        "Preflight PR preview image tags",
-        "docker/build-push-action@v7",
-        "push: true",
-        "packages: write",
-    )
-    assert "deploy-preview:" in workflow
-    assert "needs: setup" in deploy_block
-    _has(
-        deploy_block,
-        "continue-on-error: true",
-        "--action deploy",
-        "--github-integration-id",
-        "build from source on Dokploy host",
-    )
-    _has(pr_preview_compose, "context: ./apps/backend", "context: ./apps/frontend")
-    assert "pull_policy: always" not in pr_preview_compose
-    _has(
-        frontend_dockerfile,
-        "ARG GIT_COMMIT_SHA=unknown",
-        "ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}",
-    )
-    assert "process.env.GIT_COMMIT_SHA" in frontend_version_route
-    assert "GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}" in frontend_compose_block
-    assert (
-        sum(
-            1
-            for line in frontend_compose_block.splitlines()
-            if line.strip().startswith("GIT_COMMIT_SHA:")
-        )
-        == 2
-    )
-    assert "Delete GHCR images" not in cleanup_block
-    assert "pr_preview_images=not-created" in cleanup_block
-    _has(
-        ci_cd,
-        "does not push, preflight, pull, or delete PR preview images",
-        "built from the PR source on the Dokploy host",
-        "not the infra2 `deploy_v2 preview/*` front door",
-    )
-
-
 def test_AC8_13_23_post_merge_deploy_and_ai_ocr_are_one_serial_unit() -> None:
     """AC-testing.deploy-gates.8: AC8.13.23: Deploy health and provider gate share one serialized workflow unit."""
     deploy_workflow = read(".github/workflows/deploy.yml")
@@ -3729,7 +3619,6 @@ def test_AC8_13_94_env_and_pipeline_stage_contract_is_documented() -> None:
         "Env x Stage Execution Matrix",
         "local",
         "pr",
-        "pr-preview",
         "staging",
         "prd",
         "Changed/Affected UT",
@@ -4088,7 +3977,7 @@ def test_AC8_13_45_root_moon_tasks_use_explicit_app_workspace_inputs() -> None:
         assert task["options"]["cache"] is False
 
 
-def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() -> None:
+def test_AC8_13_46_staging_non_llm_gate_uses_strict_parallelism() -> None:
     """AC-testing.preview.2: AC8.13.46: Staging batch non-LLM E2E uses strict gates and matrix SSOT selection."""
     staging = read(".github/workflows/deploy.yml")
 
@@ -4114,35 +4003,6 @@ def test_AC8_13_46_pr_preview_non_llm_gate_matches_staging_strict_parallelism() 
     from common.testing import matrix
 
     assert matrix.STAGING_CORE_E2E_MARKER == "(smoke or e2e) and not llm"
-
-
-def test_AC8_13_38_pr_preview_dokploy_responses_are_not_logged() -> None:
-    """AC8.13.38: preview DEPLOY parses Dokploy responses without raw logs; the app
-    runs no Dokploy reclaim — PR close dispatches a teardown signal to infra2."""
-    preview = read(".github/workflows/preview.yml")
-    ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-    lifecycle = read("common/runtime/dev/pr_preview_lifecycle")
-
-    _has(ci_cd, "PR preview Dokploy API responses are parsed for required fields only")
-    # Deploy goes through pr_preview_lifecycle.py (no hand-rolled Dokploy curl), so
-    # it logs no raw responses.
-    _has(preview, "Deploy preview lifecycle", "--action deploy")
-    # Reclaim is infra2-owned: no app-side cleanup/reconcile; on PR close the app
-    # only dispatches a vendor-neutral teardown signal to infra2.
-    _lacks(preview, "--action cleanup", "--action reconcile")
-    assert "preview-teardown" in preview
-    assert "Response body" not in lifecycle
-    _has(lifecycle, "raw_body_printed: false", "safe_message")
-
-    unsafe_patterns = (
-        r"response=\$\(curl[^)]*/compose\.create",
-        r"curl -sf -X POST [^\n]*/compose\.update[\s\S]*?\n\s*-d \"\$PAYLOAD\"\n(?![\s\S]*?-o )",
-        r"curl -sf -X POST [^\n]*/compose\.deploy[\s\S]*?\n\s*-d \"\{\\\"composeId",
-        r"curl -sf -X POST [^\n]*/compose\.delete[\s\S]*?\n\s*-d \"\{\\\"composeId",
-        r"echo \"Response: \$response\"",
-    )
-    for pattern in unsafe_patterns:
-        assert re.search(pattern, preview) is None
 
 
 def test_AC8_13_108_staging_failure_context_fails_closed_on_classifier_and_unknown_failures() -> (
@@ -4257,7 +4117,6 @@ def test_AC8_13_112_sparse_matrix_recommendation_tracks_simplification_path() ->
 def test_AC8_13_112_workflows_consume_structured_env_stage_gates() -> None:
     """AC8.13.112: workflows consume structured gates, not legacy scalar gates."""
     ci_workflow = read(".github/workflows/ci.yml")
-    pr_workflow = read(".github/workflows/preview.yml")
     staging_workflow = read(".github/workflows/deploy.yml")
 
     _has(
@@ -4272,15 +4131,6 @@ def test_AC8_13_112_workflows_consume_structured_env_stage_gates() -> None:
         "needs.changes.outputs.heavy_required",
         "heavy_required: ${{ steps.classify.outputs.heavy_required }}",
     )
-
-    _has(
-        pr_workflow,
-        "pr_preview_required: ${{ steps.preview_gate.outputs.pr_preview_required }}",
-        "ENV_STAGE_REQUIRED: ${{ steps.preview.outputs.env_stage_required }}",
-        "ENV_STAGE_REASONS: ${{ steps.preview.outputs.env_stage_reasons }}",
-        "required['pr-preview']",
-    )
-    assert "steps.preview.outputs.pr_preview_required" not in pr_workflow
 
     _has(
         staging_workflow,
@@ -4301,10 +4151,8 @@ def test_AC8_13_112_workflows_consume_structured_env_stage_gates() -> None:
 def test_AC8_13_152_workflow_consumers_keep_classification_single_owned() -> None:
     """AC-testing.classifier.9: AC8.13.152: downstream workflow jobs do not reclassify changed paths."""
     ci_workflow = read(".github/workflows/ci.yml")
-    pr_workflow = read(".github/workflows/preview.yml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     ci_jobs = yaml.safe_load(ci_workflow)["jobs"]
-    pr_jobs = yaml.safe_load(pr_workflow)["jobs"]
 
     def step(job: dict[str, object], name: str) -> dict[str, object]:
         steps = job["steps"]
@@ -4352,30 +4200,6 @@ def test_AC8_13_152_workflow_consumers_keep_classification_single_owned() -> Non
         assert "changed-files.txt" not in text, job_name
         assert "/pulls/" not in text, job_name
 
-    preview_classify = step(pr_jobs["setup"], "Classify PR preview relevance")
-    assert "python tools/ci_change_classifier.py" in str(preview_classify["run"])
-
-    preview_gate = step(pr_jobs["setup"], "Normalize PR preview gate")
-    assert pr_jobs["setup"]["outputs"]["pr_preview_required"] == (
-        "${{ steps.preview_gate.outputs.pr_preview_required }}"
-    )
-    assert preview_gate["env"] == {
-        "ENV_STAGE_REQUIRED": "${{ steps.preview.outputs.env_stage_required }}",
-        "ENV_STAGE_REASONS": "${{ steps.preview.outputs.env_stage_reasons }}",
-    }
-    _has(
-        str(preview_gate["run"]),
-        'json.loads(os.environ["ENV_STAGE_REQUIRED"])',
-        "required['pr-preview']",
-    )
-
-    for job_name in ("deploy-preview",):
-        text = job_text(pr_jobs[job_name])
-        assert "needs.setup.outputs.pr_preview_required == 'true'" in text
-        assert "tools/ci_change_classifier.py" not in text, job_name
-        assert "changed-files.txt" not in text, job_name
-        assert "/pulls/" not in text, job_name
-
     _has(
         ci_cd,
         "Workflow YAML remains explicit; it is not generated from SSOT or the classifier at runtime.",
@@ -4417,7 +4241,6 @@ def test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded(
         "26636834757",
         "26636451107",
         "resource leak candidates",
-        "PR preview Dokploy compose",
         "GHCR PR images",
         "Docker build cache",
         "stale staging or production routes",
@@ -4426,7 +4249,7 @@ def test_AC8_13_113_sparse_matrix_evidence_and_resource_leak_audit_are_recorded(
 
 
 def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
-    """AC-testing.deploy-gates.26: AC8.13.119: delivery cleanup covers the five known leak paths."""
+    """AC-testing.deploy-gates.26: AC8.13.119: delivery cleanup covers the four known leak paths."""
     from common.meta.extension.generate_ac_registry import _roadmap_acs_from_contract
 
     statements = {
@@ -4436,13 +4259,11 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     statement = statements["AC-testing.deploy-gates.26"]
     recommendation = read("docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md")
     preview_cleanup = read(".github/workflows/maintenance.yml")
-    pr_preview = read(".github/workflows/preview.yml")
     staging = read(".github/workflows/staging-ai-ocr-gate.yml")
     production = read(".github/workflows/release.yml")
 
     _has(
         statement,
-        "PR preview leftovers",
         "GHCR PR tag accumulation",
         "stale staging or production routes",
         "provider-backed external-state residue",
@@ -4453,8 +4274,7 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
         recommendation,
         "Resource leak hardening bundle",
         "one PR",
-        "closed-PR Dokploy reconciliation",
-        "closed-PR PR preview GHCR tags",
+        "legacy closed-PR GHCR tags",
         "production_before_version",
         "isolated-users-provider-gate-only",
         "finance-report-vps-host-hygiene",
@@ -4491,9 +4311,6 @@ def test_AC8_13_119_delivery_resource_leak_hardening_is_contracted() -> None:
     _lacks(
         preview_cleanup, "finance-report-vps-host-hygiene", "VPS_SSH_KEY", "ssh-keyscan"
     )
-
-    assert "Delete GHCR images" not in pr_preview
-    _has(pr_preview, "pr_preview_images=not-created")
 
     _has(
         staging,
@@ -4748,32 +4565,6 @@ def test_AC8_13_34_ci_and_post_merge_write_timing_summaries() -> None:
     assert "GitHub Step Summary" in ci_cd
 
 
-def test_AC8_13_114_pr_preview_follows_successful_ci_workflow_run() -> None:
-    """AC-testing.preview.13: AC8.13.114: the in-runner e2e gate runs synchronously on pull_request, so it is a
-    real required check a fast/auto merge cannot bypass. It no longer follows CI async
-    via workflow_run — that fired after CI and a quick merge could land before it ran as
-    a gate (skipped required checks count as passed). It is image-free, so it needs no
-    CI artifact and runs independently."""
-    workflow = read(".github/workflows/preview.yml")
-    assert "workflow_run:" not in workflow
-    _has(
-        workflow,
-        "types: [closed]",
-        'action = "cleanup"',
-        "pr_preview_required == 'true'",
-    )
-    _lacks(
-        workflow,
-        'action_reason = "pull-request-sync"',
-        'action = "deploy"',
-        "tools/wait_for_cheap_ci.py",
-        "gate-cheap-ci:",
-        "build-preview-backend-image:",
-        "build-preview-frontend-image:",
-        "  e2e:",
-    )
-
-
 def test_AC8_13_115_readiness_fail_fast() -> None:
     """AC-testing.preview.14: AC8.13.115: Deploy readiness is bounded before smoke/E2E starts."""
     workflow = read(".github/workflows/deploy.yml")
@@ -4849,9 +4640,6 @@ def test_AC8_13_118_timeouts_and_retries_documented() -> None:
     assert "STAGING_FIFO_TIMEOUT_SECONDS" not in ci_cd
     _has(
         ci_cd,
-        "PR_PREVIEW_NEW_DEPLOYMENT_TIMEOUT_SECONDS=600",
-        "30-minute job timeout",
-        "10-minute job timeout",
         "parallel staging",
     )
 

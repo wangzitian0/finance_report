@@ -29,7 +29,6 @@ def _copy_projection_inputs(target_root: Path) -> None:
         ".github/actions/setup-e2e-tests/action.yml",
         ".github/actions/setup-backend-env/action.yml",
         "docker-compose.yml",
-        "docker-compose.pr-preview.yml",
         "apps/backend/Dockerfile",
         "apps/frontend/Dockerfile",
     ):

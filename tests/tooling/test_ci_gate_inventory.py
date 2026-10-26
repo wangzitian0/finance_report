@@ -219,34 +219,6 @@ def test_AC8_13_154_production_release_line_lives_in_release_yml() -> None:
     assert "dry-run" not in WORKFLOW_CONTRACT[".github/workflows/deploy.yml"]["jobs"]
 
 
-def test_AC8_13_155_pr_preview_reclaim_is_dispatched_to_infra2() -> None:
-    """AC-testing.gate-inventory.6: AC8.13.155: the app-side reclaim split is retired — preview.yml#cleanup only
-    dispatches a teardown signal to infra2, maintenance.yml#cleanup is GHCR-only."""
-    preview = (WORKFLOWS / "preview.yml").read_text(encoding="utf-8")
-    maintenance = (WORKFLOWS / "maintenance.yml").read_text(encoding="utf-8")
-
-    # On PR close the app dispatches a vendor-neutral teardown to infra2; it runs
-    # no Dokploy reclaim itself.
-    cleanup_block = preview.split("  cleanup:", 1)[1]
-    assert "preview-teardown" in cleanup_block
-    assert "infra2/dispatches" in cleanup_block
-    assert "--action cleanup" not in preview
-    # The scheduled maintenance job no longer reconciles Dokploy previews; it only
-    # prunes the app's own GHCR PR image tags.
-    assert "--action reconcile" not in maintenance
-    assert "Prune stale PR preview GHCR tags" in maintenance
-
-    # The former keep_separate reclaim split is recorded as retired, not drift.
-    inventory = _load_yaml(INVENTORY)
-    candidate = next(
-        item
-        for item in inventory["deferred_candidates"]
-        if item["id"] == "pr_preview_cleanup_event_vs_scheduled"
-    )
-    assert candidate["status"] == "removed"
-    assert candidate["retained_owner"] == "infra2:preview-teardown.yml"
-
-
 def test_AC8_13_142_duplicate_cleanup_is_explicit_not_implicit() -> None:
     """AC8.13.142: duplicate gate cleanup stays recorded after deletion."""
 

@@ -405,7 +405,6 @@ PROJECTORS: dict[str, tuple[Callable[[str, dict], str], bool]] = {
         False,
     ),
     "docker-compose.yml": (project_compose, True),
-    "docker-compose.pr-preview.yml": (project_compose, True),
     "apps/backend/Dockerfile": (project_backend_dockerfile, True),
     "apps/frontend/Dockerfile": (project_frontend_dockerfile, True),
 }
