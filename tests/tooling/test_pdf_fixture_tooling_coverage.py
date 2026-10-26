@@ -1,4 +1,4 @@
-"""AC-testing.1.1 AC-testing.1.3 AC-testing.2.5 AC-testing.2.6 AC-testing.3.1
+"""AC-testing.1.1 AC-testing.1.3 AC-testing.2.5 AC-testing.2.6
 AC-testing.7.1 AC-testing.7.2 AC-testing.7.3: PDF fixture tooling behavior
 (migrated from EPIC-009 to the `testing` package; see
 common/testing/contract.py roadmap)."""

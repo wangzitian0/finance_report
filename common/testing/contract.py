@@ -161,6 +161,7 @@ CONTRACT = PackageContract(
         ac('AC-testing.7.2', 'Main script supports --output parameter (Was EPIC-009 AC9.7.2).', 'tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_7_1_AC9_7_2_main_generates_all_sources_with_default_output', priority='P2'),
         ac('AC-testing.7.3', 'Analyzer CLI supports input/output (Was EPIC-009 AC9.7.3).', 'tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_1_3_analyzer_cli_writes_template_yaml', priority='P2'),
         ac('AC-testing.8.1', 'Committed templates define sanitized real-format contracts for page, table, date, currency, and key text metadata (Was EPIC-009 AC9.8.1).', 'tests/tooling/test_pdf_fixture_real_format_contract.py::test_AC9_8_1_templates_define_sanitized_real_format_contract', priority='P2'),
+        ac('AC-testing.8.3', 'The generated DBS PDF matches the template real_format_contract: page size within tolerance, table header texts, date and currency markers, key phrases, and minimum transaction rows (Was EPIC-009 AC9.8.3).', 'tests/tooling/test_pdf_fixture_real_format_contract.py::test_AC9_8_3_generated_dbs_pdf_matches_template_real_format_contract', priority='P2'),
         # ── group journeys: core E2E journey rollup (was EPIC-008
         # AC8.8), migration closeout, #1663 / #1718 ──
         ac('AC-testing.journeys.1', 'API health check (Was EPIC-008 AC8.8.1).', 'apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_api_health_endpoint_contract'),

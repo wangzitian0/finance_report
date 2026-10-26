@@ -504,9 +504,12 @@ real transaction payloads, or real balances.
 Templates also carry a `real_format_contract` block. This block is sanitized
 format metadata only: source ID, tolerances, table column names and widths,
 source-specific date regex, currency marker, and required key phrases. It is
-the committed substitute for real PDFs in CI. Real statements remain local and
-gitignored; if local analysis finds a layout drift, update the sanitized
-contract and generator together.
+the committed stand-in for real PDFs in CI. CI generates the DBS statement and
+checks the PDF against its block (page size, headers, date and currency
+markers, key phrases, minimum rows); the other blocks are checked only against
+their own template columns. Real statements remain local and gitignored; if
+local analysis finds a layout drift, update the sanitized contract and
+generator together.
 
 ### Commit Policy
 
@@ -552,6 +555,6 @@ the platform must use fallback text.
 | AC definitions | [`common/testing/contract.py`](../../common/testing/contract.py) roadmap groups 1-8 (was EPIC-009; the EPIC file was deleted by #1719) |
 | Analyzer, sanitizer, templates, generator registration, gitignore, and docs | `tests/tooling/test_pdf_fixture_epic009_behavior.py` |
 | Source-specific generated PDFs, dates, and balances | `tests/tooling/test_pdf_fixture_parseable.py` |
-| Sanitized real-format contracts in the templates | `tests/tooling/test_pdf_fixture_real_format_contract.py` |
+| Sanitized real-format contracts; the generated DBS PDF against its contract | `tests/tooling/test_pdf_fixture_real_format_contract.py` |
 | CLI branches and analyzer behavior | `tests/tooling/test_pdf_fixture_tooling_coverage.py` |
 | E2E consumers | `tests/e2e/test_statement_full_journey.py`, `tests/e2e/test_brokerage_upload_to_portfolio_value.py`, `tests/e2e/test_four_asset_net_worth_golden_path.py`, `tests/e2e/test_personal_financial_report_package.py` |
