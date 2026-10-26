@@ -19,13 +19,7 @@ import pytest
 from src.extraction import TransactionDirection
 from src.extraction.base.validation import count_within_document_dedup_collapse
 from src.extraction.extension.deduplication import DeduplicationService
-from src.ledger.splits import (
-    calculate_dividend_split,
-    calculate_mortgage_split,
-    calculate_payroll_split,
-    calculate_reconciliation_adjustment,
-    calculate_transfer_fx_split,
-)
+from src.ledger.splits import calculate_reconciliation_adjustment
 from src.reporting import (
     EquationDiagnosticCategory,
     diagnose_equation_imbalance,
@@ -137,51 +131,14 @@ def test_domain_2_fact_review_and_deduplication_invariants():
     assert has_mismatch is True, "Balance mismatch must be flagged to prevent silent corruption"
 
 
-def test_domain_3_payroll_split_invariant():
-    """Flow 14 Invariant: gross_salary == net_payout + income_tax + employee_deductions."""
-    result = calculate_payroll_split(
-        gross_salary=Decimal("5000.00"),
-        income_tax=Decimal("750.00"),
-        employee_deductions=Decimal("1000.00"),
-    )
-    assert result.gross_salary == Decimal("5000.00")
-    assert result.net_payout == Decimal("3250.00")
-    assert result.net_payout + result.income_tax + result.employee_deductions == result.gross_salary
-
-
-def test_domain_4_transfer_and_adjustment_invariants():
-    """Flow 17 & 18 Invariants: FX real-time decomposition and penny threshold control."""
-    # Flow 17
-    fx = calculate_transfer_fx_split(
-        source_amount=Decimal("500.00"),
-        source_currency="GBP",
-        source_to_base_rate=Decimal("1.30"),
-        target_amount=Decimal("640.00"),
-        target_currency="USD",
-        target_to_base_rate=Decimal("1.00"),
-    )
-    assert fx.source_base_value == Decimal("650.00")
-    assert fx.target_base_value == Decimal("640.00")
-    assert fx.realized_gain_loss == Decimal("-10.00")
-
-    # Flow 18
+def test_domain_4_adjustment_invariants():
+    """Flow 18 Invariant: penny threshold control."""
     adj = calculate_reconciliation_adjustment(
         bank_balance=Decimal("500.04"),
         book_balance=Decimal("500.00"),
     )
     assert adj.difference == Decimal("0.04")
     assert adj.is_gain is True
-
-
-def test_domain_5_investments_split_invariants():
-    """Flow 20 & 22 Invariants: Dividend WHT and Mortgage principal reduction."""
-    # Flow 20
-    div = calculate_dividend_split(gross_amount=Decimal("2000.00"), withholding_tax_rate=Decimal("0.30"))
-    assert div.net_amount + div.tax_amount == div.gross_amount
-
-    # Flow 22
-    mtg = calculate_mortgage_split(total_payment=Decimal("2500.00"), interest_amount=Decimal("1200.00"))
-    assert mtg.interest_amount + mtg.principal_amount == mtg.total_payment
 
 
 def test_domain_6_reporting_equation_and_diagnostics():

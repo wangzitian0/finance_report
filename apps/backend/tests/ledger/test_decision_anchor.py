@@ -230,10 +230,11 @@ async def test_submit_anchored_journal_entry_is_idempotent_and_conflicts_on_new_
     repository = SqlTraceRecordRepository(db, TraceDecisionPolicyRegistry((_Policy(),)))
     await TraceEmitter(repository).emit_many((observation, decision))
     anchor = DecisionAnchor.from_record(decision)
-    command = AnchoredJournalCommand(
+    command = AnchoredJournalCommand.from_mappings(
         entry_date=date(2026, 7, 18),
         memo="Anchored salary",
         lines_data=lines_data,
+        base_currency="SGD",
         source_type=JournalEntrySourceType.AUTO_PARSED,
         source_id=uuid4(),
         source_identity=source_identity,
@@ -377,10 +378,11 @@ async def test_current_anchored_journal_entries_rejects_stale_or_mismatched_auth
     entry = await submit_anchored_journal_entry(
         db,
         user_id=test_user.id,
-        command=AnchoredJournalCommand(
+        command=AnchoredJournalCommand.from_mappings(
             entry_date=date(2026, 7, 18),
             memo="Current-authority salary",
             lines_data=lines_data,
+            base_currency="SGD",
             source_type=JournalEntrySourceType.AUTO_PARSED,
             source_id=uuid4(),
             source_identity=source_identity,
@@ -507,6 +509,7 @@ def test_production_financial_writers_have_one_anchored_persistence_boundary() -
     constructor_files: set[str] = set()
     raw_create_files: set[str] = set()
     raw_post_files: set[str] = set()
+    anchored_submit_files: set[str] = set()
 
     for path in source_root.rglob("*.py"):
         relative = path.relative_to(source_root).as_posix()
@@ -521,13 +524,14 @@ def test_production_financial_writers_have_one_anchored_persistence_boundary() -
                 raw_create_files.add(relative)
             elif name in {"post_journal_entry", "post_journal_entries"}:
                 raw_post_files.add(relative)
+            elif name in {"submit_anchored_journal_entry", "submit_anchored_journal_entries"}:
+                anchored_submit_files.add(relative)
 
     assert constructor_files == allowed_constructors
     assert raw_create_files == allowed_raw_create
     assert raw_post_files == allowed_raw_post
 
-    extraction_writer = source_root / "extraction" / "extension" / "review_queue.py"
-    assert "submit_anchored_journal_entry_v2(" in extraction_writer.read_text()
+    assert "extraction/extension/review_queue.py" in anchored_submit_files
 
     journal_model = (source_root / "ledger" / "orm" / "journal.py").read_text()
     migration = (
@@ -561,10 +565,11 @@ async def test_AC_ledger_80_1_publishes_only_current_decision_anchored_journal_f
     await submit_anchored_journal_entry(
         db,
         user_id=test_user.id,
-        command=AnchoredJournalCommand(
+        command=AnchoredJournalCommand.from_mappings(
             entry_date=date(2026, 7, 18),
             memo="Package contribution",
             lines_data=lines_data,
+            base_currency="SGD",
             source_type=JournalEntrySourceType.AUTO_PARSED,
             source_id=uuid4(),
             source_identity=target.id,

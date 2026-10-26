@@ -528,7 +528,7 @@ async def test_AC_extraction_statement_approve_6_batch_entries_keep_the_checks_a
     async def refuse(*_args, **_kwargs):
         raise ValidationError("unbalanced")
 
-    with patch.object(review_queue, "submit_anchored_journal_entries_v2", refuse):
+    with patch.object(review_queue, "submit_anchored_journal_entries", refuse):
         with pytest.raises(ValueError, match="Generated entry does not balance: unbalanced"):
             await create_entries_from_txns(db, requests, **{**common, "auto_post": False})
         # The savepoint of the posting batch rolls back with the error.
