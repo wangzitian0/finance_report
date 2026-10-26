@@ -475,9 +475,10 @@ CONTRACT = PackageContract(
         "TransactionDirection",
         "UploadedDocument",
         "BROKERAGE_IMPORT_FAILED_MESSAGE",
-        "BROKERAGE_IMPORT_FAILED_NOTICE",
-        "is_brokerage_import_failure",
-        "brokerage_import_failure_note",
+        "BROKERAGE_IMPORT_FAILURE_KEY",
+        "brokerage_import_failure_reason",
+        "clear_brokerage_import_failure",
+        "record_brokerage_import_failure",
         "_brokerage_import_not_ready_reason",
         "_brokerage_payload_from_persisted_extraction",
         "_brokerage_payload_from_statement",
@@ -1182,8 +1183,9 @@ CONTRACT = PackageContract(
         ac('AC-extraction.fe-upload-layout.2', 'At 375x812 the file list of `/upload` starts within 1.5 viewports. The workflow notices show as one summary line under the upload control, and their details are folded (#2648)', 'apps/frontend/playwright/upload-page-layout.spec.ts::AC-extraction.fe-upload-layout.2 starts the file list within 1.5 viewports at 375x812', priority='P1'),
         ac('AC-extraction.fe-upload-layout.3', 'At 375 px and at 1280 px a file whose brokerage import failed shows "Import failed", the reason, "Retry import" and Delete, and never "Parsing", "Ready to review" or "Review & Approve" (#2648)', 'apps/frontend/playwright/upload-page-layout.spec.ts::AC-extraction.fe-upload-layout.3 shows a failed import as Import failed with Retry and Delete (${label})', priority='P1'),
         ac('AC-extraction.fe-upload-layout.4', 'An upload row of a failed brokerage import shows "Import failed" and its reason, and Retry import calls the import again. A parsed file without a period or a balance check shows "No statement period" and "Not checked", never "Parsing" (#2648)', 'apps/frontend/src/__tests__/statementsPage.test.tsx::AC-extraction.fe-upload-layout.4 shows a failed brokerage import as Import failed with Retry, never as parsing or ready', priority='P1'),
+        ac('AC-extraction.fe-upload-layout.5', 'After a successful brokerage import, through Retry import on `/upload` or Import to Portfolio on the statement page, every read of `/portfolio` (a query key that starts with `portfolio-`) is stale (#2648)', 'apps/frontend/src/__tests__/statementDetailPage.coverage.test.tsx::AC-extraction.fe-upload-layout.5 marks the portfolio reads stale after a successful import on the statement page', priority='P1'),
         # ── group 2648: a failed brokerage import stays on the statement (#2648) ──
-        ac('AC-extraction.2648.1', 'A brokerage import that fails keeps the statement `parsed` and records a note in `validation_error`: the reason of a rejected source (HTTP 422, #2649), or `BROKERAGE_IMPORT_FAILED_MESSAGE` when no reason exists. `GET /statements` lists the statement with `brokerage_import_failed=true`. A later successful import clears the note and the flag and keeps an unrelated note (#2648)', 'apps/backend/tests/api/test_brokerage_import_failure_state.py::test_AC_extraction_2648_1_failed_brokerage_import_is_recorded_and_a_retry_clears_it', priority='P1', proof_kind='invariant'),
+        ac('AC-extraction.2648.1', 'A brokerage import that fails keeps the statement `parsed`, keeps `validation_error`, and records the failure in `extraction_metadata["brokerage_import_failure"]`: the reason of a rejected source (HTTP 422, #2649) or `BROKERAGE_IMPORT_FAILED_MESSAGE`, the request id and the time. `GET /statements` reports `brokerage_import_failed=true` and `brokerage_import_failure_reason` for a parsed or approved statement only. An envelope confirmation and a blocked approval do not clear it. Only a successful import removes the record, and it keeps the other metadata and the note (#2648)', 'apps/backend/tests/api/test_brokerage_import_failure_state.py::test_AC_extraction_2648_1_failed_import_is_recorded_beside_the_note_and_a_success_clears_it', priority='P1', proof_kind='invariant'),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022
         # (everyday-user-ia) and EPIC-005 (reporting-visualization) ──
         ac('AC-extraction.fe-ia-extraction.1', 'When the statement-review Approve action is blocked (balance validation failed or unresolved duplicate/transfer-pair conflicts), the page shows a visible plain-language reason and an in-place action (open the conflict-resolution dialog, or re-parse the statement) without leaving the page', 'apps/frontend/src/__tests__/reviewActionBar.test.tsx::AC22.5.2 enables Approve and shows no blocker when nothing is wrong', priority='P1'),

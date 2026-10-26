@@ -118,12 +118,13 @@ from src.extraction.extension.brokerage_positions import (
 )
 from src.extraction.extension.brokerage_statement_payload import (
     BROKERAGE_IMPORT_FAILED_MESSAGE,
-    BROKERAGE_IMPORT_FAILED_NOTICE,
+    BROKERAGE_IMPORT_FAILURE_KEY,
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
     _brokerage_payload_from_statement,
-    brokerage_import_failure_note,
-    is_brokerage_import_failure,
+    brokerage_import_failure_reason,
+    clear_brokerage_import_failure,
+    record_brokerage_import_failure,
     reject_json_floats,
 )
 from src.extraction.extension.correction_loop import CorrectionLoopService
@@ -334,9 +335,10 @@ __all__ = [
     "TransactionDirection",
     "UploadedDocument",
     "BROKERAGE_IMPORT_FAILED_MESSAGE",
-    "BROKERAGE_IMPORT_FAILED_NOTICE",
-    "is_brokerage_import_failure",
-    "brokerage_import_failure_note",
+    "BROKERAGE_IMPORT_FAILURE_KEY",
+    "brokerage_import_failure_reason",
+    "clear_brokerage_import_failure",
+    "record_brokerage_import_failure",
     "_brokerage_import_not_ready_reason",
     "reject_json_floats",
     "_brokerage_payload_from_persisted_extraction",

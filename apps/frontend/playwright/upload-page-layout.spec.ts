@@ -9,7 +9,7 @@ const COLD_ROUTE_TIMEOUT_MS = 10_000;
 const BROKERAGE_ID = "2648a0b1-0000-4000-8000-0000000b0001";
 // The 422 reason of #2649 for a source without an as-of date: the upload list states it (#2648).
 const IMPORT_FAILURE =
-  "Brokerage import failed: The positions source does not state an as-of date for 2 of 2 positions. The import needs the date that the source states.";
+  "The positions source does not state an as-of date for 2 of 2 positions. The import needs the date that the source states.";
 
 const statementRow = (id: string, filename: string, status: string, extra: Record<string, unknown> = {}) => ({
   id,
@@ -29,6 +29,7 @@ const statementRow = (id: string, filename: string, status: string, extra: Recor
   balance_validated: true,
   validation_error: null,
   brokerage_import_failed: false,
+  brokerage_import_failure_reason: null,
   created_at: "2026-10-23T00:00:00Z",
   updated_at: "2026-10-23T00:00:00Z",
   transactions: [],
@@ -47,8 +48,9 @@ const STATEMENTS = [
     closing_balance: null,
     confidence_score: 20,
     balance_validated: null,
-    validation_error: IMPORT_FAILURE,
+    validation_error: null,
     brokerage_import_failed: true,
+    brokerage_import_failure_reason: IMPORT_FAILURE,
   }),
   statementRow("2648a0b1-0000-4000-8000-000000000010", "dbs-2026-10.csv", "parsed", {
     period_start: "2026-10-01",

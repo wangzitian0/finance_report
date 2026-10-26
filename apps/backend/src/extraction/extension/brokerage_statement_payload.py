@@ -9,6 +9,7 @@ layer; behavior unchanged.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, cast
 
 from src.extraction.base.result import StatementExtractionResult
@@ -139,29 +140,56 @@ def _brokerage_payload_from_persisted_extraction(
     return _enrich_brokerage_payload_from_statement(payload, statement)
 
 
-#: The start of ``validation_error`` after a failed brokerage import (#2648). The statement stays
-#: ``parsed``; a successful retry clears the note. ``is_brokerage_import_failure`` reads it.
-BROKERAGE_IMPORT_FAILED_NOTICE = "Brokerage import failed:"
-BROKERAGE_IMPORT_FAILED_MESSAGE = (
-    f"{BROKERAGE_IMPORT_FAILED_NOTICE} the positions could not be imported. "
-    "Retry, or delete the file and upload it again."
-)
+#: The ``extraction_metadata`` key of the last failed brokerage import (#2648). Its value holds
+#: ``reason``, ``request_id`` and ``failed_at``. Only a successful import removes it, so a write of
+#: ``validation_error`` (an envelope confirmation, a blocked approval) keeps it. A re-parse writes new
+#: extraction metadata and so removes it with the old extraction.
+BROKERAGE_IMPORT_FAILURE_KEY = "brokerage_import_failure"
+#: The reason of a failed import that has no specific reason (a server fault).
+BROKERAGE_IMPORT_FAILED_MESSAGE = "The positions could not be imported. Retry, or delete the file and upload it again."
+#: The statuses that allow a brokerage import (``POST /statements/{id}/brokerage/import``).
+_IMPORTABLE_STATUSES = (BankStatementStatus.PARSED, BankStatementStatus.APPROVED)
 
 
-def brokerage_import_failure_note(reason: str | None) -> str:
-    """The ``validation_error`` note of a failed import (#2648).
+def record_brokerage_import_failure(
+    statement: StatementSummary, *, reason: str | None, request_id: str | None, failed_at: datetime
+) -> None:
+    """Record a failed brokerage import in ``extraction_metadata`` (#2648).
 
-    A rejected source has a specific reason (HTTP 422, #2649): the note states it, so the upload
-    list shows the remedy. Without a reason (a server fault), the note is the generic message.
+    A rejected source has a specific reason (HTTP 422, #2649): the record states it, so the upload
+    list shows the remedy. Without a reason (a server fault), it states
+    ``BROKERAGE_IMPORT_FAILED_MESSAGE``. ``validation_error`` does not change.
     """
-    if reason and reason.strip():
-        return f"{BROKERAGE_IMPORT_FAILED_NOTICE} {reason.strip()}"[:500]
-    return BROKERAGE_IMPORT_FAILED_MESSAGE
+    text = reason.strip()[:500] if reason and reason.strip() else BROKERAGE_IMPORT_FAILED_MESSAGE
+    metadata = statement.extraction_metadata if isinstance(statement.extraction_metadata, dict) else {}
+    # A new dict: the JSONB column does not track an in-place change.
+    statement.extraction_metadata = {
+        **metadata,
+        BROKERAGE_IMPORT_FAILURE_KEY: {"reason": text, "request_id": request_id, "failed_at": failed_at.isoformat()},
+    }
 
 
-def is_brokerage_import_failure(validation_error: str | None) -> bool:
-    """Return True when ``validation_error`` records a failed brokerage import."""
-    return bool(validation_error) and str(validation_error).startswith(BROKERAGE_IMPORT_FAILED_NOTICE)
+def clear_brokerage_import_failure(statement: StatementSummary) -> None:
+    """Remove the record of a failed brokerage import after a successful import (#2648)."""
+    metadata = statement.extraction_metadata
+    if isinstance(metadata, dict) and BROKERAGE_IMPORT_FAILURE_KEY in metadata:
+        statement.extraction_metadata = {
+            key: value for key, value in metadata.items() if key != BROKERAGE_IMPORT_FAILURE_KEY
+        }
+
+
+def brokerage_import_failure_reason(statement: StatementSummary) -> str | None:
+    """The reason of the last failed brokerage import of the statement, or None (#2648).
+
+    Only a ``parsed`` or ``approved`` statement can be imported, so only such a statement reports a
+    failure. A rejected or parsing statement shows its own state.
+    """
+    if statement.status not in _IMPORTABLE_STATUSES:
+        return None
+    metadata = statement.extraction_metadata
+    record = metadata.get(BROKERAGE_IMPORT_FAILURE_KEY) if isinstance(metadata, dict) else None
+    reason = record.get("reason") if isinstance(record, dict) else None
+    return reason if isinstance(reason, str) and reason else None
 
 
 def _brokerage_import_not_ready_reason(statement: StatementSummary, transaction_count: int) -> str:

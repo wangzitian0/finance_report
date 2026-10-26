@@ -15,7 +15,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, Button, EmptyState, IconButton, LoadingState, PageHeader, type BadgeVariant } from "@/components/ui";
 import { apiOperation } from "@/lib/api-client";
-import { invalidateLedgerDerivedQueries } from "@/lib/queryClient";
+import { invalidateLedgerDerivedQueries, invalidatePortfolioQueries } from "@/lib/queryClient";
 import { SHARED_STALE_MS, STATEMENTS_LIST_QUERY_KEY } from "@/lib/sharedQueries";
 import { BankStatement, normalizeBankStatement } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/audit/money";
@@ -35,10 +35,11 @@ function statusDisplay(status: string): { label: string; variant: BadgeVariant }
 
 /**
  * The state label of an upload row (#2648). A failed brokerage import wins over the parse state:
- * the file is parsed, but its positions are not in the portfolio.
+ * the file is parsed, but its positions are not in the portfolio. The backend sets
+ * `brokerage_import_failed` only for a parsed or approved statement.
  */
 function rowStateDisplay(statement: BankStatement): { label: string; variant: BadgeVariant } {
-  if (statement.brokerage_import_failed && statement.status !== "parsing") return { label: "Import failed", variant: "error" };
+  if (statement.brokerage_import_failed) return { label: "Import failed", variant: "error" };
   return statusDisplay(statement.status);
 }
 
@@ -95,6 +96,8 @@ export default function UploadPage() {
     try {
       await apiOperation("import_brokerage_statement_positions_statements__statement_id__brokerage_import_post", { path: { statement_id: statementId } });
       showToast("Brokerage positions imported", "success");
+      // The import changed the holdings: the portfolio reads are stale (#2648).
+      void invalidatePortfolioQueries(queryClient);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Brokerage import failed", "error");
     } finally {
@@ -207,9 +210,12 @@ export default function UploadPage() {
                         {state.label}
                       </Badge>
                     </div>
-                    {(statement.status === "rejected" || importFailed) && statement.validation_error && (
+                    {/* A failed import states its own reason. An earlier note in validation_error is not about the import. */}
+                    {importFailed && statement.brokerage_import_failure_reason ? (
+                      <div className="text-xs text-[var(--error)] mt-1 line-clamp-2 [overflow-wrap:anywhere]">{statement.brokerage_import_failure_reason}</div>
+                    ) : statement.status === "rejected" && statement.validation_error ? (
                       <div className="text-xs text-[var(--error)] mt-1 line-clamp-2 [overflow-wrap:anywhere]">{statement.validation_error}</div>
-                    )}
+                    ) : null}
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                       <span className="[overflow-wrap:anywhere]">{statement.institution}</span>
                       <span>•</span>

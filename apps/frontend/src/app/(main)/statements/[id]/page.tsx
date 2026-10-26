@@ -15,6 +15,7 @@ import { ATTENTION_RETURN_HREF, ATTENTION_RETURN_LABEL, NEEDS_YOU_HREF, isAttent
 import { BankStatement, BrokerageImportResponse, normalizeBankStatement } from "@/lib/types";
 import { currencyCodeOrDash } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
+import { invalidateLedgerDerivedQueries, invalidatePortfolioQueries } from "@/lib/queryClient";
 import { PdfPreviewPane, hasInlinePreview } from "@/components/review/PdfPreviewPane";
 import { LowConfidenceReviewModal } from "@/components/review/LowConfidenceReviewModal";
 import {
@@ -327,6 +328,9 @@ export default function StatementDetailPage() {
       const result = await apiOperation("import_brokerage_statement_positions_statements__statement_id__brokerage_import_post", { path: { statement_id: statementId } });
       setImportResult(result);
       showToast("Brokerage positions imported successfully", "success");
+      // The import changed the holdings and cleared a recorded failure: those reads are stale (#2648).
+      void invalidatePortfolioQueries(queryClient);
+      void invalidateLedgerDerivedQueries(queryClient);
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Import failed";
       setImportError(raw.replace(/https?:\/\/\S+/g, "[URL]").replace(/s3:\/\/\S+/g, "[URL]"));

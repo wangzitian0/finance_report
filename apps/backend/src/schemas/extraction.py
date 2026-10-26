@@ -10,7 +10,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.extraction import BankStatementStatus, TransactionCategory, is_brokerage_import_failure
+from src.extraction import BankStatementStatus, TransactionCategory, brokerage_import_failure_reason
 from src.schemas.base import CurrencyCode, ListResponse
 
 if TYPE_CHECKING:
@@ -162,8 +162,12 @@ class BankStatementResponse(BaseModel):
     validation_error: str | None
     brokerage_import_failed: bool = Field(
         default=False,
-        description="True when the last brokerage positions import of this statement failed (#2648). "
-        "validation_error holds the reason; a successful import clears both.",
+        description="True when the last brokerage positions import of this parsed or approved statement "
+        "failed (#2648). Only a successful import clears it.",
+    )
+    brokerage_import_failure_reason: str | None = Field(
+        default=None,
+        description="The reason of the failed import when brokerage_import_failed is true (#2648).",
     )
     created_at: datetime
     updated_at: datetime
@@ -193,6 +197,7 @@ def compose_statement_response(
     original_filename = (
         uploaded_document.original_filename if uploaded_document else getattr(summary, "original_filename", None)
     )
+    failure_reason = brokerage_import_failure_reason(summary)
     return BankStatementResponse(
         id=summary.id,
         user_id=summary.user_id,
@@ -210,7 +215,8 @@ def compose_statement_response(
         confidence_score=summary.confidence_score,
         balance_validated=summary.balance_validated,
         validation_error=summary.validation_error,
-        brokerage_import_failed=is_brokerage_import_failure(summary.validation_error),
+        brokerage_import_failed=failure_reason is not None,
+        brokerage_import_failure_reason=failure_reason,
         created_at=summary.created_at,
         updated_at=summary.updated_at,
         transactions=[

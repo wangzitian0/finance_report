@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, screen, fireEvent, waitFor } from "@testing-library/react";
 import StatementDetailPage from "@/app/(main)/statements/[id]/page";
 import { apiOperation } from "@/lib/api-client";
+import { QueryClient } from "@tanstack/react-query";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
 vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
@@ -150,6 +151,23 @@ describe("StatementDetailPage - coverage additions", () => {
         expect(
             screen.getByText(/Statement must be in PARSED or APPROVED status/),
         ).toBeInTheDocument();
+    });
+
+    // AC-extraction.fe-upload-layout.5
+    it("AC-extraction.fe-upload-layout.5 marks the portfolio reads stale after a successful import on the statement page", async () => {
+        mockByOperation(parsedBrokerageStatement, {
+            [IMPORT_OP]: () => Promise.resolve({ broker: "Moomoo", parsed_positions: 1, created_atomic_positions: 1, existing_atomic_positions: 0, reconcile_created: 1, reconcile_updated: 0, reconcile_disposed: 0, skipped: 0 }),
+        });
+        const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const reads = [["portfolio-holdings", false, ""], ["portfolio-summary", ""], ["statements"], ["unrelated"]];
+        for (const key of reads) client.setQueryData(key, { seeded: true });
+
+        renderReviewComponent(<StatementDetailPage /> as any, client);
+        fireEvent.click(await screen.findByRole("button", { name: /import brokerage positions to portfolio/i }));
+
+        await waitFor(() => expect(screen.getByTestId("import-result-banner")).toBeInTheDocument());
+        // The holdings and the statement list are stale; another read is not.
+        expect(reads.map((key) => client.getQueryState(key)?.isInvalidated)).toEqual([true, true, true, false]);
     });
 
     it("AC17.8.3 sanitizes sensitive URLs in import error messages", async () => {

@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import mimetypes
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -37,16 +38,16 @@ from src.extraction import (
     _brokerage_payload_from_statement,
     approve_statement_workflow,
     auto_create_posted_entries_for_statement,
-    brokerage_import_failure_note,
     classification_suggestions,
+    clear_brokerage_import_failure,
     confirm_reviewed_statement_envelope,
     current_reviewed_statement_envelope,
     edit_and_approve,
     get_current_statement_extraction_result,
     is_bank_custody_source,
-    is_brokerage_import_failure,
     lock_statement_classification,
     pending_stage1_review_filter,
+    record_brokerage_import_failure,
     register_statement_source,
     reject_statement_workflow,
     resolve_bank_custody_account,
@@ -714,15 +715,16 @@ async def _record_brokerage_import_failure(
 ) -> None:
     """Persist a failed brokerage import on the statement, so the upload list shows it (#2648).
 
-    The statement stays ``parsed``. The note replaces ``validation_error`` and states ``reason``
-    when the source was rejected (HTTP 422, #2649); a successful import clears it. A failure of
-    this write is logged and does not replace the original error.
+    The statement stays ``parsed``. ``extraction_metadata`` records ``reason`` (the reason of a
+    rejected source, HTTP 422, #2649), the request id and the time. ``validation_error`` does not
+    change. A successful import removes the record. A failure of this write is logged and does
+    not replace the original error.
     """
     try:
         statement = await db.get(StatementSummary, statement_id)
         if statement is None or statement.user_id != user_id:
             return
-        statement.validation_error = brokerage_import_failure_note(reason)
+        record_brokerage_import_failure(statement, reason=reason, request_id=request_id, failed_at=datetime.now(UTC))
         await db.commit()
     except Exception as exc:  # noqa: BLE001 - the caller re-raises the import error
         await db.rollback()
@@ -785,9 +787,8 @@ async def import_brokerage_statement_positions(
         # linked the same way during posting). Only set it when not already linked.
         if statement.account_id is None and import_result.account_id is not None:
             statement.account_id = import_result.account_id
-        # #2648: a successful retry clears the note of an earlier failed import.
-        if is_brokerage_import_failure(statement.validation_error):
-            statement.validation_error = None
+        # #2648: only a successful import removes the record of an earlier failed import.
+        clear_brokerage_import_failure(statement)
         await db.commit()
     except Exception as exc:
         # #2649: a rejected source (HTTP 422 with a reason) is a warning, not a server fault.

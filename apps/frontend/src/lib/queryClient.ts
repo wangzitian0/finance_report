@@ -21,6 +21,21 @@ export const LEDGER_DERIVED_QUERY_KEYS: readonly QueryKey[] = [
   ["chat", "suggestions"],
 ];
 
+/** True for a read of `/portfolio`: its key starts with a "portfolio-" element (#2648). */
+function isPortfolioQueryKey(queryKey: QueryKey): boolean {
+  const head = queryKey[0];
+  return typeof head === "string" && head.startsWith("portfolio-");
+}
+
+/**
+ * Mark the reads of `/portfolio` stale, for example `["portfolio-holdings", ...]` and
+ * `["portfolio-summary", ...]` (#2648). A successful brokerage import changes them. They are not
+ * ledger-derived prefixes: each read has its own first key element.
+ */
+export function invalidatePortfolioQueries(client: QueryClient): Promise<void> {
+  return client.invalidateQueries({ predicate: (query) => isPortfolioQueryKey(query.queryKey) });
+}
+
 export function invalidateLedgerDerivedQueries(client: QueryClient): Promise<unknown> {
   return Promise.all(
     LEDGER_DERIVED_QUERY_KEYS.map((queryKey) => client.invalidateQueries({ queryKey })),
