@@ -497,7 +497,9 @@ async def test_AC_reporting_net_worth_scope_13_data_quality_stays_available_with
 
     assert "resolve_valuation_fx_rate" not in [item["id"] for item in normal["action_items"]]
     fx_items = [item for item in gap["action_items"] if item["id"] == "resolve_valuation_fx_rate"]
-    assert [(item["action_type"], item["score_boost"]) for item in fx_items] == [("RESOLVE_FX_RATE", 0)]
+    assert [(item["action_type"], item["score_boost"], item["title"]) for item in fx_items] == [
+        ("RESOLVE_FX_RATE", 0, "A Restricted Holding Has No FX Rate")
+    ]
     assert "No FX rate available for USD/SGD" in fx_items[0]["description"]
     assert gap["score"] == normal["score"]
     assert gap["equation_invariant"] == normal["equation_invariant"]
@@ -520,6 +522,149 @@ async def test_AC_reporting_net_worth_scope_14_package_lists_a_restricted_holdin
     schedule = document.sections.annualized_income_long_term
     assert sorted(holding.ticker for holding in schedule.restricted_holdings) == ["Employer ESOP", "Employer RSU"]
     assert schedule.restricted_fair_value_total == ESOP
-    assert schedule.restricted_fair_value_total_excludes == ["Employer RSU (USD 1,000.00)"]
-    assert any("Employer RSU (USD 1,000.00)" in note for note in schedule.notes)
+    # A structured row with the conversion_warning shape of an excluded balance-sheet valuation.
+    [row] = schedule.restricted_fair_value_total_excludes
+    assert {key: value for key, value in row.items() if key != "message"} == {
+        "type": "missing_fx_rate_excluded_holding",
+        "component_type": "rsu",
+        "source": "Employer RSU",
+        "currency": "USD",
+        "target_currency": "SGD",
+        "as_of_date": AS_OF.isoformat(),
+        "amount": "1000.00",
+    }
+    assert row["message"].startswith("No FX rate available for USD/SGD")
+    assert any("Employer RSU (USD 1000.00)" in note for note in schedule.notes)
     assert "restricted_holding_fx_unavailable" in [blocker.code for blocker in document.readiness.blockers]
+
+
+def _diagnostic(*, is_balanced: bool):
+    from src.reporting.base.diagnostics import EquationDiagnosticCategory, EquationDiagnosticResult
+
+    return EquationDiagnosticResult(
+        is_balanced=is_balanced,
+        equation_delta=Decimal("0.00") if is_balanced else Decimal("12.34"),
+        primary_category=(
+            EquationDiagnosticCategory.BALANCED if is_balanced else EquationDiagnosticCategory.UNKNOWN_DISCREPANCY
+        ),
+        confidence=1.0,
+        suggested_action="Check the ledger.",
+    )
+
+
+def _report_error_from(cause: Exception):
+    from src.reporting import ReportError
+
+    error = ReportError(str(cause))
+    error.__cause__ = cause
+    return error
+
+
+@pytest.mark.parametrize(
+    ("cause_name", "title"),
+    [
+        ("NoObservationError", "A Restricted Holding Has No FX Rate"),
+        ("PricingError", "A Restricted Holding Did Not Convert to SGD"),
+    ],
+)
+async def test_AC_reporting_net_worth_scope_18_data_quality_reads_the_liquid_check_after_an_fx_error(
+    db: AsyncSession,
+    test_user,
+    monkeypatch: pytest.MonkeyPatch,
+    cause_name: str,
+    title: str,
+) -> None:
+    """AC-reporting.net-worth-scope.18: after a full-scope FX error, data quality reads the liquid check result.
+
+    The second run excludes restricted holdings, and its result (here: out of balance)
+    is the equation invariant. The action item title names the cause.
+    """
+    import src.pricing as pricing
+    import src.reporting.extension.data_quality_service as service
+
+    calls: list[bool] = []
+
+    async def diagnostics(*_args, include_restricted: bool = True, **_kwargs):
+        calls.append(include_restricted)
+        if include_restricted:
+            raise _report_error_from(getattr(pricing, cause_name)("No FX rate available for USD/SGD on 2026-10-23"))
+        return _diagnostic(is_balanced=False)
+
+    monkeypatch.setattr(service, "run_balance_sheet_diagnostics", diagnostics)
+
+    result = await service.compute_personal_data_quality(db, test_user.id, as_of_date=AS_OF, currency="SGD")
+
+    assert calls == [True, False]
+    assert result.equation_invariant.is_healthy is False
+    assert result.equation_invariant.delta == Decimal("12.34")
+    assert [item.title for item in result.action_items if item.id == "resolve_valuation_fx_rate"] == [title]
+
+
+async def test_AC_reporting_net_worth_scope_19_data_quality_raises_other_errors(
+    db: AsyncSession,
+    test_user,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-reporting.net-worth-scope.19: data quality falls back only for an FX error of the full scope.
+
+    An error of the liquid run propagates. A ReportError whose cause is not a pricing
+    error propagates without a second run.
+    """
+    import src.reporting.extension.data_quality_service as service
+    from src.pricing import NoObservationError
+    from src.reporting import ReportError
+
+    calls: list[bool] = []
+
+    async def both_fail(*_args, include_restricted: bool = True, **_kwargs):
+        calls.append(include_restricted)
+        if include_restricted:
+            raise _report_error_from(NoObservationError("No FX rate available for USD/SGD"))
+        raise ReportError("ledger FX rate missing")
+
+    monkeypatch.setattr(service, "run_balance_sheet_diagnostics", both_fail)
+    with pytest.raises(ReportError, match="ledger FX rate missing"):
+        await service.compute_personal_data_quality(db, test_user.id, as_of_date=AS_OF, currency="SGD")
+    assert calls == [True, False]
+
+    calls.clear()
+
+    async def other_cause(*_args, include_restricted: bool = True, **_kwargs):
+        calls.append(include_restricted)
+        raise _report_error_from(ValueError("unsupported period"))
+
+    monkeypatch.setattr(service, "run_balance_sheet_diagnostics", other_cause)
+    with pytest.raises(ReportError, match="unsupported period"):
+        await service.compute_personal_data_quality(db, test_user.id, as_of_date=AS_OF, currency="SGD")
+    assert calls == [True]
+
+
+async def test_AC_reporting_net_worth_scope_20_package_records_its_scope(
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-reporting.net-worth-scope.20: the package context records include_restricted, and the dump of a
+    document frozen before #2645 (no value) stays without the key, so its decision coordinates stay equal.
+    """
+    from src.schemas.reporting import PersonalReportPackageContext
+
+    await _seed_issue_2645_account(db, test_user.id)
+
+    liquid = await _assemble_package(db, test_user.id, include_restricted=False)
+    full = await _assemble_package(db, test_user.id, include_restricted=True)
+
+    assert liquid.context.include_restricted is False
+    assert full.context.include_restricted is True
+    assert liquid.context.model_dump(mode="json")["include_restricted"] is False
+
+    old = PersonalReportPackageContext.model_validate(
+        {
+            "framework_id": "personal_us_gaap_like",
+            "start_date": "2025-11-01",
+            "end_date": "2026-10-23",
+            "as_of_date": "2026-10-23",
+            "currency": "SGD",
+        }
+    )
+    assert old.include_restricted is None
+    assert "include_restricted" not in old.model_dump(mode="json")

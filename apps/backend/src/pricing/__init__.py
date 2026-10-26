@@ -39,6 +39,7 @@ from __future__ import annotations
 
 from src.pricing.base import (
     Authority,
+    NoObservationError,
     ObservationRepository,
     ObservationSource,
     PriceableSubject,
@@ -130,6 +131,7 @@ __all__ = [
     "ManualValuationLiquidityClass",
     "MarketDataSyncState",
     "MarketValuationSelection",
+    "NoObservationError",
     "ObservationRepository",
     "ObservationSource",
     "PrefetchedFxRates",

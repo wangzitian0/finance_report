@@ -188,9 +188,12 @@ export function ActionChecklist({ actionItems }: { actionItems: QualityActionIte
                       {item.priority}
                     </span>
                     <span className="font-semibold text-sm">{item.title}</span>
-                    <span className="rounded-full bg-[color-mix(in_srgb,var(--success)_15%,transparent)] px-2 py-0.5 text-[11px] font-bold text-[var(--success)]">
-                      +{item.score_boost}% Trust
-                    </span>
+                    {/* An action that does not change the score shows no boost (#2645). */}
+                    {item.score_boost > 0 && (
+                      <span className="rounded-full bg-[color-mix(in_srgb,var(--success)_15%,transparent)] px-2 py-0.5 text-[11px] font-bold text-[var(--success)]">
+                        +{item.score_boost}% Trust
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-muted max-w-xl">{item.description}</p>
                 </div>

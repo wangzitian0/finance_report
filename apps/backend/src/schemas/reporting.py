@@ -844,7 +844,7 @@ class AnnualizedIncomeScheduleResponse(BaseModel):
     restricted_fair_value_total_currency: str = Field(
         min_length=3, max_length=3, description="Currency of the restricted fair-value total."
     )
-    restricted_fair_value_total_excludes: list[str] = Field(default_factory=list, description="Holdings without FX.")
+    restricted_fair_value_total_excludes: list[dict[str, str]] = Field(default_factory=list, description="Unconverted.")
     net_worth_treatment: AnnualizedIncomeScheduleNetWorthTreatment
     notes: list[str]
 
@@ -857,6 +857,13 @@ class PersonalReportPackageContext(BaseModel):
     end_date: date
     as_of_date: date
     currency: CurrencyCode
+    # The restricted-holdings scope of the figures (#2645). A document frozen before #2645
+    # has no value; it is not dumped, so the decision coordinates of such a document stay equal.
+    include_restricted: bool | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Restricted-holdings scope; null: not recorded.",
+    )
 
 
 class PersonalReportPackageStatementDispositionPolicy(BaseModel):

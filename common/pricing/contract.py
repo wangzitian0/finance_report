@@ -423,6 +423,7 @@ CONTRACT = PackageContract(
         "ManualValuationComponentType",
         "ManualValuationFact",
         "ManualValuationLiquidityClass",
+        "NoObservationError",
         "ObservationRepository",
         "ObservationSource",
         "PrefetchedFxRates",

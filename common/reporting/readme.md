@@ -636,18 +636,25 @@ sum) for one as-of date and one `include_restricted` scope
   app sends none, AC-reporting.net-worth-scope.12, .16). Its balance sheet
   carries `excluded_holdings`, and its `restricted-asset-treatment` note names
   each excluded class with its net, assets and liabilities
-  (AC-reporting.net-worth-scope.11). The Package tab card shows "Liquid net
-  worth" and the excluded classes when the package excludes one
-  (AC-reporting.net-worth-scope.15).
+  (AC-reporting.net-worth-scope.11). The document context records the scope
+  (`context.include_restricted`, AC-reporting.net-worth-scope.20). The Package
+  tab card takes its label from it: "Liquid net worth" with the excluded
+  classes, or "Net worth" (AC-reporting.net-worth-scope.15). A snapshot frozen
+  before #2645 records no scope; its liquid figures follow the older rule, so
+  the card shows no net worth for it (AC-reporting.net-worth-scope.17).
 - An FX gap on a restricted holding does not fail a report:
   - `/reports/data-quality` runs the equation check without restricted holdings
-    and adds a `RESOLVE_FX_RATE` action item; the score does not change
-    (AC-reporting.net-worth-scope.13). The equation result does not depend on
+    and adds a `RESOLVE_FX_RATE` action item, titled by the cause (missing rate
+    or failed conversion), with no score boost; the score does not change
+    (AC-reporting.net-worth-scope.13, .18). Only a pricing-family FX error falls
+    back; another error, and an error of the second run, fail as before
+    (AC-reporting.net-worth-scope.19). The equation result does not depend on
     the scope, because a manual valuation adds the same amount to one side and
     to `net_worth_adjustment_gain_loss`.
   - The annualized schedule lists the holding in its own currency, leaves it
     out of `restricted_fair_value_total`, names it in
-    `restricted_fair_value_total_excludes`, and the package readiness has the
+    `restricted_fair_value_total_excludes` (structured rows: the
+    `conversion_warning` shape plus `amount`), and the package readiness has the
     `restricted_holding_fx_unavailable` blocker
     (AC-reporting.net-worth-scope.14). An FX gap on an income line still fails.
 

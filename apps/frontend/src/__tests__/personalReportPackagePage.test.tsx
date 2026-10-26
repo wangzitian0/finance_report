@@ -1501,7 +1501,7 @@ it("discloses incomplete opening coverage in package sections", () => {
 });
 
 // AC-reporting.net-worth-scope.15
-it("#2645 labels the liquid net worth of the package and names each excluded class", () => {
+it("#2645 labels the package net worth from the recorded scope and names each excluded class", () => {
   const sections = packageDocument().sections;
   const balance = {
     ...sections.balance_sheet,
@@ -1513,24 +1513,40 @@ it("#2645 labels the liquid net worth of the package and names each excluded cla
       { asset_class: "restricted_comp", total_assets: "42000.00", total_liabilities: "0.00", net_worth: "42000.00", warnings: [] },
     ],
   };
-  const { unmount } = render(
-    <PackageSectionCards sections={{ ...sections, balance_sheet: balance } as unknown as PersonalReportPackageSections} />,
-  );
+  const liquidSections = { ...sections, balance_sheet: balance } as unknown as PersonalReportPackageSections;
+  const { unmount } = render(<PackageSectionCards sections={liquidSections} includeRestricted={false} />);
   expect(screen.getByText("Liquid net worth").nextElementSibling).toHaveTextContent("SGD 20,361");
   expect(screen.getByTestId("excluded-holdings-note")).toHaveTextContent(
     "Excludes restricted and illiquid holdings:Real Estate SGD 550,000 (net of SGD 650,000 liabilities)Restricted Comp SGD 42,000",
   );
   unmount();
 
-  // With no excluded class the liquid and the full figures are equal: the label is "Net worth".
-  render(
-    <PackageSectionCards
-      sections={{ ...sections, balance_sheet: { ...balance, excluded_holdings: [] } } as unknown as PersonalReportPackageSections}
-    />,
-  );
+  // A liquid package with no excluded class is still labelled liquid: the scope comes from the record.
+  const noRows = { ...sections, balance_sheet: { ...balance, excluded_holdings: [] } } as unknown as PersonalReportPackageSections;
+  const second = render(<PackageSectionCards sections={noRows} includeRestricted={false} />);
+  expect(screen.getByText("Liquid net worth").nextElementSibling).toHaveTextContent("SGD 20,361");
+  expect(screen.queryByTestId("excluded-holdings-note")).toBeNull();
+  second.unmount();
+
+  const third = render(<PackageSectionCards sections={noRows} includeRestricted />);
   expect(screen.getByText("Net worth").nextElementSibling).toHaveTextContent("SGD 20,361");
   expect(screen.queryByText("Liquid net worth")).toBeNull();
-  expect(screen.queryByTestId("excluded-holdings-note")).toBeNull();
+  third.unmount();
+});
+
+// AC-reporting.net-worth-scope.17
+it("#2645 shows no bare net worth for a snapshot frozen before the scope record", () => {
+  // The old shape: liquid figures, no excluded_holdings and no context.include_restricted.
+  const sections = packageDocument().sections;
+  const { excluded_holdings: _dropped, ...oldBalance } = { ...sections.balance_sheet, excluded_holdings: undefined };
+  render(
+    <PackageSectionCards
+      sections={{ ...sections, balance_sheet: { ...oldBalance, currency: "SGD", total_assets: "20360.65", total_liabilities: "650000.00" } } as unknown as PersonalReportPackageSections}
+    />,
+  );
+  expect(screen.queryByText("Net worth")).toBeNull();
+  expect(screen.queryByText("Liquid net worth")).toBeNull();
+  expect(screen.getByText("This snapshot does not record its restricted-holdings scope, so no net worth is shown.")).toBeInTheDocument();
 });
 
 // AC-reporting.report-integrity.3

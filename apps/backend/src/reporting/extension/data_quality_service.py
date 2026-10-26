@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Literal
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction import BankStatementStatus, StatementSummary
 from src.ledger import JournalEntry, JournalEntryStatus
 from src.observability import get_logger
+from src.pricing import NoObservationError, PricingError
 from src.reconciliation import get_reconciliation_stats
 from src.reporting.base.data_quality_types import (
     InvariantStatus,
@@ -41,6 +43,14 @@ def _shift_months(year: int, month: int, delta: int) -> tuple[int, int]:
     return new_year, new_month
 
 
+@dataclass(frozen=True)
+class FxGap:
+    """An FX error of the full scope that the equation check worked around (#2645)."""
+
+    message: str
+    rate_missing: bool
+
+
 async def compute_personal_data_quality(
     db: AsyncSession,
     user_id: UUID,
@@ -56,9 +66,10 @@ async def compute_personal_data_quality(
     # The default (full) scope converts each restricted and illiquid valuation. When one has
     # no FX rate, the check runs again without restricted holdings (#2645). The result of the
     # equation does not depend on the scope: a manual valuation adds the same amount to the
-    # assets or liabilities and to net_worth_adjustment_gain_loss. The missing rate becomes
-    # an action item, so the page stays available.
-    fx_gap: str | None = None
+    # assets or liabilities and to net_worth_adjustment_gain_loss. The FX gap becomes an
+    # action item, so the page stays available. Only a pricing-family FX error falls back;
+    # any other error, and an error of the second run, fails as before.
+    fx_gap: FxGap | None = None
     try:
         diag_result = await run_balance_sheet_diagnostics(
             db,
@@ -67,7 +78,9 @@ async def compute_personal_data_quality(
             currency=report_currency,
         )
     except ReportError as exc:
-        fx_gap = str(exc)
+        if not isinstance(exc.__cause__, PricingError):
+            raise
+        fx_gap = FxGap(message=str(exc), rate_missing=isinstance(exc.__cause__, NoObservationError))
         diag_result = await run_balance_sheet_diagnostics(
             db,
             user_id,
@@ -331,10 +344,19 @@ async def compute_personal_data_quality(
             QualityActionItem(
                 id="resolve_valuation_fx_rate",
                 priority="P1",
-                title="Restricted Holdings Lack an FX Rate",
+                title=(
+                    "A Restricted Holding Has No FX Rate"
+                    if fx_gap.rate_missing
+                    else f"A Restricted Holding Did Not Convert to {report_currency}"
+                ),
                 description=(
-                    f"The full net worth cannot convert a restricted or illiquid valuation: {fx_gap}. "
-                    f"The rate sync adds the rate; you can also record the valuation in {report_currency}."
+                    f"The full net worth cannot convert a restricted or illiquid valuation: {fx_gap.message}. "
+                    + (
+                        "The rate sync adds the rate; "
+                        if fx_gap.rate_missing
+                        else "The stored rate does not convert this amount; "
+                    )
+                    + f"you can also record the valuation in {report_currency}."
                 ),
                 score_boost=0,
                 action_type="RESOLVE_FX_RATE",

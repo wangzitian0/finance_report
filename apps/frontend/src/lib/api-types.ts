@@ -1796,9 +1796,11 @@ export interface components {
             restricted_fair_value_total_currency: string;
             /**
              * Restricted Fair Value Total Excludes
-             * @description Holdings without FX.
+             * @description Unconverted.
              */
-            restricted_fair_value_total_excludes?: string[];
+            restricted_fair_value_total_excludes?: {
+                [key: string]: string;
+            }[];
             /** Restricted Holdings */
             restricted_holdings: components["schemas"]["AnnualizedIncomeScheduleHolding"][];
             /** Section Id */
@@ -4648,6 +4650,11 @@ export interface components {
              */
             end_date: string;
             framework_id: components["schemas"]["PersonalReportingFrameworkId"];
+            /**
+             * Include Restricted
+             * @description Restricted-holdings scope; null: not recorded.
+             */
+            include_restricted?: boolean | null;
             /**
              * Start Date
              * Format: date

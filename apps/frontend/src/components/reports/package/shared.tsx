@@ -450,12 +450,27 @@ function PackageMetric({ label, value, currency }: { label: string; value: strin
   );
 }
 
-export function PackageSectionCards({ sections }: { sections: PersonalReportPackageSections }) {
+/**
+ * The net worth label of a package (#2645): the document context records its scope. A document
+ * frozen before #2645 records none. Its liquid figures follow the older rule (an illiquid property
+ * out, its mortgage in), so neither label is true: the card shows no net worth for it.
+ */
+function packageNetWorthLabel(includeRestricted: boolean | null | undefined): string | null {
+  if (includeRestricted === true) return "Net worth";
+  if (includeRestricted === false) return "Liquid net worth";
+  return null;
+}
+
+export function PackageSectionCards({
+  sections,
+  includeRestricted,
+}: {
+  sections: PersonalReportPackageSections;
+  /** `context.include_restricted` of the document. Null or absent: the scope is not recorded. */
+  includeRestricted?: boolean | null;
+}) {
   const { balance_sheet: bs, income_statement: is, cash_flow: cf, investment_performance: inv } = sections;
-  // The package presents the liquid scope by default, and the Balance sheet tab the full scope (#2645).
-  // A package that excludes a class says so and names each class. With no excluded class the two
-  // scopes give the same figure, so the label is "Net worth".
-  const isLiquid = (bs.excluded_holdings ?? []).length > 0;
+  const netWorthLabel = packageNetWorthLabel(includeRestricted);
   const incompleteOpeningCoverage = cf.proof_reasons?.includes("opening_coverage_starts_after_period") ?? false;
   return (
     <div className="grid lg:grid-cols-2 gap-4 mb-6">
@@ -466,12 +481,19 @@ export function PackageSectionCards({ sections }: { sections: PersonalReportPack
           <PackageMetric label="Total Liabilities" value={bs.total_liabilities} currency={bs.currency} />
           <PackageMetric label="Total Equity" value={bs.total_equity} currency={bs.currency} />
           <PackageMetric label="Net Income" value={bs.net_income} currency={bs.currency} />
-          <PackageMetric
-            label={isLiquid ? "Liquid net worth" : "Net worth"}
-            value={subtractAmounts(bs.total_assets, bs.total_liabilities).toString()}
-            currency={bs.currency}
-          />
+          {netWorthLabel && (
+            <PackageMetric
+              label={netWorthLabel}
+              value={subtractAmounts(bs.total_assets, bs.total_liabilities).toString()}
+              currency={bs.currency}
+            />
+          )}
         </dl>
+        {!netWorthLabel && (
+          <p className="mt-3 text-xs text-muted">
+            This snapshot does not record its restricted-holdings scope, so no net worth is shown.
+          </p>
+        )}
         <ExcludedHoldingsNote
           rows={bs.excluded_holdings}
           currency={bs.currency}

@@ -608,6 +608,14 @@ class PackageAssembler:
             include_restricted=include_restricted,
         )
         now = datetime.now(UTC)
+        context = PersonalReportPackageContext(
+            framework_id=framework_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+            currency=currency,
+            include_restricted=include_restricted,
+        )
         package_decision_id = None
         if (
             lifecycle is PersonalReportPackageDocumentLifecycle.FROZEN
@@ -620,13 +628,8 @@ class PackageAssembler:
                 user_id=user_id,
                 snapshot_id=snapshot_id,
                 occurred_at=frozen_at,
-                context={
-                    "framework_id": framework_id.value,
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
-                    "as_of_date": as_of_date.isoformat(),
-                    "currency": currency,
-                },
+                # The decision binds the same context that the document stores.
+                context=context.model_dump(mode="json"),
                 framework_policy=policy.model_dump(mode="json"),
                 statement_disposition_policy=statement_disposition_policy.model_dump(mode="json"),
                 input_manifest=input_manifest,
@@ -644,13 +647,7 @@ class PackageAssembler:
             status=(
                 PersonalReportPackageSnapshotStatus.TRUSTED if trusted else PersonalReportPackageSnapshotStatus.DRAFT
             ),
-            context=PersonalReportPackageContext(
-                framework_id=framework_id,
-                start_date=start_date,
-                end_date=end_date,
-                as_of_date=as_of_date,
-                currency=currency,
-            ),
+            context=context,
             contract=contract,
             readiness=readiness,
             framework_policy=policy,
@@ -788,7 +785,7 @@ class PackageAssembler:
         user_id: UUID,
         snapshot_id: UUID,
         occurred_at: datetime,
-        context: dict[str, str],
+        context: dict[str, Any],
         framework_policy: dict[str, Any],
         statement_disposition_policy: dict[str, Any],
         input_manifest: list[PersonalReportPackageTraceManifestEntry],
