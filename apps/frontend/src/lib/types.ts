@@ -50,9 +50,6 @@ export type JournalEntryListResponse = ListResponse<JournalEntry>;
 
 export type BankStatementTransaction = BankStatementTransactionViewModel;
 
-export type BankStatementTransactionResponse =
-  Schemas["AtomicTransactionResponse"];
-
 export type BankTransactionSummary = Schemas["BankTransactionSummary"];
 
 export type BankStatementTransactionSummary = BankTransactionSummary;
@@ -567,8 +564,6 @@ export type AnnualizedIncomeScheduleResponse =
 
 export type AnnualizedIncomeResponse = Schemas["AnnualizedIncomeResponse"];
 
-export type RestrictedHolding = Schemas["RestrictedHoldingResponse"];
-
 export type ValuationComponentsResponse =
   Schemas["ValuationComponentsResponse"];
 
@@ -617,17 +612,6 @@ export type ManualValuationLiquidityClass =
 
 export type ManualValuationBasis = Schemas["ManualValuationBasis"];
 
-export type ManualValuationSource =
-  | "manual"
-  | "broker_portal"
-  | "bank_portal"
-  | "cpf_portal"
-  | "tax_portal"
-  | "insurer_portal"
-  | "employer_portal"
-  | "property_valuation"
-  | "other_document";
-
 export type ManualValuationSnapshot =
   Schemas["ManualValuationSnapshotResponse"];
 
@@ -648,13 +632,9 @@ export type HoldingsListResponse = Schemas["HoldingsListResponse"];
 export type PortfolioSummaryDashboardResponse =
   Schemas["PortfolioSummaryDashboardResponse"];
 
-export type PortfolioSummaryResponse = PortfolioSummaryDashboardResponse;
-
 export type DividendEvent = Schemas["DividendEventResponse"];
 
 export type RealizedLot = Schemas["RealizedLotResponse"];
-
-export type PerformanceMetrics = Schemas["PerformanceMetricsResponse"];
 
 export type InvestmentPerformanceHoldingRow =
   Schemas["InvestmentPerformanceHoldingRow"];
@@ -701,21 +681,6 @@ export type UserAiSettingsUpdate = Schemas["UserAiSettingsUpdate"];
 // (apps/backend/src/schemas/app_config.py) — EPIC-012 AC12.39 / #1340.
 export type BaseCurrency = Schemas["BaseCurrencyResponse"];
 
-/**
- * Identity returned by `GET /api/auth/me`, consumed by `useSessionBootstrap`.
- *
- * Deliberately excludes the bearer `access_token` that the backend
- * `AuthResponse` carries: the frontend uses cookie-based auth and never
- * persists a token from this endpoint, so exposing it on the typed shape would
- * only invite misuse. This type is the non-secret identity subset only.
- */
-export interface CurrentUser {
-  id: string;
-  email: string;
-  name: string | null;
-  created_at: string;
-}
-
 export type PingStateResponse = Schemas["PingStateResponse"];
 export type PingState = PingStateResponse;
 
@@ -726,7 +691,6 @@ export type PingState = PingStateResponse;
 // only carries `has_api_key`. Mirrors backend schemas in
 // `apps/backend/src/schemas/llm.py`.
 
-export type LlmModality = Schemas["Modality"];
 export type LlmProtocolFamily = Schemas["ProtocolFamily"];
 export type LlmReasoningEffort = Schemas["ReasoningEffort"];
 export type LlmScene = Schemas["Scene"];

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
-import { useFocusTrap } from "@/hooks/useFocusTrap";
+import DetailDialog from "@/components/ui/DetailDialog";
 import Sheet from "@/components/ui/Sheet";
 import { apiOperation } from "@/lib/api-client";
 import { formatCurrencyLocale } from "@/lib/audit/money";
@@ -48,8 +48,6 @@ export default function AccountFormModal(props: AccountFormModalProps) {
 function AccountFormContent({ onClose, onSuccess, editAccount, initialType = "ASSET" }: AccountFormModalProps) {
   const [error, setError] = useState<string | null>(null);
   const isEditing = !!editAccount;
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef, true);
 
   const createForm = useForm<CreateAccountForm>({
     resolver: zodResolver(createAccountSchema),
@@ -90,87 +88,74 @@ function AccountFormContent({ onClose, onSuccess, editAccount, initialType = "AS
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/60" onClick={onClose} />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={isEditing ? "Edit Account" : "New Account"}
-        className="relative z-10 w-full max-w-md card animate-slide-up"
-      >
-        <div className="card-header">
-          <h2 className="text-lg font-semibold">{isEditing ? "Edit Account" : "New Account"}</h2>
-        </div>
-
-        {isEditing ? (
-          <form onSubmit={editForm.handleSubmit(handleEditSubmit)} className="p-6 space-y-4">
+    <DetailDialog isOpen onClose={onClose} title={isEditing ? "Edit Account" : "New Account"} maxWidth="max-w-md">
+      {isEditing ? (
+        <form onSubmit={editForm.handleSubmit(handleEditSubmit)} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Account Name *</label>
+            <input type="text" {...editForm.register("name")} placeholder="e.g., Cash on Hand" className="input" />
+            {editForm.formState.errors.name && <p className="text-sm text-[var(--error)] mt-1">{editForm.formState.errors.name.message}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Account Code</label>
+            <input type="text" {...editForm.register("code")} placeholder="e.g., 1000" className="input" />
+            {editForm.formState.errors.code && <p className="text-sm text-[var(--error)] mt-1">{editForm.formState.errors.code.message}</p>}
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" {...editForm.register("is_active")} className="w-4 h-4 rounded border-[var(--border)] bg-[var(--background)] text-[var(--accent)] focus:ring-[var(--accent)]" />
+            <span className="text-sm">Active</span>
+          </label>
+          {error && <div className="alert-error">{error}</div>}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+            <button type="submit" disabled={editForm.formState.isSubmitting} className="btn-primary flex-1">
+              {editForm.formState.isSubmitting ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <form onSubmit={createForm.handleSubmit(handleCreateSubmit)} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Account Name *</label>
+            <input type="text" {...createForm.register("name")} placeholder="e.g., Cash on Hand" className="input" />
+            {createForm.formState.errors.name && <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.name.message}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Account Code</label>
+            <input type="text" {...createForm.register("code")} placeholder="e.g., 1000" className="input" />
+            {createForm.formState.errors.code && <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.code.message}</p>}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1.5">Account Name *</label>
-              <input type="text" {...editForm.register("name")} placeholder="e.g., Cash on Hand" className="input" />
-              {editForm.formState.errors.name && <p className="text-sm text-[var(--error)] mt-1">{editForm.formState.errors.name.message}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Account Code</label>
-              <input type="text" {...editForm.register("code")} placeholder="e.g., 1000" className="input" />
-              {editForm.formState.errors.code && <p className="text-sm text-[var(--error)] mt-1">{editForm.formState.errors.code.message}</p>}
-            </div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" {...editForm.register("is_active")} className="w-4 h-4 rounded border-[var(--border)] bg-[var(--background)] text-[var(--accent)] focus:ring-[var(--accent)]" />
-              <span className="text-sm">Active</span>
-            </label>
-            {error && <div className="alert-error">{error}</div>}
-            <div className="flex gap-3 pt-2">
-              <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
-              <button type="submit" disabled={editForm.formState.isSubmitting} className="btn-primary flex-1">
-                {editForm.formState.isSubmitting ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <form onSubmit={createForm.handleSubmit(handleCreateSubmit)} className="p-6 space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Account Name *</label>
-              <input type="text" {...createForm.register("name")} placeholder="e.g., Cash on Hand" className="input" />
-              {createForm.formState.errors.name && <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.name.message}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Account Code</label>
-              <input type="text" {...createForm.register("code")} placeholder="e.g., 1000" className="input" />
-              {createForm.formState.errors.code && <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.code.message}</p>}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="new-account-type" className="block text-sm font-medium mb-1.5">Type *</label>
-                <select id="new-account-type" {...createForm.register("type")} className="input">
-                  {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-                {createForm.formState.errors.type && <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.type.message}</p>}
-              </div>
-              <div>
-                <label htmlFor="new-account-currency" className="block text-sm font-medium mb-1.5">Currency *</label>
-                <select id="new-account-currency" {...createForm.register("currency")} className="input">
-                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-                {createForm.formState.errors.currency && <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.currency.message}</p>}
-              </div>
+              <label htmlFor="new-account-type" className="block text-sm font-medium mb-1.5">Type *</label>
+              <select id="new-account-type" {...createForm.register("type")} className="input">
+                {ACCOUNT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+              {createForm.formState.errors.type && <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.type.message}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1.5">Description</label>
-              <textarea {...createForm.register("description")} placeholder="Optional description..." rows={2} className="input resize-none" />
-              {createForm.formState.errors.description && <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.description.message}</p>}
+              <label htmlFor="new-account-currency" className="block text-sm font-medium mb-1.5">Currency *</label>
+              <select id="new-account-currency" {...createForm.register("currency")} className="input">
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {createForm.formState.errors.currency && <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.currency.message}</p>}
             </div>
-            {error && <div className="alert-error">{error}</div>}
-            <div className="flex gap-3 pt-2">
-              <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
-              <button type="submit" disabled={createForm.formState.isSubmitting} className="btn-primary flex-1">
-                {createForm.formState.isSubmitting ? "Saving..." : "Create Account"}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Description</label>
+            <textarea {...createForm.register("description")} placeholder="Optional description..." rows={2} className="input resize-none" />
+            {createForm.formState.errors.description && <p className="text-sm text-[var(--error)] mt-1">{createForm.formState.errors.description.message}</p>}
+          </div>
+          {error && <div className="alert-error">{error}</div>}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+            <button type="submit" disabled={createForm.formState.isSubmitting} className="btn-primary flex-1">
+              {createForm.formState.isSubmitting ? "Saving..." : "Create Account"}
+            </button>
+          </div>
+        </form>
+      )}
+    </DetailDialog>
   );
 }
 

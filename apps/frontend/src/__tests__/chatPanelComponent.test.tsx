@@ -103,8 +103,6 @@ describe("ChatPanel", () => {
         id: "model-1",
         name: "Model 1",
         is_free: true,
-        input_modalities: ["text"],
-        pricing: { prompt: "0", completion: "0" }
       }],
       default_model: "model-1",
       fallback_models: [],
@@ -317,15 +315,11 @@ describe("ChatPanel", () => {
           id: "model-1",
           name: "Model 1",
           is_free: true,
-          input_modalities: ["text"],
-          pricing: { prompt: "0", completion: "0" },
         },
         {
           id: "model-2",
           name: "Model 2",
           is_free: false,
-          input_modalities: ["text"],
-          pricing: { prompt: "0.1", completion: "0.2" },
         },
       ],
       default_model: "model-1",
@@ -459,8 +453,6 @@ describe("ChatPanel", () => {
         id: "model-alt",
         name: "Alt Model",
         is_free: true,
-        input_modalities: ["text"],
-        pricing: { prompt: "0", completion: "0" }
       }],
       default_model: "nonexistent-model",
       fallback_models: [],

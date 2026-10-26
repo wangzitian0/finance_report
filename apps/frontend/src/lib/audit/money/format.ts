@@ -64,15 +64,6 @@ export function isAmountZero(value: MonetaryInput, tolerance = 0.01): boolean {
   return new Decimal(value).abs().lessThanOrEqualTo(tolerance);
 }
 
-export function formatCurrency(
-  value: MonetaryInput,
-  currency: string = "SGD",
-  decimals = 2
-): string {
-  const amount = formatAmount(value, decimals);
-  return `${currency} ${amount}`;
-}
-
 export function formatCurrencyLocale(
   value: MonetaryInput,
   currency: string = "SGD",

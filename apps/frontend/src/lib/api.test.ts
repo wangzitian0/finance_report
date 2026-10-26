@@ -7,7 +7,6 @@ import {
   API_URL,
   resetRedirectGuard,
   ApiError,
-  isApiErrorCode,
 } from './api';
 
 // Mock fetch global
@@ -237,7 +236,7 @@ describe('apiOperation transport & errors', () => {
       caughtErr = err;
     }
     expect(caughtErr).toBeInstanceOf(ApiError);
-    expect(isApiErrorCode(caughtErr, 'validation_error')).toBe(true);
+    expect(caughtErr.errorId).toBe('validation_error');
     expect(caughtErr.requestId).toBe('req-v1');
     expect(caughtErr.message).toContain('Field required');
 
@@ -468,6 +467,18 @@ describe('apiOperationDownload', () => {
         query: {} as any,
       }),
     ).rejects.toThrow('export failed');
+
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      text: async () =>
+        JSON.stringify({ detail: 'No such report', error_id: 'not_found', request_id: 'req-d1' }),
+    });
+    const err = await apiOperationDownload('export_report_reports_export_get', {
+      query: {} as any,
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ status: 404, errorId: 'not_found', requestId: 'req-d1' });
   });
 });
 

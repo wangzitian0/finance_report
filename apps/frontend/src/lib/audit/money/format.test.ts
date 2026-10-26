@@ -9,7 +9,6 @@ import {
   divideAmount,
   compareAmounts,
   isAmountZero,
-  formatCurrency,
   formatCurrencyLocale,
 } from './format';
 
@@ -214,25 +213,6 @@ describe('isAmountZero', () => {
   it('should handle Decimal objects', () => {
     expect(isAmountZero(new Decimal('0.005'))).toBe(true);
     expect(isAmountZero(new Decimal('0.02'))).toBe(false);
-  });
-});
-
-describe('formatCurrency', () => {
-  it('should format with default SGD currency', () => {
-    expect(formatCurrency(100.5)).toBe('SGD 100.50');
-  });
-
-  it('should format with custom currency', () => {
-    expect(formatCurrency(100.5, 'USD')).toBe('USD 100.50');
-  });
-
-  it('should format with custom decimal places', () => {
-    expect(formatCurrency(100.5, 'SGD', 0)).toBe('SGD 101');
-    expect(formatCurrency(100.5, 'SGD', 3)).toBe('SGD 100.500');
-  });
-
-  it('should format negative values', () => {
-    expect(formatCurrency(-50.25)).toBe('SGD -50.25');
   });
 });
 

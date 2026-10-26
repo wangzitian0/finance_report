@@ -66,17 +66,6 @@ export function anchorFromIdentifiers(
   return null;
 }
 
-export function lineageUrl(anchor: LineageAnchor): string {
-  const params = new URLSearchParams({
-    entity_type: anchor.entity_type,
-    entity_id: anchor.entity_id,
-  });
-  if (anchor.node_kind) params.set("node_kind", anchor.node_kind);
-  params.set("direction", "both");
-  params.set("max_depth", "6");
-  return `/api/evidence/lineage?${params.toString()}`;
-}
-
 export function lineageQuery(anchor: LineageAnchor) {
   return {
     entity_type: anchor.entity_type,

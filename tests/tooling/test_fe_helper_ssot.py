@@ -6,9 +6,10 @@ already having diverged (a "→" vs "to" separator) and `getPnlColor`
 byte-identical only by luck. They are now single-homed in `lib/statusLabels.ts`,
 `lib/date.ts`, and `components/navigation.ts`. This gate keeps a re-duplication
 from silently coming back. `formatCurrency` collided in name (not meaning)
-with `lib/audit/money/format.ts`'s amount formatter — the local copy is
-renamed `currencyCodeOrDash`, so a bare `formatCurrency` definition anywhere
-outside `lib/audit/money/format.ts` would be exactly that collision returning.
+with an amount formatter in `lib/audit/money/format.ts` — the local copy is
+renamed `currencyCodeOrDash`. The amount formatter had no caller and is deleted
+(#2685), so a `formatCurrency` definition anywhere would be that collision
+returning.
 `readinessVariant` (also unified in PR-B, from two near-duplicate
 definitions whose "unhandled"/default branches assigned conflicting Badge
 colors — the two source enums don't actually overlap on which states hit
@@ -70,7 +71,7 @@ _CANONICAL_HOME = {
     "pnlColorClass": "apps/frontend/src/lib/statusLabels.ts",
     "formatPeriod": "apps/frontend/src/lib/date.ts",
     "isActive": "apps/frontend/src/components/navigation.ts",
-    "formatCurrency": "apps/frontend/src/lib/audit/money/format.ts",
+    "formatCurrency": None,  # renamed to currencyCodeOrDash; zero definitions allowed anywhere
     "readinessVariant": "apps/frontend/src/lib/statusLabels.ts",
 }
 

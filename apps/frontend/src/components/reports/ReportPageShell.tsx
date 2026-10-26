@@ -5,17 +5,7 @@ import { useState, type ReactNode } from "react";
 
 import { SkeletonBlock } from "@/components/ui";
 import { apiOperationDownload, type ApiOperationRequest } from "@/lib/api-client";
-
-export interface FxWarning {
-  type: string;
-  message?: string;
-  from_currency?: string;
-  to_currency?: string;
-  date?: string;
-  fallback_date?: string;
-  source?: string;
-  [key: string]: string | undefined;
-}
+import type { FxWarning } from "@/lib/types";
 
 function formatWarning(warning: FxWarning): string {
   if (warning.message) return warning.message;
