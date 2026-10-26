@@ -28,7 +28,6 @@ from src.reporting.extension._core import (
     _build_account_lines,
     _line_total,
     _load_accounts,
-    _strip_allocation_metadata,
 )
 from src.reporting.extension.fx_gateway import FxWarning
 from src.reporting.extension.portfolio_market import _build_portfolio_market_adjustment_lines
@@ -243,15 +242,13 @@ async def generate_balance_sheet(
     as_of_date: date,
     currency: str | None = None,
     include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
-    include_allocation_metadata: bool = False,
     include_trust_signals: bool = True,
 ) -> dict[str, object]:
     """Generate balance sheet report as of a given date.
 
     ``include_trust_signals`` gates the extra per-account ledger scan that
     derives provenance. Callers that do not render per-line provenance
-    (net-worth time series, the income statement's internal balance sheets)
-    pass False to avoid amplifying that scan.
+    (the advisor summary) pass False to skip that scan.
     """
     target_currency = _normalize_currency(currency)
     fx_warnings: list[FxWarning] = []
@@ -348,7 +345,7 @@ async def generate_balance_sheet(
     # Calculate cumulative Net Income (Income - Expenses) up to as_of_date
     # Uses period-average FX rates for consistency with the income statement
     try:
-        net_income_res = await _aggregate_net_income_sql(
+        net_income_raw, pnl_translation_variance = await _aggregate_net_income_sql(
             db,
             user_id,
             target_currency,
@@ -356,10 +353,6 @@ async def generate_balance_sheet(
             fx_warnings=fx_warnings,
             return_translation_variance=True,
         )
-        if isinstance(net_income_res, tuple):
-            net_income_raw, pnl_translation_variance = net_income_res
-        else:
-            net_income_raw, pnl_translation_variance = net_income_res, Decimal("0.00")
     except ReportError:
         raise
     except SQLAlchemyError as exc:
@@ -452,7 +445,7 @@ async def generate_balance_sheet(
     # starting position, so its total is structurally incomplete. We never let
     # such a total be presented as trusted: degrade the aggregate tier to the
     # least-trusted level and surface a warning the UI can act on. Gated behind
-    # include_trust_signals so per-point net-worth time series skip the extra scan.
+    # include_trust_signals so the advisor summary skips the extra scan.
     opening_balance_warnings: list[FxWarning] = []
     if include_trust_signals:
         from src.ledger import get_opening_balance_readiness
@@ -473,16 +466,12 @@ async def generate_balance_sheet(
                 warning["earliest_activity_date"] = earliest.isoformat()
             opening_balance_warnings.append(warning)
 
-    response_assets = assets if include_allocation_metadata else _strip_allocation_metadata(assets)
-    response_liabilities = liabilities if include_allocation_metadata else _strip_allocation_metadata(liabilities)
-    response_equity = equity if include_allocation_metadata else _strip_allocation_metadata(equity)
-
     return {
         "as_of_date": as_of_date,
         "currency": target_currency,
-        "assets": response_assets,
-        "liabilities": response_liabilities,
-        "equity": response_equity,
+        "assets": assets,
+        "liabilities": liabilities,
+        "equity": equity,
         "provenance": aggregate_provenance,
         "total_assets": totals.total_assets,
         "total_liabilities": totals.total_liabilities,

@@ -184,7 +184,6 @@ async def assemble_framework_balance_sheet(
             currency=currency,
             include_restricted=include_restricted,
             include_trust_signals=True,
-            include_allocation_metadata=True,
         ),
     )
 

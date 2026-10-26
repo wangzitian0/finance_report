@@ -202,7 +202,6 @@ async def get_net_worth_allocation_schedule(
         as_of_date=as_of_date,
         currency=target_currency,
         include_restricted=include_restricted,
-        include_allocation_metadata=True,
     )
     portfolio_basis_by_account = await _portfolio_market_basis_by_account(
         db,
