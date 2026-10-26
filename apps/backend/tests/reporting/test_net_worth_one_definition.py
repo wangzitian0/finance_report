@@ -13,8 +13,10 @@ Each test reads the API routes that the four surfaces read:
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -534,7 +536,7 @@ async def test_AC_reporting_net_worth_scope_14_package_lists_a_restricted_holdin
         "amount": "1000.00",
     }
     assert row["message"].startswith("No FX rate available for USD/SGD")
-    assert any("Employer RSU (USD 1000.00)" in note for note in schedule.notes)
+    assert any("Employer RSU (USD 1,000.00)" in note for note in schedule.notes)
     assert "restricted_holding_fx_unavailable" in [blocker.code for blocker in document.readiness.blockers]
 
 
@@ -668,3 +670,38 @@ async def test_AC_reporting_net_worth_scope_20_package_records_its_scope(
     )
     assert old.include_restricted is None
     assert "include_restricted" not in old.model_dump(mode="json")
+
+
+MAIN_SHAPE_DOCUMENT = Path(__file__).resolve().parents[1] / "fixtures" / "package_document_main_shape.json"
+# personal_report_package_target over the stored JSON: the version that main bound at freeze time.
+MAIN_SHAPE_DECISION_VERSION = "aacc713256b0f0411ce8c416598a2b75ddbb8a0634fe0e4036f773f2094da538"
+
+
+def test_AC_reporting_net_worth_scope_22_main_shape_document_keeps_its_decision_version() -> None:
+    """AC-reporting.net-worth-scope.22: a package frozen on main reloads to the same JSON and decision version.
+
+    The fixture is a frozen document in the shape of main 685533f0f: its context has no
+    include_restricted and its annualized section has no restricted_fair_value_total_excludes.
+    A field that the reload adds to the dump changes the rebuilt decision version.
+    """
+    from src.reporting import personal_report_package_decision_ref
+    from src.reporting.base.package_decision import personal_report_package_target
+    from src.schemas.reporting import PersonalReportPackageDocument
+
+    stored = json.loads(MAIN_SHAPE_DOCUMENT.read_text(encoding="utf-8"))
+    assert "include_restricted" not in stored["context"]
+    assert "restricted_fair_value_total_excludes" not in stored["sections"]["annualized_income_long_term"]
+    at_freeze = personal_report_package_target(
+        snapshot_id=UUID(stored["snapshot_id"]),
+        context=stored["context"],
+        framework_policy=stored["framework_policy"],
+        statement_disposition_policy=stored["statement_disposition_policy"],
+        input_manifest=stored["input_manifest"],
+        sections=stored["sections"],
+    ).version
+    assert at_freeze == MAIN_SHAPE_DECISION_VERSION
+
+    document = PersonalReportPackageDocument.model_validate(stored)
+
+    assert document.model_dump(mode="json") == stored
+    assert personal_report_package_decision_ref(document).target.version == MAIN_SHAPE_DECISION_VERSION

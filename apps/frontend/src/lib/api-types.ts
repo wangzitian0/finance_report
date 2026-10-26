@@ -1796,7 +1796,7 @@ export interface components {
             restricted_fair_value_total_currency: string;
             /**
              * Restricted Fair Value Total Excludes
-             * @description Unconverted.
+             * @description Holdings left out of the total because they did not convert to the total currency.
              */
             restricted_fair_value_total_excludes?: {
                 [key: string]: string;

@@ -578,6 +578,26 @@ describe("PersonalReportPackagePage", () => {
     await waitFor(() => expect(mockedApiFetch.mock.calls.some(([path]) => String(path).includes("start_date=2025-04-01"))).toBe(true));
   });
 
+  // AC-reporting.net-worth-scope.23
+  it("#2645 labels the package net worth from the scope that the document context records", async () => {
+    mockPackageApi();
+    const base = mockedApiFetch.getMockImplementation()!;
+    mockedApiFetch.mockImplementation((path: string, options?: RequestInit) => {
+      if (path.startsWith("/api/reports/package?")) {
+        const preview = packagePreview();
+        return Promise.resolve({ ...preview, context: { ...preview.context, include_restricted: false } });
+      }
+      return base(path, options);
+    });
+    renderPackagePage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+
+    const balance = await screen.findByRole("heading", { name: "Balance Sheet", level: 2 });
+    expect(within(balance.closest("section")!).getByText("Liquid net worth")).toBeInTheDocument();
+    expect(screen.queryByText("This snapshot does not record its restricted-holdings scope, so no net worth is shown.")).toBeNull();
+  });
+
   it("AC8.13.92 surfaces package API failures as a visible loading error", async () => {
     mockedApiFetch.mockRejectedValue(new Error("package document unavailable"));
     renderPackagePage();

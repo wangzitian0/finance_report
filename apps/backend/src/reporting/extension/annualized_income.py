@@ -225,7 +225,10 @@ async def generate_annualized_income_schedule(
                 [
                     f"The restricted fair-value total leaves out these holdings, which did not convert to "
                     f"{reporting_currency} on {report_date.isoformat()}: "
-                    + "; ".join(f"{row['source']} ({row['currency']} {row['amount']})" for row in left_out_of_total)
+                    + "; ".join(
+                        f"{row['source']} ({row['currency']} {Decimal(row['amount']):,.2f})"
+                        for row in left_out_of_total
+                    )
                     + "."
                 ]
                 if left_out_of_total

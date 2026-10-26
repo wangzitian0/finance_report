@@ -844,7 +844,12 @@ class AnnualizedIncomeScheduleResponse(BaseModel):
     restricted_fair_value_total_currency: str = Field(
         min_length=3, max_length=3, description="Currency of the restricted fair-value total."
     )
-    restricted_fair_value_total_excludes: list[dict[str, str]] = Field(default_factory=list, description="Unconverted.")
+    # An empty list is not dumped: a section frozen before the field keeps its decision version (#2645).
+    restricted_fair_value_total_excludes: list[dict[str, str]] = Field(
+        default_factory=list,
+        exclude_if=lambda value: not value,
+        description="Holdings left out of the total because they did not convert to the total currency.",
+    )
     net_worth_treatment: AnnualizedIncomeScheduleNetWorthTreatment
     notes: list[str]
 
