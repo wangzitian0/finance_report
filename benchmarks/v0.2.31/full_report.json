@@ -2,7 +2,7 @@
   "suite": "financial_reporting_temporal_scenarios",
   "version_ref": "v0.2.31",
   "app_url": "https://report-staging.zitian.party",
-  "run_at": "2026-10-26T09:51:26.669049+00:00",
+  "run_at": "2026-10-26T10:00:46.263282+00:00",
   "summary": {
     "total": 7,
     "passed": 7,
@@ -15,7 +15,7 @@
       "case_id": "case_1",
       "case_name": "Case 1: Consecutive 4-Month Rollforward & Q1 Articulation",
       "status": "PASS",
-      "duration_seconds": 247.04906702041626,
+      "duration_seconds": 220.90974307060242,
       "details": {
         "m1_closing_balance": "15271.23",
         "month_1_ending_balance": "15271.23",
@@ -48,7 +48,7 @@
       "case_id": "case_2",
       "case_name": "Case 2: Multi-PII Household Operations & Category Reconciliation",
       "status": "PASS",
-      "duration_seconds": 60.09626245498657,
+      "duration_seconds": 48.17291212081909,
       "details": {
         "household_husband_cash": "12800.00",
         "household_wife_cash": "8100.00",
@@ -70,7 +70,7 @@
       "case_id": "case_3",
       "case_name": "Case 3: Credit Card Liability & Non-P&L Repayment Clearance",
       "status": "PASS",
-      "duration_seconds": 59.1509895324707,
+      "duration_seconds": 43.743725538253784,
       "details": {
         "card_spend_recorded": "1200.00",
         "bank_repayment": "1200.00",
@@ -91,7 +91,7 @@
       "case_id": "case_4",
       "case_name": "Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet",
       "status": "PASS",
-      "duration_seconds": 81.88933801651001,
+      "duration_seconds": 82.3362033367157,
       "details": {
         "currencies_consolidated": "SGD, USD, HKD",
         "sgd_closing_balance": "12800.00",
@@ -113,7 +113,7 @@
       "case_id": "case_5",
       "case_name": "Case 5: Holistic Multi-Asset & Tax Ecosystem",
       "status": "PASS",
-      "duration_seconds": 5.195413112640381,
+      "duration_seconds": 7.250396966934204,
       "details": {
         "holdings_count": 2,
         "symbols": "AAPL, VT",
@@ -136,7 +136,7 @@
       "case_id": "case_6",
       "case_name": "Case 6: Bank Overdraft & Capital Gain Disposal",
       "status": "PASS",
-      "duration_seconds": 6.2064268589019775,
+      "duration_seconds": 9.231846332550049,
       "details": {
         "overdraft_cash": "-1500.00",
         "ending_cash": "11000.00",
@@ -153,7 +153,7 @@
       "case_id": "case_ui",
       "case_name": "Case UI: Browser Zero-Console-Error & DOM Hygiene Oracle",
       "status": "PASS",
-      "duration_seconds": 43.928791761398315,
+      "duration_seconds": 38.77409625053406,
       "details": {
         "status": "PASS",
         "visited_routes": [
