@@ -202,6 +202,10 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
             "parent_id": None,
             "amount": Decimal("1600.00"),
             "provenance": "manual",
+            "source_currency": "SGD",
+            "allocation_asset_class": "cash",
+            "allocation_liquidity_class": "liquid",
+            "allocation_source_type": "ledger_account",
         }
     ]
     assert balance_sheet["liabilities"] == [
@@ -212,6 +216,10 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
             "parent_id": None,
             "amount": Decimal("300.00"),
             "provenance": "manual",
+            "source_currency": "SGD",
+            "allocation_asset_class": "liability",
+            "allocation_liquidity_class": "liability",
+            "allocation_source_type": "ledger_account",
         }
     ]
     # The day-one capital is a regular equity entry, not a recorded opening
