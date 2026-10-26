@@ -846,11 +846,13 @@ async def _assert_gxs_snapshot_browser(
     page: Page, *, snapshot: dict, json_bytes: bytes, csv_bytes: bytes
 ) -> None:
     """The saved artifact must also be selectable and downloadable by its user."""
-    response = await page.goto(f"{APP_URL.rstrip('/')}/reports/package")
+    response = await page.goto(
+        f"{APP_URL.rstrip('/')}/reports?tab=package"
+        f"&start={snapshot['start_date']}&end={snapshot['end_date']}"
+    )
     assert response is not None and response.status == 200, (
         "report package page must render"
     )
-    await page.get_by_label("Package report date").fill(snapshot["end_date"])
     await page.get_by_role("button", name="US-like", exact=True).click()
     await expect(
         page.get_by_role("heading", name="Saved Package Artifacts")

@@ -39,7 +39,7 @@ jobs:
     name: Publish board record
     # Only runs of this repository. The artifact is parsed as data, never run.
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}

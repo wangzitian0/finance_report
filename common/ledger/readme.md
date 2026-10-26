@@ -124,6 +124,27 @@ override. The write path derives that basis from the original line currency/FX
 metadata and fails closed when no FX-free line identifies the historical base,
 or when multiple FX-free currencies make it ambiguous.
 
+A journal entry stores the base currency that validated it at creation
+(`journal_entries.base_currency`, #2539). The decision-anchor target of a manual
+draft includes that base currency. Posting the draft therefore recomputes the
+target, the balance and the FX checks under the stored value, not under the
+current effective value. A change of the effective base currency between create
+and post does not change the post result (AC-ledger.79.9). Rows from before
+revision 0067 have no stored value; they use the effective value of the caller.
+
+The target hashes the lines as an ordered list of decimal texts. Two more inputs
+must therefore be equal at create and at post (#2539):
+- **Line order.** Each line stores its position in the command
+  (`journal_lines.line_no`), and `JournalEntry.lines` loads in that order. A
+  select without ORDER BY returns rows in physical order, which can differ
+  from the insert order after deletes (AC-ledger.79.10).
+- **Decimal scale.** A manual command expresses each amount with 2 places and
+  each FX rate with 6 places, the scale of the columns, before it hashes the
+  target. `1000` and `1000.00` then give the same text. A value with more places
+  is rejected, never rounded (AC-ledger.79.11).
+
+Rows from before revision 0068 have no position and keep the old load order.
+
 The memo column holds `JOURNAL_MEMO_MAX_LENGTH` (500) characters. Text without a limit,
 such as a statement description, goes through `fit_journal_memo` before it becomes a
 memo. The decision anchor binds the memo that the entry stores, so the caller cuts once
@@ -420,7 +441,8 @@ no hidden `SGD` default.
 
 - **Processing Account (Code 1199) Reservation**: Code `1199` is strictly a system-managed asset suspense account reserved for internal transfer reconciliation (`TransferPair`, EPIC-015). It holds funds in-transit between a user's own accounts so that each leg cancels to zero upon pairing.
 - **External Statement Staging Boundary**: External statements (bank CSV/PDF exports, credit card records) must stage unverified transactions exclusively in Layer 2 `AtomicTransaction` (extraction bounded context). External transactions are strictly forbidden from routing through Code 1199. Diverting external statements into Code 1199 pollutes the balance sheet, corrupts P&L, and causes unresolvable accounting discrepancies.
-- **Ledger Authority Defense**: Unverified transactions remain staged in `AtomicTransaction` through classification and economic disposition. Final admission into the immutable double-entry ledger occurs exclusively via `submit_anchored_journal_entry_v2` with an authoritative `DecisionAnchor`. Any non-system journal command attempting to post against Code 1199 is rejected fail-closed with `ValidationError`.
+- **Anchored Batch Port (#2612)**: `submit_anchored_journal_entries_v2` persists a set of anchored commands with a number of SQL statements that does not grow with the set. It returns the entries that one `submit_anchored_journal_entry_v2` call per command returns. It checks every anchor before it persists any entry. It reads the owners of all source targets in one statement, creates the draft entries with one flush, and posts them with one flush. Commands that share a source target keep the single path.
+- **Ledger Authority Defense**: Unverified transactions remain staged in `AtomicTransaction` through classification and economic disposition. Final admission into the immutable double-entry ledger occurs exclusively via `submit_anchored_journal_entry_v2` (or its batch port) with an authoritative `DecisionAnchor`. Any non-system journal command attempting to post against Code 1199 is rejected fail-closed with `ValidationError`.
 
 ---
 
@@ -848,7 +870,9 @@ not cash earned or spent on that date. `list_opening_positions` publishes immuta
 original currency, historical FX rate, optional journal id, and current trace
 decision. Reporting consumes this evidence; memo text and arbitrary event tags
 never prove an opening. Existing anchored `opening-balance` system commands can
-be projected without rewriting their history.
+be projected without rewriting their history. The projection reads current
+authority only for the decisions of its own facts: the opening records, their
+journal entries and the historical opening commands (#2602).
 
 Manual and automatic statement approval initialize the first trusted account
 position in the same transaction as source posting. A tenant-scoped database

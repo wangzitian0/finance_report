@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { LineagePanel } from "@/components/reports/LineagePanel"
+import { LineagePanel } from "@/components/reports/AccountLineageDrawer"
 import { apiOperation } from "@/lib/api-client"
 import type { LineageAnchor } from "@/lib/lineage"
 
@@ -71,7 +71,7 @@ describe("LineagePanel (EPIC-022 AC22.3.4/AC22.3.5)", () => {
       nodes: [
         { id: "ledger", node_kind: "ledger_line", entity_type: "journal_line", entity_id: "j1", properties: { source_type: "journal_entry", confidence_tier: "TRUSTED", version: "posted" } },
         { id: "report", node_kind: "report_line", entity_type: "balance_sheet_line", entity_id: "r1", properties: { source_system: "balance_sheet", confidence: "TRUSTED", matrix_version: "v1" } },
-        { id: "source", node_kind: "source_document", entity_type: "uploaded_document", entity_id: "d1", properties: { source_system: "statement_upload", confidence_tier: "HIGH", version: "v3" } },
+        { id: "source", node_kind: "source_document", entity_type: "uploaded_document", entity_id: "d1", properties: { source_system: "statement_upload", confidence_tier: "HIGH", version: "v3", original_filename: "DBS_2026_03.pdf" } },
         { id: "atomic", node_kind: "atomic_fact", entity_type: "atomic_transaction", entity_id: "a1", properties: { source_type: "bank_statement_transaction", confidence: "HIGH", record_version: 2 } },
       ],
     })

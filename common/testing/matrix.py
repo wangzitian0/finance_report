@@ -311,6 +311,15 @@ E2E_ROWS: tuple[E2ERow, ...] = (
         reason="Real provider zero-click proof (#2405): an upload alone posts every row and the three statements tie.",
     ),
     E2ERow(
+        "tests/e2e/test_assistant_chat_journey.py",
+        needs=(NEEDS_LLM_PROVIDER,),
+        audited=True,
+        reason=(
+            "Core-journey proof U14 (#2461): the live assistant answers with the report amounts; "
+            "audit replay and core-journey lane."
+        ),
+    ),
+    E2ERow(
         "tests/e2e/test_institution_statement_journeys.py",
         needs=(NEEDS_LLM_PROVIDER,),
         audited=True,
@@ -513,6 +522,15 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         marker=STAGING_AI_OCR_MARKER,
         paths=("tests/e2e/test_ai_provider_connectivity.py",),
         anchor="--junit-xml=test-results/staging-provider-connectivity.xml",
+    ),
+    WorkflowPytestContract(
+        stage="staging_model_catalog_policy",
+        workflow=".github/workflows/deploy.yml",
+        marker=STAGING_AI_OCR_MARKER,
+        paths=(
+            "tests/e2e/test_ai_provider_connectivity.py::test_staging_catalog_serves_the_sdk_default_models",
+        ),
+        anchor="--junit-xml=test-results/staging-model-catalog-policy.xml",
     ),
     WorkflowPytestContract(
         stage="staging_ai_ocr_version_check",

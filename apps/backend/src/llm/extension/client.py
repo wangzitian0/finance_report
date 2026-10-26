@@ -10,6 +10,7 @@ entry point is :mod:`src.llm.extension.streaming` (which counts request/token us
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -78,6 +79,11 @@ def _disable_litellm_aiohttp_transport() -> None:
 _harden_litellm_logging()
 _disable_litellm_aiohttp_transport()
 
+# The GLM 5.3 family: the base model and its one-word variants, including later ones.
+# The wire adapter below applies to the family, so no model id is listed here. The SDK
+# should own this rule (step 2 of #2624).
+_GLM_53_FAMILY = re.compile(r"glm-5\.3(-[a-z]+)?", re.IGNORECASE)
+
 # litellm exception names that represent transient conditions worth retrying.
 _RETRYABLE_EXC = frozenset(
     {"RateLimitError", "Timeout", "APIConnectionError", "ServiceUnavailableError", "InternalServerError"}
@@ -88,11 +94,57 @@ def _is_retryable(exc: Exception) -> bool:
     return type(exc).__name__ in _RETRYABLE_EXC
 
 
+# Z.ai and other providers put a numeric error code in the response body, for example
+# {"error":{"code":"1302",...}}. One status maps to many causes (concurrency, quota,
+# no resource package); the code tells them apart (#2580). litellm turns a standard
+# body into message text only, so the code is read from the body of the chained
+# provider error. The text pattern is the fallback for a body written into the text.
+_PROVIDER_CODE = re.compile(r"""["']code["']\s*:\s*["']?(\d{3,5})["']?""")
+_CODE_TEXT = re.compile(r"\d{3,5}")
+_CHAIN_DEPTH = 4
+
+
+def _code_in_body(body: object) -> str | None:
+    if not isinstance(body, Mapping):
+        return None
+    inner = body.get("error")
+    for source in (inner, body):
+        if not isinstance(source, Mapping):
+            continue
+        code = source.get("code")
+        if isinstance(code, bool) or not isinstance(code, str | int):
+            continue
+        if _CODE_TEXT.fullmatch(str(code)):
+            return str(code)
+    return None
+
+
+def _provider_code(exc: BaseException) -> str | None:
+    current: BaseException | None = exc
+    for _ in range(_CHAIN_DEPTH):
+        if current is None:
+            break
+        code = _code_in_body(getattr(current, "body", None))
+        if code:
+            return code
+        current = current.__cause__ or current.__context__
+    match = _PROVIDER_CODE.search(str(exc))
+    return match.group(1) if match else None
+
+
 def _wrap(exc: Exception) -> LLMError:
-    # Surface only the exception class in the raised message — upstream provider
-    # errors can embed request context (endpoints, headers, payload fragments).
-    # The full detail is logged server-side (with the logger) by the caller.
-    return LLMError(f"LLM provider call failed ({type(exc).__name__})", retryable=_is_retryable(exc))
+    # Surface only the exception class, the integer HTTP status and a numeric
+    # provider code in the raised message — upstream provider errors can embed
+    # request context (endpoints, headers, payload fragments), so no free text
+    # passes. The full detail is logged server-side (with the logger) by the caller.
+    parts = [type(exc).__name__]
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int) and not isinstance(status, bool) and 100 <= status <= 599:
+        parts.append(f"http {status}")
+    code = _provider_code(exc)
+    if code:
+        parts.append(f"provider code {code}")
+    return LLMError(f"LLM provider call failed ({', '.join(parts)})", retryable=_is_retryable(exc))
 
 
 def _base_kwargs(
@@ -136,11 +188,9 @@ def _base_kwargs(
             body.pop("thinking", None)
         if body:
             kwargs["extra_body"] = body
-    if provider.protocol is ProtocolFamily.OPENAI_COMPATIBLE and model_id.removeprefix("openai/").lower() in {
-        "glm-5.3",
-        "glm-5.3-flash",
-        "glm-5.3-flashx",
-    }:
+    if provider.protocol is ProtocolFamily.OPENAI_COMPATIBLE and _GLM_53_FAMILY.fullmatch(
+        model_id.removeprefix("openai/")
+    ):
         # GLM 5.3 requires thinking and accepts low/high/max, not disabled or
         # medium. Adapt only live wire kwargs so caller intent/cassette keys
         # remain provider-independent. Avoid the provider's default max effort

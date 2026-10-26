@@ -1,7 +1,7 @@
 export const ATTENTION_SOURCE_PARAM = "from";
 export const ATTENTION_SOURCE_VALUE = "attention";
-export const ATTENTION_RETURN_HREF = "/attention";
-export const ATTENTION_RETURN_LABEL = "Back to Attention queue";
+export const ATTENTION_RETURN_HREF = "/audit";
+export const ATTENTION_RETURN_LABEL = "Back to Needs Confirmation";
 
 interface SearchParamReader {
   get(name: string): string | null;

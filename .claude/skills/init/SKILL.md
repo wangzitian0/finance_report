@@ -5,11 +5,11 @@ description: Step 1 of the five-step flow. Run before any change. Inventory exis
 
 # init: question the requirement, inventory, isolate
 
-Run this before the first edit. Each rule exists because an agent skipped it and the owner had to correct it.
+Run this before the first edit.
 
 ## 1. Inventory before you build
 
-The owner repeatedly found new scripts that duplicated existing ones. Follow the **Key List Protocol**:
+Follow the **Key List Protocol**:
 
 1. **Check the Key List**: Read the repository's SSOT index (`docs/ssot/MANIFEST.yaml`, `common/meta/data/MANIFEST.yaml`, or the App's contracts index).
    - Scan the capability keys (e.g., `deploy_v2`, `infra2-sdk`, `vault`, `signoz`, `pr_merge_gate`).
@@ -21,8 +21,6 @@ The owner repeatedly found new scripts that duplicated existing ones. Follow the
    - `"Reusing existing component: <key>"` OR `"New capability: will register <key> in MANIFEST.yaml"`.
 
 ## 2. Read the original intent before you change a mechanism
-
-Agents reversed or "fixed" a design without knowing why it existed. Example: skill content is one source, the mapping to hosts is another source.
 
 - Find the issue, PR, or SSOT page that created the mechanism. Read it first.
 - Write one sentence: "This exists because ...". If you cannot, you are not ready to change it.
@@ -44,16 +42,7 @@ git worktree list | grep -F "_issue<N>_"
 
 A substring match is wrong: `issue12` would match `issue123`.
 
-- **Scan open production decisions**: Check open issues labelled `prod-pending`:
-```bash
-gh issue list --search "label:prod-pending" --json repository,number,title
-```
-
-- **Scan open PRs needing owner**:
-Report the open PRs labelled `needs-owner` once. A non-production PR that waits more than 12 hours shows a defect in the rule that holds it.
-```bash
-gh pr list --search "label:needs-owner" --json repository,number,title
-```
+- **Scan open production decisions**: in a checkout of wangzitian0/infra2, run `uv run python -m tools.harness status --fetch --online`. A release tag that the production marker has not reached waits for a production decision. A `hold` in the handover notes (`recall` skill) answers it.
 
 - **Scan stale leftovers**:
 Run these in bash or zsh, in the repository you work in. The three counts are: branches whose upstream is gone, stashes older than 30 days, and local branches whose name is the head of a merged PR. Put each count above zero in the "facts you recalled" line. A count above zero shows a cleanup that nothing triggered. Do not delete what another session owns. A `gh` error is a failed scan, not a zero.
@@ -75,7 +64,7 @@ For complex tasks or large repositories, dispatch 1 Init Swarm (M=4 Interns via 
 ## 6. Create the worktree
 
 - Name: `<repo>_issue<N>_<slug>`. Branch: `feat/issue<N>-<slug>`. Base: the latest `origin/main`.
-- Never edit in a shared checkout. One `git add` in a shared index can commit another worker's files.
+- Never edit in a shared checkout (`git add` shares `.git/index`), and never auto-remove IDE worktrees under `~/.gemini/antigravity/worktrees/`.
 - The worktree must work alone. Tools and tests must not use `../..` to find files outside it.
 
 ## 7. Report the baseline

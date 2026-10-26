@@ -217,6 +217,16 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/trace_decision_projection.py",
         ),
+        Unit(
+            name="current_authoritative_trace_decisions",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/trace_decision_projection.py",
+        ),
+        Unit(
+            name="shared_current_authority",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/trace_decision_projection.py",
+        ),
     ],
     implementations={
         "be": "apps/backend/src/audit",
@@ -277,6 +287,8 @@ CONTRACT = PackageContract(
         "TraceRecordValidationError",
         "TraceRecordPersistenceError",
         "current_authoritative_trace_decision_projection",
+        "current_authoritative_trace_decisions",
+        "shared_current_authority",
         "trace_decision_projection",
         "SqlTraceRecordRepository",
         "TraceConfidenceProjection",
@@ -455,9 +467,10 @@ CONTRACT = PackageContract(
         ac('AC-audit.38.4', 'Ratchet: no service/ledger code sums journal-line amounts raw (sum(line.amount …) / line.amount for …); currency-blind addition must use Money.sum. Manual fast-path rate multiplies and single-value serialization reads are not sums and stay raw. Was EPIC-012 AC12.38.4.', 'tests/tooling/test_orm_value_type_boundary.py::test_AC12_38_4_no_currency_blind_line_amount_sum', priority='P1'),
         # ── group 39: Editable base reporting currency (Phase D, was AC12.39.*) ──
         ac('AC-audit.39.1', 'GET /app-config/base-currency returns the env-default base currency when nothing is persisted. Was EPIC-012 AC12.39.1.', 'apps/backend/tests/api/test_app_config_router.py::test_AC12_39_1_get_returns_env_default_when_unset', priority='P1'),
-        ac('AC-audit.39.2', 'get_effective_base_currency() falls back to settings.base_currency when no app_config override is persisted. Was EPIC-012 AC12.39.2.', 'apps/backend/tests/api/test_app_config_router.py::test_AC12_39_2_effective_accessor_falls_back_to_env_default', priority='P1'),
-        ac('AC-audit.39.4', 'PUT /app-config/base-currency persists an ISO-4217-validated override, and the effective accessor plus a subsequent GET both reflect the new value. Was EPIC-012 AC12.39.4.', 'apps/backend/tests/api/test_app_config_router.py::test_AC12_39_4_update_persists_and_effective_accessor_returns_new_value', priority='P1'),
+        ac('AC-audit.39.2', 'get_effective_base_currency(db, user_id) returns the user own value (users.base_currency), else the operator default (app_config), else settings.base_currency. Was EPIC-012 AC12.39.2; user scope added by #2539.', 'apps/backend/tests/api/test_app_config_router.py::test_AC12_39_2_effective_accessor_falls_back_to_env_default', priority='P1'),
+        ac('AC-audit.39.4', 'PUT /app-config/base-currency persists an ISO-4217-validated override for the caller, and the effective accessor plus a subsequent GET of the caller both reflect the new value. Was EPIC-012 AC12.39.4.', 'apps/backend/tests/api/test_app_config_router.py::test_AC12_39_4_update_persists_and_effective_accessor_returns_new_value', priority='P1'),
         ac('AC-audit.39.5', 'PUT /app-config/base-currency rejects a non-ISO-4217 code with HTTP 422 and does not persist it; the effective accessor still returns the env default. Was the second half of EPIC-012 AC12.39.1.', 'apps/backend/tests/api/test_app_config_router.py::test_AC12_39_1_invalid_currency_returns_422_and_is_not_persisted', priority='P1'),
+        ac('AC-audit.39.6', 'PUT /app-config/base-currency writes only the own value of the caller. The effective base currency of every other user and the operator default in app_config stay unchanged (#2539).', 'apps/backend/tests/api/test_app_config_router.py::test_AC_audit_39_6_put_changes_only_the_callers_base_currency', priority='P1'),
         # ── group 40: Currency established at ingest, never silent-defaulted (Phase E, was AC12.40.*) ──
         ac('AC-audit.40.1', 'resolve_ingest_currency attaches the first valid ISO-4217 candidate — the parsed transaction currency, then the statement currency — normalized (trimmed + upper-cased), when the currency is determinable. Was EPIC-012 AC12.40.1.', 'apps/backend/tests/audit/test_currency_resolution.py::test_AC12_40_1_attaches_explicit_currency'),
         ac('AC-audit.40.2', 'When no candidate is a valid ISO-4217 code, resolve_ingest_currency flags the row currency_unresolved with a non-trusted placeholder and never silently defaults to a base currency. Was EPIC-012 AC12.40.2.', 'apps/backend/tests/audit/test_currency_resolution.py::test_AC12_40_2_flags_unresolved_instead_of_silent_default'),
@@ -515,6 +528,9 @@ CONTRACT = PackageContract(
         ac('AC-audit.trace-record.5', 'An LLM-produced financial observation can become authoritative only through a final CODE-ONLY DECISION that includes an authoritative CODE-ONLY invariant or promotion DECISION over the same exact target; an LLM-ONLY record can never own the persisted financial-number decision.', 'apps/backend/tests/audit/trace/test_trace_causality.py::test_AC_audit_trace_record_5_financial_authority_requires_code_parent'),
         ac('AC-audit.trace-record.6', 'The public current-authoritative TraceRecord projection returns only financial decisions whose complete parent graph is current, so a cross-package read can fail closed without importing audit ORM internals.', 'apps/backend/tests/audit/trace/test_trace_decision_projection.py::test_AC_audit_trace_record_6_current_projection_matches_repository_current_ancestry'),
         ac('AC-audit.trace-record.7', 'The TraceRecord repository exposes a typed physical decision head that distinguishes an absent lineage from a head whose complete ancestry is current or stale; current_decision remains the fail-closed authoritative view, while a writer can supersede the exact stale head without guessing from a missing result or importing audit persistence internals.', 'apps/backend/tests/audit/trace/test_trace_repository.py::test_AC_audit_trace_record_7_decision_head_preserves_absent_current_and_stale_states'),
+        ac('AC-audit.trace-record.8', 'current_authoritative_trace_decisions returns the current authoritative decisions among the requested ids with one statement. In a shared_current_authority block, every such read of the same session and scope uses the one projection read of the block. A TraceRecord write on the session in the block ends that reuse, so a superseded decision is never reported as current (#2602).', 'apps/backend/tests/audit/trace/test_shared_current_authority.py::test_AC_audit_trace_record_8_trace_write_inside_the_block_drops_the_shared_read', priority='P1', proof_kind='exact'),
+        ac('AC-audit.trace-record.9', 'append_many persists an ordered causal set with the checks of append (content idempotence, one current head for each decision lineage, current parent heads, replay of the decision policy) and the rows of one append per record, with a number of SQL statements that does not grow with the set. A refused set leaves no row and no memo. A set with a supersession keeps the per-record path (#2612).', 'apps/backend/tests/audit/trace/test_trace_repository_batch.py::test_AC_audit_trace_record_9_batch_rows_equal_the_rows_of_one_append_per_record', priority='P1'),
+        ac('AC-audit.trace-record.10', 'What an append proves (the record, its lineage head, its current ancestry and the decision head of its lineage) answers later reads of the same unit of work without a SQL statement. A commit, or a rollback of the unit of work or of a savepoint, ends that proof. A released savepoint keeps it (#2612).', 'apps/backend/tests/audit/trace/test_trace_repository_batch.py::test_AC_audit_trace_record_10_an_append_proves_head_ancestry_and_decision_head_without_a_statement', priority='P1'),
         ac('AC-audit.terminal-trace.1', 'Exact selected package and manifest decision refs resolve in one tenant scope; the package direct decision parents equal the selected manifest while canonical non-decision parents remain part of the replayed graph.', 'apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_1_verifies_exact_frozen_graph', proof_kind='exact'),
         ac('AC-audit.terminal-trace.2', 'Missing, cross-scope, wrong type, result, target, assertion, disconnected, and repository-read failures fail closed; available owner diagnostics derive from the canonical record authority rather than caller input.', 'apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_2_counterexamples_fail_closed', proof_kind='exact'),
         ac('AC-audit.terminal-trace.3', 'Exact testing executed-proof coordinates are mandatory and successful composition emits only a canonical TraceRecord round-trippable through the existing TraceRecordCodec.', 'apps/backend/tests/audit/trace/test_terminal_audit.py::test_AC_audit_terminal_trace_3_emits_only_canonical_trace_record', proof_kind='exact'),

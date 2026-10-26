@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import (
@@ -21,7 +21,8 @@ from src.audit import (
     TraceScope,
     TraceTargetClass,
     VersionedTraceRef,
-    current_authoritative_trace_decision_projection,
+    current_authoritative_trace_decisions,
+    shared_current_authority,
 )
 from src.config import settings
 from src.extraction import (
@@ -53,7 +54,7 @@ from src.reporting.base.report_package_contract import (
     PERSONAL_REPORT_PACKAGE_NOTES,
     PERSONAL_REPORT_PACKAGE_TRACEABILITY,
 )
-from src.reporting.base.types import PersonalReportingFrameworkId
+from src.reporting.base.types import PACKAGE_INCLUDE_RESTRICTED, PersonalReportingFrameworkId
 from src.reporting.extension._core import _aggregate_net_income_sql, _quantize_money
 from src.reporting.extension.annualized_income import generate_annualized_income_schedule
 from src.reporting.extension.cash_flow import cash_flow_proof_reason_text, generate_cash_flow
@@ -66,40 +67,30 @@ from src.reporting.extension.report_traceability import build_personal_report_pa
 from src.schemas.portfolio import InvestmentPerformanceReportScheduleResponse
 from src.schemas.reporting import (
     BalanceSheetResponse,
+    ExcludedHoldingRow,
     IncomeStatementResponse,
     PersonalReportPackageContext,
     PersonalReportPackageContractResponse,
     PersonalReportPackageDocument,
     PersonalReportPackageDocumentLifecycle,
-    PersonalReportPackageDocumentSummary,
     PersonalReportPackageInputCoverage,
     PersonalReportPackageNotesResponse,
+    PersonalReportPackagePreview,
+    PersonalReportPackagePreviewSections,
     PersonalReportPackageReadinessBlocker,
     PersonalReportPackageReadinessResponse,
     PersonalReportPackageReadinessState,
     PersonalReportPackageSections,
     PersonalReportPackageSnapshotStatus,
     PersonalReportPackageStatementDispositionPolicy,
+    PersonalReportPackageTraceabilityAnchor,
+    PersonalReportPackageTraceabilityAnchorName,
+    PersonalReportPackageTraceabilityAnchorSummary,
+    PersonalReportPackageTraceabilityLineSummary,
     PersonalReportPackageTraceabilityResponse,
+    PersonalReportPackageTraceabilitySummaryResponse,
     PersonalReportPackageTraceManifestEntry,
 )
-
-
-def _package_document_summary(document: PersonalReportPackageDocument) -> PersonalReportPackageDocumentSummary:
-    """Project one typed document without recomputing authority in the consumer."""
-    if document.lifecycle is PersonalReportPackageDocumentLifecycle.FROZEN:
-        if document.snapshot_id is None or document.frozen_at is None:
-            raise ValueError("Frozen package document is missing durable identity metadata")
-    return PersonalReportPackageDocumentSummary(
-        snapshot_id=document.snapshot_id,
-        package_id=document.package_id,
-        lifecycle=document.lifecycle,
-        status=document.status,
-        context=document.context,
-        readiness=document.readiness,
-        generated_at=document.generated_at,
-        frozen_at=document.frozen_at,
-    )
 
 
 def personal_report_package_decision_ref(document: PersonalReportPackageDocument) -> TraceDecisionRef:
@@ -152,12 +143,76 @@ async def _package_statement_disposition_policy(
     )
 
 
+RESTRICTED_ASSET_TREATMENT_NOTE_ID = "restricted-asset-treatment"
+
+
+def _conversion_gap_text(warning: dict[str, str]) -> str:
+    pair = f"{warning['currency']} to {warning['target_currency']}"
+    if warning["type"] == "missing_fx_rate_excluded_holding":
+        return f"no FX rate for {pair}"
+    return f"FX conversion failed for {pair}"
+
+
+def _excluded_holding_text(row: ExcludedHoldingRow, currency: str) -> str:
+    label = row.asset_class.replace("_", " ")
+    if row.net_worth is None or row.total_assets is None or row.total_liabilities is None:
+        gaps = ", ".join(sorted({_conversion_gap_text(warning) for warning in row.warnings}))
+        return f"{label}: amount not available, {gaps}"
+    return (
+        f"{label} {currency} {row.net_worth:,.2f} net "
+        f"(assets {currency} {row.total_assets:,.2f}, liabilities {currency} {row.total_liabilities:,.2f})"
+    )
+
+
+def _restricted_asset_treatment_disclosure(
+    base_disclosure: str,
+    *,
+    include_restricted: bool,
+    excluded_holdings: list[ExcludedHoldingRow],
+    currency: str,
+) -> str:
+    """Name the scope of this package and each excluded class with its amount (#2645).
+
+    The liquid scope excludes restricted and illiquid valuations and the liabilities of
+    their class, for example a mortgage with its property. The package states each
+    excluded class, so the reader can reconcile the total to the full net worth.
+    """
+    if include_restricted:
+        return f"{base_disclosure} This package includes restricted and illiquid holdings in the balance sheet."
+    if not excluded_holdings:
+        return (
+            f"{base_disclosure} On the as-of date this package excludes no restricted or illiquid holding: "
+            "no such valuation is current on that date."
+        )
+    rows = "; ".join(_excluded_holding_text(row, currency) for row in excluded_holdings)
+    return (
+        f"{base_disclosure} This package excludes these restricted and illiquid holdings, with the "
+        f"liabilities of their class, from the balance sheet: {rows}."
+    )
+
+
 def _package_notes(
     statement_disposition_policy: PersonalReportPackageStatementDispositionPolicy,
+    *,
+    balance_sheet: BalanceSheetResponse,
+    include_restricted: bool,
 ) -> PersonalReportPackageNotesResponse:
     payload = dict(PERSONAL_REPORT_PACKAGE_NOTES)
     payload["notes"] = [
-        *PERSONAL_REPORT_PACKAGE_NOTES["notes"],
+        *(
+            {
+                **note,
+                "disclosure": _restricted_asset_treatment_disclosure(
+                    note["disclosure"],
+                    include_restricted=include_restricted,
+                    excluded_holdings=balance_sheet.excluded_holdings,
+                    currency=balance_sheet.currency,
+                ),
+            }
+            if note["note_id"] == RESTRICTED_ASSET_TREATMENT_NOTE_ID
+            else note
+            for note in PERSONAL_REPORT_PACKAGE_NOTES["notes"]
+        ),
         {
             "note_id": "statement-disposition-policy",
             "label": "Statement Disposition Policy",
@@ -489,7 +544,26 @@ def _section_invariant_blockers(
         blockers.append(
             _section_blocker("section_currency_mismatch", "Every package section must use the document currency.")
         )
+    if annualized.restricted_fair_value_total_excludes:
+        blockers.append(
+            _section_blocker(
+                "restricted_holding_fx_unavailable",
+                "A restricted holding has no FX rate to the document currency, so the restricted fair-value "
+                "total leaves it out.",
+            )
+        )
     return blockers
+
+
+@dataclass(frozen=True)
+class _PackageEvaluation:
+    """Readiness and the inputs that ``assemble`` reuses for display sections and the decision."""
+
+    policy: Any
+    contributions: tuple[PackageSectionContribution[Any], ...]
+    sections: PersonalReportPackageSections
+    input_manifest: list[PersonalReportPackageTraceManifestEntry]
+    readiness: PersonalReportPackageReadinessResponse
 
 
 class PackageAssembler:
@@ -505,32 +579,13 @@ class PackageAssembler:
         end_date: date,
         as_of_date: date,
         currency: str,
-        include_restricted: bool = False,
+        include_restricted: bool = PACKAGE_INCLUDE_RESTRICTED,
         lifecycle: PersonalReportPackageDocumentLifecycle = PersonalReportPackageDocumentLifecycle.PREVIEW,
         snapshot_id: UUID | None = None,
         frozen_at: datetime | None = None,
     ) -> PersonalReportPackageDocument:
         """Assemble the document and fail closed on unanchored contributing inputs."""
-        contract = _contract(framework_id)
-        statement_disposition_policy = await _package_statement_disposition_policy(db, user_id)
-        policy = await derive_user_framework_policy_result(
-            db,
-            user_id,
-            framework_id=framework_id,
-            report_period_start=start_date,
-            report_period_end=end_date,
-            as_of_date=as_of_date,
-        )
-        decisions_by_source_id = _policy_decisions_by_source_id(policy)
-        base_contributions = await self._contributions(
-            db,
-            user_id=user_id,
-            start_date=start_date,
-            end_date=end_date,
-            as_of_date=as_of_date,
-        )
-        cash_inputs = _cash_inputs_from_contributions(base_contributions)
-        sections = await self._sections(
+        evaluation = await self._evaluate(
             db,
             user_id=user_id,
             framework_id=framework_id,
@@ -539,53 +594,28 @@ class PackageAssembler:
             as_of_date=as_of_date,
             currency=currency,
             include_restricted=include_restricted,
-            decisions_by_source_id=decisions_by_source_id,
-            contributions=base_contributions,
-            cash_inputs=cash_inputs,
         )
-        market_contributions = await self._selected_market_contributions(
-            db,
-            user_id=user_id,
-            selections=sections.investment_performance.market_valuation_selections,
-        )
-        contributions = (*base_contributions, *market_contributions)
-        sections.traceability_appendix = PersonalReportPackageTraceabilityResponse.model_validate(
-            await build_personal_report_package_traceability_payload(contributions=contributions)
-        )
-        sections.notes = _package_notes(statement_disposition_policy)
-        input_manifest, unproven_input_refs = await self._input_manifest(
-            db,
-            user_id=user_id,
-            contributions=contributions,
-        )
-        coverage = PersonalReportPackageInputCoverage(
-            manifest_decision_count=len(input_manifest),
-            authoritative_input_count=sum(len(item.input_refs) for item in input_manifest),
-            unproven_input_count=len(unproven_input_refs),
-        )
-        # Position and flow sections have different periods and FX averaging
-        # windows. Compare each against its matching ledger projection rather
-        # than comparing lifetime income with the selected month's income.
-        cumulative_net_income = _quantize_money(await _aggregate_net_income_sql(db, user_id, currency, as_of_date))
-        period_net_income = _quantize_money(
-            await _aggregate_net_income_sql(db, user_id, currency, end_date, start_date=start_date)
-        )
-        readiness = self._readiness(
-            policy=policy,
-            coverage=coverage,
-            section_blockers=_section_invariant_blockers(
-                sections,
-                start_date=start_date,
-                end_date=end_date,
-                as_of_date=as_of_date,
-                currency=currency,
-                contributions=contributions,
-                cash_inputs=cash_inputs,
-                cumulative_net_income=cumulative_net_income,
-                period_net_income=period_net_income,
-            ),
+        contract = _contract(framework_id)
+        statement_disposition_policy = await _package_statement_disposition_policy(db, user_id)
+        policy = evaluation.policy
+        sections = evaluation.sections
+        input_manifest = evaluation.input_manifest
+        readiness = evaluation.readiness
+        sections.traceability_appendix = await _traceability_appendix(evaluation.contributions)
+        sections.notes = _package_notes(
+            statement_disposition_policy,
+            balance_sheet=sections.balance_sheet,
+            include_restricted=include_restricted,
         )
         now = datetime.now(UTC)
+        context = PersonalReportPackageContext(
+            framework_id=framework_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+            currency=currency,
+            include_restricted=include_restricted,
+        )
         package_decision_id = None
         if (
             lifecycle is PersonalReportPackageDocumentLifecycle.FROZEN
@@ -598,13 +628,8 @@ class PackageAssembler:
                 user_id=user_id,
                 snapshot_id=snapshot_id,
                 occurred_at=frozen_at,
-                context={
-                    "framework_id": framework_id.value,
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
-                    "as_of_date": as_of_date.isoformat(),
-                    "currency": currency,
-                },
+                # The decision binds the same context that the document stores.
+                context=context.model_dump(mode="json"),
                 framework_policy=policy.model_dump(mode="json"),
                 statement_disposition_policy=statement_disposition_policy.model_dump(mode="json"),
                 input_manifest=input_manifest,
@@ -622,13 +647,7 @@ class PackageAssembler:
             status=(
                 PersonalReportPackageSnapshotStatus.TRUSTED if trusted else PersonalReportPackageSnapshotStatus.DRAFT
             ),
-            context=PersonalReportPackageContext(
-                framework_id=framework_id,
-                start_date=start_date,
-                end_date=end_date,
-                as_of_date=as_of_date,
-                currency=currency,
-            ),
+            context=context,
             contract=contract,
             readiness=readiness,
             framework_policy=policy,
@@ -637,6 +656,128 @@ class PackageAssembler:
             sections=sections,
         )
 
+    async def evaluate_readiness(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        framework_id: PersonalReportingFrameworkId,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+        include_restricted: bool = PACKAGE_INCLUDE_RESTRICTED,
+    ) -> PersonalReportPackageReadinessResponse:
+        """Return the readiness that ``assemble`` returns for the same arguments.
+
+        This path does not build the traceability appendix, the notes, or a package decision.
+        Readiness does not read these sections (#2583).
+        """
+        evaluation = await self._evaluate(
+            db,
+            user_id=user_id,
+            framework_id=framework_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+            currency=currency,
+            include_restricted=include_restricted,
+        )
+        return evaluation.readiness
+
+    async def _evaluate(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        framework_id: PersonalReportingFrameworkId,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+        include_restricted: bool,
+    ) -> _PackageEvaluation:
+        """Compute every readiness input and the readiness. This is the one readiness path.
+
+        Every current-authority read of the evaluation uses one read of the projection (#2602).
+        """
+        async with shared_current_authority(db, TraceScope.tenant(user_id)):
+            policy = await derive_user_framework_policy_result(
+                db,
+                user_id,
+                framework_id=framework_id,
+                report_period_start=start_date,
+                report_period_end=end_date,
+                as_of_date=as_of_date,
+            )
+            decisions_by_source_id = _policy_decisions_by_source_id(policy)
+            base_contributions = await self._contributions(
+                db,
+                user_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
+                as_of_date=as_of_date,
+            )
+            cash_inputs = _cash_inputs_from_contributions(base_contributions)
+            sections = await self._sections(
+                db,
+                user_id=user_id,
+                framework_id=framework_id,
+                start_date=start_date,
+                end_date=end_date,
+                as_of_date=as_of_date,
+                currency=currency,
+                include_restricted=include_restricted,
+                decisions_by_source_id=decisions_by_source_id,
+                contributions=base_contributions,
+                cash_inputs=cash_inputs,
+            )
+            contributions = await self._with_market_contributions(
+                db,
+                user_id=user_id,
+                base_contributions=base_contributions,
+                investment_performance=sections.investment_performance,
+            )
+            input_manifest, unproven_input_refs = await self._input_manifest(
+                db,
+                user_id=user_id,
+                contributions=contributions,
+            )
+            coverage = PersonalReportPackageInputCoverage(
+                manifest_decision_count=len(input_manifest),
+                authoritative_input_count=sum(len(item.input_refs) for item in input_manifest),
+                unproven_input_count=len(unproven_input_refs),
+            )
+            # Position and flow sections have different periods and FX averaging
+            # windows. Compare each against its matching ledger projection rather
+            # than comparing lifetime income with the selected month's income.
+            cumulative_net_income = _quantize_money(await _aggregate_net_income_sql(db, user_id, currency, as_of_date))
+            period_net_income = _quantize_money(
+                await _aggregate_net_income_sql(db, user_id, currency, end_date, start_date=start_date)
+            )
+            readiness = self._readiness(
+                policy=policy,
+                coverage=coverage,
+                section_blockers=_section_invariant_blockers(
+                    sections,
+                    start_date=start_date,
+                    end_date=end_date,
+                    as_of_date=as_of_date,
+                    currency=currency,
+                    contributions=contributions,
+                    cash_inputs=cash_inputs,
+                    cumulative_net_income=cumulative_net_income,
+                    period_net_income=period_net_income,
+                ),
+            )
+            return _PackageEvaluation(
+                policy=policy,
+                contributions=contributions,
+                sections=sections,
+                input_manifest=input_manifest,
+                readiness=readiness,
+            )
+
     async def _emit_package_decision(
         self,
         db: AsyncSession,
@@ -644,7 +785,7 @@ class PackageAssembler:
         user_id: UUID,
         snapshot_id: UUID,
         occurred_at: datetime,
-        context: dict[str, str],
+        context: dict[str, Any],
         framework_policy: dict[str, Any],
         statement_disposition_policy: dict[str, Any],
         input_manifest: list[PersonalReportPackageTraceManifestEntry],
@@ -790,11 +931,11 @@ class PackageAssembler:
                 currency=currency,
                 cash_account_ids=cash_inputs.account_ids,
             ),
-            await build_investment_performance_report_schedule(
+            await self._investment_performance(
                 db,
-                user_id,
-                period_start=start_date,
-                period_end=end_date,
+                user_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
                 as_of_date=as_of_date,
                 currency=currency,
             ),
@@ -804,7 +945,7 @@ class PackageAssembler:
             balance_sheet=BalanceSheetResponse.model_validate(balance_sheet),
             income_statement=IncomeStatementResponse.model_validate(income_statement),
             cash_flow=CashFlowResponse.model_validate(cash_flow),
-            investment_performance=InvestmentPerformanceReportScheduleResponse.model_validate(investment_performance),
+            investment_performance=investment_performance,
             annualized_income_long_term=annualized_income,
             notes=PersonalReportPackageNotesResponse.model_validate(PERSONAL_REPORT_PACKAGE_NOTES),
             traceability_appendix=PersonalReportPackageTraceabilityResponse.model_validate(
@@ -856,8 +997,148 @@ class PackageAssembler:
                 for item in journal_results
             ),
             *(_valuation_section_contribution(item) for item in valuation_results),
-            *(_opening_section_contribution(item) for item in opening_results),
+            # The ledger read leaves accounts of equal version in database order. Each evidence page
+            # is a new request, so the package fixes one order: one position per account (#2583 S8).
+            *(
+                _opening_section_contribution(item)
+                for item in sorted(opening_results, key=lambda position: str(position.account_id))
+            ),
         )
+
+    @staticmethod
+    async def _investment_performance(
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+    ) -> InvestmentPerformanceReportScheduleResponse:
+        """Return the investment schedule. Its market selections are package contributions."""
+        return InvestmentPerformanceReportScheduleResponse.model_validate(
+            await build_investment_performance_report_schedule(
+                db,
+                user_id,
+                period_start=start_date,
+                period_end=end_date,
+                as_of_date=as_of_date,
+                currency=currency,
+            )
+        )
+
+    async def _with_market_contributions(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        base_contributions: tuple[PackageSectionContribution[Any], ...],
+        investment_performance: InvestmentPerformanceReportScheduleResponse,
+    ) -> tuple[PackageSectionContribution[Any], ...]:
+        """Add the market prices that the investment schedule shows. The result is the package contribution set."""
+        market_contributions = await self._selected_market_contributions(
+            db,
+            user_id=user_id,
+            selections=investment_performance.market_valuation_selections,
+        )
+        return (*base_contributions, *market_contributions)
+
+    async def _evidence_contributions(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+    ) -> tuple[PackageSectionContribution[Any], ...]:
+        """Return the contribution set that ``_evaluate`` computes for the same arguments.
+
+        The appendix and the input manifest read only this set. This path therefore does not
+        build the balance sheet, the income statement, the cash flow or the readiness.
+        """
+        base_contributions = await self._contributions(
+            db,
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+        )
+        investment_performance = await self._investment_performance(
+            db,
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+            currency=currency,
+        )
+        return await self._with_market_contributions(
+            db,
+            user_id=user_id,
+            base_contributions=base_contributions,
+            investment_performance=investment_performance,
+        )
+
+    async def line_details(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+        line_id: str,
+        anchor: PersonalReportPackageTraceabilityAnchorName,
+    ) -> list[dict[str, str | Decimal | None]] | None:
+        """Return all details of one appendix anchor, as ``assemble`` writes them. Return None for an unknown line."""
+        if line_id not in {line["line_id"] for line in PERSONAL_REPORT_PACKAGE_TRACEABILITY["lines"]}:
+            return None
+        # Two filtered authority reads (opening positions, journal entries) read fewer rows
+        # than one shared read of every current decision, so this path opens no shared block.
+        appendix = await _traceability_appendix(
+            await self._evidence_contributions(
+                db,
+                user_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
+                as_of_date=as_of_date,
+                currency=currency,
+            )
+        )
+        # The builder writes every contract line, so the line exists.
+        line = next(line for line in appendix.lines if line.line_id == line_id)
+        return getattr(line, anchor.value).details
+
+    async def manifest_entries(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+    ) -> list[PersonalReportPackageTraceManifestEntry]:
+        """Return the input manifest that ``assemble`` writes for the same arguments.
+
+        The contributions and the manifest use one read of the current-authority projection (#2602).
+        """
+        async with shared_current_authority(db, TraceScope.tenant(user_id)):
+            manifest, _unproven_input_refs = await self._input_manifest(
+                db,
+                user_id=user_id,
+                contributions=await self._evidence_contributions(
+                    db,
+                    user_id=user_id,
+                    start_date=start_date,
+                    end_date=end_date,
+                    as_of_date=as_of_date,
+                    currency=currency,
+                ),
+            )
+        return manifest
 
     async def _selected_market_contributions(
         self,
@@ -901,24 +1182,12 @@ class PackageAssembler:
 
         if not contributions_by_decision:
             return [], sorted(unproven_refs)
-        projection = current_authoritative_trace_decision_projection(TraceScope.tenant(user_id)).subquery(
-            "package_authority_decisions"
-        )
-        trusted_result = await db.execute(
-            select(
-                projection.c.decision_id,
-                projection.c.target_kind,
-                projection.c.target_id,
-                projection.c.target_version,
-                projection.c.assertion_kind,
-                projection.c.assertion_id,
-                projection.c.assertion_version,
-                projection.c.authority_tier,
-            ).where(projection.c.decision_id.in_(contributions_by_decision))
-        )
-        current_decisions: dict[UUID, dict[str, Any]] = {}
-        for row in trusted_result.mappings():
-            current_decisions[row["decision_id"]] = dict(row)
+        current_decisions: dict[UUID, dict[str, Any]] = {
+            decision_id: dict(row._mapping)
+            for decision_id, row in (
+                await current_authoritative_trace_decisions(db, TraceScope.tenant(user_id), contributions_by_decision)
+            ).items()
+        }
         accepted_refs_by_decision: dict[UUID, set[str]] = defaultdict(set)
         for decision_id, decision_contributions in contributions_by_decision.items():
             current = current_decisions.get(decision_id)
@@ -962,15 +1231,98 @@ class PackageAssembler:
         )
 
 
-async def current_package_document_summary(
+async def _traceability_appendix(
+    contributions: tuple[PackageSectionContribution[Any], ...],
+) -> PersonalReportPackageTraceabilityResponse:
+    """Build the typed appendix. ``assemble`` and ``line_details`` use this one builder."""
+    return PersonalReportPackageTraceabilityResponse.model_validate(
+        await build_personal_report_package_traceability_payload(contributions=contributions)
+    )
+
+
+def _anchor_summary(
+    anchor: PersonalReportPackageTraceabilityAnchor,
+) -> PersonalReportPackageTraceabilityAnchorSummary:
+    return PersonalReportPackageTraceabilityAnchorSummary(
+        state=anchor.state,
+        source_types=anchor.source_types,
+        entry_statuses=anchor.entry_statuses,
+        identifier_fields=anchor.identifier_fields,
+        unavailable_reason=anchor.unavailable_reason,
+        detail_count=len(anchor.details),
+    )
+
+
+def traceability_summary(
+    appendix: PersonalReportPackageTraceabilityResponse,
+) -> PersonalReportPackageTraceabilitySummaryResponse:
+    """Replace the identifiers and the details of each anchor with their count."""
+    return PersonalReportPackageTraceabilitySummaryResponse(
+        section_id=appendix.section_id,
+        label=appendix.label,
+        status=appendix.status,
+        lines=[
+            PersonalReportPackageTraceabilityLineSummary(
+                line_id=line.line_id,
+                section_id=line.section_id,
+                label=line.label,
+                amount_field=line.amount_field,
+                currency_field=line.currency_field,
+                source_state=line.source_state,
+                source_anchor=_anchor_summary(line.source_anchor),
+                ledger_anchor=_anchor_summary(line.ledger_anchor),
+                anchor_count=line.anchor_count,
+                blocker_codes=line.blocker_codes,
+            )
+            for line in appendix.lines
+        ],
+        completeness_warnings=appendix.completeness_warnings,
+    )
+
+
+def package_preview(document: PersonalReportPackageDocument) -> PersonalReportPackagePreview:
+    """Project a preview document to the bounded preview payload (#2583).
+
+    The appendix keeps one summary for each line. The input manifest entries are not in the
+    payload: ``readiness.input_coverage`` gives their counts. A frozen document has no preview.
+    """
+    if document.lifecycle is not PersonalReportPackageDocumentLifecycle.PREVIEW:
+        raise ValueError("only a preview document has a preview payload")
+    if document.status is not PersonalReportPackageSnapshotStatus.DRAFT:
+        raise ValueError("a preview document has no package decision, so its status is draft")
+    sections = document.sections
+    return PersonalReportPackagePreview(
+        schema_version=document.schema_version,
+        lifecycle=document.lifecycle,
+        generated_at=document.generated_at,
+        package_id=document.package_id,
+        status=PersonalReportPackageSnapshotStatus.DRAFT,
+        context=document.context,
+        contract=document.contract,
+        readiness=document.readiness,
+        framework_policy=document.framework_policy,
+        statement_disposition_policy=document.statement_disposition_policy,
+        sections=PersonalReportPackagePreviewSections(
+            balance_sheet=sections.balance_sheet,
+            income_statement=sections.income_statement,
+            cash_flow=sections.cash_flow,
+            investment_performance=sections.investment_performance,
+            annualized_income_long_term=sections.annualized_income_long_term,
+            notes=sections.notes,
+            traceability_appendix=traceability_summary(sections.traceability_appendix),
+        ),
+    )
+
+
+async def current_package_readiness(
     db: AsyncSession,
     *,
     user_id: UUID,
     as_of_date: date | None = None,
-) -> PersonalReportPackageDocumentSummary:
-    """Build the current default-framework candidate through the sole assembler."""
+) -> PersonalReportPackageReadinessResponse:
+    """Evaluate readiness of the current default-framework candidate through the sole assembler."""
     report_end = as_of_date or date.today()
-    document = await PackageAssembler().assemble(
+    return await PackageAssembler().evaluate_readiness(
         db,
         user_id=user_id,
         framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
@@ -979,4 +1331,3 @@ async def current_package_document_summary(
         as_of_date=report_end,
         currency=settings.base_currency,
     )
-    return _package_document_summary(document)

@@ -10,7 +10,7 @@ configuration and behaviour is preserved. EPIC B replaces it with a
 from __future__ import annotations
 
 import src.config
-from src.llm.base import ProtocolFamily, ProviderRef, Scene, SceneBinding
+from src.llm.base import ProtocolFamily, ProviderRef, ReasoningEffort, Scene, SceneBinding
 
 # Bound from the bare published root (config publishes no named symbols).
 settings = src.config.settings
@@ -67,12 +67,21 @@ class EnvConfigSource:
 
 
 def _binding_for(scene: Scene) -> SceneBinding:
-    """Map a scene to its env-configured model + fallbacks (behaviour-preserving)."""
+    """Map a scene to the model and reasoning of its infra2 SDK role (#2572).
+
+    advisor.chat answers the user, so it uses the large role. Vision and OCR use the
+    multimodal role. Every other scene uses the small role. There is no fallback chain.
+    """
     llm = settings.to_llm_settings()
 
-    if scene is Scene.EXTRACTION_VISION:
-        return SceneBinding(scene, llm.vision_model, fallback_model_ids=llm.vision_fallback_models)
-    if scene is Scene.EXTRACTION_OCR:
-        return SceneBinding(scene, llm.ocr_model, fallback_model_ids=llm.vision_fallback_models)
-    # extraction.json / advisor.chat / statement.summary all use the primary model.
-    return SceneBinding(scene, llm.primary_model, fallback_model_ids=llm.fallback_models)
+    if scene in (Scene.EXTRACTION_VISION, Scene.EXTRACTION_OCR):
+        role = "multimodal"
+    elif scene is Scene.ADVISOR_CHAT:
+        role = "large"
+    else:
+        role = "small"
+    return SceneBinding(
+        scene,
+        llm.role_model(role),
+        reasoning=ReasoningEffort(llm.role_reasoning_effort(role)),
+    )

@@ -7,6 +7,7 @@ import { formatQuantity } from "@/lib/audit/quantity";
 import { formatDateDisplay } from "@/lib/date";
 import { formatSignedPercentFromPercentValue } from "@/lib/audit/ratio/format";
 import { pnlColorClass } from "@/lib/statusLabels";
+import { portfolioHoldingHref } from "@/components/navigation";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 
 interface HoldingsTableProps {
@@ -97,7 +98,7 @@ export function HoldingsTable({
                     <td className="px-4 py-2">
                       <span className="inline-flex items-center gap-1.5">
                         <Link
-                          href={`/portfolio/${encodeURIComponent(h.asset_identifier)}`}
+                          href={portfolioHoldingHref(h.asset_identifier)}
                           className="font-medium font-mono text-[var(--accent)] hover:underline"
                         >
                           {h.asset_identifier}

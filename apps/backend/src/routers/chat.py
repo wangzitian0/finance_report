@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
@@ -26,6 +26,7 @@ from src.schemas.chat import (
     ChatHistoryResponse,
     ChatMessagePreview,
     ChatMessageResponse,
+    ChatMessageRoleEnum,
     ChatRequest,
     ChatResponseMetadata,
     ChatSessionResponse,
@@ -49,7 +50,7 @@ async def chat_message(
     """Send a chat message and stream the AI response."""
     service = AIAdvisorService()
     if payload.model:
-        allowed_models = {service.primary_model, *service.fallback_models}
+        allowed_models = {service.large_model, service.small_model}
         allowed = payload.model in allowed_models
         if not allowed:
             try:
@@ -190,25 +191,25 @@ async def chat_history(
             msg_result = await db.execute(select(ChatMessage).where(ChatMessage.id.in_(last_msg_ids)))
             last_messages_map = {msg.id: msg for msg in msg_result.scalars().all()}
 
-        for session, message_count, last_msg_id in session_data:
+        for chat_session, message_count, last_msg_id in session_data:
             last_message_obj = last_messages_map.get(last_msg_id)
-            last_message = None
+            last_preview = None
             if last_message_obj:
-                last_message = ChatMessagePreview(
-                    role=last_message_obj.role.value,
+                last_preview = ChatMessagePreview(
+                    role=ChatMessageRoleEnum(last_message_obj.role.value),
                     content=last_message_obj.content,
                     created_at=last_message_obj.created_at,
                 )
             sessions.append(
                 ChatSessionResponse(
-                    id=session.id,
-                    title=session.title,
-                    status=ChatSessionStatusEnum(session.status.value),
-                    created_at=session.created_at,
-                    updated_at=session.updated_at,
-                    last_active_at=session.last_active_at,
+                    id=chat_session.id,
+                    title=chat_session.title,
+                    status=ChatSessionStatusEnum(chat_session.status.value),
+                    created_at=chat_session.created_at,
+                    updated_at=chat_session.updated_at,
+                    last_active_at=chat_session.last_active_at,
                     message_count=message_count or 0,
-                    last_message=last_message,
+                    last_message=last_preview,
                     messages=[],
                 )
             )
@@ -263,14 +264,13 @@ async def suggestions(
         "\u6709\u6ca1\u6709\u5f02\u5e38\u7684\u6d88\u8d39\u8d8b\u52bf\uff1f",
     ]
     suggestions = suggestions_zh if resolved_language == "zh" else suggestions_en
-    structured_suggestions = []
+    structured_suggestions: list[Any] = []
     if include_structured and db is not None and user_id is not None:
         try:
-            context = await asyncio.wait_for(
-                AIAdvisorService().get_advisor_context(db, user_id),
+            structured_suggestions = await asyncio.wait_for(
+                AIAdvisorService().get_advisor_suggestions(db, user_id),
                 timeout=SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS,
             )
-            structured_suggestions = context.get("suggestions") or []
         except TimeoutError as exc:
             logger.warning(
                 "Timed out loading structured chat suggestions",

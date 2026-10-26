@@ -549,3 +549,118 @@ async def test_calculate_match_score_many_to_one_bonus(db: AsyncSession) -> None
     assert candidate.journal_entry_ids == [str(entry.id)]
     assert candidate.breakdown["many_to_one_bonus"] == 10.0
     assert auto_accept(candidate.score, DEFAULT_CONFIG)
+
+
+async def test_AC_reconciliation_2548_1_cjk_and_truncated_memo_scoring(db: AsyncSession) -> None:
+    """AC-reconciliation.2548.1: CJK merchant text and >500-char truncated memos score >= 85 (#2457, #2548)."""
+    from src.ledger import fit_journal_memo
+    from src.reconciliation.extension.matching import score_single
+
+    assert normalize_text("微信支付-星巴克") == "微信支付 星巴克"
+    assert score_description("微信支付-星巴克", "微信支付-星巴克") == 100.0
+    assert score_description("微信支付星巴克", "星巴克咖啡") > 0.0
+    assert "星巴克" in extract_merchant_tokens("微信支付-星巴克")
+    assert "美团" in extract_merchant_tokens("微信支付美团")
+
+    user_id = uuid4()
+    bank = Account(id=uuid4(), user_id=user_id, name="Bank", type=AccountType.ASSET, currency="SGD")
+    expense = Account(id=uuid4(), user_id=user_id, name="Dining", type=AccountType.EXPENSE, currency="SGD")
+
+    cjk_entry = JournalEntry(
+        id=uuid4(),
+        user_id=user_id,
+        entry_date=date(2026, 3, 1),
+        memo="微信支付-星巴克",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    cjk_debit = JournalLine(
+        journal_entry_id=cjk_entry.id,
+        account_id=expense.id,
+        direction=Direction.DEBIT,
+        amount=Decimal("38.00"),
+        currency="SGD",
+    )
+    cjk_debit.account = expense
+    cjk_credit = JournalLine(
+        journal_entry_id=cjk_entry.id,
+        account_id=bank.id,
+        direction=Direction.CREDIT,
+        amount=Decimal("38.00"),
+        currency="SGD",
+    )
+    cjk_credit.account = bank
+    cjk_entry.lines.extend([cjk_debit, cjk_credit])
+
+    cjk_txn = AtomicTransaction(
+        user_id=user_id,
+        txn_date=date(2026, 3, 1),
+        description="微信支付-星巴克",
+        amount=Decimal("38.00"),
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[],
+    )
+    cjk_candidate = await score_single(db, cjk_txn, [cjk_entry], DEFAULT_CONFIG, user_id=user_id, history_score=0.0)
+    assert cjk_candidate.breakdown["description"] == 100.0
+    assert cjk_candidate.score >= 85
+    assert auto_accept(cjk_candidate.score, DEFAULT_CONFIG)
+
+    long_desc = "PAYNOW " + ("A" * 593)
+    assert len(long_desc) == 600
+    cut_memo = fit_journal_memo(long_desc)
+    assert len(cut_memo) == 500
+    long_entry = JournalEntry(
+        id=uuid4(),
+        user_id=user_id,
+        entry_date=date(2026, 3, 2),
+        memo=cut_memo,
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    long_debit = JournalLine(
+        journal_entry_id=long_entry.id,
+        account_id=expense.id,
+        direction=Direction.DEBIT,
+        amount=Decimal("120.00"),
+        currency="SGD",
+    )
+    long_debit.account = expense
+    long_credit = JournalLine(
+        journal_entry_id=long_entry.id,
+        account_id=bank.id,
+        direction=Direction.CREDIT,
+        amount=Decimal("120.00"),
+        currency="SGD",
+    )
+    long_credit.account = bank
+    long_entry.lines.extend([long_debit, long_credit])
+
+    long_txn = AtomicTransaction(
+        user_id=user_id,
+        txn_date=date(2026, 3, 2),
+        description=long_desc,
+        amount=Decimal("120.00"),
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[],
+    )
+    short_txn = AtomicTransaction(
+        user_id=user_id,
+        txn_date=date(2026, 3, 2),
+        description=cut_memo,
+        amount=Decimal("120.00"),
+        direction=TransactionDirection.OUT,
+        currency="SGD",
+        dedup_hash=uuid4().hex,
+        source_documents=[],
+    )
+    long_candidate = await score_single(db, long_txn, [long_entry], DEFAULT_CONFIG, user_id=user_id, history_score=0.0)
+    short_candidate = await score_single(
+        db, short_txn, [long_entry], DEFAULT_CONFIG, user_id=user_id, history_score=0.0
+    )
+    assert long_candidate.breakdown["description"] == 100.0
+    assert long_candidate.score == short_candidate.score
+    assert long_candidate.score >= 85

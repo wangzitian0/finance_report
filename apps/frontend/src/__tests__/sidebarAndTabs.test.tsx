@@ -182,7 +182,7 @@ describe("Sidebar and WorkspaceTabs", () => {
 
   // AC-meta.fe-app-shell.9
   it("AC16.19.4 adds and manages workspace tabs from route changes", async () => {
-    pathnameMock = "/reports/balance-sheet"
+    pathnameMock = "/reports"
     render(<WorkspaceTabs />)
 
     await waitFor(() => expect(addTabMock).toHaveBeenCalled())
@@ -237,7 +237,7 @@ describe("Sidebar and WorkspaceTabs", () => {
       toggleSidebar: toggleSidebarMock,
       tabs: [
         { id: "tab-1", label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" },
-        { id: "tab-2", label: "Accounts", href: "/accounts", icon: "Landmark" },
+        { id: "tab-2", label: "Accounts", href: "/settings?tab=accounts", icon: "Landmark" },
       ],
       activeTabId: "tab-1",
       addTab: addTabMock,
@@ -249,7 +249,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     const navigation = screen.getByRole("navigation", { name: "Open workspace tabs" })
     fireEvent.keyDown(navigation, { key: "ArrowRight" })
     expect(setActiveTabMock).toHaveBeenCalledWith("tab-2")
-    expect(pushMock).toHaveBeenCalledWith("/accounts")
+    expect(pushMock).toHaveBeenCalledWith("/settings?tab=accounts")
   })
 
   it("AC16.19.15 AC16.30.3 AC16.30.4 navigates workspace pages with ArrowLeft keyboard and wraps around", () => {
@@ -258,7 +258,7 @@ describe("Sidebar and WorkspaceTabs", () => {
       toggleSidebar: toggleSidebarMock,
       tabs: [
         { id: "tab-1", label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" },
-        { id: "tab-2", label: "Accounts", href: "/accounts", icon: "Landmark" },
+        { id: "tab-2", label: "Accounts", href: "/settings?tab=accounts", icon: "Landmark" },
       ],
       activeTabId: "tab-1",
       addTab: addTabMock,
@@ -270,7 +270,7 @@ describe("Sidebar and WorkspaceTabs", () => {
     const navigation = screen.getByRole("navigation", { name: "Open workspace tabs" })
     fireEvent.keyDown(navigation, { key: "ArrowLeft" })
     expect(setActiveTabMock).toHaveBeenCalledWith("tab-2")
-    expect(pushMock).toHaveBeenCalledWith("/accounts")
+    expect(pushMock).toHaveBeenCalledWith("/settings?tab=accounts")
   })
 
   it("AC16.30.3 AC16.30.4 renders route navigation semantics instead of ARIA tabs", () => {
@@ -279,7 +279,7 @@ describe("Sidebar and WorkspaceTabs", () => {
       toggleSidebar: toggleSidebarMock,
       tabs: [
         { id: "tab-1", label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" },
-        { id: "tab-2", label: "Accounts", href: "/accounts", icon: "Landmark" },
+        { id: "tab-2", label: "Accounts", href: "/settings?tab=accounts", icon: "Landmark" },
       ],
       activeTabId: "tab-1",
       addTab: addTabMock,

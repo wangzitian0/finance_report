@@ -379,13 +379,16 @@ async def test_four_asset_as_of_net_worth_golden_path(
         assert first_reconciliation.status_code == 200, (
             f"first reconciliation failed: {first_reconciliation.status_code} {first_reconciliation.text}"
         )
+        # The approval already posted every row from its own statement, so the first run
+        # finds no pending row and creates no self-match (AC-reconciliation.2561.1, #2554).
         assert first_reconciliation.json() == {
-            "matches_created": 2,
-            "auto_accepted": 2,
+            "matches_created": 0,
+            "auto_accepted": 0,
             "pending_review": 0,
             "unmatched": 0,
         }
 
+        # A rerun stays a no-op: it creates no match and leaves no row unmatched.
         second_reconciliation = await client.post(
             _api_url("/reconciliation/runs"),
             json={"statement_id": bank_statement_id},
@@ -572,12 +575,9 @@ async def test_four_asset_as_of_net_worth_golden_path(
 
     await page.goto(_get_url("/dashboard"))
     await page.wait_for_load_state("domcontentloaded")
-    await expect(page.get_by_label("Upload-to-report home")).to_be_visible(
-        timeout=10_000
-    )
-    await expect(page.get_by_label("Dashboard analytics", exact=True)).to_be_visible(
-        timeout=10_000
-    )
+    await expect(
+        page.get_by_label("Three-statement cockpit", exact=True)
+    ).to_be_visible(timeout=10_000)
     include_checkbox = page.get_by_label("Include restricted holdings")
     await expect(include_checkbox).to_be_visible(timeout=10_000)
     if not await include_checkbox.is_checked():
@@ -601,7 +601,7 @@ async def test_four_asset_as_of_net_worth_golden_path(
 
     await page.goto(
         _get_url(
-            f"/reports/balance-sheet?as_of_date={report_date.isoformat()}&currency=SGD&include_restricted=true"
+            f"/reports?tab=balance-sheet&end={report_date.isoformat()}&currency=SGD&include_restricted=true"
         )
     )
     await page.wait_for_load_state("domcontentloaded")

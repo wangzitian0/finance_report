@@ -218,7 +218,7 @@ Every UI-system change must leave both semantic and visual proof in the same PR.
 
 ### Applied In
 
-- `app/(main)/accounts/page.tsx`
+- `components/settings/AccountsPanel.tsx`
 - `app/(main)/statements/page.tsx`
 - `playwright/ui-visual-smoke.spec.ts`
 - `src/__tests__/uiPrimitives.test.tsx`
@@ -227,22 +227,35 @@ Every UI-system change must leave both semantic and visual proof in the same PR.
 
 ## 6. API Integration
 
-All API calls must go through the centralized `apiFetch` or `apiUpload` utility in `lib/api.ts`.
+All API calls must go through the typed operation functions of `lib/api.ts`: `apiOperation` (JSON), `apiOperationUpload` (multipart), `apiOperationDownload` (blob) and `apiOperationStream` (chat stream). One internal `send()` makes every request.
 
 **Rules:**
 - **NO Direct `fetch()`**: Never use the native `fetch()` API for internal `/api/*` calls.
 - **Authorization**: Browser auth uses the backend-managed **HttpOnly access-token cookie**, sent automatically because the utility calls `fetch` with `credentials: "include"`. The utility still adds a `Bearer <token>` header when `getAccessToken()` returns one (e.g. SSR/non-browser callers that hold a token), but in the browser the token is not persisted to local storage.
-- **Absolute URLs**: Use the `APP_URL` constant from `lib/api.ts` when you need to refer back to the frontend domain.
 - **Structured errors (#1005)**: On a non-2xx the utility throws an `ApiError`
   carrying `status`, `errorId`, and `requestId` parsed from the backend's
   `{error_id, detail, request_id}` body. Branch on the machine-readable code
-  (`isApiErrorCode(err, "conflict")` or `err.errorId === "not_found"`), not on
+  (`err.errorId === "conflict"`), not on
   `err.message` text. `ApiError extends Error`, so existing `err.message` display
   paths keep working.
 - **Generated types (#1004)**: `src/lib/api-types.ts` is generated from the backend
   OpenAPI schema (`apps/frontend/openapi.json`) via `npm run gen:api-types`. The
   committed spec is staleness-gated by `tools/generate_openapi_spec.py --check`, so
   the FE↔BE contract fails CI when it drifts. Do not hand-edit `api-types.ts`.
+- **One cache entry per request (#2583)**: A route reads a GET through React Query
+  (`useApiQuery`), never through a raw `apiOperation` call inside an effect. Two routes
+  that read the same endpoint with the same parameters use the same key. The keys live in
+  `lib/sharedQueries.ts` (statement list, reconciliation stats, processing queue, balance
+  sheet and income statement key builders) and `hooks/usePersonalReportPackage.ts`
+  (package preview). A route must not write its own key for a request that has a shared
+  key. Each route calls `useApiQuery` with the operation id itself, so the operation
+  consumer census sees every consumer. Put a key that a builder function returns in a
+  constant first: the census cannot read a call with commas inside the key argument.
+- **Stale reads after a mutation (#2583)**: `lib/queryClient.ts` builds the app client. After
+  every successful mutation it marks the ledger-derived keys (`LEDGER_DERIVED_QUERY_KEYS`)
+  stale. A write that does not use `useMutation` calls `invalidateLedgerDerivedQueries`.
+- **Polling**: A poll uses `refetchInterval` as a function of the cached data, so it stops or
+  slows when no work is pending (`useWorkflowStatusQuery`, the `/upload` statement list).
 
 ## 7. Shared-Layer Dependency Rules
 
@@ -258,10 +271,10 @@ workspace packages. Each layer lives under `apps/frontend/src/`:
 
 | Layer | Lives in | Responsibility |
 |-------|----------|----------------|
-| **Transport** | `lib/api.ts` | The only place that calls the native `fetch()`. Exposes `apiFetch`, `apiUpload`, `apiDownload`, `apiStream`, `apiDelete`, and typed endpoint helpers. |
+| **Transport** | `lib/api.ts` | The only place that calls the native `fetch()`. Exposes `apiOperation`, `apiOperationUpload`, `apiOperationDownload` and `apiOperationStream`, typed from the generated operation table. |
 | **Money boundary** | `lib/audit/money` | Decimal-safe monetary parsing, arithmetic, and formatting (`decimal.js`). |
 | **Quantity boundary** | `lib/audit/quantity` | Decimal-safe quantity value type and quantity formatting. |
-| **Query helpers** | `hooks/*` | React Query wrappers over the transport layer (e.g. `useApiQuery`) and feature data hooks (`useDashboardData`, `useReportFilters`, `useCurrencies`). |
+| **Query helpers** | `hooks/*` | React Query wrappers over the transport layer (e.g. `useApiQuery`) and feature data hooks (`useStatementCockpit`, `useReportFilters`, `useCurrencies`). |
 | **UI primitives** | `components/ui/*` | Presentational, token-backed controls and state surfaces (`Button`, `Alert`, `EmptyState`, `Sheet`, `Toast`, badges), with local DOM accessibility hooks under `components/ui/hooks/`. |
 | **Feature modules** | `components/<feature>/*` | Domain UI aligned with backend bounded contexts (e.g. `components/statements/*` for `ledger/source`, `components/review/*` for `reconciliation`, `components/reports/*` for `reporting`). |
 | **Route pages** | `app/(main)/**/page.tsx` | Thin composition + page-level intent only (<300 lines). |
@@ -293,7 +306,7 @@ app routes
   `AC-meta.fe-contract-types.6`, issue #2117).
 - **Query helpers (`hooks/*`) depend on `lib/api` (and `lib/audit/money` /
   `lib/audit/quantity` when needed) but not on route components.** A hook may call
-  `apiFetch` or `apiOperation` and shape data, but it must not import `app/**/page.tsx`
+  `apiOperation` and shape data, but it must not import `app/**/page.tsx`
   or otherwise depend on a specific route.
 - **Feature modules compose UI primitives, query hooks, and domain logic.** This
   is where `components/ui/*`, `hooks/*`, and `lib/audit/money` / `lib/audit/quantity` are
@@ -301,10 +314,10 @@ app routes
 - **Route pages stay thin (<300 lines).** Pages should compose feature modules and express
   page-level intent. They should not own raw endpoint construction, complex inline
   review forms, or repeated loading/error/empty/retry markup (`test_fe_no_godfile.py`).
-- **Direct `apiFetch` in components/app is retired (locked at 0).**
-  `common/testing/fe_fetch_ratchet.py` enforces a strict shrink-only baseline of 0
-  call sites under `components/` and `app/`. Production calls use `apiOperation`
-  or domain hooks.
+- **The retired client functions `apiFetch`, `apiStream`, `apiDelete` and `apiUpload` have no
+  call site (locked at 0).** `common/testing/fe_fetch_ratchet.py` enforces a strict
+  shrink-only baseline of 0 call sites under `components/` and `app/`. Production calls use
+  `apiOperation*` or domain hooks.
 
 ### Automated Layer Boundary Enforcement
 
@@ -387,7 +400,7 @@ document-level horizontal scrolling.
   mobile card affordances.
 
 **Applied In:**
-- `app/(main)/accounts/page.tsx`
+- `components/settings/AccountsPanel.tsx`
 - `app/(main)/review/ai-suggestions/page.tsx`
 - `app/(main)/statements/[id]/review/page.tsx`
 - `components/review/Stage2ReviewQueue.tsx`
@@ -415,7 +428,7 @@ Root app metadata lives in `app/layout.tsx`.
 
 - **AuthGuard**: Protects all `(main)` routes. Unauthorized users are redirected to `/login`.
 - **Public Routes**: Only `/login` and `/ping-pong` are exempt from `AuthGuard`.
-- **Injection Protection**: The `apiFetch` wrapper is the primary defense against missing user context.
+- **Injection Protection**: The `apiOperation*` functions are the primary defense against missing user context.
 
 ### Route protection (client-side)
 
@@ -434,7 +447,7 @@ Browser credentials live in the backend-managed **HttpOnly cookie**
 
 ### Redirect-on-401 (`lib/api.ts`)
 
-`apiFetch` sends same-origin credentials (`credentials: "include"`) so the HttpOnly
+Every `apiOperation*` call sends same-origin credentials (`credentials: "include"`) so the HttpOnly
 cookie rides along; on a `401` in the browser it redirects to `/login`. Direct API
 clients (curl, tests) may still pass `Authorization: Bearer <token>` for
 compatibility.
@@ -485,7 +498,7 @@ Upload PDF → Parsing (polling) → parsed/approved status
 - On success, show a result banner with: broker name, positions parsed, new holdings created, holdings reconciled, and a link to `/portfolio`.
 - On failure, show a safe error message. **Sensitive data (URLs, tokens, storage paths) must be stripped** before display. The `handleBrokerageImport` function applies a regex to replace `https://…` and `s3://…` with `[URL]`.
 - The **Portfolio page** shows a "Total Portfolio Value" card when active holdings are present, computed as the sum of `market_value` across all active holdings.
-- All API calls use `apiFetch` from `lib/api.ts` — never raw `fetch()`.
+- All API calls use `apiOperation*` from `lib/api.ts` — never raw `fetch()`.
 
 ### Files
 

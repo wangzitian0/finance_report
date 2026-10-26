@@ -29,7 +29,7 @@ from httpx import AsyncClient
 import src.routers as _routers_pkg
 from src.deps import DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT
 from src.main import app
-from src.routers.reports import DEFAULT_INCLUDE_RESTRICTED
+from src.reporting import DEFAULT_INCLUDE_RESTRICTED, PACKAGE_INCLUDE_RESTRICTED
 
 _ROUTER_DIR = Path(_routers_pkg.__file__).resolve().parent
 _RAW_STATUS_CODE = re.compile(r"status_code\s*=\s*\d")
@@ -268,15 +268,44 @@ def test_AC_platform_29_8_delivery_helpers_have_one_honest_home() -> None:
 def test_AC_platform_29_9_report_wire_shape_and_policy_are_single(
     openapi_schema: dict[str, Any],
 ) -> None:
-    """AC-platform.29.9: package generation is body-only and restrictions default off."""
+    """AC-platform.29.9: package generation is body-only, and each report route reads one named scope default.
+
+    Each net worth route reads ``DEFAULT_INCLUDE_RESTRICTED`` (the full net worth, #2645).
+    The package routes read ``PACKAGE_INCLUDE_RESTRICTED`` (the disclosed liquid scope).
+    """
+    assert DEFAULT_INCLUDE_RESTRICTED is True
+    assert PACKAGE_INCLUDE_RESTRICTED is False
     paths = openapi_schema["paths"]
     generation = paths["/reports/package/generate"]["post"]
     assert generation.get("parameters", []) == []
     assert generation["requestBody"]["required"] is True
+    body_ref = generation["requestBody"]["content"]["application/json"]["schema"]["$ref"].rsplit("/", 1)[-1]
+    body = openapi_schema["components"]["schemas"][body_ref]
+    # The body has no scope default of its own: an absent value reads PACKAGE_INCLUDE_RESTRICTED in
+    # the route (AC-reporting.net-worth-scope.12 proves the behaviour), so the client sends no copy.
+    assert body["properties"]["include_restricted"].get("default") is None
 
-    for path in ("/reports/balance-sheet", "/reports/net-worth/allocation"):
-        params = {item["name"]: item for item in paths[path]["get"]["parameters"]}
-        assert params["include_restricted"]["schema"]["default"] is DEFAULT_INCLUDE_RESTRICTED
+    defaults = {
+        path: {item["name"]: item for item in paths[path]["get"]["parameters"]}["include_restricted"]["schema"][
+            "default"
+        ]
+        for path in (
+            "/reports/balance-sheet",
+            "/reports/balance-sheet/diagnostics",
+            "/reports/export",
+            "/reports/net-worth/allocation",
+            "/reports/net-worth/timeseries",
+            "/reports/package",
+        )
+    }
+    assert defaults == {
+        "/reports/balance-sheet": DEFAULT_INCLUDE_RESTRICTED,
+        "/reports/balance-sheet/diagnostics": DEFAULT_INCLUDE_RESTRICTED,
+        "/reports/export": DEFAULT_INCLUDE_RESTRICTED,
+        "/reports/net-worth/allocation": DEFAULT_INCLUDE_RESTRICTED,
+        "/reports/net-worth/timeseries": DEFAULT_INCLUDE_RESTRICTED,
+        "/reports/package": PACKAGE_INCLUDE_RESTRICTED,
+    }
 
 
 async def test_AC12_29_3_pagination_convention_is_enforced(client: AsyncClient) -> None:

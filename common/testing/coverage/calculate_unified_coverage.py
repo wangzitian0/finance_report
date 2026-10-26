@@ -2,8 +2,7 @@
 """Unified LCOV line-coverage calculator.
 
 The CI gate uses component LCOV reports for backend, frontend, common, and
-tools. LCOV ``LF`` is the denominator and ``LH`` is the numerator; filesystem
-line counts are diagnostic helpers only and do not define the enforced metric.
+tools. LCOV ``LF`` is the denominator and ``LH`` is the numerator.
 
 Scope is deny-list based inside each governed source root: every file matching
 the component extensions is expected in LCOV unless it is explicitly excluded
@@ -79,81 +78,6 @@ BACKEND_DIR = ROOT_DIR / "apps" / "backend"
 FRONTEND_DIR = ROOT_DIR / "apps" / "frontend"
 TOOLS_DIR = ROOT_DIR / "tools"
 COMMON_DIR = ROOT_DIR / "common"
-
-# Blacklist patterns (these are NOT counted as code)
-BLACKLIST_PATTERNS = [
-    "/test/",
-    "/__tests__/",
-    "/tests/",
-    "/node_modules/",
-    "/.next/",
-    "/coverage/",
-    "/.venv/",
-    "/venv/",
-    "__pycache__",
-    ".pyc",
-    "_test.py",
-    ".test.ts",
-    ".test.tsx",
-    ".spec.ts",
-    ".spec.tsx",
-    "conftest.py",
-    "vitest.setup.ts",
-    "vitest.config.ts",
-    "vite.config.ts",
-    "jest.config.",
-    "pytest.ini",
-    "pyproject.toml",
-    "setup.py",
-]
-
-
-def is_test_file(file_path: str) -> bool:
-    """Check if a file should be excluded from code coverage calculation."""
-    path = file_path.replace("\\", "/")
-    basename = path.rsplit("/", 1)[-1]
-
-    for pattern in BLACKLIST_PATTERNS:
-        if pattern in path:
-            return True
-    if basename.startswith("test_"):
-        return True
-    return False
-
-
-def count_lines(file_path: Path) -> int:
-    """Count total lines in a file."""
-    try:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            return sum(1 for _ in f)
-    except Exception:
-        return 0
-
-
-def count_code_lines(directory: Path, extensions: list[str]) -> dict:
-    """Count total lines of code in directory, excluding test files."""
-    total_lines = 0
-    file_count = 0
-    files_detail = []
-
-    for ext in extensions:
-        for file_path in directory.rglob(f"*{ext}"):
-            relative_path = str(file_path.relative_to(ROOT_DIR))
-
-            if is_test_file(relative_path):
-                continue
-
-            lines = count_lines(file_path)
-            if lines > 0:
-                total_lines += lines
-                file_count += 1
-                files_detail.append({"path": relative_path, "lines": lines})
-
-    return {
-        "total_lines": total_lines,
-        "file_count": file_count,
-        "files": files_detail[:10],  # Only keep first 10 for summary
-    }
 
 
 def count_policy_files(component: CoverageComponent) -> dict:

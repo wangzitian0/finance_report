@@ -3,7 +3,7 @@ import { screen } from "@testing-library/react";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
 import { TransactionTable } from "@/components/review/TransactionTable";
-import { ConflictResolutionDialog } from "@/components/review/ConflictResolutionDialog";
+import { ConflictResolutionDialog } from "@/components/review/TransactionTable";
 import { BottomTabBar } from "@/components/shell/BottomTabBar";
 
 // Mock next/navigation
@@ -15,13 +15,46 @@ vi.mock("next/navigation", () => ({
     }),
 }));
 
+const mockedDownload = vi.fn();
+vi.mock("@/lib/api-client", () => ({
+    apiOperation: vi.fn(),
+    apiOperationDownload: (...args: unknown[]) => mockedDownload(...args),
+}));
+
 describe("EPIC-016 Componentization Tests", () => {
     // AC-extraction.fe-stage1-review.12
     it("mounts PdfPreviewPane and asserts primary affordance (AC16.23.6)", () => {
-        // statementId=null keeps the pane idle (no document fetch); the panel
-        // header is the stable affordance across all preview states.
         renderReviewComponent(<PdfPreviewPane statementId={null} />);
         expect(screen.getByText("PDF Preview")).toBeInTheDocument();
+    });
+
+    it("AC16.33.5 embeds the document as a same-origin blob URL without sandbox and cleans up on unmount", async () => {
+        mockedDownload.mockResolvedValueOnce({ blob: new Blob(["%PDF-1.4"]), filename: "f.pdf" });
+        URL.createObjectURL = vi.fn(() => "blob:preview-1");
+        URL.revokeObjectURL = vi.fn();
+
+        const { unmount } = renderReviewComponent(<PdfPreviewPane statementId="s1" hasDocument />);
+        const iframe = await screen.findByTitle("Statement PDF preview");
+        expect(mockedDownload).toHaveBeenCalledWith(
+            "get_statement_document_statements__statement_id__document_get",
+            { path: { statement_id: "s1" } },
+        );
+        expect(iframe).toHaveAttribute("src", "blob:preview-1");
+        expect(iframe).not.toHaveAttribute("sandbox");
+        expect(iframe).toHaveAttribute("referrerPolicy", "no-referrer");
+        unmount();
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:preview-1");
+    });
+
+    it("AC16.33.5 shows a fallback when no document exists and surfaces fetch error", async () => {
+        mockedDownload.mockClear();
+        renderReviewComponent(<PdfPreviewPane statementId="s1" hasDocument={false} />);
+        expect(mockedDownload).not.toHaveBeenCalled();
+        expect(screen.getByText("PDF preview not available")).toBeInTheDocument();
+
+        mockedDownload.mockRejectedValueOnce(new Error("502 Bad Gateway"));
+        renderReviewComponent(<PdfPreviewPane statementId="s1" hasDocument />);
+        expect(await screen.findByText("PDF preview could not be loaded")).toBeInTheDocument();
     });
 
     it("mounts TransactionTable and asserts primary affordance (AC16.23.6)", () => {

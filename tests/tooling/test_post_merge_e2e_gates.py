@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 import yaml
 from common.testing import staging_ai_ocr_gate_contract as contract
+from tests.e2e import assistant_answer
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -479,16 +480,20 @@ def test_AC8_13_1_to_5_full_statement_journey_contract() -> None:
         test_body,
         'a[href="/statements/{statement_id}"]',
         "filter(has_text=INSTITUTION_LABEL).first",
+        # The statement page is the review page (#2621 LB); no separate review route.
+        "/review$",
+        "Start Review",
     )
     _has(
         test_body,
         '"parsed"',
         "# === AC8.13.3: Detail page shows transactions ===",
         "Transactions",
-        "# === AC8.13.4: Start Review",
+        "# === AC8.13.4: approve via ConfirmDialog on the statement page ===",
+        'get_by_role("button", name="Approve", exact=True)',
         "approved",
         "# === AC8.13.5: Balance sheet report loads ===",
-        "/reports/balance-sheet",
+        "/reports?tab=balance-sheet",
     )
 
 
@@ -800,7 +805,7 @@ def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
         deploy_workflow,
         "ai-ocr-gate:",
         "needs: [build-and-deploy, provider-gate]",
-        "if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' }}",
+        "if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' && needs.provider-gate.result == 'success' }}",
         "name: Staging AI/OCR Gate",
         "commit_full_sha: ${{ steps.release.outputs.full_sha }}",
         "deployed_version_ref: ${{ steps.release.outputs.version_ref }}",
@@ -1032,7 +1037,7 @@ def test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case() -> None:
     corpus_step = next(s for s in job["steps"] if s.get("id") == "staging_ai_ocr_tests")
 
     assert corpus_step["timeout-minutes"] == (
-        "${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 145 || 130) }}"
+        "${{ inputs.corpus == 'canary' && 25 || (inputs.corpus == 'all' && 150 || 135) }}"
     )
     # 8-min parse ceiling that the budgets below are computed against, read as
     # a structured env value rather than grepped text.
@@ -1052,19 +1057,33 @@ def test_AC8_13_167_timeout_budget_is_sized_per_corpus_worst_case() -> None:
     # audit_replay 14 waits = 118 min, all 16 waits = 134 min worst case.
     # #2405 added the zero-click proof (1 upload): audit_replay 15 waits = 126 min,
     # all 17 waits = 142 min worst case.
-    budgets = {"canary": 25, "audit_replay": 130, "core_journey": 130, "all": 145}
-    wait_counts = {
-        "canary": contract.totals(contract.canary_files())["uploads"],
-        "audit_replay": contract.totals(contract.audit_replay_files())["uploads"],
-        "core_journey": contract.totals(contract.core_journey_tests())["uploads"],
-        "all": contract.totals(contract.gate_files())["uploads"],
+    # #2461 added the assistant chat proof (0 uploads). Its waits are not provider parse
+    # waits, so they count apart: 2 answers and 1 CSV parse of at most 2 minutes each.
+    # audit_replay 126 + 6 = 132 min, all 142 + 6 = 148 min worst case.
+    budgets = {"canary": 25, "audit_replay": 135, "core_journey": 135, "all": 150}
+    corpora = {
+        "canary": contract.canary_files(),
+        "audit_replay": contract.audit_replay_files(),
+        "core_journey": contract.core_journey_tests(),
+        "all": contract.gate_files(),
     }
+    chat_journey = "tests/e2e/test_assistant_chat_journey.py"
+    assert assistant_answer.WAIT_CEILING_MINUTES == 6
+    assert chat_journey in corpora["all"]
     for corpus_name, budget in budgets.items():
-        worst_case = wait_counts[corpus_name] * parse_ceiling_minutes + overhead_minutes
+        files = corpora[corpus_name]
+        waits = contract.totals(files)["uploads"]
+        answer_minutes = (
+            assistant_answer.WAIT_CEILING_MINUTES
+            if any(node.split("::", 1)[0] == chat_journey for node in files)
+            else 0
+        )
+        worst_case = waits * parse_ceiling_minutes + answer_minutes + overhead_minutes
         assert worst_case <= budget, (
-            f"{corpus_name} corpus grew to {wait_counts[corpus_name]} sequential "
-            f"parse waits; its {budget}min budget no longer covers the "
-            f"{worst_case}min worst case (raise the budget alongside the corpus)"
+            f"{corpus_name} corpus grew to {waits} sequential parse waits and "
+            f"{answer_minutes} min of assistant chat journey waits; its {budget}min budget "
+            f"no longer covers the {worst_case}min worst case (raise the budget "
+            "alongside the corpus)"
         )
 
     # Job-level timeout-minutes must be >= the largest step budget plus slack
@@ -1096,7 +1115,7 @@ def test_AC8_13_49_staging_ai_ocr_gate_publishes_audit_inventory_and_summary() -
         workflow,
         "- Backend image tag:",
         "- Frontend image tag:",
-        "- Models: primary=${STAGING_E2E_PRIMARY_MODEL}, ocr=${STAGING_E2E_OCR_MODEL}, vision=${STAGING_E2E_VISION_MODEL}",
+        '- Deployed models: $(curl -fsS --max-time 15 "${APP_URL}/api/llm/catalog"',
         "- Expected uploads: ${STAGING_AI_OCR_EXPECTED_UPLOADS}",
         "- Expected parse completions: ${STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS}",
         "- Expected brokerage imports: ${STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS}",
@@ -1150,10 +1169,11 @@ def test_AC8_13_49_staging_ai_ocr_contract_outputs_files_and_counts() -> None:
         "tests/e2e/test_institution_statement_journeys.py",
         "tests/e2e/test_stage1_routing_journey.py",
         "tests/e2e/test_zero_click_statement_journey.py",
+        "tests/e2e/test_assistant_chat_journey.py",
         "STAGING_AI_OCR_EXPECTED_UPLOADS=17",
         "STAGING_AI_OCR_EXPECTED_PARSE_COMPLETIONS=17",
         "STAGING_AI_OCR_EXPECTED_BROKERAGE_IMPORTS=4",
-        "STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS=3",
+        "STAGING_AI_OCR_EXPECTED_REPORT_VERIFICATIONS=4",
     )
     assert len(files) == len(set(files))
     assert files == sorted(files)
@@ -1164,6 +1184,7 @@ def test_AC8_13_50_critical_llm_post_merge_proofs_are_in_ai_ocr_gates() -> None:
     proof_files = critical_post_merge_llm_proof_files()
     shell = staging_ai_ocr_contract_shell()
     assert proof_files == [
+        "tests/e2e/test_assistant_chat_journey.py",
         "tests/e2e/test_brokerage_upload_to_portfolio_value.py",
         "tests/e2e/test_four_asset_net_worth_golden_path.py",
         "tests/e2e/test_gxs_browser_journey.py",
@@ -1240,7 +1261,7 @@ def test_AC8_13_76_ci_environment_gates_publish_failure_path_context() -> None:
         "test-results/staging-ai-ocr-version.xml",
         "test-results/staging-ai-ocr-gate.xml",
         "ci-context/staging-ai-ocr-context.txt",
-        "primary_model=${STAGING_E2E_PRIMARY_MODEL}",
+        'deployed_models=$(curl -fsS --max-time 15 "${APP_URL}/api/llm/catalog"',
     )
 
     # Production release context lives in release.yml.
@@ -3061,19 +3082,15 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     preview_lifecycle = read("common/runtime/dev/pr_preview_lifecycle")
 
     _lacks(workflow, "post-merge-train-turn:", "wait_post_merge_train_turn.py")
-    _has(
-        workflow,
-        "workflow_dispatch:",
-        "STAGING_E2E_PRIMARY_MODEL: glm-5.3-flash",
-        "STAGING_E2E_OCR_MODEL: glm-5.3-flashx",
-        "STAGING_E2E_VISION_MODEL: glm-5.3-flashx",
-    )
-    _has(
-        ai_workflow,
-        "STAGING_E2E_PRIMARY_MODEL: glm-5.3-flash",
-        "STAGING_E2E_OCR_MODEL: glm-5.3-flashx",
-        "STAGING_E2E_VISION_MODEL: glm-5.3-flashx",
-    )
+    _has(workflow, "workflow_dispatch:")
+    # Staging runs the infra2 SDK default models; no workflow pins a model (#2566).
+    for staging_workflow in (workflow, ai_workflow):
+        _lacks(
+            staging_workflow,
+            "STAGING_E2E_PRIMARY_MODEL",
+            "STAGING_E2E_OCR_MODEL",
+            "STAGING_E2E_VISION_MODEL",
+        )
     # Marker expression equality is owned by the matrix conformance
     # gate (AC8.23.2, tests/tooling/test_workflow_selection_conformance.py).
     assert "PARSING_TIMEOUT_MS: 480000" in workflow
@@ -4592,8 +4609,10 @@ def test_AC8_13_28_vision_hard_gate_requires_economic_review_before_approval() -
 
     _has(
         test_body,
-        'review_path = f"/statements/{statement_id}/review"',
-        "f\"a[href='{review_path}']\"",
+        # The statement page is the review page (#2621 LB): one click from the upload list.
+        'await page.goto(_get_url("/upload")',
+        "await statement_link.click()",
+        'rf"/statements/{re.escape(statement_id)}$"',
         "page.expect_response(",
         'get_by_role("button", name="Approve", exact=True)',
         "approve_response.status == 409",
@@ -4601,6 +4620,8 @@ def test_AC8_13_28_vision_hard_gate_requires_economic_review_before_approval() -
         'reviewed_statement["stage1_status"] == "pending_review"',
         'journal_body["total"] == 0',
     )
+    # The retired review route must not come back (#2621 LB).
+    _lacks(test_body, "review_path", "/review$", "Start Review")
 
 
 def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> None:
@@ -4625,6 +4646,7 @@ def test_AC8_13_42_four_asset_net_worth_golden_path_is_post_merge_critical() -> 
         "/assets/valuation-snapshots",
         "/assets/valuation-components",
         "/reports/balance-sheet",
+        "/reports?tab=balance-sheet",
         "include_restricted=true",
         "/dashboard",
         'BANK_CASH = Decimal("2500.00")',

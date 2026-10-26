@@ -39,9 +39,6 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository_owner }}/finance_report
-  STAGING_E2E_PRIMARY_MODEL: glm-5.3-flash
-  STAGING_E2E_OCR_MODEL: glm-5.3-flashx
-  STAGING_E2E_VISION_MODEL: glm-5.3-flashx
   PYTHON_VERSION: "3.12.12"
   NODE_VERSION: "20.19.0"
   UV_VERSION: "0.9.18"
@@ -55,7 +52,7 @@ jobs:
   build-and-deploy:
     name: Deploy Staging
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     permissions:
       actions: read
@@ -602,7 +599,7 @@ jobs:
 
   provider-gate:
     name: Staging Provider Gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [build-and-deploy]
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.provider_gate_required == 'true' }}
     timeout-minutes: 12
@@ -610,6 +607,7 @@ jobs:
       contents: read
     outputs:
       provider_status: ${{ steps.ai_provider_connectivity.outputs.provider_status }}
+      model_catalog_outcome: ${{ steps.model_catalog_policy.outcome }}
     env:
       APP_URL: https://report-staging.zitian.party
       TEST_ENV: staging
@@ -626,6 +624,19 @@ jobs:
 
       - name: Setup E2E Tests
         uses: ./.github/actions/setup-e2e-tests
+
+      # The catalog check compares staging with the infra2 SDK default models (#2566).
+      # pytest runs in the uv venv of setup-e2e-tests, which has no pip, so the shared
+      # install action cannot reach it. Install the pinned wheel into that venv.
+      - name: Install infra2-sdk into the E2E environment
+        run: |
+          set -euo pipefail
+          read -r sdk_url sdk_sha256 sdk_filename <<< "$(python tools/sdk_pin.py)"
+          sdk_wheel="$(mktemp -d)/${sdk_filename}"
+          curl --fail --location --silent --show-error --retry 3 --retry-delay 10 "$sdk_url" --output "$sdk_wheel"
+          echo "${sdk_sha256}  ${sdk_wheel}" | sha256sum --check --status
+          uv pip install --python "$(command -v python)" "$sdk_wheel"
+          python -c "import infra2_sdk.runtime.llm"
 
       # Provider-risk staging changes prove one real chat round trip (AC8.13.120).
       # It is retried with backoff and only blocks delivery on client/config 4xx.
@@ -709,6 +720,21 @@ jobs:
             echo "marker=llm connectivity smoke"
           } > ci-context/staging-provider-gate-context.txt
 
+      # Staging serves exactly the infra2 SDK default models (#2566,
+      # AC-llm.sdk-model-defaults.3). The check reads config, not the provider, so it
+      # runs once here without retry, and a failure fails this job and blocks
+      # delivery. The retry loop above may also run it, but this step decides.
+      - name: Deployed Model Catalog Policy
+        id: model_catalog_policy
+        timeout-minutes: 5
+        env:
+          EXPECTED_SHA: ${{ needs.build-and-deploy.outputs.deployed_version_ref }}
+        run: |
+          set -euo pipefail
+          mkdir -p test-results
+          pytest tests/e2e/test_ai_provider_connectivity.py::test_staging_catalog_serves_the_sdk_default_models \
+            -v -m "llm" --junit-xml=test-results/staging-model-catalog-policy.xml
+
       - name: Upload provider gate test context
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
@@ -725,7 +751,7 @@ jobs:
       contents: read
       issues: write
     needs: [build-and-deploy, provider-gate]
-    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' }}
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' && needs.provider-gate.result == 'success' }}
     # The minimal durable statement canary is release-critical: a failed
     # upload/parse/import journey must fail this exact deployed revision.
     uses: ./.github/workflows/staging-ai-ocr-gate.yml
@@ -759,7 +785,7 @@ jobs:
 
   post-merge-delivery:
     name: Post-merge Delivery
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [build-and-deploy, provider-gate, ai-ocr-gate, financial-benchmark]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
@@ -799,6 +825,7 @@ jobs:
           failure_summary="${{ needs.build-and-deploy.outputs.failure_summary }}"
           build_result="${{ needs.build-and-deploy.result }}"
           provider_result="${{ needs.provider-gate.result }}"
+          model_catalog_outcome="${{ needs.provider-gate.outputs.model_catalog_outcome }}"
           provider_status="${{ needs.provider-gate.outputs.provider_status }}"
           ai_ocr_result="${{ needs.ai-ocr-gate.result }}"
           ai_ocr_status="${{ needs.ai-ocr-gate.outputs.ai_ocr_status }}"
@@ -817,6 +844,10 @@ jobs:
             failure_reason="build/deploy gate failed"
           elif [ "$staging_required" != "true" ]; then
             delivery_status="skipped-no-staging-required"
+          elif [ "$provider_gate_required" = "true" ] && [ "$model_catalog_outcome" = "failure" ]; then
+            failed=true
+            delivery_status="failed"
+            failure_reason="deployed model catalog does not equal the SDK default models"
           elif [ "$provider_gate_required" = "true" ] && [ "$provider_result" != "success" ]; then
             failed=true
             delivery_status="failed"
@@ -867,7 +898,7 @@ jobs:
 
   post-merge-summary:
     name: Post-merge Timing Summary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [build-and-deploy, provider-gate, ai-ocr-gate, financial-benchmark, post-merge-delivery]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
@@ -903,7 +934,7 @@ jobs:
   promote:
     name: Promote SHA images to release tag
     if: ${{ github.event_name == 'push' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       actions: read

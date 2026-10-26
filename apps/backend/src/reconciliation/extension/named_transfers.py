@@ -83,7 +83,7 @@ async def post_named_transfer_legs(
     the breakdown says so. Each leg has its own savepoint, so a failure in one leg leaves the others.
     """
     repo = repository if repository is not None else SqlReconciliationRepository(db)
-    base_currency = (await get_effective_base_currency(db)).upper()
+    base_currency = (await get_effective_base_currency(db, user_id=user_id)).upper()
     processing = await find_processing_account(db, user_id)
     if processing is not None and processing.currency.upper() != base_currency:
         logger.info(

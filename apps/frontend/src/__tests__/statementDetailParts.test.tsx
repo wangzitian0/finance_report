@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 
-import { StatementHeader } from "@/app/(main)/statements/[id]/_components/StatementHeader";
-import { StatementSummaryCards } from "@/app/(main)/statements/[id]/_components/StatementSummaryCards";
-import { StatementTransactionsTable } from "@/app/(main)/statements/[id]/_components/StatementTransactionsTable";
-import { BrokerageImportResultBanner } from "@/app/(main)/statements/[id]/_components/BrokerageImportResultBanner";
-import { BankStatement, BankStatementTransaction, BrokerageImportResponse } from "@/lib/types";
+import {
+    BrokerageImportResultBanner,
+    StatementHeader,
+} from "@/components/review/TransactionTable";
+import { BankStatement, BrokerageImportResponse } from "@/lib/types";
 import { currencyCodeOrDash as formatCode } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
 
@@ -13,31 +13,6 @@ vi.mock("next/link", () => ({
     default: ({ href, children, ...rest }: { href: string; children: React.ReactNode; [key: string]: unknown }) => (
         <a href={href} {...rest}>{children}</a>
     ),
-}));
-
-vi.mock("@/components/review/LowConfidenceReviewModal", () => ({
-    LowConfidenceReviewModal: ({
-        isOpen,
-        onClose,
-        onSuccess,
-        transaction,
-        currency,
-    }: {
-        isOpen: boolean;
-        onClose: () => void;
-        onSuccess?: () => void;
-        transaction: unknown;
-        currency?: string;
-    }) => {
-        if (!isOpen) return null;
-        return (
-            <div data-testid="low-confidence-review-modal">
-                <span data-testid="modal-currency">{currency}</span>
-                <button type="button" onClick={onSuccess}>Trigger Success</button>
-                <button type="button" onClick={onClose}>Close Modal</button>
-            </div>
-        );
-    },
 }));
 
 const baseStatement: BankStatement = {
@@ -62,28 +37,11 @@ const baseStatement: BankStatement = {
     transactions: [],
 };
 
-const txn: BankStatementTransaction = {
-    id: "t1",
-    statement_id: "s1",
-    txn_date: "2026-01-02",
-    description: "Salary",
-    reference: "R1",
-    amount: "500",
-    direction: "IN",
-    currency: "SGD",
-    balance_after: "1500",
-    status: "matched",
-    confidence: "high",
-    created_at: "2026-01-02T00:00:00Z",
-    updated_at: "2026-01-02T00:00:00Z",
-};
-
 function renderHeader(overrides: Partial<React.ComponentProps<typeof StatementHeader>> = {}) {
     const onBrokerageImport = vi.fn();
     const onRetry = vi.fn();
     const props: React.ComponentProps<typeof StatementHeader> = {
         statement: baseStatement,
-        statementId: "s1",
         canImport: false,
         canRetry: false,
         importLoading: false,
@@ -100,15 +58,23 @@ function renderHeader(overrides: Partial<React.ComponentProps<typeof StatementHe
 
 describe("StatementHeader", () => {
     // AC-extraction.fe-ia-extraction.3
-    it("AC22.17.3 renders title, status badge, description and review link", () => {
+    it("AC22.17.3 renders title, status badge, description and confidence", () => {
         renderHeader();
         expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument();
         expect(screen.getByText("parsed")).toBeInTheDocument();
         expect(screen.getByText(/DBS • SGD • 2026-01-01 to 2026-01-31/)).toBeInTheDocument();
-        expect(screen.getByRole("link", { name: "Start Review →" })).toHaveAttribute(
-            "href",
-            "/statements/s1/review",
+        expect(screen.getByText(/Confidence 92% \(/)).toBeInTheDocument();
+        expect(screen.queryByRole("link", { name: /review/i })).not.toBeInTheDocument();
+    });
+
+    it("#1609 labels mid and low confidence with text, not colour alone", () => {
+        const { unmount } = render(
+            <StatementHeader statement={{ ...baseStatement, confidence_score: 70 }} canImport={false} canRetry={false} importLoading={false} retryLoading={false} onBrokerageImport={vi.fn()} onRetry={vi.fn()} formatCode={formatCode} formatPeriod={formatPeriod} />,
         );
+        expect(screen.getByText(/Confidence 70% \(\S+/)).toBeInTheDocument();
+        unmount();
+        renderHeader({ statement: { ...baseStatement, confidence_score: null } });
+        expect(screen.queryByText(/Confidence/)).not.toBeInTheDocument();
     });
 
     it("hides import and retry buttons when not allowed", () => {
@@ -157,7 +123,7 @@ describe("StatementHeader", () => {
             const { unmount } = render(
                 <StatementHeader
                     statement={{ ...baseStatement, status }}
-                    statementId="s1"
+
                     canImport={false}
                     canRetry={false}
                     importLoading={false}
@@ -171,201 +137,6 @@ describe("StatementHeader", () => {
             expect(screen.getByText(status)).toHaveClass(cls);
             unmount();
         }
-    });
-});
-
-describe("StatementSummaryCards", () => {
-    it("AC22.17.3 renders balances, confidence and verified validation", () => {
-        render(<StatementSummaryCards statement={baseStatement} />);
-        expect(screen.getByText("Opening Balance")).toBeInTheDocument();
-        expect(screen.getByText("Closing Balance")).toBeInTheDocument();
-        expect(screen.getByText("92%")).toBeInTheDocument();
-        // #1609: confidence is not color-only — a text label backs the colour.
-        expect(screen.getByText("Good")).toBeInTheDocument();
-        expect(screen.getByText("Verified")).toBeInTheDocument();
-    });
-
-    it("#1609 labels mid and low confidence with text, not colour alone", () => {
-        const { rerender } = render(
-            <StatementSummaryCards statement={{ ...baseStatement, confidence_score: 70 }} />,
-        );
-        expect(screen.getByText("Fair — review advised")).toBeInTheDocument();
-        rerender(<StatementSummaryCards statement={{ ...baseStatement, confidence_score: 40 }} />);
-        expect(screen.getByText("Low — review required")).toBeInTheDocument();
-    });
-
-    it("renders Parsing validation state and em-dash confidence when null", () => {
-        render(
-            <StatementSummaryCards
-                statement={{ ...baseStatement, confidence_score: null, balance_validated: null }}
-            />,
-        );
-        expect(screen.getByText("Parsing")).toBeInTheDocument();
-        expect(screen.getByText("—%")).toBeInTheDocument();
-    });
-
-    it("renders Needs Review state with validation error", () => {
-        render(
-            <StatementSummaryCards
-                statement={{
-                    ...baseStatement,
-                    balance_validated: false,
-                    validation_error: "Balances do not match",
-                }}
-            />,
-        );
-        expect(screen.getByText("Needs Review")).toBeInTheDocument();
-        expect(screen.getByText("Balances do not match")).toBeInTheDocument();
-    });
-
-    it("applies warning confidence color for mid score", () => {
-        render(<StatementSummaryCards statement={{ ...baseStatement, confidence_score: 70 }} />);
-        expect(screen.getByText("70%")).toHaveClass("text-[var(--warning)]");
-    });
-
-    it("applies error confidence color for low score", () => {
-        render(<StatementSummaryCards statement={{ ...baseStatement, confidence_score: 30 }} />);
-        expect(screen.getByText("30%")).toHaveClass("text-[var(--error)]");
-    });
-});
-
-describe("StatementTransactionsTable", () => {
-    it("renders empty state when no transactions", () => {
-        render(<StatementTransactionsTable statement={baseStatement} />);
-        expect(screen.getByText("No transactions found")).toBeInTheDocument();
-        expect(screen.getByText("0 total")).toBeInTheDocument();
-    });
-
-    it("renders an inbound transaction row with positive amount", () => {
-        render(
-            <StatementTransactionsTable
-                statement={{ ...baseStatement, transactions: [txn] }}
-            />,
-        );
-        expect(screen.getByText("1 total")).toBeInTheDocument();
-        expect(screen.getByText("Salary")).toBeInTheDocument();
-        expect(screen.getByText("R1")).toBeInTheDocument();
-        expect(screen.getByText("high")).toBeInTheDocument();
-        expect(screen.getByText("matched")).toBeInTheDocument();
-    });
-
-    it("renders outbound, unmatched, medium/low rows and em-dashes for missing fields", () => {
-        const outbound: BankStatementTransaction = {
-            ...txn,
-            id: "t2",
-            direction: "OUT",
-            reference: null,
-            currency: null,
-            balance_after: null,
-            status: "unmatched",
-            confidence: "medium",
-        };
-        const lowPending: BankStatementTransaction = {
-            ...txn,
-            id: "t3",
-            status: "pending",
-            confidence: "low",
-        };
-        render(
-            <StatementTransactionsTable
-                statement={{ ...baseStatement, transactions: [outbound, lowPending] }}
-            />,
-        );
-        const rows = screen.getAllByRole("row");
-        // header + 2 body rows
-        expect(rows).toHaveLength(3);
-        const outboundRow = rows[1];
-        expect(within(outboundRow).getByText("-")).toBeInTheDocument();
-        expect(within(outboundRow).getByText("unmatched")).toBeInTheDocument();
-        expect(within(outboundRow).getByText("medium")).toBeInTheDocument();
-        expect(screen.getByText("pending")).toBeInTheDocument();
-        expect(screen.getByText("low")).toBeInTheDocument();
-    });
-
-    it("AC-reconciliation.2465.2 defaults transaction status to matched when the statement is approved", () => {
-        const { status: _omittedStatus, ...txnWithoutStatus } = txn;
-        void _omittedStatus;
-        render(
-            <StatementTransactionsTable
-                statement={{
-                    ...baseStatement,
-                    status: "approved",
-                    transactions: [txnWithoutStatus],
-                }}
-            />,
-        );
-        expect(screen.getByText("matched")).toBeInTheDocument();
-        expect(screen.queryByText("pending")).not.toBeInTheDocument();
-    });
-
-    it("opens review modal on edit click and handles close and update", () => {
-        const onTransactionUpdated = vi.fn();
-        const diningTxn: BankStatementTransaction = {
-            ...txn,
-            id: "t4",
-            category: "DINING",
-            currency: null,
-        };
-        render(
-            <StatementTransactionsTable
-                statement={{
-                    ...baseStatement,
-                    currency: "SGD",
-                    transactions: [diningTxn],
-                }}
-                onTransactionUpdated={onTransactionUpdated}
-            />,
-        );
-
-        expect(screen.getByText("Dining")).toBeInTheDocument();
-        const editBtn = screen.getByRole("button", { name: "Edit" });
-        expect(editBtn).toHaveAttribute("title", "Edit category");
-
-        // Modal closed initially
-        expect(screen.queryByTestId("low-confidence-review-modal")).not.toBeInTheDocument();
-
-        // Click Edit to open modal
-        fireEvent.click(editBtn);
-        expect(screen.getByTestId("low-confidence-review-modal")).toBeInTheDocument();
-        expect(screen.getByTestId("modal-currency")).toHaveTextContent("SGD");
-
-        // Trigger success callback
-        fireEvent.click(screen.getByRole("button", { name: "Trigger Success" }));
-        expect(onTransactionUpdated).toHaveBeenCalledTimes(1);
-
-        // Close modal
-        fireEvent.click(screen.getByRole("button", { name: "Close Modal" }));
-        expect(screen.queryByTestId("low-confidence-review-modal")).not.toBeInTheDocument();
-    });
-
-    it("opens review modal without onTransactionUpdated handler and uses txn currency", () => {
-        const proposedTxn: BankStatementTransaction = {
-            ...txn,
-            id: "t5",
-            category: null,
-            proposed_category: "TRANSPORT",
-            currency: "USD",
-        };
-        render(
-            <StatementTransactionsTable
-                statement={{
-                    ...baseStatement,
-                    transactions: [proposedTxn],
-                }}
-            />,
-        );
-
-        expect(screen.getByText("Transport")).toBeInTheDocument();
-        fireEvent.click(screen.getByRole("button", { name: "Edit" }));
-        expect(screen.getByTestId("low-confidence-review-modal")).toBeInTheDocument();
-        expect(screen.getByTestId("modal-currency")).toHaveTextContent("USD");
-
-        // Trigger success without handler does not throw
-        fireEvent.click(screen.getByRole("button", { name: "Trigger Success" }));
-
-        // Close modal
-        fireEvent.click(screen.getByRole("button", { name: "Close Modal" }));
-        expect(screen.queryByTestId("low-confidence-review-modal")).not.toBeInTheDocument();
     });
 });
 

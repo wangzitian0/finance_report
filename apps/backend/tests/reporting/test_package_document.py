@@ -32,12 +32,12 @@ from src.reporting.base.package_decision import PackageReadinessDecisionPolicy
 from src.reporting.extension.package_document import (
     PackageAssembler,
     _cash_inputs_from_contributions,
-    _package_document_summary,
     _policy_blockers,
     _section_invariant_blockers,
     _valuation_section_contribution,
 )
 from src.schemas.reporting import (
+    BalanceSheetResponse,
     PersonalReportPackageDocument,
     PersonalReportPackageDocumentLifecycle,
     PersonalReportPackageInputCoverage,
@@ -234,6 +234,8 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
             as_of_date=period_end,
             income=SimpleNamespace(currency="USD"),
             restricted_fair_value_total_currency="USD",
+            # A restricted holding without an FX rate (#2645): the total leaves it out.
+            restricted_fair_value_total_excludes=["Employer RSU (HKD 1,000.00)"],
         ),
     )
     blockers = _section_invariant_blockers(
@@ -263,6 +265,7 @@ def test_AC_reporting_package_document_3_blocks_failed_section_observations() ->
         "section_currency_mismatch",
         "statement_net_income_mismatch",
         "cash_balance_input_missing",
+        "restricted_holding_fx_unavailable",
     }
     empty_input_blockers = _section_invariant_blockers(
         sections,
@@ -431,15 +434,6 @@ def test_package_contribution_envelopes_reject_incomplete_authority_contracts() 
 
 
 def test_package_document_helpers_fail_closed_without_reconstructing_authority() -> None:
-    with pytest.raises(ValueError, match="missing durable identity metadata"):
-        _package_document_summary(
-            SimpleNamespace(
-                lifecycle=PersonalReportPackageDocumentLifecycle.FROZEN,
-                snapshot_id=None,
-                frozen_at=None,
-            )
-        )
-
     valuation = _valuation_section_contribution(
         SimpleNamespace(
             input_refs=(),
@@ -500,10 +494,18 @@ async def test_AC_reporting_package_document_9_requires_exact_decision_coordinat
     with pytest.raises(TraceRecordValidationError, match="decision assertion must be a VersionedTraceRef"):
         TraceDecisionRef(decision_id=uuid4(), target=expected_target, assertion="not-a-ref")
 
+    class _Row:
+        """A result row: columns as attributes and as ``_mapping``, as ``sqlalchemy.Row`` gives them."""
+
+        def __init__(self, values):
+            self._mapping = values
+            self.__dict__.update(values)
+
     class _Rows:
-        def mappings(self):
+        def __iter__(self):
             return iter(
-                (
+                _Row(values)
+                for values in (
                     {
                         "decision_id": exact_id,
                         "target_kind": expected_target.kind,
@@ -538,6 +540,8 @@ async def test_AC_reporting_package_document_9_requires_exact_decision_coordinat
             )
 
     class _Session:
+        info: dict = {}
+
         async def execute(self, _query):
             return _Rows()
 
@@ -763,9 +767,23 @@ async def test_AC_extraction_auto_accept_8_the_package_discloses_the_score_gate_
     assert str(automatic.machine_confidence_threshold) == "0"
     assert str(manual.machine_confidence_threshold) == "0.85"
     assert automatic.semantic_digest != manual.semantic_digest
+    balance_sheet = BalanceSheetResponse.model_validate(
+        {
+            "as_of_date": "2026-07-31",
+            "currency": "SGD",
+            "assets": [],
+            "liabilities": [],
+            "equity": [],
+            "total_assets": "0.00",
+            "total_liabilities": "0.00",
+            "total_equity": "0.00",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        }
+    )
     note = lambda policy: next(  # noqa: E731
         item["disclosure"]
-        for item in _package_notes(policy).model_dump()["notes"]
+        for item in _package_notes(policy, balance_sheet=balance_sheet, include_restricted=False).model_dump()["notes"]
         if item["note_id"] == "statement-disposition-policy"
     )
     assert "accepts AI suggestions at any score" in note(automatic)

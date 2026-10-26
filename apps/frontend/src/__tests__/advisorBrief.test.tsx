@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AdvisorBrief, safeAdvisorHref } from "@/components/advisor/AdvisorBrief";
+import routeMap from "@/lib/route-map.json";
 import type { AdvisorSuggestion } from "@/lib/types";
 
 vi.mock("next/link", () => ({
@@ -40,7 +41,7 @@ const advisorSuggestions: AdvisorSuggestion[] = [
     confidence_tier: "stale",
     source_refs: ["market_data.freshness"],
     limitation: "Portfolio value may be outdated until prices refresh.",
-    next_action_href: "/portfolio/prices/update",
+    next_action_href: "/portfolio?panel=prices",
   },
   {
     basis: "Manual evidence exists for one asset but it is not yet trusted.",
@@ -69,15 +70,23 @@ describe("AdvisorBrief", () => {
 
     const cards = screen.getAllByTestId(/advisor-brief-card-/);
     const cardLinks = cards.map((card) => within(card).getByRole("link", { name: "Open next action" }));
+    // The backend still names the old report routes; the brief links to their /reports tabs.
     expect(cardLinks.map((link) => link.getAttribute("href"))).toEqual([
-      "/reports/package",
+      "/reports?tab=package",
       "/reports",
-      "/review",
-      "/portfolio/prices",
-      "/assets",
+      "/upload",
+      "/portfolio?panel=prices",
+      "/portfolio",
     ]);
     expect(safeAdvisorHref("https://evil.example/review")).toBe("/");
-    expect(safeAdvisorHref("/portfolio/prices/update?source=advisor")).toBe("/portfolio/prices");
+    expect(safeAdvisorHref("//evil.example/reports")).toBe("/");
+    expect(safeAdvisorHref("/ping-pong")).toBe("/");
+    expect(safeAdvisorHref("/portfolio/AAPL")).toBe("/");
+    expect(safeAdvisorHref("/portfolio?panel=prices&source=advisor")).toBe("/portfolio?panel=prices");
+    expect(safeAdvisorHref("/portfolio?panel=evil")).toBe("/portfolio");
+    expect(safeAdvisorHref("/reconciliation?tab=review-queue")).toBe("/reconciliation?tab=review-queue");
+    expect(safeAdvisorHref("/reports/")).toBe("/reports");
+    expect(safeAdvisorHref("/events#top")).toBe("/upload");
     expect(within(cards[0]).getByRole("link", { name: "Ask about this" })).toHaveAttribute(
       "href",
       expect.stringContaining("/chat?prompt="),
@@ -109,6 +118,27 @@ describe("AdvisorBrief", () => {
       ).toBe(false);
     } finally {
       consoleError.mockRestore();
+    }
+  });
+});
+
+describe("safeAdvisorHref follows route-map.json", () => {
+  const redirects = routeMap.routes.filter(
+    (route) => route.state === "redirect" && !route.path.includes("[") && !route.into?.includes(":"),
+  );
+
+  it("sends every static redirect of the route map to its target", () => {
+    expect(redirects.length).toBeGreaterThan(20);
+    for (const route of redirects) {
+      expect(safeAdvisorHref(route.path), route.path).toBe(route.into);
+    }
+  });
+
+  it("keeps every target page of the route map", () => {
+    const targets = routeMap.routes.filter((route) => route.state === "target" && !route.path.includes("["));
+    expect(targets.length).toBeGreaterThan(5);
+    for (const route of targets) {
+      expect(safeAdvisorHref(route.path), route.path).toBe(route.path);
     }
   });
 });

@@ -1013,3 +1013,113 @@ async def test_execute_matching_layer2_atomic_match_and_transfer_pair_logging(
 
     assert len(matches) == 1
     assert matches[0].atomic_txn_id == txn.id
+
+
+async def test_AC_reconciliation_2548_2_normal_matching_enforces_entry_exclusivity(db: AsyncSession, test_user) -> None:
+    """AC-reconciliation.2548.2: Two identical-amount same-day transactions cannot claim one journal entry (#2548)."""
+    user_id = test_user.id
+    bank = _make_account(db, user_id, "Bank Exclusivity")
+    expense = _make_account(db, user_id, "Expense Exclusivity", AccountType.EXPENSE)
+    await db.flush()
+    summary = await _seed_summary(db, owner_id=user_id, base_date=date(2026, 4, 10), account_id=bank.id)
+
+    single_entry = _make_pair(
+        db,
+        user_id,
+        expense,
+        "18.50",
+        "微信支付-星巴克",
+        credit_account=bank,
+        entry_date=date(2026, 4, 10),
+    )
+    txn_1 = _atomic(
+        owner_id=user_id,
+        summary=summary,
+        txn_date=date(2026, 4, 10),
+        description="微信支付-星巴克",
+        amount=Decimal("18.50"),
+        direction="OUT",
+    )
+    txn_2 = _atomic(
+        owner_id=user_id,
+        summary=summary,
+        txn_date=date(2026, 4, 10),
+        description="微信支付-星巴克",
+        amount=Decimal("18.50"),
+        direction="OUT",
+    )
+    db.add_all([txn_1, txn_2])
+    await db.commit()
+
+    matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert len(matches) == 1
+    assert matches[0].journal_entry_ids == [str(single_entry.id)]
+    assert matches[0].status == ReconciliationStatus.AUTO_ACCEPTED
+
+    # A second run must not match the remaining transaction against the already-claimed entry.
+    second_matches = await execute_matching(db, user_id=user_id, currency="SGD")
+    assert second_matches == []
+
+
+async def test_AC_reconciliation_2548_4_detect_anomalies_scopes_currency_and_date_window(
+    db: AsyncSession, test_user
+) -> None:
+    """AC-reconciliation.2548.4: detect_anomalies filters by currency and txn_date <= target date (#2548)."""
+    user_id = test_user.id
+    summary = await _seed_summary(db, owner_id=user_id, base_date=date(2026, 5, 10))
+
+    # Ten SGD history rows of 10.00 each
+    sgd_history = [
+        _atomic(
+            owner_id=user_id,
+            summary=summary,
+            txn_date=date(2026, 5, 1 + i),
+            description="Daily Cafe",
+            amount=Decimal("10.00"),
+            direction="OUT",
+            currency="SGD",
+        )
+        for i in range(5)
+    ]
+    # Foreign-currency (JPY) rows and future-dated SGD rows that must not distort the 30-day SGD average
+    jpy_rows = [
+        _atomic(
+            owner_id=user_id,
+            summary=summary,
+            txn_date=date(2026, 5, 5),
+            description="Tokyo Hotel",
+            amount=Decimal("50000.00"),
+            direction="OUT",
+            currency="JPY",
+        )
+    ]
+    future_sgd_rows = [
+        _atomic(
+            owner_id=user_id,
+            summary=summary,
+            txn_date=date(2026, 5, 25),
+            description="Future Cafe",
+            amount=Decimal("5000.00"),
+            direction="OUT",
+            currency="SGD",
+        )
+        for _ in range(3)
+    ]
+    target_txn = _atomic(
+        owner_id=user_id,
+        summary=summary,
+        txn_date=date(2026, 5, 10),
+        description="Daily Cafe",
+        amount=Decimal("150.00"),
+        direction="OUT",
+        currency="SGD",
+    )
+    db.add_all([*sgd_history, *jpy_rows, *future_sgd_rows, target_txn])
+    await db.commit()
+
+    anomalies = await detect_anomalies(db, target_txn, user_id=user_id)
+    anomaly_types = {item.anomaly_type for item in anomalies}
+    # 150.00 > 10 * 10.00 (prior SGD average), unaffected by JPY 50000 or future 2026-05-25 rows
+    assert "LARGE_AMOUNT" in anomaly_types
+    # Daily Cafe has 5 prior SGD rows within 90 days before 2026-05-10, so not a NEW_MERCHANT
+    assert "NEW_MERCHANT" not in anomaly_types

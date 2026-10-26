@@ -62,7 +62,7 @@ const chatSuggestions = {
       confidence_tier: "stale",
       source_refs: ["market_data.freshness"],
       limitation: "Portfolio value may be outdated until prices refresh.",
-      next_action_href: "/portfolio/prices/update",
+      next_action_href: "/portfolio?panel=prices",
     },
   ],
 };
@@ -155,8 +155,8 @@ test.describe("AC21.3.4 Advisor Brief responsive layout", () => {
       await expect(brief.getByRole("heading", { name: "Advisor Brief" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
       await expect(brief.getByText("Readiness blocker")).toBeVisible();
       await expect(brief.getByText("Refresh market data")).toBeVisible();
-      await expect(brief.getByRole("link", { name: "Open next action" }).nth(0)).toHaveAttribute("href", "/reports/package");
-      await expect(brief.getByRole("link", { name: "Open next action" }).nth(1)).toHaveAttribute("href", "/portfolio/prices");
+      await expect(brief.getByRole("link", { name: "Open next action" }).nth(0)).toHaveAttribute("href", "/reports?tab=package");
+      await expect(brief.getByRole("link", { name: "Open next action" }).nth(1)).toHaveAttribute("href", "/portfolio?panel=prices");
       await expect(brief.getByRole("link", { name: "Ask about this" }).nth(0)).toHaveAttribute("href", /\/chat\?prompt=/);
       await expectNoDocumentHorizontalScroll(page);
     });

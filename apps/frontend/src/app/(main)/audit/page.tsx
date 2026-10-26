@@ -1,25 +1,32 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ChevronRight, Layers } from "lucide-react";
 
-import { ActionChecklist } from "@/components/audit/ActionChecklist";
-import { InvariantChecksGrid } from "@/components/audit/InvariantChecksGrid";
-import { TemporalTimelineGrid } from "@/components/audit/TemporalTimelineGrid";
-import { TrustScoreHero } from "@/components/audit/TrustScoreHero";
+import {
+  ActionChecklist,
+  InvariantChecksGrid,
+  TemporalTimelineGrid,
+  TrustScoreHero,
+} from "@/components/audit/TrustScoreHero";
+import { AiSuggestionsQueue } from "@/components/audit/AiSuggestionsQueue";
+import { CorrectionLoopProof } from "@/components/audit/CorrectionLoopProof";
+import { NeedsConfirmationQueue } from "@/components/audit/NeedsConfirmationQueue";
 import { auditHubItems } from "@/components/navigation";
+import { Stage2ReviewQueue } from "@/components/review/Stage2ReviewQueue";
 import { PageHeader } from "@/components/ui";
 import { useDataQualityHealth } from "@/hooks/useDataQualityHealth";
 
 const DESCRIPTIONS: Record<string, string> = {
-  "/confidence": "How trusted each number is — confirmations needed and low-confidence items.",
   "/reconciliation": "How well your statements reconcile, and anything still unmatched.",
   "/journal": "The double-entry ledger behind every figure in your reports.",
-  "/processing": "The status of statements still being parsed or transformed.",
+  "/upload": "Uploaded bank, brokerage, and card statements with extraction status and transfers still in flight.",
 };
 
 export default function AuditPage() {
   const { data, isLoading, isError, refetch, isFetching } = useDataQualityHealth();
+  const runId = useSearchParams()?.get("run_id")?.trim() || null;
 
   return (
     <div className="space-y-8 p-6 max-w-7xl mx-auto">
@@ -48,7 +55,6 @@ export default function AuditPage() {
         </div>
       ) : (
         <>
-          {/* 1. Score Hero */}
           <TrustScoreHero
             score={data.score}
             grade={data.grade}
@@ -58,10 +64,8 @@ export default function AuditPage() {
             onRefresh={() => refetch()}
           />
 
-          {/* 2. Prioritized Action Checklist */}
           <ActionChecklist actionItems={data.action_items} />
 
-          {/* 3. Invariant Proofs */}
           <InvariantChecksGrid
             equationInvariant={data.equation_invariant}
             temporalInvariant={data.temporal_continuity_invariant}
@@ -69,13 +73,23 @@ export default function AuditPage() {
             lineageInvariant={data.lineage_anchors_invariant}
           />
 
-          {/* 4. Temporal Rollforward Timeline */}
           <TemporalTimelineGrid timeline={data.timeline} />
         </>
       )}
 
-      {/* 5. Underlying Accounting Machinery & Deep Links */}
       <div className="border-t border-[var(--border)] pt-6">
+        <div className="mb-6 space-y-6">
+          <NeedsConfirmationQueue />
+          {runId && (
+            <section aria-labelledby="run-review-heading" className="space-y-3">
+              <h2 id="run-review-heading" className="text-sm font-semibold">Review this reconciliation run</h2>
+              <Stage2ReviewQueue embedded runId={runId} />
+            </section>
+          )}
+          <AiSuggestionsQueue />
+          <CorrectionLoopProof />
+        </div>
+
         <div className="mb-3 flex items-center gap-2">
           <Layers className="h-4 w-4 text-muted" aria-hidden="true" />
           <h3 className="text-sm font-semibold uppercase tracking-wider text-muted">

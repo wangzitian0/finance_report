@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { ReviewActionBar } from "@/components/review/ReviewActionBar";
+import { ReviewActionBar } from "@/components/review/TransactionTable";
 
 describe("ReviewActionBar in-place unblock (EPIC-022 AC22.5.2)", () => {
     const baseProps = {

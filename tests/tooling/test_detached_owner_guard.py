@@ -318,7 +318,10 @@ def test_shortcut(db):
 
 def test_AC8_13_128_current_repo_shortcuts_do_not_exceed_budget() -> None:
     """AC8.13.128: the current detached-owner count is a non-growth ceiling."""
-    findings = detached_owner_guard.scan_default_paths(ROOT)
+    findings = detached_owner_guard.scan_paths(
+        [ROOT / path for path in detached_owner_guard.DEFAULT_TEST_ROOTS],
+        repo_root=ROOT,
+    )
     result = detached_owner_guard.evaluate_budget(findings)
 
     assert result.ok, result.message

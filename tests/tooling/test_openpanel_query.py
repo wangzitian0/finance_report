@@ -97,7 +97,9 @@ def test_AC23_1_4_refuses_plaintext_http_except_loopback(
     """AC24.1.4: the API key is never sent over plaintext http to a remote host."""
     monkeypatch.delenv("OPENPANEL_API_URL", raising=False)
     # Loopback http is allowed (local dev).
-    assert cli.resolve_api_url("http://localhost:3000/api") == "http://localhost:3000/api"
+    assert (
+        cli.resolve_api_url("http://localhost:3000/api") == "http://localhost:3000/api"
+    )
     assert cli.resolve_api_url("http://127.0.0.1/api") == "http://127.0.0.1/api"
     # Remote http (or any non-https/non-loopback scheme) is refused.
     with pytest.raises(SystemExit):
@@ -139,3 +141,76 @@ def test_AC23_1_4_main_reports_network_failure(
     rc = cli.main(["funnel", "--steps", "a,b"])
     assert rc == 1
     assert "failed" in err.getvalue()
+
+
+def test_AC23_1_4_funnel_presets_and_markdown_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC24.1.4: funnel supports --preset core-funnel/activation and --format markdown."""
+    monkeypatch.setenv("OPENPANEL_API_KEY", "secret-key")
+    preset_ns = argparse.Namespace(
+        command="funnel",
+        env="production",
+        limit=100,
+        steps=None,
+        preset="core-funnel",
+        api_url=None,
+    )
+    payload = cli.build_payload(preset_ns)
+    assert payload["steps"] == [
+        "upload_started",
+        "upload_succeeded",
+        "review_approved",
+        "report_generated",
+    ]
+
+    with pytest.raises(SystemExit):
+        cli.resolve_funnel_steps(argparse.Namespace(steps="only_one", preset=None))
+    with pytest.raises(SystemExit):
+        cli.resolve_funnel_steps(
+            argparse.Namespace(steps=None, preset="unknown-preset")
+        )
+
+    monkeypatch.setattr(
+        cli,
+        "post_json",
+        lambda url, key, payload: {
+            "steps": [
+                {"event": "upload_started", "count": 20},
+                {"event": "upload_succeeded", "count": 15},
+                {"event": "review_approved", "count": 12},
+                {"event": "report_generated", "count": 10},
+            ]
+        },
+    )
+    out = io.StringIO()
+    monkeypatch.setattr("sys.stdout", out)
+    rc = cli.main(
+        [
+            "--env",
+            "production",
+            "--format",
+            "markdown",
+            "funnel",
+            "--preset",
+            "core-funnel",
+        ]
+    )
+    assert rc == 0
+    md = out.getvalue()
+    assert "### OpenPanel Funnel Summary (production)" in md
+    assert "| 1 | `upload_started` | 20 | 100.0% |" in md
+    assert "| 4 | `report_generated` | 10 | 50.0% |" in md
+
+    out_events = io.StringIO()
+    monkeypatch.setattr("sys.stdout", out_events)
+    monkeypatch.setattr(
+        cli, "post_json", lambda url, key, payload: {"events": [{"id": 1}, {"id": 2}]}
+    )
+    assert cli.main(["--env", "staging", "--format", "markdown", "events"]) == 0
+    assert "Total returned: 2" in out_events.getvalue()
+
+    empty_md = cli.format_markdown_summary({"steps": ["not-a-dict"]}, command="funnel")
+    assert "| 1 |" not in empty_md
+    no_steps_md = cli.format_markdown_summary({"steps": []}, command="funnel")
+    assert "(no funnel steps returned)" in no_steps_md

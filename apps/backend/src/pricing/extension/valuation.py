@@ -5,6 +5,7 @@ Valuation snapshots and their versioned read models are pricing-owned facts
 ``src.portfolio.extension.positions``.
 """
 
+from bisect import bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
@@ -16,8 +17,10 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import normalize_currency_code
 from src.audit.money import to_money
 from src.observability import get_logger
+from src.pricing.base.errors import NoObservationError, PricingError
 from src.pricing.base.manual_valuation import (
     ManualValuationBasis,
     ManualValuationComponentType,
@@ -66,6 +69,55 @@ class ValuationComponentsResult:
     total_liabilities: Decimal
     net_worth_delta: Decimal
     warnings: list[dict[str, str]] = field(default_factory=list)
+    # The current components that the scope excludes (#2645). The totals above do not include them.
+    excluded_items: list[ValuationComponentItem] = field(default_factory=list)
+
+
+# A scope without restricted holdings excludes the assets of these liquidity classes.
+_RESTRICTED_LIQUIDITY_CLASSES = frozenset(
+    {ManualValuationLiquidityClass.RESTRICTED.value, ManualValuationLiquidityClass.ILLIQUID.value}
+)
+
+
+def split_net_worth_scope(
+    items: Sequence[ValuationComponentItem],
+    *,
+    include_restricted: bool,
+) -> tuple[list[ValuationComponentItem], list[ValuationComponentItem]]:
+    """Return the manual valuations inside and outside one restricted-holdings scope (#2645).
+
+    This function is the only definition of the scope. The full scope holds each
+    component. The scope without restricted holdings excludes each restricted or
+    illiquid asset valuation. It also excludes each liability valuation whose
+    allocation class (``_manual_valuation_allocation_asset_class``, a fixed map
+    from the component type) is the class of an excluded asset. Only
+    ``mortgage_balance`` shares a class with an asset type (``real_estate``), so
+    a mortgage valuation leaves with an excluded property valuation.
+
+    Limits (#2659). There is no link from one liability to one asset:
+    - A ledger liability account, for example a mortgage kept as a loan account,
+      always counts. Only manual valuations take part in the scope.
+    - When one property valuation is excluded, every mortgage valuation leaves,
+      also the mortgage of a property valuation that is set to liquid.
+    - The rule reads the components current on the as-of date. A mortgage valuation
+      that is older than its property valuation counts until the property date.
+    """
+    if include_restricted:
+        return list(items), []
+    excluded_classes = {
+        _manual_valuation_allocation_asset_class(item.component_type)
+        for item in items
+        if item.liquidity_class in _RESTRICTED_LIQUIDITY_CLASSES
+    }
+    included: list[ValuationComponentItem] = []
+    excluded: list[ValuationComponentItem] = []
+    for item in items:
+        is_excluded = item.liquidity_class in _RESTRICTED_LIQUIDITY_CLASSES or (
+            item.liquidity_class == ManualValuationLiquidityClass.LIABILITY.value
+            and _manual_valuation_allocation_asset_class(item.component_type) in excluded_classes
+        )
+        (excluded if is_excluded else included).append(item)
+    return included, excluded
 
 
 _DEFAULT_LIQUIDITY_CLASS: dict[ManualValuationComponentType, ManualValuationLiquidityClass] = {
@@ -419,10 +471,6 @@ class ValuationService:
             .having(func.min(ManualValuationSnapshot.as_of_date) > as_of_date)
             .order_by(ManualValuationSnapshot.component_type, ManualValuationSnapshot.source)
         )
-        hidden_classes = (
-            ManualValuationLiquidityClass.RESTRICTED,
-            ManualValuationLiquidityClass.ILLIQUID,
-        )
         warnings: list[dict[str, str]] = [
             {
                 "type": "valuation_component_not_yet_recorded",
@@ -437,47 +485,37 @@ class ValuationService:
                 ),
             }
             for row in gap_rows
-            if include_restricted or row.latest_liquidity_class not in hidden_classes
+            if include_restricted or row.latest_liquidity_class not in _RESTRICTED_LIQUIDITY_CLASSES
         ]
 
-        total_assets = Decimal("0.00")
-        total_liabilities = Decimal("0.00")
-        items: list[ValuationComponentItem] = []
-
-        for snapshot in snapshots:
-            if not include_restricted and snapshot.liquidity_class in (
-                ManualValuationLiquidityClass.RESTRICTED,
-                ManualValuationLiquidityClass.ILLIQUID,
-            ):
-                continue
-
-            value = to_money(snapshot.value)
-            if snapshot.liquidity_class == ManualValuationLiquidityClass.LIABILITY:
-                total_liabilities += value
-            else:
-                total_assets += value
-
-            items.append(
+        items, excluded_items = split_net_worth_scope(
+            [
                 ValuationComponentItem(
                     id=snapshot.id,
                     component_type=snapshot.component_type.value,
                     liquidity_class=snapshot.liquidity_class.value,
                     as_of_date=snapshot.as_of_date,
-                    value=value,
+                    value=to_money(snapshot.value),
                     currency=snapshot.currency,
                     source=snapshot.source,
                     provenance="manual",
                 )
-            )
-
-        total_assets = to_money(total_assets)
-        total_liabilities = to_money(total_liabilities)
+                for snapshot in snapshots
+            ],
+            include_restricted=include_restricted,
+        )
+        liability = ManualValuationLiquidityClass.LIABILITY.value
+        total_assets = to_money(sum((item.value for item in items if item.liquidity_class != liability), Decimal("0")))
+        total_liabilities = to_money(
+            sum((item.value for item in items if item.liquidity_class == liability), Decimal("0"))
+        )
         return ValuationComponentsResult(
             items=items,
             total_assets=total_assets,
             total_liabilities=total_liabilities,
             net_worth_delta=to_money(total_assets - total_liabilities),
             warnings=warnings,
+            excluded_items=excluded_items,
         )
 
 
@@ -520,6 +558,41 @@ def _manual_valuation_allocation_asset_class(component_type: str) -> str:
     return "other"
 
 
+def _manual_valuation_line(component: ValuationComponentItem, amount: Decimal | None) -> dict[str, Any]:
+    """Build one balance-sheet line from a component and its target-currency amount.
+
+    ``amount`` is None only for an excluded component with no FX rate (see
+    ``build_manual_valuation_lines``). An included line always has an amount.
+    """
+    is_liability = component.liquidity_class == ManualValuationLiquidityClass.LIABILITY.value
+    return {
+        "account_id": component.id,
+        "name": _valuation_line_name(component.source, component.component_type),
+        # Plain string, not ledger.AccountType: pricing must not depend on
+        # ledger (target dep table, migration-standard.md); AccountType is a
+        # str-Enum, so "ASSET"/"LIABILITY" compare/serialize identically to
+        # the enum members every consumer of this line dict expects.
+        "type": "LIABILITY" if is_liability else "ASSET",
+        "parent_id": None,
+        "amount": None if amount is None else to_money(amount),
+        "provenance": "manual",
+        "source_currency": component.currency.upper(),
+        "allocation_asset_class": _manual_valuation_allocation_asset_class(component.component_type),
+        "allocation_liquidity_class": component.liquidity_class,
+        "allocation_source_type": "manual_valuation",
+    }
+
+
+def _split_manual_valuation_lines(
+    lines: Sequence[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    asset_lines = sorted((line for line in lines if line["type"] == "ASSET"), key=lambda line: line["name"].lower())
+    liability_lines = sorted(
+        (line for line in lines if line["type"] == "LIABILITY"), key=lambda line: line["name"].lower()
+    )
+    return asset_lines, liability_lines
+
+
 async def build_manual_valuation_lines(
     db: AsyncSession,
     user_id: UUID,
@@ -528,6 +601,7 @@ async def build_manual_valuation_lines(
     target_currency: str,
     include_restricted: bool = True,
     warnings: list[dict[str, str]] | None = None,
+    excluded_lines: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Build balance sheet lines from latest manual valuation components.
 
@@ -535,6 +609,14 @@ async def build_manual_valuation_lines(
     market-adjustment builder): components whose only snapshot postdates
     ``as_of_date`` are absent from the lines, and the caller's report should
     disclose that instead of presenting a silently incomplete total (#1796).
+
+    ``excluded_lines`` is an optional accumulator too. It receives one line in
+    ``target_currency`` for each component that the scope excludes
+    (``split_net_worth_scope``), so the caller can name what it left out (#2645).
+    The totals do not depend on an excluded line. Thus a pricing-family FX error
+    on an excluded component does not raise: its line has the amount None and a
+    ``conversion_warning`` that names the component, the currency pair and the
+    error type. Any other error still raises.
 
     Raises the pricing error family
     (:class:`~src.pricing.base.errors.PricingError`) when a required FX rate
@@ -558,10 +640,8 @@ async def build_manual_valuation_lines(
     )
     if warnings is not None:
         warnings.extend(components.warnings)
-    asset_lines: list[dict[str, Any]] = []
-    liability_lines: list[dict[str, Any]] = []
 
-    for component in components.items:
+    async def line_of(component: ValuationComponentItem) -> dict[str, Any]:
         amount = component.value
         source_currency = component.currency.upper()
         if source_currency != target_currency:
@@ -573,29 +653,121 @@ async def build_manual_valuation_lines(
                 rate_date=as_of_date,
                 lazy_load=True,
             )
+        return _manual_valuation_line(component, amount)
 
-        is_liability = component.liquidity_class == ManualValuationLiquidityClass.LIABILITY.value
-        line = {
-            "account_id": component.id,
-            "name": _valuation_line_name(component.source, component.component_type),
-            # Plain string, not ledger.AccountType: pricing must not depend on
-            # ledger (target dep table, migration-standard.md); AccountType is a
-            # str-Enum, so "ASSET"/"LIABILITY" compare/serialize identically to
-            # the enum members every consumer of this line dict expects.
-            "type": "LIABILITY" if is_liability else "ASSET",
-            "parent_id": None,
-            "amount": to_money(amount),
-            "provenance": "manual",
-            "source_currency": source_currency,
-            "allocation_asset_class": _manual_valuation_allocation_asset_class(component.component_type),
-            "allocation_liquidity_class": component.liquidity_class,
-            "allocation_source_type": "manual_valuation",
-        }
-        if is_liability:
-            liability_lines.append(line)
-        else:
-            asset_lines.append(line)
+    lines = [await line_of(component) for component in components.items]
+    if excluded_lines is not None:
+        for component in components.excluded_items:
+            try:
+                excluded_lines.append(await line_of(component))
+            except PricingError as exc:
+                excluded_lines.append(
+                    {
+                        **_manual_valuation_line(component, None),
+                        "conversion_warning": {
+                            # NoObservationError: no stored or fetched rate. Any other
+                            # pricing error: the rate exists but the conversion failed.
+                            "type": (
+                                "missing_fx_rate_excluded_holding"
+                                if isinstance(exc, NoObservationError)
+                                else "fx_conversion_failed_excluded_holding"
+                            ),
+                            "component_type": component.component_type,
+                            "source": component.source,
+                            "currency": component.currency.upper(),
+                            "target_currency": target_currency,
+                            "as_of_date": as_of_date.isoformat(),
+                            "message": str(exc),
+                        },
+                    }
+                )
+    return _split_manual_valuation_lines(lines)
 
-    asset_lines.sort(key=lambda line: line["name"].lower())
-    liability_lines.sort(key=lambda line: line["name"].lower())
-    return asset_lines, liability_lines
+
+async def build_manual_valuation_lines_series(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    as_of_dates: Sequence[date],
+    target_currency: str,
+    include_restricted: bool = True,
+) -> dict[date, tuple[list[dict[str, Any]], list[dict[str, Any]]]]:
+    """Return the ``build_manual_valuation_lines`` lines for each date in ``as_of_dates``.
+
+    The lines are equal to one ``build_manual_valuation_lines`` call per date.
+    The warnings are not returned. The selected components change only on a
+    date that holds a current snapshot. Thus the components are read once per
+    such date, not once per requested date. The FX rates are read once per
+    source currency. An FX miss raises the pricing error family, as the
+    single-date builder does.
+    """
+    from src.pricing.extension.fx import _convert_money_amount, get_exchange_rate, get_exchange_rate_series
+
+    target_currency = target_currency.upper()
+    ordered = sorted(set(as_of_dates))
+    if not ordered:
+        return {}
+    snapshot_dates = sorted(
+        (
+            await db.execute(
+                select(ManualValuationSnapshot.as_of_date)
+                .distinct()
+                .where(ManualValuationSnapshot.user_id == user_id)
+                .where(ManualValuationSnapshot.superseded_by_id.is_(None))
+                .where(ManualValuationSnapshot.as_of_date <= ordered[-1])
+            )
+        )
+        .scalars()
+        .all()
+    )
+    selected_snapshot_date: dict[date, date | None] = {}
+    for as_of_date in ordered:
+        position = bisect_right(snapshot_dates, as_of_date)
+        selected_snapshot_date[as_of_date] = snapshot_dates[position - 1] if position else None
+
+    components_by_snapshot_date: dict[date, list[ValuationComponentItem]] = {}
+    for snapshot_date in sorted({value for value in selected_snapshot_date.values() if value is not None}):
+        components = await ValuationService().get_latest_valuation_components(
+            db,
+            user_id,
+            as_of_date=snapshot_date,
+            include_restricted=include_restricted,
+        )
+        components_by_snapshot_date[snapshot_date] = components.items
+
+    def components_on(as_of_date: date) -> list[ValuationComponentItem]:
+        snapshot_date = selected_snapshot_date[as_of_date]
+        return components_by_snapshot_date[snapshot_date] if snapshot_date is not None else []
+
+    dates_by_currency: dict[str, list[date]] = {}
+    for as_of_date in ordered:
+        for component in components_on(as_of_date):
+            source_currency = component.currency.upper()
+            if source_currency != target_currency:
+                dates_by_currency.setdefault(source_currency, []).append(as_of_date)
+    rates_by_currency = {
+        source_currency: await get_exchange_rate_series(
+            db, source_currency, target_currency, rate_dates, lazy_load=True
+        )
+        for source_currency, rate_dates in dates_by_currency.items()
+    }
+
+    series: dict[date, tuple[list[dict[str, Any]], list[dict[str, Any]]]] = {}
+    for as_of_date in ordered:
+        lines: list[dict[str, Any]] = []
+        for component in components_on(as_of_date):
+            amount = component.value
+            source_currency = component.currency.upper()
+            if source_currency != target_currency:
+                rate = rates_by_currency[source_currency].get(as_of_date)
+                if rate is None:
+                    # Raises the same pricing error as the single-date builder.
+                    rate = await get_exchange_rate(db, source_currency, target_currency, as_of_date, lazy_load=True)
+                # Same normalization and math as convert_amount in the single-date builder.
+                source_code = normalize_currency_code(source_currency)
+                target_code = normalize_currency_code(target_currency)
+                if source_code != target_code:
+                    amount = _convert_money_amount(amount, source_code, target_code, rate)
+            lines.append(_manual_valuation_line(component, amount))
+        series[as_of_date] = _split_manual_valuation_lines(lines)
+    return series

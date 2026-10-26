@@ -2,15 +2,19 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import CashFlowPage from "@/app/(main)/reports/cash-flow/page"
+import ReportsPage from "@/app/(main)/reports/page"
 import { apiOperation, apiOperationDownload } from "@/lib/api-client"
+
+import { setTestUrl } from "./helpers/nextNavigation"
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }))
 
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => ({ get: () => null }),
+vi.mock("next/navigation", async () => (await import("./helpers/nextNavigation")).nextNavigationMock)
+
+vi.mock("@/hooks/useBaseCurrency", () => ({
+  useBaseCurrency: () => ({ baseCurrency: "SGD", loading: false }),
 }))
 
 vi.mock("@/components/charts/SankeyChart", () => ({
@@ -27,6 +31,8 @@ vi.mock("@/lib/api-client", () => ({
   apiOperationDownload: vi.fn(),
 }))
 
+const CashFlowPage = () => <ReportsPage />
+
 describe("CashFlowPage", () => {
   const mockedApiDownload = vi.mocked(apiOperationDownload)
   const mockedApiFetch = vi.mocked(apiOperation)
@@ -34,6 +40,7 @@ describe("CashFlowPage", () => {
   beforeEach(() => {
     mockedApiDownload.mockReset()
     mockedApiFetch.mockReset()
+    setTestUrl("/reports?tab=cash-flow")
     vi.stubGlobal("URL", Object.assign(URL, {
       createObjectURL: vi.fn(() => "blob:cash-flow-export"),
       revokeObjectURL: vi.fn(),
@@ -61,9 +68,9 @@ describe("CashFlowPage", () => {
       start_date: "2026-01-01",
       end_date: "2026-02-01",
       currency: "SGD",
-      operating: [{ category: "operating", subcategory: "Sales", amount: "1000", description: "Main ops" }],
-      investing: [{ category: "investing", subcategory: "ETF", amount: "-300", description: null }],
-      financing: [{ category: "financing", subcategory: "Loan", amount: "200", description: null }],
+      operating: [{ line_id: "operating-sales", category: "operating", subcategory: "Sales", amount: "1000", description: "Main ops", event_count: 1 }],
+      investing: [{ line_id: "investing-etf", category: "investing", subcategory: "ETF", amount: "-300", description: null, event_count: 1 }],
+      financing: [{ line_id: "financing-loan", category: "financing", subcategory: "Loan", amount: "200", description: null, event_count: 1 }],
       summary: {
         operating_activities: "1000",
         investing_activities: "-300",
@@ -77,7 +84,7 @@ describe("CashFlowPage", () => {
 
     render(<CashFlowPage />)
 
-    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Cash Flow Statement" })).toBeInTheDocument())
     expect(screen.getByText("Net Cash Flow")).toBeInTheDocument()
     expect(screen.getByText("Operating Activities")).toBeInTheDocument()
     expect(screen.getByText("Investing Activities")).toBeInTheDocument()
@@ -90,7 +97,8 @@ describe("CashFlowPage", () => {
       "href",
       expect.stringContaining("/chat?prompt=")
     )
-    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/")
+    // A tab of /reports has no Home link: the app shell navigates.
+    expect(screen.queryByRole("link", { name: "Home" })).toBeNull()
     expect(screen.getByRole("button", { name: "Export CSV" })).toBeInTheDocument()
 
     const netCashFlowCard = screen.getByText("Net Cash Flow").closest("div")
@@ -186,7 +194,7 @@ describe("CashFlowPage", () => {
           end_date: "2026-02-01",
           currency: "SGD",
           operating: [
-            { category: "operating", subcategory: "Salary", amount: "500", description: "Inflow - Salary", account_id: "acc-salary" },
+            { line_id: "operating-salary", category: "operating", subcategory: "Salary", amount: "500", description: "Inflow - Salary", account_id: "acc-salary", event_count: 1 },
           ],
           investing: [],
           financing: [],
@@ -224,6 +232,148 @@ describe("CashFlowPage", () => {
     // Closing the drawer clears the drill target.
     fireEvent.click(within(dialog).getByRole("button", { name: /close/i }))
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  })
+
+  // AC-reporting.fe-fetch-budget.8
+  it("AC-reporting.fe-fetch-budget.8 loads the events of a cash-flow line only after the user expands the line", async () => {
+    const lineEventsOperation = "list_cash_flow_line_events_reports_cash_flow_line_events_get"
+    const lineEvent = (id: string, memo: string, amount: string, entryDate: string) => ({
+      journal_entry_id: id,
+      journal_line_ids: [`${id}-cash`, `${id}-counter`],
+      source_type: "system",
+      source_id: null,
+      decision_anchor_id: null,
+      decision_authority_state: "anchored",
+      event_types: [],
+      activity: "Operating",
+      reason_code: null,
+      entry_date: entryDate,
+      memo,
+      amount,
+    })
+    mockedApiFetch.mockImplementation((operationId: string, request?: unknown) => {
+      if (operationId === "cash_flow_reports_cash_flow_get") {
+        return Promise.resolve({
+          start_date: "2026-01-01",
+          end_date: "2026-01-31",
+          currency: "SGD",
+          operating: [
+            { line_id: "operating-salary", category: "Operating", subcategory: "Salary", amount: "9000.00", description: "Inflow - Salary", account_id: "acc-salary", event_count: 3 },
+            { line_id: "operating-groceries", category: "Operating", subcategory: "Groceries", amount: "-105.00", description: "Outflow - Groceries", account_id: "acc-groceries", event_count: 201 },
+          ],
+          investing: [],
+          financing: [],
+          summary: {
+            operating_activities: "8895.00", investing_activities: "0.00", financing_activities: "0.00",
+            net_cash_flow: "8895.00", beginning_cash: "0.00", ending_cash: "8895.00",
+          },
+          lineage_summary: { event_count: 204, classified_event_count: 204, unclassified_event_count: 0, opening_stock_event_count: 0 },
+          proof_state: "proven",
+          proof_reasons: [],
+        })
+      }
+      if (operationId === lineEventsOperation) {
+        const { offset } = (request as { query: { offset: number } }).query
+        return Promise.resolve({
+          line_id: "operating-groceries",
+          total: 201,
+          limit: 200,
+          offset,
+          events:
+            offset === 0
+              ? [lineEvent("entry-1", "Groceries Jan 3", "-40.00", "2026-01-03"), lineEvent("entry-2", "Groceries Jan 9", "-25.00", "2026-01-09")]
+              : [lineEvent("entry-3", "Groceries Jan 12", "-40.00", "2026-01-12")],
+        })
+      }
+      return Promise.resolve({})
+    })
+    const lineEventCalls = () => mockedApiFetch.mock.calls.filter(([operationId]) => operationId === lineEventsOperation)
+
+    render(<CashFlowPage />)
+
+    const toggle = await screen.findByRole("button", { name: "201 events for Outflow - Groceries" })
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(toggle).toHaveTextContent("201 events")
+    expect(screen.getByRole("button", { name: "3 events for Inflow - Salary" })).toHaveTextContent("3 events")
+    expect(screen.getByText("Salary")).toBeInTheDocument()
+    expect(lineEventCalls()).toHaveLength(0)
+    expect(screen.queryByText("Groceries Jan 3")).not.toBeInTheDocument()
+
+    fireEvent.click(toggle)
+
+    const events = await screen.findByRole("region", { name: "Events for Outflow - Groceries" })
+    await waitFor(() => expect(within(events).getByText("Groceries Jan 3")).toBeInTheDocument())
+    expect(within(events).getByText("Groceries Jan 9")).toBeInTheDocument()
+    expect(within(events).getByText("2 of 201 events")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "201 events for Outflow - Groceries" })).toHaveAttribute("aria-expanded", "true")
+    expect(lineEventCalls()).toHaveLength(1)
+    expect(lineEventCalls()[0][1]).toMatchObject({
+      query: { start_date: "2026-01-01", end_date: "2026-01-31", currency: "SGD", line_id: "operating-groceries", limit: 200, offset: 0 },
+    })
+
+    fireEvent.click(within(events).getByRole("button", { name: "Load more events" }))
+    await waitFor(() => expect(within(events).getByText("Groceries Jan 12")).toBeInTheDocument())
+    expect(within(events).getByText("3 of 201 events")).toBeInTheDocument()
+    expect(lineEventCalls()).toHaveLength(2)
+    expect(lineEventCalls()[1][1]).toMatchObject({ query: { line_id: "operating-groceries", offset: 200 } })
+
+    // Closing and opening the line again reads the cached pages without a request.
+    fireEvent.click(screen.getByRole("button", { name: "201 events for Outflow - Groceries" }))
+    expect(screen.queryByRole("region", { name: "Events for Outflow - Groceries" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "201 events for Outflow - Groceries" }))
+    expect(await screen.findByText("Groceries Jan 12")).toBeInTheDocument()
+    expect(lineEventCalls()).toHaveLength(2)
+    expect(lineEventCalls().every(([, request]) => (request as { query: { line_id: string } }).query.line_id === "operating-groceries")).toBe(true)
+  })
+
+  it("keeps the loaded events of a line visible when a later page fails", async () => {
+    mockedApiFetch.mockImplementation((operationId: string, request?: unknown) => {
+      if (operationId === "cash_flow_reports_cash_flow_get") {
+        return Promise.resolve({
+          start_date: "2026-01-01",
+          end_date: "2026-01-31",
+          currency: "SGD",
+          operating: [
+            { line_id: "operating-groceries", category: "Operating", subcategory: "Groceries", amount: "-40.00", description: "Outflow - Groceries", account_id: "acc-groceries", event_count: 201 },
+          ],
+          investing: [],
+          financing: [],
+          summary: {
+            operating_activities: "-40.00", investing_activities: "0.00", financing_activities: "0.00",
+            net_cash_flow: "-40.00", beginning_cash: "100.00", ending_cash: "60.00",
+          },
+          lineage_summary: { event_count: 201, classified_event_count: 201, unclassified_event_count: 0, opening_stock_event_count: 0 },
+          proof_state: "proven",
+          proof_reasons: [],
+        })
+      }
+      if ((request as { query: { offset: number } }).query.offset > 0) {
+        return Promise.reject(new Error("events page failed"))
+      }
+      return Promise.resolve({
+        line_id: "operating-groceries",
+        total: 201,
+        limit: 200,
+        offset: 0,
+        events: [
+          {
+            journal_entry_id: "entry-1", journal_line_ids: ["l1", "l2"], source_type: "system", source_id: null,
+            decision_anchor_id: null, decision_authority_state: "anchored", event_types: [], activity: "Operating",
+            reason_code: null, entry_date: "2026-01-03", memo: "Groceries Jan 3", amount: "-40.00",
+          },
+        ],
+      })
+    })
+
+    render(<CashFlowPage />)
+    fireEvent.click(await screen.findByRole("button", { name: "201 events for Outflow - Groceries" }))
+    const events = await screen.findByRole("region", { name: "Events for Outflow - Groceries" })
+    await waitFor(() => expect(within(events).getByText("Groceries Jan 3")).toBeInTheDocument())
+
+    fireEvent.click(within(events).getByRole("button", { name: "Load more events" }))
+
+    await waitFor(() => expect(within(events).getByText("events page failed")).toBeInTheDocument())
+    expect(within(events).getByText("Groceries Jan 3")).toBeInTheDocument()
   })
 
   // AC-reporting.fe-report-surfaces.18
@@ -272,12 +422,10 @@ describe("CashFlowPage", () => {
       filename: "cash-flow-2026-01-01-to-2026-01-31.csv",
     })
 
+    // January 2026 in SGD: one link reproduces the period and the currency.
+    setTestUrl("/reports?tab=cash-flow&period=1M&end=2026-01-31&currency=SGD")
     render(<CashFlowPage />)
 
-    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
-    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "2026-01-01" } })
-    await waitFor(() => expect(screen.getByLabelText("End date")).toBeInTheDocument())
-    fireEvent.change(screen.getByLabelText("End date"), { target: { value: "2026-01-31" } })
     await waitFor(() => expect(screen.getByRole("button", { name: "Export CSV" })).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Export CSV" }))
 
@@ -314,49 +462,35 @@ describe("CashFlowPage", () => {
       },
     })
 
+    setTestUrl("/reports?tab=cash-flow&period=1M&end=2026-02-28")
     const { container } = render(<CashFlowPage />)
 
-    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Cash Flow Statement" })).toBeInTheDocument())
+    expect(container.querySelector('input[type="date"]')).toBeNull()
 
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "USD" } })
+    fireEvent.change(screen.getByRole("combobox", { name: "Reporting currency" }), { target: { value: "USD" } })
 
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenLastCalledWith(
         "cash_flow_reports_cash_flow_get",
         expect.objectContaining({
-          query: expect.objectContaining({ currency: "USD" }),
+          query: expect.objectContaining({ currency: "USD", start_date: "2026-02-01", end_date: "2026-02-28" }),
         }),
       ),
     )
-    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
 
-    const dateInputs = container.querySelectorAll('input[type="date"]')
-    expect(dateInputs).toHaveLength(2)
-    fireEvent.change(dateInputs[0], { target: { value: "2026-01-15" } })
+    fireEvent.click(screen.getByRole("button", { name: "Previous period" }))
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenLastCalledWith(
         "cash_flow_reports_cash_flow_get",
         expect.objectContaining({
-          query: expect.objectContaining({ start_date: "2026-01-15" }),
+          query: expect.objectContaining({ currency: "USD", start_date: "2026-01-01", end_date: "2026-01-31" }),
         }),
       ),
     )
-    await waitFor(() => expect(screen.getByText("Cash Flow Statement")).toBeInTheDocument())
-    fireEvent.change(container.querySelectorAll('input[type="date"]')[1], { target: { value: "2026-02-15" } })
-    await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenLastCalledWith(
-        "cash_flow_reports_cash_flow_get",
-        expect.objectContaining({
-          query: expect.objectContaining({ end_date: "2026-02-15" }),
-        }),
-      ),
-    )
-    const lastCall = mockedApiFetch.mock.calls.at(-1)
-    expect(lastCall?.[0]).toBe("cash_flow_reports_cash_flow_get")
-    expect((lastCall?.[1] as any)?.query).toMatchObject({
-      start_date: "2026-01-15",
-      end_date: "2026-02-15",
-    })
     expect(screen.getAllByText("No items in this category.")).toHaveLength(3)
+
+    fireEvent.click(screen.getByRole("button", { name: "Period 1Q" }))
+    expect(screen.getByRole("button", { name: "Period 1Q" })).toHaveAttribute("aria-pressed", "true")
   })
 })

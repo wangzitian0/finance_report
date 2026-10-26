@@ -6,6 +6,7 @@ import { renderReviewComponent } from "./helpers/renderReviewComponent";
 
 vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 vi.mock("next/navigation", () => ({
+    useRouter: vi.fn(() => ({ push: vi.fn(), replace: vi.fn() })),
     useParams: vi.fn(() => ({ id: "s1" })),
     useSearchParams: vi.fn(() => new URLSearchParams()),
 }));
@@ -31,6 +32,18 @@ const parsedBrokerageStatement = {
     parsing_progress: 100,
     transactions: [],
 };
+
+const IMPORT_OP = "import_brokerage_statement_positions_statements__statement_id__brokerage_import_post";
+const RETRY_OP = "retry_statement_parsing_statements__statement_id__retry_post";
+
+function mockByOperation(statement: unknown, overrides: Record<string, () => Promise<unknown>> = {}) {
+    mockedApi.mockImplementation(((operationId: string) => {
+        const override = overrides[operationId];
+        if (override) return override();
+        if (operationId === "get_statement_statements__statement_id__get") return Promise.resolve(statement);
+        return Promise.resolve(null);
+    }) as any);
+}
 
 describe("StatementDetailPage - coverage additions", () => {
     beforeEach(() => vi.clearAllMocks());
@@ -97,9 +110,7 @@ describe("StatementDetailPage - coverage additions", () => {
             skipped: 0,
         };
 
-        mockedApi
-            .mockResolvedValueOnce(parsedBrokerageStatement as any)
-            .mockResolvedValueOnce(importResult as any);
+        mockByOperation(parsedBrokerageStatement, { [IMPORT_OP]: () => Promise.resolve(importResult) });
 
         renderReviewComponent(<StatementDetailPage /> as any);
 
@@ -121,11 +132,9 @@ describe("StatementDetailPage - coverage additions", () => {
 
     // AC-portfolio.fe-assets2.13
     it("AC17.8.3 shows actionable import error banner without exposing sensitive data", async () => {
-        mockedApi
-            .mockResolvedValueOnce(parsedBrokerageStatement as any)
-            .mockRejectedValueOnce(
-                new Error("Statement must be in PARSED or APPROVED status before importing"),
-            );
+        mockByOperation(parsedBrokerageStatement, { [IMPORT_OP]: () => Promise.reject(
+            new Error("Statement must be in PARSED or APPROVED status before importing"),
+        ) });
 
         renderReviewComponent(<StatementDetailPage /> as any);
 
@@ -144,11 +153,9 @@ describe("StatementDetailPage - coverage additions", () => {
     });
 
     it("AC17.8.3 sanitizes sensitive URLs in import error messages", async () => {
-        mockedApi
-            .mockResolvedValueOnce(parsedBrokerageStatement as any)
-            .mockRejectedValueOnce(
-                new Error("Import failed: https://s3.example.com/private/token=abc123"),
-            );
+        mockByOperation(parsedBrokerageStatement, { [IMPORT_OP]: () => Promise.reject(
+            new Error("Import failed: https://s3.example.com/private/token=abc123"),
+        ) });
 
         renderReviewComponent(<StatementDetailPage /> as any);
 
@@ -223,9 +230,7 @@ describe("StatementDetailPage - coverage additions", () => {
             transactions: [],
         };
 
-        mockedApi
-            .mockResolvedValueOnce(rejectedStatement as any)
-            .mockRejectedValueOnce(new Error("retry failed"));
+        mockByOperation(rejectedStatement, { [RETRY_OP]: () => Promise.reject(new Error("retry failed")) });
 
         renderReviewComponent(<StatementDetailPage /> as any);
 

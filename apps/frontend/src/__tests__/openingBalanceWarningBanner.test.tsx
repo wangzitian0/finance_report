@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { OpeningBalanceWarningBanner } from "@/components/reports/OpeningBalanceWarningBanner";
+import { OpeningBalanceWarningBanner } from "@/components/reports/ReportPageShell";
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
@@ -29,7 +29,7 @@ describe("OpeningBalanceWarningBanner (#1486)", () => {
 
     expect(screen.getByRole("alert")).toBeInTheDocument();
     expect(screen.getByText("Record opening balances to trust this total.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /set opening balances/i })).toHaveAttribute("href", "/accounts");
+    expect(screen.getByRole("link", { name: /set opening balances/i })).toHaveAttribute("href", "/settings?tab=accounts");
   });
 
   it("falls back to a default message when the warning carries none", () => {

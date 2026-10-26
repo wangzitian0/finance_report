@@ -46,11 +46,13 @@ describe("TransactionTable (read-only)", () => {
         expect(screen.queryByRole("combobox")).toBeNull();
     });
 
-    it("exposes a fixed desktop transaction region for responsive UX proofs", () => {
+    it("exposes a desktop transaction region that scrolls rows vertically and never horizontally", () => {
         render(<TransactionTable transactions={sample} currency="SGD" />);
 
         const region = screen.getByTestId("stage1-desktop-transaction-region");
-        expect(region).toHaveClass("overflow-hidden");
+        // The card has a fixed height beside the PDF; rows past it must scroll (#2621), the sticky header stays.
+        expect(region).toHaveClass("overflow-y-auto", "overflow-x-hidden");
+        expect(region).not.toHaveClass("overflow-hidden");
         const table = region.querySelector("table");
         expect(table).toHaveClass("table-fixed", "border-collapse");
         expect(table).toHaveStyle({ width: "calc(100% - 4px)" });
@@ -185,5 +187,35 @@ describe("TransactionTable (read-only)", () => {
         const mobileReviewBtn = screen.getByRole("button", { name: "Review / Fix" });
         fireEvent.click(mobileReviewBtn);
         expect(onSelect).toHaveBeenCalledTimes(2);
+    });
+
+    // AC-reconciliation.2465.2
+    it("AC-reconciliation.2465.2 defaults transaction status to matched when the statement is approved", () => {
+        const { status: _omittedStatus, ...withoutStatus } = sample[0];
+        void _omittedStatus;
+        render(<TransactionTable transactions={[withoutStatus as BankStatementTransaction]} currency="SGD" statementStatus="approved" />);
+        expect(screen.getAllByText("matched").length).toBeGreaterThan(0);
+        expect(screen.queryByText("pending")).not.toBeInTheDocument();
+    });
+
+    it("shows an explicit transaction status and defaults to pending for an unapproved statement", () => {
+        const { status: _omittedStatus, ...withoutStatus } = sample[0];
+        void _omittedStatus;
+        render(<TransactionTable transactions={[{ ...sample[0], id: "t-unmatched", status: "unmatched" }, { ...withoutStatus, id: "t-default" } as BankStatementTransaction]} currency="SGD" statementStatus="parsed" />);
+        expect(screen.getByText("unmatched")).toBeInTheDocument();
+        expect(screen.getByText("pending")).toBeInTheDocument();
+        expect(screen.queryByText("matched")).not.toBeInTheDocument();
+    });
+
+    // AC-extraction.fe-stage1-review.21
+    it("AC-extraction.fe-stage1-review.21 shows the status under the description, not in a column, and only with a statement status", () => {
+        const { rerender } = render(<TransactionTable transactions={sample} currency="SGD" />);
+        expect(screen.queryByText("pending")).not.toBeInTheDocument();
+        rerender(<TransactionTable transactions={sample} currency="SGD" statementStatus="parsed" />);
+        expect(screen.queryByRole("columnheader", { name: "Status" })).not.toBeInTheDocument();
+        const region = screen.getByTestId("stage1-desktop-transaction-region");
+        const descriptionCell = within(region).getByTitle("Coffee").closest("td");
+        expect(descriptionCell).not.toBeNull();
+        expect(within(descriptionCell as HTMLElement).getByText("pending")).toBeInTheDocument();
     });
 });

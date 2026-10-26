@@ -1,256 +1,95 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import {
-  BarChart2,
-  TrendingUp,
-  DollarSign,
-  FileText,
-  CalendarClock,
-  ShieldCheck,
-  ChevronDown,
-} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
-import { apiOperation } from "@/lib/api-client";
-import { formatCurrencyLocale } from "@/lib/audit/money";
-import { formatPercentFromPercentValue } from "@/lib/audit/ratio/format";
+import { BalanceSheetPanel } from "@/components/reports/BalanceSheetPanel";
+import { CashFlowPanel } from "@/components/reports/CashFlowPanel";
+import { IncomeStatementPanel } from "@/components/reports/IncomeStatementPanel";
+import { PackagePanel } from "@/components/reports/PackagePanel";
+import { ReportDimensionBar } from "@/components/reports/ReportFilters";
+import { StatementCockpit } from "@/components/reports/StatementCockpit";
 import { Badge } from "@/components/ui";
-import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
-import { packagePeriodRequest } from "@/lib/reportPackage";
+import { personalReportPackageQuery } from "@/hooks/usePersonalReportPackage";
+import { REPORT_TABS, reportsHref, useReportFilters, type ReportFilters } from "@/hooks/useReportFilters";
 import { countLabel, readinessVariant } from "@/lib/statusLabels";
-import type {
-  AnnualizedIncomeResponse,
-  PersonalReportPackageDocument,
-  PersonalReportPackageReadinessResponse,
-  ReconciliationStatsResponse,
-} from "@/lib/types";
+import type { PersonalReportPackageReadinessResponse } from "@/lib/types";
 
-// The four reports an everyday user reads (EPIC-022 AC22.3.1). Everything else
-// lives behind "More" (AC22.3.2).
-const MORE_REPORTS = [
-  {
-    id: "cash-flow",
-    title: "Cash Flow Statement",
-    description:
-      "Cash movements by operating, investing, and financing activities",
-    icon: DollarSign,
-    href: "/reports/cash-flow",
-  },
-  {
-    id: "personal-package",
-    title: "Personal Report Package",
-    description:
-      "Stable package contract for statements, schedules, notes, and traceability",
-    icon: FileText,
-    href: "/reports/package",
-  },
-];
-
-type ReadinessLoadState = "loading" | "loaded" | "error";
-
-function isPackageReadiness(
-  value: unknown,
-): value is PersonalReportPackageReadinessResponse {
-  const candidate =
-    value as Partial<PersonalReportPackageReadinessResponse> | null;
-  return Boolean(
-    candidate &&
-    typeof candidate.label === "string" &&
-    typeof candidate.action_href === "string" &&
-    typeof candidate.blocking_count === "number" &&
-    Array.isArray(candidate.blockers) &&
-    typeof candidate.input_coverage === "object",
-  );
-}
-
+/**
+ * `/reports`: the three statements and the report package as tabs of one page (#2621 LC).
+ *
+ * `?tab=` selects the tab and Overview is the default. The old routes `/reports/balance-sheet`,
+ * `/reports/income-statement`, `/reports/cash-flow` and `/reports/package` redirect here with
+ * their tab. One dimension bar sets the period and the currency of every tab.
+ */
 export default function ReportsPage() {
-  const [annualized, setAnnualized] = useState<AnnualizedIncomeResponse | null>(
-    null,
-  );
-  const [stats, setStats] = useState<ReconciliationStatsResponse | null>(null);
-  const [readiness, setReadiness] =
-    useState<PersonalReportPackageReadinessResponse | null>(null);
-  const [readinessState, setReadinessState] =
-    useState<ReadinessLoadState>("loading");
-  const [showMore, setShowMore] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    const loadAnnualizedFallback = () => {
-      apiOperation("get_annualized_income_income_annualized_get")
-        .then((data) => active && setAnnualized(data))
-        .catch(() => active && setAnnualized(null));
-    };
-    apiOperation("reconciliation_stats_reconciliation_stats_get")
-      .then((data) => active && setStats(data))
-      .catch(() => active && setStats(null));
-    apiOperation("preview_personal_report_package_reports_package_get", {
-      query: (() => {
-        const reportDate = new Date().toISOString().slice(0, 10);
-        return packagePeriodRequest(reportDate);
-      })(),
-    })
-      .then((document) => {
-        const packageIncome =
-          document?.sections?.annualized_income_long_term?.income;
-        if (
-          packageIncome &&
-          packageIncome.annualized_total != null &&
-          packageIncome.currency
-        ) {
-          if (active) {
-            setAnnualized({
-              annualized_salary: String(packageIncome.annualized_salary ?? "0"),
-              annualized_bonus: String(packageIncome.annualized_bonus ?? "0"),
-              annualized_dividend: String(
-                packageIncome.annualized_dividend ?? "0",
-              ),
-              annualized_total: String(packageIncome.annualized_total),
-              currency: String(packageIncome.currency),
-              as_of: String(document?.context?.as_of_date ?? ""),
-            });
-          }
-        } else {
-          loadAnnualizedFallback();
-        }
-        if (!isPackageReadiness(document.readiness)) {
-          if (active) {
-            setReadiness(null);
-            setReadinessState("error");
-          }
-          return;
-        }
-        if (active) {
-          setReadiness(document.readiness);
-          setReadinessState("loaded");
-        }
-      })
-      .catch(() => {
-        loadAnnualizedFallback();
-        if (active) {
-          setReadiness(null);
-          setReadinessState("error");
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // `match_rate` is already a 0–100 percentage from the backend
-  // (matched / total * 100), so it must not be multiplied by 100 again.
-  const matchRate = stats
-    ? formatPercentFromPercentValue(
-        stats.match_rate == null ? null : String(stats.match_rate),
-        { dp: 0, fallback: "—" },
-      )
-    : "—";
+  const filters = useReportFilters();
+  const { tab } = filters;
 
   return (
     <div className="p-6">
       <div className="page-header">
         <h1 className="page-title">Reports</h1>
-        <p className="page-description">
-          The four reports you read most. Open one to drill any amount down to
-          its source transactions.
-        </p>
+        <p className="page-description">Your three statements and the report package for one period. Select an amount to see its source transactions.</p>
       </div>
-
-      <ReportsReadinessCockpit
-        readiness={readiness}
-        loadState={readinessState}
-      />
-
-      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-        <ReportNavCard
-          title="Balance Sheet"
-          description="Assets, liabilities, and equity at a point in time"
-          icon={BarChart2}
-          href="/reports/balance-sheet"
-        />
-        <ReportNavCard
-          title="Income Statement"
-          description="Revenue and expenses over a period"
-          icon={TrendingUp}
-          href="/reports/income-statement"
-        />
-
-        <StatCard
-          title="Annualized Income"
-          icon={CalendarClock}
-          href="/reports/package"
-          value={
-            annualized
-              ? formatCurrencyLocale(
-                  annualized.annualized_total,
-                  annualized.currency,
-                )
-              : "—"
-          }
-          caption="Projected annual total — see the full breakdown in the report package →"
-        />
-        <StatCard
-          title="Reconciliation coverage"
-          icon={ShieldCheck}
-          infoTerm="reconciliation_coverage"
-          value={`${matchRate} matched`}
-          caption={
-            stats
-              ? `${stats.unmatched_transactions} unmatched`
-              : "Share of transactions reconciled"
-          }
-        />
+      <div className="mb-4">
+        <ReportDimensionBar filters={filters} showScope={tab === "overview" || tab === "balance-sheet"} />
       </div>
-
-      <div className="mb-6">
-        <button
-          type="button"
-          onClick={() => setShowMore((open) => !open)}
-          className="btn-secondary inline-flex items-center gap-2 text-sm"
-          aria-expanded={showMore}
-        >
-          More reports
-          <ChevronDown
-            className={`w-4 h-4 transition-transform ${showMore ? "rotate-180" : ""}`}
-            aria-hidden="true"
-          />
-        </button>
-
-        {showMore && (
-          <div className="grid md:grid-cols-2 gap-4 mt-4">
-            {MORE_REPORTS.map((report) => (
-              <ReportNavCard
-                key={report.id}
-                title={report.title}
-                description={report.description}
-                icon={report.icon}
-                href={report.href}
-              />
-            ))}
-          </div>
-        )}
+      <nav role="tablist" aria-label="Report tabs" className="mb-6 flex gap-1 overflow-x-auto whitespace-nowrap border-b border-[var(--border)]">
+        {REPORT_TABS.map((item) => (
+          <Link
+            key={item.id}
+            href={reportsHref(item.id, filters.dimensionQuery)}
+            role="tab"
+            aria-selected={tab === item.id}
+            className={`-mb-px shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+              tab === item.id
+                ? "border-[var(--accent)] text-[var(--foreground)]"
+                : "border-transparent text-muted hover:text-[var(--foreground)]"
+            }`}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+      <div role="tabpanel" aria-label={REPORT_TABS.find((item) => item.id === tab)?.label}>
+        {tab === "overview" && <ReportsOverview filters={filters} />}
+        {tab === "balance-sheet" && <BalanceSheetPanel filters={filters} />}
+        {tab === "income-statement" && <IncomeStatementPanel filters={filters} />}
+        {tab === "cash-flow" && <CashFlowPanel filters={filters} />}
+        {tab === "package" && <PackagePanel filters={filters} />}
       </div>
+    </div>
+  );
+}
 
-      <div className="card p-5">
-        <h2 className="font-semibold mb-3">Accounting Equation</h2>
-        <div className="flex items-center justify-center gap-3 text-lg flex-wrap">
-          <span className="px-3 py-1.5 rounded-md bg-[var(--success-muted)] text-[var(--success)] font-mono">
-            Assets
-          </span>
-          <span className="text-muted">=</span>
-          <span className="px-3 py-1.5 rounded-md bg-[var(--error-muted)] text-[var(--error)] font-mono">
-            Liabilities
-          </span>
-          <span className="text-muted">+</span>
-          <span className="px-3 py-1.5 rounded-md bg-[var(--info-muted)] text-[var(--info)] font-mono">
-            Equity
-          </span>
-        </div>
-        <p className="text-center text-xs text-muted mt-3">
-          All financial reports maintain this fundamental balance
-        </p>
-      </div>
+type ReadinessLoadState = "loading" | "loaded" | "error";
+
+/** A readiness action that opens the report package. It opens the Package tab with the bar period. */
+const REPORT_PACKAGE_HREF = /^\/reports(\/package)?([?#].*)?$/;
+
+function isPackageReadiness(value: unknown): value is PersonalReportPackageReadinessResponse {
+  const c = value as Partial<PersonalReportPackageReadinessResponse> | null;
+  return Boolean(c && typeof c.label === "string" && typeof c.action_href === "string" && typeof c.blocking_count === "number" && Array.isArray(c.blockers) && typeof c.input_coverage === "object");
+}
+
+/** The Overview tab: trust first. The readiness of the report package, then the three statement cards. */
+function ReportsOverview({ filters }: { filters: ReportFilters }) {
+  // The Package tab reads the same preview key (#2583 S4): a switch to the Package tab issues no request.
+  const packageQuery = useQuery(
+    personalReportPackageQuery({ frameworkId: null, reportDate: filters.endDate, startDate: filters.startDate, currency: filters.currency }),
+  );
+  const readiness = isPackageReadiness(packageQuery.data?.readiness) ? packageQuery.data.readiness : null;
+  const loadState: ReadinessLoadState = packageQuery.isError
+    ? "error"
+    : packageQuery.isSuccess
+      ? (readiness ? "loaded" : "error")
+      : "loading";
+
+  return (
+    <div className="space-y-6">
+      <ReportsReadinessCockpit readiness={readiness} loadState={loadState} packageHref={reportsHref("package", filters.dimensionQuery)} />
+      <StatementCockpit filters={filters} />
     </div>
   );
 }
@@ -258,9 +97,11 @@ export default function ReportsPage() {
 function ReportsReadinessCockpit({
   readiness,
   loadState,
+  packageHref,
 }: {
   readiness: PersonalReportPackageReadinessResponse | null;
   loadState: ReadinessLoadState;
+  packageHref: string;
 }) {
   const coverage = readiness?.input_coverage;
   const unprovenInputCount = coverage?.unproven_input_count ?? 0;
@@ -268,40 +109,26 @@ function ReportsReadinessCockpit({
 
   if (loadState === "error") {
     return (
-      <section aria-label="Report readiness cockpit" className="card p-5 mb-6">
+      <section aria-label="Report readiness cockpit" className="card p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 className="font-semibold">Report readiness</h2>
-            <p className="mt-2 text-sm text-muted">
-              Readiness unavailable. Report navigation stays available, but
-              trust status should be checked before relying on output.
-            </p>
+            <p className="mt-2 text-sm text-muted">Readiness unavailable. The report tabs stay available, but check trust status before you rely on output.</p>
           </div>
           <Badge variant="warning">Readiness unavailable</Badge>
         </div>
-        <Link
-          href="/reports/package"
-          className="btn-secondary mt-4 inline-flex text-sm"
-        >
-          Open report package
-        </Link>
+        <Link href={packageHref} className="btn-secondary mt-4 inline-flex text-sm">Open report package</Link>
       </section>
     );
   }
 
   if (loadState === "loading" || !readiness) {
     return (
-      <section
-        aria-label="Report readiness cockpit"
-        className="card p-5 mb-6"
-        aria-busy="true"
-      >
+      <section aria-label="Report readiness cockpit" className="card p-5" aria-busy="true">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h2 className="font-semibold">Report readiness</h2>
-            <p className="mt-2 text-sm text-muted">
-              Checking report readiness before showing trust status.
-            </p>
+            <p className="mt-2 text-sm text-muted">Checking report readiness before showing trust status.</p>
           </div>
           <Badge variant="muted">Checking</Badge>
         </div>
@@ -310,148 +137,54 @@ function ReportsReadinessCockpit({
   }
 
   return (
-    <section aria-label="Report readiness cockpit" className="card p-5 mb-6">
+    <section aria-label="Report readiness cockpit" className="card p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h2 className="font-semibold">Report readiness</h2>
           <p className="mt-2 text-sm text-muted">
-            {readiness.state === "blocked"
-              ? `${countLabel(readiness.blocking_count, "blocker")} must be resolved before reports are trusted.`
-              : `Current package state is ${readiness.label.toLowerCase()}.`}
+            {readiness.state === "blocked" ? `${countLabel(readiness.blocking_count, "blocker")} must be resolved before reports are trusted.` : `Current package state is ${readiness.label.toLowerCase()}.`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={readinessVariant(readiness.state)}>
-            {readiness.label}
-          </Badge>
-          <Link href={readiness.action_href} className="btn-secondary text-sm">
-            {readiness.blocking_count > 0
-              ? "Resolve report blockers"
-              : "Open readiness path"}
+          <Badge variant={readinessVariant(readiness.state)}>{readiness.label}</Badge>
+          <Link href={REPORT_PACKAGE_HREF.test(readiness.action_href) ? packageHref : readiness.action_href} className="btn-secondary text-sm">
+            {readiness.blocking_count > 0 ? "Resolve report blockers" : "Open readiness path"}
           </Link>
         </div>
       </div>
 
       <dl className="mt-5 grid gap-3 text-sm md:grid-cols-4">
-        <div>
-          <dt className="text-xs text-muted">Readiness</dt>
-          <dd className="mt-1 font-semibold">{readiness.label}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted">Blockers</dt>
-          <dd className="mt-1 font-semibold">
-            {countLabel(readiness.blocking_count, "blocker")}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted">Authority decisions</dt>
-          <dd className="mt-1 font-semibold">
-            {countLabel(coverage?.manifest_decision_count ?? 0, "decision")}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted">Unproven inputs</dt>
-          <dd className="mt-1 font-semibold">
-            {countLabel(unprovenInputCount, "unproven input")}
-          </dd>
-        </div>
+        {([
+          ["Readiness", readiness.label],
+          ["Blockers", countLabel(readiness.blocking_count, "blocker")],
+          ["Authority decisions", countLabel(coverage?.manifest_decision_count ?? 0, "decision")],
+          ["Unproven inputs", countLabel(unprovenInputCount, "unproven input")],
+        ] as const).map(([dt, dd]) => (
+          <div key={dt}><dt className="text-xs text-muted">{dt}</dt><dd className="mt-1 font-semibold">{dd}</dd></div>
+        ))}
       </dl>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <div className="rounded border border-[var(--border)] p-3">
           <h3 className="text-sm font-semibold">Authority coverage</h3>
           <p className="mt-2 text-sm text-muted">
-            {unprovenInputCount
-              ? `${countLabel(unprovenInputCount, "input")} still need current authority decisions.`
-              : "All inputs in this package document have current authority decisions."}
+            {unprovenInputCount ? `${countLabel(unprovenInputCount, "input")} still need current authority decisions.` : "All inputs in this package document have current authority decisions."}
           </p>
         </div>
         <div className="rounded border border-[var(--border)] p-3">
           <h3 className="text-sm font-semibold">Blocking actions</h3>
           {blockers.length ? (
             <ul className="mt-3 space-y-3">
-              {blockers.slice(0, 2).map((blocker) => (
-                <li key={blocker.code}>
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm font-medium">{blocker.label}</p>
-                    <Badge variant="muted">{blocker.count}</Badge>
-                  </div>
-                  <p className="mt-1 text-xs text-muted">{blocker.reason}</p>
+              {blockers.slice(0, 2).map((b) => (
+                <li key={b.code}>
+                  <div className="flex items-start justify-between gap-3"><p className="text-sm font-medium">{b.label}</p><Badge variant="muted">{b.count}</Badge></div>
+                  <p className="mt-1 text-xs text-muted">{b.reason}</p>
                 </li>
               ))}
             </ul>
-          ) : (
-            <p className="mt-2 text-sm text-muted">No blockers reported.</p>
-          )}
+          ) : <p className="mt-2 text-sm text-muted">No blockers reported.</p>}
         </div>
       </div>
     </section>
   );
-}
-
-interface ReportNavCardProps {
-  title: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string }>;
-  href: string;
-}
-
-function ReportNavCard({
-  title,
-  description,
-  icon: Icon,
-  href,
-}: ReportNavCardProps) {
-  return (
-    <Link href={href}>
-      <div className="card p-5 transition-colors hover:border-[var(--accent)] cursor-pointer h-full">
-        <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--background-muted)] mb-3">
-          <Icon className="w-5 h-5 text-[var(--accent)]" aria-hidden="true" />
-        </div>
-        <h3 className="font-semibold text-[var(--accent)] mb-1">{title}</h3>
-        <p className="text-sm text-muted">{description}</p>
-        <div className="mt-3 flex items-center text-xs text-muted">
-          <span>View report</span>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-interface StatCardProps {
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
-  /** Optional destination. Omit for a display-only stat that must not pull an
-        everyday user into an Advanced surface (EPIC-022 AC22.9.1). */
-  href?: string;
-  value: string;
-  caption: string;
-  /** Optional glossary term rendered as an InfoHint next to the title. */
-  infoTerm?: GlossaryTerm;
-}
-
-function StatCard({
-  title,
-  icon: Icon,
-  href,
-  value,
-  caption,
-  infoTerm,
-}: StatCardProps) {
-  const body = (
-    <div
-      className={`card p-5 transition-colors h-full ${href ? "hover:border-[var(--accent)] cursor-pointer" : ""}`}
-    >
-      <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[var(--background-muted)] mb-3">
-        <Icon className="w-5 h-5 text-[var(--accent)]" aria-hidden="true" />
-      </div>
-      <div className="mb-1 flex items-center">
-        <h3 className="font-semibold text-[var(--accent)]">{title}</h3>
-        {infoTerm && <InfoHint term={infoTerm} label={title} />}
-      </div>
-      <p className="text-xl font-semibold">{value}</p>
-      <p className="text-xs text-muted mt-1">{caption}</p>
-    </div>
-  );
-  return href ? <Link href={href}>{body}</Link> : body;
 }

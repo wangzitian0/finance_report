@@ -5,33 +5,32 @@ description: Step 6 of the flow. End a session. Choose Complete or Suspend, writ
 
 # close: exit gate
 
-Run this when you stop, for any reason. Each rule came from a session that ended wrongly.
+Run this when you stop, for any reason.
 
 ## 1. Choose the mode
 
 Run `ws-delivery-status` to verify physical delivery state before ending.
 
-To declare **Complete**, you MUST run:
-```bash
-ws-delivery-status --assert-complete --reality-probe "<command>"
-```
+To declare **Complete**, you MUST run `ws-delivery-status --assert-complete --reality-probe "<command>"`.
 
 | Condition | Task Mode | Issue & Production Disposition |
 |---|---|---|
-| `ws-delivery-status --assert-complete ...` exit 0, single-PR scope or no service deploy | **Complete** | Clean up worktree/branch; close issue; disposition `none` |
-| `ws-delivery-status --assert-complete ...` exit 0, service change in batched-staging repo (`auto-release-staging.yml`) or lane of multi-lane issue | **Complete** | Clean up worktree/branch; keep root product issue open with scope note (no `prod-pending`); disposition `batched-staging` |
-| `ws-delivery-status --assert-complete ...` exit 0, release promotion task with Stage 2 staging green + owner gave "deploy" + prod verified | **Complete** | Clean up worktree/branch; close issue; disposition `deployed` |
-| Release promotion task with Stage 2 staging green, awaiting owner reply to `[PROD GATEKEEPER]` | **Suspend** | Keep issue open with `prod-pending`; disposition `pending` |
-| `ws-delivery-status` exit 0 (Stage 1 only, no reality probe or probe failed) | **Suspend** | Report state strictly as `Stage 1 Landed (Unverified)`; issue stays open |
+| `ws-delivery-status --assert-complete ...` exit 0, single-PR scope or no service deploy | **Complete** | Clean up worktree/branch; acceptance walk (2.6); close issue; disposition `none` |
+| `ws-delivery-status --assert-complete ...` exit 0, service change in batched-staging repo (`auto-release-staging.yml`) before the staging release verifies it | **Complete** | Clean up worktree/branch; keep the issue open with scope note until staging verifies it; disposition `batched-staging` |
+| `ws-delivery-status --assert-complete ...` exit 0, staging verified by the reality probe (2.5, run against staging), also while a release promotion awaits the answer to `[PROD GATEKEEPER]` | **Complete** | Clean up worktree/branch; acceptance walk (2.6); close issue; disposition `staging` (`hold` when the owner answered "hold") |
+| `ws-delivery-status --assert-complete ...` exit 0, release promotion task with owner "deploy" + prod verified | **Complete** | Clean up worktree/branch; acceptance walk (2.6); close issue; disposition `deployed` |
+| `ws-delivery-status` exit 0 (Stage 1 only, no reality probe) | **Suspend** | Report state strictly as `Stage 1 Landed (Unverified)`; issue stays open |
 | `ws-delivery-status` exit 1 (PR in review) | **Suspend** | Report state strictly as `In review` with PR URL |
-| `ws-delivery-status` exit 2 (unmerged branch, draft changes, or probe failed) | **Suspend** | Run `auto` to merge or write handover |
+| `ws-delivery-status` exit 3 (unmerged branch, draft changes, or probe failed) | **Suspend** | Run `auto` to merge or write handover |
+| `ws-delivery-status` exit 4 (could not read git or GitHub) | **Suspend** | Fix the cause in `reasons[]` and re-run; never read it as a pass |
 
+An umbrella issue closes with its last lane. Earlier lanes keep it open with a scope note.
 Unmerged work is never Complete. Merge to main without a verified Business Reality Probe is never Complete.
 Do not close the issue and do not delete the worktree in Suspend.
 Never declare complete or done when `ws-delivery-status` exits non-zero.
+Untracked files under `.agents/runs/` and unstaged submodule pointer moves do not block; the tool lists them.
 Complete also needs the predecessor gone: each file, branch, worktree, stash or flag that this issue's change replaces is deleted, or the issue states why it stays. Delete only what this issue created or replaced. Never delete what another session's worktree or stash owns.
-Unpushed commits are invisible to everyone else. One log feature lived 3 days on a never-pushed branch
-while the docs described it as existing. Push the branch or write it into the handover.
+Push any local branch or record it in the handover so commits are never stranded locally.
 
 ## 2. Prove the running process is new
 
@@ -72,6 +71,18 @@ Merge to main is Stage 1 only. Before declaring **Complete**, you MUST execute a
 
 If the reality probe fails, is empty, or is unperformed, the session MUST exit as **Suspend** (`Stage 1 Landed`), never Complete.
 
+## 2.6 Acceptance walk and claim check (skip when no issue closes)
+
+1. Issue and PR text carry no acceptance; this walk does. For each deliverable in the issue body, run the `smoke` section "Acceptance checks". Write one row: the check, where it runs again, the result.
+2. The completion comment names only code that exists on the merge commit. Save it to `$COMMENT_FILE`. In the repository, with the merge commit fetched, run:
+
+```bash
+ws-claim-check --commit "$(gh pr view <n> --json mergeCommit --jq .mergeCommit.oid)" "$COMMENT_FILE"
+```
+
+Exit 3 lists each MISSING name: correct the comment. Exit 4 means the check did not run: fetch the commit and run it again. Post the comment at exit 0 only.
+The check proves that a name exists in code on that commit. The walk proves that production calls it.
+
 ## 3. Production gatekeeper (release promotion tasks)
 
 Merge, staging deploy, and production deploy are three separate stages. In repositories with batched or debounced automatic staging releases (`auto-release-staging.yml`), ordinary PR merges complete at Stage 1 (`batched-staging`) without prompting `[PROD GATEKEEPER]`. When executing a release promotion after Stage 2 staging (`deploy-release.yml` and `walk-release.yml`) is verified for `vX.Y.Z`, report all three with evidence, then ask:
@@ -81,33 +92,30 @@ Merge, staging deploy, and production deploy are three separate stages. In repos
 - Stage 1 merge: release tag vX.Y.Z = commit <sha>
 - Stage 2 staging: run <url>, soak <duration>, health <result>
 - Stage 3 production: image <digest>, watchdog <state>
-Authorize production deployment of vX.Y.Z? Reply "deploy" or "hold".
+Authorize production deployment of vX.Y.Z? Reply "deploy vX.Y.Z" or "hold".
 ```
 
 - Claim "deployed" only with an evidence chain: image digest, ledger entry, and a real end-to-end probe (the real browser or TUI).
-  The owner asked twice "are you sure the last version is deployed?" Find the proof, then answer.
-- Only a production change requires owner approval, with the owner present (owner instruction, 2026-10-06). Ask once, then finish the non-production close.
-  Closing in silence is forbidden.
-- Without an answer on an active release promotion, keep the issue open. Reopen it if the merge closed it. Create the label `prod-pending` if it is missing.
-  Comment `prod disposition: pending` with the release tag or commit SHA, and add the label.
-- A "deploy" covers only the release it names. Immediately before dispatch, the owner must answer you live in this session; an earlier or relayed answer is not enough. Without approval, do not deploy production.
+- Only a production change requires owner approval, with the owner present (Root section `Production reservation`). Ask once, then finish the non-production close. Closing in silence is forbidden.
+- Do not wait for the answer to close the issue: close it when the acceptance walk passes on staging. Production state is not an issue state. infra2 owns the production release process (`https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.pipeline.md`). Read the state in the infra2 root with `uv run python -m tools.harness status --fetch --online`. Add no label.
+- After a "hold", write the release tag and `hold` into a handover note with the command of section 4. The `init` scan reads it.
+- A "deploy" covers only the release it names. Immediately before a production dispatch, the owner must answer you live in this session; an earlier or relayed answer is not enough. Without approval, do not deploy production (Root section `Production reservation`).
 - Refuse bare "deploy" keywords without release tags or commits. If the owner replies only "deploy", request explicit disambiguation naming the target: "Please confirm release target: deploy vX.Y.Z". Without explicit approval, do not deploy production.
-- After "deploy", you own the whole loop, including the physical check. Never ask the owner to run a command.
+- After "deploy vX.Y.Z", you own the whole loop, including the physical check. Never ask the owner to run a command.
 
 ## 4. Suspend: handover and issue
 
 Write the handover with four parts. Include the exact next command.
 
 1. **Done:** commit SHAs, changed files, tests that passed.
-2. **Blocked:** the cause (CI, open design question, a fact only the owner can supply).
-   List an owner action only when it needs the owner's hands or presence.
-   Examples: a production deploy, a setting that the agent token cannot change, a credential root.
-   A merge, a head approval, or a review of non-production work is never an owner action. If a gate demands one, the gate is the defect.
-   The exception is an edit that the production reservation keeps with the owner permanently.
-   Only three such holds exist: the reservation's self-guard, infra2's owner-held set (rule 6) and dev_env's `ci.yml` hold.
+2. **Blocked:** the cause (CI, or a fact that the agent cannot get).
+   List a step for the owner only when it needs the owner's hands or presence, for example a production deploy. Other examples: a setting that the agent token cannot change, a credential root.
+   Other work is your next step. If a gate holds non-production work, the gate is the defect.
    Name the missing physical fact, then do the agent work that supplies it.
 3. **Decisions:** contracts you fixed and assumptions you overturned.
-4. **Next:** the first command for the next session.
+4. **Next:** the first command for the next session. For each check due after the session, name
+   where it is recorded: an issue comment, a label or a scheduled task. An in-session timer
+   does not count.
 
 ```bash
 ws-bm write-note --folder memory/handover --tags handover --title "Handover: issue-<N> <slug>" --content "..."
@@ -134,7 +142,7 @@ Also update the issue with the same four parts. Search for an existing issue fir
    EOF
    ```
    Removing a tree under a running task corrupts it.
-2. Remove the worktree safely with unlock and force fallbacks:
+2. Remove only the CLI issue worktree `../<repo>_issue<N>_<slug>` (never auto-remove IDE worktrees under `~/.gemini/antigravity/worktrees/`):
    ```bash
    git worktree unlock "../<repo>_issue<N>_<slug>" 2>/dev/null || true
    git worktree remove --force "../<repo>_issue<N>_<slug>" || git worktree prune
@@ -143,8 +151,7 @@ Also update the issue with the same four parts. Search for an existing issue fir
    Run `git branch -d` first. A squash or rebase merge can make it refuse. The equal tip proves that nothing is lost, so `-D` is then safe. A host gate that blocks `-D` stays in force: leave the local branch and say so in the handover.
    Delete the remote branch only at that tip: `git push --force-with-lease=refs/heads/<branch>:<headRefOid> origin --delete <branch>`. GitHub may have deleted it already.
    The PR keeps `refs/pull/<n>/head`, so the commits stay recoverable. A different tip means commits that the PR did not merge: open a new PR for them or write them into the handover.
-4. Close the issue with the merge proof when the disposition is `none`, `deployed`, or `hold` and the whole issue scope is satisfied.
-   When the disposition is `batched-staging` (awaiting deployed evidence) or `pending` (section 3), or when sibling lanes remain on a multi-lane issue, keep the issue open with a scope note.
+4. Close the issue with the merge proof when every row of the acceptance walk (2.6) passes. The disposition must be `none`, `staging`, `deployed`, or `hold`. Otherwise keep it open and post the failing rows as a scope note. Reopen an issue that the merge closed. Otherwise means: `batched-staging`, a failing row, or an open sibling lane of an umbrella issue.
 5. Delete scratch files. Record each leftover TODO in the handover.
 
 ## 6. Route each lesson (distill)
@@ -173,7 +180,6 @@ Red lines:
 - **R3** The distiller is not the executor.
 - **R4** Discard out loud.
 - **R5** One invariant lives in one tier. Copies drift. Skills may restate a criterion but must point back to the owner.
-  (2026-09-22: "the president writes no code" lived in two tiers, and one copy missed the stop condition added that day.)
 - **R6** A pointer must resolve to the same literal string in the target. A pointer to a dropped invariant disguises the loss as convergence.
 
 A finding that is both a criterion and unfinished work becomes two records. One record inside an issue dies when the issue closes.

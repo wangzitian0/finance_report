@@ -120,6 +120,12 @@ def parse_key_value_pairs(value: str | None) -> dict[str, str]:
     return pairs
 
 
+# The infra2 SDK owns the default models (#2566). The app reads them here and
+# never writes its own model ids, so an SDK release moves every environment that
+# sets no model variable. Only production may set the model variables.
+_SDK_LLM_DEFAULTS = LlmSettings()
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables.
 
@@ -410,45 +416,32 @@ class Settings(BaseSettings):
         description="Chat completions path appended to the AI base URL.",
         json_schema_extra={"group": "AI Provider"},
     )
-    ai_layout_parsing_path: str = Field(
-        default="/layout_parsing",
-        validation_alias="AI_LAYOUT_PARSING_PATH",
-        description="Layout-parsing path appended to the AI base URL.",
-        json_schema_extra={"group": "AI Provider"},
-    )
-    primary_model: str = Field(
-        default="glm-5.3-flash",
-        validation_alias="PRIMARY_MODEL",
-        description="Primary AI model id.",
-        json_schema_extra={"group": "AI Provider"},
-    )
-    vision_model: str = Field(
-        default="glm-5.3-flashx",
-        validation_alias="VISION_MODEL",
-        description="Vision AI model id.",
-        json_schema_extra={"group": "AI Provider"},
-    )
-    ocr_model: str = Field(
-        default="glm-5.3-flashx",
-        validation_alias="OCR_MODEL",
-        description="OCR AI model id.",
-        json_schema_extra={"group": "AI Provider"},
-    )
-    fallback_models_str: str | None = Field(
-        default=None,
-        validation_alias="FALLBACK_MODELS",
-        description="Comma-separated fallback AI model ids.",
-        json_schema_extra={"group": "AI Provider", "example": "glm-5.2,glm-5-turbo"},
-    )
-    vision_fallback_models_str: str | None = Field(
-        default=None,
-        validation_alias="VISION_FALLBACK_MODELS",
+    large_model: str = Field(
+        default=_SDK_LLM_DEFAULTS.large_model,
+        validation_alias="LARGE_MODEL",
         description=(
-            "Comma-separated fallback AI model ids for the vision/OCR path. These "
-            "must be vision-capable because the vision request carries image "
-            "content; the text-only FALLBACK_MODELS are not reused here (#1034)."
+            "Large-role AI model id for user-facing answers (advisor chat). "
+            "Unset: the infra2 SDK default; set it only to customize production."
         ),
-        json_schema_extra={"group": "AI Provider", "example": "glm-5.3-flash,glm-4.6v"},
+        json_schema_extra={"group": "AI Provider"},
+    )
+    small_model: str = Field(
+        default=_SDK_LLM_DEFAULTS.small_model,
+        validation_alias="SMALL_MODEL",
+        description=(
+            "Small-role AI model id for text work: JSON extraction, statement summaries and "
+            "transaction classification. Unset: the infra2 SDK default; set it only to customize production."
+        ),
+        json_schema_extra={"group": "AI Provider"},
+    )
+    multimodal_model: str = Field(
+        default=_SDK_LLM_DEFAULTS.multimodal_model,
+        validation_alias="MULTIMODAL_MODEL",
+        description=(
+            "Multimodal-role AI model id for vision and OCR (image, PDF and file input). "
+            "Unset: the infra2 SDK default; set it only to customize production."
+        ),
+        json_schema_extra={"group": "AI Provider"},
     )
     # EPIC-019: when set, upload→report parsing is submitted as a durable Prefect
     # flow run instead of an in-process asyncio task. Unset (CI/local/preview) →
@@ -487,9 +480,9 @@ class Settings(BaseSettings):
     # reconcile and sometimes not. Set AI_JSON_SEED= (empty) to omit it for
     # providers that reject the field.
     # Off by default: Z.AI/GLM validates request params strictly and `seed` is
-    # NOT accepted by all models (e.g. glm-4.6v, a vision/OCR fallback,
-    # returns HTTP 400 for it) — sending it unconditionally would break vision
-    # extraction. Opt in only for seed-supporting models (e.g. GLM-5.1).
+    # NOT accepted by all models (an older vision model returned HTTP 400 for it),
+    # so sending it unconditionally can break vision extraction. Opt in only for
+    # models that accept a seed.
     # Determinism otherwise rests on temperature=0 / do_sample=false plus the
     # balance-aware self-consistency retry (#989).
     ai_json_seed: int | None = Field(
@@ -845,35 +838,6 @@ class Settings(BaseSettings):
         )
 
     @cached_property
-    def fallback_models(self) -> list[str]:
-        """Parse fallback models from env string or use defaults."""
-        return parse_comma_list(
-            self.fallback_models_str,
-            [
-                "glm-5.2",
-                "glm-5-turbo",
-            ],
-        )
-
-    @cached_property
-    def vision_fallback_models(self) -> list[str]:
-        """Parse vision-path fallback models from env string or use defaults.
-
-        The vision/OCR path sends image content, so its fallbacks must be
-        vision-capable; the text-only ``FALLBACK_MODELS`` are intentionally not
-        reused here (#1034). The defaults retain compatible vision models so
-        a non-retryable failure of the primary vision model does not fail the
-        whole upload.
-        """
-        return parse_comma_list(
-            self.vision_fallback_models_str,
-            [
-                "glm-5.3-flash",
-                "glm-4.6v",
-            ],
-        )
-
-    @cached_property
     def llm_encryption_key_list(self) -> list[str]:
         """Parsed Fernet keys for provider-secret encryption (newest first).
 
@@ -888,13 +852,10 @@ class Settings(BaseSettings):
             provider=self.ai_provider,
             base_url=self.ai_base_url,
             api_key=self.ai_api_key or None,
-            primary_model=self.primary_model,
-            ocr_model=self.ocr_model,
-            vision_model=self.vision_model,
-            fallback_models=tuple(self.fallback_models),
-            vision_fallback_models=tuple(self.vision_fallback_models),
+            large_model=self.large_model,
+            small_model=self.small_model,
+            multimodal_model=self.multimodal_model,
             chat_completions_path=self.ai_chat_completions_path,
-            layout_parsing_path=self.ai_layout_parsing_path,
             json_timeout_seconds=self.ai_json_timeout_seconds,
             json_max_tokens=self.ai_json_max_tokens,
             json_disable_thinking=self.ai_json_disable_thinking,
@@ -969,8 +930,8 @@ ENV_SOURCE_CLASSES: dict[str, dict[str, object]] = {
     # (finance_report/finance_report/10.app/compose.yaml, backend `environment:` block;
     # staging overrides in AppDeployer.compose_env_overrides). They are injected by the
     # deployment, never stored in Vault and never rendered by the agent template. A field
-    # the compose does not set stays a `code` default (e.g. PRIMARY_MODEL, FALLBACK_MODELS,
-    # OCR_MODEL, VISION_MODEL, VISION_FALLBACK_MODELS).
+    # the compose does not set stays a `code` default (e.g. LARGE_MODEL, SMALL_MODEL,
+    # MULTIMODAL_MODEL).
     # `empty_ok` marks the ones the compose may legitimately leave empty (`${VAR:-}`).
     "environment": {"source": "decision"},
     "debug": {"source": "decision"},

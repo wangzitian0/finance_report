@@ -10,7 +10,9 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 import os
+
 import pytest
 from playwright.async_api import Page, expect
 
@@ -20,6 +22,8 @@ from common.testing.benchmarks.run_financial_scenario_benchmark import (
     ScenarioBenchmarkRunner,
 )
 
+# The modal closes after a create call and a post call. A first request after a deploy can take longer than 10 s.
+MODAL_CLOSE_TIMEOUT_MS = 30_000
 APP_URL: str = os.getenv("APP_URL", TestConfig.APP_URL)
 
 
@@ -121,9 +125,30 @@ async def test_journal_balanced_entry_creation_and_post(page: Page):
     submit_btn = page.get_by_role("button", name="Create & Post")
     await expect(submit_btn).to_be_enabled()
 
-    # 7. Submit and verify entry appears in journal table with posted status
+    # 7. Submit and verify entry appears in journal table with posted status.
+    # The first request after a deploy can be slow, so the modal gets 30 s to close (#2537).
+    calls: list[str] = []
+
+    async def _record(response) -> None:
+        if "/api/" in response.url and response.request.method != "GET":
+            try:
+                body = (await response.text())[:200]
+            except Exception as exc:  # noqa: BLE001
+                body = f"<{type(exc).__name__}>"
+            calls.append(
+                f"{response.request.method} {response.url} -> {response.status} {body}"
+            )
+
+    page.on("response", lambda response: asyncio.ensure_future(_record(response)))
     await submit_btn.click()
-    await expect(
-        page.get_by_role("heading", name="New Journal Entry", exact=True)
-    ).not_to_be_visible(timeout=10_000)
+    try:
+        await expect(
+            page.get_by_role("heading", name="New Journal Entry", exact=True)
+        ).not_to_be_visible(timeout=MODAL_CLOSE_TIMEOUT_MS)
+    except AssertionError as exc:
+        alerts = await page.locator('[role="alert"], [role="status"]').all_inner_texts()
+        raise AssertionError(
+            f"The journal modal stayed open for {MODAL_CLOSE_TIMEOUT_MS} ms. "
+            f"API calls: {calls}. Alerts: {alerts}"
+        ) from exc
     await expect(page.get_by_text(memo_text)).to_be_visible(timeout=15_000)

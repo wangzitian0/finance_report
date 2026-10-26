@@ -15,7 +15,7 @@ pricing's internals never touches this package's consumer modules.
 Two access shapes, chosen so behavior and monkeypatch surfaces survive the
 move unchanged:
 
-- The four conversion callables are exposed as stable module-level ``async``
+- The five conversion callables are exposed as stable module-level ``async``
   wrappers (import-safe before wiring; dispatch to the registered slot at call
   time). Consumer modules ``from ...fx_gateway import get_exchange_rate`` and
   tests keep patching the per-module name.
@@ -28,7 +28,7 @@ move unchanged:
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Sequence
 from datetime import date
 from decimal import Decimal
 from typing import Never, Protocol, TypeVar
@@ -103,6 +103,18 @@ class GetExchangeRatePort(Protocol):
     ) -> Awaitable[Decimal]: ...
 
 
+class GetExchangeRateSeriesPort(Protocol):
+    def __call__(
+        self,
+        db: AsyncSession,
+        base_currency: str,
+        quote_currency: str,
+        rate_dates: Sequence[date],
+        *,
+        lazy_load: bool = False,
+    ) -> Awaitable[dict[date, Decimal]]: ...
+
+
 class GetAverageRatePort(Protocol):
     def __call__(
         self,
@@ -161,6 +173,7 @@ class PrefetchedFxRatesPort(Protocol):
 PrefetchedFxRates: type[PrefetchedFxRatesPort] = _UnwiredPrefetchedFxRates
 
 _get_exchange_rate: GetExchangeRatePort | None = None
+_get_exchange_rate_series: GetExchangeRateSeriesPort | None = None
 _get_average_rate: GetAverageRatePort | None = None
 _convert_amount: ConvertAmountPort | None = None
 _convert_money: ConvertMoneyPort | None = None
@@ -171,6 +184,7 @@ PortT = TypeVar("PortT")
 def register_fx_gateway(
     *,
     get_exchange_rate: GetExchangeRatePort,
+    get_exchange_rate_series: GetExchangeRateSeriesPort,
     get_average_rate: GetAverageRatePort,
     convert_amount: ConvertAmountPort,
     convert_money: ConvertMoneyPort,
@@ -178,9 +192,10 @@ def register_fx_gateway(
     fx_rate_error: type[Exception],
 ) -> None:
     """Wire the FX implementation (see module note above)."""
-    global _get_exchange_rate, _get_average_rate, _convert_amount, _convert_money
+    global _get_exchange_rate, _get_exchange_rate_series, _get_average_rate, _convert_amount, _convert_money
     global PrefetchedFxRates, FxRateError
     _get_exchange_rate = get_exchange_rate
+    _get_exchange_rate_series = get_exchange_rate_series
     _get_average_rate = get_average_rate
     _convert_amount = convert_amount
     _convert_money = convert_money
@@ -209,6 +224,20 @@ async def get_exchange_rate(
     """Dispatch to the registered ``get_exchange_rate`` implementation."""
     return await _require(_get_exchange_rate, "get_exchange_rate")(
         db, base_currency, quote_currency, rate_date, lazy_load=lazy_load
+    )
+
+
+async def get_exchange_rate_series(
+    db: AsyncSession,
+    base_currency: str,
+    quote_currency: str,
+    rate_dates: Sequence[date],
+    *,
+    lazy_load: bool = False,
+) -> dict[date, Decimal]:
+    """Dispatch to the registered ``get_exchange_rate_series`` implementation."""
+    return await _require(_get_exchange_rate_series, "get_exchange_rate_series")(
+        db, base_currency, quote_currency, rate_dates, lazy_load=lazy_load
     )
 
 

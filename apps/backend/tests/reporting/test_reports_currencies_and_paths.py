@@ -158,7 +158,7 @@ class TestReportsHappyPaths:
         """
         GIVEN posted journal entries exist
         WHEN GET /reports/cash-flow
-        THEN return 200 with CashFlowResponse
+        THEN return 200 with CashFlowPreview
         """
         params = {"start_date": "2024-01-01", "end_date": "2024-12-31", "currency": "SGD"}
         response = await client.get("/reports/cash-flow", params=params)

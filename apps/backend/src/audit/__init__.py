@@ -42,6 +42,8 @@ from src.audit.extension import (
     TraceRecordCodec,
     TraceRecordPersistenceError,
     current_authoritative_trace_decision_projection,
+    current_authoritative_trace_decisions,
+    shared_current_authority,
     trace_decision_projection,
 )
 from src.audit.money import (
@@ -125,6 +127,8 @@ __all__ = [
     "TraceRecordCodec",
     "TraceRecordPersistenceError",
     "current_authoritative_trace_decision_projection",
+    "current_authoritative_trace_decisions",
+    "shared_current_authority",
     "trace_decision_projection",
     "TraceRecordRepository",
     "TraceRecordType",

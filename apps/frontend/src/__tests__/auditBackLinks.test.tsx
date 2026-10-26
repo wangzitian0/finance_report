@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import { AuditBackLink } from "@/components/audit/AuditBackLink";
+import { AuditBackLink } from "@/components/ui/SmartBackLink";
 
 const navigationState = vi.hoisted(() => ({
     searchParams: new URLSearchParams(),
@@ -31,12 +31,12 @@ describe("Audit hub back-link (EPIC-022 AC22.21.3)", () => {
         expect(screen.getByRole("link", { name: /Back to Audit/i })).toHaveAttribute("href", "/audit");
     });
 
-    it("returns attention-origin users to the attention queue instead", () => {
+    it("returns attention-origin users to the needs-confirmation queue instead", () => {
         navigationState.searchParams = new URLSearchParams("from=attention");
         render(<AuditBackLink />);
-        expect(screen.getByRole("link", { name: /Back to Attention queue/i })).toHaveAttribute(
+        expect(screen.getByRole("link", { name: /Back to Needs Confirmation/i })).toHaveAttribute(
             "href",
-            "/attention",
+            "/audit",
         );
     });
 });

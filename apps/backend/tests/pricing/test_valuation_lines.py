@@ -176,3 +176,115 @@ async def test_AC_pricing_manualvaluation_4_component_recorded_after_as_of_is_wa
         warnings=exclusive_warnings,
     )
     assert exclusive_warnings == []
+
+
+async def test_AC_pricing_manualvaluation_11_series_equals_one_build_per_date(
+    db: AsyncSession, test_user, monkeypatch
+) -> None:
+    """AC-pricing.manualvaluation.11: ``build_manual_valuation_lines_series`` returns the lines of
+    ``build_manual_valuation_lines`` for each date. It reads the components once per snapshot date."""
+    from src.pricing import ValuationService, build_manual_valuation_lines_series
+
+    for as_of, value in ((date(2026, 5, 3), "900000.00"), (date(2026, 5, 20), "950000.00")):
+        await record_manual_valuation(
+            db,
+            test_user.id,
+            component_type=ManualValuationComponentType.PROPERTY_VALUE,
+            liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
+            as_of=as_of,
+            value=Decimal(value),
+            currency="SGD",
+            source="appraisal",
+        )
+    for value in ("400000.00", "410000.00"):  # The second value supersedes the first.
+        await record_manual_valuation(
+            db,
+            test_user.id,
+            component_type=ManualValuationComponentType.MORTGAGE_BALANCE,
+            liquidity_class=ManualValuationLiquidityClass.LIABILITY,
+            as_of=date(2026, 5, 3),
+            value=Decimal(value),
+            currency="SGD",
+            source="bank",
+        )
+    await record_manual_valuation(
+        db,
+        test_user.id,
+        component_type=ManualValuationComponentType.RSU,
+        liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+        as_of=date(2026, 5, 10),
+        value=Decimal("1234.57"),
+        currency="USD",
+        source="employer",
+    )
+    db.add_all(
+        [
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.341100"),
+                rate_date=date(2026, 5, 1),
+                source="test",
+            ),
+            FxRate(
+                base_currency="USD",
+                quote_currency="SGD",
+                rate=Decimal("1.352200"),
+                rate_date=date(2026, 5, 15),
+                source="test",
+            ),
+        ]
+    )
+    await db.commit()
+    dates = [date(2026, 5, day) for day in range(1, 32)]
+
+    component_reads = []
+    original_components = ValuationService.get_latest_valuation_components
+
+    async def counting_components(self, db, user_id, *, as_of_date, include_restricted=True):
+        component_reads.append(as_of_date)
+        return await original_components(
+            self, db, user_id, as_of_date=as_of_date, include_restricted=include_restricted
+        )
+
+    monkeypatch.setattr(ValuationService, "get_latest_valuation_components", counting_components)
+    for include_restricted in (True, False):
+        component_reads.clear()
+        series = await build_manual_valuation_lines_series(
+            db, test_user.id, as_of_dates=dates, target_currency="sgd", include_restricted=include_restricted
+        )
+        assert component_reads == [date(2026, 5, 3), date(2026, 5, 10), date(2026, 5, 20)]
+        for as_of in dates:
+            assert series[as_of] == await build_manual_valuation_lines(
+                db, test_user.id, as_of_date=as_of, target_currency="sgd", include_restricted=include_restricted
+            )
+    assert series[date(2026, 5, 2)] == ([], [])
+    # The loop ends with the scope without restricted holdings: the illiquid
+    # property takes its mortgage out of that scope (#2645).
+    assert series[date(2026, 5, 16)][1] == []
+    full_scope = await build_manual_valuation_lines_series(
+        db, test_user.id, as_of_dates=[date(2026, 5, 16)], target_currency="sgd", include_restricted=True
+    )
+    assert [line["amount"] for line in full_scope[date(2026, 5, 16)][1]] == [Decimal("410000.00")]
+
+
+async def test_AC_pricing_manualvaluation_11_series_fx_miss_raises_pricing_error(db: AsyncSession, test_user) -> None:
+    """AC-pricing.manualvaluation.11: the series raises the pricing error family on an FX miss."""
+    from src.pricing import build_manual_valuation_lines_series
+
+    await record_manual_valuation(
+        db,
+        test_user.id,
+        component_type=ManualValuationComponentType.RSU,
+        liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+        as_of=date(2026, 5, 10),
+        value=Decimal("1234.57"),
+        currency="USD",
+        source="employer",
+    )
+    await db.commit()
+
+    with pytest.raises(PricingError, match="No FX rate available"):
+        await build_manual_valuation_lines_series(
+            db, test_user.id, as_of_dates=[date(2026, 5, 9), date(2026, 5, 10)], target_currency="SGD"
+        )

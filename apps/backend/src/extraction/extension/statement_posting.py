@@ -59,8 +59,8 @@ from src.extraction.extension.disposition_policy import (
     current_statement_disposition_policy_snapshot,
     statement_disposition_policy_for_user,
 )
-from src.extraction.extension.disposition_trace import emit_disposition_trace_records
-from src.extraction.extension.review_queue import FxRateProvider, create_entry_from_txn
+from src.extraction.extension.disposition_trace import DispositionTraceInput, emit_disposition_trace_records_many
+from src.extraction.extension.review_queue import FxRateProvider, StatementEntryRequest, create_entries_from_txns
 from src.extraction.extension.reviewed_statement_envelope import get_current_statement_extraction_result
 from src.extraction.extension.statement_validation import (
     BalanceChainValidationError,
@@ -232,7 +232,7 @@ async def auto_create_posted_entries_for_statement(
             if user_transfer_txns:
                 legs_posted = await dependencies.post_named_transfers(db, user_id, user_transfer_txns)
                 transfer_txn_ids = await dependencies.transfer_exclusions(db, txn_ids)
-    base_currency = await get_effective_base_currency(db)
+    base_currency = await get_effective_base_currency(db, user_id=user_id)
     policy = await statement_disposition_policy_for_user(db, user_id)
     policy_snapshot = current_statement_disposition_policy_snapshot(
         mode=dependencies.disposition_mode,
@@ -299,17 +299,18 @@ async def auto_create_posted_entries_for_statement(
         occurred_at = occurred_at.replace(tzinfo=UTC)
     emitter = dependencies.trace_emitter_factory(db)
     source_decisions: dict[UUID, TraceRecord] = {}
-    for txn, proposal, decision, _counter_account, transaction in planned:
-        records = await emit_disposition_trace_records(
-            emitter=emitter,
-            user_id=user_id,
-            execution_id=execution_id,
-            occurred_at=occurred_at,
-            transaction=transaction,
-            proposal=proposal,
-            decision=decision,
-            policy_snapshot=policy_snapshot,
-        )
+    disposition_records = await emit_disposition_trace_records_many(
+        emitter=emitter,
+        user_id=user_id,
+        execution_id=execution_id,
+        occurred_at=occurred_at,
+        inputs=[
+            DispositionTraceInput(transaction=transaction, proposal=proposal, decision=decision)
+            for _txn, proposal, decision, _counter_account, transaction in planned
+        ],
+        policy_snapshot=policy_snapshot,
+    )
+    for (txn, *_rest), records in zip(planned, disposition_records, strict=True):
         if records and records[-1].result is TraceResult.AUTHORITATIVE:
             source_decisions[txn.id] = records[-1]
 
@@ -343,40 +344,46 @@ async def auto_create_posted_entries_for_statement(
         )
 
     created = legs_posted
-    postings: list[tuple[JournalEntry, AtomicTransaction]] = []
+    requests: list[StatementEntryRequest] = []
     for txn, proposal, decision, counter_account, _transaction in planned:
         if decision.status is DispositionStatus.ALREADY_COVERED:
             continue
         if not decision.should_apply:
             raise RuntimeError("Disposition command reached application without enforce authority")
-        # ``create_entry_from_txn`` consumes the Layer-2 ``AtomicTransaction``.
+        # ``create_entries_from_txns`` consumes the Layer-2 ``AtomicTransaction``.
         source_decision = source_decisions.get(txn.id)
         if source_decision is None:
             raise RuntimeError("authoritative disposition is missing its source decision")
-        entry = await create_entry_from_txn(
-            db,
-            txn,
-            user_id=user_id,
-            base_currency=base_currency,
-            auto_post=True,
-            # The decision of a person gets the confidence tier of a person.
-            source_type=(
-                JournalEntrySourceType.USER_CONFIRMED
-                if proposal is not None and proposal.origin is IntentProposalOrigin.MANUAL_ADJUDICATION
-                else JournalEntrySourceType.AUTO_PARSED
-            ),
-            preloaded_bank_account=preloaded_bank_account,
-            preloaded_statement=statement,
-            fx_rate_provider=dependencies.fx_rate_provider,
-            fx_rate_error=dependencies.fx_rate_error,
-            disposition=decision,
-            counter_account=counter_account,
-            source_decision=source_decision,
-            trace_emitter=emitter,
-            record_evidence=False,
+        requests.append(
+            StatementEntryRequest(
+                txn=txn,
+                disposition=decision,
+                counter_account=counter_account,
+                source_decision=source_decision,
+                # The decision of a person gets the confidence tier of a person.
+                source_type=(
+                    JournalEntrySourceType.USER_CONFIRMED
+                    if proposal is not None and proposal.origin is IntentProposalOrigin.MANUAL_ADJUDICATION
+                    else JournalEntrySourceType.AUTO_PARSED
+                ),
+            )
         )
-        postings.append((entry, txn))
-        created += 1
+    entries = await create_entries_from_txns(
+        db,
+        requests,
+        user_id=user_id,
+        base_currency=base_currency,
+        auto_post=True,
+        preloaded_statement=statement,
+        preloaded_bank_account=preloaded_bank_account,
+        fx_rate_provider=dependencies.fx_rate_provider,
+        fx_rate_error=dependencies.fx_rate_error,
+        trace_emitter=emitter,
+    )
+    postings: list[tuple[JournalEntry, AtomicTransaction]] = [
+        (entry, request.txn) for entry, request in zip(entries, requests, strict=True)
+    ]
+    created += len(postings)
 
     if postings:
         try:
@@ -696,7 +703,7 @@ async def try_auto_post_statement_opening_balance(
         if contribution.state != "authoritative" or contribution.decision is None:
             raise ValueError("Statement opening balance requires current source authority")
         source_decision_id = contribution.decision.decision_id
-    base_currency = await get_effective_base_currency(db)
+    base_currency = await get_effective_base_currency(db, user_id=user_id)
     currency = normalize_currency_code(statement.currency or "")
     fx_rates = {}
     if currency != base_currency and statement.opening_balance != 0:

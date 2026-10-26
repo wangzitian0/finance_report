@@ -16,12 +16,15 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
+    Integer,
     String,
     Text,
     and_,
     event,
     exists,
     select,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, aliased, mapped_column, relationship
@@ -105,6 +108,14 @@ class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
             "AND decision_anchor_id IS NULL)",
             name="ck_journal_entries_decision_anchor_complete",
         ),
+        # Each report statement excludes an entry that a void-reversal entry points to
+        # (``active_journal_entry_filter``). Without this index, each statement scans the
+        # journal entries of all users. Most entries are not void, so the index is partial (#2617).
+        Index(
+            "ix_journal_entries_void_reversal_entry_id",
+            "void_reversal_entry_id",
+            postgresql_where=text("void_reversal_entry_id IS NOT NULL"),
+        ),
     )
 
     entry_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
@@ -135,6 +146,9 @@ class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         nullable=False,
         default=JournalEntryAuthorityState.LEGACY_UNPROVEN,
     )
+    # The base currency that validated the entry at creation. Posting a draft uses it (#2539).
+    # NULL only on rows written before revision 0067.
+    base_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     status: Mapped[JournalEntryStatus] = mapped_column(
         Enum(
             JournalEntryStatus,
@@ -156,8 +170,13 @@ class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         nullable=True,
     )
 
+    # Lines load in the order of the command that created them. The decision-anchor target hashes
+    # the lines in that order, so posting a draft must see the same order (#2539).
     lines: Mapped[list[JournalLine]] = relationship(
-        "JournalLine", back_populates="journal_entry", cascade="all, delete-orphan"
+        "JournalLine",
+        back_populates="journal_entry",
+        cascade="all, delete-orphan",
+        order_by="JournalLine.line_no",
     )
 
     def __repr__(self) -> str:
@@ -167,6 +186,13 @@ class JournalEntry(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     def confidence_tier(self) -> str:
         """Derived UI confidence tier based on source type."""
         return derive_confidence_tier(self.source_type)
+
+    def stored_base_currency(self, fallback: str | None) -> str:
+        """Return the base currency stored at creation of this entry.
+
+        ``fallback`` applies only to a row written before revision 0067, which has no stored value (#2539).
+        """
+        return Currency.of(self.base_currency or fallback or settings.base_currency).code
 
 
 def active_journal_entry_filter(entry_cls: Any = JournalEntry) -> ColumnElement[bool]:
@@ -213,6 +239,9 @@ class JournalLine(Base, UUIDMixin, TimestampMixin):
     fx_rate: Mapped[Decimal | None] = mapped_column(DECIMAL(18, 6), nullable=True)
     event_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     tags: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Zero-based position of the line in the command that created the entry (#2539).
+    # NULL only on rows written before revision 0068.
+    line_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     journal_entry: Mapped[JournalEntry] = relationship("JournalEntry", back_populates="lines")
     account: Mapped[Account] = relationship("Account", back_populates="journal_lines")

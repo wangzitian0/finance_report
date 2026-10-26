@@ -28,6 +28,10 @@ from src.platform import raise_bad_request, raise_not_found
 from src.portfolio import active_stock_symbols
 from src.pricing import FxRate, ensure_market_data_fresh
 from src.reporting import (
+    DEFAULT_INCLUDE_RESTRICTED,
+    PACKAGE_INCLUDE_RESTRICTED,
+    CashFlowLineEventsPage,
+    CashFlowPreview,
     EquationDiagnosticResult,
     PackageAssembler,
     PackageDocumentVersionError,
@@ -35,6 +39,9 @@ from src.reporting import (
     ReportingSnapshotService,
     ReportSnapshot,
     ReportType as SnapshotReportType,
+    cash_flow_line_events,
+    cash_flow_period,
+    cash_flow_preview,
     compute_personal_data_quality,
     generate_balance_sheet,
     generate_cash_flow,
@@ -46,6 +53,7 @@ from src.reporting import (
     get_net_worth_timeseries,
     package_currency as _package_currency,
     package_dates as _package_dates,
+    package_preview,
     package_snapshot_csv as _package_snapshot_csv,
     package_snapshot_response as _package_snapshot_response,
     package_snapshot_summary as _package_snapshot_summary,
@@ -65,11 +73,14 @@ from src.schemas import (
     NetWorthTimeSeriesResponse,
     PersonalDataQualityHealthResponse,
     PersonalReportingFrameworkId,
-    PersonalReportPackageDocument,
     PersonalReportPackageDocumentLifecycle,
     PersonalReportPackageGenerateRequest,
+    PersonalReportPackageLineDetailsPage,
+    PersonalReportPackageManifestEntriesPage,
+    PersonalReportPackagePreview,
     PersonalReportPackageSnapshotResponse,
     PersonalReportPackageSnapshotSummary,
+    PersonalReportPackageTraceabilityAnchorName,
     ReportSnapshotSummary,
     TrendPeriod,
 )
@@ -77,7 +88,6 @@ from src.schemas.streaming import ExportStreamEnvelope, ExportStreamMediaType
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 logger = get_logger(__name__)
-DEFAULT_INCLUDE_RESTRICTED = False
 
 
 def _target_currency_pair(currency: str | None) -> list[str]:
@@ -175,19 +185,21 @@ class ExportReportType(str, Enum):
     CASH_FLOW = "cash-flow"
 
 
-@router.get("/package", response_model=PersonalReportPackageDocument)
-async def preview_personal_report_package(
-    framework_id: PersonalReportingFrameworkId = PersonalReportingFrameworkId.US_GAAP_LIKE,
-    start_date: date | None = Query(default=None),
-    end_date: date | None = Query(default=None),
-    as_of_date: date | None = Query(default=None),
-    currency: str | None = Query(default=None, min_length=3, max_length=3),
-    include_restricted: bool = Query(default=False),
-    *,
+async def _package_period(
     db: DbSession,
     user_id: CurrentUserId,
-) -> PersonalReportPackageDocument:
-    """Build the one typed preview document without persisting a snapshot."""
+    *,
+    start_date: date | None,
+    end_date: date | None,
+    as_of_date: date | None,
+    currency: str | None,
+) -> tuple[date, date, date, str]:
+    """Resolve the package period and currency, and refresh the market data.
+
+    Each package GET commits at its end, as the other report GETs do. Refreshed prices then
+    stay stored, so the preview and the later evidence pages read the same prices. The commit
+    comes after the read, so the request keeps one connection.
+    """
     report_start, report_end, report_as_of = _package_dates(
         start_date=start_date,
         end_date=end_date,
@@ -195,7 +207,30 @@ async def preview_personal_report_package(
     )
     target_currency = _package_currency(currency)
     await _ensure_report_market_data_fresh(db, user_id, currency=target_currency, end_date=report_as_of)
-    return await PackageAssembler().assemble(
+    return report_start, report_end, report_as_of, target_currency
+
+
+@router.get("/package", response_model=PersonalReportPackagePreview)
+async def preview_personal_report_package(
+    framework_id: PersonalReportingFrameworkId = PersonalReportingFrameworkId.US_GAAP_LIKE,
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    as_of_date: date | None = Query(default=None),
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    include_restricted: bool = Query(default=PACKAGE_INCLUDE_RESTRICTED),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+) -> PersonalReportPackagePreview:
+    """Build the typed preview document without persisting a snapshot, and return its bounded projection.
+
+    The traceability details and the input manifest entries load page by page from
+    ``GET /reports/package/line-details`` and ``GET /reports/package/manifest-entries`` (#2583).
+    """
+    report_start, report_end, report_as_of, target_currency = await _package_period(
+        db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
+    )
+    document = await PackageAssembler().assemble(
         db,
         user_id=user_id,
         framework_id=framework_id,
@@ -204,6 +239,88 @@ async def preview_personal_report_package(
         as_of_date=report_as_of,
         currency=target_currency,
         include_restricted=include_restricted,
+    )
+    await db.commit()
+    return package_preview(document)
+
+
+@router.get("/package/line-details", response_model=PersonalReportPackageLineDetailsPage)
+async def list_personal_report_package_line_details(
+    line_id: str = Query(
+        min_length=1, max_length=128, description="Traceability line, for example balance_sheet.total_assets"
+    ),
+    anchor: PersonalReportPackageTraceabilityAnchorName = Query(description="The anchor of the line"),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    as_of_date: date | None = Query(default=None),
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+    pagination: Pagination,
+) -> PersonalReportPackageLineDetailsPage:
+    """Return one page of the details of one traceability line anchor of the preview.
+
+    The details equal the details that a snapshot of the same period stores, in the same order.
+    """
+    report_start, report_end, report_as_of, target_currency = await _package_period(
+        db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
+    )
+    details = await PackageAssembler().line_details(
+        db,
+        user_id=user_id,
+        start_date=report_start,
+        end_date=report_end,
+        as_of_date=report_as_of,
+        currency=target_currency,
+        line_id=line_id,
+        anchor=anchor,
+    )
+    if details is None:
+        raise_not_found("Traceability line")
+    await db.commit()
+    return PersonalReportPackageLineDetailsPage(
+        line_id=line_id,
+        anchor=anchor,
+        total=len(details),
+        limit=pagination.limit,
+        offset=pagination.offset,
+        details=details[pagination.offset : pagination.offset + pagination.limit],
+    )
+
+
+@router.get("/package/manifest-entries", response_model=PersonalReportPackageManifestEntriesPage)
+async def list_personal_report_package_manifest_entries(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    as_of_date: date | None = Query(default=None),
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+    pagination: Pagination,
+) -> PersonalReportPackageManifestEntriesPage:
+    """Return one page of the input manifest of the preview.
+
+    The entries equal the input manifest that a snapshot of the same period stores, in the same order.
+    """
+    report_start, report_end, report_as_of, target_currency = await _package_period(
+        db, user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
+    )
+    entries = await PackageAssembler().manifest_entries(
+        db,
+        user_id=user_id,
+        start_date=report_start,
+        end_date=report_end,
+        as_of_date=report_as_of,
+        currency=target_currency,
+    )
+    await db.commit()
+    return PersonalReportPackageManifestEntriesPage(
+        total=len(entries),
+        limit=pagination.limit,
+        offset=pagination.offset,
+        entries=entries[pagination.offset : pagination.offset + pagination.limit],
     )
 
 
@@ -231,7 +348,9 @@ async def generate_personal_report_package_snapshot(
         end_date=report_end,
         as_of_date=report_as_of,
         currency=target_currency,
-        include_restricted=request.include_restricted,
+        include_restricted=(
+            PACKAGE_INCLUDE_RESTRICTED if request.include_restricted is None else request.include_restricted
+        ),
         lifecycle=PersonalReportPackageDocumentLifecycle.FROZEN,
         snapshot_id=snapshot_id,
         frozen_at=frozen_at,
@@ -681,7 +800,7 @@ async def income_statement(
     return IncomeStatementResponse.model_validate(report)
 
 
-@router.get("/cash-flow", response_model=CashFlowResponse)
+@router.get("/cash-flow", response_model=CashFlowPreview)
 async def cash_flow(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
@@ -689,10 +808,9 @@ async def cash_flow(
     *,
     db: DbSession,
     user_id: CurrentUserId,
-) -> CashFlowResponse:
-    """Get cash flow statement for a period."""
-    resolved_end_date = end_date or date.today()
-    resolved_start_date = start_date or date(resolved_end_date.year, 1, 1)
+) -> CashFlowPreview:
+    """Get the bounded cash-flow statement; GET /reports/cash-flow/line-events pages the events of a line."""
+    resolved_start_date, resolved_end_date = cash_flow_period(start_date, end_date)
     try:
         await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=resolved_end_date)
         report = await generate_cash_flow(
@@ -712,7 +830,36 @@ async def cash_flow(
         )
         raise_bad_request(str(exc), cause=exc)
     await db.commit()
-    return CashFlowResponse.model_validate(report)
+    return CashFlowPreview.model_validate(cash_flow_preview(report))
+
+
+@router.get("/cash-flow/line-events", response_model=CashFlowLineEventsPage)
+async def list_cash_flow_line_events(
+    line_id: str = Query(min_length=1, max_length=64, description="A line_id of GET /reports/cash-flow"),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    currency: str | None = Query(default=None, min_length=3, max_length=3),
+    *,
+    db: DbSession,
+    user_id: CurrentUserId,
+    pagination: Pagination,
+) -> CashFlowLineEventsPage:
+    """Return one page of the lineage records of one cash-flow line, in document order (#2583)."""
+    resolved_start_date, resolved_end_date = cash_flow_period(start_date, end_date)
+    try:
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=resolved_end_date)
+        events = await cash_flow_line_events(
+            db, user_id, line_id=line_id, start_date=resolved_start_date, end_date=resolved_end_date, currency=currency
+        )
+    except ReportError as exc:
+        logger.warning("Cash flow line events failed", line_id=line_id, error=str(exc))
+        raise_bad_request(str(exc), cause=exc)
+    await db.commit()
+    if events is None:
+        raise_not_found("Cash-flow line")
+    page = events[pagination.offset : pagination.offset + pagination.limit]
+    bounds = {"line_id": line_id, "total": len(events), "limit": pagination.limit, "offset": pagination.offset}
+    return CashFlowLineEventsPage.model_validate({**bounds, "events": page})
 
 
 @router.get("/trend", response_model=AccountTrendResponse)
@@ -753,6 +900,7 @@ async def net_worth_timeseries(
     to_date: date = Query(..., alias="to"),
     granularity: NetWorthGranularity = Query(default=NetWorthGranularity.MONTHLY),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
+    include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
     *,
     db: DbSession,
     user_id: CurrentUserId,
@@ -767,6 +915,7 @@ async def net_worth_timeseries(
             end_date=to_date,
             granularity=granularity.value,
             currency=currency,
+            include_restricted=include_restricted,
         )
     except ReportError as exc:
         logger.warning(
@@ -856,7 +1005,7 @@ async def export_report(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
     currency: str | None = Query(default=None, min_length=3, max_length=3),
-    include_restricted: bool = Query(default=False),
+    include_restricted: bool = Query(default=DEFAULT_INCLUDE_RESTRICTED),
     framework_id: PersonalReportingFrameworkId | None = Query(default=None),
     *,
     db: DbSession,

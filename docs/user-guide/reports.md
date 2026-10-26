@@ -23,6 +23,18 @@ performance, annualized income and long-term compensation, notes, traceability,
 readiness, framework policy, and its exact decision manifest. Decimal fields
 serialize as strings to preserve money precision.
 
+The preview carries the traceability appendix as one summary per line, with a
+detail count per anchor, and the decision manifest as counts. Read the details
+of one line, and the manifest entries, page by page with the same period
+parameters:
+
+```bash
+curl "https://report.zitian.party/api/reports/package/line-details?line_id=balance_sheet.total_assets&anchor=ledger_anchor&limit=50&offset=0"
+curl "https://report.zitian.party/api/reports/package/manifest-entries?limit=50&offset=0"
+```
+
+A saved snapshot stores every detail and every manifest entry.
+
 Generate an immutable snapshot with:
 
 ```bash
@@ -87,8 +99,11 @@ Shows how cash moves in and out:
 | **Investing** | Buying/selling investments |
 | **Financing** | Loans, credit cards |
 
-!!! info "Status"
-    Cash flow statement is planned for Phase 2.
+Each section shows one line for each counterpart and direction, for example
+"Outflow - Groceries". A line shows its total and its number of events. Select
+the event count to see the events of the line: the date, the description and
+the amount of each event. The page loads the events only when you open the
+line, 200 at a time. The CSV export keeps one row for each classified event.
 
 ### Investment Performance
 

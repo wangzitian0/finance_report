@@ -21,15 +21,13 @@ async def test_midperiod_source_lineage_preserves_cutoff(uploaded_pdf, client, d
     )
     assert source.is_authoritative
     assert source.effective_period_end == date(2026, 1, 31)
-    response = await client.get(
-        "/reports/package",
-        params={
-            "start_date": "2026-01-01",
-            "end_date": cutoff.isoformat(),
-            "as_of_date": cutoff.isoformat(),
-            "currency": "SGD",
-        },
-    )
+    period = {
+        "start_date": "2026-01-01",
+        "end_date": cutoff.isoformat(),
+        "as_of_date": cutoff.isoformat(),
+        "currency": "SGD",
+    }
+    response = await client.get("/reports/package", params=period)
     assert response.status_code == 200, response.text
     document = response.json()
     sections = document["sections"]
@@ -42,14 +40,24 @@ async def test_midperiod_source_lineage_preserves_cutoff(uploaded_pdf, client, d
         for item in sections["traceability_appendix"]["lines"]
         if item["line_id"] == "income_statement.total_income"
     )
-    details = line["source_anchor"]["details"]
+    assert line["source_anchor"]["detail_count"] > 0
+    # The preview carries counts. The details and the manifest load page by page (#2583).
+    details_response = await client.get(
+        "/reports/package/line-details",
+        params={**period, "line_id": "income_statement.total_income", "anchor": "source_anchor", "limit": 500},
+    )
+    assert details_response.status_code == 200, details_response.text
+    details = details_response.json()["details"]
+    assert len(details) == line["source_anchor"]["detail_count"]
     assert details, "Included source-backed income requires concrete source authority"
     assert any(
         item["identifier"] == f"statement_result:{source.source_result_id}"
         and item["decision_id"] == str(source.decision_id)
         for item in details
     )
-    assert any(item["decision_id"] == str(source.decision_id) for item in document["input_manifest"])
+    manifest_response = await client.get("/reports/package/manifest-entries", params={**period, "limit": 500})
+    assert manifest_response.status_code == 200, manifest_response.text
+    assert any(item["decision_id"] == str(source.decision_id) for item in manifest_response.json()["entries"])
     contributions = await PackageAssembler()._contributions(
         db, user_id=uploaded_pdf.user_id, start_date=date(2026, 1, 1), end_date=cutoff, as_of_date=cutoff
     )

@@ -52,7 +52,7 @@ describe("structured ApiError (#1005)", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const { apiOperation, ApiError, isApiErrorCode } = await import("../lib/api");
+    const { apiOperation, ApiError } = await import("../lib/api");
 
     await expect(
       apiOperation("batch_approve_matches_statements_batch_approve_matches_post", {
@@ -73,9 +73,6 @@ describe("structured ApiError (#1005)", () => {
     expect(apiErr.status).toBe(409);
     expect(apiErr.errorId).toBe("conflict");
     expect(apiErr.requestId).toBe("req-123");
-    // Callers branch on the machine-readable code, not the message text.
-    expect(isApiErrorCode(caught, "conflict")).toBe(true);
-    expect(isApiErrorCode(caught, "not_found")).toBe(false);
   });
 
   it("test_AC12_27_3 does not stringify a non-string (422 array) detail", async () => {

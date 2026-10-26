@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,7 @@ from src.pricing import (
     ManualValuationLiquidityClass,
     build_manual_valuation_lines,
 )
+from src.pricing.extension.valuation import ValuationComponentItem, split_net_worth_scope
 from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 
 
@@ -73,3 +75,105 @@ async def test_valuation_lines_liquidity_classification_contract(db: AsyncSessio
     )
     assert len(asset_lines_liquid) == 1
     assert asset_lines_liquid[0]["name"] == "Valuation: Fixed Deposit (long term savings)"
+
+
+def _component(
+    component_type: ManualValuationComponentType,
+    liquidity_class: ManualValuationLiquidityClass,
+    source: str,
+) -> ValuationComponentItem:
+    return ValuationComponentItem(
+        id=uuid4(),
+        component_type=component_type.value,
+        liquidity_class=liquidity_class.value,
+        as_of_date=date(2026, 9, 30),
+        value=Decimal("1000.00"),
+        currency="SGD",
+        source=source,
+    )
+
+
+def test_AC_pricing_manualvaluation_12_scope_excludes_a_liability_with_its_asset() -> None:
+    """AC-pricing.manualvaluation.12: a scope without restricted holdings excludes a liability with its asset (#2645).
+
+    The excluded property takes its mortgage out. A mortgage without an excluded
+    property stays. A general liability and a liquid asset stay. The full scope
+    holds each component.
+    """
+    property_value = _component(
+        ManualValuationComponentType.PROPERTY_VALUE, ManualValuationLiquidityClass.ILLIQUID, "Condo"
+    )
+    mortgage = _component(
+        ManualValuationComponentType.MORTGAGE_BALANCE, ManualValuationLiquidityClass.LIABILITY, "Condo loan"
+    )
+    esop = _component(ManualValuationComponentType.ESOP, ManualValuationLiquidityClass.RESTRICTED, "ESOP")
+    tax_payable = _component(
+        ManualValuationComponentType.TAX_PAYABLE, ManualValuationLiquidityClass.LIABILITY, "Income tax"
+    )
+    tax_refund = _component(ManualValuationComponentType.TAX_REFUND, ManualValuationLiquidityClass.LIQUID, "Refund")
+    components = [property_value, mortgage, esop, tax_payable, tax_refund]
+
+    included, excluded = split_net_worth_scope(components, include_restricted=False)
+    assert [item.source for item in included] == ["Income tax", "Refund"]
+    assert [item.source for item in excluded] == ["Condo", "Condo loan", "ESOP"]
+
+    included, excluded = split_net_worth_scope([mortgage, tax_refund], include_restricted=False)
+    assert [item.source for item in included] == ["Condo loan", "Refund"]
+    assert excluded == []
+
+    included, excluded = split_net_worth_scope(components, include_restricted=True)
+    assert included == components
+    assert excluded == []
+
+
+async def test_AC_pricing_manualvaluation_13_excluded_line_errors_by_type(
+    db: AsyncSession, user_id, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC-pricing.manualvaluation.13: an excluded line keeps a pricing FX error as a typed warning; other errors raise.
+
+    A missing rate gives ``missing_fx_rate_excluded_holding``. Another pricing error
+    gives ``fx_conversion_failed_excluded_holding``. An error outside the pricing
+    family is not an FX gap, so it still raises (#2645).
+    """
+    import src.pricing.extension.fx as fx_module
+    from src.pricing.base.errors import NoObservationError, PricingError
+
+    db.add(
+        ManualValuationSnapshot(
+            user_id=user_id,
+            as_of_date=date(2026, 9, 30),
+            source="Employer RSU",
+            component_type=ManualValuationComponentType.RSU,
+            liquidity_class=ManualValuationLiquidityClass.RESTRICTED,
+            currency="USD",
+            value=Decimal("1000.00"),
+        )
+    )
+    await db.commit()
+
+    async def build(error: Exception) -> list[dict]:
+        async def fail(*_args, **_kwargs):
+            raise error
+
+        monkeypatch.setattr(fx_module, "convert_amount", fail)
+        excluded: list[dict] = []
+        await build_manual_valuation_lines(
+            db,
+            user_id,
+            as_of_date=date(2026, 10, 23),
+            target_currency="SGD",
+            include_restricted=False,
+            excluded_lines=excluded,
+        )
+        return excluded
+
+    missing = await build(NoObservationError("No FX rate available for USD/SGD on 2026-10-23"))
+    assert [(line["amount"], line["conversion_warning"]["type"]) for line in missing] == [
+        (None, "missing_fx_rate_excluded_holding")
+    ]
+    failed = await build(PricingError("invalid FX conversion boundary for USD/SGD"))
+    assert [(line["amount"], line["conversion_warning"]["type"]) for line in failed] == [
+        (None, "fx_conversion_failed_excluded_holding")
+    ]
+    with pytest.raises(RuntimeError, match="connection lost"):
+        await build(RuntimeError("connection lost"))

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import StatementDetailPage from "@/app/(main)/statements/[id]/page"
@@ -9,6 +9,7 @@ const mockSearchParams = new URLSearchParams()
 let mockStatementId = "s1"
 
 vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   useParams: () => ({ id: mockStatementId }),
   useSearchParams: () => mockSearchParams,
 }))
@@ -67,8 +68,6 @@ describe("StatementDetailPage", () => {
   beforeEach(() => {
     mockedApiFetch.mockReset()
     showToastMock.mockReset()
-    mockSearchParams.delete("approved")
-    mockSearchParams.delete("entriesCreated")
     mockStatementId = "s1"
   })
 
@@ -187,46 +186,94 @@ describe("StatementDetailPage", () => {
     expect(screen.getByText(/Parsing in progress/)).toBeInTheDocument()
   })
 
+  const validBalance = {
+    opening_balance: "1000.00", closing_balance: "1500.00", calculated_closing: "1500.00",
+    opening_delta: "0.00", closing_delta: "0.00", opening_match: true, closing_match: true, validated_at: "2026-01-31T00:00:00Z",
+  }
+
+  function mockStatementApi(read: () => Record<string, unknown>, onRetry?: () => void) {
+    mockedApiFetch.mockImplementation(((operationId: string) => {
+      switch (operationId) {
+        case "get_statement_statements__statement_id__get":
+          return Promise.resolve(read())
+        case "get_statement_for_review_statements__statement_id__review_get":
+          return Promise.resolve({ ...read(), balance_validation_result: validBalance, source_missing_facts: [], source_envelope_reviewable: false, reviewed_envelope: null })
+        case "list_pending_review_statements_pending_review_get":
+          return Promise.resolve({ items: [{ id: "s1" }], total: 1 })
+        case "get_review_conflicts_review_conflicts__statement_id__get":
+          return Promise.resolve({ duplicates: [], transfer_pairs: [], resolved: true })
+        case "retry_statement_parsing_statements__statement_id__retry_post":
+          onRetry?.()
+          return Promise.resolve({})
+        default:
+          return Promise.reject(new Error(`Unexpected operation ${operationId}`))
+      }
+    }) as unknown as typeof apiOperation)
+  }
+
   // AC-extraction.fe-stage1-review.4
   it("AC16.18.1 loads detail data and renders transactions", async () => {
-    mockedApiFetch.mockResolvedValueOnce(parsedStatement)
+    mockStatementApi(() => parsedStatement)
 
     render(<StatementDetailPage />)
 
     await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
-    expect(screen.getByText("Salary")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Start Review →" })).toHaveAttribute("href", "/statements/s1/review")
+    expect(screen.getAllByText("Salary").length).toBeGreaterThan(0)
+    expect(
+      screen.getByTestId("statement-original-filename-badge"),
+    ).toHaveTextContent("Source file: statement-jan.pdf")
+    expect(screen.getByText(/Confidence 92% \(/)).toBeInTheDocument()
+  })
+
+  // AC-extraction.fe-stage1-review.19
+  it("AC-extraction.fe-stage1-review.19 shows the PDF original beside the extracted transactions on one page", async () => {
+    mockStatementApi(() => parsedStatement)
+
+    render(<StatementDetailPage />)
+
+    const workbench = await screen.findByTestId("statement-side-by-side-workbench")
+    expect(within(workbench).getByRole("heading", { name: "PDF Preview" })).toBeInTheDocument()
+    expect(within(workbench).getByRole("heading", { name: "Transactions" })).toBeInTheDocument()
+    expect(within(workbench).getAllByText("Salary").length).toBeGreaterThan(0)
+    await screen.findByRole("button", { name: "Approve" })
+    expect(document.querySelector('a[href$="/review"]')).toBeNull()
+    expect(screen.getByRole("link", { name: "← Back to Upload" })).toHaveAttribute("href", "/upload")
   })
 
   // AC-extraction.fe-stage1-review.5
-  it("AC16.18.2 detail page is read-only for approval actions", async () => {
-    mockedApiFetch.mockResolvedValueOnce(parsedStatement)
+  it("AC16.18.2 shows approve and reject only while the statement is parsed", async () => {
+    mockStatementApi(() => parsedStatement)
+    const parsed = render(<StatementDetailPage />)
 
+    expect(await screen.findByRole("button", { name: "Approve" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled()
+    parsed.unmount()
+
+    mockedApiFetch.mockReset()
+    mockStatementApi(() => ({ ...parsedStatement, status: "approved" }))
     render(<StatementDetailPage />)
 
     await waitFor(() => expect(screen.getByText("statement-jan.pdf")).toBeInTheDocument())
-
+    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledWith("get_statement_for_review_statements__statement_id__review_get", expect.anything()))
     expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument()
-    expect(mockedApiFetch).not.toHaveBeenCalledWith(
-      expect.stringMatching(/approve/),
-      expect.anything(),
-    )
-    expect(mockedApiFetch).not.toHaveBeenCalledWith(
-      expect.stringMatching(/reject/),
-      expect.anything(),
-    )
+    expect(mockedApiFetch).not.toHaveBeenCalledWith("approve_statement_stage1_statements__statement_id__review_approve_post", expect.anything())
+    expect(mockedApiFetch).not.toHaveBeenCalledWith("reject_statement_stage1_statements__statement_id__review_reject_post", expect.anything())
   })
 
   // AC-extraction.fe-stage1-review.6
   it("AC16.18.3 retry parse posts retry API and refreshes", async () => {
-    const rejectedStatement = { ...parsedStatement, status: "rejected", validation_error: "parse failed" }
-    mockedApiFetch.mockResolvedValueOnce(rejectedStatement).mockResolvedValueOnce(undefined).mockResolvedValueOnce(parsedStatement)
+    let current: Record<string, unknown> = { ...parsedStatement, status: "rejected", validation_error: "parse failed" }
+    const retried = vi.fn()
+    mockStatementApi(() => current, () => {
+      retried()
+      current = parsedStatement
+    })
 
     render(<StatementDetailPage />)
 
     await waitFor(() => expect(screen.getByText("Parsing Failed")).toBeInTheDocument())
-    fireEvent.click(screen.getAllByRole("button", { name: "Retry Parse" })[0])
+    fireEvent.click(screen.getByRole("button", { name: "Retry Parse" }))
 
     await waitFor(() =>
       expect(mockedApiFetch).toHaveBeenCalledWith(
@@ -236,6 +283,8 @@ describe("StatementDetailPage", () => {
         },
       ),
     )
+    expect(retried).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByText("Parsing Failed")).not.toBeInTheDocument())
   })
 
   it("shows not found state", async () => {

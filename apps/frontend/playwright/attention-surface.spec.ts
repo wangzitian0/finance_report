@@ -75,9 +75,9 @@ test.describe("AC22.6.4 attention surface smoke", () => {
     test(`${label} renders the attention queue ranked by confidence without overflow`, async ({ page }) => {
       await page.setViewportSize({ width, height });
 
-      await page.goto("/attention", { waitUntil: "networkidle" });
+      await page.goto("/audit", { waitUntil: "networkidle" });
 
-      await expect(page.getByRole("heading", { name: "Needs your attention" })).toBeVisible({
+      await expect(page.getByRole("heading", { name: "Needs Confirmation" })).toBeVisible({
         timeout: COLD_ROUTE_TIMEOUT_MS,
       });
       // Both the reconciliation and statement-review sources render as rows
@@ -85,20 +85,21 @@ test.describe("AC22.6.4 attention surface smoke", () => {
       await expect(page.getByText(/unmatched transaction/i)).toBeVisible();
       await expect(page.getByText("march-statement.pdf")).toBeVisible();
       // Each row deep-links to its action surface and preserves the attention origin.
-      await expect(page.locator('a[href="/statements/stmt-1/review?from=attention"]')).toBeVisible();
-      await expect(page.locator('a[href="/reconciliation/unmatched?from=attention"]')).toBeVisible();
+      await expect(page.locator('a[href="/statements/stmt-1?from=attention"]')).toBeVisible();
+      await expect(page.locator('a[href="/reconciliation?tab=unmatched&from=attention"]')).toBeVisible();
 
       await expectNoDocumentHorizontalScroll(page);
     });
 
-    test(`${label} surfaces the Home trust meter linking to the attention queue`, async ({ page }) => {
+    test(`${label} surfaces the Home action banner linking to the audit queue`, async ({ page }) => {
       await page.setViewportSize({ width, height });
 
       await page.goto("/", { waitUntil: "networkidle" });
 
-      const trustMeter = page.getByRole("link", { name: "Items that need your attention" });
-      await expect(trustMeter).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
-      await expect(trustMeter).toHaveAttribute("href", "/attention");
+      const banner = page.getByRole("region", { name: "Needs attention" });
+      await expect(banner).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+      await expect(banner.getByRole("heading", { name: /need(s)? your confirmation/ })).toBeVisible();
+      await expect(banner.getByRole("link", { name: "Open Needs Confirmation" })).toHaveAttribute("href", "/audit");
 
       await expectNoDocumentHorizontalScroll(page);
     });

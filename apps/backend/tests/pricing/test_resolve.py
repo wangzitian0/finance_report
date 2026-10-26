@@ -187,3 +187,46 @@ def test_tie_break_falls_back_to_id_when_authority_as_of_and_observed_at_all_col
     # Order must not matter — try both permutations.
     assert resolve(SUBJECT, date(2026, 6, 1), ResolutionPolicy(), [lower_id, higher_id]) is higher_id
     assert resolve(SUBJECT, date(2026, 6, 1), ResolutionPolicy(), [higher_id, lower_id]) is higher_id
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [
+        ResolutionPolicy(),
+        ResolutionPolicy(max_age_days=4),
+        ResolutionPolicy(min_authority=Authority.STATEMENT),
+        ResolutionPolicy(max_age_days=2, min_authority=Authority.MANUAL),
+    ],
+)
+def test_AC_pricing_fx_4_resolve_series_equals_one_resolve_per_date(policy: ResolutionPolicy):
+    """AC-pricing.fx.4: ``resolve_series`` returns what ``resolve`` returns for each date, and omits a miss."""
+    import random
+
+    from src.pricing.extension.resolve import resolve, resolve_series
+
+    rng = random.Random(2583)
+    start = date(2026, 6, 1)
+    candidates = [
+        _observation(
+            value=str(rng.randint(90, 110)),
+            as_of=start + timedelta(days=rng.randint(0, 40)),
+            observed_at=datetime(2026, 5, 1, tzinfo=UTC) + timedelta(hours=rng.randint(0, 3)),
+            authority=rng.choice(list(Authority)),
+            subject=rng.choice([SUBJECT, SUBJECT, OTHER_SUBJECT]),
+            id=UUID(int=index + 1),
+        )
+        for index in range(300)
+    ]
+    dates = [start + timedelta(days=offset) for offset in range(-3, 46)]
+
+    series = resolve_series(SUBJECT, dates, policy, candidates)
+
+    expected = {}
+    for as_of in dates:
+        try:
+            expected[as_of] = resolve(SUBJECT, as_of, policy, candidates)
+        except NoObservationError:
+            continue
+    assert series == expected
+    assert dates[0] not in series
+    assert len(series) > 30

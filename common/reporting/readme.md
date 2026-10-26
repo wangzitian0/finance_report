@@ -235,6 +235,18 @@ exact. Package readiness consumes this proof state as a blocking section
 invariant, so lineage visibility or a balanced bridge alone cannot authorize,
 freeze, reopen, or export an unproven cash-flow section as trusted.
 
+`GET /reports/cash-flow` returns `CashFlowPreview`, the projection
+`cash_flow_preview(document)` of the complete document (#2583 S10). Each section
+has one line for each activity, description and account (`cash_flow_line_id`),
+with the sum and the count of its items. The preview has no per-event lineage;
+`lineage_summary` counts the lineage records. `GET /reports/cash-flow/line-events`
+returns the records of one line page by page, in document order, with the entry
+date, the memo and the cash movement. Unclassified records use the line id
+`unclassified`. Opening-stock records use the line id `opening_stock`. The
+document, the preview lines and the pages come from one builder. The CSV export
+and the package snapshot keep the complete document. The event read selects
+columns, not ORM rows: one year of data has about 2000 lines.
+
 For a trusted `PersonalReportPackageDocument`, cash/bank identity is supplied as
 typed `PackageCashInputs` derived from authoritative bank-statement
 contributions and their exact custody `account_id` refs. The package path never
@@ -245,11 +257,21 @@ legacy cash-name vocabulary; it cannot authorize, persist, reopen, or export
 a package. Brokerage cash decomposition remains a separate evidence problem: a
 brokerage container is not assigned a global binary cash role.
 
-**Net worth time-series** — `GET /reports/net-worth/timeseries?from=...&to=...&granularity=daily|monthly`
+**Net worth time-series** — `GET /reports/net-worth/timeseries?from=...&to=...&granularity=daily|monthly&include_restricted=...`
 returns `{date, total_assets, total_liabilities, net_worth, currency}`
 points; `daily` is capped at 366 points, `monthly` uses the period end
-date, and each point reuses balance-sheet FX conversion as of that point's
-date.
+date, and for the same stored FX rates and the same `include_restricted`
+scope each point equals the balance sheet on that point's date
+(AC-reporting.net-worth-timeseries.3). It does not
+compute net income, so an FX miss on an income or expense line does not fail
+it. The series does not build one
+balance sheet per point (#2583). Two grouped queries give the ledger balance
+before the first point and the daily movements; a running sum gives each
+point, at the spot FX rate of the point date (`get_exchange_rate_series`).
+Manual valuations come from `build_manual_valuation_lines_series`. Positions
+are read once; a point with held positions uses the balance-sheet portfolio
+valuation for those positions. A `monthly` series keeps at most 366 months
+(the latest ones) and starts at the first month with a non-zero total.
 
 **Net worth allocation schedule** — `GET /reports/net-worth/allocation?as_of_date=...&currency=...&include_restricted=...`
 is report-owned (not portfolio-owned) because it must reconcile ledger
@@ -259,7 +281,10 @@ sheet. `value` is signed in the report currency (assets positive,
 liabilities negative; the sum of all rows equals `net_worth`);
 `percentage_of_net_worth = value / net_worth * 100` (2dp, `null` when net
 worth is zero); rows group by `asset_class × liquidity_class ×
-source_currency` and retain drill-through `source_lines`. Portfolio
+source_currency` and retain drill-through `source_lines`. A source line
+carries `source_type`, `source_id`, `label` and `value`, and no link: the
+app opens the lineage drawer for a `ledger_account` and the evidence drawer
+for a `manual_valuation` (AC-reporting.net-worth-scope.8). Portfolio
 ledger-backed cost basis groups with `public_equity`; broker account
 residual value after cost-basis split remains `cash`. Manual valuation
 component types map: property/mortgage → `real_estate`; CPF/provident
@@ -353,12 +378,25 @@ are `manual`.
 
 The stable delivery surface is one versioned `PersonalReportPackageDocument`,
 not a directory of section endpoints. `GET /api/reports/package` builds the
-current preview. Runtime package journeys read annualized income, notes and
-traceability from that same document, with their independent numeric assertions
-intact; the consumer-closure proof includes these E2E callers.
-`POST /api/reports/package/generate` persists the same shape;
-the snapshot list, selected reopen, and selected JSON/CSV export routes read
-only that frozen document. Required document sections are:
+current preview document and returns its bounded projection,
+`PersonalReportPackagePreview` (#2583 S8). The projection keeps every section.
+Each traceability line keeps its metadata, its anchor states and a `detail_count`
+per anchor. It has no identifiers, no details and no input manifest entries;
+`readiness.input_coverage` gives the manifest counts. At one year of activity the
+preview is about 60 KB; the complete document was 3.9 MB.
+`GET /api/reports/package/line-details` (one line anchor) and
+`GET /api/reports/package/manifest-entries` return those lists page by page with
+the shared `limit`/`offset` bounds. They read the same contribution set as the
+document, without the statement sections, and the same appendix builder, so each
+page equals the matching slice of a frozen snapshot of the same period. These
+two routes are pages of the one document, not separate package artifacts.
+Runtime package journeys read annualized income, notes and traceability counts
+from the preview, and the traceability details and manifest entries from these
+pages, with their independent numeric assertions intact; the consumer-closure
+proof includes these E2E callers.
+`POST /api/reports/package/generate` persists the complete document, details and
+manifest included; the snapshot list, selected reopen, and selected JSON/CSV
+export routes read only that frozen document. Required document sections are:
 
 | Section ID | Owner |
 |---|---|
@@ -395,8 +433,14 @@ JSON/CSV downloads remain addressed by the selected snapshot ID; editing
 dates starts a new preview and never rewrites a saved artifact.
 
 Package readiness is a deterministic field of the document and is produced
-only by `PackageAssembler`. Workflow and advisor consume
-`current_package_document_summary`; frontend surfaces render the document.
+only by `PackageAssembler`. `assemble` and `evaluate_readiness` share one
+evaluation step, so both return the same readiness. `evaluate_readiness` does
+not build the traceability appendix, the notes, or a package decision, because
+readiness does not read them (#2583). The evaluation step opens one
+`shared_current_authority` block, so its current-authority reads (opening
+positions, journal contributions, input manifest) share one read of the audit
+projection (#2602). The manifest-entries page does the same. Workflow and advisor consume
+`current_package_readiness`; frontend surfaces render the document.
 None may retain a readiness route, service, or local derivation. A document is
 `ready` only when exact current contribution decisions and section invariants
 pass; otherwise it is `blocked`. Only a persisted package decision may set the
@@ -445,7 +489,9 @@ Each line maps one section/line to source and ledger anchors: `line_id`,
 `source_state`, `source_anchor` (`state` ∈ `{available, unavailable,
 not_applicable}` + identifiers), and `ledger_anchor` (same shape). Details
 carry the contribution input reference, amount/currency when present,
-current decision id, review state, and reason code.
+current decision id, review state, and reason code. The preview replaces the
+identifiers and details of each anchor with `detail_count`; the package page
+loads the details of one line when the user opens it.
 
 For a cutoff inside a statement period, reporting retains its exact current
 source decision for immutable transactions dated within the selected period
@@ -533,7 +579,7 @@ def consolidate_amount(amount: Decimal, currency: str, target: str, date: date) 
 |--------|------|
 | Journal lines | Aggregate posted/reconciled asset, liability, and equity account balances through the report date |
 | Active portfolio positions | Add a market valuation adjustment per broker account equal to `current market value - ledger-backed position cost basis`; current-day reports may use the latest imported brokerage snapshot date to match `/portfolio/holdings` |
-| Manual valuation snapshots | Add latest in-scope asset/liability snapshots as synthetic report lines; restricted retirement/benefit assets contribute when `include_restricted=true` |
+| Manual valuation snapshots | Add latest in-scope asset/liability snapshots as synthetic report lines; the scope rule is `pricing.split_net_worth_scope` (see **Net worth scope** below) |
 
 Portfolio adjustments prevent double counting without removing broker
 cash: if position cost basis already exists as a debit to the broker
@@ -545,6 +591,72 @@ sheet source classes also carry report-line provenance (see above): ledger
 lines derive it from contributing journal source types, active portfolio
 market adjustments are `derived`, manual valuation synthetic lines are
 `manual`.
+
+<a id="net-worth-scope"></a>**Net worth scope (#2645).** One net worth serves
+Home, the `/reports` Overview, the Balance sheet tab, the net worth chart and
+Portfolio. Each one reads `total_assets - total_liabilities` of
+`generate_balance_sheet` (the series computes the same totals with a running
+sum) for one as-of date and one `include_restricted` scope
+(AC-reporting.net-worth-scope.1).
+
+- The default scope of each net worth route and of the app is the full net
+  worth: `DEFAULT_INCLUDE_RESTRICTED = True` (`reporting/base/types.py`, read by
+  the balance sheet, its diagnostics and export, the allocation, the series and
+  `/reports/data-quality`) and `DEFAULT_INCLUDE_RESTRICTED = true` in
+  `hooks/useReportFilters.ts` (Home, `/reports`, Portfolio) (AC-platform.29.9).
+- `include_restricted=false` is the liquid scope. `pricing.split_net_worth_scope`
+  is its only definition: it excludes each restricted or illiquid asset
+  valuation and each liability valuation whose allocation class (a fixed map
+  from the component type) is the class of an excluded asset. Only
+  `mortgage_balance` shares a class with an asset type (`real_estate`), so a
+  mortgage valuation leaves with an excluded property valuation
+  (AC-pricing.manualvaluation.12).
+- Limits of the rule (#2659): no record links one liability to one asset. A
+  ledger liability account, for example a mortgage kept as a loan account,
+  always counts. When one property valuation is excluded, every mortgage
+  valuation leaves, also the mortgage of a property valuation set to liquid.
+  The rule reads the valuations current on each as-of date, so a mortgage
+  valuation older than its property valuation counts until the property date.
+- A scoped response returns `excluded_holdings`: one row per excluded asset
+  class with its excluded assets, excluded liabilities and net. Home, the
+  Balance sheet tab and Portfolio label the figure "Liquid net worth" and list
+  each row (AC-reporting.net-worth-scope.3, .5, .7). The totals do not depend
+  on these rows: an excluded valuation with no FX rate gives its row null
+  amounts and a warning, and the report does not fail
+  (AC-reporting.net-worth-scope.9). An included valuation with no FX rate fails
+  the report as before (AC-reporting.net-worth-scope.10).
+- The Balance sheet tab shows `net_worth_adjustment_gain_loss` on its own
+  equity line, "Manual and market valuations". The "FX and translation (CTA)"
+  line carries only `unrealized_fx_gain_loss` and `cta_adjustment`
+  (AC-reporting.net-worth-scope.6).
+- The personal report package presents the liquid scope by default
+  (`PACKAGE_INCLUDE_RESTRICTED = False`, read by `GET /reports/package`,
+  `PackageAssembler` and `assemble_framework_balance_sheet`; the generate body has
+  no scope default, so an absent value reads the constant in the route and the
+  app sends none, AC-reporting.net-worth-scope.12, .16). Its balance sheet
+  carries `excluded_holdings`, and its `restricted-asset-treatment` note names
+  each excluded class with its net, assets and liabilities
+  (AC-reporting.net-worth-scope.11). The document context records the scope
+  (`context.include_restricted`, AC-reporting.net-worth-scope.20). The Package
+  tab card takes its label from it: "Liquid net worth" with the excluded
+  classes, or "Net worth" (AC-reporting.net-worth-scope.15). A snapshot frozen
+  before #2645 records no scope; its liquid figures follow the older rule, so
+  the card shows no net worth for it (AC-reporting.net-worth-scope.17).
+- An FX gap on a restricted holding does not fail a report:
+  - `/reports/data-quality` runs the equation check without restricted holdings
+    and adds a `RESOLVE_FX_RATE` action item, titled by the cause (missing rate
+    or failed conversion), with no score boost; the score does not change
+    (AC-reporting.net-worth-scope.13, .18). Only a pricing-family FX error falls
+    back; another error, and an error of the second run, fail as before
+    (AC-reporting.net-worth-scope.19). The equation result does not depend on
+    the scope, because a manual valuation adds the same amount to one side and
+    to `net_worth_adjustment_gain_loss`.
+  - The annualized schedule lists the holding in its own currency, leaves it
+    out of `restricted_fair_value_total`, names it in
+    `restricted_fair_value_total_excludes` (structured rows: the
+    `conversion_warning` shape plus `amount`), and the package readiness has the
+    `restricted_holding_fx_unavailable` blocker
+    (AC-reporting.net-worth-scope.14). An FX gap on an income line still fails.
 
 `unrealized_fx_gain_loss` is **not a balancing plug** — it's calculated
 from foreign-currency asset/liability accounts by comparing `native
@@ -675,3 +787,11 @@ The live GXS browser journey also reads a midperiod package from the same upload
 source, independently checks cutoff amounts, and requires concrete source decision
 anchors (`AC-reporting.report-integrity.8`). Full-month JSON/CSV snapshot assertions
 remain separate from this live midperiod projection.
+
+### Unified period-first three-statement cockpit and chart scales (#2548, #2621)
+
+- **One dimension bar (`AC-reporting.fe-period-cockpit.1`, `.2`)**: `ReportDimensionBar` sets the period preset (`1M`, `1Q`, `1Y`, `YTD`, `3Y`, `All`) or a custom start and end, steps to the previous or next period, and sets the currency. Home and every `/reports` tab show it. The URL is the only store of these dimensions (`useReportFilters`: `period`, `start`, `end`, `currency`, `include_restricted`, `tab`), so a link reproduces the view.
+- **`/reports` tabs (`AC-reporting.fe-period-cockpit.3`)**: Overview, Balance sheet, Income statement, Cash flow and Full package are tabs of one page. The old routes `/reports/balance-sheet`, `/reports/income-statement`, `/reports/cash-flow` and `/reports/package` redirect to `/reports?tab=<name>` and keep their query (`AC-meta.fe-reports-tabs.1`).
+- **Three-statement cockpit (`AC-reporting.fe-period-cockpit.4`, `.5`)**: `StatementCockpit` on Home and on the Overview shows net worth and its change in the period (the balance sheet at the period end minus the balance sheet on the day before the period starts), income, expenses, net income and savings rate, and operating, investing, financing and net cash change. A segmented control selects one statement; a row of its largest lines opens `AccountLineageDrawer`.
+- **One action banner (`AC-reporting.fe-period-cockpit.6`)**: Home shows workflow items only as `HomeActionBanner`, and only when an item needs the user.
+- **Chart axis scales and share labels (`AC-reporting.2548.3`)**: `BarChart` and `PieChart` render compact axis scale bounds, net period deltas, and segment percentage shares while preserving accessible SVG/DOM roles.

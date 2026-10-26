@@ -17,7 +17,7 @@ from tests.statement_ingestion import posting_dependencies
 
 
 async def _dormant(db, user_id, amount=Decimal("1000")):
-    await set_base_currency(db, "SGD")
+    await set_base_currency(db, "SGD", user_id=user_id)
     account = AccountFactory.build(user_id=user_id, currency="SGD")
     db.add(account)
     await db.flush()

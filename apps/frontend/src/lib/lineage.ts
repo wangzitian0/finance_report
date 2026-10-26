@@ -66,17 +66,6 @@ export function anchorFromIdentifiers(
   return null;
 }
 
-export function lineageUrl(anchor: LineageAnchor): string {
-  const params = new URLSearchParams({
-    entity_type: anchor.entity_type,
-    entity_id: anchor.entity_id,
-  });
-  if (anchor.node_kind) params.set("node_kind", anchor.node_kind);
-  params.set("direction", "both");
-  params.set("max_depth", "6");
-  return `/api/evidence/lineage?${params.toString()}`;
-}
-
 export function lineageQuery(anchor: LineageAnchor) {
   return {
     entity_type: anchor.entity_type,
@@ -85,6 +74,73 @@ export function lineageQuery(anchor: LineageAnchor) {
     direction: "both" as const,
     max_depth: 6,
   };
+}
+
+export function nodeDisplayTitle(node: {
+  entity_type: string;
+  entity_id: string;
+  node_kind?: string;
+  properties?: Record<string, unknown> | null;
+}): string | null {
+  const props = node.properties ?? {};
+  const filename =
+    (typeof props.original_filename === "string" &&
+      props.original_filename.trim()) ||
+    (typeof props.filename === "string" && props.filename.trim()) ||
+    null;
+  if (filename) return filename;
+
+  const txnDate =
+    typeof props.txn_date === "string" && props.txn_date.trim()
+      ? props.txn_date.trim()
+      : null;
+  const amount =
+    typeof props.amount === "string" && props.amount.trim()
+      ? props.amount.trim()
+      : null;
+  const currency =
+    typeof props.currency === "string" && props.currency.trim()
+      ? props.currency.trim()
+      : null;
+  if (txnDate && amount) {
+    return `${txnDate} · ${currency ? `${currency} ` : ""}${amount}`;
+  }
+  return null;
+}
+
+export function nodeSourceHref(node: {
+  entity_type: string;
+  entity_id: string;
+  node_kind?: string;
+  properties?: Record<string, unknown> | null;
+}): string | null {
+  const props = node.properties ?? {};
+  const statementId =
+    typeof props.statement_id === "string" && props.statement_id.trim()
+      ? props.statement_id.trim()
+      : null;
+  if (
+    node.node_kind === "source_document" ||
+    node.entity_type === "uploaded_document" ||
+    node.entity_type === "bank_statement_transaction"
+  ) {
+    return statementId ? `/statements/${statementId}` : "/upload";
+  }
+  if (
+    node.node_kind === "ledger_line" ||
+    node.node_kind === "ledger_entry" ||
+    node.entity_type === "journal_line" ||
+    node.entity_type === "journal_entry"
+  ) {
+    return "/journal";
+  }
+  if (
+    node.node_kind === "atomic_fact" ||
+    node.entity_type === "atomic_transaction"
+  ) {
+    return "/reconciliation";
+  }
+  return null;
 }
 
 export function nodeLabel(node: {

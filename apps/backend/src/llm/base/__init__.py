@@ -16,10 +16,9 @@ from src.llm.base.errors import (
     LLMError,
     ModelCatalogError,
 )
-from src.llm.base.protocols import CatalogProvider, LLMClient
+from src.llm.base.protocols import LLMClient
 from src.llm.base.secrets import FernetCipher, SecretCipher, build_cipher
 from src.llm.base.types import (
-    ChatResult,
     DecodeParams,
     Encrypted,
     Message,
@@ -30,7 +29,6 @@ from src.llm.base.types import (
     ReasoningEffort,
     Scene,
     SceneBinding,
-    Usage,
 )
 from src.llm.base.usage import (
     LlmUsageMeter,
@@ -48,7 +46,6 @@ __all__ = [
     "ModelCatalogError",
     # service protocols
     "LLMClient",
-    "CatalogProvider",
     # secrets
     "SecretCipher",
     "FernetCipher",
@@ -62,8 +59,6 @@ __all__ = [
     "ProviderRef",
     "ModelSpec",
     "SceneBinding",
-    "Usage",
-    "ChatResult",
     "DecodeParams",
     "Message",
     # usage entity + estimators

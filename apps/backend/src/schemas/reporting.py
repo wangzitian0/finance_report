@@ -81,6 +81,19 @@ class AccountLineageResponse(BaseModel):
     lines: list[AccountLineageLine] = Field(description="Posted/reconciled lines contributing to the balance")
 
 
+class ExcludedHoldingRow(BaseModel):
+    """One asset class that a scope without restricted holdings excludes (#2645).
+
+    The amounts are null when a valuation of the class has no FX rate; ``warnings`` names each one.
+    """
+
+    asset_class: str = Field(description="Allocation asset class of the excluded manual valuations.")
+    total_assets: Decimal | None = Field(description="Excluded asset valuations, in the report currency.")
+    total_liabilities: Decimal | None = Field(description="Excluded liability valuations, in the report currency.")
+    net_worth: Decimal | None = Field(description="Excluded assets minus excluded liabilities.")
+    warnings: list[dict[str, str]] = Field(default_factory=list, description="One per valuation with no FX rate.")
+
+
 class BalanceSheetResponse(BaseModel):
     """Balance sheet response schema."""
 
@@ -112,6 +125,7 @@ class BalanceSheetResponse(BaseModel):
     opening_balance_warnings: list[dict[str, str]] = Field(
         default_factory=list, description="Opening-balance completeness warnings."
     )
+    excluded_holdings: list[ExcludedHoldingRow] = Field(default_factory=list, description="Excluded classes.")
     equation_delta: Decimal
     is_balanced: bool
 
@@ -181,14 +195,6 @@ class NetWorthAllocationSourceLine(BaseModel):
     source_id: UUID | None = Field(default=None, description="Source record id when the contributor has one.")
     label: str = Field(description="Human-readable contributor label.")
     value: Decimal = Field(description="Signed contributor value in the report currency.")
-    href: str | None = Field(default=None, description="Internal drill-through href for the contributor.")
-
-    @field_validator("href")
-    @classmethod
-    def validate_href(cls, value: str | None) -> str | None:
-        if value is None:
-            return value
-        return _validate_internal_action_href(value)
 
 
 class NetWorthAllocationRow(BaseModel):
@@ -223,6 +229,7 @@ class NetWorthAllocationResponse(BaseModel):
         default_factory=list,
         description="Same portfolio point-in-time gaps as the balance sheet (#1791 follow-up).",
     )
+    excluded_holdings: list[ExcludedHoldingRow] = Field(default_factory=list, description="Excluded classes.")
 
 
 class AccountTrendPoint(BaseModel):
@@ -634,9 +641,10 @@ class PersonalReportPackageGenerateRequest(BaseModel):
         min_length=3,
         max_length=3,
     )
-    include_restricted: bool = Field(
-        default=False,
-        description="Whether restricted manual valuations are included in generated section payloads",
+    # No schema default: the generated client then sends no value, and the route reads the one
+    # package default, PACKAGE_INCLUDE_RESTRICTED (#2645).
+    include_restricted: bool | None = Field(
+        default=None, description="Include restricted holdings. Absent: PACKAGE_INCLUDE_RESTRICTED (liquid)."
     )
 
 
@@ -719,6 +727,71 @@ class PersonalReportPackageTraceabilityResponse(BaseModel):
     completeness_warnings: list[PersonalReportPackageCompletenessWarning]
 
 
+class PersonalReportPackageTraceabilityAnchorName(str, Enum):
+    """The two anchors of one traceability line."""
+
+    SOURCE = "source_anchor"
+    LEDGER = "ledger_anchor"
+
+
+class PersonalReportPackageTraceabilityAnchorSummary(BaseModel):
+    """Source or ledger anchor of one preview line, without its identifiers and details (#2583)."""
+
+    state: str
+    source_types: list[str] = Field(default_factory=list, description="Source types disclosed for this anchor.")
+    entry_statuses: list[str] = Field(
+        default_factory=list, description="Ledger entry states disclosed for this anchor."
+    )
+    identifier_fields: list[str] = Field(
+        default_factory=list, description="Identifier field names available for this anchor."
+    )
+    unavailable_reason: str | None = None
+    detail_count: int = Field(
+        ge=0,
+        description="Number of details of this anchor. GET /reports/package/line-details returns them page by page.",
+    )
+
+
+class PersonalReportPackageTraceabilityLineSummary(BaseModel):
+    """Traceability metadata and anchor counts for one preview line."""
+
+    line_id: str
+    section_id: str
+    label: str
+    amount_field: str | None = None
+    currency_field: str | None = None
+    source_state: str
+    source_anchor: PersonalReportPackageTraceabilityAnchorSummary
+    ledger_anchor: PersonalReportPackageTraceabilityAnchorSummary
+    anchor_count: int = 0
+    blocker_codes: list[str] = Field(
+        default_factory=list, description="Explicit completeness or authority blockers for this line."
+    )
+
+
+class PersonalReportPackageTraceabilitySummaryResponse(BaseModel):
+    """The traceability appendix of a preview: one summary per line, without the details."""
+
+    section_id: str
+    label: str
+    status: str
+    lines: list[PersonalReportPackageTraceabilityLineSummary]
+    completeness_warnings: list[PersonalReportPackageCompletenessWarning]
+
+
+class PersonalReportPackageLineDetailsPage(BaseModel):
+    """One page of the details of one traceability line anchor, in appendix order."""
+
+    line_id: str
+    anchor: PersonalReportPackageTraceabilityAnchorName
+    total: int = Field(ge=0, description="Number of details of this anchor.")
+    limit: int = Field(ge=1, description="Maximum number of details in this page.")
+    offset: int = Field(ge=0, description="Number of details before this page.")
+    details: list[dict[str, str | Decimal | None]] = Field(
+        default_factory=list, description="Typed contribution details of this page."
+    )
+
+
 class AnnualizedIncomeScheduleIncome(BaseModel):
     """Trailing income totals for the personal report package."""
 
@@ -771,6 +844,12 @@ class AnnualizedIncomeScheduleResponse(BaseModel):
     restricted_fair_value_total_currency: str = Field(
         min_length=3, max_length=3, description="Currency of the restricted fair-value total."
     )
+    # An empty list is not dumped: a section frozen before the field keeps its decision version (#2645).
+    restricted_fair_value_total_excludes: list[dict[str, str]] = Field(
+        default_factory=list,
+        exclude_if=lambda value: not value,
+        description="Holdings left out of the total because they did not convert to the total currency.",
+    )
     net_worth_treatment: AnnualizedIncomeScheduleNetWorthTreatment
     notes: list[str]
 
@@ -783,6 +862,13 @@ class PersonalReportPackageContext(BaseModel):
     end_date: date
     as_of_date: date
     currency: CurrencyCode
+    # The restricted-holdings scope of the figures (#2645). A document frozen before #2645
+    # has no value; it is not dumped, so the decision coordinates of such a document stay equal.
+    include_restricted: bool | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Restricted-holdings scope; null: not recorded.",
+    )
 
 
 class PersonalReportPackageStatementDispositionPolicy(BaseModel):
@@ -868,17 +954,53 @@ class PersonalReportPackageDocument(BaseModel):
         return self
 
 
-class PersonalReportPackageDocumentSummary(BaseModel):
-    """Typed preview/frozen projection consumed outside the package renderer."""
+class PersonalReportPackagePreviewSections(BaseModel):
+    """The sections of a preview. The traceability appendix has one summary per line."""
 
-    snapshot_id: UUID | None = None
-    package_id: str
-    lifecycle: PersonalReportPackageDocumentLifecycle
-    status: PersonalReportPackageSnapshotStatus
-    context: PersonalReportPackageContext
-    readiness: PersonalReportPackageReadinessResponse
+    model_config = {"extra": "forbid"}
+
+    balance_sheet: BalanceSheetResponse
+    income_statement: IncomeStatementResponse
+    cash_flow: CashFlowResponse
+    investment_performance: InvestmentPerformanceReportScheduleResponse
+    annualized_income_long_term: AnnualizedIncomeScheduleResponse
+    notes: PersonalReportPackageNotesResponse
+    traceability_appendix: PersonalReportPackageTraceabilitySummaryResponse
+
+
+class PersonalReportPackagePreview(BaseModel):
+    """The live preview of one package document (#2583).
+
+    It is a projection of ``PersonalReportPackageDocument``. Its appendix lines carry detail
+    counts, not details. It has no input manifest entries: ``readiness.input_coverage`` gives
+    their counts. ``GET /reports/package/line-details`` and ``GET /reports/package/manifest-entries``
+    return the entries page by page. A frozen snapshot stores the complete document.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    schema_version: Literal["2"]
+    lifecycle: Literal[PersonalReportPackageDocumentLifecycle.PREVIEW]
     generated_at: datetime
-    frozen_at: datetime | None = None
+    package_id: str
+    status: Literal[PersonalReportPackageSnapshotStatus.DRAFT]
+    context: PersonalReportPackageContext
+    contract: PersonalReportPackageContractResponse
+    readiness: PersonalReportPackageReadinessResponse
+    framework_policy: FrameworkPolicyResult
+    statement_disposition_policy: PersonalReportPackageStatementDispositionPolicy | None = None
+    sections: PersonalReportPackagePreviewSections
+
+
+class PersonalReportPackageManifestEntriesPage(BaseModel):
+    """One page of the input manifest of a package document, in manifest order."""
+
+    total: int = Field(ge=0, description="Number of manifest entries.")
+    limit: int = Field(ge=1, description="Maximum number of entries in this page.")
+    offset: int = Field(ge=0, description="Number of entries before this page.")
+    entries: list[PersonalReportPackageTraceManifestEntry] = Field(
+        default_factory=list, description="Manifest entries of this page."
+    )
 
 
 class PersonalReportPackageSnapshotResponse(PersonalReportPackageSnapshotSummary):

@@ -95,12 +95,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
 
     def __init__(self) -> None:
         self.api_key = settings.ai_api_key
-        self.base_url = settings.ai_base_url
-        self.primary_model = settings.primary_model
-        self.vision_model = settings.vision_model
-        self.ocr_model = settings.ocr_model
-        self.fallback_models = settings.fallback_models
-        self.vision_fallback_models = settings.vision_fallback_models
+        self.small_model = settings.small_model
+        self.multimodal_model = settings.multimodal_model
+        # One multimodal role serves OCR and vision.
+        self.vision_model = self.multimodal_model
+        self.ocr_model = self.multimodal_model
         self.deduplication_service = DeduplicationService()
         # Injectable region re-extraction backend for the under-extraction repair
         # pass (#1140 / AC13.20). ``None`` => the repair hook is a safe no-op: the
@@ -1284,7 +1283,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         filename: str | None = None,
         user_id: UUID | None = None,
     ) -> dict[str, Any]:
-        """Extract structured statement data using OCR + chat models."""
+        """Extract structured statement data with the vision model."""
         if file_content is None and not file_url:
             raise ExtractionError("File content is required")
 
@@ -1305,9 +1304,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             file_type=file_type,
             institution=institution,
             provider=settings.ai_provider,
-            primary_model=self.primary_model,
-            ocr_model=self.ocr_model,
-            vision_model=self.vision_model,
+            small_model=self.small_model,
+            multimodal_model=self.multimodal_model,
             force_model=force_model,
             pii_warning="PDF/image content may contain PII - prompt instructs AI to ignore it",
         )
@@ -1346,41 +1344,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 has_url=bool(file_url),
                 seed_override=seed_override,
                 user_id=user_id,
-            )
-
-        if self._uses_dedicated_layout_ocr():
-            try:
-                ocr_markdown = await self._extract_ocr_markdown(file_content, file_url, file_type, mime_type)
-                text_prompt = (
-                    f"{prompt}\n\n"
-                    "The statement has already been converted to OCR Markdown by the dedicated OCR model. "
-                    "Extract the structured financial data from this OCR text only.\n\n"
-                    f"```markdown\n{ocr_markdown}\n```"
-                )
-                return await self._extract_json_with_models(
-                    messages=[{"role": "user", "content": text_prompt}],
-                    models=[self.primary_model, *self.fallback_models],
-                    prompt=text_prompt,
-                    institution=institution,
-                    file_type=file_type,
-                    return_raw=return_raw,
-                    has_content=bool(file_content),
-                    has_url=bool(file_url),
-                    seed_override=seed_override,
-                    user_id=user_id,
-                )
-            except ExtractionError as ocr_error:
-                logger.warning(
-                    "OCR-first extraction failed, falling back to vision model",
-                    ocr_model=self.ocr_model,
-                    vision_model=self.vision_model,
-                    error=str(ocr_error),
-                )
-        elif self.ocr_model:
-            logger.info(
-                "OCR model shares the vision path; skipping dedicated layout parser",
-                ocr_model=self.ocr_model,
-                vision_model=self.vision_model,
             )
 
         vision_models = self._vision_extraction_models()

@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
 
-import AccountDetailsSidebar from "@/components/accounts/AccountDetailsSidebar"
+import { AccountDetailsSidebar } from "@/components/accounts/AccountFormModal"
 import JournalEntryDetailsModal from "@/components/journal/JournalEntryDetailsModal"
 import { apiOperation } from "@/lib/api-client"
 import type { Account, JournalEntry, JournalLine, JournalEntryResponse, JournalEntryListResponse } from "@/lib/types"

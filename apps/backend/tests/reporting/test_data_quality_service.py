@@ -190,6 +190,43 @@ async def test_compute_personal_data_quality_pending_statements(
     review_actions = [a for a in res.action_items if a.action_type == "REVIEW_STATEMENT"]
     assert len(review_actions) == 1
     assert "Review 1 Pending Statement" in review_actions[0].title
+    assert review_actions[0].action_url == "/upload"
+
+
+@pytest.mark.asyncio
+@patch("src.reporting.extension.data_quality_service.get_reconciliation_stats")
+async def test_compute_personal_data_quality_unmatched_and_unanchored_activity(
+    mock_recon: AsyncMock,
+    db: AsyncSession,
+    test_user: User,
+):
+    """Unmatched transactions with zero uploaded statements mark temporal, lineage, and reconciliation unhealthy."""
+    mock_recon.return_value = ReconciliationStats(
+        total_transactions=12,
+        matched_transactions=8,
+        unmatched_transactions=4,
+        pending_review=0,
+        auto_accepted=0,
+        match_rate=0.66,
+    )
+
+    res = await compute_personal_data_quality(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 10, 1),
+        currency="SGD",
+    )
+
+    assert res.reconciliation_purity_invariant.is_healthy is False
+    assert res.reconciliation_purity_invariant.delta == Decimal("4")
+    assert res.temporal_continuity_invariant.is_healthy is False
+    assert res.temporal_continuity_invariant.delta == Decimal("1")
+    assert res.lineage_anchors_invariant.is_healthy is False
+    assert res.score == 73
+
+    recon_actions = [a for a in res.action_items if a.id == "reconcile_unmatched_transactions"]
+    assert len(recon_actions) == 1
+    assert recon_actions[0].action_url == "/reconciliation?tab=unmatched"
 
 
 @pytest.mark.asyncio
@@ -314,3 +351,64 @@ async def test_compute_personal_data_quality_defaults_to_base_currency(
         currency=None,
     )
     assert res.currency == "USD"
+
+
+@pytest.mark.asyncio
+async def test_compute_personal_data_quality_ledger_entries_without_statements_is_not_100(
+    db: AsyncSession,
+    test_user: User,
+):
+    """Ledger activity (JournalEntry) with zero uploaded bank statements must not score 100/A."""
+    from src.audit import JournalEntrySourceType
+    from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
+
+    cash = Account(id=uuid4(), user_id=test_user.id, name="DBS Cash", type=AccountType.ASSET, currency="SGD")
+    income = Account(id=uuid4(), user_id=test_user.id, name="Salary", type=AccountType.INCOME, currency="SGD")
+    db.add_all([cash, income])
+    await db.flush()
+
+    entry = JournalEntry(
+        id=uuid4(),
+        user_id=test_user.id,
+        entry_date=date(2026, 9, 15),
+        memo="Salary without statement",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                id=uuid4(),
+                journal_entry_id=entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("5000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                id=uuid4(),
+                journal_entry_id=entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("5000.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.flush()
+
+    res = await compute_personal_data_quality(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 10, 1),
+        currency="SGD",
+    )
+
+    assert res.score < 80
+    assert res.grade != QualityGrade.A_AUDIT_READY
+    assert res.temporal_continuity_invariant.is_healthy is False
+    assert res.reconciliation_purity_invariant.is_healthy is False
+    assert res.lineage_anchors_invariant.is_healthy is False
+    assert any(a.action_type == "UPLOAD_STATEMENT" for a in res.action_items)

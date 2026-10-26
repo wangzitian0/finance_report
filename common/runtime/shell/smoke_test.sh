@@ -196,7 +196,7 @@ echo "✓ Networking Strategy"
 # test_smoke_routes_contract.py guards these paths against route drift.
 echo "--- Read-Only Checks ---"
 check_endpoint "Home / Dashboard Page" "$BASE_URL/" || FAILED=1
-check_endpoint "Accounts Page" "$BASE_URL/accounts" || FAILED=1
+check_endpoint "Settings Page" "$BASE_URL/settings" || FAILED=1
 check_endpoint "Journal Page" "$BASE_URL/journal" || FAILED=1
 check_endpoint "Statements Upload Page" "$BASE_URL/upload" || FAILED=1
 check_endpoint "Reports Page" "$BASE_URL/reports" || FAILED=1

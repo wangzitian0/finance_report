@@ -41,7 +41,7 @@ from src.audit import JournalEntrySourceType
 from src.extraction import TransactionDirection
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from src.llm import AIStreamError, estimate_tokens
+from src.llm import AIStreamError, ReasoningEffort, estimate_tokens
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reporting import ReportError
 from src.schemas.workflow import (
@@ -217,7 +217,7 @@ async def test_chat_stream_uses_cached_response(db: AsyncSession, test_user, mon
 
     ai_advisor_service._CACHE._store.clear()
     context_hash = hashlib.sha256(json.dumps(context, sort_keys=True, default=str).encode("utf-8")).hexdigest()
-    model_key = service.primary_model
+    model_key = service.large_model
     cache_key = f"{test_user.id}:en:{normalize_question(message)}:{context_hash}:{model_key}"
     ai_advisor_service._CACHE.set(cache_key, "cached response")
 
@@ -228,19 +228,19 @@ async def test_chat_stream_uses_cached_response(db: AsyncSession, test_user, mon
     assert response.endswith(DISCLAIMER_EN)
 
 
-async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
-    """AC-advisor.stream.1: AC6.7.1: Stream falls back to fallback model on primary failure."""
+async def test_stream_openrouter_uses_the_large_role_with_high_reasoning(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC-advisor.stream.1: AC6.7.1: the advisor streams from the large role, never the small role, with high reasoning."""
     service = AIAdvisorService()
-    service.primary_model = "primary"
-    service.fallback_models = ["fallback"]
+    service.small_model = "small"
+    service.large_model = "large"
     calls: list[str] = []
+    efforts: list[ReasoningEffort | None] = []
 
     async def fake_stream_model(
-        model: str, _messages: list[dict[str, str]], _user_id=None, _reasoning=None, _max_tokens=None
+        model: str, _messages: list[dict[str, str]], _user_id=None, reasoning=None, _max_tokens=None
     ):
         calls.append(model)
-        if model == "primary":
-            raise AIStreamError(message="fail primary", retryable=True)
+        efforts.append(reasoning)
         yield "hello"
 
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
@@ -249,29 +249,32 @@ async def test_stream_openrouter_falls_back(monkeypatch: pytest.MonkeyPatch) -> 
     async for chunk, model in service._stream_openrouter([{"role": "user", "content": "hi"}], None):
         results.append((chunk, model))
 
-    assert calls == ["primary", "fallback"]
-    assert results == [("hello", "fallback")]
+    assert calls == ["large"]
+    assert efforts == [ReasoningEffort.HIGH]
+    assert results == [("hello", "large")]
 
 
-async def test_stream_openrouter_raises_when_all_fail(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC-advisor.stream.2: AC6.7.2: Stream raises error when all models fail."""
+async def test_stream_openrouter_does_not_fall_back_to_another_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC-advisor.stream.2: AC6.7.2: a failed large model raises. No other model is tried (owner rule: no fallbacks)."""
     service = AIAdvisorService()
-    service.primary_model = "primary"
-    service.fallback_models = ["fallback"]
+    service.small_model = "small"
+    service.large_model = "large"
+    calls: list[str] = []
 
     async def fake_stream_model(
         model: str, _messages: list[dict[str, str]], _user_id=None, _reasoning=None, _max_tokens=None
     ):
+        calls.append(model)
         raise AIStreamError(message=f"fail {model}", retryable=True)
         yield  # pragma: no cover
 
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
 
-    with pytest.raises(AIStreamError, match="fallback"):
+    with pytest.raises(AIStreamError, match="fail large"):
         async for _chunk, _model in service._stream_openrouter([{"role": "user", "content": "hi"}], None):
             pass
+
+    assert calls == ["large"]
 
 
 async def test_chat_stream_requires_api_key(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -382,14 +385,11 @@ async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_su
             },
         }
 
-    async def fake_package_summary(_db: AsyncSession, *, user_id):
+    async def fake_package_readiness(_db: AsyncSession, *, user_id):
         payload = await fake_readiness(_db, user_id=user_id)
-        return SimpleNamespace(
-            status=SimpleNamespace(value="draft"),
-            readiness=SimpleNamespace(model_dump=lambda mode="json": payload),
-        )
+        return SimpleNamespace(model_dump=lambda mode="json": payload)
 
-    async def fake_workflow(_db: AsyncSession, *, user_id):
+    async def fake_workflow(_db: AsyncSession, *, user_id, synced_package_readiness=None):
         assert user_id == test_user.id
         return WorkflowStatusResponse(
             primary_state=WorkflowPrimaryState.NEEDS_ACTION,
@@ -440,7 +440,7 @@ async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_su
             currency="SGD",
         )
 
-    monkeypatch.setattr(ai_advisor_service, "current_package_document_summary", fake_package_summary)
+    monkeypatch.setattr(ai_advisor_service, "current_package_readiness", fake_package_readiness)
     monkeypatch.setattr(ai_advisor_service, "get_workflow_status", fake_workflow)
     monkeypatch.setattr(ai_advisor_service, "get_market_data_status", fake_market_data)
     monkeypatch.setattr(ai_advisor_service.PortfolioService, "get_portfolio_summary", fake_portfolio_summary)
@@ -551,7 +551,7 @@ async def test_AC21_2_1_advisor_context_degrades_to_default_suggestion_when_sour
     async def raise_source_error(*_args, **_kwargs):
         raise RuntimeError("source unavailable")
 
-    monkeypatch.setattr(ai_advisor_service, "current_package_document_summary", raise_source_error)
+    monkeypatch.setattr(ai_advisor_service, "current_package_readiness", raise_source_error)
     monkeypatch.setattr(ai_advisor_service, "get_workflow_status", raise_source_error)
     monkeypatch.setattr(ai_advisor_service, "get_market_data_status", raise_source_error)
     monkeypatch.setattr(ai_advisor_service.PortfolioService, "get_portfolio_summary", raise_source_error)
@@ -606,7 +606,7 @@ def test_AC22_14_3_chat_grounding_metadata_links_pending_review_without_write_ac
                             "confidence_tier": "review_required",
                             "source_refs": ["cash_flow", "reconciliation"],
                             "limitation": "Unreviewed reconciliation items should not be treated as trusted.",
-                            "next_action_href": "/reconciliation/review-queue",
+                            "next_action_href": "/reconciliation?tab=review-queue",
                         }
                     ]
                 }
@@ -625,7 +625,7 @@ def test_AC22_14_3_chat_grounding_metadata_links_pending_review_without_write_ac
         {
             "kind": "reconciliation_review",
             "label": "Review 2",
-            "href": "/reconciliation/review-queue",
+            "href": "/reconciliation?tab=review-queue",
             "count": 2,
         }
     ]
@@ -932,7 +932,7 @@ async def test_get_financial_context_filters_by_user(db: AsyncSession, test_user
 
     assert context["monthly_income"] == "SGD 500.00"
     assert context["monthly_expenses"] == "SGD 200.00"
-    assert context["unmatched_count"] == "1"
+    assert context["unmatched_count"] == "0"
     assert context["pending_review"] == "1"
     assert context["match_rate"] == "50.0%"
 
@@ -960,8 +960,8 @@ async def test_record_message_refresh_exception_logs_warning(
 async def test_stream_openrouter_with_preferred_model(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC-advisor.stream.7: AC6.13.2: preferred_model is prepended to the model list."""
     service = AIAdvisorService()
-    service.primary_model = "primary"
-    service.fallback_models = []
+    service.small_model = "small"
+    service.large_model = "large"
     called_with: list[str] = []
 
     async def fake_stream_model(
@@ -984,8 +984,8 @@ async def test_stream_openrouter_with_preferred_model(monkeypatch: pytest.Monkey
 async def test_stream_openrouter_raises_on_programming_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """AC-advisor.stream.8: AC6.13.3: ValueError/TypeError in _stream_model raises AIAdvisorError."""
     service = AIAdvisorService()
-    service.primary_model = "primary"
-    service.fallback_models = []
+    service.small_model = "small"
+    service.large_model = "large"
 
     async def broken_stream_model(model, _messages, _user_id=None, _reasoning=None, _max_tokens=None):
         raise ValueError("bad internal state")
@@ -1008,8 +1008,7 @@ async def test_AC23_4_5_advisor_uses_user_bound_model_and_threads_user_id(
     from src.llm.base import ReasoningEffort, Scene, SceneBinding
 
     service = AIAdvisorService()
-    service.primary_model = "env-primary"
-    service.fallback_models = ["env-fallback"]
+    service.small_model = "env-small"
     uid = uuid4()
     bound = SceneBinding(
         scene=Scene.ADVISOR_CHAT,

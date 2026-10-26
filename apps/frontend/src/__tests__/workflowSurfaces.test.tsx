@@ -5,12 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   WorkflowNotificationCenter,
-  WorkflowEventsPageContent,
+  WorkflowNotices,
   WorkflowInbox,
-  UploadToReportHome,
-  UploadToReportHomePanel,
   WorkflowStatusFeed,
 } from "@/components/workflow/WorkflowNotifications"
+import { humanizeWorkflowText } from "@/components/workflow/workflowFormat"
 import { apiOperation } from "@/lib/api-client"
 import type {
   WorkflowEventListResponse,
@@ -82,7 +81,7 @@ const makeWfEvent = (id: string, severity: string, status: string, title: string
 const workflowEvents: WorkflowEventListResponse = {
   total: 4,
   items: [
-    makeWfEvent("blocked-event", "blocked", "unread", "Reconciliation blocked", "Two transactions need matching before the report can be trusted.", "reconciliation", "/reconciliation/unmatched", "blocked") as any,
+    makeWfEvent("blocked-event", "blocked", "unread", "Reconciliation blocked", "Two transactions need matching before the report can be trusted.", "reconciliation", "/reconciliation?tab=unmatched", "blocked") as any,
     makeWfEvent("review-event", "action_required", "unread", "Review required", "A statement has low-confidence entries that need confirmation.", "bank_statement", "/review", "blocked") as any,
     makeWfEvent("success-event", "success", "read", "Safe entries posted", "Automation posted high-confidence entries.", "journal", "/journal", "ready") as any,
     makeWfEvent("info-event", "info", "read", "Statement uploaded", "The file is queued for processing.", "bank_statement", "/statements/source-4", "processing") as any,
@@ -130,8 +129,8 @@ describe("workflow notification surfaces", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Workflow events/i }))
     const dialog = await screen.findByRole("dialog", { name: "Workflow events" })
 
-    const link = within(dialog).getByRole("link", { name: /attention queue/i })
-    expect(link).toHaveAttribute("href", "/attention")
+    const link = within(dialog).getByRole("link", { name: /needs confirmation/i })
+    expect(link).toHaveAttribute("href", "/audit")
 
     // Following the link closes the notification sheet.
     fireEvent.click(link)
@@ -149,7 +148,7 @@ describe("workflow notification surfaces", () => {
     expect(within(dialog).getByRole("list", { name: "Upload-to-report session timeline" })).toBeInTheDocument()
     expect(within(dialog).getAllByRole("link", { name: "Open Reconciliation blocked" })[0]).toHaveAttribute(
       "href",
-      "/reconciliation/unmatched",
+      "/reconciliation?tab=unmatched",
     )
 
     fireEvent.click(within(dialog).getAllByRole("button", { name: "Mark as read" })[0])
@@ -253,110 +252,20 @@ describe("workflow notification surfaces", () => {
     expect(screen.queryByText(/journal line id/i)).not.toBeInTheDocument()
   })
 
-  it("AC19.4.2 renders the upload-to-report home as the first workflow entry surface", () => {
-    render(<UploadToReportHome status={statusNeedsAction} events={workflowEvents.items} />)
+  // AC-platform.fe-workflow.8
+  it("AC-platform.fe-workflow.8 requests upload-page workflow events in parallel with the status", async () => {
+    vi.mocked(fetchWorkflowStatus).mockReturnValue(new Promise<WorkflowStatusResponse>(() => {}))
 
-    expect(screen.getByRole("region", { name: "Upload-to-report home" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Upload-to-report session" })).toBeInTheDocument()
-    expect(screen.getByText("Review the required action so automation can continue.")).toBeInTheDocument()
-    expect(screen.getByText(statusNeedsAction.next_action.summary)).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /^Review required$/i })).toHaveAttribute("href", "/review")
-    expect(screen.getByRole("link", { name: "Report readiness" })).toHaveAttribute("href", "/reports/package")
-    expect(screen.getByRole("heading", { name: "Workflow status" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Blocked" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Action required" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Recent session timeline" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "Routine automation" })).toBeInTheDocument()
-    expect(screen.getByText("2 routine events")).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: /Archive/i })).not.toBeInTheDocument()
+    renderWithQuery(<WorkflowNotices />)
+
+    await waitFor(() => expect(fetchWorkflowEvents).toHaveBeenCalledTimes(1))
+    expect(fetchWorkflowStatus).toHaveBeenCalledTimes(1)
+    expect(screen.getByText("Loading workflow status...")).toBeInTheDocument()
   })
 
-  it("AC19.4.3 keeps the upload-first CTA and quiet state aligned to workflow next action", async () => {
-    vi.mocked(fetchWorkflowStatus).mockResolvedValue(statusEmpty)
-    vi.mocked(fetchWorkflowEvents).mockClear()
-
-    renderWithQuery(<UploadToReportHomePanel />)
-
-    expect(await screen.findByText("Upload files to start the automated reporting workflow.")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /Upload statements/i })).toHaveAttribute("href", "/statements/upload")
-    expect(screen.getAllByText("No reports generated yet")[0]).toBeInTheDocument()
-    expect(screen.getByText("0 blockers")).toBeInTheDocument()
-    expect(screen.getByText("No action required")).toBeInTheDocument()
-    expect(screen.queryByRole("heading", { name: "Routine automation" })).not.toBeInTheDocument()
-    expect(fetchWorkflowEvents).not.toHaveBeenCalled()
-  })
-
-  it("AC19.4.4 exposes ready, processing, and stale report readiness states above analytics", () => {
-    const { rerender } = render(
-      <UploadToReportHome
-        status={{
-          primary_state: "ready",
-          next_action: { type: "open_report", count: 0, href: "/reports/package", label: "Open report package", summary: "Inspect the personal report package and its readiness evidence." },
-          report_readiness: { state: "ready", blocking_count: 0, href: "/reports/package" },
-          event_counts: { unread: 0, action_required: 0, blocked: 0 },
-        }}
-        events={workflowEvents.items.slice(2)}
-      />,
-    )
-
-    expect(screen.getByText("Reports are ready to inspect.")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /Open report package/i })).toHaveAttribute("href", "/reports/package")
-    expect(screen.getAllByText("Report ready")[0]).toBeInTheDocument()
-
-    rerender(
-      <UploadToReportHome
-        status={{
-          primary_state: "processing",
-          next_action: { type: "wait", count: 0, href: "/events", label: "View processing", summary: "Automation is processing source files; open the session timeline for progress." },
-          report_readiness: { state: "processing", blocking_count: 0, href: "/reports/package" },
-          event_counts: { unread: 1, action_required: 0, blocked: 0 },
-        }}
-        events={[workflowEvents.items[3]]}
-      />,
-    )
-
-    expect(screen.getByText("Automation is processing uploaded source files.")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /View processing/i })).toHaveAttribute("href", "/events")
-    expect(screen.getAllByText("Report processing")[0]).toBeInTheDocument()
-
-    rerender(
-      <UploadToReportHome
-        status={{
-          primary_state: "blocked",
-          next_action: { type: "resolve_blocker", count: 1, href: "/reconciliation/unmatched", label: "Resolve blocker", summary: "Resolve the blocking condition before the report package can be trusted." },
-          report_readiness: { state: "stale", blocking_count: 1, href: "/reports/package" },
-          event_counts: { unread: 1, action_required: 0, blocked: 1 },
-        }}
-        events={[workflowEvents.items[0]]}
-      />,
-    )
-
-    expect(screen.getByText("A blocker is holding report readiness.")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /Resolve blocker/i })).toHaveAttribute("href", "/reconciliation/unmatched")
-    expect(screen.getAllByText("Report stale")[0]).toBeInTheDocument()
-    expect(screen.getByText("1 blocker")).toBeInTheDocument()
-  })
-
-  // AC-platform.fe-workflow.5
-  it("AC19.4.8 AC19.12.5 does not duplicate the workflow-state sentence when next-action summary is absent", () => {
+  it("AC8.13.92 status feed falls back to the generic workflow action label for unknown next actions", () => {
     render(
-      <UploadToReportHome
-        status={{
-          primary_state: "ready",
-          next_action: { type: "open_report", count: 0, href: "/reports/package", label: "Open report package", summary: "" },
-          report_readiness: { state: "ready", blocking_count: 0, href: "/reports/package" },
-          event_counts: { unread: 0, action_required: 0, blocked: 0 },
-        }}
-        events={[]}
-      />,
-    )
-
-    expect(screen.getAllByText("Reports are ready to inspect.")).toHaveLength(1)
-  })
-
-  it("AC8.13.92 upload home falls back to the generic workflow action label for unknown next actions", () => {
-    render(
-      <UploadToReportHome
+      <WorkflowStatusFeed
         status={{
           primary_state: "ready",
           next_action: { type: "unknown" as WorkflowStatusResponse["next_action"]["type"], count: 0, href: "/events", label: "", summary: "" },
@@ -378,7 +287,7 @@ describe("workflow notification surfaces", () => {
     ]> = [
       ["upload", "Upload statements", "/statements/upload"],
       ["review_required", "Review required", "/review"],
-      ["resolve_blocker", "Resolve blocker", "/reconciliation/unmatched"],
+      ["resolve_blocker", "Resolve blocker", "/reconciliation?tab=unmatched"],
       ["open_report", "Open report package", "/reports/package"],
       ["wait", "View processing", "/events"],
     ]
@@ -407,42 +316,61 @@ describe("workflow notification surfaces", () => {
     }
   })
 
-  it("AC19.3.5 renders the events page loading and unavailable states", async () => {
+  it("AC19.3.5 renders the upload-page notices loading and unavailable states", async () => {
     vi.mocked(fetchWorkflowStatus).mockImplementation(() => new Promise(() => undefined))
     vi.mocked(fetchWorkflowEvents).mockImplementation(() => new Promise(() => undefined))
 
-    const { unmount } = renderWithQuery(<WorkflowEventsPageContent />)
+    const { unmount } = renderWithQuery(<WorkflowNotices />)
 
-    expect(screen.getByRole("heading", { name: "Notifications" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Upload statements" })).toHaveAttribute("href", "/upload")
     expect(screen.getByText("Loading workflow status...")).toBeInTheDocument()
-    expect(screen.getByText("Loading workflow events...")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Workflow events" })).not.toBeInTheDocument()
 
     unmount()
 
     vi.mocked(fetchWorkflowStatus).mockRejectedValue(new Error("status unavailable"))
     vi.mocked(fetchWorkflowEvents).mockRejectedValue(new Error("events unavailable"))
 
-    renderWithQuery(<WorkflowEventsPageContent />)
+    renderWithQuery(<WorkflowNotices />)
 
     expect(await screen.findByText("Workflow status is unavailable.")).toBeInTheDocument()
-    expect(await screen.findByText("Unable to load workflow events.")).toBeInTheDocument()
+    expect(screen.queryByText("Loading workflow status...")).not.toBeInTheDocument()
   })
 
-  it("AC19.3.5 renders the events page status feed, inbox total, and lifecycle actions", async () => {
-    renderWithQuery(<WorkflowEventsPageContent />)
+  // AC-platform.fe-workflow.3
+  it("AC19.3.5 renders the upload-page status feed, inbox total, and lifecycle actions", async () => {
+    renderWithQuery(<WorkflowNotices />)
 
     expect(await screen.findByRole("heading", { name: "Workflow status" })).toBeInTheDocument()
-    expect(screen.getByText("Your action center — everything that needs your review across uploads, reconciliation, and reports.")).toBeInTheDocument()
     expect(screen.getByText("4 total")).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Workflow events" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Upload-to-report session" })).toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: "Open Reconciliation blocked" })[0]).toHaveAttribute(
       "href",
-      "/reconciliation/unmatched",
+      "/reconciliation?tab=unmatched",
     )
 
     fireEvent.click(screen.getAllByRole("button", { name: "Mark as read" })[0])
     await waitFor(() => expect(updateWorkflowEventStatus).toHaveBeenCalledWith("blocked-event", "read"))
+  })
+
+  it("humanizeWorkflowText replaces all five invariant jargon patterns and preserves ordinary copy", () => {
+    expect(
+      humanizeWorkflowText(
+        "Package section invariant failed: opening_balance_missing, cash_balance_input_missing, cash_identity_missing",
+      ),
+    ).toBe("Upload a bank statement to verify opening and ending cash balances.")
+    expect(humanizeWorkflowText("Package section invariant failed: opening_balance_missing")).toBe(
+      "Opening balance awaits bank statement verification.",
+    )
+    expect(humanizeWorkflowText("Package section invariant failed: cash_balance_input_missing")).toBe(
+      "Ending cash balance awaits bank statement verification.",
+    )
+    expect(humanizeWorkflowText("Package section invariant failed: cash_identity_missing")).toBe(
+      "Cash account balance awaits bank statement verification.",
+    )
+    expect(humanizeWorkflowText("Package section invariant failed")).toBe("Statement balance check needed")
+    expect(humanizeWorkflowText("Ordinary user-facing summary")).toBe("Ordinary user-facing summary")
+    expect(humanizeWorkflowText(undefined)).toBe("")
+    expect(humanizeWorkflowText(null)).toBe("")
   })
 })

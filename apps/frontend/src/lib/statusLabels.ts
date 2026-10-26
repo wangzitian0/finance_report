@@ -39,9 +39,7 @@ export function readinessVariant(state: keyof typeof READINESS_VARIANTS): Status
 }
 
 /** A currency code, or an em dash while unknown (was duplicated under the
- * name `formatCurrency` in upload/page.tsx — collided in name, though not
- * meaning, with lib/audit/money/format.ts's amount-formatting
- * `formatCurrency`, #1868 S5). */
+ * name `formatCurrency` in upload/page.tsx, #1868 S5). */
 export function currencyCodeOrDash(currency?: string | null): string {
     return currency || "—";
 }
@@ -95,6 +93,12 @@ export function humanizeIdentifier(value?: string | null): string {
         .join(" ");
 }
 
+/** Display label of a net worth allocation class, e.g. "real_estate" -> "Real Estate". */
+export function allocationClassLabel(value: string): string {
+    if (value === "retirement_and_benefit_assets") return "Retirement & Benefit Assets";
+    return humanizeIdentifier(value);
+}
+
 /** Display label for a source-document class, e.g. "bank_statement" -> "Bank statements". */
 export function sourceClassLabel(sourceClass: string): string {
     return SOURCE_CLASS_LABELS[sourceClass] ?? humanizeIdentifier(sourceClass);
@@ -105,13 +109,6 @@ export function confidenceLabel(score: number): string {
     if (score >= 85) return "Good";
     if (score >= 60) return "Fair — review advised";
     return "Low — review required";
-}
-
-/** Reconciliation-coverage tier label for a 0-100 percentage. */
-export function coverageLabel(pct: number): string {
-    if (pct >= 85) return "Good";
-    if (pct >= 60) return "Fair";
-    return "Needs attention";
 }
 
 /** Stage-2 consistency-check severity color (was components/review/stage2/types.ts). */

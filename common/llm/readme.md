@@ -56,7 +56,7 @@ binding; onboarding a vendor touches only axis 1.
 
 The GLM 5.3 transport follows the provider's
 [text migration contract](https://docs.z.ai/guides/llm/glm-5.3-flash) and
-[multimodal contract](https://docs.z.ai/guides/vlm/glm-5.3-flashx): these models
+[multimodal contract](https://docs.z.ai/guides/vlm/glm-5.3-flash): these models
 require enabled thinking. At the OpenAI-compatible wire boundary, absent,
 disabled, or low reasoning maps to `low`; medium/high maps to `high`.
 Existing extraction callers can retain their generic disabled-thinking request.
@@ -90,8 +90,8 @@ litellm client turns it into a `provider/model` call string.
 
 A **dynamic catalogue** that can be much larger than the bound set. Each entry
 (`ModelSpec`) carries its `provider_id`, `modalities` (text/image/pdf/file),
-`is_free`, and pricing. Catalogue loading and free-tier flagging belong to the
-`CatalogProvider` (EPIC A).
+`is_free`, and pricing. Catalogue loading and free-tier flagging belong to
+`LitellmCatalog` (EPIC A).
 
 ### Axis 3 — Scene
 
@@ -176,7 +176,7 @@ the GLM plan.
 
 `key = sha256(normalize(role + messages + decode params + image-bytes hash))`.
 It is computed on the *semantic request and modality role*, **NOT the exact model
-id**, so bumping `glm-5.1 → 5.2` does not invalidate every cassette — refreshing
+id**, so changing the model id does not invalidate every cassette — refreshing
 content is a re-record, the key is stable. Volatile fields (timestamps, random
 request ids) are stripped before hashing; image content is reduced to a sha256 of
 its bytes so transport encoding does not change the key. Only provably
@@ -200,7 +200,7 @@ Each cassette is tagged:
 
 The real extraction transport is **streaming** (`src.llm.stream_ai_json` →
 `src.llm.extension.client.litellm_stream` → `src.llm.accumulate_stream`), and
-both text and default-config vision (`OCR_MODEL == VISION_MODEL`, layout
+both text and default-config vision (one multimodal model for OCR and vision, layout
 parser skipped) flow through it. `litellm_stream` is cassette-aware **while
 preserving streaming**:
 
@@ -399,7 +399,7 @@ Commit the refreshed cassettes and the raised baseline together.
 ### 6.8 Real-statement corpus (source-referenced, PII-masked)
 
 Large/scanned statements are recorded as cassettes by
-`common/extraction/record_hf_cassettes.py` (engine: GLM-4.6V, thinking disabled,
+`common/extraction/record_hf_cassettes.py` (engine: the coding-plan vision model in its `MODEL` constant, thinking disabled; its move to the SDK multimodal model is #2569;
 pages rendered as compressed JPEG so even scanned docs fit context). To avoid repo
 bloat and PII, **the source document is never committed** — the cassette stores a
 `source` reference (an HF dataset URL, or a sha256 for a local/own statement) and the

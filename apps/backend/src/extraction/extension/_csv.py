@@ -398,7 +398,7 @@ def _strip_csv_preamble(text: str) -> str:
 
 class _CsvMixin:
     api_key: str | None
-    primary_model: str
+    small_model: str
 
     async def _parse_csv_content(self, file_content: bytes | str, institution: str) -> dict[str, Any]:
         """Parse CSV content directly from bytes or string.
@@ -666,7 +666,7 @@ class _CsvMixin:
 
         stream = stream_ai_json(
             messages=messages,
-            model=self.primary_model,
+            model=self.small_model,
             timeout=30.0,
         )
         content = await accumulate_stream(stream)

@@ -22,10 +22,24 @@ def derive_reconciliation_score_tier(score: int | None) -> ReconciliationConfide
     return "HIGH"
 
 
-def normalize_text(value: str) -> str:
-    """Normalize text for similarity comparison."""
-    cleaned = re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+def normalize_text(value: str | None) -> str:
+    """Normalize text for similarity comparison while preserving Unicode/CJK characters."""
+    if not value:
+        return ""
+    cleaned = re.sub(r"[^\w]+|_", " ", value.lower()).strip()
     return re.sub(r"\s+", " ", cleaned)
+
+
+def _description_tokens(norm: str) -> set[str]:
+    """Extract word and CJK character/bigram tokens from normalized text."""
+    tokens = set(norm.split())
+    for cjk_chunk in re.findall(r"[\u4e00-\u9fff]+", norm):
+        if len(cjk_chunk) == 1:
+            tokens.add(cjk_chunk)
+        else:
+            for idx in range(len(cjk_chunk) - 1):
+                tokens.add(cjk_chunk[idx : idx + 2])
+    return tokens
 
 
 def score_description(a: str | None, b: str | None) -> float:
@@ -37,8 +51,8 @@ def score_description(a: str | None, b: str | None) -> float:
     if not norm_a or not norm_b:
         return 0.0
     ratio = SequenceMatcher(None, norm_a, norm_b).ratio()
-    tokens_a = set(norm_a.split())
-    tokens_b = set(norm_b.split())
+    tokens_a = _description_tokens(norm_a)
+    tokens_b = _description_tokens(norm_b)
     token_score = len(tokens_a & tokens_b) / len(tokens_a | tokens_b) if tokens_a | tokens_b else 0
     return round(100 * (0.6 * ratio + 0.4 * token_score), 2)
 
@@ -64,7 +78,10 @@ def score_amount(
     if txn_amount == Decimal("0"):
         return 0.0
 
-    ratio = max(Decimal("0"), Decimal("100") - (diff / txn_amount) * Decimal("100"))
+    ratio = max(
+        Decimal("0"),
+        min(Decimal("100"), Decimal("100") - (diff / abs(txn_amount)) * Decimal("100")),
+    )
     return float(round(ratio, 2))
 
 
@@ -116,11 +133,18 @@ def extract_merchant_tokens(description: str) -> list[str]:
         "card",
         "visa",
         "mastercard",
+        "微信支付",
+        "支付宝",
     }
+    cjk_prefixes = ("微信支付", "支付宝", "云闪付", "财付通")
     words = normalize_text(description).split()
     tokens = []
     for word in words:
-        if len(word) < 3:
+        for prefix in cjk_prefixes:
+            if word.startswith(prefix) and len(word) > len(prefix):
+                word = word[len(prefix) :]
+                break
+        if len(word) < 2 or (len(word) < 3 and word.isascii()):
             continue
         if re.match(r"^\d+$", word):
             continue

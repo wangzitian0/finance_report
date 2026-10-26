@@ -19,15 +19,16 @@
 | Event and session schemas | `apps/backend/src/schemas/workflow.py` |
 | Derivation/upsert service | `apps/backend/src/workflow/extension/events.py` |
 | Compact status/events API | `apps/backend/src/routers/workflow.py` |
-| Report package readiness fact source | `current_package_document_summary` in `apps/backend/src/reporting/extension/package_document.py` |
+| Report package readiness fact source | `current_package_readiness` in `apps/backend/src/reporting/extension/package_document.py` |
+| Derivation source fingerprint | `apps/backend/src/workflow/extension/source_fingerprint.py` |
 | Header badge, Event inbox, Status feed | `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` |
-| Upload-to-Report home | `apps/frontend/src/app/(main)/page.tsx` (the `/dashboard` route redirects here) |
-| Events page | `apps/frontend/src/app/(main)/events/page.tsx` advanced session history surface |
+| Home action banner | `apps/frontend/src/components/home/HomeActionBanner.tsx` on `apps/frontend/src/app/(main)/page.tsx` (the `/dashboard` route redirects here) |
+| Upload-page workflow notices | `WorkflowNotices` in `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` on `/upload` (the `/events` route redirects here) |
 | Workflow navigation IA | `apps/frontend/src/components/navigation.ts` |
 | Desktop workflow navigation | `apps/frontend/src/components/Sidebar.tsx` |
 | Mobile workflow navigation | `apps/frontend/src/components/shell/BottomTabBar.tsx` |
-| Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py`, `apps/backend/migrations/versions/0024_add_workflow_sessions.py` |
-| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/navigation.test.ts`, `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx`, `apps/frontend/src/__tests__/bottomTabBar.test.tsx`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts`, `apps/frontend/playwright/workflow-navigation.spec.ts`, `apps/frontend/playwright/report-readiness.spec.ts` |
+| Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py`, `apps/backend/migrations/versions/0024_add_workflow_sessions.py`, `apps/backend/migrations/versions/0069_workflow_sync_state.py` |
+| Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/workflow/test_workflow_sync_gate.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/navigation.test.ts`, `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx`, `apps/frontend/src/__tests__/bottomTabBar.test.tsx`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/homeActionBanner.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts`, `apps/frontend/playwright/workflow-navigation.spec.ts`, `apps/frontend/playwright/report-readiness.spec.ts` |
 
 ---
 
@@ -50,7 +51,7 @@ They are intentionally separate from:
 - `ReconciliationMatch.status`, which is Stage 2 matching state.
 - Report package traceability, which proves report line support.
 - PackageDocument readiness, which is owned by `common/reporting/readme.md` and
-  consumed through reporting's typed `current_package_document_summary` port.
+  consumed through reporting's typed `current_package_readiness` port.
 
 Workflow events may summarize those sources, but they do not own them.
 Workflow status aggregation must consume package readiness as an input rather
@@ -244,8 +245,8 @@ from poisoning the outer transaction and cascading 500s.
 ```text
 /statements/{statement_id}
 /review
-/reconciliation/review-queue
-/reconciliation/unmatched
+/reconciliation?tab=review-queue
+/reconciliation?tab=unmatched
 /reports/package
 ```
 
@@ -299,7 +300,7 @@ blocked > needs_action > processing > ready > empty
 ```
 
 The `report_readiness` field consumes PackageDocument readiness through
-`current_package_document_summary` and collapses `draft -> none`,
+`current_package_readiness` and collapses `draft -> none`,
 `blocked -> blocked`, and `ready -> ready` into workflow's compact vocabulary.
 Workflow does not query a readiness route or reconstruct package blockers.
 
@@ -332,13 +333,12 @@ WorkflowNotificationCenter
   -> Header badge
   -> Event inbox drawer
 
-WorkflowStatusFeed
-  -> Dashboard status feed
-  -> Events page status summary
+WorkflowNotices (/upload)
+  -> WorkflowStatusFeed status summary
+  -> Workflow event timeline
 
-UploadToReportHome
-  -> Dashboard first viewport
-  -> Secondary analytics boundary
+HomeActionBanner (/)
+  -> One workflow or confirmation action
 ```
 
 Header badge rules:
@@ -372,26 +372,28 @@ Status feed rules:
 - Empty state says `No action required` and routes the user to upload when no
   workflow state exists.
 
-Upload-to-Report home rules:
+Home action banner rules:
 
-- `/dashboard` is the authenticated home for the upload-to-report workflow.
-- The first viewport renders workflow state, the primary next action, report
-  readiness, active workflow session state, and a recent timeline preview before
-  KPI, chart, reconciliation, or activity analytics.
-- The primary CTA uses `workflow.status.next_action.href`,
-  `workflow.status.next_action.label`, and
-  `workflow.status.next_action.summary`. Upload is the default label only when
-  no higher-priority blocker or action-required state wins the workflow
-  priority.
+- `/` is the authenticated home. The `/dashboard` route redirects to `/`.
+- `HomeActionBanner` shows one action at most. It shows nothing when no item
+  applies.
+- When the workflow is blocked or needs an action, the action uses
+  `workflow.status.next_action.href`, `workflow.status.next_action.label`, and
+  `workflow.status.next_action.summary`. An empty summary shows the
+  workflow-state sentence one time.
+- When no source exists, the action asks the user to upload the first
+  statement on `/upload`.
+- Otherwise, when items need confirmation, the action shows their count and
+  links to the Needs Confirmation queue on `/audit`.
+- A banner source that loads or fails shows no banner and no error. It must not
+  hide the statement cards of Home.
+
+Next-action routing rules of the workflow status:
+
+- Upload is the default label only when no higher-priority blocker or
+  action-required state wins the workflow priority.
 - Processing actions route to `/events` so the user sees session history rather
   than a raw statement list. Ready actions route directly to `/reports/package`.
-- Report readiness appears above secondary analytics and links to the report or
-  readiness action route from the workflow status contract.
-- Routine automation is summarized; blocked and action-required events remain
-  visually prominent.
-- Secondary dashboard metric loading or failure must not hide the workflow
-  home. Analytics render below the workflow surface with an isolated loading,
-  empty, retry, or error state.
 
 ---
 
@@ -408,13 +410,13 @@ its form factor:
   `lib/api.ts`. The shell must not calculate separate review-badge semantics with
   bespoke sidebar polling.
 - Workflow attention is surfaced through the notification bell plus the
-  `/attention` inbox; the accounting machinery (journal, reconciliation,
+  Needs Confirmation queue on `/audit`; the accounting machinery (journal, reconciliation,
   processing, statements, reports, package readiness) is reachable on demand via
   the Audit hub and event `action_href` deep links.
 - Direct routes and event `action_href` links into review, reconciliation,
   processing, statements, reports, and package readiness must continue to work.
 - Legacy routes must keep resolving: `/dashboard` redirects to `/` (the
-  authenticated Home) and `/events` redirects to `/notifications`.
+  authenticated Home) and `/events` redirects to `/upload`, where the workflow notices live.
 
 ---
 
@@ -422,8 +424,28 @@ its form factor:
 
 The first implementation derives `source.uploaded` from `StatementSummary` upload
 state. Workflow status and event reads run this deterministic sync before
-returning data. Repeated reads must not duplicate events or reset read/archive
-lifecycle state. The synthetic active `WorkflowSession` creation path is
+returning data when one of its inputs changed. Repeated reads must not
+duplicate events or reset read/archive lifecycle state.
+
+A read computes the source fingerprint of the derivation in one SQL statement
+(`source_fingerprint.py`). Per table, it holds the row count and the sum of the
+row timestamps in the user's scope. It also holds the current date and a
+digest of the settings. Every table in the model metadata is an input, except
+the tables that the derivation writes (`workflow_events`, `workflow_sessions`,
+`workflow_sync_states`) and the tables that it does not read (chat, AI
+feedback, counter, outbox, liveness ping). `workflow_sync_states` keeps the
+fingerprint and package readiness of the last derivation per user. When the
+fingerprint is equal and the state is younger than 15 minutes
+(`WORKFLOW_SYNC_STATE_MAX_AGE`), the read uses the stored readiness and writes
+nothing. The age bound exists because readiness can call an external FX
+provider when no stored rate exists: a provider miss changes no database row,
+so only the age bound makes a later recovery reach the events.
+When it differs, the read runs the derivation and stores the fingerprint that
+it computed before the derivation. Thus a change during the derivation makes
+the next read derive again (#2583). `stored_package_readiness` applies the same
+reuse rule without a derivation and without a write: it returns the stored
+readiness while the derivation is reusable, else None. The advisor context uses
+it and evaluates readiness itself when the result is None (#2583 S7). The synthetic active `WorkflowSession` creation path is
 concurrency-safe: overlapping status and event reads reuse the same
 `active-upload-to-report` session instead of surfacing duplicate-key 500s. If a
 historical synthetic row with the same dedupe key is no longer active, sync
@@ -463,7 +485,7 @@ Future slices may add deterministic derivation for:
 Stage 2 run review uses workflow/session scope without changing event
 lifecycle semantics:
 
-- Route: `/review/run/{run_id}`.
+- Route: `/audit?run_id={run_id}`.
 - Backend scope fields: `ReconciliationMatch.run_id` and
   `ConsistencyCheck.run_id`.
 - Queue endpoint: `GET /api/statements/stage2/queue?run_id={run_id}`.

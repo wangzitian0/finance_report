@@ -16,11 +16,9 @@ import {
 const ACCOUNTING_JARGON_HREFS = [
   "/journal",
   "/reconciliation",
-  "/accounts",
+  "/settings?tab=accounts",
   "/statements",
   "/settings",
-  "/processing",
-  "/confidence",
 ];
 
 describe("navigation metadata", () => {
@@ -57,7 +55,7 @@ describe("navigation metadata", () => {
   it("AC22.21.3 folds the accounting machinery into the /audit hub, out of navigation", () => {
     const auditHrefs = auditHubItems.map((item) => item.href);
     expect(auditHrefs).toEqual(
-      expect.arrayContaining(["/confidence", "/reconciliation", "/journal", "/processing"]),
+      expect.arrayContaining(["/reconciliation", "/journal", "/upload"]),
     );
     // None of these machinery routes is reachable as a bottom tab.
     const tabHrefs = bottomTabItems.map((item) => item.href);
@@ -71,7 +69,7 @@ describe("navigation metadata", () => {
     const moreHrefs = moreItems.map((item) => item.href);
     expect(moreHrefs).toEqual(expect.arrayContaining(["/portfolio", "/settings"]));
     // Accounts is the genuine power escape hatch under Advanced, not a tab.
-    expect(advancedItems.map((item) => item.href)).toContain("/accounts");
+    expect(advancedItems.map((item) => item.href)).toContain("/settings?tab=accounts");
   });
 
   // AC-meta.fe-ia-nav.5
@@ -87,11 +85,7 @@ describe("navigation metadata", () => {
   });
 
   it("AC16.19.4 AC19.6.6 resolves exact, parent, advanced, and home route labels", () => {
-    expect(getRouteConfig("/reports/balance-sheet").label).toBe("Balance Sheet");
-    expect(getRouteConfig("/reports/balance-sheet/detail").label).toBe("Balance Sheet");
-    expect(getRouteConfig("/review/run/123").label).toBe("Review");
-    expect(getRouteConfig("/reconciliation/unmatched").label).toBe("Unmatched");
-    expect(getRouteConfig("/processing").label).toBe("Processing");
+    expect(getRouteConfig("/reports").label).toBe("Reports");
     expect(getRouteConfig("/chat").label).toBe("Chat");
     expect(getRouteConfig("/audit").label).toBe("Audit");
     expect(getRouteConfig("/more").label).toBe("More");
@@ -100,16 +94,17 @@ describe("navigation metadata", () => {
     expect(getRouteConfig("/settings/llm").label).toBe("LLM Models");
     expect(getRouteConfig("/").label).toBe("Home");
     expect(getRouteConfig("/upload").label).toBe("Upload");
-    expect(getRouteConfig("/notifications").label).toBe("Notifications");
     expect(getRouteConfig("/custom-report_page").label).toBe("Custom Report Page");
     expect(getRouteConfig("/totally-unknown-xyz").Icon).toBe(DEFAULT_ROUTE_ICON);
   });
 
   // AC-meta.fe-ia-nav.20
-  it("AC22.18.1 drops the legacy /events alias so /notifications is the one canonical label", () => {
-    expect(ROUTE_CONFIG["/events"]).toBeUndefined();
+  it("AC22.18.1 keeps retired upload-chain aliases out of ROUTE_CONFIG so no stale label leaks", () => {
+    for (const retired of ["/events", "/notifications", "/processing", "/accounts/processing"]) {
+      expect(ROUTE_CONFIG[retired], `${retired} must not have a ROUTE_CONFIG entry`).toBeUndefined();
+      expect(getRouteConfig(retired).Icon, `${retired} must fall back to the default icon`).toBe(DEFAULT_ROUTE_ICON);
+    }
     expect(getRouteConfig("/events").label).toBe("Events");
-    expect(getRouteConfig("/notifications").label).toBe("Notifications");
   });
 
   // Single-homed from Sidebar.tsx/BottomTabBar.tsx byte-identical duplicates (#1868 S5).
@@ -117,26 +112,26 @@ describe("navigation metadata", () => {
     expect(isActive("/", "/")).toBe(true);
     expect(isActive("/reports", "/")).toBe(false);
     expect(isActive("/reports", "/reports")).toBe(true);
-    expect(isActive("/reports/balance-sheet", "/reports")).toBe(true);
+    expect(isActive("/portfolio/prices", "/portfolio")).toBe(true);
     expect(isActive("/reportsomething", "/reports")).toBe(false);
     expect(isActive("/journal", "/reports")).toBe(false);
   });
 
   it("exposes APP_ROUTES SSOT constants covering all core navigation surfaces", () => {
-    // Assert every declared APP_ROUTES constant is represented in ROUTE_CONFIG
+    // Assert every declared APP_ROUTES constant is represented in ROUTE_CONFIG.
+    // A route with a query (a tab or a drawer) uses the entry of its page path.
     for (const [key, route] of Object.entries(APP_ROUTES)) {
       expect(
-        ROUTE_CONFIG[route],
+        ROUTE_CONFIG[route.split("?")[0]],
         `Route ${key} (${route}) must have a matching ROUTE_CONFIG entry`,
       ).toBeDefined();
     }
 
     expect(APP_ROUTES.HOME).toBe("/");
     expect(APP_ROUTES.UPLOAD).toBe("/upload");
-    expect(APP_ROUTES.NOTIFICATIONS).toBe("/notifications");
     expect(APP_ROUTES.AUDIT).toBe("/audit");
     expect(APP_ROUTES.CHAT).toBe("/chat");
-    expect(APP_ROUTES.RECONCILIATION_REVIEW_QUEUE).toBe("/reconciliation/review-queue");
-    expect(APP_ROUTES.REPORTS_CASH_FLOW).toBe("/reports/cash-flow");
+    expect(APP_ROUTES.RECONCILIATION_REVIEW_QUEUE).toBe("/reconciliation?tab=review-queue");
+    expect(APP_ROUTES.REPORTS).toBe("/reports");
   });
 });

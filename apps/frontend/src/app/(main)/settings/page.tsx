@@ -1,27 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import AccountsPanel from "@/components/settings/AccountsPanel";
 import GeneralSettingsPanel from "@/components/settings/GeneralSettingsPanel";
 import AiSettingsPanel from "@/components/settings/AiSettingsPanel";
 import LlmSettingsPanel from "@/components/settings/LlmSettingsPanel";
 
-type SettingsTab = "general" | "ai" | "llm";
+type SettingsTab = "general" | "ai" | "llm" | "accounts";
 
 const TABS: { id: SettingsTab; label: string }[] = [
     { id: "general", label: "General" },
     { id: "ai", label: "AI" },
     { id: "llm", label: "LLM Models" },
+    { id: "accounts", label: "Accounts" },
 ];
 
 function normalizeTab(raw: string | null): SettingsTab {
-    return raw === "ai" || raw === "llm" ? raw : "general";
+    return TABS.find((t) => t.id === raw)?.id ?? "general";
 }
 
-// EPIC-022 AC22.21.4: the three formerly-separate Settings pages are merged into
-// one tabbed surface. `/settings/general|ai|llm` redirect here with `?tab=`, so
-// every settings entry point lands on the same page with the right tab active.
+// EPIC-022 AC22.21.4: the formerly-separate Settings pages are merged into one
+// tabbed surface. `/settings/general|ai|llm` and `/accounts` redirect here with
+// `?tab=`, so every settings entry point lands on the right tab.
 // The active tab stays in sync with `?tab=` so deep links and back/forward work.
 export default function SettingsPage() {
     const router = useRouter();
@@ -54,31 +57,44 @@ export default function SettingsPage() {
 
     return (
         <div className="p-6">
-            <div
-                role="tablist"
-                aria-label="Settings sections"
-                onKeyDown={onTablistKeyDown}
-                className="flex gap-1 border-b border-[var(--border)]"
-            >
-                {TABS.map((t) => (
-                    <button
-                        key={t.id}
-                        type="button"
-                        role="tab"
-                        id={`settings-tab-${t.id}`}
-                        aria-controls={`settings-panel-${t.id}`}
-                        aria-selected={tab === t.id}
-                        tabIndex={tab === t.id ? 0 : -1}
-                        onClick={() => selectTab(t.id)}
-                        className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-                            tab === t.id
-                                ? "border-[var(--accent)] text-[var(--accent)]"
-                                : "border-transparent text-muted hover:text-[var(--foreground)]"
-                        }`}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)]">
+                <div
+                    role="tablist"
+                    aria-label="Settings sections"
+                    onKeyDown={onTablistKeyDown}
+                    className="flex gap-1"
+                >
+                    {TABS.map((t) => (
+                        <button
+                            key={t.id}
+                            type="button"
+                            role="tab"
+                            id={`settings-tab-${t.id}`}
+                            aria-controls={`settings-panel-${t.id}`}
+                            aria-selected={tab === t.id}
+                            tabIndex={tab === t.id ? 0 : -1}
+                            onClick={() => selectTab(t.id)}
+                            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+                                tab === t.id
+                                    ? "border-[var(--accent)] text-[var(--accent)]"
+                                    : "border-transparent text-muted hover:text-[var(--foreground)]"
+                            }`}
+                        >
+                            {t.label}
+                        </button>
+                    ))}
+                </div>
+                <nav
+                    aria-label="Settings quick navigation"
+                    className="flex flex-wrap items-center gap-2 pb-2"
+                >
+                    <Link
+                        href="/portfolio"
+                        className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-medium text-[var(--foreground)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
                     >
-                        {t.label}
-                    </button>
-                ))}
+                        Portfolio Holdings
+                    </Link>
+                </nav>
             </div>
 
             <div
@@ -91,6 +107,7 @@ export default function SettingsPage() {
                 {tab === "general" && <GeneralSettingsPanel />}
                 {tab === "ai" && <AiSettingsPanel />}
                 {tab === "llm" && <LlmSettingsPanel />}
+                {tab === "accounts" && <AccountsPanel />}
             </div>
         </div>
     );

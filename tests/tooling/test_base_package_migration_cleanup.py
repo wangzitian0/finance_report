@@ -28,9 +28,9 @@ FRONTEND_PERCENT_FILES = [
     Path("apps/frontend/src/components/portfolio/HoldingsTable.tsx"),
     Path("apps/frontend/src/components/portfolio/AllocationChart.tsx"),
     Path("apps/frontend/src/app/(main)/portfolio/page.tsx"),
-    Path("apps/frontend/src/app/(main)/portfolio/[ticker]/page.tsx"),
-    Path("apps/frontend/src/components/home/HomeNetWorthBanner.tsx"),
-    Path("apps/frontend/src/app/(main)/reports/page.tsx"),
+    Path("apps/frontend/src/components/portfolio/HoldingDetail.tsx"),
+    # The savings rate of the three-statement cockpit (Home and the /reports Overview, #2621 LC).
+    Path("apps/frontend/src/components/reports/StatementCockpit.tsx"),
     Path("apps/frontend/src/components/reconciliation/Workbench.tsx"),
 ]
 
@@ -164,7 +164,7 @@ def test_AC12_31_5_backend_money_adapters_are_not_duplicated():
 def test_AC12_31_6_confidence_percent_wrapper_is_retired():
     """AC-audit.31.6: correction-loop UI calls Ratio formatting directly, with no local percent facade."""
     confidence = _read(Path("apps/frontend/src/lib/confidence.ts"))
-    page = _read(Path("apps/frontend/src/app/(main)/confidence/page.tsx"))
+    page = _read(Path("apps/frontend/src/components/audit/CorrectionLoopProof.tsx"))
 
     assert "formatProportionPercent" not in confidence
     assert "formatProportionPercent" not in page
@@ -276,3 +276,21 @@ def test_AC12_31_7_backend_quantity_value_type_handles_storage_edges():
         Quantity(0.1, "units")
     with pytest.raises(FloatNotAllowedError):
         Quantity(True, "units")
+
+
+def test_legacy_duplicate_home_components_remain_deleted():
+    """Guard that redundant legacy Home KPI/onboarding components remain deleted."""
+    deleted_paths = [
+        Path("apps/frontend/src/components/home/HomeNetWorthBanner.tsx"),
+        Path("apps/frontend/src/components/home/HomeIncomeCards.tsx"),
+        Path("apps/frontend/src/components/home/OnboardingGuideCard.tsx"),
+        # #2621 LC: the analytics panel and the trust meter repeated the cockpit numbers.
+        Path("apps/frontend/src/components/home/ThreeStatementNav.tsx"),
+        Path("apps/frontend/src/components/home/HomeAnalyticsSection.tsx"),
+        Path("apps/frontend/src/components/home/TrustMeter.tsx"),
+    ]
+    for rel_path in deleted_paths:
+        assert not (REPO / rel_path).exists(), (
+            f"Redundant Home component {rel_path} must stay deleted; "
+            "StatementCockpit is the single Home statement surface."
+        )

@@ -39,5 +39,3 @@ export function FrontendTelemetry({
 
   return null;
 }
-
-export default FrontendTelemetry;

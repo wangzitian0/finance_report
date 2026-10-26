@@ -1,0 +1,1774 @@
+{
+  "context": {
+    "as_of_date": "2026-10-23",
+    "currency": "SGD",
+    "end_date": "2026-10-23",
+    "framework_id": "personal_us_gaap_like",
+    "start_date": "2025-11-01"
+  },
+  "contract": {
+    "export_contract": {
+      "csv_columns": [
+        "package_id",
+        "section_id",
+        "line_id",
+        "label",
+        "amount",
+        "currency",
+        "source_state",
+        "selected_framework_id",
+        "framework_policy_result_id",
+        "framework_policy_matrix_version",
+        "evidence_bundle_references",
+        "input_decision_references"
+      ],
+      "formats": [
+        "json",
+        "csv"
+      ]
+    },
+    "package_id": "personal-financial-report-package",
+    "period_semantics": {
+      "as_of_date": "required for point-in-time sections",
+      "currency": "ISO-4217 code; defaults to base currency when omitted",
+      "decimal_serialization": "string",
+      "end_date": "required for period sections",
+      "framework_id": "selected supported personal reporting framework",
+      "start_date": "required for period sections"
+    },
+    "sections": [
+      {
+        "blocking_issue": null,
+        "decimal_total_fields": [
+          "total_assets",
+          "total_liabilities",
+          "total_equity",
+          "equation_delta"
+        ],
+        "label": "Balance Sheet",
+        "owner_epic": "EPIC-005",
+        "period_type": "as_of",
+        "required": true,
+        "section_id": "balance_sheet",
+        "status": "ready"
+      },
+      {
+        "blocking_issue": null,
+        "decimal_total_fields": [
+          "total_income",
+          "total_expenses",
+          "net_income"
+        ],
+        "label": "Income Statement",
+        "owner_epic": "EPIC-005",
+        "period_type": "period",
+        "required": true,
+        "section_id": "income_statement",
+        "status": "ready"
+      },
+      {
+        "blocking_issue": null,
+        "decimal_total_fields": [
+          "operating_activities",
+          "investing_activities",
+          "financing_activities",
+          "net_cash_flow",
+          "beginning_cash",
+          "ending_cash"
+        ],
+        "label": "Cash Flow",
+        "owner_epic": "EPIC-005",
+        "period_type": "period",
+        "required": true,
+        "section_id": "cash_flow",
+        "status": "ready"
+      },
+      {
+        "blocking_issue": null,
+        "decimal_total_fields": [
+          "xirr",
+          "time_weighted_return",
+          "money_weighted_return",
+          "realized_pnl",
+          "unrealized_pnl",
+          "dividend_income"
+        ],
+        "label": "Investment Performance",
+        "owner_epic": "EPIC-017",
+        "period_type": "period_and_as_of",
+        "required": true,
+        "section_id": "investment_performance",
+        "status": "ready"
+      },
+      {
+        "blocking_issue": null,
+        "decimal_total_fields": [
+          "annualized_salary",
+          "annualized_bonus",
+          "annualized_dividend",
+          "annualized_total",
+          "restricted_fair_value"
+        ],
+        "label": "Annualized Income & Long-Term Compensation",
+        "owner_epic": "EPIC-011",
+        "period_type": "trailing_12_months_and_as_of",
+        "required": true,
+        "section_id": "annualized_income_long_term",
+        "status": "ready"
+      },
+      {
+        "blocking_issue": null,
+        "decimal_total_fields": [],
+        "label": "Notes & Disclosures",
+        "owner_epic": "EPIC-005",
+        "period_type": "package",
+        "required": true,
+        "section_id": "notes",
+        "status": "ready"
+      },
+      {
+        "blocking_issue": null,
+        "decimal_total_fields": [],
+        "label": "Traceability Appendix",
+        "owner_epic": "EPIC-018",
+        "period_type": "package",
+        "required": true,
+        "section_id": "traceability_appendix",
+        "status": "ready"
+      }
+    ],
+    "selected_framework_id": "personal_us_gaap_like",
+    "supported_frameworks": [
+      "personal_us_gaap_like",
+      "personal_hkfrs_like"
+    ],
+    "version": "1.0"
+  },
+  "framework_policy": {
+    "decisions": [
+      {
+        "accepted_value": "cash",
+        "classification": "Cash and bank account asset.",
+        "disclosure": "Disclose source coverage, cutoff, currency, and unresolved bank statement gaps.",
+        "domain": "cash",
+        "evidence_anchors": [
+          {
+            "anchor_id": "account:67814ba6-4db4-4c5c-9bf5-ffd8728bda47",
+            "anchor_type": "account",
+            "description": "DBS Savings",
+            "source_id": "67814ba6-4db4-4c5c-9bf5-ffd8728bda47",
+            "source_system": "canonical_ledger"
+          }
+        ],
+        "line_mappings": {
+          "balance_sheet": "assets.cash_and_cash_equivalents",
+          "cash_flow": "cash.ending_cash"
+        },
+        "measurement": "Measure cash at nominal amount; translate non-reporting currencies using transaction or period-end FX rules.",
+        "policy_field_name": "framework_policy_decision",
+        "presentation": "US-like balance sheet cash and cash equivalents.",
+        "provenance": "deterministic_matrix",
+        "recognition": "Recognize cash movements on transaction date after source cutoff validation.",
+        "review_state": "accepted"
+      },
+      {
+        "accepted_value": "personal_income",
+        "classification": "Other income",
+        "disclosure": "Missing or unsupported historical categories remain other income or expenses.",
+        "domain": "personal_income",
+        "evidence_anchors": [
+          {
+            "anchor_id": "account:0c2b30de-a79a-4414-bb9a-acddcac12327",
+            "anchor_type": "account",
+            "description": "Salary",
+            "source_id": "0c2b30de-a79a-4414-bb9a-acddcac12327",
+            "source_system": "canonical_ledger"
+          }
+        ],
+        "line_mappings": {
+          "income_statement": "income.other"
+        },
+        "measurement": "Use posted amounts and the selected period-average currency conversion.",
+        "policy_field_name": "framework_policy_decision",
+        "presentation": "US-like Other income.",
+        "provenance": "deterministic_matrix",
+        "recognition": "Recognize the exact accepted economic category frozen into the posted command.",
+        "review_state": "accepted"
+      },
+      {
+        "accepted_value": "personal_expense",
+        "classification": "Other expenses",
+        "disclosure": "Missing or unsupported historical categories remain other income or expenses.",
+        "domain": "personal_expense",
+        "evidence_anchors": [
+          {
+            "anchor_id": "account:64b802fc-619f-4441-aa7b-1a9361355fb9",
+            "anchor_type": "account",
+            "description": "Groceries",
+            "source_id": "64b802fc-619f-4441-aa7b-1a9361355fb9",
+            "source_system": "canonical_ledger"
+          }
+        ],
+        "line_mappings": {
+          "income_statement": "expenses.other"
+        },
+        "measurement": "Use posted amounts and the selected period-average currency conversion.",
+        "policy_field_name": "framework_policy_decision",
+        "presentation": "US-like Other expenses.",
+        "provenance": "deterministic_matrix",
+        "recognition": "Recognize the exact accepted economic category frozen into the posted command.",
+        "review_state": "accepted"
+      },
+      {
+        "accepted_value": "restricted_compensation",
+        "classification": "Restricted wealth or compensation schedule item, not default liquid net worth.",
+        "disclosure": "Disclose vesting, restriction, liquidity class, valuation date, and manual valuation review.",
+        "domain": "restricted_compensation",
+        "evidence_anchors": [
+          {
+            "anchor_id": "manual_valuation_snapshot:80d322bf-8688-43ee-85d4-50d524861ddd",
+            "anchor_type": "manual_valuation_snapshot",
+            "description": "Employer ESOP",
+            "source_id": "80d322bf-8688-43ee-85d4-50d524861ddd",
+            "source_system": "manual_valuation"
+          }
+        ],
+        "line_mappings": {
+          "balance_sheet": "assets.restricted_compensation",
+          "notes": "notes.restricted_asset_treatment"
+        },
+        "measurement": "Measure at accepted fair-value input with explicit restriction and liquidity treatment.",
+        "policy_field_name": "framework_policy_decision",
+        "presentation": "US-like long-term compensation schedule.",
+        "provenance": "deterministic_matrix",
+        "recognition": "Recognize restricted compensation when grant, vesting, or exercise evidence exists.",
+        "review_state": "accepted"
+      },
+      {
+        "accepted_value": "liability",
+        "classification": "Current or long-term liability by due date and instrument type.",
+        "disclosure": "Disclose source balance date, interest hooks, and unresolved liability coverage gaps.",
+        "domain": "liability",
+        "evidence_anchors": [
+          {
+            "anchor_id": "manual_valuation_snapshot:0315f4a0-f951-4598-9711-7a077f90110c",
+            "anchor_type": "manual_valuation_snapshot",
+            "description": "Condo loan",
+            "source_id": "0315f4a0-f951-4598-9711-7a077f90110c",
+            "source_system": "manual_valuation"
+          }
+        ],
+        "line_mappings": {
+          "balance_sheet": "liabilities.financial_liabilities",
+          "notes": "notes.liability_coverage"
+        },
+        "measurement": "Measure at outstanding principal or statement balance with FX translation when needed.",
+        "policy_field_name": "framework_policy_decision",
+        "presentation": "US-like balance sheet liability line.",
+        "provenance": "deterministic_matrix",
+        "recognition": "Recognize liabilities from statement, loan, or manual obligation evidence.",
+        "review_state": "accepted"
+      },
+      {
+        "accepted_value": "property_mortgage_private",
+        "classification": "Manual asset, private asset, or secured liability.",
+        "disclosure": "Disclose valuation basis, confidence tier, source date, and trusted-total blocker state.",
+        "domain": "property_mortgage_private",
+        "evidence_anchors": [
+          {
+            "anchor_id": "manual_valuation_snapshot:b99045b7-fba6-4ff8-aebb-e4b56662e5a4",
+            "anchor_type": "manual_valuation_snapshot",
+            "description": "Condo",
+            "source_id": "b99045b7-fba6-4ff8-aebb-e4b56662e5a4",
+            "source_system": "manual_valuation"
+          }
+        ],
+        "line_mappings": {
+          "balance_sheet": "assets.manual_private_assets",
+          "notes": "notes.manual_valuation_basis"
+        },
+        "measurement": "Measure using accepted manual valuation basis; block trusted totals when basis is missing.",
+        "policy_field_name": "framework_policy_decision",
+        "presentation": "US-like manual valuation and liability schedule.",
+        "provenance": "deterministic_matrix",
+        "recognition": "Recognize manual property, mortgage, and private assets only with explicit source date and owner review.",
+        "review_state": "accepted"
+      }
+    ],
+    "framework_id": "personal_us_gaap_like",
+    "gaps": [],
+    "generated_at": "2026-10-23",
+    "matrix_version": "2.0",
+    "report_period_end": "2026-10-23",
+    "report_period_start": "2025-11-01",
+    "required_statements": [
+      "balance_sheet",
+      "income_statement",
+      "cash_flow",
+      "notes",
+      "traceability_appendix"
+    ],
+    "result_id": "policy-result:personal_us_gaap_like:2025-11-01:2026-10-23:8c5a72c904e43b63"
+  },
+  "frozen_at": "2026-10-23T12:00:00Z",
+  "generated_at": "2026-10-23T12:00:00Z",
+  "input_manifest": [],
+  "lifecycle": "frozen",
+  "package_decision_id": "00000000-0000-4000-8000-000000002646",
+  "package_id": "personal-financial-report-package",
+  "readiness": {
+    "action_href": "/reports/package",
+    "blockers": [
+      {
+        "action_href": "/reports/package",
+        "code": "cash_identity_missing",
+        "count": 1,
+        "label": "Package section invariant failed",
+        "reason": "No cash account matches a statement custody account. Confirm the account of your bank statement.",
+        "severity": "blocking"
+      },
+      {
+        "action_href": "/reports/package",
+        "code": "cash_balance_input_missing",
+        "count": 1,
+        "label": "Package section invariant failed",
+        "reason": "Cash balances require an authoritative bank-statement custody account input.",
+        "severity": "blocking"
+      },
+      {
+        "action_href": "/reports/package",
+        "code": "opening_balance_missing",
+        "count": 1,
+        "label": "Package section invariant failed",
+        "reason": "Recorded activity is missing an opening balance required for a complete statement.",
+        "severity": "blocking"
+      },
+      {
+        "action_href": "/review",
+        "code": "unproven_package_input",
+        "count": 12,
+        "label": "Unproven package input",
+        "reason": "One or more report-contributing inputs do not have a current authoritative decision. Generate only a draft until each input is re-established.",
+        "severity": "blocking"
+      }
+    ],
+    "blocking_count": 15,
+    "input_coverage": {
+      "authoritative_input_count": 0,
+      "manifest_decision_count": 0,
+      "unproven_input_count": 12
+    },
+    "label": "Blocked",
+    "package_id": "personal-financial-report-package",
+    "state": "blocked"
+  },
+  "schema_version": "2",
+  "sections": {
+    "annualized_income_long_term": {
+      "as_of_date": "2026-10-23",
+      "income": {
+        "annualized_bonus": "0.00",
+        "annualized_dividend": "0.00",
+        "annualized_salary": "8000.00",
+        "annualized_total": "8000.00",
+        "calculation_basis": "posted_or_reconciled_income_journal_lines_trailing_12_months",
+        "currency": "SGD"
+      },
+      "label": "Annualized Income & Long-Term Compensation",
+      "net_worth_treatment": {
+        "exclude_restricted_query": "/api/reports/balance-sheet?include_restricted=false",
+        "include_restricted_query": "/api/reports/balance-sheet?include_restricted=true",
+        "liquid_net_worth_default": "exclude_restricted_holdings",
+        "restricted_wealth_basis": "manual_valuation_snapshot_fair_value"
+      },
+      "notes": [
+        "Personal management report only; not tax advice.",
+        "Restricted holdings are excluded from liquid net worth by default."
+      ],
+      "restricted_fair_value_total": "42000.00",
+      "restricted_fair_value_total_currency": "SGD",
+      "restricted_holdings": [
+        {
+          "compensation_type": "esop",
+          "currency": "SGD",
+          "fair_value": "42000.00",
+          "liquidity_class": "restricted",
+          "net_worth_treatment": "excluded_from_liquid_net_worth_by_default",
+          "ticker": "Employer ESOP",
+          "unlock_date": null,
+          "valuation_basis": "unspecified",
+          "vesting_schedule": null
+        }
+      ],
+      "section_id": "annualized_income_long_term",
+      "trailing_period_days": 365,
+      "trailing_period_end": "2026-10-23",
+      "trailing_period_start": "2025-10-23"
+    },
+    "balance_sheet": {
+      "as_of_date": "2026-10-23",
+      "assets": [
+        {
+          "account_id": "8795d4e6-4007-5763-acca-30de4a615240",
+          "amount": "20360.65",
+          "line_id": "assets.cash_and_cash_equivalents",
+          "name": "Cash and cash equivalents",
+          "parent_id": null,
+          "provenance": "imported",
+          "type": "ASSET"
+        },
+        {
+          "account_id": "6bfcb45e-f975-56fe-8110-c7964ce9f617",
+          "amount": "0.00",
+          "line_id": "assets.cash_in_transit",
+          "name": "Cash in transit",
+          "parent_id": null,
+          "provenance": null,
+          "type": "ASSET"
+        },
+        {
+          "account_id": "d653485a-ecc3-5070-9e6f-789d1c8b0a4a",
+          "amount": "0.00",
+          "line_id": "assets.marketable_securities",
+          "name": "Marketable securities",
+          "parent_id": null,
+          "provenance": null,
+          "type": "ASSET"
+        },
+        {
+          "account_id": "99fb72fc-ec20-55ac-82ed-4f56c8558c1e",
+          "amount": "0.00",
+          "line_id": "assets.investments.funds",
+          "name": "Investments in funds",
+          "parent_id": null,
+          "provenance": null,
+          "type": "ASSET"
+        },
+        {
+          "account_id": "ca404b12-08b5-5671-80ad-6780510e8d32",
+          "amount": "0.00",
+          "line_id": "assets.restricted_compensation",
+          "name": "Restricted compensation",
+          "parent_id": null,
+          "provenance": null,
+          "type": "ASSET"
+        },
+        {
+          "account_id": "eae174c0-b233-5ca7-b0c1-6849c9db4bf9",
+          "amount": "0.00",
+          "line_id": "assets.manual_private_assets",
+          "name": "Manual private assets",
+          "parent_id": null,
+          "provenance": null,
+          "type": "ASSET"
+        },
+        {
+          "account_id": "f1a6bad8-60eb-5744-8684-bc1e77f89ace",
+          "amount": "0.00",
+          "line_id": "assets.biological_assets",
+          "name": "Biological assets",
+          "parent_id": null,
+          "provenance": null,
+          "type": "ASSET"
+        },
+        {
+          "account_id": "e7f381ee-e43e-5b47-ba82-c70a1519d577",
+          "amount": "0.00",
+          "line_id": "assets.financial_assets_at_fair_value",
+          "name": "Financial assets at fair value",
+          "parent_id": null,
+          "provenance": null,
+          "type": "ASSET"
+        },
+        {
+          "account_id": "ab47f7a6-a025-5d7b-9a9d-dd5795448c60",
+          "amount": "0.00",
+          "line_id": "assets.investment_property",
+          "name": "Investment property",
+          "parent_id": null,
+          "provenance": null,
+          "type": "ASSET"
+        }
+      ],
+      "cta_adjustment": "0.00",
+      "currency": "SGD",
+      "equation_delta": "0.00",
+      "equity": [
+        {
+          "account_id": "e4b7d9d3-956f-5edc-8321-130fdee08659",
+          "amount": "15000.00",
+          "line_id": "equity.fx_translation",
+          "name": "FX translation adjustment",
+          "parent_id": null,
+          "provenance": "imported",
+          "type": "EQUITY"
+        }
+      ],
+      "excluded_holdings": [
+        {
+          "asset_class": "real_estate",
+          "net_worth": "550000.00",
+          "total_assets": "1200000.00",
+          "total_liabilities": "650000.00",
+          "warnings": []
+        },
+        {
+          "asset_class": "restricted_comp",
+          "net_worth": "42000.00",
+          "total_assets": "42000.00",
+          "total_liabilities": "0.00",
+          "warnings": []
+        }
+      ],
+      "fx_warnings": [],
+      "is_balanced": true,
+      "liabilities": [
+        {
+          "account_id": "072a8b16-cee1-5802-87a7-ee14e8a60c26",
+          "amount": "0.00",
+          "line_id": "liabilities.financial_liabilities",
+          "name": "Financial liabilities",
+          "parent_id": null,
+          "provenance": null,
+          "type": "LIABILITY"
+        }
+      ],
+      "net_income": "5360.65",
+      "net_worth_adjustment_gain_loss": "0.00",
+      "opening_balance_warnings": [
+        {
+          "as_of_date": "2026-10-23",
+          "earliest_activity_date": "2025-12-01",
+          "message": "Activity is recorded without an opening balance, so account totals reflect only period movement, not the starting position. Record opening balances to trust this total.",
+          "type": "missing_opening_balance"
+        }
+      ],
+      "portfolio_warnings": [],
+      "total_assets": "20360.65",
+      "total_equity": "15000.00",
+      "total_liabilities": "0.00",
+      "unrealized_fx_gain_loss": "0.00"
+    },
+    "cash_flow": {
+      "cash_bridge": {
+        "cash_delta": "0.00",
+        "classified_activity": "0.00",
+        "discrepancy": "0.00",
+        "fx_effect": "0.00",
+        "reconciles": true,
+        "unclassified_cash": "0.00"
+      },
+      "currency": "SGD",
+      "end_date": "2026-10-23",
+      "event_lineage": [],
+      "financing": [],
+      "fx_warnings": [],
+      "investing": [],
+      "operating": [],
+      "proof_reasons": [
+        "cash_identity_missing"
+      ],
+      "proof_state": "unproven",
+      "start_date": "2025-11-01",
+      "summary": {
+        "beginning_cash": "0.00",
+        "ending_cash": "0.00",
+        "financing_activities": "0.00",
+        "investing_activities": "0.00",
+        "net_cash_flow": "0.00",
+        "operating_activities": "0.00"
+      }
+    },
+    "income_statement": {
+      "currency": "SGD",
+      "end_date": "2026-10-23",
+      "expenses": [
+        {
+          "account_id": "afbbd950-bbf0-51a6-b444-249cf589795b",
+          "amount": "0.00",
+          "line_id": "expenses.investment_fees",
+          "name": "Investment fees and commissions",
+          "parent_id": null,
+          "provenance": null,
+          "type": "EXPENSE"
+        },
+        {
+          "account_id": "7e312f6f-ea82-5117-99af-6eee8bad5720",
+          "amount": "0.00",
+          "line_id": "expenses.dining",
+          "name": "Dining",
+          "parent_id": null,
+          "provenance": null,
+          "type": "EXPENSE"
+        },
+        {
+          "account_id": "4a718113-1449-56d5-93ed-297c8ef4edc7",
+          "amount": "0.00",
+          "line_id": "expenses.groceries",
+          "name": "Groceries",
+          "parent_id": null,
+          "provenance": null,
+          "type": "EXPENSE"
+        },
+        {
+          "account_id": "ee3756db-894e-57fe-9b68-f7196cbcfac4",
+          "amount": "0.00",
+          "line_id": "expenses.transport",
+          "name": "Transport",
+          "parent_id": null,
+          "provenance": null,
+          "type": "EXPENSE"
+        },
+        {
+          "account_id": "86b341b3-812e-5e48-9a66-eefd032e378a",
+          "amount": "0.00",
+          "line_id": "expenses.housing",
+          "name": "Housing",
+          "parent_id": null,
+          "provenance": null,
+          "type": "EXPENSE"
+        },
+        {
+          "account_id": "6cd0f297-db74-5232-a885-1b72a393960a",
+          "amount": "0.00",
+          "line_id": "expenses.utilities",
+          "name": "Utilities",
+          "parent_id": null,
+          "provenance": null,
+          "type": "EXPENSE"
+        },
+        {
+          "account_id": "1286cae7-49d0-5f36-a94c-f30b29b1da68",
+          "amount": "0.00",
+          "line_id": "expenses.shopping",
+          "name": "Shopping",
+          "parent_id": null,
+          "provenance": null,
+          "type": "EXPENSE"
+        },
+        {
+          "account_id": "04cb0625-9f73-5ac7-9573-f77685797966",
+          "amount": "0.00",
+          "line_id": "expenses.healthcare",
+          "name": "Healthcare",
+          "parent_id": null,
+          "provenance": null,
+          "type": "EXPENSE"
+        },
+        {
+          "account_id": "a1435c85-a333-5cbf-8c35-e54a9cbe4da7",
+          "amount": "0.00",
+          "line_id": "expenses.entertainment",
+          "name": "Entertainment",
+          "parent_id": null,
+          "provenance": null,
+          "type": "EXPENSE"
+        },
+        {
+          "account_id": "e1b4e715-a41c-5a19-98a0-d2536627f1ed",
+          "amount": "0.00",
+          "line_id": "expenses.travel",
+          "name": "Travel",
+          "parent_id": null,
+          "provenance": null,
+          "type": "EXPENSE"
+        },
+        {
+          "account_id": "32b6320d-cb9f-5be6-bc95-ff7450e06c5d",
+          "amount": "0.00",
+          "line_id": "expenses.education",
+          "name": "Education",
+          "parent_id": null,
+          "provenance": null,
+          "type": "EXPENSE"
+        },
+        {
+          "account_id": "c588d593-397c-59c2-a5e4-e1c1e76e5643",
+          "amount": "0.00",
+          "line_id": "expenses.insurance",
+          "name": "Insurance",
+          "parent_id": null,
+          "provenance": null,
+          "type": "EXPENSE"
+        },
+        {
+          "account_id": "4aeaf84b-2d4d-5c3b-b144-9c8b76e23144",
+          "amount": "0.00",
+          "line_id": "expenses.fees",
+          "name": "Fees and charges",
+          "parent_id": null,
+          "provenance": null,
+          "type": "EXPENSE"
+        },
+        {
+          "account_id": "82ee2e54-e26b-58c6-bd9b-a46cd9dc1d1e",
+          "amount": "2639.35",
+          "line_id": "expenses.other",
+          "name": "Other expenses",
+          "parent_id": null,
+          "provenance": "imported",
+          "type": "EXPENSE"
+        }
+      ],
+      "fx_warnings": [],
+      "income": [
+        {
+          "account_id": "17924c02-83b3-574a-a790-521c24305f4f",
+          "amount": "0.00",
+          "line_id": "income.dividends_and_interest",
+          "name": "Dividends and interest income",
+          "parent_id": null,
+          "provenance": null,
+          "type": "INCOME"
+        },
+        {
+          "account_id": "7b3cd492-99a2-582b-81ca-a1d561a5effd",
+          "amount": "0.00",
+          "line_id": "income.unrealized_investment_gain_loss",
+          "name": "Unrealized investment gain/loss",
+          "parent_id": null,
+          "provenance": null,
+          "type": "INCOME"
+        },
+        {
+          "account_id": "1331c9f7-572a-5406-8df1-a9766aa4145d",
+          "amount": "0.00",
+          "line_id": "income.fx_gain_loss",
+          "name": "FX gain/loss",
+          "parent_id": null,
+          "provenance": null,
+          "type": "INCOME"
+        },
+        {
+          "account_id": "28b6a4f8-a888-5b85-a233-fe7c3731b64d",
+          "amount": "0.00",
+          "line_id": "income.salary",
+          "name": "Salary and employment income",
+          "parent_id": null,
+          "provenance": null,
+          "type": "INCOME"
+        },
+        {
+          "account_id": "09050e49-e469-59d1-87f0-2022270fd2dd",
+          "amount": "0.00",
+          "line_id": "income.investment_income",
+          "name": "Investment income",
+          "parent_id": null,
+          "provenance": null,
+          "type": "INCOME"
+        },
+        {
+          "account_id": "fb7b3265-1dea-53ab-bca6-8cdcd52726c5",
+          "amount": "0.00",
+          "line_id": "income.refunds",
+          "name": "Refund income",
+          "parent_id": null,
+          "provenance": null,
+          "type": "INCOME"
+        },
+        {
+          "account_id": "713cbe53-5644-56d2-b3df-c499ffe6b52b",
+          "amount": "8000.00",
+          "line_id": "income.other",
+          "name": "Other income",
+          "parent_id": null,
+          "provenance": "imported",
+          "type": "INCOME"
+        },
+        {
+          "account_id": "c6887a6e-0f5b-5061-b80c-f539bebe0618",
+          "amount": "0.00",
+          "line_id": "income.fair_value_change_in_financial_assets",
+          "name": "Fair value change in financial assets",
+          "parent_id": null,
+          "provenance": null,
+          "type": "INCOME"
+        }
+      ],
+      "net_income": "5360.65",
+      "start_date": "2025-11-01",
+      "total_expenses": "2639.35",
+      "total_income": "8000.00",
+      "trends": [
+        {
+          "net_income": "8000.00",
+          "period_end": "2026-08-31",
+          "period_start": "2026-08-01",
+          "total_expenses": "0.00",
+          "total_income": "8000.00"
+        },
+        {
+          "net_income": "-2639.35",
+          "period_end": "2026-09-30",
+          "period_start": "2026-09-01",
+          "total_expenses": "2639.35",
+          "total_income": "0.00"
+        }
+      ]
+    },
+    "investment_performance": {
+      "allocation": [],
+      "as_of_date": "2026-10-23",
+      "currency": "SGD",
+      "data_freshness": {
+        "latest_price_date": null,
+        "manual_override_basis": null,
+        "market_data_provider": null,
+        "stale": false,
+        "stale_holdings": []
+      },
+      "dividend_income": "0.00",
+      "dividend_yield": "0.00",
+      "holdings": [],
+      "market_valuation_selections": [],
+      "money_weighted_return": null,
+      "notes": [
+        "Cost basis uses the holding-level cost-basis method where available.",
+        "Market values use the latest available brokerage or market-data snapshot on or before the as-of date; report-preparation overrides after the as-of date are disclosed when they evidence active holdings.",
+        "No portfolio holdings were available for the requested as-of date.",
+        "XIRR unavailable: Need at least one transaction and current portfolio value for XIRR calculation",
+        "MWR unavailable: Need at least one transaction and current portfolio value for XIRR calculation"
+      ],
+      "period_end": "2026-10-23",
+      "period_start": "2025-11-01",
+      "realized_pnl": "0.00",
+      "source_links": [
+        "report_section:investment_performance"
+      ],
+      "time_weighted_return": "0.00",
+      "unrealized_pnl": "0.00",
+      "xirr": null
+    },
+    "notes": {
+      "label": "Notes & Disclosures",
+      "non_compliance_statement": "This personal management report is not a regulated filing, not an audit opinion, not legal advice, and not tax advice. Accounting and listed-company reporting references are used only as coverage and disclosure discipline.",
+      "notes": [
+        {
+          "applies_to_sections": [
+            "balance_sheet",
+            "income_statement",
+            "cash_flow",
+            "investment_performance",
+            "annualized_income_long_term"
+          ],
+          "basis": "personal_management_report_package_contract",
+          "disclosure": "The package assembles personal finance statements and schedules for management use. It does not assert compliance with a statutory accounting framework.",
+          "label": "Basis of Preparation",
+          "note_id": "basis-of-preparation",
+          "owner_epic": "EPIC-005",
+          "source_state": "package_contract"
+        },
+        {
+          "applies_to_sections": [
+            "balance_sheet",
+            "income_statement",
+            "cash_flow",
+            "investment_performance",
+            "annualized_income_long_term"
+          ],
+          "basis": "package_period_semantics",
+          "disclosure": "Period sections use start and end dates; point-in-time sections use as-of dates. Currency values serialize Decimal amounts as strings.",
+          "label": "Reporting Period and Currency",
+          "note_id": "reporting-period-and-currency",
+          "owner_epic": "EPIC-005",
+          "source_state": "request_parameters"
+        },
+        {
+          "applies_to_sections": [
+            "balance_sheet",
+            "annualized_income_long_term"
+          ],
+          "basis": "manual_valuation_component_rules",
+          "disclosure": "Manual valuation snapshots supply property, liability, and restricted compensation values as of the selected reporting date.",
+          "label": "Valuation Basis",
+          "note_id": "valuation-basis",
+          "owner_epic": "EPIC-011",
+          "source_state": "manual_valuation_snapshots"
+        },
+        {
+          "applies_to_sections": [
+            "investment_performance",
+            "balance_sheet"
+          ],
+          "basis": "investment_performance_schedule",
+          "disclosure": "Portfolio metrics depend on imported brokerage positions, available prices, dividend facts, and the schedule data-freshness flags.",
+          "label": "Investment Market Data",
+          "note_id": "investment-market-data",
+          "owner_epic": "EPIC-017",
+          "source_state": "brokerage_imports_and_market_data"
+        },
+        {
+          "applies_to_sections": [
+            "balance_sheet",
+            "income_statement",
+            "cash_flow"
+          ],
+          "basis": "trusted_or_reviewed_source_state",
+          "disclosure": "Report totals depend on posted or reconciled journal entries and reviewed source documents; unresolved extraction or reconciliation checks remain outside trusted totals.",
+          "label": "Source Confidence and Review",
+          "note_id": "source-confidence-review",
+          "owner_epic": "EPIC-018",
+          "source_state": "reviewed_journal_and_statement_links"
+        },
+        {
+          "applies_to_sections": [
+            "balance_sheet",
+            "annualized_income_long_term"
+          ],
+          "basis": "restricted_compensation_liquidity_policy",
+          "disclosure": "Restricted ESOP, RSU, and stock option values are excluded from liquid net worth by default and shown separately in the long-term compensation schedule. This package excludes these restricted and illiquid holdings, with the liabilities of their class, from the balance sheet: real estate SGD 550,000.00 net (assets SGD 1,200,000.00, liabilities SGD 650,000.00); restricted comp SGD 42,000.00 net (assets SGD 42,000.00, liabilities SGD 0.00).",
+          "label": "Restricted Asset Treatment",
+          "note_id": "restricted-asset-treatment",
+          "owner_epic": "EPIC-011",
+          "source_state": "manual_valuation_snapshots"
+        },
+        {
+          "applies_to_sections": [
+            "balance_sheet",
+            "income_statement",
+            "cash_flow",
+            "traceability_appendix"
+          ],
+          "basis": "immutable_statement_disposition_policy_snapshot",
+          "disclosure": "Statement disposition policy disposition-v1-accept-any-score ran in enforce mode. Machine authority threshold is 0; P&L authority threshold is 0. Unknown and ambiguous intent route to review. Live LLM proposals are enabled. At the time of this package the system accepts AI suggestions at any score for this user. Entries posted under that setting carry a low confidence tier, and a row that the AI could not place sits in a general account. The decision record of each entry names the policy version that ran. Deployment commit: unknown.",
+          "label": "Statement Disposition Policy",
+          "note_id": "statement-disposition-policy",
+          "owner_epic": "EPIC-018",
+          "source_state": "frozen_runtime_policy_snapshot"
+        }
+      ],
+      "section_id": "notes",
+      "status": "ready"
+    },
+    "traceability_appendix": {
+      "completeness_warnings": [
+        {
+          "applies_to_sections": [
+            "balance_sheet",
+            "income_statement",
+            "cash_flow"
+          ],
+          "code": "missing_source_anchor",
+          "label": "Missing source anchor",
+          "remediation": "Expose statement transaction, document, or explicit manual-input identifiers before treating totals as trusted.",
+          "state": "fail_package_proof_for_trusted_totals"
+        },
+        {
+          "applies_to_sections": [
+            "balance_sheet",
+            "annualized_income_long_term"
+          ],
+          "code": "manual_only_source",
+          "label": "Manual-only source coverage",
+          "remediation": "Keep manual valuation snapshot identifiers and valuation basis visible in the appendix.",
+          "state": "explicit_manual_input_required"
+        },
+        {
+          "applies_to_sections": [
+            "investment_performance",
+            "balance_sheet"
+          ],
+          "code": "stale_market_data",
+          "label": "Stale market data",
+          "remediation": "Use schedule freshness flags and refresh market data when provider prices are stale.",
+          "state": "disclose_stale_or_refresh_required"
+        },
+        {
+          "applies_to_sections": [
+            "balance_sheet",
+            "cash_flow"
+          ],
+          "code": "duplicate_source_coverage",
+          "label": "Duplicate source coverage",
+          "remediation": "Preserve duplicate detection and reconciliation state so the same source is not counted twice.",
+          "state": "exclude_or_disclose_duplicate_source"
+        },
+        {
+          "applies_to_sections": [
+            "income_statement",
+            "cash_flow"
+          ],
+          "code": "overlapping_statement_period",
+          "label": "Overlapping statement period",
+          "remediation": "Surface overlapping bank statement periods and keep affected totals out of trusted proof until reviewed.",
+          "state": "review_required_before_trusted_total"
+        }
+      ],
+      "label": "Traceability Appendix",
+      "lines": [
+        {
+          "amount_field": "total_assets",
+          "anchor_count": 9,
+          "blocker_codes": [
+            "unproven_package_input"
+          ],
+          "currency_field": "currency",
+          "label": "Total Assets",
+          "ledger_anchor": {
+            "details": [
+              {
+                "account_id": "67814ba6-4db4-4c5c-9bf5-ffd8728bda47",
+                "account_type": "asset",
+                "amount": "15000.00",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:2c682284-43aa-4b63-8e62-f3690d41214d",
+                "journal_entry_id": "d0e88e42-d58a-4a7b-96b4-39c88bdbfe80",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "2c682284-43aa-4b63-8e62-f3690d41214d",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              },
+              {
+                "account_id": "397c5c06-61bb-453f-941d-54c9a2c35deb",
+                "account_type": "equity",
+                "amount": "15000.00",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:d027ff01-9dc9-4b18-bf57-b4e7811bf17e",
+                "journal_entry_id": "d0e88e42-d58a-4a7b-96b4-39c88bdbfe80",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "d027ff01-9dc9-4b18-bf57-b4e7811bf17e",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              },
+              {
+                "account_id": "67814ba6-4db4-4c5c-9bf5-ffd8728bda47",
+                "account_type": "asset",
+                "amount": "8000.00",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:1b713b67-7caa-4812-b1f1-aa4af22e2cc5",
+                "journal_entry_id": "0db380f9-7766-4abb-8a47-19d47badd89b",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "1b713b67-7caa-4812-b1f1-aa4af22e2cc5",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              },
+              {
+                "account_id": "0c2b30de-a79a-4414-bb9a-acddcac12327",
+                "account_type": "income",
+                "amount": "8000.00",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:8e5baa16-e634-431d-8a22-8e4d7f5a61e3",
+                "journal_entry_id": "0db380f9-7766-4abb-8a47-19d47badd89b",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "8e5baa16-e634-431d-8a22-8e4d7f5a61e3",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              },
+              {
+                "account_id": "67814ba6-4db4-4c5c-9bf5-ffd8728bda47",
+                "account_type": "asset",
+                "amount": "2639.35",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:1db7bf90-8b81-4e57-a349-d1b64ea24827",
+                "journal_entry_id": "42e5f884-ea8d-4393-8b0d-53d32c04a0b5",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "1db7bf90-8b81-4e57-a349-d1b64ea24827",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              },
+              {
+                "account_id": "64b802fc-619f-4441-aa7b-1a9361355fb9",
+                "account_type": "expense",
+                "amount": "2639.35",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:ce3265f2-a72a-4fb5-84ed-d2c3f7504107",
+                "journal_entry_id": "42e5f884-ea8d-4393-8b0d-53d32c04a0b5",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "ce3265f2-a72a-4fb5-84ed-d2c3f7504107",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              }
+            ],
+            "entry_statuses": [
+              "posted",
+              "reconciled"
+            ],
+            "identifier_fields": [
+              "journal_entry_ids",
+              "journal_line_ids"
+            ],
+            "identifiers": [
+              "journal_line:1b713b67-7caa-4812-b1f1-aa4af22e2cc5",
+              "journal_line:1db7bf90-8b81-4e57-a349-d1b64ea24827",
+              "journal_line:2c682284-43aa-4b63-8e62-f3690d41214d",
+              "journal_line:8e5baa16-e634-431d-8a22-8e4d7f5a61e3",
+              "journal_line:ce3265f2-a72a-4fb5-84ed-d2c3f7504107",
+              "journal_line:d027ff01-9dc9-4b18-bf57-b4e7811bf17e"
+            ],
+            "source_types": [],
+            "state": "available",
+            "unavailable_reason": null
+          },
+          "line_id": "balance_sheet.total_assets",
+          "section_id": "balance_sheet",
+          "source_anchor": {
+            "details": [
+              {
+                "amount": "1200000.00",
+                "component_type": "property_value",
+                "contribution_basis": "resolved_pricing_valuation",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "pricing_observation:b99045b7-fba6-4ff8-aebb-e4b56662e5a4",
+                "liquidity_class": "illiquid",
+                "reason_code": "missing_observation_decision",
+                "review_state": "unproven",
+                "source_id": "b99045b7-fba6-4ff8-aebb-e4b56662e5a4",
+                "source_kind": "pricing_valuation_observation",
+                "source_type": "manual",
+                "valuation_basis": "unspecified"
+              },
+              {
+                "amount": "650000.00",
+                "component_type": "mortgage_balance",
+                "contribution_basis": "resolved_pricing_valuation",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "pricing_observation:0315f4a0-f951-4598-9711-7a077f90110c",
+                "liquidity_class": "liability",
+                "reason_code": "missing_observation_decision",
+                "review_state": "unproven",
+                "source_id": "0315f4a0-f951-4598-9711-7a077f90110c",
+                "source_kind": "pricing_valuation_observation",
+                "source_type": "manual",
+                "valuation_basis": "unspecified"
+              },
+              {
+                "amount": "42000.00",
+                "component_type": "esop",
+                "contribution_basis": "resolved_pricing_valuation",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "pricing_observation:80d322bf-8688-43ee-85d4-50d524861ddd",
+                "liquidity_class": "restricted",
+                "reason_code": "missing_observation_decision",
+                "review_state": "unproven",
+                "source_id": "80d322bf-8688-43ee-85d4-50d524861ddd",
+                "source_kind": "pricing_valuation_observation",
+                "source_type": "manual",
+                "valuation_basis": "unspecified"
+              }
+            ],
+            "entry_statuses": [],
+            "identifier_fields": [
+              "statement_transaction_ids",
+              "brokerage_statement_ids",
+              "manual_valuation_snapshot_ids"
+            ],
+            "identifiers": [
+              "pricing_observation:0315f4a0-f951-4598-9711-7a077f90110c",
+              "pricing_observation:80d322bf-8688-43ee-85d4-50d524861ddd",
+              "pricing_observation:b99045b7-fba6-4ff8-aebb-e4b56662e5a4"
+            ],
+            "source_types": [
+              "bank_statement",
+              "brokerage_import",
+              "manual_valuation_snapshot"
+            ],
+            "state": "available",
+            "unavailable_reason": null
+          },
+          "source_state": "posted_reconciled_journal_lines_and_manual_valuations"
+        },
+        {
+          "amount_field": "total_income",
+          "anchor_count": 1,
+          "blocker_codes": [
+            "unproven_package_input"
+          ],
+          "currency_field": "currency",
+          "label": "Total Income",
+          "ledger_anchor": {
+            "details": [
+              {
+                "account_id": "0c2b30de-a79a-4414-bb9a-acddcac12327",
+                "account_type": "income",
+                "amount": "8000.00",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:8e5baa16-e634-431d-8a22-8e4d7f5a61e3",
+                "journal_entry_id": "0db380f9-7766-4abb-8a47-19d47badd89b",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "8e5baa16-e634-431d-8a22-8e4d7f5a61e3",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              }
+            ],
+            "entry_statuses": [
+              "posted",
+              "reconciled"
+            ],
+            "identifier_fields": [
+              "journal_entry_ids",
+              "journal_line_ids"
+            ],
+            "identifiers": [
+              "journal_line:8e5baa16-e634-431d-8a22-8e4d7f5a61e3"
+            ],
+            "source_types": [],
+            "state": "available",
+            "unavailable_reason": null
+          },
+          "line_id": "income_statement.total_income",
+          "section_id": "income_statement",
+          "source_anchor": {
+            "details": [],
+            "entry_statuses": [],
+            "identifier_fields": [
+              "statement_transaction_ids",
+              "journal_entry_source_ids"
+            ],
+            "identifiers": [],
+            "source_types": [
+              "bank_statement",
+              "manual_journal_entry"
+            ],
+            "state": "unavailable",
+            "unavailable_reason": "no_selected_source_contribution"
+          },
+          "source_state": "posted_reconciled_income_journal_lines"
+        },
+        {
+          "amount_field": "total_expenses",
+          "anchor_count": 1,
+          "blocker_codes": [
+            "unproven_package_input"
+          ],
+          "currency_field": "currency",
+          "label": "Total Expenses",
+          "ledger_anchor": {
+            "details": [
+              {
+                "account_id": "64b802fc-619f-4441-aa7b-1a9361355fb9",
+                "account_type": "expense",
+                "amount": "2639.35",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:ce3265f2-a72a-4fb5-84ed-d2c3f7504107",
+                "journal_entry_id": "42e5f884-ea8d-4393-8b0d-53d32c04a0b5",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "ce3265f2-a72a-4fb5-84ed-d2c3f7504107",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              }
+            ],
+            "entry_statuses": [
+              "posted",
+              "reconciled"
+            ],
+            "identifier_fields": [
+              "journal_entry_ids",
+              "journal_line_ids"
+            ],
+            "identifiers": [
+              "journal_line:ce3265f2-a72a-4fb5-84ed-d2c3f7504107"
+            ],
+            "source_types": [],
+            "state": "available",
+            "unavailable_reason": null
+          },
+          "line_id": "income_statement.total_expenses",
+          "section_id": "income_statement",
+          "source_anchor": {
+            "details": [],
+            "entry_statuses": [],
+            "identifier_fields": [
+              "statement_transaction_ids",
+              "journal_entry_source_ids"
+            ],
+            "identifiers": [],
+            "source_types": [
+              "bank_statement",
+              "manual_journal_entry"
+            ],
+            "state": "unavailable",
+            "unavailable_reason": "no_selected_source_contribution"
+          },
+          "source_state": "posted_reconciled_expense_journal_lines"
+        },
+        {
+          "amount_field": "summary.net_cash_flow",
+          "anchor_count": 3,
+          "blocker_codes": [
+            "unproven_package_input"
+          ],
+          "currency_field": "currency",
+          "label": "Net Cash Flow",
+          "ledger_anchor": {
+            "details": [
+              {
+                "account_id": "67814ba6-4db4-4c5c-9bf5-ffd8728bda47",
+                "account_type": "asset",
+                "amount": "15000.00",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:2c682284-43aa-4b63-8e62-f3690d41214d",
+                "journal_entry_id": "d0e88e42-d58a-4a7b-96b4-39c88bdbfe80",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "2c682284-43aa-4b63-8e62-f3690d41214d",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              },
+              {
+                "account_id": "67814ba6-4db4-4c5c-9bf5-ffd8728bda47",
+                "account_type": "asset",
+                "amount": "8000.00",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:1b713b67-7caa-4812-b1f1-aa4af22e2cc5",
+                "journal_entry_id": "0db380f9-7766-4abb-8a47-19d47badd89b",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "1b713b67-7caa-4812-b1f1-aa4af22e2cc5",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              },
+              {
+                "account_id": "67814ba6-4db4-4c5c-9bf5-ffd8728bda47",
+                "account_type": "asset",
+                "amount": "2639.35",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:1db7bf90-8b81-4e57-a349-d1b64ea24827",
+                "journal_entry_id": "42e5f884-ea8d-4393-8b0d-53d32c04a0b5",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "1db7bf90-8b81-4e57-a349-d1b64ea24827",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              }
+            ],
+            "entry_statuses": [
+              "posted",
+              "reconciled"
+            ],
+            "identifier_fields": [
+              "journal_entry_ids",
+              "journal_line_ids"
+            ],
+            "identifiers": [
+              "journal_line:1b713b67-7caa-4812-b1f1-aa4af22e2cc5",
+              "journal_line:1db7bf90-8b81-4e57-a349-d1b64ea24827",
+              "journal_line:2c682284-43aa-4b63-8e62-f3690d41214d"
+            ],
+            "source_types": [],
+            "state": "available",
+            "unavailable_reason": null
+          },
+          "line_id": "cash_flow.net_cash_flow",
+          "section_id": "cash_flow",
+          "source_anchor": {
+            "details": [],
+            "entry_statuses": [],
+            "identifier_fields": [
+              "statement_transaction_ids",
+              "journal_entry_source_ids"
+            ],
+            "identifiers": [],
+            "source_types": [
+              "bank_statement",
+              "manual_journal_entry"
+            ],
+            "state": "unavailable",
+            "unavailable_reason": "no_selected_source_contribution"
+          },
+          "source_state": "cash_bank_journal_lines"
+        },
+        {
+          "amount_field": "holdings.market_value",
+          "anchor_count": 0,
+          "blocker_codes": [
+            "stale_market_data"
+          ],
+          "currency_field": "currency",
+          "label": "Investment Market Value",
+          "ledger_anchor": {
+            "details": [],
+            "entry_statuses": [
+              "posted",
+              "reconciled"
+            ],
+            "identifier_fields": [
+              "ledger_entry_ids",
+              "journal_line_ids"
+            ],
+            "identifiers": [],
+            "source_types": [],
+            "state": "available",
+            "unavailable_reason": null
+          },
+          "line_id": "investment_performance.market_value",
+          "section_id": "investment_performance",
+          "source_anchor": {
+            "details": [],
+            "entry_statuses": [],
+            "identifier_fields": [
+              "brokerage_statement_ids",
+              "price_source_ids",
+              "ledger_entry_ids"
+            ],
+            "identifiers": [],
+            "source_types": [
+              "brokerage_import",
+              "market_data_price",
+              "journal_entry"
+            ],
+            "state": "unavailable",
+            "unavailable_reason": "no_selected_source_contribution"
+          },
+          "source_state": "brokerage_imports_market_data_and_ledger_cost_basis"
+        },
+        {
+          "amount_field": "income.annualized_total",
+          "anchor_count": 4,
+          "blocker_codes": [
+            "unproven_package_input"
+          ],
+          "currency_field": "income.currency",
+          "label": "Annualized Total Income",
+          "ledger_anchor": {
+            "details": [
+              {
+                "account_id": "0c2b30de-a79a-4414-bb9a-acddcac12327",
+                "account_type": "income",
+                "amount": "8000.00",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:8e5baa16-e634-431d-8a22-8e4d7f5a61e3",
+                "journal_entry_id": "0db380f9-7766-4abb-8a47-19d47badd89b",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "8e5baa16-e634-431d-8a22-8e4d7f5a61e3",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              }
+            ],
+            "entry_statuses": [
+              "posted",
+              "reconciled"
+            ],
+            "identifier_fields": [
+              "journal_entry_ids",
+              "journal_line_ids"
+            ],
+            "identifiers": [
+              "journal_line:8e5baa16-e634-431d-8a22-8e4d7f5a61e3"
+            ],
+            "source_types": [],
+            "state": "available",
+            "unavailable_reason": null
+          },
+          "line_id": "annualized_income_long_term.annualized_total",
+          "section_id": "annualized_income_long_term",
+          "source_anchor": {
+            "details": [
+              {
+                "amount": "1200000.00",
+                "component_type": "property_value",
+                "contribution_basis": "resolved_pricing_valuation",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "pricing_observation:b99045b7-fba6-4ff8-aebb-e4b56662e5a4",
+                "liquidity_class": "illiquid",
+                "reason_code": "missing_observation_decision",
+                "review_state": "unproven",
+                "source_id": "b99045b7-fba6-4ff8-aebb-e4b56662e5a4",
+                "source_kind": "pricing_valuation_observation",
+                "source_type": "manual",
+                "valuation_basis": "unspecified"
+              },
+              {
+                "amount": "650000.00",
+                "component_type": "mortgage_balance",
+                "contribution_basis": "resolved_pricing_valuation",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "pricing_observation:0315f4a0-f951-4598-9711-7a077f90110c",
+                "liquidity_class": "liability",
+                "reason_code": "missing_observation_decision",
+                "review_state": "unproven",
+                "source_id": "0315f4a0-f951-4598-9711-7a077f90110c",
+                "source_kind": "pricing_valuation_observation",
+                "source_type": "manual",
+                "valuation_basis": "unspecified"
+              },
+              {
+                "amount": "42000.00",
+                "component_type": "esop",
+                "contribution_basis": "resolved_pricing_valuation",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "pricing_observation:80d322bf-8688-43ee-85d4-50d524861ddd",
+                "liquidity_class": "restricted",
+                "reason_code": "missing_observation_decision",
+                "review_state": "unproven",
+                "source_id": "80d322bf-8688-43ee-85d4-50d524861ddd",
+                "source_kind": "pricing_valuation_observation",
+                "source_type": "manual",
+                "valuation_basis": "unspecified"
+              }
+            ],
+            "entry_statuses": [],
+            "identifier_fields": [
+              "journal_entry_source_ids",
+              "statement_transaction_ids"
+            ],
+            "identifiers": [
+              "pricing_observation:0315f4a0-f951-4598-9711-7a077f90110c",
+              "pricing_observation:80d322bf-8688-43ee-85d4-50d524861ddd",
+              "pricing_observation:b99045b7-fba6-4ff8-aebb-e4b56662e5a4"
+            ],
+            "source_types": [
+              "bank_statement",
+              "manual_journal_entry"
+            ],
+            "state": "available",
+            "unavailable_reason": null
+          },
+          "source_state": "posted_reconciled_income_journal_lines_trailing_12_months"
+        },
+        {
+          "amount_field": "restricted_fair_value_total",
+          "anchor_count": 7,
+          "blocker_codes": [
+            "manual_only_source",
+            "unproven_package_input"
+          ],
+          "currency_field": "restricted_fair_value_total_currency",
+          "label": "Restricted Fair Value Total",
+          "ledger_anchor": {
+            "details": [
+              {
+                "account_id": "67814ba6-4db4-4c5c-9bf5-ffd8728bda47",
+                "account_type": "asset",
+                "amount": "8000.00",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:1b713b67-7caa-4812-b1f1-aa4af22e2cc5",
+                "journal_entry_id": "0db380f9-7766-4abb-8a47-19d47badd89b",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "1b713b67-7caa-4812-b1f1-aa4af22e2cc5",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              },
+              {
+                "account_id": "0c2b30de-a79a-4414-bb9a-acddcac12327",
+                "account_type": "income",
+                "amount": "8000.00",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:8e5baa16-e634-431d-8a22-8e4d7f5a61e3",
+                "journal_entry_id": "0db380f9-7766-4abb-8a47-19d47badd89b",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "8e5baa16-e634-431d-8a22-8e4d7f5a61e3",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              },
+              {
+                "account_id": "67814ba6-4db4-4c5c-9bf5-ffd8728bda47",
+                "account_type": "asset",
+                "amount": "2639.35",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:1db7bf90-8b81-4e57-a349-d1b64ea24827",
+                "journal_entry_id": "42e5f884-ea8d-4393-8b0d-53d32c04a0b5",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "1db7bf90-8b81-4e57-a349-d1b64ea24827",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              },
+              {
+                "account_id": "64b802fc-619f-4441-aa7b-1a9361355fb9",
+                "account_type": "expense",
+                "amount": "2639.35",
+                "contribution_basis": "ledger_line_amount",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "journal_line:ce3265f2-a72a-4fb5-84ed-d2c3f7504107",
+                "journal_entry_id": "42e5f884-ea8d-4393-8b0d-53d32c04a0b5",
+                "reason_code": "missing_current_decision_anchor",
+                "review_state": "unproven",
+                "source_id": "ce3265f2-a72a-4fb5-84ed-d2c3f7504107",
+                "source_kind": "journal_line",
+                "source_type": "decision_anchored_journal"
+              }
+            ],
+            "entry_statuses": [],
+            "identifier_fields": [],
+            "identifiers": [
+              "journal_line:1b713b67-7caa-4812-b1f1-aa4af22e2cc5",
+              "journal_line:1db7bf90-8b81-4e57-a349-d1b64ea24827",
+              "journal_line:8e5baa16-e634-431d-8a22-8e4d7f5a61e3",
+              "journal_line:ce3265f2-a72a-4fb5-84ed-d2c3f7504107"
+            ],
+            "source_types": [],
+            "state": "not_applicable",
+            "unavailable_reason": "Restricted compensation is disclosed as explicit manual valuation input, not posted ledger cash."
+          },
+          "line_id": "annualized_income_long_term.restricted_fair_value_total",
+          "section_id": "annualized_income_long_term",
+          "source_anchor": {
+            "details": [
+              {
+                "amount": "1200000.00",
+                "component_type": "property_value",
+                "contribution_basis": "resolved_pricing_valuation",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "pricing_observation:b99045b7-fba6-4ff8-aebb-e4b56662e5a4",
+                "liquidity_class": "illiquid",
+                "reason_code": "missing_observation_decision",
+                "review_state": "unproven",
+                "source_id": "b99045b7-fba6-4ff8-aebb-e4b56662e5a4",
+                "source_kind": "pricing_valuation_observation",
+                "source_type": "manual",
+                "valuation_basis": "unspecified"
+              },
+              {
+                "amount": "650000.00",
+                "component_type": "mortgage_balance",
+                "contribution_basis": "resolved_pricing_valuation",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "pricing_observation:0315f4a0-f951-4598-9711-7a077f90110c",
+                "liquidity_class": "liability",
+                "reason_code": "missing_observation_decision",
+                "review_state": "unproven",
+                "source_id": "0315f4a0-f951-4598-9711-7a077f90110c",
+                "source_kind": "pricing_valuation_observation",
+                "source_type": "manual",
+                "valuation_basis": "unspecified"
+              },
+              {
+                "amount": "42000.00",
+                "component_type": "esop",
+                "contribution_basis": "resolved_pricing_valuation",
+                "currency": "SGD",
+                "decision_id": null,
+                "identifier": "pricing_observation:80d322bf-8688-43ee-85d4-50d524861ddd",
+                "liquidity_class": "restricted",
+                "reason_code": "missing_observation_decision",
+                "review_state": "unproven",
+                "source_id": "80d322bf-8688-43ee-85d4-50d524861ddd",
+                "source_kind": "pricing_valuation_observation",
+                "source_type": "manual",
+                "valuation_basis": "unspecified"
+              }
+            ],
+            "entry_statuses": [],
+            "identifier_fields": [
+              "manual_valuation_snapshot_ids"
+            ],
+            "identifiers": [
+              "pricing_observation:0315f4a0-f951-4598-9711-7a077f90110c",
+              "pricing_observation:80d322bf-8688-43ee-85d4-50d524861ddd",
+              "pricing_observation:b99045b7-fba6-4ff8-aebb-e4b56662e5a4"
+            ],
+            "source_types": [
+              "manual_valuation_snapshot"
+            ],
+            "state": "available",
+            "unavailable_reason": null
+          },
+          "source_state": "manual_valuation_snapshots"
+        },
+        {
+          "amount_field": null,
+          "anchor_count": 1,
+          "blocker_codes": [],
+          "currency_field": null,
+          "label": "Package Non-Compliance Statement",
+          "ledger_anchor": {
+            "details": [],
+            "entry_statuses": [],
+            "identifier_fields": [],
+            "identifiers": [],
+            "source_types": [],
+            "state": "not_applicable",
+            "unavailable_reason": "Disclosure wording is not a ledger-derived amount."
+          },
+          "line_id": "notes.non_compliance_statement",
+          "section_id": "notes",
+          "source_anchor": {
+            "details": [
+              {
+                "amount": null,
+                "contribution_basis": "static_disclosure_contract",
+                "currency": null,
+                "decision_id": null,
+                "identifier": "package_contract:personal-financial-report-package",
+                "reason_code": null,
+                "review_state": "not_applicable",
+                "source_id": "personal-financial-report-package",
+                "source_kind": "package_contract",
+                "source_type": "static_contract"
+              }
+            ],
+            "entry_statuses": [],
+            "identifier_fields": [
+              "note_id"
+            ],
+            "identifiers": [
+              "package_contract:personal-financial-report-package"
+            ],
+            "source_types": [
+              "package_contract"
+            ],
+            "state": "available",
+            "unavailable_reason": null
+          },
+          "source_state": "package_contract"
+        }
+      ],
+      "section_id": "traceability_appendix",
+      "status": "ready"
+    }
+  },
+  "snapshot_id": "00000000-0000-4000-8000-000000002645",
+  "statement_disposition_policy": {
+    "ambiguous_intent_outcome": "review",
+    "deployment_git_sha": "unknown",
+    "live_llm_proposals_enabled": true,
+    "machine_confidence_threshold": "0",
+    "mode": "enforce",
+    "pnl_effect_confidence_threshold": "0",
+    "policy_version": "disposition-v1-accept-any-score",
+    "schema_version": "1",
+    "semantic_digest": "97b7b5dbf26ff9b39c1d96d3ee2aa1c33688bb0ad7da60258446ddb7b3bdfbf3",
+    "unknown_intent_outcome": "review"
+  },
+  "status": "trusted"
+}

@@ -10,28 +10,42 @@ import {
   ShieldAlert,
 } from "lucide-react";
 
+import { humanizeWorkflowText } from "@/components/workflow/workflowFormat";
+import routeMap from "@/lib/route-map.json";
 import type { AdvisorSuggestion } from "@/lib/types";
 
 const SAFE_ROUTE_FALLBACK = "/";
 
-const ROUTE_MAP: Array<[RegExp, string]> = [
-  [/^\/reports\/balance-sheet(?:[/?#].*)?$/, "/reports/balance-sheet"],
-  [/^\/reports\/income-statement(?:[/?#].*)?$/, "/reports/income-statement"],
-  [/^\/reports\/cash-flow(?:[/?#].*)?$/, "/reports/cash-flow"],
-  [/^\/reports\/package(?:[/?#].*)?$/, "/reports/package"],
-  [/^\/review(?:[/?#].*)?$/, "/review"],
-  [/^\/reconciliation\/review-queue(?:[/?#].*)?$/, "/reconciliation/review-queue"],
-  [/^\/portfolio\/prices(?:\/update)?(?:[/?#].*)?$/, "/portfolio/prices"],
-  [/^\/portfolio(?:[/?#].*)?$/, "/portfolio"],
-  [/^\/assets(?:[/?#].*)?$/, "/assets"],
-  [/^\/reports(?:[/?#].*)?$/, "/reports"],
-  [/^\/statements\/upload(?:[/?#].*)?$/, "/statements/upload"],
-];
+interface RouteEntry {
+  path: string;
+  state: string;
+  into?: string;
+}
 
+// A route with no dynamic segment and no placeholder in its target.
+const STATIC_ROUTES = new Map<string, RouteEntry>(
+  (routeMap.routes as RouteEntry[])
+    .filter((route) => !route.path.includes("[") && !route.into?.includes(":"))
+    .map((route) => [route.path, route]),
+);
+
+// The `name=value` pairs that the route map names as redirect targets, e.g. `tab=package`.
+const ROUTE_QUERY_PAIRS = new Set(
+  (routeMap.routes as RouteEntry[]).flatMap((route) =>
+    (route.into?.split("?")[1] ?? "").split("&").filter((pair) => pair && !pair.includes(":")),
+  ),
+);
+
+/** Map an advisor href to a live internal route of `route-map.json`, or to `/`. */
 export function safeAdvisorHref(href: string): string {
   const trimmed = href.trim();
-  const match = ROUTE_MAP.find(([pattern]) => pattern.test(trimmed));
-  return match ? match[1] : SAFE_ROUTE_FALLBACK;
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) return SAFE_ROUTE_FALLBACK;
+  const [rawPath, query = ""] = trimmed.split("#")[0].split("?");
+  const route = STATIC_ROUTES.get(rawPath.length > 1 ? rawPath.replace(/\/$/, "") : rawPath);
+  if (!route || route.state === "shell") return SAFE_ROUTE_FALLBACK;
+  if (route.state === "redirect") return route.into ?? SAFE_ROUTE_FALLBACK;
+  const pairs = new Set(query.split("&").filter((pair) => ROUTE_QUERY_PAIRS.has(pair)));
+  return pairs.size ? `${route.path}?${[...pairs].join("&")}` : route.path;
 }
 
 function titleForSuggestion(suggestion: AdvisorSuggestion): string {
@@ -115,7 +129,7 @@ export function AdvisorBrief({
                     <h3 className="text-sm font-semibold">{titleText}</h3>
                     <span className="badge badge-muted">{suggestion.confidence_tier}</span>
                   </div>
-                  <p className="mt-2 break-words text-sm">{suggestion.basis}</p>
+                  <p className="mt-2 break-words text-sm">{humanizeWorkflowText(suggestion.basis)}</p>
                   <p className="mt-2 break-words text-xs text-muted">{suggestion.limitation}</p>
                 </div>
               </div>

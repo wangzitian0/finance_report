@@ -42,6 +42,15 @@ the trace ORM. It returns only financial decisions whose own and parent records
 remain current; consumers join it to their immutable local reference and never
 reconstruct trace validity.
 
+A consumer that knows its decision ids calls
+`current_authoritative_trace_decisions(db, scope, decision_ids)`. One statement
+reads only these ids. A caller that runs many such reads for one result opens
+`shared_current_authority(db, scope)`: in the block, each read of the same
+session and scope uses one read of the projection. A TraceRecord write on the
+session in the block ends that reuse, so the block never reports a superseded
+decision as current. The package evaluation opens one block per evaluation
+(#2602).
+
 Cross-package contributions carry a `TraceDecisionRef`, the lightweight exact
 coordinates `(decision_id, target, assertion)` of the decision they resolved.
 The consuming package must compare all three coordinates with its scope-bound
@@ -88,6 +97,17 @@ cross-target/cross-execution parents;
 MANIFEST accepts them only through a versioned policy's complete parent set. An
 LLM-produced financial observation requires a same-target CODE-ONLY
 invariant/promotion decision parent before an authoritative decision can exist.
+
+`TraceEmitter.emit_many()` hands an ordered causal set to `append_many()` when
+the repository has it. `append_many()` applies the checks of `append()` and
+persists the same rows. It sends a fixed number of statements, whatever the size
+of the set: one lock statement, one existence read, one head read, and two
+inserts. A set with a supersession keeps the per-record path, because a
+supersession changes the heads that the later records of the set read. After an
+append, the repository knows the new record, its head state, its current
+ancestry and the decision head of its lineage. Later reads in the same unit of
+work use that memo without a statement (#2612). The memo ends at a commit, and at
+a rollback of the unit of work or of a savepoint.
 
 Each package injects `TraceEmitter` at its composition boundary and flushes the
 complete causal set into the same caller-owned transaction as the authoritative

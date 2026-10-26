@@ -5,7 +5,6 @@ import {
     checkTypeLabel,
     confidenceLabel,
     countLabel,
-    coverageLabel,
     currencyCodeOrDash,
     humanizeIdentifier,
     pnlColorClass,
@@ -20,14 +19,6 @@ describe("statusLabels (#1609 colour-not-alone)", () => {
         expect(confidenceLabel(70)).toBe("Fair — review advised");
         expect(confidenceLabel(60)).toBe("Fair — review advised");
         expect(confidenceLabel(40)).toBe("Low — review required");
-    });
-
-    it("coverageLabel covers every tier", () => {
-        expect(coverageLabel(90)).toBe("Good");
-        expect(coverageLabel(85)).toBe("Good");
-        expect(coverageLabel(72)).toBe("Fair");
-        expect(coverageLabel(60)).toBe("Fair");
-        expect(coverageLabel(30)).toBe("Needs attention");
     });
 });
 

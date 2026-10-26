@@ -15,6 +15,12 @@ import type { PortfolioHolding } from "@/lib/types";
 
 const showToastMock = vi.fn();
 const mockedApiFetch = vi.fn();
+const navState = vi.hoisted(() => ({ searchParams: new URLSearchParams(), replace: vi.fn() }));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: navState.replace, push: vi.fn() }),
+  useSearchParams: () => navState.searchParams,
+}));
 
 vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast: showToastMock }),
@@ -152,18 +158,38 @@ function mockPortfolioApi(
       return Promise.resolve({
         as_of_date: "2026-12-31", currency: "SGD", include_restricted: !path.includes("include_restricted=false"),
         total_assets: "2100.00", total_liabilities: "100.00", net_worth: "2000.00",
+        excluded_holdings: path.includes("include_restricted=false")
+          ? [{ asset_class: "restricted_comp", total_assets: "500.00", total_liabilities: "0.00", net_worth: "500.00" }]
+          : [],
         rows: netWorthAllocationMode === "empty" ? [] : netWorthAllocationMode === "retirement_benefit" ? [
-          { asset_class: "retirement_and_benefit_assets", liquidity_class: "restricted", source_currency: "SGD", value: "185000.00", percentage_of_net_worth: "100.00", source_line_count: 1, source_lines: [{ source_type: "manual_valuation", source_id: null, label: "401k statement", value: "185000.00", href: "/assets/valuation-components" }] },
+          { asset_class: "retirement_and_benefit_assets", liquidity_class: "restricted", source_currency: "SGD", value: "185000.00", percentage_of_net_worth: "100.00", source_line_count: 1, source_lines: [{ source_type: "manual_valuation", source_id: "val1", label: "401k statement", value: "185000.00" }] },
         ] : [
-          { asset_class: "public_equity", liquidity_class: "liquid", source_currency: "USD", value: "1800.00", percentage_of_net_worth: allocationPercentage, source_line_count: 2, source_lines: [{ source_type: "portfolio_market_adjustment", source_id: null, label: "AAPL market value", value: "1800.00", href: "/portfolio/holdings" }, { source_type: "manual_component", source_id: null, label: "Manual adjustment", value: "0.00", href: null }] },
-          { asset_class: "cash", liquidity_class: "liquid", source_currency: "SGD", value: "300.00", percentage_of_net_worth: "15.00", source_line_count: 1, source_lines: [{ source_type: "ledger_account", source_id: "acc1", label: "Main Bank", value: "300.00", href: "/reports/account-lineage?account_id=acc1&as_of_date=2026-12-31&currency=SGD" }] },
-          { asset_class: "liability", liquidity_class: "liability", source_currency: "SGD", value: "-100.00", percentage_of_net_worth: "-5.00", source_line_count: 1, source_lines: [{ source_type: "ledger_account", source_id: "loan1", label: "Loan", value: "-100.00", href: "/reports/account-lineage?account_id=loan1&as_of_date=2026-12-31&currency=SGD" }] },
+          { asset_class: "public_equity", liquidity_class: "liquid", source_currency: "USD", value: "1800.00", percentage_of_net_worth: allocationPercentage, source_line_count: 2, source_lines: [{ source_type: "portfolio_market_adjustment", source_id: "acc1", label: "AAPL market value", value: "1800.00" }, { source_type: "manual_component", source_id: null, label: "Manual adjustment", value: "0.00" }] },
+          { asset_class: "cash", liquidity_class: "liquid", source_currency: "SGD", value: "300.00", percentage_of_net_worth: "15.00", source_line_count: 1, source_lines: [{ source_type: "ledger_account", source_id: "acc1", label: "Main Bank", value: "300.00" }] },
+          { asset_class: "liability", liquidity_class: "liability", source_currency: "SGD", value: "-100.00", percentage_of_net_worth: "-5.00", source_line_count: 1, source_lines: [{ source_type: "ledger_account", source_id: "loan1", label: "Loan", value: "-100.00" }] },
         ],
+      });
+    }
+    if (path.startsWith("/api/reports/account-lineage")) {
+      return Promise.resolve({
+        account_id: "acc1", account_name: "Main Bank", account_type: "ASSET", currency: "SGD",
+        as_of_date: "2026-12-31", start_date: null, total: "300.00",
+        lines: [{
+          journal_line_id: "88888888-8888-4888-8888-888888888888", journal_entry_id: "99999999-9999-4999-8999-999999999999",
+          entry_date: "2026-12-01", memo: "Salary deposit", direction: "DEBIT",
+          original_amount: "300.00", original_currency: "SGD", amount: "300.00",
+        }],
       });
     }
     if (path.startsWith("/api/portfolio/holdings")) {
       const items = path.includes("include_disposed=true") ? [mockHolding, mockHolding2] : holdings;
       return Promise.resolve({ items, total: items.length, warnings: [] });
+    }
+    if (path === "/api/portfolio/AAPL/dividends" || path === "/api/portfolio/AAPL/realized") {
+      return Promise.resolve([]);
+    }
+    if (path.startsWith("/api/assets/valuation-snapshots")) {
+      return Promise.resolve({ items: [], total: 0 });
     }
     return Promise.reject(new Error(`unhandled path ${path}`));
   });
@@ -173,6 +199,8 @@ describe("PortfolioPage", () => {
   beforeEach(() => {
     mockedApiFetch.mockReset();
     showToastMock.mockReset();
+    navState.searchParams = new URLSearchParams();
+    navState.replace.mockReset();
   });
 
   afterEach(() => {
@@ -287,13 +315,72 @@ describe("PortfolioPage", () => {
     );
   });
 
-  it("has a link to the prices page", async () => {
-    mockPortfolioApi([]);
+  // AC-portfolio.fe-panels.1
+  it("AC-portfolio.fe-panels.1 opens one drawer from the ticker or panel query parameter and closes it to /portfolio", async () => {
+    mockPortfolioApi([mockHolding]);
+
+    const { unmount } = render(<PortfolioPage />, { wrapper: createWrapper() });
+    await waitFor(() => expect(screen.getByRole("link", { name: "AAPL" })).toHaveAttribute("href", "/portfolio?ticker=AAPL"));
+    expect(screen.getByRole("link", { name: /Update Prices/ })).toHaveAttribute("href", "/portfolio?panel=prices");
+    expect(screen.getByRole("link", { name: "Add evidence" })).toHaveAttribute("href", "/portfolio?panel=evidence");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    unmount();
+
+    const cases: [string, string, () => void][] = [
+      ["ticker=AAPL", "AAPL", () => expect(screen.getByRole("tab", { name: "Realized P&L" })).toBeInTheDocument()],
+      ["panel=prices", "Update Market Prices", () => expect(screen.getByRole("option", { name: "AAPL" })).toBeInTheDocument()],
+      [
+        "panel=evidence&source_class=liability_statement",
+        "Guided evidence intake",
+        () => expect(screen.getByLabelText("Source class")).toHaveValue("liability_statement"),
+      ],
+    ];
+    for (const [query, title, expectBody] of cases) {
+      navState.searchParams = new URLSearchParams(query);
+      navState.replace.mockReset();
+      const view = render(<PortfolioPage />, { wrapper: createWrapper() });
+      const dialog = await screen.findByRole("dialog", { name: title });
+      await waitFor(expectBody);
+      expect(screen.getAllByRole("dialog"), `?${query} must open one drawer`).toHaveLength(1);
+      fireEvent.click(within(dialog).getByRole("button", { name: "Close panel" }));
+      expect(navState.replace).toHaveBeenCalledWith("/portfolio", { scroll: false });
+      view.unmount();
+    }
+
+    navState.searchParams = new URLSearchParams("panel=unknown");
+    render(<PortfolioPage />, { wrapper: createWrapper() });
+    await waitFor(() => expect(screen.getByRole("link", { name: "AAPL" })).toBeInTheDocument());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("closes the price drawer and reloads the holdings after a price update succeeds", async () => {
+    navState.searchParams = new URLSearchParams("panel=prices");
+    mockPortfolioApi([mockHolding]);
+    const portfolioApi = mockedApiFetch.getMockImplementation()!;
+    mockedApiFetch.mockImplementation((path: string, init?: RequestInit) =>
+      path === "/api/portfolio/prices/update"
+        ? Promise.resolve({ updated_count: 1, errors: [] })
+        : portfolioApi(path, init),
+    );
+    const holdingsReads = () =>
+      mockedApiFetch.mock.calls.filter(([path]) => String(path).startsWith("/api/portfolio/holdings")).length;
 
     render(<PortfolioPage />, { wrapper: createWrapper() });
+    await waitFor(() => expect(screen.getByRole("link", { name: "AAPL" })).toBeInTheDocument());
+    const readsBeforeUpdate = holdingsReads();
 
-    const link = screen.getByText("Update Prices").closest("a");
-    expect(link).toHaveAttribute("href", "/portfolio/prices");
+    const sheet = screen.getByRole("dialog", { name: "Update Market Prices" });
+    fireEvent.change(within(sheet).getByRole("combobox"), { target: { value: "AAPL" } });
+    fireEvent.change(within(sheet).getByPlaceholderText("0.00"), { target: { value: "190.50" } });
+    fireEvent.submit(within(sheet).getByRole("button", { name: "Update Prices" }).closest("form")!);
+
+    await waitFor(() => expect(navState.replace).toHaveBeenCalledWith("/portfolio", { scroll: false }));
+    const [, request] = mockedApiFetch.mock.calls.find(([path]) => path === "/api/portfolio/prices/update")!;
+    expect(JSON.parse(String(request.body))).toEqual({
+      updates: [expect.objectContaining({ asset_identifier: "AAPL", price: "190.50" })],
+    });
+    expect(showToastMock).toHaveBeenCalledWith("Updated 1 price(s)", "success");
+    await waitFor(() => expect(holdingsReads()).toBe(readsBeforeUpdate + 1));
   });
 
   it("AC17.8.4 shows total portfolio value banner when active holdings are loaded", async () => {
@@ -366,9 +453,10 @@ describe("PortfolioPage", () => {
       1,
     );
     expect(within(panel).getAllByText("USD").length).toBeGreaterThanOrEqual(1);
-    expect(
-      within(panel).getByRole("link", { name: "AAPL market value" }),
-    ).toHaveAttribute("href", "/portfolio/holdings");
+    // #2645: no source renders an API path. A market adjustment is plain text: the holdings
+    // table below shows its value.
+    expect(within(panel).queryByRole("link", { name: "AAPL market value" })).toBeNull();
+    expect(within(panel).getByText("AAPL market value").closest("li")).toHaveAttribute("title", "AAPL market value");
     expect(
       within(panel).getByText("Manual adjustment").closest("a"),
     ).toBeNull();
@@ -399,7 +487,7 @@ describe("PortfolioPage", () => {
     expect(within(panel).getByText("Restricted")).toBeInTheDocument();
     expect(
       within(panel).getByRole("link", { name: "401k statement" }),
-    ).toHaveAttribute("href", "/assets/valuation-components");
+    ).toHaveAttribute("href", "/portfolio?panel=evidence");
   });
 
   it("AC17.14.3 shows the net-worth allocation loading state", () => {
@@ -496,6 +584,38 @@ describe("PortfolioPage", () => {
       expect(mockedApiFetch).toHaveBeenCalledWith(
         "/api/reports/net-worth/allocation?currency=SGD&include_restricted=false",
       ),
+    );
+  });
+
+  // AC-portfolio.fe-net-worth-sources.1
+  it("#2645 opens the lineage drawer from a ledger source and links no source to an API path", async () => {
+    mockPortfolioApi();
+
+    const { container } = render(<PortfolioPage />, { wrapper: createWrapper() });
+
+    const panel = await screen.findByRole("region", { name: "Net Worth Allocation" });
+    fireEvent.click(await within(panel).findByRole("button", { name: "View source transactions for Main Bank" }));
+
+    expect(await screen.findByText("Salary deposit")).toBeInTheDocument();
+    expect(mockedApiFetch).toHaveBeenCalledWith(expect.stringMatching(/^\/api\/reports\/account-lineage\?account_id=acc1&/));
+    const hrefs = Array.from(container.querySelectorAll("a")).map((link) => link.getAttribute("href") ?? "");
+    expect(hrefs.filter((href) => href.startsWith("/reports/account-lineage") || href.startsWith("/assets/"))).toEqual([]);
+  });
+
+  // AC-portfolio.fe-net-worth-sources.2
+  it("#2645 labels the liquid net worth and names each excluded class when restricted holdings are excluded", async () => {
+    mockPortfolioApi();
+
+    render(<PortfolioPage />, { wrapper: createWrapper() });
+
+    const panel = await screen.findByRole("region", { name: "Net Worth Allocation" });
+    expect(await within(panel).findByText("Net worth")).toBeInTheDocument();
+    expect(within(panel).queryByTestId("excluded-holdings-note")).toBeNull();
+    fireEvent.click(within(panel).getByRole("checkbox", { name: "Include restricted holdings in allocation" }));
+
+    expect(await within(panel).findByText("Liquid net worth")).toBeInTheDocument();
+    expect(within(panel).getByTestId("excluded-holdings-note")).toHaveTextContent(
+      "Excludes restricted and illiquid holdings:Restricted Comp SGD 500.00",
     );
   });
 

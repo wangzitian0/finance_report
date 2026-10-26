@@ -250,19 +250,22 @@ class TestConfig:
 
     def test_config_defaults(self, monkeypatch):
         """AC7.6.1: Config has reasonable defaults matching expected patterns."""
+        from infra2_sdk.runtime.llm import LlmSettings
+
         from src.config import Settings
 
         # Clear S3_BUCKET so we test the class default, not whatever the test
         # lifecycle script set for namespace isolation.
         monkeypatch.delenv("S3_BUCKET", raising=False)
-        monkeypatch.delenv("PRIMARY_MODEL", raising=False)
-        monkeypatch.delenv("OCR_MODEL", raising=False)
-        monkeypatch.delenv("VISION_MODEL", raising=False)
+        for name in ("LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL"):
+            monkeypatch.delenv(name, raising=False)
         settings = Settings(_env_file=None)
+        # The infra2 SDK owns the default models (#2566); no model id is written here.
+        sdk = LlmSettings()
         assert settings.ai_provider == "zai"
-        assert settings.primary_model == "glm-5.3-flash"
-        assert settings.ocr_model == "glm-5.3-flashx"
-        assert settings.vision_model == "glm-5.3-flashx"
+        assert settings.large_model == sdk.role_model("large")
+        assert settings.small_model == sdk.role_model("small")
+        assert settings.multimodal_model == sdk.role_model("multimodal")
         assert settings.s3_bucket == "statements"
 
     def test_config_database_url(self):

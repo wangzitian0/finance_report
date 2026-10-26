@@ -26,7 +26,7 @@ function event(overrides: Partial<WorkflowEventResponse>): WorkflowEventResponse
     summary: "statement.pdf needs source review.",
     source_type: "bank_statement",
     source_id: "stmt-1",
-    action_href: "/statements/stmt-1/review",
+    action_href: "/statements/stmt-1",
     report_impact: "blocked",
     ...overrides,
   } as WorkflowEventResponse
@@ -36,7 +36,7 @@ describe("Unified notification inbox (EPIC-022 AC22.2)", () => {
   // AC-platform.fe-ia-inbox.1
   it("AC22.2.1 surfaces Stage 1 review and Stage 2 reconciliation attention with deep links", () => {
     const events: WorkflowEventResponse[] = [
-      event({ id: "review", action_href: "/statements/stmt-1/review", title: "Source review required" }),
+      event({ id: "review", action_href: "/statements/stmt-1", title: "Source review required" }),
       event({
         id: "recon",
         family: "reconciliation.blocked",
@@ -45,17 +45,17 @@ describe("Unified notification inbox (EPIC-022 AC22.2)", () => {
         summary: "Pending matches need review before reports are ready.",
         source_type: "reconciliation",
         source_id: "run-1",
-        action_href: "/reconciliation/review-queue",
+        action_href: "/reconciliation?tab=review-queue",
       }),
     ]
 
     render(<WorkflowInbox events={events} sessions={[]} />)
 
     const stage1 = screen.getByRole("link", { name: /Open Source review required/i })
-    expect(stage1).toHaveAttribute("href", "/statements/stmt-1/review")
+    expect(stage1).toHaveAttribute("href", "/statements/stmt-1")
 
     const stage2 = screen.getByRole("link", { name: /Open Reconciliation review required/i })
-    expect(stage2).toHaveAttribute("href", "/reconciliation/review-queue")
+    expect(stage2).toHaveAttribute("href", "/reconciliation?tab=review-queue")
   })
 
   it("AC22.2.1 shows a no-action empty state with no review queue page to visit", () => {

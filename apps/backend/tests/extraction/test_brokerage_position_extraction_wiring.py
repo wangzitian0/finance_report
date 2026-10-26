@@ -144,7 +144,7 @@ async def test_AC_B1_extract_financial_data_uses_brokerage_prompt_before_model_c
         file_content=b"\x89PNG\r\n",
         institution="Moomoo",
         file_type="png",
-        force_model="glm-4.6v",
+        force_model="test-vision-model",
         filename="moomoo-positions-2506.png",
     )
 
@@ -167,7 +167,7 @@ async def test_AC_B1_extract_financial_data_keeps_bank_prompt_for_bank_upload(mo
         file_content=b"\x89PNG\r\n",
         institution="DBS",
         file_type="png",
-        force_model="glm-4.6v",
+        force_model="test-vision-model",
         filename="dbs-statement.png",
     )
 

@@ -1,11 +1,13 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { ConsistencyChecksPanel } from "@/components/review/stage2/ConsistencyChecksPanel";
-import { PendingMatchesPanel } from "@/components/review/stage2/PendingMatchesPanel";
-import { ResolveCheckDialog } from "@/components/review/stage2/ResolveCheckDialog";
-import { RunSummaryPanel } from "@/components/review/stage2/RunSummaryPanel";
-import { Stage2Filters } from "@/components/review/stage2/Stage2Filters";
+import {
+    ConsistencyChecksPanel,
+    PendingMatchesPanel,
+    ResolveCheckDialog,
+    RunSummaryPanel,
+    Stage2Filters,
+} from "@/components/review/Stage2ReviewQueue";
 import { checkSeverityColor, checkTypeLabel } from "@/lib/statusLabels";
 import type { ConsistencyCheck, PendingMatch } from "@/lib/types";
 

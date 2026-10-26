@@ -118,7 +118,8 @@ async def test_AC23_3_2_layered_uses_db_first_then_env(db, cipher, monkeypatch):
     monkeypatch.setattr(settings, "ai_api_key", "env-key", raising=False)
     monkeypatch.setattr(settings, "ai_provider", "zai", raising=False)
     monkeypatch.setattr(settings, "ai_base_url", "https://api.z.ai", raising=False)
-    monkeypatch.setattr(settings, "primary_model", "glm-5.1", raising=False)
+    monkeypatch.setattr(settings, "small_model", "glm-5.1")
+    monkeypatch.setattr(settings, "large_model", "glm-5.1-large", raising=False)
 
     # DbConfigSource with no rows in this transaction -> layered resolves via env.
     layered = LayeredConfigSource(
@@ -127,7 +128,7 @@ async def test_AC23_3_2_layered_uses_db_first_then_env(db, cipher, monkeypatch):
     )
     assert await layered.is_configured() is True
     binding = await layered.get_binding(Scene.ADVISOR_CHAT)
-    assert binding is not None and binding.model_id == "glm-5.1"
+    assert binding is not None and binding.model_id == "glm-5.1-large"
     assert any(p.id == "env" for p in await layered.list_providers())
 
 

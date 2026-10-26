@@ -1,8 +1,14 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import LlmSettingsPage from "@/components/settings/LlmSettingsPanel";
+import SettingsPage from "@/app/(main)/settings/page";
+import LlmSettingsPanel from "@/components/settings/LlmSettingsPanel";
 import { apiOperation } from "@/lib/api-client";
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams("tab=llm"),
+  useRouter: () => ({ replace: vi.fn() }),
+}));
 
 vi.mock("@/lib/api-client", () => ({
   apiOperation: vi.fn(),
@@ -76,10 +82,10 @@ beforeEach(() => {
   mockedApiOperation.mockReset();
 });
 
-describe("LlmSettingsPage (EPIC-023 PR4)", () => {
+describe("LlmSettingsPanel (EPIC-023 PR4)", () => {
   it("shows a loading state then the loaded scenes and providers", async () => {
     primeHappyLoad();
-    render(<LlmSettingsPage />);
+    render(<LlmSettingsPanel />);
 
     expect(screen.getByText("Loading LLM settings...")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("LLM Models")).toBeInTheDocument());
@@ -101,7 +107,7 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
 
   it("shows a load error when fetching fails", async () => {
     mockedApiOperation.mockRejectedValue(new Error("Load failed"));
-    render(<LlmSettingsPage />);
+    render(<LlmSettingsPanel />);
 
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent("Load failed")
@@ -115,7 +121,7 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
       if (op === "get_catalog_llm_catalog_get") return { models: [] } as any;
       return {} as any;
     });
-    render(<LlmSettingsPage />);
+    render(<LlmSettingsPanel />);
 
     await waitFor(() =>
       expect(screen.getByText(/No providers configured yet/i)).toBeInTheDocument()
@@ -124,7 +130,7 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
 
   it("keeps Save disabled until a binding is edited, then PUTs configured bindings", async () => {
     primeHappyLoad();
-    render(<LlmSettingsPage />);
+    render(<LlmSettingsPanel />);
     await waitFor(() => expect(screen.getByText("LLM Models")).toBeInTheDocument());
 
     const save = screen.getByRole("button", { name: /Save changes/i });
@@ -157,7 +163,7 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
 
   it("edits reasoning, fallbacks and prefer_free then persists them", async () => {
     primeHappyLoad();
-    render(<LlmSettingsPage />);
+    render(<LlmSettingsPanel />);
     await waitFor(() => expect(screen.getByText("LLM Models")).toBeInTheDocument());
 
     const chatCard = screen.getByText("Advisor · Chat").closest(".card") as HTMLElement;
@@ -189,7 +195,7 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
 
   it("Reset reverts edits to the saved bindings", async () => {
     primeHappyLoad();
-    render(<LlmSettingsPage />);
+    render(<LlmSettingsPanel />);
     await waitFor(() => expect(screen.getByText("LLM Models")).toBeInTheDocument());
 
     const chatCard = screen.getByText("Advisor · Chat").closest(".card") as HTMLElement;
@@ -226,7 +232,7 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
       }
       return {} as any;
     });
-    render(<LlmSettingsPage />);
+    render(<LlmSettingsPanel />);
     await waitFor(() => expect(screen.getByText("LLM Models")).toBeInTheDocument());
 
     const chatCard = screen.getByText("Advisor · Chat").closest(".card") as HTMLElement;
@@ -253,7 +259,7 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
       }
       return {} as any;
     });
-    render(<LlmSettingsPage />);
+    render(<LlmSettingsPanel />);
     await waitFor(() => expect(screen.getByRole("button", { name: /Delete provider OpenRouter/i })).toBeInTheDocument());
 
     fireEvent.click(
@@ -287,7 +293,7 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
       if (op === "get_scenes_llm_scenes_get") return { bindings: [] } as any;
       return {} as any;
     });
-    render(<LlmSettingsPage />);
+    render(<LlmSettingsPanel />);
     await waitFor(() => expect(screen.getByRole("button", { name: /Delete provider OpenRouter/i })).toBeInTheDocument());
 
     fireEvent.click(
@@ -303,7 +309,7 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
 
   it("#1609 does not delete until the confirmation is accepted", async () => {
     primeHappyLoad();
-    render(<LlmSettingsPage />);
+    render(<LlmSettingsPanel />);
     await waitFor(() => expect(screen.getByRole("button", { name: /Delete provider OpenRouter/i })).toBeInTheDocument());
 
     fireEvent.click(
@@ -327,7 +333,7 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
 
   it("toggles the add-provider form and reloads after creating one", async () => {
     primeHappyLoad();
-    render(<LlmSettingsPage />);
+    render(<LlmSettingsPanel />);
     await waitFor(() => expect(screen.getByText("LLM Models")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: /Add provider/i }));
@@ -362,7 +368,7 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
 
   it("closes the add-provider form via the toggle", async () => {
     primeHappyLoad();
-    render(<LlmSettingsPage />);
+    render(<LlmSettingsPanel />);
     await waitFor(() => expect(screen.getByText("LLM Models")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: /Add provider/i }));
@@ -373,11 +379,22 @@ describe("LlmSettingsPage (EPIC-023 PR4)", () => {
 
   it("closes the add-provider form via its Cancel button", async () => {
     primeHappyLoad();
-    render(<LlmSettingsPage />);
+    render(<LlmSettingsPanel />);
     await waitFor(() => expect(screen.getByText("LLM Models")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: /Add provider/i }));
     fireEvent.click(screen.getByRole("button", { name: /Cancel/i }));
     expect(screen.queryByLabelText("API key")).not.toBeInTheDocument();
+  });
+
+  it("renders the Settings header quick-navigation link to Portfolio", async () => {
+    primeHappyLoad();
+    render(<SettingsPage />);
+
+    const portfolioLink = screen.getByRole("link", {
+      name: "Portfolio Holdings",
+    });
+
+    expect(portfolioLink).toHaveAttribute("href", "/portfolio");
   });
 });

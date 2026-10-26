@@ -638,7 +638,7 @@ describe('apiOperationDownload', () => {
       apiOperationDownload('export_report_reports_export_get', {
         query: {} as any,
       }),
-    ).rejects.toThrow('Download failed with 503');
+    ).rejects.toMatchObject({ name: 'ApiError', status: 503, message: 'Request failed with 503' });
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,

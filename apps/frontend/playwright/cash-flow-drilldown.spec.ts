@@ -28,11 +28,13 @@ async function installCashFlowMocks(page: Page) {
         currency: "SGD",
         operating: [
           {
-            category: "operating",
+            line_id: "operating-salary",
+            category: "Operating",
             subcategory: "Salary",
             amount: "5000.00",
             description: "Inflow - Salary",
             account_id: "acc-salary",
+            event_count: 1,
           },
         ],
         investing: [],
@@ -46,6 +48,9 @@ async function installCashFlowMocks(page: Page) {
           ending_cash: "6000.00",
         },
         fx_warnings: [],
+        lineage_summary: { event_count: 1, classified_event_count: 1, unclassified_event_count: 0, opening_stock_event_count: 0 },
+        proof_state: "proven",
+        proof_reasons: [],
       };
     } else if (path === "/api/reports/account-lineage") {
       body = {
@@ -96,7 +101,7 @@ test.describe("AC22.7.4 cash-flow drill-down smoke", () => {
       await page.setViewportSize(scenario.viewport);
       await installCashFlowMocks(page);
 
-      await page.goto("/reports/cash-flow", { waitUntil: "networkidle" });
+      await page.goto("/reports?tab=cash-flow", { waitUntil: "networkidle" });
 
       await page.getByRole("button", { name: /View source transactions for Salary/i }).click();
       const drawer = page.getByRole("dialog", { name: "Sources · Salary" });

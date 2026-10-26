@@ -286,7 +286,7 @@ owner.)*
 
 ### Stage 1 — record-level review
 
-**Location**: `/statements/{id}/review`. Validates extracted transaction data
+**Location**: `/statements/{id}` (the one statement page: PDF original on the left, extracted transactions on the right). Validates extracted transaction data
 against the original document.
 
 1. Parse statement → `status=PARSED`.
@@ -366,7 +366,7 @@ the unordered pair of anchored journal entries.
 
 ### Stage 2 — consistency checks
 
-**Location**: `/reconciliation/review-queue`. Runs deduplication, transfer
+**Location**: the review queue tab of `/reconciliation` (`/reconciliation?tab=review-queue`). Runs deduplication, transfer
 detection, and anomaly checks before batch approval.
 
 | Type | Description | Severity |
@@ -426,7 +426,7 @@ account.
 
 The Stage-2 queue response derives `confidence_tier` from the actual
 `ReconciliationMatch.match_score`: `>= 85` → `HIGH`, `60-84` → `MEDIUM`,
-`< 60` or `null` → `LOW`. The `/review/run/[runId]` frontend page currently
+`< 60` or `null` → `LOW`. The run-scoped review on `/audit?run_id=<id>` currently
 uses the shared global `/statements/stage2/queue` endpoint and shows `runId`
 only as navigation context — until a backend run-scoped queue contract
 exists, the UI must not imply the payload is isolated to a persisted
@@ -477,10 +477,10 @@ pending --> flagged: Needs manual review
 | Service | `apps/backend/src/extraction/extension/statement_validation.py` |
 | Service | `apps/backend/src/reconciliation/extension/consistency_checks.py` |
 | Router | `apps/backend/src/routers/statements.py` |
-| Frontend | `apps/frontend/src/app/(main)/statements/[id]/review/page.tsx` |
+| Frontend | `apps/frontend/src/app/(main)/statements/[id]/page.tsx` |
 | Frontend | `apps/frontend/src/components/review/Stage2ReviewQueue.tsx` |
-| Frontend | `apps/frontend/src/app/(main)/reconciliation/review-queue/page.tsx` |
-| Frontend | `apps/frontend/src/app/(main)/review/run/[runId]/page.tsx` |
+| Frontend | `apps/frontend/src/components/reconciliation/Workbench.tsx` |
+| Frontend | `apps/frontend/src/app/(main)/audit/page.tsx` |
 
 ## Recovery after rejecting a suggestion
 
@@ -497,3 +497,11 @@ The active-match database index excludes rejected and superseded history while
 retaining uniqueness for current non-rejected matches.
 
 Queues, automatic candidates, and direct reviewed dispositions use extraction-owned current source membership; preserved historical facts from retired or replaced results remain evidence, not actionable transactions.
+
+## Scoring, exclusivity, stats, and anomaly guardrails (#2457, #2548, #2561)
+
+- **Unicode/CJK and truncated memo scoring (`AC-reconciliation.2548.1`)**: `normalize_text` preserves Unicode word tokens and extracts character bigrams for contiguous CJK sequences (`\u4e00-\u9fff`). Single-entry candidate scoring compares `fit_journal_memo(transaction.description)` against `entry.memo` so >500-character descriptions truncated on ledger write match at 100% description similarity.
+- **Candidate exclusivity (`AC-reconciliation.2548.2`)**: `list_journal_candidates` excludes journal entries already claimed by an active `ReconciliationMatch` (`AUTO_ACCEPTED`, `ACCEPTED`, `PENDING_REVIEW`), and `run_normal_matching_phase` tracks `consumed_entry_ids` within each batch so two same-day identical-amount transactions never claim the same single journal entry.
+- **Statement-posted source filter (`AC-reconciliation.2561.1`)**: `list_pending_transactions` excludes transactions that already have a live posting from their own statement (`posted_statement_source_ids`). So a reconciliation run after approval creates no self-match for them, and `get_reconciliation_stats` still counts them as matched (#2561, #2554).
+- **Unmatched stats parity (`AC-reconciliation.2548.3`)**: `get_reconciliation_stats` applies `effective_statement_transaction_filter(user_id)` and `superseded_by_id.is_(None)`, and counts `PENDING_REVIEW` separately from `unmatched_transactions` so `stats.unmatched_transactions` equals `GET /reconciliation/unmatched` `total`.
+- **Anomaly and consistency-check boundaries (`AC-reconciliation.2548.4`, `AC-reconciliation.2548.5`)**: `detect_anomalies` scopes the 30-day average and 90-day frequency queries to `AtomicTransaction.currency == txn.currency`, `AtomicTransaction.txn_date <= txn.txn_date` (excluding `txn.id`), and `effective_statement_transaction_filter(user_id)`. `detect_duplicates` requires `days == 0` within the same account/statement scope, and `detect_transfer_pairs` skips opposite-direction transactions that originate from the same statement or account.

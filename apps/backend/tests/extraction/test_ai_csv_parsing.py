@@ -23,8 +23,7 @@ async def test_ai_csv_parsing_returns_valid_mapping():
 
     with (
         patch.object(service, "api_key", "test-key"),
-        patch.object(service, "primary_model", "test-model"),
-        patch.object(service, "base_url", "https://test.api"),
+        patch.object(service, "small_model", "test-model"),
         patch(
             "src.extraction.extension._csv.stream_ai_json",
             return_value=mock_stream,
@@ -60,8 +59,7 @@ async def test_ai_csv_parsing_skips_invalid_amount_rows():
 
     with (
         patch.object(service, "api_key", "test-key"),
-        patch.object(service, "primary_model", "test-model"),
-        patch.object(service, "base_url", "https://test.api"),
+        patch.object(service, "small_model", "test-model"),
         patch("src.extraction.extension._csv.stream_ai_json", return_value=MagicMock()),
         patch("src.extraction.extension._csv.accumulate_stream", mock_accumulate),
     ):
@@ -95,8 +93,7 @@ async def test_ai_csv_parsing_skips_empty_debit_credit_rows():
 
     with (
         patch.object(service, "api_key", "test-key"),
-        patch.object(service, "primary_model", "test-model"),
-        patch.object(service, "base_url", "https://test.api"),
+        patch.object(service, "small_model", "test-model"),
         patch("src.extraction.extension._csv.stream_ai_json", return_value=MagicMock()),
         patch("src.extraction.extension._csv.accumulate_stream", mock_accumulate),
     ):
@@ -136,8 +133,7 @@ async def test_ai_csv_parsing_graceful_failure():
 
     with (
         patch.object(service, "api_key", "test-key"),
-        patch.object(service, "primary_model", "test-model"),
-        patch.object(service, "base_url", "https://test.api"),
+        patch.object(service, "small_model", "test-model"),
         patch(
             "src.extraction.extension._csv.stream_ai_json",
             mock_stream,

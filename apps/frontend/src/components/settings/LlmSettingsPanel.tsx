@@ -2,19 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ProviderForm } from "@/components/llm/ProviderForm";
+import { ProviderForm } from "@/components/llm/FirstRunModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { apiOperation } from "@/lib/api-client";
-import type {
-  LlmModelResponse,
-  LlmProviderResponse,
-  LlmReasoningEffort,
-  LlmScene,
-  LlmSceneBindingItem,
-} from "@/lib/types";
+import type { LlmModelResponse, LlmProviderResponse, LlmReasoningEffort, LlmScene, LlmSceneBindingItem } from "@/lib/types";
 
-/** The five scenes the user can bind, with friendly labels. */
 const SCENES: { scene: LlmScene; label: string; description: string }[] = [
   { scene: "extraction.ocr", label: "Extraction · OCR", description: "Read text from scanned documents." },
   { scene: "extraction.vision", label: "Extraction · Vision", description: "Understand statement layouts and tables." },
@@ -25,29 +18,16 @@ const SCENES: { scene: LlmScene; label: string; description: string }[] = [
 
 const REASONING_OPTIONS: LlmReasoningEffort[] = ["none", "low", "medium", "high"];
 
-/** A binding whose provider is unset (empty string) signals "not configured". */
 function emptyBinding(scene: LlmScene): LlmSceneBindingItem {
-  return {
-    scene,
-    provider_id: "",
-    model: "",
-    reasoning: "none",
-    prefer_free: false,
-    fallback_model_ids: [],
-    max_tokens: null,
-  };
+  return { scene, provider_id: "", model: "", reasoning: "none", prefer_free: false, fallback_model_ids: [], max_tokens: null };
 }
 
-/** Serialize bindings to a stable string for dirty-checking. */
 function serialize(bindings: LlmSceneBindingItem[]): string {
-  return JSON.stringify(
-    [...bindings].sort((a, b) => a.scene.localeCompare(b.scene))
-  );
+  return JSON.stringify([...bindings].sort((a, b) => a.scene.localeCompare(b.scene)));
 }
 
 export default function LlmSettingsPanel() {
   const { showToast } = useToast();
-
   const [providers, setProviders] = useState<LlmProviderResponse[]>([]);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deletingProvider, setDeletingProvider] = useState(false);
@@ -59,14 +39,10 @@ export default function LlmSettingsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [showProviderForm, setShowProviderForm] = useState(false);
 
-  // Merge backend bindings with the fixed scene list so every scene has a row.
   const mergeBindings = useCallback(
     (bindings: LlmSceneBindingItem[]): LlmSceneBindingItem[] =>
-      SCENES.map(({ scene }) => {
-        const existing = bindings.find((b) => b.scene === scene);
-        return existing ?? emptyBinding(scene);
-      }),
-    []
+      SCENES.map(({ scene }) => bindings.find((b) => b.scene === scene) ?? emptyBinding(scene)),
+    [],
   );
 
   const loadAll = useCallback(async () => {
@@ -90,37 +66,22 @@ export default function LlmSettingsPanel() {
     }
   }, [mergeBindings]);
 
-  useEffect(() => {
-    void loadAll();
-  }, [loadAll]);
+  useEffect(() => { void loadAll(); }, [loadAll]);
 
-  const isDirty = useMemo(() => {
-    if (!saved || !draft) return false;
-    return serialize(saved) !== serialize(draft);
-  }, [saved, draft]);
+  const isDirty = useMemo(() => (saved && draft ? serialize(saved) !== serialize(draft) : false), [saved, draft]);
 
-  const updateBinding = (
-    scene: LlmScene,
-    patch: Partial<LlmSceneBindingItem>
-  ) => {
-    setDraft((prev) =>
-      (prev ?? []).map((b) => (b.scene === scene ? { ...b, ...patch } : b))
-    );
+  const updateBinding = (scene: LlmScene, patch: Partial<LlmSceneBindingItem>) => {
+    setDraft((prev) => (prev ?? []).map((b) => (b.scene === scene ? { ...b, ...patch } : b)));
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!draft || submitting) return;
-    // Only persist bindings the user actually configured (provider + model).
-    const configured = draft.filter(
-      (b) => b.provider_id !== "" && b.model.trim() !== ""
-    );
+    const configured = draft.filter((b) => b.provider_id !== "" && b.model.trim() !== "");
     setSubmitting(true);
     setError(null);
     try {
-      const response = await apiOperation("put_scenes_llm_scenes_put", {
-        body: { bindings: configured },
-      });
+      const response = await apiOperation("put_scenes_llm_scenes_put", { body: { bindings: configured } });
       const merged = mergeBindings(response.bindings);
       setSaved(merged);
       setDraft(merged);
@@ -132,24 +93,11 @@ export default function LlmSettingsPanel() {
     }
   };
 
-  const handleReset = () => {
-    if (saved) setDraft(saved);
-    setError(null);
-  };
-
-  // id is passed in from the dialog's onConfirm, which only fires while the
-  // dialog is open (pendingDeleteId set) and its confirm button is enabled
-  // (not already deleting) — so no re-entry guard is needed here.
   const confirmDeleteProvider = async (id: string) => {
     setError(null);
     setDeletingProvider(true);
     try {
-      await apiOperation(
-        "delete_provider_llm_providers__provider_id__delete",
-        {
-          path: { provider_id: id },
-        },
-      );
+      await apiOperation("delete_provider_llm_providers__provider_id__delete", { path: { provider_id: id } });
       showToast("Provider deleted", "success");
       await loadAll();
       setPendingDeleteId(null);
@@ -160,54 +108,22 @@ export default function LlmSettingsPanel() {
     }
   };
 
-  const handleProviderCreated = async () => {
-    setShowProviderForm(false);
-    showToast("Provider added", "success");
-    await loadAll();
-  };
-
-  if (loading) {
-    return (
-      <div className="p-6">
-        <div className="card p-8 text-center text-muted">Loading LLM settings...</div>
-      </div>
-    );
-  }
-
-  if (!draft) {
-    return (
-      <div className="p-6 max-w-3xl">
-        <div role="alert" className="alert-error">
-          {error ?? "Failed to load LLM settings"}
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <div className="p-6"><div className="card p-8 text-center text-muted">Loading LLM settings...</div></div>;
+  if (!draft) return <div className="p-6 max-w-3xl"><div role="alert" className="alert-error">{error ?? "Failed to load LLM settings"}</div></div>;
 
   return (
     <div className="p-6 max-w-4xl">
       <div className="page-header">
         <h1 className="page-title">LLM Models</h1>
-        <p className="page-description">
-          Configure providers and bind each AI scene to a model.
-        </p>
+        <p className="page-description">Configure providers and bind each AI scene to a model.</p>
       </div>
 
-      {error && (
-        <div role="alert" className="mb-4 alert-error">
-          {error}
-        </div>
-      )}
+      {error && <div role="alert" className="mb-4 alert-error">{error}</div>}
 
-      {/* Providers */}
       <section className="mb-8">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Providers</h2>
-          <button
-            type="button"
-            className="btn-secondary text-sm"
-            onClick={() => setShowProviderForm((v) => !v)}
-          >
+          <button type="button" className="btn-secondary text-sm" onClick={() => setShowProviderForm((v) => !v)}>
             {showProviderForm ? "Close" : "Add provider"}
           </button>
         </div>
@@ -215,26 +131,25 @@ export default function LlmSettingsPanel() {
         {showProviderForm && (
           <div className="card p-5 mb-4">
             <ProviderForm
-              onCreated={handleProviderCreated}
+              onCreated={async () => {
+                setShowProviderForm(false);
+                showToast("Provider added", "success");
+                await loadAll();
+              }}
               onCancel={() => setShowProviderForm(false)}
             />
           </div>
         )}
 
         {providers.length === 0 ? (
-          <div className="card p-5 text-sm text-muted">
-            No providers configured yet. Add one to bind scenes to models.
-          </div>
+          <div className="card p-5 text-sm text-muted">No providers configured yet. Add one to bind scenes to models.</div>
         ) : (
           <ul className="card divide-y divide-[var(--border)]">
             {providers.map((provider) => (
               <li key={provider.id} className="p-4 flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="font-medium truncate">{provider.label}</div>
-                  <div className="text-xs text-muted">
-                    {provider.protocol}
-                    {provider.api_base ? ` · ${provider.api_base}` : ""}
-                  </div>
+                  <div className="text-xs text-muted">{provider.protocol}{provider.api_base ? ` · ${provider.api_base}` : ""}</div>
                 </div>
                 <button
                   type="button"
@@ -250,15 +165,12 @@ export default function LlmSettingsPanel() {
         )}
       </section>
 
-      {/* Scene bindings */}
       <form onSubmit={handleSubmit}>
         <h2 className="mb-3 text-lg font-semibold">Scene bindings</h2>
         <div className="space-y-4">
           {SCENES.map(({ scene, label, description }) => {
             const binding = draft.find((b) => b.scene === scene)!;
-            const sceneModels = catalog.filter(
-              (m) => m.provider_id === binding.provider_id
-            );
+            const sceneModels = catalog.filter((m) => m.provider_id === binding.provider_id);
             const listId = `models-${scene.replace(/\./g, "-")}`;
             return (
               <div key={scene} className="card p-5 space-y-3">
@@ -266,40 +178,22 @@ export default function LlmSettingsPanel() {
                   <div className="font-medium">{label}</div>
                   <p className="text-sm text-muted">{description}</p>
                 </div>
-
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label
-                      htmlFor={`provider-${scene}`}
-                      className="block text-sm font-medium mb-1"
-                    >
-                      Provider
-                    </label>
+                    <label htmlFor={`provider-${scene}`} className="block text-sm font-medium mb-1">Provider</label>
                     <select
                       id={`provider-${scene}`}
                       className="input w-full"
                       value={binding.provider_id}
                       disabled={submitting}
-                      onChange={(event) =>
-                        updateBinding(scene, { provider_id: event.target.value })
-                      }
+                      onChange={(e) => updateBinding(scene, { provider_id: e.target.value })}
                     >
                       <option value="">— Not configured —</option>
-                      {providers.map((provider) => (
-                        <option key={provider.id} value={provider.id}>
-                          {provider.label}
-                        </option>
-                      ))}
+                      {providers.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
                     </select>
                   </div>
-
                   <div>
-                    <label
-                      htmlFor={`model-${scene}`}
-                      className="block text-sm font-medium mb-1"
-                    >
-                      Model
-                    </label>
+                    <label htmlFor={`model-${scene}`} className="block text-sm font-medium mb-1">Model</label>
                     <input
                       id={`model-${scene}`}
                       type="text"
@@ -308,50 +202,26 @@ export default function LlmSettingsPanel() {
                       value={binding.model}
                       disabled={submitting}
                       placeholder="e.g. openrouter/auto"
-                      onChange={(event) =>
-                        updateBinding(scene, { model: event.target.value })
-                      }
+                      onChange={(e) => updateBinding(scene, { model: e.target.value })}
                     />
                     <datalist id={listId}>
-                      {sceneModels.map((model) => (
-                        <option key={model.id} value={model.id} />
-                      ))}
+                      {sceneModels.map((m) => <option key={m.id} value={m.id} />)}
                     </datalist>
                   </div>
-
                   <div>
-                    <label
-                      htmlFor={`reasoning-${scene}`}
-                      className="block text-sm font-medium mb-1"
-                    >
-                      Reasoning depth
-                    </label>
+                    <label htmlFor={`reasoning-${scene}`} className="block text-sm font-medium mb-1">Reasoning depth</label>
                     <select
                       id={`reasoning-${scene}`}
                       className="input w-full"
                       value={binding.reasoning}
                       disabled={submitting}
-                      onChange={(event) =>
-                        updateBinding(scene, {
-                          reasoning: event.target.value as LlmReasoningEffort,
-                        })
-                      }
+                      onChange={(e) => updateBinding(scene, { reasoning: e.target.value as LlmReasoningEffort })}
                     >
-                      {REASONING_OPTIONS.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
+                      {REASONING_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                   </div>
-
                   <div>
-                    <label
-                      htmlFor={`fallbacks-${scene}`}
-                      className="block text-sm font-medium mb-1"
-                    >
-                      Fallback models (comma-separated)
-                    </label>
+                    <label htmlFor={`fallbacks-${scene}`} className="block text-sm font-medium mb-1">Fallback models (comma-separated)</label>
                     <input
                       id={`fallbacks-${scene}`}
                       type="text"
@@ -359,18 +229,14 @@ export default function LlmSettingsPanel() {
                       value={(binding.fallback_model_ids ?? []).join(", ")}
                       disabled={submitting}
                       placeholder="model-a, model-b"
-                      onChange={(event) =>
+                      onChange={(e) =>
                         updateBinding(scene, {
-                          fallback_model_ids: event.target.value
-                            .split(",")
-                            .map((s) => s.trim())
-                            .filter((s) => s.length > 0),
+                          fallback_model_ids: e.target.value.split(",").map((s) => s.trim()).filter((s) => s.length > 0),
                         })
                       }
                     />
                   </div>
                 </div>
-
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
@@ -378,9 +244,7 @@ export default function LlmSettingsPanel() {
                     checked={binding.prefer_free}
                     disabled={submitting}
                     aria-label={`Prefer free models for ${label}`}
-                    onChange={(event) =>
-                      updateBinding(scene, { prefer_free: event.target.checked })
-                    }
+                    onChange={(e) => updateBinding(scene, { prefer_free: e.target.checked })}
                   />
                   Prefer free models
                 </label>
@@ -396,14 +260,12 @@ export default function LlmSettingsPanel() {
           <button
             type="button"
             className="btn-secondary"
-            onClick={handleReset}
+            onClick={() => { if (saved) setDraft(saved); setError(null); }}
             disabled={!isDirty || submitting}
           >
             Reset
           </button>
-          {isDirty && !submitting && (
-            <span className="text-sm text-muted">Unsaved changes</span>
-          )}
+          {isDirty && !submitting && <span className="text-sm text-muted">Unsaved changes</span>}
         </div>
       </form>
 
@@ -414,13 +276,9 @@ export default function LlmSettingsPanel() {
         confirmLabel="Delete provider"
         confirmVariant="danger"
         loading={deletingProvider}
-        onConfirm={() => {
-          if (pendingDeleteId) void confirmDeleteProvider(pendingDeleteId);
-        }}
+        onConfirm={() => { if (pendingDeleteId) void confirmDeleteProvider(pendingDeleteId); }}
         onCancel={() => setPendingDeleteId(null)}
       />
     </div>
   );
 }
-
-export { LlmSettingsPanel as LlmSettingsPage };

@@ -1,13 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AuditPage from "@/app/(main)/audit/page";
-import { ActionChecklist } from "@/components/audit/ActionChecklist";
-import { InvariantChecksGrid } from "@/components/audit/InvariantChecksGrid";
-import { TemporalTimelineGrid } from "@/components/audit/TemporalTimelineGrid";
-import { TrustScoreHero } from "@/components/audit/TrustScoreHero";
+import {
+  ActionChecklist,
+  InvariantChecksGrid,
+  TemporalTimelineGrid,
+  TrustScoreHero,
+} from "@/components/audit/TrustScoreHero";
 import {
   getGradeColor,
   getGradeLabel,
@@ -150,6 +152,21 @@ describe("Personal Data Quality Observatory (#2294)", () => {
       expect(screen.getByText("SGD")).toBeInTheDocument();
       expect(screen.getByText("Re-evaluate")).toBeInTheDocument();
     });
+
+    it("shows a grade that the frontend contract does not know as Unclassified in the muted color", () => {
+      // A newer backend can send a grade before the generated frontend types know it.
+      render(
+        <TrustScoreHero
+          score={50}
+          grade={"E_NOT_IN_CONTRACT" as QualityGrade}
+          asOfDate="2026-10-09"
+          currency="SGD"
+        />,
+      );
+
+      const badge = screen.getByText("Unclassified");
+      expect(badge.style.color).toBe("var(--muted)");
+    });
   });
 
   describe("InvariantChecksGrid", () => {
@@ -205,6 +222,29 @@ describe("Personal Data Quality Observatory (#2294)", () => {
       expect(screen.getByText("Resolve")).toBeInTheDocument();
     });
 
+    // AC-reporting.net-worth-scope.21
+    it("#2645 renders an action without a score boost when the boost is zero", () => {
+      render(
+        <ActionChecklist
+          actionItems={[
+            {
+              id: "resolve_valuation_fx_rate",
+              priority: "P1",
+              title: "A Restricted Holding Has No FX Rate",
+              description: "The full net worth cannot convert a restricted or illiquid valuation.",
+              score_boost: 0,
+              action_type: "RESOLVE_FX_RATE",
+              action_url: "/portfolio?panel=evidence",
+            },
+          ]}
+        />,
+      );
+
+      expect(screen.getByText("A Restricted Holding Has No FX Rate")).toBeInTheDocument();
+      expect(screen.queryByText(/% Trust/)).toBeNull();
+      expect(screen.getByRole("link", { name: /Resolve/ })).toHaveAttribute("href", "/portfolio?panel=evidence");
+    });
+
     it("renders 100% audit-ready message when action items list is empty", () => {
       render(<ActionChecklist actionItems={[]} />);
 
@@ -215,8 +255,41 @@ describe("Personal Data Quality Observatory (#2294)", () => {
   });
 
   describe("AuditPage", () => {
-    it("loads and displays full observatory with deep links", async () => {
-      mockedApiOperation.mockResolvedValueOnce(mockHealthData as any);
+    it("loads and displays full observatory with deep links and the needs-confirmation queue", async () => {
+      mockedApiOperation.mockImplementation(async (op: string) => {
+        if (op === "list_statements_statements_get") {
+          return {
+            items: [
+              {
+                id: "stmt-1",
+                institution: "DBS",
+                original_filename: "DBS_2026_01.pdf",
+                status: "parsed",
+                confidence_score: 65,
+                balance_validated: false,
+                period_start: "2026-01-01",
+                period_end: "2026-01-31",
+                transactions: [],
+              },
+            ],
+          } as any;
+        }
+        if (op === "reconciliation_stats_reconciliation_stats_get") {
+          return {
+            total_transactions: 10,
+            matched_transactions: 8,
+            unmatched_transactions: 2,
+            pending_review: 1,
+            auto_accepted: 7,
+            match_rate: 80,
+          } as any;
+        }
+        if (op === "list_processing_pending_accounts_processing_pending_get") {
+          return { items: [] } as any;
+        }
+        if (op === "list_ai_suggestions_ai_suggestions_get") return { items: [] } as any;
+        return mockHealthData as any;
+      });
 
       render(<AuditPage />, { wrapper: createWrapper() });
 
@@ -228,16 +301,88 @@ describe("Personal Data Quality Observatory (#2294)", () => {
         expect(screen.getByText("Grade A · Audit-Ready")).toBeInTheDocument();
       });
 
+      await waitFor(() => {
+        expect(screen.getByText("DBS_2026_01.pdf")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /Re-evaluate/i }));
+
       // Underlying ledgers deep links
       expect(screen.getByText("Accounting Machinery & Ledgers")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Trust/ })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Reconciliation/ })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /Trust/ })).not.toBeInTheDocument();
+      expect(screen.getAllByRole("link", { name: /Reconciliation/ }).length).toBeGreaterThanOrEqual(1);
       expect(screen.getByRole("link", { name: /Journal/ })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Processing/ })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /Statements/ })).toHaveAttribute("href", "/upload");
+    });
+
+    it("keeps the attention rows of the sources that load when the statement and processing reads fail", async () => {
+      mockedApiOperation.mockImplementation(async (op: string) => {
+        if (op === "list_statements_statements_get") throw new Error("statements unavailable");
+        if (op === "list_processing_pending_accounts_processing_pending_get") {
+          throw new Error("processing unavailable");
+        }
+        if (op === "reconciliation_stats_reconciliation_stats_get") {
+          return {
+            total_transactions: 10,
+            matched_transactions: 7,
+            unmatched_transactions: 3,
+            pending_review: 0,
+            auto_accepted: 7,
+            match_rate: 70,
+          } as any;
+        }
+        if (op === "list_ai_suggestions_ai_suggestions_get") return { items: [] } as any;
+        return mockHealthData as any;
+      });
+
+      render(<AuditPage />, { wrapper: createWrapper() });
+
+      const bar = screen.getByTestId("needs-confirmation-queue");
+      const row = await within(bar).findByRole("link", { name: /3 unmatched transactions/ });
+      expect(row).toHaveAttribute("href", "/reconciliation?tab=unmatched&from=attention");
+      expect(within(row).getByText("0% confidence")).toBeInTheDocument();
+    });
+
+    it("keeps the statement attention rows when the reconciliation stats read fails", async () => {
+      mockedApiOperation.mockImplementation(async (op: string) => {
+        if (op === "reconciliation_stats_reconciliation_stats_get") throw new Error("stats unavailable");
+        if (op === "list_processing_pending_accounts_processing_pending_get") return { items: [] } as any;
+        if (op === "list_statements_statements_get") {
+          return {
+            items: [
+              {
+                id: "stmt-2",
+                original_filename: "OCBC_2026_02.pdf",
+                status: "parsed",
+                confidence_score: 65,
+                balance_validated: false,
+              },
+            ],
+          } as any;
+        }
+        if (op === "list_ai_suggestions_ai_suggestions_get") return { items: [] } as any;
+        return mockHealthData as any;
+      });
+
+      render(<AuditPage />, { wrapper: createWrapper() });
+
+      const bar = screen.getByTestId("needs-confirmation-queue");
+      const row = await within(bar).findByRole("link", { name: /OCBC_2026_02\.pdf/ });
+      expect(row).toHaveAttribute("href", "/statements/stmt-2?from=attention");
+      expect(within(row).getByText("Balance needs review")).toBeInTheDocument();
+      expect(within(row).getByText("40% confidence")).toBeInTheDocument();
     });
 
     it("renders error state with retry button when query fails", async () => {
-      mockedApiOperation.mockRejectedValueOnce(new Error("Network failure"));
+      let healthReads = 0;
+      mockedApiOperation.mockImplementation(async (op: string) => {
+        if (op === "get_data_quality_health_reports_data_quality_get") {
+          healthReads += 1;
+          if (healthReads === 1) throw new Error("Network failure");
+          return mockHealthData as any;
+        }
+        return { items: [] } as any;
+      });
 
       render(<AuditPage />, { wrapper: createWrapper() });
 
@@ -247,7 +392,9 @@ describe("Personal Data Quality Observatory (#2294)", () => {
         ).toBeInTheDocument();
       });
 
-      expect(screen.getByRole("button", { name: "Retry Evaluation" })).toBeInTheDocument();
+      const retryBtn = screen.getByRole("button", { name: "Retry Evaluation" });
+      expect(retryBtn).toBeInTheDocument();
+      fireEvent.click(retryBtn);
     });
   });
 });

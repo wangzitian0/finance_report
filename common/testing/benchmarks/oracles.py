@@ -215,15 +215,15 @@ def verify_browser_ui_hygiene(
     if routes is None:
         routes = [
             "/dashboard",
-            "/reports/balance-sheet",
-            "/reports/income-statement",
-            "/reports/cash-flow",
+            "/reports?tab=balance-sheet",
+            "/reports?tab=income-statement",
+            "/reports?tab=cash-flow",
             "/reports",
             "/upload",
             "/reconciliation",
             "/chat",
             "/journal",
-            "/accounts",
+            "/settings?tab=accounts",
         ]
     if not routes:
         raise ValueError("verify_browser_ui_hygiene requires at least one route")

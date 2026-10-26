@@ -29,5 +29,4 @@ export {
   percentNumberFromParts,
   percentNumberFromPercentValue,
   percentNumberFromRatioValue,
-  ratioNumberFromRatioValue,
 } from "./format";

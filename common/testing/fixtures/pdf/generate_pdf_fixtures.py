@@ -12,9 +12,6 @@ Usage:
     # Custom output directory
     python tools/generate_pdf_fixtures.py --source dbs --output /path/to/output/
 
-    # Backward compatibility (generates e2e_dbs_statement.pdf)
-    python tools/generate_pdf_fixtures.py [output_dir]
-
 Requires: reportlab, pyyaml
 """
 
@@ -23,134 +20,14 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
-try:
-    from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-    from reportlab.platypus import (
-        Paragraph,
-        SimpleDocTemplate,
-        Spacer,
-        Table,
-        TableStyle,
-    )
-except ImportError as exc:
-    raise ImportError(
-        "reportlab is required; run 'uv sync' from the repository root or "
-        "'pip install reportlab'"
-    ) from exc
-
-
-def generate_legacy_dbs_pdf(output_path: Path):
-    """Generate legacy DBS PDF for backward compatibility with existing E2E tests."""
-    import random
-    from decimal import Decimal
-
-    def generate_transactions(start_date: datetime, count: int = 15):
-        """Generate a list of synthetic transactions."""
-        descriptions = [
-            ("GRAB RIDE", -15, -30),
-            ("STARBUCKS COFFEE", -5, -10),
-            ("NETFLIX SUBSCRIPTION", -15.90, -15.90),
-            ("SALARY", 3000, 5000),
-            ("NTUC FAIRPRICE", -50, -150),
-            ("SPOTIFY", -9.90, -9.90),
-            ("RESTAURANT PAYMENT", -40, -120),
-            ("TRANSFER FROM FRIEND", 10, 50),
-        ]
-
-        txns = []
-        balance = Decimal("1000.00")
-        current_date = start_date
-
-        for _ in range(count):
-            current_date += timedelta(days=random.randint(0, 2))
-            desc, min_amt, max_amt = random.choice(descriptions)
-
-            if min_amt == max_amt:
-                amount = Decimal(str(min_amt))
-            else:
-                min_cents = int(min_amt * 100)
-                max_cents = int(max_amt * 100)
-                # Ensure min <= max for randint (handles negative amounts)
-                if min_cents > max_cents:
-                    min_cents, max_cents = max_cents, min_cents
-                cents = random.randint(min_cents, max_cents)
-                amount = Decimal(cents) / Decimal(100)
-
-            balance += amount
-            txns.append(
-                {
-                    "date": current_date.strftime("%d %b %Y"),
-                    "description": desc,
-                    "withdrawal": f"{abs(amount):.2f}" if amount < 0 else "",
-                    "deposit": f"{amount:.2f}" if amount > 0 else "",
-                    "balance": f"{balance:.2f}",
-                }
-            )
-        return txns
-
-    # Generate period
-    now = datetime.now(UTC)
-    start_date = now - timedelta(days=30)
-    period_str = f"{start_date.strftime('%d %b %Y')} - {now.strftime('%d %b %Y')}"
-
-    # Create PDF
-    doc = SimpleDocTemplate(str(output_path), pagesize=A4)
-    elements = []
-    styles = getSampleStyleSheet()
-
-    # Header
-    header_style = ParagraphStyle(
-        "Header", parent=styles["Heading1"], fontSize=18, spaceAfter=12
-    )
-    elements.append(Paragraph("DBS Bank - E-Statement", header_style))
-    elements.append(Paragraph(f"Statement Period: {period_str}", styles["Normal"]))
-    elements.append(Spacer(1, 20))
-
-    # Account Info
-    elements.append(Paragraph("Account Name: E2E TEST USER", styles["Normal"]))
-    elements.append(Paragraph("Account No: 123-456-789", styles["Normal"]))
-    elements.append(Spacer(1, 20))
-
-    # Transactions Table
-    txns = generate_transactions(start_date, count=15)
-    data = [["Date", "Transaction Description", "Withdrawal", "Deposit", "Balance"]]
-    for t in txns:
-        data.append(
-            [t["date"], t["description"], t["withdrawal"], t["deposit"], t["balance"]]
-        )
-
-    # Table Styling
-    t = Table(data, colWidths=[70, 200, 60, 60, 70])
-    t.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("ALIGN", (1, 1), (1, -1), "LEFT"),
-                ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
-                ("GRID", (0, 0), (-1, -1), 1, colors.black),
-            ]
-        )
-    )
-
-    elements.append(t)
-    doc.build(elements)
-    print(f"✅ Generated: {output_path}")
-
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Generate E2E PDF Fixtures")
     parser.add_argument(
         "--source",
         choices=["dbs", "cmb", "mari", "moomoo", "futu", "pingan", "all"],
-        default=None,
-        help="Source to generate (dbs, cmb, mari, moomoo, futu, pingan, all). If not specified, uses legacy mode.",
+        required=True,
+        help="Source to generate (dbs, cmb, mari, moomoo, futu, pingan, all).",
     )
     parser.add_argument(
         "--output",
@@ -167,25 +44,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             "The period starts 30 days earlier and the file name uses this month."
         ),
     )
-    parser.add_argument(
-        "output_dir",
-        nargs="?",
-        help="[Legacy] Directory to save PDFs (for backward compatibility)",
-    )
 
     args = parser.parse_args(argv)
 
-    # Handle legacy mode (backward compatibility)
-    if args.source is None:
-        output_dir = Path(args.output_dir) if args.output_dir else args.output
-        if output_dir is None:
-            # Default to tmp/fixtures for legacy mode
-            output_dir = Path("tmp/fixtures")
-        output_dir.mkdir(parents=True, exist_ok=True)
-        generate_legacy_dbs_pdf(output_dir / "e2e_dbs_statement.pdf")
-        return 0
-
-    # New mode: use generators
     output_dir = args.output
     if output_dir is None:
         # Default to pdf_fixtures/output/

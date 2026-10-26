@@ -288,3 +288,61 @@ async def test_AC_pricing_fx_2_prefetch_empty_pairs_is_a_noop(db: AsyncSession):
     await prefetched.prefetch(db, [])
 
     assert prefetched.get_rate("USD", "SGD", date(2026, 6, 15)) is None
+
+
+async def test_AC_pricing_fx_4_rate_series_equals_one_lookup_per_date(db: AsyncSession, monkeypatch):
+    """AC-pricing.fx.4: ``get_exchange_rate_series`` returns what ``get_exchange_rate`` returns
+    for each date. It reads the stored candidates once when every date has one."""
+    from src.pricing.extension import fx
+    from src.pricing.extension.fx import get_exchange_rate_series
+
+    db.add_all(
+        [
+            FxRate(
+                base_currency="SGD",
+                quote_currency="HKD",
+                rate=Decimal("5.800000"),
+                rate_date=date(2026, 6, 1),
+                source="test",
+            ),
+            FxRate(
+                base_currency="HKD",
+                quote_currency="SGD",
+                rate=Decimal("0.171100"),
+                rate_date=date(2026, 6, 10),
+                source="test",
+            ),
+            FxRate(
+                base_currency="HKD",
+                quote_currency="SGD",
+                rate=Decimal("0.173300"),
+                rate_date=date(2026, 6, 20),
+                source="test",
+            ),
+        ]
+    )
+    await db.commit()
+    dates = [date(2026, 6, day) for day in range(1, 31)]
+
+    without_fallback = await get_exchange_rate_series(db, "HKD", "SGD", dates)
+    assert sorted(without_fallback) == dates[9:]
+
+    candidate_reads = []
+    original_candidates = fx.SqlObservationRepository.candidates
+
+    async def counting_candidates(self, subject, as_of, user_id=None):
+        candidate_reads.append(as_of)
+        return await original_candidates(self, subject, as_of, user_id)
+
+    monkeypatch.setattr(fx.SqlObservationRepository, "candidates", counting_candidates)
+    covered_only = await get_exchange_rate_series(db, "HKD", "SGD", dates[9:])
+    assert candidate_reads == [date(2026, 6, 30)]
+    assert covered_only == without_fallback
+
+    # Dates before the first stored HKD/SGD rate use the lazy inverse fallback.
+    series = await get_exchange_rate_series(db, "HKD", "SGD", dates, lazy_load=True)
+    expected = {as_of: await get_exchange_rate(db, "HKD", "SGD", as_of, lazy_load=True) for as_of in dates}
+    assert series == expected
+    assert series[date(2026, 6, 5)] == Decimal("0.172414")
+    assert series[date(2026, 6, 15)] == Decimal("0.171100")
+    assert await get_exchange_rate_series(db, "sgd", "SGD", dates[:2]) == dict.fromkeys(dates[:2], Decimal("1"))

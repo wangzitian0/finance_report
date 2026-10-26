@@ -385,3 +385,81 @@ async def seed_parsed_statement(
         statement=statement,
         transactions=seeded_txns,
     )
+
+
+@dataclass(frozen=True)
+class SeededYearOfEntries:
+    """Accounts of :func:`seed_year_of_journal_entries`."""
+
+    bank: Account
+    card: Account
+    salary: Account
+
+
+async def seed_year_of_journal_entries(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    first_day: date,
+    entry_count: int = 1000,
+    amount: Decimal = Decimal("100.00"),
+) -> SeededYearOfEntries:
+    """Bulk-insert one year of posted manual entries for year-scale budget tests (#2583).
+
+    Entry ``i`` falls on ``first_day + (i % 365)`` days. Every fifth entry is a card
+    charge into the bank. The other entries are salary into the bank. The function commits.
+    """
+    from sqlalchemy import insert
+
+    from src.audit import JournalEntrySourceType
+    from src.ledger import JournalEntryAuthorityState
+
+    bank = Account(user_id=user_id, name="Bank", code="1001", type=AccountType.ASSET, currency="SGD")
+    card = Account(user_id=user_id, name="Card", code="2001", type=AccountType.LIABILITY, currency="SGD")
+    salary = Account(user_id=user_id, name="Salary", code="4001", type=AccountType.INCOME, currency="SGD")
+    db.add_all([bank, card, salary])
+    await db.flush()
+
+    now = datetime.now(UTC)
+    entry_rows = []
+    line_rows = []
+    for index in range(entry_count):
+        entry_id = uuid4()
+        entry_rows.append(
+            {
+                "id": entry_id,
+                "user_id": user_id,
+                "entry_date": first_day + timedelta(days=index % 365),
+                "memo": f"txn {index}",
+                "source_type": JournalEntrySourceType.MANUAL,
+                "source_id": None,
+                "decision_anchor_id": None,
+                "decision_authority_state": JournalEntryAuthorityState.LEGACY_UNPROVEN,
+                "status": JournalEntryStatus.POSTED,
+                "void_reason": None,
+                "void_reversal_entry_id": None,
+                "created_at": now,
+                "updated_at": now,
+            }
+        )
+        debit, credit = (bank, card) if index % 5 == 0 else (bank, salary)
+        for account, direction in ((debit, Direction.DEBIT), (credit, Direction.CREDIT)):
+            line_rows.append(
+                {
+                    "id": uuid4(),
+                    "journal_entry_id": entry_id,
+                    "account_id": account.id,
+                    "direction": direction,
+                    "amount": amount,
+                    "currency": "SGD",
+                    "fx_rate": None,
+                    "event_type": None,
+                    "tags": None,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            )
+    await db.execute(insert(JournalEntry), entry_rows)
+    await db.execute(insert(JournalLine), line_rows)
+    await db.commit()
+    return SeededYearOfEntries(bank=bank, card=card, salary=salary)

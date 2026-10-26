@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -11,9 +13,10 @@ from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import Result, Select, event, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import ORMExecuteState, Session
 
 from src.audit import (
     JournalEntrySourceType,
@@ -30,6 +33,8 @@ from src.audit import (
     trace_decision_projection,
 )
 from src.audit.extension.trace_repository import SqlTraceRecordRepository
+from src.audit.money import Currency
+from src.config import settings
 from src.ledger import (
     Account,
     AccountType,
@@ -38,12 +43,14 @@ from src.ledger import (
     Direction,
     JournalEntry,
     JournalEntryAuthorityState,
+    JournalLine,
     current_anchored_journal_entries,
     ledger_trace_policy_registry,
     list_journal_contributions,
     submit_anchored_journal_entry,
 )
 from src.ledger.base.decision_anchor import journal_command_target
+from src.ledger.base.validators import ValidationError
 from src.ledger.extension import anchored_posting
 from src.ledger.extension.anchored_posting import (
     AnchoredJournalCommand,
@@ -51,6 +58,7 @@ from src.ledger.extension.anchored_posting import (
     SystemJournalCommandPolicy,
     validate_decision_anchor,
 )
+from src.platform import BASE_CURRENCY_KEY, AppConfig
 from src.reconciliation.extension.reviewed_disposition import _find_existing_entry
 
 
@@ -509,9 +517,9 @@ def test_production_financial_writers_have_one_anchored_persistence_boundary() -
             name = node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", None)
             if name in {"JournalEntry", "JournalLine"}:
                 constructor_files.add(relative)
-            elif name == "_create_anchored_journal_entry":
+            elif name in {"_create_anchored_journal_entry", "_create_anchored_journal_entries"}:
                 raw_create_files.add(relative)
-            elif name == "post_journal_entry":
+            elif name in {"post_journal_entry", "post_journal_entries"}:
                 raw_post_files.add(relative)
 
     assert constructor_files == allowed_constructors
@@ -577,3 +585,159 @@ async def test_AC_ledger_80_1_publishes_only_current_decision_anchored_journal_f
     assert contribution.decision.target == decision.target
     assert contribution.decision.assertion == decision.assertion
     assert len(contribution.lines) == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["user_override", "operator_default"])
+async def test_AC_ledger_79_9_post_uses_the_base_currency_stored_on_the_draft(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    change: str,
+) -> None:
+    """AC-ledger.79.9: a base-currency change between create and post does not change the post result (#2539)."""
+    created_base = Currency(settings.base_currency).code
+    changed_base = "USD" if created_base != "USD" else "EUR"
+    debit = Account(user_id=test_user.id, name=f"payroll cash {uuid4()}", type=AccountType.ASSET, currency=created_base)
+    credit = Account(
+        user_id=test_user.id, name=f"payroll income {uuid4()}", type=AccountType.INCOME, currency=created_base
+    )
+    db.add_all((debit, credit))
+    await db.commit()
+
+    created = await client.post(
+        "/journal-entries",
+        json={
+            "entry_date": "2025-04-15",
+            "memo": "Monthly payroll",
+            "rationale": "I checked this payroll against the payslip.",
+            "lines": [
+                {"account_id": str(debit.id), "direction": "DEBIT", "amount": "8000.00", "currency": created_base},
+                {"account_id": str(credit.id), "direction": "CREDIT", "amount": "8000.00", "currency": created_base},
+            ],
+        },
+    )
+    assert created.status_code == 201, created.text
+    entry_id = UUID(created.json()["id"])
+
+    if change == "user_override":
+        update = await client.put("/app-config/base-currency", json={"base_currency": changed_base})
+        assert update.status_code == 200, update.text
+    else:
+        db.add(AppConfig(key=BASE_CURRENCY_KEY, value=changed_base))
+        await db.commit()
+    effective = await client.get("/app-config/base-currency")
+    assert effective.json() == {"base_currency": changed_base}
+
+    posted = await client.post(f"/journal-entries/{entry_id}/postings")
+
+    assert posted.status_code == 200, posted.text
+    assert posted.json()["status"] == "posted"
+    assert {line["currency"] for line in posted.json()["lines"]} == {created_base}
+    stored = await db.scalar(select(JournalEntry.base_currency).where(JournalEntry.id == entry_id))
+    assert stored == created_base
+
+
+async def _manual_draft(client: AsyncClient, *, memo: str, lines: list[dict]) -> UUID:
+    created = await client.post(
+        "/journal-entries",
+        json={"entry_date": "2025-05-01", "memo": memo, "rationale": "I checked this entry.", "lines": lines},
+    )
+    assert created.status_code == 201, created.text
+    return UUID(created.json()["id"])
+
+
+def _reverse_unordered_journal_line_reads(state: ORMExecuteState) -> Result | None:
+    """Give a journal-line read without ORDER BY the reverse of the command order.
+
+    SQL defines no row order without ORDER BY. Postgres usually returns the insert order, so a
+    read that has no ORDER BY passes by chance. This hook removes that chance (#2594).
+    A read with an ORDER BY runs unchanged.
+    """
+    statement = state.statement
+    if not state.is_select or not isinstance(statement, Select) or statement._order_by_clauses:
+        return None
+    if not any(column.get("expr") is JournalLine for column in statement.column_descriptions):
+        return None
+    return state.invoke_statement(statement=statement.order_by(JournalLine.line_no.desc()))
+
+
+@contextmanager
+def _unordered_journal_line_reads_in_reverse_command_order() -> Iterator[None]:
+    """Apply ``_reverse_unordered_journal_line_reads`` to every session, the app session included."""
+    event.listen(Session, "do_orm_execute", _reverse_unordered_journal_line_reads)
+    try:
+        yield
+    finally:
+        event.remove(Session, "do_orm_execute", _reverse_unordered_journal_line_reads)
+
+
+@pytest.mark.asyncio
+async def test_AC_ledger_79_10_post_does_not_depend_on_the_database_row_order(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-ledger.79.10: a draft posts when the database returns its lines in another order (#2539)."""
+    debit = Account(user_id=test_user.id, name=f"checking {uuid4()}", type=AccountType.ASSET, currency="SGD")
+    credit = Account(user_id=test_user.id, name=f"equity {uuid4()}", type=AccountType.EQUITY, currency="SGD")
+    db.add_all((debit, credit))
+    await db.commit()
+    entry_id = await _manual_draft(
+        client,
+        memo="Initial Checking Deposit",
+        lines=[
+            {"account_id": str(debit.id), "direction": "DEBIT", "amount": "1000.00", "currency": "SGD"},
+            {"account_id": str(credit.id), "direction": "CREDIT", "amount": "1000.00", "currency": "SGD"},
+        ],
+    )
+    positions = await db.execute(
+        select(JournalLine.account_id, JournalLine.line_no)
+        .where(JournalLine.journal_entry_id == entry_id)
+        .order_by(JournalLine.line_no)
+    )
+    assert [tuple(row) for row in positions] == [(debit.id, 0), (credit.id, 1)]
+
+    with _unordered_journal_line_reads_in_reverse_command_order():
+        # Precondition: a line read without ORDER BY now gets the lines in the reverse command order.
+        unordered = await db.scalars(select(JournalLine).where(JournalLine.journal_entry_id == entry_id))
+        assert [line.account_id for line in unordered] == [credit.id, debit.id]
+
+        posted = await client.post(f"/journal-entries/{entry_id}/postings")
+
+    assert posted.status_code == 200, posted.text
+    assert [line["account_id"] for line in posted.json()["lines"]] == [str(debit.id), str(credit.id)]
+
+
+@pytest.mark.asyncio
+async def test_AC_ledger_79_11_post_does_not_depend_on_the_decimal_scale_of_the_request(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """AC-ledger.79.11: amounts and FX rates with fewer decimals than the ledger stores still post (#2539)."""
+    usd = Account(user_id=test_user.id, name=f"usd cash {uuid4()}", type=AccountType.ASSET, currency="USD")
+    sgd = Account(user_id=test_user.id, name=f"sgd income {uuid4()}", type=AccountType.INCOME, currency="SGD")
+    db.add_all((usd, sgd))
+    await db.commit()
+    entry_id = await _manual_draft(
+        client,
+        memo="Short decimals",
+        lines=[
+            {"account_id": str(usd.id), "direction": "DEBIT", "amount": "100", "currency": "USD", "fx_rate": "1.35"},
+            {"account_id": str(sgd.id), "direction": "CREDIT", "amount": "135", "currency": "SGD"},
+        ],
+    )
+
+    posted = await client.post(f"/journal-entries/{entry_id}/postings")
+
+    assert posted.status_code == 200, posted.text
+    assert posted.json()["status"] == "posted"
+
+    # A value with more places than the column stores is rejected, never rounded.
+    with pytest.raises(ValidationError, match="more than 2 decimal places"):
+        anchored_posting._at_stored_scale([{"account_id": usd.id, "amount": Decimal("1.234")}])
+    with pytest.raises(ValidationError, match="more than 6 decimal places"):
+        anchored_posting._at_stored_scale(
+            [{"account_id": usd.id, "amount": Decimal("1"), "fx_rate": Decimal("1.1234567")}]
+        )

@@ -103,8 +103,6 @@ CONTRACT = PackageContract(
         Unit(name="ModelSpec", kind=Kind.VALUE_OBJECT, module="base/types.py"),
         Unit(name="SceneBinding", kind=Kind.VALUE_OBJECT, module="base/types.py"),
         Unit(name="Encrypted", kind=Kind.VALUE_OBJECT, module="base/types.py"),
-        Unit(name="Usage", kind=Kind.VALUE_OBJECT, module="base/types.py"),
-        Unit(name="ChatResult", kind=Kind.VALUE_OBJECT, module="base/types.py"),
         Unit(name="DecodeParams", kind=Kind.VALUE_OBJECT, module="base/types.py"),
         # the in-memory daily usage counter (per-process running total; the
         # structured ``llm_usage`` log is the durable record it emits).
@@ -127,23 +125,10 @@ CONTRACT = PackageContract(
             module="base/protocols.py",
             impl="extension/client.py",
         ),
-        Unit(
-            name="CatalogProvider",
-            kind=Kind.REPOSITORY,
-            module="base/protocols.py",
-            impl="extension/catalog.py",
-        ),
         # ── extension: domain services + factory ──
         # the single litellm chokepoint's provider routing
         Unit(
             name="build_call", kind=Kind.DOMAIN_SERVICE, module="extension/routing.py"
-        ),
-        # the single chokepoint for the non-chat OCR/layout-parsing HTTP call
-        # (#1670): a separate endpoint litellm does not wrap.
-        Unit(
-            name="ocr_layout_call",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/ocr_client.py",
         ),
         # generic prompt-in/score-out semantic-similarity helper, moved from
         # reconciliation (#1859 — Cross-tier MUST rule 2: a CODE-ONLY package
@@ -193,8 +178,6 @@ CONTRACT = PackageContract(
         "CassetteStore",
         "CassetteTag",
         "CassetteValidationError",
-        "CatalogProvider",
-        "ChatResult",
         "ConfigSource",
         "DecodeParams",
         "DbConfigSource",
@@ -222,7 +205,6 @@ CONTRACT = PackageContract(
         "Scene",
         "SceneBinding",
         "SecretCipher",
-        "Usage",
         "accumulate_stream",
         "ai_semantic_score",
         "build_call",
@@ -236,7 +218,6 @@ CONTRACT = PackageContract(
         "get_usage_meter",
         "litellm_stream",
         "miss_summary",
-        "ocr_layout_call",
         "protocol_for",
         "resolve_provider_and_model",
         "stream_ai_chat",
@@ -319,15 +300,15 @@ CONTRACT = PackageContract(
         ac('AC-llm.1.2', '`FernetCipher` round-trips a provider secret (`encrypt` → `decrypt`) and never persists plaintext', 'apps/backend/tests/llm/test_secrets.py::test_AC23_1_2_round_trips_a_provider_secret_without_storing_plaintext', priority='P1', proof_kind='property'),
         ac('AC-llm.1.3', 'Key rotation is single-pass: a secret sealed by an older key still decrypts after a newer key is prepended, and `rotate()` re-stamps it to the newest `key_version`', 'apps/backend/tests/llm/test_secrets.py::test_AC23_1_3_rotation_is_single_pass_old_ciphertext_still_decrypts', priority='P1', proof_kind='property'),
         ac('AC-llm.1.4', '`build_cipher()` raises `LLMConfigError` when `LLM_ENCRYPTION_KEYS` is unset, and `FernetCipher` rejects malformed keys — DB-backed secrets fail closed', 'apps/backend/tests/llm/test_secrets.py::test_AC23_1_4_build_cipher_fails_closed_without_a_key', priority='P1', proof_kind='property'),
-        ac('AC-llm.1.5', 'The seam protocols (`ConfigSource`, `LLMClient`, `CatalogProvider`, `SecretCipher`) are runtime-checkable and a conforming implementation satisfies `isinstance`, so EPIC A/B can swap implementations behind the contract', 'apps/backend/tests/llm/test_contract.py::test_AC23_1_5_conforming_implementations_satisfy_the_protocols', priority='P1', proof_kind='property'),
+        ac('AC-llm.1.5', 'The seam protocols (`ConfigSource`, `LLMClient`, `SecretCipher`) are runtime-checkable and a conforming implementation satisfies `isinstance`, so EPIC A/B can swap implementations behind the contract', 'apps/backend/tests/llm/test_contract.py::test_AC23_1_5_conforming_implementations_satisfy_the_protocols', priority='P1', proof_kind='property'),
         ac('AC-llm.2.1', 'Provider routing maps each protocol family onto the correct litellm call — `openai`/`anthropic`/`openrouter` prefix, custom `api_base` for OpenAI-compatible endpoints, OpenRouter attribution headers — and normalises an already-qualified model id', 'apps/backend/tests/llm/test_routing.py::test_AC23_2_1_openai_compatible_prefixes_and_keeps_api_base', priority='P1', proof_kind='property'),
         ac('AC-llm.2.2', "The litellm transport streams via litellm with `drop_params` (model-rejected params like `seed` are dropped, not 400'd) and resolves a binding's provider/model through the `ConfigSource` (`resolve_provider_and_model`, honouring the `provider_id/model` qualifier)", 'apps/backend/tests/llm/test_client.py::test_AC23_2_2_stream_yields_only_nonempty_deltas', priority='P1', proof_kind='property'),
         ac('AC-llm.2.3', 'Provider failures are normalised to `LLMError` with a retryable verdict (rate-limit/5xx/timeout → retryable; others not)', 'apps/backend/tests/llm/test_client.py::test_AC23_2_3_provider_error_is_normalised_to_llmerror', priority='P1', proof_kind='property'),
-        ac('AC-llm.2.4', '`EnvConfigSource` projects the existing env settings onto scene bindings (vision/ocr → vision/ocr models, the rest → primary) and reports `is_configured() == False` when no API key, driving the first-run modal', 'apps/backend/tests/llm/test_env_config.py::test_AC23_2_4_unconfigured_when_no_api_key', priority='P1', proof_kind='property'),
+        ac('AC-llm.2.4', '`EnvConfigSource` projects the existing env settings onto scene bindings (vision/ocr → vision/ocr models, advisor.chat → the large-role model with its reasoning, the rest → primary) and reports `is_configured() == False` when no API key, driving the first-run modal', 'apps/backend/tests/llm/test_env_config.py::test_AC23_2_4_unconfigured_when_no_api_key', priority='P1', proof_kind='property'),
         ac('AC-llm.2.5', 'The dynamic catalogue lists configured models enriched with litellm pricing, flags the free tier, and filters by provider/modality/free', 'apps/backend/tests/llm/test_catalog.py::test_AC23_2_5_lists_configured_models_with_pricing', priority='P1', proof_kind='property'),
         ac('AC-llm.2.6', 'The usage meter counts requests and (estimated) tokens per UTC day and rolls over at the day boundary — observability only, no money/cost and no ceiling (per-token pricing is too unreliable across providers to enforce a USD limit; the unenforced `AI_DAILY_LIMIT_USD` is dropped)', 'apps/backend/tests/llm/test_usage.py::test_AC23_2_6_counts_requests_and_tokens', priority='P1', proof_kind='property'),
-        ac('AC-llm.2.7', 'GLM-5.3 text and GLM-5.3-Flash vision calls use enabled thinking and a supported low/high reasoning effort even when existing extraction callers request disabled or medium reasoning; adaptation preserves caller decode values and remains local to these OpenAI-compatible models.', 'apps/backend/tests/llm/test_client.py::test_glm53_stream_uses_supported_reasoning_parameters', priority='P1', proof_kind='property'),
-        ac('AC-llm.2.8', 'Default text scenes select GLM-5.3 and default image/OCR scenes select GLM-5.3-Flash with modality-correct fallbacks, while explicitly configured scene models continue to take precedence.', 'apps/backend/tests/llm/test_env_config.py::test_default_glm_models_reach_scene_bindings', priority='P1', proof_kind='property'),
+        ac('AC-llm.2.7', 'glm-5.3-flash text and vision calls use enabled thinking and a supported low/high reasoning effort even when existing extraction callers request disabled or medium reasoning; adaptation preserves caller decode values and remains local to these OpenAI-compatible models.', 'apps/backend/tests/llm/test_client.py::test_glm53_stream_uses_supported_reasoning_parameters', priority='P1', proof_kind='property'),
+        ac('AC-llm.2.8', 'Default text scenes select the SDK primary model and its fallbacks, and default image/OCR scenes select the SDK vision/OCR models and the vision fallbacks (#2566), while explicitly configured scene models continue to take precedence.', 'apps/backend/tests/llm/test_env_config.py::test_default_glm_models_reach_scene_bindings', priority='P1', proof_kind='property'),
         ac('AC-llm.3.1', '`DbConfigSource` reads provider instances (decrypting the at-rest API key) and scene bindings (qualified by provider id) from `llm_providers` / `llm_scene_bindings`', 'apps/backend/tests/llm/test_llm_db_config.py::test_AC23_3_1_db_config_reads_providers_and_bindings', priority='P1', proof_kind='property'),
         ac('AC-llm.3.2', 'Config resolves DB-first with an env fallback; `is_configured()` is true when either has a provider and false when both are empty (driving the first-run modal)', 'apps/backend/tests/llm/test_llm_db_config.py::test_AC23_3_2_layered_uses_db_first_then_env', priority='P1', proof_kind='property'),
         ac('AC-llm.4.1', '`GET /llm/config/status` reports `{configured}` for the current user from the layered (user → deployment → env) config source, driving the first-run modal', 'apps/backend/tests/llm/test_llm_api.py::test_AC23_4_1_config_status_flips_when_user_configures', priority='P1', proof_kind='property'),
@@ -482,6 +463,14 @@ CONTRACT = PackageContract(
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
         ac('AC-llm.fe-ai-settings2.1', 'Settings page `/settings/ai` exposes toggles for `enable_ai_reconciliation`, `enable_ai_classification`, persisted via `PATCH /api/users/me/settings`; toggle reflects backend feature-flag state on load', 'apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.5 — Settings AI toggles persist', priority='P2'),
         ac('AC-llm.fe-ai-settings2.2', 'Frontend tests: mount ConfidenceBadge for each tier; mount AI Suggestion Queue and assert Accept/Reject buttons render; mount Settings AI toggles and assert default state matches API', 'apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.7 — AI settings mount reflects saved toggles', priority='P2'),
+        # ── the infra2 SDK owns the default models (#2566) ──
+        ac('AC-llm.sdk-model-defaults.1', 'With no model variable set, each of the three app model roles (LARGE_MODEL, SMALL_MODEL, MULTIMODAL_MODEL) equals the infra2 SDK LlmSettings default, and an explicit variable (a production customization) wins for its role only (#2566, #2643).', 'apps/backend/tests/llm/test_sdk_model_defaults.py::test_AC_llm_sdk_model_defaults_1_app_defaults_equal_the_sdk_defaults', priority='P0', proof_kind='property'),
+        ac('AC-llm.sdk-model-defaults.2', 'App source names no model id; workflows, actions, compose files and Dockerfiles assign no model variable; the generated .env.example and env reference show exactly the SDK defaults; model docs name only SDK default models (#2566).', 'tests/tooling/test_sdk_model_defaults_surfaces.py::test_AC_llm_sdk_model_defaults_2_ci_preview_staging_assign_no_model', priority='P0', proof_kind='property'),
+        ac('AC-llm.sdk-model-defaults.3', 'Staging serves exactly the SDK default models: the provider gate installs the SDK, reads the public GET /api/llm/catalog once without retry, and a mismatch fails the job and post-merge delivery (#2566).', 'tests/e2e/test_ai_provider_connectivity.py::test_staging_catalog_serves_the_sdk_default_models', priority='P0', proof_kind='property'),
+        ac('AC-llm.sdk-model-defaults.4', 'Production may customize its models: the release only reports the served catalog in its summary and never fails on it (#2566).', 'tests/tooling/test_sdk_model_defaults_surfaces.py::test_AC_llm_sdk_model_defaults_4_production_release_only_reports_the_catalog', priority='P1', proof_kind='property'),
+        ac('AC-llm.roles-only.1', 'The app has exactly three model environment keys: LARGE_MODEL, SMALL_MODEL and MULTIMODAL_MODEL, one per infra2 SDK role. The retired slot names (PRIMARY_MODEL, VISION_MODEL, OCR_MODEL, FALLBACK_MODELS, VISION_FALLBACK_MODELS) appear in no generated manifest, no example and no source file that reads settings, and the app hands only the three roles to the SDK (#2643).', 'tests/tooling/test_llm_roles_only.py::test_AC_llm_roles_only_1_the_model_env_keys_are_exactly_the_three_roles', priority='P0', proof_kind='property'),
+        ac('AC-llm.banned-models.1', 'The retired z.ai vision model of the GLM 4 generation is never used. No tracked text file names its id, in any spelling, except a provenance note in a recorded cassette fixture. The recorder calls the SDK multimodal role (#2635).', 'tests/tooling/test_banned_models.py::test_AC_llm_banned_models_1_no_tracked_file_names_glm_4_6v', priority='P1'),
+        ac('AC-llm.provider-error-code.1', 'A failed provider call raises an LLMError whose text names the exception class, the integer HTTP status and a numeric provider error code, and nothing else from the provider response. The provider message text, URLs and headers never reach the text. One 429 has several causes (concurrency, quota, no resource package); the code tells them apart (#2580).', 'apps/backend/tests/llm/test_client.py::test_AC_llm_provider_error_code_1_text_names_status_and_code_and_nothing_else', priority='P1'),
     ],
     concepts=[
         ConceptRecord(

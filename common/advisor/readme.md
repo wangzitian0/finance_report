@@ -79,7 +79,7 @@ The advisor aggregates context from:
 
 | Source | What it reads | How the advisor reads it |
 |--------|--------------|---------------------------|
-| `report_readiness` | Readiness state + blockers | `src.reporting` published root (`current_package_document_summary`) |
+| `report_readiness` | Readiness state + blockers | `src.workflow` published root (`stored_package_readiness`) while the last workflow derivation is reusable, else `src.reporting` published root (`current_package_readiness`) (#2583) |
 | `reporting` | Balance sheet, income statement, category breakdown | `src.reporting` published root (`generate_balance_sheet`/`generate_income_statement`/`get_category_breakdown`, #1666) |
 | `reconciliation` | Pending review count, reconciliation stats | `src.reconciliation` published root (`get_reconciliation_stats`) |
 | `portfolio` | Positions, unrealised P&L, active symbols | `src.portfolio` published root (`PortfolioService`, `active_stock_symbols`) |
@@ -192,6 +192,12 @@ before prompt construction. The prompt receives the serialized structured
 facts and must preserve blocked/stale/unreviewed/unsupported/manual-trusted
 limitations instead of converting them into trusted conclusions.
 
+`AIAdvisorService.get_advisor_suggestions()` returns the suggestions of
+`get_advisor_context()` and reads only the facts that the suggestion rules
+read. It does not build the balance sheet, the income statement or the
+category breakdown (#2583). `GET /api/chat/suggestions?include_structured=true`
+uses it.
+
 Frontend Advisor Brief surfaces consume the `structured_suggestions` field
 from `GET /api/chat/suggestions` only when the caller explicitly sends
 `include_structured=true`, and render structured facts directly rather than
@@ -263,9 +269,9 @@ disclaimer.
 - **Model selection**: the UI pulls available models from
   `/api/llm/catalog` (superseded the retired `/api/ai/models`); the client
   sends the selected `model` in `POST /api/chat`; if omitted, the service
-  uses `PRIMARY_MODEL` and may try `FALLBACK_MODELS`. Statement OCR uses
-  `OCR_MODEL` (falls back to the shared vision OCR path when no separate
-  layout-parsing API exists) and stores transaction amounts as non-negative
+  uses the large role (`LARGE_MODEL`), with no fallback chain. Statement OCR uses
+  the multimodal role (`MULTIMODAL_MODEL`) on the vision OCR path, with no separate
+  layout-parsing API, and stores transaction amounts as non-negative
   `Decimal` with `direction` as the sign source — signed model outputs like
   `{"amount": "-500.00", "direction": "OUT"}` are normalized before balance
   validation and routing.

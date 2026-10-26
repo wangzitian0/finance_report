@@ -192,6 +192,14 @@ CONTRACT = PackageContract(
         Unit(
             name="get_exchange_rate", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"
         ),
+        # get_exchange_rate_series: get_exchange_rate for many dates from one
+        # candidate read; resolve_series (extension/resolve.py) picks per date
+        # (AC-pricing.fx.4, #2583).
+        Unit(
+            name="get_exchange_rate_series",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/fx.py",
+        ),
         # convert_amount/convert_money/convert_to_base: thin lookup+math
         # bridges over get_exchange_rate/get_average_rate (lookup) +
         # audit.money.convert (math, rate passed in — ruling 5, audit never
@@ -219,6 +227,14 @@ CONTRACT = PackageContract(
         # (AC-pricing.manualvaluation.3).
         Unit(
             name="build_manual_valuation_lines",
+            kind=Kind.DOMAIN_SERVICE,
+            module="extension/valuation.py",
+        ),
+        # build_manual_valuation_lines_series: the same lines for many dates;
+        # components are read once per snapshot date (AC-pricing.manualvaluation.11,
+        # #2583).
+        Unit(
+            name="build_manual_valuation_lines_series",
             kind=Kind.DOMAIN_SERVICE,
             module="extension/valuation.py",
         ),
@@ -407,6 +423,7 @@ CONTRACT = PackageContract(
         "ManualValuationComponentType",
         "ManualValuationFact",
         "ManualValuationLiquidityClass",
+        "NoObservationError",
         "ObservationRepository",
         "ObservationSource",
         "PrefetchedFxRates",
@@ -426,12 +443,14 @@ CONTRACT = PackageContract(
         "ValuationService",
         "ValuationServiceError",
         "build_manual_valuation_lines",
+        "build_manual_valuation_lines_series",
         "convert_amount",
         "convert_money",
         "convert_to_base",
         "ensure_market_data_fresh",
         "get_average_rate",
         "get_exchange_rate",
+        "get_exchange_rate_series",
         "get_market_data_status",
         "ingest_statement_price",
         "list_current_manual_valuation_facts",
@@ -533,6 +552,9 @@ CONTRACT = PackageContract(
         ac('AC-pricing.manualvaluation.2', 'Heads-only reads use the current version so a corrected valuation is never double-counted in net worth or listings. Was EPIC-011 AC11.19.2.', 'apps/backend/tests/assets/test_manual_valuation_snapshots.py::test_AC11_19_2_corrected_valuation_is_not_double_counted_in_net_worth', priority='P1'),
         ac('AC-pricing.manualvaluation.3', 'Manual-valuation balance-sheet lines (asset/liability split, allocation classes, trusted provenance, FX conversion into the target currency) are built by pricing; an FX miss surfaces as the pricing error family and the reporting caller owns the ReportError mapping. Absorbed from services/reporting/manual_valuation.py (#1610 P2).', 'apps/backend/tests/pricing/test_valuation_lines.py::test_AC_pricing_manualvaluation_3_lines_split_convert_and_classify', priority='P1'),
         ac('AC-pricing.manualvaluation.4', "A (component_type, source) combination whose only snapshot postdates the requested as_of_date is absent from the valuation components and lines, and is disclosed through the result/accumulator warnings instead of vanishing silently (#1796) — 'not owned yet' vs 'not recorded yet' is inherently ambiguous for a manual component, so the gap is warned about, never guessed at.", 'apps/backend/tests/pricing/test_valuation_lines.py::test_AC_pricing_manualvaluation_4_component_recorded_after_as_of_is_warned', priority='P1'),
+        ac('AC-pricing.manualvaluation.11', 'build_manual_valuation_lines_series returns, for each requested date, the lines of build_manual_valuation_lines on that date; it reads the components once per snapshot date and raises the pricing error family on an FX miss (#2583).', 'apps/backend/tests/pricing/test_valuation_lines.py::test_AC_pricing_manualvaluation_11_series_equals_one_build_per_date', priority='P1'),
+        ac('AC-pricing.manualvaluation.12', 'split_net_worth_scope is the one definition of the restricted-holdings scope: the full scope holds each manual valuation; the scope without restricted holdings excludes each restricted or illiquid asset valuation and each liability valuation whose allocation class (a fixed map from the component type) is the class of an excluded asset, so a mortgage valuation leaves with an excluded property valuation; a liability valuation of a class with no excluded asset stays. Limits (#2659): a ledger liability account always stays, every mortgage valuation leaves when one property valuation is excluded, and the rule reads only the valuations current on the as-of date (#2645).', 'apps/backend/tests/pricing/test_valuation_liquidity_contract.py::test_AC_pricing_manualvaluation_12_scope_excludes_a_liability_with_its_asset', priority='P0'),
+        ac('AC-pricing.manualvaluation.13', 'build_manual_valuation_lines keeps a pricing-family FX error on an excluded component as a line without amount and a typed conversion_warning: missing_fx_rate_excluded_holding for a missing rate, fx_conversion_failed_excluded_holding for another pricing error; any other error still raises (#2645).', 'apps/backend/tests/pricing/test_valuation_liquidity_contract.py::test_AC_pricing_manualvaluation_13_excluded_line_errors_by_type', priority='P1'),
         # ── group fx: the FX lookup + conversion surface absorbed from
         # services/fx.py (#1610 P2 — ONE implementation, pricing's; the
         # in-process TTL cache was deliberately NOT carried over, see
@@ -540,6 +562,7 @@ CONTRACT = PackageContract(
         ac('AC-pricing.fx.1', 'get_average_rate falls back to the period-end spot rate when the window has no observations and surfaces the fallback through the fx_warnings side-channel (deduplicated), matching the retired services/fx.py behavior reporting depends on.', 'apps/backend/tests/pricing/test_fx.py::test_AC_pricing_fx_1_average_rate_fallback_appends_fx_warning', priority='P1'),
         ac('AC-pricing.fx.2', 'PrefetchedFxRates batch-prefetches spot and average-window rates under distinct keys, serves the identity rate without a fetch, and propagates the pricing error family on a miss (never a silent partial cache).', 'apps/backend/tests/pricing/test_fx.py::test_AC_pricing_fx_2_prefetch_serves_spot_and_average_keys', priority='P1'),
         ac('AC-pricing.fx.3', 'convert_amount/convert_money honor an average-rate window (average_start/average_end) with the same period-end fallback + fx_warnings semantics as the spot path — the income-statement reporting convention.', 'apps/backend/tests/pricing/test_convert.py::test_AC_pricing_fx_3_convert_amount_uses_average_rate_window', priority='P1'),
+        ac('AC-pricing.fx.4', 'get_exchange_rate_series returns, for each requested date, the get_exchange_rate result on that date and omits a date without a rate; it reads the stored candidates once when every date has one, and resolve_series equals one resolve call per date (#2583).', 'apps/backend/tests/pricing/test_fx.py::test_AC_pricing_fx_4_rate_series_equals_one_lookup_per_date', priority='P1'),
         # ── group providers: manual price update + provider symbol/ticker
         # handling (was EPIC-017 AC17.1.6/AC17.15/AC17.33, migration
         # closeout continuation, #1663 / #1710) ──

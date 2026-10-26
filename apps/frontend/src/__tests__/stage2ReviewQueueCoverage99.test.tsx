@@ -6,8 +6,10 @@ import { apiOperation } from "@/lib/api-client"
 
 import { renderReviewComponent } from "./helpers/renderReviewComponent"
 
+const runIdState = vi.hoisted(() => ({ current: null as string | null }))
+
 const navState = vi.hoisted(() => ({
-  pathname: "/reconciliation/review-queue",
+  pathname: "/reconciliation",
   replace: vi.fn(),
   push: vi.fn(),
   searchParams: new URLSearchParams(),
@@ -131,10 +133,13 @@ function mockMobileViewport() {
   })
 }
 
+const Queue = () => <Stage2ReviewQueue runId={runIdState.current} />
+
 describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   beforeEach(() => {
     mockedApiFetch.mockReset()
-    navState.pathname = "/reconciliation/review-queue"
+    navState.pathname = "/reconciliation"
+    runIdState.current = null
     navState.searchParams = new URLSearchParams()
     navState.replace.mockReset()
     navState.push.mockReset()
@@ -154,7 +159,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
 
     mockApi(queue({ pending_matches: [pendingMatch] }))
 
-    renderReviewComponent(<Stage2ReviewQueue />)
+    renderReviewComponent(<Queue />)
 
     const card = await screen.findByTestId("stage2-mobile-match-card-m1")
     expect(within(card).getByText("Salary transfer")).toBeInTheDocument()
@@ -165,19 +170,14 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     expect(screen.getByRole("button", { name: "Approve Selected" })).toBeEnabled()
   })
 
-  it("AC22.11.3 preserves attention origin while the Stage 2 queue updates filters", async () => {
-    navState.searchParams = new URLSearchParams("from=attention")
+  it("AC22.11.3 keeps the tab and the attention origin in the URL while the Stage 2 queue updates filters", async () => {
+    navState.searchParams = new URLSearchParams("tab=review-queue&from=attention&min_score=0")
     mockApi(queue({ pending_matches: [] }))
 
-    renderReviewComponent(<Stage2ReviewQueue />)
-
-    expect(await screen.findByRole("link", { name: /Back to Attention queue/i })).toHaveAttribute(
-      "href",
-      "/attention",
-    )
+    renderReviewComponent(<Queue />)
 
     await waitFor(() =>
-      expect(navState.replace).toHaveBeenCalledWith("/reconciliation/review-queue?from=attention", {
+      expect(navState.replace).toHaveBeenCalledWith("/reconciliation?tab=review-queue&from=attention", {
         scroll: false,
       }),
     )
@@ -186,10 +186,10 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   // AC-reconciliation.fe-stage2-review.15
   it("AC16.26.3 mobile run review preserves approval gate and pending match workflow", async () => {
     mockMobileViewport()
-    navState.pathname = "/review/run/mobile-run"
+    runIdState.current = "mobile-run"
     mockApi(queue({ pending_matches: [pendingMatch] }))
 
-    renderReviewComponent(<Stage2ReviewQueue />)
+    renderReviewComponent(<Queue />)
 
     expect(await screen.findByText("Run approval gate")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Approve Run" })).toBeEnabled()
@@ -204,7 +204,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     })
     mockApi(queue({ pending_matches: [pendingMatch] }))
 
-    renderReviewComponent(<Stage2ReviewQueue />)
+    renderReviewComponent(<Queue />)
 
     expect(await screen.findByText("Pending Matches")).toBeInTheDocument()
     expect(screen.getByTestId("stage2-mobile-match-card-m1")).toBeInTheDocument()
@@ -220,7 +220,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     })
     mockApi(queue({ pending_matches: [pendingMatch] }))
 
-    renderReviewComponent(<Stage2ReviewQueue />)
+    renderReviewComponent(<Queue />)
 
     expect(await screen.findByTestId("stage2-mobile-match-card-m1")).toBeInTheDocument()
     expect(screen.getAllByText("Salary transfer").length).toBeGreaterThan(0)
@@ -230,7 +230,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   it("AC8.13.82/AC16.27.3 exposes a fixed desktop pending-match region for responsive UX proofs", async () => {
     mockApi(queue({ pending_matches: [pendingMatch] }))
 
-    renderReviewComponent(<Stage2ReviewQueue />)
+    renderReviewComponent(<Queue />)
 
     const region = await screen.findByTestId("stage2-desktop-match-region")
     expect(region).toHaveClass("overflow-hidden")
@@ -242,7 +242,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   // AC-reconciliation.fe-stage2-review.19
   // AC-testing.fe-coverage.1
   it("AC16.23.4/AC8.13.48 persists Stage 2 filters in the URL while approving after filter changes", async () => {
-    navState.pathname = "/review/run/run%201"
+    runIdState.current = "run 1"
     navState.searchParams = new URLSearchParams("check_type=duplicate&status=pending&severity=high,medium&min_score=60")
 
     mockApi(queue({ pending_matches: [pendingMatch, lowMatch], consistency_checks: [] }), undefined, [], (path, options) => {
@@ -252,7 +252,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
       }
     })
 
-    renderReviewComponent(<Stage2ReviewQueue />)
+    renderReviewComponent(<Queue />)
 
     expect(await screen.findByText("Review queue")).toBeInTheDocument()
     expect(screen.getByText("run 1")).toBeInTheDocument()
@@ -277,7 +277,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     })
     await waitFor(() => {
       expect(navState.replace).toHaveBeenCalledWith(
-        "/review/run/run%201?check_type=anomaly&status=resolved&severity=medium&min_score=60",
+        "/reconciliation?check_type=anomaly&status=resolved&severity=medium&min_score=60",
         { scroll: false },
       )
     })
@@ -297,7 +297,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
       return Promise.reject(new Error(`Unexpected path ${path}`))
     })
 
-    renderReviewComponent(<Stage2ReviewQueue />)
+    renderReviewComponent(<Queue />)
 
     expect(await screen.findByText("manual_review")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Resolve" }))
@@ -333,14 +333,14 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   })
 
   it("test_AC8_13_48_batch_and_run_error_branches_surface_actionable_feedback", async () => {
-    navState.pathname = "/review/run/run-2"
+    runIdState.current = "run-2"
 
     mockApi(queue({ pending_matches: [pendingMatch], consistency_checks: [] }), undefined, [], (path) => {
       if (path === "/api/statements/batch-approve-matches") return Promise.reject(new Error("approval rejected by server"))
       if (path === "/api/statements/batch-reject-matches") return Promise.reject(new Error("batch reject failed"))
     })
 
-    renderReviewComponent(<Stage2ReviewQueue />)
+    renderReviewComponent(<Queue />)
 
     expect(await screen.findByText("Review queue")).toBeInTheDocument()
 
@@ -373,7 +373,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   })
 
   it("test_AC8_13_48_filters_checks_and_toggles_individual_match_selection", async () => {
-    navState.pathname = "/review/run/run-3"
+    runIdState.current = "run-3"
 
     mockApi(
       queue({ pending_matches: [pendingMatch], consistency_checks: [duplicateCheck, customCheck] }),
@@ -381,7 +381,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
       [duplicateCheck, customCheck],
     )
 
-    renderReviewComponent(<Stage2ReviewQueue />)
+    renderReviewComponent(<Queue />)
 
     expect(await screen.findByText("Review queue")).toBeInTheDocument()
     expect(await screen.findByText("manual_review")).toBeInTheDocument()
@@ -398,11 +398,11 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
   })
 
   it("test_AC8_13_48_run_approval_guard_states_explain_disabled_actions", async () => {
-    navState.pathname = "/review/run/run-4"
+    runIdState.current = "run-4"
 
     mockApi(queue({ pending_matches: [pendingMatch], consistency_checks: [duplicateCheck], has_unresolved_checks: true }), undefined, [duplicateCheck])
 
-    const first = renderReviewComponent(<Stage2ReviewQueue />)
+    const first = renderReviewComponent(<Queue />)
     const unresolvedButton = await screen.findByRole("button", { name: "Approve Run" })
     expect(unresolvedButton).toBeDisabled()
     expect(unresolvedButton).toHaveAttribute("title", "Resolve consistency checks first")
@@ -411,7 +411,7 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     mockedApiFetch.mockReset()
     mockApi(queue({ pending_matches: [pendingMatch], consistency_checks: [] }), { pending_count: 1, pending_total: "10", currency: "SGD", oldest_pending_date: "2026-01-01" })
 
-    const second = renderReviewComponent(<Stage2ReviewQueue />)
+    const second = renderReviewComponent(<Queue />)
     const processingButton = await screen.findByRole("button", { name: "Approve Run" })
     expect(processingButton).toBeDisabled()
     expect(processingButton).toHaveAttribute("title", "Clear Processing Account pending transfers first")
@@ -420,20 +420,20 @@ describe("AC8.13.48 Stage2ReviewQueue frontend coverage lift", () => {
     mockedApiFetch.mockReset()
     mockApi(queue({ pending_matches: [], consistency_checks: [] }))
 
-    renderReviewComponent(<Stage2ReviewQueue />)
+    renderReviewComponent(<Queue />)
     const emptyButton = await screen.findByRole("button", { name: "Approve Run" })
     expect(emptyButton).toBeDisabled()
     expect(emptyButton).toHaveAttribute("title", "No pending matches remain")
   })
 
   it("test_AC8_13_48_run_approval_network_errors_are_reported", async () => {
-    navState.pathname = "/review/run/run-5"
+    runIdState.current = "run-5"
 
     mockApi(queue({ pending_matches: [pendingMatch], consistency_checks: [] }), undefined, [], (path) => {
       if (path === "/api/statements/batch-approve-matches") return Promise.reject(new Error("approve run failed"))
     })
 
-    renderReviewComponent(<Stage2ReviewQueue />)
+    renderReviewComponent(<Queue />)
 
     fireEvent.click(await screen.findByRole("button", { name: "Approve Run" }))
     await waitFor(() => {

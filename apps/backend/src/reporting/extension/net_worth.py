@@ -3,24 +3,34 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import JournalEntrySourceType
 from src.audit.ratio import Ratio
 from src.ledger import Account, AccountType, JournalEntry, JournalLine
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
 from src.pricing import ManualValuationLiquidityClass
+from src.reporting.base.types import DEFAULT_INCLUDE_RESTRICTED
 from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import _load_accounts, _single_source_currency
-from src.reporting.extension.balance_sheet import generate_balance_sheet
-from src.reporting.extension.portfolio_market import _portfolio_market_basis_by_account
+from src.reporting.extension.balance_sheet import _build_manual_valuation_lines_series, generate_balance_sheet
+from src.reporting.extension.portfolio_market import (
+    _held_on,
+    _load_portfolio_positions,
+    _portfolio_basis_for_positions,
+    _portfolio_eval_date,
+    _portfolio_market_adjustment_lines_from_basis,
+    _portfolio_market_basis_by_account,
+)
 from src.reporting.extension.reporting_calc import (
     MAX_NET_WORTH_DAILY_POINTS,
+    MAX_NET_WORTH_MONTHLY_POINTS,
     ReportError,
     _add_months,
     _iter_periods,
@@ -34,45 +44,23 @@ from src.reporting.extension.reporting_calc import (
 logger = get_logger(__name__)
 
 
-def _allocation_source_href(
-    source_type: str,
-    source_id: UUID | None,
-    *,
-    as_of_date: date,
-    currency: str,
-) -> str | None:
-    if source_type == "ledger_account" and source_id is not None:
-        return (
-            f"/reports/account-lineage?account_id={source_id}&as_of_date={as_of_date.isoformat()}&currency={currency}"
-        )
-    if source_type == "manual_valuation":
-        return "/assets/valuation-components"
-    if source_type == "portfolio_market_adjustment":
-        return "/portfolio/holdings"
-    return None
-
-
 def _allocation_source_line(
     line: dict[str, Any],
     *,
     value: Decimal,
     label: str,
     source_type: str,
-    as_of_date: date,
-    currency: str,
 ) -> dict[str, Any]:
-    source_id = line.get("account_id")
+    """Return one contributor of an allocation row.
+
+    The line carries no link (#2645). The app chooses the surface from
+    ``source_type`` and ``source_id``: the API cannot know the app routes.
+    """
     return {
         "source_type": source_type,
-        "source_id": source_id,
+        "source_id": line.get("account_id"),
         "label": label,
         "value": _quantize_money(value),
-        "href": _allocation_source_href(
-            source_type,
-            source_id if isinstance(source_id, UUID) else None,
-            as_of_date=as_of_date,
-            currency=currency,
-        ),
     }
 
 
@@ -108,7 +96,6 @@ def _add_asset_allocation_line(
     line: dict[str, Any],
     *,
     portfolio_basis_by_account: dict[UUID, dict[str, Any]],
-    as_of_date: date,
     currency: str,
 ) -> None:
     amount = _quantize_money(Decimal(str(line["amount"])))
@@ -136,8 +123,6 @@ def _add_asset_allocation_line(
                 value=cost_basis,
                 label=f"{line['name']} ledger cost basis",
                 source_type=source_type,
-                as_of_date=as_of_date,
-                currency=currency,
             ),
         )
         residual = _quantize_money(amount - cost_basis)
@@ -152,8 +137,6 @@ def _add_asset_allocation_line(
                 value=residual,
                 label=f"{line['name']} residual cash",
                 source_type=source_type,
-                as_of_date=as_of_date,
-                currency=currency,
             ),
         )
         return
@@ -169,8 +152,6 @@ def _add_asset_allocation_line(
             value=amount,
             label=str(line["name"]),
             source_type=source_type,
-            as_of_date=as_of_date,
-            currency=currency,
         ),
     )
 
@@ -179,7 +160,6 @@ def _add_liability_allocation_line(
     grouped: dict[tuple[str, str, str], dict[str, Any]],
     line: dict[str, Any],
     *,
-    as_of_date: date,
     currency: str,
 ) -> None:
     value = -_quantize_money(Decimal(str(line["amount"])))
@@ -195,8 +175,6 @@ def _add_liability_allocation_line(
             value=value,
             label=str(line["name"]),
             source_type=source_type,
-            as_of_date=as_of_date,
-            currency=currency,
         ),
     )
 
@@ -214,7 +192,7 @@ async def get_net_worth_allocation_schedule(
     *,
     as_of_date: date,
     currency: str | None = None,
-    include_restricted: bool = True,
+    include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
 ) -> dict[str, object]:
     """Return signed net-worth allocation rows grouped by asset/liquidity/currency."""
     target_currency = _normalize_currency(currency)
@@ -240,16 +218,10 @@ async def get_net_worth_allocation_schedule(
             grouped,
             line,
             portfolio_basis_by_account=portfolio_basis_by_account,
-            as_of_date=as_of_date,
             currency=target_currency,
         )
     for line in liability_lines:
-        _add_liability_allocation_line(
-            grouped,
-            line,
-            as_of_date=as_of_date,
-            currency=target_currency,
-        )
+        _add_liability_allocation_line(grouped, line, currency=target_currency)
 
     total_assets = _quantize_money(Decimal(str(balance_sheet["total_assets"])))
     total_liabilities = _quantize_money(Decimal(str(balance_sheet["total_liabilities"])))
@@ -285,6 +257,8 @@ async def get_net_worth_allocation_schedule(
         # -- generate_balance_sheet already ran the same as_of_date/currency
         # through _build_portfolio_market_adjustment_lines above.
         "portfolio_warnings": balance_sheet.get("portfolio_warnings", []),
+        # The classes that the scope leaves out, from the same balance sheet (#2645).
+        "excluded_holdings": balance_sheet["excluded_holdings"],
     }
 
 
@@ -389,6 +363,158 @@ async def get_account_trend(
     }
 
 
+async def _ledger_net_worth_balances(
+    db: AsyncSession,
+    user_id: UUID,
+    point_dates: list[date],
+    target_currency: str,
+) -> list[tuple[dict[UUID, Decimal], dict[UUID, Decimal]]]:
+    """Return the asset and liability ledger balances by account for each point date.
+
+    Each balance equals the balance-sheet line amount of ``_aggregate_balances_sql``
+    on that date: the same entry filter, the spot FX rate on the point date, the
+    same skip of a currency without a rate, and the same per-account rounding.
+    Two grouped queries read the balance before the first point and the daily
+    movements up to the last point. A running sum replaces one query per point.
+    """
+    first_point = point_dates[0]
+    signed_columns = (
+        JournalLine.account_id,
+        Account.type,
+        JournalLine.currency,
+        JournalLine.direction,
+    )
+
+    def movement_query(*extra_columns: Any) -> Any:
+        return (
+            select(*signed_columns, *extra_columns, func.sum(JournalLine.amount).label("total"))
+            .join(Account, JournalLine.account_id == Account.id)
+            .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+            .where(Account.user_id == user_id)
+            .where(Account.type.in_((AccountType.ASSET, AccountType.LIABILITY)))
+            .where(JournalEntry.user_id == user_id)
+            .where(active_journal_entry_filter(JournalEntry))
+            .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
+            .group_by(*signed_columns, *extra_columns)
+        )
+
+    opening_rows = (await db.execute(movement_query().where(JournalEntry.entry_date < first_point))).all()
+    daily_rows = (
+        await db.execute(
+            movement_query(JournalEntry.entry_date)
+            .where(JournalEntry.entry_date >= first_point)
+            .where(JournalEntry.entry_date <= point_dates[-1])
+        )
+    ).all()
+
+    account_types: dict[UUID, AccountType] = {}
+    running: dict[tuple[UUID, str], Decimal] = {}
+
+    def apply(row: Any) -> None:
+        account_types[row.account_id] = row.type
+        key = (row.account_id, row.currency)
+        running[key] = running.get(key, Decimal("0")) + _signed_amount(row.type, row.direction, row.total)
+
+    first_seen: dict[str, date] = {}
+    for row in opening_rows:
+        first_seen.setdefault(row.currency.upper(), first_point)
+        apply(row)
+    movements_by_date: dict[date, list[Any]] = {}
+    for row in daily_rows:
+        currency_code = row.currency.upper()
+        first_seen[currency_code] = min(first_seen.get(currency_code, row.entry_date), row.entry_date)
+        movements_by_date.setdefault(row.entry_date, []).append(row)
+
+    # One rate series per currency, for the point dates on which the currency
+    # has a line (the balance sheet asks for no rate before that).
+    rates_by_currency: dict[str, dict[date, Decimal]] = {}
+    for currency_code, seen_on in first_seen.items():
+        if currency_code == target_currency.upper():
+            continue
+        rate_dates = [point for point in point_dates if point >= seen_on]
+        try:
+            rates_by_currency[currency_code] = await fx_gateway.get_exchange_rate_series(
+                db, currency_code, target_currency, rate_dates, lazy_load=True
+            )
+        except fx_gateway.FxRateError:
+            rates_by_currency[currency_code] = {}
+
+    balances: list[tuple[dict[UUID, Decimal], dict[UUID, Decimal]]] = []
+    movement_dates = sorted(movements_by_date)
+    next_movement = 0
+    for point in point_dates:
+        while next_movement < len(movement_dates) and movement_dates[next_movement] <= point:
+            for row in movements_by_date[movement_dates[next_movement]]:
+                apply(row)
+            next_movement += 1
+        unrounded: dict[UUID, Decimal] = {}
+        for (account_id, line_currency), amount in running.items():
+            # The balance sheet keys its rates by the upper-case code and
+            # selects lines whose stored code equals that key.
+            if line_currency == target_currency.upper():
+                rate: Decimal | None = Decimal("1")
+            else:
+                rate = rates_by_currency.get(line_currency, {}).get(point)
+            if rate is None:
+                continue
+            unrounded[account_id] = unrounded.get(account_id, Decimal("0")) + amount * rate
+        assets = {
+            account_id: _quantize_money(amount)
+            for account_id, amount in unrounded.items()
+            if account_types[account_id] == AccountType.ASSET
+        }
+        liabilities = {
+            account_id: _quantize_money(amount)
+            for account_id, amount in unrounded.items()
+            if account_types[account_id] == AccountType.LIABILITY
+        }
+        balances.append((assets, liabilities))
+    return balances
+
+
+async def _portfolio_adjustment_totals(
+    db: AsyncSession,
+    user_id: UUID,
+    point_dates: list[date],
+    ledger_assets: list[dict[UUID, Decimal]],
+    target_currency: str,
+) -> list[Decimal]:
+    """Return the portfolio market-value adjustment total for each point date.
+
+    The positions are read once. A point without a held position has no
+    adjustment. A point with held positions uses the balance-sheet valuation
+    unchanged: the price resolution (override, synced price, snapshot) belongs
+    to the portfolio package, so it stays one call per held position and date.
+    """
+    positions = await _load_portfolio_positions(db, user_id)
+    if not positions:
+        return [Decimal("0")] * len(point_dates)
+    totals: list[Decimal] = []
+    for point, assets in zip(point_dates, ledger_assets, strict=True):
+        eval_date = await _portfolio_eval_date(db, user_id, point)
+        held = [(position, account) for position, account in positions if _held_on(position, eval_date)]
+        if not held:
+            totals.append(Decimal("0"))
+            continue
+        basis = await _portfolio_basis_for_positions(
+            db, user_id, held, eval_date=eval_date, target_currency=target_currency
+        )
+        asset_lines = [{"account_id": account_id, "amount": amount} for account_id, amount in assets.items()]
+        lines = _portfolio_market_adjustment_lines_from_basis(
+            basis, asset_lines=asset_lines, target_currency=target_currency
+        )
+        totals.append(sum((Decimal(str(line["amount"])) for line in lines), Decimal("0")))
+    return totals
+
+
+def _monthly_series_start(start_date: date, end_date: date) -> date:
+    """Move a monthly series start forward so the series keeps the latest months within the cap."""
+    month_count = (end_date.year - start_date.year) * 12 + end_date.month - start_date.month + 1
+    if month_count <= MAX_NET_WORTH_MONTHLY_POINTS:
+        return start_date
+    return _add_months(_month_start(end_date), -(MAX_NET_WORTH_MONTHLY_POINTS - 1))
+
+
 async def get_net_worth_timeseries(
     db: AsyncSession,
     user_id: UUID,
@@ -397,8 +523,23 @@ async def get_net_worth_timeseries(
     end_date: date,
     granularity: str,
     currency: str | None = None,
+    include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
 ) -> dict[str, object]:
-    """Get historical net worth points from balance sheet snapshots."""
+    """Get historical net worth points.
+
+    For the same stored FX rates and the same ``include_restricted`` scope, each
+    point equals ``total_assets`` and ``total_liabilities`` of
+    ``generate_balance_sheet`` on the point date: ledger balances at the spot FX
+    rate of that date, portfolio market-value adjustments and the manual
+    valuations in the scope (#2645). The ledger balances come from a running
+    sum, not from one balance sheet per point (#2583). The series does not
+    compute net income, unrealized FX or CTA, so an FX miss on an income or
+    expense line does not fail it.
+
+    A monthly series holds at most ``MAX_NET_WORTH_MONTHLY_POINTS`` points and
+    keeps the latest months. It starts at the first month that has a non-zero
+    total, and it always keeps its last point.
+    """
     if start_date > end_date:
         raise ReportError("from date must be before to date")
     if granularity not in {"daily", "monthly"}:
@@ -407,17 +548,42 @@ async def get_net_worth_timeseries(
     day_count = (end_date - start_date).days + 1
     if granularity == "daily" and day_count > MAX_NET_WORTH_DAILY_POINTS:
         raise ReportError(f"Daily net worth time-series is capped at {MAX_NET_WORTH_DAILY_POINTS} points")
+    if granularity == "monthly":
+        start_date = _monthly_series_start(start_date, end_date)
 
     target_currency = _normalize_currency(currency)
     spans = _iter_periods(start_date, end_date, granularity)
-    points: list[dict[str, object]] = []
-    for span in spans:
-        point_date = span.start if granularity == "daily" else span.end
-        balance_sheet = await generate_balance_sheet(
-            db, user_id, as_of_date=point_date, currency=target_currency, include_trust_signals=False
+    point_dates = [span.start if granularity == "daily" else span.end for span in spans]
+
+    with localcontext() as context:
+        # Exact products and sums, as the balance-sheet SQL computes them.
+        context.prec = 60
+        ledger = await _ledger_net_worth_balances(db, user_id, point_dates, target_currency)
+    ledger_assets = [assets for assets, _ in ledger]
+    portfolio_totals = await _portfolio_adjustment_totals(db, user_id, point_dates, ledger_assets, target_currency)
+    try:
+        valuation_lines = await _build_manual_valuation_lines_series(
+            db,
+            user_id,
+            as_of_dates=point_dates,
+            target_currency=target_currency,
+            include_restricted=include_restricted,
         )
-        total_assets = _quantize_money(Decimal(str(balance_sheet["total_assets"])))
-        total_liabilities = _quantize_money(Decimal(str(balance_sheet["total_liabilities"])))
+    except fx_gateway.FxRateError as exc:
+        raise ReportError(str(exc)) from exc
+
+    points: list[dict[str, object]] = []
+    for point_date, (assets, liabilities), portfolio_total in zip(point_dates, ledger, portfolio_totals, strict=True):
+        valuation_assets, valuation_liabilities = valuation_lines[point_date]
+        total_assets = _quantize_money(
+            sum(assets.values(), Decimal("0"))
+            + portfolio_total
+            + sum((Decimal(str(line["amount"])) for line in valuation_assets), Decimal("0"))
+        )
+        total_liabilities = _quantize_money(
+            sum(liabilities.values(), Decimal("0"))
+            + sum((Decimal(str(line["amount"])) for line in valuation_liabilities), Decimal("0"))
+        )
         points.append(
             {
                 "date": point_date,
@@ -427,6 +593,17 @@ async def get_net_worth_timeseries(
                 "currency": target_currency,
             }
         )
+
+    if granularity == "monthly":
+        first_with_value = next(
+            (
+                index
+                for index, point in enumerate(points)
+                if point["total_assets"] != Decimal("0.00") or point["total_liabilities"] != Decimal("0.00")
+            ),
+            len(points) - 1,
+        )
+        points = points[first_with_value:]
 
     return {"currency": target_currency, "granularity": granularity, "points": points}
 
@@ -469,6 +646,7 @@ async def get_category_breakdown(
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
         .where(Account.type == breakdown_type)
+        .where(JournalEntry.user_id == user_id)
         .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.entry_date >= start_date)
         .where(JournalEntry.entry_date <= today)

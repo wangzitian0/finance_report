@@ -1,6 +1,6 @@
 """Dynamic model catalogue (EPIC-023 EPIC A).
 
-Implements ``CatalogProvider`` over the configured models, enriched with litellm's
+Lists the configured models, enriched with litellm's
 pricing table so free-tier and per-token cost are data, not guesses. This is the
 ``src/llm`` replacement for ``services/ai_models``; it deliberately keeps the
 local/configured catalogue (deterministic in CI/prod) and layers litellm pricing
@@ -48,19 +48,15 @@ def _pricing_for(model_id: str) -> tuple[Decimal | None, Decimal | None, bool]:
 def _configured_specs(*, modality: Modality | None = None) -> list[ModelSpec]:
     if modality is not None and modality in (_VISION_MODALITIES - _TEXT_MODALITIES):
         entries: list[tuple[str, frozenset[Modality]]] = [
-            (settings.ocr_model, _VISION_MODALITIES),
-            (settings.vision_model, _VISION_MODALITIES),
-            *((m, _VISION_MODALITIES) for m in settings.vision_fallback_models),
-            (settings.primary_model, _TEXT_MODALITIES),
-            *((m, _TEXT_MODALITIES) for m in settings.fallback_models),
+            (settings.multimodal_model, _VISION_MODALITIES),
+            (settings.small_model, _TEXT_MODALITIES),
+            (settings.large_model, _TEXT_MODALITIES),
         ]
     else:
         entries = [
-            (settings.primary_model, _TEXT_MODALITIES),
-            (settings.ocr_model, _VISION_MODALITIES),
-            (settings.vision_model, _VISION_MODALITIES),
-            *((m, _TEXT_MODALITIES) for m in settings.fallback_models),
-            *((m, _VISION_MODALITIES) for m in settings.vision_fallback_models),
+            (settings.small_model, _TEXT_MODALITIES),
+            (settings.large_model, _TEXT_MODALITIES),
+            (settings.multimodal_model, _VISION_MODALITIES),
         ]
     merged_modalities: dict[str, frozenset[Modality]] = {}
     for model_id, modalities in entries:
@@ -88,7 +84,7 @@ def _configured_specs(*, modality: Modality | None = None) -> list[ModelSpec]:
 
 
 class LitellmCatalog:
-    """``CatalogProvider`` backed by configured models + litellm pricing."""
+    """The model catalogue backed by configured models + litellm pricing."""
 
     async def list_models(
         self,

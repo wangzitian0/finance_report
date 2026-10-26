@@ -8,6 +8,8 @@ from src.audit.extension.trace_adapters import JsonlTraceRecordStore, TraceJUnit
 from src.audit.extension.trace_codec import TraceRecordCodec
 from src.audit.extension.trace_decision_projection import (
     current_authoritative_trace_decision_projection,
+    current_authoritative_trace_decisions,
+    shared_current_authority,
     trace_decision_projection,
 )
 from src.audit.extension.trace_emitter import TraceEmitter
@@ -26,5 +28,7 @@ __all__ = [
     "TraceRecordCodec",
     "TraceRecordPersistenceError",
     "current_authoritative_trace_decision_projection",
+    "current_authoritative_trace_decisions",
+    "shared_current_authority",
     "trace_decision_projection",
 ]

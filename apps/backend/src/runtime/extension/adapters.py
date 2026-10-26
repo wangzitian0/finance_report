@@ -131,13 +131,13 @@ class LlmCheck:
         *,
         api_key: str | None,
         provider: str,
-        primary_model: str,
-        ocr_model: str,
+        small_model: str,
+        multimodal_model: str,
     ) -> None:
         self._api_key = api_key
         self._provider = provider
-        self._primary_model = primary_model
-        self._ocr_model = ocr_model
+        self._small_model = small_model
+        self._multimodal_model = multimodal_model
 
     async def probe(self) -> ProbeResult:
         start = time.perf_counter()
@@ -151,7 +151,7 @@ class LlmCheck:
         return ProbeResult(
             self.name,
             DependencyStatus.PRESENT,
-            f"Configured provider={self._provider}, primary={self._primary_model}, ocr={self._ocr_model}",
+            f"Configured provider={self._provider}, small={self._small_model}, multimodal={self._multimodal_model}",
             (time.perf_counter() - start) * 1000,
         )
 

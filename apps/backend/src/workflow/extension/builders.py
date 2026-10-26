@@ -169,7 +169,7 @@ def build_reconciliation_review_event_payload(pending_count: int) -> WorkflowEve
         ),
         source_type="reconciliation",
         source_id=RECONCILIATION_WORKFLOW_SOURCE_ID,
-        action_href="/reconciliation/review-queue",
+        action_href="/reconciliation?tab=review-queue",
         report_impact=WorkflowReportImpact.BLOCKED,
         dedupe_key="reconciliation:pending-review",
     )

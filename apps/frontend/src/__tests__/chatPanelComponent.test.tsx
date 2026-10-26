@@ -103,8 +103,6 @@ describe("ChatPanel", () => {
         id: "model-1",
         name: "Model 1",
         is_free: true,
-        input_modalities: ["text"],
-        pricing: { prompt: "0", completion: "0" }
       }],
       default_model: "model-1",
       fallback_models: [],
@@ -140,7 +138,7 @@ describe("ChatPanel", () => {
 
   // AC-advisor.fe-chat.4
   it("AC16.20.5 loads suggestions/history and streams reply", async () => {
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
 
     await waitFor(() => expect(screen.getByText("How is cash flow?")).toBeInTheDocument())
     fireEvent.click(screen.getByText("How is cash flow?"))
@@ -151,7 +149,7 @@ describe("ChatPanel", () => {
 
   // AC-advisor.fe-remainder-chat.3
   it("AC21.3.3 test_AC21_3_3_chat_panel_renders_contextual_advisor_brief", async () => {
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
 
     await waitFor(() =>
       expect(mockedApiOperation).toHaveBeenCalledWith(
@@ -162,7 +160,7 @@ describe("ChatPanel", () => {
     const brief = await screen.findByLabelText("Advisor Brief")
     expect(within(brief).getByText("Report package is blocked by one review-required item.")).toBeInTheDocument()
     expect(within(brief).getByText("Review the blocker before relying on this report.")).toBeInTheDocument()
-    expect(within(brief).getByRole("link", { name: "Open next action" })).toHaveAttribute("href", "/reports/package")
+    expect(within(brief).getByRole("link", { name: "Open next action" })).toHaveAttribute("href", "/reports?tab=package")
     expect(within(brief).getByRole("link", { name: "Ask about this" })).toHaveAttribute(
       "href",
       expect.stringContaining("/chat?prompt="),
@@ -190,7 +188,7 @@ describe("ChatPanel", () => {
             {
               kind: "reconciliation_review",
               label: "Review 2",
-              href: "/reconciliation/review-queue",
+              href: "/reconciliation?tab=review-queue",
               count: 2,
             },
           ],
@@ -199,7 +197,7 @@ describe("ChatPanel", () => {
       sessionId: "sess-2",
     })
 
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
 
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
     fireEvent.click(screen.getByText("How is cash flow?"))
@@ -207,16 +205,16 @@ describe("ChatPanel", () => {
     expect(await screen.findByText("Your net worth is SGD 900.00")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Balance Sheet TRUSTED" })).toHaveAttribute(
       "href",
-      "/reports/balance-sheet",
+      "/reports?tab=balance-sheet",
     )
     expect(screen.getByRole("link", { name: "Review 2" })).toHaveAttribute(
       "href",
-      "/reconciliation/review-queue",
+      "/reconciliation?tab=review-queue",
     )
   })
 
   it("AC16.20.5 starts a new conversation from the active session", async () => {
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
     // Wait for history to load (sessionId gets set from loadHistory)
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument())
@@ -225,8 +223,7 @@ describe("ChatPanel", () => {
     expect(localStorage.getItem("ai_chat_session_id")).toBeNull()
   })
 
-  it("AC8.13.92 keeps widget close and disclaimer rendering covered", async () => {
-    const onClose = vi.fn()
+  it("AC8.13.92 renders the answer disclaimer apart from the answer body", async () => {
     mockedApiOperation.mockImplementation((path: string) => {
       if (path.includes("/api/chat/suggestions")) {
         return Promise.resolve({ suggestions: [] })
@@ -252,17 +249,15 @@ describe("ChatPanel", () => {
       return Promise.resolve({})
     })
 
-    render(<ChatPanel variant="widget" onClose={onClose} />)
+    render(<ChatPanel />)
 
     expect(await screen.findByText("Portfolio risk is concentrated.")).toBeInTheDocument()
     expect(screen.getByText("The above analysis is for reference only.")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Close" }))
-    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   // AC-advisor.fe-remainder-chat.1
   it("AC19.8.6 shows chat sessions inside the AI page without workflow ownership", async () => {
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
 
     fireEvent.click(await screen.findByRole("button", { name: "Sessions" }))
     expect(await screen.findByRole("dialog", { name: "AI sessions" })).toBeInTheDocument()
@@ -295,7 +290,7 @@ describe("ChatPanel", () => {
       return Promise.resolve({})
     })
 
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
 
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Sessions" }))
@@ -303,7 +298,7 @@ describe("ChatPanel", () => {
   })
 
   it("AC19.8.6 closes the chat session drawer without changing the active conversation", async () => {
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
 
     fireEvent.click(await screen.findByRole("button", { name: "Sessions" }))
     const dialog = await screen.findByRole("dialog", { name: "AI sessions" })
@@ -320,21 +315,17 @@ describe("ChatPanel", () => {
           id: "model-1",
           name: "Model 1",
           is_free: true,
-          input_modalities: ["text"],
-          pricing: { prompt: "0", completion: "0" },
         },
         {
           id: "model-2",
           name: "Model 2",
           is_free: false,
-          input_modalities: ["text"],
-          pricing: { prompt: "0.1", completion: "0.2" },
         },
       ],
       default_model: "model-1",
       fallback_models: [],
     })
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
     const select = (await screen.findByLabelText(/ai model/i)) as HTMLSelectElement
 
     await waitFor(() => expect(select.value).toBe("model-1"))
@@ -345,7 +336,7 @@ describe("ChatPanel", () => {
   })
 
   it("AC16.20.5 sends message via enter key", async () => {
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
     const textarea = screen.getByPlaceholderText(/Ask about spending trends/i) as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "Hello AI" } })
     fireEvent.keyDown(textarea, { key: "Enter", shiftKey: false })
@@ -353,7 +344,7 @@ describe("ChatPanel", () => {
   })
 
   it("AC16.20.5 sends message via button", async () => {
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
     const textarea = screen.getByPlaceholderText(/Ask about spending trends/i) as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "Hello AI 2" } })
     fireEvent.click(screen.getByRole("button", { name: "Send" }))
@@ -361,7 +352,7 @@ describe("ChatPanel", () => {
   })
 
   it("AC16.20.5 handles initialPrompt", async () => {
-    render(<ChatPanel variant="page" initialPrompt="Analyze my data" />)
+    render(<ChatPanel initialPrompt="Analyze my data" />)
     await waitFor(() => expect(mockedApiStream).toHaveBeenCalledWith("chat_message_chat_post", expect.objectContaining({
       body: expect.objectContaining({ message: "Analyze my data" }),
     })))
@@ -370,7 +361,7 @@ describe("ChatPanel", () => {
   // AC-advisor.fe-chat.5
   it("AC16.20.7 handles missing stream reader", async () => {
     mockedApiStream.mockResolvedValue({ response: { body: null } as any, sessionId: "sess-3" })
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
     const textarea = screen.getByPlaceholderText(/Ask about spending trends/i) as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "Hello" } })
@@ -380,7 +371,7 @@ describe("ChatPanel", () => {
 
   it("AC16.20.7 handles send message error", async () => {
     mockedApiStream.mockRejectedValue(new Error("Network Fail"))
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
     const textarea = screen.getByPlaceholderText(/Ask about spending trends/i) as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "Hello" } })
@@ -398,7 +389,7 @@ describe("ChatPanel", () => {
       }
       return Promise.resolve({})
     })
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
     expect(screen.queryByText("How is cash flow?")).not.toBeInTheDocument()
   })
@@ -413,7 +404,7 @@ describe("ChatPanel", () => {
       }
       return Promise.resolve({})
     })
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
     expect(localStorage.getItem("ai_chat_session_id")).toBeNull()
   })
@@ -439,7 +430,7 @@ describe("ChatPanel", () => {
       return Promise.resolve({})
     })
 
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
 
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Sessions" }))
@@ -448,7 +439,7 @@ describe("ChatPanel", () => {
 
   it("AC16.20.7 handles AI model fetch failure", async () => {
     mockedFetchAiModels.mockRejectedValue(new Error("Models fail"))
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
     await waitFor(() => expect(screen.queryByText(/Loading chat history/i)).not.toBeInTheDocument())
     const select = screen.queryByLabelText(/ai model/i)
     if (select) {
@@ -462,13 +453,11 @@ describe("ChatPanel", () => {
         id: "model-alt",
         name: "Alt Model",
         is_free: true,
-        input_modalities: ["text"],
-        pricing: { prompt: "0", completion: "0" }
       }],
       default_model: "nonexistent-model",
       fallback_models: [],
     })
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
     const select = await screen.findByLabelText(/ai model/i) as HTMLSelectElement
     await waitFor(() => expect(select.value).toBe("model-alt"))
   })
@@ -497,7 +486,7 @@ describe("ChatPanel", () => {
       return Promise.resolve({})
     })
 
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
 
     const userBubble = await screen.findByTestId("chat-bubble-user")
     const assistantBubble = await screen.findByTestId("chat-bubble-assistant")
@@ -535,7 +524,7 @@ describe("ChatPanel", () => {
       return Promise.resolve({})
     })
 
-    const { container } = render(<ChatPanel variant="page" />)
+    const { container } = render(<ChatPanel />)
 
     expect(await screen.findByText("Summary:")).toBeInTheDocument()
     expect(screen.getByText("Metric")).toBeInTheDocument()
@@ -546,7 +535,7 @@ describe("ChatPanel", () => {
 
   // AC-advisor.fe-chat.8
   it("AC-advisor.fe-chat.8 input area supports auto-grow and circular send", async () => {
-    render(<ChatPanel variant="page" />)
+    render(<ChatPanel />)
 
     const textarea = screen.getByPlaceholderText(/Ask about spending trends/i) as HTMLTextAreaElement
     const sendButton = screen.getByRole("button", { name: "Send" })
@@ -580,7 +569,7 @@ describe("ChatPanel", () => {
       return Promise.resolve({})
     })
 
-    render(<ChatPanel variant="page" initialPrompt="Analyze this account" />)
+    render(<ChatPanel initialPrompt="Analyze this account" />)
 
     const textarea = (await screen.findByPlaceholderText(/Ask about spending trends/i)) as HTMLTextAreaElement
     await waitFor(() => {

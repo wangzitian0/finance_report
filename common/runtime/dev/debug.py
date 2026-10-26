@@ -12,8 +12,7 @@ Usage:
     python tools/debug.py logs frontend --tail 100
     python tools/debug.py logs backend --env staging
 
-    # Service management (remote only)
-    python tools/debug.py restart backend --env staging
+    # Service status
     python tools/debug.py status backend
 
     # Container info
@@ -207,26 +206,6 @@ def view_remote_logs_observability(service: Service, env: Environment) -> None:
     print(f'   service.name = "finance-report-{service.value}"')
     if env != Environment.PRODUCTION:
         print(f'   deployment.environment = "{env.value}"')
-
-
-def restart_service(service: Service, env: Environment) -> None:
-    """Restart service via Dokploy API"""
-    if env == Environment.LOCAL:
-        print(
-            "❌ Restart not supported for local environment. Use Docker directly.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    print(f"🔄 Restarting {service.value} in {env.value}...")
-
-    # Map service to container ID
-    container = get_container_name(service, env)
-
-    # Note: Dokploy API doesn't have direct log endpoints
-    # This requires SSH access or using Dokploy UI
-    print("⚠️  Dokploy API doesn't support direct container restart")
-    print(f"💡 Use: ssh root@$VPS_HOST docker restart {container}")
 
 
 def list_containers(env: Environment) -> None:

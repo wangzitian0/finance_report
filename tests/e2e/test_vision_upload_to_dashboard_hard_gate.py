@@ -81,7 +81,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
     )
     assert no_classifier.status == 200, await no_classifier.text()
 
-    await page.goto(_get_url("/statements"), wait_until="domcontentloaded")
+    await page.goto(_get_url("/upload"), wait_until="domcontentloaded")
     csv_section = page.locator("details").filter(has_text="CSV import")
     await csv_section.locator("summary").click()
     await csv_section.locator('[data-testid="uploader-institution-csv"]').fill(
@@ -101,24 +101,28 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
     assert upload_response.status == 202, upload_body
     statement_id = upload_body["id"]
 
-    statement_link = page.locator(f'a[href="/statements/{statement_id}"]')
+    # The workflow notification card also links to the statement ("Open Statement uploaded"). It appears
+    # when the workflow event arrives, so the bare href matches one or two links (#2653). The file name
+    # selects the upload-list row only.
+    statement_link = page.locator(f'a[href="/statements/{statement_id}"]').filter(
+        has_text=fixture_path.name
+    )
     await expect(statement_link).to_be_visible(timeout=15_000)
     parsed_statement = await _wait_for_statement_status(page, statement_id, "parsed")
     assert (
         len(parsed_statement.get("transactions") or []) == _fixture_transaction_count()
     )
 
-    review_path = f"/statements/{statement_id}/review"
+    # The statement page is the review page: one click from the upload list opens it.
     await statement_link.click()
-    review_link = page.locator(f"a[href='{review_path}']")
-    await expect(review_link).to_be_visible(timeout=10_000)
-    await review_link.click()
     await expect(page).to_have_url(
-        re.compile(r"/statements/[^/]+/review$"), timeout=15_000
+        re.compile(rf"/statements/{re.escape(statement_id)}$"), timeout=15_000
     )
 
     approve_button = page.get_by_role("button", name="Approve", exact=True)
-    await expect(approve_button).to_be_disabled()
+    # The page shows "Loading statement" until the statement request returns; staging can need more than
+    # the 5 s default for it (#2653).
+    await expect(approve_button).to_be_disabled(timeout=15_000)
     # Source confirmation and economic intent are independent trust boundaries.
     # Provision only custody; do not seed a classification or bypass review.
     account_response = await page.request.post(
@@ -158,9 +162,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
     assert approve_response.status == 409, approve_body
     assert approve_body["detail"] == "Economic review required: intent_missing"
 
-    await expect(page).to_have_url(
-        re.compile(r"/statements/[^/]+/review$"), timeout=15_000
-    )
+    await expect(page).to_have_url(re.compile(r"/statements/[^/]+$"), timeout=15_000)
     await expect(
         page.get_by_text(
             "Economic classification needs review before entries can be posted."

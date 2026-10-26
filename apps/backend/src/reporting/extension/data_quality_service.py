@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction import BankStatementStatus, StatementSummary
+from src.ledger import JournalEntry, JournalEntryStatus
 from src.observability import get_logger
+
+# The FX error family arrives through the fx_gateway seam. NoObservationError (no rate)
+# is the one pricing error class that this module names directly.
+from src.pricing import NoObservationError
 from src.reconciliation import get_reconciliation_stats
 from src.reporting.base.data_quality_types import (
     InvariantStatus,
@@ -20,8 +26,9 @@ from src.reporting.base.data_quality_types import (
     QualityActionItem,
     QualityGrade,
 )
+from src.reporting.extension import fx_gateway
 from src.reporting.extension.diagnostics import run_balance_sheet_diagnostics
-from src.reporting.extension.reporting_calc import _normalize_currency
+from src.reporting.extension.reporting_calc import ReportError, _normalize_currency
 
 __all__ = [
     "compute_personal_data_quality",
@@ -40,6 +47,14 @@ def _shift_months(year: int, month: int, delta: int) -> tuple[int, int]:
     return new_year, new_month
 
 
+@dataclass(frozen=True)
+class FxGap:
+    """An FX error of the full scope that the equation check worked around (#2645)."""
+
+    message: str
+    rate_missing: bool
+
+
 async def compute_personal_data_quality(
     db: AsyncSession,
     user_id: UUID,
@@ -52,12 +67,31 @@ async def compute_personal_data_quality(
     report_currency = _normalize_currency(currency)
 
     # 1. Equation Invariant
-    diag_result = await run_balance_sheet_diagnostics(
-        db,
-        user_id,
-        as_of_date=report_date,
-        currency=report_currency,
-    )
+    # The default (full) scope converts each restricted and illiquid valuation. When one has
+    # no FX rate, the check runs again without restricted holdings (#2645). The result of the
+    # equation does not depend on the scope: a manual valuation adds the same amount to the
+    # assets or liabilities and to net_worth_adjustment_gain_loss. The FX gap becomes an
+    # action item, so the page stays available. Only a pricing-family FX error falls back;
+    # any other error, and an error of the second run, fails as before.
+    fx_gap: FxGap | None = None
+    try:
+        diag_result = await run_balance_sheet_diagnostics(
+            db,
+            user_id,
+            as_of_date=report_date,
+            currency=report_currency,
+        )
+    except ReportError as exc:
+        if not isinstance(exc.__cause__, fx_gateway.FxRateError):
+            raise
+        fx_gap = FxGap(message=str(exc), rate_missing=isinstance(exc.__cause__, NoObservationError))
+        diag_result = await run_balance_sheet_diagnostics(
+            db,
+            user_id,
+            as_of_date=report_date,
+            currency=report_currency,
+            include_restricted=False,
+        )
     equation_healthy = diag_result.is_balanced
     equation_status = InvariantStatus(
         is_healthy=equation_healthy,
@@ -166,40 +200,70 @@ async def compute_personal_data_quality(
                 )
             )
 
-    temporal_healthy = total_gaps == 0
+    stats = await get_reconciliation_stats(db, user_id)
+    posted_entry_count = (
+        await db.scalar(
+            select(func.count())
+            .select_from(JournalEntry)
+            .where(
+                JournalEntry.user_id == user_id,
+                JournalEntry.status == JournalEntryStatus.POSTED,
+            )
+        )
+        or 0
+    )
+    has_unanchored_activity = len(raw_statements) == 0 and (stats.total_transactions > 0 or posted_entry_count > 0)
+
+    temporal_healthy = total_gaps == 0 and not has_unanchored_activity
+    temporal_delta = total_gaps if not has_unanchored_activity else 1
+    if temporal_healthy:
+        temporal_summary = "Continuous multi-period cash rollforward verified (zero gaps detected)"
+        temporal_detail = "All consecutive statements roll forward without missing periods."
+    elif has_unanchored_activity:
+        temporal_summary = "No uploaded bank statements cover existing ledger activity"
+        temporal_detail = "Upload bank statements so transaction history has verified period rollforward."
+    else:
+        temporal_summary = f"{total_gaps} missing month gap(s) detected in financial timeline"
+        temporal_detail = f"Statement missing for {first_gap_month}. Upload statement to complete timeline continuity."
+
     temporal_status = InvariantStatus(
         is_healthy=temporal_healthy,
         name="Temporal Continuity & Rollforward",
-        summary=(
-            "Continuous multi-period cash rollforward verified (zero gaps detected)"
-            if temporal_healthy
-            else f"{total_gaps} missing month gap(s) detected in financial timeline"
-        ),
-        detail=(
-            "All consecutive statements roll forward without missing periods."
-            if temporal_healthy
-            else f"Statement missing for {first_gap_month}. Upload statement to complete timeline continuity."
-        ),
-        delta=Decimal(total_gaps),
+        summary=temporal_summary,
+        detail=temporal_detail,
+        delta=Decimal(temporal_delta),
     )
 
     # 4. Reconciliation Purity Invariant
-    stats = await get_reconciliation_stats(db, user_id)
-    recon_healthy = stats.pending_review == 0
+    recon_healthy = stats.pending_review == 0 and stats.unmatched_transactions == 0 and not has_unanchored_activity
+    recon_delta = (
+        stats.pending_review
+        if stats.pending_review > 0
+        else (
+            stats.unmatched_transactions
+            if stats.unmatched_transactions > 0
+            else (max(1, posted_entry_count) if has_unanchored_activity else 0)
+        )
+    )
+    if recon_healthy:
+        recon_summary = "Reconciliation purity verified with zero pending clearance items"
+        recon_detail = "Credit card and loan settlements clear liability accounts with zero P&L duplication."
+    elif stats.pending_review > 0:
+        recon_summary = f"{stats.pending_review} reconciliation item(s) pending review"
+        recon_detail = "Review suggested matches to confirm liability clearing."
+    elif stats.unmatched_transactions > 0:
+        recon_summary = f"{stats.unmatched_transactions} unmatched transaction(s) require reconciliation"
+        recon_detail = "Match statement transactions against journal entries to verify cash clearance."
+    else:
+        recon_summary = f"{recon_delta} ledger entry(s) have zero bank statement reconciliation coverage"
+        recon_detail = "Upload bank statements and run matching to verify cash and liability clearance."
+
     recon_status = InvariantStatus(
         is_healthy=recon_healthy,
         name="Reconciliation & Debt Clearance Purity",
-        summary=(
-            "Reconciliation purity verified with zero pending clearance items"
-            if recon_healthy
-            else f"{stats.pending_review} reconciliation item(s) pending review"
-        ),
-        detail=(
-            "Credit card and loan settlements clear liability accounts with zero P&L duplication."
-            if recon_healthy
-            else "Review suggested matches to confirm liability clearing."
-        ),
-        delta=Decimal(stats.pending_review),
+        summary=recon_summary,
+        detail=recon_detail,
+        delta=Decimal(recon_delta),
     )
 
     # 5. Lineage Anchors Invariant
@@ -208,21 +272,24 @@ async def compute_personal_data_quality(
         for s in raw_statements
         if not s.uploaded_document_id and (not s.file_hash or s.file_hash.startswith("unlinked"))
     )
-    lineage_healthy = unlinked_count == 0
+    lineage_healthy = unlinked_count == 0 and not has_unanchored_activity
+    lineage_delta = unlinked_count if not has_unanchored_activity else max(1, posted_entry_count)
+    if lineage_healthy:
+        lineage_summary = "Full source-document-to-report lineage verified"
+        lineage_detail = "Every report line traces directly to verified statement extraction evidence."
+    elif has_unanchored_activity:
+        lineage_summary = "Transactions exist without uploaded source statement anchors"
+        lineage_detail = "Upload source statements to anchor ledger transactions to immutable evidence."
+    else:
+        lineage_summary = f"{unlinked_count} statement(s) missing immutable source file link"
+        lineage_detail = "Re-upload missing original document to anchor report evidence."
+
     lineage_status = InvariantStatus(
         is_healthy=lineage_healthy,
         name="Evidence Lineage & Traceability Anchors",
-        summary=(
-            "Full source-document-to-report lineage verified"
-            if lineage_healthy
-            else f"{unlinked_count} statement(s) missing immutable source file link"
-        ),
-        detail=(
-            "Every report line traces directly to verified statement extraction evidence."
-            if lineage_healthy
-            else "Re-upload missing original document to anchor report evidence."
-        ),
-        delta=Decimal(unlinked_count),
+        summary=lineage_summary,
+        detail=lineage_detail,
+        delta=Decimal(lineage_delta),
     )
 
     # 6. Trust Score Computation
@@ -232,14 +299,14 @@ async def compute_personal_data_quality(
     # Temporal continuity: 25 points
     if temporal_healthy:
         temporal_pts = 25
-    elif total_gaps == 1:
+    elif has_unanchored_activity or total_gaps == 1:
         temporal_pts = 15
     else:
         temporal_pts = max(0, 25 - total_gaps * 10)
 
     # Reconciliation purity: 20 points
     if stats.total_transactions == 0:
-        recon_pts = 20
+        recon_pts = 10 if has_unanchored_activity else 20
     else:
         ratio = (stats.matched_transactions + stats.auto_accepted) / max(1, stats.total_transactions)
         recon_pts = int(round(20 * ratio))
@@ -276,6 +343,31 @@ async def compute_personal_data_quality(
             )
         )
 
+    if fx_gap is not None:
+        action_items.append(
+            QualityActionItem(
+                id="resolve_valuation_fx_rate",
+                priority="P1",
+                title=(
+                    "A Restricted Holding Has No FX Rate"
+                    if fx_gap.rate_missing
+                    else f"A Restricted Holding Did Not Convert to {report_currency}"
+                ),
+                description=(
+                    f"The full net worth cannot convert a restricted or illiquid valuation: {fx_gap.message}. "
+                    + (
+                        "The rate sync adds the rate; "
+                        if fx_gap.rate_missing
+                        else "The stored rate does not convert this amount; "
+                    )
+                    + f"you can also record the valuation in {report_currency}."
+                ),
+                score_boost=0,
+                action_type="RESOLVE_FX_RATE",
+                action_url="/portfolio?panel=evidence",
+            )
+        )
+
     if pending_count > 0:
         action_items.append(
             QualityActionItem(
@@ -285,11 +377,23 @@ async def compute_personal_data_quality(
                 description="Approve or confirm parsed statements so balances reflect in your ledger.",
                 score_boost=min(20, pending_count * 5),
                 action_type="REVIEW_STATEMENT",
-                action_url="/processing",
+                action_url="/upload",
             )
         )
 
-    if total_gaps > 0 and first_gap_month is not None:
+    if has_unanchored_activity:
+        action_items.append(
+            QualityActionItem(
+                id="upload_statements_for_ledger",
+                priority="P1",
+                title="Upload Bank Statements to Anchor Ledger Activity",
+                description="Ledger entries exist without uploaded bank statement evidence. Upload statements to verify rollforward and lineage.",
+                score_boost=min(30, 100 - total_score),
+                action_type="UPLOAD_STATEMENT",
+                action_url="/upload",
+            )
+        )
+    elif total_gaps > 0 and first_gap_month is not None:
         action_items.append(
             QualityActionItem(
                 id=f"upload_statement_{first_gap_month}",
@@ -312,6 +416,18 @@ async def compute_personal_data_quality(
                 score_boost=min(10, stats.pending_review * 2),
                 action_type="RECONCILE_TRANSACTIONS",
                 action_url="/reconciliation",
+            )
+        )
+    elif stats.unmatched_transactions > 0:
+        action_items.append(
+            QualityActionItem(
+                id="reconcile_unmatched_transactions",
+                priority="P2",
+                title=f"Reconcile {stats.unmatched_transactions} Unmatched Transaction(s)",
+                description="Match or classify unmatched statement transactions in the reconciliation workbench.",
+                score_boost=min(15, max(2, 20 - recon_pts)),
+                action_type="RECONCILE_TRANSACTIONS",
+                action_url="/reconciliation?tab=unmatched",
             )
         )
 

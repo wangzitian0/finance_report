@@ -6,7 +6,7 @@ from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.extraction import TransactionDirection
+from src.extraction import StatementSummary, TransactionDirection, effective_statement_transaction_filter
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import (
     JournalEntry,
@@ -37,6 +37,44 @@ TRANSFER_TOLERANCE = Decimal("0.001")
 TRANSFER_DATE_TOLERANCE_DAYS = 3
 
 
+def _extract_doc_ids(txn: AtomicTransaction) -> set[str]:
+    """Extract normalized document IDs from a transaction's source_documents list."""
+    doc_ids: set[str] = set()
+    for doc in txn.source_documents or []:
+        if isinstance(doc, dict) and doc.get("doc_id"):
+            doc_ids.add(str(doc["doc_id"]))
+    return doc_ids
+
+
+async def _load_doc_account_map(db: AsyncSession, user_id: UUID) -> dict[str, str]:
+    """Map uploaded_document_id strings to their linked StatementSummary account_id or statement_id."""
+    rows = (
+        await db.execute(
+            select(
+                StatementSummary.uploaded_document_id,
+                StatementSummary.account_id,
+                StatementSummary.id,
+            ).where(
+                StatementSummary.user_id == user_id,
+                StatementSummary.uploaded_document_id.is_not(None),
+            )
+        )
+    ).all()
+    mapping: dict[str, str] = {}
+    for doc_id, account_id, stmt_id in rows:
+        if doc_id is not None:
+            mapping[str(doc_id)] = str(account_id) if account_id is not None else f"stmt:{stmt_id}"
+    return mapping
+
+
+def _txn_account_scope(txn: AtomicTransaction, doc_account_map: dict[str, str]) -> str:
+    """Resolve the statement/account scope for a transaction when linked to a known statement."""
+    for doc_id in sorted(_extract_doc_ids(txn)):
+        if doc_id in doc_account_map:
+            return doc_account_map[doc_id]
+    return ""
+
+
 async def detect_duplicates(
     db: AsyncSession,
     user_id: UUID,
@@ -44,16 +82,19 @@ async def detect_duplicates(
     run_id: str | None = None,
 ) -> list[ConsistencyCheck]:
     _ = statement_id
-    base_query = select(AtomicTransaction).where(AtomicTransaction.user_id == user_id)
+    base_query = select(AtomicTransaction).where(effective_statement_transaction_filter(user_id))
 
     all_result = await db.execute(base_query)
     all_txns = list(all_result.scalars().all())
     anchor_txns = all_txns
+    doc_account_map = await _load_doc_account_map(db, user_id)
 
     groups: dict[str, list[AtomicTransaction]] = {}
     for txn in all_txns:
         currency_code = txn.currency.upper() if txn.currency else ""
-        key = f"{currency_code}_{txn.amount}_{txn.direction.value}_{txn.description[:50] if txn.description else ''}"
+        account_scope = _txn_account_scope(txn, doc_account_map)
+        desc_prefix = txn.description[:50] if txn.description else ""
+        key = f"{currency_code}_{txn.txn_date}_{txn.amount}_{txn.direction.value}_{desc_prefix}_{account_scope}"
         if key not in groups:
             groups[key] = []
         groups[key].append(txn)
@@ -68,8 +109,9 @@ async def detect_duplicates(
                 continue
 
             dates = sorted([t.txn_date for t in group])
-            if (dates[-1] - dates[0]).days <= 1:
+            if (dates[-1] - dates[0]).days == 0:
                 txn_ids = sorted([str(t.id) for t in group])
+                group_currency = group[0].currency.upper() if group[0].currency else ""
 
                 # Idempotency: check if pending check already exists
                 existing = await db.execute(
@@ -91,7 +133,7 @@ async def detect_duplicates(
                     related_txn_ids=txn_ids,
                     details={
                         "count": len(group),
-                        "currency": currency_code,
+                        "currency": group_currency,
                         "amount": str(group[0].amount),
                         "description": group[0].description,
                         "date_range": f"{dates[0]} to {dates[-1]}",
@@ -131,12 +173,13 @@ async def detect_transfer_pairs(
         )
     )
     base_query = select(AtomicTransaction).where(
-        AtomicTransaction.user_id == user_id,
+        effective_statement_transaction_filter(user_id),
         AtomicTransaction.id.notin_(paired_txn_subquery),
     )
 
     all_result = await db.execute(base_query)
     all_txns = list(all_result.scalars().all())
+    doc_account_map = await _load_doc_account_map(db, user_id)
     out_txns = [t for t in all_txns if t.direction == TransactionDirection.OUT]
 
     in_txns_by_key: dict[tuple[str, Decimal], list[AtomicTransaction]] = {}
@@ -152,9 +195,15 @@ async def detect_transfer_pairs(
 
     for out_txn in out_txns:
         out_curr = out_txn.currency.upper() if out_txn.currency else ""
+        out_docs = _extract_doc_ids(out_txn)
+        out_scope = _txn_account_scope(out_txn, doc_account_map)
         candidates = in_txns_by_key.get((out_curr, out_txn.amount), [])
         for in_txn in candidates:
             if str(in_txn.id) in matched_in:
+                continue
+            in_docs = _extract_doc_ids(in_txn)
+            in_scope = _txn_account_scope(in_txn, doc_account_map)
+            if (out_docs and in_docs and (out_docs & in_docs)) or (out_scope and in_scope and out_scope == in_scope):
                 continue
 
             date_diff = abs((out_txn.txn_date - in_txn.txn_date).days)
@@ -207,7 +256,7 @@ async def detect_anomalies_batch(
     run_id: str | None = None,
 ) -> list[ConsistencyCheck]:
     _ = statement_id
-    query = select(AtomicTransaction).where(AtomicTransaction.user_id == user_id)
+    query = select(AtomicTransaction).where(effective_statement_transaction_filter(user_id))
 
     result = await db.execute(query)
     transactions = list(result.scalars().all())

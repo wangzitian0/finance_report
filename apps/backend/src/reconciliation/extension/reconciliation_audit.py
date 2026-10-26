@@ -26,6 +26,7 @@ from src.ledger import (
     JournalEntryStatus,
     JournalLine,
     detect_transfer_pattern,
+    fit_journal_memo,
 )
 from src.reconciliation.base.config import DEFAULT_CONFIG, ReconciliationConfig
 from src.reconciliation.extension.candidate_policy import (
@@ -496,7 +497,7 @@ def _run_benchmark(config: ReconciliationConfig, benchmark_size: int) -> dict:
         scores = {
             "amount": score_amount(txn.amount, amount, config),
             "date": score_date(txn.txn_date, entry.entry_date, config),
-            "description": score_description(txn.description, entry.memo),
+            "description": score_description(fit_journal_memo(txn.description or ""), entry.memo),
             "business": score_business_logic(txn, entry),
             "history": 0.0,
         }

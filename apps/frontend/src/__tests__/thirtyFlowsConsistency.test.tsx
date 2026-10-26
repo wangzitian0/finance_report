@@ -115,7 +115,6 @@ describe("Unified 30-Flow Frontend Consistency & SSOT Compliance Suite", () => {
       "/reconciliation",
       "/journal",
       "/reports",
-      "/notifications",
       "/chat",
     ]
 

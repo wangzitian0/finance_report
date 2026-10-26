@@ -14,9 +14,7 @@ async function installReportMocks(page: Page) {
     const path = new URL(route.request().url()).pathname;
     let body: unknown = {};
 
-    if (path === "/api/income/annualized") {
-      body = { annualized_total: "120000.00", currency: "SGD" };
-    } else if (path === "/api/reconciliation/stats") {
+    if (path === "/api/reconciliation/stats") {
       body = {
         total_transactions: 10,
         matched_transactions: 9,
@@ -28,6 +26,37 @@ async function installReportMocks(page: Page) {
       };
     } else if (path === "/api/reports/currencies") {
       body = ["SGD", "USD"];
+    } else if (path === "/api/app-config/base-currency") {
+      body = { base_currency: "SGD" };
+    } else if (path.startsWith("/api/reports/income-statement")) {
+      body = {
+        start_date: "2025-07-01",
+        end_date: "2026-06-04",
+        currency: "SGD",
+        income: [{ account_id: "88888888-8888-4888-8888-888888888888", name: "Salary", type: "INCOME", amount: "6000.00" }],
+        expenses: [{ account_id: "99999999-9999-4999-8999-999999999999", name: "Rent", type: "EXPENSE", amount: "2400.00" }],
+        total_income: "6000.00",
+        total_expenses: "2400.00",
+        net_income: "3600.00",
+        trends: [],
+      };
+    } else if (path.startsWith("/api/reports/cash-flow")) {
+      body = {
+        start_date: "2025-07-01",
+        end_date: "2026-06-04",
+        currency: "SGD",
+        operating: [],
+        investing: [],
+        financing: [],
+        summary: {
+          operating_activities: "3600.00",
+          investing_activities: "0.00",
+          financing_activities: "0.00",
+          net_cash_flow: "3600.00",
+          beginning_cash: "0.00",
+          ending_cash: "3600.00",
+        },
+      };
     } else if (path.startsWith("/api/reports/balance-sheet")) {
       body = {
         as_of_date: "2026-06-04",
@@ -91,17 +120,20 @@ test.describe("AC22.3.6 report cockpit + drill-down smoke", () => {
     { label: "mobile", width: 390, height: 844 },
   ]) {
     // AC-reporting.fe-ia-reports.6
-    test(`${label} shows the four blocks and drills a balance-sheet amount`, async ({ page }) => {
+    test(`${label} shows the report tabs and the statement cards and drills a balance-sheet amount`, async ({ page }) => {
       await page.setViewportSize({ width, height });
 
       await page.goto("/reports", { waitUntil: "networkidle" });
-      for (const title of ["Balance Sheet", "Income Statement", "Annualized Income", "Reconciliation coverage"]) {
-        await expect(page.getByText(title, { exact: true })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+      const tabs = page.getByRole("tablist", { name: "Report tabs" });
+      for (const tab of ["Overview", "Balance sheet", "Income statement", "Cash flow", "Full package"]) {
+        await expect(tabs.getByRole("tab", { name: tab })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
       }
-      await expect(page.getByRole("button", { name: /More reports/i })).toBeVisible();
+      await expect(page.getByTestId("cockpit-card-balance-sheet")).toContainText("Net worth");
+      await expect(page.getByTestId("cockpit-card-balance-sheet")).toContainText("SGD 1,000");
       await expectNoDocumentHorizontalScroll(page);
 
-      await page.goto("/reports/balance-sheet", { waitUntil: "networkidle" });
+      await tabs.getByRole("tab", { name: "Balance sheet" }).click();
+      await expect(page).toHaveURL(/\/reports\?tab=balance-sheet$/);
       await page.getByRole("button", { name: /View source transactions for Checking/i }).click();
       await expect(page.getByText("Salary deposit")).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
       await expectNoDocumentHorizontalScroll(page);

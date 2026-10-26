@@ -1,16 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import type { PersonalReportPackageDocument } from "../src/lib/types";
+import type { PersonalReportPackagePreview } from "../src/lib/types";
 
 const COLD_ROUTE_TIMEOUT_MS = 10_000;
 
+// The wire shape of `GET /reports/package`: a bounded preview (#2583 S8).
 const packageDocument = {
   schema_version: "2",
   lifecycle: "preview",
-  snapshot_id: null,
-  package_decision_id: null,
   generated_at: "2026-05-20T12:00:00Z",
-  frozen_at: null,
   package_id: "personal-financial-report-package",
   status: "draft",
   context: {
@@ -42,7 +40,7 @@ const packageDocument = {
     package_id: "personal-financial-report-package",
     state: "blocked",
     label: "Blocked",
-    action_href: "/accounts/processing",
+    action_href: "/upload",
     blocking_count: 1,
     input_coverage: {
       manifest_decision_count: 0,
@@ -57,7 +55,7 @@ const packageDocument = {
         count: 1,
         reason:
           "Processing account balance cannot be converted to SGD: No FX rate available for USD/SGD.",
-        action_href: "/accounts/processing",
+        action_href: "/upload",
       },
     ],
   },
@@ -72,7 +70,6 @@ const packageDocument = {
     decisions: [],
     gaps: [],
   },
-  input_manifest: [],
   sections: {
     balance_sheet: {
       as_of_date: "2026-05-20",
@@ -188,7 +185,7 @@ const packageDocument = {
       completeness_warnings: [],
     },
   },
-} satisfies PersonalReportPackageDocument;
+} satisfies PersonalReportPackagePreview;
 
 async function installReportReadinessMocks(page: Page) {
   await page.addInitScript(() => {
@@ -206,7 +203,7 @@ async function installReportReadinessMocks(page: Page) {
         next_action: {
           type: "resolve_blocker",
           count: 1,
-          href: "/accounts/processing",
+          href: "/upload",
         },
         report_readiness: {
           state: "blocked",
@@ -253,7 +250,7 @@ test.describe("AC19.8.7 AC19.8.8 AC22.8.4 AC22.19 report package smoke", () => {
       await page.setViewportSize(scenario.viewport);
       await installReportReadinessMocks(page);
 
-      await page.goto("/reports/package", { waitUntil: "domcontentloaded" });
+      await page.goto("/reports?tab=package", { waitUntil: "domcontentloaded" });
       await page.getByRole("button", { name: "US-like" }).click();
 
       await expect(
@@ -286,7 +283,7 @@ test.describe("AC19.8.7 AC19.8.8 AC22.8.4 AC22.19 report package smoke", () => {
       ).toBeVisible();
       await expect(page.getByRole("link", { name: "Blocked" })).toHaveAttribute(
         "href",
-        "/accounts/processing",
+        "/upload",
       );
 
       const readinessAuditDetails = readinessSection.locator("details", {

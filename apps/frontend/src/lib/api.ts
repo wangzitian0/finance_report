@@ -14,19 +14,6 @@ export const API_URL = (process.env.NEXT_PUBLIC_API_URL || "")
   .trim()
   .replace(/\/$/, "");
 
-/**
- * Base URL of the frontend application.
- *
- * Use this when you need to construct absolute URLs that point back to
- * the frontend app itself (e.g., in redirects or OAuth callbacks).
- *
- * - Development: Defaults to http://localhost:3000
- * - Production: Set via NEXT_PUBLIC_APP_URL (e.g., https://report.zitian.party)
- * - PR environments: Auto-set to https://report-pr-{number}.zitian.party
- */
-export const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
 // Redirect guard to prevent concurrent 401s from racing
 let redirecting = false;
 
@@ -88,11 +75,6 @@ export type ApiErrorEnvelope =
   | components["schemas"]["ErrorResponse"]
   | components["schemas"]["HTTPValidationError"];
 
-/** Narrowing helper: true when `err` is an {@link ApiError} with the given code. */
-export function isApiErrorCode(err: unknown, code: string): boolean {
-  return err instanceof ApiError && err.errorId === code;
-}
-
 /** Parse a backend error body into `{ message, errorId, requestId }`. */
 function parseApiError(
   errorText: string,
@@ -133,51 +115,6 @@ function parseApiError(
   }
   return { message, errorId, requestId, body };
 }
-
-async function requestJson<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const token = getAccessToken();
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
-
-  if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-  }
-
-  // Guard: Ensure path starts with / to avoid "http://hostpath" concatenation errors
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-
-  const res = await fetch(`${API_URL}${normalizedPath}`, {
-    ...options,
-    credentials: options.credentials ?? "include",
-    headers,
-  });
-
-  if (!res.ok) {
-    if (res.status === 401) {
-      handle401Redirect();
-    }
-
-    const errorText = await res.text();
-    const { message, errorId, requestId, body } = parseApiError(
-      errorText,
-      res.status,
-    );
-    throw new ApiError(message, res.status, errorId, requestId, body);
-  }
-
-  // 204 No Content has no response body
-  if (res.status === 204) {
-    return undefined as T;
-  }
-
-  return (await res.json()) as T;
-}
-
 
 type ParametersOf<Id extends ApiOperationId> = operations[Id]["parameters"];
 type RequiredParameter<
@@ -270,53 +207,98 @@ function appendOperationQuery(path: string, query: object | undefined): string {
   return encoded ? `${path}?${encoded}` : path;
 }
 
+interface OperationParts {
+  path?: Record<string, unknown>;
+  query?: object;
+  body?: unknown;
+  headers?: HeadersInit;
+  signal?: AbortSignal;
+}
+
+/** Absolute URL of an operation: the generated path with its parameters and query. */
+function operationUrl(operationId: ApiOperationId, parts: OperationParts): string {
+  const path = appendOperationQuery(
+    materializeOperationPath(API_OPERATIONS[operationId].path, parts.path),
+    parts.query,
+  );
+  return `${API_URL}${path}`;
+}
+
+/**
+ * The one request function. It sends the operation, redirects on 401 and
+ * throws an {@link ApiError} on any other non-2xx status.
+ */
+async function send(
+  operationId: ApiOperationId,
+  request: unknown,
+  { body, json }: { body?: BodyInit; json: boolean },
+): Promise<Response> {
+  const parts = (request ?? {}) as OperationParts;
+  const token = getAccessToken();
+  const headers: HeadersInit = {
+    // A FormData body sets its own Content-Type, with the boundary.
+    ...(json ? { "Content-Type": "application/json" } : {}),
+    ...(parts.headers || {}),
+  };
+  if (token) (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(operationUrl(operationId, parts), {
+    method: API_OPERATIONS[operationId].method,
+    body,
+    credentials: "include",
+    headers,
+    signal: parts.signal,
+  });
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      handle401Redirect();
+    }
+
+    const errorText = await res.text();
+    const { message, errorId, requestId, body: errorBody } = parseApiError(
+      errorText,
+      res.status,
+    );
+    throw new ApiError(message, res.status, errorId, requestId, errorBody);
+  }
+  return res;
+}
+
+function jsonBody(parts: OperationParts): string | undefined {
+  return parts.body === undefined ? undefined : JSON.stringify(parts.body);
+}
+
 export async function apiOperation<Id extends ApiOperationId>(
   operationId: Id,
   ...args: ApiOperationArgs<Id>
 ): Promise<ApiOperationResponse<Id>> {
   const request = (args[0] ?? {}) as ApiOperationRequest<Id>;
-  const definition = API_OPERATIONS[operationId];
-  const parts = request as {
-    path?: Record<string, unknown>;
-    query?: object;
-    body?: unknown;
-    headers?: HeadersInit;
-    signal?: AbortSignal;
-  };
-  const path = appendOperationQuery(
-    materializeOperationPath(definition.path, parts.path),
-    parts.query,
-  );
-  return requestJson<ApiOperationResponse<Id>>(path, {
-    method: definition.method,
-    body: parts.body === undefined ? undefined : JSON.stringify(parts.body),
-    headers: parts.headers,
-    signal: parts.signal,
+  const res = await send(operationId, request, {
+    body: jsonBody(request as OperationParts),
+    json: true,
   });
+  // 204 No Content has no response body
+  if (res.status === 204) {
+    return undefined as ApiOperationResponse<Id>;
+  }
+  return (await res.json()) as ApiOperationResponse<Id>;
+}
+
+export interface StreamResponse {
+  response: Response;
+  sessionId: string | null;
 }
 
 export async function apiOperationStream<Id extends ApiOperationId>(
   operationId: Id,
   request: ApiOperationRequest<Id>,
 ): Promise<StreamResponse> {
-  const definition = API_OPERATIONS[operationId];
-  const parts = request as {
-    path?: Record<string, unknown>;
-    query?: object;
-    body?: unknown;
-    headers?: HeadersInit;
-    signal?: AbortSignal;
-  };
-  const path = appendOperationQuery(
-    materializeOperationPath(definition.path, parts.path),
-    parts.query,
-  );
-  return requestStream(path, {
-    method: definition.method,
-    body: parts.body === undefined ? undefined : JSON.stringify(parts.body),
-    headers: parts.headers,
-    signal: parts.signal,
+  const response = await send(operationId, request, {
+    body: jsonBody(request as OperationParts),
+    json: true,
   });
+  return { response, sessionId: response.headers.get("X-Session-Id") };
 }
 
 export interface DownloadResponse {
@@ -342,36 +324,11 @@ function getFilenameFromContentDisposition(
   return match?.[1]?.trim() ?? match?.[2]?.trim() ?? null;
 }
 
-async function requestDownload(
-  path: string,
-  options: RequestInit = {},
+export async function apiOperationDownload<Id extends ApiOperationId>(
+  operationId: Id,
+  request: ApiOperationRequest<Id>,
 ): Promise<DownloadResponse> {
-  const token = getAccessToken();
-  const headers: HeadersInit = {
-    ...(options.headers || {}),
-  };
-
-  if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-  }
-
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-
-  const res = await fetch(`${API_URL}${normalizedPath}`, {
-    ...options,
-    credentials: options.credentials ?? "include",
-    headers,
-  });
-
-  if (!res.ok) {
-    if (res.status === 401) {
-      handle401Redirect();
-    }
-
-    const errorText = await res.text();
-    throw new Error(errorText || `Download failed with ${res.status}`);
-  }
-
+  const res = await send(operationId, request, { json: false });
   return {
     blob: await res.blob(),
     filename: getFilenameFromContentDisposition(
@@ -380,141 +337,17 @@ async function requestDownload(
   };
 }
 
-export interface StreamResponse {
-  response: Response;
-  sessionId: string | null;
-}
-
-async function requestStream(
-  path: string,
-  options: RequestInit = {},
-): Promise<StreamResponse> {
-  const token = getAccessToken();
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
-
-  if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-  }
-
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-
-  const res = await fetch(`${API_URL}${normalizedPath}`, {
-    ...options,
-    credentials: options.credentials ?? "include",
-    headers,
-  });
-
-  if (!res.ok) {
-    if (res.status === 401) {
-      handle401Redirect();
-    }
-
-    const errorText = await res.text();
-    const { message, errorId, requestId } = parseApiError(
-      errorText,
-      res.status,
-    );
-    throw new ApiError(message, res.status, errorId, requestId);
-  }
-
-  return {
-    response: res,
-    sessionId: res.headers.get("X-Session-Id"),
-  };
-}
-
-async function requestUpload<T>(
-  path: string,
-  formData: FormData,
-  options: RequestInit,
-): Promise<T> {
-  const token = getAccessToken();
-  const headers: HeadersInit = {
-    // Do NOT set Content-Type for FormData - browser sets it with boundary
-    ...(options.headers || {}),
-  };
-
-  if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-  }
-
-  // Guard: Ensure path starts with /
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-
-  const res = await fetch(`${API_URL}${normalizedPath}`, {
-    method: "POST",
-    body: formData,
-    ...options,
-    credentials: options.credentials ?? "include",
-    headers,
-  });
-
-  if (!res.ok) {
-    if (res.status === 401) {
-      handle401Redirect();
-    }
-
-    const errorText = await res.text();
-    const { message, errorId, requestId } = parseApiError(
-      errorText,
-      res.status,
-    );
-    throw new ApiError(message, res.status, errorId, requestId);
-  }
-
-  // 204 No Content has no response body
-  if (res.status === 204) {
-    return undefined as T;
-  }
-
-  return (await res.json()) as T;
-}
-
-
-export async function apiOperationDownload<Id extends ApiOperationId>(
-  operationId: Id,
-  request: ApiOperationRequest<Id>,
-): Promise<DownloadResponse> {
-  const definition = API_OPERATIONS[operationId];
-  const parts = request as {
-    path?: Record<string, unknown>;
-    query?: object;
-    headers?: HeadersInit;
-    signal?: AbortSignal;
-  };
-  const path = appendOperationQuery(
-    materializeOperationPath(definition.path, parts.path),
-    parts.query,
-  );
-  return requestDownload(path, {
-    method: definition.method,
-    headers: parts.headers,
-    signal: parts.signal,
-  });
-}
-
 export async function apiOperationUpload<Id extends MultipartOperationId>(
   operationId: Id,
   request: ApiOperationUploadRequest<Id>,
 ): Promise<ApiOperationResponse<Id>> {
-  const definition = API_OPERATIONS[operationId];
-  const parts = request as {
-    path?: Record<string, unknown>;
-    query?: object;
-    body: FormData;
-    headers?: HeadersInit;
-    signal?: AbortSignal;
-  };
-  const path = appendOperationQuery(
-    materializeOperationPath(definition.path, parts.path),
-    parts.query,
-  );
-  return requestUpload<ApiOperationResponse<Id>>(path, parts.body, {
-    method: definition.method,
-    headers: parts.headers,
-    signal: parts.signal,
+  const res = await send(operationId, request, {
+    body: request.body,
+    json: false,
   });
+  // 204 No Content has no response body
+  if (res.status === 204) {
+    return undefined as ApiOperationResponse<Id>;
+  }
+  return (await res.json()) as ApiOperationResponse<Id>;
 }

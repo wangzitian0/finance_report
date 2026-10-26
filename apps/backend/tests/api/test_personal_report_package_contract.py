@@ -67,6 +67,7 @@ from src.reporting import (
     ReportSnapshot,
     ReportType,
     build_personal_report_package_traceability_payload,
+    package_preview,
     package_snapshot_document,
     package_snapshot_summary,
 )
@@ -571,18 +572,33 @@ def test_package_document_schema_rejects_inconsistent_trust_coordinates() -> Non
 
 
 async def test_package_preview_routes_through_the_single_assembler(monkeypatch: pytest.MonkeyPatch) -> None:
-    expected = object()
+    """The preview route returns the bounded projection of the one assembled document (#2583)."""
+    document = _package_document(
+        readiness_state="ready",
+        blocking_count=0,
+        section_label="Total Assets",
+        lifecycle=PersonalReportPackageDocumentLifecycle.PREVIEW,
+        snapshot_id=None,
+        frozen_at=None,
+    )
 
-    async def skip_freshness(*_args, **_kwargs) -> None:
-        return None
+    calls: list[str] = []
+
+    async def record_freshness(*_args, **_kwargs) -> None:
+        calls.append("freshness")
+
+    class FakeSession:
+        async def commit(self) -> None:
+            calls.append("commit")
 
     class FakeAssembler:
         async def assemble(self, *_args, **kwargs):
             assert kwargs["currency"] == "SGD"
             assert kwargs["as_of_date"] == date(2025, 12, 31)
-            return expected
+            calls.append("assemble")
+            return document
 
-    monkeypatch.setattr("src.routers.reports._ensure_report_market_data_fresh", skip_freshness)
+    monkeypatch.setattr("src.routers.reports._ensure_report_market_data_fresh", record_freshness)
     monkeypatch.setattr("src.routers.reports.PackageAssembler", FakeAssembler)
 
     response = await preview_personal_report_package(
@@ -592,10 +608,20 @@ async def test_package_preview_routes_through_the_single_assembler(monkeypatch: 
         as_of_date=date(2025, 12, 31),
         currency="sgd",
         include_restricted=False,
-        db=SimpleNamespace(),
+        db=FakeSession(),
         user_id=uuid4(),
     )
-    assert response is expected
+    # The refreshed market data is committed at the end of the request, so the preview and the
+    # later evidence pages read the same stored prices (#2583 S8).
+    assert calls == ["freshness", "assemble", "commit"]
+    assert response == package_preview(document)
+    assert response.readiness == document.readiness
+    assert not hasattr(response, "input_manifest")
+    assert [line.line_id for line in response.sections.traceability_appendix.lines] == [
+        line.line_id for line in document.sections.traceability_appendix.lines
+    ]
+    with pytest.raises(ValueError, match="only a preview document"):
+        package_preview(document.model_copy(update={"lifecycle": PersonalReportPackageDocumentLifecycle.FROZEN}))
 
 
 async def test_package_snapshot_route_rejects_legacy_documents() -> None:

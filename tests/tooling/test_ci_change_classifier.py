@@ -12,10 +12,15 @@ from common.testing.change_classifier import (  # noqa: E402
     Environment,
     PipelineStage,
     classify_changed_paths,
-    is_pr_preview_relevant,
     is_staging_ai_ocr_relevant,
     is_staging_relevant,
 )
+
+
+def _is_pr_preview_relevant(path: str) -> bool:
+    return classifier._matches_env_stage_rule(
+        path, classifier.ENV_STAGE_RULES[Environment.PR_PREVIEW]
+    )
 
 
 def _check_result(
@@ -220,7 +225,7 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
         "common/testing/fixtures/pdf/generators/dbs_generator.py",
         "common/testing/fixtures/pdf/templates/dbs_template.yaml",
     ):
-        assert is_pr_preview_relevant(p) is True
+        assert _is_pr_preview_relevant(p) is True
 
     for p in (
         "common/testing/fixtures/pdf/README.md",
@@ -229,12 +234,12 @@ def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None
         "apps/backend/tests/reporting/test_reports.py",
         "apps/backend/README.md",
         "apps/frontend/src/lib/api.test.ts",
-        "apps/frontend/src/__tests__/processingSummaryCard.test.tsx",
+        "apps/frontend/src/__tests__/homeActionBanner.test.tsx",
         "apps/frontend/README.md",
         "common/testing/ac_traceability_refs.py",
         ".github/workflows/ci.yml",
     ):
-        assert is_pr_preview_relevant(p) is False
+        assert _is_pr_preview_relevant(p) is False
 
     result = classify_changed_paths(
         [
@@ -276,7 +281,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
         "tools/pr_preview_lifecycle.py",
         "common/runtime/dev/pr_preview_lifecycle/_preview.py",
     ):
-        assert is_pr_preview_relevant(p) is True
+        assert _is_pr_preview_relevant(p) is True
 
     for p in (
         "docs/ssot/README.md",
@@ -284,7 +289,7 @@ def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths()
         "apps/backend/tests/reporting/test_reports.py",
         "apps/frontend/src/lib/api.test.ts",
     ):
-        assert is_pr_preview_relevant(p) is False
+        assert _is_pr_preview_relevant(p) is False
 
     result = classify_changed_paths(
         [
@@ -422,7 +427,7 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "apps/backend/tests/reporting/test_reports.py",
         "apps/backend/README.md",
         "apps/frontend/src/lib/api.test.ts",
-        "apps/frontend/src/__tests__/processingSummaryCard.test.tsx",
+        "apps/frontend/src/__tests__/homeActionBanner.test.tsx",
         "apps/frontend/README.md",
         "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md",
         "docs/ssot/README.md",
@@ -596,12 +601,12 @@ def test_AC8_13_97_env_stage_matrix_keeps_environments_separate_from_pipeline_st
 def test_AC8_13_97_deployed_env_classifiers_share_common_runtime_rules() -> None:
     """AC-testing.classifier.4: AC8.13.97: Shared runtime paths cannot drift between preview and staging classifiers."""
     for path in classifier.COMMON_DEPLOY_RUNTIME_EXACT:
-        assert is_pr_preview_relevant(path) is True
+        assert _is_pr_preview_relevant(path) is True
         assert is_staging_relevant(path) is True
 
     for prefix in classifier.COMMON_DEPLOY_RUNTIME_PREFIXES:
         p = f"{prefix}sentinel.py"
-        assert is_pr_preview_relevant(p) is True
+        assert _is_pr_preview_relevant(p) is True
         assert is_staging_relevant(p) is True
 
     assert classifier.ENV_STAGE_RULES[Environment.PR_PREVIEW].stages == (
@@ -767,7 +772,7 @@ def test_selection_ssot_triggers_staging_gate() -> None:
         "tools/test_selection.py",
     ):
         assert is_staging_relevant(path) is True, path
-        assert is_pr_preview_relevant(path) is False, path
+        assert _is_pr_preview_relevant(path) is False, path
 
 
 def test_AC8_13_161_component_changed_isolates_a_single_component() -> None:

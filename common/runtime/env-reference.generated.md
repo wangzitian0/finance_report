@@ -29,18 +29,15 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `AI_JSON_MAX_TOKENS` | `8192` |  |  | AI Provider | Max tokens for AI JSON completion calls. |
 | `AI_JSON_SEED` |  |  |  | AI Provider | Fixed decoding seed for reproducible extraction; off by default (only set for seed-supporting models). |
 | `AI_JSON_TIMEOUT_SECONDS` | `360` |  |  | AI Provider | Timeout (seconds) for AI JSON completion calls. |
-| `AI_LAYOUT_PARSING_PATH` | `/layout_parsing` |  |  | AI Provider | Layout-parsing path appended to the AI base URL. |
 | `AI_PROVIDER` | `zai` |  | yes | AI Provider | AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults). |
-| `FALLBACK_MODELS` |  | `glm-5.2,glm-5-turbo` |  | AI Provider | Comma-separated fallback AI model ids. |
+| `LARGE_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Large-role AI model id for user-facing answers (advisor chat). Unset: the infra2 SDK default; set it only to customize production. |
 | `LLM_CASSETTE_ENGAGE` | `false` |  |  | AI Provider | Engage offline LLM cassette replay layer. |
 | `LLM_CASSETTE_REFRESH` | `false` |  |  | AI Provider | Refresh recorded LLM cassettes in local runs. |
 | `LLM_ENCRYPTION_KEYS` |  |  | yes | AI Provider | Comma-separated Fernet keys (urlsafe base64, 32 bytes) for encrypting LLM provider API keys at rest; newest first. Empty disables DB-backed provider storage. Rotate by prepending a new key and re-encrypting all secrets. |
 | `LLM_LIVE` | `false` |  |  | AI Provider | Force live LLM provider calls. |
-| `OCR_MODEL` | `glm-5.3-flashx` |  |  | AI Provider | OCR AI model id. |
+| `MULTIMODAL_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Multimodal-role AI model id for vision and OCR (image, PDF and file input). Unset: the infra2 SDK default; set it only to customize production. |
 | `PREFECT_API_URL` |  |  |  | AI Provider | EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod and per-PR ephemeral Prefect). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed). |
-| `PRIMARY_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Primary AI model id. |
-| `VISION_FALLBACK_MODELS` |  | `glm-5.3-flash,glm-4.6v` |  | AI Provider | Comma-separated fallback AI model ids for the vision/OCR path. These must be vision-capable because the vision request carries image content; the text-only FALLBACK_MODELS are not reused here (#1034). |
-| `VISION_MODEL` | `glm-5.3-flashx` |  |  | AI Provider | Vision AI model id. |
+| `SMALL_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Small-role AI model id for text work: JSON extraction, statement summaries and transaction classification. Unset: the infra2 SDK default; set it only to customize production. |
 | `S3_ACCESS_KEY` | `minio` |  | yes | S3 / MinIO Storage | S3 / MinIO access key. |
 | `S3_BUCKET` | `statements` |  | yes | S3 / MinIO Storage | S3 / MinIO bucket name for uploaded statements. |
 | `S3_ENDPOINT` | `http://127.0.0.1:9000` | `http://localhost:9000` | yes | S3 / MinIO Storage | S3 / MinIO endpoint used for storing uploaded statement files. |

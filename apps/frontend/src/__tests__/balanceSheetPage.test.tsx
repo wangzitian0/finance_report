@@ -2,26 +2,24 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import BalanceSheetPage from "@/app/(main)/reports/balance-sheet/page"
+import ReportsPage from "@/app/(main)/reports/page"
 import { apiOperation, apiOperationDownload } from "@/lib/api-client"
 
 import { balanceSheetVector } from "./fixtures/apiVectors"
+import { setTestUrl } from "./helpers/nextNavigation"
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
 }))
 
-const searchParamsGet = vi.fn((key: string) => {
-  const params = new URLSearchParams(window.location.search)
-  return params.get(key)
-})
-
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => ({ get: searchParamsGet }),
-}))
+vi.mock("next/navigation", async () => (await import("./helpers/nextNavigation")).nextNavigationMock)
 
 vi.mock("@/hooks/useCurrencies", () => ({
   useCurrencies: () => ({ currencies: ["SGD", "USD"] }),
+}))
+
+vi.mock("@/hooks/useBaseCurrency", () => ({
+  useBaseCurrency: () => ({ baseCurrency: "SGD", loading: false }),
 }))
 
 vi.mock("@/lib/api-client", () => ({
@@ -30,6 +28,10 @@ vi.mock("@/lib/api-client", () => ({
   apiOperationDownload: vi.fn(),
 }))
 
+const BalanceSheetPage = () => <ReportsPage />
+const balanceSheetCalls = () =>
+  vi.mocked(apiOperation).mock.calls.filter(([operationId]) => operationId === "balance_sheet_reports_balance_sheet_get")
+
 describe("BalanceSheetPage", () => {
   const mockedApiDownload = vi.mocked(apiOperationDownload)
   const mockedApiFetch = vi.mocked(apiOperation)
@@ -37,11 +39,7 @@ describe("BalanceSheetPage", () => {
   beforeEach(() => {
     mockedApiDownload.mockReset()
     mockedApiFetch.mockReset()
-    searchParamsGet.mockImplementation((key: string) => {
-      const params = new URLSearchParams(window.location.search)
-      return params.get(key)
-    })
-    window.history.replaceState({}, "", "/reports/balance-sheet")
+    setTestUrl("/reports?tab=balance-sheet")
   })
 
   // AC-reporting.fe-report-surfaces.10
@@ -70,7 +68,7 @@ describe("BalanceSheetPage", () => {
 
     const { container } = render(<BalanceSheetPage />)
 
-    await waitFor(() => expect(screen.getByText("Balance Sheet")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument())
     expect(screen.getByRole("heading", { name: "Assets", level: 2 })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Liabilities", level: 2 })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Equity", level: 2 })).toBeInTheDocument()
@@ -80,7 +78,8 @@ describe("BalanceSheetPage", () => {
     expect(screen.getByText("Partial FX data used")).toBeInTheDocument()
     expect(screen.getByText("Balance Equation Detail")).toBeInTheDocument()
     expect(screen.getByText("CTA Adjustment")).toBeInTheDocument()
-    expect(screen.getByText("Excluded by default")).toBeInTheDocument()
+    // The default scope includes restricted holdings (#2645).
+    expect(screen.getByText("Included")).toBeInTheDocument()
     // Vector value assertions: the wire keeps decimal STRINGS end to end.
     expect(vector.total_assets).toBe("9500.00")
     expect(screen.getByText("Vector Bank Checking")).toBeInTheDocument()
@@ -93,31 +92,35 @@ describe("BalanceSheetPage", () => {
     expect(imported[0]).toHaveAccessibleName("Provenance: Imported")
     expect(mockedApiFetch).toHaveBeenCalledWith(
       "balance_sheet_reports_balance_sheet_get",
-      expect.objectContaining({ query: expect.objectContaining({ include_restricted: false }) }),
+      expect.objectContaining({ query: expect.objectContaining({ include_restricted: true }) }),
     )
     expect(screen.getAllByText(/Total:/)).toHaveLength(3)
 
     fireEvent.click(screen.getByLabelText("Include restricted holdings"))
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenLastCalledWith(
-        "balance_sheet_reports_balance_sheet_get",
-        expect.objectContaining({ query: expect.objectContaining({ include_restricted: true }) }),
+      expect(balanceSheetCalls().at(-1)?.[1]).toEqual(
+        expect.objectContaining({ query: expect.objectContaining({ include_restricted: false }) }),
       ),
     )
 
-    const dateInput = container.querySelector('input[type="date"]')
-    expect(dateInput).not.toBeNull()
-    fireEvent.change(dateInput!, { target: { value: "2026-03-01" } })
+    // The dimension bar moves the balance sheet date to the end of the previous period.
+    fireEvent.click(screen.getByRole("button", { name: "Period 1M" }))
+    fireEvent.click(screen.getByRole("button", { name: "Previous period" }))
+    const today = new Date()
+    const lastDayOfPreviousMonth = new Date(today.getFullYear(), today.getMonth(), 0)
+    const expectedDate = `${lastDayOfPreviousMonth.getFullYear()}-${String(lastDayOfPreviousMonth.getMonth() + 1).padStart(2, "0")}-${String(lastDayOfPreviousMonth.getDate()).padStart(2, "0")}`
     await waitFor(() =>
-      expect(mockedApiFetch).toHaveBeenLastCalledWith(
-        "balance_sheet_reports_balance_sheet_get",
-        expect.objectContaining({ query: expect.objectContaining({ as_of_date: "2026-03-01" }) }),
+      expect(balanceSheetCalls().at(-1)?.[1]).toEqual(
+        expect.objectContaining({ query: expect.objectContaining({ as_of_date: expectedDate }) }),
       ),
     )
+    expect(container.querySelector('input[type="date"]')).toBeNull()
+    expect(screen.getByRole("button", { name: "Period 1M" })).toHaveAttribute("aria-pressed", "true")
   })
 
   it("AC8.13.42 honors include_restricted=true from the balance-sheet URL", async () => {
-    window.history.replaceState({}, "", "/reports/balance-sheet?include_restricted=true")
+    // The old route /reports/balance-sheet?include_restricted=true redirects here with its query.
+    setTestUrl("/reports?tab=balance-sheet&include_restricted=true")
     mockedApiFetch.mockResolvedValue({
       as_of_date: "2026-02-01",
       currency: "SGD",
@@ -150,6 +153,91 @@ describe("BalanceSheetPage", () => {
       ),
     )
     expect(await screen.findByLabelText("Include restricted holdings")).toBeChecked()
+  })
+
+  // AC-reporting.net-worth-scope.6
+  it("#2645 shows manual valuations on their own equity line, never in the FX and CTA line", async () => {
+    // The #2645 data in the full scope, with a small FX gain: an SGD bank account and the
+    // property, mortgage and ESOP valuations (1,200,000 + 42,000 - 650,000 = 592,000).
+    mockedApiFetch.mockImplementation((operationId: string) => {
+      if (operationId === "balance_sheet_reports_balance_sheet_get") {
+        return Promise.resolve({
+          as_of_date: "2026-10-23",
+          currency: "SGD",
+          assets: [{ account_id: "bank", name: "DBS Savings", type: "ASSET", parent_id: null, amount: "20385.65" }],
+          liabilities: [{ account_id: "loan", name: "Valuation: Condo loan (mortgage balance)", type: "LIABILITY", parent_id: null, amount: "650000.00" }],
+          equity: [{ account_id: "open", name: "Opening Balance", type: "EQUITY", parent_id: null, amount: "15000.00" }],
+          total_assets: "1262385.65",
+          total_liabilities: "650000.00",
+          total_equity: "15000.00",
+          net_income: "5360.65",
+          unrealized_fx_gain_loss: "25.00",
+          cta_adjustment: "0.00",
+          net_worth_adjustment_gain_loss: "592000.00",
+          excluded_holdings: [],
+          equation_delta: "0.00",
+          is_balanced: true,
+        })
+      }
+      return Promise.resolve({ currency: "SGD", granularity: "monthly", points: [] })
+    })
+
+    render(<BalanceSheetPage />)
+
+    expect(await screen.findByTestId("equity-fx-cta")).toHaveTextContent("FX and translation (CTA):SGD 25.00")
+    expect(screen.getByTestId("equity-valuations")).toHaveTextContent("Manual and market valuations:SGD 592,000.00")
+    expect(screen.queryByText(/FX\/CTA/)).toBeNull()
+    // The equity side total equals the net worth: 1,262,385.65 - 650,000.00.
+    const equity = screen.getByRole("heading", { name: "Equity", level: 2 }).closest("div")!
+    expect(within(equity).getByText("Total:").nextElementSibling).toHaveTextContent("SGD 612,385.65")
+    expect(screen.queryByTestId("excluded-holdings-note")).toBeNull()
+  })
+
+  // AC-reporting.net-worth-scope.7
+  it("#2645 names each class and amount that the scope without restricted holdings excludes", async () => {
+    setTestUrl("/reports?tab=balance-sheet&include_restricted=false")
+    mockedApiFetch.mockImplementation((operationId: string) => {
+      if (operationId === "balance_sheet_reports_balance_sheet_get") {
+        return Promise.resolve({
+          as_of_date: "2026-10-23",
+          currency: "SGD",
+          assets: [{ account_id: "bank", name: "DBS Savings", type: "ASSET", parent_id: null, amount: "20360.65" }],
+          liabilities: [],
+          equity: [{ account_id: "open", name: "Opening Balance", type: "EQUITY", parent_id: null, amount: "15000.00" }],
+          total_assets: "20360.65",
+          total_liabilities: "0.00",
+          total_equity: "15000.00",
+          net_income: "5360.65",
+          excluded_holdings: [
+            { asset_class: "real_estate", total_assets: "1200000.00", total_liabilities: "650000.00", net_worth: "550000.00", warnings: [] },
+            { asset_class: "restricted_comp", total_assets: "42000.00", total_liabilities: "0.00", net_worth: "42000.00", warnings: [] },
+            // A USD valuation with no USD rate: the row has no amounts and names the currency pair.
+            {
+              asset_class: "retirement_and_benefit_assets",
+              total_assets: null,
+              total_liabilities: null,
+              net_worth: null,
+              warnings: [
+                { type: "missing_fx_rate_excluded_holding", source: "401k", currency: "USD", target_currency: "SGD", message: "No FX rate available" },
+                { type: "fx_conversion_failed_excluded_holding", source: "MPF", currency: "HKD", target_currency: "SGD", message: "invalid FX conversion boundary" },
+              ],
+            },
+          ],
+          equation_delta: "0.00",
+          is_balanced: true,
+        })
+      }
+      return Promise.resolve({ currency: "SGD", granularity: "monthly", points: [] })
+    })
+
+    render(<BalanceSheetPage />)
+
+    expect(await screen.findByTestId("excluded-holdings-note")).toHaveTextContent(
+      "Excludes restricted and illiquid holdings:Real Estate SGD 550,000.00 (net of SGD 650,000.00 liabilities)Restricted Comp SGD 42,000.00" +
+        "Retirement & Benefit Assets: amount not available (FX conversion failed for HKD to SGD, no FX rate for USD to SGD)",
+    )
+    expect(screen.getByText("Excluded")).toBeInTheDocument()
+    expect(screen.queryByTestId("equity-valuations")).toBeNull()
   })
 
   it("AC22.3.4 opens the source drill-down when an amount is clicked", async () => {
@@ -246,10 +334,10 @@ describe("BalanceSheetPage", () => {
 
     render(<BalanceSheetPage />)
 
-    await waitFor(() => expect(screen.getByText("Balance Sheet")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument())
     // Warning banner + CTA are shown on the report surface, not just /accounts.
     expect(screen.getByText("Opening balances not recorded")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /set opening balances/i })).toHaveAttribute("href", "/accounts")
+    expect(screen.getByRole("link", { name: /set opening balances/i })).toHaveAttribute("href", "/settings?tab=accounts")
     expect(screen.getByText("✓ Balanced")).toBeInTheDocument()
   })
 
@@ -265,7 +353,7 @@ describe("BalanceSheetPage", () => {
 
     render(<BalanceSheetPage />)
 
-    await waitFor(() => expect(screen.getByText("Balance Sheet")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument())
     expect(screen.getByText("CTA Adjustment")).toBeInTheDocument()
     expect(screen.getByTestId("equation-detail-cta")).toHaveTextContent("142.50")
     expect(screen.getByText("✓ Balanced")).toBeInTheDocument()
@@ -285,7 +373,7 @@ describe("BalanceSheetPage", () => {
 
     render(<BalanceSheetPage />)
 
-    await waitFor(() => expect(screen.getByText("Balance Sheet")).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument())
 
     const equationDetail = screen.getByTestId("balance-equation-detail")
     expect(equationDetail.tagName.toLowerCase()).toBe("details")

@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -25,12 +25,19 @@ from src.audit import (
     TraceScope,
     TraceTargetClass,
     VersionedTraceRef,
-    current_authoritative_trace_decision_projection,
+    current_authoritative_trace_decisions,
+    trace_decision_projection,
 )
 from src.audit.extension.trace_repository import SqlTraceRecordRepository
 from src.ledger.base.opening import OpeningPosition
 from src.ledger.orm.account import AccountType
-from src.ledger.orm.journal import Direction, JournalEntry, JournalEntryStatus, JournalLine
+from src.ledger.orm.journal import (
+    Direction,
+    JournalEntry,
+    JournalEntryAuthorityState,
+    JournalEntryStatus,
+    JournalLine,
+)
 from src.ledger.orm.opening_position import OpeningPositionRecord
 
 
@@ -187,16 +194,40 @@ async def record_opening_position(
     return record
 
 
+_SYSTEM_OPENING_TARGET_PREFIX = "ledger-system:opening-balance:"
+
+
+def _historical_opening_entries(*, user_id: UUID, as_of: date, excluded_entry_ids: set[UUID]) -> Select:
+    """Select the anchored entries whose decision is a system opening-balance journal command.
+
+    The decision must still be current: the caller keeps only entries whose anchor is in the
+    current-authority read.
+    """
+    decisions = trace_decision_projection(TraceScope.tenant(user_id)).subquery("opening_command_decisions")
+    query = (
+        select(JournalEntry)
+        .join(decisions, decisions.c.decision_id == JournalEntry.decision_anchor_id)
+        .where(JournalEntry.user_id == user_id)
+        .where(JournalEntry.decision_authority_state == JournalEntryAuthorityState.ANCHORED)
+        .where(decisions.c.assertion_kind == "ledger_system_command")
+        .where(decisions.c.target_id.startswith(_SYSTEM_OPENING_TARGET_PREFIX, autoescape=True))
+        .where(
+            JournalEntry.entry_date <= as_of,
+            JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]),
+        )
+    )
+    if excluded_entry_ids:
+        query = query.where(JournalEntry.id.not_in(excluded_entry_ids))
+    return query
+
+
 async def list_opening_positions(db: AsyncSession, *, user_id: UUID, as_of: date) -> tuple[OpeningPosition, ...]:
     """Read exact current starting-stock evidence, including historical anchored commands.
 
     Facts with stale source authority are returned as unproven, never silently
     accepted as a trustworthy starting balance. Voided entries are not positions.
+    The current-authority read covers only the decisions of these facts (#2602).
     """
-    from src.ledger.extension.anchored_posting import current_anchored_journal_entries
-
-    authority = current_authoritative_trace_decision_projection(TraceScope.tenant(user_id)).subquery()
-    authorities = {row.decision_id: row for row in (await db.execute(select(authority))).all()}
     records = (
         (
             await db.execute(
@@ -208,19 +239,58 @@ async def list_opening_positions(db: AsyncSession, *, user_id: UUID, as_of: date
         .scalars()
         .all()
     )
-    positions = []
+    latest_records = []
     seen = set()
-    entry_ids = set()
     for row in records:
         if row.account_id in seen:
             continue
         # A voided latest version ends that account's initialized position. Do
         # not resurrect an older version or an older legacy journal fallback.
         seen.add(row.account_id)
+        latest_records.append(row)
+    entry_ids = {row.journal_entry_id for row in latest_records if row.journal_entry_id}
+    # One statement reads the journal entries of all latest records (#2583).
+    record_entries = (
+        {
+            entry.id: entry
+            for entry in (await db.execute(select(JournalEntry).where(JournalEntry.id.in_(entry_ids)))).scalars()
+        }
+        if entry_ids
+        else {}
+    )
+    # Existing system opening operations are already immutable evidence. Project
+    # them without modifying old facts or trusting a user-editable memo/tag.
+    # Only an entry anchored to a system opening-balance decision can give a position,
+    # so the query reads only those entries, not every anchored entry (#2583).
+    entries: Sequence[JournalEntry] = (
+        (
+            await db.execute(
+                _historical_opening_entries(user_id=user_id, as_of=as_of, excluded_entry_ids=entry_ids).options(
+                    selectinload(JournalEntry.lines).selectinload(JournalLine.account)
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    authorities = await current_authoritative_trace_decisions(
+        db,
+        TraceScope.tenant(user_id),
+        {
+            *(row.decision_id for row in latest_records),
+            *(row.source_decision_id for row in latest_records if row.source_decision_id is not None),
+            *(
+                entry.decision_anchor_id
+                for entry in (*record_entries.values(), *entries)
+                if entry.decision_anchor_id is not None
+            ),
+        },
+    )
+    positions = []
+    for row in latest_records:
         journal_current = True
         if row.journal_entry_id:
-            entry = await db.get(JournalEntry, row.journal_entry_id)
-            entry_ids.add(row.journal_entry_id)
+            entry = record_entries.get(row.journal_entry_id)
             if entry is not None and entry.status == JournalEntryStatus.VOID:
                 continue
             journal_current = (
@@ -288,31 +358,12 @@ async def list_opening_positions(db: AsyncSession, *, user_id: UUID, as_of: date
                 source_decision,
             )
         )
-    # Existing system opening operations are already immutable evidence. Project
-    # them without modifying old facts or trusting a user-editable memo/tag.
-    entries = (
-        (
-            await db.execute(
-                current_anchored_journal_entries(user_id=user_id)
-                .where(
-                    JournalEntry.entry_date <= as_of,
-                    JournalEntry.status.in_([JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED]),
-                )
-                .options(selectinload(JournalEntry.lines).selectinload(JournalLine.account))
-            )
-        )
-        .scalars()
-        .all()
-    )
     for historical_entry in entries:
         if historical_entry.id in entry_ids or historical_entry.decision_anchor_id is None:
             continue
+        # The query selected system opening-balance decisions; only a current one gives a position.
         evidence = authorities.get(historical_entry.decision_anchor_id)
-        if (
-            evidence is None
-            or not evidence.target_id.startswith("ledger-system:opening-balance:")
-            or evidence.assertion_kind != "ledger_system_command"
-        ):
+        if evidence is None:
             continue
         for line in historical_entry.lines:
             acct = line.account

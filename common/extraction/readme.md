@@ -20,7 +20,7 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use `OCR_MODEL` (default `glm-5.3-flashx`) as the OCR-capable model. When `OCR_MODEL` is a separate model from `VISION_MODEL`, the service uses the provider layout parser first, then structures Markdown with `PRIMARY_MODEL` (default `glm-5.3-flash`). When `OCR_MODEL` equals `VISION_MODEL`, the service skips layout parsing and uses the shared vision OCR path directly. Z.AI PDF vision extraction renders the uploaded PDF bytes into a bounded set of in-memory PNG `image_url` payloads; short-lived external URLs are used only when no bytes are available. Inline base64 PDF payloads are reserved for dedicated layout parsing and non-Z.AI compatibility. JSON extraction requests minimal reasoning and caps output tokens to keep provider latency bounded: older GLM models can disable thinking, while reasoning-only GLM 5.3 models use enabled thinking with low effort through the LLM transport. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use the multimodal role (`MULTIMODAL_MODEL`; default: the infra2 SDK default) for OCR and vision. One model serves both, so the service skips layout parsing and uses the vision OCR path directly. Text structuring and CSV mapping use the small role (`SMALL_MODEL`). Z.AI PDF vision extraction renders the uploaded PDF bytes into a bounded set of in-memory PNG `image_url` payloads; short-lived external URLs are used only when no bytes are available. Inline base64 PDF payloads are reserved for dedicated layout parsing and non-Z.AI compatibility. JSON extraction requests minimal reasoning and caps output tokens to keep provider latency bounded: older GLM models can disable thinking, while reasoning-only GLM 5.3 models use enabled thinking with low effort through the LLM transport. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
 ## Statement ingestion application boundary
 
@@ -269,8 +269,8 @@ flowchart TB
     S --> O[Create ODS Source Artifact]
     O --> P[Bind PARSING Statement]
     P --> B{File Type}
-    B -->|PDF/Image| C["OCR_MODEL OCR path"]
-    C --> C2["PRIMARY_MODEL JSON structuring"]
+    B -->|PDF/Image| C["Multimodal role: OCR path"]
+    C --> C2["Small role: JSON structuring"]
     B -->|CSV| D[Structured Parser]
     C2 --> E[Extract JSON]
     D --> E
@@ -515,7 +515,7 @@ precondition.
 | Method | Path | Description |
 |--------|------|-------------|
 | POST | `/api/statements/upload` | Upload document and enqueue parsing (202 Accepted) |
-| GET | `/api/statements` | Statement list |
+| GET | `/api/statements` | Statement list. Each item has an empty `transactions` list. The list uses a fixed number of SQL statements (#2583) |
 | GET | `/api/statements/{id}` | Get statement with transactions |
 | GET | `/api/statements/{id}/transactions` | Transaction list |
 | GET | `/api/statements/pending-review` | List parsed items needing review, including legacy parsed rows with no `stage1_status` |
@@ -648,6 +648,8 @@ Import behavior:
 - Reconciliation runs after import to refresh portfolio's `ManagedPosition` projection with latest quantity, market value, currency, and snapshot metadata; extraction hosts its schema-preserving storage representation but does not own the investment-position aggregate.
 - A successful statement-scoped brokerage import must make the imported position visible through `GET /portfolio/holdings` and through the balance sheet's broker market valuation adjustment for the same as-of date.
 - Import failures do not discard the parsed statement; the statement remains visible and receives a sanitized `validation_error` noting that brokerage positions were not imported.
+- Each position needs an as-of date that the source states (statement period end or a per-row date). The import never invents a date. A source with no date gets HTTP 422 with `error_id = brokerage_snapshot_date_missing`, not 500 (#2649, `AC-portfolio.brokerage-import.11`). The remedy in the reason follows the file type: a CSV (the CSV import reads no date column), a PDF or image document (retry the parse), or another payload (add `period_end` or `snapshot_date`). `BrokerageImportRejectedError` carries this rejection.
+- Before any insert, the import checks each position against the `AtomicPosition` columns and the reconciler. The limits come from the ORM columns. These get HTTP 422 with `error_id = brokerage_position_out_of_range` and a reason that names the position and the field (`AC-portfolio.brokerage-import.12`): text longer than its column or with a NUL character, a currency that is not ISO-4217, a `NaN` or `Infinity` amount, and a quantity or market value too large for its column. CNH (offshore renminbi) is not ISO-4217, and `Currency`, the reconciler and the FX conversion cannot read it; its reason says to restate the amounts in CNY or the account currency. A row that is not a position (no symbol, a subtotal, a cash event) is skipped before its amounts are read. The import rounds the quantity to the column scale, half away from zero, as Postgres does, and checks the rounded value. Known 500s outside these cases are tracked in #2661.
 
 ## Configuration
 
@@ -658,17 +660,16 @@ ZAI_API_KEY=<YOUR_ZAI_API_KEY>
 AI_BASE_URL=https://api.z.ai/api/coding/paas/v4
 AI_CHAT_COMPLETIONS_PATH=/chat/completions
 AI_LAYOUT_PARSING_PATH=/layout_parsing
-PRIMARY_MODEL=glm-5.3-flash
-OCR_MODEL=glm-5.3-flashx
-VISION_MODEL=glm-5.3-flashx
-FALLBACK_MODELS=glm-5.2,glm-5-turbo
-VISION_FALLBACK_MODELS=glm-5.3-flash,glm-4.6v
+# Model variables stay unset outside production: the infra2 SDK
+# (infra2_sdk.runtime.llm.LlmSettings) owns the defaults (#2566). Set them only
+# to customize production.
+# LARGE_MODEL= SMALL_MODEL= MULTIMODAL_MODEL=
 AI_JSON_TIMEOUT_SECONDS=360
 AI_JSON_MAX_TOKENS=8192
 AI_JSON_DISABLE_THINKING=true
 STATEMENT_DISPOSITION_MODE=enforce
-# Optional; off by default. Only set for seed-supporting models (e.g. GLM-5.1) —
-# glm-4.6v rejects `seed` with HTTP 400.
+# Optional; off by default. Only set for models that accept a seed;
+# an older vision model rejected `seed` with HTTP 400.
 AI_JSON_SEED=
 S3_ENDPOINT=http://localhost:9000
 S3_ACCESS_KEY=minio
@@ -707,8 +708,8 @@ Persistence checkpoints use the actual canonical statement/source identities.
   between uploads of the same source (#989). An optional fixed request `seed`
   (`AI_JSON_SEED`) can further pin decoding, but it is **off by default**: Z.AI/GLM
   validates request params strictly and `seed` is rejected by some models
-  (notably `glm-4.6v`, the default vision/OCR model, returns HTTP 400), so it is
-  only safe to set for seed-supporting models such as GLM-5.1.
+  (an older vision model returned HTTP 400), so it is only safe to set for
+  models that accept a seed.
 - **Balance-aware self-consistency re-extract**: when a bank statement's
   running-balance chain fails to reconcile, `_extract_with_balance_retry`
   re-extracts up to `AI_EXTRACT_MAX_ATTEMPTS` times (each with a varied seed —
@@ -782,13 +783,12 @@ slice is registered.
 
 ## Model Selection
 
-- **Default**: Uses `OCR_MODEL=glm-5.3-flashx` on the vision OCR path. Dedicated layout parsing is used only when `OCR_MODEL` differs from `VISION_MODEL`.
+- **Default**: Uses the multimodal role (`MULTIMODAL_MODEL`, the infra2 SDK default) on the vision OCR path. OCR and vision are the same model, so dedicated layout parsing does not run.
 - **Upload model field**: optional for PDF/image uploads. If omitted, the OCR-first pipeline is used.
-- **Manual override**: a selected image-capable model bypasses the default OCR path and is used directly as a vision chat model. Selecting the shared `OCR_MODEL` uses the same vision OCR model.
+- **Manual override**: a selected image-capable model bypasses the default OCR path and is used directly as a vision chat model. Selecting the multimodal model uses the same vision OCR model.
 - **Retry**: `/api/statements/{id}/retry` accepts a model override; omitted uses OCR-first mode.
 - **Catalog**: `/api/llm/catalog` returns the configured provider catalog for UI dropdowns (filterable by modality). _(EPIC-023: supersedes the retired `/api/ai/models`.)_
-- **Fallback models (text path)**: `FALLBACK_MODELS` (default `glm-5.2,glm-5-turbo`) are attempted after OCR text extraction when `PRIMARY_MODEL` fails. These structure OCR Markdown and are text-only.
-- **Fallback models (vision path)**: `VISION_FALLBACK_MODELS` (default `glm-5.3-flash,glm-4.6v`) are appended after the primary OCR/vision model on the vision/image path, deduplicated and order-preserving. Because the vision request carries image content, these fallbacks must be vision-capable; the text-only `FALLBACK_MODELS` are intentionally **not** reused here. A non-retryable failure of the primary vision model (e.g. a provider `400`) therefore falls through to a secondary vision model before the upload is rejected with `ERR_EXT_003` (#1034). Set `VISION_FALLBACK_MODELS` empty to keep the prior single-model behavior.
+- **No fallback models**: there is no fallback chain (owner rule, #2643). A transient provider error is retried on the same model. A non-retryable error (for example a provider `400`) rejects the upload with `ERR_EXT_003` and an error that names that one model.
 
 ## Data Integrity & Typing
 

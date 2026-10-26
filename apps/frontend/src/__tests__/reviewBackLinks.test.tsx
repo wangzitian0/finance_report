@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 
-import { BackLink } from "@/components/ui/BackLink";
-import AiSuggestionsPage from "@/app/(main)/review/ai-suggestions/page";
+import { BackLink } from "@/components/ui/SmartBackLink";
+import { AiSuggestionsQueue } from "@/components/audit/AiSuggestionsQueue";
 import { apiOperation } from "@/lib/api-client";
 
 const navigationState = vi.hoisted(() => ({
@@ -34,23 +34,25 @@ describe("Review surfaces back-link + plain copy (EPIC-022 AC22.5.3, AC22.5.4)",
     });
 
     // AC-platform.fe-ia-inbox.4
-    it("AC22.5.3 BackLink defaults to the notification center", () => {
-        render(<BackLink>Back to Notifications</BackLink>);
-        expect(screen.getByRole("link", { name: /Back to Notifications/i })).toHaveAttribute(
+    it("AC22.5.3 BackLink defaults to the upload page", () => {
+        render(<BackLink>Back to Upload</BackLink>);
+        expect(screen.getByRole("link", { name: /Back to Upload/i })).toHaveAttribute(
             "href",
-            "/notifications",
+            "/upload",
         );
     });
 
-    it("AC22.5.3 the AI suggestion review surface offers a back-link to /notifications", async () => {
+    it("the AI suggestion queue shows the empty state when the response has no items field", async () => {
+        vi.mocked(apiOperation).mockResolvedValue({} as any);
+        render(<AiSuggestionsQueue />);
+        expect(await screen.findByText("No pending AI suggestions")).toBeInTheDocument();
+    });
+
+    it("the AI suggestion queue shows a back-link only when the caller passes return_to", async () => {
         vi.mocked(apiOperation).mockResolvedValue({ items: [] } as any);
-        render(<AiSuggestionsPage />);
-        await waitFor(() =>
-            expect(screen.getByRole("link", { name: /Back to Notifications/i })).toHaveAttribute(
-                "href",
-                "/notifications",
-            ),
-        );
+        render(<AiSuggestionsQueue />);
+        await waitFor(() => expect(screen.getByText("Suggestions to review")).toBeInTheDocument());
+        expect(screen.queryByRole("link")).not.toBeInTheDocument();
     });
 
     it("AC22.11.3 BackLink returns attention-origin users to the attention queue", () => {
@@ -58,16 +60,16 @@ describe("Review surfaces back-link + plain copy (EPIC-022 AC22.5.3, AC22.5.4)",
 
         render(<BackLink>Back to Notifications</BackLink>);
 
-        expect(screen.getByRole("link", { name: /Back to Attention queue/i })).toHaveAttribute(
+        expect(screen.getByRole("link", { name: /Back to Needs Confirmation/i })).toHaveAttribute(
             "href",
-            "/attention",
+            "/audit",
         );
     });
 
     // AC-platform.fe-ia-inbox.5
     it("AC22.5.4 the review surface heading uses plain language, not internal jargon", async () => {
         vi.mocked(apiOperation).mockResolvedValue({ items: [] } as any);
-        render(<AiSuggestionsPage />);
+        render(<AiSuggestionsQueue />);
         await waitFor(() => expect(screen.getByText("Suggestions to review")).toBeInTheDocument());
         expect(screen.queryByText(/Stage 2/i)).not.toBeInTheDocument();
         expect(screen.queryByText(/60-84 score band/i)).not.toBeInTheDocument();
@@ -79,7 +81,7 @@ describe("Review surfaces back-link + plain copy (EPIC-022 AC22.5.3, AC22.5.4)",
         );
         vi.mocked(apiOperation).mockResolvedValue({ items: [] } as any);
 
-        render(<AiSuggestionsPage />);
+        render(<AiSuggestionsQueue />);
 
         await waitFor(() =>
             expect(vi.mocked(apiOperation)).toHaveBeenCalledWith(

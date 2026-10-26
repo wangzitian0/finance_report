@@ -186,7 +186,7 @@ async def test_AC23_6_1_replay_vision_cassette_synthesises_stream(monkeypatch, c
         litellm_stream(
             _VISION_MESSAGES,
             provider=_provider(),
-            model_id="glm-4.6V",
+            model_id="test-vision-model",
             temperature=0.0,
             cassette_store=committed_store,
             cassette_mode=CassetteMode.REPLAY,

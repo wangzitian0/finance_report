@@ -18,7 +18,7 @@ import src.workflow.extension.events as workflow_events
 from src.extraction import BankStatementStatus, DocumentType, Stage1Status, UploadedDocument
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
-from src.reporting import current_package_document_summary
+from src.reporting import current_package_readiness
 from src.schemas.workflow import (
     WorkflowEventCreate,
     WorkflowEventResponse,
@@ -53,19 +53,18 @@ ROOT_DIR = Path(__file__).resolve().parents[4]
 
 @pytest.fixture(autouse=True)
 def _restore_readiness_read() -> Iterator[None]:
-    """Keep test-local frozen-document summary overrides isolated."""
-    workflow_events.current_package_document_summary = current_package_document_summary
+    """Keep test-local package readiness overrides isolated."""
+    workflow_events.current_package_readiness = current_package_readiness
     yield
-    workflow_events.current_package_document_summary = current_package_document_summary
+    workflow_events.current_package_readiness = current_package_readiness
 
 
 def _override_readiness_for_test(provider) -> None:
-    async def summary_provider(db, *, user_id):
+    async def readiness_provider(db, *, user_id):
         payload = await provider(db, user_id=user_id)
-        readiness = SimpleNamespace(model_dump=lambda mode="json": payload)
-        return SimpleNamespace(readiness=readiness)
+        return SimpleNamespace(model_dump=lambda mode="json": payload)
 
-    workflow_events.current_package_document_summary = summary_provider
+    workflow_events.current_package_readiness = readiness_provider
 
 
 async def _make_statement(
@@ -138,19 +137,24 @@ def test_AC19_3_8_workflow_notification_ssot_documents_frontend_surfaces() -> No
 
 
 def test_AC19_4_1_upload_first_home_ssot_documents_dashboard_contract() -> None:
-    """AC-platform.32.3: AC19.4.1: /dashboard is the upload-first home and metrics are secondary."""
+    """AC-platform.32.3: AC19.4.1: Home at / shows one workflow action through HomeActionBanner."""
     ssot = (ROOT_DIR / "common" / "workflow" / "workflow-events.md").read_text(encoding="utf-8")
     epic = (ROOT_DIR / "docs" / "project" / "EPIC-019.event-driven-upload-to-report-ux.md").read_text(encoding="utf-8")
+    banner = ROOT_DIR / "apps" / "frontend" / "src" / "components" / "home" / "HomeActionBanner.tsx"
+    normalized_ssot = " ".join(ssot.split())
 
+    # The SSOT names the live Home surface, and that surface exists.
+    assert "export function HomeActionBanner(" in banner.read_text(encoding="utf-8")
     for phrase in (
-        "`/dashboard` is the authenticated home for the upload-to-report workflow",
-        "UploadToReportHome",
-        "Dashboard first viewport",
+        "`/` is the authenticated home. The `/dashboard` route redirects to `/`.",
+        "HomeActionBanner (/)",
+        "`HomeActionBanner` shows one action at most.",
         "workflow.status.next_action.label",
+        "An empty summary shows the workflow-state sentence one time.",
         "Ready actions route directly to `/reports/package`",
-        "Secondary dashboard metric loading or failure must not hide the workflow",
+        "It must not hide the statement cards of Home.",
     ):
-        assert phrase in ssot
+        assert phrase in normalized_ssot, phrase
 
     assert "AC19.4.1" in epic
     assert "AC19.4.8" in epic
@@ -878,7 +882,7 @@ async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, tes
     async def fake_readiness(_db, **_kwargs):
         return {
             "state": "blocked",
-            "action_href": "/reconciliation/review-queue",
+            "action_href": "/reconciliation?tab=review-queue",
             "blocking_count": 3,
             "blockers": [
                 {
@@ -886,7 +890,7 @@ async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, tes
                     "label": "Reconciliation blockers",
                     "count": 2,
                     "reason": "Pending reconciliation matches must be accepted or rejected.",
-                    "action_href": "/reconciliation/review-queue",
+                    "action_href": "/reconciliation?tab=review-queue",
                 },
                 {
                     "code": "processing_account_unresolved",
@@ -921,7 +925,7 @@ async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, tes
     assert [(event.family, event.action_href, event.source_type) for event in events] == [
         (
             WorkflowEventFamily.RECONCILIATION_BLOCKED,
-            "/reconciliation/review-queue",
+            "/reconciliation?tab=review-queue",
             "readiness_blocker",
         ),
         (WorkflowEventFamily.REPORT_BLOCKED, "/accounts/processing", "readiness_blocker"),
@@ -1040,7 +1044,7 @@ async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(
 
 async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_event(db, test_user):
     """AC-platform.36.3: AC22.4.1: a pending Stage 2 reconciliation match surfaces a reconciliation-review
-    event in the inbox that deep-links to /reconciliation/review-queue, and re-syncing
+    event in the inbox that deep-links to /reconciliation?tab=review-queue, and re-syncing
     does not duplicate it."""
     from tests.factories import AtomicTransactionFactory, ReconciliationMatchFactory
 
@@ -1053,7 +1057,7 @@ async def test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_even
     recon = [e for e in events if e.family == WorkflowEventFamily.RECONCILIATION_BLOCKED]
     # Exactly one aggregate reconciliation-review card (not one per pending match).
     assert len(recon) == 1, "pending Stage 2 matches must surface a single reconciliation-review card"
-    assert recon[0].action_href == "/reconciliation/review-queue"
+    assert recon[0].action_href == "/reconciliation?tab=review-queue"
     original_event_id = recon[0].id
 
     # Re-sync is idempotent: still exactly one event, and the same row is reused.

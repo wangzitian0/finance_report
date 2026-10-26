@@ -154,7 +154,7 @@ def collect_backend_fields() -> list[dict]:
     """Return env-field metadata dicts for every backend Settings env field.
 
     Only fields carrying a ``group`` in ``json_schema_extra`` are treated as env
-    fields; ``cached_property`` helpers (cors_origins, fallback_models) are not
+    fields; ``cached_property`` helpers (cors_origins, llm_encryption_key_list) are not
     ``model_fields`` and are therefore excluded automatically.
     """
     settings_cls = _settings_model()

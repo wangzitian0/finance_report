@@ -225,7 +225,17 @@ source-anchor detail records its `valuation_basis` enum value).
 Design constraints: manual valuation values are positive `Decimal`
 amounts; use `liquidity_class` to separate liquid/restricted/illiquid/
 liability presentation; never include a snapshot in liquid net worth
-unless it is economically liquid.
+unless it is economically liquid. `split_net_worth_scope`
+(`extension/valuation.py`) is the only definition of the liquid scope: it
+excludes each restricted or illiquid asset valuation and each liability
+valuation whose allocation class (a fixed map from the component type) is the
+class of an excluded asset, so a mortgage valuation leaves with an excluded
+property valuation (#2645, AC-pricing.manualvaluation.12). No record links one
+liability to one asset (#2659): a ledger liability account always counts, and
+every mortgage valuation leaves when one property valuation is excluded.
+`build_manual_valuation_lines` returns the excluded lines through its
+`excluded_lines` accumulator; an excluded valuation with no FX rate gives a line
+with no amount and a `conversion_warning` instead of an error.
 
 ## Market data (pre-#1610-cutover shipped model)
 

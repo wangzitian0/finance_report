@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `136`
-- Schema count: `267`
+- Endpoint count: `139`
+- Schema count: `281`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -33,7 +33,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `notifications` | 1 |
 | `portfolio` | 13 |
 | `reconciliation` | 11 |
-| `reports` | 19 |
+| `reports` | 22 |
 | `review` | 9 |
 | `statements` | 15 |
 | `untagged` | 3 |
@@ -222,16 +222,19 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/balance-sheet` | yes | `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `BalanceSheetResponse` | Balance Sheet |
 | `GET` | `/reports/balance-sheet/diagnostics` | yes | `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `EquationDiagnosticResult` | Balance Sheet Diagnostics |
 | `GET` | `/reports/breakdown` | yes | `type`* (query), `period` (query), `currency` (query) | - | `200` `CategoryBreakdownResponse` | Category Breakdown |
-| `GET` | `/reports/cash-flow` | yes | `start_date` (query), `end_date` (query), `currency` (query) | - | `200` `CashFlowResponse` | Cash Flow |
+| `GET` | `/reports/cash-flow` | yes | `start_date` (query), `end_date` (query), `currency` (query) | - | `200` `CashFlowPreview` | Cash Flow |
+| `GET` | `/reports/cash-flow/line-events` | yes | `line_id`* (query), `start_date` (query), `end_date` (query), `currency` (query), `limit` (query), `offset` (query) | - | `200` `CashFlowLineEventsPage` | List Cash Flow Line Events |
 | `GET` | `/reports/currencies` | no | - | - | `200` array[string] | Get Available Currencies |
 | `GET` | `/reports/data-quality` | yes | `as_of_date` (query), `currency` (query) | - | `200` `PersonalDataQualityHealthResponse` | Get Data Quality Health |
 | `GET` | `/reports/export` | yes | `report_type`* (query), `format` (query), `as_of_date` (query), `start_date` (query), `end_date` (query), `currency` (query), `include_restricted` (query), `framework_id` (query) | - | `200` - | Export Report |
 | `GET` | `/reports/income-statement` | yes | `start_date` (query), `end_date` (query), `currency` (query), `tags` (query), `account_type` (query) | - | `200` `IncomeStatementResponse` | Income Statement |
 | `GET` | `/reports/net-worth/allocation` | yes | `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `NetWorthAllocationResponse` | Net Worth Allocation |
-| `GET` | `/reports/net-worth/timeseries` | yes | `from`* (query), `to`* (query), `granularity` (query), `currency` (query) | - | `200` `NetWorthTimeSeriesResponse` | Net Worth Timeseries |
-| `GET` | `/reports/package` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `PersonalReportPackageDocument` | Preview Personal Report Package |
+| `GET` | `/reports/net-worth/timeseries` | yes | `from`* (query), `to`* (query), `granularity` (query), `currency` (query), `include_restricted` (query) | - | `200` `NetWorthTimeSeriesResponse` | Net Worth Timeseries |
+| `GET` | `/reports/package` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `PersonalReportPackagePreview` | Preview Personal Report Package |
 | `POST` | `/reports/package/annual-archive` | yes | - | `AnnualTaxArchiveRequest` | `200` - | Export Annual Tax Archive |
 | `POST` | `/reports/package/generate` | yes | - | `PersonalReportPackageGenerateRequest` | `200` `PersonalReportPackageSnapshotResponse` | Generate Personal Report Package Snapshot |
+| `GET` | `/reports/package/line-details` | yes | `line_id`* (query), `anchor`* (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `limit` (query), `offset` (query) | - | `200` `PersonalReportPackageLineDetailsPage` | List Personal Report Package Line Details |
+| `GET` | `/reports/package/manifest-entries` | yes | `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `limit` (query), `offset` (query) | - | `200` `PersonalReportPackageManifestEntriesPage` | List Personal Report Package Manifest Entries |
 | `GET` | `/reports/package/snapshots` | yes | `limit` (query), `offset` (query) | - | `200` array[`PersonalReportPackageSnapshotSummary`] | List Personal Report Package Snapshots |
 | `GET` | `/reports/package/snapshots/{snapshot_id}` | yes | `snapshot_id`* (path) | - | `200` `PersonalReportPackageSnapshotResponse` | Get Personal Report Package Snapshot |
 | `GET` | `/reports/package/snapshots/{snapshot_id}/export` | yes | `snapshot_id`* (path), `format` (query) | - | `200` - | Export Personal Report Package Snapshot |

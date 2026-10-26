@@ -105,14 +105,24 @@ async def _load_asset_legs(
     On an ASSET account a ``DEBIT`` increases the balance (money ``IN``) and a
     ``CREDIT`` decreases it (money ``OUT``). Each line's ``occurred_at`` is the
     owning entry's ``entry_date`` at tz-aware midnight (the exact instant is
-    immaterial to same-day/within-window pairing).
+    immaterial to same-day/within-window pairing). The query reads the leg columns,
+    not ORM entities: a package evaluation runs this read 4 times (#2602).
     """
     stmt = (
-        select(JournalLine, JournalEntry.entry_date, JournalEntry.id)
+        select(
+            JournalLine.id,
+            JournalLine.account_id,
+            JournalLine.direction,
+            JournalLine.amount,
+            JournalLine.currency,
+            JournalEntry.entry_date,
+            JournalEntry.id,
+        )
         .join(Account, JournalLine.account_id == Account.id)
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
         .where(Account.type == AccountType.ASSET)
+        .where(JournalEntry.user_id == user_id)
         .where(JournalEntry.status.in_(_DISCOVERY_STATUSES))
         .where(JournalEntry.entry_date <= as_of_date)
     )
@@ -122,18 +132,18 @@ async def _load_asset_legs(
     result = await db.execute(stmt)
 
     candidates: list[_CandidateLeg] = []
-    for line, entry_date, entry_id in result.all():
-        direction = "IN" if line.direction == Direction.DEBIT else "OUT"
+    for line_id, account_id, line_direction, amount, currency, entry_date, entry_id in result.all():
+        direction = "IN" if line_direction == Direction.DEBIT else "OUT"
         when = datetime.combine(entry_date, time.min, tzinfo=UTC)
         try:
             leg = TransferLeg(
                 user_id=user_id,
-                account_id=line.account_id,
+                account_id=account_id,
                 direction=direction,
-                amount=line.amount,
-                currency=line.currency,
+                amount=amount,
+                currency=currency,
                 occurred_at=when,
-                leg_id=line.id,
+                leg_id=line_id,
             )
         except FxTransferError:
             # Defensive: a malformed line (non-positive amount, etc.) cannot form a

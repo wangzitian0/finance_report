@@ -7,9 +7,9 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import AiSuggestionsPage from "@/app/(main)/review/ai-suggestions/page";
-import AiSettingsPage from "@/components/settings/AiSettingsPanel";
-import AuditTrailPanel from "@/components/AuditTrailPanel";
+import { AiSuggestionsQueue } from "@/components/audit/AiSuggestionsQueue";
+import AiSettingsPanel from "@/components/settings/AiSettingsPanel";
+import { AuditTrailPanel } from "@/components/journal/JournalEntryDetailsModal";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
 import { apiOperation } from "@/lib/api-client";
 
@@ -110,7 +110,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       total: 1,
     } as any);
 
-    render(<AiSuggestionsPage />);
+    render(<AiSuggestionsQueue />);
 
     expect(
       (await screen.findAllByText("CARD PURCHASE COFFEE")).length,
@@ -142,7 +142,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       .mockResolvedValueOnce({ id: "feedback-2", effect: "rejected" } as any)
       .mockResolvedValueOnce({ id: "feedback-3", effect: "corrected" } as any);
 
-    render(<AiSuggestionsPage />);
+    render(<AiSuggestionsQueue />);
 
     await screen.findAllByText("PAYNOW TRANSFER");
     const mobileCard = screen.getByTestId(
@@ -191,7 +191,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       } as any)
       .mockResolvedValueOnce({ id: "feedback-edit", effect: "corrected" } as any);
 
-    render(<AiSuggestionsPage />);
+    render(<AiSuggestionsQueue />);
 
     const mobileList = await screen.findByTestId("ai-suggestions-mobile-list");
     const mobileCard = within(mobileList).getByTestId(
@@ -251,7 +251,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
         new Error("The corrected value is not a category. Use one of: SALARY"),
       );
 
-    render(<AiSuggestionsPage />);
+    render(<AiSuggestionsQueue />);
 
     await screen.findAllByText("CARD PURCHASE COFFEE");
     const mobileCard = screen.getByTestId(
@@ -302,7 +302,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
         }) as any,
       );
 
-    render(<AiSuggestionsPage />);
+    render(<AiSuggestionsQueue />);
 
     await screen.findAllByText("SLOW REQUEST");
     const mobileCard = screen.getByTestId(
@@ -329,7 +329,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
   it("test_AC8_13_48 — AI suggestions page renders load errors", async () => {
     mockedApiOperation.mockRejectedValueOnce(new Error("suggestions unavailable"));
 
-    render(<AiSuggestionsPage />);
+    render(<AiSuggestionsQueue />);
 
     expect(
       await screen.findByText("suggestions unavailable"),
@@ -358,7 +358,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       return {} as any;
     });
 
-    render(<AiSettingsPage />);
+    render(<AiSettingsPanel />);
 
     const reconciliationToggle = await screen.findByLabelText(
       "Enable AI reconciliation",
@@ -417,7 +417,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       return {} as any;
     });
 
-    render(<AiSettingsPage />);
+    render(<AiSettingsPanel />);
 
     expect(
       await screen.findByLabelText("Enable AI reconciliation"),
@@ -430,7 +430,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       new Error("settings unavailable"),
     );
 
-    render(<AiSettingsPage />);
+    render(<AiSettingsPanel />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "settings unavailable",
@@ -452,7 +452,7 @@ describe("EPIC-018 / UI Gap Audit / Phase 5 Confidence + AI Review UI", () => {
       return {} as any;
     });
 
-    render(<AiSettingsPage />);
+    render(<AiSettingsPanel />);
 
     const reconciliationToggle = await screen.findByLabelText(
       "Enable AI reconciliation",

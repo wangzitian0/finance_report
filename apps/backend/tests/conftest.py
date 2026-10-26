@@ -32,10 +32,12 @@ from src.pricing import (
     PrefetchedFxRates,
     PricingError,
     build_manual_valuation_lines,
+    build_manual_valuation_lines_series,
     convert_amount,
     convert_money,
     get_average_rate,
     get_exchange_rate,
+    get_exchange_rate_series,
 )
 from src.reporting import register_fx_gateway, register_manual_valuation_lines_provider
 
@@ -48,13 +50,16 @@ from src.reporting import register_fx_gateway, register_manual_valuation_lines_p
 # import.
 register_fx_gateway(
     get_exchange_rate=get_exchange_rate,
+    get_exchange_rate_series=get_exchange_rate_series,
     get_average_rate=get_average_rate,
     convert_amount=convert_amount,
     convert_money=convert_money,
     prefetched_fx_rates=PrefetchedFxRates,
     fx_rate_error=PricingError,
 )
-register_manual_valuation_lines_provider(build_manual_valuation_lines)
+register_manual_valuation_lines_provider(
+    build_manual_valuation_lines, series_provider=build_manual_valuation_lines_series
+)
 
 # Wire extraction's and ledger's FX-rate ports (#1675 D5c), same reason as
 # the reporting gate above: pricing now depends on extraction, so a direct
@@ -393,6 +398,44 @@ async def ensure_database(db_url: str):
         await engine.dispose()
 
 
+# Planner statistics of the worker database must not depend on autovacuum timing (#2398).
+# Each test deletes the rows of the tables it wrote. Autovacuum can then ANALYZE a table while it
+# is empty. A test that next loads one year of entries gets plans for empty tables: the cash flow
+# query ran nested loops with about 2 million inner scans and passed the 60 s test timeout.
+# Without autovacuum the tables stay unanalyzed, and the planner estimates rows from the table size.
+#
+# A table that a test drops and creates again has the default storage options (autovacuum on).
+# An event trigger in the worker database applies the option to each ordinary table that a CREATE TABLE
+# statement makes in schema public. This covers the schema build and every later migration test.
+# The trigger fires on every connection, also with session_replication_role = replica (ENABLE ALWAYS).
+# The property then does not depend on the order of the tests of a worker.
+# The trigger adds no statement to a test. It needs a superuser role. The test role "postgres" is one.
+DISABLE_AUTOVACUUM_STATEMENTS = (
+    """
+CREATE FUNCTION public.test_disable_autovacuum() RETURNS event_trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+    created record;
+BEGIN
+    FOR created IN
+        SELECT d.objid
+        FROM pg_event_trigger_ddl_commands() AS d JOIN pg_class AS c ON c.oid = d.objid
+        WHERE d.object_type = 'table' AND d.schema_name = 'public' AND c.relkind = 'r'
+    LOOP
+        EXECUTE format('ALTER TABLE %s SET (autovacuum_enabled = false)', created.objid::regclass);
+    END LOOP;
+END
+$$
+""",
+    """
+CREATE EVENT TRIGGER test_disable_autovacuum ON ddl_command_end
+WHEN TAG IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
+EXECUTE FUNCTION public.test_disable_autovacuum()
+""",
+    "ALTER EVENT TRIGGER test_disable_autovacuum ENABLE ALWAYS",
+)
+
+
 @pytest_asyncio.fixture(scope="session")
 async def _schema_engine(test_database_url):
     """Build the test schema once per xdist worker and share one engine.
@@ -445,10 +488,13 @@ async def _schema_engine(test_database_url):
         await conn.execute(text("CREATE SCHEMA public"))
         await conn.execute(text("GRANT ALL ON SCHEMA public TO postgres"))
         await conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
-        await conn.run_sync(Base.metadata.create_all)
+        # The event trigger goes in before create_all, so every table of the schema build has autovacuum off.
+        for statement in DISABLE_AUTOVACUUM_STATEMENTS:
+            await conn.exec_driver_sql(statement)
         # The test schema keeps the production CASCADE FKs to ``users`` (#991): tests
         # own their rows via the ``test_user`` fixture, so cross-user / cross-version
         # isolation leaks surface here instead of being silently allowed.
+        await conn.run_sync(Base.metadata.create_all)
 
     _DIRTY_TABLES.clear()
 

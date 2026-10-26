@@ -607,6 +607,80 @@ def _short(sha: str | None) -> str:
     return escape(sha[:8]) if sha else "unknown"
 
 
+def _sha_versions(records: list[dict[str, Any]]) -> dict[str, str]:
+    """Map each tested SHA to its newest known release version tag, if any."""
+    versions: dict[str, str] = {}
+    for record in records:
+        sha = record.get("tested_sha")
+        version = record.get("expected_version")
+        if sha and version and sha not in versions:
+            versions[sha] = version
+    return versions
+
+
+def _render_kpi_strip(
+    index: dict[str, Any],
+    latest: dict[str, dict[str, Any]],
+    combined: dict[str, dict[str, Any]],
+    shas: list[str],
+    versions: dict[str, str],
+) -> str:
+    """Render top summary KPI cards for the Core Journey Board."""
+    canary = latest.get("canary")
+    journey = latest.get("core_journey")
+    replay = latest.get("audit_replay")
+
+    primary = canary or journey or next(iter(latest.values()))
+    cand_sha = _short(primary.get("tested_sha"))
+    cand_ver = escape(
+        primary.get("expected_version")
+        or versions.get(primary.get("tested_sha") or "", "")
+        or "untagged"
+    )
+    cand_class = _lane_class(primary)
+
+    head_sha = shas[0] if shas else None
+    head_cells = combined.get(head_sha, {}) if head_sha else {}
+    total_cp = len(index["checkpoints"])
+    passed_cp = sum(
+        1
+        for cp in index["checkpoints"]
+        if head_cells.get(cp["id"], {}).get("status") in PASSED_OUTCOMES
+    )
+    failed_cp = sum(
+        1
+        for cp in index["checkpoints"]
+        if head_cells.get(cp["id"], {}).get("status")
+        in ("failed", "unproven", "blocked")
+    )
+    cp_class = (
+        "bad"
+        if failed_cp > 0
+        else ("ok" if passed_cp == total_cp and total_cp > 0 else "none")
+    )
+
+    if replay is not None:
+        replay_status = escape(_lane_label(replay))
+        replay_sha = _short(replay.get("tested_sha"))
+        replay_class = _lane_class(replay)
+    else:
+        replay_status, replay_sha, replay_class = "no record", "—", "none"
+
+    return (
+        '<div class="kpi-grid">'
+        f'<div class="kpi-card {cand_class}"><div class="kpi-label">Staging Candidate</div>'
+        f'<div class="kpi-value">{cand_ver}</div>'
+        f'<div class="kpi-sub">SHA <code>{cand_sha}</code></div></div>'
+        f'<div class="kpi-card {cp_class}"><div class="kpi-label">Head Checkpoint Coverage</div>'
+        f'<div class="kpi-value">{passed_cp} / {total_cp}</div>'
+        f'<div class="kpi-sub">{failed_cp} failed or blocked on <code>{_short(head_sha)}</code></div></div>'
+        f'<div class="kpi-card {replay_class}"><div class="kpi-label">Newest Audit Replay</div>'
+        f'<div class="kpi-value">{replay_status}</div>'
+        f'<div class="kpi-sub">SHA <code>{replay_sha}</code></div></div>'
+        "</div>"
+    )
+
+
 def render_fragment(index: dict[str, Any]) -> str:
     """Render the board as an HTML fragment. The page script adds data age."""
     records = index["records"]
@@ -620,6 +694,15 @@ def render_fragment(index: dict[str, Any]) -> str:
         return "\n".join(parts)
 
     latest = latest_by_lane(records)
+    versions = _sha_versions(records)
+    shas: list[str] = []
+    for record in records:
+        if record["tested_sha"] and record["tested_sha"] not in shas:
+            shas.append(record["tested_sha"])
+    shas = shas[:MATRIX_COLUMNS]
+    combined = {sha: combine_for_sha(records, sha) for sha in shas}
+
+    parts.append(_render_kpi_strip(index, latest, combined, shas, versions))
     parts.append("<h2>Latest run per lane</h2>")
     parts.append(
         "<table><thead><tr><th>Lane</th><th>Status</th><th>Tested SHA</th>"
@@ -630,12 +713,15 @@ def render_fragment(index: dict[str, Any]) -> str:
         stale_days = AUDIT_REPLAY_STALE_DAYS if lane == "audit_replay" else ""
         stale = stale_reason(record, latest)
         status = escape(_lane_label(record))
+        version = record["expected_version"] or versions.get(
+            record["tested_sha"] or "", ""
+        )
         parts.append(
             "<tr>"
-            f"<td>{escape(lane)}</td>"
+            f"<td><code>{escape(lane)}</code></td>"
             f'<td class="{_lane_class(record)}"><a href="{escape(record["run"]["url"])}">{status}</a></td>'
-            f"<td>{_short(record['tested_sha'])}</td>"
-            f"<td>{escape(record['expected_version'] or '')}</td>"
+            f"<td><code>{_short(record['tested_sha'])}</code></td>"
+            f"<td>{escape(version)}</td>"
             f'<td><time data-ts="{escape(record["run"]["completed_at"])}" data-stale-days="{stale_days}">'
             f"{escape(record['run']['completed_at'])}</time>"
             + (f' <span class="bad">STALE: {escape(stale)}</span>' if stale else "")
@@ -645,15 +731,14 @@ def render_fragment(index: dict[str, Any]) -> str:
         )
     parts.append("</tbody></table>")
 
-    shas: list[str] = []
-    for record in records:
-        if record["tested_sha"] and record["tested_sha"] not in shas:
-            shas.append(record["tested_sha"])
-    shas = shas[:MATRIX_COLUMNS]
     parts.append("<h2>Core journey checkpoints by tested SHA</h2>")
-    header = "".join(f"<th>{_short(sha)}</th>" for sha in shas)
+    header_cells = []
+    for sha in shas:
+        ver = versions.get(sha)
+        ver_html = f' <span class="ver-badge">{escape(ver)}</span>' if ver else ""
+        header_cells.append(f"<th><code>{_short(sha)}</code>{ver_html}</th>")
+    header = "".join(header_cells)
     parts.append(f"<table><thead><tr><th>Checkpoint</th>{header}</tr></thead><tbody>")
-    combined = {sha: combine_for_sha(records, sha) for sha in shas}
     for checkpoint in index["checkpoints"]:
         cells = []
         for sha in shas:
@@ -677,20 +762,30 @@ def render_fragment(index: dict[str, Any]) -> str:
 
     parts.append("<h2>Tests in the latest run per lane</h2>")
     for lane, record in sorted(latest.items()):
-        parts.append(f"<h3>{escape(lane)} · {_short(record['tested_sha'])}</h3>")
+        ver = record["expected_version"] or versions.get(record["tested_sha"] or "", "")
+        ver_suffix = f" ({escape(ver)})" if ver else ""
+        parts.append(
+            f"<h3>{escape(lane)} · {_short(record['tested_sha'])}{ver_suffix}</h3>"
+        )
         if not record["tests"]:
             parts.append(
                 f'<p class="none">No test ran: {escape(record["reason"] or record["status"])}</p>'
             )
             continue
-        parts.append("<ul>")
+        parts.append('<ul class="test-list">')
         for test in record["tests"]:
             detail = (
                 f" [{escape(test['failure_class'])}]" if test["failure_class"] else ""
             )
+            seconds = test.get("seconds")
+            timing = (
+                f' <span class="test-time">({seconds:.2f}s)</span>'
+                if isinstance(seconds, (int, float))
+                else ""
+            )
             parts.append(
                 f'<li class="{_status_class(test["outcome"])}">{escape(test["outcome"])}: '
-                f"<code>{escape(test['test'])}</code>{detail}</li>"
+                f"<code>{escape(test['test'])}</code>{detail}{timing}</li>"
             )
         parts.append("</ul>")
     return "\n".join(parts)

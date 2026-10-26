@@ -11,6 +11,8 @@ from uuid import uuid4
 
 import structlog
 from fastapi import FastAPI, Request, Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -61,10 +63,12 @@ from src.pricing import (
     PrefetchedFxRates,
     PricingError,
     build_manual_valuation_lines,
+    build_manual_valuation_lines_series,
     convert_amount,
     convert_money,
     get_average_rate,
     get_exchange_rate,
+    get_exchange_rate_series,
     run_market_data_scheduler,
     subscribe_price_ingest,
 )
@@ -130,13 +134,16 @@ register_fx_pairs_read(observed_fx_pairs)
 # services/reporting/manual_valuation.py are deleted).
 register_fx_gateway(
     get_exchange_rate=get_exchange_rate,
+    get_exchange_rate_series=get_exchange_rate_series,
     get_average_rate=get_average_rate,
     convert_amount=convert_amount,
     convert_money=convert_money,
     prefetched_fx_rates=PrefetchedFxRates,
     fx_rate_error=PricingError,
 )
-register_manual_valuation_lines_provider(build_manual_valuation_lines)
+register_manual_valuation_lines_provider(
+    build_manual_valuation_lines, series_provider=build_manual_valuation_lines_series
+)
 
 # Wire extraction's FX-rate port (#1675 D5c): extraction's review-queue
 # journal-entry creation needs a currency-conversion rate, but a module-level
@@ -312,6 +319,9 @@ _instrument_fastapi_app(app)
 async def logging_middleware(request: Request, call_next: Any) -> Response:
     """Middleware to inject Request-ID and log request details."""
     request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    # The 500 handler runs in ServerErrorMiddleware, outside the task that binds the
+    # contextvars below. It reads this same id from the request scope (#2649).
+    request.state.request_id = request_id
 
     # Clear and set contextvars for this request
     # Note: structlog.contextvars are isolated per async context/task.
@@ -413,9 +423,14 @@ async def global_rate_limit_middleware(request: Request, call_next: Any) -> Resp
             path=path,
             retry_after=retry_after,
         )
+        body = ErrorResponse(
+            error_id=ErrorCode.TOO_MANY_REQUESTS.value,
+            detail="Rate limit exceeded. Please try again later.",
+            request_id=request_id,
+        )
         return JSONResponse(
             status_code=429,
-            content={"detail": "Rate limit exceeded. Please try again later."},
+            content=body.model_dump(),
             headers={"Retry-After": str(retry_after), "X-Request-ID": request_id},
         )
     return await call_next(request)
@@ -464,10 +479,24 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
     )
 
 
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Add ``error_id`` and ``request_id`` to the FastAPI 422 body (#2649).
+
+    ``detail`` keeps the FastAPI list of errors without change, so existing callers still work.
+    """
+    _ = request
+    content = {
+        "error_id": ErrorCode.UNPROCESSABLE_ENTITY.value,
+        "detail": jsonable_encoder(exc.errors()),
+        "request_id": current_request_id(),
+    }
+    return JSONResponse(status_code=422, content=content)
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler to ensure a consistent structured JSON response."""
-    _ = request
     # Log is already handled by middleware or logger.exception
 
     # Only show exception details in DEBUG mode
@@ -478,7 +507,9 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         detail = "An internal server error occurred. Please try again later."
         trace = None
 
-    request_id = current_request_id()
+    # #2649: this handler runs in ServerErrorMiddleware, outside the request task, so the
+    # contextvar is empty here. logging_middleware put the same id in the request scope.
+    request_id = getattr(request.state, "request_id", None) or current_request_id()
     content: dict[str, Any] = ErrorResponse(
         error_id=ErrorCode.INTERNAL_ERROR.value,
         detail=detail,
@@ -486,7 +517,8 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
     ).model_dump()
     if settings.debug:
         content["trace"] = trace
-    return JSONResponse(status_code=500, content=content)
+    headers = {"X-Request-ID": request_id} if request_id else None
+    return JSONResponse(status_code=500, content=content, headers=headers)
 
 
 # CORS for frontend

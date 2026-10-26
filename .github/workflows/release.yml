@@ -45,7 +45,7 @@ jobs:
     # exact release before the production approval prompt. This job reads only
     # and never fails a release; deploy runs whatever its result.
     name: Core Journey Board Row
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -79,7 +79,7 @@ jobs:
   dry-run:
     name: Production Release Dry Run
     if: ${{ inputs.dry_run }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       actions: read
@@ -278,7 +278,7 @@ jobs:
     # board error from ever skipping production (#2370: light gates).
     needs: [journey-board]
     if: ${{ !cancelled() && !inputs.dry_run }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Two receiver waits of 1800 s each (the request and the rollback request) plus
     # 10 min for the other steps. A shorter limit can end the job while a rollback
     # request still waits for approval, and then no health check verifies it (#2452).
@@ -729,6 +729,19 @@ jobs:
             echo "failure_summary=${failure_summary}"
             echo "marker=prod_safe"
           } > ci-context/production-deploy-context.txt
+
+      # Production may customize its models (owner decision, #2566). This step
+      # only reports the served model set in the release summary; it never fails.
+      - name: Report production model catalog
+        if: ${{ always() && steps.deploy_v2.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          APP_URL: https://report.zitian.party
+        run: |
+          set -uo pipefail
+          models="$(curl -fsS --max-time 15 "${APP_URL}/api/llm/catalog" | python3 -c 'import json,sys; print(", ".join(m["id"] for m in json.load(sys.stdin)["models"]))' || echo "unavailable")"
+          echo "Production model catalog: ${models}"
+          echo "- Production model catalog: \`${models}\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload production deploy test context
         if: ${{ always() }}

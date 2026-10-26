@@ -9,7 +9,6 @@ import GuidedEvidenceForm, {
   VALUATION_BASIS_OPTIONS,
   validateEvidenceForm,
 } from "@/components/assets/GuidedEvidenceForm"
-import GuidedEvidencePage from "@/app/(main)/portfolio/evidence/page"
 import { apiOperation } from "@/lib/api-client"
 import type {
   ManualValuationSnapshot,
@@ -19,16 +18,6 @@ import type {
 import { createInvalidationProbe } from "./fixtures/invalidationProbe"
 
 const showToastMock = vi.fn()
-const navigationState = vi.hoisted(() => ({
-  sourceClass: null as string | null,
-}))
-
-vi.mock("next/navigation", () => ({
-  useSearchParams: () =>
-    new URLSearchParams(
-      navigationState.sourceClass ? { source_class: navigationState.sourceClass } : undefined,
-    ),
-}))
 
 vi.mock("@/components/ui/Toast", () => ({
   useToast: () => ({ showToast: showToastMock }),
@@ -113,7 +102,6 @@ describe("GuidedEvidenceForm", () => {
   beforeEach(() => {
     mockedApiOperation.mockReset()
     showToastMock.mockReset()
-    navigationState.sourceClass = null
   })
 
   afterEach(() => {
@@ -499,22 +487,10 @@ describe("GuidedEvidenceForm", () => {
     })
   })
 
-  // ── Page wrapper + exported config integrity ────────────────────────
-  it("renders the guided evidence page with the form", () => {
+  // ── Exported config integrity ───────────────────────────────────────
+  it("opens guided evidence at the requested source class", () => {
     mockListOnly()
-    render(<GuidedEvidencePage />, { wrapper: createWrapper() })
-    expect(
-      screen.getByRole("heading", { name: "Guided evidence intake", level: 1 }),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole("form", { name: "Guided evidence form" }),
-    ).toBeInTheDocument()
-  })
-
-  it("AC19.15.1 opens guided evidence at the requested source class", () => {
-    navigationState.sourceClass = "liability_statement"
-    mockListOnly()
-    render(<GuidedEvidencePage />, { wrapper: createWrapper() })
+    render(<GuidedEvidenceForm initialSourceClass="liability_statement" />, { wrapper: createWrapper() })
 
     expect(screen.getByLabelText("Source class")).toHaveValue("liability_statement")
   })

@@ -525,7 +525,7 @@ async def _propose_batch(
     try:
         stream = stream_ai_json(
             messages=[{"role": "user", "content": prompt}],
-            model=settings.primary_model,
+            model=settings.small_model,
             timeout=60.0,
             user_id=owner,
         )

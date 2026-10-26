@@ -18,7 +18,14 @@ class TraceEmitter:
         return await self.repository.append(record)
 
     async def emit_many(self, records: Sequence[TraceRecord]) -> tuple[TraceRecord, ...]:
-        """Flush an ordered causal set; any failure must abort the caller's UoW."""
+        """Flush an ordered causal set; any failure must abort the caller's UoW.
+
+        A repository that appends a set with a fixed number of statements (``append_many``) receives the
+        whole set. Any other repository receives the records one by one, in order.
+        """
+        append_many = getattr(type(self.repository), "append_many", None)
+        if append_many is not None:
+            return tuple(await self.repository.append_many(records))  # type: ignore[attr-defined]
         emitted: list[TraceRecord] = []
         for record in records:
             emitted.append(await self.emit(record))

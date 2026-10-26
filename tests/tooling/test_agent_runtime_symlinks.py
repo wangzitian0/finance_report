@@ -4,9 +4,10 @@ The repo is wired so Claude Code, Codex, OpenCode, and the Gemini/Antigravity
 CLI can all be opened in this checkout and start developing with the same
 instructions, skills, and MCP tools:
 
-* ``AGENTS.md`` is the single source of truth (read natively by Codex and
-  OpenCode); ``CLAUDE.md`` and ``GEMINI.md`` symlink to it for Claude Code and
-  the Gemini CLI.
+* ``AGENTS.md`` is the single source of truth. Codex, OpenCode and Claude Code
+  read it natively. ``CLAUDE.md`` must not exist: it suppresses the native
+  ``AGENTS.md`` load of Claude Code (dev_env#393). ``GEMINI.md`` symlinks to
+  ``AGENTS.md`` for the Gemini CLI.
 * ``.claude/skills``, ``.codex/skills`` and ``.agents/skills`` hold
   materialized copies of the canonical skill library in ``skills`` so every
   runtime discovers the same SKILL.md files (agy reads ``.agents/skills``).
@@ -29,7 +30,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-CANONICAL_SKILLS = ROOT / "skills"
+CANONICAL_SKILLS = ROOT / ".agents" / "skills"
 # Runtimes that mirror the canonical skill library via materialized directories
 # (Claude Code reads .claude/skills, Codex reads .codex/skills, agy reads
 # .agents/skills — all project-level and discovered on clone).
@@ -97,10 +98,22 @@ def _canonical_leaf_skill_dirs() -> dict[str, Path]:
 
 
 def test_instruction_md_symlinks_to_agents_md() -> None:
-    """Each runtime's entry-point doc is a symlink to the AGENTS.md source."""
+    """AGENTS.md is the one real carrier, CLAUDE.md is absent, GEMINI.md links to AGENTS.md."""
     agents_md = ROOT / "AGENTS.md"
-    assert agents_md.is_file()
-    for entry in ("CLAUDE.md", "GEMINI.md"):
+    assert agents_md.is_file() and not agents_md.is_symlink()
+    # A CLAUDE.md file or link stops Claude Code from loading AGENTS.md natively (dev_env#393).
+    # The root check covers an untracked file; a tracked CLAUDE.md in any directory also stops the load.
+    assert not os.path.lexists(ROOT / "CLAUDE.md"), "CLAUDE.md must not exist"
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True
+    ).stdout.split(b"\0")
+    tracked_claude_md = [
+        p.decode() for p in tracked if p and Path(p.decode()).name == "CLAUDE.md"
+    ]
+    assert tracked_claude_md == [], (
+        f"tracked CLAUDE.md files stop AGENTS.md loading: {tracked_claude_md}"
+    )
+    for entry in ("GEMINI.md",):
         link = ROOT / entry
         assert link.is_symlink(), f"{entry} must be a symlink, not a copy"
         # Relative target keeps the link portable across clones.
@@ -109,21 +122,21 @@ def test_instruction_md_symlinks_to_agents_md() -> None:
 
 
 def test_instruction_mirrors_exempt_from_ssot_ownership_check() -> None:
-    """The AGENTS.md mirrors must stay registered in the SSOT-ownership guard.
+    """GEMINI.md, the one AGENTS.md mirror, stays registered in the SSOT-ownership guard; CLAUDE.md does not.
 
     Otherwise their mirrored content trips check4 (rule keyword without a
     cross-reference) and breaks CI.
     """
     from common.meta.extension import check_ssot_ownership
 
-    for entry in ("CLAUDE.md", "GEMINI.md"):
-        assert (ROOT / entry) in check_ssot_ownership.CHECK4_EXEMPT_PATHS
+    assert (ROOT / "GEMINI.md") in check_ssot_ownership.CHECK4_EXEMPT_PATHS
+    assert (ROOT / "CLAUDE.md") not in check_ssot_ownership.CHECK4_EXEMPT_PATHS
 
 
 def test_every_canonical_skill_is_mirrored() -> None:
     """Every canonical skill exists as a materialized directory in each mirror."""
     leaves = _canonical_leaf_skill_dirs()
-    assert leaves, "expected to discover skills/**/SKILL.md leaves"
+    assert leaves, "expected to discover .agents/skills/**/SKILL.md leaves"
 
     for runtime, skills_dir in MIRROR_SKILL_DIRS.items():
         for name, leaf in sorted(leaves.items()):
@@ -174,6 +187,7 @@ def test_no_orphan_or_broken_mirror_skill_links() -> None:
 def test_opencode_config_has_no_banrisk_auth_plugins() -> None:
     config = json.loads((ROOT / "opencode.json").read_text(encoding="utf-8"))
     plugins = config.get("plugin", [])
+    assert isinstance(plugins, list), "opencode.json plugin field must be a list"
     for plugin in plugins:
         for banned in BANNED_OPENCODE_PLUGINS:
             assert banned not in plugin, (
@@ -321,8 +335,10 @@ def test_skill_docs_reference_existing_tools() -> None:
     matcher.)
     """
     repo_basenames = _repo_py_basenames()
+    skill_mds = sorted(CANONICAL_SKILLS.rglob("SKILL.md"))
+    assert skill_mds, f"expected canonical SKILL.md files under {CANONICAL_SKILLS}"
     missing: list[str] = []
-    for skill_md in sorted(CANONICAL_SKILLS.rglob("SKILL.md")):
+    for skill_md in skill_mds:
         if skill_md.parent.name in _COMMON_ENGINEERING_SKILLS:
             continue
         text = skill_md.read_text(encoding="utf-8")

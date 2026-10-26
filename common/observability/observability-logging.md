@@ -35,7 +35,7 @@
 Production issue: Statement parsing failed with unclear error:
 ```
 All 1 models failed. Breakdown: 1 http_error. 
-Last: Model glm-5.1 failed: HTTP 400
+Last: Model glm-5.3-flash failed: HTTP 400
 ```
 
 **Gap**: No visibility into model parameter flow from frontend selection → backend execution → AI provider API.
@@ -85,7 +85,7 @@ sequenceDiagram
 2. Frontend: Upload submission (file + model validation)
 3. Backend: Upload request reception (model_requested parameter)
 4. Backend: Background task enqueue (force_model decision)
-5. Extraction: Model selection logic (force_model vs primary_model)
+5. Extraction: Model selection logic (force_model vs small_model)
 6. Extraction: HTTP error with status code extraction
 7. AI provider: API error with headers and retryability
 
@@ -133,7 +133,7 @@ counts plus a non-zero failure marker for fast triage.
 | `statement.parse.async_task.failed` | `request_id`, `statement_id`, `task_name`, `error_type`, `safe_error_message` | Marks failure of the background task wrapper so fire-and-forget failures are queryable |
 | `statement.brokerage_import.started` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `broker`, `parsed_positions` when known | Shows brokerage import was attempted |
 | `statement.brokerage_import.completed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `broker`, `parsed_positions`, `created_atomic_positions`, `existing_atomic_positions`, `reconcile_created`, `reconcile_updated`, `reconcile_disposed` | Shows brokerage import result counts |
-| `statement.brokerage_import.failed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `error_type`, `safe_error_message` | Shows brokerage import failure without leaking payload |
+| `statement.brokerage_import.failed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `error_type`, `safe_error_message` | Shows brokerage import failure without leaking payload. A source that cannot become positions (`error_type=BrokerageImportRejectedError`, HTTP 422) logs at warning level; other failures log at error level with the traceback (#2649) |
 | `reconciliation.run.started` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `limit` | Shows reconciliation was explicitly started |
 | `reconciliation.run.completed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `limit`, `matches_created`, `auto_accepted`, `pending_review`, `unmatched` | Shows reconciliation result counts |
 | `reconciliation.run.failed` | `request_id`, `statement_id`, `phase`, `progress`, `model_to_use`, `limit`, `error_type`, `safe_error_message` | Shows reconciliation failure without leaking transaction details |
@@ -230,7 +230,7 @@ approval gates.
    - `timestamp` for chronological ordering
 
 4. **Log Decision Points**
-   - "Using force_model=X vs primary_model=Y"
+   - "Using force_model=X vs small_model=Y"
    - "Cache hit/miss" with TTL remaining
    - "Model found/not found in catalog"
 
@@ -278,9 +278,9 @@ approval gates.
    ```
 
 3. **Analyze Log Sequence**
-   - ✅ Frontend: `selectedModel = "glm-5.1"`
-   - ✅ Backend: `model_requested = "glm-5.1"`
-   - ✅ Extraction: `force_model = "glm-5.1"`
+   - ✅ Frontend: `selectedModel = "glm-5.3-flash"`
+   - ✅ Backend: `model_requested = "glm-5.3-flash"`
+   - ✅ Extraction: `force_model = "glm-5.3-flash"`
    - ❌ AI provider: `HTTP 400 {"error": "Invalid model"}`
 
 4. **Diagnose Root Cause**
@@ -308,13 +308,13 @@ approval gates.
    ```javascript
    [StatementUploader] Model selection: {
      source: "localStorage",
-     selectedModel: "glm-5.1",
-     availableModels: ["glm-5-turbo", ...]
+     selectedModel: "glm-5.3-flash",
+     availableModels: ["glm-5.3-flash"]
    }
    
    [StatementUploader] Uploading statement: {
      filename: "test.pdf",
-     selectedModel: "glm-5.1",
+     selectedModel: "glm-5.3-flash",
      modelIsInCatalog: true
    }
    ```
@@ -344,7 +344,7 @@ approval gates.
 2. **Check Error Details**
    ```json
    {
-     "model": "glm-5.1",
+     "model": "glm-5.3-flash",
      "http_status": 400,
      "error_body": "Invalid request: model not found",
      "retryable": false,
@@ -389,7 +389,7 @@ approval gates.
 
 3. ✅ **Force Model vs Primary Model**
    - [ ] Upload with custom model → Check `force_model` used in logs
-   - [ ] Upload without model (CSV) → Check `primary_model` used in logs
+   - [ ] Upload without model (CSV) → Check `small_model` used in logs
 
 4. ✅ **HTTP Error Logging**
    - [ ] Trigger HTTP 400 error (use invalid model)

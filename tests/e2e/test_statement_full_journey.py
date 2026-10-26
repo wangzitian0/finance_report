@@ -309,9 +309,11 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
     # waits can resolve before the Next.js router commits the URL change.
     await expect(page).to_have_url(re.compile(r"/statements/[^/]+$"), timeout=15_000)
 
-    await expect(page.get_by_text("Transactions", exact=False)).to_be_visible(
-        timeout=10_000
-    )
+    # The statement page is also the review page (#2621 LB): its review hint also contains
+    # "transactions", so the check reads the heading of the transactions card.
+    await expect(
+        page.get_by_role("heading", name="Transactions", exact=True)
+    ).to_be_visible(timeout=10_000)
     await expect(page.locator("table tbody tr").first).to_be_visible(timeout=10_000)
 
     if already_approved:
@@ -322,10 +324,10 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
             timeout=15_000
         )
     else:
-        # === AC8.13.4: Start Review → approve via ConfirmDialog ===
-        await page.get_by_role("link", name=re.compile("Start Review")).click()
+        # === AC8.13.4: approve via ConfirmDialog on the statement page ===
+        # The statement page is the review page, so there is no link to follow.
         await expect(page).to_have_url(
-            re.compile(r"/statements/[^/]+/review$"), timeout=15_000
+            re.compile(r"/statements/[^/]+$"), timeout=15_000
         )
         await page.get_by_role("button", name="Approve", exact=True).click()
         dialog = page.locator('[role="dialog"]')
@@ -346,7 +348,7 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
             await expect(review_action).to_be_visible(timeout=15_000)
             await expect(review_action).to_have_attribute(
                 "href",
-                f"/reconciliation/unmatched?statement_id={statement_id}&return_to=%2Fstatements%2F{statement_id}%2Freview",
+                f"/reconciliation?tab=unmatched&statement_id={statement_id}&return_to=%2Fstatements%2F{statement_id}",
             )
             assert last_statement is not None
             async with httpx.AsyncClient(
@@ -448,7 +450,7 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
     assert report["is_balanced"] is True
 
     # === AC8.13.5: Balance sheet report loads ===
-    await page.goto(_get_url("/reports/balance-sheet"))
+    await page.goto(_get_url("/reports?tab=balance-sheet"))
     await page.wait_for_load_state("domcontentloaded")
 
     await expect(page.get_by_text("Balance Sheet", exact=False).first).to_be_visible(
@@ -460,37 +462,29 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
     closing_str = f"{int(DBS_EXPECTED_CLOSING_BALANCE):,}"
     await expect(page.locator("body")).to_contain_text(closing_str, timeout=10_000)
 
-    # === Skeleton E2E: Home Dashboard reality verification ===
+    # === Skeleton E2E: Home three-statement cockpit reality verification ===
     await page.goto(_get_url("/dashboard"))
     await page.wait_for_load_state("domcontentloaded")
     assert "/login" not in page.url
 
-    await expect(page.get_by_label("Dashboard analytics", exact=True)).to_be_visible(
-        timeout=15_000
-    )
+    await expect(
+        page.get_by_label("Three-statement cockpit", exact=True)
+    ).to_be_visible(timeout=15_000)
 
-    # Assets & Net Worth cards reflect actual closing balance
-    assets_card = page.locator(".card").filter(has_text="Total Assets")
-    await expect(assets_card).to_contain_text(closing_str, timeout=15_000)
-
-    net_worth_banner = page.locator(".card").filter(has_text="Net Worth")
-    await expect(net_worth_banner).to_contain_text(closing_str, timeout=15_000)
-    await expect(net_worth_banner).to_contain_text("Books balanced", timeout=10_000)
-
-    # Articulated net worth reflects double-entry accounting breakdown
-    articulation = page.locator('[data-testid="dashboard-net-worth-articulation"]')
-    await expect(articulation).to_be_visible(timeout=10_000)
-    await expect(articulation).to_contain_text("Opening Equity")
-    await expect(articulation).to_contain_text("Period Net Income")
+    # The balance sheet card reflects the actual closing balance.
+    balance_card = page.locator('[data-testid="cockpit-card-balance-sheet"]')
+    await expect(balance_card).to_contain_text("Total assets", timeout=15_000)
+    await expect(balance_card).to_contain_text(closing_str, timeout=15_000)
+    await expect(balance_card).to_contain_text("Net worth", timeout=15_000)
 
     # === Skeleton E2E: Three-statement navigation verification ===
-    await page.goto(_get_url("/reports/income-statement"))
+    await page.goto(_get_url("/reports?tab=income-statement"))
     await page.wait_for_load_state("domcontentloaded")
     await expect(page.get_by_text("Income Statement", exact=False).first).to_be_visible(
         timeout=10_000
     )
 
-    await page.goto(_get_url("/reports/cash-flow"))
+    await page.goto(_get_url("/reports?tab=cash-flow"))
     await page.wait_for_load_state("domcontentloaded")
     await expect(page.get_by_text("Cash Flow", exact=False).first).to_be_visible(
         timeout=10_000

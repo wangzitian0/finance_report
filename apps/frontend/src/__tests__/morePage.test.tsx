@@ -28,7 +28,7 @@ describe("More overflow (EPIC-022 AC22.21.5)", () => {
         render(<MorePage />);
 
         expect(screen.getByRole("link", { name: /Settings/i })).toHaveAttribute("href", "/settings");
-        expect(screen.getByRole("link", { name: /Accounts/i })).toHaveAttribute("href", "/accounts");
+        expect(screen.getByRole("link", { name: /Accounts/i })).toHaveAttribute("href", "/settings?tab=accounts");
 
         fireEvent.click(screen.getByRole("button", { name: /Logout/i }));
         await waitFor(() => expect(clearUser).toHaveBeenCalledTimes(1));

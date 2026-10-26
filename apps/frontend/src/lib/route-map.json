@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "description": "Single source of truth for every frontend route. State target: one of the 10 final pages. State shell: a page outside the 10 that the app shell needs. State merge: a page that still exists and moves into its target. State redirect: a path with no page that next.config.mjs redirects to its target, in the order of this list. Put a static path before a dynamic path that matches it. Lanes: LA audit queues, LB upload chain, LC three statements, LD reconciliation, portfolio and settings.",
+  "target_page_count": 10,
+  "routes": [
+    { "path": "/", "state": "target" },
+    { "path": "/reports", "state": "target" },
+    { "path": "/upload", "state": "target" },
+    { "path": "/statements/[id]", "state": "target" },
+    { "path": "/audit", "state": "target" },
+    { "path": "/reconciliation", "state": "target" },
+    { "path": "/journal", "state": "target" },
+    { "path": "/chat", "state": "target" },
+    { "path": "/portfolio", "state": "target" },
+    { "path": "/settings", "state": "target" },
+
+    { "path": "/login", "state": "shell" },
+    { "path": "/more", "state": "shell" },
+    { "path": "/ping-pong", "state": "shell" },
+
+    { "path": "/attention", "state": "redirect", "into": "/audit" },
+    { "path": "/confidence", "state": "redirect", "into": "/audit" },
+    { "path": "/review/ai-suggestions", "state": "redirect", "into": "/audit" },
+    { "path": "/review/run/[runId]", "state": "redirect", "into": "/audit?run_id=:runId" },
+
+    { "path": "/notifications", "state": "redirect", "into": "/upload" },
+    { "path": "/processing", "state": "redirect", "into": "/upload" },
+    { "path": "/accounts/processing", "state": "redirect", "into": "/upload" },
+    { "path": "/statements/[id]/review", "state": "redirect", "into": "/statements/[id]" },
+
+    { "path": "/reports/balance-sheet", "state": "redirect", "into": "/reports?tab=balance-sheet" },
+    { "path": "/reports/income-statement", "state": "redirect", "into": "/reports?tab=income-statement" },
+    { "path": "/reports/cash-flow", "state": "redirect", "into": "/reports?tab=cash-flow" },
+    { "path": "/reports/package", "state": "redirect", "into": "/reports?tab=package" },
+
+    { "path": "/reconciliation/unmatched", "state": "redirect", "into": "/reconciliation?tab=unmatched" },
+    { "path": "/reconciliation/review-queue", "state": "redirect", "into": "/reconciliation?tab=review-queue" },
+    { "path": "/portfolio/prices", "state": "redirect", "into": "/portfolio?panel=prices" },
+    { "path": "/portfolio/evidence", "state": "redirect", "into": "/portfolio?panel=evidence" },
+    { "path": "/portfolio/[ticker]", "state": "redirect", "into": "/portfolio?ticker=:ticker" },
+    { "path": "/accounts", "state": "redirect", "into": "/settings?tab=accounts" },
+
+    { "path": "/dashboard", "state": "redirect", "into": "/" },
+    { "path": "/events", "state": "redirect", "into": "/upload" },
+    { "path": "/assets", "state": "redirect", "into": "/portfolio" },
+    { "path": "/statements/upload", "state": "redirect", "into": "/upload" },
+    { "path": "/statements", "state": "redirect", "into": "/upload" },
+    { "path": "/review", "state": "redirect", "into": "/upload" },
+    { "path": "/settings/general", "state": "redirect", "into": "/settings?tab=general" },
+    { "path": "/settings/ai", "state": "redirect", "into": "/settings?tab=ai" },
+    { "path": "/settings/llm", "state": "redirect", "into": "/settings?tab=llm" }
+  ]
+}

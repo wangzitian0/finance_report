@@ -90,7 +90,7 @@ export function buildAttentionItems(
         ? "The statement's closing balance didn't reconcile against the parsed transactions, so the extraction may have missed or misread a line."
         : "Parsed from your upload and waiting for you to confirm the entries before they post to the ledger.",
       confidence: clampConfidence(balanceFailed ? Math.min(score, 40) : score),
-      href: `/statements/${statement.id}/review`,
+      href: `/statements/${statement.id}`,
     });
   }
 
@@ -108,9 +108,8 @@ export function buildAttentionItems(
       reason:
         "Auto-matched to ledger entries but below the confidence bar to post without a human check — confirm or correct each match.",
       confidence: clampConfidence(stats.match_rate ?? 0),
-      // #1001: the dedicated Stage-2 review surface, decoupled from the
-      // reconciliation workbench.
-      href: "/review",
+      // The review queue is embedded in the reconciliation workbench.
+      href: "/reconciliation",
     });
   }
 
@@ -126,7 +125,7 @@ export function buildAttentionItems(
       reason:
         "These transactions have no matching ledger entry at all — either new activity you haven't recorded yet, or a reference the matcher couldn't link.",
       confidence: 0,
-      href: "/reconciliation/unmatched",
+      href: "/reconciliation?tab=unmatched",
     });
   }
 
@@ -146,7 +145,7 @@ export function buildAttentionItems(
       detail: `Oldest ${oldest} days outstanding`,
       reason: `Funds left one account but haven't been confirmed arriving in another for over ${PROCESSING_STALE_DAYS} days — the transfer may need a matching deposit or a manual close.`,
       confidence: 30,
-      href: "/processing",
+      href: "/upload",
     });
   }
 

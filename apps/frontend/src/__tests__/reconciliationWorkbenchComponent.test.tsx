@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -14,6 +14,18 @@ const navigationState = vi.hoisted(() => ({
 
 vi.mock("@/lib/api-client", () => ({
   apiOperation: vi.fn(),
+}))
+
+vi.mock("@/components/ui/Toast", () => ({
+  useToast: () => ({ showToast: vi.fn() }),
+}))
+
+vi.mock("@/components/reconciliation/UnmatchedBoard", () => ({
+  default: () => <div>Mock Unmatched Board</div>,
+}))
+
+vi.mock("@/components/review/Stage2ReviewQueue", () => ({
+  Stage2ReviewQueue: () => <div>Mock Review Queue</div>,
 }))
 
 function mapWorkbenchOperationToLegacy(operationId: string, req: any = {}): [string, RequestInit | undefined] {
@@ -39,6 +51,8 @@ function mapWorkbenchOperationToLegacy(operationId: string, req: any = {}): [str
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => navigationState.searchParams,
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => "/reconciliation",
 }))
 
 function createWrapper() {
@@ -326,6 +340,69 @@ describe("ReconciliationWorkbench", () => {
     await waitFor(() => expect(screen.getByText("Select a match to review")).toBeInTheDocument())
   })
 
+  it("renders workspace mode switcher and links selected match transaction to its source statement", async () => {
+    mockedApiOperation.mockImplementation((path: string) => {
+      const url = String(path)
+      if (url.includes("/api/reconciliation/stats")) return Promise.resolve(statsResponse)
+      if (url.includes("/api/reconciliation/pending")) {
+        return Promise.resolve({
+          items: [
+            {
+              ...matchResponse,
+              transaction: {
+                ...matchResponse.transaction,
+                statement_id: "stmt-42",
+                statement_filename: "dbs-2026-01.pdf",
+              },
+            },
+            {
+              ...matchResponse,
+              id: "m2",
+              transaction: {
+                ...matchResponse.transaction,
+                id: "t2",
+                description: "Utilities",
+              },
+            },
+          ],
+        })
+      }
+      if (url.includes("/api/reconciliation/transactions/")) return Promise.resolve([])
+      return Promise.resolve({})
+    })
+
+    render(<ReconciliationWorkbench />, { wrapper: createWrapper() })
+
+    const workspaceNav = await screen.findByRole("navigation", {
+      name: "Reconciliation workspace views",
+    })
+    const matchedTab = within(workspaceNav).getByRole("link", { name: "Matches" })
+    expect(matchedTab).toHaveAttribute("href", "/reconciliation")
+    expect(matchedTab).toHaveAttribute("aria-current", "page")
+
+    const unmatchedTab = within(workspaceNav).getByRole("link", {
+      name: /Unmatched/i,
+    })
+    expect(unmatchedTab).toHaveAttribute("href", "/reconciliation?tab=unmatched")
+    expect(await within(unmatchedTab).findByText("3")).toBeInTheDocument()
+
+    const reviewQueueTab = within(workspaceNav).getByRole("link", { name: "Review queue" })
+    expect(reviewQueueTab).toHaveAttribute("href", "/reconciliation?tab=review-queue")
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: "View source statement (dbs-2026-01.pdf)" }),
+      ).toHaveAttribute("href", "/statements/stmt-42"),
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Utilities/i }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole("link", { name: "View source statement" }),
+      ).toHaveAttribute("href", "/upload"),
+    )
+  })
+
 })
 
 // #1827 G-async-seam: each mutating Workbench flow is exercised separately
@@ -431,5 +508,31 @@ describe("Workbench invalidation matrix flows (#1827 G-async-seam)", () => {
       }),
     )
     await waitFor(() => probe.expectDeclaredInvalidated())
+  })
+
+  // AC-reconciliation.fe-tabs.1
+  it("AC-reconciliation.fe-tabs.1 shows the tab that the tab query parameter names and links each tab to its URL", async () => {
+    const cases: [string, RegExp, string][] = [
+      ["", /Matches/, "Reconciliation Workbench"],
+      ["tab=unmatched&statement_id=s1", /Unmatched/, "Mock Unmatched Board"],
+      ["tab=review-queue&check_type=duplicate", /Review queue/, "Mock Review Queue"],
+      ["tab=unknown", /Matches/, "Reconciliation Workbench"],
+    ]
+    for (const [query, activeTab, content] of cases) {
+      navigationState.searchParams = new URLSearchParams(query)
+      const { unmount } = render(<ReconciliationWorkbench />, { wrapper: createWrapper() })
+      const nav = screen.getByRole("navigation", { name: "Reconciliation workspace views" })
+      const links = within(nav).getAllByRole("link")
+      expect(links.map((link) => link.getAttribute("href"))).toEqual([
+        "/reconciliation",
+        "/reconciliation?tab=unmatched",
+        "/reconciliation?tab=review-queue",
+      ])
+      const current = links.filter((link) => link.getAttribute("aria-current") === "page")
+      expect(current, `?${query} must mark one tab as current`).toHaveLength(1)
+      expect(current[0]).toHaveTextContent(activeTab)
+      expect(screen.getByText(content)).toBeInTheDocument()
+      unmount()
+    }
   })
 })

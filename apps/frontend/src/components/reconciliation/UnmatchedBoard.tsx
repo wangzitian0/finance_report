@@ -4,20 +4,14 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { SmartBackLink } from "@/components/ui/SmartBackLink";
 import AccountFormModal from "@/components/accounts/AccountFormModal";
 import { apiOperation } from "@/lib/api-client";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import type { components } from "@/lib/api-types";
-import type {
-  Account,
-  BankTransactionSummary,
-  JournalEntrySummary,
-} from "@/lib/types";
+import type { Account, BankTransactionSummary, JournalEntrySummary } from "@/lib/types";
 
 type EconomicIntent = components["schemas"]["EconomicIntent"];
-type ReviewedDispositionPayload =
-  components["schemas"]["ReviewedDispositionRequest"];
+type ReviewedDispositionPayload = components["schemas"]["ReviewedDispositionRequest"];
 
 type ReviewedDispositionDraft = {
   transactionId: string;
@@ -29,59 +23,36 @@ type ReviewedDispositionDraft = {
 
 const FLAGGED_STORAGE_KEY = "finance-unmatched-flagged";
 
-const INTENT_OPTIONS: ReadonlyArray<{ value: EconomicIntent; label: string }> =
-  [
-    { value: "income", label: "Income" },
-    { value: "expense", label: "Expense" },
-    { value: "expense_refund", label: "Expense refund" },
-    { value: "investment_purchase", label: "Investment purchase" },
-    { value: "investment_sale", label: "Investment sale" },
-    { value: "loan_principal", label: "Loan principal" },
-    { value: "loan_interest", label: "Loan interest" },
-    { value: "card_repayment", label: "Card repayment" },
-    { value: "transfer", label: "Internal transfer" },
-    { value: "unknown", label: "Unknown - needs review" },
-  ];
+const INTENT_OPTIONS: ReadonlyArray<{ value: EconomicIntent; label: string }> = [
+  { value: "income", label: "Income" },
+  { value: "expense", label: "Expense" },
+  { value: "expense_refund", label: "Expense refund" },
+  { value: "investment_purchase", label: "Investment purchase" },
+  { value: "investment_sale", label: "Investment sale" },
+  { value: "loan_principal", label: "Loan principal" },
+  { value: "loan_interest", label: "Loan interest" },
+  { value: "card_repayment", label: "Card repayment" },
+  { value: "transfer", label: "Internal transfer" },
+  { value: "unknown", label: "Unknown - needs review" },
+];
 
-function newReviewedDispositionDraft(
-  transaction: BankTransactionSummary,
-): ReviewedDispositionDraft {
-  return {
-    transactionId: transaction.id,
-    intent: "unknown",
-    counterAccountId: "",
-    category: "",
-    rationale: "",
-  };
-}
-
-export function compatibleAccountTypes(
-  intent: EconomicIntent,
-): Account["type"][] {
+export function compatibleAccountTypes(intent: EconomicIntent): Account["type"][] {
   switch (intent) {
-    case "income":
-      return ["INCOME"];
+    case "income": return ["INCOME"];
     case "expense":
     case "expense_refund":
-    case "loan_interest":
-      return ["EXPENSE"];
+    case "loan_interest": return ["EXPENSE"];
     case "investment_purchase":
     case "investment_sale":
-    case "transfer":
-      return ["ASSET"];
+    case "transfer": return ["ASSET"];
     case "loan_principal":
-    case "card_repayment":
-      return ["LIABILITY"];
-    case "unknown":
-      return [];
+    case "card_repayment": return ["LIABILITY"];
+    case "unknown": return [];
   }
 }
 
-function needsCategory(intent: EconomicIntent): boolean {
-  return ["income", "expense", "expense_refund", "loan_interest"].includes(
-    intent,
-  );
-}
+const needsCategory = (intent: EconomicIntent): boolean =>
+  ["income", "expense", "expense_refund", "loan_interest"].includes(intent);
 
 export function isReviewedDispositionComplete(
   intent: EconomicIntent,
@@ -125,97 +96,66 @@ export default function UnmatchedBoard() {
   const searchParams = useSearchParams();
   const statementId = searchParams.get("statement_id");
   const requestedReturnTo = searchParams.get("return_to");
-  const statementReviewHref = statementId
-    ? `/statements/${encodeURIComponent(statementId)}/review`
-    : null;
-  const safeReturnHref =
-    statementReviewHref && requestedReturnTo === statementReviewHref
-      ? requestedReturnTo
-      : statementReviewHref;
+  const statementReviewHref = statementId ? `/statements/${encodeURIComponent(statementId)}` : null;
+  const safeReturnHref = statementReviewHref && requestedReturnTo === statementReviewHref ? requestedReturnTo : statementReviewHref;
+
   const [items, setItems] = useState<BankTransactionSummary[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountCreationType, setAccountCreationType] = useState<Account["type"] | null>(null);
-  const [selected, setSelected] =
-    useState<BankTransactionSummary | null>(null);
+  const [selected, setSelected] = useState<BankTransactionSummary | null>(null);
   const [draft, setDraft] = useState<ReviewedDispositionDraft | null>(null);
   const [posting, setPosting] = useState(false);
-  const [postedEntry, setPostedEntry] = useState<JournalEntrySummary | null>(
-    null,
-  );
+  const [postedEntry, setPostedEntry] = useState<JournalEntrySummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [flagged, setFlagged] = useState<Set<string>>(() =>
-    loadFlaggedFromStorage(),
-  );
+  const [flagged, setFlagged] = useState<Set<string>>(() => loadFlaggedFromStorage());
 
   const refresh = useCallback(async () => {
     setLoaded(false);
     try {
       const [transactions, accountResponse] = await Promise.all([
-        apiOperation("list_unmatched_reconciliation_unmatched_get", {
-          query: { statement_id: statementId ?? undefined },
-        }),
-        apiOperation("list_accounts_accounts_get", {
-          query: { is_active: true, limit: 500 },
-        }),
+        apiOperation("list_unmatched_reconciliation_unmatched_get", { query: { statement_id: statementId ?? undefined } }),
+        apiOperation("list_accounts_accounts_get", { query: { is_active: true, limit: 500 } }),
       ]);
       setItems(transactions.items);
       setAccounts(accountResponse.items);
       setError(null);
       setLoaded(true);
       setSelected((current) =>
-        current && transactions.items.some((item) => item.id === current.id)
-          ? current
-          : (transactions.items[0] ?? null),
+        current && transactions.items.some((item) => item.id === current.id) ? current : (transactions.items[0] ?? null),
       );
     } catch (requestError) {
       setLoaded(true);
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Failed to load unmatched transactions.",
-      );
+      setError(requestError instanceof Error ? requestError.message : "Failed to load unmatched transactions.");
     }
   }, [statementId]);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useEffect(() => { void refresh(); }, [refresh]);
 
   useEffect(() => {
     if (!selected) {
       setDraft(null);
       return;
     }
-    setDraft((current) => {
-      return current?.transactionId === selected.id
+    setDraft((current) =>
+      current?.transactionId === selected.id
         ? current
-        : newReviewedDispositionDraft(selected);
-    });
+        : { transactionId: selected.id, intent: "unknown", counterAccountId: "", category: "", rationale: "" },
+    );
     setPostedEntry(null);
   }, [selected]);
 
-  const activeDraft =
-    selected && draft?.transactionId === selected.id ? draft : null;
+  const activeDraft = selected && draft?.transactionId === selected.id ? draft : null;
 
-  const updateDraft = (
-    changes: Partial<Omit<ReviewedDispositionDraft, "transactionId">>,
-  ) => {
-    setDraft((current) =>
-      current && selected && current.transactionId === selected.id
-        ? { ...current, ...changes }
-        : current,
-    );
+  const updateDraft = (changes: Partial<Omit<ReviewedDispositionDraft, "transactionId">>) => {
+    setDraft((current) => (current && selected && current.transactionId === selected.id ? { ...current, ...changes } : current));
   };
 
   const candidateAccounts = useMemo(() => {
     if (!selected) return [];
     const currency = selected.currency || "SGD";
     const types = activeDraft ? compatibleAccountTypes(activeDraft.intent) : [];
-    return accounts.filter(
-      (account) =>
-        account.is_active && account.currency === currency && types.includes(account.type),
-    );
+    return accounts.filter((a) => a.is_active && a.currency === currency && types.includes(a.type));
   }, [accounts, activeDraft, selected]);
 
   const toggleFlag = (transactionId: string) => {
@@ -229,33 +169,19 @@ export default function UnmatchedBoard() {
   };
 
   const removeFromList = (transactionId: string) => {
-    setItems((previous) =>
-      previous.filter((item) => item.id !== transactionId),
-    );
+    setItems((previous) => previous.filter((item) => item.id !== transactionId));
     if (selected?.id === transactionId) setSelected(null);
   };
 
   const submitReviewedDisposition = async () => {
-    if (
-      !selected ||
-      !activeDraft ||
-      !isReviewedDispositionComplete(
-        activeDraft.intent,
-        activeDraft.counterAccountId,
-        activeDraft.category,
-        activeDraft.rationale,
-      )
-    )
-      return;
+    if (!selected || !activeDraft || !isReviewedDispositionComplete(activeDraft.intent, activeDraft.counterAccountId, activeDraft.category, activeDraft.rationale)) return;
     setPosting(true);
     try {
       const payload: ReviewedDispositionPayload = {
         intent: activeDraft.intent,
         counter_account_id: activeDraft.counterAccountId,
         rationale: activeDraft.rationale.trim(),
-        ...(needsCategory(activeDraft.intent)
-          ? { category: activeDraft.category.trim() }
-          : {}),
+        ...(needsCategory(activeDraft.intent) ? { category: activeDraft.category.trim() } : {}),
       };
       const entry = await apiOperation(
         "submit_unmatched_reviewed_disposition_reconciliation_unmatched__txn_id__reviewed_disposition_post",
@@ -265,22 +191,13 @@ export default function UnmatchedBoard() {
       setError(null);
       await refresh();
     } catch (requestError) {
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "Failed to post reviewed disposition.",
-      );
+      setError(requestError instanceof Error ? requestError.message : "Failed to post reviewed disposition.");
     } finally {
       setPosting(false);
     }
   };
 
-  const formatTxnAmount = (item: BankTransactionSummary) =>
-    formatCurrencyLocale(item.amount, item.currency || "SGD");
-  const summary = useMemo(
-    () => ({ total: items.length, flagged: flagged.size }),
-    [flagged.size, items.length],
-  );
+  const formatTxnAmount = (item: BankTransactionSummary) => formatCurrencyLocale(item.amount, item.currency || "SGD");
   const aiPrompt = useMemo(() => {
     if (!selected) return null;
     const { description, txn_date, amount, direction } = selected;
@@ -288,64 +205,29 @@ export default function UnmatchedBoard() {
       `Help me interpret this transaction: ${description} on ${txn_date}, amount ${amount} (${direction === "IN" ? "inflow" : "outflow"}). Why might it be unmatched?`,
     );
   }, [selected]);
-  const canSubmit =
-    activeDraft !== null &&
-    isReviewedDispositionComplete(
-      activeDraft.intent,
-      activeDraft.counterAccountId,
-      activeDraft.category,
-      activeDraft.rationale,
-    );
+  const canSubmit = activeDraft !== null && isReviewedDispositionComplete(activeDraft.intent, activeDraft.counterAccountId, activeDraft.category, activeDraft.rationale);
 
   return (
-    <div className="p-6">
-      <div className="mb-4">
-        <SmartBackLink
-          fallbackHref={safeReturnHref ?? "/reconciliation"}
-          fallbackLabel={safeReturnHref ? "Return to statement review" : "Back to Reconciliation"}
-        >
-          {safeReturnHref ? "Return to statement review" : "Back to Reconciliation"}
-        </SmartBackLink>
-      </div>
+    <div>
       <div className="page-header flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="page-title">Unmatched Transactions</h1>
-          <p className="page-description">
-            Confirm the economic meaning before a source transaction can be
-            posted.
-          </p>
-          <p className="mt-1 text-xs text-muted">
-            Flags and hidden rows are local workspace triage only.
-          </p>
+          <p className="page-description">Confirm the economic meaning before a source transaction can be posted.</p>
+          <p className="mt-1 text-xs text-muted">Flags and hidden rows are local workspace triage only.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/reconciliation" className="btn-secondary text-sm">
-            ← Workbench
-          </Link>
-          <span className="badge badge-warning">
-            {summary.total} unmatched · {summary.flagged} flagged
-          </span>
-        </div>
+        <span className="badge badge-warning">{items.length} unmatched · {flagged.size} flagged</span>
       </div>
 
       {error && <div className="mb-4 alert-error">{error}</div>}
       {loaded && statementId && items.length === 0 && !error && (
         <div className="mb-4 rounded-md border border-[var(--success)]/30 bg-[var(--success-muted)] p-4 text-sm">
           <p>All transactions for this statement are classified.</p>
-          {safeReturnHref && (
-            <Link
-              href={safeReturnHref}
-              className="btn-primary mt-3 inline-flex"
-            >
-              Return to statement review
-            </Link>
-          )}
+          {safeReturnHref && <Link href={safeReturnHref} className="btn-primary mt-3 inline-flex">Return to statement review</Link>}
         </div>
       )}
       {postedEntry && (
         <div className="mb-4 p-3 rounded-md bg-[var(--success-muted)] border border-[var(--success)]/30 text-sm">
-          Posted reviewed entry <strong>{postedEntry.id}</strong> on{" "}
-          {postedEntry.entry_date}.
+          Posted reviewed entry <strong>{postedEntry.id}</strong> on {postedEntry.entry_date}.
         </div>
       )}
 
@@ -364,31 +246,17 @@ export default function UnmatchedBoard() {
               >
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0">
-                    <p className="font-medium text-sm truncate">
-                      {item.description}
-                    </p>
-                    <p className="text-xs text-muted">
-                      {item.txn_date} · {item.direction === "IN" ? "In" : "Out"}
-                    </p>
+                    <p className="font-medium text-sm truncate">{item.description}</p>
+                    <p className="text-xs text-muted">{item.txn_date} · {item.direction === "IN" ? "In" : "Out"}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="font-semibold text-[var(--accent)]">
-                      {formatTxnAmount(item)}
-                    </div>
-                    {flagged.has(item.id) && (
-                      <span className="badge badge-warning text-[10px]">
-                        Flagged locally
-                      </span>
-                    )}
+                    <div className="font-semibold text-[var(--accent)]">{formatTxnAmount(item)}</div>
+                    {flagged.has(item.id) && <span className="badge badge-warning text-[10px]">Flagged locally</span>}
                   </div>
                 </div>
               </button>
             ))}
-            {items.length === 0 && (
-              <div className="p-8 text-center text-muted text-sm">
-                No unmatched transactions
-              </div>
-            )}
+            {items.length === 0 && <div className="p-8 text-center text-muted text-sm">No unmatched transactions</div>}
           </div>
         </div>
 
@@ -400,18 +268,9 @@ export default function UnmatchedBoard() {
             <div className="space-y-4">
               <div className="p-3 rounded-md bg-[var(--background-muted)]">
                 <p className="font-medium">{selected.description}</p>
-                <p className="text-xs text-muted">
-                  {selected.txn_date} ·{" "}
-                  {selected.direction === "IN" ? "Inflow" : "Outflow"}
-                </p>
-                <p className="text-xl font-semibold text-[var(--accent)] mt-1">
-                  {formatTxnAmount(selected)}
-                </p>
-                {selected.reference && (
-                  <p className="text-xs text-muted">
-                    Ref: {selected.reference}
-                  </p>
-                )}
+                <p className="text-xs text-muted">{selected.txn_date} · {selected.direction === "IN" ? "Inflow" : "Outflow"}</p>
+                <p className="text-xl font-semibold text-[var(--accent)] mt-1">{formatTxnAmount(selected)}</p>
+                {selected.reference && <p className="text-xs text-muted">Ref: {selected.reference}</p>}
               </div>
 
               <label className="block text-sm font-medium">
@@ -419,38 +278,27 @@ export default function UnmatchedBoard() {
                 <select
                   className="input mt-1 w-full"
                   value={activeDraft.intent}
-                  onChange={(event) =>
-                    updateDraft({
-                      intent: event.target.value as EconomicIntent,
-                      counterAccountId: "",
-                    })
-                  }
+                  onChange={(e) => updateDraft({ intent: e.target.value as EconomicIntent, counterAccountId: "" })}
                 >
                   {INTENT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
+                    <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
                 </select>
               </label>
 
               {activeDraft.intent === "transfer" ? (
                 <div className="rounded-md border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-3 text-sm">
-                  Internal transfers must be paired in the reconciliation
-                  workbench; they cannot be posted as income or expense.
+                  Internal transfers must be paired in the reconciliation workbench; they cannot be posted as income or expense.
                 </div>
               ) : activeDraft.intent === "unknown" ? (
                 <div className="rounded-md border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-3 text-sm">
-                  Unknown economic intent must be resolved from source evidence
-                  before it can be posted.
+                  Unknown economic intent must be resolved from source evidence before it can be posted.
                 </div>
               ) : (
                 <>
                   <div>
                     <div className="flex items-center justify-between">
-                      <label htmlFor="counter-account-select" className="block text-sm font-medium">
-                        Counter account
-                      </label>
+                      <label htmlFor="counter-account-select" className="block text-sm font-medium">Counter account</label>
                       <button
                         type="button"
                         className="text-xs text-[var(--accent)] hover:underline"
@@ -464,25 +312,18 @@ export default function UnmatchedBoard() {
                       aria-label="Counter account"
                       className="input mt-1 w-full"
                       value={activeDraft.counterAccountId}
-                      onChange={(event) =>
-                        updateDraft({ counterAccountId: event.target.value })
-                      }
+                      onChange={(e) => updateDraft({ counterAccountId: e.target.value })}
                     >
                       <option value="">Choose a compatible account</option>
                       {candidateAccounts.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.name} · {account.type}
-                        </option>
+                        <option key={account.id} value={account.id}>{account.name} · {account.type}</option>
                       ))}
                     </select>
                   </div>
                   {candidateAccounts.length === 0 && (
                     <div>
                       <p className="text-xs text-muted">
-                        Create an active{" "}
-                        {compatibleAccountTypes(activeDraft.intent).join("/")}{" "}
-                        account in {selected.currency || "SGD"}, then select it here.
-                        Your review draft will be kept.
+                        Create an active {compatibleAccountTypes(activeDraft.intent).join("/")} account in {selected.currency || "SGD"}, then select it here. Your review draft will be kept.
                       </p>
                       <button
                         type="button"
@@ -499,9 +340,7 @@ export default function UnmatchedBoard() {
                       <input
                         className="input mt-1 w-full"
                         value={activeDraft.category}
-                        onChange={(event) =>
-                          updateDraft({ category: event.target.value })
-                        }
+                        onChange={(e) => updateDraft({ category: e.target.value })}
                         maxLength={100}
                         placeholder="For example, DINING or SALARY"
                       />
@@ -512,9 +351,7 @@ export default function UnmatchedBoard() {
                     <textarea
                       className="input mt-1 w-full min-h-20"
                       value={activeDraft.rationale}
-                      onChange={(event) =>
-                        updateDraft({ rationale: event.target.value })
-                      }
+                      onChange={(e) => updateDraft({ rationale: e.target.value })}
                       maxLength={500}
                       placeholder="What source evidence supports this decision?"
                     />
@@ -531,26 +368,11 @@ export default function UnmatchedBoard() {
               )}
 
               <div className="flex flex-wrap gap-2">
-                {aiPrompt && (
-                  <Link
-                    href={`/chat?prompt=${aiPrompt}`}
-                    className="btn-secondary"
-                  >
-                    Ask AI
-                  </Link>
-                )}
-                <button
-                  onClick={() => toggleFlag(selected.id)}
-                  className="btn-secondary"
-                >
+                {aiPrompt && <Link href={`/chat?prompt=${aiPrompt}`} className="btn-secondary">Ask AI</Link>}
+                <button onClick={() => toggleFlag(selected.id)} className="btn-secondary">
                   {flagged.has(selected.id) ? "Unflag local" : "Flag local"}
                 </button>
-                <button
-                  onClick={() => removeFromList(selected.id)}
-                  className="btn-secondary"
-                >
-                  Hide locally
-                </button>
+                <button onClick={() => removeFromList(selected.id)} className="btn-secondary">Hide locally</button>
               </div>
             </div>
           )}

@@ -1,13 +1,10 @@
 import {
     BarChart3,
-    Bell,
     BookOpen,
-    Clock,
     Coins,
     Cpu,
     ClipboardCheck,
     FileText,
-    FolderOpen,
     Home,
     Landmark,
     Link2,
@@ -16,7 +13,6 @@ import {
     Plus,
     ShieldCheck,
     SlidersHorizontal,
-    TrendingDown,
     UploadCloud,
     Wallet,
     Zap,
@@ -38,34 +34,29 @@ export interface RouteConfig {
 export const APP_ROUTES = {
     HOME: "/",
     UPLOAD: "/upload",
-    NOTIFICATIONS: "/notifications",
     AUDIT: "/audit",
     MORE: "/more",
     CHAT: "/chat",
-    CONFIDENCE: "/confidence",
-    PROCESSING: "/processing",
-    ACCOUNTS: "/accounts",
+    ACCOUNTS: "/settings?tab=accounts",
     JOURNAL: "/journal",
     PORTFOLIO: "/portfolio",
-    PORTFOLIO_EVIDENCE: "/portfolio/evidence",
-    PORTFOLIO_PRICES: "/portfolio/prices",
+    PORTFOLIO_EVIDENCE: "/portfolio?panel=evidence",
+    PORTFOLIO_PRICES: "/portfolio?panel=prices",
     RECONCILIATION: "/reconciliation",
-    RECONCILIATION_UNMATCHED: "/reconciliation/unmatched",
-    RECONCILIATION_REVIEW_QUEUE: "/reconciliation/review-queue",
+    RECONCILIATION_UNMATCHED: "/reconciliation?tab=unmatched",
+    RECONCILIATION_REVIEW_QUEUE: "/reconciliation?tab=review-queue",
     REPORTS: "/reports",
-    REPORTS_BALANCE_SHEET: "/reports/balance-sheet",
-    REPORTS_INCOME_STATEMENT: "/reports/income-statement",
-    REPORTS_CASH_FLOW: "/reports/cash-flow",
-    REPORTS_PACKAGE: "/reports/package",
     SETTINGS: "/settings",
-    ATTENTION: "/attention",
-    ACCOUNTS_PROCESSING: "/accounts/processing",
-    REVIEW_AI_SUGGESTIONS: "/review/ai-suggestions",
     PING_PONG: "/ping-pong",
     LOGIN: "/login",
 } as const;
 
 export type AppRoute = (typeof APP_ROUTES)[keyof typeof APP_ROUTES];
+
+/** The `/portfolio` URL that opens the holding drawer of one ticker. */
+export function portfolioHoldingHref(ticker: string): string {
+    return `${APP_ROUTES.PORTFOLIO}?ticker=${encodeURIComponent(ticker)}`;
+}
 
 // EPIC-022 AC22.21: mobile/PWA-first bottom tab bar, mirrored by the desktop
 // sidebar. Exactly four routed tabs plus a center "Add" action (see ADD_ACTION).
@@ -84,10 +75,9 @@ export const ADD_ACTION = { icon: Plus, label: "Add" } as const;
 // `/audit` hub cards — verify-on-demand machinery folded out of navigation.
 // Each deep-links to an existing page (which back-links to `/audit`).
 export const auditHubItems: NavItem[] = [
-    { icon: TrendingDown, label: "Trust", href: APP_ROUTES.CONFIDENCE, protected: true },
     { icon: Link2, label: "Reconciliation", href: APP_ROUTES.RECONCILIATION, protected: true },
     { icon: BookOpen, label: "Journal", href: APP_ROUTES.JOURNAL, protected: true },
-    { icon: Clock, label: "Processing", href: APP_ROUTES.PROCESSING, protected: true },
+    { icon: UploadCloud, label: "Statements", href: APP_ROUTES.UPLOAD, protected: true },
 ];
 
 // `/more` overflow — low-frequency destinations. Portfolio is conditional
@@ -106,38 +96,20 @@ export const advancedItems: NavItem[] = [
 export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/": { label: "Home", Icon: Home },
     "/upload": { label: "Upload", Icon: UploadCloud },
-    "/notifications": { label: "Notifications", Icon: Bell },
-    "/attention": { label: "Needs attention", Icon: ShieldCheck },
     "/audit": { label: "Audit", Icon: ShieldCheck },
     "/more": { label: "More", Icon: MoreHorizontal },
     // Legacy routes redirect to the new IA; keep label/icon mappings so any
     // persisted workspace tabs or breadcrumbs render with the new names.
-    // #1118: `/events` is permanently redirected to `/notifications` and is no
-    // longer aliased here — `/notifications` is the single canonical path/label,
-    // so the legacy "Notifications" label can no longer leak via the stale path.
     "/dashboard": { label: "Home", Icon: Home },
-    "/accounts": { label: "Accounts", Icon: Landmark },
     "/journal": { label: "Journal", Icon: BookOpen },
     "/statements": { label: "Statements", Icon: UploadCloud },
     "/review": { label: "Review", Icon: ClipboardCheck },
     "/portfolio": { label: "Portfolio", Icon: Wallet },
-    "/portfolio/evidence": { label: "Guided Evidence", Icon: FileText },
     // Legacy /assets route redirects to /portfolio; keep its label mapping for
     // breadcrumbs and any persisted workspace tabs.
     "/assets": { label: "Portfolio", Icon: Wallet },
-    "/portfolio/prices": { label: "Prices", Icon: Wallet },
     "/reports": { label: "Reports", Icon: BarChart3 },
-    "/reports/balance-sheet": { label: "Balance Sheet", Icon: BarChart3 },
-    "/reports/income-statement": { label: "Income Statement", Icon: BarChart3 },
-    "/reports/cash-flow": { label: "Cash Flow", Icon: BarChart3 },
-    "/reports/package": { label: "Personal Report Package", Icon: FileText },
-    "/accounts/processing": { label: "Processing Accounts", Icon: Landmark },
     "/reconciliation": { label: "Reconciliation", Icon: Link2 },
-    "/reconciliation/unmatched": { label: "Unmatched", Icon: Link2 },
-    "/reconciliation/review-queue": { label: "Review Queue", Icon: Link2 },
-    "/review/ai-suggestions": { label: "AI Suggestions", Icon: ClipboardCheck },
-    "/processing": { label: "Processing", Icon: Clock },
-    "/confidence": { label: "Confidence Trend", Icon: TrendingDown },
     "/chat": { label: "Chat", Icon: MessageSquare },
     "/settings": { label: "Settings", Icon: SlidersHorizontal },
     "/settings/general": { label: "General Settings", Icon: Coins },
@@ -148,9 +120,6 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
 };
 
 export const DEFAULT_ROUTE_ICON = UploadCloud;
-
-// Re-exported so the `/more` page can render the genuine power escape hatch.
-export { FolderOpen };
 
 /** Whether a nav item's href matches the current pathname (exact, or a path prefix). */
 export function isActive(pathname: string, href: string): boolean {

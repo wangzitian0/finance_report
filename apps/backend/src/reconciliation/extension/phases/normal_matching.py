@@ -32,11 +32,18 @@ async def run_normal_matching_phase(
 ) -> list[ReconciliationMatch]:
     """Run standard single and multi-entry candidate matching."""
     created_matches: list[ReconciliationMatch] = []
+    consumed_entry_ids: set[str] = set()
     for txn in transactions:
         if txn.id in matched_txn_ids:
             continue
+        available_entries = [
+            entry
+            for entry in context.get_candidates_for_date(txn.txn_date)
+            if str(entry.id) not in consumed_entry_ids
+            and getattr(entry, "status", None) != JournalEntryStatus.RECONCILED
+        ]
         candidates = prune_candidates(
-            context.get_candidates_for_date(txn.txn_date),
+            available_entries,
             txn_date=txn.txn_date,
             target_amount=txn.amount,
             currency=txn.currency,
@@ -74,6 +81,7 @@ async def run_normal_matching_phase(
             existing_je_ids = set(existing_match.journal_entry_ids or [])
             new_je_ids = set(best_match.journal_entry_ids or [])
             if existing_je_ids == new_je_ids:
+                consumed_entry_ids.update(existing_je_ids)
                 continue
             existing_match.status = ReconciliationStatus.SUPERSEDED
 
@@ -99,6 +107,7 @@ async def run_normal_matching_phase(
             existing_match.superseded_by_id = match.id
 
         created_matches.append(match)
+        consumed_entry_ids.update(best_match.journal_entry_ids or [])
 
         if status == ReconciliationStatus.AUTO_ACCEPTED and best_match.journal_entry_ids:
             entry_ids = [UUID(entry_id) for entry_id in best_match.journal_entry_ids]

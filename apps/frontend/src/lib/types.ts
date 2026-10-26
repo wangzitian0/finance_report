@@ -50,9 +50,6 @@ export type JournalEntryListResponse = ListResponse<JournalEntry>;
 
 export type BankStatementTransaction = BankStatementTransactionViewModel;
 
-export type BankStatementTransactionResponse =
-  Schemas["AtomicTransactionResponse"];
-
 export type BankTransactionSummary = Schemas["BankTransactionSummary"];
 
 export type BankStatementTransactionSummary = BankTransactionSummary;
@@ -133,6 +130,20 @@ export type CashFlowResponse = Omit<
   fx_warnings?: FxWarning[];
 };
 
+/** One line of the bounded cash-flow statement. Its events load page by page (#2583). */
+export type CashFlowLine = Schemas["CashFlowLine"];
+
+export type CashFlowPreview = Omit<
+  Schemas["CashFlowPreview"],
+  "fx_warnings"
+> & {
+  fx_warnings?: FxWarning[];
+};
+
+export type CashFlowLineEvent = Schemas["CashFlowLineEvent"];
+
+export type CashFlowLineEventsPage = Schemas["CashFlowLineEventsPage"];
+
 export type PersonalReportPackageSectionContract =
   Schemas["PersonalReportPackageSectionContract"];
 
@@ -166,11 +177,22 @@ export interface PersonalReportPackageSectionsViewModel {
   investment_performance: InvestmentPerformanceReportSchedule;
   annualized_income_long_term: AnnualizedIncomeScheduleResponse;
   notes: PersonalReportPackageNotesResponse;
-  traceability_appendix: PersonalReportPackageTraceabilityResponse;
+  /** One summary per line. The details load page by page (#2583). */
+  traceability_appendix: PersonalReportPackageTraceabilitySummary;
 }
 
 export type PersonalReportPackageSections =
   PersonalReportPackageSectionsViewModel;
+
+/**
+ * The complete evidence lists of a frozen snapshot. The page reads them without a request.
+ * A preview does not have them: the page loads them page by page (#2583).
+ */
+export interface PersonalReportPackageFrozenEvidence {
+  snapshot_id: string;
+  traceability_appendix: PersonalReportPackageTraceabilityResponse;
+  input_manifest: PersonalReportPackageTraceManifestEntry[];
+}
 
 export interface PersonalReportPackageReadinessViewModel {
   package_id: string;
@@ -197,6 +219,8 @@ export interface PersonalReportPackageDocumentViewModel {
     end_date: string;
     as_of_date: string;
     currency: string;
+    /** The restricted-holdings scope (#2645). Absent in a document frozen before #2645. */
+    include_restricted?: boolean | null;
   };
   contract: PersonalReportPackageContractResponse;
   readiness: PersonalReportPackageReadinessViewModel;
@@ -208,9 +232,10 @@ export interface PersonalReportPackageDocumentViewModel {
       evidence_anchors?: Schemas["FrameworkPolicyEvidenceAnchor"][];
     })[];
   };
-  input_manifest: PersonalReportPackageTraceManifestEntry[];
   statement_disposition_policy?: PersonalReportPackageStatementDispositionPolicy | null;
   sections: PersonalReportPackageSectionsViewModel;
+  /** Null for a preview. */
+  frozen_evidence: PersonalReportPackageFrozenEvidence | null;
 }
 
 export type PersonalReportPackageDocument =
@@ -264,14 +289,34 @@ export type PersonalReportPackageNotesResponse =
 export type PersonalReportPackageTraceabilityAnchor =
   Schemas["PersonalReportPackageTraceabilityAnchor"];
 
-export type PersonalReportPackageTraceabilityLine =
-  Schemas["PersonalReportPackageTraceabilityLine"];
-
 export type PersonalReportPackageCompletenessWarning =
   Schemas["PersonalReportPackageCompletenessWarning"];
 
 export type PersonalReportPackageTraceabilityResponse =
   Schemas["PersonalReportPackageTraceabilityResponse"];
+
+export type PersonalReportPackageTraceabilityAnchorName =
+  Schemas["PersonalReportPackageTraceabilityAnchorName"];
+
+export type PersonalReportPackageTraceabilityAnchorSummary =
+  Schemas["PersonalReportPackageTraceabilityAnchorSummary"];
+
+export type PersonalReportPackageTraceabilityLineSummary =
+  Schemas["PersonalReportPackageTraceabilityLineSummary"];
+
+export type PersonalReportPackageTraceabilitySummary =
+  Schemas["PersonalReportPackageTraceabilitySummaryResponse"];
+
+export type PersonalReportPackagePreview = Schemas["PersonalReportPackagePreview"];
+
+export type PersonalReportPackageLineDetailsPage =
+  Schemas["PersonalReportPackageLineDetailsPage"];
+
+export type PersonalReportPackageTraceabilityDetail =
+  NonNullable<PersonalReportPackageLineDetailsPage["details"]>[number];
+
+export type PersonalReportPackageManifestEntriesPage =
+  Schemas["PersonalReportPackageManifestEntriesPage"];
 
 export type EvidenceLineageNode = Schemas["EvidenceLineageNode"];
 
@@ -308,8 +353,93 @@ export function normalizeAdvisorSuggestions(
   }));
 }
 
+function summarizeTraceabilityAnchor(
+  anchor: PersonalReportPackageTraceabilityAnchor,
+): PersonalReportPackageTraceabilityAnchorSummary {
+  return {
+    state: anchor.state,
+    source_types: anchor.source_types ?? [],
+    entry_statuses: anchor.entry_statuses ?? [],
+    identifier_fields: anchor.identifier_fields ?? [],
+    unavailable_reason: anchor.unavailable_reason ?? null,
+    detail_count: (anchor.details ?? []).length,
+  };
+}
+
+/**
+ * The summary of a complete appendix. It equals the summary that the backend sends for a
+ * preview (`traceability_summary` in `package_document.py`), so one page renders both.
+ */
+export function summarizeTraceabilityAppendix(
+  appendix: PersonalReportPackageTraceabilityResponse,
+): PersonalReportPackageTraceabilitySummary {
+  return {
+    section_id: appendix.section_id,
+    label: appendix.label,
+    status: appendix.status,
+    lines: appendix.lines.map((line) => ({
+      line_id: line.line_id,
+      section_id: line.section_id,
+      label: line.label,
+      amount_field: line.amount_field ?? null,
+      currency_field: line.currency_field ?? null,
+      source_state: line.source_state,
+      source_anchor: summarizeTraceabilityAnchor(line.source_anchor),
+      ledger_anchor: summarizeTraceabilityAnchor(line.ledger_anchor),
+      anchor_count: line.anchor_count ?? 0,
+      blocker_codes: line.blocker_codes ?? [],
+    })),
+    completeness_warnings: appendix.completeness_warnings,
+  };
+}
+
+/** A frozen snapshot document: the page reads its complete evidence lists without a request. */
 export function normalizePersonalReportPackageDocument(
   document: Schemas["PersonalReportPackageDocument"],
+): PersonalReportPackageDocument {
+  const snapshotId = document.snapshot_id ?? null;
+  return normalizePackagePayload(document, {
+    snapshot_id: snapshotId,
+    package_decision_id: document.package_decision_id ?? null,
+    frozen_at: document.frozen_at ?? null,
+    traceability_appendix: summarizeTraceabilityAppendix(
+      document.sections.traceability_appendix,
+    ),
+    frozen_evidence:
+      snapshotId && document.lifecycle === "frozen"
+        ? {
+            snapshot_id: snapshotId,
+            traceability_appendix: document.sections.traceability_appendix,
+            input_manifest: document.input_manifest,
+          }
+        : null,
+  });
+}
+
+/** The live preview: the page loads the details and the manifest entries page by page (#2583). */
+export function normalizePersonalReportPackagePreview(
+  preview: PersonalReportPackagePreview,
+): PersonalReportPackageDocument {
+  return normalizePackagePayload(preview, {
+    snapshot_id: null,
+    package_decision_id: null,
+    frozen_at: null,
+    traceability_appendix: preview.sections.traceability_appendix,
+    frozen_evidence: null,
+  });
+}
+
+function normalizePackagePayload(
+  document:
+    | Schemas["PersonalReportPackageDocument"]
+    | PersonalReportPackagePreview,
+  identity: {
+    snapshot_id: string | null;
+    package_decision_id: string | null;
+    frozen_at: string | null;
+    traceability_appendix: PersonalReportPackageTraceabilitySummary;
+    frozen_evidence: PersonalReportPackageFrozenEvidence | null;
+  },
 ): PersonalReportPackageDocument {
   const coverage = document.readiness.input_coverage ?? {
     manifest_decision_count: 0,
@@ -317,10 +447,17 @@ export function normalizePersonalReportPackageDocument(
     unproven_input_count: 0,
   };
   return {
-    ...document,
-    snapshot_id: document.snapshot_id ?? null,
-    package_decision_id: document.package_decision_id ?? null,
-    frozen_at: document.frozen_at ?? null,
+    schema_version: document.schema_version,
+    lifecycle: document.lifecycle,
+    snapshot_id: identity.snapshot_id,
+    package_decision_id: identity.package_decision_id,
+    generated_at: document.generated_at,
+    frozen_at: identity.frozen_at,
+    package_id: document.package_id,
+    status: document.status,
+    context: document.context,
+    statement_disposition_policy: document.statement_disposition_policy ?? null,
+    frozen_evidence: identity.frozen_evidence,
     contract: {
       ...document.contract,
       supported_frameworks: document.contract.supported_frameworks ?? [],
@@ -364,6 +501,7 @@ export function normalizePersonalReportPackageDocument(
           document.sections.cash_flow.fx_warnings,
         ),
       },
+      traceability_appendix: identity.traceability_appendix,
     },
   };
 }
@@ -426,8 +564,6 @@ export type AnnualizedIncomeScheduleResponse =
 
 export type AnnualizedIncomeResponse = Schemas["AnnualizedIncomeResponse"];
 
-export type RestrictedHolding = Schemas["RestrictedHoldingResponse"];
-
 export type ValuationComponentsResponse =
   Schemas["ValuationComponentsResponse"];
 
@@ -444,14 +580,6 @@ export type Stage2Data = Schemas["Stage2ReviewQueueResponse"];
 
 export type UnmatchedTransactionsResponse =
   ListResponse<BankStatementTransactionSummary>;
-
-export type AccountTrendPoint = Schemas["AccountTrendPoint"];
-export type TrendPoint = AccountTrendPoint;
-
-export type AccountTrendResponse = Schemas["AccountTrendResponse"];
-export type TrendResponse = AccountTrendResponse;
-
-export type NetWorthRange = "1M" | "3M" | "6M" | "1Y" | "All";
 
 export type NetWorthTimeSeriesPoint = Schemas["NetWorthTimeSeriesPoint"];
 
@@ -484,17 +612,6 @@ export type ManualValuationLiquidityClass =
 
 export type ManualValuationBasis = Schemas["ManualValuationBasis"];
 
-export type ManualValuationSource =
-  | "manual"
-  | "broker_portal"
-  | "bank_portal"
-  | "cpf_portal"
-  | "tax_portal"
-  | "insurer_portal"
-  | "employer_portal"
-  | "property_valuation"
-  | "other_document";
-
 export type ManualValuationSnapshot =
   Schemas["ManualValuationSnapshotResponse"];
 
@@ -515,13 +632,9 @@ export type HoldingsListResponse = Schemas["HoldingsListResponse"];
 export type PortfolioSummaryDashboardResponse =
   Schemas["PortfolioSummaryDashboardResponse"];
 
-export type PortfolioSummaryResponse = PortfolioSummaryDashboardResponse;
-
 export type DividendEvent = Schemas["DividendEventResponse"];
 
 export type RealizedLot = Schemas["RealizedLotResponse"];
-
-export type PerformanceMetrics = Schemas["PerformanceMetricsResponse"];
 
 export type InvestmentPerformanceHoldingRow =
   Schemas["InvestmentPerformanceHoldingRow"];
@@ -568,21 +681,6 @@ export type UserAiSettingsUpdate = Schemas["UserAiSettingsUpdate"];
 // (apps/backend/src/schemas/app_config.py) — EPIC-012 AC12.39 / #1340.
 export type BaseCurrency = Schemas["BaseCurrencyResponse"];
 
-/**
- * Identity returned by `GET /api/auth/me`, consumed by `useSessionBootstrap`.
- *
- * Deliberately excludes the bearer `access_token` that the backend
- * `AuthResponse` carries: the frontend uses cookie-based auth and never
- * persists a token from this endpoint, so exposing it on the typed shape would
- * only invite misuse. This type is the non-secret identity subset only.
- */
-export interface CurrentUser {
-  id: string;
-  email: string;
-  name: string | null;
-  created_at: string;
-}
-
 export type PingStateResponse = Schemas["PingStateResponse"];
 export type PingState = PingStateResponse;
 
@@ -593,7 +691,6 @@ export type PingState = PingStateResponse;
 // only carries `has_api_key`. Mirrors backend schemas in
 // `apps/backend/src/schemas/llm.py`.
 
-export type LlmModality = Schemas["Modality"];
 export type LlmProtocolFamily = Schemas["ProtocolFamily"];
 export type LlmReasoningEffort = Schemas["ReasoningEffort"];
 export type LlmScene = Schemas["Scene"];

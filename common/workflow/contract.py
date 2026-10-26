@@ -120,6 +120,7 @@ CONTRACT = PackageContract(
         "WorkflowStatusResponse",
         "get_workflow_status",
         "list_workflow_events_response",
+        "stored_package_readiness",
         "sync_workflow_events_for_user",
         "update_workflow_event_status",
         "upsert_workflow_event",
@@ -141,6 +142,12 @@ CONTRACT = PackageContract(
     roadmap=[
         ac('AC-workflow.vocabulary-ownership.1', 'Workflow event, lifecycle, status, and response payloads are workflow-owned base value objects; src.schemas.workflow is a compatibility re-export surface.', 'tests/tooling/test_vocabulary_ownership.py::test_AC_workflow_vocabulary_ownership_1_workflow_owns_payloads', priority='P1'),
         ac('AC-workflow.package.1', 'Workflow is a governed package and composes published extraction and reporting reads through imports rather than service locators.', 'tests/tooling/test_s3_pr_d_structure.py::test_AC_workflow_package_1_owns_contract_and_direct_domain_reads'),
+        ac('AC-workflow.sync.1', 'At 1000 journal entries, GET /workflow/status builds no traceability appendix. A repeated read without a source change sends fewer than 40 SQL statements and no write.', 'apps/backend/tests/workflow/test_workflow_sync_gate.py::test_AC_workflow_sync_1_year_scale_status_read_is_bounded_and_write_free'),
+        ac('AC-workflow.sync.2', 'An insert or an update of a derivation source row makes the next workflow read derive the events again, so no event stays stale.', 'apps/backend/tests/workflow/test_workflow_sync_gate.py::test_AC_workflow_sync_2_a_source_change_derives_events_again'),
+        ac('AC-workflow.sync.3', 'The source fingerprint reads every model table, except tables that an explicit exclusion names with a reason.', 'apps/backend/tests/workflow/test_workflow_sync_gate.py::test_AC_workflow_sync_3_fingerprint_classifies_every_table'),
+        ac('AC-workflow.sync.4', 'The source fingerprint changes on a user, child, global, date, or settings change. It does not change on excluded tables or on rows of another user.', 'apps/backend/tests/workflow/test_workflow_sync_gate.py::test_AC_workflow_sync_4_fingerprint_changes_only_with_an_input'),
+        ac('AC-workflow.sync.5', 'A workflow read reuses the last derivation only while its state is younger than 15 minutes. An older state derives again, so an external provider recovery reaches the events.', 'apps/backend/tests/workflow/test_workflow_sync_gate.py::test_AC_workflow_sync_5_a_state_older_than_the_max_age_derives_again'),
+        ac('AC-workflow.sync.6', 'stored_package_readiness returns the readiness of the last derivation only while ensure_workflow_events_synced would reuse it, and None before a derivation, after a source change and after the max age. It sends two SQL statements and no write.', 'apps/backend/tests/workflow/test_stored_package_readiness.py::test_AC_workflow_sync_6_stored_readiness_is_returned_only_while_the_derivation_is_reusable', priority='P1'),
     ],
     concepts=[
         ConceptRecord(

@@ -69,11 +69,11 @@ async def test_stream_ai_json_uses_explicit_credentials(litellm_stub, monkeypatc
     """An explicit api_key/base_url routes via litellm with the openai-compatible prefix."""
     _explicit_provider(monkeypatch)
     text = await accumulate_stream(
-        stream_ai_json([{"role": "user", "content": "x"}], "glm-4.6v", api_key="sk-explicit")
+        stream_ai_json([{"role": "user", "content": "x"}], "test-vision-model", api_key="sk-explicit")
     )
     assert text == '{"ok": true}'
     kw = litellm_stub["kwargs"]
-    assert kw["model"] == "openai/glm-4.6v"
+    assert kw["model"] == "openai/test-vision-model"
     assert kw["api_base"] == "https://api.z.ai"
     assert kw["drop_params"] is True
 
@@ -85,7 +85,7 @@ async def test_stream_ai_json_forwards_zai_knobs_and_seed(litellm_stub, monkeypa
     await accumulate_stream(
         stream_ai_json(
             [{"role": "user", "content": "x"}],
-            "glm-4.6v",
+            "test-vision-model",
             api_key="k",
             do_sample=False,
             thinking={"type": "disabled"},
@@ -237,13 +237,13 @@ async def test_AC10_10_4_ai_provider_call_metric_emitted_on_success(litellm_stub
     monkeypatch.setattr(streaming, "record_ai_provider_call", lambda **kw: calls.append(kw))
 
     text = await accumulate_stream(
-        stream_ai_json([{"role": "user", "content": "x"}], "glm-4.6v", api_key="sk-explicit")
+        stream_ai_json([{"role": "user", "content": "x"}], "test-vision-model", api_key="sk-explicit")
     )
 
     assert text == '{"ok": true}'
     assert len(calls) == 1
     assert calls[0]["outcome"] == "success"
-    assert calls[0]["model"] == "glm-4.6v"
+    assert calls[0]["model"] == "test-vision-model"
     assert calls[0]["duration_ms"] >= 0
     # Label is the bounded protocol family (StrEnum), never the user-editable
     # free-text provider.label — no PII / no unbounded cardinality.
@@ -264,7 +264,9 @@ async def test_AC10_10_4_ai_provider_call_metric_emitted_on_error(monkeypatch):
     monkeypatch.setattr(client_mod, "litellm_stream", lambda *a, **k: boom_stream())
 
     with pytest.raises(AIStreamError):
-        await accumulate_stream(stream_ai_json([{"role": "user", "content": "x"}], "glm-4.6v", api_key="sk-explicit"))
+        await accumulate_stream(
+            stream_ai_json([{"role": "user", "content": "x"}], "test-vision-model", api_key="sk-explicit")
+        )
 
     assert len(calls) == 1
     assert calls[0]["outcome"] == "error"

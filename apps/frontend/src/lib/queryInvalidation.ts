@@ -17,6 +17,12 @@
  *
  * Keys are STATIC prefixes; react-query's default fuzzy matching extends them
  * to runtime-suffixed keys (e.g. `["statement-conflicts", statementId]`).
+ *
+ * The app query client adds a rule on top of this matrix (#2583 S4): after EVERY
+ * successful mutation it marks the ledger-derived reads stale
+ * (`LEDGER_DERIVED_QUERY_KEYS` in `lib/queryClient.ts`), because Home, /audit
+ * and the report pages keep those reads in the cache for one minute. A row with an
+ * empty `invalidates` list relies on that rule.
  */
 
 import type { QueryKey } from "@tanstack/react-query";
@@ -35,47 +41,33 @@ export interface MutationInvalidationRule {
 export const MUTATION_INVALIDATION_MATRIX: readonly MutationInvalidationRule[] = [
   {
     flow: "accounts.delete",
-    file: "app/(main)/accounts/page.tsx",
+    file: "components/settings/AccountsPanel.tsx",
     invalidates: [["accounts"]],
   },
   {
     flow: "statements.review.approve",
-    file: "app/(main)/statements/[id]/review/page.tsx",
-    invalidates: [],
-    noInvalidationReason:
-      "Navigates to the statement detail (or attention) route on success; " +
-      "the review surface unmounts and the destination remounts fresh queries.",
+    file: "app/(main)/statements/[id]/page.tsx",
+    invalidates: [["statement-review"], ["pending-statements"]],
   },
   {
     flow: "statements.review.reject",
-    file: "app/(main)/statements/[id]/review/page.tsx",
-    invalidates: [],
-    noInvalidationReason:
-      "Navigates back to /statements on success; the review surface unmounts " +
-      "and the list route remounts fresh queries.",
+    file: "app/(main)/statements/[id]/page.tsx",
+    invalidates: [["statement-review"], ["pending-statements"]],
   },
   {
     flow: "statements.review.resolve-conflicts",
-    file: "app/(main)/statements/[id]/review/page.tsx",
+    file: "app/(main)/statements/[id]/page.tsx",
     invalidates: [["statement-conflicts"]],
   },
   {
     flow: "statements.review.confirm-envelope",
-    file: "app/(main)/statements/[id]/review/page.tsx",
+    file: "app/(main)/statements/[id]/page.tsx",
     invalidates: [["statement-review"]],
   },
   {
     flow: "statements.review.create-custody-account",
-    file: "app/(main)/statements/[id]/review/page.tsx",
+    file: "app/(main)/statements/[id]/page.tsx",
     invalidates: [["statement-review-custody-accounts"]],
-  },
-  {
-    flow: "statements.review.reparse",
-    file: "app/(main)/statements/[id]/review/page.tsx",
-    invalidates: [],
-    noInvalidationReason:
-      "Navigates to the statement detail route to watch the re-parse; the " +
-      "review surface unmounts and the detail route remounts fresh queries.",
   },
   {
     flow: "reconciliation.run",
