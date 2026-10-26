@@ -239,11 +239,12 @@ and the default three statements. The system therefore decides every row that th
   - The auto-approve of a high-confidence parse takes the lock without a wait. The parse already holds the
     statement row, and a poll would hide a wait cycle with an approve request. A statement that the pass holds
     stays in review.
-  - A setting that a user changes between the parse and the approval does not change the rows that the pass
-    stored. The approval keeps them and asks nothing. The disposition policy reads the setting at the approval,
-    so the rows below its score gate go to review. With the model off, main answers 409 with the reason
-    `intent_missing` for every row. The approval after the pass answers 409 with the reason
-    `intent_below_threshold` for the rows below the gate. The statement stays in review in both cases.
+  - A setting that changes between the parse and the approval does not change the rows that the pass stored. The
+    approval keeps them and asks nothing. The disposition policy reads the setting at the approval, so a row
+    below its score gate goes to review: the approval answers 409 with the reason `intent_below_threshold`. A
+    row with a score of 85 or more posts from its stored answer, also when `enable_ai_classification` is off at
+    the approval. Main answers 409 with the reason `intent_missing` for every row in that case. The window is
+    the time between the parse and the approval.
   - A user with auto-accept off gets no row for a score below the review score (a tail) and for a balance-sheet
     class below it. The approval asks the model for these rows again, as it did before the pass.
 - The classifier and the one-click approval resolve a default account with one resolver

@@ -828,6 +828,32 @@ async def test_AC_extraction_statement_classify_3_a_setting_turned_off_after_the
     assert len(await _classification_rows(sessions, test_user.id)) == 6, "the approve drops no stored row"
 
 
+async def test_AC_extraction_statement_classify_3_a_row_above_the_gate_posts_when_the_model_is_turned_off_later(
+    client, db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.3: pins the other half of the difference from main that the readme states.
+
+    Every fixture row scores 90 or more, above the score gate of the disposition policy. With the model on at the
+    parse and off at the approval, main answers 409 with the reason ``intent_missing`` for every row. Here the
+    approval keeps the stored answers, asks nothing, and posts every row.
+    """
+    from src.extraction.extension import statement_preclassification
+
+    proposer = _install(monkeypatch, CountingProposer())
+    seeded = await _seed(db, test_user.id, _rows(6))
+    sessions = _sessions(db)
+    await statement_preclassification.classify_parsed_statement(sessions, statement_id=seeded.id, user_id=test_user.id)
+    assert proposer.rows_asked == 6
+    assert min(row.confidence_score for row in await _classification_rows(sessions, test_user.id)) >= 90
+
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    response = await _approve(client, seeded.id)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["journal_entries_created"] == 6
+    assert proposer.rows_asked == 6, "the approve asks no row"
+
+
 async def test_AC_extraction_statement_classify_3_the_auto_approve_of_a_parse_does_not_wait_for_the_lock(
     db, test_user, monkeypatch
 ):
@@ -872,8 +898,8 @@ async def test_AC_extraction_statement_classify_3_the_approve_reads_the_statemen
 ):
     """AC-extraction.statement-classify.3: an edit that commits during the wait is part of the approval.
 
-    The route read the statement before it waited. Without a new read, the approve would validate the balance chain
-    with the closing balance of the moment before the wait.
+    The route reads the statement after the wait. A read before the wait would validate the balance chain with the
+    closing balance of the moment before the wait.
     """
     from sqlalchemy import update
 
@@ -914,6 +940,55 @@ async def test_AC_extraction_statement_classify_3_the_approve_reads_the_statemen
     assert await _status_of(sessions, seeded.id) is BankStatementStatus.PARSED
 
 
+async def test_AC_extraction_statement_classify_3_a_statement_retired_during_the_wait_is_not_approved(
+    client, db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.3: a retire that commits during the wait wins, as it does on main.
+
+    The statement lookup of the route skips a retired statement. It runs after the wait, so the approve answers 404,
+    posts no entry, and leaves the status ``RETIRED``. A lookup before the wait would approve the retired statement.
+    """
+    from sqlalchemy import update
+
+    from src.extraction.extension.transaction_classification import try_lock_statement_classification
+
+    attempts: list[bool] = []
+    real_try_lock = transaction_classification.try_lock_statement_classification
+
+    async def counting_try_lock(session, statement_id):
+        acquired = await real_try_lock(session, statement_id)
+        attempts.append(acquired)
+        return acquired
+
+    monkeypatch.setattr(transaction_classification, "try_lock_statement_classification", counting_try_lock)
+    monkeypatch.setattr(transaction_classification, "_LOCK_POLL_SECONDS", 0.01)
+    _install(monkeypatch, CountingProposer())
+    seeded = await _seed(db, test_user.id, _rows(4))
+    sessions = _sessions(db)
+
+    async with sessions() as holder:
+        assert await try_lock_statement_classification(holder, seeded.id)
+        approve = asyncio.create_task(_approve(client, seeded.id))
+        deadline = asyncio.get_running_loop().time() + WAIT_SECONDS
+        while attempts.count(False) < 3:
+            assert asyncio.get_running_loop().time() < deadline, "the approve never asked for the lock"
+            await asyncio.sleep(0.01)
+        async with sessions() as retirer:
+            await retirer.execute(
+                update(StatementSummary)
+                .where(StatementSummary.id == seeded.id)
+                .values(status=BankStatementStatus.RETIRED)
+            )
+            await retirer.commit()
+        await holder.rollback()
+
+    response = await asyncio.wait_for(approve, timeout=WAIT_SECONDS)
+    assert response.status_code == 404, response.text
+    assert await _status_of(sessions, seeded.id) is BankStatementStatus.RETIRED
+    async with sessions() as session:
+        assert await session.scalar(select(func.count()).select_from(JournalEntry)) == 0
+
+
 async def test_AC_extraction_statement_classify_3_a_correction_that_cannot_get_the_lock_answers_409(
     client, db, test_user, monkeypatch
 ):
@@ -933,6 +1008,70 @@ async def test_AC_extraction_statement_classify_3_a_correction_that_cannot_get_t
 
     assert response.status_code == 409, response.text
     assert "still running" in response.json()["detail"]
+
+
+async def test_AC_extraction_statement_classify_3_the_repost_of_a_correction_waits_for_the_lock_and_changes_nothing(
+    client, db, test_user, monkeypatch
+):
+    """AC-extraction.statement-classify.3: a correction on an approved statement reposts through the locking function.
+
+    The repost voids the posted entry, then classifies the row again. A holder of the lock makes the correction
+    answer 409 after the wait limit, and the void and the correction row are rolled back. A repost that classifies
+    without the lock would not wait: the correction would answer 201.
+    """
+    from src.extraction.extension.transaction_classification import try_lock_statement_classification
+    from src.extraction.orm.correction import CorrectionLog
+    from src.ledger import JournalEntryStatus
+    from tests.api._statement_router_fixtures import add_txn, build_statement, create_statement_account
+
+    monkeypatch.setattr(settings, "enable_ai_classification", False)
+    monkeypatch.setattr(transaction_classification, "CLASSIFICATION_LOCK_WAIT_SECONDS", 0.2)
+    monkeypatch.setattr(transaction_classification, "_LOCK_POLL_SECONDS", 0.01)
+    bank = await create_statement_account(db, test_user.id, "DBS Correction Lock Bank")
+    statement = build_statement(test_user.id, "hash_correction_lock_2637", 88)
+    statement.account_id = bank.id
+    statement.opening_balance = Decimal("100.00")
+    statement.closing_balance = Decimal("70.00")
+    db.add(statement)
+    await db.flush()
+    txn = await add_txn(
+        db, statement, txn_date=date(2025, 1, 6), description="Business meal", amount=Decimal("30.00"), direction="OUT"
+    )
+    statement_id, txn_id = statement.id, txn.id
+    await db.commit()
+    first = await client.post("/corrections", json={"transaction_id": str(txn_id), "corrected_category": "DINING"})
+    assert first.status_code == 201, first.text
+    approved = await client.post(
+        f"/statements/{statement_id}/review/approve",
+        json={"create_account_if_missing": False, "auto_fill_default_categories": False},
+    )
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["journal_entries_created"] == 1
+    sessions = _sessions(db)
+
+    async def entry_statuses_and_corrections() -> tuple[list[JournalEntryStatus], int]:
+        async with sessions() as session:
+            entries = await session.scalars(
+                select(JournalEntry).where(JournalEntry.user_id == test_user.id, JournalEntry.source_id == txn_id)
+            )
+            corrections = await session.scalar(
+                select(func.count()).select_from(CorrectionLog).where(CorrectionLog.transaction_id == txn_id)
+            )
+            return [entry.status for entry in entries], corrections
+
+    assert await entry_statuses_and_corrections() == ([JournalEntryStatus.POSTED], 1), "the fixture posted one entry"
+
+    async with sessions() as holder:
+        assert await try_lock_statement_classification(holder, statement_id)
+        response = await asyncio.wait_for(
+            client.post("/corrections", json={"transaction_id": str(txn_id), "corrected_category": "SHOPPING"}),
+            timeout=WAIT_SECONDS,
+        )
+        await holder.rollback()
+
+    assert response.status_code == 409, response.text
+    assert "still running" in response.json()["detail"]
+    assert await entry_statuses_and_corrections() == ([JournalEntryStatus.POSTED], 1), "the 409 changed nothing"
 
 
 async def test_AC_extraction_statement_classify_3_a_pass_without_a_usable_answer_writes_no_rule_row(

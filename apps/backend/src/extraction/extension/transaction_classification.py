@@ -1661,8 +1661,9 @@ async def lock_statement_classification(db: AsyncSession, statement_id: UUID) ->
 
     The wait is a poll with a limit. A blocking lock call has no limit, and a lock timeout of the database aborts
     the whole transaction of the caller. The database cannot see a wait cycle that goes through a poll, so every
-    caller takes this lock before any row lock of the statement: the approve route takes it first, and the pass
-    takes it before it reads the statement row without a row lock. The wait then ends when the holder commits.
+    caller takes this lock before any row lock of the statement: the approve route takes it first and reads the
+    statement after the wait, so a retire that committed meanwhile shows in that read. The pass takes it before it
+    reads the statement row without a row lock. The wait then ends when the holder commits.
     After ``CLASSIFICATION_LOCK_WAIT_SECONDS`` the call raises ``StatementClassificationBusy``, and the caller
     changes nothing.
     """

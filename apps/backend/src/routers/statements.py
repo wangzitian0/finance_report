@@ -981,10 +981,8 @@ async def approve_statement_stage1(
 ) -> Stage1ApprovalResponse:
     """Stage 1: Approve statement with balance validation."""
     try:
-        statement = await _get_statement_or_404(db, statement_id, user_id)
-        # Lock order of every approve: classification, then the statement row, then the policy rule (#2637).
         await lock_statement_classification(db, statement_id)
-        await db.refresh(statement)  # the wait may be long, and an edit may have committed meanwhile
+        statement = await _get_statement_or_404(db, statement_id, user_id)
         if request and request.create_account_if_missing and not statement.account_id:
             await _create_statement_account_from_confirmation(db, statement, user_id)
         elif not statement.account_id:
