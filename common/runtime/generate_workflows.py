@@ -115,16 +115,6 @@ def project_deploy_freshness_workflow(content: str, toolchain: dict) -> str:
     )
 
 
-def project_benchmark_workflow(content: str, toolchain: dict) -> str:
-    """Project benchmark.yml env headers."""
-    runtime = toolchain["runtime"]
-    return project_env_header(
-        content,
-        python_version=runtime.get("python"),
-        uv_version=runtime.get("uv"),
-    )
-
-
 def project_audit_replay_workflow(content: str, toolchain: dict) -> str:
     """Project python-version into audit-replay.yml."""
     py_version = toolchain["runtime"]["python"]
@@ -409,7 +399,6 @@ PROJECTORS: dict[str, tuple[Callable[[str, dict], str], bool]] = {
         project_deploy_freshness_workflow,
         False,
     ),
-    ".github/workflows/benchmark.yml": (project_benchmark_workflow, False),
     ".github/workflows/audit-replay.yml": (project_audit_replay_workflow, False),
     ".github/actions/setup-backend-env/action.yml": (
         project_setup_backend_env_action,

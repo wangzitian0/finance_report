@@ -1,5 +1,5 @@
 name: 'Setup E2E Tests'
-description: 'Install Python dependencies and Playwright for E2E testing'
+description: 'Install Python dependencies and the Playwright browser for E2E testing and the financial benchmark'
 
 runs:
   using: 'composite'
@@ -24,14 +24,6 @@ runs:
         key: e2e-venv-${{ runner.os }}-${{ hashFiles('tests/e2e/requirements.txt') }}
         restore-keys: |
           e2e-venv-${{ runner.os }}-
-
-    - name: Cache Playwright browsers
-      uses: actions/cache@v5
-      with:
-        path: ~/.cache/ms-playwright
-        key: playwright-${{ runner.os }}-${{ hashFiles('tests/e2e/requirements.txt') }}
-        restore-keys: |
-          playwright-${{ runner.os }}-
 
     - name: Install Test Dependencies
       shell: bash
@@ -92,7 +84,8 @@ runs:
         # pytest chooses tests/e2e as its rootdir.
         echo "PYTHONPATH=${GITHUB_WORKSPACE:-$PWD}${PYTHONPATH:+:$PYTHONPATH}" >> "$GITHUB_ENV"
 
-        # Install playwright browsers
-        # Note: We must use the venv's python/playwright explicitly if PATH update hasn't propagated to current shell
-        retry_download "playwright install chromium" \
-          ./.venv/bin/playwright install chromium --with-deps
+    # The one Playwright install (cache, system deps, retry): see install-playwright.
+    - name: Install Playwright browser
+      uses: ./.github/actions/install-playwright
+      with:
+        command: ./.venv/bin/playwright

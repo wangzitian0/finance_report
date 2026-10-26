@@ -24,7 +24,6 @@ def _copy_projection_inputs(target_root: Path) -> None:
         ".github/workflows/docs.yml",
         ".github/workflows/release.yml",
         ".github/workflows/deploy-freshness.yml",
-        ".github/workflows/benchmark.yml",
         ".github/workflows/audit-replay.yml",
         ".github/actions/setup-minio/action.yml",
         ".github/actions/setup-e2e-tests/action.yml",

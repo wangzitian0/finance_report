@@ -25,22 +25,31 @@ SEED = BACKEND / "ci/backend-test-durations.json"
 BASH = shutil.which("bash") or "/bin/bash"
 
 
+def _backend_job() -> dict:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    return workflow["jobs"]["backend"]
+
+
+# The `backend` matrix in ci.yml is the one place that sets the shard count (#2688).
+SHARD_COUNT = len(_backend_job()["strategy"]["matrix"]["shard"])
+
+
 def _real_partition() -> tuple[list[str], list[list[str]]]:
     files = discover_test_files(BACKEND)
     durations = json.loads(SEED.read_text(encoding="utf-8"))
-    return files, split_files(files, durations, 4)
+    return files, split_files(files, durations, SHARD_COUNT)
 
 
 def test_AC_testing_ci_structure_13_real_split_is_exhaustive_disjoint_and_balanced() -> (
     None
 ):
     """AC-testing.ci-structure.13: every backend test file runs in exactly one of the
-    four shards, and the seeded file-level split stays as balanced as the
+    matrix shards, and the seeded file-level split stays as balanced as the
     item-level split it replaces."""
     files, groups = _real_partition()
 
     assigned = [path for group in groups for path in group]
-    assert len(groups) == 4
+    assert len(groups) == SHARD_COUNT
     assert all(groups)
     assert sorted(assigned) == files
     assert len(assigned) == len(set(assigned))
@@ -161,7 +170,7 @@ def test_AC_testing_ci_structure_13_shim_runs_without_backend_dependencies() -> 
             "-S",
             str(ROOT / "tools/backend_shard_files.py"),
             "--splits",
-            "4",
+            str(SHARD_COUNT),
             "--group",
             "1",
             "--splitting-algorithm=least_duration",
@@ -177,16 +186,17 @@ def test_AC_testing_ci_structure_13_shim_runs_without_backend_dependencies() -> 
 
 
 def _backend_run_script(shard: int) -> str:
-    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     (script,) = [
         str(step["run"])
-        for step in workflow["jobs"]["backend"]["steps"]
+        for step in _backend_job()["steps"]
         if isinstance(step, dict) and "pytest" in str(step.get("run", ""))
     ]
-    return script.replace("${{ matrix.shard }}", str(shard))
+    return script.replace("${{ matrix.shard }}", str(shard)).replace(
+        "${{ strategy.job-total }}", str(SHARD_COUNT)
+    )
 
 
-@pytest.mark.parametrize("shard", [1, 4])
+@pytest.mark.parametrize("shard", [1, SHARD_COUNT])
 def test_AC_testing_ci_structure_13_workflow_runs_exactly_the_selected_files(
     tmp_path: Path, shard: int
 ) -> None:

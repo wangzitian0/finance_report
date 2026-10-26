@@ -29,6 +29,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 
 SETUP_E2E_ACTION = ".github/actions/setup-e2e-tests/action.yml"
+INSTALL_PLAYWRIGHT_ACTION = ".github/actions/install-playwright/action.yml"
 STAGING_DEPLOY_WORKFLOW = ".github/workflows/deploy.yml"
 
 
@@ -60,8 +61,10 @@ def test_AC7_16_1_setup_e2e_composite_retries_toolchain_downloads() -> None:
 
     The download commands (``uv pip install -r tests/e2e/requirements.txt`` and
     ``playwright install chromium``) must be wrapped in the bounded
-    exponential-backoff retry idiom, and the original external error must be
-    tee'd to a log and printed when the retries are exhausted.
+    exponential-backoff retry idiom, and the original external error must stay
+    visible when the retries are exhausted. The uv command retries inside the
+    composite; the Playwright command retries inside the one
+    ``install-playwright`` composite that the setup composite calls (#2688).
     """
     action_text = read(SETUP_E2E_ACTION)
     action = yaml.safe_load(action_text)
@@ -74,9 +77,9 @@ def test_AC7_16_1_setup_e2e_composite_retries_toolchain_downloads() -> None:
     )
     shell = install_step["run"]
 
-    # The transient download commands are still present...
+    # The transient download command is still present...
     assert "uv pip install -r tests/e2e/requirements.txt" in shell
-    assert "playwright install chromium --with-deps" in shell
+    assert "playwright install" not in shell
 
     # ...wrapped in the established bounded exponential-backoff retry idiom.
     assert _has_bounded_backoff_retry(shell), (
@@ -89,6 +92,24 @@ def test_AC7_16_1_setup_e2e_composite_retries_toolchain_downloads() -> None:
     # On exhaustion the original external error stays visible (tee + print).
     assert "tee " in shell
     assert "::group::" in shell
+
+    # The browser download goes through the one Playwright install, which retries.
+    playwright_step = next(
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and step.get("uses") == "./.github/actions/install-playwright"
+    )
+    assert playwright_step["with"]["command"] == "./.venv/bin/playwright"
+    install_steps = yaml.safe_load(read(INSTALL_PLAYWRIGHT_ACTION))["runs"]["steps"]
+    install_shell = next(
+        step["run"]
+        for step in install_steps
+        if isinstance(step, dict) and str(step.get("run", "")).count(" install ")
+    )
+    assert _has_bounded_backoff_retry(install_shell)
+    assert '"$PLAYWRIGHT_BROWSER" --with-deps' in install_shell
+    assert "::error::playwright install" in install_shell
 
 
 def test_AC7_16_1_setup_e2e_composite_does_not_wrap_test_execution() -> None:

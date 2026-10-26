@@ -2626,9 +2626,12 @@ def test_AC_testing_ci_structure_14_tier1_runs_as_seeded_matrix_legs() -> None:
 
 
 def test_AC8_13_148_backend_shards_use_seeded_4_way_split() -> None:
-    """AC-testing.ci-structure.8: AC8.13.148: backend shards use a seeded 4-way least-duration split
-    (consolidated from 8-way alongside pytest -n auto parallelization, so a shard's slowest wall-clock
-    time stays low while cutting fixed VM startup overhead)."""
+    """AC-testing.ci-structure.8: AC8.13.148: backend shards use a seeded least-duration split.
+
+    The function name keeps "4_way" because common/testing/contract.py references this node id
+    and cannot change while #2490 holds that file. The shard count is the matrix length (#2688):
+    the job name, `--splits` and the gate inventory must agree with it.
+    """
     workflow_text = read(".github/workflows/ci.yml")
     workflow = yaml.safe_load(workflow_text)
     backend_job = workflow["jobs"]["backend"]
@@ -2636,8 +2639,13 @@ def test_AC8_13_148_backend_shards_use_seeded_4_way_split() -> None:
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     durations = json.loads(read("apps/backend/ci/backend-test-durations.json"))
 
-    assert backend_job["name"] == "Backend Tests (Shard ${{ matrix.shard }}/4)"
-    assert backend_job["strategy"]["matrix"]["shard"] == [1, 2, 3, 4]
+    shards = backend_job["strategy"]["matrix"]["shard"]
+    assert shards == list(range(1, len(shards) + 1))
+    assert len(shards) >= 4
+    assert (
+        backend_job["name"]
+        == "Backend Tests (Shard ${{ matrix.shard }}/${{ strategy.job-total }})"
+    )
     assert len(durations) >= 2_000
     assert all(isinstance(value, (int, float)) for value in durations.values())
 
@@ -2651,7 +2659,7 @@ def test_AC8_13_148_backend_shards_use_seeded_4_way_split() -> None:
         "Loaded pytest-split duration seed",
         "pytest-split duration seed is missing",
         "len(durations) < 500",
-        "--splits 4",
+        "--splits ${{ strategy.job-total }}",
         "--group ${{ matrix.shard }}",
         "--splitting-algorithm=least_duration",
         "--durations-path ci/backend-test-durations.json",
@@ -2669,12 +2677,17 @@ def test_AC8_13_148_backend_shards_use_seeded_4_way_split() -> None:
     assert "apps/backend/ci/backend-test-durations.json" not in upload_context
     _has(
         ci_cd,
-        "workflow job name `Backend Tests (Shard ${{ matrix.shard }}/4)`",
-        "4-way parallel test sharding over the `pytest-split` duration seed",
+        "workflow job name `Backend Tests (Shard ${{ matrix.shard }}/${{ strategy.job-total }})`",
+        "Parallel test sharding over the `pytest-split` duration seed",
         "apps/backend/ci/backend-test-durations.json",
         "not runner-local cache writes",
     )
-    assert "matrix_legs: 4" in inventory
+    backend_gate = next(
+        gate
+        for gate in yaml.safe_load(inventory)["gates"]
+        if gate["id"] == "ci.backend"
+    )
+    assert backend_gate["matrix_legs"] == len(shards)
 
 
 def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
@@ -4686,18 +4699,27 @@ def test_AC8_13_33_e2e_setup_caches_virtualenv_and_playwright_browsers() -> None
     action = read(".github/actions/setup-e2e-tests/action.yml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
+    playwright_action = read(".github/actions/install-playwright/action.yml")
+
     _has(
         action,
         "Cache E2E virtualenv",
         "path: .venv",
         "e2e-venv-${{ runner.os }}-${{ hashFiles('tests/e2e/requirements.txt') }}",
-        "Cache Playwright browsers",
-        "path: ~/.cache/ms-playwright",
-        "playwright-${{ runner.os }}-${{ hashFiles('tests/e2e/requirements.txt') }}",
+        "uses: ./.github/actions/install-playwright",
+        "command: ./.venv/bin/playwright",
         "if [ ! -x .venv/bin/python ]; then",
         'echo "PYTHONPATH=${GITHUB_WORKSPACE:-$PWD}${PYTHONPATH:+:$PYTHONPATH}" >> "$GITHUB_ENV"',
         "uv pip install -r tests/e2e/requirements.txt",
     )
+    # The browser cache key is the Playwright version: the browser revision follows it.
+    _has(
+        playwright_action,
+        "Cache Playwright browsers",
+        "path: ~/.cache/ms-playwright",
+        "key: playwright-${{ runner.os }}-${{ steps.version.outputs.version }}-${{ inputs.browser }}",
+    )
+    _lacks(action, "ms-playwright", "playwright install")
     assert "shared E2E setup action caches `.venv` and Playwright browsers" in ci_cd
 
 
@@ -4923,3 +4945,75 @@ def test_wait_for_cheap_ci_full_flow(monkeypatch) -> None:
         ]
     )
     assert res == 0
+
+
+def _timing_commands(job: dict) -> list[dict]:
+    return [
+        step
+        for step in job["steps"]
+        if "tools/github_workflow_timing_summary.py" in str(step.get("run", ""))
+    ]
+
+
+def test_AC8_13_34_main_ci_budget_is_enforced_by_a_non_required_job() -> None:
+    """AC-testing.ci-structure.4: a main run past its budget fails a non-required job (#2688)."""
+    jobs = yaml.safe_load(read(".github/workflows/ci.yml"))["jobs"]
+    budget = jobs["pipeline-budget"]
+    [_, enforce] = _timing_commands(budget)
+
+    # Not a merge gate: finish does not wait for it, and the ruleset requires only finish.
+    assert "pipeline-budget" not in jobs["finish"]["needs"]
+    assert budget["needs"] == ["finish"]
+    assert budget["permissions"]["issues"] == "write"
+    assert (
+        enforce["if"]
+        == "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}"
+    )
+    assert "continue-on-error" not in enforce
+    _has(enforce["run"], "--budget main", "--enforce", "--comment-issue 2688")
+
+
+def test_AC8_13_34_pr_ci_only_prints_the_budget_verdict() -> None:
+    """AC-testing.ci-structure.4: a PR run prints the verdict and never fails on it (#2688)."""
+    budget = yaml.safe_load(read(".github/workflows/ci.yml"))["jobs"]["pipeline-budget"]
+    [summary, _] = _timing_commands(budget)
+
+    assert (
+        summary["if"]
+        == "${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}"
+    )
+    assert summary["continue-on-error"] is True
+    _has(summary["run"], "--budget", "'pr'")
+    _lacks(summary["run"], "--enforce", "--comment-issue")
+
+
+def test_AC8_13_34_release_budget_is_enforced_on_tag_and_main_runs_only() -> None:
+    """AC-testing.ci-structure.4: a tag run past the 15 minute budget fails post-merge-summary."""
+    summary_job = yaml.safe_load(read(".github/workflows/deploy.yml"))["jobs"][
+        "post-merge-summary"
+    ]
+    printing, enforcing = _timing_commands(summary_job)
+    on_tag_or_main = "github.ref_type == 'tag' || github.ref == 'refs/heads/main'"
+
+    assert summary_job["permissions"]["issues"] == "write"
+    # A branch dispatch only prints; the failure must stay hidden there.
+    assert (
+        printing["if"]
+        == "${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' }}"
+    )
+    assert printing["continue-on-error"] is True
+    _has(printing["run"], "--budget release")
+    _lacks(printing["run"], "--enforce", "--comment-issue")
+    # A tag or main run enforces, and a check that cannot run must not be hidden.
+    assert enforcing["if"] == "${{ " + on_tag_or_main + " }}"
+    assert "continue-on-error" not in enforcing
+    _has(enforcing["run"], "--budget release", "--enforce", "--comment-issue 2688")
+    # Nothing downstream may wait for the budget job: it is not a delivery gate.
+    needing = [
+        name
+        for name, job in yaml.safe_load(read(".github/workflows/deploy.yml"))[
+            "jobs"
+        ].items()
+        if "post-merge-summary" in (job.get("needs") or [])
+    ]
+    assert needing == []

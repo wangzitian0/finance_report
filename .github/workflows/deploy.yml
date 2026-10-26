@@ -905,6 +905,7 @@ jobs:
     permissions:
       actions: read
       contents: read
+      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -919,7 +920,10 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/install-infra2-sdk
 
+      # #2688: a branch dispatch only prints the verdict against the 15 minute
+      # tag-to-staging budget.
       - name: Write post-merge timing summary
+        if: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -928,7 +932,24 @@ jobs:
             --repo "${{ github.repository }}" \
             --run-id "${{ github.run_id }}" \
             --title "Post-merge Timing Summary" \
-            --summary-path "$GITHUB_STEP_SUMMARY"
+            --summary-path "$GITHUB_STEP_SUMMARY" \
+            --budget release
+
+      # A tag or main run that exceeds the budget fails this non-required job and
+      # comments on #2688. No continue-on-error: a check that cannot run must be red.
+      - name: Write post-merge timing summary and enforce the time budget
+        if: ${{ github.ref_type == 'tag' || github.ref == 'refs/heads/main' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python tools/github_workflow_timing_summary.py \
+            --repo "${{ github.repository }}" \
+            --run-id "${{ github.run_id }}" \
+            --title "Post-merge Timing Summary" \
+            --summary-path "$GITHUB_STEP_SUMMARY" \
+            --budget release \
+            --enforce \
+            --comment-issue 2688
 
   # Release image promotion jobs
   promote:

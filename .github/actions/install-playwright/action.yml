@@ -1,0 +1,75 @@
+name: 'Install Playwright browser'
+description: 'Restore the cached Playwright browser, then install system dependencies and the browser with bounded retries. The single Playwright install for every workflow.'
+
+inputs:
+  command:
+    description: 'Playwright CLI, resolved in working-directory (for example "npx playwright" or "./.venv/bin/playwright").'
+    required: true
+  working-directory:
+    description: 'Directory that resolves the CLI command.'
+    required: false
+    default: '.'
+  browser:
+    description: 'Browser to install. Install only the browser the suite uses.'
+    required: false
+    default: 'chromium'
+
+runs:
+  using: 'composite'
+  steps:
+    # The chromium revision follows the Playwright version, so the version is the
+    # whole cache identity: a Playwright upgrade misses once and a hit never
+    # restores a browser that this version cannot launch.
+    - name: Resolve Playwright version
+      id: version
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PLAYWRIGHT_COMMAND: ${{ inputs.command }}
+      run: |
+        set -euo pipefail
+        read -r -a playwright <<< "$PLAYWRIGHT_COMMAND"
+        version="$("${playwright[@]}" --version | sed -n 's/^Version //p')"
+        if [ -z "$version" ]; then
+          echo "::error::'${PLAYWRIGHT_COMMAND} --version' printed no version."
+          exit 1
+        fi
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
+        echo "Playwright ${version}"
+
+    - name: Cache Playwright browsers
+      uses: actions/cache@v5
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.version.outputs.version }}-${{ inputs.browser }}
+
+    # #1767: retry a transient toolchain download (network flake on the ~400MB
+    # browser fetch) with bounded exponential backoff. A warm cache skips the
+    # browser download; --with-deps still installs the system libraries because
+    # every hosted runner starts without them.
+    - name: Install Playwright system dependencies and browser
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PLAYWRIGHT_COMMAND: ${{ inputs.command }}
+        PLAYWRIGHT_BROWSER: ${{ inputs.browser }}
+      run: |
+        set -uo pipefail
+        read -r -a playwright <<< "$PLAYWRIGHT_COMMAND"
+        attempts=3
+        delay=10
+        for n in $(seq 1 "$attempts"); do
+          echo "::group::playwright install ${PLAYWRIGHT_BROWSER} (attempt ${n}/${attempts})"
+          if "${playwright[@]}" install "$PLAYWRIGHT_BROWSER" --with-deps; then
+            echo "::endgroup::"
+            exit 0
+          fi
+          echo "::endgroup::"
+          if [ "$n" -lt "$attempts" ]; then
+            echo "playwright install attempt ${n} failed; retrying in ${delay}s..."
+            sleep "$delay"
+            delay=$((delay * 2))
+          fi
+        done
+        echo "::error::playwright install ${PLAYWRIGHT_BROWSER} failed after ${attempts} attempts."
+        exit 1

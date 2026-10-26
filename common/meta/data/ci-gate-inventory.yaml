@@ -150,7 +150,7 @@ gates:
     inputs: [backend_unit_tests, ephemeral_postgres, minio_service]
     outputs: [backend_lcov, backend_junit]
     artifacts: [coverage-backend-*, backend-shard-*-test-context]
-    matrix_legs: 4
+    matrix_legs: 6
     failure_semantics: Deterministic backend unit shard failed or did not produce expected coverage/JUnit evidence.
     action: observe
   - id: ci.backend_integration
@@ -367,6 +367,20 @@ gates:
     outputs: [merge_decision, timing_summary, coverage_gate_summary]
     artifacts: []
     failure_semantics: One or more merge-authority upstream jobs failed or a required heavy job was skipped incorrectly.
+    action: keep
+  - id: ci.pipeline_budget
+    stage: github_ci.merge_authority
+    task_category: aggregate
+    workflow: .github/workflows/ci.yml
+    job: pipeline-budget
+    owner: common/testing/github_workflow_timing_summary.py
+    triggers: [push, pull_request, workflow_dispatch]
+    required_by_finish: false
+    blocks_workflow: false
+    inputs: [workflow_run_timing]
+    outputs: [budget_verdict, step_summary]
+    artifacts: []
+    failure_semantics: Non-blocking (#2688) — a main-branch run whose execution window passes the 8 minute budget turns only this job red and comments on #2688; a PR run only prints its verdict against the 4 minute budget. It does not affect merge authority.
     action: keep
   - id: docs.build
     stage: github_ci.merge_authority
@@ -692,7 +706,7 @@ gates:
     inputs: [staging_job_results]
     outputs: [step_summary]
     artifacts: []
-    failure_semantics: Staging summary could not be produced; upstream jobs still own deploy gate failures.
+    failure_semantics: Staging summary could not be produced, or a tag or main run passed the 15 minute tag-to-staging budget (#2688); upstream jobs still own deploy gate failures.
     action: keep
   - id: benchmark.run_benchmark
     stage: staging.release_validation
