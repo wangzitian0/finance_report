@@ -66,3 +66,23 @@ class GitHubActionsClient:
     def get_run_jobs(self, run_id: int) -> list[dict[str, Any]]:
         payload = self._request_json(f"/actions/runs/{run_id}/jobs")
         return payload.get("jobs") or []
+
+    def get_run_payload(self, run_id: int) -> dict[str, Any]:
+        return self._request_json(f"/actions/runs/{run_id}")
+
+    def list_workflow_runs(
+        self, workflow_id: int, *, max_pages: int = 5
+    ) -> list[dict[str, Any]]:
+        runs: list[dict[str, Any]] = []
+        for page in range(1, max_pages + 1):
+            payload = self._request_json(
+                f"/actions/workflows/{workflow_id}/runs",
+                {"per_page": "100", "page": str(page)},
+            )
+            batch = payload.get("workflow_runs", [])
+            if not isinstance(batch, list) or not batch:
+                break
+            runs.extend(batch)
+            if len(batch) < 100:
+                break
+        return runs
