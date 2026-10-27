@@ -81,7 +81,7 @@ Integration tests and E2E tests are intentionally different in this project:
 | Tier 1 API E2E (`-m e2e`) | Retired / Consolidated: API contract flows consolidated into Bench V2 scenario suite (`tests/tooling/test_benchmark_scenario_suite.py`) | Consolidated into Bench V2 and `backend-integration` stage (#2193) | Behavioral proof for ACs and regression risk |
 | Frontend Playwright | Provider-free specs under `apps/frontend/playwright` | Explicit CI stage inside the `frontend` job after build and Vitest; env-gated specs are not required proof | Browser UI behavioral proof only, not part of unified line coverage |
 | Tier 2 HTTP E2E | Deploy-aware HTTP-level flows through `tools/tier2_http_e2e.py` | Staging deploy after shell smoke and before broader deployed E2E | Behavioral proof only, not part of unified line coverage |
-| Tier 3 Browser E2E | `tests/e2e` Playwright/browser scenarios | Post-merge staging/prod gates and PR preview where appropriate | Behavioral proof only; AC pass rate requires real pass (skip and stub-only do not count) |
+| Tier 3 Browser E2E | `tests/e2e` Playwright/browser scenarios | Post-merge staging/prod gates | Behavioral proof only; AC pass rate requires real pass (skip and stub-only do not count) |
 
 ### Stage-by-Stage Semantics
 
@@ -573,7 +573,7 @@ LLM-gated journeys (#1146 PR-B/PR-C) into CI; the browser/Playwright selector
 fixes for `test_statement_upload_e2e` / `test_statement_full_journey` /
 `test_four_asset_net_worth_golden_path` and the `_api_url(...)` fix in
 `test_personal_financial_report_package` (#1142) are deferred to that follow-up,
-which runs in the full-stack `preview.yml` lane that carries the frontend bundle.
+which runs in the full-stack lane that carries the frontend bundle (`preview.yml`, deleted in #2699).
 
 > (AC8.21.1 removed, canonical: migrated to `AC-testing.seeded-journey.1`.)
 > (AC8.21.2 removed, canonical: migrated to `AC-testing.seeded-journey.2`.)
@@ -818,14 +818,13 @@ The simplification priority remains:
    retries would dominate; provider gate is explicit and runs only on AI/OCR-relevant
    changes.
 6. If stale resources were not captured, next run latency would accumulate;
-   current controls cover PR previews, GHCR tag pruning, host hygiene
+   current controls cover GHCR tag pruning, host hygiene
    (infra2-owned), and stale version visibility in deployment context.
 7. The in-runner E2E gate runs synchronously on `pull_request`, not asynchronously
    via `workflow_run`: a `workflow_run` gate fires only after CI, so a fast or auto
    merge could land before it ran — and GitHub counts a skipped required check as
    passed, which made the "merge authority" bypassable. A synchronous `pull_request`
-   check must pass before merge. (The heavier persistent preview stays on-demand via
-   `workflow_dispatch`; the gate is image-free so it needs no CI artifact.)
+   check must pass before merge.
 8. If staging consumed PR-head SHAs instead of successful `main` merge SHAs, deploy
    reproducibility and release provenance would weaken; staging tracks workflow_run
    SHA and uses successful main SHA gates.

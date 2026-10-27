@@ -580,7 +580,6 @@ Work under this EPIC must meet current project delivery standards:
 - `moon run :lint` and relevant frontend/backend tests pass locally where the
   environment allows.
 - CI must pass before merge.
-- PR previews must be healthy for UI changes.
 - Playwright visual smoke must cover any new primary workflow screen.
 
 ## Surrounding Improvements Required

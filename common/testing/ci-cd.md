@@ -679,7 +679,7 @@ Options:
 ## Related
 
 - [development.md](../meta/development.md) — Moon commands and local setup
-- [environments.md](../runtime/environments.md) — Six environment overview
+- [environments.md](../runtime/environments.md) — Five environment overview
 - [coverage.md](./coverage.md) — Unified coverage system
 - [tdd.md](./tdd.md) — TDD workflow and coverage goals
 - [common/runtime/ci-cd.md](../runtime/ci-cd.md) — the deploy half (staging/production workflows, smoke tests, deploy E2E gates)

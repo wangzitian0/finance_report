@@ -274,7 +274,7 @@ moon run :clean            # Clean local resources
 ```
 
 Local fast feedback is advisory. PR CI is the authoritative merge gate, and
-PR Preview/staging/production provide deployed-environment proof. Use
+Staging and production provide deployed-environment proof. Use
 risk-triggered escalation for accounting, reconciliation, schema, API, shared
 tooling, Docker, workflow, environment, or deploy changes; see
 `common/testing/ci-cd.md`.

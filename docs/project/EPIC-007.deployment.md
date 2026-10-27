@@ -399,7 +399,7 @@ Deploy Finance Report application to production environment using Dokploy + vaul
 These non-EPIC docs are part of this EPIC's maintained surface:
 
 - [../ssot/deployment.md](../../common/runtime/deployment.md) — deployment architecture, Vault, staging, and release rationale.
-- [../ssot/environments.md](../../common/runtime/environments.md) — six-environment taxonomy and isolation model.
+- [../ssot/environments.md](../../common/runtime/environments.md) — environment taxonomy and isolation model.
 
 ---
 
