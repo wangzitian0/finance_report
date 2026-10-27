@@ -62,6 +62,28 @@ TEXT_CASES = [
         "4ba4863eeb0812d2bd0edbe2a7e3f088083397a603ae71235ccbec6dc3faecd3",
         "549f02fec7f12d8f513fb886c809d339573cafdd57ab2c5eaee5a32e66cb4462",
     ),
+    # Outer whitespace, a final newline and decomposed characters are part of the hashed text:
+    # a `strip()` or a Unicode normalization inside the helper changes these values (F4 of the review).
+    (
+        "  padded rationale \t",
+        "724ebd68117bee91ea93a97592b8178ecad9bb4f5860d8156485ca410ee39a56",
+        "8603ef5d0aba2c572ee599c0da64e7b8ea4bcd66dc64d8e2b4b6c208e73df037",
+    ),
+    (
+        "line one\nline two\n",
+        "e9024f1a07d29d52ad3aa5e1a18e94db1f3a9fd32b89e39d47c472cd99071e13",
+        "6a10268c3f05a61efc2d5c18bad7f80a325a5ce817c9de2dfcaa29325dd46b4a",
+    ),
+    (
+        "Café au lait",
+        "5115efe6f30b1a6a4b510ed44d077697130e474f579db48d74e1c63dd86ead7d",
+        "86a1ec2ae8c521a6aaf8e0475843de35797c3a43df8ae9fbd6564f2507d0add0",
+    ),
+    (
+        "Café au lait",
+        "793e7643ce558259f6fe71f9ecaaf268acbcd011a2bb4c7f561df05a133d4d08",
+        "ec4e3a21f9ed67dd864e66d8fd6e6277e77bb8dbdb7c18e931c70baee9b6ad14",
+    ),
 ]
 
 OBJECTS = {
@@ -120,8 +142,23 @@ def test_AC_audit_44_1_canonical_digest_of_a_string_keeps_the_quotes(text: str, 
 
 @pytest.mark.parametrize("name", sorted(OBJECTS))
 def test_AC_audit_44_1_canonical_json_digest_keeps_the_old_bytes(name: str):
-    """AC-audit.44.1: canonical_json_digest returns the SHA-256 hex of sorted, compact JSON with `default=str`."""
-    assert canonical_json_digest(OBJECTS[name]) == OBJECT_DIGESTS[name]
+    """AC-audit.44.1: canonical_json_digest returns the SHA-256 hex of sorted, compact JSON."""
+    default = str if name in NEEDS_DEFAULT_STR else None
+
+    assert canonical_json_digest(OBJECTS[name], default=default) == OBJECT_DIGESTS[name]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [datetime(2026, 10, 27, 8, 30, tzinfo=UTC), date(2026, 10, 27), UUID1, Decimal("10.50")],
+    ids=["datetime", "date", "uuid", "decimal"],
+)
+def test_AC_audit_44_1_canonical_json_digest_rejects_a_value_json_cannot_encode(value: object):
+    """AC-audit.44.1: without `default`, a non-JSON value raises TypeError, as the replaced code did."""
+    with pytest.raises(TypeError):
+        canonical_json_digest({"value": value})
+
+    assert canonical_json_digest({"value": value}, default=str) == canonical_json_digest({"value": str(value)})
 
 
 @pytest.mark.parametrize("name", sorted(set(OBJECTS) - NEEDS_DEFAULT_STR))
@@ -143,7 +180,9 @@ def test_AC_audit_44_1_default_str_changes_the_digest_of_a_value_with_text_form(
     """AC-audit.44.1: a UUID, date, datetime and Decimal hash as their `str` form."""
     as_text = {key: str(value) for key, value in OBJECTS["default_str"].items()}
 
-    assert canonical_json_digest(OBJECTS["default_str"]) == canonical_json_digest(as_text)
+    assert canonical_json_digest(OBJECTS["default_str"], default=str) == canonical_json_digest(as_text)
+    with pytest.raises(TypeError):
+        canonical_json_digest(OBJECTS["default_str"])
 
 
 # --- the stored values of the callers (each comes from the real code path) ---
@@ -722,3 +761,207 @@ def test_AC_audit_44_1_the_reviewed_envelope_owner_digest_stays_json_quoted():
     assert _envelope_authority() == canonical_json_digest(owner)
     assert _envelope_authority() == "9cb6e4c92aceede709df2115459de8fa41598190135f00436a221ca1d4a5dfd3"
     assert _envelope_authority() != text_digest(owner)
+
+
+# --- the other stored hashes that now use text_digest (F1, F2 and F4 of the review) ---
+
+DEDUP_CASES = {
+    "plain": (
+        {"description": "Coffee Shop", "amount": Decimal("5.00"), "balance_after": Decimal("100.50")},
+        "ef2e4fd4be569298c4d03e07e2e41b250c9e55a696ec7bd112cc06594e1587ad",
+    ),
+    "no_balance": (
+        {"description": "Coffee Shop", "amount": Decimal("5.00"), "balance_after": None},
+        "4ab61c2126fe88e9c8f21156fe01ad6fd6adcc17c6af386e22b48df0f2e6582c",
+    ),
+    "non_ascii": (
+        {
+            "description": "  Café 東京 MÜNCHEN  ",
+            "amount": Decimal("1234.50"),
+            "balance_after": Decimal("0"),
+        },
+        "40cee87c48563352eb9a3122f6bc8ecfef3a0035d476cc1fb861e2727c510217",
+    ),
+    "second_occurrence": (
+        {
+            "description": "Coffee Shop",
+            "amount": Decimal("5"),
+            "balance_after": Decimal("100.5"),
+            "occurrence_index": 1,
+        },
+        "42482422f77450bfbba402eaa3240a782eade24d5cdb8c35218776018ad6e7ed",
+    ),
+    "third_no_balance": (
+        {
+            "description": "Coffee Shop",
+            "amount": Decimal("5"),
+            "balance_after": None,
+            "occurrence_index": 2,
+            "reference": "REF é 1",
+        },
+        "c5bdc5008f3d873a5df51ba988aac0a6ce0f919ddc4b3438869b583d3865e054",
+    ),
+    "other_direction": (
+        {
+            "description": "Coffee Shop",
+            "amount": Decimal("5.00"),
+            "balance_after": Decimal("100.50"),
+            "direction": "OUT",
+        },
+        "b59b32ee6e7f9336dc9ebfd086c62b2a67b4e7fb5439c81be786a8b711030f4d",
+    ),
+    "scoped": (
+        {
+            "description": "Coffee Shop 東京",
+            "amount": Decimal("5.00"),
+            "balance_after": Decimal("100.50"),
+            "currency": "sgd",
+            "custody_scope": "account:12345678-1234-5678-1234-567812345678",
+        },
+        "7ef90e0389faa745d123f455504faf41a160eca9af4769c9eeada929fecf830a",
+    ),
+}
+
+
+@pytest.mark.parametrize("name", sorted(DEDUP_CASES))
+def test_AC_audit_44_1_transaction_dedup_hash_keeps_the_stored_bytes(name: str):
+    """AC-audit.44.1: the stored `dedup_hash` of an atomic transaction does not change."""
+    from src.extraction.base.source_vocabulary import TransactionDirection
+    from src.extraction.extension.deduplication import DeduplicationService
+
+    arguments, expected = DEDUP_CASES[name]
+    arguments = dict(arguments)
+    direction = TransactionDirection(arguments.pop("direction", "IN"))
+    amount = arguments.pop("amount")
+    description = arguments.pop("description")
+
+    assert (
+        DeduplicationService.calculate_transaction_hash(
+            UUID1, date(2026, 10, 1), amount, direction, description, **arguments
+        )
+        == expected
+    )
+
+
+@pytest.mark.parametrize(
+    ("currency", "custody_scope", "expected"),
+    [
+        (" sgd ", "account:abc", "ccaad068344a2a5b78f9ff567b9bf949312bfc2e669062d451316b2ecda9fe58"),
+        ("usd", "source:東京-é", "deeddff1add134d094dbe11d994a6de44139fe0be5db5a2aef4b631cac23ac5f"),
+    ],
+    ids=["ascii", "non_ascii_scope"],
+)
+def test_AC_audit_44_1_transaction_identity_hash_keeps_the_stored_bytes(
+    currency: str, custody_scope: str, expected: str
+):
+    """AC-audit.44.1: the versioned custody hash of an atomic transaction does not change."""
+    from src.extraction.base.normalization_engine import compute_transaction_identity_hash
+
+    legacy_hash = DEDUP_CASES["plain"][1]
+
+    assert compute_transaction_identity_hash(legacy_hash, currency, custody_scope) == expected
+
+
+@pytest.mark.asyncio
+async def test_AC_audit_44_1_workflow_source_fingerprint_keeps_the_settings_digest(monkeypatch: pytest.MonkeyPatch):
+    """AC-audit.44.1: the fingerprint keeps its stored bytes: a text digest of the settings, and its own JSON form."""
+    from types import SimpleNamespace
+
+    from src.workflow.extension import source_fingerprint
+
+    class _Settings:
+        def model_dump_json(self) -> str:
+            return '{"env":"test","note":"Café 東京","n":1}'
+
+    class _FixedDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 10, 27)
+
+    class _Db:
+        async def execute(self, statement):
+            return [
+                SimpleNamespace(source="accounts", row_count=3, row_stamp="1.5"),
+                SimpleNamespace(source="journal", row_count=0, row_stamp="0"),
+            ]
+
+    monkeypatch.setattr(source_fingerprint, "settings", _Settings())
+    monkeypatch.setattr(source_fingerprint, "date", _FixedDate)
+
+    fingerprint = await source_fingerprint.workflow_source_fingerprint(_Db(), user_id=UUID1)
+
+    assert fingerprint == "c7b46a45505d9c0f2c1cc14042f3ce134af8c2a1b029261bd204fcf5d1a1d76e"
+
+
+MANUAL_RATIONALE = "  Café verified 東京 \n"
+
+
+@pytest.mark.asyncio
+async def test_AC_audit_44_1_manual_rationale_digest_keeps_outer_whitespace_and_composition(db, test_user):
+    """AC-audit.44.1: the stored rationale digest of a manual journal attestation hashes the exact text."""
+    from src.audit import SqlTraceRecordRepository, TraceDecisionPolicyRegistry, TraceScope
+    from src.ledger.extension.anchored_posting import ManualJournalAttestationPolicy, manual_journal_decision_anchor
+
+    anchor = await manual_journal_decision_anchor(
+        db,
+        user_id=test_user.id,
+        entry_date=date(2026, 10, 1),
+        memo="Café",
+        rationale=MANUAL_RATIONALE,
+        lines_data=[
+            {"account_id": UUID1, "direction": "DEBIT", "amount": Decimal("10.50")},
+            {"account_id": UUID2, "direction": "CREDIT", "amount": Decimal("10.50")},
+        ],
+        base_currency="SGD",
+    )
+    repository = SqlTraceRecordRepository(db, TraceDecisionPolicyRegistry((ManualJournalAttestationPolicy(),)))
+    scope = TraceScope.tenant(test_user.id)
+    decision = await repository.get(scope, anchor.decision_id)
+    attestation = await repository.get(scope, decision.parent_ids[0])
+
+    assert attestation.evidence_manifest_digest == "308a888cbbde99fe49ae0a782a3c168d2f301eb93acf9ad294e98faa4205ba2f"
+    assert attestation.evidence_manifest_digest != text_digest(MANUAL_RATIONALE.strip())
+
+
+def test_AC_audit_44_1_a_site_without_default_rejects_a_raw_datetime():
+    """AC-audit.44.1: sites that never had `default=str` still raise TypeError for a value JSON cannot encode."""
+    from src.pricing.base.observation import pricing_valuation_lineage_id
+    from src.pricing.base.subject import PriceableSubject
+    from src.reporting.base.package_decision import personal_report_package_target
+
+    moment = datetime(2026, 10, 27, 8, 30, tzinfo=UTC)
+
+    with pytest.raises(TypeError):
+        personal_report_package_target(
+            snapshot_id=UUID1,
+            context={"generated_at": moment},
+            framework_policy={},
+            statement_disposition_policy={},
+            input_manifest=[],
+            sections={},
+        )
+    with pytest.raises(TypeError):
+        pricing_valuation_lineage_id(
+            subject=PriceableSubject.security("ACME"),
+            source=moment,  # type: ignore[arg-type]
+            as_of=date(2026, 10, 1),
+        )
+
+
+def test_AC_audit_44_1_a_site_with_default_str_hashes_the_text_form():
+    """AC-audit.44.1: `journal_command_target` kept `default=str`, so a raw datetime tag hashes as its text."""
+    from src.ledger.base.decision_anchor import journal_command_target
+
+    moment = datetime(2026, 10, 27, 8, 30, tzinfo=UTC)
+
+    def version(tag: object) -> str:
+        return journal_command_target(
+            entry_date=date(2026, 10, 1),
+            memo="memo",
+            lines_data=[{"account_id": UUID1, "direction": "DEBIT", "amount": "1.00", "tags": [tag]}],
+            base_currency="SGD",
+            source_identity="statement:1",
+        ).version
+
+    assert version(moment) == version(str(moment))
+    assert version(moment) != version("other")

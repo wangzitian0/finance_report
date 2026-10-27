@@ -64,7 +64,8 @@ def _authority(*, provenance: str, stage: str, producer_version: str) -> TraceAu
                 "package": "pricing",
                 "policy": "valuation-attestation",
                 "producer_version": producer_version,
-            }
+            },
+            default=str,
         ),
         producer_version=producer_version,
     )
@@ -82,7 +83,8 @@ def _system_authority() -> TraceAuthorityProfile:
                 "package": "pricing",
                 "policy": "resolved-market-valuation",
                 "producer_version": "1",
-            }
+            },
+            default=str,
         ),
         producer_version="1",
     )
@@ -161,7 +163,8 @@ def valuation_observation_version(observation: PriceObservation) -> str:
             "subject_key": observation.subject.key,
             "subject_kind": observation.subject.kind.value,
             "value": format(observation.value, "f"),
-        }
+        },
+        default=str,
     )
 
 
@@ -194,13 +197,15 @@ def resolved_market_valuation_target(
                 "requested_as_of": requested_as_of.isoformat(),
                 "subject_key": subject.key,
                 "subject_kind": subject.kind.value,
-            }
+            },
+            default=str,
         ),
         version=canonical_json_digest(
             {
                 "observation_version": valuation_observation_version(observation),
                 "policy": policy_id,
-            }
+            },
+            default=str,
         ),
     )
 

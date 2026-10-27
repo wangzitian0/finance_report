@@ -57,7 +57,8 @@ def journal_command_target(
             "lines": lines,
             "base_currency": normalized_base_currency,
             "source_identity": source_identity,
-        }
+        },
+        default=str,
     )
     return VersionedTraceRef("journal_command", source_identity, digest)
 

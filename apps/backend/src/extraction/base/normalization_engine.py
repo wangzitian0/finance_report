@@ -5,15 +5,15 @@ Zero-DB, zero-mock, pure Python account-suffix normalization and versioned SHA-2
 
 from __future__ import annotations
 
-import hashlib
 import re
+
+from src.audit import text_digest
 
 
 def compute_transaction_identity_hash(legacy_hash: str, currency: str, custody_scope: str) -> str:
     """Version salt prevents v1/v2 ambiguity without changing historical hashes."""
     normalized_currency = currency.strip().upper()
-    raw = f"v2|{normalized_currency}|{custody_scope}|{legacy_hash}".encode()
-    return hashlib.sha256(raw).hexdigest()
+    return text_digest(f"v2|{normalized_currency}|{custody_scope}|{legacy_hash}")
 
 
 def sanitize_account_last4(value: str | None) -> str | None:

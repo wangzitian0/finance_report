@@ -82,5 +82,6 @@ class ReviewedStatementEnvelopeCommand:
                 "opening_balance": str(self.opening_balance),
                 "closing_balance": str(self.closing_balance),
                 "rationale": self.rationale,
-            }
+            },
+            default=str,
         )

@@ -53,7 +53,10 @@ def _authority(*, tier: str, proof_kind: str, provenance: str, execution_stage: 
         execution_stage=execution_stage,
         # The owner string is hashed in its canonical JSON form (with quotes). Stored
         # `assertion_owner_digest` values depend on it: do not use `text_digest` here.
-        assertion_owner_digest=canonical_json_digest(f"reviewed-statement-envelope:{tier}:{proof_kind}:v1"),
+        assertion_owner_digest=canonical_json_digest(
+            f"reviewed-statement-envelope:{tier}:{proof_kind}:v1",
+            default=str,
+        ),
         producer_version="1",
     )
 
