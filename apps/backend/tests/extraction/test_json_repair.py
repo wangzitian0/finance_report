@@ -114,9 +114,9 @@ class TestExtractionSalvagesFencedResponse:
             patch("src.extraction.extension.service.stream_ai_json", return_value=MagicMock()),
             patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value=fenced)),
         ):
-            result = await service._extract_json_with_models(
+            result = await service._extract_json_with_model(
                 messages=[{"role": "user", "content": "x"}],
-                models=["test-model"],
+                model="test-model",
             )
 
         assert result == {"institution": "DBS", "transactions": []}
@@ -131,7 +131,7 @@ class TestExtractionSalvagesFencedResponse:
             patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value="not json at all")),
         ):
             with pytest.raises(ExtractionError):
-                await service._extract_json_with_models(
+                await service._extract_json_with_model(
                     messages=[{"role": "user", "content": "x"}],
-                    models=["test-model"],
+                    model="test-model",
                 )

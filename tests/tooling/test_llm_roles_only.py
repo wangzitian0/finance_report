@@ -27,7 +27,9 @@ RETIRED_ATTR = {
     "vision_fallback_models",
     "fallback_models_str",
 }
-SETTINGS_ATTR = re.compile(r"\bsettings\.(" + "|".join(sorted(RETIRED_ATTR)) + r")\b")
+RETIRED_NAME = re.compile(
+    r"\b(" + "|".join(sorted(RETIRED_ATTR)) + r"|_OcrMixin|_vision_extraction_models)\b"
+)
 
 
 def _manifest_env_names() -> set[str]:
@@ -55,13 +57,15 @@ def test_AC_llm_roles_only_1_no_retired_slot_name_is_an_env_key_or_an_example():
     assert not (example_keys & RETIRED_ENV), sorted(example_keys & RETIRED_ENV)
 
 
-def test_AC_llm_roles_only_1_no_source_file_reads_a_retired_settings_attribute():
+def test_AC_llm_roles_only_1_no_source_file_names_a_retired_slot():
+    # Any object, not only `settings`: the extraction service once held its own
+    # `ocr_model` and `vision_model` copies of the multimodal role (#2681).
     scanned = 0
     hits: list[str] = []
     for path in (ROOT / "apps/backend/src").rglob("*.py"):
         scanned += 1
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if SETTINGS_ATTR.search(line):
+            if RETIRED_NAME.search(line):
                 hits.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()}")
     assert scanned > 200, scanned
     assert not hits, hits
@@ -91,6 +95,11 @@ def test_AC_llm_roles_only_1_the_guard_sees_a_fourth_model_key_and_a_retired_nam
         "MULTIMODAL_MODEL",
         "EXTRA_MODEL",
     } != THREE_ROLES
-    assert SETTINGS_ATTR.search("name = settings.primary_model")
-    assert SETTINGS_ATTR.search("if model == settings.ocr_model:")
-    assert not SETTINGS_ATTR.search("name = settings.small_model")
+    assert RETIRED_NAME.search("name = settings.primary_model")
+    assert RETIRED_NAME.search("if model == settings.ocr_model:")
+    # The shapes that ExtractionService held before #2681.
+    assert RETIRED_NAME.search("self.vision_model = self.multimodal_model")
+    assert RETIRED_NAME.search("class ExtractionService(_MediaMixin, _OcrMixin):")
+    assert RETIRED_NAME.search("models = self._vision_extraction_models()")
+    assert not RETIRED_NAME.search("name = settings.small_model")
+    assert not RETIRED_NAME.search("model = force_model or self.multimodal_model")

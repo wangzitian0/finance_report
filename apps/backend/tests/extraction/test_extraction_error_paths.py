@@ -50,7 +50,7 @@ async def test_handle_parse_failure_persists_failed_document_lineage(db, test_us
             storage_key=f"statements/{statement.id}/abc123.pdf",
             model=None,
         ),
-        message="All 1 models failed. Breakdown: 1 json_parse.",
+        message="Extraction failed (json_parse): AI response must be a strict JSON object.",
     )
 
     doc = (
@@ -119,16 +119,6 @@ def test_validate_external_url_handles_unexpected_input():
     assert service._validate_external_url(cast(str, object())) is False
 
 
-async def test_extract_json_with_models_skips_empty_model_entries():
-    service = ExtractionService()
-
-    with pytest.raises(ExtractionError, match="Extraction failed after all retries"):
-        await service._extract_json_with_models(
-            messages=[{"role": "user", "content": "Extract"}],
-            models=[""],
-        )
-
-
 async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
     """AC-extraction.812.6: Shared OCR/vision model uses one vision call; no layout parser exists.
 
@@ -136,11 +126,10 @@ async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
     """
     service = ExtractionService()
     service.api_key = "test-key"
-    service.ocr_model = "test-vision-model"
-    service.vision_model = "test-vision-model"
+    service.multimodal_model = "test-vision-model"
 
     mock_extract = AsyncMock(return_value={"transactions": []})
-    service._extract_json_with_models = mock_extract
+    service._extract_json_with_model = mock_extract
     image_payload = {
         "type": "image_url",
         "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="},
@@ -151,7 +140,7 @@ async def test_extract_financial_data_shared_ocr_vision_skips_layout_parser():
 
     assert result == {"transactions": []}
     call = mock_extract.await_args.kwargs
-    assert call["models"] == ["test-vision-model"]
+    assert call["model"] == "test-vision-model"
     assert call["messages"][0]["content"][1] == image_payload
 
 
@@ -162,8 +151,7 @@ async def test_vision_path_does_not_fall_back_to_another_model_on_a_non_retryabl
 
     service = ExtractionService()
     service.api_key = "test-key"
-    service.ocr_model = "test-vision-model"
-    service.vision_model = "test-vision-model"
+    service.multimodal_model = "test-vision-model"
 
     attempted_models: list[str] = []
 
@@ -182,42 +170,30 @@ async def test_vision_path_does_not_fall_back_to_another_model_on_a_non_retryabl
     with (
         patch.object(service, "_build_vision_media_payload_batches", return_value=[[image_payload]]),
         patch("src.extraction.extension.service.stream_ai_json", side_effect=fake_stream_ai_json),
-        pytest.raises(ExtractionError, match="All 1 models failed"),
+        pytest.raises(ExtractionError, match=r"Extraction failed \(http_error\): Model test-vision-model failed"),
     ):
         await service.extract_financial_data(b"content", "DBS", "pdf")
 
     assert attempted_models == ["test-vision-model"]
 
 
-def test_ocr_model_selection_helpers_deduplicate_vision_models():
-    """AC-extraction.812.6: OCR/vision helper rules avoid duplicate provider calls.
+def test_a_service_has_one_multimodal_model_role():
+    """AC-extraction.118.1: the service holds the multimodal model only. It has no OCR or vision alias,
+    no model list and no layout-OCR path."""
+    from src.config import settings
 
-    AC-extraction.118.1: the vision model list holds the OCR and vision models only,
-    deduplicated and order-preserving. There is no fallback chain.
-    """
     service = ExtractionService()
 
-    service.ocr_model = "test-vision-model"
-    service.vision_model = "test-vision-model"
-    assert service._vision_extraction_models() == ["test-vision-model"]
-
-    service.ocr_model = "other-model"
-    service.vision_model = "test-vision-model"
-    assert service._vision_extraction_models() == ["other-model", "test-vision-model"]
-
-    service.ocr_model = ""
-    service.vision_model = "test-vision-model"
-    assert service._vision_extraction_models() == ["test-vision-model"]
-
-
-def test_a_service_takes_both_vision_models_from_the_multimodal_role():
-    """AC-extraction.118.1: OCR and vision share the multimodal model; the service has no layout-OCR path."""
-    service = ExtractionService()
-
-    assert service.ocr_model == service.vision_model == service.multimodal_model
-    assert service._vision_extraction_models() == [service.multimodal_model]
-    assert not hasattr(service, "_uses_dedicated_layout_ocr")
-    assert not hasattr(service, "_extract_ocr_markdown")
+    assert service.multimodal_model == settings.multimodal_model
+    for retired in (
+        "ocr_model",
+        "vision_model",
+        "_vision_extraction_models",
+        "_uses_dedicated_layout_ocr",
+        "_extract_ocr_markdown",
+        "_extract_json_with_models",
+    ):
+        assert not hasattr(service, retired), retired
 
 
 def test_render_pdf_pages_rejects_empty_content():
@@ -294,17 +270,17 @@ def test_build_vision_media_payload_batches_reraises_render_error_without_extern
             )
 
 
-async def test_extract_json_with_models_handles_httpx_timeout():
-    """AC-extraction.812.6: Native httpx timeouts are summarized like provider timeouts."""
+async def test_extract_json_with_model_handles_httpx_timeout():
+    """AC-extraction.812.6: Native httpx timeouts are reported like provider timeouts."""
     import httpx
 
     service = ExtractionService()
 
     with patch("src.extraction.extension.service.stream_ai_json", side_effect=httpx.TimeoutException("slow")):
-        with pytest.raises(ExtractionError, match="All 1 models failed.*timeout"):
-            await service._extract_json_with_models(
+        with pytest.raises(ExtractionError, match=r"Extraction failed \(timeout\): Model test-vision-model timed out"):
+            await service._extract_json_with_model(
                 messages=[{"role": "user", "content": "Extract"}],
-                models=["test-vision-model"],
+                model="test-vision-model",
             )
 
 
@@ -328,17 +304,16 @@ async def test_ai_parse_csv_empty_mapping_response():
             )
 
 
-async def test_extract_financial_data_all_models_fail():
+async def test_extract_financial_data_rate_limit_fails_without_another_model():
     service = ExtractionService()
     service.api_key = "test-key"
-    service.ocr_model = None
 
     from src.llm import AIStreamError
 
     with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
         mock_stream.side_effect = AIStreamError("HTTP 429: Quota Exceeded")
 
-        with pytest.raises(ExtractionError, match="rate limited"):
+        with pytest.raises(ExtractionError, match=r"Extraction failed \(rate_limit\): Model .* rate limited"):
             await service.extract_financial_data(
                 b"content",
                 "DBS",
@@ -351,7 +326,6 @@ async def test_extract_financial_data_json_markdown_fallback():
     """AC-extraction.114.5: a markdown-fenced but otherwise-valid response is salvaged (#982)."""
     service = ExtractionService()
     service.api_key = "test-key"
-    service.ocr_model = None
 
     content = 'Here is data: ```json\n{"account_last4": "1234"}\n```'
 
@@ -370,7 +344,6 @@ async def test_extract_financial_data_json_markdown_fallback():
 async def test_extract_financial_data_invalid_json_all_attempts():
     service = ExtractionService()
     service.api_key = "test-key"
-    service.ocr_model = None
 
     # Invalid JSON - should fail with JSON parse error immediately
     content = "Invalid JSON without markdown that is clearly not empty"
@@ -378,7 +351,7 @@ async def test_extract_financial_data_invalid_json_all_attempts():
     with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
         mock_stream.return_value = mock_stream_generator(content)
 
-        # Now expects JSON parse error, not "all models failed"
+        # The extraction fails with a JSON parse error from the one model
         with pytest.raises(ExtractionError, match="strict JSON object"):
             await service.extract_financial_data(
                 b"content",
@@ -933,36 +906,40 @@ async def test_extract_force_model():
     )
 
 
-async def test_extract_empty_model_in_list_skipped():
-    """Empty/falsy model in models list -> continue (line 472)."""
+async def test_extract_empty_multimodal_model_fails_before_any_provider_call():
+    """An empty multimodal model id fails fast: no media is built and no provider call is made."""
     service = ExtractionService()
     service.api_key = "test-key"
-    service.small_model = ""  # Empty string model
-    service.ocr_model = ""
-    service.vision_model = ""
+    service.multimodal_model = ""
 
-    # With an empty model, the only model is "", which should be skipped
-    # Then we fall to line 604: raise last_error or ExtractionError(...)
-    with pytest.raises(ExtractionError, match="Extraction failed after all retries"):
+    with (
+        patch.object(service, "_build_vision_media_payload_batches") as build_media,
+        patch("src.extraction.extension.service.stream_ai_json") as stream,
+        pytest.raises(ExtractionError, match="Multimodal model is not configured"),
+    ):
         await service.extract_financial_data(
             file_content=b"content",
             institution="DBS",
             file_type="pdf",
         )
 
+    build_media.assert_not_called()
+    stream.assert_not_called()
+
 
 async def test_extract_empty_ai_response():
-    """Empty AI response triggers error and continue (lines 493-509)."""
+    """An empty AI response raises an empty_response failure that names the model."""
     service = ExtractionService()
     service.api_key = "test-key"
-    service.ocr_model = None
 
     with (
         patch("src.extraction.extension.service.stream_ai_json"),
         patch("src.extraction.extension.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
     ):
         mock_accum.return_value = ""  # Empty response
-        with pytest.raises(ExtractionError, match="All 1 models failed.*empty_response"):
+        with pytest.raises(
+            ExtractionError, match=r"Extraction failed \(empty_response\): Model .* returned empty response"
+        ):
             await service.extract_financial_data(
                 file_content=b"content",
                 file_url="https://example.com/file.pdf",
@@ -975,7 +952,6 @@ async def test_extract_value_error_during_extraction():
     """ValueError/TypeError/KeyError/AttributeError during extraction (lines 581-590)."""
     service = ExtractionService()
     service.api_key = "test-key"
-    service.ocr_model = None
 
     with (
         patch("src.extraction.extension.service.stream_ai_json"),
@@ -989,22 +965,6 @@ async def test_extract_value_error_during_extraction():
                 institution="DBS",
                 file_type="pdf",
             )
-
-
-async def test_extract_no_models_tried_fallback_error():
-    """No models tried (all empty) -> fallback raise (line 604)."""
-    service = ExtractionService()
-    service.api_key = "test-key"
-    service.small_model = ""
-    service.ocr_model = ""
-    service.vision_model = ""
-
-    with pytest.raises(ExtractionError, match="Extraction failed after all retries"):
-        await service.extract_financial_data(
-            file_content=b"content",
-            institution="DBS",
-            file_type="pdf",
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -1077,7 +1037,6 @@ async def test_extract_non_dict_json_response():
     """AI returning a JSON array instead of object raises ExtractionError (line 517-518)."""
     service = ExtractionService()
     service.api_key = "test-key"
-    service.ocr_model = None
 
     with (
         patch("src.extraction.extension.service.stream_ai_json"),
@@ -1099,7 +1058,6 @@ async def test_extract_openrouter_timeout_error():
 
     service = ExtractionService()
     service.api_key = "test-key"
-    service.ocr_model = None
 
     with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
         mock_stream.side_effect = AIStreamError("Request timed out after 30s")
@@ -1118,7 +1076,6 @@ async def test_extract_openrouter_generic_http_error():
 
     service = ExtractionService()
     service.api_key = "test-key"
-    service.ocr_model = None
 
     with patch("src.extraction.extension.service.stream_ai_json") as mock_stream:
         mock_stream.side_effect = AIStreamError("HTTP 502: Bad Gateway")
@@ -1135,7 +1092,6 @@ async def test_extract_extraction_error_reraise():
     """ExtractionError raised during streaming is re-raised, not wrapped (line 579-580)."""
     service = ExtractionService()
     service.api_key = "test-key"
-    service.ocr_model = None
 
     with (
         patch("src.extraction.extension.service.stream_ai_json"),
@@ -1155,7 +1111,6 @@ async def test_extract_pdf_with_valid_external_url():
     """PDF extraction with valid external file_url (lines 393-398)."""
     service = ExtractionService()
     service.api_key = "test-key"
-    service.ocr_model = None
 
     valid_json = '{"account_last4": "9999", "transactions": []}'
 

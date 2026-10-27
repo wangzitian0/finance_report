@@ -38,6 +38,11 @@ All 1 models failed. Breakdown: 1 http_error.
 Last: Model glm-5.3-flash failed: HTTP 400
 ```
 
+The text above is the pre-#2681 form, from the model loop. One model is called, so the error now reads:
+```
+Extraction failed (http_error): Model glm-5.3-flash failed: HTTP 400
+```
+
 **Gap**: No visibility into model parameter flow from frontend selection → backend execution → AI provider API.
 
 ### Solution: End-to-End Logging
@@ -262,7 +267,7 @@ approval gates.
 
 ### SOP-1: Debugging Statement Parsing Failures
 
-**Scenario**: User reports "All models failed" error.
+**Scenario**: User reports an "Extraction failed (...)" error.
 
 **Steps**:
 

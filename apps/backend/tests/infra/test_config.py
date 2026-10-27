@@ -167,8 +167,8 @@ def test_empty_reconciliation_thresholds_resolve_to_none(monkeypatch) -> None:
     assert direct.reconciliation_review_threshold is None
 
 
-def test_settings_infra2_builders() -> None:
-    """Settings exports builders for LlmSettings, S3Settings, and PostgresSettings."""
+def test_settings_builds_llm_settings() -> None:
+    """Settings exports the LlmSettings builder that the infra2 SDK reads."""
     settings = Settings(_env_file=None)
 
     llm = settings.to_llm_settings()
@@ -177,12 +177,3 @@ def test_settings_infra2_builders() -> None:
     assert llm.role_model("small") == settings.small_model
     assert llm.role_model("large") == settings.large_model
     assert llm.role_model("multimodal") == settings.multimodal_model
-
-    s3 = settings.to_s3_settings()
-    assert s3.bucket == settings.s3_bucket
-    assert s3.endpoint_url == settings.s3_endpoint
-    assert s3.presign_expiry_seconds == settings.s3_presign_expiry_seconds
-
-    pg = settings.to_postgres_settings()
-    assert pg.pool_size == settings.db_pool_size
-    assert pg.pool_max_overflow == settings.db_pool_max_overflow

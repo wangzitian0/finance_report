@@ -39,7 +39,6 @@ from src.extraction.extension._coerce import _CoerceMixin
 from src.extraction.extension._csv import _CsvMixin
 from src.extraction.extension._llm_led_gate import evaluate_llm_led_extraction_gate
 from src.extraction.extension._media import _MediaMixin
-from src.extraction.extension._ocr import _OcrMixin
 from src.extraction.extension.brokerage_positions import (
     brokerage_currency_balances,
     looks_like_brokerage_document,
@@ -81,7 +80,7 @@ def _institution_class(*, is_brokerage: bool) -> str:
     return "brokerage" if is_brokerage else "bank"
 
 
-class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _CsvMixin):
+class ExtractionService(_MediaMixin, _CoerceMixin, _BrokerageMixin, _CsvMixin):
     """Service for extracting structured data from financial documents."""
 
     # Pages per vision request (provider payload bound), NOT a document cap: longer
@@ -95,9 +94,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         self.api_key = settings.ai_api_key
         self.small_model = settings.small_model
         self.multimodal_model = settings.multimodal_model
-        # One multimodal role serves OCR and vision.
-        self.vision_model = self.multimodal_model
-        self.ocr_model = self.multimodal_model
         self.deduplication_service = DeduplicationService()
 
     async def _extract_csv_source(
@@ -160,7 +156,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
 
         file_path = source.path
         original_filename = source.filename
-        model = force_model or self.ocr_model
+        model = force_model or self.multimodal_model
         logger.info(
             "Parsing document",
             institution=institution or "(auto-detect)",
@@ -1074,171 +1070,139 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         # Every attempt raised — propagate so the upload fails as before.
         raise last_error or ExtractionError("Extraction failed after all retries")
 
-    async def _extract_json_with_models(
+    async def _extract_json_with_model(
         self,
         messages: list[dict[str, Any]],
-        models: list[str],
+        model: str,
         seed_override: int | None = None,
         user_id: UUID | None = None,
     ) -> dict[str, Any]:
-        """Stream JSON extraction through the configured chat models."""
-        last_error: ExtractionError | None = None
-        error_summary: dict[str, int] = {}
+        """Stream JSON extraction through one chat model.
 
-        for i, model in enumerate(models):
-            if not model:
-                continue
+        There is no fallback chain (owner rule, #2643). A failed call raises one
+        ``ExtractionError`` whose text starts ``Extraction failed (<kind>):``; kind is
+        ``empty_response``, ``json_parse``, ``rate_limit``, ``timeout`` or ``http_error``.
+        """
+        from src.observability import ErrorIds
+
+        def failed(kind: str, detail: str) -> ExtractionError:
+            logger.error(
+                "Extraction model call failed",
+                error_id=ErrorIds.EXTRACTION_ALL_MODELS_FAILED,
+                model=model,
+                failure_kind=kind,
+            )
+            return ExtractionError(f"Extraction failed ({kind}): {detail}")
+
+        try:
+            logger.info("Attempting AI extraction (streaming)", model=model)
+
+            stream = stream_ai_json(
+                messages=messages,
+                model=model,
+                user_id=user_id,
+                timeout=settings.ai_json_timeout_seconds,
+                max_tokens=settings.ai_json_max_tokens,
+                temperature=0.0,
+                do_sample=False,
+                seed=seed_override if seed_override is not None else settings.ai_json_seed,
+                thinking={"type": "disabled"} if settings.ai_json_disable_thinking else None,
+            )
+
+            content = await accumulate_stream(stream)
+
+            if not content or not content.strip():
+                logger.error(
+                    "AI returned empty response",
+                    error_id=ErrorIds.EXTRACTION_EMPTY_RESPONSE,
+                    model=model,
+                )
+                raise failed(
+                    "empty_response",
+                    f"Model {model} returned empty response. Please retry with a different model.",
+                )
+
             try:
-                logger.info(
-                    "Attempting AI extraction (streaming)",
+                parsed = json.loads(content)
+                if not isinstance(parsed, dict):
+                    raise ExtractionError("AI response must be a strict JSON object (no arrays).")
+                logger.info("AI extraction successful (streaming)", model=model)
+                return parsed
+            except json.JSONDecodeError as e:
+                # A single malformed-but-recoverable response (markdown fence or
+                # prose around a valid object) should not reject the upload (#982).
+                repaired = self._repair_json_object(content)
+                if repaired is not None:
+                    try:
+                        parsed = json.loads(repaired)
+                        if isinstance(parsed, dict):
+                            logger.info("AI extraction recovered via JSON repair", model=model)
+                            return parsed
+                    except json.JSONDecodeError:
+                        pass
+
+                logger.error(
+                    "Failed to parse AI JSON",
+                    error_id=ErrorIds.EXTRACTION_JSON_PARSE,
                     model=model,
-                    attempt=i + 1,
-                    total=len(models),
+                    error=str(e),
+                    error_position=getattr(e, "pos", None),
+                    raw_preview=content[:500],
+                    content_length=len(content),
+                    looks_like_html=content.strip().startswith("<"),
+                    looks_like_xml=content.strip().startswith("<?xml"),
                 )
+                raise failed(
+                    "json_parse",
+                    "AI response must be a strict JSON object (no markdown or extra text). "
+                    "Please retry with a different model.",
+                ) from e
 
-                stream = stream_ai_json(
-                    messages=messages,
+        except _ai_stream_error() as e:
+            error_msg = str(e)
+            if "429" in error_msg or "quota" in error_msg.lower():
+                logger.warning(
+                    "AI extraction rate limited",
+                    error_id=ErrorIds.OPENROUTER_HTTP_ERROR,
                     model=model,
-                    user_id=user_id,
-                    timeout=settings.ai_json_timeout_seconds,
-                    max_tokens=settings.ai_json_max_tokens,
-                    temperature=0.0,
-                    do_sample=False,
-                    seed=seed_override if seed_override is not None else settings.ai_json_seed,
-                    thinking={"type": "disabled"} if settings.ai_json_disable_thinking else None,
+                    retryable=getattr(e, "retryable", False),
                 )
-
-                content = await accumulate_stream(stream)
-
-                if not content or not content.strip():
-                    from src.observability import ErrorIds
-
-                    logger.error(
-                        "AI returned empty response",
-                        error_id=ErrorIds.EXTRACTION_EMPTY_RESPONSE,
-                        model=model,
-                    )
-                    error_summary["empty_response"] = error_summary.get("empty_response", 0) + 1
-                    last_error = ExtractionError(
-                        f"Model {model} returned empty response. Please retry with a different model."
-                    )
-                    continue
-
-                try:
-                    parsed = json.loads(content)
-                    if not isinstance(parsed, dict):
-                        raise ExtractionError("AI response must be a strict JSON object (no arrays).")
-                    logger.info("AI extraction successful (streaming)", model=model)
-                    return parsed
-                except json.JSONDecodeError as e:
-                    from src.observability import ErrorIds
-
-                    # A single malformed-but-recoverable response (markdown fence or
-                    # prose around a valid object) should not reject the upload (#982).
-                    repaired = self._repair_json_object(content)
-                    if repaired is not None:
-                        try:
-                            parsed = json.loads(repaired)
-                            if isinstance(parsed, dict):
-                                logger.info("AI extraction recovered via JSON repair", model=model)
-                                return parsed
-                        except json.JSONDecodeError:
-                            pass
-
-                    logger.error(
-                        "Failed to parse AI JSON",
-                        error_id=ErrorIds.EXTRACTION_JSON_PARSE,
-                        model=model,
-                        error=str(e),
-                        error_position=getattr(e, "pos", None),
-                        raw_preview=content[:500],
-                        content_length=len(content),
-                        looks_like_html=content.strip().startswith("<"),
-                        looks_like_xml=content.strip().startswith("<?xml"),
-                    )
-                    error_summary["json_parse"] = error_summary.get("json_parse", 0) + 1
-                    last_error = ExtractionError(
-                        "AI response must be a strict JSON object (no markdown or extra text). "
-                        "Please retry with a different model."
-                    )
-                    continue
-
-            except _ai_stream_error() as e:
-                from src.observability import ErrorIds
-
-                error_msg = str(e)
-                if "429" in error_msg or "quota" in error_msg.lower():
-                    logger.warning(
-                        "AI extraction rate limited",
-                        error_id=ErrorIds.OPENROUTER_HTTP_ERROR,
-                        model=model,
-                        attempt=i + 1,
-                        retryable=getattr(e, "retryable", False),
-                    )
-                    error_summary["rate_limit"] = error_summary.get("rate_limit", 0) + 1
-                    last_error = ExtractionError(f"Model {model} rate limited: {error_msg}")
-                elif "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
-                    logger.warning(
-                        "AI extraction timed out",
-                        error_id=ErrorIds.OPENROUTER_TIMEOUT,
-                        model=model,
-                        attempt=i + 1,
-                    )
-                    error_summary["timeout"] = error_summary.get("timeout", 0) + 1
-                    last_error = ExtractionError(f"Model {model} timed out: {error_msg}")
-                else:
-                    logger.error(
-                        "AI extraction HTTP error",
-                        error_id=ErrorIds.OPENROUTER_HTTP_ERROR,
-                        model=model,
-                        error=error_msg,
-                        error_type=type(e).__name__,
-                        retryable=getattr(e, "retryable", False),
-                        http_status=self._extract_status_code(error_msg),
-                        attempt=i + 1,
-                    )
-                    error_summary["http_error"] = error_summary.get("http_error", 0) + 1
-                    last_error = ExtractionError(f"Model {model} failed: {error_msg}")
-                continue
-            except httpx.TimeoutException:
-                from src.observability import ErrorIds
-
+                raise failed("rate_limit", f"Model {model} rate limited: {error_msg}") from e
+            if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
                 logger.warning(
                     "AI extraction timed out",
                     error_id=ErrorIds.OPENROUTER_TIMEOUT,
                     model=model,
-                    attempt=i + 1,
-                    timeout_seconds=settings.ai_json_timeout_seconds,
                 )
-                error_summary["timeout"] = error_summary.get("timeout", 0) + 1
-                last_error = ExtractionError(f"Model {model} timed out after {settings.ai_json_timeout_seconds}s")
-                continue
-            except ExtractionError:
-                raise
-            except (ValueError, TypeError, KeyError, AttributeError) as e:
-                from src.observability import ErrorIds
-
-                logger.exception(
-                    "Programming error in extraction",
-                    error_id=ErrorIds.EXTRACTION_ALL_MODELS_FAILED,
-                    model=model,
-                    error_type=type(e).__name__,
-                )
-                raise ExtractionError(f"Internal error: {type(e).__name__}") from e
-
-        from src.observability import ErrorIds
-
-        if error_summary:
-            breakdown = ", ".join(f"{ct} {et}" for et, ct in error_summary.items())
+                raise failed("timeout", f"Model {model} timed out: {error_msg}") from e
             logger.error(
-                "All extraction models failed",
-                error_id=ErrorIds.EXTRACTION_ALL_MODELS_FAILED,
-                models_tried=len(models),
-                error_breakdown=error_summary,
+                "AI extraction HTTP error",
+                error_id=ErrorIds.OPENROUTER_HTTP_ERROR,
+                model=model,
+                error=error_msg,
+                error_type=type(e).__name__,
+                retryable=getattr(e, "retryable", False),
+                http_status=self._extract_status_code(error_msg),
             )
-            raise ExtractionError(f"All {len(models)} models failed. Breakdown: {breakdown}. Last: {last_error}")
-
-        raise last_error or ExtractionError("Extraction failed after all retries")
+            raise failed("http_error", f"Model {model} failed: {error_msg}") from e
+        except httpx.TimeoutException as e:
+            logger.warning(
+                "AI extraction timed out",
+                error_id=ErrorIds.OPENROUTER_TIMEOUT,
+                model=model,
+                timeout_seconds=settings.ai_json_timeout_seconds,
+            )
+            raise failed("timeout", f"Model {model} timed out after {settings.ai_json_timeout_seconds}s") from e
+        except ExtractionError:
+            raise
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
+            logger.exception(
+                "Programming error in extraction",
+                error_id=ErrorIds.EXTRACTION_ALL_MODELS_FAILED,
+                model=model,
+                error_type=type(e).__name__,
+            )
+            raise ExtractionError(f"Internal error: {type(e).__name__}") from e
 
     async def extract_financial_data(
         self,
@@ -1293,25 +1257,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 file_type=file_type,
             )
         prompt = get_parsing_prompt(institution, document_kind=document_kind)
-        if force_model:
-            media_batches = await asyncio.to_thread(
-                self._build_vision_media_payload_batches,
-                file_content,
-                file_url,
-                file_type,
-                mime_type,
-            )
-            return await self._extract_json_from_media_batches(
-                media_batches=media_batches,
-                models=[force_model],
-                prompt=prompt,
-                seed_override=seed_override,
-                user_id=user_id,
-            )
-
-        vision_models = self._vision_extraction_models()
-        if not vision_models:
-            raise ExtractionError("Extraction failed after all retries")
+        # The multimodal role serves OCR and vision. Only an explicit force_model
+        # (a user's retry with another model) replaces it.
+        model = force_model or self.multimodal_model
+        if not model:
+            raise ExtractionError("Multimodal model is not configured")
 
         media_batches = await asyncio.to_thread(
             self._build_vision_media_payload_batches,
@@ -1322,7 +1272,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         )
         return await self._extract_json_from_media_batches(
             media_batches=media_batches,
-            models=vision_models,
+            model=model,
             prompt=prompt,
             seed_override=seed_override,
             user_id=user_id,
@@ -1332,7 +1282,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         self,
         *,
         media_batches: list[list[dict[str, Any]]],
-        models: list[str],
+        model: str,
         prompt: str,
         seed_override: int | None,
         user_id: UUID | None,
@@ -1357,9 +1307,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             ]
 
         if len(media_batches) == 1:
-            return await self._extract_json_with_models(
+            return await self._extract_json_with_model(
                 messages=_messages(prompt, media_batches[0]),
-                models=models,
+                model=model,
                 seed_override=seed_override,
                 user_id=user_id,
             )
@@ -1388,9 +1338,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 has_context_page=has_context_page,
             )
             part_media = [context_page, *media] if has_context_page else media
-            return await self._extract_json_with_models(
+            return await self._extract_json_with_model(
                 messages=_messages(part_prompt, part_media),
-                models=models,
+                model=model,
                 seed_override=seed_override,
                 user_id=user_id,
             )

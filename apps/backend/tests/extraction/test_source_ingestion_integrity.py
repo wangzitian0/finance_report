@@ -522,7 +522,7 @@ async def test_generated_multicurrency_pdf_preserves_every_batch(db, test_user):
     }
     service = ExtractionService()
     service.api_key = "synthetic-provider-key"
-    service._extract_json_with_models = AsyncMock(side_effect=[first, second])
+    service._extract_json_with_model = AsyncMock(side_effect=[first, second])
     source = DocumentSource.resolve(path=Path("synthetic/multicurrency.pdf"), content=output.getvalue())
     result = await service.parse_document(
         source, user_id=test_user.id, account_id=account.id, db=db, force_model="synthetic-vision"
@@ -535,7 +535,7 @@ async def test_generated_multicurrency_pdf_preserves_every_batch(db, test_user):
         )
     )
     assert len(await resolve_statement_transactions(db, summary)) == 2
-    assert service._extract_json_with_models.await_count == 2
+    assert service._extract_json_with_model.await_count == 2
 
 
 async def test_membership_rejects_ambiguous_custody(db, test_user):

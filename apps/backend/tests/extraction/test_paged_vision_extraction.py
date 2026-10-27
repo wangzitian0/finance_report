@@ -174,7 +174,7 @@ class TestBatchedExtractFlow:
         ]
         mock_extract = AsyncMock(side_effect=part_payloads)
 
-        with patch.object(service, "_extract_json_with_models", mock_extract):
+        with patch.object(service, "_extract_json_with_model", mock_extract):
             merged = await service.extract_financial_data(pdf_bytes, "DBS", "pdf")
 
         assert mock_extract.await_count == 3
@@ -208,7 +208,7 @@ class TestBatchedExtractFlow:
         service.api_key = "test-key"
 
         mock_extract = AsyncMock(return_value={"transactions": []})
-        with patch.object(service, "_extract_json_with_models", mock_extract):
+        with patch.object(service, "_extract_json_with_model", mock_extract):
             await service.extract_financial_data(_pdf_with_pages(2), "DBS", "pdf")
 
         assert mock_extract.await_count == 1

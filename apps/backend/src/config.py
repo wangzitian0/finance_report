@@ -11,8 +11,6 @@ from functools import cached_property
 from typing import Any, Literal
 
 from infra2_sdk.runtime.llm import LlmSettings
-from infra2_sdk.runtime.postgres import PostgresSettings
-from infra2_sdk.runtime.s3 import S3Settings
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic.fields import FieldInfo
 from pydantic_settings import (
@@ -862,29 +860,6 @@ class Settings(BaseSettings):
             json_seed=self.ai_json_seed,
             extract_max_attempts=self.ai_extract_max_attempts,
             encryption_keys=tuple(self.llm_encryption_key_list),
-        )
-
-    def to_s3_settings(self) -> S3Settings:
-        """Build canonical infra2-sdk S3Settings from application settings."""
-        return S3Settings(
-            bucket=self.s3_bucket,
-            endpoint_url=self.s3_endpoint,
-            access_key_id=self.s3_access_key,
-            secret_access_key=self.s3_secret_key,
-            region_name=self.s3_region,
-            public_endpoint_url=self.s3_public_endpoint,
-            public_bucket=self.s3_public_bucket,
-            public_access_key_id=self.s3_public_access_key,
-            public_secret_access_key=self.s3_public_secret_key,
-            presign_expiry_seconds=self.s3_presign_expiry_seconds,
-        )
-
-    def to_postgres_settings(self) -> PostgresSettings:
-        """Build canonical infra2-sdk PostgresSettings from application settings."""
-        return PostgresSettings(
-            dsn=self.database_url,
-            pool_size=self.db_pool_size,
-            pool_max_overflow=self.db_pool_max_overflow,
         )
 
 
