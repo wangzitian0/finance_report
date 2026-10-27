@@ -68,29 +68,31 @@ def test_benchmark_mapping_ssot_bijection_and_coverage() -> None:
 
 
 def test_flow_to_domain_is_derived_not_declared() -> None:
-    """AC-testing.benchmarks.4: FLOW_TO_DOMAIN is a call to the registry loader and holds no literal map."""
+    """AC-testing.benchmarks.4: FLOW_TO_DOMAIN and FLOW_TO_CASES call registry loaders and hold no literal map."""
     import ast
 
     from common.testing.benchmarks import case_types
 
     tree = ast.parse(Path(case_types.__file__).read_text(encoding="utf-8"))
-    values = [
-        node.value
+    ann_assigns = {
+        node.target.id: node.value
         for node in tree.body
         if isinstance(node, ast.AnnAssign)
         and isinstance(node.target, ast.Name)
-        and node.target.id == "FLOW_TO_DOMAIN"
-    ]
-    assert len(values) == 1
-    value = values[0]
-    assert (
-        isinstance(value, ast.Call)
-        and isinstance(value.func, ast.Name)
-        and value.func.id == "load_flow_to_domain"
-    ), "FLOW_TO_DOMAIN must be load_flow_to_domain(...)"
-    assert not any(isinstance(node, ast.Dict) for node in ast.walk(value)), (
-        "FLOW_TO_DOMAIN must not wrap a literal map"
-    )
+        and node.target.id in ("FLOW_TO_DOMAIN", "FLOW_TO_CASES")
+    }
+    assert "FLOW_TO_DOMAIN" in ann_assigns
+    assert "FLOW_TO_CASES" in ann_assigns
+
+    for name, value in ann_assigns.items():
+        assert isinstance(value, ast.Call) and isinstance(value.func, ast.Name), (
+            f"{name} must be a function call"
+        )
+        assert not any(isinstance(node, ast.Dict) for node in ast.walk(value)), (
+            f"{name} must not wrap a literal map"
+        )
+    assert ann_assigns["FLOW_TO_DOMAIN"].func.id == "load_flow_to_domain"
+    assert ann_assigns["FLOW_TO_CASES"].func.id == "load_flow_to_cases"
 
 
 def test_load_flow_to_domain_follows_registry_edits(tmp_path: Path) -> None:
@@ -132,3 +134,68 @@ def test_load_flow_to_domain_error_names_the_registry(
     path.write_text(content, encoding="utf-8")
     with pytest.raises(ValueError, match="30-flow registry .*flows.json"):
         load_flow_to_domain(path)
+
+
+def test_load_flow_to_cases_follows_registry_edits(tmp_path: Path) -> None:
+    """AC-testing.benchmarks.4: load_flow_to_cases maps by flow id and reads benchmark_cases."""
+    from common.testing.benchmarks.case_types import load_flow_to_cases
+
+    registry = {
+        "domains": [
+            {"id": 2, "flows": [{"id": 3, "benchmark_cases": ["2"]}]},
+            {
+                "id": 1,
+                "flows": [
+                    {"id": 1, "benchmark_cases": ["1"]},
+                    {"id": 2, "benchmark_cases": ["1", "6"]},
+                ],
+            },
+        ]
+    }
+    path = tmp_path / "flows.json"
+    path.write_text(json.dumps(registry), encoding="utf-8")
+    assert load_flow_to_cases(path) == {3: ["2"], 1: ["1"], 2: ["1", "6"]}
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "not json",
+        json.dumps({"groups": []}),
+        json.dumps({"domains": [{"id": 1, "flows": [{}]}]}),
+        json.dumps({"domains": [{"id": 1, "flows": [{"id": 1}]}]}),
+        json.dumps(
+            {"domains": [{"id": 1, "flows": [{"id": 1, "benchmark_cases": []}]}]}
+        ),
+        json.dumps(
+            {"domains": [{"id": 1, "flows": [{"id": 1, "benchmark_cases": [1]}]}]}
+        ),
+    ],
+    ids=[
+        "malformed-json",
+        "no-domains-key",
+        "flow-without-id",
+        "missing-benchmark-cases",
+        "empty-benchmark-cases",
+        "non-string-benchmark-cases",
+    ],
+)
+def test_load_flow_to_cases_error_names_the_registry(
+    tmp_path: Path, content: str
+) -> None:
+    """AC-testing.benchmarks.4: a bad registry raises ValueError with the file path."""
+    from common.testing.benchmarks.case_types import load_flow_to_cases
+
+    path = tmp_path / "flows.json"
+    path.write_text(content, encoding="utf-8")
+    with pytest.raises(ValueError, match="30-flow registry .*flows.json"):
+        load_flow_to_cases(path)
+
+
+def test_load_flow_to_cases_missing_file_raises_value_error(tmp_path: Path) -> None:
+    """AC-testing.benchmarks.4: missing file raises ValueError naming registry."""
+    from common.testing.benchmarks.case_types import load_flow_to_cases
+
+    path = tmp_path / "nonexistent.json"
+    with pytest.raises(ValueError, match="30-flow registry .*nonexistent.json"):
+        load_flow_to_cases(path)

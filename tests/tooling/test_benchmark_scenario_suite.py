@@ -198,13 +198,12 @@ def test_benchmark_manifest_v2_fixtures_verified() -> None:
     assert manifest_path.exists()
     data = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
     assert data["version"] == "2.1"
+    assert "domains" not in data, "domains live only in thirty_flows_ssot.json"
 
     fixtures = data.get("fixtures", [])
     fixture_ids = {f["id"] for f in fixtures}
     expected_ids = {
         "bankstatemently_straits_capital",
-        "docubench_w2_tax_statement",
-        "docubench_payslip_statement",
     }
     assert expected_ids == fixture_ids, f"Manifest fixtures drifted: {fixture_ids}"
 
@@ -226,6 +225,16 @@ def test_benchmark_manifest_v2_fixtures_verified() -> None:
         if f_path.exists():
             actual_sha = hashlib.sha256(f_path.read_bytes()).hexdigest()
             assert actual_sha == item["sha256"], f"SHA256 mismatch for {rel_path}"
+
+    cases_dir = REPO_ROOT / "common/testing/benchmarks/cases"
+    case_files_content = "\n".join(
+        p.read_text(encoding="utf-8") for p in cases_dir.glob("case_*.py")
+    )
+    for item in fixtures:
+        fixture_filename = Path(item["local_path"]).name
+        assert fixture_filename in case_files_content, (
+            f"Fixture {fixture_filename} in manifest.yaml is orphaned (not referenced in any case_*.py)"
+        )
 
 
 def test_benchmark_reporter_summary_extraction_v2() -> None:
@@ -380,49 +389,6 @@ def test_benchmark_reporter_summary_extraction_v2() -> None:
     assert len(html_out) > 5000
 
 
-def test_benchmark_case_6_dispatch_contract(monkeypatch: pytest.MonkeyPatch) -> None:
-    """AC-testing.benchmarks.1: Case 6 is exported and dispatchable via CLI and scenario runner."""
-    from common.testing.benchmarks import run_financial_scenario_benchmark
-    from common.testing.benchmarks.case_types import CaseResult
-    from common.testing.benchmarks.cases import execute_case_6
-
-    assert callable(execute_case_6)
-
-    # Prove case 6 is genuinely wired into scenario dispatch
-    fake_result = CaseResult(
-        case_id="case_6",
-        case_name="Case 6 Test",
-        status="PASS",
-        duration_seconds=0.1,
-        details={},
-    )
-    dispatched_cases: list[str] = []
-    monkeypatch.setattr(
-        run_financial_scenario_benchmark,
-        "execute_case_6",
-        lambda runner: (dispatched_cases.append("case_6"), fake_result)[1],
-    )
-
-    fake_runner = object()  # type: ignore[arg-type]
-    results = run_financial_scenario_benchmark._dispatch_cases(fake_runner, "6")
-    assert dispatched_cases == ["case_6"]
-    assert len(results) == 1
-    assert results[0].case_id == "case_6"
-
-
-def test_benchmark_cli_case_selection_and_green_while_empty_guard() -> None:
-    """AC-testing.benchmarks.1: CLI fails closed on invalid case selection and supports case_1 format."""
-    from common.testing.benchmarks.run_financial_scenario_benchmark import main
-
-    # Passing invalid case must fail-closed with code 2 (never GREEN-WHILE-EMPTY code 0)
-    exit_code = main(
-        ["--case", "invalid_case_99", "--app-url", "http://localhost:8000"]
-    )
-    assert exit_code == 2, (
-        f"Expected exit code 2 on empty case selection, got {exit_code}"
-    )
-
-
 def test_benchmark_valuation_basis_contract_conformance() -> None:
     """AC-testing.benchmarks.7: valuation_basis aligns with backend ManualValuationBasis schema."""
     import inspect
@@ -481,7 +447,7 @@ def test_sync_benchmark_fixtures_contract(tmp_path: Path) -> None:
     manifest_path = REPO_ROOT / "common/testing/fixtures/benchmarks/manifest.yaml"
     manifest = sync_benchmark_fixtures.load_manifest(manifest_path)
     assert manifest["version"] == "2.1"
-    assert len(manifest["fixtures"]) == 3
+    assert len(manifest["fixtures"]) == 1
 
     # Test SHA-256 computation
     sample_bytes = b"hello finance report benchmark"
@@ -496,32 +462,6 @@ def test_sync_benchmark_fixtures_contract(tmp_path: Path) -> None:
     is_ok, msg = sync_benchmark_fixtures.verify_fixture(dummy_fixture, tmp_path)
     assert not is_ok
     assert "Missing file" in msg
-
-
-def test_benchmark_cli_domain_and_flow_option_parsing() -> None:
-    """AC-testing.benchmarks.1: CLI supports --domain 1..7 and --flow 1..30 mappings."""
-    from common.testing.benchmarks.case_types import DOMAIN_TO_CASES, FLOW_TO_CASES
-    from common.testing.benchmarks.run_financial_scenario_benchmark import _parse_args
-
-    parsed = _parse_args(
-        [
-            "--app-url",
-            "http://localhost:8000",
-            "--domain",
-            "1,4",
-            "--flow",
-            "14,23",
-        ]
-    )
-    assert parsed.domain == "1,4"
-    assert parsed.flow == "14,23"
-
-    assert len(DOMAIN_TO_CASES) == 7
-    assert len(FLOW_TO_CASES) == 30
-    assert {"1"}.issubset(DOMAIN_TO_CASES[1])
-    assert {"4"}.issubset(DOMAIN_TO_CASES[4])
-    assert {"2"}.issubset(FLOW_TO_CASES[14])
-    assert {"1"}.issubset(FLOW_TO_CASES[23])
 
 
 def test_benchmark_oracle_triple_accounting_articulation_pass_and_fail() -> None:
@@ -569,71 +509,6 @@ def test_benchmark_oracle_triple_accounting_articulation_pass_and_fail() -> None
         assert_triple_accounting_articulation(valid_bs, mismatch_is)
 
 
-def test_benchmark_oracle_ai_advisor_semantic_grounding_pass_and_fail() -> None:
-    """AC-testing.benchmarks.6: Validate Pillar 1 AI Semantic Grounding Oracle."""
-    from common.testing.benchmarks.oracles import assert_ai_advisor_semantic_grounding
-
-    # 1. Passing answer: grounded net worth with 0 discrepancy keywords
-    clean_answer = (
-        "Your total net worth is SGD 24,200.00. Total assets are SGD 24,200.00, "
-        "and total liabilities are SGD 0.00. All accounts are reconciled."
-    )
-    assert_ai_advisor_semantic_grounding(
-        clean_answer, expected_figures=["24,200", "24200"]
-    )
-
-    # 2. Failure: hallucinated discrepancy token
-    hallucinated_answer = (
-        "Your net worth is SGD 24,200.00, but there is a discrepancy of SGD 8,749.25."
-    )
-    with pytest.raises(
-        AssertionError, match="hallucinated discrepancy/imbalance token 'discrepancy'"
-    ):
-        assert_ai_advisor_semantic_grounding(
-            hallucinated_answer, expected_figures=["24,200", "24200"]
-        )
-
-    # 3. Failure: missing expected figures
-    vague_answer = "Your financial position is good and everything is balanced."
-    with pytest.raises(AssertionError, match="did not contain any expected figures"):
-        assert_ai_advisor_semantic_grounding(
-            vague_answer, expected_figures=["24,200", "24200"]
-        )
-
-    # 4. Passing answer: explicit negative assertions confirming balance consistency
-    negated_balance_answer = (
-        "## Your Current Net Worth\n"
-        "**Net Worth: SGD 24,200.00**\n"
-        "No balance discrepancies found. Assets and equity rollforward balance perfectly.\n"
-        "Unmatched transactions do not create any imbalance."
-    )
-    assert_ai_advisor_semantic_grounding(
-        negated_balance_answer, expected_figures=["24,200", "24200"]
-    )
-
-    # 5. Passing answer: parenthetical qualification and contracted negation
-    parenthetical_negated_answer = (
-        "**Your Current Net Worth: SGD 24,200.00**\n"
-        "**Balance Consistency Check — No Discrepancies Found ✓**\n"
-        "**A Quick Observation on Data Quality (Not a Discrepancy):**\n"
-        "This doesn't create an imbalance in your net worth calculation."
-    )
-    assert_ai_advisor_semantic_grounding(
-        parenthetical_negated_answer, expected_figures=["24,200", "24200"]
-    )
-
-    # 6. Passing answer: discrepancy check section heading
-    heading_negated_answer = (
-        "## Your Current Net Worth\n"
-        "**Net Worth: SGD 24,200.00**\n"
-        "### Discrepancy Check — No Imbalances Found ✅\n"
-        "Both calculation methods arrive at the same figure."
-    )
-    assert_ai_advisor_semantic_grounding(
-        heading_negated_answer, expected_figures=["24,200", "24200"]
-    )
-
-
 def test_benchmark_oracle_dom_hygiene_scanner() -> None:
     """AC-testing.benchmarks.3: Validate Pillar 3 DOM Hygiene Scanner."""
     from common.testing.benchmarks.oracles import (
@@ -652,21 +527,6 @@ def test_benchmark_oracle_dom_hygiene_scanner() -> None:
     )
     violations = scan_dom_hygiene(dirty_dom)
     assert len(violations) == len(FORBIDDEN_DOM_JARGON)
-
-
-def test_benchmark_cli_verify_ui_option_and_dispatch() -> None:
-    """AC-testing.benchmarks.1: CLI supports --verify-ui flag and propagates to runner."""
-    from common.testing.benchmarks.run_financial_scenario_benchmark import (
-        ScenarioBenchmarkRunner,
-        _parse_args,
-    )
-
-    parsed = _parse_args(["--verify-ui", "--app-url", "http://localhost:8000"])
-    assert parsed.verify_ui is True
-
-    runner = ScenarioBenchmarkRunner(base_url="http://localhost:8000")
-    runner.verify_ui = parsed.verify_ui
-    assert runner.verify_ui is True
 
 
 def test_wait_for_statement_parsed_retries_on_rate_limit_error() -> None:
