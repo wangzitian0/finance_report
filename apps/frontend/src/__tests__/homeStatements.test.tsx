@@ -157,7 +157,7 @@ describe("Three-statement cockpit (#2621 LC, #2548 P1)", () => {
     it("AC-reporting.fe-period-cockpit.5 switches the statement with the segmented control and drills a row into its source transactions", async () => {
         render(<StatementCockpit filters={Q1_2026} />);
 
-        const switcher = screen.getByRole("tablist", { name: "Statement switcher" });
+        const switcher = await screen.findByRole("tablist", { name: "Statement switcher" });
         expect(within(switcher).getByRole("tab", { name: "Balance" })).toHaveAttribute("aria-selected", "true");
         // On a phone only the selected card shows.
         expect(screen.getByTestId("cockpit-card-balance-sheet")).not.toHaveClass("hidden");
@@ -200,6 +200,47 @@ describe("Three-statement cockpit (#2621 LC, #2548 P1)", () => {
             }),
         );
         expect(screen.queryByRole("button", { name: "View source transactions for Broker transfer" })).toBeNull();
+    });
+
+    // AC-reporting.fe-period-cockpit.5
+    it("omits the no-op Statement switcher when all three statements have zero drill-down rows (#2730)", async () => {
+        mockedApiOperation.mockImplementation(((operationId: string) => {
+            if (operationId === "balance_sheet_reports_balance_sheet_get") {
+                return Promise.resolve({
+                    ...balanceSheetAt("2026-03-31", "0", "0"),
+                    assets: [],
+                    liabilities: [],
+                });
+            }
+            if (operationId === "income_statement_reports_income_statement_get") {
+                return Promise.resolve({
+                    ...incomeStatement,
+                    income: [],
+                    expenses: [],
+                    total_income: "0",
+                    total_expenses: "0",
+                    net_income: "0",
+                });
+            }
+            if (operationId === "cash_flow_reports_cash_flow_get") {
+                return Promise.resolve({
+                    ...cashFlow,
+                    operating: [],
+                    investing: [],
+                    financing: [],
+                });
+            }
+            return Promise.reject(new Error(`unexpected ${operationId}`));
+        }) as never);
+
+        render(<StatementCockpit filters={Q1_2026} />);
+        await waitFor(() =>
+            expect(within(screen.getByTestId("cockpit-card-balance-sheet")).getByText("Total assets").nextElementSibling).toHaveTextContent("SGD 0"),
+        );
+        expect(screen.queryByRole("tablist", { name: "Statement switcher" })).toBeNull();
+        expect(screen.getByTestId("cockpit-card-balance-sheet")).not.toHaveClass("hidden");
+        expect(screen.getByTestId("cockpit-card-income-statement")).not.toHaveClass("hidden");
+        expect(screen.getByTestId("cockpit-card-cash-flow")).not.toHaveClass("hidden");
     });
 
     it("shows a retry when a statement fails and a loading line while a card waits", async () => {

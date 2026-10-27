@@ -16,8 +16,9 @@ import { formatPercentFromPercentValue, percentNumberFromParts } from "@/lib/aud
  * The three-statement cockpit of Home and of the `/reports` Overview (#2621 LC, #2548 P1).
  *
  * Each card shows the live metrics of the dimension-bar period and links to its `/reports` tab.
- * The segmented control selects one statement: on a phone only that card shows, and on every
- * screen the rows below are the largest lines of that statement. A row opens the
+ * When drill-down rows exist, the segmented control selects one statement: on a phone only that
+ * card shows, and on every screen the rows below are the largest lines of that statement. When
+ * all statements have zero drill-down rows, the switcher is omitted (#2730). A row opens the
  * AccountLineageDrawer with the source transactions of its account.
  */
 
@@ -147,6 +148,8 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
   };
   const activeRows = rowsByStatement[active];
   const activeCurrency = rowCurrency[active] ?? "";
+  const hasAnyRows =
+    rowsByStatement.balance.length > 0 || rowsByStatement.income.length > 0 || rowsByStatement.cash.length > 0;
 
   const openLineage = (row: DrillRow) =>
     setLineageTarget({
@@ -169,31 +172,33 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
           </button>
         </div>
       )}
-      <div role="tablist" aria-label="Statement switcher" className="inline-flex rounded-md bg-[var(--background-muted)] p-0.5">
-        {STATEMENTS.map((statement) => (
-          <button
-            key={statement.id}
-            type="button"
-            role="tab"
-            aria-selected={active === statement.id}
-            onClick={() => setActive(statement.id)}
-            className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
-              active === statement.id
-                ? "bg-[var(--background-card)] text-[var(--foreground)] shadow-sm"
-                : "text-muted hover:text-[var(--foreground)]"
-            }`}
-          >
-            {statement.short}
-          </button>
-        ))}
-      </div>
+      {hasAnyRows && (
+        <div role="tablist" aria-label="Statement switcher" className="inline-flex rounded-md bg-[var(--background-muted)] p-0.5">
+          {STATEMENTS.map((statement) => (
+            <button
+              key={statement.id}
+              type="button"
+              role="tab"
+              aria-selected={active === statement.id}
+              onClick={() => setActive(statement.id)}
+              className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                active === statement.id
+                  ? "bg-[var(--background-card)] text-[var(--foreground)] shadow-sm"
+                  : "text-muted hover:text-[var(--foreground)]"
+              }`}
+            >
+              {statement.short}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {STATEMENTS.map((statement) => (
           <article
             key={statement.id}
             data-testid={`cockpit-card-${statement.tab}`}
             aria-label={statement.label}
-            className={`card p-4 ${active === statement.id ? "" : "hidden sm:block"}`}
+            className={`card p-4 ${!hasAnyRows || active === statement.id ? "" : "hidden sm:block"}`}
           >
             <div className="mb-2 flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold">{statement.label}</h3>

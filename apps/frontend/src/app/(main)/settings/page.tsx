@@ -62,7 +62,7 @@ export default function SettingsPage() {
                     role="tablist"
                     aria-label="Settings sections"
                     onKeyDown={onTablistKeyDown}
-                    className="flex gap-1"
+                    className="flex gap-1 overflow-x-auto whitespace-nowrap"
                 >
                     {TABS.map((t) => (
                         <button
@@ -74,7 +74,7 @@ export default function SettingsPage() {
                             aria-selected={tab === t.id}
                             tabIndex={tab === t.id ? 0 : -1}
                             onClick={() => selectTab(t.id)}
-                            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+                            className={`-mb-px shrink-0 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
                                 tab === t.id
                                     ? "border-[var(--accent)] text-[var(--accent)]"
                                     : "border-transparent text-muted hover:text-[var(--foreground)]"

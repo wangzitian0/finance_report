@@ -16,6 +16,7 @@ export const LEDGER_DERIVED_QUERY_KEYS: readonly QueryKey[] = [
   ["dashboard"],
   ["report"],
   ["report-package"],
+  ["reports-net-worth-allocation"],
   ["workflow"],
   // The advisor brief reads the report readiness, so a ledger change can outdate it.
   ["chat", "suggestions"],

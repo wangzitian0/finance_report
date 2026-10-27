@@ -68,7 +68,7 @@ describe("navigation metadata", () => {
   // AC-meta.fe-ia-nav.29
   it("AC22.21.5 routes low-frequency destinations through the /more overflow", () => {
     const moreHrefs = moreItems.map((item) => item.href);
-    expect(moreHrefs).toEqual(expect.arrayContaining(["/portfolio", "/settings"]));
+    expect(moreHrefs).toEqual(["/portfolio", "/reports", "/settings"]);
     // Accounts is the genuine power escape hatch under Advanced, not a tab.
     expect(advancedItems.map((item) => item.href)).toContain("/settings?tab=accounts");
   });
@@ -87,6 +87,8 @@ describe("navigation metadata", () => {
 
   it("AC16.19.4 AC19.6.6 resolves exact, parent, advanced, and home route labels", () => {
     expect(getRouteConfig("/reports").label).toBe("Reports");
+    expect(getRouteConfig("/reports/unknown-subpath").label).toBe("Reports");
+    expect(getRouteConfig("").label).toBe("Page");
     expect(getRouteConfig("/chat").label).toBe("Chat");
     expect(getRouteConfig("/audit").label).toBe("Audit");
     expect(getRouteConfig("/more").label).toBe("More");

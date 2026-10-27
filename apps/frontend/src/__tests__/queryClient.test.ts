@@ -61,6 +61,7 @@ describe("app query client (#2583 S4)", () => {
         "dashboard",
         "report",
         "report-package",
+        "reports-net-worth-allocation",
         "workflow",
         "chat",
       ]),

@@ -3,10 +3,11 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, X } from "lucide-react";
 
 import { apiOperation } from "@/lib/api-client";
+import { invalidatePortfolioQueries } from "@/lib/queryClient";
 import { useBaseCurrency } from "@/hooks/useBaseCurrency";
 import GuidedEvidenceForm, { SOURCE_CLASS_CONFIGS, type EvidenceSourceClass } from "@/components/assets/GuidedEvidenceForm";
 import { APP_ROUTES } from "@/components/navigation";
@@ -62,6 +63,7 @@ function AllocationSource({
 }
 
 export default function PortfolioPage() {
+  const queryClient = useQueryClient();
   const { baseCurrency: reportCurrency } = useBaseCurrency();
   const [showDisposed, setShowDisposed] = useState(false);
   const [asOfDate, setAsOfDate] = useState("");
@@ -141,7 +143,7 @@ export default function PortfolioPage() {
         <p className="mb-4 text-sm text-muted">Enter the latest market prices to refresh the portfolio valuations.</p>
         <PriceUpdateForm
           knownTickers={Array.from(new Set(activeHoldings.map((h) => h.asset_identifier))).sort()}
-          onSuccess={() => { closeDrawer(); void refetch(); }}
+          onSuccess={() => { closeDrawer(); void invalidatePortfolioQueries(queryClient); }}
         />
       </Sheet>
       <Sheet isOpen={drawer === "evidence"} onClose={closeDrawer} title="Guided evidence intake" width="max-w-2xl">

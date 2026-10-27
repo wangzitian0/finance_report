@@ -11,6 +11,7 @@ import GuidedEvidenceForm from "@/components/assets/GuidedEvidenceForm";
 import { ProcessingTransfers } from "@/components/statements/ProcessingTransfers";
 import { FlowStepBanner, WorkflowNotices } from "@/components/workflow/WorkflowNotifications";
 import { InfoHint } from "@/components/ui/InfoHint";
+import { AuditBackLink } from "@/components/ui/SmartBackLink";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, Button, EmptyState, IconButton, LoadingState, PageHeader, type BadgeVariant } from "@/components/ui";
@@ -118,6 +119,7 @@ export default function UploadPage() {
 
   return (
     <div className="p-6">
+      <div className="mb-4"><AuditBackLink /></div>
       <PageHeader
         title="Upload"
         description="Drop a statement and we identify the type for you. Track parsing, review what needs you, and approve here. CSV imports and manual records are tucked away until you need them."

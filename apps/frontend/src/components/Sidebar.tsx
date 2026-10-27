@@ -66,12 +66,12 @@ export function Sidebar() {
         bg-[var(--background-card)] border-r border-[var(--border)]
         transition-all duration-300 ease-in-out
         hidden md:block print:hidden
-        ${isCollapsed ? "w-16" : "w-56"}
+        ${isCollapsed ? "w-16" : "w-64"}
       `}
         >
             {/* Logo & Collapse Toggle */}
-            <div className="flex items-center justify-between h-14 px-3 border-b border-[var(--border)]">
-                <Link href="/" className="flex items-center gap-2.5 overflow-hidden" aria-label="Finance Report home">
+            <div className="flex items-center justify-between gap-2 h-14 px-3 border-b border-[var(--border)]">
+                <Link href="/" className="flex min-w-0 items-center gap-2" aria-label="Finance Report home">
                     <div className="w-8 h-8 bg-[var(--accent)] rounded-md flex items-center justify-center flex-shrink-0">
                         <span className="text-white font-bold text-sm">$</span>
                     </div>
@@ -81,7 +81,7 @@ export function Sidebar() {
                         </span>
                     )}
                 </Link>
-                <div className="flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                     <ThemeToggle />
                     <button
                         onClick={toggleSidebar}

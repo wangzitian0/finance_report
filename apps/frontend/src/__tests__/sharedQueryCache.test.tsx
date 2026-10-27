@@ -22,7 +22,10 @@ vi.mock("next/link", () => ({
     </a>
   ),
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock("@/components/statements/StatementUploader", () => ({
   default: ({ onUploadComplete }: { onUploadComplete: () => void }) => (
     <button onClick={onUploadComplete}>UploadMock</button>
