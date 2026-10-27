@@ -126,7 +126,7 @@ async def test_aggregate_net_income_uses_average_rate(
 
     # Average rate across the period [Jan 1 - Jan 31] = avg(1.20, 1.30, 1.40) = 1.30 SGD/USD
     # SQL AVG() computes an unweighted arithmetic mean across the three rate rows
-    net_income = await _aggregate_net_income_sql(db, user_id, "SGD", date(2025, 1, 31), start_date=date(2025, 1, 1))
+    net_income, _ = await _aggregate_net_income_sql(db, user_id, "SGD", date(2025, 1, 31), start_date=date(2025, 1, 1))
 
     # Expected: (1000 - 200) * 1.30 = 800 * 1.30 = 1040
     # Under historical cost: 1000*1.20 - 200*1.40 = 1200 - 280 = 920 (different!)
@@ -172,7 +172,7 @@ async def test_aggregate_net_income_no_start_date_uses_all_time_average(
     await db.commit()
 
     # All-time average from Jan 1 to Jan 15 = avg(1.20, 1.30) = 1.25 (only rates on or before Jan 15)
-    net_income = await _aggregate_net_income_sql(db, user_id, "SGD", date(2025, 1, 15))
+    net_income, _ = await _aggregate_net_income_sql(db, user_id, "SGD", date(2025, 1, 15))
 
     # Result should be 500 * ~1.25 = ~625 (not 500*1.30 = 650 spot or 500*1.20 = 600 historical)
     assert net_income > Decimal("0"), f"Net income should be positive, got {net_income}"
@@ -232,7 +232,7 @@ async def test_aggregate_net_income_same_currency_no_conversion(
     )
     await db.commit()
 
-    net_income = await _aggregate_net_income_sql(db, user_id, "SGD", date(2025, 3, 31))
+    net_income, _ = await _aggregate_net_income_sql(db, user_id, "SGD", date(2025, 3, 31))
     assert net_income == Decimal("1800.00")
 
 

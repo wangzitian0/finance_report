@@ -28,7 +28,7 @@ CONTRACT = PackageContract(
     # and into llm (AC-llm.semantic-scoring.1, #1859 flagged the CODE-ONLY
     # violation — a genuine LLM call cannot live in a CODE-ONLY module per
     # common/meta/readme.md's Cross-tier MUST rule 2). extension/matching.py's
-    # calculate_match_score still CONSUMES llm.ai_semantic_score as an
+    # score_single/score_group still CONSUME llm.ai_semantic_score as an
     # external advisory signal over its own build_reconciliation_prompt()
     # output (graceful fallback to a neutral 50 on any error — never a hard
     # dependency on model correctness); the llm edge stays declared here.
@@ -139,16 +139,6 @@ CONTRACT = PackageContract(
             name="persist_transfer_pairs",
             kind=Kind.DOMAIN_SERVICE,
             module="extension/transfer_pairs.py",
-        ),
-        Unit(
-            name="calculate_match_score",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/matching.py",
-        ),
-        Unit(
-            name="find_candidates",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/matching.py",
         ),
         Unit(
             name="prune_candidates",
@@ -283,7 +273,6 @@ CONTRACT = PackageContract(
         "batch_accept",
         "build_many_to_one_groups",
         "build_reconciliation_prompt",
-        "calculate_match_score",
         "classify_internal_transfer",
         "count_pending_review_items",
         "derive_reconciliation_score_tier",
@@ -293,7 +282,6 @@ CONTRACT = PackageContract(
         "entry_total_amount",
         "execute_matching",
         "extract_merchant_tokens",
-        "find_candidates",
         "get_pending_items",
         "get_reconciliation_stats",
         "get_stage2_queue",
@@ -371,7 +359,7 @@ CONTRACT = PackageContract(
         ac('AC-reconciliation.matching-core.4', 'score_description normalizes text (case/punctuation-insensitive) and returns >=95 for near-identical descriptions differing only by case, while returning 0 for None, blank, or punctuation-only inputs.', 'apps/backend/tests/reconciliation/test_reconciliation_scoring.py::test_normalize_and_description_scoring', priority='P1'),
         # ============================= group-matching (AC4.2) =============================
         ac('AC-reconciliation.group-matching.1', "execute_matching groups same-day, same-description bank transactions that sum to one manual journal entry's amount into a many-to-one match and auto-accepts all of them.", 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_execute_matching_many_to_one_group'),
-        ac('AC-reconciliation.group-matching.2', 'score_group adds a many_to_one_bonus (10 points) when scoring a batch-payment total against a single matching journal entry, pushing the composite score above the auto-accept threshold without coupled boolean flags.', 'apps/backend/tests/reconciliation/test_reconciliation_scoring.py::test_calculate_match_score_many_to_one_bonus', priority='P1'),
+        ac('AC-reconciliation.group-matching.2', 'score_group adds a many_to_one_bonus (10 points) when scoring a batch-payment total against a single matching journal entry, pushing the composite score above the auto-accept threshold without coupled boolean flags.', 'apps/backend/tests/reconciliation/test_reconciliation_scoring.py::test_score_group_many_to_one_bonus', priority='P1'),
         ac('AC-reconciliation.group-matching.3', "execute_matching finds the combination of multiple journal entries (one-to-many split) whose lines sum to a single transaction's amount, records a multi_entry count in the score breakdown, and auto-accepts the best combination.", 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_execute_matching_multi_entry_combinations', priority='P1'),
         # ============================= review-queue (AC4.3) =============================
         # NB: old AC4.3.1 is NOT here -- it is a duplicate of the already-migrated
@@ -398,7 +386,7 @@ CONTRACT = PackageContract(
         ac('AC-reconciliation.reviewed-disposition.5', 'A capability-level structural lock enumerates reconciliation posting and match side effects: the reviewed-disposition service requires an injected TraceEmitter and DispositionPolicy, while raw posting, match-side source promotion, and fabricated-confidence classification surrogates are absent.', 'apps/backend/tests/reconciliation/test_signature_surgery.py::test_unmatched_posting_has_one_reviewed_writer_boundary'),
         # ============================= performance (AC4.4) =============================
         ac('AC-reconciliation.performance.1', 'execute_matching processes 100 transactions against 20 candidate entries in under 5 seconds (representative sample standing in for the 10,000-transaction target).', 'apps/backend/tests/reconciliation/test_performance.py::test_batch_1000_transactions_reasonable_time', priority='P1'),
-        ac('AC-reconciliation.performance.2', 'calculate_match_score still scores a transaction dated one day before month-end against an entry dated the first of the next month at >=70 (cross-month date proximity).', 'apps/backend/tests/reconciliation/test_performance.py::test_month_end_to_month_start_match', priority='P1'),
+        ac('AC-reconciliation.performance.2', 'score_single still scores a transaction dated one day before month-end against an entry dated the first of the next month at >=70 (cross-month date proximity).', 'apps/backend/tests/reconciliation/test_performance.py::test_month_end_to_month_start_match', priority='P1'),
         # ============================= anomaly-detection (AC4.5) =============================
         ac('AC-reconciliation.anomaly-detection.1', 'detect_anomalies flags LARGE_AMOUNT and FREQUENCY_SPIKE for an outsized transaction against a merchant with recent history, and flags NEW_MERCHANT and WEEKEND_LARGE for a large transaction on a weekend with no prior merchant history.', 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_detect_anomalies_flags_expected_patterns', priority='P2'),
         ac('AC-reconciliation.anomaly-detection.2', "GET /reconciliation/transactions/{txn_id}/anomalies for a non-existent transaction id returns 404 with 'Transaction' in the error detail.", 'apps/backend/tests/api/test_reconciliation_router.py::test_list_anomalies_not_found', priority='P1'),
@@ -416,7 +404,7 @@ CONTRACT = PackageContract(
         ac('AC-reconciliation.recovered-coverage.2', "execute_matching's phase-2 combination search skips a 3-entry combination when one of the candidate entries is unbalanced, so no match is produced.", 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_execute_matching_three_entry_combination_skips_unbalanced_member', priority='P1'),
         ac('AC-reconciliation.recovered-coverage.3', "execute_matching's layer-2 path records an atomic match for a single-entry candidate and supports transfer-pair logging within the same phase.", 'apps/backend/tests/reconciliation/test_reconciliation_engine.py::test_execute_matching_layer2_atomic_match_and_transfer_pair_logging', priority='P1'),
         # ============================= bank-side-amount (AC4.9) =============================
-        ac('AC-reconciliation.bank-side-amount.1', "calculate_match_score computes the 'amount' score dimension from the bank/cash account's line amount (not the total of all entry debits) so a split entry with clearing/payable lines still yields a 100.0 amount score for a matching outflow.", 'apps/backend/tests/reconciliation/test_reconciliation_financial_logic.py::test_AC4_9_1_entry_total_uses_bank_side_line_for_outflow'),
+        ac('AC-reconciliation.bank-side-amount.1', "score_single computes the 'amount' score dimension from the bank/cash account's line amount (not the total of all entry debits) so a split entry with clearing/payable lines still yields a 100.0 amount score for a matching outflow.", 'apps/backend/tests/reconciliation/test_reconciliation_financial_logic.py::test_AC4_9_1_entry_total_uses_bank_side_line_for_outflow'),
         ac('AC-reconciliation.bank-side-amount.2', 'Retrying accept_match_service on an already-ACCEPTED match returns the same version and the same journal_entry_ids without creating a duplicate journal entry.', 'apps/backend/tests/api/test_review_router.py::test_accept_match_retry_is_idempotent_after_success'),
         ac('AC-reconciliation.bank-side-amount.3', "create_entry_from_txn with auto_post=True raises ValueError('... not active ...') and creates no journal entry when the statement's linked account is inactive.", 'apps/backend/tests/api/test_review_router.py::test_create_entry_from_txn_auto_post_rejects_inactive_statement_account'),
         ac('AC-reconciliation.bank-side-amount.4', 'get_stage2_review_queue returns a pending PENDING_REVIEW match with a confidence_tier of MEDIUM derived from its match_score (75).', 'apps/backend/tests/api/test_review_router.py::test_get_stage2_review_queue_with_pending_match', priority='P1'),
@@ -591,11 +579,11 @@ CONTRACT = PackageContract(
         ac('AC-reconciliation.fe-remainder-reconciliation.2', 'The AI suggestions queue on `/audit` lists pending AI classifications and AI reconciliation matches in score band 60-84 with `{transaction, suggested_category_or_match, ai_score, ai_reasoning}`', 'apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.3 — AI Suggestion Review Queue page renders suggestions', priority='P2'),
         ac('AC-reconciliation.fe-remainder-reconciliation.3', 'Queue actions: `Accept`, `Reject`, `Edit-then-Accept`; each action calls `POST /api/ai/feedback` with `{suggestion_id, action, corrected_value?}` to feed the feedback loop', 'apps/frontend/src/__tests__/uiGapAudit.confidenceAndAiQueue.test.tsx::AC18.5.4 — feedback POST on accept/reject/edit', priority='P2'),
         # ── closing the two remaining EPIC-018 AC18.3.x "Untested"
-        # pending-package rows now that a real test exercises calculate_match_score's
+        # pending-package rows now that a real test exercises score_single's
         # hybrid-AI branch directly (AC18.3.1's separate tier-boundary blocker is
         # unrelated and untouched — see docs/project/EPIC-018.ai-driven-pipeline.md) ──
-        ac('AC-reconciliation.1803.1', 'Hybrid scoring: calculate_match_score blends 0.7 * algorithmic + 0.3 * AI semantic score, applied only when the pre-AI weighted total is in the 60-84 review band.', 'apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py::test_calculate_match_score_applies_hybrid_ai_scoring', priority='P1'),
-        ac('AC-reconciliation.1803.2', 'Feature flag ENABLE_AI_RECONCILIATION gates the hybrid-AI branch: when off, calculate_match_score never calls the AI semantic scorer, even for a pre-AI total in the 60-84 band.', 'apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py::test_calculate_match_score_flag_off_skips_ai_scoring', priority='P1'),
+        ac('AC-reconciliation.1803.1', 'Hybrid scoring: score_single blends 0.7 * algorithmic + 0.3 * AI semantic score, applied only when the pre-AI weighted total is in the 60-84 review band.', 'apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py::test_score_single_applies_hybrid_ai_scoring', priority='P1'),
+        ac('AC-reconciliation.1803.2', 'Feature flag ENABLE_AI_RECONCILIATION gates the hybrid-AI branch: when off, score_single never calls the AI semantic scorer, even for a pre-AI total in the 60-84 band.', 'apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py::test_score_single_flag_off_skips_ai_scoring', priority='P1'),
         ac('AC-reconciliation.1803.3', 'execute_matching resolves enable_ai_reconciliation from the per-user ai_settings override before it applies the base configuration (#2417).', 'apps/backend/tests/reconciliation/test_reconciliation_hybrid_scoring.py::test_AC_reconciliation_1803_3_execute_matching_uses_per_user_ai_reconciliation_override', priority='P1'),
         # #1866 PR-A: reconciliation/ledger signature surgery.  The split is
         # intentionally package-local: reconciliation owns orchestration,

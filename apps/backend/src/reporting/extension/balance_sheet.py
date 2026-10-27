@@ -351,7 +351,6 @@ async def generate_balance_sheet(
             target_currency,
             as_of_date,
             fx_warnings=fx_warnings,
-            return_translation_variance=True,
         )
     except ReportError:
         raise

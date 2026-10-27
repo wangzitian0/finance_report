@@ -1,7 +1,7 @@
 """EPIC-018 Phase 3: hybrid + feature-flagged AI-reconciliation scoring.
 
 AC-reconciliation.1803.1 / AC-reconciliation.1803.2 (formerly AC18.3.2/
-AC18.3.3), exercised end-to-end through ``calculate_match_score``.
+AC18.3.3), exercised end-to-end through ``score_single``.
 
 Kept in a separate file from ``test_ai_reconciliation.py`` (which exercises
 the lower-level AI-provider streaming call directly, now owned by the
@@ -27,7 +27,7 @@ from uuid import uuid4
 
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Direction, JournalEntry, JournalLine
-from src.reconciliation import DEFAULT_CONFIG, calculate_match_score, weighted_total
+from src.reconciliation import DEFAULT_CONFIG, score_single, weighted_total
 
 
 def _hybrid_band_txn_and_entry() -> tuple[AtomicTransaction, JournalEntry]:
@@ -59,9 +59,9 @@ def _hybrid_band_txn_and_entry() -> tuple[AtomicTransaction, JournalEntry]:
     return txn, entry
 
 
-async def test_calculate_match_score_applies_hybrid_ai_scoring(db) -> None:
+async def test_score_single_applies_hybrid_ai_scoring(db) -> None:
     """AC-reconciliation.1803.1: with ENABLE_AI_RECONCILIATION on and a pre-AI
-    weighted total in the 60-84 review band, calculate_match_score blends
+    weighted total in the 60-84 review band, score_single blends
     70% algorithmic + 30% AI semantic score (also proves EPIC-018 AC18.3.2).
     """
     txn, entry = _hybrid_band_txn_and_entry()
@@ -77,7 +77,7 @@ async def test_calculate_match_score_applies_hybrid_ai_scoring(db) -> None:
     mock_ai_score = AsyncMock(return_value=90)
 
     with patch("src.reconciliation.extension.matching.ai_semantic_score", mock_ai_score):
-        candidate = await calculate_match_score(db, txn, [entry], config, uuid4(), history_score_override=0.0)
+        candidate = await score_single(db, txn, [entry], config, uuid4(), history_score=0.0)
 
     expected_score = int(round(Decimal("0.7") * pre_ai_total + Decimal("0.3") * 90, 0))
     assert expected_score == 75
@@ -87,7 +87,7 @@ async def test_calculate_match_score_applies_hybrid_ai_scoring(db) -> None:
     mock_ai_score.assert_awaited_once()
 
 
-async def test_calculate_match_score_flag_off_skips_ai_scoring(db) -> None:
+async def test_score_single_flag_off_skips_ai_scoring(db) -> None:
     """AC-reconciliation.1803.2: with ENABLE_AI_RECONCILIATION off, the hybrid
     branch never runs — even when the pre-AI weighted total is in the 60-84
     band that would otherwise trigger it — and the AI scorer is never called
@@ -98,7 +98,7 @@ async def test_calculate_match_score_flag_off_skips_ai_scoring(db) -> None:
     mock_ai_score = AsyncMock(return_value=90)
 
     with patch("src.reconciliation.extension.matching.ai_semantic_score", mock_ai_score):
-        candidate = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG, uuid4(), history_score_override=0.0)
+        candidate = await score_single(db, txn, [entry], DEFAULT_CONFIG, uuid4(), history_score=0.0)
         mock_ai_score.assert_not_called()
 
     assert candidate.score == 69

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
-from typing import Any, Literal, overload
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import case, func, literal, select
@@ -283,7 +283,6 @@ async def _aggregate_account_provenance(
     }
 
 
-@overload
 async def _aggregate_net_income_sql(
     db: AsyncSession,
     user_id: UUID,
@@ -292,47 +291,11 @@ async def _aggregate_net_income_sql(
     *,
     start_date: date | None = None,
     fx_warnings: list[FxWarning] | None = None,
-    return_translation_variance: Literal[False] = False,
-) -> Decimal: ...
-
-
-@overload
-async def _aggregate_net_income_sql(
-    db: AsyncSession,
-    user_id: UUID,
-    target_currency: str,
-    as_of_date: date,
-    *,
-    start_date: date | None = None,
-    fx_warnings: list[FxWarning] | None = None,
-    return_translation_variance: Literal[True],
-) -> tuple[Decimal, Decimal]: ...
-
-
-@overload
-async def _aggregate_net_income_sql(
-    db: AsyncSession,
-    user_id: UUID,
-    target_currency: str,
-    as_of_date: date,
-    *,
-    start_date: date | None = None,
-    fx_warnings: list[FxWarning] | None = None,
-    return_translation_variance: bool = False,
-) -> Decimal | tuple[Decimal, Decimal]: ...
-
-
-async def _aggregate_net_income_sql(
-    db: AsyncSession,
-    user_id: UUID,
-    target_currency: str,
-    as_of_date: date,
-    *,
-    start_date: date | None = None,
-    fx_warnings: list[FxWarning] | None = None,
-    return_translation_variance: bool = False,
-) -> Decimal | tuple[Decimal, Decimal]:
+) -> tuple[Decimal, Decimal]:
     """Aggregate net income (Income - Expenses) using SQL with period-average FX conversion.
+
+    Returns ``(net_income, pnl_translation_variance)``: the variance is the spot-rate
+    net income minus the period-average net income.
 
     Uses period-average FX rates matching the income statement reporting convention.
     When start_date is omitted (cumulative balance sheet use), the average spans all
@@ -370,9 +333,7 @@ async def _aggregate_net_income_sql(
     currencies = {row[0].upper() for row in currency_result.all()}
 
     if not currencies:
-        if return_translation_variance:
-            return Decimal("0"), Decimal("0")
-        return Decimal("0")
+        return Decimal("0"), Decimal("0")
 
     # Determine the effective period start for average rate calculation.
     # When no start_date is supplied (cumulative balance sheet), use date.min
@@ -406,9 +367,7 @@ async def _aggregate_net_income_sql(
 
         fx_rate_map[source] = rate
 
-    spot_rate_map: dict[str, Decimal] = {}
-    if return_translation_variance:
-        spot_rate_map = await _get_fx_rates_map(db, currencies, target_currency, as_of_date, fx_warnings=fx_warnings)
+    spot_rate_map = await _get_fx_rates_map(db, currencies, target_currency, as_of_date, fx_warnings=fx_warnings)
 
     # Aggregate amounts grouped by currency, account type, and direction.
     # No grouping by entry_date — the same period-average rate applies to all entries.
@@ -452,22 +411,17 @@ async def _aggregate_net_income_sql(
         signed = converted if row.direction == Direction.CREDIT else -converted
         net_income += signed
 
-        if return_translation_variance:
-            spot_rate = spot_rate_map.get(currency_upper, Decimal("1"))
-            spot_converted = _restate_unrounded(row.total, spot_rate)
-            spot_signed = spot_converted if row.direction == Direction.CREDIT else -spot_converted
-            net_income_spot += spot_signed
+        spot_rate = spot_rate_map.get(currency_upper, Decimal("1"))
+        spot_converted = _restate_unrounded(row.total, spot_rate)
+        spot_signed = spot_converted if row.direction == Direction.CREDIT else -spot_converted
+        net_income_spot += spot_signed
 
     # A matched internal transfer's only net-income impact is its fee, which lowers
     # net income like an expense (#1123 AC3). The transfer legs themselves were
     # excluded above, so add the fee back here as the sole net-worth effect.
     net_income -= transfer_adjustment.fee_total
-    if return_translation_variance:
-        net_income_spot -= transfer_adjustment.fee_total
-        pnl_translation_variance = net_income_spot - net_income
-        return net_income, pnl_translation_variance
-
-    return net_income
+    net_income_spot -= transfer_adjustment.fee_total
+    return net_income, net_income_spot - net_income
 
 
 async def _aggregate_equity_translation_variance_sql(

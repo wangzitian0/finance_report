@@ -388,24 +388,6 @@ async def test_execute_matching_no_transactions(db: AsyncSession):
     assert result == []
 
 
-async def test_find_candidates(db: AsyncSession, test_user):
-    """Test find_candidates standalone helper."""
-    from src.reconciliation import find_candidates, load_reconciliation_config
-
-    user_id = test_user.id
-    config = load_reconciliation_config()
-
-    await create_valid_posted_entry(db, user_id, entry_date=date(2024, 1, 1), memo="Test Entry")
-
-    # Within range
-    results = await find_candidates(db, date(2024, 1, 1), config, user_id)
-    assert len(results) == 1
-
-    # Outside range
-    results = await find_candidates(db, date(2024, 2, 1), config, user_id)
-    assert len(results) == 0
-
-
 async def test_execute_matching_multi_entry_combinations(db: AsyncSession, test_user) -> None:
     """AC-reconciliation.group-matching.3: [AC4.2.3] Multi-entry combinations should produce the best match (One-to-Many)."""
     user_id = test_user.id

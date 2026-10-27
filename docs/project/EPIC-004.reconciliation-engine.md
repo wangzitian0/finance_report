@@ -51,8 +51,7 @@ Automatically match bank transactions with journal entries, implementing intelli
 ### Matching Algorithm (Backend)
 
 - [x] `reconciliation/extension/matching.py` - Reconciliation engine
-  - [x] `calculate_match_score()` - Composite scoring
-  - [x] `find_candidates()` - Find candidate journal entries
+  - [x] `score_single()` / `score_group()` - Composite scoring
   - [x] `execute_matching()` - Batch matching execution
   - [x] `auto_accept()` - Auto-accept logic
 - [x] Scoring dimension implementation

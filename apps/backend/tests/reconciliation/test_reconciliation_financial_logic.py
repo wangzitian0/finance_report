@@ -7,7 +7,7 @@ from uuid import uuid4
 from src.extraction import TransactionDirection
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine
-from src.reconciliation import DEFAULT_CONFIG, calculate_match_score
+from src.reconciliation import DEFAULT_CONFIG, score_single
 
 
 async def test_AC4_9_1_entry_total_uses_bank_side_line_for_outflow(db):
@@ -35,13 +35,13 @@ async def test_AC4_9_1_entry_total_uses_bank_side_line_for_outflow(db):
         source_documents=[{"doc_id": str(uuid4()), "doc_type": "bank_statement"}],
     )
 
-    candidate = await calculate_match_score(
+    candidate = await score_single(
         db,
         transaction,
         [entry],
         DEFAULT_CONFIG,
         user_id=bank.user_id,
-        history_score_override=0,
+        history_score=0,
     )
 
     assert candidate.breakdown["amount"] == 100.0

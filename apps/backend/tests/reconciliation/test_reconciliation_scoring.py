@@ -485,7 +485,7 @@ async def test_score_pattern_variants(db: AsyncSession, test_user) -> None:
     assert await score_pattern(db, txn_miss, DEFAULT_CONFIG, user_id=user_id) == 40.0
 
 
-async def test_calculate_match_score_many_to_one_bonus(db: AsyncSession) -> None:
+async def test_score_group_many_to_one_bonus(db: AsyncSession) -> None:
     """AC-reconciliation.group-matching.2."""
     user_id = uuid4()
     bank = Account(

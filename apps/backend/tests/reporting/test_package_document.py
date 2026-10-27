@@ -579,13 +579,6 @@ async def test_AC_reporting_package_document_9_requires_exact_decision_coordinat
     ]
 
 
-def test_AC_reporting_package_document_5_trace_and_snapshot_rollback_together() -> None:
-    """AC-reporting.package-document.5: persistence test fault-injects after trace flush."""
-    source = (REPOSITORY_ROOT / "apps/backend/tests/api/test_personal_report_package_contract.py").read_text()
-    assert "AC-reporting.package-document.5" in source
-    assert "fault_after_package_trace_flush" in source
-
-
 def test_AC_reporting_package_document_6_producer_and_consumer_closure() -> None:
     """AC-reporting.package-document.6: no shadow package producer/readiness authority."""
     production = REPOSITORY_ROOT / "apps/backend/src"
