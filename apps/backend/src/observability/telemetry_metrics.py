@@ -368,7 +368,6 @@ INVARIANT_VIOLATION_KINDS = (
     # actually BLOCKED from becoming trusted truth, one per failure mode.
     "llm_led_gate_quarantine_balance",
     "llm_led_gate_quarantine_dedup",
-    "llm_led_gate_quarantine_unevaluable",
 )
 
 # Closed, anonymized institution-class vocabulary. Anything outside this set is

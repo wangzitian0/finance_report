@@ -35,12 +35,6 @@ async def test_AC23_4_5_extraction_threads_user_id_to_stream() -> None:
             await service._extract_json_with_models(
                 messages=[{"role": "user", "content": "x"}],
                 models=["glm-4.6"],
-                prompt="p",
-                institution="X",
-                file_type="pdf",
-                return_raw=False,
-                has_content=True,
-                has_url=False,
                 user_id=uid,
             )
     finally:

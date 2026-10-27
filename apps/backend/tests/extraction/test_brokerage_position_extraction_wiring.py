@@ -134,8 +134,8 @@ async def test_AC_B1_extract_financial_data_uses_brokerage_prompt_before_model_c
     service.api_key = "test-key"
     captured: dict[str, str] = {}
 
-    async def capture_prompt(*, messages, models, prompt, **kwargs):
-        captured["prompt"] = prompt
+    async def capture_prompt(*, messages, **kwargs):
+        captured["prompt"] = messages[0]["content"][0]["text"]
         return {"institution": "Moomoo", "positions": []}
 
     monkeypatch.setattr(service, "_extract_json_with_models", capture_prompt)
@@ -157,8 +157,8 @@ async def test_AC_B1_extract_financial_data_keeps_bank_prompt_for_bank_upload(mo
     service.api_key = "test-key"
     captured: dict[str, str] = {}
 
-    async def capture_prompt(*, messages, models, prompt, **kwargs):
-        captured["prompt"] = prompt
+    async def capture_prompt(*, messages, **kwargs):
+        captured["prompt"] = messages[0]["content"][0]["text"]
         return {"institution": "DBS", "transactions": []}
 
     monkeypatch.setattr(service, "_extract_json_with_models", capture_prompt)

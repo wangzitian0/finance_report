@@ -117,12 +117,6 @@ class TestExtractionSalvagesFencedResponse:
             result = await service._extract_json_with_models(
                 messages=[{"role": "user", "content": "x"}],
                 models=["test-model"],
-                prompt="p",
-                institution="DBS",
-                file_type="pdf",
-                return_raw=False,
-                has_content=True,
-                has_url=False,
             )
 
         assert result == {"institution": "DBS", "transactions": []}
@@ -140,10 +134,4 @@ class TestExtractionSalvagesFencedResponse:
                 await service._extract_json_with_models(
                     messages=[{"role": "user", "content": "x"}],
                     models=["test-model"],
-                    prompt="p",
-                    institution="DBS",
-                    file_type="pdf",
-                    return_raw=False,
-                    has_content=True,
-                    has_url=False,
                 )
