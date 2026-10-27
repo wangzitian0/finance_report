@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -185,27 +185,6 @@ async def list_current_manual_valuation_facts(
     return list(latest_by_key.values())
 
 
-def _valuation_key_query(
-    user_id: UUID,
-    *,
-    component_type: ManualValuationComponentType,
-    source: str,
-    as_of_date: date,
-) -> Select[tuple[ManualValuationSnapshot]]:
-    """Base select for a manual-valuation version-chain key.
-
-    Matches the partial unique index identity (user_id, component_type, source,
-    as_of_date); callers append head/order/lock clauses.
-    """
-    return (
-        select(ManualValuationSnapshot)
-        .where(ManualValuationSnapshot.user_id == user_id)
-        .where(ManualValuationSnapshot.component_type == component_type)
-        .where(ManualValuationSnapshot.source == source)
-        .where(ManualValuationSnapshot.as_of_date == as_of_date)
-    )
-
-
 class ValuationService:
     """Manual-valuation snapshot operations (was AssetService's valuation half)."""
 
@@ -245,50 +224,6 @@ class ValuationService:
             raise ValuationServiceError("decision-backed valuation write did not produce a snapshot")
         return snapshot
 
-    async def _current_valuation_head(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        *,
-        component_type: ManualValuationComponentType,
-        source: str,
-        as_of_date: date,
-    ) -> ManualValuationSnapshot | None:
-        """Return the current (non-superseded) version for a valuation key, if any.
-
-        The key matches the partial unique index exactly
-        (user_id, component_type, source, as_of_date) — currency is a corrigible
-        attribute of the fact, not part of its version-chain identity.
-        """
-        result = await db.execute(
-            _valuation_key_query(user_id, component_type=component_type, source=source, as_of_date=as_of_date)
-            .where(ManualValuationSnapshot.superseded_by_id.is_(None))
-            .with_for_update()
-        )
-        return result.scalar_one_or_none()
-
-    async def list_valuation_versions(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        *,
-        component_type: ManualValuationComponentType,
-        source: str,
-        as_of_date: date,
-    ) -> Sequence[ManualValuationSnapshot]:
-        """Return the full append-only version history for a valuation key, newest first.
-
-        Keyed by the same identity as the head index
-        (user_id, component_type, source, as_of_date), so a correction that also
-        changes currency is still part of one history chain.
-        """
-        result = await db.execute(
-            _valuation_key_query(user_id, component_type=component_type, source=source, as_of_date=as_of_date).order_by(
-                ManualValuationSnapshot.version.desc()
-            )
-        )
-        return result.scalars().all()
-
     async def list_valuation_snapshots(
         self,
         db: AsyncSession,
@@ -301,7 +236,7 @@ class ValuationService:
     ) -> tuple[Sequence[ManualValuationSnapshot], int]:
         """List manual valuation snapshots for a user."""
         # Only current heads (superseded_by_id IS NULL); superseded history rows
-        # are reachable via list_valuation_versions, not the default listing.
+        # stay out of the listing.
         query = (
             select(ManualValuationSnapshot)
             .where(ManualValuationSnapshot.user_id == user_id)

@@ -1,6 +1,6 @@
 """AC-ledger.anchored-batch.*: the anchored command port accepts a set of commands (#2612).
 
-``submit_anchored_journal_entries_v2`` must persist the entries that one ``submit_anchored_journal_entry_v2``
+``submit_anchored_journal_entries`` must persist the entries that one ``submit_anchored_journal_entry``
 call per command persists, with a number of SQL statements that does not grow with the set.
 """
 
@@ -22,15 +22,15 @@ from src.ledger import (
     PROCESSING_ACCOUNT_CODE,
     Account,
     AccountType,
-    AnchoredJournalCommandV2,
+    AnchoredJournalCommand,
     DecisionAnchor,
     DecisionAnchorError,
     Direction,
     JournalEntry,
     JournalEntryStatus,
     JournalLine,
-    submit_anchored_journal_entries_v2,
-    submit_anchored_journal_entry_v2,
+    submit_anchored_journal_entries,
+    submit_anchored_journal_entry,
 )
 from src.ledger.base.decision_anchor import journal_command_target
 from src.ledger.base.validators import ValidationError
@@ -79,11 +79,11 @@ async def _commands(
     post_immediately: bool = True,
     source_ids: list[UUID] | None = None,
     repository: SqlTraceRecordRepository | None = None,
-) -> tuple[list[AnchoredJournalCommandV2], SqlTraceRecordRepository]:
+) -> tuple[list[AnchoredJournalCommand], SqlTraceRecordRepository]:
     """Persist the decisions of ``count`` commands and return the commands that they authorize."""
     debit, credit = accounts or await _accounts(db, user_id)
     repository = repository or SqlTraceRecordRepository(db, TraceDecisionPolicyRegistry((_Policy(),)))
-    commands: list[AnchoredJournalCommandV2] = []
+    commands: list[AnchoredJournalCommand] = []
     for index in range(count):
         source_id = source_ids[index] if source_ids else uuid4()
         lines_data = [
@@ -112,7 +112,7 @@ async def _commands(
         observation, decision = _decision_records(user_id=user_id, target=target)
         await TraceEmitter(repository).emit_many((observation, decision))
         commands.append(
-            AnchoredJournalCommandV2.from_mappings(
+            AnchoredJournalCommand.from_mappings(
                 entry_date=ENTRY_DATE,
                 memo=memo,
                 lines_data=lines_data,
@@ -156,7 +156,7 @@ async def test_AC_ledger_anchored_batch_1_batch_persists_the_entries_of_one_subm
     source_ids = [uuid4() for _ in range(5)]
     commands, repository = await _commands(db, test_user.id, 5, source_ids=source_ids)
     nested = await db.begin_nested()
-    batch = await submit_anchored_journal_entries_v2(
+    batch = await submit_anchored_journal_entries(
         db, user_id=test_user.id, commands=commands, base_currency="SGD", trace_repository=repository
     )
     batch_facts = await _described(db, batch)
@@ -164,7 +164,7 @@ async def test_AC_ledger_anchored_batch_1_batch_persists_the_entries_of_one_subm
     assert await db.scalar(select(func.count()).select_from(JournalEntry)) == 0
 
     sequential = [
-        await submit_anchored_journal_entry_v2(
+        await submit_anchored_journal_entry(
             db, user_id=test_user.id, command=command, base_currency="SGD", trace_repository=repository
         )
         for command in commands
@@ -183,11 +183,11 @@ async def test_AC_ledger_anchored_batch_2_batch_statement_count_does_not_grow_wi
     large, _ = await _commands(db, test_user.id, 30, accounts=accounts, repository=repository)
 
     with _Statements(db) as small_run:
-        await submit_anchored_journal_entries_v2(
+        await submit_anchored_journal_entries(
             db, user_id=test_user.id, commands=small, base_currency="SGD", trace_repository=repository
         )
     with _Statements(db) as large_run:
-        await submit_anchored_journal_entries_v2(
+        await submit_anchored_journal_entries(
             db, user_id=test_user.id, commands=large, base_currency="SGD", trace_repository=repository
         )
 
@@ -197,10 +197,10 @@ async def test_AC_ledger_anchored_batch_2_batch_statement_count_does_not_grow_wi
 async def test_AC_ledger_anchored_batch_3_batch_is_idempotent_and_refuses_a_different_owner_of_a_target(db, test_user):
     """AC-ledger.anchored-batch.3."""
     commands, repository = await _commands(db, test_user.id, 3)
-    first = await submit_anchored_journal_entries_v2(
+    first = await submit_anchored_journal_entries(
         db, user_id=test_user.id, commands=commands, base_currency="SGD", trace_repository=repository
     )
-    again = await submit_anchored_journal_entries_v2(
+    again = await submit_anchored_journal_entries(
         db, user_id=test_user.id, commands=commands, base_currency="SGD", trace_repository=repository
     )
     assert [entry.id for entry in again] == [entry.id for entry in first]
@@ -217,11 +217,11 @@ async def test_AC_ledger_anchored_batch_3_batch_is_idempotent_and_refuses_a_diff
     )
     replacement = _decision_records(user_id=test_user.id, target=target, execution_id="replacement-decision")[-1]
     with pytest.raises(DecisionAnchorError, match="different decision already owns"):
-        await submit_anchored_journal_entries_v2(
+        await submit_anchored_journal_entries(
             db,
             user_id=test_user.id,
             commands=[
-                AnchoredJournalCommandV2(
+                AnchoredJournalCommand(
                     entry_date=command.entry_date,
                     memo=command.memo,
                     lines=command.lines,
@@ -241,7 +241,7 @@ async def test_AC_ledger_anchored_batch_3_batch_is_idempotent_and_refuses_a_diff
 async def test_AC_ledger_anchored_batch_4_one_invalid_command_persists_none_of_the_set(db, test_user):
     """AC-ledger.anchored-batch.4."""
     commands, repository = await _commands(db, test_user.id, 3)
-    mismatched = AnchoredJournalCommandV2(
+    mismatched = AnchoredJournalCommand(
         entry_date=commands[1].entry_date,
         memo=commands[1].memo,
         lines=commands[1].lines,
@@ -253,7 +253,7 @@ async def test_AC_ledger_anchored_batch_4_one_invalid_command_persists_none_of_t
     )
 
     with pytest.raises(DecisionAnchorError, match="target"):
-        await submit_anchored_journal_entries_v2(
+        await submit_anchored_journal_entries(
             db,
             user_id=test_user.id,
             commands=[commands[0], mismatched, commands[2]],
@@ -270,7 +270,7 @@ async def test_AC_ledger_anchored_batch_5_post_immediately_decides_for_each_comm
     drafts, _ = await _commands(db, test_user.id, 2, post_immediately=False, repository=repository)
     mixed = [posted[0], drafts[0], posted[1], drafts[1]]
 
-    entries = await submit_anchored_journal_entries_v2(
+    entries = await submit_anchored_journal_entries(
         db, user_id=test_user.id, commands=mixed, base_currency="SGD", trace_repository=repository
     )
 
@@ -281,7 +281,7 @@ async def test_AC_ledger_anchored_batch_5_post_immediately_decides_for_each_comm
         JournalEntryStatus.DRAFT,
     ]
     assert (
-        await submit_anchored_journal_entries_v2(
+        await submit_anchored_journal_entries(
             db, user_id=test_user.id, commands=[], base_currency="SGD", trace_repository=repository
         )
         == []
@@ -292,7 +292,7 @@ async def test_AC_ledger_anchored_batch_6_commands_that_share_a_target_keep_the_
     """AC-ledger.anchored-batch.6."""
     commands, repository = await _commands(db, test_user.id, 1)
 
-    entries = await submit_anchored_journal_entries_v2(
+    entries = await submit_anchored_journal_entries(
         db, user_id=test_user.id, commands=[commands[0], commands[0]], base_currency="SGD", trace_repository=repository
     )
 
@@ -312,7 +312,7 @@ async def test_AC_ledger_anchored_batch_7_the_processing_account_rule_applies_to
     )
     ordinary_commands, _ = await _commands(db, test_user.id, 1, accounts=ordinary, repository=repository)
 
-    entries = await submit_anchored_journal_entries_v2(
+    entries = await submit_anchored_journal_entries(
         db,
         user_id=test_user.id,
         commands=[system_commands[0], ordinary_commands[0]],
@@ -323,7 +323,7 @@ async def test_AC_ledger_anchored_batch_7_the_processing_account_rule_applies_to
 
     forbidden, _ = await _commands(db, test_user.id, 1, accounts=processing_cash, repository=repository)
     with pytest.raises(ValidationError, match="Processing account"):
-        await submit_anchored_journal_entries_v2(
+        await submit_anchored_journal_entries(
             db, user_id=test_user.id, commands=forbidden, base_currency="SGD", trace_repository=repository
         )
 
@@ -331,7 +331,7 @@ async def test_AC_ledger_anchored_batch_7_the_processing_account_rule_applies_to
 async def test_AC_ledger_anchored_batch_8_post_journal_entries_checks_each_entry_like_post_journal_entry(db, test_user):
     """AC-ledger.anchored-batch.8."""
     commands, repository = await _commands(db, test_user.id, 3, post_immediately=False)
-    drafts = await submit_anchored_journal_entries_v2(
+    drafts = await submit_anchored_journal_entries(
         db, user_id=test_user.id, commands=commands, base_currency="SGD", trace_repository=repository
     )
 
@@ -362,7 +362,7 @@ async def test_AC_ledger_anchored_batch_8_post_journal_entries_checks_each_entry
 async def test_AC_ledger_anchored_batch_9_target_read_is_chunked_and_refuses_two_owners(db, test_user):
     """AC-ledger.anchored-batch.9."""
     commands, repository = await _commands(db, test_user.id, 5)
-    entries = await submit_anchored_journal_entries_v2(
+    entries = await submit_anchored_journal_entries(
         db, user_id=test_user.id, commands=commands, base_currency="SGD", trace_repository=repository
     )
     targets = [

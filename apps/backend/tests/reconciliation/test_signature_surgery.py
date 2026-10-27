@@ -230,7 +230,6 @@ async def test_transfer_detection_surfaces_processing_currency_conflicts(monkeyp
             matched_txn_ids=set(),
             repository=repository,
             user_id=uuid4(),
-            currency="SGD",
         )
 
 
@@ -314,7 +313,6 @@ async def test_transfer_detection_leaves_foreign_account_candidate_unmatched(mon
         matched_txn_ids=matched_txn_ids,
         repository=repository,
         user_id=uuid4(),
-        currency="SGD",
     )
 
     assert matches == []

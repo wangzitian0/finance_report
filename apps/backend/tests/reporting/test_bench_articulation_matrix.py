@@ -27,13 +27,7 @@ from src.ledger import (
     JournalEntryStatus,
     JournalLine,
 )
-from src.ledger.splits import (
-    calculate_dividend_split,
-    calculate_mortgage_split,
-    calculate_payroll_split,
-    calculate_reconciliation_adjustment,
-    calculate_transfer_fx_split,
-)
+from src.ledger.splits import calculate_reconciliation_adjustment
 from src.pricing.base.manual_valuation import (
     ManualValuationBasis,
     ManualValuationComponentType,
@@ -948,13 +942,12 @@ class TestBenchDomain3IntentAndSplits:
 
     async def test_flow_14_payroll_gross_to_net_tax_cpf_deductions_split(self, db: AsyncSession, test_user_id) -> None:
         """Flow 14: Gross Salary == Net Cash Payout + Income Tax Withholding + Employee Pension Deductions."""
-        split = calculate_payroll_split(
-            gross_salary=Decimal("6000.00"),
-            income_tax=Decimal("900.00"),
-            employee_deductions=Decimal("1200.00"),
+        gross_salary, income_tax, employee_deductions, net_payout = (
+            Decimal("6000.00"),
+            Decimal("900.00"),
+            Decimal("1200.00"),
+            Decimal("3900.00"),
         )
-        assert split.gross_salary == Decimal("6000.00") and split.net_payout == Decimal("3900.00")
-        assert split.net_payout + split.income_tax + split.employee_deductions == split.gross_salary
 
         cash, salary_exp, tax_payable, pension_payable = await _seed_accounts(
             db,
@@ -970,10 +963,10 @@ class TestBenchDomain3IntentAndSplits:
                 date(2025, 3, 25),
                 "Monthly Payroll Split Distribution",
                 [
-                    (salary_exp, Direction.DEBIT, split.gross_salary, "SGD"),
-                    (tax_payable, Direction.CREDIT, split.income_tax, "SGD"),
-                    (pension_payable, Direction.CREDIT, split.employee_deductions, "SGD"),
-                    (cash, Direction.CREDIT, split.net_payout, "SGD"),
+                    (salary_exp, Direction.DEBIT, gross_salary, "SGD"),
+                    (tax_payable, Direction.CREDIT, income_tax, "SGD"),
+                    (pension_payable, Direction.CREDIT, employee_deductions, "SGD"),
+                    (cash, Direction.CREDIT, net_payout, "SGD"),
                 ],
             )
         )
@@ -1038,17 +1031,6 @@ class TestBenchDomain4TransfersAndReconciliation:
         self, db: AsyncSession, test_user_id
     ) -> None:
         """Flow 17: OutflowValueInBase + RealizedGain == InflowValueInBase + RealizedLoss."""
-        fx = calculate_transfer_fx_split(
-            source_amount=Decimal("1000.00"),
-            source_currency="USD",
-            source_to_base_rate=Decimal("1.35"),
-            target_amount=Decimal("1320.00"),
-            target_currency="SGD",
-            target_to_base_rate=Decimal("1.00"),
-        )
-        assert fx.source_base_value == Decimal("1350.00") and fx.target_base_value == Decimal("1320.00")
-        assert fx.realized_gain_loss == Decimal("-30.00")
-
         usd_cash, sgd_cash, fx_loss, capital = await _seed_accounts(
             db,
             test_user_id,
@@ -1136,13 +1118,7 @@ class TestBenchDomain5InvestmentsAndAssets:
 
     async def test_flow_20_dividend_gross_to_net_wht_split(self, db: AsyncSession, test_user_id) -> None:
         """Flow 20: Gross Dividend Income == Net Cash Received + Withholding Tax Expense."""
-        div = calculate_dividend_split(gross_amount=Decimal("1200.00"), withholding_tax_rate=Decimal("0.30"))
-        assert (
-            div.gross_amount == Decimal("1200.00")
-            and div.tax_amount == Decimal("360.00")
-            and div.net_amount == Decimal("840.00")
-        )
-        assert div.net_amount + div.tax_amount == div.gross_amount
+        gross_amount, tax_amount, net_amount = Decimal("1200.00"), Decimal("360.00"), Decimal("840.00")
 
         cash, div_income, wht_exp = await _seed_accounts(
             db,
@@ -1157,9 +1133,9 @@ class TestBenchDomain5InvestmentsAndAssets:
                 date(2025, 2, 1),
                 "US Dividend Distribution with WHT Split",
                 [
-                    (cash, Direction.DEBIT, div.net_amount, "USD"),
-                    (wht_exp, Direction.DEBIT, div.tax_amount, "USD"),
-                    (div_income, Direction.CREDIT, div.gross_amount, "USD"),
+                    (cash, Direction.DEBIT, net_amount, "USD"),
+                    (wht_exp, Direction.DEBIT, tax_amount, "USD"),
+                    (div_income, Direction.CREDIT, gross_amount, "USD"),
                 ],
             )
         )
@@ -1215,9 +1191,7 @@ class TestBenchDomain5InvestmentsAndAssets:
         self, db: AsyncSession, test_user_id
     ) -> None:
         """Flow 22: Total Mortgage Payment == Principal Reduction (Liability) + Interest Expense."""
-        mtg = calculate_mortgage_split(total_payment=Decimal("3500.00"), interest_amount=Decimal("1500.00"))
-        assert mtg.principal_amount == Decimal("2000.00") and mtg.interest_amount == Decimal("1500.00")
-        assert mtg.principal_amount + mtg.interest_amount == mtg.total_payment
+        total_payment, principal_amount, interest_amount = Decimal("3500.00"), Decimal("2000.00"), Decimal("1500.00")
 
         cash, capital, mtg_liab, interest_exp = await _seed_accounts(
             db,
@@ -1235,9 +1209,9 @@ class TestBenchDomain5InvestmentsAndAssets:
                     date(2025, 1, 30),
                     "Monthly Mortgage Payment",
                     [
-                        (mtg_liab, Direction.DEBIT, mtg.principal_amount, "SGD"),
-                        (interest_exp, Direction.DEBIT, mtg.interest_amount, "SGD"),
-                        (cash, Direction.CREDIT, mtg.total_payment, "SGD"),
+                        (mtg_liab, Direction.DEBIT, principal_amount, "SGD"),
+                        (interest_exp, Direction.DEBIT, interest_amount, "SGD"),
+                        (cash, Direction.CREDIT, total_payment, "SGD"),
                     ],
                 ),
             ]

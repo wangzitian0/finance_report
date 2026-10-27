@@ -797,14 +797,14 @@ async def test_create_journal_entry_with_optional_fields(db: AsyncSession, bank_
             "direction": Direction.DEBIT,
             "amount": Decimal("300.00"),
             "event_type": "DEPOSIT",
-            "tags": ["salary", "monthly"],
+            "tags": {"labels": ["salary", "monthly"]},
         },
         {
             "account_id": salary_account.id,
             "direction": Direction.CREDIT,
             "amount": Decimal("300.00"),
             "event_type": "INCOME",
-            "tags": ["employment"],
+            "tags": {"labels": ["employment"]},
         },
     ]
 
@@ -820,9 +820,9 @@ async def test_create_journal_entry_with_optional_fields(db: AsyncSession, bank_
     salary_line = next(line for line in entry.lines if line.account_id == salary_account.id)
 
     assert bank_line.event_type == "DEPOSIT"
-    assert bank_line.tags == ["salary", "monthly"]
+    assert bank_line.tags == {"labels": ["salary", "monthly"]}
     assert salary_line.event_type == "INCOME"
-    assert salary_line.tags == ["employment"]
+    assert salary_line.tags == {"labels": ["employment"]}
     await db.commit()
 
 
