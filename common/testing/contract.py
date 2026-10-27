@@ -139,7 +139,6 @@ CONTRACT = PackageContract(
         ac('AC-testing.2.5', 'Font utilities exist (Was EPIC-009 AC9.2.5).', 'tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_2_5_font_helpers_choose_safe_fonts', priority='P2'),
         ac('AC-testing.2.6', 'Fake data generator exists (Was EPIC-009 AC9.2.6).', 'tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_2_6_fake_data_generators_keep_running_balances', priority='P2'),
         ac('AC-testing.2.7', 'Main script exists (Was EPIC-009 AC9.2.7).', 'tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_2_7_main_script_registers_all_supported_generators', priority='P2'),
-        ac('AC-testing.3.1', 'Format validator exists (Was EPIC-009 AC9.3.1).', 'tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_3_1_validator_reports_page_table_and_key_phrase_findings', priority='P2'),
         ac('AC-testing.3.2', 'Generated DBS PDF parseable (Was EPIC-009 AC9.3.2).', 'tests/tooling/test_pdf_fixture_parseable.py::test_ac9_3_2_dbs_generated_pdf_parseable', priority='P2'),
         ac('AC-testing.3.3', 'Generated CMB PDF parseable (Was EPIC-009 AC9.3.3).', 'tests/tooling/test_pdf_fixture_parseable.py::test_ac9_3_3_cmb_generated_pdf_parseable', priority='P2'),
         ac('AC-testing.3.4', 'Generated Mari PDF parseable (Was EPIC-009 AC9.3.4).', 'tests/tooling/test_pdf_fixture_parseable.py::test_ac9_3_4_mari_generated_pdf_parseable', priority='P2'),
@@ -153,7 +152,6 @@ CONTRACT = PackageContract(
         ac('AC-testing.5.2', 'Format templates committed (Was EPIC-009 AC9.5.2).', 'tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_5_git_contract_tracks_safe_sources_only', priority='P2'),
         ac('AC-testing.5.3', 'Generators committed (Was EPIC-009 AC9.5.3).', 'tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_5_git_contract_tracks_safe_sources_only', priority='P2'),
         ac('AC-testing.5.4', 'Analyzers committed (Was EPIC-009 AC9.5.4).', 'tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_5_git_contract_tracks_safe_sources_only', priority='P2'),
-        ac('AC-testing.5.5', 'Validators committed (Was EPIC-009 AC9.5.5).', 'tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_5_git_contract_tracks_safe_sources_only', priority='P2'),
         ac('AC-testing.6.1', 'DBS generator loads template (Was EPIC-009 AC9.6.1).', 'tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_6_1_AC9_6_2_generators_preserve_template_source_identity', priority='P2'),
         ac('AC-testing.6.2', 'CMB generator loads template (Was EPIC-009 AC9.6.2).', 'tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_6_1_AC9_6_2_generators_preserve_template_source_identity', priority='P2'),
         ac('AC-testing.6.3', 'CMB generator supports Chinese fonts (Was EPIC-009 AC9.6.3).', 'tests/tooling/test_pdf_fixture_epic009_behavior.py::test_AC9_6_3_cmb_generator_uses_registered_chinese_font', priority='P2'),
@@ -163,8 +161,7 @@ CONTRACT = PackageContract(
         ac('AC-testing.7.2', 'Main script supports --output parameter (Was EPIC-009 AC9.7.2).', 'tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_7_1_AC9_7_2_main_generates_all_sources_with_default_output', priority='P2'),
         ac('AC-testing.7.3', 'Analyzer CLI supports input/output (Was EPIC-009 AC9.7.3).', 'tests/tooling/test_pdf_fixture_tooling_coverage.py::test_AC9_1_3_analyzer_cli_writes_template_yaml', priority='P2'),
         ac('AC-testing.8.1', 'Committed templates define sanitized real-format contracts for page, table, date, currency, and key text metadata (Was EPIC-009 AC9.8.1).', 'tests/tooling/test_pdf_fixture_real_format_contract.py::test_AC9_8_1_templates_define_sanitized_real_format_contract', priority='P2'),
-        ac('AC-testing.8.2', 'Validator rejects missing or drifting real-format contracts (Was EPIC-009 AC9.8.2).', 'tests/tooling/test_pdf_fixture_real_format_contract.py::test_AC9_8_2_validator_rejects_missing_or_drifting_real_format_contract', priority='P2'),
-        ac('AC-testing.8.3', 'Generated PDFs satisfy the real-format contract for parser-visible page, table, date, currency, and key-text structure (Was EPIC-009 AC9.8.3).', 'tests/tooling/test_pdf_fixture_real_format_contract.py::test_AC9_8_3_generated_pdf_matches_template_real_format_contract', priority='P2'),
+        ac('AC-testing.8.3', 'The generated DBS PDF matches the template real_format_contract: page size within tolerance, table header texts, date and currency markers, key phrases, and minimum transaction rows (Was EPIC-009 AC9.8.3).', 'tests/tooling/test_pdf_fixture_real_format_contract.py::test_AC9_8_3_generated_dbs_pdf_matches_template_real_format_contract', priority='P2'),
         # ── group journeys: core E2E journey rollup (was EPIC-008
         # AC8.8), migration closeout, #1663 / #1718 ──
         ac('AC-testing.journeys.1', 'API health check (Was EPIC-008 AC8.8.1).', 'apps/backend/tests/runtime/test_runtime_and_ci_contracts.py::test_api_health_endpoint_contract'),

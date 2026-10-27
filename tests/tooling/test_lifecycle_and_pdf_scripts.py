@@ -26,8 +26,6 @@ def test_AC8_13_15_pdf_fixture_modules_are_importable_for_script_coverage():
         "common.testing.fixtures.pdf.generate_pdf_fixtures",
         "common.testing.fixtures.pdf.generators.moomoo_generator",
         "common.testing.fixtures.pdf.generators.pingan_generator",
-        "common.testing.fixtures.pdf.validators",
-        "common.testing.fixtures.pdf.validators.pdf_validator",
     ]
 
     for module in modules:

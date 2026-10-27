@@ -210,7 +210,6 @@ PDF_FIXTURE_RUNTIME_PREFIXES = (
     "common/testing/fixtures/pdf/data/",
     "common/testing/fixtures/pdf/generators/",
     "common/testing/fixtures/pdf/templates/",
-    "common/testing/fixtures/pdf/validators/",
 )
 
 STAGING_EXACT = COMMON_DEPLOY_RUNTIME_EXACT | STAGING_ONLY_EXACT
@@ -246,7 +245,6 @@ STAGING_AI_OCR_PREFIXES = (
     "common/testing/fixtures/pdf/data/",
     "common/testing/fixtures/pdf/generators/",
     "common/testing/fixtures/pdf/templates/",
-    "common/testing/fixtures/pdf/validators/",
 )
 
 

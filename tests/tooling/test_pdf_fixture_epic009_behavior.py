@@ -4,7 +4,7 @@ the `testing` package; see common/testing/contract.py roadmap).
 AC-testing.1.2 AC-testing.1.4 AC-testing.1.5 AC-testing.1.6 AC-testing.2.1
 AC-testing.2.2 AC-testing.2.3 AC-testing.2.4 AC-testing.2.7 AC-testing.4.1
 AC-testing.4.2 AC-testing.4.3 AC-testing.4.4 AC-testing.5.1 AC-testing.5.2
-AC-testing.5.3 AC-testing.5.4 AC-testing.5.5 AC-testing.6.1 AC-testing.6.2
+AC-testing.5.3 AC-testing.5.4 AC-testing.6.1 AC-testing.6.2
 AC-testing.6.3 AC-testing.6.4 AC-testing.6.5
 """
 
@@ -229,7 +229,7 @@ def test_AC9_4_readmes_document_analysis_generation_templates_and_examples() -> 
 
 
 def test_AC9_5_git_contract_tracks_safe_sources_only() -> None:
-    """AC9.5.1 AC9.5.2 AC9.5.3 AC9.5.4 AC9.5.5: git contract ignores sensitive PDFs and keeps safe tooling committed."""
+    """AC9.5.1 AC9.5.2 AC9.5.3 AC9.5.4: git contract ignores sensitive PDFs and keeps safe tooling committed."""
     gitignore = (PDF_FIXTURES / ".gitignore").read_text()
 
     assert "input/**/*.pdf" in gitignore
@@ -245,7 +245,6 @@ def test_AC9_5_git_contract_tracks_safe_sources_only() -> None:
         "generators/mari_generator.py",
         "analyzers/pdf_analyzer.py",
         "analyzers/template_extractor.py",
-        "validators/pdf_validator.py",
     ):
         assert (PDF_FIXTURES / relative_path).is_file()
 
