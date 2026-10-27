@@ -8,6 +8,7 @@ import os
 import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +59,7 @@ def dispatch_and_wait(
     poll_interval: float = 5.0,
     max_attempts: int = 300,
     announce: Callable[[str], None] = print_approval_notice,
+    clock: Callable[[], datetime] | None = None,
 ) -> ReceiverRun:
     """Validate raw_request under Finance Report's fixed-env authority, then delegate
     the watermark/ambiguity-guard/log-content-verification dispatch algorithm to
@@ -70,14 +72,16 @@ def dispatch_and_wait(
         api = announce_approval_wait(
             api, request.request_id, request.version_ref, announce
         )
-    return _sdk_dispatch_and_wait(
-        request,
-        api=api,
-        fetch_logs=fetch_logs,
-        sleep=sleep,
-        poll_interval=poll_interval,
-        max_attempts=max_attempts,
-    )
+    kwargs: dict[str, Any] = {
+        "api": api,
+        "fetch_logs": fetch_logs,
+        "sleep": sleep,
+        "poll_interval": poll_interval,
+        "max_attempts": max_attempts,
+    }
+    if clock is not None:
+        kwargs["clock"] = clock
+    return _sdk_dispatch_and_wait(request, **kwargs)
 
 
 def _parser() -> argparse.ArgumentParser:
