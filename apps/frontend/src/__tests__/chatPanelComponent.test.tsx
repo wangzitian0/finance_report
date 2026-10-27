@@ -105,7 +105,6 @@ describe("ChatPanel", () => {
         is_free: true,
       }],
       default_model: "model-1",
-      fallback_models: [],
     })
 
     mockedApiOperation.mockImplementation((path: string) => {
@@ -323,7 +322,6 @@ describe("ChatPanel", () => {
         },
       ],
       default_model: "model-1",
-      fallback_models: [],
     })
     render(<ChatPanel />)
     const select = (await screen.findByLabelText(/ai model/i)) as HTMLSelectElement
@@ -455,7 +453,6 @@ describe("ChatPanel", () => {
         is_free: true,
       }],
       default_model: "nonexistent-model",
-      fallback_models: [],
     })
     render(<ChatPanel />)
     const select = await screen.findByLabelText(/ai model/i) as HTMLSelectElement

@@ -9,7 +9,6 @@ export interface AiModelInfo {
 
 export interface AiModelCatalogViewModel {
   default_model: string;
-  fallback_models: string[];
   models: AiModelInfo[];
 }
 
@@ -24,7 +23,6 @@ export function toAiModelCatalogViewModel(
 
   return {
     default_model: models[0]?.id ?? "",
-    fallback_models: models.slice(1).map((m) => m.id),
     models,
   };
 }

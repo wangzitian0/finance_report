@@ -566,7 +566,7 @@ def test_AC_runtime_deploy_request_3_transport_cli_contract(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """AC-runtime.deploy-request.3: the CLI uses env auth and writes run evidence."""
-    transport = importlib.import_module("tools.app_deploy_transport")
+    transport = importlib.import_module("common.runtime.deploy.app_deploy_transport")
 
     monkeypatch.delenv("INFRA2_PAT", raising=False)
     assert transport.main([]) == 1

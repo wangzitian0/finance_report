@@ -169,7 +169,6 @@ describe("normalizers (AC-meta.fe-contract-types.3, #1985)", () => {
       };
       const vm = toAiModelCatalogViewModel(catalog);
       expect(vm.default_model).toBe("gpt-4o");
-      expect(vm.fallback_models).toEqual(["gemini-1.5-flash"]);
       expect(vm.models).toHaveLength(2);
       expect(vm.models[0].is_free).toBe(false);
       expect(vm.models[1].is_free).toBe(true);
@@ -181,7 +180,6 @@ describe("normalizers (AC-meta.fe-contract-types.3, #1985)", () => {
       };
       const vm = toAiModelCatalogViewModel(catalog);
       expect(vm.default_model).toBe("");
-      expect(vm.fallback_models).toEqual([]);
       expect(vm.models).toHaveLength(0);
     });
   });

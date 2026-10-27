@@ -37,7 +37,6 @@ title the tracking issue by what actually happened.
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import subprocess
 import sys
@@ -45,7 +44,13 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from infra2_sdk.deploy import VERSION_KEYS, HttpGet, default_http_get
+from infra2_sdk.deploy import (
+    HttpGet,
+    ReleaseIdentityError,
+    default_http_get,
+    identity_from_body as _sdk_identity_from_body,
+    read_deployed_release as _sdk_read_deployed_release,
+)
 
 from common.runtime.github_api import write_github_output
 
@@ -57,9 +62,6 @@ DEFAULT_MAX_AGE_DAYS: dict[str, int] = {"staging": 3, "production": 7}
 FALLBACK_MAX_AGE_DAYS = 3
 
 _RELEASE_TAG = re.compile(r"^v\d+\.\d+\.\d+$")
-# The identity arrives over HTTP and is handed to git, where a leading "-" is
-# read as an option and whitespace makes the failure non-deterministic.
-_SAFE_REF = re.compile(r"^[0-9A-Za-z][0-9A-Za-z._/-]{0,199}$")
 _NEWEST_RELEASE_MATCH = "v[0-9]*.[0-9]*.[0-9]*"
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
@@ -137,48 +139,37 @@ def max_age_for(environment: str, max_age_days: int | None = None) -> timedelta:
     return timedelta(days=max_age_days)
 
 
+_IDENTITY_REASON_BY_MARKER = (
+    ("answered HTTP ", REASON_HTTP),
+    ("did not answer JSON:", REASON_NOT_JSON),
+    ("not an object:", REASON_NOT_OBJECT),
+    ("does not report a release identity", REASON_NO_IDENTITY),
+)
+
+
+def _raise_freshness_error(exc: ReleaseIdentityError) -> None:
+    msg = str(exc)
+    reason = next(
+        (code for marker, code in _IDENTITY_REASON_BY_MARKER if marker in msg),
+        REASON_UNSAFE_REF,
+    )
+    raise FreshnessError(reason, msg) from exc
+
+
 def identity_from_body(body: str, *, url: str = "") -> str:
-    """The release identity in a health payload, or raise ``FreshnessError``."""
-    where = url or "the health endpoint"
+    """Return the release identity in a health payload or raise ``FreshnessError``."""
     try:
-        payload = json.loads(body)
-    except (TypeError, ValueError) as exc:
-        raise FreshnessError(
-            REASON_NOT_JSON, f"{where} did not answer JSON: {body[:120]!r}"
-        ) from exc
-    if not isinstance(payload, dict):
-        raise FreshnessError(
-            REASON_NOT_OBJECT,
-            f"{where} answered JSON that is not an object: {body[:120]!r}",
-        )
-    for key in VERSION_KEYS:
-        value = payload.get(key)
-        if isinstance(value, str) and value and value != "unknown":
-            break
-    else:
-        raise FreshnessError(
-            REASON_NO_IDENTITY,
-            f"{where} does not report a release identity (body {body[:120]!r}); "
-            "nothing about the deployed release can be judged",
-        )
-    if not _SAFE_REF.match(value):
-        raise FreshnessError(
-            REASON_UNSAFE_REF,
-            f"{where} reports {value!r}, which is not a usable release identifier "
-            "-- a leading '-' would be read by git as an option and whitespace makes "
-            "the failure non-deterministic. This value is not used",
-        )
-    return value
+        return _sdk_identity_from_body(body, url=url)
+    except ReleaseIdentityError as exc:
+        _raise_freshness_error(exc)
 
 
 def read_deployed_release(url: str, http_get: HttpGet) -> str:
-    """Fetch ``url`` and return the release identity it reports, or raise."""
-    status_code, body = http_get(url)
-    if status_code != 200:
-        raise FreshnessError(
-            REASON_HTTP, f"{url} answered HTTP {status_code}; its release is unknown"
-        )
-    return identity_from_body(body, url=url)
+    """Fetch ``url`` and return the release identity it reports or raise."""
+    try:
+        return _sdk_read_deployed_release(url, http_get)
+    except ReleaseIdentityError as exc:
+        _raise_freshness_error(exc)
 
 
 def _git(

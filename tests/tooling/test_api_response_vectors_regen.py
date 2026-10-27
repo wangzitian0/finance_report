@@ -14,6 +14,7 @@ import importlib
 import json
 import sys
 
+from common.platform import api_response_vectors as arv_impl
 from tools import api_response_vectors as arv
 
 
@@ -33,8 +34,8 @@ def test_build_vector_files_matches_every_committed_vectors_json() -> None:
 
 def test_main_rewrites_vector_files(tmp_path, monkeypatch, capsys) -> None:
     target = tmp_path / "pkg" / "conformance" / "vectors.json"
-    monkeypatch.setattr(arv, "ROOT_DIR", tmp_path)
-    monkeypatch.setattr(arv, "build_vector_files", lambda: {target: {"probe": 1}})
+    monkeypatch.setattr(arv_impl, "ROOT_DIR", tmp_path)
+    monkeypatch.setattr(arv_impl, "build_vector_files", lambda: {target: {"probe": 1}})
 
     assert arv.main() == 0
 
