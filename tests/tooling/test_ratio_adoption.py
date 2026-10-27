@@ -27,11 +27,12 @@ FRONTEND_RATIO_ADOPTION_FILES = [
     Path("apps/frontend/src/lib/portfolioPerformance.ts"),
     Path("apps/frontend/src/lib/confidence.ts"),
     Path("apps/frontend/src/lib/attention.ts"),
-    Path("apps/frontend/src/components/portfolio/PerformanceCard.tsx"),
+    # PerformanceCard and AllocationChart.
+    Path("apps/frontend/src/components/portfolio/PortfolioSummary.tsx"),
     Path("apps/frontend/src/components/portfolio/InvestmentPerformanceSchedule.tsx"),
-    Path("apps/frontend/src/components/portfolio/HoldingsTable.tsx"),
+    # HoldingsTable, HoldingDetail and PriceUpdateForm.
+    Path("apps/frontend/src/components/portfolio/Holdings.tsx"),
     Path("apps/frontend/src/app/(main)/portfolio/page.tsx"),
-    Path("apps/frontend/src/components/portfolio/HoldingDetail.tsx"),
 ]
 
 

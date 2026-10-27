@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
-import { Analytics, DEFAULT_OPENPANEL_API_URL } from "@/components/Analytics"
+import { Analytics, DEFAULT_OPENPANEL_API_URL } from "@/components/RootClients"
 
 // Capture the props OpenPanelComponent is rendered with, without loading the
 // real SDK (which would attempt to inject a script tag).

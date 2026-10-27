@@ -41,7 +41,7 @@ export interface MutationInvalidationRule {
 export const MUTATION_INVALIDATION_MATRIX: readonly MutationInvalidationRule[] = [
   {
     flow: "accounts.delete",
-    file: "components/settings/AccountsPanel.tsx",
+    file: "components/settings/SettingsPanels.tsx",
     invalidates: [["accounts"]],
   },
   {
@@ -91,7 +91,7 @@ export const MUTATION_INVALIDATION_MATRIX: readonly MutationInvalidationRule[] =
   },
   {
     flow: "portfolio.price-update",
-    file: "components/portfolio/PriceUpdateForm.tsx",
+    file: "components/portfolio/Holdings.tsx",
     invalidates: [],
     noInvalidationReason:
       "Cache refresh is delegated to the caller's onSuccess prop — the " +

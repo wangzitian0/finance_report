@@ -9,11 +9,8 @@ vi.mock("next/font/google", () => ({
   Inter: () => ({ variable: "--font-inter" }),
 }))
 
-vi.mock("@/components/AuthGuard", () => ({
+vi.mock("@/components/RootClients", () => ({
   AuthGuard: ({ children }: { children: ReactNode }) => <div data-testid="auth-guard">{children}</div>,
-}))
-
-vi.mock("@/components/Analytics", () => ({
   Analytics: () => <div data-testid="analytics" />,
 }))
 

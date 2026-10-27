@@ -15,7 +15,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 NEXT_CONFIG = ROOT / "apps" / "frontend" / "next.config.mjs"
-ANALYTICS = ROOT / "apps" / "frontend" / "src" / "components" / "Analytics.tsx"
+# `Analytics` lives in the root-layout client module.
+ANALYTICS = ROOT / "apps" / "frontend" / "src" / "components" / "RootClients.tsx"
 
 
 def _script_src_hosts() -> str:

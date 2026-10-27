@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest"
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
-import { PerformanceCard } from "@/components/portfolio/PerformanceCard"
+import { PerformanceCard } from "@/components/portfolio/PortfolioSummary"
 import type { InvestmentPerformanceReportSchedule } from "@/lib/types"
 
 const baseSchedule: InvestmentPerformanceReportSchedule = {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { LowConfidenceReviewModal } from "@/components/review/LowConfidenceReviewModal";
+import { LowConfidenceReviewModal } from "@/components/review/StatementReview";
 import { PENDING_CHAT_PROMPT_KEY } from "@/lib/chatStorage";
 import type { BankStatementTransaction } from "@/lib/types";
 

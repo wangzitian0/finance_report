@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import AccountsPanel from "@/components/settings/AccountsPanel";
-import GeneralSettingsPanel from "@/components/settings/GeneralSettingsPanel";
-import AiSettingsPanel from "@/components/settings/AiSettingsPanel";
-import LlmSettingsPanel from "@/components/settings/LlmSettingsPanel";
+import {
+    AccountsPanel,
+    GeneralSettingsPanel,
+    AiSettingsPanel,
+    LlmSettingsPanel,
+} from "@/components/settings/SettingsPanels";
 
 type SettingsTab = "general" | "ai" | "llm" | "accounts";
 

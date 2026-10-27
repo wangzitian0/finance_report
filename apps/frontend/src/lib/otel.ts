@@ -1,7 +1,7 @@
 /**
  * Browser OpenTelemetry tracing → OTLP/HTTP collector (backend infra2-owned).
  *
- * Design contract (mirrors `components/Analytics.tsx`): config-gated,
+ * Design contract (mirrors `Analytics` in `components/RootClients.tsx`): config-gated,
  * non-blocking, and "never breaks the app". The whole module is a complete
  * no-op until `NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT` is set, so local /
  * preview-without-config runs stay inert until infra2 wires the per-env ingest

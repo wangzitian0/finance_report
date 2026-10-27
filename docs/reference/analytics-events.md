@@ -1,7 +1,7 @@
 # Product Analytics Event Taxonomy
 
 Product analytics flows through OpenPanel. Page-views are automatic
-(`apps/frontend/src/components/Analytics.tsx`); product/funnel events go through
+(`Analytics` in `apps/frontend/src/components/RootClients.tsx`); product/funnel events go through
 the typed, non-blocking, PII-safe wrapper `track(event, props)` in
 [`apps/frontend/src/lib/analytics.ts`](../../apps/frontend/src/lib/analytics.ts).
 

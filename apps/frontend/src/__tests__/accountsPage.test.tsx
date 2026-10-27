@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import AccountsPanel from "@/components/settings/AccountsPanel"
+import { AccountsPanel } from "@/components/settings/SettingsPanels"
 import { apiOperation } from "@/lib/api-client"
 import type { Account, AccountListResponse } from "@/lib/types"
 
@@ -156,7 +156,7 @@ describe("AccountsPanel", () => {
   it("AC-testing.fe-async.2 delete flow invalidates the matrix-declared query keys against a real QueryClient", async () => {
     // #1827 G-async-seam: only the network fn is mocked; react-query runs
     // for real. Red-team: removing the invalidateQueries call in
-    // components/settings/AccountsPanel.tsx reds this test.
+    // components/settings/SettingsPanels.tsx reds this test.
     const probe = createInvalidationProbe("accounts.delete")
     mockedApiFetch.mockImplementation((operationId: string) => {
       if (operationId === "get_opening_balance_readiness_status_accounts_opening_balance_readiness_get") return Promise.resolve({ needs_opening_balance: false })

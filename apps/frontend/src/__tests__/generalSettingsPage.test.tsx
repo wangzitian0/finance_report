@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import GeneralSettingsPanel from "@/components/settings/GeneralSettingsPanel"
+import { GeneralSettingsPanel } from "@/components/settings/SettingsPanels"
 import { apiOperation } from "@/lib/api-client"
 
 vi.mock("@/lib/api-client", () => ({

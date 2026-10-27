@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { AllocationChart } from "@/components/portfolio/AllocationChart"
+import { AllocationChart } from "@/components/portfolio/PortfolioSummary"
 import { apiOperation } from "@/lib/api-client"
 import type { AllocationBreakdown } from "@/lib/types"
 

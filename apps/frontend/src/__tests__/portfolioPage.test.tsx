@@ -78,13 +78,10 @@ vi.mock("@/lib/api-client", async (importOriginal) => {
   };
 });
 
-vi.mock("@/components/portfolio/PerformanceCard", () => ({
+vi.mock("@/components/portfolio/PortfolioSummary", () => ({
   PerformanceCard: () => (
     <div data-testid="performance-card">PerformanceCard</div>
   ),
-}));
-
-vi.mock("@/components/portfolio/AllocationChart", () => ({
   AllocationChart: ({ type, title }: { type: string; title: string }) => (
     <div data-testid={`allocation-chart-${type}`}>{title}</div>
   ),

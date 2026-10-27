@@ -8,7 +8,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AiSuggestionsQueue } from "@/components/audit/AuditPanels";
-import AiSettingsPanel from "@/components/settings/AiSettingsPanel";
+import { AiSettingsPanel } from "@/components/settings/SettingsPanels";
 import { AuditTrailPanel } from "@/components/journal/JournalEntryDetailsModal";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
 import { apiOperation } from "@/lib/api-client";

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import * as money from "@/lib/audit/money";
-import { TransactionTable } from "@/components/review/TransactionTable";
+import { TransactionTable } from "@/components/review/StatementReview";
 import { normalizeBankStatement, toTransactionViewModel, type BankStatementTransaction } from "@/lib/types";
 import type { Schemas } from "@/lib/api-schema";
 

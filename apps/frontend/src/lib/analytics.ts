@@ -2,7 +2,8 @@
  * Product-analytics event wrapper (EPIC-022 AC22.18, #1109).
  *
  * A small typed layer over the OpenPanel SDK `track()` that guarantees the two
- * safety contracts the page-view wrapper already gives us (see Analytics.tsx):
+ * safety contracts the page-view wrapper already gives us (see `Analytics` in
+ * components/RootClients.tsx):
  *
  * 1. Non-blocking — `track()` never throws. Any SDK error (including the SDK
  *    not being initialized because no client id is configured) is swallowed, so

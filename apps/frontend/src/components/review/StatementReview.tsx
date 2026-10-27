@@ -1,14 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
+import type {
+  BankStatementTransaction,
+  BankStatement,
+  BalanceValidationResult,
+  BrokerageImportResponse,
+  MoneyValue,
+} from "@/lib/types";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { formatCurrencyLocale } from "@/lib/audit/money";
-import { formatCategoryLabel } from "@/lib/categories";
+import { formatCategoryLabel, getCategoriesForDirection } from "@/lib/categories";
 import { confidenceLabel, statementDisplayTitle } from "@/lib/statusLabels";
-import type { BankStatement, BankStatementTransaction, BalanceValidationResult, BrokerageImportResponse, MoneyValue } from "@/lib/types";
 import { StatusBadge } from "@/components/ui";
 import DetailDialog from "@/components/ui/DetailDialog";
-import { RowConfidenceBadge } from "@/components/review/RowConfidenceBadge";
+import { useRouter } from "next/navigation";
+import { MessageSquareText, Check } from "lucide-react";
+import { apiOperation, apiOperationDownload } from "@/lib/api-client";
+import { useToast } from "@/components/ui/Toast";
+import { PENDING_CHAT_PROMPT_KEY } from "@/lib/chatStorage";
+
+/**
+ * The confidence badge of one statement row, in the statement table and in the low-confidence
+ * review modal (#2647). The tier wins over the coarse confidence. A row with neither is "Not
+ * rated": it is not shown as low.
+ */
+export function RowConfidenceBadge({ txn }: { txn: Pick<BankStatementTransaction, "confidence_tier" | "confidence"> }) {
+  if (txn.confidence_tier) return <ConfidenceBadge tier={txn.confidence_tier} />;
+  if (txn.confidence) {
+    const variant = txn.confidence === "high" ? "badge-success" : txn.confidence === "medium" ? "badge-warning" : "badge-error";
+    return <span className={`badge ${variant}`}>{txn.confidence}</span>;
+  }
+  return <span className="badge badge-muted">Not rated</span>;
+}
 
 export type Transaction = BankStatementTransaction;
 
@@ -315,6 +340,221 @@ export function BrokerageImportResultBanner({ importResult }: { importResult: Br
         {importResult.skipped > 0 && <div><span className="text-muted">Skipped:</span> <span className="font-medium">{importResult.skipped}</span></div>}
       </div>
       <Link href="/portfolio" className="btn-secondary text-sm" aria-label="View portfolio after import">View Portfolio →</Link>
+    </div>
+  );
+}
+
+export interface LowConfidenceReviewModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  transaction: BankStatementTransaction | null;
+  currency?: string;
+  onSuccess?: () => void;
+}
+
+export function LowConfidenceReviewModal({ isOpen, onClose, transaction, currency = "SGD", onSuccess }: LowConfidenceReviewModalProps) {
+  const router = useRouter();
+  const { showToast } = useToast();
+  const [category, setCategory] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const categorySelectRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => {
+    if (isOpen && transaction) {
+      const initialCat = String(transaction.proposed_category ?? transaction.category ?? "").trim();
+      const available = getCategoriesForDirection(transaction.direction);
+      const matched = available.find((opt) => opt.value === initialCat.toUpperCase() || opt.label.toLowerCase() === initialCat.toLowerCase());
+      setCategory(matched ? matched.value : initialCat);
+      setError(null);
+      setSaving(false);
+      setTimeout(() => categorySelectRef.current?.focus(), 50);
+    }
+  }, [isOpen, transaction]);
+
+  if (!isOpen || !transaction) return null;
+
+  const availableCategories = getCategoriesForDirection(transaction.direction);
+  const isPositive = transaction.direction === "IN";
+  const displayCurrency = transaction.currency || currency;
+  const chatPrompt = `Please analyze this transaction: '${transaction.description}', amount: ${transaction.amount} ${displayCurrency} (${isPositive ? "Income" : "Expense"}) on ${transaction.txn_date}. What is the recommended accounting category and should it be considered a personal or business expense?`;
+
+  const handleSave = async (e?: React.FormEvent | React.MouseEvent) => {
+    e?.preventDefault();
+    if (saving) return;
+    const trimmed = category.trim();
+    if (!trimmed) { setError("Please select or enter a category."); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      await apiOperation("create_correction_corrections_post", { body: { transaction_id: transaction.id, corrected_category: trimmed } });
+      showToast(`Category updated to "${formatCategoryLabel(trimmed)}"`, "success");
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to record correction.";
+      setError(msg);
+      showToast(msg, "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // DetailDialog closes on Escape, backdrop and the X button: none of them may interrupt a save.
+  const handleClose = () => { if (!saving) onClose(); };
+
+  const handleAskAi = () => {
+    try { sessionStorage.setItem(PENDING_CHAT_PROMPT_KEY, chatPrompt); } catch { /* ignore */ }
+    router.push("/chat");
+  };
+
+  return (
+    <DetailDialog isOpen onClose={handleClose} title="Review Low-Confidence Transaction">
+      <p className="text-xs text-muted">Confirm or adjust the extracted economic classification</p>
+      <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--background-muted)]/40 p-3.5 space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1"><p className="text-xs text-muted">Description</p><p className="font-medium text-sm break-words">{transaction.description}</p></div>
+          <div className="text-right flex-shrink-0"><p className="text-xs text-muted">Amount</p><p className={`text-sm font-semibold tabular-nums ${isPositive ? "text-[var(--success)]" : "text-[var(--error)]"}`}>{isPositive ? "+" : "-"}{formatCurrencyLocale(transaction.amount, displayCurrency)}</p></div>
+        </div>
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--border)]/60 text-xs">
+          <span className="text-muted">Date: {transaction.txn_date}</span>
+          <div className="flex items-center gap-1.5"><span className="text-muted">Confidence:</span><RowConfidenceBadge txn={transaction} /></div>
+        </div>
+      </div>
+      <form onSubmit={handleSave} className="mt-4 space-y-4">
+        <div>
+          <label htmlFor="corrected-category-input" className="block text-xs font-semibold uppercase text-muted mb-1.5">Classification Category</label>
+          <select id="corrected-category-input" ref={categorySelectRef} className="input w-full text-sm" value={category} onChange={(e) => { setCategory(e.target.value); setError(null); }} disabled={saving}>
+            <option value="">Select a category...</option>
+            {availableCategories.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
+          </select>
+          {error && <p role="alert" className="mt-1 text-xs text-[var(--error)]">{error}</p>}
+        </div>
+        <div>
+          <p className="text-xs text-muted mb-1.5">Suggested categories:</p>
+          <div className="flex flex-wrap gap-1.5">
+            {availableCategories.map((opt) => {
+              const isSelected = category.trim().toUpperCase() === opt.value || category.trim().toLowerCase() === opt.label.toLowerCase();
+              return (<button key={opt.value} type="button" onClick={() => { setCategory(opt.value); setError(null); }} className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${isSelected ? "bg-[var(--accent)] text-white" : "bg-[var(--background-muted)] text-[var(--foreground)] hover:bg-[var(--border)]"}`}>{opt.label}</button>);
+            })}
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 pt-3 sm:flex-row sm:items-center sm:justify-between border-t border-[var(--border)]">
+          <button type="button" onClick={handleAskAi} className="btn-ghost text-xs flex items-center justify-center gap-1.5 text-[var(--accent)] hover:bg-[var(--accent)]/10" title="Open AI Chat Assistant with this transaction context"><MessageSquareText className="h-3.5 w-3.5" /><span>Ask AI Assistant</span></button>
+          <div className="flex items-center justify-end gap-2">
+            <button type="button" onClick={onClose} disabled={saving} className="btn-secondary text-xs px-3 py-1.5">Cancel</button>
+            <button type="submit" onClick={handleSave} disabled={saving || !category.trim()} className="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5 disabled:opacity-50">
+              {saving ? (<><span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" /><span>Saving...</span></>) : (<><Check className="h-3.5 w-3.5" /><span>Save Correction</span></>)}
+            </button>
+          </div>
+        </div>
+      </form>
+    </DetailDialog>
+  );
+}
+
+interface PdfPreviewPaneProps {
+  /** Statement whose original document is streamed by the same-origin proxy. */
+  statementId: string | null;
+  /** Whether an uploaded document exists; avoids a guaranteed 404 fetch. */
+  hasDocument?: boolean;
+}
+
+/** The upload types that the browser shows inline (`StatementUploader` accepts PDF, PNG, JPG and CSV). */
+const INLINE_PREVIEW_EXTENSIONS = new Set(["pdf", "png", "jpg", "jpeg"]);
+
+/**
+ * True when the source file has an inline preview (#2647). A CSV export has none: the
+ * transaction table shows its content, so the page shows no empty preview panel for it.
+ */
+export function hasInlinePreview(filename: string | null | undefined): boolean {
+  const extension = (filename ?? "").split(".").pop()?.toLowerCase() ?? "";
+  return INLINE_PREVIEW_EXTENSIONS.has(extension);
+}
+
+type PreviewState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; url: string; filename: string }
+  | { status: "error" };
+
+/**
+ * Renders the statement's original document inside the Stage 1 review.
+ *
+ * #963 / AC16.33.5: the document is fetched from the authenticated, same-origin
+ * `/api/statements/{id}/document` endpoint (which carries the Bearer token) and
+ * embedded as a `blob:` object URL. A raw iframe pointed at the cross-origin
+ * object-storage URL is blocked by the CSP (`frame-src 'self' blob:`), and an
+ * iframe GET cannot carry the bearer token anyway, so the blob approach is the
+ * only one that both authenticates and satisfies the CSP.
+ */
+export function PdfPreviewPane({ statementId, hasDocument = true }: PdfPreviewPaneProps) {
+  const [state, setState] = useState<PreviewState>({ status: "idle" });
+
+  useEffect(() => {
+    if (!statementId || !hasDocument) {
+      setState({ status: "idle" });
+      return;
+    }
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    setState({ status: "loading" });
+
+    apiOperationDownload("get_statement_document_statements__statement_id__document_get", { path: { statement_id: statementId } })
+      .then(({ blob, filename }) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setState({ status: "ready", url: objectUrl, filename: filename || "statement.pdf" });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ status: "error" });
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [statementId, hasDocument]);
+
+  const isExpanded = state.status === "ready" || state.status === "loading";
+
+  return (
+    <div className={`card flex flex-col min-h-0 ${isExpanded ? "h-full" : "h-auto"}`}>
+      <div className="card-header flex items-center justify-between">
+        <h3 className="text-sm font-medium">PDF Preview</h3>
+        {state.status === "ready" && (
+          <div className="flex items-center gap-3">
+            <a href={state.url} download={state.filename} data-testid="pdf-download-link" className="text-xs text-[var(--accent)] hover:underline flex items-center gap-1">
+              <span>Download PDF</span>
+            </a>
+            <a href={state.url} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--accent)] hover:underline flex items-center gap-1">
+              <span>Open in new tab</span>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+        )}
+      </div>
+      <div className={isExpanded ? "flex-1 p-4 min-h-0" : "p-4"}>
+        {state.status === "ready" ? (
+          /* #2107: Do not declare sandbox on the PDF iframe. In Chromium, any sandbox
+             attribute disables browser plugins including internal PDFium, rendering
+             ERR_BLOCKED_BY_CLIENT ("This page has been blocked by Chromium"). The blob URL
+             is safe as it is fetched via authenticated same-origin API and governed by
+             frame-src 'self' blob: CSP. */
+          <iframe src={state.url} className="w-full h-full rounded border" title="Statement PDF preview" referrerPolicy="no-referrer" />
+        ) : state.status === "error" ? (
+          <div data-testid="pdf-fallback-container" className="w-full flex flex-col items-center justify-center gap-2 text-muted text-center py-4">
+            <p className="text-sm">PDF preview could not be loaded</p>
+            <p className="text-xs text-muted">The preview could not be rendered inline.</p>
+          </div>
+        ) : (
+          <div className="w-full flex items-center justify-center text-muted py-4 text-sm">
+            {state.status === "loading" ? "Loading PDF preview…" : "PDF preview not available"}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

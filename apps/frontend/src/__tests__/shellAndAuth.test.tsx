@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { AppShell } from "@/components/AppShell"
-import { AuthGuard } from "@/components/AuthGuard"
+import { AuthGuard } from "@/components/RootClients"
 
 const pushMock = vi.fn()
 const isAuthenticatedMock = vi.fn()
@@ -35,11 +35,8 @@ vi.mock("@/hooks/useWorkspace", () => ({
   useWorkspace: () => ({ isCollapsed: true }),
 }))
 
-vi.mock("@/components/Sidebar", () => ({
+vi.mock("@/components/AppNav", () => ({
   Sidebar: () => <div data-testid="sidebar">Sidebar</div>,
-}))
-
-vi.mock("@/components/WorkspaceTabs", () => ({
   WorkspaceTabs: () => <div data-testid="workspace-tabs">Tabs</div>,
 }))
 

@@ -2,7 +2,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
+import { PdfPreviewPane } from "@/components/review/StatementReview";
 import { apiOperationDownload } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
