@@ -105,10 +105,12 @@ async def _statement_with_source(
     holds the source type and ``result_period_start``, no facts. A ``str`` start goes into the
     payload as it is. ``envelope_period_start`` adds a reviewed envelope on the current result.
     ``superseded_envelope_period_start`` adds an older envelope on the current result, which the
-    first one supersedes (``supersedes_id``, a later ``created_at``). Production refuses a second
-    envelope on one current result (``ReviewedStatementEnvelopeConflict``), and a re-confirmation
-    after a re-parse writes on the new result. Only two concurrent confirms can write this state,
-    because no unique constraint covers (``statement_id``, ``source_result_id``).
+    first one supersedes (``supersedes_id``, a later ``created_at``). Production cannot write two
+    envelopes on one current result: ``confirm_reviewed_statement_envelope`` locks the statement
+    row (``FOR UPDATE``) and then refuses a second envelope (``ReviewedStatementEnvelopeConflict``).
+    A re-confirmation after a re-parse writes on the new result. The case pins that the custody
+    query and ``current_reviewed_statement_envelope`` select the same envelope (the newest by
+    ``created_at``) if that state exists, for example after a direct database write.
     ``earlier_envelope_period_start`` adds an envelope on the older result.
     """
     statement = StatementSummary(
@@ -417,9 +419,10 @@ async def test_AC_reporting_2646_2_the_custody_start_is_the_envelope_then_the_re
         result_period_start=before,
         envelope_period_start=after,
     )
-    # Two envelopes on the current result. Only two concurrent confirms can write this state:
-    # production refuses a second confirm on one source result. The custody query must select the
-    # same envelope as current_reviewed_statement_envelope: the newest by created_at.
+    # Two envelopes on the current result. Production cannot write this state (confirm locks the
+    # statement row, then refuses a second envelope); a direct database write can. The custody
+    # query must select the same envelope as current_reviewed_statement_envelope: the newest by
+    # created_at.
     await _statement_with_source(
         db,
         user_id,
