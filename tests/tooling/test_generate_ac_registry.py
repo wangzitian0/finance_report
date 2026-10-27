@@ -615,6 +615,32 @@ class TestMain:
 
         assert gar.main(["--check"]) == 0
 
+    def test_main_check_fails_when_a_generated_index_is_deleted_or_mis_kinded(
+        self, tmp_path, monkeypatch
+    ):
+        """The missing-AC check is not circular: it fails when an index file is lost.
+
+        The traceability gate skips an absent infra index without failing, so this
+        check is the only gate that notices a deleted or wrongly-kinded index.
+        """
+        epic_dir = self._setup_epic_dir(tmp_path, monkeypatch)
+        (epic_dir / "EPIC-001.phase0-setup.md").write_text(
+            "| AC1.1.1 | Feature | <!-- epic-owned: horizontal -->\n"
+        )
+        (epic_dir / "EPIC-007.deployment.md").write_text(
+            "| AC7.1.1 | Infra | <!-- epic-owned: horizontal -->\n"
+        )
+        out_feature, out_infra = self._setup_outputs(tmp_path, monkeypatch)
+        gar.write_registry_index("feature", out_feature)
+        gar.write_registry_index("infra", out_infra)
+        assert gar.main(["--check"]) == 0
+
+        out_infra.unlink()
+        assert gar.main(["--check"]) == 1
+
+        gar.write_registry_index("feature", out_infra)
+        assert gar.main(["--check"]) == 1
+
     def test_main_normal_mode_noops_when_registry_is_current(
         self, tmp_path, monkeypatch
     ):

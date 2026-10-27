@@ -91,10 +91,10 @@ Integration tests and E2E tests are intentionally different in this project:
 | AC Pass Rate | `(ACs with at least one passing qualifying test) / (Total ACs)` | Generated AC coverage audit report | Informational for behavior completeness; not a line-coverage substitute |
 | AC Traceability Gate | Real AC references in CI-required execution stages | `tools/check_ac_index.py`, `common/testing/data/test-execution-matrix.yaml`, `tools/check_e2e_epic_traceability.py` | Fail closed when mandatory AC is missing, stub-only, placeholder-only, or real-only outside required execution |
 
-AC rates are generated on each CI run from `python tools/analyze_test_ac_coverage.py` inputs and do not mean line coverage. If a number changes, it is an AC definition or behavior-proof change, not automatically a line-coverage baseline change.
+AC rates are generated on each CI run from `python tools/build_ac_traceability.py` inputs and do not mean line coverage. If a number changes, it is an AC definition or behavior-proof change, not automatically a line-coverage baseline change.
 
 Current test and AC coverage status is generated, not hand-maintained here.
-Use `python tools/analyze_test_ac_coverage.py --no-write --stdout`,
+Use `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md`,
 `python tools/check_ac_index.py`, and CI artifacts for live proof
 counts.
 
@@ -361,7 +361,6 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.77 removed, canonical: migrated to `AC-testing.acgates.10`.)
 > (AC8.13.78 removed, canonical: migrated to `AC-testing.acgates.11`.)
 > (AC8.13.79 removed, canonical: migrated to `AC-testing.toolchain.9`.)
-> (AC8.13.80 removed, canonical: migrated to `AC-testing.acgates.12`.)
 > (AC8.13.81 removed, canonical: migrated to `AC-testing.governance.2`.)
 > (AC8.13.83 removed, canonical: migrated to `AC-testing.product-gates.8`.)
 > (AC8.13.84 removed, canonical: migrated to `AC-testing.product-gates.9`.)
@@ -464,7 +463,7 @@ is right on every axis simultaneously. Part of [#990](https://github.com/wangzit
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.
 - Current AC counts, covered/untested totals, and placeholder/stub exclusions are
-  owned by `python tools/analyze_test_ac_coverage.py --no-write --stdout` and
+  owned by `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md` and
   CI traceability artifacts.
 - Mandatory AC gate behavior is owned by `python tools/check_ac_index.py`.
 - Test path execution status for AC proof is owned by

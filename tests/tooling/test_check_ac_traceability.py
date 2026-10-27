@@ -6,6 +6,10 @@ placeholder / stub / missing ACs. The library is consumed by the single gate
 ``tools/check_ac_index.py`` (via ``check_ac_index.check_repo_contracts``).
 """
 
+import ast
+import re
+from pathlib import Path
+
 import pytest
 from common.testing import check_ac_traceability as cat
 
@@ -249,6 +253,131 @@ class TestCollectReferencedAcs:
         refs = cat.collect_referenced_acs([f])
         assert str(f) in refs["AC1.1.1"].stub_files
         assert refs["AC1.1.1"].real_files == set()
+
+
+class TestLoadMultipleRegistries:
+    """load_multiple_registries combines registries and keeps the first AC id."""
+
+    def test_combines_both_registries(self, tmp_path):
+        feat = tmp_path / "ac_registry.yaml"
+        feat.write_text(SAMPLE_REGISTRY_YAML)
+        infra = tmp_path / "infra_registry.yaml"
+        infra.write_text(
+            "version: '1.0'\ngroups:\n  AC7:\n    AC7.1:\n      - id: AC7.1.1\n"
+            "        epic: 7\n        epic_name: deployment\n"
+            "        description: 'CI pipeline'\n        mandatory: true\n"
+        )
+        ids = [ac.id for ac in cat.load_multiple_registries([feat, infra])]
+        assert "AC1.1.1" in ids and "AC7.1.1" in ids
+
+    def test_first_registry_wins_on_duplicate_id(self, tmp_path):
+        feat = tmp_path / "ac_registry.yaml"
+        feat.write_text(SAMPLE_REGISTRY_YAML)
+        infra = tmp_path / "infra_registry.yaml"
+        infra.write_text(
+            "version: '1.0'\ngroups:\n  AC1:\n    AC1.1:\n      - id: AC1.1.1\n"
+            "        epic: 1\n        epic_name: infra-version\n"
+            "        description: 'Infra duplicate'\n        mandatory: false\n"
+        )
+        matching = [
+            ac
+            for ac in cat.load_multiple_registries([feat, infra])
+            if ac.id == "AC1.1.1"
+        ]
+        assert len(matching) == 1
+        assert matching[0].epic_name == "phase0-setup"
+
+
+class TestIsDeprecated:
+    """The one deprecation rule: a non-blank ``~~strikethrough~~`` description."""
+
+    @pytest.mark.parametrize(
+        "description",
+        ["~~removed~~", "  ~~gone~~  ", "~~two\nlines~~", "~~~~~", "~~x~~\n"],
+    )
+    def test_strikethrough_is_deprecated(self, description):
+        assert cat.is_deprecated(description)
+
+    @pytest.mark.parametrize(
+        "description",
+        ["", "plain", "~~only start", "only end~~", "~~~", "~~~~", "~~ ~~", "~~  ~~"],
+    )
+    def test_everything_else_stays_active(self, description):
+        assert not cat.is_deprecated(description)
+
+    def test_the_rule_is_defined_exactly_once(self):
+        """No second deprecation rule exists in common/ or tools/ (AST census)."""
+        root = Path(__file__).resolve().parents[2]
+        pattern = re.compile(r"^_?is_deprecated(_description)?$")
+        scanned = 0
+        defs: list[tuple[str, str]] = []
+        for base in ("common", "tools"):
+            for path in sorted((root / base).rglob("*.py")):
+                scanned += 1
+                tree = ast.parse(path.read_text(encoding="utf-8"))
+                defs.extend(
+                    (path.relative_to(root).as_posix(), node.name)
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.FunctionDef) and pattern.match(node.name)
+                )
+        assert scanned > 100, f"census scanned only {scanned} files"
+        assert defs == [("common/testing/check_ac_traceability.py", "is_deprecated")]
+
+
+class TestClassifyReferences:
+    """classify_references is the one real/placeholder/stub/missing classifier."""
+
+    def test_no_stats_is_missing(self):
+        assert cat.classify_references(None) == "missing"
+
+    def test_empty_stats_is_missing(self):
+        assert cat.classify_references(cat.ACReferenceStats()) == "missing"
+
+    def test_real_wins_over_placeholder_and_stub(self):
+        stats = cat.ACReferenceStats(
+            real_files={"a"}, placeholder_files={"b"}, stub_files={"c"}
+        )
+        assert cat.classify_references(stats) == "real"
+
+    def test_placeholder_wins_over_stub(self):
+        stats = cat.ACReferenceStats(placeholder_files={"b"}, stub_files={"c"})
+        assert cat.classify_references(stats) == "placeholder"
+
+    def test_stub_only(self):
+        assert cat.classify_references(cat.ACReferenceStats(stub_files={"c"})) == "stub"
+
+
+class TestEmptyInputFails:
+    """A gate that scanned zero mandatory ACs must fail, not pass."""
+
+    def test_empty_ac_list_fails(self):
+        result = cat.check_traceability([], {})
+        messages = cat.traceability_failure_messages(result)
+        assert len(messages) == 1
+        assert "0 mandatory AC(s) were scanned" in messages[0]
+
+    def test_only_deprecated_acs_fails(self):
+        acs = [cat.AC("AC1.1.1", 1, "t", "~~retired~~", True)]
+        result = cat.check_traceability(acs, {})
+        assert result.total == 1 and result.mandatory_total == 0
+        assert cat.traceability_failure_messages(result)
+
+    def test_registry_with_empty_epic_source_fails(self, tmp_path):
+        """A registry index that resolves to zero ACs (wrong epic_source) cannot pass."""
+        docs = tmp_path / "docs"
+        (docs / "empty_epics").mkdir(parents=True)
+        for name, kind in (
+            ("ac_registry.yaml", "feature"),
+            ("infra_registry.yaml", "infra"),
+        ):
+            (docs / name).write_text(
+                f"version: '2.0'\nkind: {kind}\ngenerated_from_epics: true\n"
+                f"epic_source: {docs / 'empty_epics'}\n"
+                f"overrides: {docs / 'no_overrides.yaml'}\n"
+            )
+        result = cat.run_traceability(tmp_path)
+        assert result.mandatory_total == 0
+        assert cat.traceability_failure_messages(result)
 
 
 class TestCheckTraceability:

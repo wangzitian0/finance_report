@@ -132,20 +132,6 @@ def load_registry_acs(path: Path) -> list[dict]:
     return load_registry_entries(path)
 
 
-def is_deprecated(ac: dict) -> bool:
-    status = str(ac.get("status", "")).lower()
-    if status == "deprecated":
-        return True
-    description = str(ac.get("description", "")).strip()
-    if (
-        description.startswith("~~")
-        and description.endswith("~~")
-        and description[2:-2].strip()
-    ):
-        return True
-    return bool(ac.get("deprecated"))
-
-
 def is_stub(ac: dict) -> bool:
     return str(ac.get("status", "")).lower() == "stub"
 

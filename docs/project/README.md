@@ -61,7 +61,7 @@ and additional banks / XLSX / OCR ingest.
   from those two sources (roadmap-wins on any collision);
   `docs/ac_registry.yaml` / `docs/infra_registry.yaml` are generated index
   stubs and `docs/ac_registry_overrides.yaml` is empty.
-- Test proof is reported by `python tools/analyze_test_ac_coverage.py --no-write --stdout`
+- Test proof is reported by `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md`
   and CI traceability artifacts.
   Do not commit generated audit snapshots in routine feature PRs; removed
   archive inventory is retained in

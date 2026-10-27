@@ -469,7 +469,7 @@ def test_AC8_13_139_no_committed_materialized_index_files() -> None:
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     assert "<!-- BEGIN GENERATED: epic-status -->" in readme
     # The de-materialized pointer block carries no per-EPIC numeric table.
-    assert "generate_epic_status.py --stdout" in readme
+    assert "tools/build_ac_traceability.py" in readme
     assert "| EPIC-001 |" not in readme
 
 

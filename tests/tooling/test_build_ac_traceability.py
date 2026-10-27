@@ -1,7 +1,7 @@
 """Tests for tools/build_ac_traceability.py.
 
-Covers _load_registry, load_all_acs, find_test_files, collect_references,
-helper utilities (_ac_sort_key, _is_manual, _md_escape, _slug),
+Covers find_test_files, collect_references, the audit's agreement with the one
+classifier in check_ac_traceability, helper utilities (_ac_sort_key, _is_manual, _md_escape, _slug),
 render_document, and main() in both write and --check modes.
 """
 
@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from unittest import mock
-
-import pytest
 
 from common.testing import build_ac_traceability as bat
 
@@ -38,79 +36,6 @@ groups:
         description: 'Balanced entries stored'
         mandatory: true
 """
-
-INFRA_REGISTRY = """\
-version: '1.0'
-groups:
-  AC7:
-    AC7.1:
-      - id: AC7.1.1
-        epic: 7
-        epic_name: deployment
-        description: 'CI pipeline production deploy'
-        mandatory: true
-"""
-
-
-class TestLoadRegistry:
-    def test_loads_entries(self, tmp_path):
-        f = tmp_path / "reg.yaml"
-        f.write_text(SAMPLE_REGISTRY)
-        acs = bat._load_registry(f)
-        assert len(acs) == 3
-
-    def test_field_values(self, tmp_path):
-        f = tmp_path / "reg.yaml"
-        f.write_text(SAMPLE_REGISTRY)
-        acs = bat._load_registry(f)
-        ac = acs[0]
-        assert ac.id == "AC1.1.1"
-        assert ac.epic == 1
-        assert ac.epic_name == "phase0-setup"
-        assert ac.mandatory is True
-
-    def test_missing_file_exits(self, tmp_path):
-        with pytest.raises(SystemExit):
-            bat._load_registry(tmp_path / "nonexistent.yaml")
-
-    def test_empty_file_returns_empty(self, tmp_path):
-        f = tmp_path / "empty.yaml"
-        f.write_text("{}")
-        acs = bat._load_registry(f)
-        assert acs == []
-
-
-class TestLoadAllAcs:
-    def test_combines_both_registries(self, tmp_path):
-        feat = tmp_path / "ac_registry.yaml"
-        feat.write_text(SAMPLE_REGISTRY)
-        infra = tmp_path / "infra_registry.yaml"
-        infra.write_text(INFRA_REGISTRY)
-        acs = bat.load_all_acs(feat, infra)
-        ids = [ac.id for ac in acs]
-        assert "AC1.1.1" in ids
-        assert "AC7.1.1" in ids
-
-    def test_deduplication_feature_wins(self, tmp_path):
-        dup_registry = """\
-version: '1.0'
-groups:
-  AC1:
-    AC1.1:
-      - id: AC1.1.1
-        epic: 1
-        epic_name: infra-version
-        description: 'Infra duplicate'
-        mandatory: false
-"""
-        feat = tmp_path / "ac_registry.yaml"
-        feat.write_text(SAMPLE_REGISTRY)
-        infra = tmp_path / "infra_registry.yaml"
-        infra.write_text(dup_registry)
-        acs = bat.load_all_acs(feat, infra)
-        matching = [ac for ac in acs if ac.id == "AC1.1.1"]
-        assert len(matching) == 1
-        assert matching[0].epic_name == "phase0-setup"
 
 
 class TestFindTestFiles:
@@ -218,28 +143,6 @@ class TestHelpers:
     def test_is_manual_false(self):
         ac = bat.AC("AC1.1.1", 1, "x", "run automated tests", True)
         assert not bat._is_manual(ac)
-
-    def test_is_deprecated_full_strikethrough(self):
-        ac = bat.AC("AC99.24.1", 12, "x", "~~metrics endpoint deprecated~~", True)
-        assert bat._is_deprecated(ac)
-
-    def test_is_deprecated_false_no_strikethrough(self):
-        ac = bat.AC("AC1.1.1", 1, "x", "normal description", True)
-        assert not bat._is_deprecated(ac)
-
-    def test_is_deprecated_false_partial_strikethrough(self):
-        ac = bat.AC("AC1.1.1", 1, "x", "~~only start strikethrough", True)
-        assert not bat._is_deprecated(ac)
-
-    def test_is_deprecated_false_empty_like(self):
-        # ~~~~ has no content between the markers; regex requires at least one char
-        ac = bat.AC("AC1.1.1", 1, "x", "~~~~", True)
-        assert not bat._is_deprecated(ac)
-
-    def test_is_deprecated_minimum_valid(self):
-        # ~~x~~ is the minimum valid deprecated description (one char between markers)
-        ac = bat.AC("AC1.1.1", 1, "x", "~~x~~", True)
-        assert bat._is_deprecated(ac)
 
     def test_md_escape_pipe(self):
         assert bat._md_escape("a|b") == "a\\|b"
@@ -357,6 +260,44 @@ class TestRenderDocument:
         assert "| **Mandatory ACs with only stub reference** | 1 | - |" in rendered
         assert "🧪 placeholder-only" in rendered
         assert "🧱 stub-only" in rendered
+
+    def test_audit_counts_agree_with_the_gate_classifier(self, tmp_path):
+        """One classifier: the audit's per-kind counts equal check_traceability's lists."""
+        from common.testing import check_ac_traceability as cat
+
+        path = tmp_path / "test_x.py"
+        acs = [bat.AC(f"AC1.1.{n}", 1, "x", "mandatory", True) for n in range(1, 15)]
+        refs = {
+            "AC1.1.1": bat.ACReferenceStats(real_files={path}, ci_real_files={path})
+        }
+        refs["AC1.1.2"] = bat.ACReferenceStats(real_files={path})
+        for n in (3, 4, 5):
+            refs[f"AC1.1.{n}"] = bat.ACReferenceStats(placeholder_files={path})
+        for n in (6, 7, 8, 9):
+            refs[f"AC1.1.{n}"] = bat.ACReferenceStats(stub_files={path})
+        result = cat.check_traceability(acs, refs)
+        # Distinct counts per kind, so a swapped label cannot pass: 2 / 3 / 4 / 5.
+        assert len(result.covered) + len(result.unexecuted_only) == 2
+        assert len(result.placeholder_only) == 3
+        assert len(result.stub_only) == 4
+        assert len(result.missing) == 5
+
+        rendered = bat.render_document(acs, refs, [tmp_path], "2024-01-01")
+
+        real = len(result.covered) + len(result.unexecuted_only)
+        assert f"| **Mandatory ACs with real test reference** | {real} |" in rendered
+        assert (
+            f"| **Mandatory ACs with only placeholder reference** | "
+            f"{len(result.placeholder_only)} | - |" in rendered
+        )
+        assert (
+            f"| **Mandatory ACs with only stub reference** | "
+            f"{len(result.stub_only)} | - |" in rendered
+        )
+        assert (
+            f"| **Mandatory ACs without any test reference** | "
+            f"{len(result.missing)} | - |" in rendered
+        )
 
     def test_deprecated_ac_shows_deprecated_status(self, tmp_path):
         acs = [bat.AC("AC99.24.1", 12, "x", "~~deprecated feature~~", True)]
