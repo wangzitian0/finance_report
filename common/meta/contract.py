@@ -11,7 +11,7 @@ meta is also the Layout-3 exemplar: it converges into the ``base`` / ``extension
 ``PackageContract`` aggregate root + its value objects in ``base``, the gate as a
 ``domain-service`` in ``extension``, and ``contract_index`` as a ``projection`` in
 ``data``). The pure dependency graph policy lives in ``base``; ``data`` exposes
-its computed projection and ``extension`` renders ref-isolated impact reports.
+its computed projection.
 Its BE implementation is ``common/meta`` (the same directory): the published
 language is ``common/meta/__init__.py``'s ``__all__``.
 """
@@ -101,11 +101,6 @@ CONTRACT = PackageContract(
             name="check_package_contract",
             kind=Kind.DOMAIN_SERVICE,
             module="extension/check_package_contract.py",
-        ),
-        Unit(
-            name="dependency_report",
-            kind=Kind.DOMAIN_SERVICE,
-            module="extension/dependency_report.py",
         ),
         # data — the read-model: the computed meta-index over all contracts.
         Unit(name="contract_index", kind=Kind.PROJECTION, module="data/projection.py"),
@@ -285,20 +280,13 @@ CONTRACT = PackageContract(
         ac('AC-meta.kind.2', 'A repository unit must split into a base port + an extension adapter; a port outside base/ or an adapter outside extension/ is rejected (mechanism B, dependency inversion).', 'tests/tooling/test_meta_layering.py::test_AC_meta_kind_2_repository_requires_port_and_adapter'),
         ac('AC-meta.kind.3', "The data/ layer is a sink: nothing in base/ or extension/ may import the package's own data/, so the read-model never feeds back into the write side.", 'tests/tooling/test_meta_layering.py::test_AC_meta_kind_3_data_layer_is_a_sink', priority='P1'),
         ac('AC-meta.projection.1', 'contract_index is a pure projection over the contracts it is handed: registry, AC index, reverse-dependency consumers, and per-package units-by-layer, with no I/O of its own.', 'tests/tooling/test_meta_layering.py::test_AC_meta_projection_1_contract_index_is_pure', priority='P1'),
-        ac('AC-meta.dependency-governance.1', 'The computed dependency index projects package contracts into typed edges plus deterministic direct and transitive consumers, and rejects duplicate, unknown, self, or cyclic package topology.', 'tests/tooling/test_ddd_dependency_report.py::test_AC_meta_dependency_governance_1_projection_has_typed_edges_and_transitive_consumers'),
-        ac('AC-meta.dependency-governance.2', 'A ref-isolated base-vs-HEAD dependency impact report shows typed edge and public-boundary changes with every direct and transitive consumer. Boundary fingerprints resolve root bindings, local or module-qualified aliases, inherited APIs, TYPE_CHECKING annotation aliases, and local or imported named defaults at binding time without importing implementation modules. Referenced project definitions, class-scope values, decorator bindings, and relative lazy-import levels are fingerprinted too; unreadable discovery or ambiguous exports fail closed.', 'tests/tooling/test_ddd_dependency_report.py::test_AC_meta_dependency_governance_2_impact_includes_indirect_consumers'),
+        ac('AC-meta.dependency-governance.1', 'The computed dependency index projects package contracts into typed edges plus deterministic direct and transitive consumers, and rejects duplicate, unknown, self, or cyclic package topology.', 'tests/tooling/test_dependency_graph.py::test_AC_meta_dependency_governance_1_projection_has_typed_edges_and_transitive_consumers'),
         ac('AC-meta.dependency-governance.3', 'L4 delivery code may reach another package only through its root or an explicitly baselined typed port/event path; every remaining deep path is an exact shrink-only statement-level baseline, and a new production path fails closed.', 'tests/tooling/test_app_boundary.py::test_AC_meta_dependency_governance_3_l4_deep_imports_are_exact'),
         ac('AC-meta.dependency-governance.4', 'Production package base layers have no new ORM, configuration, observability, network, or session dependency; legacy findings are an exact shrink-only baseline and an empty or unreadable scan fails.', 'tests/tooling/test_base_purity.py::test_AC_meta_dependency_governance_4_base_impurity_is_exact'),
         ac('AC-meta.dependency-governance.5', 'ORM-defined types are not silently added to package-root public language; remaining exports are an exact shrink-only baseline, and new, stale, unreadable, or partial discovery fails closed.', 'tests/tooling/test_public_orm_exports.py::test_AC_meta_dependency_governance_5_public_orm_exports_are_exact'),
         ac('AC-meta.dependency-governance.6', 'Every declared package unit is implementation-bound or remains in an exact shrink-only accountability baseline; incomplete repository port/adapter pairs, new debt, stale entries, and unreadable discovery fail.', 'tests/tooling/test_unit_accountability.py::test_AC_meta_dependency_governance_6_unit_accountability_is_exact'),
-        ac('AC-meta.public-boundary.1', 'One generated boundary graph classifies every registered package, public Python symbol, runtime/context relation, published event, L4 OpenAPI operation, and production frontend operation consumer; empty, partial, duplicate, or unclassified discovery fails closed.', 'tests/tooling/test_public_boundary_control.py::test_AC_meta_public_boundary_1_snapshot_is_complete_and_single_source'),
-        ac('AC-meta.public-boundary.2', 'Every public Python callable, DTO, and value object has a complete parameter/default/return fingerprint, and decision-authorized financial commands reject dynamic mappings, untyped financial primitives, broad Callable signatures, and missing return shapes.', 'tests/tooling/test_public_boundary_control.py::test_AC_meta_public_boundary_2_financial_signatures_fail_closed'),
-        ac('AC-meta.public-boundary.3', 'Production frontend requests bind path, method, parameters, body, success response, and error handling to generated OpenAPI operations; arbitrary generic path/type assertions are not a production contract and generated types plus consumer compilation execute on the required proof path.', 'tests/tooling/test_public_boundary_control.py::test_AC_meta_public_boundary_3_frontend_uses_generated_operations'),
-        ac('AC-meta.public-boundary.4', 'Base-vs-HEAD compatibility classifies every boundary change and selects all direct and transitive consumers with executable proofs; an unversioned breaking change or an unproved consumer fails closed.', 'tests/tooling/test_public_boundary_control.py::test_AC_meta_public_boundary_4_breaking_consumers_block'),
-        ac('AC-meta.public-boundary.5', 'The existing dependency-impact step enforces boundary compatibility and publishes detector, exact proof, and live-required enforcement observations to the package-governance projection without adding a parallel required gate.', 'tests/tooling/test_public_boundary_control.py::test_AC_meta_public_boundary_5_existing_gate_enforces_and_projects'),
-        ac('AC-meta.public-boundary.6', 'Statically resolved configuration-field reads fingerprint the accessed field and its construction/validation dependencies, not unrelated fields; changed dependencies remain breaking, while whole-object and ambiguous accesses retain conservative fingerprints.', 'tests/tooling/test_ddd_dependency_report.py::test_AC_meta_public_boundary_6_configuration_field_projection'),
-        ac('AC-meta.public-boundary.7', 'Relocating a fully resolved literal string enum within its owning package preserves compatibility of unchanged defaults; changed enum values, names, owners, defaults, and non-enum implementations remain breaking.', 'tests/tooling/test_ddd_dependency_report.py::test_AC_meta_public_boundary_7_same_owner_enum_relocation'),
-        ac('AC-meta.public-boundary.8', 'Structural compatibility accepts appended defaulted dataclass fields, optional keyword-only callable parameters and genuinely new public methods while preserving existing bindings, defaults, types, returns, decorators and member order; ambiguous variadic capture, required additions, and malformed callable signatures remain breaking.', 'tests/tooling/test_public_boundary_control.py::test_AC_meta_public_boundary_8_real_additive_surfaces'),
+        ac('AC-meta.public-boundary.2', 'A declared command boundary resolves to exactly one definition in its package implementation, and that definition has no dict annotation or Callable[..., X] on a field, parameter, variadic parameter or return (nested or quoted included), no missing return shape (no return annotation, or an Any/dict/list return) and no unannotated currency or date parameter; a missing or duplicate definition fails the package contract gate.', 'tests/tooling/test_check_package_contract.py::test_AC_meta_public_boundary_2_command_boundary_rejects_dynamic_types'),
+        ac('AC-meta.public-boundary.3', 'Production frontend requests bind path, method, parameters, body, success response, and error handling to generated OpenAPI operations by operation id; the frontend lint rule rejects any import or call of an untyped transport (apiFetch, apiStream, apiUpload, apiDownload, apiDelete), and tsc rejects an unknown operation id.', 'apps/frontend/src/__tests__/untypedTransportLint.test.ts::AC-meta.public-boundary.3 rejects every import and call of an untyped transport'),
         ac('AC-meta.context-governance.1', 'A package can publish its bounded-context purpose, explicit responsibility boundary, and justified outgoing relationships in its own contract. Relationship declarations belong to their consumer, may name only declared dependencies, and an exact shrink-only baseline fails a newly missing context or an unclassified dependency once a package adopts the declaration.', 'tests/tooling/test_context_contract.py::test_AC_meta_context_governance_1_context_scope_rejects_empty_purpose'),
         ac('AC-meta.context-governance.2', 'Aggregate roots, entities, value objects, and domain events declared by package contracts have exactly one canonical semantic owner even when packages label the claim with different DDD kinds. A same-spelled but distinct concept must state a distinct semantic key; duplicate claims fail closed.', 'tests/tooling/test_semantic_ownership.py::test_AC_meta_context_governance_2_duplicate_semantic_owner_fails'),
         ac('AC-meta.vision-anchor.1', 'A package-roadmap AC may declare one vision.md anchor, and ac_vision_index purely projects every declared AC id to that anchor without assigning anchor ownership centrally.', 'tests/tooling/test_meta_layering.py::test_AC_meta_vision_anchor_1_projection_is_pure', priority='P1'),
@@ -692,76 +680,10 @@ CONTRACT = PackageContract(
             ],
         ),
         GovernanceInitiative(
-            id="public-boundary-control",
-            title="Stable public boundaries and consumer-safe evolution",
-            issue="https://github.com/wangzitian0/finance_report/issues/1993",
-            depends_on=["meta/governance-control-plane"],
-            guarantees=[
-                GovernanceGuarantee(
-                    id="one-boundary-graph",
-                    statement="One generated graph discovers package, Python, delivery, and frontend consumer boundaries.",
-                    affected_acs=["AC-meta.public-boundary.1"],
-                    detector="boundary-discovery-completeness",
-                    target="zero duplicate, partial, or unclassified boundaries",
-                    lock="ci.tooling_coverage",
-                    proof="public-boundary-graph",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="financial-signatures",
-                    statement="Decision-authorized financial commands expose complete typed signatures.",
-                    affected_acs=["AC-meta.public-boundary.2"],
-                    detector="financial-command-signature-census",
-                    target="zero dynamic financial command signatures",
-                    lock="ci.tooling_coverage",
-                    proof="public-boundary-financial-signatures",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="operation-client",
-                    statement="Every production frontend transport binds to a generated OpenAPI operation.",
-                    affected_acs=["AC-meta.public-boundary.3"],
-                    detector="frontend-operation-consumer-census",
-                    target="zero untyped or unknown production transports",
-                    lock="ci.tooling_coverage",
-                    proof="public-boundary-operation-client",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="consumer-impact",
-                    statement="Breaking boundary changes select every direct and transitive consumer for exact proof.",
-                    affected_acs=["AC-meta.public-boundary.4"],
-                    detector="boundary-consumer-proof-census",
-                    target="zero unproved consumers",
-                    lock="ci.tooling_coverage",
-                    proof="public-boundary-consumer-impact",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-                GovernanceGuarantee(
-                    id="enforced-compatibility",
-                    statement="The existing dependency-impact path blocks incompatible boundaries and publishes evidence.",
-                    affected_acs=["AC-meta.public-boundary.5"],
-                    detector="boundary-compatibility-status",
-                    target="zero blocking compatibility findings",
-                    lock="ci.tooling_coverage",
-                    proof="public-boundary-enforcement",
-                    required_proof_strength="exact",
-                    enforcing_gate="ci.tooling_coverage",
-                ),
-            ],
-        ),
-        GovernanceInitiative(
             id="app-and-frontend-governance",
             title="Make app and frontend governance discovery exhaustive",
             issue="https://github.com/wangzitian0/finance_report/issues/1984",
-            depends_on=[
-                "meta/governance-control-plane",
-                "meta/public-boundary-control",
-            ],
+            depends_on=["meta/governance-control-plane"],
             guarantees=[
                 GovernanceGuarantee(
                     id="app-ownership",

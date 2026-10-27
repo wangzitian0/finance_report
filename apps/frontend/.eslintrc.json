@@ -1,3 +1,16 @@
 {
-    "extends": "next/core-web-vitals"
+    "extends": "next/core-web-vitals",
+    "rules": {
+        "no-restricted-syntax": [
+            "error",
+            {
+                "selector": "CallExpression:matches([callee.name=/^api(Fetch|Stream|Upload|Download|Delete)$/], [callee.property.name=/^api(Fetch|Stream|Upload|Download|Delete)$/])",
+                "message": "Call a generated OpenAPI operation with apiOperation, apiOperationStream, apiOperationDownload or apiOperationUpload. An untyped transport is not a production contract."
+            },
+            {
+                "selector": "ImportSpecifier[imported.name=/^api(Fetch|Stream|Upload|Download|Delete)$/]",
+                "message": "Import apiOperation, apiOperationStream, apiOperationDownload or apiOperationUpload. An untyped transport is not a production contract."
+            }
+        ]
+    }
 }

@@ -182,8 +182,7 @@ names from `required-env.generated.json` so a chain added later is covered
 without editing the guard (AC-runtime.env-empty-values.1). Making an empty value
 *mean* "unset" at the model level (`env_ignore_empty=True`) is the durable fix
 and is tracked separately in #2032 — it changes the resolution semantics of every
-settings field, so the DDD boundary gate requires an exact consumer proof per
-affected package before it can land.
+settings field, so it needs a review of every affected package before it can land.
 
 ## Boundaries with neighbouring packages
 
