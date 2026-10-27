@@ -11,11 +11,12 @@ Discovers and measures the complete application delivery and governance denomina
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 from common.meta.extension.check_package_contract import discover_packages
-from common.meta.extension.dependency_report import classify_operation_usage
+from common.meta.extension.generate_api_operations import read_operations
 
 DEFAULT_BASELINE_PATH = (
     Path(__file__).resolve().parents[1] / "data" / "governance-ratchet-baseline.json"
@@ -24,6 +25,110 @@ DEFAULT_BASELINE_PATH = (
 #: Lower bound of the frontend production files that the census must find.
 #: A count below it means that discovery broke, not that files were merged.
 MIN_FRONTEND_PRODUCTION_FILES = 100
+
+
+_OPERATION_CALL = re.compile(
+    r"\bapiOperation(?:Stream|Download|Upload)?\s*(?:<[^>]+>)?\s*\(\s*['\"]([^'\"]+)['\"]",
+    re.DOTALL,
+)
+_QUERY_OPERATION_CALL = re.compile(
+    r"\buseApiQuery\s*\(\s*(?:\[[^\]]*\]|[^,]+),\s*['\"]([^'\"]+)['\"]",
+    re.DOTALL,
+)
+_GENERATED_CLIENT_FILES = {"api-client.ts", "api-operations.ts", "api-types.ts"}
+
+
+def _without_typescript_comments(source: str) -> str:
+    """Remove comments while retaining strings and newline/offset positions."""
+
+    output = list(source)
+    index = 0
+    quote: str | None = None
+    escaped = False
+    while index < len(source):
+        character = source[index]
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == quote:
+                quote = None
+            index += 1
+            continue
+        if character in {'"', "'", "`"}:
+            quote = character
+            index += 1
+            continue
+        if source.startswith("//", index):
+            end = source.find("\n", index)
+            end = len(source) if end == -1 else end
+            for position in range(index, end):
+                output[position] = " "
+            index = end
+            continue
+        if source.startswith("/*", index):
+            end = source.find("*/", index + 2)
+            end = len(source) if end == -1 else end + 2
+            for position in range(index, end):
+                if output[position] != "\n":
+                    output[position] = " "
+            index = end
+            continue
+        index += 1
+    return "".join(output)
+
+
+def discover_frontend_operation_consumers(repo_root: Path) -> list[dict[str, Any]]:
+    """Return one record per production call of a generated OpenAPI operation."""
+
+    source_root = repo_root / "apps/frontend/src"
+    if not source_root.is_dir():
+        return []
+    records: list[dict[str, Any]] = []
+    for path in sorted((*source_root.rglob("*.ts"), *source_root.rglob("*.tsx"))):
+        if "__tests__" in path.parts or path.name.endswith((".test.ts", ".test.tsx")):
+            continue
+        if path.name in _GENERATED_CLIENT_FILES:
+            continue
+        source = _without_typescript_comments(path.read_text(encoding="utf-8"))
+        matches = sorted(
+            (
+                *_OPERATION_CALL.finditer(source),
+                *_QUERY_OPERATION_CALL.finditer(source),
+            ),
+            key=lambda match: match.start(),
+        )
+        records.extend(
+            {
+                "operation_id": match.group(1),
+                "source": path.relative_to(repo_root).as_posix(),
+                "line": source.count("\n", 0, match.start()) + 1,
+            }
+            for match in matches
+        )
+    return records
+
+
+def classify_operation_usage(repo_root: Path) -> dict[str, Any]:
+    """Classify OpenAPI operations into consumed vs intentional API-only with exact counts."""
+    openapi_path = repo_root / "apps/frontend/openapi.json"
+    all_op_ids = (
+        {operation_id for operation_id, _method, _path in read_operations(openapi_path)}
+        if openapi_path.is_file()
+        else set()
+    )
+    consumers = discover_frontend_operation_consumers(repo_root)
+    consumed_op_ids = {str(c["operation_id"]) for c in consumers}
+    api_only_op_ids = sorted(all_op_ids - consumed_op_ids)
+    return {
+        "total_operations": len(all_op_ids),
+        "consumed_operations": len(consumed_op_ids),
+        "api_only_operations": len(api_only_op_ids),
+        "total_consumer_call_sites": len(consumers),
+        "consumed_operation_ids": sorted(consumed_op_ids),
+        "api_only_operation_ids": api_only_op_ids,
+    }
 
 
 def collect_governance_census(repo_root: Path) -> dict[str, Any]:
@@ -214,6 +319,8 @@ def verify_governance_ratchet(
 __all__ = [
     "DEFAULT_BASELINE_PATH",
     "MIN_FRONTEND_PRODUCTION_FILES",
+    "classify_operation_usage",
     "collect_governance_census",
+    "discover_frontend_operation_consumers",
     "verify_governance_ratchet",
 ]

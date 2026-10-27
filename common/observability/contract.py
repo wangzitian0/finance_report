@@ -180,7 +180,7 @@ CONTRACT = PackageContract(
         ac('AC-observability.6.4', 'Vault-owned observability fields are marked explicitly in required-env.', 'apps/backend/tests/infra/test_observability_contract.py::test_required_env_manifest_exports_observability_contract', priority='P1'),
         # ── group 9 (continued): deploy-failure-snapshot boundary (was
         # EPIC-010 AC10.9.5, #1821 Wave A horizontal move) ──
-        ac('AC-observability.9.4', 'Deploy failure snapshots are infra2-owned end to end — the app ships no Dokploy failure-snapshot tool and never reaches the Dokploy API for platform diagnostics; the app builds no observability-backend pivot links (App/Infra boundary #876).', 'tests/tooling/test_public_boundary_control.py::test_AC10_9_5_app_side_snapshot_is_retired', proof_kind='property'),
+        ac('AC-observability.9.4', 'Deploy failure snapshots are infra2-owned end to end — the app ships no Dokploy failure-snapshot tool and never reaches the Dokploy API for platform diagnostics; the app builds no observability-backend pivot links (App/Infra boundary #876).', 'tests/tooling/test_env_contract_boundary.py::test_AC10_9_5_app_side_snapshot_is_retired', proof_kind='property'),
         # ── group openpanel-query: the OpenPanel analytics query CLI (was
         # EPIC-024 AC24.1.4, #1821 Wave A horizontal move; the EPIC row's
         # own test citation was just the file name, not a function — the

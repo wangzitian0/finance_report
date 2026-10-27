@@ -11,14 +11,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-from common.meta.extension.dependency_report import (
-    classify_operation_usage,
-    discover_frontend_operation_consumers,
-)
 from common.meta.extension.governance_census import (
     DEFAULT_BASELINE_PATH,
     MIN_FRONTEND_PRODUCTION_FILES,
+    classify_operation_usage,
     collect_governance_census,
+    discover_frontend_operation_consumers,
     verify_governance_ratchet,
 )
 from common.meta.extension.governance_detector import (
@@ -478,3 +476,52 @@ def test_AC_meta_governance_ratchet_10_governance_integration() -> None:
     findings = _check_governance_integration(synthetic_failed, REPO_ROOT)
     assert len(findings) == 1
     assert any("governance ratchet check failed" in f for f in findings)
+
+
+def test_AC_meta_governance_ratchet_5_scanner_reads_calls_and_ignores_comments(
+    tmp_path: Path,
+) -> None:
+    """AC-meta.governance-ratchet.5: the scanner finds real calls only and counts them exactly."""
+    source = tmp_path / "apps/frontend/src"
+    (source / "__tests__").mkdir(parents=True)
+    (source / "page.tsx").write_text(
+        "// apiOperation('not_code')\n"
+        "/* apiOperationDownload('also_not_code') */\n"
+        "apiOperationDownload(\n"
+        '  "download_thing",\n'
+        '  { path: { thing_id: "1" } },\n'
+        ");\n"
+        'useApiQuery(["thing"], "get_thing", {});\n',
+        encoding="utf-8",
+    )
+    (source / "api-types.ts").write_text('apiOperation("generated_only");\n')
+    (source / "__tests__/page.test.ts").write_text('apiOperation("test_only");\n')
+    (tmp_path / "apps/frontend/openapi.json").write_text(
+        json.dumps(
+            {
+                "paths": {
+                    "/things": {
+                        "get": {"operationId": "get_thing"},
+                        "post": {"operationId": "download_thing"},
+                    },
+                    "/orphans": {"get": {"operationId": "orphan"}},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    records = discover_frontend_operation_consumers(tmp_path)
+    assert [(r["operation_id"], r["line"]) for r in records] == [
+        ("download_thing", 3),
+        ("get_thing", 7),
+    ]
+    assert classify_operation_usage(tmp_path) == {
+        "total_operations": 3,
+        "consumed_operations": 2,
+        "api_only_operations": 1,
+        "total_consumer_call_sites": 2,
+        "consumed_operation_ids": ["download_thing", "get_thing"],
+        "api_only_operation_ids": ["orphan"],
+    }
+    assert classify_operation_usage(tmp_path / "missing")["total_operations"] == 0

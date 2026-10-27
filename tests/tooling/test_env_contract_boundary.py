@@ -21,8 +21,12 @@ ENVIRONMENTS_DOC = ROOT / "common" / "runtime" / "environments.md"
 CONFIG_PY = ROOT / "apps" / "backend" / "src" / "config.py"
 
 # Pointers each App doc MUST keep to the infra2-owned contract.
-OPS_OBSERVABILITY_POINTER = "https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md"
-CORE_ENVIRONMENTS_POINTER = "https://github.com/wangzitian0/infra2/blob/main/docs/ssot/core.environments.md"
+OPS_OBSERVABILITY_POINTER = (
+    "https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md"
+)
+CORE_ENVIRONMENTS_POINTER = (
+    "https://github.com/wangzitian0/infra2/blob/main/docs/ssot/core.environments.md"
+)
 
 # Drift patterns the App docs MUST NOT contain.
 #
@@ -85,3 +89,8 @@ def test_config_py_does_not_hardcode_openpanel_client_map() -> None:
         "'openpanel_clients' map; per-env OpenPanel client ids are issued by "
         "infra2 (they live in infra2 deploy tooling, not the App config)."
     )
+
+
+def test_AC10_9_5_app_side_snapshot_is_retired() -> None:
+    """AC-observability.9.4: AC10.9.5: the app ships no Dokploy failure-snapshot tool."""
+    assert not (ROOT / "tools" / "dokploy_failure_snapshot.py").exists()

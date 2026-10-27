@@ -58,6 +58,15 @@ asserts:
       a root import of a submodule), not paths to published symbols — so no current
       package regresses.
 
+  (g) a declared ``CommandBoundary`` resolves to exactly one definition in the
+      package implementation, and that definition carries no dynamic type
+      (a ``dict`` annotation or ``Callable[..., X]`` on a field, parameter,
+      variadic parameter or return, nested or quoted included; a missing
+      return annotation or an ``Any``/``dict``/``list`` return; an unannotated
+      ``currency``/``date`` parameter). No other gate
+      reads the field types of a decision-authorized financial command
+      (AC-meta.public-boundary.2, #2758).
+
 This module is the meta package's ``extension`` layer (the impure edge: it walks
 the filesystem and parses ASTs). It imports the ``base`` model
 (:mod:`common.meta.base.package_contract`) — never ``data``.
@@ -697,7 +706,7 @@ def _check_no_dependency_cycle(packages: list[DiscoveredPackage]) -> list[str]:
     enforced globally here rather than by a strict rank ordering ("never up, never
     sideways-cyclic"). The compatibility name remains because existing callers use
     it, but duplicate/unknown/self dependencies now fail through the same graph
-    builder consumed by the data projection and impact report.
+    builder consumed by the data projection.
     """
     try:
         build_dependency_graph([package.contract for package in packages])
@@ -872,6 +881,90 @@ def _check_kind_placement(pkg: DiscoveredPackage) -> list[str]:
     return offenders
 
 
+_DYNAMIC_ANNOTATION = re.compile(r"\b(?:dict|Dict)\b|\bCallable\[\s*\.\.\.")
+_DYNAMIC_RETURN = re.compile(r"(?:Any|dict|list)\b")
+_FINANCIAL_PRIMITIVE_PARAMS = frozenset(
+    {"currency", "date", "posted_at", "occurred_at"}
+)
+
+
+def _command_definitions(
+    impl_dir: Path, symbol: str
+) -> list[ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef]:
+    """Every top-level class or function named ``symbol`` in the implementation."""
+    found: list[ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef] = []
+    for path in sorted(impl_dir.rglob("*.py")):
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            continue
+        found.extend(
+            node
+            for node in tree.body
+            if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == symbol
+        )
+    return found
+
+
+def _dynamic_type_findings(
+    node: ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[str]:
+    """Name each dynamic type on a command's own fields, parameters and return."""
+    findings: list[str] = []
+    if isinstance(node, ast.ClassDef):
+        for child in node.body:
+            if isinstance(child, ast.AnnAssign) and isinstance(child.target, ast.Name):
+                if _DYNAMIC_ANNOTATION.search(ast.unparse(child.annotation)):
+                    findings.append(f"dynamic type on field '{child.target.id}'")
+        return findings
+    arguments = node.args
+    parameters = [
+        *arguments.posonlyargs,
+        *arguments.args,
+        *arguments.kwonlyargs,
+        *(item for item in (arguments.vararg, arguments.kwarg) if item is not None),
+    ]
+    for arg in parameters:
+        if arg.annotation is None:
+            if arg.arg in _FINANCIAL_PRIMITIVE_PARAMS:
+                findings.append(f"untyped financial parameter '{arg.arg}'")
+        elif _DYNAMIC_ANNOTATION.search(ast.unparse(arg.annotation)):
+            findings.append(f"dynamic type on parameter '{arg.arg}'")
+    # A missing return annotation is a missing return shape. A dynamic type
+    # anywhere in the return, including a quoted one, is dynamic.
+    returned = "Any" if node.returns is None else ast.unparse(node.returns)
+    if _DYNAMIC_RETURN.match(returned) or _DYNAMIC_ANNOTATION.search(returned):
+        findings.append("dynamic return type")
+    return findings
+
+
+def _check_command_boundaries(pkg: DiscoveredPackage) -> list[str]:
+    """Each declared command boundary has one definition without dynamic types (g)."""
+    boundaries = pkg.contract.command_boundaries
+    if not boundaries:
+        return []
+    if pkg.impl_dir is None:
+        return [
+            "declares command_boundaries but implementations['be'] is missing — "
+            "no definition to check"
+        ]
+    errors: list[str] = []
+    for boundary in boundaries:
+        definitions = _command_definitions(pkg.impl_dir, boundary.symbol)
+        if len(definitions) != 1:
+            errors.append(
+                f"command boundary '{boundary.symbol}' must have exactly one "
+                f"top-level definition under {pkg.impl_dir}, found {len(definitions)}"
+            )
+            continue
+        errors.extend(
+            f"command boundary '{boundary.symbol}': {finding}"
+            for finding in _dynamic_type_findings(definitions[0])
+        )
+    return errors
+
+
 def check_package(
     pkg: DiscoveredPackage,
     registered: dict[str, str],
@@ -940,6 +1033,9 @@ def check_package(
     errors.extend(f"[{pkg.name}] {e}" for e in _check_layer_purity(pkg))
     errors.extend(f"[{pkg.name}] {e}" for e in _check_kind_placement(pkg))
     errors.extend(f"[{pkg.name}] {e}" for e in _check_data_is_sink(pkg))
+
+    # (g) a declared command boundary has one typed definition (AC-meta.public-boundary.2)
+    errors.extend(f"[{pkg.name}] {e}" for e in _check_command_boundaries(pkg))
 
     # (e) one-transaction-per-domain (issue #1460): a cross-domain reference goes
     #     through the published interface or by id + event — never a deep reach
