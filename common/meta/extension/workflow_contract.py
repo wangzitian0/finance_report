@@ -113,7 +113,6 @@ APP_WORKFLOW_FILES = (
     ".github/workflows/docs.yml",
     ".github/workflows/journey-board.yml",
     ".github/workflows/maintenance.yml",
-    ".github/workflows/notify-infra2.yml",
     ".github/workflows/preview.yml",
     ".github/workflows/release.yml",
     ".github/workflows/staging-ai-ocr-gate.yml",

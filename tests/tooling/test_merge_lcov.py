@@ -251,14 +251,3 @@ class TestSharedLcovHelper:
         f.write_text("SF:src/x.py\nLH:5\nLF:10\nend_of_record\n")
         summaries = lcov.parse_lcov_summaries(f)
         assert summaries["src/x.py"] == {"covered_lines": 5, "total_lines": 10}
-
-    def test_strip_branches(self, tmp_path: Path) -> None:
-        from common.testing.coverage import lcov
-
-        src = tmp_path / "in.lcov"
-        out = tmp_path / "out.lcov"
-        src.write_text("SF:src/x.py\nBRDA:1,0,0,1\nDA:1,1\nend_of_record\n")
-        assert lcov.strip_branches(src, out) == 0
-        content = out.read_text()
-        assert "BRDA:" not in content
-        assert "DA:1,1" in content

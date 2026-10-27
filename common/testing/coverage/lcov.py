@@ -5,7 +5,6 @@ This module provides common utilities to parse, merge, and write LCOV files.
 
 from __future__ import annotations
 
-import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -206,23 +205,3 @@ def parse_lcov_summaries(
 
     flush_record()
     return records
-
-
-def strip_branches(input_path: Path, output_path: Path) -> int:
-    """Copy LCOV input to output path without branch coverage records."""
-    if not input_path.exists():
-        print(f"LCOV input not found: {input_path}", file=sys.stderr)
-        return 1
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with (
-        open(input_path, "r", encoding="utf-8") as source,
-        open(output_path, "w", encoding="utf-8") as target,
-    ):
-        for line in source:
-            if is_branch_record(line):
-                continue
-            target.write(line)
-
-    print(f"Wrote line-only LCOV to {output_path}")
-    return 0

@@ -29,7 +29,6 @@ from common.testing.coverage import (
     check_policy,
     diff_coverage,
     merge_lcov,
-    strip_lcov_branches,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -91,7 +90,6 @@ MIGRATED_GATE_MODULES = (
         check_policy.main,
         diff_coverage.main,
         merge_lcov.main,
-        strip_lcov_branches.main,
         gate_main_contract.main,
     ],
 )

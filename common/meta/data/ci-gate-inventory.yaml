@@ -447,19 +447,6 @@ gates:
     artifacts: []
     failure_semantics: Staging or production serves a release whose oldest undeployed main commit is older than the environment's age bound (staging 3d, production 7d), or its release identity could not be measured; the run files or updates one tracking issue per environment and breakage.
     action: keep
-  - id: notify_infra2_report_main.dispatch
-    stage: staging.release_validation
-    task_category: deploy_smoke
-    workflow: .github/workflows/notify-infra2.yml
-    job: dispatch
-    owner: .github/workflows/notify-infra2.yml#dispatch
-    triggers: [workflow_dispatch]
-    blocks_workflow: false
-    inputs: [successful_main_ci_sha]
-    outputs: [infra2_repository_dispatch]
-    artifacts: []
-    failure_semantics: Successful app main CI could not notify infra2 to redeploy the report-branch-main preview guarded by the exact completed SHA (INFRA2_PAT missing/expired, stale CI completion skipped, or repository_dispatch did not return HTTP 204).
-    action: keep
   - id: journey_board.publish
     stage: staging.release_validation
     task_category: deploy_smoke

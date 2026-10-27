@@ -29,7 +29,6 @@ _CONTRACT_INPUTS = (
     ".github/workflows/docs.yml",
     ".github/workflows/preview.yml",
     ".github/workflows/maintenance.yml",
-    ".github/workflows/notify-infra2.yml",
     ".github/actions/setup-e2e-tests/action.yml",
     "common/testing/ci-cd.md",
     "common/testing/data/github-action-runtime.yaml",

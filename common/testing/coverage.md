@@ -255,7 +255,6 @@ not `coverage.py report` text output or stale component-local artifacts:
 
 ```bash
 python tools/build_unified_lcov.py coverage/unified.lcov
-python tools/strip_lcov_branches.py coverage/unified.lcov coverage/coveralls-unified.lcov
 python tools/calculate_unified_coverage.py --list-low-files --threshold 90
 ```
 
