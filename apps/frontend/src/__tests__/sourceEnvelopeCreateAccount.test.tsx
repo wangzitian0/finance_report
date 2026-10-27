@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest"
 import {
   SourceEnvelopeConfirmation,
   type EnvelopeDraft,
-} from "@/components/review/TransactionTable"
+} from "@/components/review/StatementReview"
 
 const draft: EnvelopeDraft = {
   accountId: "",

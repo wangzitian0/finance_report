@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest"
 import { render, screen } from "@testing-library/react"
-import { HoldingsTable } from "@/components/portfolio/HoldingsTable"
+import { HoldingsTable } from "@/components/portfolio/Holdings"
 import type { PortfolioHolding } from "@/lib/types"
 import { describe, expect, it } from "vitest"
 

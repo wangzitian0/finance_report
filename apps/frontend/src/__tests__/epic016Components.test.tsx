@@ -1,9 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
-import { PdfPreviewPane } from "@/components/review/PdfPreviewPane";
-import { TransactionTable } from "@/components/review/TransactionTable";
-import { ConflictResolutionDialog } from "@/components/review/TransactionTable";
+import { PdfPreviewPane, TransactionTable, ConflictResolutionDialog } from "@/components/review/StatementReview";
 import { BottomTabBar } from "@/components/shell/BottomTabBar";
 
 // Mock next/navigation

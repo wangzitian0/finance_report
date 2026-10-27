@@ -1,8 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { Sidebar } from "@/components/Sidebar"
-import { WorkspaceTabs } from "@/components/WorkspaceTabs"
+import { Sidebar, WorkspaceTabs } from "@/components/AppNav"
 import { apiOperation } from "@/lib/api-client"
 
 const pushMock = vi.fn()

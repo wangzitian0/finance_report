@@ -24,7 +24,7 @@ if (!mounted) return null; // or loading skeleton
 
 **Applied In:**
 - `ThemeToggle.tsx`
-- `Sidebar.tsx` (for collapse state)
+- `AppNav.tsx` (`Sidebar`, for collapse state)
 
 ## 3. Theme System
 
@@ -202,7 +202,7 @@ Every UI-system change must leave both semantic and visual proof in the same PR.
 ### Mobile Install Baseline
 
 - The authenticated app shell owns Add to Home Screen / install prompting through
-  `components/pwa/InstallAppPrompt.tsx` and `hooks/usePwaInstall.ts`; business pages must not listen for `beforeinstallprompt` or render page-local install prompts.
+  `InstallAppPrompt` in `components/AppShell.tsx` and `hooks/usePwaInstall.ts`; business pages must not listen for `beforeinstallprompt` or render page-local install prompts.
 - Android/Chromium installability uses the `beforeinstallprompt` event: the hook
   prevents the browser's automatic prompt, stores the deferred event, and exposes
   one app-level install action.
@@ -218,7 +218,7 @@ Every UI-system change must leave both semantic and visual proof in the same PR.
 
 ### Applied In
 
-- `components/settings/AccountsPanel.tsx`
+- `components/settings/SettingsPanels.tsx` (`AccountsPanel`)
 - `app/(main)/statements/page.tsx`
 - `playwright/ui-visual-smoke.spec.ts`
 - `src/__tests__/uiPrimitives.test.tsx`
@@ -367,7 +367,7 @@ Frontend monetary display and arithmetic must use `decimal.js` through
 
 The app is mobile/PWA-first. `components/navigation.ts` is the single route
 source of truth, shared by a mobile bottom tab bar (`components/shell/BottomTabBar`)
-and the desktop sidebar (`components/Sidebar`), which mirror the **same** targets
+and the desktop sidebar (`Sidebar` in `components/AppNav`), which mirror the **same** targets
 (EPIC-022 AC22.21).
 
 **Rules:**
@@ -404,11 +404,11 @@ document-level horizontal scrolling.
   mobile card affordances.
 
 **Applied In:**
-- `components/settings/AccountsPanel.tsx`
+- `components/settings/SettingsPanels.tsx` (`AccountsPanel`)
 - `app/(main)/review/ai-suggestions/page.tsx`
 - `app/(main)/statements/[id]/review/page.tsx`
 - `components/review/Stage2ReviewQueue.tsx`
-- `components/review/TransactionTable.tsx`
+- `components/review/StatementReview.tsx` (`TransactionTable`)
 - `components/journal/JournalEntryDetailsModal.tsx`
 - `playwright/mobile-ux.spec.ts`
 

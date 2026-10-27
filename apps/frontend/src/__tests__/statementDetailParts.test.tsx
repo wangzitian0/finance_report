@@ -4,7 +4,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import {
     BrokerageImportResultBanner,
     StatementHeader,
-} from "@/components/review/TransactionTable";
+} from "@/components/review/StatementReview";
 import { BankStatement, BrokerageImportResponse } from "@/lib/types";
 import { currencyCodeOrDash as formatCode } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";

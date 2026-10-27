@@ -23,12 +23,12 @@ MONEY_FIXTURE_FILES = [
 ]
 
 FRONTEND_PERCENT_FILES = [
-    Path("apps/frontend/src/components/portfolio/PerformanceCard.tsx"),
+    # PerformanceCard and AllocationChart.
+    Path("apps/frontend/src/components/portfolio/PortfolioSummary.tsx"),
     Path("apps/frontend/src/components/portfolio/InvestmentPerformanceSchedule.tsx"),
-    Path("apps/frontend/src/components/portfolio/HoldingsTable.tsx"),
-    Path("apps/frontend/src/components/portfolio/AllocationChart.tsx"),
+    # HoldingsTable, HoldingDetail and PriceUpdateForm.
+    Path("apps/frontend/src/components/portfolio/Holdings.tsx"),
     Path("apps/frontend/src/app/(main)/portfolio/page.tsx"),
-    Path("apps/frontend/src/components/portfolio/HoldingDetail.tsx"),
     # The savings rate of the three-statement cockpit (Home and the /reports Overview, #2621 LC).
     Path("apps/frontend/src/components/reports/ReportShell.tsx"),
     Path("apps/frontend/src/components/reconciliation/Workbench.tsx"),
@@ -121,7 +121,7 @@ def test_AC12_31_5_frontend_percent_formatters_are_not_duplicated():
         assert "Math.round((value / maxBucket) * 100)" not in src
 
     allocation = _read(
-        Path("apps/frontend/src/components/portfolio/AllocationChart.tsx")
+        Path("apps/frontend/src/components/portfolio/PortfolioSummary.tsx")
     )
     assert "formatPercentFromPercentValue(d.percentage, { dp: 1 })" in allocation
     assert "formatAmount(d.percentage, 1)}%" not in allocation

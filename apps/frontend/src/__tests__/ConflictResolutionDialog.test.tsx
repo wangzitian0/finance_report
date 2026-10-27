@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { ConflictResolutionDialog } from "@/components/review/TransactionTable";
+import { ConflictResolutionDialog } from "@/components/review/StatementReview";
 
 describe("ConflictResolutionDialog", () => {
     const onClose = vi.fn();

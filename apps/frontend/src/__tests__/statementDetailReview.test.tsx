@@ -595,7 +595,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
       return Promise.reject(new Error(`Unexpected path ${path}`));
     });
 
-    const { StatementHeader } = await import("@/components/review/TransactionTable");
+    const { StatementHeader } = await import("@/components/review/StatementReview");
     const { statementDisplayTitle, canImportBrokerageStatement } = await import("@/lib/statusLabels");
     expect(statementDisplayTitle({ original_filename: "", institution: "DBS", period_start: "2026-01-01", period_end: "2026-01-31" })).toBe("DBS (2026-01-01 – 2026-01-31)");
     expect(canImportBrokerageStatement({ institution: "Straits Capital", original_filename: "bsb_001_straits_capital.pdf", brokerage_import_failed: false })).toBe(false);

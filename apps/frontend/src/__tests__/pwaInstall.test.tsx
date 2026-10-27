@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
   InstallAppPromptView,
   type PwaInstallPromptViewState,
-} from "@/components/pwa/InstallAppPrompt"
+} from "@/components/AppShell"
 import {
   PWA_INSTALL_DISMISS_COOLDOWN_MS,
   PWA_INSTALL_DISMISSED_AT_KEY,

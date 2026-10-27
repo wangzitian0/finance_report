@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SettingsPage from "@/app/(main)/settings/page";
-import LlmSettingsPanel from "@/components/settings/LlmSettingsPanel";
+import { LlmSettingsPanel } from "@/components/settings/SettingsPanels";
 import { apiOperation } from "@/lib/api-client";
 
 vi.mock("next/navigation", () => ({

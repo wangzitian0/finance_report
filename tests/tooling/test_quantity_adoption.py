@@ -29,8 +29,8 @@ def test_AC12_30_4_frontend_quantity_formatting_is_not_exported_from_money():
     assert "formatQuantity" in quantity_index
 
     call_sites = [
-        Path("apps/frontend/src/components/portfolio/HoldingsTable.tsx"),
-        Path("apps/frontend/src/components/portfolio/HoldingDetail.tsx"),
+        # HoldingsTable and HoldingDetail.
+        Path("apps/frontend/src/components/portfolio/Holdings.tsx"),
     ]
     for path in call_sites:
         src = _read(path)

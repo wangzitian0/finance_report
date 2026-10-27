@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { PriceUpdateForm } from "@/components/portfolio/PriceUpdateForm"
+import { PriceUpdateForm } from "@/components/portfolio/Holdings"
 import { apiOperation } from "@/lib/api-client"
 import type { PortfolioHolding, PriceUpdateBatchResponse } from "@/lib/types"
 

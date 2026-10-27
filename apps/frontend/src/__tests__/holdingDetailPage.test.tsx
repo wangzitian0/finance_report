@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { HoldingDetail } from "@/components/portfolio/HoldingDetail"
+import { HoldingDetail } from "@/components/portfolio/Holdings"
 import { apiOperation } from "@/lib/api-client"
 import type { DividendEvent, PortfolioHolding, RealizedLot } from "@/lib/types"
 

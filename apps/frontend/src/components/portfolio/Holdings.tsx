@@ -1,14 +1,165 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-
-import { apiOperation } from "@/lib/api-client";
+import Link from "next/link";
+import { PortfolioHolding, PriceUpdate } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatQuantity } from "@/lib/audit/quantity";
 import { formatDateDisplay } from "@/lib/date";
 import { formatSignedPercentFromPercentValue } from "@/lib/audit/ratio/format";
 import { pnlColorClass } from "@/lib/statusLabels";
+import { portfolioHoldingHref } from "@/components/navigation";
+import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+import { apiOperation } from "@/lib/api-client";
+import { useToast } from "@/components/ui/Toast";
+
+interface HoldingsTableProps {
+  holdings: PortfolioHolding[];
+  showDisposed?: boolean;
+}
+
+export function HoldingsTable({
+  holdings,
+  showDisposed = false,
+}: HoldingsTableProps) {
+  const filtered = showDisposed
+    ? holdings
+    : holdings.filter((h) => h.status === "active");
+
+  if (filtered.length === 0) {
+    return (
+      <div className="card p-8 text-center">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[var(--background-muted)] text-muted mb-4">
+          <svg
+            className="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+            />
+          </svg>
+        </div>
+        <p className="text-muted">No holdings found</p>
+        <p className="text-sm text-muted mt-1">
+          Upload brokerage statements and reconcile to see holdings.
+        </p>
+      </div>
+    );
+  }
+
+  // Group by broker/account
+  const grouped = filtered.reduce(
+    (groups, h) => {
+      const key = h.account_name ?? "Unknown";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(h);
+      return groups;
+    },
+    {} as Record<string, PortfolioHolding[]>,
+  );
+
+  return (
+    <div className="space-y-4">
+      {Object.entries(grouped).map(([broker, brokerHoldings]) => (
+        <div key={broker} className="card">
+          <div className="card-header flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="badge badge-primary">{broker}</span>
+              <span className="text-xs text-muted">
+                {brokerHoldings.length} holdings
+              </span>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="text-left px-4 py-2 font-medium">Asset</th>
+                  <th className="text-right px-4 py-2 font-medium">Qty</th>
+                  <th className="text-right px-4 py-2 font-medium">
+                    Cost Basis
+                  </th>
+                  <th className="text-right px-4 py-2 font-medium">
+                    Market Value
+                  </th>
+                  <th className="text-right px-4 py-2 font-medium">P&L</th>
+                  <th className="text-right px-4 py-2 font-medium">P&L %</th>
+                  <th className="text-left px-4 py-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border)]">
+                {brokerHoldings.map((h) => (
+                  <tr
+                    key={h.id}
+                    className="hover:bg-[var(--background-muted)]/50 transition-colors"
+                  >
+                    <td className="px-4 py-2">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Link
+                          href={portfolioHoldingHref(h.asset_identifier)}
+                          className="font-medium font-mono text-[var(--accent)] hover:underline"
+                        >
+                          {h.asset_identifier}
+                        </Link>
+                        <ProvenanceBadge provenance={h.provenance} />
+                      </span>
+                      <div className="text-xs text-muted mt-0.5">
+                        {formatDateDisplay(h.acquisition_date)}
+                        {h.sector && ` · ${h.sector}`}
+                        {/* #1487: a foreign holding's values below are shown in
+                            the reporting currency — surface its native currency
+                            so the denomination is never hidden. */}
+                        {h.native_currency && h.native_currency !== h.currency && (
+                          <span title={`Denominated in ${h.native_currency}; values shown in ${h.currency}`}>
+                            {` · ${h.native_currency}-denominated`}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 text-right font-mono">
+                      {formatQuantity(h.quantity)}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {formatCurrencyLocale(h.cost_basis, h.currency)}
+                    </td>
+                    <td className="px-4 py-2 text-right font-medium">
+                      {formatCurrencyLocale(h.market_value, h.currency)}
+                    </td>
+                    <td
+                      className={`px-4 py-2 text-right font-medium ${pnlColorClass(h.unrealized_pnl)}`}
+                    >
+                      {formatCurrencyLocale(h.unrealized_pnl, h.currency)}
+                    </td>
+                    <td
+                      className={`px-4 py-2 text-right ${pnlColorClass(h.unrealized_pnl_percent)}`}
+                    >
+                      {formatSignedPercentFromPercentValue(
+                        h.unrealized_pnl_percent,
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      <span
+                        className={`badge ${h.status === "active" ? "badge-success" : "badge-muted"}`}
+                      >
+                        {h.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // The body of the holding drawer that `/portfolio?ticker=` opens.
 export function HoldingDetail({ ticker }: { ticker: string }) {
@@ -282,5 +433,230 @@ export function HoldingDetail({ ticker }: { ticker: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+interface PriceRow {
+  asset_identifier: string;
+  price: string;
+  currency: string;
+  price_date: string;
+}
+
+function todayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const EMPTY_ROW: PriceRow = {
+  asset_identifier: "",
+  price: "",
+  currency: "USD",
+  price_date: todayStr(),
+};
+
+interface PriceUpdateFormProps {
+  /** Pre-filled tickers from holdings, so user can pick from them */
+  knownTickers?: string[];
+  onSuccess?: () => void;
+}
+
+export function PriceUpdateForm({
+  knownTickers = [],
+  onSuccess,
+}: PriceUpdateFormProps) {
+  const { showToast } = useToast();
+  const [rows, setRows] = useState<PriceRow[]>([{ ...EMPTY_ROW }]);
+
+  const mutation = useMutation({
+    mutationFn: (updates: PriceUpdate[]) =>
+      apiOperation("update_prices_portfolio_prices_update_post", {
+        body: { updates },
+      }),
+    onSuccess: (result) => {
+      showToast(`Updated ${result.updated_count} price(s)`, "success");
+      setRows([{ ...EMPTY_ROW }]);
+      onSuccess?.();
+    },
+    onError: (err: Error) => {
+      showToast(`Failed: ${err.message}`, "error");
+    },
+  });
+
+  const updateRow = (index: number, field: keyof PriceRow, value: string) => {
+    setRows((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
+
+  const addRow = () => setRows((prev) => [...prev, { ...EMPTY_ROW }]);
+
+  const removeRow = (index: number) => {
+    setRows((prev) =>
+      prev.length <= 1 ? prev : prev.filter((_, i) => i !== index),
+    );
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const valid = rows.filter(
+      (r) => r.asset_identifier.trim() && r.price.trim(),
+    );
+    if (valid.length === 0) {
+      showToast("Add at least one price update", "error");
+      return;
+    }
+
+    const updates: PriceUpdate[] = valid.map((r) => ({
+      asset_identifier: r.asset_identifier.trim(),
+      price: r.price.trim(),
+      currency: r.currency.trim() || "USD",
+      price_date: r.price_date,
+    }));
+
+    mutation.mutate(updates);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-3">
+        {rows.map((row, index) => (
+          <div key={index} className="flex items-end gap-3">
+            <div className="flex-1">
+              <label className="block text-xs text-muted mb-1">
+                {index === 0 ? "Ticker / Asset" : ""}
+              </label>
+              {knownTickers.length > 0 ? (
+                <select
+                  value={row.asset_identifier}
+                  onChange={(e) =>
+                    updateRow(index, "asset_identifier", e.target.value)
+                  }
+                  className="input"
+                  required
+                >
+                  <option value="">Select asset...</option>
+                  {knownTickers.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={row.asset_identifier}
+                  onChange={(e) =>
+                    updateRow(index, "asset_identifier", e.target.value)
+                  }
+                  placeholder="AAPL, MSFT..."
+                  className="input"
+                  required
+                />
+              )}
+            </div>
+            <div className="w-32">
+              <label className="block text-xs text-muted mb-1">
+                {index === 0 ? "Price" : ""}
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={row.price}
+                onChange={(e) => updateRow(index, "price", e.target.value)}
+                placeholder="0.00"
+                className="input"
+                required
+              />
+            </div>
+            <div className="w-20">
+              <label className="block text-xs text-muted mb-1">
+                {index === 0 ? "CCY" : ""}
+              </label>
+              <input
+                type="text"
+                maxLength={3}
+                value={row.currency}
+                onChange={(e) =>
+                  updateRow(index, "currency", e.target.value.toUpperCase())
+                }
+                className="input uppercase"
+                required
+              />
+            </div>
+            <div className="w-36">
+              <label className="block text-xs text-muted mb-1">
+                {index === 0 ? "Date" : ""}
+              </label>
+              <input
+                type="date"
+                value={row.price_date}
+                onChange={(e) => updateRow(index, "price_date", e.target.value)}
+                className="input"
+                required
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => removeRow(index)}
+              className="p-2 text-muted hover:text-[var(--error)] transition-colors"
+              aria-label="Remove row"
+              disabled={rows.length <= 1}
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between pt-2">
+        <button
+          type="button"
+          onClick={addRow}
+          className="btn-ghost text-sm flex items-center gap-1"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+          Add Row
+        </button>
+        <button
+          type="submit"
+          disabled={mutation.isPending}
+          className="btn-primary flex items-center gap-2"
+        >
+          {mutation.isPending && (
+            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          )}
+          Update Prices
+        </button>
+      </div>
+    </form>
   );
 }

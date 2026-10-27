@@ -11,17 +11,11 @@ vi.mock("next/navigation", () => ({
     useRouter: () => ({ replace: replaceMock }),
 }));
 
-vi.mock("@/components/settings/GeneralSettingsPanel", () => ({
-    default: () => <div data-testid="general-settings">GeneralMock</div>,
-}));
-vi.mock("@/components/settings/AiSettingsPanel", () => ({
-    default: () => <div data-testid="ai-settings">AiMock</div>,
-}));
-vi.mock("@/components/settings/LlmSettingsPanel", () => ({
-    default: () => <div data-testid="llm-settings">LlmMock</div>,
-}));
-vi.mock("@/components/settings/AccountsPanel", () => ({
-    default: () => <div data-testid="accounts-settings">AccountsMock</div>,
+vi.mock("@/components/settings/SettingsPanels", () => ({
+    GeneralSettingsPanel: () => <div data-testid="general-settings">GeneralMock</div>,
+    AiSettingsPanel: () => <div data-testid="ai-settings">AiMock</div>,
+    LlmSettingsPanel: () => <div data-testid="llm-settings">LlmMock</div>,
+    AccountsPanel: () => <div data-testid="accounts-settings">AccountsMock</div>,
 }));
 
 describe("Merged Settings page (EPIC-022 AC22.21.4)", () => {

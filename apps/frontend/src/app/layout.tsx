@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import type { Viewport } from "next";
-import { Analytics } from "@/components/Analytics";
-import { AuthGuard } from "@/components/AuthGuard";
+import { Analytics, AuthGuard } from "@/components/RootClients";
 import { FrontendTelemetry } from "@/components/FrontendTelemetry";
 import { analyticsClientIdMissingInDeployedEnv } from "@/lib/analytics-env";
 import { Inter } from "next/font/google";
