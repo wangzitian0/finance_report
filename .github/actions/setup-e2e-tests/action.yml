@@ -84,7 +84,7 @@ runs:
         # pytest chooses tests/e2e as its rootdir.
         echo "PYTHONPATH=${GITHUB_WORKSPACE:-$PWD}${PYTHONPATH:+:$PYTHONPATH}" >> "$GITHUB_ENV"
 
-    # The one Playwright install (cache, system deps, retry): see install-playwright.
+    # The one Playwright install (version-keyed cache, retry, no apt): see install-playwright.
     - name: Install Playwright browser
       uses: ./.github/actions/install-playwright
       with:

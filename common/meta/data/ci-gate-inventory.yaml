@@ -380,7 +380,7 @@ gates:
     inputs: [workflow_run_timing]
     outputs: [budget_verdict, step_summary]
     artifacts: []
-    failure_semantics: Non-blocking (#2688) — a main-branch run whose execution window passes the 8 minute budget turns only this job red and comments on #2688; a PR run only prints its verdict against the 4 minute budget. It does not affect merge authority.
+    failure_semantics: Report-only (#2688) — a main-branch run whose execution window passes the 8 minute budget turns only this job red and comments on the budget issue; a PR run only prints its verdict against the 4 minute budget. Job-level continue-on-error keeps the ci.yml run conclusion green, because release.yml requires a successful main CI run; this job changes neither merge authority nor release eligibility.
     action: keep
   - id: docs.build
     stage: github_ci.merge_authority
@@ -637,7 +637,7 @@ gates:
     owner: reusable benchmark.yml (deploy caller)
     triggers: [workflow_dispatch]
     blocks_workflow: true
-    execution_condition: "always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.provider-gate.result == 'success' && needs.ai-ocr-gate.result == 'success'"
+    execution_condition: "always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' && needs.provider-gate.result == 'success'"
     inputs: [staging_environment, version_ref, commit_ref]
     outputs: [benchmark_summary]
     artifacts: []

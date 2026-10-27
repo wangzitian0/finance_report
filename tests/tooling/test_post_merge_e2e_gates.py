@@ -4963,15 +4963,26 @@ def test_AC8_13_34_main_ci_budget_is_enforced_by_a_non_required_job() -> None:
     # Not a merge gate: finish does not wait for it, and the ruleset requires only finish.
     assert "pipeline-budget" not in jobs["finish"]["needs"]
     assert budget["needs"] == ["finish"]
-    # release.yml requires a successful main CI run, so a red budget job must not fail the run.
+    # release.yml requires a successful main CI run (verify_source_ci), so a red budget job
+    # must never fail the run: job-level continue-on-error, and no needs on it elsewhere.
     assert budget["continue-on-error"] is True
+    assert not [
+        name
+        for name, job in jobs.items()
+        if "pipeline-budget" in (job.get("needs") or [])
+    ]
+    # An SDK install flake in the report-only job must not decide anything either.
+    setup_steps = [step for step in budget["steps"] if "uses" in step]
+    assert len(setup_steps) == 3
+    assert all(step.get("continue-on-error") is True for step in setup_steps)
     assert budget["permissions"]["issues"] == "write"
     assert (
         enforce["if"]
         == "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}"
     )
     assert "continue-on-error" not in enforce
-    _has(enforce["run"], "--budget main", "--enforce", "--comment-issue 2688")
+    _has(enforce["run"], "--budget main", "--enforce", "--comment")
+    _lacks(enforce["run"], "2688")
 
 
 def test_AC8_13_34_pr_ci_only_prints_the_budget_verdict() -> None:
@@ -4984,8 +4995,12 @@ def test_AC8_13_34_pr_ci_only_prints_the_budget_verdict() -> None:
         == "${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}"
     )
     assert summary["continue-on-error"] is True
-    _has(summary["run"], "--budget", "'pr'")
-    _lacks(summary["run"], "--enforce", "--comment-issue")
+    # The exact expression: a PR run is judged against `pr`, any other event against `main`.
+    assert (
+        "--budget \"${{ github.event_name == 'pull_request' && 'pr' || 'main' }}\""
+        in summary["run"]
+    )
+    _lacks(summary["run"], "--enforce", "--comment")
 
 
 def test_AC8_13_34_release_budget_is_enforced_on_tag_and_main_runs_only() -> None:
@@ -5005,11 +5020,12 @@ def test_AC8_13_34_release_budget_is_enforced_on_tag_and_main_runs_only() -> Non
     )
     assert printing["continue-on-error"] is True
     _has(printing["run"], "--budget release")
-    _lacks(printing["run"], "--enforce", "--comment-issue")
+    _lacks(printing["run"], "--enforce", "--comment")
     # A tag or main run enforces, and a check that cannot run must not be hidden.
     assert enforcing["if"] == "${{ " + on_tag_or_main + " }}"
     assert "continue-on-error" not in enforcing
-    _has(enforcing["run"], "--budget release", "--enforce", "--comment-issue 2688")
+    _has(enforcing["run"], "--budget release", "--enforce", "--comment")
+    _lacks(enforcing["run"], "2688")
     # Nothing downstream may wait for the budget job: it is not a delivery gate.
     needing = [
         name
@@ -5019,3 +5035,23 @@ def test_AC8_13_34_release_budget_is_enforced_on_tag_and_main_runs_only() -> Non
         if "post-merge-summary" in (job.get("needs") or [])
     ]
     assert needing == []
+
+
+def test_AC8_13_14_financial_benchmark_runs_beside_the_ai_ocr_gate() -> None:
+    """AC-testing.deploy-gates.5: the benchmark waits for the provider gate, not the AI/OCR gate (#2688).
+
+    It keeps every run condition of the AI/OCR gate, so it still runs only when the gate
+    runs, and post-merge-delivery still fails the delivery when either one fails.
+    """
+    jobs = yaml.safe_load(read(".github/workflows/deploy.yml"))["jobs"]
+    benchmark = jobs["financial-benchmark"]
+    gate_clauses = set(re.split(r" && ", jobs["ai-ocr-gate"]["if"].strip("${} ")))
+    benchmark_clauses = set(re.split(r" && ", benchmark["if"].strip("${} ")))
+
+    assert benchmark["needs"] == ["build-and-deploy", "provider-gate"]
+    assert "ai-ocr-gate" not in benchmark["if"]
+    assert gate_clauses <= benchmark_clauses
+    assert "needs.build-and-deploy.result == 'success'" in benchmark_clauses
+    delivery = jobs["post-merge-delivery"]
+    assert {"ai-ocr-gate", "financial-benchmark"} <= set(delivery["needs"])
+    assert 'benchmark_result" != "success"' in read(".github/workflows/deploy.yml")

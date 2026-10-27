@@ -1769,11 +1769,11 @@ jobs:
           fi
           echo "✅ All checks passed!"
 
-  # #2688: the time budget of this run. The job is not a required check, so a slow main
-  # run turns only this job red and comments on #2688; it blocks no merge and no deploy.
-  # A PR run only prints the verdict and never fails on it. Job-level continue-on-error keeps
-  # the run green: release.yml requires a successful main CI run (verify_source_ci), so a red
-  # budget job must not turn the run red. The job itself still shows the overrun.
+  # #2688: the time budget of this run. A PR run only prints the verdict. A main run past its
+  # budget turns this job red and comments on the budget issue. Job-level continue-on-error
+  # keeps the ci.yml run conclusion green whatever happens here (an overrun, a script crash,
+  # a missing timing input or an SDK install flake): release.yml requires a successful main
+  # CI run (verify_source_ci), so this job must never decide that conclusion.
   pipeline-budget:
     name: Pipeline Budget
     needs: [finish]
@@ -1787,13 +1787,16 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@v7
+        continue-on-error: true
 
       - name: Set up Python
+        continue-on-error: true
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install infra2-sdk
+        continue-on-error: true
         uses: ./.github/actions/install-infra2-sdk
 
       - name: Print the time budget verdict
@@ -1809,7 +1812,7 @@ jobs:
             --summary-path "$GITHUB_STEP_SUMMARY" \
             --budget "${{ github.event_name == 'pull_request' && 'pr' || 'main' }}"
 
-      # No continue-on-error: a budget check that cannot run must be red, not green.
+      # No step-level continue-on-error: a budget check that cannot run must show red on this job.
       - name: Enforce the main-branch time budget
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         env:
@@ -1822,4 +1825,4 @@ jobs:
             --summary-path "$GITHUB_STEP_SUMMARY" \
             --budget main \
             --enforce \
-            --comment-issue 2688
+            --comment

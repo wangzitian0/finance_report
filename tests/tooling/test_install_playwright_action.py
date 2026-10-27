@@ -24,8 +24,8 @@ def _yaml(path: str) -> dict:
 def _files_that_run_playwright_install() -> list[str]:
     candidates = sorted(
         [
-            *(ROOT / ".github" / "workflows").glob("*.yml"),
-            *(ROOT / ".github" / "actions").glob("*/action.yml"),
+            *(ROOT / ".github" / "workflows").glob("*.y*ml"),
+            *(ROOT / ".github" / "actions").glob("*/action.y*ml"),
         ]
     )
     found: list[str] = []
@@ -83,6 +83,32 @@ def test_the_cache_key_is_the_playwright_version_and_the_browser() -> None:
 
     ids = [step.get("id") for step in steps]
     assert ids.index("version") < steps.index(cache)
+
+
+def test_no_step_of_the_install_action_is_skipped_by_a_cache_hit() -> None:
+    """AC-testing.toolchain.11: a cache hit never skips the install.
+
+    The install is idempotent and fast on a warm cache. Skipping it on `cache-hit`
+    would let a restored browser from another revision pass unchecked.
+    """
+    steps = _yaml(ACTION)["runs"]["steps"]
+
+    assert [step["name"] for step in steps if "if" in step] == []
+    assert "cache-hit" not in (ROOT / ACTION).read_text(encoding="utf-8")
+
+
+def test_the_install_keeps_the_original_error_when_the_retries_run_out() -> None:
+    """AC-testing.toolchain.11: the last attempt's output is printed after the final error."""
+    install = next(
+        step["run"]
+        for step in _yaml(ACTION)["runs"]["steps"]
+        if "$PLAYWRIGHT_BROWSER" in step.get("run", "") and " install " in step["run"]
+    )
+
+    assert '2>&1 | tee "$log"' in install
+    assert 'rc="${PIPESTATUS[0]}"' in install
+    assert install.index("::error::") < install.index('cat "$log"')
+    assert install.rstrip().endswith('exit "$rc"')
 
 
 def test_the_install_adds_one_browser_and_no_apt_packages() -> None:

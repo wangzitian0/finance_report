@@ -6,6 +6,7 @@ case was SKIPPED, reported as PASS, and the workflow stayed green.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
@@ -13,6 +14,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "benchmark.yml"
 E2E_REQUIREMENTS = REPO_ROOT / "tests" / "e2e" / "requirements.txt"
+LOCK = REPO_ROOT / "apps" / "backend" / "uv.lock"
 
 
 def _steps() -> list[dict]:
@@ -26,6 +28,26 @@ def _step(name_part: str) -> dict:
         f"expected one step with {name_part!r}, found {len(matches)}"
     )
     return matches[0]
+
+
+def _lock_version(package: str) -> str:
+    text = LOCK.read_text(encoding="utf-8")
+    match = re.search(
+        rf'\[\[package\]\]\nname = "{package}"\nversion = "([^"]+)"', text
+    )
+    assert match, f"{package} is not in {LOCK}"
+    return match.group(1)
+
+
+def test_the_playwright_version_is_pinned_and_matches_the_lockfile() -> None:
+    """The benchmark takes Playwright from the E2E requirements, so the pin lives there.
+
+    Unpinned, the version froze at whatever the venv cache held (1.60.0) and the
+    release-critical benchmark changed browser whenever that cache was rebuilt.
+    """
+    lines = E2E_REQUIREMENTS.read_text(encoding="utf-8").split()
+
+    assert f"playwright=={_lock_version('playwright')}" in lines
 
 
 def test_the_run_step_does_not_swallow_a_failure() -> None:

@@ -6,8 +6,9 @@ execution time, and per-job durations to a Markdown summary file.
 
 With `--budget` it also compares the execution window with the owner's pipeline
 budget (#2688). `--enforce` exits 1 when the budget is exceeded, and
-`--comment-issue` posts the overrun on that issue. Queue time never counts: it
-depends on runner capacity, not on the workflow.
+`--comment` posts the overrun on the budget issue once per run. The time before
+the first job starts never counts: it depends on runner capacity, not on the
+workflow. A job that waits for a runner later in the run does count.
 """
 
 from __future__ import annotations
@@ -25,13 +26,17 @@ from common.runtime.github_api import parse_github_time
 
 # Owner budgets for the execution window of one run, in seconds (#2688, goal G28).
 # pr: PR checks, 3-4 minutes. main: main-branch regression after a merge, 7-8
-# minutes. release: tag to staging-validated, 15 minutes. Each is the upper bound.
+# minutes. release: the staging deploy run after a tag, 15 minutes. Each is the upper
+# bound. The release window starts at the first job of the dispatched deploy run, so the
+# tag-push image run and the gap before the dispatch are not in it.
 PIPELINE_BUDGET_SECONDS: dict[str, int] = {
     "pr": 4 * 60,
     "main": 8 * 60,
     "release": 15 * 60,
 }
 SLOWEST_JOBS_IN_COMMENT = 3
+# The one issue that receives an overrun comment.
+PIPELINE_BUDGET_ISSUE = "2688"
 
 
 @dataclass(frozen=True)
@@ -260,6 +265,31 @@ def post_issue_comment(repo: str, issue: str, body: str) -> None:
     )
 
 
+def already_commented(repo: str, issue: str, run_url: str) -> bool:
+    """True when a comment on the issue already names this run (a rerun posts once)."""
+    try:
+        listing = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "view",
+                issue,
+                "--repo",
+                repo,
+                "--json",
+                "comments",
+                "--jq",
+                ".comments[].body",
+            ],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+    except (subprocess.CalledProcessError, OSError):
+        return False
+    return run_url != "unknown" and run_url in listing.stdout
+
+
 def check_budget(
     run: dict[str, Any],
     *,
@@ -267,7 +297,7 @@ def check_budget(
     title: str,
     repo: str,
     enforce: bool,
-    comment_issue: str | None,
+    comment: bool,
 ) -> int:
     """Print the verdict. Return 1 only when `enforce` is set and the run fails it."""
     verdict = budget_verdict(run, kind)
@@ -282,15 +312,17 @@ def check_budget(
         f"{format_duration(verdict.execution_seconds)} against "
         f"{format_duration(verdict.budget_seconds)} ({kind})."
     )
-    if comment_issue:
+    if comment:
+        issue = PIPELINE_BUDGET_ISSUE
         try:
-            post_issue_comment(
-                repo,
-                comment_issue,
-                format_overrun_comment(run, verdict, title=title),
-            )
+            if already_commented(repo, issue, str(run.get("url", "unknown"))):
+                print(f"Issue {issue} already names this run; not commenting again.")
+            else:
+                post_issue_comment(
+                    repo, issue, format_overrun_comment(run, verdict, title=title)
+                )
         except (subprocess.CalledProcessError, OSError) as exc:
-            print(f"::warning::Could not comment on issue {comment_issue}: {exc}")
+            print(f"::warning::Could not comment on issue {issue}: {exc}")
     return 1 if enforce else 0
 
 
@@ -311,12 +343,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Exit 1 when the --budget is exceeded or cannot be measured.",
     )
     parser.add_argument(
-        "--comment-issue",
-        help="Issue number that receives a comment when the --budget is exceeded.",
+        "--comment",
+        action="store_true",
+        help=f"Comment on issue {PIPELINE_BUDGET_ISSUE} when the --budget is exceeded.",
     )
     args = parser.parse_args(argv)
-    if (args.enforce or args.comment_issue) and not args.budget:
-        parser.error("--enforce and --comment-issue need --budget")
+    if (args.enforce or args.comment) and not args.budget:
+        parser.error("--enforce and --comment need --budget")
 
     run = load_run(args.repo, args.run_id)
     summary = format_timing_summary(run, title=args.title, budget_kind=args.budget)
@@ -332,7 +365,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         title=args.title,
         repo=args.repo,
         enforce=args.enforce,
-        comment_issue=args.comment_issue,
+        comment=args.comment,
     )
 
 

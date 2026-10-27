@@ -769,8 +769,12 @@ jobs:
 
   financial-benchmark:
     name: Financial Benchmark
-    needs: [build-and-deploy, provider-gate, ai-ocr-gate]
-    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.provider-gate.result == 'success' && needs.ai-ocr-gate.result == 'success' }}
+    # Runs beside the AI/OCR gate, not after it (#2688): the benchmark reads staging and needs
+    # no output of the gate. It keeps the gate's run conditions, so it runs only when the gate
+    # runs, and post-merge-delivery fails when either one fails. Measured on branch run
+    # 40304815766: no timeout in either job (gate test 91 s, was 95 s).
+    needs: [build-and-deploy, provider-gate]
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' && needs.provider-gate.result == 'success' }}
     # benchmark.yml publishes the report to GitHub Pages. A caller must grant what the called job requests.
     permissions:
       contents: write
@@ -938,7 +942,7 @@ jobs:
             --budget release
 
       # A tag or main run that exceeds the budget fails this non-required job and
-      # comments on #2688. No continue-on-error: a check that cannot run must be red.
+      # comments on the budget issue. No step-level continue-on-error: a check that cannot run must show red.
       - name: Write post-merge timing summary and enforce the time budget
         if: ${{ github.ref_type == 'tag' || github.ref == 'refs/heads/main' }}
         env:
@@ -951,7 +955,7 @@ jobs:
             --summary-path "$GITHUB_STEP_SUMMARY" \
             --budget release \
             --enforce \
-            --comment-issue 2688
+            --comment
 
   # Release image promotion jobs
   promote:

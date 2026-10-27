@@ -214,11 +214,18 @@ def _run_taking(execution_seconds: int, *, queue_seconds: int = 0) -> dict:
     }
 
 
-def _main_with(monkeypatch, tmp_path, run: dict, *flags: str) -> tuple[int, list, Path]:
+def _main_with(
+    monkeypatch, tmp_path, run: dict, *flags: str, existing_comments: str = ""
+) -> tuple[int, list, Path]:
+    """Run main(); `gh_calls` holds the `gh issue comment` calls only."""
     summary_path = tmp_path / "summary.md"
     gh_calls: list[list[str]] = []
 
     def fake_run(args, *, check, text, capture_output):
+        if args[:3] == ["gh", "issue", "view"]:
+            return subprocess.CompletedProcess(
+                args, 0, stdout=existing_comments, stderr=""
+            )
         gh_calls.append(args)
         return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
 
@@ -241,7 +248,7 @@ def _main_with(monkeypatch, tmp_path, run: dict, *flags: str) -> tuple[int, list
 
 
 def test_pipeline_budgets_are_the_owner_limits() -> None:
-    """PR checks 4 min, main regression 8 min, tag to staging-validated 15 min."""
+    """PR checks 4 min, main regression 8 min, staging deploy run after a tag 15 min."""
     assert timing_summary.PIPELINE_BUDGET_SECONDS == {
         "pr": 240,
         "main": 480,
@@ -299,8 +306,7 @@ def test_enforce_fails_an_over_budget_run_and_comments_on_the_issue(
         "--budget",
         "main",
         "--enforce",
-        "--comment-issue",
-        "2688",
+        "--comment",
     )
 
     assert code == 1
@@ -326,8 +332,7 @@ def test_enforce_passes_a_run_within_budget_without_commenting(
         "--budget",
         "main",
         "--enforce",
-        "--comment-issue",
-        "2688",
+        "--comment",
     )
 
     assert code == 0
@@ -379,8 +384,7 @@ def test_enforce_still_fails_when_the_issue_comment_fails(
             "--budget",
             "release",
             "--enforce",
-            "--comment-issue",
-            "2688",
+            "--comment",
         ]
     )
 
@@ -389,7 +393,7 @@ def test_enforce_still_fails_when_the_issue_comment_fails(
 
 
 def test_enforce_and_comment_need_a_budget(tmp_path) -> None:
-    for flags in (["--enforce"], ["--comment-issue", "2688"]):
+    for flags in (["--enforce"], ["--comment"]):
         with pytest.raises(SystemExit) as raised:
             main(
                 [
@@ -403,3 +407,43 @@ def test_enforce_and_comment_need_a_budget(tmp_path) -> None:
                 ]
             )
         assert raised.value.code == 2
+
+
+def test_a_rerun_does_not_comment_twice_for_the_same_run(monkeypatch, tmp_path) -> None:
+    run = _run_taking(9 * 60)
+    flags = ("--budget", "main", "--enforce", "--comment")
+
+    first, first_calls, _ = _main_with(monkeypatch, tmp_path, run, *flags)
+    again, again_calls, _ = _main_with(
+        monkeypatch,
+        tmp_path,
+        run,
+        *flags,
+        existing_comments="Pipeline budget exceeded ... Run: " + run["url"],
+    )
+    other_run, other_calls, _ = _main_with(
+        monkeypatch,
+        tmp_path,
+        run,
+        *flags,
+        existing_comments="Run: https://github.example/actions/runs/1",
+    )
+
+    assert (first, len(first_calls)) == (1, 1)
+    # The failure still shows on the job; only the repeated comment is skipped.
+    assert (again, again_calls) == (1, [])
+    assert (other_run, len(other_calls)) == (1, 1)
+
+
+def test_the_comment_goes_to_the_one_budget_issue(monkeypatch, tmp_path) -> None:
+    _, gh_calls, _ = _main_with(
+        monkeypatch,
+        tmp_path,
+        _run_taking(9 * 60),
+        "--budget",
+        "main",
+        "--comment",
+    )
+
+    assert timing_summary.PIPELINE_BUDGET_ISSUE == "2688"
+    assert gh_calls[0][3] == timing_summary.PIPELINE_BUDGET_ISSUE

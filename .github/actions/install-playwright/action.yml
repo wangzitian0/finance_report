@@ -64,18 +64,22 @@ runs:
         read -r -a playwright <<< "$PLAYWRIGHT_COMMAND"
         attempts=3
         delay=10
+        log="$(mktemp)"
+        rc=1
         for n in $(seq 1 "$attempts"); do
           echo "::group::playwright install ${PLAYWRIGHT_BROWSER} (attempt ${n}/${attempts})"
-          if "${playwright[@]}" install "$PLAYWRIGHT_BROWSER"; then
-            echo "::endgroup::"
+          "${playwright[@]}" install "$PLAYWRIGHT_BROWSER" 2>&1 | tee "$log"
+          rc="${PIPESTATUS[0]}"
+          echo "::endgroup::"
+          if [ "$rc" -eq 0 ]; then
             exit 0
           fi
-          echo "::endgroup::"
           if [ "$n" -lt "$attempts" ]; then
             echo "playwright install attempt ${n} failed; retrying in ${delay}s..."
             sleep "$delay"
             delay=$((delay * 2))
           fi
         done
-        echo "::error::playwright install ${PLAYWRIGHT_BROWSER} failed after ${attempts} attempts."
-        exit 1
+        echo "::error::playwright install ${PLAYWRIGHT_BROWSER} failed after ${attempts} attempts (rc=${rc}). Original error:"
+        cat "$log"
+        exit "$rc"

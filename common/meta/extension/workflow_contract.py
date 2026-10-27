@@ -199,6 +199,11 @@ SSOT_FORBIDDEN_PROSE: dict[str, tuple[tuple[str, str], ...]] = {
             "(#2688), not by a range in ci-cd.md",
         ),
         (
+            "4 seeded file-level shards",
+            "the shard count is set only by the `backend` job matrix in ci.yml "
+            "(#2688), not by a number in ci-cd.md",
+        ),
+        (
             "Shards 1-5",
             "the shard count is set only by the `backend` job matrix in ci.yml "
             "(#2688), not by a range in ci-cd.md",
