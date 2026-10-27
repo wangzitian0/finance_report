@@ -27,7 +27,6 @@ from common.meta.extension.governance_report._types import (
 )
 from common.meta.extension.governance_report._util import (
     _as_strings,
-    _display_path,
     _display_ref,
     _file_part,
     _gate_target,
@@ -36,7 +35,6 @@ from common.meta.extension.governance_report._util import (
     _is_high_risk,
     _is_machine_owned,
     _manifest_entry_target,
-    _source_relative_path,
 )
 from common.meta.extension.governance_report._metrics import (
     _compare_governance_trends,
@@ -102,7 +100,6 @@ __all__ = [
     "_compare_governance_trends",
     "_contains_high_risk_terms",
     "_coverage_ratio",
-    "_display_path",
     "_display_ref",
     "_entries_from_manifest_data",
     "_entry_by_key",
@@ -129,7 +126,6 @@ __all__ = [
     "_resolve_repo_path",
     "_source_changed_files",
     "_source_manifest_repo_path",
-    "_source_relative_path",
     "build_report",
     "build_source_report",
     "evaluate_incremental_gate",

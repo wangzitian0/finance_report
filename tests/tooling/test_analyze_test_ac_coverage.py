@@ -240,7 +240,6 @@ groups:
         assert registry[extra_ac_id].epic == 5
 
         external_file = tmp_path.parent / "external_ac_test.py"
-        assert coverage._relative(external_file, tmp_path) == str(external_file)
 
         references, source_real_refs, source_placeholder_refs, source_stub_refs = (
             coverage.collect_references(

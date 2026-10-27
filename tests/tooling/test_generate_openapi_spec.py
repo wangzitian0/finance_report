@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 from common.platform import generate_openapi_spec as gen
 
@@ -16,7 +18,7 @@ def test_AC12_28_1_generator_emits_types_from_openapi(monkeypatch) -> None:
         "paths": {"/accounts": {"get": {"responses": {"200": {}}}}},
         "components": {"schemas": {"ErrorResponse": {"type": "object"}}},
     }
-    monkeypatch.setattr(gen, "_load_openapi", lambda: fake)
+    monkeypatch.setattr(gen, "load_openapi", lambda: fake)
 
     rendered = gen.generate()
 
@@ -25,6 +27,20 @@ def test_AC12_28_1_generator_emits_types_from_openapi(monkeypatch) -> None:
     assert '"ErrorResponse"' in rendered
     # Deterministic: keys are sorted, so a re-render is byte-identical.
     assert gen.render(fake) == gen.render(dict(reversed(list(fake.items()))))
+
+
+def test_AC12_28_1_load_openapi_imports_backend_app(monkeypatch, tmp_path) -> None:
+    """AC-platform.28.1: OpenAPI loading imports the backend app from backend root."""
+    fake_main = ModuleType("src.main")
+    fake_main.app = SimpleNamespace(openapi=lambda: {"paths": {}})
+    monkeypatch.setattr(gen, "BACKEND_ROOT", tmp_path)
+    monkeypatch.setitem(sys.modules, "src", ModuleType("src"))
+    monkeypatch.setitem(sys.modules, "src.main", fake_main)
+    while str(tmp_path) in sys.path:
+        sys.path.remove(str(tmp_path))
+
+    assert gen.load_openapi() == {"paths": {}}
+    assert str(tmp_path) in sys.path
 
 
 def test_AC12_28_2_staleness_gate_detects_drift(

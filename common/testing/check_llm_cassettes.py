@@ -14,6 +14,7 @@ scene) by gating cassette integrity for the whole corpus on every PR.
 
 from __future__ import annotations
 
+import ast
 import json
 import sys
 from collections.abc import Sequence
@@ -26,11 +27,26 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CASSETTE_DIR = REPO_ROOT / "common" / "testing" / "fixtures" / "llm_cassettes"
 TOLERANCE = Decimal("0.01")
 _STATEMENT_KEYS = ("opening_balance", "closing_balance", "transactions")
-# Mirror services/validation.normalize_amount_direction: the canonical extraction
-# carries a magnitude ``amount`` plus a ``direction`` (IN credits / OUT debits);
-# only when direction is absent do we fall back to the sign of ``amount``.
-_IN_DIRECTIONS = {"IN", "CREDIT", "CR", "DEPOSIT", "INFLOW"}
-_OUT_DIRECTIONS = {"OUT", "DEBIT", "DR", "WITHDRAWAL", "WITHDRAW", "OUTFLOW", "PAYMENT"}
+VALIDATION_SOURCE = REPO_ROOT / "apps/backend/src/extraction/base/validation.py"
+
+
+def production_direction_aliases(
+    source: Path = VALIDATION_SOURCE,
+) -> tuple[frozenset[str], frozenset[str]]:
+    """Read the production IN/OUT alias literals; the lint job cannot import the backend."""
+    names = ("IN_DIRECTION_ALIASES", "OUT_DIRECTION_ALIASES")
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    literals = {
+        target.id: frozenset(ast.literal_eval(node.value))
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name) and target.id in names
+    }
+    return literals[names[0]], literals[names[1]]
+
+
+_IN_DIRECTIONS, _OUT_DIRECTIONS = production_direction_aliases()
 
 
 def _response_text(response: object) -> str | None:

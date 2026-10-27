@@ -25,6 +25,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from common.meta.base.dependency_graph import build_dependency_graph
+from common.meta.extension.generate_api_operations import HTTP_METHODS
 
 
 @dataclass(frozen=True)
@@ -2001,7 +2002,6 @@ def build_impact_report(repo_root: Path, *, base_ref: str) -> dict[str, object]:
     return report
 
 
-_HTTP_METHODS = {"get", "put", "post", "delete", "patch", "options", "head", "trace"}
 _OPERATION_CALL = re.compile(
     r"\bapiOperation(?:Stream|Download|Upload)?\s*(?:<[^>]+>)?\s*\(\s*['\"]([^'\"]+)['\"]",
     re.DOTALL,
@@ -2151,7 +2151,7 @@ def discover_delivery_boundaries(repo_root: Path) -> list[dict[str, object]]:
                     f"{openapi_path}: operation path {path!r} is unreadable"
                 )
             for method, operation in sorted(path_item.items()):
-                if method not in _HTTP_METHODS:
+                if method not in HTTP_METHODS:
                     continue
                 if not isinstance(operation, dict) or not isinstance(
                     operation.get("operationId"), str

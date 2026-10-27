@@ -11,6 +11,7 @@ import subprocess
 import sys
 from collections.abc import Callable, Sequence
 
+from common.meta.base.gate_util import required_arg
 from common.runtime.github_api import write_github_output as _write_github_output
 
 JsonValue = object
@@ -441,13 +442,6 @@ def verify_real_corpus_eval(
     return str(latest["databaseId"])
 
 
-def _required(value: str, name: str) -> str:
-    value = value.strip()
-    if not value:
-        raise ValueError(f"{name} is required")
-    return value
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -481,16 +475,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        repository = _required(args.repository, "repository")
+        repository = required_arg(args.repository, "repository")
         if args.check == "source-ci":
             run_id = verify_source_ci(
                 repository=repository,
-                release_sha=_required(args.release_sha, "release-sha"),
+                release_sha=required_arg(args.release_sha, "release-sha"),
             )
         elif args.check == "release-images-run":
             run_id = verify_release_images_run(
                 repository=repository,
-                release_sha=_required(args.release_sha, "release-sha"),
+                release_sha=required_arg(args.release_sha, "release-sha"),
             )
         elif args.check == "real-corpus-eval":
             run_id = verify_real_corpus_eval(
@@ -501,8 +495,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.check == "staging":
             run_id = verify_staging(
                 repository=repository,
-                version_ref=_required(args.version_ref, "version-ref"),
-                release_sha=_required(args.release_sha, "release-sha"),
+                version_ref=required_arg(args.version_ref, "version-ref"),
+                release_sha=required_arg(args.release_sha, "release-sha"),
                 expected_backend_digest=args.expected_backend_digest,
                 expected_frontend_digest=args.expected_frontend_digest,
             )
@@ -510,7 +504,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             reviewed_change_url = verify_reviewed_change(
                 repository=repository,
-                release_sha=_required(args.release_sha, "release-sha"),
+                release_sha=required_arg(args.release_sha, "release-sha"),
             )
             outputs = {"reviewed_change_url": reviewed_change_url}
     except (ValueError, RuntimeError, subprocess.CalledProcessError) as exc:

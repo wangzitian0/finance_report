@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import sys
-from types import ModuleType
-
 from common.platform import generate_api_reference as gar
+from common.platform import generate_openapi_spec as gen
 
 
 def test_render_openapi_reference_uses_openapi_shape() -> None:
@@ -105,6 +103,16 @@ def test_render_openapi_reference_uses_openapi_shape() -> None:
     assert "PUT /api/journal-entries" not in rendered
 
 
+def test_render_openapi_reference_keeps_method_order_and_includes_trace() -> None:
+    """AC8.13.53: operations render in the one HTTP_METHODS order, TRACE included."""
+    methods = ("trace", "head", "delete", "get")
+    schema = {"paths": {"/p": {method: {"tags": ["t"]} for method in methods}}}
+    text = gar.render_openapi_reference(schema)
+
+    rows = [line.split("`")[1] for line in text.splitlines() if "| `/p` |" in line]
+    assert rows == ["GET", "DELETE", "HEAD", "TRACE"]
+
+
 def test_checked_in_api_reference_is_generated_inventory() -> None:
     """AC8.13.53: checked-in API reference stays generated and drift-free."""
     text = gar.OUTPUT_PATH.read_text(encoding="utf-8")
@@ -120,24 +128,11 @@ def test_checked_in_api_reference_is_generated_inventory() -> None:
     assert "`PUT` | `/journal-entries/{entry_id}`" not in text
 
 
-def test_load_openapi_imports_backend_app(monkeypatch, tmp_path) -> None:
-    """AC8.13.53: OpenAPI loading imports the backend app from backend root."""
-    fake_src = ModuleType("src")
-    fake_main = ModuleType("src.main")
-
-    class FakeApp:
-        def openapi(self) -> dict[str, object]:
-            return {"paths": {}}
-
-    fake_main.app = FakeApp()
-    monkeypatch.setattr(gar, "BACKEND_ROOT", tmp_path)
-    monkeypatch.setitem(sys.modules, "src", fake_src)
-    monkeypatch.setitem(sys.modules, "src.main", fake_main)
-    while str(tmp_path) in sys.path:
-        sys.path.remove(str(tmp_path))
-
-    assert gar._load_openapi() == {"paths": {}}
-    assert str(tmp_path) in sys.path
+def test_generate_renders_the_openapi_spec_loader_output(monkeypatch) -> None:
+    """AC8.13.53: the API reference reads the schema through the one OpenAPI loader."""
+    schema = {"info": {"title": "Loader Probe"}, "paths": {}}
+    monkeypatch.setattr(gen, "load_openapi", lambda: schema)
+    assert gar.generate() == gar.render_openapi_reference(schema)
 
 
 def test_main_writes_generated_output(monkeypatch, tmp_path) -> None:

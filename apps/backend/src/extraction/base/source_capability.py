@@ -14,7 +14,7 @@ class SourceCapabilityStatus(StrEnum):
     GAP = "gap"
 
 
-def _text(value: str, name: str) -> str:
+def required_text(value: str, name: str) -> str:
     value = value.strip()
     if not value:
         raise ValueError(f"{name} is required")
@@ -34,7 +34,7 @@ class SourceCapability:
     traceability_target: str
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "capability_id", _text(self.capability_id, "capability_id"))
+        object.__setattr__(self, "capability_id", required_text(self.capability_id, "capability_id"))
         if not isinstance(self.status, SourceCapabilityStatus):
             raise TypeError("status must be SourceCapabilityStatus")
         for name in ("intake_modes", "evidence_kinds", "produced_facts"):
@@ -43,8 +43,8 @@ class SourceCapability:
                 raise ValueError(f"{name} requires semantic identifiers")
             if any("pytest" in item.lower() or "::test" in item.lower() for item in values):
                 raise ValueError("SourceCapability cannot own test paths")
-        _text(self.review_semantics, "review_semantics")
-        _text(self.traceability_target, "traceability_target")
+        required_text(self.review_semantics, "review_semantics")
+        required_text(self.traceability_target, "traceability_target")
 
 
 SOURCE_CAPABILITIES: tuple[SourceCapability, ...] = (

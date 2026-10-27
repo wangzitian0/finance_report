@@ -16,6 +16,7 @@ from src.extraction.base.source_capability import (
     SOURCE_CAPABILITIES as SOURCE_CAPABILITIES,
     SourceCapability as SourceCapability,
     SourceCapabilityStatus as SourceCapabilityStatus,
+    required_text,
 )
 
 SCHEMA_VERSION = "2"
@@ -48,13 +49,6 @@ class ExtractionMethod(StrEnum):
     GOLDEN_FIXTURE = "golden_fixture"
 
 
-def _text(value: str, name: str) -> str:
-    value = value.strip()
-    if not value:
-        raise ValueError(f"{name} is required")
-    return value
-
-
 def _currency(value: str) -> str:
     value = value.strip().upper()
     if len(value) != 3 or not value.isalpha():
@@ -79,7 +73,7 @@ class SourceProvenance:
 
     def __post_init__(self) -> None:
         for name in ("intake_mode", "provider", "model"):
-            object.__setattr__(self, name, _text(getattr(self, name), name))
+            object.__setattr__(self, name, required_text(getattr(self, name), name))
         if not isinstance(self.method, ExtractionMethod):
             raise TypeError("method must be ExtractionMethod")
 
@@ -108,8 +102,8 @@ class ExtractedTransactionFact:
     confidence: Decimal | None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "fact_id", _text(self.fact_id, "transaction fact_id"))
-        object.__setattr__(self, "description", _text(self.description, "description"))
+        object.__setattr__(self, "fact_id", required_text(self.fact_id, "transaction fact_id"))
+        object.__setattr__(self, "description", required_text(self.description, "description"))
         if self.currency is not None:
             object.__setattr__(self, "currency", _currency(self.currency))
         if self.direction not in {"IN", "OUT"}:
@@ -135,8 +129,8 @@ class ExtractedPositionFact:
     geography: str | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "fact_id", _text(self.fact_id, "position fact_id"))
-        object.__setattr__(self, "symbol", _text(self.symbol, "position symbol"))
+        object.__setattr__(self, "fact_id", required_text(self.fact_id, "position fact_id"))
+        object.__setattr__(self, "symbol", required_text(self.symbol, "position symbol"))
         object.__setattr__(self, "currency", _currency(self.currency))
         if not isinstance(self.quantity, Decimal) or not isinstance(self.market_value, Decimal):
             raise TypeError("position values must use Decimal")
@@ -172,7 +166,7 @@ class StatementExtractionResult:
     def __post_init__(self) -> None:
         if self.schema_version not in _SUPPORTED_SCHEMA_VERSIONS:
             raise ValueError(f"unsupported statement extraction schema version: {self.schema_version}")
-        object.__setattr__(self, "producer_version", _text(self.producer_version, "producer_version"))
+        object.__setattr__(self, "producer_version", required_text(self.producer_version, "producer_version"))
         if not _SHA256.fullmatch(self.source_content_digest):
             raise ValueError("source_content_digest must be lowercase sha256")
         if not isinstance(self.source_type, StatementSourceType):
@@ -181,7 +175,7 @@ class StatementExtractionResult:
             raise TypeError("evidence_type must be StatementEvidenceType")
         if self.statement_currency is not None:
             object.__setattr__(self, "statement_currency", _currency(self.statement_currency))
-        object.__setattr__(self, "institution", _text(self.institution, "institution"))
+        object.__setattr__(self, "institution", required_text(self.institution, "institution"))
         if self.account_last4 is not None and not re.fullmatch(r"[A-Za-z0-9]{1,4}", self.account_last4):
             raise ValueError("account_last4 must contain one to four ASCII alphanumeric characters")
         if (self.period_start is None) != (self.period_end is None):

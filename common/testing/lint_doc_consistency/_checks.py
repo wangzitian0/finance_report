@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from common.meta.base.gate_util import display_path
 from common.testing.lint_doc_consistency import _parsing
 
 from common.testing.lint_doc_consistency import _base
@@ -27,7 +28,6 @@ from common.testing.lint_doc_consistency._parsing import (
     RECONCILIATION_THRESHOLD_FORBIDDEN_TOKENS,
     RECONCILIATION_THRESHOLD_REQUIRED_TOKENS,
     THIN_README_FORBIDDEN_HEADINGS,
-    _display_path,
     _is_excluded_path,
     _required_mkdocs_nav_docs,
     collect_mkdocs_nav_docs,
@@ -54,7 +54,7 @@ def check_no_ac_test_exceptions(
     exception_paths = load_traceability_exception_paths(exception_path)
     violations: list[Violation] = []
     for path in no_ac_files:
-        rel = _display_path(path)
+        rel = display_path(path, _base.REPO_ROOT)
         if rel not in exception_paths:
             violations.append(
                 Violation(
@@ -215,7 +215,7 @@ def check_code_owned_coverage_threshold_doc(
         return [
             Violation(
                 check="check10_code_owned_coverage_threshold_doc",
-                message=f"{_display_path(doc_path)}: cannot read file ({exc})",
+                message=f"{display_path(doc_path, _base.REPO_ROOT)}: cannot read file ({exc})",
             )
         ]
 
@@ -224,7 +224,7 @@ def check_code_owned_coverage_threshold_doc(
             Violation(
                 check="check10_code_owned_coverage_threshold_doc",
                 message=(
-                    f"{_display_path(doc_path)}: backend coverage threshold "
+                    f"{display_path(doc_path, _base.REPO_ROOT)}: backend coverage threshold "
                     "must be code-owned by apps/backend/pyproject.toml "
                     "`--cov-fail-under`, not copied as a mutable percentage"
                 ),
@@ -351,7 +351,7 @@ def check_mkdocs_nav_coverage(
         return [
             Violation(
                 check="check11_mkdocs_nav_coverage",
-                message=f"{_display_path(mkdocs_path)}: missing MkDocs config",
+                message=f"{display_path(mkdocs_path, _base.REPO_ROOT)}: missing MkDocs config",
             )
         ]
 
@@ -416,7 +416,7 @@ def check_generated_analysis_snapshots_absent(
                 Violation(
                     check="check13_generated_analysis_snapshots_absent",
                     message=(
-                        f"{_display_path(path)}: generated analysis snapshots "
+                        f"{display_path(path, _base.REPO_ROOT)}: generated analysis snapshots "
                         "must not be checked in; use the live tool output or CI "
                         "artifact instead"
                     ),
@@ -435,7 +435,7 @@ def check_reconciliation_thresholds_are_code_owned(
         return [
             Violation(
                 check="check14_reconciliation_thresholds_code_owned",
-                message=f"{_display_path(doc_path)}: cannot read file ({exc})",
+                message=f"{display_path(doc_path, _base.REPO_ROOT)}: cannot read file ({exc})",
             )
         ]
 
@@ -447,7 +447,7 @@ def check_reconciliation_thresholds_are_code_owned(
                 Violation(
                     check="check14_reconciliation_thresholds_code_owned",
                     message=(
-                        f"{_display_path(doc_path)}: reconciliation thresholds "
+                        f"{display_path(doc_path, _base.REPO_ROOT)}: reconciliation thresholds "
                         "must not claim Markdown prose is the single authority; "
                         "point to code/config owners instead"
                     ),
@@ -460,7 +460,7 @@ def check_reconciliation_thresholds_are_code_owned(
                 Violation(
                     check="check14_reconciliation_thresholds_code_owned",
                     message=(
-                        f"{_display_path(doc_path)}: missing code/config owner "
+                        f"{display_path(doc_path, _base.REPO_ROOT)}: missing code/config owner "
                         f"token {token!r} for reconciliation thresholds"
                     ),
                 )
@@ -495,7 +495,7 @@ def check_frontend_raw_fetch_usage(
                     Violation(
                         check="check15_frontend_raw_fetch_usage",
                         message=(
-                            f"{_display_path(path)}:{line_no}: raw fetch() is "
+                            f"{display_path(path, _base.REPO_ROOT)}:{line_no}: raw fetch() is "
                             "only allowed in apps/frontend/src/lib/api.ts; "
                             "use the API wrapper instead"
                         ),
@@ -525,7 +525,7 @@ def check_proof_placement_policy(ci_cd_path: Path | None = None) -> list[Violati
                 Violation(
                     check="check7_proof_placement_policy",
                     message=(
-                        f"{_display_path(ci_cd_path)}: missing proof "
+                        f"{display_path(ci_cd_path, _base.REPO_ROOT)}: missing proof "
                         f"placement token {token!r}"
                     ),
                 )

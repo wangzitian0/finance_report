@@ -33,6 +33,7 @@ from typing import Any
 
 import yaml
 
+from common.meta.base.gate_util import display_path
 from common.testing.ac_proof_execution import normalize_proof_execution
 from common.testing.ac_proof import GOVERNANCE_STRENGTHS
 
@@ -92,13 +93,6 @@ class CollectedProof:
     fields: dict[str, Any]
 
 
-def _rel(path: Path, repo_root: Path) -> str:
-    try:
-        return path.relative_to(repo_root).as_posix()
-    except ValueError:
-        return path.as_posix()
-
-
 def _literal(node: ast.AST, *, where: str) -> Any:
     """Evaluate one decorator argument as a plain literal.
 
@@ -147,7 +141,7 @@ def _cached_file_proofs(
     if DECORATOR_NAME not in text:
         return ()
     module = ast.parse(text, filename=str(path))
-    rel_file = _rel(path, repo_root)
+    rel_file = display_path(path, repo_root)
     collected: list[CollectedProof] = []
     for node in ast.walk(module):
         if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):

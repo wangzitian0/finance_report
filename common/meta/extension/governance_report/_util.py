@@ -31,20 +31,6 @@ def _as_strings(value: Any) -> tuple[str, ...]:
     return tuple(item for item in value if isinstance(item, str))
 
 
-def _display_path(path: Path, workspace_root: Path) -> str:
-    try:
-        return path.relative_to(workspace_root).as_posix()
-    except ValueError:
-        return path.as_posix()
-
-
-def _source_relative_path(path: Path, source_root: Path) -> str:
-    try:
-        return path.relative_to(source_root).as_posix()
-    except ValueError:
-        return path.as_posix()
-
-
 def _display_ref(source_root: Path, ref: str, workspace_root: Path) -> str:
     try:
         prefix = source_root.relative_to(workspace_root).as_posix()

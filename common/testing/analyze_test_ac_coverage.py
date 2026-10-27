@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from common.meta.base.gate_util import display_path
 from common.meta.extension.ac_registry_format import load_registry_entries, sort_key
 from common.testing import ac_scan
 
@@ -105,13 +106,6 @@ class EpicStats:
 _ac_sort_key = sort_key
 
 
-def _relative(path: Path, root: Path) -> str:
-    try:
-        return str(path.relative_to(root))
-    except ValueError:
-        return str(path)
-
-
 def _is_deprecated_description(description: str) -> bool:
     stripped = description.strip()
     return stripped.startswith("~~") and stripped.endswith("~~") and len(stripped) > 4
@@ -161,7 +155,7 @@ def discover_test_files(
     source_file_counts: dict[str, int] = {}
 
     for source, _default_base, patterns in SCAN_TARGETS:
-        base = repo_root / _relative(_default_base, REPO_ROOT)
+        base = repo_root / display_path(_default_base, REPO_ROOT)
         if not base.exists():
             source_file_counts[source] = 0
             continue
@@ -183,7 +177,7 @@ def collect_references(
     dict[str, set[str]],
 ]:
     references = ac_scan.collect_references(
-        scan_files, display_path=lambda path: _relative(path, repo_root)
+        scan_files, display_path=lambda path: display_path(path, repo_root)
     )
     source_real_refs: dict[str, set[str]] = defaultdict(set)
     source_placeholder_refs: dict[str, set[str]] = defaultdict(set)

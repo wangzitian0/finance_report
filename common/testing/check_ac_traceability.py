@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
+from common.meta.base.gate_util import display_path
 from common.testing.ac_scan import ACReferenceStats, collect_references, find_test_files
 from common.testing.test_surface import DEFAULT_AC_TEST_DIRS
 
@@ -99,14 +100,6 @@ def load_execution_matrix(path: Path = DEFAULT_EXECUTION_MATRIX) -> ExecutionMat
     return ExecutionMatrix(rules=rules)
 
 
-def _display_path(path: Path, display_root: Path | None = None) -> str:
-    root = display_root if display_root is not None else Path.cwd()
-    try:
-        return str(path.relative_to(root)).replace("\\", "/")
-    except ValueError:
-        return str(path).replace("\\", "/")
-
-
 def load_registry(registry_path: Path) -> list[AC]:
     if not registry_path.exists():
         print(f"ERROR: AC registry not found: {registry_path}", file=sys.stderr)
@@ -146,9 +139,10 @@ def collect_referenced_acs(
 ) -> dict[str, ACReferenceStats]:
     if execution_matrix is None:
         execution_matrix = load_execution_matrix()
+    root = display_root if display_root is not None else Path.cwd()
     return collect_references(
         test_files,
-        display_path=lambda path: _display_path(path, display_root),
+        display_path=lambda path: display_path(path, root),
         is_ci_file=lambda path: execution_matrix.classify(str(path)).ci_required,
     )
 

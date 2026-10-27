@@ -498,11 +498,8 @@ def test_AC8_13_68_discovery_handles_missing_roots_and_external_paths(
     tmp_path: Path,
 ) -> None:
     """AC-testing.acgates.8: AC8.13.68: Discovery handles absent SSOT/E2E roots and external files."""
-    external = tmp_path.parent / "external_test_file.py"
-
     assert checker.discover_project_epics(tmp_path) == []
     assert checker.discover_e2e_files(tmp_path, ("missing/e2e",)) == []
-    assert checker._rel(external, tmp_path) == external.as_posix()
 
 
 def test_AC8_13_68_marker_extraction_accepts_calls_and_nested_marks() -> None:

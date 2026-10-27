@@ -69,6 +69,17 @@ def test_detects_endpoints_on_any_apirouter_variable(tmp_path: Path) -> None:
     assert len(findings) == 1 and findings[0].handler == "drop_conflict"
 
 
+def test_trace_endpoints_are_audited_like_every_openapi_method(tmp_path: Path) -> None:
+    """The audit knows every OpenAPI operation method, TRACE included."""
+    router = tmp_path / "demo.py"
+    router.write_text(
+        'from fastapi import APIRouter\nrouter = APIRouter()\n\n\n@router.trace("/p")\n'
+        "async def probe():\n    return {}\n",
+        encoding="utf-8",
+    )
+    assert [f.method for f in audit.scan_file(router, repo_root=tmp_path)] == ["TRACE"]
+
+
 def test_budget_gate_fails_on_growth(tmp_path: Path) -> None:
     """The CLI exits nonzero when untyped endpoints exceed the budget."""
     router = tmp_path / "apps" / "backend" / "src" / "routers" / "demo.py"

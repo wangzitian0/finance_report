@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
+import ast
 import builtins
 import importlib
 import json
 import runpy
 from collections.abc import Callable
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import pytest
 
-from common.meta.base import gate_cli
+from common.meta.base import gate_cli, gate_util
 from common.meta.extension import (
     check_ac_tier_baseline,
     check_app_boundary,
@@ -1219,3 +1220,57 @@ def test_AC_testing_governance_21_each_mutation_flag_requires_its_own_proof(
         "exercise synthetic regression debt through the refusal harness: "
         "tests/tooling/test_multi_flag.py::test_update"
     ]
+
+
+def test_gate_util_helpers_keep_the_behavior_of_the_removed_copies() -> None:
+    """The shared helpers return what the deleted per-module copies returned."""
+    root = PureWindowsPath("C:/repo")
+    assert gate_util.display_path(root / "a" / "b.py", root) == "a/b.py"
+    assert gate_util.display_path(PureWindowsPath("D:/x/y.py"), root) == "D:/x/y.py"
+    assert gate_util.duplicate_values(["b", "a", "b", "a", "b"]) == ["a", "b"]
+    assert gate_util.required_arg(" x ", "n") == "x"
+    with pytest.raises(ValueError, match="^n is required$"):
+        gate_util.required_arg(" ", "n")
+    calls = ast.parse("a.F(1) or B(2) or c[0](3)").body[0].value.values
+    assert [gate_util.call_name(call.func) for call in calls] == ["F", "B", None]
+
+
+def test_shared_gate_facts_keep_one_definition_each() -> None:
+    """Each shared fact has one defining module; the retired copies stay deleted."""
+    util = "common/meta/base/gate_util.py"
+    owners = {
+        "display_path": util,
+        "duplicate_values": util,
+        "required_arg": util,
+        "call_name": util,
+        "load_openapi": "common/platform/generate_openapi_spec.py",
+        "HTTP_METHODS": "common/meta/extension/generate_api_operations.py",
+        "EXCLUDED_DIRS": "common/testing/ac_scan.py",
+        "TEST_FILE_SUFFIXES": "common/testing/ac_scan.py",
+        "required_text": "apps/backend/src/extraction/base/source_capability.py",
+    }
+    retired = set(
+        "_rel _relative _relative_path _source_relative_path _duplicate_values "
+        "_required _call_func_name _call_name _load_openapi _HTTP_METHODS "
+        "_display_path".split()
+    )
+    scanned = {
+        ROOT / "common" / package: retired
+        for package in ("meta", "platform", "runtime", "testing")
+    } | {ROOT / "apps/backend/src/extraction/base": {"_text"}}
+    defined: dict[str, list[str]] = {}
+    for root, root_retired in scanned.items():
+        for path in root.rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            names = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+            names |= {
+                target.id
+                for node in tree.body
+                if isinstance(node, ast.Assign)
+                for target in node.targets
+                if isinstance(target, ast.Name)
+            }
+            for name in names & (owners.keys() | root_retired):
+                defined.setdefault(name, []).append(str(path.relative_to(ROOT)))
+
+    assert defined == {name: [owner] for name, owner in owners.items()}

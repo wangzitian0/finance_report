@@ -20,8 +20,9 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from common.meta.extension.generate_api_operations import HTTP_METHODS
+
 DEFAULT_ROUTER_DIR = Path("apps/backend/src/routers")
-_HTTP_METHODS = {"get", "post", "put", "patch", "delete", "head", "options"}
 
 # Non-growth ceiling. Lower this as endpoints gain a response_model; never raise it.
 # The remaining 10 are legitimately-bodiless handlers (204 DELETEs, file/stream
@@ -67,7 +68,7 @@ def _route_decorators(node: ast.AST, router_names: set[str]) -> Iterable[tuple[s
         if (
             isinstance(deco, ast.Call)
             and isinstance(deco.func, ast.Attribute)
-            and deco.func.attr in _HTTP_METHODS
+            and deco.func.attr in HTTP_METHODS
             and isinstance(deco.func.value, ast.Name)
             and deco.func.value.id in router_names
         ):

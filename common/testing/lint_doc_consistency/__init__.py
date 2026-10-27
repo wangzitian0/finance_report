@@ -1,5 +1,6 @@
 """Doc/SSOT consistency linter (package)."""
 
+from common.testing.ac_scan import EXCLUDED_DIRS, TEST_FILE_SUFFIXES
 from common.testing.lint_doc_consistency._base import (
     AC_PATTERN,
     AC_REGISTRY,
@@ -8,7 +9,6 @@ from common.testing.lint_doc_consistency._base import (
     CI_CD_SSOT,
     E2E_PRODUCT_TEST_EXCEPTION_PREFIXES,
     EPIC_DIR,
-    EXCLUDED_DIRS,
     FRONTEND_SRC,
     INFRA_REGISTRY,
     MKDOCS_CONFIG,
@@ -17,7 +17,6 @@ from common.testing.lint_doc_consistency._base import (
     REMOVED_ANNOTATION_RE,
     REPO_ROOT,
     TDD_SSOT,
-    TEST_FILE_SUFFIXES,
     TEST_ROOTS,
     TOTAL_AC_SUMMARY_TOKEN,
     TRACEABILITY_EXCEPTIONS,
@@ -38,7 +37,6 @@ from common.testing.lint_doc_consistency._parsing import (
     THIN_README_FORBIDDEN_HEADINGS,
     THIN_README_LIMITS,
     VISION_ANCHOR_PATTERN,
-    _display_path,
     _is_excluded_path,
     _line_is_ac_annotation,
     _required_mkdocs_nav_docs,
@@ -111,7 +109,6 @@ __all__ = [
     "VISION_ANCHOR_PATTERN",
     "VISION_PATH",
     "Violation",
-    "_display_path",
     "_is_excluded_path",
     "_line_is_ac_annotation",
     "_required_mkdocs_nav_docs",

@@ -889,4 +889,3 @@ def test_stub_path_unknown_suffix_and_external_relative_helpers(tmp_path: Path) 
     assert result.status == "fail"
     assert "stub-proof: critical proof cannot point at _ac_stubs" in result.errors
     assert "stub-proof: test anchor not found: AC8.13.1 proof" in result.errors
-    assert matrix._rel(Path("/outside/file.py"), tmp_path) == "/outside/file.py"

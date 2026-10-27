@@ -1244,7 +1244,7 @@ def test_AC8_13_52_production_release_matches_exact_staging_run_name() -> None:
     """AC8.13.52: Production release requires staging validation for the exact version_ref."""
     release_evidence = read("common/runtime/release_evidence.py")
     staging_contract = release_evidence.split("def verify_staging", 1)[1].split(
-        "def _required", 1
+        "def main(", 1
     )[0]
 
     _has(
