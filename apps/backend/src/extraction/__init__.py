@@ -235,9 +235,7 @@ from src.extraction.extension.transaction_classification import (
 )
 from src.extraction.extension.transaction_membership import effective_statement_transaction_filter
 from src.extraction.extension.uploaded_document_reads import (
-    find_uploaded_document_filename_by_hash,
     get_known_storage_paths,
-    get_uploaded_document_filename,
     get_uploaded_document_filenames,
 )
 
@@ -382,14 +380,12 @@ __all__ = [
     "extraction_trace_policy_registry",
     "edit_and_approve",
     "find_in_flight_parse_id",
-    "find_uploaded_document_filename_by_hash",
     "get_correction_stats",
     "get_known_storage_paths",
     "get_parsing_prompt",
     "get_current_statement_extraction_result",
     "get_statement_coverage_rows",
     "get_statement_event_sources",
-    "get_uploaded_document_filename",
     "get_uploaded_document_filenames",
     "looks_like_brokerage_document",
     "looks_like_brokerage_payload",

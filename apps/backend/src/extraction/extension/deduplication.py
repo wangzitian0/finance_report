@@ -2,7 +2,7 @@ import hashlib
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -130,36 +130,14 @@ class DeduplicationService:
             return versioned_transaction_hash(legacy_hash, currency, custody_scope)
         return legacy_hash
 
-    async def upsert_atomic_transaction(
-        self,
-        *,
-        db: AsyncSession,
-        row: ExtractedTransactionRow | None = None,
-        source_doc_id: UUID,
-        source_doc_type: DocumentType,
-        **legacy_fields: object,
-    ) -> AtomicTransaction:
-        """Keep legacy keyword binding; explicit custody uses the scoped command."""
-        if "custody_account_id" in legacy_fields:
-            raise TypeError("Unexpected atomic transaction fields: custody_account_id")
-        return await self.upsert_scoped_atomic_transaction(
-            db=db,
-            row=row,
-            source_doc_id=source_doc_id,
-            source_doc_type=source_doc_type,
-            custody_account_id=None,
-            **legacy_fields,
-        )
-
     async def upsert_scoped_atomic_transaction(
         self,
         *,
         db: AsyncSession,
-        row: ExtractedTransactionRow | None = None,
+        row: ExtractedTransactionRow,
         source_doc_id: UUID,
         source_doc_type: DocumentType,
         custody_account_id: UUID | None = None,
-        **legacy_fields: object,
     ) -> AtomicTransaction:
         """Upsert atomic transaction with deduplication.
 
@@ -171,42 +149,6 @@ class DeduplicationService:
         non-authoritative placeholder and the row is blocked from promotion until a
         reviewer specifies the currency.
         """
-        if row is None:
-            user_id = cast(UUID, legacy_fields.pop("user_id"))
-            txn_date = cast(date, legacy_fields.pop("txn_date"))
-            amount = cast(Decimal, legacy_fields.pop("amount"))
-            direction = TransactionDirection(cast(str, legacy_fields.pop("direction")))
-            description = str(legacy_fields.pop("description"))
-            reference = cast(str | None, legacy_fields.pop("reference", None))
-            balance_after = cast(Decimal | None, legacy_fields.pop("balance_after", None))
-            occurrence_index = int(cast(int | str, legacy_fields.pop("occurrence_index", 0)))
-            currency = str(legacy_fields.pop("currency"))
-            row = ExtractedTransactionRow(
-                user_id=user_id,
-                txn_date=txn_date,
-                amount=amount,
-                direction=direction.value,
-                description=description,
-                reference=reference,
-                currency=currency,
-                currency_unresolved=bool(legacy_fields.pop("currency_unresolved", False)),
-                balance_after=balance_after,
-                occurrence_index=occurrence_index,
-                dedup_hash=self.calculate_transaction_hash(
-                    user_id,
-                    txn_date,
-                    amount,
-                    direction,
-                    description,
-                    reference=reference,
-                    balance_after=balance_after,
-                    occurrence_index=occurrence_index,
-                ),
-            )
-        if legacy_fields:
-            names = ", ".join(sorted(legacy_fields))
-            raise TypeError(f"Unexpected atomic transaction fields: {names}")
-
         user_id = row.user_id
         txn_date = row.txn_date
         amount = row.amount

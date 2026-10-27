@@ -20,7 +20,7 @@ This document defines the Single Source of Truth for the document extraction fea
 
 ## Overview
 
-The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use the multimodal role (`MULTIMODAL_MODEL`; default: the infra2 SDK default) for OCR and vision. One model serves both, so the service skips layout parsing and uses the vision OCR path directly. Text structuring and CSV mapping use the small role (`SMALL_MODEL`). Z.AI PDF vision extraction renders the uploaded PDF bytes into a bounded set of in-memory PNG `image_url` payloads; short-lived external URLs are used only when no bytes are available. Inline base64 PDF payloads are reserved for dedicated layout parsing and non-Z.AI compatibility. JSON extraction requests minimal reasoning and caps output tokens to keep provider latency bounded: older GLM models can disable thinking, while reasoning-only GLM 5.3 models use enabled thinking with low effort through the LLM transport. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
+The extraction pipeline parses financial statements (PDFs, images, CSVs) with the configured AI provider. PDF/image uploads use the multimodal role (`MULTIMODAL_MODEL`; default: the infra2 SDK default) for OCR and vision. One model serves both, so the service uses the vision OCR path directly. Text structuring and CSV mapping use the small role (`SMALL_MODEL`). Z.AI PDF vision extraction renders the uploaded PDF bytes into a bounded set of in-memory PNG `image_url` payloads; short-lived external URLs are used only when no bytes are available. Inline base64 PDF payloads are reserved for non-Z.AI compatibility. JSON extraction requests minimal reasoning and caps output tokens to keep provider latency bounded: older GLM models can disable thinking, while reasoning-only GLM 5.3 models use enabled thinking with low effort through the LLM transport. Uploads immediately create a `parsing` record, and a background worker updates the statement once parsing completes.
 
 ## Statement ingestion application boundary
 
@@ -691,7 +691,6 @@ AI_PROVIDER=zai
 ZAI_API_KEY=<YOUR_ZAI_API_KEY>
 AI_BASE_URL=https://api.z.ai/api/coding/paas/v4
 AI_CHAT_COMPLETIONS_PATH=/chat/completions
-AI_LAYOUT_PARSING_PATH=/layout_parsing
 # Model variables stay unset outside production: the infra2 SDK
 # (infra2_sdk.runtime.llm.LlmSettings) owns the defaults (#2566). Set them only
 # to customize production.
@@ -750,26 +749,19 @@ Persistence checkpoints use the actual canonical statement/source identities.
   attempt reconciles, the smallest-difference result is kept so routing is
   unchanged. Only failing parses retry, so average cost is bounded; set
   `AI_EXTRACT_MAX_ATTEMPTS=1` to disable.
-- **Running-balance chain-break detection + repair pass** (#1140 / AC-extraction.120):
+- **Running-balance chain-break detection** (#1140 / AC-extraction.120):
   bank-statement *under-extraction* (a dropped or misparsed row) is caught by the
   per-currency self-check (`opening + ΣIN − ΣOUT ≠ closing`), but the underlying
-  cause is **recall**, which is probabilistic (LLM). Around that soft metric the
-  system runs a deterministic seam: `detect_balance_chain_break`
+  cause is **recall**, which is probabilistic (LLM). `detect_balance_chain_break`
   (`src/extraction/base/validation.py`) walks the ordered transactions' running
   `balance_after` chain and returns the exact index where
   `balance_after[i-1] + signed_amount[i] != balance_after[i]` (within
-  `BALANCE_TOLERANCE`), pinpointing where a row went missing. When the
-  whole-document re-extract still does not reconcile, `repair_under_extraction`
-  (`src/extraction/extension/chain_repair.py`) fires the **repair-pass hook** once: it only
-  triggers when the self-check fails *and* the detector finds a region, then asks
-  an **injectable** `RegionReExtractor` backend to re-extract just that region,
-  keeping the repaired payload only if it reconciles (else the original is kept,
-  so routing is unchanged). The detector and decision logic are pure and
-  `Decimal`-based (never `float`); the re-extraction backend is injected so CI
-  exercises the trigger logic without a live model, and the hook is a safe no-op
-  when no backend is wired. **Extraction recall is a SOFT metric** — tracked and
-  logged, with **no hard CI gate** — while the balance self-check guard and these
-  deterministic chain-break / repair seams stay hard-tested.
+  `BALANCE_TOLERANCE`), pinpointing where a row went missing. After a failed scalar
+  self-check, `ExtractionService` logs the break and counts it as the `chain_break`
+  invariant violation; it never changes routing. The detector is pure and
+  `Decimal`-based (never `float`). **Extraction recall is a SOFT metric** — tracked
+  and logged, with **no hard CI gate** — while the balance self-check guard and the
+  chain-break detector stay hard-tested.
 - **Bucket auto-create**: storage ensures the bucket exists before upload.
 - **Orphan cleanup**: if DB persistence fails after upload, the uploaded object is deleted.
 - **Periodic orphan sweep**: old statement storage objects without matching DB records are deleted by
@@ -815,7 +807,7 @@ slice is registered.
 
 ## Model Selection
 
-- **Default**: Uses the multimodal role (`MULTIMODAL_MODEL`, the infra2 SDK default) on the vision OCR path. OCR and vision are the same model, so dedicated layout parsing does not run.
+- **Default**: Uses the multimodal role (`MULTIMODAL_MODEL`, the infra2 SDK default) on the vision OCR path. OCR and vision are the same model.
 - **Upload model field**: optional for PDF/image uploads. If omitted, the OCR-first pipeline is used.
 - **Manual override**: a selected image-capable model bypasses the default OCR path and is used directly as a vision chat model. Selecting the multimodal model uses the same vision OCR model.
 - **Retry**: `/api/statements/{id}/retry` accepts a model override; omitted uses OCR-first mode.
@@ -892,18 +884,15 @@ Coverage checks compare monthly statement periods within each account/currency:
 | `src/schemas/extraction.py` | Pydantic schemas |
 | `src/extraction/extension/` (`service.py`, `_ocr.py`, `_llm_led_gate.py`, …) | Core extraction logic |
 | `src/extraction/base/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |
-| `src/extraction/extension/chain_repair.py` | Under-extraction repair-pass hook (`repair_under_extraction`, injectable `RegionReExtractor`) |
 | `src/runtime/extension/storage.py` | Object storage uploads + presigned URLs |
 | `src/extraction/extension/prompts/statement.py` | Parsing prompt templates |
 | `common/testing/fixtures/llm_cassettes/*.json` | Frozen LLM responses for cassette replay (synthetic; the single retained extraction-test mechanism) |
 
 Manual and automatic source posting initialize the same ledger-owned starting stock in their posting unit of work. Signed openings preserve their source sign; explicit zero retains evidence without a journal. Historical FX is required for foreign openings. Missing opening facts or rates block posting atomically. Follow-up periods reuse authoritative per-account stock, and source-backed stock decisions retain the exact extraction or reviewed-envelope parent for PDF drilldown.
 
-The legacy `DeduplicationService.upsert_atomic_transaction` keeps its original
-keyword-capture contract. New source ingestion calls the additive
-`upsert_scoped_atomic_transaction` command with explicit custody; both resolve
-versioned identities through the same owner. Unsupported legacy keywords still
-raise before writes (`AC-extraction.transaction-identity.5`).
+Source ingestion calls `DeduplicationService.upsert_scoped_atomic_transaction`
+with a typed `ExtractedTransactionRow` and explicit custody; it resolves versioned
+identities through the identity owner.
 
 `resolve_transaction_identity` owns versioned identity adoption and its persisted `AtomicTransactionIdentity` alias rows; the alias table is an implementation detail of that domain service.
 

@@ -191,7 +191,8 @@ async def test_AC_extraction_signature_seams_4_typed_rows_and_failure_contract()
         parse_params[name].kind is Parameter.KEYWORD_ONLY
         for name in ("user_id", "file_type", "account_id", "force_model", "db")
     )
-    upsert_params = signature(DeduplicationService.upsert_atomic_transaction).parameters
+    upsert_params = signature(DeduplicationService.upsert_scoped_atomic_transaction).parameters
+    assert not any(parameter.kind is Parameter.VAR_KEYWORD for parameter in upsert_params.values())
     assert all(
         upsert_params[name].kind is Parameter.KEYWORD_ONLY for name in ("db", "row", "source_doc_id", "source_doc_type")
     )

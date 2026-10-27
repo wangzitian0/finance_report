@@ -16,7 +16,7 @@ from src.extraction.extension.statement_validation import (
     approve_statement,
     approve_statement_with_transactions,
     edit_and_approve,
-    get_pending_stage1_review,
+    pending_stage1_review_filter,
     reject_statement,
     resolve_statement_transactions,
     set_opening_balance,
@@ -518,19 +518,12 @@ class TestSetOpeningBalance:
         assert stmt.manual_opening_balance == Decimal("500.00")
 
 
-class TestGetPendingStage1Review:
-    async def test_returns_parsed_statements(self, db, user_id):
-        """AC1.6.1 get_pending_stage1_review returns explicit pending or legacy parsed statements."""
-        # Medium-confidence PARSED with no stage1_status -> should be returned
+class TestPendingStage1ReviewFilter:
+    async def test_filter_matches_explicit_pending_and_legacy_parsed_statements(self, db, user_id):
+        """pending_stage1_review_filter keeps explicit pending and legacy PARSED statements, not approved ones."""
         stmt_medium = await _make_statement(
-            db,
-            user_id,
-            file_hash="hash_pend",
-            period_start=None,
-            period_end=None,
-            confidence_score=70,
+            db, user_id, file_hash="hash_pend", period_start=None, period_end=None, confidence_score=70
         )
-        # PARSED with stage1_status=PENDING_REVIEW -> should be returned
         stmt_review = await _make_statement(
             db,
             user_id,
@@ -540,16 +533,9 @@ class TestGetPendingStage1Review:
             stage1_status=Stage1Status.PENDING_REVIEW,
             confidence_score=90,
         )
-        # Legacy high-confidence PARSED with no stage1_status should remain reviewable.
         stmt_high_legacy = await _make_statement(
-            db,
-            user_id,
-            file_hash="hash_high",
-            period_start=None,
-            period_end=None,
-            confidence_score=90,
+            db, user_id, file_hash="hash_high", period_start=None, period_end=None, confidence_score=90
         )
-        # APPROVED -> should NOT be returned
         stmt_approved = await _make_statement(
             db,
             user_id,
@@ -559,18 +545,25 @@ class TestGetPendingStage1Review:
             status=BankStatementStatus.APPROVED,
             stage1_status=Stage1Status.APPROVED,
         )
+        stmt_parsed_approved = await _make_statement(
+            db,
+            user_id,
+            file_hash="hash_parsed_approved",
+            period_start=None,
+            period_end=None,
+            stage1_status=Stage1Status.APPROVED,
+        )
 
-        result = await get_pending_stage1_review(db, user_id)
-        ids = {s.id for s in result}
-        assert stmt_medium.id in ids
-        assert stmt_review.id in ids
-        assert stmt_high_legacy.id in ids
+        rows = await db.execute(
+            select(StatementSummary.id)
+            .where(StatementSummary.user_id == user_id)
+            .where(StatementSummary.status == BankStatementStatus.PARSED)
+            .where(pending_stage1_review_filter())
+        )
+        ids = set(rows.scalars().all())
+        assert ids == {stmt_medium.id, stmt_review.id, stmt_high_legacy.id}
         assert stmt_approved.id not in ids
-
-    async def test_returns_empty_when_none_pending(self, db, user_id):
-        """AC-extraction.stage1-review.1: AC1.6.2 get_pending_stage1_review returns empty when no pending statements."""
-        result = await get_pending_stage1_review(db, user_id)
-        assert result == []
+        assert stmt_parsed_approved.id not in ids
 
 
 class TestValidateBalanceChainEdgeCases:

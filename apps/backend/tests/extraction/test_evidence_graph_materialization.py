@@ -1,4 +1,4 @@
-"""Evidence Graph lazy materialization and consistency detector tests."""
+"""Evidence Graph lazy materialization tests."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
@@ -18,7 +18,6 @@ from src.extraction.orm.evidence import EvidenceEdge, EvidenceNode
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.identity import User
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
-from tests.factories import UserFactory
 
 
 async def _create_historical_statement_entry(
@@ -176,62 +175,6 @@ async def test_AC18_10_4_AC18_10_6_lazy_materialization_is_idempotent_and_preser
     assert ("ledger_line", "journal_line", line.id) in node_keys
 
 
-async def test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift(
-    db: AsyncSession,
-    test_user: User,
-):
-    """AC-extraction.1810.1 AC-extraction.1810.5: AC18.10.1 AC18.10.5: Detector uses explicit blocker taxonomy for graph drift without writes."""
-    _, _, _, line = await _create_historical_statement_entry(db, user_id=test_user.id)
-    service = EvidenceGraphMaterializationService()
-    orphan = EvidenceNode(
-        user_id=test_user.id,
-        node_kind="ledger_line",
-        entity_type="journal_line",
-        entity_id=uuid4(),
-        properties={},
-    )
-    other_user_id = (await UserFactory.create_async(db)).id
-    source = EvidenceNode(
-        user_id=test_user.id,
-        node_kind="source_document",
-        entity_type="uploaded_document",
-        entity_id=uuid4(),
-        properties={},
-    )
-    target = EvidenceNode(
-        user_id=other_user_id,
-        node_kind="atomic_fact",
-        entity_type="atomic_transaction",
-        entity_id=uuid4(),
-        properties={},
-    )
-    db.add_all([orphan, source, target])
-    await db.flush()
-    await db.execute(text("SET LOCAL session_replication_role = replica"))
-    try:
-        db.add(
-            EvidenceEdge(
-                user_id=test_user.id,
-                from_node_id=source.id,
-                to_node_id=target.id,
-                relation="deduped_into",
-                properties={},
-            )
-        )
-        await db.flush()
-    finally:
-        await db.execute(text("SET LOCAL session_replication_role = DEFAULT"))
-    before = await _graph_counts(db)
-
-    report = await service.detect_consistency_drift(db, user_id=test_user.id)
-
-    assert await _graph_counts(db) == before
-    finding_keys = {(finding.code, finding.entity_type, finding.entity_id) for finding in report.findings}
-    assert ("graph_node_missing", "journal_line", line.id) in finding_keys
-    assert ("orphan_graph_node", "journal_line", orphan.entity_id) in finding_keys
-    assert any(finding.code == "cross_user_lineage_blocked" for finding in report.findings)
-
-
 async def test_AC18_10_7_materialization_caps_and_unknown_sources_return_blockers(
     db: AsyncSession,
     test_user: User,
@@ -341,38 +284,11 @@ async def test_AC18_10_4_direct_entity_materialization_branches_are_idempotent(
     ) in edges
 
 
-async def test_AC18_10_5_detector_recognizes_supported_business_entities(
-    db: AsyncSession,
-    test_user: User,
-):
-    """AC18.10.5: Detector does not mark valid supported graph nodes as orphans."""
-    document, atomic, entry, line = await _create_historical_statement_entry(db, user_id=test_user.id)
-    service = EvidenceGraphMaterializationService()
-    for node_kind, entity_type, entity_id in [
-        ("ledger_line", "journal_line", line.id),
-        ("ledger_entry", "journal_entry", entry.id),
-        ("source_document", "uploaded_document", document.id),
-        ("atomic_fact", "atomic_transaction", atomic.id),
-        ("future_node", "future_table", uuid4()),
-    ]:
-        await service.lineage.upsert_node(
-            db,
-            user_id=test_user.id,
-            node_kind=node_kind,
-            entity_type=entity_type,
-            entity_id=entity_id,
-        )
-
-    report = await service.detect_consistency_drift(db, user_id=test_user.id)
-
-    assert not any(finding.code == "orphan_graph_node" for finding in report.findings)
-
-
 async def test_AC18_10_7_missing_and_cross_user_requests_return_explicit_blockers(
     db: AsyncSession,
     test_user: User,
 ):
-    """AC18.10.7: Missing and cross-user materialization requests return explicit blockers."""
+    """AC-extraction.1810.1 AC-extraction.1810.7: Missing and cross-user materialization requests return explicit blockers."""
     other_user = User(email=f"other-{uuid4()}@example.com", hashed_password="x")
     db.add(other_user)
     await db.flush()

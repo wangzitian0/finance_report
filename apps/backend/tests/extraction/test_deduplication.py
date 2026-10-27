@@ -13,6 +13,7 @@ import pytest
 from sqlalchemy import select
 
 from src.extraction import DocumentType, TransactionDirection
+from src.extraction.base.types import ExtractedTransactionRow
 from src.extraction.extension.deduplication import DeduplicationService
 from src.extraction.orm.layer2 import AtomicTransaction
 from tests.factories import UserFactory
@@ -48,6 +49,42 @@ async def _known_custody_sources(db, user_id):
         docs.append(doc.id)
     await db.flush()
     return docs
+
+
+async def _upsert(
+    service,
+    *,
+    db,
+    user_id,
+    txn_date,
+    amount,
+    direction,
+    description,
+    currency,
+    source_doc_id,
+    source_doc_type,
+    reference=None,
+    balance_after=None,
+):
+    """Build the typed row that extraction builds, then run the scoped upsert."""
+    row = ExtractedTransactionRow(
+        user_id=user_id,
+        txn_date=txn_date,
+        amount=amount,
+        direction=direction.value,
+        description=description,
+        reference=reference,
+        currency=currency,
+        currency_unresolved=False,
+        balance_after=balance_after,
+        occurrence_index=0,
+        dedup_hash=service.calculate_transaction_hash(
+            user_id, txn_date, amount, direction, description, reference=reference, balance_after=balance_after
+        ),
+    )
+    return await service.upsert_scoped_atomic_transaction(
+        db=db, row=row, source_doc_id=source_doc_id, source_doc_type=source_doc_type
+    )
 
 
 class TestDeduplicationService:
@@ -215,14 +252,15 @@ class TestDeduplicationService:
         assert first_deposit == _hash(occurrence_index=0)
         assert second_deposit == _hash(occurrence_index=1)
 
-    async def test_upsert_atomic_transaction_new_creates_record(self, db, test_user):
+    async def test_upsert_scoped_atomic_transaction_new_creates_record(self, db, test_user):
         """GIVEN: No existing atomic transaction with hash
         WHEN: Upserting atomic transaction
         THEN: New record is created with source document"""
         service = DeduplicationService()
         doc_id = uuid4()
 
-        txn = await service.upsert_atomic_transaction(
+        txn = await _upsert(
+            service,
             db=db,
             user_id=test_user.id,
             txn_date=date(2024, 1, 15),
@@ -251,11 +289,12 @@ class TestDeduplicationService:
         assert txn.source_documents[0]["doc_type"] == DocumentType.BANK_STATEMENT.value
 
     async def test_upsert_persists_balance_after(self, db, test_user):
-        """AC-extraction.406.8: upsert_atomic_transaction persists the extracted balance_after so the
+        """AC-extraction.406.8: upsert_scoped_atomic_transaction persists the extracted balance_after so the
         Stage-1 conflict guard can disambiguate distinct-but-identical transactions."""
         service = DeduplicationService()
 
-        txn = await service.upsert_atomic_transaction(
+        txn = await _upsert(
+            service,
             db=db,
             user_id=test_user.id,
             txn_date=date(2025, 6, 25),
@@ -301,7 +340,8 @@ class TestDeduplicationService:
         db.add(legacy)
         await db.flush()
 
-        result = await service.upsert_atomic_transaction(
+        result = await _upsert(
+            service,
             db=db,
             user_id=user_id,
             currency="USD",
@@ -314,7 +354,7 @@ class TestDeduplicationService:
         assert result.id == legacy.id  # hit the existing branch, not a new insert
         assert result.balance_after is None  # Historical fact remains unchanged.
 
-    async def test_upsert_atomic_transaction_duplicate_appends_source(self, db, test_user):
+    async def test_upsert_scoped_atomic_transaction_duplicate_appends_source(self, db, test_user):
         """GIVEN: Existing atomic transaction with same hash
         WHEN: Upserting duplicate transaction with different source
         THEN: Source document is appended to existing record (covers lines 98, 100-105)"""
@@ -322,7 +362,8 @@ class TestDeduplicationService:
         doc1_id, doc2_id = await _known_custody_sources(db, test_user.id)
 
         # Create first transaction
-        txn1 = await service.upsert_atomic_transaction(
+        txn1 = await _upsert(
+            service,
             db=db,
             user_id=test_user.id,
             txn_date=date(2024, 1, 15),
@@ -337,7 +378,8 @@ class TestDeduplicationService:
         original_id = txn1.id
 
         # Upsert duplicate with different source
-        txn2 = await service.upsert_atomic_transaction(
+        txn2 = await _upsert(
+            service,
             db=db,
             user_id=test_user.id,
             txn_date=date(2024, 1, 15),
@@ -359,7 +401,7 @@ class TestDeduplicationService:
         assert str(doc1_id) in doc_ids
         assert str(doc2_id) in doc_ids
 
-    async def test_upsert_atomic_transaction_duplicate_same_source_no_duplicate(self, db, test_user):
+    async def test_upsert_scoped_atomic_transaction_duplicate_same_source_no_duplicate(self, db, test_user):
         """GIVEN: Existing atomic transaction with same hash and source
         WHEN: Upserting duplicate with same source document
         THEN: Source document is not duplicated in array (covers line 100)"""
@@ -367,7 +409,8 @@ class TestDeduplicationService:
         doc_id = uuid4()
 
         # Create first transaction
-        txn1 = await service.upsert_atomic_transaction(
+        txn1 = await _upsert(
+            service,
             db=db,
             user_id=test_user.id,
             txn_date=date(2024, 1, 15),
@@ -381,7 +424,8 @@ class TestDeduplicationService:
         )
 
         # Upsert duplicate with SAME source
-        txn2 = await service.upsert_atomic_transaction(
+        txn2 = await _upsert(
+            service,
             db=db,
             user_id=test_user.id,
             txn_date=date(2024, 1, 15),
@@ -411,7 +455,8 @@ class TestDeduplicationService:
         doc_id = uuid4()
 
         # Create transaction for user 1
-        txn1 = await service.upsert_atomic_transaction(
+        txn1 = await _upsert(
+            service,
             db=db,
             user_id=user1_id,
             txn_date=date(2024, 1, 15),
@@ -425,7 +470,8 @@ class TestDeduplicationService:
         )
 
         # Create same transaction for user 2
-        txn2 = await service.upsert_atomic_transaction(
+        txn2 = await _upsert(
+            service,
             db=db,
             user_id=user2_id,
             txn_date=date(2024, 1, 15),
@@ -468,7 +514,8 @@ class TestDeduplicationService:
         async def upsert_in_session(doc_id):
             async with AsyncSession(db_engine) as session:
                 async with session.begin():
-                    txn = await service.upsert_atomic_transaction(
+                    txn = await _upsert(
+                        service,
                         db=session,
                         user_id=test_user.id,
                         txn_date=date(2024, 1, 15),
@@ -523,13 +570,14 @@ class TestDeduplicationService:
                 all_records = result.scalars().all()
                 assert len(all_records) == 1, f"Race condition: {len(all_records)} duplicate records in database"
 
-    async def test_upsert_atomic_transaction_handles_non_list_source_documents(self, db, test_user):
+    async def test_upsert_scoped_atomic_transaction_handles_non_list_source_documents(self, db, test_user):
         """AC-extraction.111.2: Malformed transaction lineage requires review rather than inventing source custody."""
         service = DeduplicationService()
         doc1 = uuid4()
         doc2 = uuid4()
 
-        txn = await service.upsert_atomic_transaction(
+        txn = await _upsert(
+            service,
             db=db,
             user_id=test_user.id,
             txn_date=date(2024, 2, 1),
@@ -546,7 +594,8 @@ class TestDeduplicationService:
         from src.extraction.extension.transaction_identity import TransactionIdentityReviewRequired
 
         with pytest.raises(TransactionIdentityReviewRequired, match="review"):
-            await service.upsert_atomic_transaction(
+            await _upsert(
+                service,
                 db=db,
                 user_id=test_user.id,
                 txn_date=date(2024, 2, 1),
