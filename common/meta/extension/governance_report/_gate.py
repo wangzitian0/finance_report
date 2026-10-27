@@ -109,13 +109,6 @@ def _load_changed_files(path: Path | None) -> list[str]:
     ]
 
 
-def _source_manifest_repo_path(source: ManifestSource, repo_root: Path) -> str:
-    try:
-        return source.manifest_path.relative_to(repo_root).as_posix()
-    except ValueError:
-        return source.manifest_path.as_posix()
-
-
 def _read_base_manifest_text(
     repo_root: Path,
     source: ManifestSource,
@@ -123,7 +116,7 @@ def _read_base_manifest_text(
 ) -> str | None:
     if not base_ref:
         return None
-    manifest_path = _source_manifest_repo_path(source, repo_root)
+    manifest_path = display_path(source.manifest_path, repo_root)
     result = subprocess.run(
         ["git", "-C", repo_root.as_posix(), "show", f"{base_ref}:{manifest_path}"],
         check=False,

@@ -65,7 +65,6 @@ from common.meta.extension.governance_report._gate import (
     _read_base_manifest_text,
     _resolve_repo_path,
     _source_changed_files,
-    _source_manifest_repo_path,
     evaluate_incremental_gate,
 )
 from common.meta.extension.governance_report.cli import (
@@ -125,7 +124,6 @@ __all__ = [
     "_read_base_manifest_text",
     "_resolve_repo_path",
     "_source_changed_files",
-    "_source_manifest_repo_path",
     "build_report",
     "build_source_report",
     "evaluate_incremental_gate",

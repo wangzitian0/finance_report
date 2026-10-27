@@ -32,6 +32,8 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from common.meta.base.gate_util import display_path
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_SRC = REPO_ROOT / "apps" / "frontend" / "src"
 BASELINE_PATH = Path(__file__).parent / "fe-api-handmock-baseline.json"
@@ -63,11 +65,7 @@ def count_handmock_files() -> dict[str, int]:
         if _FIXTURE_IMPORT_MARKER in text:
             continue
         if any(m in text for m in _VECTORED_MARKERS):
-            try:
-                key = str(path.relative_to(REPO_ROOT))
-            except ValueError:  # monkeypatched sandbox roots in tests
-                key = str(path)
-            counts[key] = 1
+            counts[display_path(path, REPO_ROOT)] = 1
     return counts
 
 

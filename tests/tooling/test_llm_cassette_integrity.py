@@ -12,12 +12,14 @@ import json
 from decimal import Decimal
 from pathlib import Path
 
+from common.testing import preflight
 from common.testing.check_llm_cassettes import (
     _IN_DIRECTIONS,
     _OUT_DIRECTIONS,
     balance_violation,
     check,
     exempt_count,
+    VALIDATION_SOURCE,
     production_direction_aliases,
     _response_text,
 )
@@ -60,6 +62,13 @@ def test_AC23_7_1_direction_aliases_are_read_from_the_production_parser(tmp_path
     source = tmp_path / "validation.py"
     source.write_text('IN_DIRECTION_ALIASES = {"X"}\nOUT_DIRECTION_ALIASES = {"Y"}\n')
     assert production_direction_aliases(source) == ({"X"}, {"Y"})
+
+
+def test_AC23_7_1_alias_source_change_reruns_the_checker() -> None:
+    """AC-llm.7.1: a push that changes only the alias source still runs the gate."""
+    source = VALIDATION_SOURCE.relative_to(Path(__file__).resolve().parents[2])
+    checks = preflight.select_checks([source.as_posix()])
+    assert "llm-cassettes" in {check.name for check in checks}
 
 
 def test_AC23_7_1_balance_uses_direction_not_just_amount_sign() -> None:

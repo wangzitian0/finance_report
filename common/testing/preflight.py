@@ -473,6 +473,7 @@ CHECKS: tuple[Check, ...] = (
             "common/testing/fixtures/llm_cassettes/**.json",
             "tools/check_llm_cassettes.py",
             "common/testing/check_llm_cassettes.py",
+            "apps/backend/src/extraction/base/validation.py",
         ),
         commands=((PY, "tools/check_llm_cassettes.py"),),
         why="statement extraction cassettes must satisfy balance-chain invariant",
