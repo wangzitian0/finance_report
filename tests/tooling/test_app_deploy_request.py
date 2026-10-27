@@ -13,6 +13,7 @@ import shlex
 import subprocess
 import sys
 import tomllib
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -419,19 +420,24 @@ def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> 
             return next(run_lists)
         return None
 
+    dispatched_at = datetime(2026, 10, 14, 10, 55, 50, tzinfo=UTC)
     result = transport.dispatch_and_wait(
         VALID_REQUEST,
         api=api,
         fetch_logs=lambda run_id: b'plan {"request_id": "finance-report-run-12345678"}',
         sleep=lambda _: None,
         max_attempts=3,
+        clock=lambda: dispatched_at,
     )
     assert result.run_id == 101
     assert result.url.endswith("/101")
     dispatch = next(call for call in calls if call[0] == "POST")
     assert dispatch[2] == {
         "event_type": "app-deploy-request",
-        "client_payload": VALID_REQUEST,
+        "client_payload": {
+            **VALID_REQUEST,
+            "sender_deadline": "2026-10-14T10:56:05Z",
+        },
     }
 
     ambiguous_runs = {
@@ -669,6 +675,7 @@ def _drive_transport(
     *,
     max_attempts: int,
     calls: list[tuple[str, str, object]] | None = None,
+    clock: object = None,
 ) -> object:
     transport = importlib.import_module("tools.app_deploy_transport")
     remaining = iter(pages)
@@ -678,6 +685,7 @@ def _drive_transport(
             calls.append((method, path, body))
         return next(remaining) if method == "GET" else None
 
+    fixed_clock = clock or (lambda: datetime(2026, 10, 14, 10, 55, 50, tzinfo=UTC))
     return transport.dispatch_and_wait(
         request,
         api=api,
@@ -685,6 +693,7 @@ def _drive_transport(
         sleep=lambda _: None,
         max_attempts=max_attempts,
         announce=notices.append,
+        clock=fixed_clock,
     )
 
 
@@ -700,26 +709,29 @@ def test_AC_runtime_deploy_request_5_transport_announces_the_approval_wait() -> 
             request_id, ["waiting", "waiting", "in_progress", "completed"]
         ),
         notices,
-        max_attempts=4,
+        max_attempts=360,
         calls=calls,
     )
     assert result.run_id == 201
-    # The wrapper passes the dispatch through unchanged.
+    # The wrapper passes the dispatch through with the computed sender_deadline.
     dispatch = next(call for call in calls if call[0] == "POST")
     assert dispatch[2] == {
         "event_type": "app-deploy-request",
-        "client_payload": VALID_PRODUCTION_REQUEST,
+        "client_payload": {
+            **VALID_PRODUCTION_REQUEST,
+            "sender_deadline": "2026-10-14T11:25:50Z",
+        },
     }
     assert all(call[2] is None for call in calls if call[0] == "GET")
     assert len(notices) == 1, "the notice appears once, not once per poll"
     notice = notices[0]
     assert "https://github.com/wangzitian0/infra2/actions/runs/201" in notice
-    # Created 10:55:50Z, plus the 24 min age limit, minus the 2 min margin for the start of the check.
-    assert "Approve before 2026-10-14 11:17:50Z" in notice
+    # Sender deadline 11:25:50Z minus 300 s deploy budget minus 120 s approval margin.
+    assert "Approve before 2026-10-14 11:18:50Z" in notice
     assert "The run was created at 2026-10-14 10:55:50Z" in notice
     # The retry names the version of the refused request. A rollback request names the rollback version.
     assert "Dispatch the release again for v2.3.4" in notice
-    assert "older than 1440 s" in notice
+    assert "sender stops waiting at 2026-10-14 11:25:50Z" in notice
 
     # A time with an offset is shown in UTC.
     offset_notices: list[str] = []
@@ -729,10 +741,10 @@ def test_AC_runtime_deploy_request_5_transport_announces_the_approval_wait() -> 
             request_id, ["waiting", "completed"], created_at="2026-10-14T18:55:50+08:00"
         ),
         offset_notices,
-        max_attempts=2,
+        max_attempts=360,
     )
     assert len(offset_notices) == 1
-    assert "Approve before 2026-10-14 11:17:50Z" in offset_notices[0]
+    assert "Approve before 2026-10-14 11:18:50Z" in offset_notices[0]
     assert "The run was created at 2026-10-14 10:55:50Z" in offset_notices[0]
 
     # A Staging request has no approval gate and no age limit.
@@ -963,7 +975,8 @@ def test_AC_runtime_deploy_request_5_cli_prints_the_notice_with_the_default_anno
     )
     assert transport.main(["--timeout", "5", "--poll-interval", "1"]) == 0
     captured = capsys.readouterr()
-    assert "Approve before 2026-10-14 11:17:50Z" in captured.err
+    assert "The run was created at 2026-10-14 10:55:50Z" in captured.err
+    assert "sender stops waiting at " in captured.err
     assert ("::notice title=Production approval needed::" in captured.err) == (
         github_actions == "true"
     )
