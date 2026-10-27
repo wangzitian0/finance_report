@@ -770,12 +770,12 @@ Persistence checkpoints use the actual canonical statement/source identities.
   (`STORAGE_SWEEP_INTERVAL_SECONDS`, default 86400s = daily) are config-driven (issue #356);
   objects younger than the grace period are never deleted.
 - **JSON-repair retry**: when a model returns an otherwise-valid object wrapped in
-  a markdown code fence or padded with prose, `_extract_json_with_models` performs
+  a markdown code fence or padded with prose, `_extract_json_with_model` performs
   one deterministic repair pass (strip the fence, extract the outermost balanced
   `{...}` object, tracking string literals) before counting a `json_parse` failure.
   This keeps a single malformed-but-recoverable response from rejecting an
   otherwise-valid upload (#982). The repair never invents data and falls back to the
-  existing model-chain failure path when no object can be recovered.
+  `json_parse` failure when no object can be recovered.
 - **Stuck job supervisor**: statements stuck in `parsing` longer than 30 minutes are marked `rejected`
   with a validation error so users can retry.
 - **Error handler rollback-first**: `_handle_parse_failure` calls `db.rollback()` before re-fetching
@@ -882,7 +882,7 @@ Coverage checks compare monthly statement periods within each account/currency:
 | `src/extraction/base/source_vocabulary.py` | Pure source-document, transaction-direction, classification and review enums; SQL mappings are consumers |
 | `src/extraction/orm/` (`layer1.py`-`layer3.py`, `evidence.py`, `correction.py`, `statement_summary.py`) | Package-owned SQLAlchemy fact family + statement envelope (#1675 D5c-D6); reporting owns the former Layer-4 snapshot; cross-domain references are bare FK id columns / registered read-model ports, never `relationship()` or a direct cross-domain import |
 | `src/schemas/extraction.py` | Pydantic schemas |
-| `src/extraction/extension/` (`service.py`, `_ocr.py`, `_llm_led_gate.py`, …) | Core extraction logic |
+| `src/extraction/extension/` (`service.py`, `_media.py`, `_llm_led_gate.py`, …) | Core extraction logic |
 | `src/extraction/base/validation.py` | Validation, confidence scoring, running-balance chain-break detector (`detect_balance_chain_break`) |
 | `src/runtime/extension/storage.py` | Object storage uploads + presigned URLs |
 | `src/extraction/extension/prompts/statement.py` | Parsing prompt templates |

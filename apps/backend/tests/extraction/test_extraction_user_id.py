@@ -32,9 +32,9 @@ async def test_AC23_4_5_extraction_threads_user_id_to_stream() -> None:
         uid = uuid4()
         # Downstream JSON validation isn't under test; we only assert user_id was threaded.
         with contextlib.suppress(Exception):
-            await service._extract_json_with_models(
+            await service._extract_json_with_model(
                 messages=[{"role": "user", "content": "x"}],
-                models=["glm-4.6"],
+                model="test-model",
                 user_id=uid,
             )
     finally:

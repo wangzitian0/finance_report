@@ -138,7 +138,7 @@ async def test_AC_B1_extract_financial_data_uses_brokerage_prompt_before_model_c
         captured["prompt"] = messages[0]["content"][0]["text"]
         return {"institution": "Moomoo", "positions": []}
 
-    monkeypatch.setattr(service, "_extract_json_with_models", capture_prompt)
+    monkeypatch.setattr(service, "_extract_json_with_model", capture_prompt)
 
     await service.extract_financial_data(
         file_content=b"\x89PNG\r\n",
@@ -161,7 +161,7 @@ async def test_AC_B1_extract_financial_data_keeps_bank_prompt_for_bank_upload(mo
         captured["prompt"] = messages[0]["content"][0]["text"]
         return {"institution": "DBS", "transactions": []}
 
-    monkeypatch.setattr(service, "_extract_json_with_models", capture_prompt)
+    monkeypatch.setattr(service, "_extract_json_with_model", capture_prompt)
 
     await service.extract_financial_data(
         file_content=b"\x89PNG\r\n",

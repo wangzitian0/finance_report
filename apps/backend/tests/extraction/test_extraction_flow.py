@@ -234,7 +234,6 @@ class TestExtractionServiceFlow:
     async def test_extract_financial_data_valid_public_url(self, service):
         """Test extract_financial_data uses valid public URL when no content."""
         service.api_key = "test-key"
-        service.ocr_model = None
         url = "https://example.com/public.pdf"
 
         json_content = json.dumps({"success": True})
@@ -261,7 +260,6 @@ class TestExtractionServiceFlow:
     async def test_extract_financial_data_pdf_renders_content_for_zai_vision(self, service):
         """Test that Z.AI PDF vision fallback renders uploaded PDF content to images."""
         service.api_key = "test-key"
-        service.ocr_model = None
         pdf_bytes = b"%PDF-1.4 fake content"
         image_payload = {
             "type": "image_url",
@@ -316,7 +314,6 @@ class TestExtractionServiceFlow:
     async def test_extract_financial_data_pdf_prefers_rendered_content_for_zai_vision(self, service):
         """Z.AI PDF vision fallback renders content instead of sending PDF URLs as images."""
         service.api_key = "test-key"
-        service.ocr_model = None
         pdf_bytes = b"%PDF-1.4 fake content"
         url = "https://example.com/public.pdf"
         image_payload = {

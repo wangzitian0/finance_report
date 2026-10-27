@@ -13,7 +13,7 @@ from src.extraction.extension.service import ExtractionService
 
 
 async def test_extraction_forwards_configured_seed():
-    """AC-extraction.116.2: _extract_json_with_models forwards settings.ai_json_seed."""
+    """AC-extraction.116.2: _extract_json_with_model forwards settings.ai_json_seed."""
     service = ExtractionService()
 
     mock_stream = MagicMock()
@@ -23,9 +23,9 @@ async def test_extraction_forwards_configured_seed():
         patch("src.extraction.extension.service.stream_ai_json", return_value=mock_stream) as mock_stream_fn,
         patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value='{"ok": true}')),
     ):
-        result = await service._extract_json_with_models(
+        result = await service._extract_json_with_model(
             messages=[{"role": "user", "content": "x"}],
-            models=["test-model"],
+            model="test-model",
         )
 
     assert result == {"ok": True}
@@ -42,9 +42,9 @@ async def test_extraction_decoding_is_deterministic_by_default():
         patch("src.extraction.extension.service.stream_ai_json", return_value=mock_stream) as mock_stream_fn,
         patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value='{"ok": true}')),
     ):
-        await service._extract_json_with_models(
+        await service._extract_json_with_model(
             messages=[{"role": "user", "content": "x"}],
-            models=["test-model"],
+            model="test-model",
         )
 
     kwargs = mock_stream_fn.call_args.kwargs
