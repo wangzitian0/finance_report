@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 import ast
-from collections.abc import Callable
 from pathlib import Path
+
+from common.meta.base.detector_runner import (
+    all_of,
+    missing_fragments,
+    read_source,
+    requires,
+    run_detectors,
+)
 
 _MATCHING = "apps/backend/src/reconciliation/extension/matching.py"
 _REPOSITORY = "apps/backend/src/reconciliation/extension/repository.py"
@@ -26,22 +33,19 @@ GOVERNANCE_SOURCE_PATHS = (
     _CONTRACT,
 )
 
-
-def _source(repo_root: Path, relative: str) -> str:
-    return (repo_root / relative).read_text(encoding="utf-8")
-
-
-def _contains(repo_root: Path, relative: str, fragments: tuple[str, ...]) -> list[str]:
-    source = " ".join(_source(repo_root, relative).split())
-    return [
-        f"{relative}: missing {fragment}"
-        for fragment in fragments
-        if " ".join(fragment.split()) not in source
-    ]
+_WORKER_CONVERGENCE = (
+    "select(AtomicTransaction.id)",
+    ".with_for_update()",
+    "return await self.get_active_match(txn_id)",
+)
+_DISPOSITION_UNIQUE = (
+    "disposition_id: Mapped[UUID]",
+    "nullable=False,\n        unique=True",
+)
 
 
 def _normal_candidate_first(repo_root: Path) -> list[str]:
-    source = _source(repo_root, _MATCHING)
+    source = read_source(repo_root, _MATCHING)
     normal = source.find("await run_normal_matching_phase(")
     transfer = source.find("await run_transfer_detection_phase(")
     if normal < 0 or transfer < 0 or normal >= transfer:
@@ -49,62 +53,8 @@ def _normal_candidate_first(repo_root: Path) -> list[str]:
     return []
 
 
-def _one_active_head(repo_root: Path) -> list[str]:
-    return _contains(
-        repo_root,
-        _ORM,
-        (
-            '"uq_reconciliation_matches_active_atomic_txn"',
-            '"atomic_txn_id",\n            unique=True',
-            "superseded_by_id IS NULL AND status NOT IN ('superseded'::reconciliation_status_enum, 'rejected'::reconciliation_status_enum)",
-        ),
-    )
-
-
-def _worker_convergence(repo_root: Path) -> list[str]:
-    return _contains(
-        repo_root,
-        _REPOSITORY,
-        (
-            "select(AtomicTransaction.id)",
-            ".with_for_update()",
-            "return await self.get_active_match(txn_id)",
-        ),
-    )
-
-
-def _persistent_transfer_pair(repo_root: Path) -> list[str]:
-    findings = _contains(
-        repo_root,
-        _ORM,
-        (
-            "class ReconciliationTransferPair(",
-            "class ReconciliationTransferPairLeg(",
-            "decision: Mapped[TransferPairDecision]",
-            "review_state: Mapped[TransferPairReviewState]",
-            "version: Mapped[int]",
-            "disposition_id: Mapped[UUID]",
-            "nullable=False,\n        unique=True",
-        ),
-    )
-    findings.extend(
-        _contains(
-            repo_root,
-            _TRANSFER_PAIRS,
-            (
-                "out_user_id != in_user_id",
-                "out_direction != TransactionDirection.OUT",
-                "in_direction != TransactionDirection.IN",
-                "out_currency_code != in_currency_code",
-            ),
-        )
-    )
-    return findings
-
-
 def _currency_explicit(repo_root: Path) -> list[str]:
-    path = repo_root / _ENTRY_READS
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    tree = ast.parse(read_source(repo_root, _ENTRY_READS), filename=_ENTRY_READS)
     functions = {
         node.name: node
         for node in tree.body
@@ -128,7 +78,7 @@ def _currency_explicit(repo_root: Path) -> list[str]:
                 f"{_ENTRY_READS}: {name} must require keyword-only currency"
             )
     findings.extend(
-        _contains(
+        missing_fragments(
             repo_root,
             _ENTRY_READS,
             ("line.money.currency == target", "Money.sum(debits, currency=target)"),
@@ -137,27 +87,8 @@ def _currency_explicit(repo_root: Path) -> list[str]:
     return findings
 
 
-def _idempotent_command(repo_root: Path) -> list[str]:
-    findings = _worker_convergence(repo_root)
-    findings.extend(
-        _contains(
-            repo_root,
-            _TRANSFER_PAIRS,
-            ("async with db.begin_nested():", "except IntegrityError:", "continue"),
-        )
-    )
-    findings.extend(
-        _contains(
-            repo_root,
-            _ORM,
-            ("disposition_id: Mapped[UUID]", "nullable=False,\n        unique=True"),
-        )
-    )
-    return findings
-
-
 def _typed_ledger_boundary(repo_root: Path) -> list[str]:
-    source = _source(repo_root, _TRANSFER_DETECTION)
+    source = read_source(repo_root, _TRANSFER_DETECTION)
     findings = []
     claim = source.find("await repository.claim_transaction(txn.id)")
     out_command = source.find("await create_transfer_out_entry(")
@@ -179,53 +110,61 @@ def _typed_ledger_boundary(repo_root: Path) -> list[str]:
     return findings
 
 
-def _exact_governance_detail(repo_root: Path) -> list[str]:
-    return _contains(
-        repo_root,
-        _CONTRACT,
-        (
-            'issue="https://github.com/wangzitian0/finance_report/issues/1994"',
-            'id="economic-disposition-atomicity"',
-            'required_proof_strength="concurrency"',
-            'required_proof_strength="schema"',
-            'required_proof_strength="value-oracle"',
-            'enforcing_gate="ci.backend_integration"',
-            'enforcing_gate="ci.backend"',
+_CHECKS = {
+    "normal-candidate-first": _normal_candidate_first,
+    "one-active-head": requires(
+        _ORM,
+        '"uq_reconciliation_matches_active_atomic_txn"',
+        '"atomic_txn_id",\n            unique=True',
+        "superseded_by_id IS NULL AND status NOT IN ('superseded'::reconciliation_status_enum, 'rejected'::reconciliation_status_enum)",
+    ),
+    "worker-convergence": requires(_REPOSITORY, *_WORKER_CONVERGENCE),
+    "persistent-transfer-pair": all_of(
+        requires(
+            _ORM,
+            "class ReconciliationTransferPair(",
+            "class ReconciliationTransferPairLeg(",
+            "decision: Mapped[TransferPairDecision]",
+            "review_state: Mapped[TransferPairReviewState]",
+            "version: Mapped[int]",
+            *_DISPOSITION_UNIQUE,
         ),
-    )
-
-
-_CHECKS: tuple[tuple[str, Callable[[Path], list[str]]], ...] = (
-    ("normal-candidate-first", _normal_candidate_first),
-    ("one-active-head", _one_active_head),
-    ("worker-convergence", _worker_convergence),
-    ("persistent-transfer-pair", _persistent_transfer_pair),
-    ("currency-explicit", _currency_explicit),
-    ("idempotent-command", _idempotent_command),
-    ("typed-ledger-boundary", _typed_ledger_boundary),
-    ("exact-governance-detail", _exact_governance_detail),
-)
+        requires(
+            _TRANSFER_PAIRS,
+            "out_user_id != in_user_id",
+            "out_direction != TransactionDirection.OUT",
+            "in_direction != TransactionDirection.IN",
+            "out_currency_code != in_currency_code",
+        ),
+    ),
+    "currency-explicit": _currency_explicit,
+    "idempotent-command": all_of(
+        requires(_REPOSITORY, *_WORKER_CONVERGENCE),
+        requires(
+            _TRANSFER_PAIRS,
+            "async with db.begin_nested():",
+            "except IntegrityError:",
+            "continue",
+        ),
+        requires(_ORM, *_DISPOSITION_UNIQUE),
+    ),
+    "typed-ledger-boundary": _typed_ledger_boundary,
+    "exact-governance-detail": requires(
+        _CONTRACT,
+        'issue="https://github.com/wangzitian0/finance_report/issues/1994"',
+        'id="economic-disposition-atomicity"',
+        'required_proof_strength="concurrency"',
+        'required_proof_strength="schema"',
+        'required_proof_strength="value-oracle"',
+        'enforcing_gate="ci.backend_integration"',
+        'enforcing_gate="ci.backend"',
+    ),
+}
 
 
 def detect_governance(*, repo_root: Path) -> list[dict[str, object]]:
     """Return one independently computed observation per package guarantee."""
-    observations = []
-    for guarantee_id, check in _CHECKS:
-        try:
-            findings = check(repo_root)
-        except (OSError, SyntaxError, UnicodeError) as exc:
-            findings = [
-                f"{guarantee_id}: source inspection failed ({type(exc).__name__}): {exc}"
-            ]
-        observations.append(
-            {
-                "guarantee_id": f"reconciliation/{guarantee_id}",
-                "current": len(findings),
-                "target": 0,
-                "findings": findings,
-            }
-        )
-    return observations
+    return run_detectors("reconciliation", _CHECKS, repo_root)
 
 
 __all__ = ["GOVERNANCE_SOURCE_PATHS", "detect_governance"]
