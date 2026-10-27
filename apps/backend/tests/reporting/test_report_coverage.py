@@ -50,7 +50,7 @@ from src.extraction.extension.reviewed_statement_envelope import current_reviewe
 from src.extraction.extension.statement_contribution import resolve_statement_contribution
 from src.extraction.extension.transaction_classification import CategoryProposal, TransactionCategory
 from src.extraction.orm.layer3 import ClassificationRule
-from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
+from src.extraction.orm.reviewed_statement_envelope import ReviewedStatementEnvelope, StatementExtractionResultRecord
 from src.identity import User
 from src.ledger import Account, AccountType, initialize_opening_positions
 from src.reporting import current_package_readiness, generate_cash_flow, report_coverage
@@ -88,16 +88,22 @@ async def _statement_with_source(
     user_id: UUID,
     account: Account,
     *,
-    period_start: date,
-    period_end: date,
+    period_start: date | None,
+    period_end: date | None,
     status: BankStatementStatus = BankStatementStatus.APPROVED,
     source_type: StatementSourceType = StatementSourceType.BANK,
     earlier_source_type: StatementSourceType | None = None,
+    result_period_start: date | None = None,
+    envelope_period_start: date | None = None,
+    earlier_envelope_period_start: date | None = None,
 ) -> StatementSummary:
     """A statement with a current source result of ``source_type``, so the custody query reaches it.
 
-    ``earlier_source_type`` adds an older result that is not current. Only the custody query reads
-    these results: their payload holds the source type, no facts.
+    ``period_start`` and ``period_end`` are the summary period. ``earlier_source_type`` adds an
+    older result that is not current. Only the custody query reads these results: their payload
+    holds the source type and ``result_period_start``, no facts. ``envelope_period_start`` adds a
+    reviewed envelope on the current result, and ``earlier_envelope_period_start`` adds one on the
+    older result.
     """
     statement = StatementSummary(
         user_id=user_id,
@@ -122,7 +128,8 @@ async def _statement_with_source(
             source_content_digest=sha256(f"source:{statement.id}".encode()).hexdigest(),
             schema_version="2",
             producer_version="coverage-fixture",
-            payload={"source_type": kind.value},
+            payload={"source_type": kind.value}
+            | ({"period_start": result_period_start.isoformat()} if result_period_start else {}),
             source_trace_record_id=uuid4(),
             created_at=datetime.now(UTC),
         )
@@ -130,6 +137,29 @@ async def _statement_with_source(
         records.append(record)
     await db.flush()
     statement.current_extraction_result_id = records[-1].id
+    envelopes = [(records[-1], envelope_period_start)]
+    if earlier_source_type:
+        envelopes.append((records[0], earlier_envelope_period_start))
+    for record, envelope_start in envelopes:
+        if envelope_start is None:
+            continue
+        db.add(
+            ReviewedStatementEnvelope(
+                user_id=user_id,
+                statement_id=statement.id,
+                source_result_id=record.id,
+                account_id=account.id,
+                currency="SGD",
+                period_start=envelope_start,
+                period_end=envelope_start + timedelta(days=27),
+                opening_balance=Decimal("1000.00"),
+                closing_balance=Decimal("1200.00"),
+                rationale="coverage fixture",
+                command_digest=sha256(f"envelope:{record.id}".encode()).hexdigest(),
+                review_trace_record_id=uuid4(),
+                created_at=datetime.now(UTC),
+            )
+        )
     await db.flush()
     return statement
 
@@ -306,6 +336,86 @@ async def test_AC_reporting_2646_2_custody_accounts_are_the_bank_statements_of_t
         "Rejected",
         "Retired",
         "Starts on the date",
+    ]
+
+
+async def test_AC_reporting_2646_2_the_custody_start_is_the_envelope_then_the_result_then_the_summary(
+    db: AsyncSession, test_user
+) -> None:
+    """AC-reporting.2646.2: the custody query reads the period start that the package reads. The
+    reviewed envelope on the current result comes first, then the current source result, then the
+    summary. Each statement has a different start in each place, so only the correct order keeps
+    the correct accounts. An envelope on an older result does not count."""
+    user_id = test_user.id
+    as_of = date(2026, 6, 12)
+    before, after = date(2026, 5, 1), date(2026, 6, 20)
+    names = (
+        "Result start only",
+        "Summary start only",
+        "Envelope moves the start before",
+        "Envelope moves the start after",
+        "Result over summary",
+        "Envelope on an older result",
+    )
+    accounts = {name: await _account(db, user_id, name) for name in names}
+    # The re-parse case without an envelope: the parsed summary has no period, the current result has one.
+    await _statement_with_source(
+        db,
+        user_id,
+        accounts["Result start only"],
+        period_start=None,
+        period_end=None,
+        status=BankStatementStatus.PARSED,
+        result_period_start=before,
+    )
+    # A legacy result payload without a period: the summary is the last fallback.
+    await _statement_with_source(
+        db, user_id, accounts["Summary start only"], period_start=before, period_end=date(2026, 5, 28)
+    )
+    await _statement_with_source(
+        db,
+        user_id,
+        accounts["Envelope moves the start before"],
+        period_start=after,
+        period_end=date(2026, 7, 10),
+        result_period_start=after,
+        envelope_period_start=before,
+    )
+    await _statement_with_source(
+        db,
+        user_id,
+        accounts["Envelope moves the start after"],
+        period_start=before,
+        period_end=date(2026, 7, 10),
+        result_period_start=before,
+        envelope_period_start=after,
+    )
+    await _statement_with_source(
+        db,
+        user_id,
+        accounts["Result over summary"],
+        period_start=before,
+        period_end=date(2026, 7, 10),
+        result_period_start=after,
+    )
+    await _statement_with_source(
+        db,
+        user_id,
+        accounts["Envelope on an older result"],
+        period_start=after,
+        period_end=date(2026, 7, 10),
+        earlier_source_type=StatementSourceType.BANK,
+        result_period_start=after,
+        earlier_envelope_period_start=before,
+    )
+    await db.commit()
+
+    selected = await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=as_of)
+    by_id = {account.id: name for name, account in accounts.items()}
+    assert sorted(by_id[account_id] for account_id in selected) == [
+        "Envelope moves the start before",
+        "Result start only",
+        "Summary start only",
     ]
 
 
