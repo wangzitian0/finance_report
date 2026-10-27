@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import and_, func, literal, or_, select, text
+from sqlalchemy import Date, and_, cast, func, literal, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money.currency import normalize_currency_code
@@ -14,7 +14,7 @@ from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentT
 from src.extraction.extension._base import ExtractionError
 from src.extraction.orm.bank_custody_binding import BankCustodyBinding
 from src.extraction.orm.layer1 import UploadedDocument
-from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
+from src.extraction.orm.reviewed_statement_envelope import ReviewedStatementEnvelope, StatementExtractionResultRecord
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, JournalLine
 
@@ -52,12 +52,34 @@ async def coverage_bank_custody_account_ids(
     approval, an auto-approval that falls back to review). So no status filter applies. The
     package also reads a statement that closes after ``as_of`` when it has movement in the period,
     so the period end is not a filter. A wider set can only move the coverage start later; it can
-    never cause ``opening_coverage_starts_after_period``. A bank statement is a statement whose
-    current source result has the source type ``bank_statement``. The composite foreign key of the
-    source result holds the user of the statement, so one user filter covers both rows. When
-    ``out_latest_approved_end`` is provided, the same query also reads the latest approved
-    statement ``period_end`` on or before ``as_of`` (#2726).
+    never cause ``opening_coverage_starts_after_period``. The period start of a statement is the
+    first value that is not empty in this order: the newest reviewed envelope (by ``created_at``)
+    on the current source result, the current source result, the summary. The package reads only
+    the first two. The summary start is a fallback that can only make the set wider. A bank
+    statement is a statement whose current source result has the source type ``bank_statement``.
+    The composite foreign key of the source result holds the user of the statement, so one user
+    filter covers both rows. When ``out_latest_approved_end`` is provided, the same query also reads
+    the latest approved statement ``period_end`` on or before ``as_of`` (#2726).
     """
+    # The package reads the period start of the newest envelope (by created_at) on the current
+    # source result, else of the current source result. A re-parse can clear the summary period
+    # while the envelope stays current (#2646 review of #2717). The summary start is only a
+    # fallback that makes the set wider. An empty payload start reads as no start, as in
+    # StatementExtractionResult.from_payload. A NULL start fails "<= as_of", so no IS NOT NULL.
+    envelope_start = (
+        select(ReviewedStatementEnvelope.period_start)
+        .where(
+            ReviewedStatementEnvelope.user_id == StatementSummary.user_id,
+            ReviewedStatementEnvelope.statement_id == StatementSummary.id,
+            ReviewedStatementEnvelope.source_result_id == StatementSummary.current_extraction_result_id,
+        )
+        .order_by(ReviewedStatementEnvelope.created_at.desc())
+        .limit(1)
+        .correlate(StatementSummary)
+        .scalar_subquery()
+    )
+    result_start = cast(func.nullif(StatementExtractionResultRecord.payload["period_start"].astext, ""), Date)
+    period_start = func.coalesce(envelope_start, result_start, StatementSummary.period_start)
     custody_cte = (
         select(StatementSummary.account_id.label("account_id"))
         .join(
@@ -67,8 +89,7 @@ async def coverage_bank_custody_account_ids(
         .where(
             StatementSummary.user_id == user_id,
             StatementSummary.account_id.is_not(None),
-            StatementSummary.period_start.is_not(None),
-            StatementSummary.period_start <= as_of,
+            period_start <= as_of,
             StatementExtractionResultRecord.payload["source_type"].astext == StatementSourceType.BANK.value,
         )
         .distinct()

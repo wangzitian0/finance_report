@@ -5927,7 +5927,7 @@ export interface components {
             as_of_date: string;
             /**
              * Coverage Start
-             * @description The latest opening position of a cash account on or before as_of_date. A period that starts earlier has the cash-flow proof reason opening_coverage_starts_after_period. None when no cash account has an opening position.
+             * @description The latest opening position, on or before as_of_date, of the accounts that the bound reads: the cash accounts by name and a superset of the cash accounts of the report package. A period that starts on this day has no cash-flow proof reason opening_coverage_starts_after_period; one that starts earlier can have it. None when no such account has an opening position.
              */
             coverage_start?: string | null;
             /**
@@ -5937,7 +5937,7 @@ export interface components {
             latest_statement_end?: string | null;
             /**
              * Limiting Accounts
-             * @description The names of the cash accounts whose opening position is on coverage_start.
+             * @description The names of the accounts, of the set that the bound reads, whose opening position is on coverage_start.
              */
             limiting_accounts?: string[];
         };
