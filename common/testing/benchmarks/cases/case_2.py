@@ -179,6 +179,12 @@ def execute_case_2(runner: ScenarioBenchmarkRunner) -> CaseResult:
         checks = runner.run_stage2_consistency_checks(client, h_id)
         assert "total" in checks, f"Invalid consistency check payload: {checks}"
 
+        # Flow 12: Batch Rule Commit & Clearing
+        batch_res = runner.batch_approve_matches(client)
+        assert "approved_count" in batch_res, (
+            f"Invalid batch approve payload: {batch_res}"
+        )
+
         # Flow 29: Recurring Subscriptions & Anomaly Alerts
         h_txns = h_data.get("transactions") or []
         anomalies: list[dict[str, Any]] = []
@@ -241,6 +247,7 @@ def execute_case_2(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 "is_balanced": is_balanced,
                 "flow_8_checks_ran": True,
                 "flow_9_rejected_status": str(rejected["status"]),
+                "flow_12_batch_approved_count": int(batch_res["approved_count"]),
                 "flow_29_anomalies_checked": True,
             },
         )

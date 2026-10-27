@@ -578,10 +578,19 @@ def test_wait_for_statement_parsed_retries_on_rate_limit_error() -> None:
 
 
 def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) -> None:
-    """AC-testing.benchmarks.4: ScenarioBenchmarkRunner methods for Flows 8, 9, 18, 29 and coverage are wired into Cases 1-3."""
+    """AC-testing.benchmarks.4: ScenarioBenchmarkRunner methods for all 30 flows are wired into Cases 1-6."""
+    import json
+    import zipfile
     from unittest.mock import MagicMock
 
-    from common.testing.benchmarks.cases import case_1, case_2, case_3
+    from common.testing.benchmarks.cases import (
+        case_1,
+        case_2,
+        case_3,
+        case_4,
+        case_5,
+        case_6,
+    )
     from common.testing.benchmarks.run_financial_scenario_benchmark import (
         ScenarioBenchmarkRunner,
     )
@@ -591,16 +600,39 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
     )
     mock_client = MagicMock()
 
-    def _ok(payload: object) -> MagicMock:
+    def _ok(payload: object, content: bytes = b"") -> MagicMock:
         resp = MagicMock()
         resp.status_code = 200
         resp.json.return_value = payload
         resp.text = "ok"
+        resp.content = content
         return resp
+
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w") as zf:
+        zf.writestr(
+            "manifest.json",
+            json.dumps(
+                {
+                    "package_id": "pkg-1",
+                    "files": [{"filename": "balance_sheet.csv", "sha256": "abc"}],
+                }
+            ),
+        )
 
     mock_client.post.side_effect = [
         _ok({"id": "stmt-bad", "status": "rejected"}),
         _ok({"items": [], "total": 0}),
+        _ok({"approved_count": 2, "journal_entries_created": 2}),
+        _ok(
+            {
+                "matches_created": 1,
+                "auto_accepted": 0,
+                "pending_review": 1,
+                "unmatched": 0,
+            }
+        ),
+        _ok({"id": "m-1", "status": "accepted"}),
         _ok(
             {
                 "account_id": "acc-1",
@@ -611,8 +643,10 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
                 "journal_entry_id": "je-1",
             }
         ),
+        _ok({}, content=zip_buf.getvalue()),
     ]
     mock_client.get.side_effect = [
+        _ok({"items": [{"id": "m-1"}], "total": 1}),
         _ok([]),
         _ok(
             {
@@ -621,12 +655,20 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
                 "limiting_accounts": [],
             }
         ),
+        _ok({"is_balanced": True, "equation_delta": "0.00"}),
+        _ok({"account_id": "acc-1", "lines": [{"entry_id": "je-1"}]}),
     ]
 
     rejected = runner.reject_statement(mock_client, "stmt-bad", notes="triage")
     assert rejected["status"] == "rejected"
     checks = runner.run_stage2_consistency_checks(mock_client, "stmt-1")
     assert checks == {"items": [], "total": 0}
+    batch_res = runner.batch_approve_matches(mock_client, ["m-1", "m-2"])
+    assert batch_res["approved_count"] == 2
+    recon_res = runner.run_reconciliation(mock_client, statement_id="stmt-1")
+    assert recon_res["matches_created"] == 1
+    accepted_cnt = runner.accept_reconciliation_matches(mock_client)
+    assert accepted_cnt == 1
     anomalies = runner.list_transaction_anomalies(mock_client, "txn-1")
     assert anomalies == []
     adj = runner.post_reconciliation_adjustment(
@@ -638,8 +680,18 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
     assert adj["difference"] == "0.02"
     cov = runner.get_report_coverage(mock_client, as_of_date="2025-04-30")
     assert cov["coverage_start"] == "2025-01-01"
+    diag = runner.get_balance_sheet_diagnostics(
+        mock_client, as_of_date="2025-04-30", currency="SGD"
+    )
+    assert diag["is_balanced"] is True
+    lineage = runner.get_account_lineage(
+        mock_client, account_id="acc-1", as_of_date="2025-04-30", currency="SGD"
+    )
+    assert len(lineage["lines"]) == 1
+    manifest = runner.export_annual_tax_archive(mock_client, year=2025, currency="SGD")
+    assert len(manifest["files"]) == 1
 
-    # Verify Case 1 records coverage_start
+    # Verify Case 1 records coverage_start, Flow 24 diagnostics, and Flow 27 lineage
     c1_runner = MagicMock()
     c1_runner.replay_mode = "replay"
     c1_client = MagicMock()
@@ -719,12 +771,16 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
         "coverage_start": "2025-01-01",
         "limiting_accounts": [],
     }
+    c1_runner.get_balance_sheet_diagnostics.return_value = {"is_balanced": True}
+    c1_runner.get_account_lineage.return_value = {"lines": [{"entry_id": "je-1"}]}
     c1_runner.query_ai_advisor.return_value = "Your net worth is 24,200.00 SGD."
     c1_res = case_1.execute_case_1(c1_runner)
     assert c1_res.status == "PASS", c1_res.error_message
     assert c1_res.details["coverage_start"] == "2025-01-01"
+    assert c1_res.details["flow_24_diagnostics_balanced"] is True
+    assert c1_res.details["flow_27_lineage_lines"] == 1
 
-    # Verify Case 2 exercises Flows 8, 9, and 29
+    # Verify Case 2 exercises Flows 8, 9, 12, and 29
     c2_runner = MagicMock()
     c2_client = MagicMock()
     c2_runner.create_ephemeral_client.return_value = (c2_client, "c2@test.example", {})
@@ -747,6 +803,7 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
         },
     ]
     c2_runner.run_stage2_consistency_checks.return_value = {"items": [], "total": 0}
+    c2_runner.batch_approve_matches.return_value = {"approved_count": 0}
     c2_runner.list_transaction_anomalies.return_value = []
     c2_runner.reject_statement.return_value = {"id": "bad-stmt", "status": "rejected"}
     c2_runner.get_balance_sheet.return_value = {
@@ -773,9 +830,10 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
     assert c2_res.status == "PASS", c2_res.error_message
     assert c2_res.details["flow_8_checks_ran"] is True
     assert c2_res.details["flow_9_rejected_status"] == "rejected"
+    assert c2_res.details["flow_12_batch_approved_count"] == 0
     assert c2_res.details["flow_29_anomalies_checked"] is True
 
-    # Verify Case 3 exercises Flow 18
+    # Verify Case 3 exercises Flows 15, 16, and 18
     c3_runner = MagicMock()
     c3_client = MagicMock()
     c3_runner.create_ephemeral_client.return_value = (c3_client, "c3@test.example", {})
@@ -812,10 +870,152 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
         "total_expenses": "1200.00",
         "net_income": "-1200.00",
     }
+    c3_runner.run_reconciliation.return_value = {"matches_created": 1}
+    c3_runner.accept_reconciliation_matches.return_value = 1
     c3_runner.post_reconciliation_adjustment.return_value = {
         "difference": "0.02",
         "journal_entry_id": "je-adj-1",
     }
     c3_res = case_3.execute_case_3(c3_runner)
     assert c3_res.status == "PASS", c3_res.error_message
+    assert c3_res.details["flow_15_matches_created"] == 1
+    assert c3_res.details["flow_16_matches_accepted"] == 1
     assert c3_res.details["flow_18_adjustment_difference"] == "0.02"
+
+    # Verify Case 4 exercises Flow 17
+    c4_runner = MagicMock()
+    c4_client = MagicMock()
+    c4_runner.create_ephemeral_client.return_value = (c4_client, "c4@test.example", {})
+    c4_runner.upload_statement.side_effect = ["sgd-1", "usd-1", "hkd-1"]
+    c4_runner.wait_for_statement_parsed.side_effect = [
+        {"closing_balance": "12800.00", "balance_validated": True},
+        {"closing_balance": "6800.00", "balance_validated": True},
+        {"closing_balance": "24000.00", "balance_validated": True},
+    ]
+    c4_runner.create_account.side_effect = [
+        {"id": "fx-src", "name": "USD Wire"},
+        {"id": "fx-tgt", "name": "SGD Wire"},
+        {"id": "fx-gain", "name": "FX Gain"},
+    ]
+    c4_runner.get_balance_sheet.side_effect = [
+        {
+            "total_assets": "25000.00",
+            "total_liabilities": "0.00",
+            "total_equity": "20000.00",
+            "net_income": "5000.00",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        },
+        {
+            "total_assets": "18500.00",
+            "total_liabilities": "0.00",
+            "total_equity": "14800.00",
+            "net_income": "3700.00",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        },
+        {
+            "total_assets": "25010.00",
+            "total_liabilities": "0.00",
+            "total_equity": "20000.00",
+            "net_income": "5010.00",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        },
+    ]
+    c4_res = case_4.execute_case_4(c4_runner)
+    assert c4_res.status == "PASS", c4_res.error_message
+    assert c4_res.details["flow_17_realized_fx_gain_sgd"] == "10.00"
+
+    # Verify Case 5 exercises Flows 20, 22, 27, 28, and 30
+    c5_runner = MagicMock()
+    c5_client = MagicMock()
+    c5_runner.create_ephemeral_client.return_value = (c5_client, "c5@test.example", {})
+    c5_runner.import_brokerage_positions.return_value = {"created_atomic_positions": 2}
+    c5_runner.get_holdings.return_value = {
+        "items": [{"symbol": "AAPL"}, {"symbol": "VT"}]
+    }
+    c5_runner.create_account.side_effect = [
+        {"id": "cash-1"},
+        {"id": "tax-1"},
+        {"id": "sal-1"},
+        {"id": "div-inc"},
+        {"id": "div-tax"},
+        {"id": "mtg-liab"},
+        {"id": "mtg-int"},
+    ]
+    c5_runner.get_valuation_components.return_value = {
+        "items": [{"component_type": "property_value", "value": "350000.00"}]
+    }
+    c5_runner.get_balance_sheet.side_effect = [
+        {
+            "total_assets": "18000.00",
+            "total_liabilities": "0.00",
+            "total_equity": "10000.00",
+            "net_income": "8000.00",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        },
+        {
+            "total_assets": "500000.00",
+            "total_liabilities": "0.00",
+            "total_equity": "492000.00",
+            "net_income": "8000.00",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+            "assets": [{"allocation_liquidity_class": "illiquid", "name": "DocuBench"}],
+        },
+        {
+            "total_assets": "498670.00",
+            "total_liabilities": "-2100.00",
+            "total_equity": "492000.00",
+            "net_income": "8770.00",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        },
+    ]
+    c5_runner.get_account_lineage.return_value = {"lines": [{"entry_id": "je-pay"}]}
+    c5_runner.export_annual_tax_archive.return_value = {
+        "files": [{"filename": "balance_sheet.csv", "sha256": "abc"}]
+    }
+    c5_runner.query_ai_advisor.return_value = "Portfolio holdings AAPL and VT verified."
+    c5_res = case_5.execute_case_5(c5_runner)
+    assert c5_res.status == "PASS", c5_res.error_message
+    assert c5_res.details["flow_20_dividend_net_sgd"] == "70.00"
+    assert c5_res.details["flow_22_mortgage_principal_sgd"] == "2100.00"
+    assert c5_res.details["flow_27_lineage_lines"] == 1
+    assert c5_res.details["flow_28_archive_files"] == 1
+
+    # Verify Case 6 exercises Flow 24
+    c6_runner = MagicMock()
+    c6_client = MagicMock()
+    c6_runner.create_ephemeral_client.return_value = (c6_client, "c6@test.example", {})
+    c6_runner.create_account.side_effect = [
+        {"id": "chk-1"},
+        {"id": "emg-1"},
+        {"id": "eq-1"},
+        {"id": "art-1"},
+        {"id": "cg-1"},
+    ]
+    c6_runner.get_balance_sheet.side_effect = [
+        {
+            "total_assets": "-1500.00",
+            "total_liabilities": "0.00",
+            "total_equity": "1000.00",
+            "net_income": "-2500.00",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        },
+        {
+            "total_assets": "11000.00",
+            "total_liabilities": "0.00",
+            "total_equity": "11000.00",
+            "net_income": "0.00",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        },
+    ]
+    c6_runner.get_balance_sheet_diagnostics.return_value = {"is_balanced": True}
+    c6_res = case_6.execute_case_6(c6_runner)
+    assert c6_res.status == "PASS", c6_res.error_message
+    assert c6_res.details["flow_24_diagnostics_balanced"] is True

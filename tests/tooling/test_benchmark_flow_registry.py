@@ -202,7 +202,7 @@ def test_load_flow_to_cases_missing_file_raises_value_error(tmp_path: Path) -> N
 
 
 def test_nominal_gap_flows_bind_live_backend_endpoints() -> None:
-    """AC-testing.benchmarks.4: Flows 8, 9, 18, and 29 declare their live backend endpoints in thirty_flows_ssot.json."""
+    """AC-testing.benchmarks.4: Flows 8, 9, 12, 18, and 29 declare their live backend endpoints in thirty_flows_ssot.json."""
     registry = json.loads(
         (REPO_ROOT / "common/meta/flows/thirty_flows_ssot.json").read_text(
             encoding="utf-8"
@@ -216,8 +216,78 @@ def test_nominal_gap_flows_bind_live_backend_endpoints() -> None:
         == "POST /statements/{statement_id}/stage2/run-checks"
     )
     assert flows_by_id[9]["backend_endpoint"] == "POST /statements/{id}/review/reject"
+    assert (
+        flows_by_id[12]["backend_endpoint"] == "POST /statements/batch-approve-matches"
+    )
     assert flows_by_id[18]["backend_endpoint"] == "POST /reconciliation/adjustment"
     assert (
         flows_by_id[29]["backend_endpoint"]
         == "GET /reconciliation/transactions/{txn_id}/anomalies"
     )
+
+
+def test_all_thirty_flows_have_physical_runner_invocations_in_mapped_cases() -> None:
+    """AC-testing.benchmarks.4: Cases 1-6 invoke ScenarioBenchmarkRunner helpers for all 30 flows."""
+    import ast
+
+    from common.testing.benchmarks.case_types import FLOW_TO_CASES
+
+    flow_expected_runner_methods: dict[int, set[str]] = {
+        1: {"upload_statement"},
+        2: {"upload_statement", "get_report_coverage"},
+        3: {"upload_statement"},
+        4: {"create_valuation_snapshot"},
+        5: {"create_valuation_snapshot", "post_manual_journal_entry"},
+        6: {"approve_statement"},
+        7: {"wait_for_statement_parsed"},
+        8: {"run_stage2_consistency_checks"},
+        9: {"reject_statement"},
+        10: {"query_ai_advisor"},
+        11: {"adjudicate_unmatched_items"},
+        12: {"batch_approve_matches"},
+        13: {"adjudicate_unmatched_items", "create_account"},
+        14: {"adjudicate_unmatched_items", "post_manual_journal_entry"},
+        15: {"run_reconciliation"},
+        16: {"accept_reconciliation_matches"},
+        17: {"post_manual_journal_entry"},
+        18: {"post_reconciliation_adjustment"},
+        19: {"import_brokerage_positions"},
+        20: {"post_manual_journal_entry"},
+        21: {"update_market_prices", "post_manual_journal_entry"},
+        22: {"post_manual_journal_entry"},
+        23: {"get_balance_sheet"},
+        24: {"get_balance_sheet_diagnostics"},
+        25: {"get_income_statement"},
+        26: {"get_cash_flow"},
+        27: {"get_account_lineage"},
+        28: {"export_annual_tax_archive"},
+        29: {"list_transaction_anomalies"},
+        30: {"query_ai_advisor"},
+    }
+    assert set(flow_expected_runner_methods.keys()) == set(range(1, 31))
+
+    cases_dir = REPO_ROOT / "common/testing/benchmarks/cases"
+    case_called_methods: dict[str, set[str]] = {}
+    for case_num in ("1", "2", "3", "4", "5", "6"):
+        tree = ast.parse(
+            (cases_dir / f"case_{case_num}.py").read_text(encoding="utf-8")
+        )
+        called: set[str] = set()
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "runner"
+            ):
+                called.add(node.func.attr)
+        case_called_methods[case_num] = called
+
+    for flow_id, mapped_cases in sorted(FLOW_TO_CASES.items()):
+        expected_methods = flow_expected_runner_methods[flow_id]
+        for case_num in mapped_cases:
+            actual_calls = case_called_methods[case_num]
+            assert actual_calls & expected_methods, (
+                f"Flow {flow_id} mapped to case_{case_num} does not invoke any of "
+                f"{sorted(expected_methods)}; found runner calls: {sorted(actual_calls)}"
+            )

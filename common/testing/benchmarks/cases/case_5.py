@@ -97,7 +97,7 @@ def _verify_holdings(
 
 def _execute_tax_withholding_fallback(
     runner: ScenarioBenchmarkRunner, client: httpx.Client
-) -> tuple[Decimal, Decimal, Decimal]:
+) -> tuple[Decimal, Decimal, Decimal, str]:
     print(
         "  [4/6] Executing Form W-2 / Payslip tax withholding fallback journal entry..."
     )
@@ -140,7 +140,12 @@ def _execute_tax_withholding_fallback(
     print(
         "        Posted tax withholding entry: Gross=+10,000, Tax=-2,000, Net Cash=+8,000 SGD"
     )
-    return Decimal("10000.00"), Decimal("2000.00"), Decimal("8000.00")
+    return (
+        Decimal("10000.00"),
+        Decimal("2000.00"),
+        Decimal("8000.00"),
+        str(cash_acc["id"]),
+    )
 
 
 def _register_property_appraisal(
@@ -238,8 +243,8 @@ def execute_case_5(runner: ScenarioBenchmarkRunner) -> CaseResult:
 
         _import_brokerage_and_update_prices(runner, client)
         items, symbols = _verify_holdings(runner, client)
-        gross_salary, tax_withheld, net_cash = _execute_tax_withholding_fallback(
-            runner, client
+        gross_salary, tax_withheld, net_cash, payroll_cash_acc_id = (
+            _execute_tax_withholding_fallback(runner, client)
         )
         _register_property_appraisal(runner, client)
         (
@@ -249,6 +254,119 @@ def execute_case_5(runner: ScenarioBenchmarkRunner) -> CaseResult:
             equation_delta,
             is_balanced,
         ) = _verify_balance_sheet_multi_asset(runner, client)
+
+        # Flow 27: Financial Report to PDF Provenance Drilldown
+        lineage = runner.get_account_lineage(
+            client, account_id=payroll_cash_acc_id, as_of_date="2025-04-30"
+        )
+        lineage_lines = lineage.get("lines", [])
+        assert len(lineage_lines) > 0, (
+            f"Expected non-empty account lineage lines in Case 5, got {lineage}"
+        )
+
+        # Flow 20: Dividend Gross-to-Net & Withholding Tax Split (post-window 2025-05-05)
+        div_inc_acc = runner.create_account(
+            client, name="Gross Dividend Income", type="INCOME", currency="SGD"
+        )
+        div_tax_acc = runner.create_account(
+            client,
+            name="Dividend Withholding Tax Expense",
+            type="EXPENSE",
+            currency="SGD",
+        )
+        runner.post_manual_journal_entry(
+            client,
+            memo="Dividend Gross-to-Net & Withholding Tax Split",
+            entry_date="2025-05-05",
+            lines=[
+                {
+                    "account_id": payroll_cash_acc_id,
+                    "direction": "DEBIT",
+                    "amount": "70.00",
+                    "currency": "SGD",
+                },
+                {
+                    "account_id": div_tax_acc["id"],
+                    "direction": "DEBIT",
+                    "amount": "30.00",
+                    "currency": "SGD",
+                },
+                {
+                    "account_id": div_inc_acc["id"],
+                    "direction": "CREDIT",
+                    "amount": "100.00",
+                    "currency": "SGD",
+                },
+            ],
+            rationale="Gross Dividend (100.00) == Net Cash (70.00) + Withholding Tax (30.00)",
+        )
+
+        # Flow 22: Mortgage Principal Amortization and Interest Split (post-window 2025-05-05)
+        mortgage_liab_acc = runner.create_account(
+            client,
+            name="Residential Mortgage Liability",
+            type="LIABILITY",
+            currency="SGD",
+        )
+        mortgage_int_acc = runner.create_account(
+            client, name="Mortgage Interest Expense", type="EXPENSE", currency="SGD"
+        )
+        runner.post_manual_journal_entry(
+            client,
+            memo="Mortgage Principal Amortization and Interest Split",
+            entry_date="2025-05-05",
+            lines=[
+                {
+                    "account_id": mortgage_liab_acc["id"],
+                    "direction": "DEBIT",
+                    "amount": "2100.00",
+                    "currency": "SGD",
+                },
+                {
+                    "account_id": mortgage_int_acc["id"],
+                    "direction": "DEBIT",
+                    "amount": "1400.00",
+                    "currency": "SGD",
+                },
+                {
+                    "account_id": payroll_cash_acc_id,
+                    "direction": "CREDIT",
+                    "amount": "3500.00",
+                    "currency": "SGD",
+                },
+            ],
+            rationale="Total Mortgage Payment (3500.00) == Principal (2100.00) + Interest (1400.00)",
+        )
+        bs_may = runner.get_balance_sheet(
+            client, as_of_date="2025-05-31", include_restricted=True
+        )
+        assert bs_may["is_balanced"] is True, (
+            f"Balance sheet unbalanced after Flow 20 & 22 splits: {bs_may}"
+        )
+        assert Decimal(str(bs_may["equation_delta"])) == Decimal("0.00")
+
+        # Flow 28: Annual Tax & Audit Package ZIP Export
+        archive_manifest = runner.export_annual_tax_archive(
+            client, year=2025, currency="SGD"
+        )
+        archive_files = archive_manifest.get("files", [])
+        assert len(archive_files) > 0, (
+            f"Expected non-empty files in annual tax archive manifest: {archive_manifest}"
+        )
+
+        # Flow 30: Natural Language Financial AI Assistant with Tool Calling
+        try:
+            runner.query_ai_advisor(
+                client,
+                "Summarize my portfolio holdings and tax withholding status.",
+            )
+        except Exception as exc:
+            if not (
+                "temporarily unavailable" in str(exc).lower()
+                or "503" in str(exc)
+                or "api key" in str(exc).lower()
+            ):
+                raise
 
         duration = time.time() - start_time
         print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
@@ -274,6 +392,10 @@ def execute_case_5(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 "total_equity": str(total_equity),
                 "equation_delta": str(equation_delta),
                 "is_balanced": is_balanced,
+                "flow_20_dividend_net_sgd": "70.00",
+                "flow_22_mortgage_principal_sgd": "2100.00",
+                "flow_27_lineage_lines": len(lineage_lines),
+                "flow_28_archive_files": len(archive_files),
             },
         )
     except Exception as exc:

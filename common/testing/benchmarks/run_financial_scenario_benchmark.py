@@ -18,9 +18,11 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import sys
 import uuid
+import zipfile
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -405,6 +407,53 @@ class ScenarioBenchmarkRunner:
             )
         return resp.json()
 
+    def batch_approve_matches(
+        self, client: httpx.Client, match_ids: list[str] | None = None
+    ) -> dict[str, Any]:
+        """Batch approve pending Stage 2 matches when consistency checks are resolved (Flow 12)."""
+        resp = client.post(
+            "/api/statements/batch-approve-matches",
+            json={"match_ids": match_ids or []},
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Batch approve matches failed: {resp.status_code} {resp.text}"
+            )
+        return resp.json()
+
+    def run_reconciliation(
+        self, client: httpx.Client, statement_id: str | None = None
+    ) -> dict[str, Any]:
+        """Execute automated cross-source reconciliation matching (Flow 15)."""
+        payload: dict[str, Any] = {}
+        if statement_id:
+            payload["statement_id"] = statement_id
+        resp = client.post("/api/reconciliation/runs", json=payload)
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Reconciliation run failed: {resp.status_code} {resp.text}"
+            )
+        return resp.json()
+
+    def accept_reconciliation_matches(self, client: httpx.Client) -> int:
+        """Fetch pending reconciliation matches and accept them (Flow 16)."""
+        list_resp = client.get("/api/reconciliation/matches?status=pending_review")
+        if list_resp.status_code != 200:
+            raise RuntimeError(
+                f"Listing pending reconciliation matches failed: {list_resp.status_code} {list_resp.text}"
+            )
+        items = list_resp.json().get("items", [])
+        accepted = 0
+        for match in items:
+            match_id = match["id"]
+            acc_resp = client.post(f"/api/reconciliation/matches/{match_id}/accept")
+            if acc_resp.status_code != 200:
+                raise RuntimeError(
+                    f"Accepting reconciliation match {match_id} failed: {acc_resp.status_code} {acc_resp.text}"
+                )
+            accepted += 1
+        return accepted
+
     def list_transaction_anomalies(
         self, client: httpx.Client, txn_id: str
     ) -> list[dict[str, Any]]:
@@ -451,6 +500,67 @@ class ScenarioBenchmarkRunner:
                 f"Report coverage request failed: {resp.status_code} {resp.text}"
             )
         return resp.json()
+
+    def get_balance_sheet_diagnostics(
+        self,
+        client: httpx.Client,
+        as_of_date: str | None = None,
+        currency: str | None = None,
+    ) -> dict[str, Any]:
+        """Fetch balance sheet accounting equation diagnostic triage (Flow 24)."""
+        params: list[str] = []
+        if as_of_date:
+            params.append(f"as_of_date={as_of_date}")
+        if currency:
+            params.append(f"currency={currency}")
+        query = f"?{'&'.join(params)}" if params else ""
+        resp = client.get(f"/api/reports/balance-sheet/diagnostics{query}")
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Balance sheet diagnostics request failed: {resp.status_code} {resp.text}"
+            )
+        return resp.json()
+
+    def get_account_lineage(
+        self,
+        client: httpx.Client,
+        account_id: str,
+        as_of_date: str | None = None,
+        currency: str | None = None,
+    ) -> dict[str, Any]:
+        """Fetch report line provenance lineage for an account (Flow 27)."""
+        params = [f"account_id={account_id}"]
+        if as_of_date:
+            params.append(f"as_of_date={as_of_date}")
+        if currency:
+            params.append(f"currency={currency}")
+        resp = client.get(f"/api/reports/account-lineage?{'&'.join(params)}")
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Account lineage request failed for {account_id}: {resp.status_code} {resp.text}"
+            )
+        return resp.json()
+
+    def export_annual_tax_archive(
+        self,
+        client: httpx.Client,
+        year: int = 2025,
+        currency: str = "SGD",
+    ) -> dict[str, Any]:
+        """Export the annual tax and audit package ZIP and parse its manifest.json (Flow 28)."""
+        resp = client.post(
+            "/api/reports/package/annual-archive",
+            json={"year": year, "currency": currency},
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Annual tax archive export failed: {resp.status_code} {resp.text}"
+            )
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+            manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
+        if not manifest.get("files"):
+            raise RuntimeError(f"Annual tax archive manifest has no files: {manifest}")
+        return manifest
 
     def get_balance_sheet(
         self,
