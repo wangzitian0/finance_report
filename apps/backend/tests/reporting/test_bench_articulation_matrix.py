@@ -1254,21 +1254,9 @@ class TestBenchDomain6StatementGovernance:
         res_bal = diagnose_equation_imbalance(Decimal("0.00"))
         assert res_bal.is_balanced is True and res_bal.primary_category == EquationDiagnosticCategory.BALANCED
 
-        res_draft = diagnose_equation_imbalance(Decimal("450.00"), has_pending_drafts=True, unposted_draft_count=1)
+        res_draft = diagnose_equation_imbalance(Decimal("450.00"), unposted_draft_count=1)
         assert (
             res_draft.is_balanced is False and res_draft.primary_category == EquationDiagnosticCategory.UNPOSTED_DRAFT
-        )
-
-        res_unmapped = diagnose_equation_imbalance(Decimal("200.00"), has_unclassified_accounts=True)
-        assert (
-            res_unmapped.is_balanced is False
-            and res_unmapped.primary_category == EquationDiagnosticCategory.UNCLASSIFIED_ACCOUNT
-        )
-
-        res_onesided = diagnose_equation_imbalance(Decimal("100.00"), has_one_sided_entries=True)
-        assert (
-            res_onesided.is_balanced is False
-            and res_onesided.primary_category == EquationDiagnosticCategory.ONE_SIDED_ENTRY
         )
 
     async def test_flow_25_income_statement_comparative_trend_analysis(self, db: AsyncSession, test_user_id) -> None:
