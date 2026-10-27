@@ -28,7 +28,6 @@ from src.ledger.base.types import (
 )
 from src.ledger.base.validators import (
     AccountingError,
-    AccountPostingProtocol,
     JournalEntryPostingProtocol,
     JournalLinePostingProtocol,
     ValidationError,
@@ -46,7 +45,6 @@ from src.ledger.base.vocabulary import (
 
 __all__ = [
     "DEFAULT_BASE_CURRENCY",
-    "AccountPostingProtocol",
     "AccountType",
     "AccountingError",
     "DecisionAnchor",
