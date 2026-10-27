@@ -1,6 +1,6 @@
 """Reconciliation extension layer (domain services + adapters)."""
 
-from src.reconciliation.extension.anomaly import AnomalyResult, detect_anomalies
+from src.reconciliation.extension.anomaly import detect_anomalies
 from src.reconciliation.extension.consistency_checks import (
     detect_anomalies_batch,
     detect_duplicates,
@@ -16,7 +16,6 @@ from src.reconciliation.extension.fx_transfer import (
     REVALUATION_SOURCE_TYPE,
     FxLegPair,
     FxTransferError,
-    TransferClassification,
     TransferLeg,
     build_fx_conversion,
     classify_internal_transfer,
@@ -27,13 +26,11 @@ from src.reconciliation.extension.fx_transfer import (
 from src.reconciliation.extension.fx_transfer_discovery import discover_fx_conversions
 
 __all__ = [
-    "AnomalyResult",
     "DEFAULT_RATE_TOLERANCE",
     "DEFAULT_TIME_WINDOW",
     "FxLegPair",
     "FxTransferError",
     "REVALUATION_SOURCE_TYPE",
-    "TransferClassification",
     "TransferLeg",
     "build_fx_conversion",
     "classify_internal_transfer",
