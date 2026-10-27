@@ -82,31 +82,35 @@ export function IncomeStatementPanel({ filters }: { filters: ReportFilters }) {
   );
   const aiPrompt = `Summarize my income statement from ${startDate} to ${endDate} in ${report?.currency ?? currency ?? "my base currency"}. Highlight key trends.`;
 
-  const renderLineRow = (l: ReportLine) => (
-    <div key={l.account_id} className="flex justify-between p-2 rounded-md bg-[var(--background-muted)] text-sm">
-      <span className="flex min-w-0 items-center gap-2">
-        <span>{l.name}</span>
-        <ProvenanceBadge provenance={l.provenance} />
-      </span>
-      <button
-        type="button"
-        className="font-medium tabular-nums hover:text-[var(--accent)] hover:underline"
-        onClick={() =>
-          report &&
-          setDrillTarget({
-            accountId: l.account_id,
-            accountName: l.name,
-            asOfDate: endDate,
-            startDate,
-            currency: report.currency,
-          })
-        }
-        aria-label={`View source transactions for ${l.name}`}
-      >
-        {report ? formatCurrencyLocale(l.amount, report.currency) : "—"}
-      </button>
-    </div>
-  );
+  const renderLineRow = (l: ReportLine) => {
+    const openDrill = () =>
+      report &&
+      setDrillTarget({
+        accountId: l.account_id,
+        accountName: l.name,
+        asOfDate: endDate,
+        startDate,
+        currency: report.currency,
+      });
+    return (
+      <div key={l.account_id} className="flex justify-between p-2 rounded-md bg-[var(--background-muted)] text-sm">
+        <span className="flex min-w-0 items-center gap-2">
+          <button type="button" onClick={openDrill} className="truncate text-left hover:text-[var(--accent)] hover:underline">
+            {l.name}
+          </button>
+          <ProvenanceBadge provenance={l.provenance} />
+        </span>
+        <button
+          type="button"
+          className="font-medium tabular-nums underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+          onClick={openDrill}
+          aria-label={`View source transactions for ${l.name}`}
+        >
+          {report ? formatCurrencyLocale(l.amount, report.currency) : "—"}
+        </button>
+      </div>
+    );
+  };
 
   return (
     <ReportPageShell

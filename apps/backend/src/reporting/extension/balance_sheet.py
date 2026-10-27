@@ -256,6 +256,7 @@ async def generate_balance_sheet(
     account_types = (AccountType.ASSET, AccountType.LIABILITY, AccountType.EQUITY)
     accounts = await _load_accounts(db, user_id, account_types)
     included_ledger_currencies: set[str] = set()
+    native_balances: dict[UUID, Decimal] = {}
 
     try:
         balances = await _aggregate_balances_sql(
@@ -266,6 +267,7 @@ async def generate_balance_sheet(
             as_of_date,
             fx_warnings=fx_warnings,
             included_currencies=included_ledger_currencies,
+            native_balances=native_balances,
         )
     except ReportError:
         raise
@@ -296,18 +298,21 @@ async def generate_balance_sheet(
         balances,
         AccountType.ASSET,
         provenance_by_account=provenance_by_account,
+        native_balances=native_balances,
     )
     liabilities = _build_account_lines(
         accounts,
         balances,
         AccountType.LIABILITY,
         provenance_by_account=provenance_by_account,
+        native_balances=native_balances,
     )
     equity = _build_account_lines(
         accounts,
         balances,
         AccountType.EQUITY,
         provenance_by_account=provenance_by_account,
+        native_balances=native_balances,
     )
     portfolio_adjustments = await _build_portfolio_market_adjustment_lines(
         db,

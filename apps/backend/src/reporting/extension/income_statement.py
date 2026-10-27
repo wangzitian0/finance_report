@@ -352,10 +352,6 @@ async def generate_income_statement(
         "fx_warnings": fx_warnings,
         "trends": trend_items,
         "classification_breakdown": classification_breakdown,
-        "filters_applied": {
-            "tags": tags,
-            "account_type": account_type.value if account_type else None,
-        },
     }
 
 

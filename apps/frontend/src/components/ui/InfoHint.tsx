@@ -20,6 +20,8 @@ export const GLOSSARY = {
     match_score: "How confident we are that a bank transaction and a ledger entry are the same thing (0–100).",
     reconciliation_coverage:
         "The share of your bank transactions we've matched to a ledger entry. Higher means more of your data is reconciled and trustworthy.",
+    transfers_in_transit:
+        "Money moving between your own accounts where only one side of the transfer is matched so far.",
 } as const;
 
 export type GlossaryTerm = keyof typeof GLOSSARY;

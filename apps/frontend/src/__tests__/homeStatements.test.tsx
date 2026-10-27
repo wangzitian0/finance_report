@@ -22,6 +22,7 @@ const balanceSheetAt = (asOfDate: string, totalAssets: string, totalLiabilities:
     assets: [
         { account_id: "acc-cash", name: "DBS Multiplier", type: "ASSET", amount: "12000" },
         { account_id: "acc-broker", name: "IBKR Portfolio", type: "ASSET", amount: "28000" },
+        { account_id: "acc-proc", name: "Processing", type: "ASSET", amount: "-250" },
         { account_id: "acc-empty", name: "Closed Account", type: "ASSET", amount: "0" },
     ],
     liabilities: [{ account_id: "acc-card", name: "Visa Infinite", type: "LIABILITY", amount: "2000" }],
@@ -164,11 +165,12 @@ describe("Three-statement cockpit (#2621 LC, #2548 P1)", () => {
         expect(screen.getByTestId("cockpit-card-income-statement")).toHaveClass("hidden", "sm:block");
 
         const rows = await screen.findAllByRole("button", { name: /View source transactions for/ });
-        // The largest lines first. A zero line has no row.
+        // The largest lines first. A zero line has no row, and Processing is labelled Transfers in transit (#2728).
         expect(rows.map((row) => row.getAttribute("aria-label"))).toEqual([
             "View source transactions for IBKR Portfolio",
             "View source transactions for DBS Multiplier",
             "View source transactions for Visa Infinite",
+            "View source transactions for Transfers in transit",
         ]);
         fireEvent.click(rows[0]);
         await waitFor(() =>

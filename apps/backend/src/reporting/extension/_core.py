@@ -18,7 +18,6 @@ from src.ledger import (
     AccountType,
     Direction,
     JournalEntry,
-    JournalEntryStatus,
     JournalLine,
 )
 from src.ledger.orm.journal import active_journal_entry_filter
@@ -41,7 +40,6 @@ from src.schemas.provenance import DataProvenance
 
 logger = get_logger(__name__)
 
-_REPORT_STATUSES = (JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)
 REPORTING_QUANTITY_UNIT = "units"
 
 
@@ -61,6 +59,7 @@ def _build_account_lines(
     balances: dict[UUID, Decimal],
     filter_type: AccountType,
     provenance_by_account: dict[UUID, DataProvenance | None] | None = None,
+    native_balances: dict[UUID, Decimal] | None = None,
 ) -> list[dict[str, Any]]:
     items = [account for account in accounts if account.type == filter_type]
     items.sort(key=lambda acc: acc.name.lower())
@@ -73,6 +72,11 @@ def _build_account_lines(
             "amount": _quantize_money(balances.get(account.id, Decimal("0"))),
             "provenance": provenance_by_account.get(account.id) if provenance_by_account is not None else None,
             "source_currency": account.currency.upper(),
+            **(
+                {"native_amount": _quantize_money(native_balances.get(account.id, Decimal("0")))}
+                if native_balances is not None
+                else {}
+            ),
             "allocation_asset_class": _ledger_allocation_asset_class(account),
             "allocation_liquidity_class": _ledger_allocation_liquidity_class(account),
             "allocation_source_type": "ledger_account",
@@ -161,6 +165,7 @@ async def _aggregate_balances_sql(
     start_date: date | None = None,
     fx_warnings: list[FxWarning] | None = None,
     included_currencies: set[str] | None = None,
+    native_balances: dict[UUID, Decimal] | None = None,
 ) -> dict[UUID, Decimal]:
     """Aggregate account balances using SQL SUM/GROUP BY with FX conversion."""
     currency_stmt = (
@@ -185,7 +190,7 @@ async def _aggregate_balances_sql(
         return {}
 
     fx_rates = await _get_fx_rates_map(db, currencies, target_currency, as_of_date, fx_warnings=fx_warnings)
-    if not fx_rates:
+    if not fx_rates and native_balances is None:
         return {}
     if included_currencies is not None:
         included_currencies.update(fx_rates.keys())
@@ -194,7 +199,7 @@ async def _aggregate_balances_sql(
     for currency, rate in fx_rates.items():
         fx_case_parts.append((JournalLine.currency == currency, literal(rate)))
 
-    fx_rate_expr = case(*fx_case_parts, else_=literal(Decimal("1")))
+    fx_rate_expr = case(*fx_case_parts, else_=literal(Decimal("0"))) if fx_case_parts else literal(Decimal("0"))
 
     # Accounting sign rules: ASSET/EXPENSE: DEBIT=+, CREDIT=-; LIABILITY/EQUITY/INCOME: CREDIT=+, DEBIT=-
     sign_expr = case(
@@ -219,27 +224,40 @@ async def _aggregate_balances_sql(
         else_=literal(1),
     )
 
+    native_expr = case(
+        (func.upper(JournalLine.currency) == func.upper(Account.currency), JournalLine.amount * sign_expr),
+        else_=literal(Decimal("0")),
+    )
+
     agg_stmt = (
         select(
             Account.id.label("account_id"),
             func.sum(JournalLine.amount * fx_rate_expr * sign_expr).label("balance"),
+            func.sum(native_expr).label("native_balance"),
         )
         .join(Account, JournalLine.account_id == Account.id)
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .where(Account.user_id == user_id)
         .where(Account.type.in_(account_types))
-        .where(JournalLine.currency.in_(list(fx_rates.keys())))
         .where(JournalEntry.user_id == user_id)
         .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
         .where(JournalEntry.entry_date <= as_of_date)
         .group_by(Account.id)
     )
+    if native_balances is None:
+        agg_stmt = agg_stmt.where(JournalLine.currency.in_(list(fx_rates.keys())))
     if start_date:
         agg_stmt = agg_stmt.where(JournalEntry.entry_date >= start_date)
 
     result = await db.execute(agg_stmt)
-    return {row.account_id: Decimal(str(row.balance)) if row.balance else Decimal("0") for row in result.all()}
+    rows = result.all()
+    if native_balances is not None:
+        for row in rows:
+            native_balances[row.account_id] = Decimal(str(row.native_balance)) if row.native_balance else Decimal("0")
+    if not fx_rates:
+        return {}
+    return {row.account_id: Decimal(str(row.balance)) if row.balance else Decimal("0") for row in rows}
 
 
 async def _aggregate_account_provenance(

@@ -688,3 +688,54 @@ async def test_balance_sheet_net_income_no_fx_rate_error(db: AsyncSession, multi
     # Should raise ReportError because no USD/SGD rate exists
     with pytest.raises(ReportError, match="No FX rate available"):
         await generate_balance_sheet(db, test_user_id, as_of_date=date(2025, 1, 31), currency="SGD")
+
+
+async def test_AC_reporting_2728_1_balance_sheet_exposes_native_amount_when_fx_rate_missing(
+    db: AsyncSession, test_user_id
+):
+    """AC-reporting.2728.1: Balance sheet lines expose source_currency and native_amount when FX rate is missing (#2728)."""
+    from src.schemas.reporting import BalanceSheetResponse
+
+    cmb_cny = Account(
+        user_id=test_user_id,
+        name="China Merchants Bank ••7788",
+        type=AccountType.ASSET,
+        currency="CNY",
+    )
+    opening_equity = Account(
+        user_id=test_user_id,
+        name="Opening Balances",
+        type=AccountType.EQUITY,
+        currency="CNY",
+    )
+    db.add_all([cmb_cny, opening_equity])
+    await db.flush()
+
+    db.add(
+        make_pair_entry(
+            test_user_id,
+            date(2026, 1, 15),
+            "CNY opening deposit",
+            cmb_cny,
+            opening_equity,
+            "47939.43",
+            currency="CNY",
+            fx_rate=Decimal("1.00"),
+        )
+    )
+    await db.commit()
+
+    report = await generate_balance_sheet(db, test_user_id, as_of_date=date(2026, 1, 31), currency="SGD")
+    serialized = BalanceSheetResponse.model_validate(report).model_dump(mode="json")
+
+    cmb_line = next(line for line in serialized["assets"] if line["account_id"] == str(cmb_cny.id))
+    assert cmb_line["amount"] == "0.00"
+    assert cmb_line["source_currency"] == "CNY"
+    assert cmb_line["native_amount"] == "47939.43"
+    assert any(
+        w.get("type") == "missing_fx_rate_partial_skip" and w.get("base_currency") == "CNY"
+        for w in serialized["fx_warnings"]
+    )
+    from src.reporting.extension import _core
+
+    assert not hasattr(_core, "_REPORT_STATUSES")

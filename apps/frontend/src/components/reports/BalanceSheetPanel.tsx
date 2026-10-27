@@ -19,7 +19,7 @@ import {
 } from "@/components/reports/ReportPageShell";
 import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
 import { InfoHint } from "@/components/ui/InfoHint";
-import { liabilityToneClass } from "@/lib/statusLabels";
+import { liabilityToneClass, reportAccountDisplayName } from "@/lib/statusLabels";
 import { normalizeFxWarningRows, type ReportLine } from "@/lib/types";
 
 interface AccountNode extends ReportLine {
@@ -92,6 +92,13 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
   const renderNode = (node: AccountNode, depth = 0) => {
     const hasChildren = node.children.length > 0;
     const isExpanded = expanded.has(node.account_id);
+    const displayName = reportAccountDisplayName(node.name);
+    const openDrill = () =>
+      report && setDrillTarget({ accountId: node.account_id, accountName: displayName, asOfDate, currency: report.currency });
+    const isForeign = Boolean(report && node.source_currency && node.source_currency !== report.currency);
+    const hasNativeAmount = node.native_amount !== undefined && node.native_amount !== null;
+    const missingFxConversion =
+      isForeign && hasNativeAmount && !toDecimal(node.native_amount!).isZero() && toDecimal(node.amount).isZero();
     return (
       <div
         key={node.account_id}
@@ -104,11 +111,11 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
           className="flex items-center justify-between px-3 py-2 text-sm rounded-md hover:bg-[var(--background-muted)]/50"
           style={{ paddingLeft: depth * 16 + 12 }}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             {hasChildren && (
               <button
                 onClick={() => toggle(node.account_id)}
-                aria-label={isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
+                aria-label={isExpanded ? `Collapse ${displayName}` : `Expand ${displayName}`}
                 className="-my-2 flex h-11 w-11 items-center justify-center text-base leading-none text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
               >
                 <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--background-muted)] text-xs" aria-hidden="true">
@@ -116,18 +123,32 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
                 </span>
               </button>
             )}
-            <span>{node.name}</span>
+            <button type="button" onClick={openDrill} className="truncate text-left hover:text-[var(--accent)] hover:underline">
+              {displayName}
+            </button>
+            {node.name === "Processing" && <InfoHint term="transfers_in_transit" label="Transfers in transit" />}
+            {isForeign && node.source_currency && (
+              <span className="badge badge-muted text-[11px]">{node.source_currency}</span>
+            )}
             <ProvenanceBadge provenance={node.provenance} />
           </div>
           {report ? (
-            <button
-              type="button"
-              className="font-medium tabular-nums hover:text-[var(--accent)] hover:underline"
-              onClick={() => setDrillTarget({ accountId: node.account_id, accountName: node.name, asOfDate, currency: report.currency })}
-              aria-label={`View source transactions for ${node.name}`}
-            >
-              {formatCurrencyLocale(node.amount, report.currency)}
-            </button>
+            <div className="flex flex-col items-end">
+              <button
+                type="button"
+                className="font-medium tabular-nums underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+                onClick={openDrill}
+                aria-label={`View source transactions for ${displayName}`}
+              >
+                {formatCurrencyLocale(node.amount, report.currency)}
+              </button>
+              {isForeign && hasNativeAmount && (
+                <span className={`text-xs tabular-nums ${missingFxConversion ? "text-[var(--warning)]" : "text-muted"}`}>
+                  {formatCurrencyLocale(node.native_amount!, node.source_currency!)}
+                  {missingFxConversion ? " · No FX rate" : ""}
+                </span>
+              )}
+            </div>
           ) : (
             <span className="font-medium">—</span>
           )}

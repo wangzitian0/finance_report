@@ -5957,10 +5957,20 @@ export interface components {
             line_id?: components["schemas"]["ReportLineId"] | null;
             /** Name */
             name: string;
+            /**
+             * Native Amount
+             * @description Signed balance in the account's native currency.
+             */
+            native_amount?: string | null;
             /** Parent Id */
             parent_id?: string | null;
             /** Provenance */
             provenance?: ("imported" | "manual" | "derived") | null;
+            /**
+             * Source Currency
+             * @description Native currency of the underlying account or valuation line.
+             */
+            source_currency?: string | null;
             type: components["schemas"]["AccountType"];
         };
         /**

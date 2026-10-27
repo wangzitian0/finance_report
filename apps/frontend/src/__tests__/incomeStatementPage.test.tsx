@@ -140,7 +140,15 @@ describe("IncomeStatementPage", () => {
     await waitFor(() => expect(screen.getByText("Salary")).toBeInTheDocument())
 
     // Expense amounts are drillable too.
-    fireEvent.click(screen.getByRole("button", { name: "View source transactions for Rent" }))
+    const rentAmountBtn = screen.getByRole("button", { name: "View source transactions for Rent" })
+    expect(rentAmountBtn).toHaveClass("decoration-dotted")
+    fireEvent.click(rentAmountBtn)
+    await waitFor(() => expect(screen.getByText("January payroll")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }))
+    await waitFor(() => expect(screen.queryByText("January payroll")).toBeNull())
+
+    // Clicking the account name also opens the same drill-down (#2728).
+    fireEvent.click(screen.getByRole("button", { name: "Salary" }))
     await waitFor(() => expect(screen.getByText("January payroll")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Close panel" }))
     await waitFor(() => expect(screen.queryByText("January payroll")).toBeNull())
