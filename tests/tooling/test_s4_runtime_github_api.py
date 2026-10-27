@@ -132,5 +132,5 @@ def test_AC_runtime_github_api_1_runtime_and_testing_share_github_helpers(
         )
 
     monkeypatch.setattr(github_api.urllib.request, "urlopen", raise_http_error)
-    with pytest.raises(RuntimeError, match="GitHub API HTTP 401"):
+    with pytest.raises(RuntimeError, match="GitHub API HTTP 401.*denied"):
         client.get_workflow_runs("abc")
