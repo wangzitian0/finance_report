@@ -180,7 +180,12 @@ compares the AST of every Python module pair, without docstrings and import orde
 (ruff line length is 120 in the backend and 88 here). A module that exists in one
 tree only, a backend-only definition inside a twin, and a name that one package
 surface publishes alone appear in an explicit list with the reason. A module in
-neither list fails the test, so a second copy cannot return silently.
+neither list fails the test, so a second copy cannot return silently. The test
+rewrites the module names of import statements only, so a string constant that names
+the other tree counts as a difference. The four TraceRecord files (`base/trace.py`,
+`base/trace_repository.py`, `extension/trace_codec.py`, `extension/trace_adapters.py`)
+also keep docstrings and import order. A second test fails when a file under
+`common/` or `tools/` imports a backend-only module.
 
 The membership rule for what earns a Shared-Kernel value package, the canonical
 structure every one must follow, and the raw-`Decimal` boundary policy are
