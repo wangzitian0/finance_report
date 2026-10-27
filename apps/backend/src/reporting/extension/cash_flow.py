@@ -507,6 +507,8 @@ class CashCoverage:
     start: date | None
     #: The names of the cash accounts whose opening position is on ``start``, sorted.
     limiting_account_names: tuple[str, ...]
+    #: The latest approved statement period end on or before ``as_of`` (#2726).
+    latest_statement_end: date | None = None
 
 
 async def cash_coverage(
@@ -515,6 +517,7 @@ async def cash_coverage(
     *,
     as_of: date,
     cash_account_id_sets: Sequence[frozenset[UUID] | None],
+    latest_statement_end: date | None = None,
 ) -> CashCoverage:
     """The coverage start over the cash accounts that ``generate_cash_flow`` selects for each id set.
 
@@ -530,7 +533,11 @@ async def cash_coverage(
     start = opening_coverage_start(positions)
     names = {account.id: account.name for account in accounts}
     limiting = sorted({names[p.account_id] for p in positions if p.effective_date == start and p.account_id in names})
-    return CashCoverage(start=start, limiting_account_names=tuple(limiting))
+    return CashCoverage(
+        start=start,
+        limiting_account_names=tuple(limiting),
+        latest_statement_end=latest_statement_end,
+    )
 
 
 async def _build_cash_flow(

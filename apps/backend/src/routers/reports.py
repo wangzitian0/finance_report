@@ -658,6 +658,7 @@ async def report_coverage(
         as_of_date=resolved,
         coverage_start=coverage.start,
         limiting_accounts=list(coverage.limiting_account_names),
+        latest_statement_end=coverage.latest_statement_end,
     )
 
 

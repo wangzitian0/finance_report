@@ -123,14 +123,16 @@ async def compute_personal_data_quality(
     }
     pending_count = sum(1 for s in raw_statements if s.status in pending_statuses)
 
-    # 3. Monthly Timeline Construction (12 rolling months ending on report_date)
+    # 3. Monthly Timeline Construction (12 rolling months anchored to latest statement end or report_date)
     month_buckets: list[MonthContinuityBucket] = []
     earliest_statement_month: str | None = None
     latest_statement_month: str | None = None
+    anchor_date = report_date
 
-    # Group statements by period_start month (YYYY-MM)
+    # Group statements by period_start/period_end month (YYYY-MM)
     statements_by_month: dict[str, list[StatementSummary]] = {}
     for st in raw_statements:
+        st_date = st.period_end or st.period_start
         if st.period_start is not None:
             m_key = st.period_start.strftime("%Y-%m")
             statements_by_month.setdefault(m_key, []).append(st)
@@ -138,11 +140,16 @@ async def compute_personal_data_quality(
                 earliest_statement_month = m_key
             if latest_statement_month is None or m_key > latest_statement_month:
                 latest_statement_month = m_key
+        if st_date is not None and st_date <= report_date:
+            end_key = st_date.strftime("%Y-%m")
+            if latest_statement_month is None or end_key >= latest_statement_month:
+                latest_statement_month = end_key
+                anchor_date = st_date
 
-    # Build 12 months up to report_date
+    # Build 12 months up to anchor_date (#2726)
     window_months: list[str] = []
     for i in range(11, -1, -1):
-        y, m = _shift_months(report_date.year, report_date.month, -i)
+        y, m = _shift_months(anchor_date.year, anchor_date.month, -i)
         window_months.append(f"{y:04d}-{m:02d}")
 
     total_gaps = 0

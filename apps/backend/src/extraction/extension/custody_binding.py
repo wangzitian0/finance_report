@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select, text
+from sqlalchemy import and_, func, literal, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money.currency import normalize_currency_code
@@ -37,8 +37,14 @@ def is_bank_custody_source(source: StatementExtractionResult | None, document: U
     return document is None or document.document_type is not DocumentType.BROKERAGE_STATEMENT
 
 
-async def coverage_bank_custody_account_ids(db: AsyncSession, *, user_id: UUID, as_of: date) -> frozenset[UUID]:
-    """The custody accounts of the user's bank statements that start on or before ``as_of`` (#2646).
+async def coverage_bank_custody_account_ids(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    as_of: date,
+    out_latest_approved_end: list[date | None] | None = None,
+) -> frozenset[UUID]:
+    """The custody accounts of the user's bank statements that start on or before ``as_of`` (#2646, #2726).
 
     One query. It is a deliberate superset of the cash accounts of the report package. The package
     keeps a bank statement by the trace decision of its current source result, not by its status:
@@ -48,10 +54,12 @@ async def coverage_bank_custody_account_ids(db: AsyncSession, *, user_id: UUID, 
     so the period end is not a filter. A wider set can only move the coverage start later; it can
     never cause ``opening_coverage_starts_after_period``. A bank statement is a statement whose
     current source result has the source type ``bank_statement``. The composite foreign key of the
-    source result holds the user of the statement, so one user filter covers both rows.
+    source result holds the user of the statement, so one user filter covers both rows. When
+    ``out_latest_approved_end`` is provided, the same query also reads the latest approved
+    statement ``period_end`` on or before ``as_of`` (#2726).
     """
-    rows = await db.execute(
-        select(StatementSummary.account_id)
+    custody_cte = (
+        select(StatementSummary.account_id.label("account_id"))
         .join(
             StatementExtractionResultRecord,
             StatementExtractionResultRecord.id == StatementSummary.current_extraction_result_id,
@@ -64,8 +72,29 @@ async def coverage_bank_custody_account_ids(db: AsyncSession, *, user_id: UUID, 
             StatementExtractionResultRecord.payload["source_type"].astext == StatementSourceType.BANK.value,
         )
         .distinct()
+        .cte("custody_accounts")
     )
-    return frozenset(account_id for (account_id,) in rows.all() if account_id is not None)
+    latest_cte = (
+        select(func.max(StatementSummary.period_end).label("latest_end"))
+        .where(
+            StatementSummary.user_id == user_id,
+            StatementSummary.status == BankStatementStatus.APPROVED,
+            StatementSummary.period_end.is_not(None),
+            StatementSummary.period_end <= as_of,
+        )
+        .cte("latest_approved_statement")
+    )
+    rows = (
+        await db.execute(
+            select(custody_cte.c.account_id, latest_cte.c.latest_end).select_from(
+                latest_cte.outerjoin(custody_cte, literal(True))
+            )
+        )
+    ).all()
+    if out_latest_approved_end is not None:
+        out_latest_approved_end.clear()
+        out_latest_approved_end.append(rows[0][1] if rows else None)
+    return frozenset(account_id for account_id, _ in rows if account_id is not None)
 
 
 async def validate_custody_account(

@@ -412,3 +412,73 @@ async def test_compute_personal_data_quality_ledger_entries_without_statements_i
     assert res.reconciliation_purity_invariant.is_healthy is False
     assert res.lineage_anchors_invariant.is_healthy is False
     assert any(a.action_type == "UPLOAD_STATEMENT" for a in res.action_items)
+
+
+@pytest.mark.asyncio
+async def test_AC_reporting_2726_3_timeline_anchors_at_latest_statement_period_end(
+    db: AsyncSession,
+    test_user: User,
+):
+    """AC-reporting.2726.3: When statements exist in early 2025 and as_of_date is in late 2026,
+    the 12-month continuity timeline ends at the latest statement period end month (2025-03) and
+    surfaces gaps inside that historical window."""
+    from src.ledger import Account, AccountType
+
+    acc = Account(
+        id=uuid4(),
+        user_id=test_user.id,
+        name="DBS Checking",
+        type=AccountType.ASSET,
+        currency="SGD",
+    )
+    db.add(acc)
+    await db.flush()
+
+    st_jan = StatementSummary(
+        id=uuid4(),
+        user_id=test_user.id,
+        account_id=acc.id,
+        file_hash="hash_2025_01",
+        institution="DBS",
+        currency="SGD",
+        period_start=date(2025, 1, 1),
+        period_end=date(2025, 1, 31),
+        opening_balance=Decimal("10000.00"),
+        closing_balance=Decimal("12000.00"),
+        status=BankStatementStatus.APPROVED,
+    )
+    st_mar = StatementSummary(
+        id=uuid4(),
+        user_id=test_user.id,
+        account_id=acc.id,
+        file_hash="hash_2025_03",
+        institution="DBS",
+        currency="SGD",
+        period_start=date(2025, 3, 1),
+        period_end=date(2025, 3, 31),
+        opening_balance=Decimal("12000.00"),
+        closing_balance=Decimal("15000.00"),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add_all([st_jan, st_mar])
+    await db.flush()
+
+    res = await compute_personal_data_quality(
+        db,
+        test_user.id,
+        as_of_date=date(2026, 10, 27),
+        currency="SGD",
+    )
+
+    assert len(res.timeline) == 12
+    assert res.timeline[0].month == "2024-04"
+    assert res.timeline[-1].month == "2025-03"
+    assert res.timeline[-1].status == "HEALTHY"
+    assert res.timeline[-3].month == "2025-01"
+    assert res.timeline[-3].status == "HEALTHY"
+    feb_bucket = next((b for b in res.timeline if b.month == "2025-02"), None)
+    assert feb_bucket is not None
+    assert feb_bucket.has_gap is True
+    assert feb_bucket.status == "GAP_DETECTED"
+    assert res.temporal_continuity_invariant.is_healthy is False
+    assert "2025-02" in res.temporal_continuity_invariant.detail
