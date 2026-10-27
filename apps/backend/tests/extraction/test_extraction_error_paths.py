@@ -126,12 +126,6 @@ async def test_extract_json_with_models_skips_empty_model_entries():
         await service._extract_json_with_models(
             messages=[{"role": "user", "content": "Extract"}],
             models=[""],
-            prompt="Extract",
-            institution="DBS",
-            file_type="pdf",
-            return_raw=False,
-            has_content=True,
-            has_url=False,
         )
 
 
@@ -311,12 +305,6 @@ async def test_extract_json_with_models_handles_httpx_timeout():
             await service._extract_json_with_models(
                 messages=[{"role": "user", "content": "Extract"}],
                 models=["test-vision-model"],
-                prompt="Extract",
-                institution="DBS",
-                file_type="pdf",
-                return_raw=False,
-                has_content=True,
-                has_url=False,
             )
 
 
@@ -885,7 +873,7 @@ async def test_parse_document_invalid_amount():
 # extract_financial_data: PDF with file_url only, rejected (lines 393-407)
 # Image with file_url only, rejected (lines 416-430)
 # force_model (line 454), empty model in list (line 472),
-# empty AI response (lines 493-509), return_raw (lines 512-513),
+# empty AI response (lines 493-509),
 # ValueError/TypeError/KeyError/AttributeError (lines 581-590),
 # fallback raise (line 604)
 # ---------------------------------------------------------------------------
@@ -981,30 +969,6 @@ async def test_extract_empty_ai_response():
                 institution="DBS",
                 file_type="pdf",
             )
-
-
-async def test_extract_return_raw():
-    """return_raw=True returns raw AI response (lines 512-513)."""
-    service = ExtractionService()
-    service.api_key = "test-key"
-    service.ocr_model = None
-
-    raw_content = '{"account_last4": "1234", "transactions": []}'
-
-    with (
-        patch("src.extraction.extension.service.stream_ai_json"),
-        patch("src.extraction.extension.service.accumulate_stream", new_callable=AsyncMock) as mock_accum,
-    ):
-        mock_accum.return_value = raw_content
-        result = await service.extract_financial_data(
-            file_content=b"content",
-            file_url="https://example.com/file.pdf",
-            institution="DBS",
-            file_type="pdf",
-            return_raw=True,
-        )
-    assert "choices" in result
-    assert result["choices"][0]["message"]["content"] == raw_content
 
 
 async def test_extract_value_error_during_extraction():

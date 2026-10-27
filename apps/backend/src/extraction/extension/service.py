@@ -368,9 +368,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # source of the rows and of the balances. A mismatch is a fact about the file, not an
             # error of the extraction, so a retry cannot fix it (#2504).
             csv_balance_declared = extracted.get("balance_source") == "declared_in_csv_export"
-            # Fail-closed input for the LLM-LED gate (AC20.9.4): the balance chain is only
-            # *evaluable* only when the source carries both exact balance facts.
-            # Missing values must not turn into the vacuous 0 == 0 proof.
+            # The balance chain is *evaluable* only when the source carries both exact
+            # balance facts (AC20.9.4). Missing values must not turn into the vacuous
+            # 0 == 0 proof: an unevaluable statement is exempt from the LLM-LED balance
+            # gate (``declared_balance_absent``) and stays review-only.
             scalar_balance_evaluable = statement.opening_balance is not None and statement.closing_balance is not None
             # A multi-currency bank statement proves the balance invariant via
             # its declared per-currency ladders, even when no scalar aggregate
@@ -536,7 +537,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             # its own routing; the balance gate exempts brokerage payloads (#981).
             llm_led_gate = evaluate_llm_led_extraction_gate(
                 is_brokerage=is_brokerage_payload,
-                balance_evaluable=balance_evaluable,
                 balance_valid=is_valid,
                 within_doc_collapse=within_doc_collapse,
                 # An explicit source-fact absence is review-only, not a failed
@@ -1078,12 +1078,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         self,
         messages: list[dict[str, Any]],
         models: list[str],
-        prompt: str,
-        institution: str | None,
-        file_type: str,
-        return_raw: bool,
-        has_content: bool,
-        has_url: bool,
         seed_override: int | None = None,
         user_id: UUID | None = None,
     ) -> dict[str, Any]:
@@ -1100,7 +1094,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     model=model,
                     attempt=i + 1,
                     total=len(models),
-                    institution=institution,
                 )
 
                 stream = stream_ai_json(
@@ -1124,21 +1117,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                         "AI returned empty response",
                         error_id=ErrorIds.EXTRACTION_EMPTY_RESPONSE,
                         model=model,
-                        institution=institution,
-                        file_type=file_type,
-                        prompt_length=len(prompt),
-                        has_content=has_content,
-                        has_url=has_url,
                     )
                     error_summary["empty_response"] = error_summary.get("empty_response", 0) + 1
                     last_error = ExtractionError(
                         f"Model {model} returned empty response. Please retry with a different model."
                     )
                     continue
-
-                if return_raw:
-                    logger.info("AI extraction successful (raw)", model=model)
-                    return {"choices": [{"message": {"content": content}}]}
 
                 try:
                     parsed = json.loads(content)
@@ -1261,7 +1245,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         file_content: bytes | None,
         institution: str | None,
         file_type: str,
-        return_raw: bool = False,
         file_url: str | None = None,
         force_model: str | None = None,
         seed_override: int | None = None,
@@ -1322,11 +1305,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                 media_batches=media_batches,
                 models=[force_model],
                 prompt=prompt,
-                institution=institution,
-                file_type=file_type,
-                return_raw=return_raw,
-                has_content=bool(file_content),
-                has_url=bool(file_url),
                 seed_override=seed_override,
                 user_id=user_id,
             )
@@ -1346,11 +1324,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             media_batches=media_batches,
             models=vision_models,
             prompt=prompt,
-            institution=institution,
-            file_type=file_type,
-            return_raw=return_raw,
-            has_content=bool(file_content),
-            has_url=bool(file_url),
             seed_override=seed_override,
             user_id=user_id,
         )
@@ -1361,21 +1334,15 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         media_batches: list[list[dict[str, Any]]],
         models: list[str],
         prompt: str,
-        institution: str | None,
-        file_type: str,
-        return_raw: bool,
-        has_content: bool,
-        has_url: bool,
         seed_override: int | None,
         user_id: UUID | None,
     ) -> dict[str, Any]:
         """Run one model call per media batch and merge the payloads (#1832).
 
-        Single-batch documents keep the exact pre-#1832 call shape (including
-        ``return_raw`` passthrough). Multi-batch documents get a per-part prompt
-        (transactions from own pages only; statement-level balances only when
-        explicitly stated), concurrent part calls, and a pure merge; ``return_raw``
-        is not meaningful across parts and is ignored there.
+        Single-batch documents keep the exact pre-#1832 call shape. Multi-batch
+        documents get a per-part prompt (transactions from own pages only;
+        statement-level balances only when explicitly stated), concurrent part
+        calls, and a pure merge.
         """
 
         def _messages(part_prompt: str, media: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1393,12 +1360,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             return await self._extract_json_with_models(
                 messages=_messages(prompt, media_batches[0]),
                 models=models,
-                prompt=prompt,
-                institution=institution,
-                file_type=file_type,
-                return_raw=return_raw,
-                has_content=has_content,
-                has_url=has_url,
                 seed_override=seed_override,
                 user_id=user_id,
             )
@@ -1430,12 +1391,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
             return await self._extract_json_with_models(
                 messages=_messages(part_prompt, part_media),
                 models=models,
-                prompt=part_prompt,
-                institution=institution,
-                file_type=file_type,
-                return_raw=False,
-                has_content=has_content,
-                has_url=has_url,
                 seed_override=seed_override,
                 user_id=user_id,
             )

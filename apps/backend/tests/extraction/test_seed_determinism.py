@@ -26,12 +26,6 @@ async def test_extraction_forwards_configured_seed():
         result = await service._extract_json_with_models(
             messages=[{"role": "user", "content": "x"}],
             models=["test-model"],
-            prompt="p",
-            institution="DBS",
-            file_type="pdf",
-            return_raw=False,
-            has_content=True,
-            has_url=False,
         )
 
     assert result == {"ok": True}
@@ -51,12 +45,6 @@ async def test_extraction_decoding_is_deterministic_by_default():
         await service._extract_json_with_models(
             messages=[{"role": "user", "content": "x"}],
             models=["test-model"],
-            prompt="p",
-            institution="DBS",
-            file_type="pdf",
-            return_raw=False,
-            has_content=True,
-            has_url=False,
         )
 
     kwargs = mock_stream_fn.call_args.kwargs

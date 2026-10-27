@@ -25,6 +25,7 @@ from sqlalchemy import select
 
 from src.extraction import BankStatementStatus, DocumentSource
 from src.extraction.extension._llm_led_gate import (
+    QUARANTINE_METRIC_KIND,
     LlmLedQuarantineReason,
     evaluate_llm_led_extraction_gate,
 )
@@ -145,18 +146,14 @@ class TestDedupConservationBlockingGate:
 
     def test_AC20_9_3_dedup_reason_code_distinct_from_balance(self):
         """[AC-extraction.2009.3] The dedup reason code is DISTINCT from the balance reason code."""
-        dedup = evaluate_llm_led_extraction_gate(
-            is_brokerage=False, balance_evaluable=True, balance_valid=True, within_doc_collapse=1
-        )
-        balance = evaluate_llm_led_extraction_gate(
-            is_brokerage=False, balance_evaluable=True, balance_valid=False, within_doc_collapse=0
-        )
+        dedup = evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=True, within_doc_collapse=1)
+        balance = evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=False, within_doc_collapse=0)
         assert dedup.reason == LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION
         assert balance.reason == LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED
         assert dedup.reason != balance.reason
 
 
-# --- AC-extraction.2009.4: fail-closed when the invariant cannot be evaluated ------------------
+# --- AC-extraction.2009.4: a missing source balance stays review-only ---------------------------
 
 
 class TestFailClosedGate:
@@ -164,9 +161,8 @@ class TestFailClosedGate:
         """[AC-extraction.2009.4] Missing source facts cannot become trusted truth.
 
         A source that explicitly omits its closing balance is retained as reviewable
-        evidence, never zero-filled or auto-promoted. The pure gate still quarantines
-        an unevaluable *asserted* balance invariant when no source-gap disposition is
-        supplied by this boundary.
+        evidence, never zero-filled or auto-promoted: the parse path exempts the balance
+        gate for it, so the result is review-only and not quarantined.
         """
         payload = _bank_payload(
             opening="1000.00",
@@ -179,14 +175,6 @@ class TestFailClosedGate:
         assert result.balance_validated is None
         assert result.confidence <= Decimal("0.59")
         assert result.review_reasons == ("Source is missing required facts: opening and closing balances",)
-
-    def test_AC20_9_4_unevaluable_is_pure_gate_decision(self):
-        """[AC-extraction.2009.4] The pure gate quarantines on balance_evaluable=False (bank)."""
-        verdict = evaluate_llm_led_extraction_gate(
-            is_brokerage=False, balance_evaluable=False, balance_valid=False, within_doc_collapse=0
-        )
-        assert verdict.quarantined is True
-        assert verdict.reason == LlmLedQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE
 
 
 # --- AC-extraction.2009.5: the old "imbalanced -> parsed/review" path is gone ------------------
@@ -224,18 +212,14 @@ class TestNoFalseReject:
         assert result.review_reasons == ()
 
     def test_AC20_9_6_valid_pure_gate_passes(self):
-        """[AC-extraction.2009.6] The pure gate passes a valid, evaluable, conserved extraction."""
-        verdict = evaluate_llm_led_extraction_gate(
-            is_brokerage=False, balance_evaluable=True, balance_valid=True, within_doc_collapse=0
-        )
+        """[AC-extraction.2009.6] The pure gate passes a valid, conserved extraction."""
+        verdict = evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=True, within_doc_collapse=0)
         assert verdict.quarantined is False
         assert verdict.reason is None
 
     def test_AC20_9_6_brokerage_balance_not_gated(self):
         """[AC-extraction.2009.6] Brokerage payloads are exempt from the balance gate (#981)."""
-        verdict = evaluate_llm_led_extraction_gate(
-            is_brokerage=True, balance_evaluable=False, balance_valid=False, within_doc_collapse=0
-        )
+        verdict = evaluate_llm_led_extraction_gate(is_brokerage=True, balance_valid=False, within_doc_collapse=0)
         assert verdict.quarantined is False
 
     def test_AC20_9_6_inferred_csv_marker_exempt_from_balance_gate(self):
@@ -247,7 +231,6 @@ class TestNoFalseReject:
         """
         passes = evaluate_llm_led_extraction_gate(
             is_brokerage=False,
-            balance_evaluable=True,
             balance_valid=False,
             within_doc_collapse=0,
             balance_gate_exempt=True,
@@ -256,7 +239,6 @@ class TestNoFalseReject:
         # The dedup gate is NOT exempted.
         dedup = evaluate_llm_led_extraction_gate(
             is_brokerage=False,
-            balance_evaluable=True,
             balance_valid=False,
             within_doc_collapse=1,
             balance_gate_exempt=True,
@@ -269,27 +251,23 @@ class TestNoFalseReject:
 
 class TestObservability:
     def test_AC20_9_7_each_failure_mode_has_distinct_reason_and_metric(self):
-        """[AC-extraction.2009.7] Each failure mode maps to a distinct reason code AND metric kind."""
+        """[AC-extraction.2009.7] Each failure mode maps to a distinct reason code AND metric kind.
+
+        The verdicts the gate can return must cover every reason code and every
+        registered gate metric kind, so a reason or kind without a gate path fails here.
+        """
         from src.observability import INVARIANT_VIOLATION_KINDS
 
         verdicts = [
-            evaluate_llm_led_extraction_gate(
-                is_brokerage=False, balance_evaluable=True, balance_valid=False, within_doc_collapse=0
-            ),
-            evaluate_llm_led_extraction_gate(
-                is_brokerage=False, balance_evaluable=True, balance_valid=True, within_doc_collapse=2
-            ),
-            evaluate_llm_led_extraction_gate(
-                is_brokerage=False, balance_evaluable=False, balance_valid=True, within_doc_collapse=0
-            ),
+            evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=False, within_doc_collapse=0),
+            evaluate_llm_led_extraction_gate(is_brokerage=False, balance_valid=True, within_doc_collapse=2),
         ]
         reasons = {v.reason for v in verdicts}
         metrics = {v.metric_kind for v in verdicts}
-        assert len(reasons) == 3, "each failure mode must have a distinct reason code"
-        assert len(metrics) == 3, "each failure mode must have a distinct metric kind"
-        # Each metric kind must be registered in the bounded telemetry vocabulary.
-        for metric in metrics:
-            assert metric in INVARIANT_VIOLATION_KINDS
+        assert reasons == set(LlmLedQuarantineReason)
+        assert metrics == set(QUARANTINE_METRIC_KIND.values())
+        assert len(metrics) == len(reasons) == 2
+        assert metrics == {kind for kind in INVARIANT_VIOLATION_KINDS if kind.startswith("llm_led_gate_quarantine_")}
 
     def test_AC20_9_7_gate_reason_codes_carry_no_pii(self):
         """[AC-extraction.2009.7] Reason codes / messages carry no institution name or account id."""
@@ -297,7 +275,6 @@ class TestObservability:
         for reason in LlmLedQuarantineReason:
             verdict = evaluate_llm_led_extraction_gate(
                 is_brokerage=False,
-                balance_evaluable=(reason is not LlmLedQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE),
                 balance_valid=(reason is not LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED),
                 within_doc_collapse=(1 if reason is LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION else 0),
             )

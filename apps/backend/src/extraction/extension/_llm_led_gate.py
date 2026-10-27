@@ -39,7 +39,6 @@ class LlmLedQuarantineReason(str, Enum):
 
     BALANCE_CHAIN_UNRECONCILED = "llm_led_balance_chain_unreconciled"
     DEDUP_CONSERVATION_VIOLATION = "llm_led_dedup_conservation_violation"
-    BALANCE_INVARIANT_UNEVALUABLE = "llm_led_balance_invariant_unevaluable"
 
 
 # Map each quarantine reason to its distinct, bounded metric kind (AC-extraction.2009.7). These
@@ -49,7 +48,6 @@ class LlmLedQuarantineReason(str, Enum):
 QUARANTINE_METRIC_KIND: dict[LlmLedQuarantineReason, str] = {
     LlmLedQuarantineReason.BALANCE_CHAIN_UNRECONCILED: "llm_led_gate_quarantine_balance",
     LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION: "llm_led_gate_quarantine_dedup",
-    LlmLedQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE: "llm_led_gate_quarantine_unevaluable",
 }
 
 # Human-readable, PII-free validation_error text per reason. Kept terminal-state
@@ -67,11 +65,6 @@ QUARANTINE_MESSAGE: dict[LlmLedQuarantineReason, str] = {
         "collapsed into one). The transaction set is incomplete, so the statement was "
         "not imported. Retry parsing; if it still fails, this document layout is "
         "not fully supported yet."
-    ),
-    LlmLedQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE: (
-        "Extraction blocked: the balance invariant could not be evaluated because an "
-        "opening or closing balance is missing. Fail-closed: the extraction cannot be "
-        "trusted without a verifiable balance chain."
     ),
 }
 
@@ -103,7 +96,6 @@ _PASS = LpGateVerdict(quarantined=False)
 def evaluate_llm_led_extraction_gate(
     *,
     is_brokerage: bool,
-    balance_evaluable: bool,
     balance_valid: bool,
     within_doc_collapse: int,
     balance_gate_exempt: bool = False,
@@ -128,16 +120,13 @@ def evaluate_llm_led_extraction_gate(
       chain (#981), so ``is_brokerage`` exempts them from the balance gate (their
       NAV self-check remains the detection-time signal it already was).
 
-    ``balance_evaluable`` is the fail-closed input (AC-extraction.2009.4): ``False`` means the
-    balance invariant could not be computed (e.g. a bank statement missing an
-    opening or closing balance), which quarantines rather than passing on the
-    zero-default chain. It is ignored for brokerage payloads.
-
     ``balance_gate_exempt`` exempts the *balance* gate (only) for an extraction that
     is already a known-incomplete, explicitly-flagged review marker rather than a
     true balance mismatch. It covers the inferred CSV path and a live source that
-    declares its balance facts absent. Such a statement is not silently passing, so
-    blocking it would be a false reject; the dedup gate still applies to it.
+    declares its balance facts absent (AC-extraction.2009.4): the caller never feeds
+    a missing opening or closing balance to the chain check as a zero default. Such a
+    statement is not silently passing, so blocking it would be a false reject; the
+    dedup gate still applies to it.
     """
     # Independent dedup-conservation gate (AC-extraction.2009.3) — all document classes.
     if within_doc_collapse > 0:
@@ -146,14 +135,9 @@ def evaluate_llm_led_extraction_gate(
             reason=LlmLedQuarantineReason.DEDUP_CONSERVATION_VIOLATION,
         )
 
-    # Balance-chain gate (AC-extraction.2009.2 / .4) — bank statements only, and never for an
+    # Balance-chain gate (AC-extraction.2009.2) — bank statements only, and never for an
     # explicitly-flagged incomplete review marker.
     if not is_brokerage and not balance_gate_exempt:
-        if not balance_evaluable:
-            return LpGateVerdict(
-                quarantined=True,
-                reason=LlmLedQuarantineReason.BALANCE_INVARIANT_UNEVALUABLE,
-            )
         # Route the decision through the promotion gate so the deterministic trust
         # boundary (#930) is the single disposer: a failed invariant => REJECTED.
         verdict = evaluate_promotion(
