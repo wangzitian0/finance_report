@@ -17,7 +17,11 @@ import pytest
 import tests.e2e as e2e_package
 from tests.e2e import auth_cookie
 from tests.e2e.auth_cookie import build_auth_cookie, build_runner_browser_session
-from common.testing.benchmarks.oracles import verify_browser_ui_hygiene
+from common.testing.benchmarks.oracles import (
+    DEFAULT_BENCHMARK_UI_ROUTES,
+    DEFAULT_BENCHMARK_UI_VIEWPORTS,
+    verify_browser_ui_hygiene,
+)
 
 BASE_URL = "http://app.test"
 AUTH = {
@@ -40,11 +44,13 @@ class World:
 
 
 class FakePage:
-    def __init__(self, world: World) -> None:
+    def __init__(self, world: World, viewport: dict[str, int] | None = None) -> None:
         self.world = world
+        self.viewport = viewport or {"width": 1440, "height": 900}
         self.url = "about:blank"
         self.handlers: dict = {}
         self.body = ""
+        self.current_behavior: dict = {}
 
     def on(self, event: str, handler) -> None:  # noqa: ANN001
         self.handlers[event] = handler
@@ -52,6 +58,7 @@ class FakePage:
     def goto(self, url: str, timeout=None, wait_until=None):  # noqa: ANN001
         path = urlparse(url).path
         behavior = self.world.routes.get(path, {})
+        self.current_behavior = behavior
         if "raises" in behavior:
             raise behavior["raises"]
         self.url = BASE_URL + behavior.get("final_path", path)
@@ -71,10 +78,21 @@ class FakePage:
     def inner_text(self, selector: str) -> str:
         return self.body
 
+    def evaluate(self, script: str) -> dict[str, int]:
+        inner_width = int(self.viewport.get("width", 1440))
+        overflow_by_viewport = self.current_behavior.get("scroll_width_by_width", {})
+        scroll_width = int(
+            overflow_by_viewport.get(
+                inner_width, self.current_behavior.get("scroll_width", inner_width)
+            )
+        )
+        return {"scrollWidth": scroll_width, "innerWidth": inner_width}
+
 
 class FakeContext:
-    def __init__(self, world: World) -> None:
+    def __init__(self, world: World, viewport: dict[str, int] | None = None) -> None:
         self.world = world
+        self.viewport = viewport
         self.cookies: list = []
         self.init_scripts: list[str] = []
 
@@ -85,7 +103,7 @@ class FakeContext:
         self.init_scripts.append(script)
 
     def new_page(self) -> FakePage:
-        return FakePage(self.world)
+        return FakePage(self.world, viewport=self.viewport)
 
 
 class FakeBrowser:
@@ -94,7 +112,7 @@ class FakeBrowser:
         self.closed = False
 
     def new_context(self, viewport=None) -> FakeContext:  # noqa: ANN001
-        context = FakeContext(self.world)
+        context = FakeContext(self.world, viewport=viewport)
         self.world.contexts.append(context)
         return context
 
@@ -334,6 +352,76 @@ def test_the_oracle_uses_the_shared_session_builder(
     monkeypatch.setattr(auth_cookie, "build_runner_browser_session", sentinel)
     with pytest.raises(RuntimeError, match="shared-builder-called"):
         verify_browser_ui_hygiene(runner(), routes=ROUTES)
+
+
+def test_default_routes_cover_five_tab_ia_and_map_to_real_frontend_pages() -> None:
+    """AC-testing.benchmarks.3: DEFAULT_BENCHMARK_UI_ROUTES covers the 5-tab IA and maps to existing app pages."""
+    from pathlib import Path
+
+    app_dir = Path(__file__).resolve().parents[2] / "apps" / "frontend" / "src" / "app"
+    real_routes: set[str] = set()
+    for page in app_dir.rglob("page.tsx"):
+        rel = page.relative_to(app_dir).parent
+        segments = [
+            part
+            for part in rel.parts
+            if not (part.startswith("(") and part.endswith(")"))
+        ]
+        if any(part.startswith("[") and part.endswith("]") for part in segments):
+            continue
+        real_routes.add("/" + "/".join(segments) if segments else "/")
+
+    assert "/dashboard" not in DEFAULT_BENCHMARK_UI_ROUTES
+    for required in (
+        "/",
+        "/chat",
+        "/audit",
+        "/more",
+        "/upload",
+        "/portfolio",
+        "/reports",
+        "/reports?tab=balance-sheet",
+        "/reports?tab=income-statement",
+        "/reports?tab=cash-flow",
+        "/reports?tab=package",
+        "/reconciliation",
+        "/journal",
+        "/settings",
+    ):
+        assert required in DEFAULT_BENCHMARK_UI_ROUTES
+
+    for route in DEFAULT_BENCHMARK_UI_ROUTES:
+        base_path = urlparse(route).path.rstrip("/") or "/"
+        assert base_path in real_routes, (
+            f"Route {route} has no page.tsx under apps/frontend/src/app"
+        )
+
+
+def test_dual_viewports_are_verified_and_mobile_horizontal_overflow_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-testing.benchmarks.3: verify_browser_ui_hygiene checks 1440x900 and 390x844 viewports and rejects horizontal overflow."""
+    assert DEFAULT_BENCHMARK_UI_VIEWPORTS == [
+        {"width": 1440, "height": 900},
+        {"width": 390, "height": 844},
+    ]
+    clean_world = World()
+    install_fake_playwright(monkeypatch, clean_world)
+    res = verify_browser_ui_hygiene(runner(), routes=["/", "/more"])
+    assert res["status"] == "PASS"
+    assert res["viewports_verified"] == ["1440x900", "390x844"]
+    assert [ctx.viewport for ctx in clean_world.contexts] == [
+        {"width": 1440, "height": 900},
+        {"width": 390, "height": 844},
+    ]
+
+    overflow_world = World({"/more": {"scroll_width_by_width": {1440: 1440, 390: 480}}})
+    install_fake_playwright(monkeypatch, overflow_world)
+    with pytest.raises(
+        AssertionError,
+        match=r"\[/more\] horizontal overflow at 390x844: scrollWidth=480 > innerWidth=390",
+    ):
+        verify_browser_ui_hygiene(runner(), routes=["/", "/more"])
 
 
 # ------------------------------------------------------------------- bridge

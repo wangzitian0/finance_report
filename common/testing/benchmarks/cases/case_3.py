@@ -197,6 +197,33 @@ def execute_case_3(runner: ScenarioBenchmarkRunner) -> CaseResult:
             is_balanced,
         ) = _verify_card_repayment_invariants(runner, client)
 
+        # Flow 18: Reconciliation Immaterial Adjustment & Penny Rounding Write-Off
+        rounding_acc = runner.create_account(
+            client,
+            name="DBS Rounding Verification Account",
+            type="ASSET",
+            currency="SGD",
+        )
+        adj = runner.post_reconciliation_adjustment(
+            client,
+            account_id=rounding_acc["id"],
+            bank_balance="0.02",
+            book_balance="0.00",
+        )
+        assert Decimal(str(adj["difference"])) == Decimal("0.02"), (
+            f"Expected penny adjustment difference 0.02, got {adj}"
+        )
+        assert adj.get("journal_entry_id") is not None, (
+            f"Expected journal_entry_id for non-zero penny adjustment, got {adj}"
+        )
+        bs_after = runner.get_balance_sheet(client, as_of_date="2025-04-30")
+        assert bs_after["is_balanced"] is True, (
+            f"Balance sheet unbalanced after Flow 18 adjustment: {bs_after}"
+        )
+        assert Decimal(str(bs_after["equation_delta"])) == Decimal("0.00"), (
+            f"Non-zero equation_delta after Flow 18 adjustment: {bs_after}"
+        )
+
         duration = time.time() - start_time
         print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
         return CaseResult(
@@ -217,6 +244,7 @@ def execute_case_3(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 "net_income": str(net_income),
                 "equation_delta": str(equation_delta),
                 "is_balanced": is_balanced,
+                "flow_18_adjustment_difference": str(adj["difference"]),
             },
         )
     except Exception as exc:

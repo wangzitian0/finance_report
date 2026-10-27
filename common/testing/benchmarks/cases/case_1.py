@@ -376,6 +376,12 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
             is_balanced,
         ) = _verify_month4_checkpoint(runner, client)
 
+        coverage = runner.get_report_coverage(client, as_of_date="2025-04-30")
+        coverage_start = str(coverage["coverage_start"])
+        assert coverage_start == "2025-01-01", (
+            f"Expected continuous 4-month coverage_start 2025-01-01, got {coverage_start}"
+        )
+
         # Pillar 1: AI Semantic Grounding Oracle
         print("  [10/10] Verifying AI Advisor Grounding & Semantic Invariant...")
         advisor_answer = None
@@ -418,6 +424,7 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 "m3_closing_balance": str(m3_data["closing_balance"]),
                 "m4_opening_balance": str(m4_data["opening_balance"]),
                 "m4_closing_balance": str(m4_data["closing_balance"]),
+                "coverage_start": coverage_start,
                 "q1_net_income": str(q1_net_income),
                 "q1_assets": str(q1_assets),
                 "total_assets": str(total_assets),

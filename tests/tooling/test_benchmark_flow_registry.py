@@ -199,3 +199,25 @@ def test_load_flow_to_cases_missing_file_raises_value_error(tmp_path: Path) -> N
     path = tmp_path / "nonexistent.json"
     with pytest.raises(ValueError, match="30-flow registry .*nonexistent.json"):
         load_flow_to_cases(path)
+
+
+def test_nominal_gap_flows_bind_live_backend_endpoints() -> None:
+    """AC-testing.benchmarks.4: Flows 8, 9, 18, and 29 declare their live backend endpoints in thirty_flows_ssot.json."""
+    registry = json.loads(
+        (REPO_ROOT / "common/meta/flows/thirty_flows_ssot.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    flows_by_id = {
+        flow["id"]: flow for domain in registry["domains"] for flow in domain["flows"]
+    }
+    assert (
+        flows_by_id[8]["backend_endpoint"]
+        == "POST /statements/{statement_id}/stage2/run-checks"
+    )
+    assert flows_by_id[9]["backend_endpoint"] == "POST /statements/{id}/review/reject"
+    assert flows_by_id[18]["backend_endpoint"] == "POST /reconciliation/adjustment"
+    assert (
+        flows_by_id[29]["backend_endpoint"]
+        == "GET /reconciliation/transactions/{txn_id}/anomalies"
+    )

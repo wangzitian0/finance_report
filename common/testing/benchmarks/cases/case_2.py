@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 def _upload_household_statements(
     runner: ScenarioBenchmarkRunner, client: httpx.Client
-) -> tuple[dict[str, Any], dict[str, Any]]:
+) -> tuple[str, dict[str, Any], dict[str, Any]]:
     # Husband DBS Statement
     print("  [2/6] Uploading Husband's DBS Bank CSV statement...")
     husband_bytes = generate_standard_operations_csv(Decimal("10000.00"))
@@ -62,7 +62,7 @@ def _upload_household_statements(
     runner.adjudicate_unmatched_items(client, w_id)
     runner.approve_statement(client, w_id)
     print("        Wife SCB statement approved.")
-    return h_data, w_data
+    return h_id, h_data, w_data
 
 
 def _verify_household_statements(
@@ -173,7 +173,39 @@ def execute_case_2(runner: ScenarioBenchmarkRunner) -> CaseResult:
         client, user_email, _ = runner.create_ephemeral_client("case2_household")
         print(f"  [1/6] Registered test user: {user_email}")
 
-        _upload_household_statements(runner, client)
+        h_id, h_data, _ = _upload_household_statements(runner, client)
+
+        # Flow 8: Stage 2 Consistency & Deduplication Checks
+        checks = runner.run_stage2_consistency_checks(client, h_id)
+        assert "total" in checks, f"Invalid consistency check payload: {checks}"
+
+        # Flow 29: Recurring Subscriptions & Anomaly Alerts
+        h_txns = h_data.get("transactions") or []
+        anomalies: list[dict[str, Any]] = []
+        if h_txns and h_txns[0].get("id"):
+            anomalies = runner.list_transaction_anomalies(client, str(h_txns[0]["id"]))
+            assert isinstance(anomalies, list), (
+                f"Expected anomalies list, got {anomalies}"
+            )
+
+        # Flow 9: Low Quality Document Triage and Rejection Recovery
+        triage_bytes = generate_standard_operations_csv(Decimal("999.00"))
+        bad_id = runner.upload_statement(
+            client,
+            triage_bytes,
+            "corrupted_triage_scan.csv",
+            institution="Triage Bank",
+        )
+        runner.wait_for_statement_parsed(client, bad_id)
+        rejected = runner.reject_statement(
+            client,
+            bad_id,
+            notes="Corrupted scan discarded during Stage-1 triage",
+        )
+        assert rejected.get("status") == "rejected", (
+            f"Expected rejected statement status, got {rejected}"
+        )
+
         (
             total_assets,
             total_equity,
@@ -207,6 +239,9 @@ def execute_case_2(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 "ending_cash": str(end_cash),
                 "equation_delta": str(equation_delta),
                 "is_balanced": is_balanced,
+                "flow_8_checks_ran": True,
+                "flow_9_rejected_status": str(rejected["status"]),
+                "flow_29_anomalies_checked": True,
             },
         )
     except Exception as exc:
