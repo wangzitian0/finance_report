@@ -17,6 +17,7 @@ from common.meta.extension.dependency_report import (
 )
 from common.meta.extension.governance_census import (
     DEFAULT_BASELINE_PATH,
+    MIN_FRONTEND_PRODUCTION_FILES,
     collect_governance_census,
     verify_governance_ratchet,
 )
@@ -158,7 +159,9 @@ def test_AC_meta_governance_ratchet_4_frontend_export_denominator() -> None:
     """AC-meta.governance-ratchet.4: frontend production files are comprehensively discovered."""
     census = collect_governance_census(REPO_ROOT)
     fe_count = census["frontend_assets"]["production_file_count"]
-    assert fe_count >= 150, f"Expected >= 150 frontend files, got {fe_count}"
+    assert fe_count >= MIN_FRONTEND_PRODUCTION_FILES, (
+        f"Expected >= {MIN_FRONTEND_PRODUCTION_FILES} frontend files, got {fe_count}"
+    )
 
     # Clean check returns 0 findings
     result = {"census": census}
