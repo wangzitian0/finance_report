@@ -108,10 +108,10 @@ export function PackageCover({
   return (
     <section aria-label="Report package cover" className="card p-6 mb-6">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs uppercase tracking-wide text-muted">Personal financial-report package</p>
           <h2 className="mt-2 text-2xl font-semibold">Personal Report Package</h2>
-          <p className="mt-2 font-mono text-sm text-muted">{contract.package_id}</p>
+          <p className="mt-2 break-all font-mono text-sm text-muted">{contract.package_id}</p>
         </div>
         <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:min-w-[28rem]">
           <div><dt className="text-xs text-muted">Framework</dt><dd className="mt-1 font-semibold">{selectedFrameworkLabel ?? "Framework not selected"}</dd></div>
@@ -250,8 +250,8 @@ export function PackageFrameworkSelection({
           <details className="mt-4 rounded border border-[var(--border)] p-3 text-sm print:hidden">
             <summary className="cursor-pointer font-medium">Framework setup audit details</summary>
             <dl className="mt-3 grid gap-3 md:grid-cols-2">
-              <div><dt className="text-xs text-muted">Selected Framework</dt><dd className="mt-1 font-mono text-xs">{selectedFrameworkId}</dd></div>
-              <div><dt className="text-xs text-muted">Supported Frameworks</dt><dd className="mt-1 font-mono text-xs">{supported.join(", ")}</dd></div>
+              <div><dt className="text-xs text-muted">Selected Framework</dt><dd className="mt-1 break-all font-mono text-xs">{selectedFrameworkId}</dd></div>
+              <div><dt className="text-xs text-muted">Supported Frameworks</dt><dd className="mt-1 break-words font-mono text-xs">{supported.join(", ")}</dd></div>
             </dl>
           </details>
         </>
@@ -304,12 +304,12 @@ export function PackageReadinessSection({ readiness }: { readiness: PersonalRepo
         {blockers.length ? (
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             {blockers.map((b) => (
-              <article key={b.code} className="rounded border border-[var(--border)] p-3">
-                <p className="font-mono text-xs">{b.code}</p>
+              <article key={b.code} className="min-w-0 rounded border border-[var(--border)] p-3">
+                <p className="break-all font-mono text-xs">{b.code}</p>
                 <dl className="mt-2 space-y-1 text-xs">
-                  <div className="flex justify-between gap-3"><dt className="text-muted">Blocker code</dt><dd className="font-mono text-right">{b.code}</dd></div>
-                  <div className="flex justify-between gap-3"><dt className="text-muted">Severity</dt><dd className="font-mono text-right">{b.severity}</dd></div>
-                  <div className="flex justify-between gap-3"><dt className="text-muted">Action href</dt><dd className="font-mono text-right">{b.action_href}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Blocker code</dt><dd className="min-w-0 break-all font-mono text-right">{b.code}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Severity</dt><dd className="font-mono text-right">{b.severity}</dd></div>
+                  <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Action href</dt><dd className="min-w-0 break-all font-mono text-right">{b.action_href}</dd></div>
                 </dl>
               </article>
             ))}
@@ -361,6 +361,17 @@ export function PackageFrameworkPolicySection({ policy }: { policy: FrameworkPol
   const gaps = policy.gaps ?? [];
   const decisions = policy.decisions ?? [];
   const requiredStatements = policy.required_statements ?? [];
+  const groupedDecisions = Array.from(
+    decisions
+      .reduce((groups, d) => {
+        const key = `${d.domain}:${d.classification}:${d.presentation}:${d.review_state}:${JSON.stringify(d.line_mappings)}`;
+        const existing = groups.get(key);
+        if (existing) existing.count += 1;
+        else groups.set(key, { key, decision: d, count: 1 });
+        return groups;
+      }, new Map<string, { key: string; decision: (typeof decisions)[number]; count: number }>())
+      .values(),
+  );
 
   return (
     <section id="package-framework-policy" className="card p-5 mb-6">
@@ -378,53 +389,56 @@ export function PackageFrameworkPolicySection({ policy }: { policy: FrameworkPol
         <div><dt className="text-xs text-muted">Reporting gaps</dt><dd className="mt-1 font-semibold">{gaps.length}</dd></div>
       </dl>
       <div className="mt-5 grid lg:grid-cols-2 gap-4">
-        {decisions.map((d) => (
-          <article key={`${d.domain}:${d.line_mappings.balance_sheet ?? d.presentation}`} className="border border-[var(--border)] rounded p-3">
+        {groupedDecisions.map(({ key, decision: d, count }) => (
+          <article key={key} className="min-w-0 border border-[var(--border)] rounded p-3">
             <div className="flex items-start justify-between gap-3">
-              <div><p className="font-medium">{humanizeIdentifier(d.domain)}</p><p className="mt-1 text-sm text-muted">{d.classification}</p></div>
-              <span className="badge badge-muted">{d.review_state === "accepted" ? "Accepted" : humanizeIdentifier(d.review_state)}</span>
+              <div className="min-w-0"><p className="font-medium break-words">{humanizeIdentifier(d.domain)}</p><p className="mt-1 text-sm text-muted break-words">{d.classification}</p></div>
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                {count > 1 ? <span className="badge badge-muted">{countLabel(count, "item")}</span> : null}
+                <span className="badge badge-muted">{d.review_state === "accepted" ? "Accepted" : humanizeIdentifier(d.review_state)}</span>
+              </div>
             </div>
-            <p className="mt-3 text-sm text-muted">{d.presentation}</p>
+            <p className="mt-3 text-sm text-muted break-words">{d.presentation}</p>
           </article>
         ))}
         {gaps.map((g) => (
-          <article key={`${g.code}:${g.fact_id}`} className="border border-[var(--border)] rounded p-3">
+          <article key={`${g.code}:${g.fact_id}`} className="min-w-0 border border-[var(--border)] rounded p-3">
             <div className="flex items-start justify-between gap-3">
-              <div><p className="font-medium">{humanizeIdentifier(g.domain)}</p><p className="mt-1 text-sm text-muted">{g.reason}</p></div>
-              <span className="badge badge-warning">{g.blocker ? "Blocks trusted output" : "Needs review"}</span>
+              <div className="min-w-0"><p className="font-medium break-words">{humanizeIdentifier(g.domain)}</p><p className="mt-1 text-sm text-muted break-words">{g.reason}</p></div>
+              <span className="badge badge-warning shrink-0">{g.blocker ? "Blocks trusted output" : "Needs review"}</span>
             </div>
-            {g.remediation ? <p className="mt-3 text-sm text-muted">{g.remediation}</p> : null}
+            {g.remediation ? <p className="mt-3 text-sm text-muted break-words">{g.remediation}</p> : null}
           </article>
         ))}
       </div>
       <details className="mt-5 rounded border border-[var(--border)] p-3 text-sm print:hidden">
         <summary className="cursor-pointer font-medium">Reporting basis audit details</summary>
         <dl className="mt-3 grid gap-3 md:grid-cols-2">
-          <div><dt className="text-xs text-muted">Framework</dt><dd className="mt-1 font-mono text-xs">{policy.framework_id}</dd></div>
+          <div><dt className="text-xs text-muted">Framework</dt><dd className="mt-1 break-all font-mono text-xs">{policy.framework_id}</dd></div>
           <div><dt className="text-xs text-muted">Matrix Version</dt><dd className="mt-1 font-semibold">{policy.matrix_version}</dd></div>
-          <div className="md:col-span-2"><dt className="text-xs text-muted">Framework Policy Result</dt><dd className="mt-1 break-words font-mono text-xs">{policy.result_id}</dd></div>
+          <div className="md:col-span-2"><dt className="text-xs text-muted">Framework Policy Result</dt><dd className="mt-1 break-all font-mono text-xs">{policy.result_id}</dd></div>
         </dl>
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          {decisions.map((d) => (
-            <article key={`audit:${d.domain}:${d.line_mappings.balance_sheet ?? d.presentation}`} className="rounded border border-[var(--border)] p-3">
+          {groupedDecisions.map(({ key, decision: d }) => (
+            <article key={`audit:${key}`} className="min-w-0 rounded border border-[var(--border)] p-3">
               <div className="flex items-start justify-between gap-3">
-                <div><p className="font-medium">{d.domain}</p><p className="mt-1 text-xs font-mono text-muted">{d.review_state}</p></div>
-                <span className="badge badge-muted">{d.provenance}</span>
+                <div className="min-w-0"><p className="font-medium break-words">{d.domain}</p><p className="mt-1 text-xs font-mono text-muted break-all">{d.review_state}</p></div>
+                <span className="badge badge-muted shrink-0">{d.provenance}</span>
               </div>
               <dl className="mt-3 space-y-1 text-xs">
                 {Object.entries(d.line_mappings).map(([section, line]) => (
-                  <div key={`${d.domain}:${section}`} className="flex justify-between gap-3"><dt className="text-muted">{section}</dt><dd className="font-mono text-right">{line}</dd></div>
+                  <div key={`${key}:${section}`} className="flex justify-between gap-3"><dt className="text-muted shrink-0">{section}</dt><dd className="min-w-0 break-all font-mono text-right">{line}</dd></div>
                 ))}
               </dl>
             </article>
           ))}
           {gaps.map((g) => (
-            <article key={`audit:${g.code}:${g.fact_id}`} className="rounded border border-[var(--border)] p-3">
+            <article key={`audit:${g.code}:${g.fact_id}`} className="min-w-0 rounded border border-[var(--border)] p-3">
               <div className="flex items-start justify-between gap-3">
-                <div><p className="font-medium">{g.code}</p><p className="mt-1 text-xs font-mono text-muted">{g.fact_id}</p></div>
-                <span className="badge badge-muted">{g.instrument_type}</span>
+                <div className="min-w-0"><p className="font-medium break-all">{g.code}</p><p className="mt-1 text-xs font-mono text-muted break-all">{g.fact_id}</p></div>
+                <span className="badge badge-muted shrink-0">{g.instrument_type}</span>
               </div>
-              <p className="mt-3 text-sm text-muted">{g.reason}</p>
+              <p className="mt-3 text-sm text-muted break-words">{g.reason}</p>
             </article>
           ))}
         </div>
@@ -494,7 +508,7 @@ export function PackageSectionCards({
       </section>
       <section id={sectionAnchorId("income_statement")} className="card p-5">
         <h2 className="font-semibold">Income Statement</h2>
-        <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+        <dl className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
           <PackageMetric label="Income" value={is.total_income} currency={is.currency} />
           <PackageMetric label="Expenses" value={is.total_expenses} currency={is.currency} />
           <PackageMetric label="Net Income" value={is.net_income} currency={is.currency} />
@@ -502,7 +516,7 @@ export function PackageSectionCards({
       </section>
       <section id={sectionAnchorId("cash_flow")} className="card p-5">
         <h2 className="font-semibold">Cash Flow</h2>
-        <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+        <dl className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
           <PackageMetric label="Operating" value={cf.summary.operating_activities} currency={cf.currency} />
           <PackageMetric label="Investing" value={cf.summary.investing_activities} currency={cf.currency} />
           <PackageMetric label="Financing" value={cf.summary.financing_activities} currency={cf.currency} />
@@ -524,7 +538,7 @@ export function PackageSectionCards({
       </section>
       <section id={sectionAnchorId("investment_performance")} className="card p-5">
         <h2 className="font-semibold">Investment Performance</h2>
-        <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+        <dl className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
           <PackageMetric label="Realized P&L" value={inv.realized_pnl} currency={inv.currency} />
           <PackageMetric label="Unrealized P&L" value={inv.unrealized_pnl} currency={inv.currency} />
           <PackageMetric label="Dividend Income" value={inv.dividend_income} currency={inv.currency} />
@@ -532,8 +546,8 @@ export function PackageSectionCards({
         <div className="mt-4 space-y-2">
           {inv.holdings.length ? inv.holdings.map((h) => (
             <div key={h.asset_identifier} className="flex justify-between gap-3 border-t border-[var(--border)] pt-2 text-sm">
-              <span>{h.asset_identifier}</span>
-              <span className="font-medium">{formatScheduleCurrency(h.market_value, h.currency)}</span>
+              <span className="min-w-0 break-words">{h.asset_identifier}</span>
+              <span className="shrink-0 font-medium">{formatScheduleCurrency(h.market_value, h.currency)}</span>
             </div>
           )) : <p className="text-sm text-muted">No investment holdings in this period.</p>}
         </div>
@@ -548,9 +562,9 @@ export function PackageAnnualizedScheduleSection({ schedule }: { schedule: Annua
     <section id="package-annualized-income-detail" className="card p-5 mb-6">
       <div className="flex items-start justify-between gap-3">
         <h2 className="font-semibold">Annualized Income Schedule</h2>
-        <span className="badge badge-muted">{schedule.trailing_period_days} days</span>
+        <span className="badge badge-muted shrink-0">{schedule.trailing_period_days} days</span>
       </div>
-      <div className="mt-4 grid md:grid-cols-4 gap-3">
+      <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           ["Total", income.annualized_total],
           ["Salary", income.annualized_salary],
@@ -561,28 +575,28 @@ export function PackageAnnualizedScheduleSection({ schedule }: { schedule: Annua
         ))}
       </div>
       <div className="mt-5 grid lg:grid-cols-2 gap-4">
-        <div>
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold">Restricted Holdings</h3>
           <div className="mt-3 space-y-2">
             {schedule.restricted_holdings.map((h) => (
               <div key={`${h.compensation_type}:${h.ticker}`} className="border border-[var(--border)] rounded p-3">
                 <div className="flex items-start justify-between gap-3">
-                  <div><p className="font-medium">{h.ticker}</p><p className="text-xs text-muted">{h.compensation_type}</p></div>
-                  <p className="font-semibold">{formatScheduleCurrency(h.fair_value, h.currency)}</p>
+                  <div className="min-w-0"><p className="font-medium break-words">{h.ticker}</p><p className="text-xs text-muted break-words">{h.compensation_type}</p></div>
+                  <p className="shrink-0 font-semibold">{formatScheduleCurrency(h.fair_value, h.currency)}</p>
                 </div>
                 <dl className="mt-3 space-y-1 text-xs">
-                  {h.vesting_schedule ? <div className="flex justify-between gap-3"><dt className="text-muted">Vesting</dt><dd>{h.vesting_schedule}</dd></div> : null}
-                  {h.unlock_date ? <div className="flex justify-between gap-3"><dt className="text-muted">Unlock</dt><dd>{h.unlock_date}</dd></div> : null}
+                  {h.vesting_schedule ? <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Vesting</dt><dd className="min-w-0 break-words text-right">{h.vesting_schedule}</dd></div> : null}
+                  {h.unlock_date ? <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Unlock</dt><dd className="min-w-0 break-words text-right">{h.unlock_date}</dd></div> : null}
                 </dl>
               </div>
             ))}
           </div>
         </div>
-        <div>
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold">Net Worth Treatment</h3>
           <dl className="mt-3 space-y-2 text-sm">
-            <div className="flex justify-between gap-3"><dt className="text-muted">Liquid Default</dt><dd className="font-mono text-xs text-right">{schedule.net_worth_treatment.liquid_net_worth_default}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="text-muted">Restricted Basis</dt><dd className="font-mono text-xs text-right">{schedule.net_worth_treatment.restricted_wealth_basis}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Liquid Default</dt><dd className="min-w-0 break-all font-mono text-xs text-right">{schedule.net_worth_treatment.liquid_net_worth_default}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Restricted Basis</dt><dd className="min-w-0 break-all font-mono text-xs text-right">{schedule.net_worth_treatment.restricted_wealth_basis}</dd></div>
           </dl>
           <ul className="mt-4 space-y-1 text-sm text-muted">
             {schedule.notes.map((n) => <li key={n}>{n}</li>)}
@@ -598,20 +612,20 @@ export function PackageNotesSection({ notes }: { notes: PersonalReportPackageNot
     <section id="package-notes-detail" className="card p-5 mb-6">
       <div className="flex items-start justify-between gap-3">
         <h2 className="font-semibold">{notes.label}</h2>
-        <span className="badge badge-muted">{notes.status}</span>
+        <span className="badge badge-muted shrink-0">{notes.status}</span>
       </div>
       <p className="mt-4 text-sm text-muted">{notes.non_compliance_statement}</p>
       <div className="mt-5 grid lg:grid-cols-2 gap-4">
         {notes.notes.map((n) => (
-          <article key={n.note_id} className="border border-[var(--border)] rounded p-3">
+          <article key={n.note_id} className="min-w-0 border border-[var(--border)] rounded p-3">
             <div className="flex items-start justify-between gap-3">
-              <div><p className="font-medium">{n.label}</p><p className="text-xs font-mono text-muted mt-1">{n.note_id}</p></div>
-              <span className="badge badge-muted">{n.owner_epic}</span>
+              <div className="min-w-0"><p className="font-medium break-words">{n.label}</p><p className="text-xs font-mono text-muted mt-1 break-all">{n.note_id}</p></div>
+              <span className="badge badge-muted shrink-0">{n.owner_epic}</span>
             </div>
-            <p className="mt-3 text-sm text-muted">{n.disclosure}</p>
+            <p className="mt-3 text-sm text-muted break-words">{n.disclosure}</p>
             <dl className="mt-3 space-y-1 text-xs">
-              <div className="flex justify-between gap-3"><dt className="text-muted">Basis</dt><dd className="font-mono text-right">{n.basis}</dd></div>
-              <div className="flex justify-between gap-3"><dt className="text-muted">Source</dt><dd className="font-mono text-right">{n.source_state}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Basis</dt><dd className="min-w-0 break-all font-mono text-right">{n.basis}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Source</dt><dd className="min-w-0 break-all font-mono text-right">{n.source_state}</dd></div>
             </dl>
           </article>
         ))}
@@ -642,10 +656,10 @@ export function PackageExportContractSection({
       <details className="mt-4 rounded border border-[var(--border)] p-3 text-sm print:hidden">
         <summary className="cursor-pointer font-medium">Export audit details</summary>
         <dl className="mt-3 space-y-2">
-          <div className="flex justify-between gap-3"><dt className="text-muted">CSV Columns</dt><dd className="font-mono text-xs text-right">{contract.export_contract.csv_columns.join(", ")}</dd></div>
-          <div className="flex justify-between gap-3"><dt className="text-muted">Framework Policy Result</dt><dd className="max-w-md break-words font-mono text-xs text-right">{policy.result_id}</dd></div>
-          <div className="flex justify-between gap-3"><dt className="text-muted">Framework Policy Matrix Version</dt><dd className="font-medium">{policy.matrix_version}</dd></div>
-          <div className="flex justify-between gap-3"><dt className="text-muted">Evidence Bundle References</dt><dd className="max-w-md break-words font-mono text-xs text-right">{evidenceReferences.join(", ") || "none"}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">CSV Columns</dt><dd className="min-w-0 break-words font-mono text-xs text-right">{contract.export_contract.csv_columns.join(", ")}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Framework Policy Result</dt><dd className="min-w-0 max-w-md break-all font-mono text-xs text-right">{policy.result_id}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Framework Policy Matrix Version</dt><dd className="font-medium">{policy.matrix_version}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Evidence Bundle References</dt><dd className="min-w-0 max-w-md break-all font-mono text-xs text-right">{evidenceReferences.join(", ") || "none"}</dd></div>
         </dl>
       </details>
     </section>

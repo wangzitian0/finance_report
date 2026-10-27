@@ -80,12 +80,21 @@ export function SankeyChart({
     const foregroundColor = getCSSVar("--foreground");
     const foregroundMutedColor = getCSSVar("--foreground-muted");
 
-    const nodeMap = new Map<string, { name: string; itemStyle?: { color: string } }>();
+    const nodeMap = new Map<string, { name: string; itemStyle?: { color: string }; label?: { position: "left" | "right" } }>();
     const linkMap = new Map<string, { source: string; target: string; value: number }>();
 
-    const ensureNode = (name: string, itemStyle?: { color: string }) => {
+    const formatNodeName = (name: string) =>
+      name
+        .replace(/^(Operating|Investing|Financing)-(Inflows|Outflows)$/, "$1 $2")
+        .replace(/^(Operating|Investing|Financing)-/, "");
+
+    const ensureNode = (name: string, itemStyle?: { color: string }, labelPosition?: "left" | "right") => {
       if (!nodeMap.has(name)) {
-        nodeMap.set(name, itemStyle ? { name, itemStyle } : { name });
+        nodeMap.set(name, {
+          name,
+          ...(itemStyle ? { itemStyle } : {}),
+          ...(labelPosition ? { label: { position: labelPosition } } : {}),
+        });
       }
     };
 
@@ -106,18 +115,17 @@ export function SankeyChart({
 
       if (inflowItems.length === 0 && outflowItems.length === 0) return;
 
-      ensureNode(prefix, { color });
       if (inflowItems.length > 0) {
-        ensureNode(`${prefix}-Inflows`, { color: successColor });
+        ensureNode(`${prefix}-Inflows`, { color }, "right");
       }
       if (outflowItems.length > 0) {
-        ensureNode(`${prefix}-Outflows`, { color: errorColor });
+        ensureNode(`${prefix}-Outflows`, { color: errorColor }, "left");
       }
 
       inflowItems.forEach((item) => {
         const amount = amountToChartNumber(item.amount);
         const subcategoryNode = `${prefix}-${item.subcategory}`;
-        ensureNode(subcategoryNode, { color: foregroundMutedColor });
+        ensureNode(subcategoryNode, { color: foregroundMutedColor }, "left");
         addLink(`${prefix}-Inflows`, subcategoryNode, amount);
       });
 
@@ -125,7 +133,7 @@ export function SankeyChart({
         const rawValue = amountToChartNumber(item.amount);
         const amount = Math.abs(rawValue);
         const subcategoryNode = `${prefix}-${item.subcategory}`;
-        ensureNode(subcategoryNode, { color: foregroundMutedColor });
+        ensureNode(subcategoryNode, { color: foregroundMutedColor }, "right");
         addLink(subcategoryNode, `${prefix}-Outflows`, amount);
       });
     };
@@ -157,14 +165,15 @@ export function SankeyChart({
 
     return {
       title: { text: title, left: "center", textStyle: { color: foregroundColor } },
+      graphic: [],
       tooltip: {
         trigger: "item",
         triggerOn: "mousemove",
         formatter: (params: { data: { name?: string; value?: number; source?: string; target?: string } }) => {
           if (params.data.source && params.data.target) {
-            return `${params.data.source} → ${params.data.target}: ${params.data.value?.toLocaleString()}`;
+            return `${formatNodeName(params.data.source)} → ${formatNodeName(params.data.target)}: ${params.data.value?.toLocaleString()}`;
           }
-          return `${params.data.name}: ${params.data.value?.toLocaleString()}`;
+          return `${formatNodeName(params.data.name ?? "")}: ${params.data.value?.toLocaleString()}`;
         },
       },
       series: [
@@ -187,6 +196,7 @@ export function SankeyChart({
           label: {
             color: foregroundColor,
             fontSize: 11,
+            formatter: (params: { name: string }) => formatNodeName(params.name),
           },
         },
       ],
@@ -194,5 +204,5 @@ export function SankeyChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- colorKey triggers re-computation on theme change
   }, [operating, investing, financing, title, colorKey]);
 
-  return <ReactECharts option={option} style={{ height: `${height}px`, width: "100%" }} />;
+  return <ReactECharts option={option} notMerge={true} style={{ height: `${height}px`, width: "100%" }} />;
 }

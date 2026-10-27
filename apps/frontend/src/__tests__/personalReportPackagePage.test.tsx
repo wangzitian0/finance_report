@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PersonalReportPackageSections } from "@/lib/types";
 import ReportsPage from "@/app/(main)/reports/page";
-import { PackageSectionCards, renderCsv, renderSourceClasses } from "@/components/reports/package/shared";
+import { PackageSectionCards } from "@/components/reports/package/shared";
 import { personalReportPackageQuery } from "@/hooks/usePersonalReportPackage";
 import { readReportFilters } from "@/hooks/useReportFilters";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
