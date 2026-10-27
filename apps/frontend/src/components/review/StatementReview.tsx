@@ -187,7 +187,10 @@ export function SourceEnvelopeConfirmation({ requiresEnvelopeConfirmation, requi
             <label className="text-sm font-medium" htmlFor="closing-balance">Closing balance<input id="closing-balance" inputMode="decimal" value={envelopeDraft.closingBalance} onChange={(e) => onDraftChange((c) => ({ ...c, closingBalance: e.target.value }))} className="input mt-1 w-full" /></label>
           </div>
           <label className="mt-3 block text-sm font-medium" htmlFor="envelope-rationale">Why are these facts confirmed?<textarea id="envelope-rationale" value={envelopeDraft.rationale} onChange={(e) => onDraftChange((c) => ({ ...c, rationale: e.target.value }))} className="input mt-1 min-h-20 w-full" placeholder="State the page, export header, or other source evidence used." /></label>
-          <button type="button" onClick={onConfirm} disabled={isPending || !isComplete} className="btn-primary mt-3 disabled:cursor-not-allowed disabled:opacity-50">{isPending ? "Confirming..." : "Confirm source envelope"}</button>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button type="button" onClick={onConfirm} disabled={isPending || !isComplete} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">{isPending ? "Confirming..." : "Confirm source envelope"}</button>
+            <button type="button" onClick={() => onDraftChange((c) => ({ ...c, rationale: "Confirmed statement header and opening/closing balances against source file" }))} className="btn-secondary btn-sm">Use standard confirmation note</button>
+          </div>
         </section>
       )}
       {requiresOtherSourceReview && (

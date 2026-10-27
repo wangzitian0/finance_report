@@ -22,6 +22,7 @@ from sqlalchemy import select, union
 from src.composition import observed_fx_pairs
 from src.config import settings
 from src.deps import CurrentUserId, DbSession, Pagination
+from src.extraction import coverage_bank_custody_account_ids
 from src.ledger import Account, AccountType
 from src.observability import get_logger, track as _track_analytics
 from src.platform import raise_bad_request, raise_not_found
@@ -107,17 +108,16 @@ async def _ensure_report_market_data_fresh(
     currency: str | None,
     end_date: date,
 ) -> None:
-    has_report_subjects = await db.scalar(select(Account.id).where(Account.user_id == user_id).limit(1))
+    # Skip the tenant account probe when target currency matches base currency.
+    target_pairs = _target_currency_pair(currency)
+    has_report_subjects = (
+        await db.scalar(select(Account.id).where(Account.user_id == user_id).limit(1)) if target_pairs else None
+    )
     try:
         fx_pairs = set(await observed_fx_pairs(db, user_id, include_default=False))
-        fx_pairs.update(_target_currency_pair(currency) if has_report_subjects is not None else [])
+        fx_pairs.update(target_pairs if has_report_subjects is not None else [])
         stock_symbols = await active_stock_symbols(db, user_id)
-        await ensure_market_data_fresh(
-            db,
-            fx_pairs=list(fx_pairs),
-            stock_symbols=stock_symbols,
-            end_date=end_date,
-        )
+        await ensure_market_data_fresh(db, fx_pairs=list(fx_pairs), stock_symbols=stock_symbols, end_date=end_date)
     except asyncio.CancelledError:
         # Never swallow cancellation (request disconnect / shutdown): let it
         # propagate so FastAPI can unwind the request properly.
@@ -832,21 +832,20 @@ async def cash_flow(
     user_id: CurrentUserId,
 ) -> CashFlowPreview:
     """Get the bounded cash-flow statement; GET /reports/cash-flow/line-events pages the events of a line."""
-    resolved_start_date, resolved_end_date = cash_flow_period(start_date, end_date)
+    start, end = cash_flow_period(start_date, end_date)
     try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=resolved_end_date)
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end)
+        # Prefer statement custody accounts; fall back to None when no bank
+        # statements exist so manual-entry cash accounts still resolve (#2765).
+        custody = (await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end)) or None
         report = await generate_cash_flow(
-            db,
-            user_id,
-            start_date=resolved_start_date,
-            end_date=resolved_end_date,
-            currency=currency,
+            db, user_id, start_date=start, end_date=end, currency=currency, cash_account_ids=custody
         )
     except ReportError as exc:
         logger.warning(
             "Cash flow generation failed",
-            start_date=str(resolved_start_date),
-            end_date=str(resolved_end_date),
+            start_date=str(start),
+            end_date=str(end),
             currency=currency,
             error=str(exc),
         )
@@ -867,11 +866,12 @@ async def list_cash_flow_line_events(
     pagination: Pagination,
 ) -> CashFlowLineEventsPage:
     """Return one page of the lineage records of one cash-flow line, in document order (#2583)."""
-    resolved_start_date, resolved_end_date = cash_flow_period(start_date, end_date)
+    start, end = cash_flow_period(start_date, end_date)
     try:
-        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=resolved_end_date)
+        await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end)
+        custody = (await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end)) or None
         events = await cash_flow_line_events(
-            db, user_id, line_id=line_id, start_date=resolved_start_date, end_date=resolved_end_date, currency=currency
+            db, user_id, line_id=line_id, start_date=start, end_date=end, currency=currency, cash_account_ids=custody
         )
     except ReportError as exc:
         logger.warning("Cash flow line events failed", line_id=line_id, error=str(exc))
@@ -1073,6 +1073,7 @@ async def export_report(
             if not start_date or not end_date:
                 raise_bad_request("start_date and end_date are required for cash flow export")
             await _ensure_report_market_data_fresh(db, user_id, currency=currency, end_date=end_date)
+            custody_ids = await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end_date)
             cash_flow_report = cast(
                 dict[str, Any],
                 await generate_cash_flow(
@@ -1081,6 +1082,7 @@ async def export_report(
                     start_date=start_date,
                     end_date=end_date,
                     currency=currency,
+                    cash_account_ids=custody_ids or None,
                 ),
             )
             output.write(_render_cash_flow_csv(cash_flow_report))

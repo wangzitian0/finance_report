@@ -173,7 +173,7 @@ export default function StatementDetailPage() {
   }, [polling, fetchStatement, parsingStartTime, showToast, updatePolling]);
 
   const reviewReady = Boolean(statement) && statement?.status !== "parsing";
-  const { data: review, refetch: refetchReview } = useQuery({
+  const { data: review, isLoading: reviewLoading, refetch: refetchReview } = useQuery({
     queryKey: ["statement-review", statementId],
     queryFn: () => apiOperation("get_statement_for_review_statements__statement_id__review_get", { path: { statement_id: statementId } }),
     enabled: reviewReady,
@@ -406,6 +406,11 @@ export default function StatementDetailPage() {
         </div>
       )}
       <StatementHeader statement={statement} canImport={canImport} canRetry={canRetry} canDelete={statement.status !== "approved"} importLoading={importLoading} retryLoading={retryLoading} deleteLoading={deleteLoading} onBrokerageImport={handleBrokerageImport} onRetry={handleRetry} onDelete={() => setDeleteDialogOpen(true)} formatCode={currencyCodeOrDash} formatPeriod={formatPeriod} />
+      {isParsed && !review && reviewLoading && (
+        <div role="status" className="mb-4 text-xs text-muted text-right">
+          Loading balance verification...
+        </div>
+      )}
       {isParsed && review && (
         <div className="mb-4 flex justify-end">
           <ReviewActionBar onApprove={() => setApproveDialogOpen(true)} onReject={() => setRejectDialogOpen(true)} actionLoading={approveMutation.isPending || rejectMutation.isPending} balanceValid={balanceValid} statementStatus={statement.status} approvalBlockedReason={approvalBlockedReason} onResolveConflicts={hasUnresolvedConflicts ? () => setConflictDialogOpen(true) : undefined} onReparse={handleRetry} reparsePending={retryLoading} />

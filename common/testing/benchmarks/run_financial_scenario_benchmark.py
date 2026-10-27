@@ -70,6 +70,7 @@ class ScenarioBenchmarkRunner:
         self.verify = verify
         self.replay_mode = replay_mode
         self.last_auth_context: dict[str, Any] | None = None
+        self._counter_accounts_cache: dict[tuple[int, str, str], str] = {}
 
     def create_ephemeral_client(
         self, prefix: str = "qa_bench"
@@ -247,19 +248,30 @@ class ScenarioBenchmarkRunner:
             else:
                 currency = "SGD"
 
-        accounts_cache: dict[tuple[str, str], str] = {}
-
         def get_or_create_counter_account(acc_type: str, curr: str) -> str:
-            key = (acc_type, curr)
-            if key not in accounts_cache:
+            key = (id(client), acc_type, curr)
+            if key not in self._counter_accounts_cache:
+                target_name = f"{acc_type.capitalize()} - Other {curr}"
+                list_resp = client.get("/api/accounts")
+                if list_resp.status_code == 200 and isinstance(list_resp.json(), dict):
+                    for existing in list_resp.json().get("items", []):
+                        if (
+                            existing.get("name") == target_name
+                            and existing.get("type") == acc_type
+                            and existing.get("currency") == curr
+                            and existing.get("id")
+                        ):
+                            self._counter_accounts_cache[key] = str(existing["id"])
+                            break
+            if key not in self._counter_accounts_cache:
                 acc = self.create_account(
                     client,
                     name=f"{acc_type.capitalize()} - Other {curr}",
                     type=acc_type,
                     currency=curr,
                 )
-                accounts_cache[key] = acc["id"]
-            return accounts_cache[key]
+                self._counter_accounts_cache[key] = acc["id"]
+            return self._counter_accounts_cache[key]
 
         count = 0
         for item in items:

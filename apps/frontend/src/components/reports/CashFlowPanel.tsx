@@ -241,6 +241,7 @@ export function CashFlowPanel({ filters }: { filters: ReportFilters }) {
         const net = toDecimal(summary.net_cash_flow);
         const ending = toDecimal(summary.ending_cash);
         const openingStock = toDecimal(report?.cash_bridge?.opening_stock_adjustment ?? "0");
+        const unclassifiedCash = toDecimal(report?.cash_bridge?.unclassified_cash ?? "0");
         const expectedEnding = beginning.plus(net).plus(openingStock);
         const drift = expectedEnding.minus(ending);
         const reconciles = drift.abs().lessThanOrEqualTo("0.01");
@@ -263,6 +264,11 @@ export function CashFlowPanel({ filters }: { filters: ReportFilters }) {
                 {!reconciles ? "⚠ Does not tie" : incompleteOpeningCoverage ? "⚠ Coverage incomplete" : unverified ? "⚠ Not yet verified" : "✓ Reconciles"}
               </span>
             </div>
+            {!unclassifiedCash.isZero() && (
+              <p className="mt-2 text-xs text-muted">
+                Includes <strong>{formatCurrencyLocale(unclassifiedCash, cur)}</strong> in transfers in transit / unclassified cash movement.
+              </p>
+            )}
             {incompleteOpeningCoverage && (
               <p className="mt-2 text-xs text-[var(--warning)]">
                 Records start after the selected period begins. Beginning cash is only the known amount; full-period cash flow is not yet verified.
