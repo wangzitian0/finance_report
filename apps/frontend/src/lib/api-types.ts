@@ -772,6 +772,18 @@ export interface paths {
         get: operations["list_cash_flow_line_events_reports_cash_flow_line_events_get"];
         put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
     };
+    "/reports/coverage": {
+        parameters: { query?: never; header?: never; path?: never; cookie?: never; };
+        /**
+         * Report Coverage
+         * @description Return the first day that the default report view can start without a cash coverage gap.
+         *
+         *     Home and `/reports` bound their default view by it and name the accounts that set it (#2646).
+         *     The workflow readiness uses the same bound. ``as_of_date`` is the end of the shown period.
+         */
+        get: operations["report_coverage_reports_coverage_get"];
+        put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
+    };
     "/reports/currencies": {
         parameters: { query?: never; header?: never; path?: never; cookie?: never; };
         /**
@@ -5892,6 +5904,28 @@ export interface components {
             password: string;
         };
         /**
+         * ReportCoverageResponse
+         * @description The first day that the default report period can start without a cash coverage gap (#2646).
+         */
+        ReportCoverageResponse: {
+            /**
+             * As Of Date
+             * Format: date
+             * @description The date of the opening positions that the bound reads.
+             */
+            as_of_date: string;
+            /**
+             * Coverage Start
+             * @description The latest opening position of a cash account on or before as_of_date. A period that starts earlier has the cash-flow proof reason opening_coverage_starts_after_period. None when no cash account has an opening position.
+             */
+            coverage_start?: string | null;
+            /**
+             * Limiting Accounts
+             * @description The names of the cash accounts whose opening position is on coverage_start.
+             */
+            limiting_accounts?: string[];
+        };
+        /**
          * ReportLine
          * @description Generic report line for account totals.
          */
@@ -9453,6 +9487,35 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["CashFlowLineEventsPage"]; }; };
+            /** @description Bad request */
+            400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Unauthorized */
+            401: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Forbidden */
+            403: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Not found */
+            404: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Conflict */
+            409: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Validation Error */
+            422: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["HTTPValidationError"]; }; };
+            /** @description Too many requests */
+            429: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+            /** @description Internal server error */
+            500: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
+        };
+    };
+    report_coverage_reports_coverage_get: {
+        parameters: {
+            query?: {
+                as_of_date?: string | null;
+            };
+            header?: never; path?: never; cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ReportCoverageResponse"]; }; };
             /** @description Bad request */
             400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
             /** @description Unauthorized */

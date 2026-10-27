@@ -153,13 +153,13 @@ describe("route map (single source of truth for routes)", () => {
   })
 
   // AC-meta.fe-audit-queue.1
-  it("AC-meta.fe-audit-queue.1 redirects each old audit-queue route to /audit and keeps the run id", async () => {
+  it("AC-meta.fe-audit-queue.1 redirects each old audit-queue route to the Needs you tab of /audit and keeps the run id", async () => {
     const redirects = (await nextConfig.redirects?.()) ?? []
     const destinationOf = (source: string) =>
       redirects.find((r: { source: string }) => r.source === source)?.destination
-    expect(destinationOf("/attention")).toBe("/audit")
-    expect(destinationOf("/confidence")).toBe("/audit")
-    expect(destinationOf("/review/ai-suggestions")).toBe("/audit")
+    expect(destinationOf("/attention")).toBe("/audit?tab=needs-you")
+    expect(destinationOf("/confidence")).toBe("/audit?tab=needs-you")
+    expect(destinationOf("/review/ai-suggestions")).toBe("/audit?tab=needs-you")
     expect(destinationOf("/review/run/:runId")).toBe("/audit?run_id=:runId")
 
     const pages = discoverPageRoutes(APP_DIR)

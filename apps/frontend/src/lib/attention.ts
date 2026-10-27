@@ -46,13 +46,12 @@ export interface AttentionSources {
   }> | null;
   stats?: ReconciliationStatsResponse | null;
   processing?: ProcessingPendingItem[] | null;
+  /** The newest unmatched row. Its description names the unmatched item (#2646). */
+  firstUnmatched?: { description?: string | null } | null;
 }
 
 /** A processing transfer is "stuck" once it has been in transit this long. */
 export const PROCESSING_STALE_DAYS = 7;
-
-/** Below this, an item is surfaced as low-confidence in the trust meter. */
-export const LOW_CONFIDENCE_THRESHOLD = 50;
 
 function clampConfidence(value: number): number {
   const percent =
@@ -108,20 +107,27 @@ export function buildAttentionItems(
       reason:
         "Auto-matched to ledger entries but below the confidence bar to post without a human check — confirm or correct each match.",
       confidence: clampConfidence(stats.match_rate ?? 0),
-      // The review queue is embedded in the reconciliation workbench.
-      href: "/reconciliation",
+      // The matches tab of the workbench. `/reconciliation` alone opens Unmatched when a row is
+      // unmatched (#2646), so the link names its tab.
+      href: "/reconciliation?tab=matches",
     });
   }
 
   // Unmatched transactions have no ledger match at all — the lowest confidence.
   if (stats && stats.unmatched_transactions > 0) {
+    const count = stats.unmatched_transactions;
+    const countText = `${count} unmatched transaction${count > 1 ? "s" : ""}`;
+    const description = sources.firstUnmatched?.description?.trim();
     items.push({
       id: "reconciliation:unmatched",
       kind: "unmatched_transactions",
-      title: `${stats.unmatched_transactions} unmatched transaction${
-        stats.unmatched_transactions > 1 ? "s" : ""
-      }`,
-      detail: "No ledger match yet",
+      // The row description tells the user which transaction it is, so it leads the title.
+      title: description
+        ? count > 1
+          ? `${description} and ${count - 1} more`
+          : description
+        : countText,
+      detail: description ? `${countText} · no ledger match yet` : "No ledger match yet",
       reason:
         "These transactions have no matching ledger entry at all — either new activity you haven't recorded yet, or a reference the matcher couldn't link.",
       confidence: 0,
@@ -152,30 +158,4 @@ export function buildAttentionItems(
   return items.sort(
     (a, b) => a.confidence - b.confidence || a.id.localeCompare(b.id),
   );
-}
-
-export interface TrustSummary {
-  /** Transactions the system already reconciled and trusts. */
-  trusted: number;
-  /** Open attention items the user should confirm. */
-  needsConfirmation: number;
-  /** Subset of attention items the system is least sure about. */
-  lowConfidence: number;
-}
-
-/**
- * Summarise the trust posture for the Home trust meter. The north-star is to
- * drive `lowConfidence` down over time (Axiom B).
- */
-export function summarizeTrust(
-  items: AttentionItem[],
-  stats?: ReconciliationStatsResponse | null,
-): TrustSummary {
-  return {
-    trusted: stats?.matched_transactions ?? 0,
-    needsConfirmation: items.length,
-    lowConfidence: items.filter(
-      (item) => item.confidence < LOW_CONFIDENCE_THRESHOLD,
-    ).length,
-  };
 }

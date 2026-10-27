@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { apiOperation } from "@/lib/api-client";
 import { compareAmounts } from "@/lib/audit/money";
+import { invalidateLedgerDerivedQueries } from "@/lib/queryClient";
 import { Account } from "@/lib/types";
 
 interface OpeningBalanceModalProps {
@@ -27,6 +29,7 @@ function previousCalendarDay(periodStart: string): string {
 
 export default function OpeningBalanceModal({ isOpen, onClose, onSuccess, accounts }: OpeningBalanceModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
   useFocusTrap(dialogRef, isOpen);
   useBodyScrollLock(isOpen);
 
@@ -87,6 +90,10 @@ export default function OpeningBalanceModal({ isOpen, onClose, onSuccess, accoun
       await apiOperation("post_opening_balances_accounts_opening_balances_post", {
         body: { entry_date: entryDate, balances, memo: memo.trim() || "Opening balances" },
       });
+      // The write is not a `useMutation`, so the mutation cache does not mark the reads stale.
+      // An opening balance moves the cash coverage start (`["report", "coverage", ...]`) and every
+      // ledger-derived read (#2646).
+      void invalidateLedgerDerivedQueries(queryClient);
       onSuccess();
       onClose();
     } catch (err) {

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,6 +16,7 @@ import {
   useDataQualityHealth,
 } from "@/hooks/useDataQualityHealth";
 import { apiOperation } from "@/lib/api-client";
+import { setTestUrl } from "./helpers/nextNavigation";
 import type {
   PersonalDataQualityHealthResponse,
   QualityActionItem,
@@ -25,6 +26,7 @@ import type {
 vi.mock("@/lib/api-client", () => ({
   apiOperation: vi.fn(),
 }));
+vi.mock("next/navigation", async () => (await import("./helpers/nextNavigation")).nextNavigationMock);
 
 const mockedApiOperation = vi.mocked(apiOperation);
 
@@ -255,6 +257,8 @@ describe("Personal Data Quality Observatory (#2294)", () => {
   });
 
   describe("AuditPage", () => {
+    beforeEach(() => setTestUrl("/audit"));
+
     it("loads and displays full observatory with deep links and the needs-confirmation queue", async () => {
       mockedApiOperation.mockImplementation(async (op: string) => {
         if (op === "list_statements_statements_get") {
@@ -297,18 +301,22 @@ describe("Personal Data Quality Observatory (#2294)", () => {
         screen.getByRole("heading", { name: "Audit" }),
       ).toBeInTheDocument();
 
-      await waitFor(() => {
-        expect(screen.getByText("Grade A · Audit-Ready")).toBeInTheDocument();
-      });
-
+      // Items need the user: the page opens on the Needs you tab (#2646).
       await waitFor(() => {
         expect(screen.getByText("DBS_2026_01.pdf")).toBeInTheDocument();
       });
 
+      act(() => setTestUrl("/audit?tab=health"));
+      // Two unmatched rows hold the audit-ready grade (#2646).
+      await waitFor(() => {
+        expect(screen.getByText("Open items remain")).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/Audit-Ready/)).not.toBeInTheDocument();
+
       fireEvent.click(screen.getByRole("button", { name: /Re-evaluate/i }));
 
       // Underlying ledgers deep links
-      expect(screen.getByText("Accounting Machinery & Ledgers")).toBeInTheDocument();
+      act(() => setTestUrl("/audit?tab=books"));
       expect(screen.queryByRole("link", { name: /Trust/ })).not.toBeInTheDocument();
       expect(screen.getAllByRole("link", { name: /Reconciliation/ }).length).toBeGreaterThanOrEqual(1);
       expect(screen.getByRole("link", { name: /Journal/ })).toBeInTheDocument();
@@ -337,7 +345,7 @@ describe("Personal Data Quality Observatory (#2294)", () => {
 
       render(<AuditPage />, { wrapper: createWrapper() });
 
-      const bar = screen.getByTestId("needs-confirmation-queue");
+      const bar = await screen.findByTestId("needs-confirmation-queue");
       const row = await within(bar).findByRole("link", { name: /3 unmatched transactions/ });
       expect(row).toHaveAttribute("href", "/reconciliation?tab=unmatched&from=attention");
       expect(within(row).getByText("0% confidence")).toBeInTheDocument();
@@ -366,7 +374,7 @@ describe("Personal Data Quality Observatory (#2294)", () => {
 
       render(<AuditPage />, { wrapper: createWrapper() });
 
-      const bar = screen.getByTestId("needs-confirmation-queue");
+      const bar = await screen.findByTestId("needs-confirmation-queue");
       const row = await within(bar).findByRole("link", { name: /OCBC_2026_02\.pdf/ });
       expect(row).toHaveAttribute("href", "/statements/stmt-2?from=attention");
       expect(within(row).getByText("Balance needs review")).toBeInTheDocument();

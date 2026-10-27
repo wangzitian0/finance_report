@@ -65,7 +65,7 @@ export function PackagePanel({ filters }: { filters: ReportFilters }) {
     isPackageRefreshing,
     isPackageLoading,
     error,
-  } = usePersonalReportPackage(selectedFrameworkId, reportDate, selectedSnapshotId, startDate, currency);
+  } = usePersonalReportPackage(selectedFrameworkId, reportDate, selectedSnapshotId, startDate, currency, filters.ready);
 
   async function openLineagePanel(shownDocument: PersonalReportPackageDocument, line: PersonalReportPackageTraceabilityLineSummary) {
     setLineagePanel({ line, response: null, isLoading: true, error: null });

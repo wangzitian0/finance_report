@@ -62,7 +62,7 @@ describe("Review surfaces back-link + plain copy (EPIC-022 AC22.5.3, AC22.5.4)",
 
         expect(screen.getByRole("link", { name: /Back to Needs Confirmation/i })).toHaveAttribute(
             "href",
-            "/audit",
+            "/audit?tab=needs-you",
         );
     });
 
@@ -90,7 +90,7 @@ describe("Review surfaces back-link + plain copy (EPIC-022 AC22.5.3, AC22.5.4)",
             ),
         );
         expect(
-            screen.getByRole("link", { name: /Back to Statement Review/i }),
+            await screen.findByRole("link", { name: /Back to Statement Review/i }),
         ).toHaveAttribute("href", "/statements/s1/review");
     });
 });

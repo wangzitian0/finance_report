@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react"
+import { act, renderHook, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
@@ -8,10 +8,13 @@ import {
   useReportFilters,
   type ReportPeriodPreset,
 } from "@/hooks/useReportFilters"
+import { apiOperation } from "@/lib/api-client"
 
 import { routerReplace, setTestUrl, testUrl } from "./helpers/nextNavigation"
 
 vi.mock("next/navigation", async () => (await import("./helpers/nextNavigation")).nextNavigationMock)
+// The hook reads GET /reports/coverage. No cash opening position: no bound.
+vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn(() => Promise.resolve({ as_of_date: "2026-10-22", coverage_start: null })) }))
 
 const TODAY = new Date(2026, 9, 22)
 const read = (query: string) => readReportFilters(new URLSearchParams(query), TODAY)
@@ -92,6 +95,81 @@ describe("report period dimensions", () => {
     expect(read("start_date=2025-01-01&end_date=2025-06-30")).toMatchObject({ preset: null, startDate: "2025-01-01", endDate: "2025-06-30" })
   })
 
+  // AC-reporting.fe-period-cockpit.7
+  it("AC-reporting.fe-period-cockpit.7 starts only the default view no earlier than the coverage start", () => {
+    const first = "2026-07-01"
+    const coverage = { start: first, limitingAccounts: ["OCBC Bank"] }
+    const bounded = (query: string) => readReportFilters(new URLSearchParams(query), TODAY, coverage)
+
+    // The default view (no `period`, no `start`): the 1Y period starts on 2025-11-01, the coverage
+    // start moves its start, and its opening balance sheet is that day. No previous period exists.
+    expect(bounded("")).toMatchObject({
+      preset: "1Y",
+      startDate: first,
+      endDate: "2026-10-22",
+      openingDate: first,
+      isDefaultPeriod: true,
+      opensAtCoverageStart: true,
+      coverageLimitingAccounts: ["OCBC Bank"],
+      previousEnd: null,
+      nextEnd: null,
+      dimensionQuery: "",
+    })
+    // A past default view that reaches the coverage start is bounded too. An invalid `period` is the default view.
+    expect(bounded("end=2026-09-30")).toMatchObject({ startDate: first, openingDate: first, previousEnd: null, nextEnd: "", dimensionQuery: "end=2026-09-30" })
+    expect(bounded("period=2W")).toMatchObject({ isDefaultPeriod: true, startDate: first, opensAtCoverageStart: true })
+    // A default view that ends before the coverage start does not change and steps back.
+    expect(bounded("end=2026-05-31")).toMatchObject({
+      startDate: "2025-06-01",
+      openingDate: "2025-05-31",
+      opensAtCoverageStart: false,
+      coverageLimitingAccounts: [],
+      previousEnd: "2025-05-31",
+    })
+    // A default view that starts after the coverage start does not change.
+    expect(readReportFilters(new URLSearchParams(""), TODAY, { start: "2025-01-01", limitingAccounts: ["OCBC Bank"] })).toMatchObject({
+      startDate: "2025-11-01",
+      openingDate: "2025-10-31",
+      opensAtCoverageStart: false,
+      coverageLimitingAccounts: [],
+      previousEnd: "2025-10-31",
+    })
+
+    // An explicit preset, 1Y too, keeps its full period and its previous period: the coverage blocker
+    // of the reports explains the missing opening balance.
+    expect(bounded("period=1Y")).toMatchObject({
+      preset: "1Y",
+      startDate: "2025-11-01",
+      openingDate: "2025-10-31",
+      isDefaultPeriod: false,
+      opensAtCoverageStart: false,
+      coverageLimitingAccounts: [],
+      previousEnd: "2025-10-31",
+      dimensionQuery: "period=1Y",
+    })
+    expect(bounded("period=All")).toMatchObject({ startDate: "2000-01-01", openingDate: null, opensAtCoverageStart: false, previousEnd: null })
+    expect(bounded("period=3Y")).toMatchObject({ startDate: "2023-11-01", openingDate: "2023-10-31", previousEnd: "2023-10-31" })
+    expect(bounded("period=1Q&end=2026-09-30")).toMatchObject({ startDate: first, openingDate: "2026-06-30", previousEnd: "2026-06-30", nextEnd: "" })
+    // A custom period keeps its start and the day before it as its opening balance sheet.
+    expect(bounded("start=2026-01-01&end=2026-09-30")).toMatchObject({
+      preset: null,
+      startDate: "2026-01-01",
+      openingDate: "2025-12-31",
+      isDefaultPeriod: false,
+      opensAtCoverageStart: false,
+      dimensionQuery: "start=2026-01-01&end=2026-09-30",
+    })
+    // No coverage, a null start or an invalid date applies no bound.
+    for (const none of [null, { start: null, limitingAccounts: [] }, { start: "2026-02-30", limitingAccounts: ["OCBC Bank"] }]) {
+      expect(readReportFilters(new URLSearchParams(""), TODAY, none)).toMatchObject({
+        startDate: "2025-11-01",
+        openingDate: "2025-10-31",
+        opensAtCoverageStart: false,
+        coverageLimitingAccounts: [],
+      })
+    }
+  })
+
   // AC-reporting.fe-period-cockpit.2 / AC-reporting.fe-viz-reports.21
   it("AC-reporting.fe-period-cockpit.2 builds tab links that keep the dimension query", () => {
     expect(reportsHref("overview")).toBe("/reports")
@@ -146,9 +224,29 @@ describe("useReportFilters", () => {
     act(() => result.current.setIncludeRestricted(false))
     expect(testUrl()).toBe("/reports?tab=income-statement&period=1M&currency=USD&include_restricted=false&from=audit")
 
+    // A chosen preset stays in the URL, the default 1Y too: it shows its full period (#2646).
     act(() => result.current.setIncludeRestricted(true))
     act(() => result.current.setPreset("1Y"))
-    expect(testUrl()).toBe("/reports?tab=income-statement&currency=USD&from=audit")
-    expect(routerReplace).toHaveBeenLastCalledWith("/reports?tab=income-statement&currency=USD&from=audit", { scroll: false })
+    expect(testUrl()).toBe("/reports?tab=income-statement&period=1Y&currency=USD&from=audit")
+    expect(routerReplace).toHaveBeenLastCalledWith("/reports?tab=income-statement&period=1Y&currency=USD&from=audit", { scroll: false })
+  })
+
+  // AC-reporting.fe-period-cockpit.7
+  it("AC-reporting.fe-period-cockpit.7 requests the coverage of the period end only for the default view", async () => {
+    vi.mocked(apiOperation).mockClear()
+    setTestUrl("/reports?end=2026-09-30")
+    const defaultView = renderHook(() => useReportFilters())
+    // The default view waits for the coverage start of its period end.
+    expect(defaultView.result.current.ready).toBe(false)
+    await waitFor(() => expect(defaultView.result.current.ready).toBe(true))
+    expect(vi.mocked(apiOperation).mock.calls).toEqual([["report_coverage_reports_coverage_get", { query: { as_of_date: "2026-09-30" } }]])
+    defaultView.unmount()
+
+    // An explicit preset applies no bound: it is ready at once and does not read the coverage.
+    vi.mocked(apiOperation).mockClear()
+    setTestUrl("/reports?period=1Y&end=2026-09-30")
+    const explicit = renderHook(() => useReportFilters())
+    expect(explicit.result.current).toMatchObject({ ready: true, isDefaultPeriod: false, startDate: "2025-10-01" })
+    expect(vi.mocked(apiOperation)).not.toHaveBeenCalled()
   })
 })

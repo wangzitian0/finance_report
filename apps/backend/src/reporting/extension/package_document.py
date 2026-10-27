@@ -29,6 +29,7 @@ from src.extraction import (
     StatementSourceType,
     current_statement_disposition_policy_snapshot,
     list_statement_contributions,
+    reviewed_bank_custody_account_ids,
     statement_disposition_policy_for_user,
 )
 from src.extraction.extension.extraction_trace import extraction_trace_policy_registry
@@ -57,7 +58,12 @@ from src.reporting.base.report_package_contract import (
 from src.reporting.base.types import PACKAGE_INCLUDE_RESTRICTED, PersonalReportingFrameworkId
 from src.reporting.extension._core import _aggregate_net_income_sql, _quantize_money
 from src.reporting.extension.annualized_income import generate_annualized_income_schedule
-from src.reporting.extension.cash_flow import cash_flow_proof_reason_text, generate_cash_flow
+from src.reporting.extension.cash_flow import (
+    CashCoverage,
+    cash_coverage,
+    cash_flow_proof_reason_text,
+    generate_cash_flow,
+)
 from src.reporting.extension.framework_policy import derive_user_framework_policy_result
 from src.reporting.extension.framework_report import (
     assemble_framework_balance_sheet,
@@ -353,6 +359,17 @@ def _valuation_section_contribution(contribution: Any) -> PackageSectionContribu
     )
 
 
+def _is_bank_statement_contribution(contribution: Any) -> bool:
+    """True for a statement source contribution of a bank statement: its custody account holds cash.
+
+    ``reviewed_bank_custody_account_ids`` selects the same source type in one query (#2646).
+    """
+    if contribution.contribution_type != "statement_source":
+        return False
+    result = getattr(contribution.payload, "source_result", None)
+    return result is not None and result.source_type is StatementSourceType.BANK
+
+
 def _cash_inputs_from_contributions(
     contributions: tuple[PackageSectionContribution[Any], ...],
 ) -> PackageCashInputs:
@@ -361,13 +378,9 @@ def _cash_inputs_from_contributions(
     input_refs: set[str] = set()
     has_unproven_bank_input = False
     for contribution in contributions:
-        if contribution.contribution_type != "statement_source":
+        if not _is_bank_statement_contribution(contribution):
             continue
-        payload = contribution.payload
-        result = getattr(payload, "source_result", None)
-        if result is None or result.source_type is not StatementSourceType.BANK:
-            continue
-        account_id = getattr(payload, "account_id", None)
+        account_id = getattr(contribution.payload, "account_id", None)
         if contribution.is_authoritative and account_id is not None:
             account_ids.add(account_id)
             input_refs.update(contribution.input_refs)
@@ -1314,19 +1327,46 @@ def package_preview(document: PersonalReportPackageDocument) -> PersonalReportPa
     )
 
 
+async def report_coverage(db: AsyncSession, *, user_id: UUID, as_of: date) -> CashCoverage:
+    """The coverage start that bounds the default report view, and the accounts that set it (#2646).
+
+    The cash-flow check reads the opening positions of the cash accounts
+    (``opening_coverage_start``). Two callers select those accounts: ``GET /reports/cash-flow`` by
+    account name, and the report package by the custody accounts of its bank statements
+    (``reviewed_bank_custody_account_ids``: reviewed bank statements that start on or before
+    ``as_of``, also one that closes after it). The bound is the later of the two, so a period that
+    starts on it has no ``opening_coverage_starts_after_period`` in either. A brokerage statement, a
+    statement that waits for review and another user's statement do not move it, and an opening
+    balance before the first statement keeps its history. A fixed number of queries: it does not
+    resolve each statement. ``GET /reports/coverage`` serves it.
+    """
+    custody_ids = await reviewed_bank_custody_account_ids(db, user_id=user_id, as_of=as_of)
+    return await cash_coverage(db, user_id, as_of=as_of, cash_account_id_sets=(None, custody_ids))
+
+
 async def current_package_readiness(
     db: AsyncSession,
     *,
     user_id: UUID,
     as_of_date: date | None = None,
 ) -> PersonalReportPackageReadinessResponse:
-    """Evaluate readiness of the current default-framework candidate through the sole assembler."""
+    """Evaluate readiness of the current default-framework candidate through the sole assembler.
+
+    The period is the 365 days before ``as_of_date``. It starts no earlier than
+    ``report_coverage`` (#2646): an earlier start has no opening position for a cash account, so the
+    cash-flow coverage check blocks a new user. The workflow status reads this readiness, so the
+    status matches the default report view.
+    """
     report_end = as_of_date or date.today()
+    report_start = report_end - timedelta(days=365)
+    coverage_start = (await report_coverage(db, user_id=user_id, as_of=report_end)).start
+    if coverage_start is not None and report_start < coverage_start <= report_end:
+        report_start = coverage_start
     return await PackageAssembler().evaluate_readiness(
         db,
         user_id=user_id,
         framework_id=PersonalReportingFrameworkId.US_GAAP_LIKE,
-        start_date=report_end - timedelta(days=365),
+        start_date=report_start,
         end_date=report_end,
         as_of_date=report_end,
         currency=settings.base_currency,

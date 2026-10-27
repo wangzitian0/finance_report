@@ -82,7 +82,8 @@ describe("ReconciliationWorkbench", () => {
         return fn(path, options)
       })
     }
-    navigationState.searchParams = new URLSearchParams()
+    // The stats report unmatched rows, so a URL without `tab` opens Unmatched (#2646). These tests act on Matches.
+    navigationState.searchParams = new URLSearchParams("tab=matches")
   })
 
   const statsResponse = {
@@ -377,7 +378,7 @@ describe("ReconciliationWorkbench", () => {
       name: "Reconciliation workspace views",
     })
     const matchedTab = within(workspaceNav).getByRole("link", { name: "Matches" })
-    expect(matchedTab).toHaveAttribute("href", "/reconciliation")
+    expect(matchedTab).toHaveAttribute("href", "/reconciliation?tab=matches")
     expect(matchedTab).toHaveAttribute("aria-current", "page")
 
     const unmatchedTab = within(workspaceNav).getByRole("link", {
@@ -423,7 +424,8 @@ describe("Workbench invalidation matrix flows (#1827 G-async-seam)", () => {
         return fn(path, options)
       })
     }
-    navigationState.searchParams = new URLSearchParams()
+    // The stats report unmatched rows, so a URL without `tab` opens Unmatched (#2646). These tests act on Matches.
+    navigationState.searchParams = new URLSearchParams("tab=matches")
     mockedApiOperation.mockImplementation((path: string) => {
       const url = String(path)
       if (url.includes("/api/reconciliation/stats")) {
@@ -513,18 +515,18 @@ describe("Workbench invalidation matrix flows (#1827 G-async-seam)", () => {
   // AC-reconciliation.fe-tabs.1
   it("AC-reconciliation.fe-tabs.1 shows the tab that the tab query parameter names and links each tab to its URL", async () => {
     const cases: [string, RegExp, string][] = [
-      ["", /Matches/, "Reconciliation Workbench"],
+      ["tab=matches", /Matches/, "Reconciliation Workbench"],
       ["tab=unmatched&statement_id=s1", /Unmatched/, "Mock Unmatched Board"],
       ["tab=review-queue&check_type=duplicate", /Review queue/, "Mock Review Queue"],
-      ["tab=unknown", /Matches/, "Reconciliation Workbench"],
     ]
     for (const [query, activeTab, content] of cases) {
       navigationState.searchParams = new URLSearchParams(query)
       const { unmount } = render(<ReconciliationWorkbench />, { wrapper: createWrapper() })
       const nav = screen.getByRole("navigation", { name: "Reconciliation workspace views" })
       const links = within(nav).getAllByRole("link")
+      // The Matches link names its tab: `/reconciliation` alone can open Unmatched.
       expect(links.map((link) => link.getAttribute("href"))).toEqual([
-        "/reconciliation",
+        "/reconciliation?tab=matches",
         "/reconciliation?tab=unmatched",
         "/reconciliation?tab=review-queue",
       ])
@@ -532,6 +534,47 @@ describe("Workbench invalidation matrix flows (#1827 G-async-seam)", () => {
       expect(current, `?${query} must mark one tab as current`).toHaveLength(1)
       expect(current[0]).toHaveTextContent(activeTab)
       expect(screen.getByText(content)).toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  // AC-reconciliation.fe-tabs.2
+  it("AC-reconciliation.fe-tabs.2 opens on Unmatched when an unmatched row exists and on Matches otherwise", async () => {
+    const statsWith = (unmatched: number) => ({
+      total_transactions: 5,
+      matched_transactions: 5 - unmatched,
+      unmatched_transactions: unmatched,
+      pending_review: 0,
+      auto_accepted: 1,
+      match_rate: 40,
+      score_distribution: {},
+    })
+    const cases: [string, number, RegExp, string][] = [
+      ["", 1, /Unmatched/, "Mock Unmatched Board"],
+      ["tab=unknown", 1, /Unmatched/, "Mock Unmatched Board"],
+      ["", 0, /Matches/, "Reconciliation Workbench"],
+      ["tab=unknown", 0, /Matches/, "Reconciliation Workbench"],
+    ]
+    for (const [query, unmatched, activeTab, content] of cases) {
+      let resolveStats: (value: unknown) => void = () => {}
+      mockedApiOperation.mockImplementation((path: string) => {
+        if (String(path).includes("/api/reconciliation/stats")) return new Promise((resolve) => { resolveStats = resolve })
+        if (String(path).includes("/api/reconciliation/pending")) return Promise.resolve({ items: [] })
+        return Promise.resolve({})
+      })
+      navigationState.searchParams = new URLSearchParams(query)
+      const { unmount } = render(<ReconciliationWorkbench />, { wrapper: createWrapper() })
+      const nav = screen.getByRole("navigation", { name: "Reconciliation workspace views" })
+      // While the stats load, no tab is current and no tab content shows.
+      expect(within(nav).getAllByRole("link").filter((link) => link.getAttribute("aria-current") === "page")).toHaveLength(0)
+      expect(screen.getByRole("status", { name: "Loading reconciliation" })).toBeInTheDocument()
+      expect(screen.queryByText("Reconciliation Workbench")).toBeNull()
+
+      resolveStats(statsWith(unmatched))
+      expect(await screen.findByText(content)).toBeInTheDocument()
+      const current = within(nav).getAllByRole("link").filter((link) => link.getAttribute("aria-current") === "page")
+      expect(current, `?${query} with ${unmatched} unmatched`).toHaveLength(1)
+      expect(current[0]).toHaveTextContent(activeTab)
       unmount()
     }
   })

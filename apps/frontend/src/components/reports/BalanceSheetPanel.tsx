@@ -289,7 +289,14 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
         </div>
       </div>
 
-      <NetWorthTimeSeriesChart from={startDate} to={asOfDate} currency={currency} includeRestricted={includeRestricted} />
+      {/* The coverage start can move `startDate`: the series waits for it (#2646). */}
+      <NetWorthTimeSeriesChart
+        from={startDate}
+        to={asOfDate}
+        currency={currency}
+        includeRestricted={includeRestricted}
+        enabled={filters.ready}
+      />
 
       <AccountLineageDrawer target={drillTarget} onClose={() => setDrillTarget(null)} />
     </ReportPageShell>

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { act, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -161,6 +161,32 @@ describe("Reports page (#2621 LC)", () => {
     expect(screen.queryByLabelText("Include restricted holdings")).toBeNull()
   })
 
+  // AC-reporting.fe-period-cockpit.8
+  it("AC-reporting.fe-period-cockpit.8 requests the net worth series of the Balance sheet tab from the bounded start only", async () => {
+    let resolveCoverage: (value: unknown) => void = () => undefined
+    const coverage = new Promise((resolve) => {
+      resolveCoverage = resolve
+    })
+    mockedApiOperation.mockImplementation(((operationId: string) => {
+      if (operationId === "report_coverage_reports_coverage_get") return coverage
+      if (operationId === "balance_sheet_reports_balance_sheet_get") return Promise.resolve(balanceSheet)
+      return Promise.resolve({ currency: "SGD", granularity: "monthly", points: [] })
+    }) as never)
+    setTestUrl("/reports?tab=balance-sheet&end=2026-10-22")
+    render(<ReportsPage />)
+
+    expect(await screen.findByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument()
+    const series = () => mockedApiOperation.mock.calls.filter(([id]) => id === "net_worth_timeseries_reports_net_worth_timeseries_get")
+    // The series waits for the coverage start: no request uses the unbounded 1Y start.
+    expect(series()).toEqual([])
+    await act(async () => {
+      resolveCoverage({ as_of_date: "2026-10-22", coverage_start: "2026-07-01", limiting_accounts: ["OCBC Bank"] })
+      await coverage
+    })
+    await waitFor(() => expect(series()).toHaveLength(1))
+    expect(series()[0][1]).toMatchObject({ query: { from: "2026-07-01", to: "2026-10-22" } })
+  })
+
   // AC-reporting.fe-report-surfaces.9
   it("AC16.12.12 states the accounting equation on the Balance sheet tab", async () => {
     setTestUrl("/reports?tab=balance-sheet")
@@ -181,10 +207,11 @@ describe("Reports page (#2621 LC)", () => {
     await waitFor(() => expect(balance).toHaveTextContent("Net worth"))
     expect(balance).toHaveTextContent("SGD 10,000")
     const income = screen.getByTestId("cockpit-card-income-statement")
-    expect(income).toHaveTextContent("Savings rate")
+    // The period sources wait for the coverage start (#2646).
+    await waitFor(() => expect(income).toHaveTextContent("Savings rate"))
     expect(income).toHaveTextContent("60%")
     const cash = screen.getByTestId("cockpit-card-cash-flow")
-    expect(cash).toHaveTextContent("Investing")
+    await waitFor(() => expect(cash).toHaveTextContent("Investing"))
     expect(cash).toHaveTextContent("-SGD 5,000")
     expect(within(balance).getByRole("link", { name: "Open the balance sheet report" })).toHaveAttribute("href", "/reports?tab=balance-sheet")
   })

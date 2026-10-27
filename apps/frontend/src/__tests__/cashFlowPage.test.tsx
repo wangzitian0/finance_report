@@ -59,7 +59,10 @@ describe("CashFlowPage", () => {
 
     await waitFor(() => expect(screen.getByText("cashflow failed")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Retry" }))
-    await waitFor(() => expect(mockedApiFetch).toHaveBeenCalledTimes(2))
+    // The coverage start is a separate request: count only the cash-flow requests.
+    await waitFor(() =>
+      expect(mockedApiFetch.mock.calls.filter(([operationId]) => operationId === "cash_flow_reports_cash_flow_get")).toHaveLength(2),
+    )
   })
 
   // AC-reporting.fe-report-surfaces.17
