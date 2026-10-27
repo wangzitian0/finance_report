@@ -164,3 +164,23 @@ def test_the_install_keeps_the_original_error_when_the_retries_run_out(
     assert "(rc=7). Original error:" in completed.stdout
     # The last attempt's output is printed again after the final error line.
     assert "browser download attempt 3: network down" in completed.stdout[error_at:]
+
+
+def test_the_install_adds_one_browser_and_no_apt_packages() -> None:
+    """AC-testing.toolchain.11: the install adds one browser and takes no apt mirror time.
+
+    `--with-deps` fetched fonts from the Azure Ubuntu mirror at 35-48 kB/s for 9 and
+    11 minutes in two runs (#2688); the hosted image already has the libraries.
+    """
+    action = _yaml(ACTION)
+
+    assert action["inputs"]["browser"]["default"] == "chromium"
+    install = next(
+        step["run"]
+        for step in action["runs"]["steps"]
+        if "$PLAYWRIGHT_BROWSER" in step.get("run", "") and " install " in step["run"]
+    )
+    assert '"${playwright[@]}" install "$PLAYWRIGHT_BROWSER"' in install
+    assert "--with-deps" not in install and "install-deps" not in install
+    assert "apt" not in install
+    assert "firefox" not in install and "webkit" not in install
