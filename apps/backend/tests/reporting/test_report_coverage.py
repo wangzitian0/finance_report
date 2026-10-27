@@ -105,8 +105,11 @@ async def _statement_with_source(
     holds the source type and ``result_period_start``, no facts. A ``str`` start goes into the
     payload as it is. ``envelope_period_start`` adds a reviewed envelope on the current result.
     ``superseded_envelope_period_start`` adds an older envelope on the current result, which the
-    first one supersedes (``supersedes_id``, a later ``created_at``), as a re-confirmation writes
-    it. ``earlier_envelope_period_start`` adds an envelope on the older result.
+    first one supersedes (``supersedes_id``, a later ``created_at``). Production refuses a second
+    envelope on one current result (``ReviewedStatementEnvelopeConflict``), and a re-confirmation
+    after a re-parse writes on the new result. Only two concurrent confirms can write this state,
+    because no unique constraint covers (``statement_id``, ``source_result_id``).
+    ``earlier_envelope_period_start`` adds an envelope on the older result.
     """
     statement = StatementSummary(
         user_id=user_id,
@@ -359,9 +362,14 @@ async def test_AC_reporting_2646_2_the_custody_start_is_the_envelope_then_the_re
 ) -> None:
     """AC-reporting.2646.2: the custody start is the first start that is not empty in this order: the
     newest reviewed envelope (by ``created_at``) on the current source result, the current source
-    result, the summary. Each statement has a different start in each place, so only this order
-    keeps the correct accounts. An older envelope that a newer one supersedes and an envelope on an
-    older result do not count."""
+    result, the summary. The cases put the starts of one statement on different sides of the date,
+    so a wrong order or a missing term changes the selected accounts. The envelope cases give the
+    envelope a start that is different from the result start and the summary start; these two are
+    equal. The two-envelope cases give the newest envelope a start that is different from the older
+    envelope, the result and the summary. The result cases give the result a start that is
+    different from the summary start, with no envelope. In "Result start only" and "Summary start
+    only", one place holds the only start. An older envelope that a newer one supersedes and an
+    envelope on an older result do not count."""
     user_id = test_user.id
     as_of = date(2026, 6, 12)
     before, after = date(2026, 5, 1), date(2026, 6, 20)
@@ -409,7 +417,9 @@ async def test_AC_reporting_2646_2_the_custody_start_is_the_envelope_then_the_re
         result_period_start=before,
         envelope_period_start=after,
     )
-    # Two envelopes on the current result: a re-confirmation supersedes the older one.
+    # Two envelopes on the current result. Only two concurrent confirms can write this state:
+    # production refuses a second confirm on one source result. The custody query must select the
+    # same envelope as current_reviewed_statement_envelope: the newest by created_at.
     await _statement_with_source(
         db,
         user_id,
@@ -472,7 +482,9 @@ async def test_AC_reporting_2646_2_the_custody_start_is_the_envelope_then_the_re
 async def test_AC_reporting_2646_2_an_empty_result_start_reads_as_no_start(db: AsyncSession, test_user) -> None:
     """AC-reporting.2646.2: an empty ``period_start`` in the payload of the current source result
     reads as no start, as in ``StatementExtractionResult.from_payload``. The custody query does not
-    raise, and the summary start is the fallback."""
+    raise, and the summary start is the fallback. No current writer stores an empty start
+    (``to_payload`` writes an ISO date or null). This is a defensive case that keeps the query
+    equal to ``from_payload``."""
     user_id = test_user.id
     as_of = date(2026, 6, 12)
     with_summary = await _account(db, user_id, "Empty result start, summary start before")
