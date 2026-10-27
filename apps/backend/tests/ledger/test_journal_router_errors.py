@@ -5,10 +5,11 @@ validation errors, posting restrictions, voiding constraints, and deletion prote
 """
 
 from datetime import date
+from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
-from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus, ValidationError
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine, ValidationError
 from tests.ledger._ledger_helpers import create_valid_posted_entry
 
 
@@ -74,26 +75,31 @@ class TestJournalRouterErrors:
 
     async def test_legacy_unproven_draft_cannot_reach_posting_sink(self, client, db, test_user):
         """
-        GIVEN a historical draft without a decision anchor
-        WHEN posting the entry
-        THEN it fails closed before the raw posting sink
+        GIVEN a balanced historical draft without a decision anchor
+        WHEN posting the entry through the router
+        THEN `post_journal_entry` fails closed and the entry stays a draft
         """
-        # Create a draft entry
+        cash = Account(user_id=test_user.id, name="Cash", type=AccountType.ASSET, currency="SGD")
+        revenue = Account(user_id=test_user.id, name="Revenue", type=AccountType.INCOME, currency="SGD")
         entry = JournalEntry(
             user_id=test_user.id,
             entry_date=date.today(),
             memo="Test",
             status=JournalEntryStatus.DRAFT,
+            lines=[
+                JournalLine(account=cash, direction=Direction.DEBIT, amount=Decimal("100.00"), currency="SGD"),
+                JournalLine(account=revenue, direction=Direction.CREDIT, amount=Decimal("100.00"), currency="SGD"),
+            ],
         )
         db.add(entry)
         await db.commit()
-        await db.refresh(entry)
 
-        with patch("src.routers.journal.post_journal_entry", new_callable=AsyncMock) as mock_post:
-            response = await client.post(f"/journal-entries/{entry.id}/postings")
-            assert response.status_code == 400
-            assert "legacy-unproven" in response.json()["detail"].lower()
-            mock_post.assert_not_awaited()
+        response = await client.post(f"/journal-entries/{entry.id}/postings")
+
+        assert response.status_code == 400
+        assert "legacy-unproven" in response.json()["detail"].lower()
+        await db.refresh(entry)
+        assert entry.status == JournalEntryStatus.DRAFT
 
     async def test_void_entry_validation_error(self, client, db, test_user):
         """

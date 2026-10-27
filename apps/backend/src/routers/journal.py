@@ -14,7 +14,6 @@ from src.ledger import (
     ValidationError,
     post_journal_entry,
     submit_manual_journal_entry,
-    validate_manual_journal_entry_for_post,
     void_journal_entry,
 )
 from src.observability import get_logger, log_financial_mutation
@@ -115,23 +114,10 @@ async def post_entry(
     user_id: CurrentUserId,
 ) -> JournalEntryResponse:
     try:
-        # Both calls validate the draft under the base currency stored at its creation. The effective
-        # value applies only to a draft written before revision 0067 (#2539).
+        # `post_journal_entry` validates the draft under the base currency stored at its creation. The
+        # effective value applies only to a draft written before revision 0067 (#2539).
         base_currency = await get_effective_base_currency(db, user_id=user_id)
-        draft = await get_owned_or_404(
-            db,
-            JournalEntry,
-            entry_id,
-            user_id,
-            name="Journal entry",
-            options=[selectinload(JournalEntry.lines)],
-        )
-        await validate_manual_journal_entry_for_post(
-            db,
-            user_id=user_id,
-            entry=draft,
-            base_currency=base_currency,
-        )
+        await get_owned_or_404(db, JournalEntry, entry_id, user_id, name="Journal entry")
         entry = await post_journal_entry(
             db,
             entry_id,

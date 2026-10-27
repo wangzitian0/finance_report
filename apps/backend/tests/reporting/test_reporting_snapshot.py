@@ -1,12 +1,10 @@
 """Tests for Reporting Snapshot Service."""
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date
 
 import pytest
 from sqlalchemy import select
 
-from src.extraction import RuleType
-from src.extraction.orm.layer3 import ClassificationRule
 from src.reporting import ReportingSnapshotService, ReportSnapshot, ReportType
 
 
@@ -17,18 +15,6 @@ class TestReportingSnapshotService:
         """A second snapshot for the same report date becomes the only latest one."""
         service = ReportingSnapshotService()
 
-        rule = ClassificationRule(
-            user_id=test_user.id,
-            version_number=1,
-            effective_date=date(2024, 1, 1),
-            rule_name="Test Rule",
-            rule_type=RuleType.KEYWORD_MATCH,
-            rule_config={},
-            created_by=test_user.id,
-        )
-        db.add(rule)
-        await db.flush()
-
         as_of_date = date(2024, 1, 31)
         report_data = {"assets": 1000, "liabilities": 500}
 
@@ -37,7 +23,6 @@ class TestReportingSnapshotService:
             user_id=test_user.id,
             report_type=ReportType.BALANCE_SHEET,
             as_of_date=as_of_date,
-            rule_version_id=rule.id,
             report_data=report_data,
         )
 
@@ -49,7 +34,6 @@ class TestReportingSnapshotService:
             user_id=test_user.id,
             report_type=ReportType.BALANCE_SHEET,
             as_of_date=as_of_date,
-            rule_version_id=rule.id,
             report_data={"assets": 1100},
         )
 
@@ -80,18 +64,6 @@ class TestReportingSnapshotService:
 
         service = ReportingSnapshotService()
 
-        rule = ClassificationRule(
-            user_id=test_user.id,
-            version_number=1,
-            effective_date=date(2024, 1, 1),
-            rule_name="Test Rule",
-            rule_type=RuleType.KEYWORD_MATCH,
-            rule_config={},
-            created_by=test_user.id,
-        )
-        db.add(rule)
-        await db.flush()
-
         with patch.object(db, "flush", new_callable=AsyncMock) as mock_flush:
             mock_flush.side_effect = RuntimeError("Database connection lost")
 
@@ -101,7 +73,6 @@ class TestReportingSnapshotService:
                     user_id=test_user.id,
                     report_type=ReportType.BALANCE_SHEET,
                     as_of_date=date(2024, 1, 31),
-                    rule_version_id=rule.id,
                     report_data={"test": "data"},
                 )
 
@@ -109,44 +80,25 @@ class TestReportingSnapshotService:
         """Creating a new snapshot only retires the latest snapshot for the same report date."""
         service = ReportingSnapshotService()
 
-        rule = ClassificationRule(
-            user_id=test_user.id,
-            version_number=1,
-            effective_date=date(2024, 1, 1),
-            rule_name="Snapshot rule",
-            rule_type=RuleType.KEYWORD_MATCH,
-            rule_config={},
-            created_by=test_user.id,
-        )
-        db.add(rule)
-        await db.flush()
-
         january = await service.create_snapshot(
             db,
             user_id=test_user.id,
             report_type=ReportType.BALANCE_SHEET,
             as_of_date=date(2024, 1, 31),
-            rule_version_id=rule.id,
             report_data={"month": "jan"},
         )
-        before_create = datetime.now(UTC)
         february = await service.create_snapshot(
             db,
             user_id=test_user.id,
             report_type=ReportType.BALANCE_SHEET,
             as_of_date=date(2024, 2, 29),
-            rule_version_id=rule.id,
             report_data={"month": "feb"},
-            ttl_seconds=120,
         )
-        after_create = datetime.now(UTC)
         await db.refresh(january)
         await db.refresh(february)
 
         assert january.is_latest is True
         assert february.is_latest is True
-        assert february.ttl is not None
-        assert before_create + timedelta(seconds=120) <= february.ttl <= after_create + timedelta(seconds=120)
 
     async def test_create_snapshot_ttl_is_utc_aware(self, db, test_user):
         """AC-reporting.snapshot.1: snapshot.ttl must be timezone-aware with UTC timezone."""
@@ -156,7 +108,6 @@ class TestReportingSnapshotService:
             user_id=test_user.id,
             report_type=ReportType.BALANCE_SHEET,
             as_of_date=date(2024, 1, 31),
-            rule_version_id=None,
             report_data={"assets": 1000},
         )
         assert snapshot.ttl is not None

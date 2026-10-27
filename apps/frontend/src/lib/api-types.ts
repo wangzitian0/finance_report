@@ -3038,7 +3038,7 @@ export interface components {
          * EquationDiagnosticCategory
          * @enum {string}
          */
-        EquationDiagnosticCategory: "BALANCED" | "UNPOSTED_DRAFT" | "ONE_SIDED_ENTRY" | "UNCLASSIFIED_ACCOUNT" | "FX_ROUNDING_DRIFT" | "UNKNOWN_DISCREPANCY";
+        EquationDiagnosticCategory: "BALANCED" | "UNPOSTED_DRAFT" | "FX_ROUNDING_DRIFT" | "UNKNOWN_DISCREPANCY";
         /**
          * EquationDiagnosticResult
          * @description Structured diagnostic evaluation of accounting equation state.

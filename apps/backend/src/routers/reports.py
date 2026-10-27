@@ -363,9 +363,7 @@ async def generate_personal_report_package_snapshot(
         report_type=SnapshotReportType.PACKAGE,
         start_date=report_start,
         as_of_date=report_as_of,
-        rule_version_id=None,
         report_data=document.model_dump(mode="json"),
-        ttl_seconds=0,
         snapshot_id=snapshot_id,
     )
     await db.commit()

@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.ledger import AccountType, Direction
+from src.platform import validate_internal_action_href
 from src.reporting import (
     CashFlowResponse,
     InvariantStatus as InvariantStatus,
@@ -26,12 +27,6 @@ from src.schemas.portfolio import InvestmentPerformanceReportScheduleResponse
 from src.schemas.provenance import DataProvenance
 
 _FRAMEWORK_POLICY_LINE_MAPPING_TARGETS = frozenset({"balance_sheet", "income_statement", "cash_flow", "notes"})
-
-
-def _validate_internal_action_href(value: str) -> str:
-    if not value.startswith("/") or value.startswith("//") or "://" in value:
-        raise ValueError("action_href must be an internal relative path")
-    return value
 
 
 class ReportLine(BaseModel):
@@ -524,7 +519,7 @@ class PersonalReportPackageReadinessBlocker(BaseModel):
     @field_validator("action_href")
     @classmethod
     def validate_action_href(cls, value: str) -> str:
-        return _validate_internal_action_href(value)
+        return validate_internal_action_href(value)
 
 
 class PersonalReportPackageReadinessState(str, Enum):
@@ -599,7 +594,7 @@ class PersonalReportPackageReadinessResponse(BaseModel):
     @field_validator("action_href")
     @classmethod
     def validate_action_href(cls, value: str) -> str:
-        return _validate_internal_action_href(value)
+        return validate_internal_action_href(value)
 
 
 class PersonalReportPackageSnapshotSummary(BaseModel):
