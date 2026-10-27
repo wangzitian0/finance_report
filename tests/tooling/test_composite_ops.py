@@ -1,15 +1,15 @@
 """Composite value-operation laws + conformance (EPIC-012 AC12.33).
 
-Money predicates/aggregation, Ratio zero-denominator fallback, and MoneyTolerance
-matching — the reusable operations that let business code stay typed instead of
-re-deriving them as raw Decimal glue.
+Money predicates/aggregation and the Ratio zero-denominator fallback — the reusable
+operations that let business code stay typed instead of re-deriving them as raw
+Decimal glue.
 """
 
 from decimal import Decimal
 
 import pytest
 
-from common.audit.money import CurrencyMismatchError, Money, MoneyTolerance
+from common.audit.money import CurrencyMismatchError, Money
 from common.audit.money.conformance import load_vectors as load_money_vectors
 from common.audit.ratio import FloatNotAllowedError, Ratio
 from common.audit.ratio.conformance import load_vectors as load_ratio_vectors
@@ -49,7 +49,7 @@ def test_AC12_33_1_money_predicates_and_sum():
     ci_tier="pr_ci",
 )
 def test_AC12_33_2_money_composite_matches_standard():
-    """AC-audit.33.2: Money predicates / sum / tolerance reproduce the shared vectors."""
+    """AC-audit.33.2: Money predicates / sum reproduce the shared vectors."""
     for c in MONEY["predicates"]:
         m = Money(Decimal(c["amount"]), c["currency"])
         assert m.is_zero() == c["is_zero"], c
@@ -60,61 +60,19 @@ def test_AC12_33_2_money_composite_matches_standard():
         assert Money.sum(items, currency=c["currency"]) == Money(
             Decimal(c["expected"]), c["currency"]
         ), c
-    for c in MONEY["tolerance"]:
-        tol = MoneyTolerance(
-            Money(Decimal(c["absolute"]), c["currency"]),
-            Ratio.from_percent(Decimal(c["relative_percent"])),
-        )
-        got = tol.holds(
-            Money(Decimal(c["actual"]), c["currency"]),
-            Money(Decimal(c["expected"]), c["currency"]),
-        )
-        assert got == c["holds"], c
-
-
-# ── MoneyTolerance laws ─────────────────────────────────────────────────
-@ac_proof(proof_id="test_money_tolerance", ac_ids=["AC-audit.33.1"], ci_tier="pr_ci")
-def test_AC12_33_1_money_tolerance_absolute_relative_and_scaled():
-    """AC-audit.33.1: MoneyTolerance bands on max(absolute, relative*|expected|) and scales."""
-    tol = MoneyTolerance(Money(Decimal("0.01"), "USD"))  # pure absolute
-    assert tol.holds(Money(Decimal("100.00"), "USD"), Money(Decimal("100.005"), "USD"))
-    assert not tol.holds(
-        Money(Decimal("100.00"), "USD"), Money(Decimal("100.02"), "USD")
-    )
-    # scaled widens the band
-    assert tol.scaled(2).holds(
-        Money(Decimal("100.00"), "USD"), Money(Decimal("100.02"), "USD")
-    )
-    # relative band dominates for large expected
-    rel = MoneyTolerance(Money(Decimal("0.01"), "USD"), Ratio.from_percent(1))
-    assert rel.holds(Money(Decimal("100.00"), "USD"), Money(Decimal("101.00"), "USD"))
-    # cross-currency comparison is rejected
-    with pytest.raises(CurrencyMismatchError):
-        tol.holds(Money(Decimal("1"), "USD"), Money(Decimal("1"), "SGD"))
-    # negative parameters / factors are rejected up front (band must be well-defined)
-    with pytest.raises(ValueError):
-        MoneyTolerance(Money(Decimal("-0.01"), "USD"))
-    with pytest.raises(ValueError):
-        MoneyTolerance(Money(Decimal("0.01"), "USD"), Ratio(Decimal("-0.1")))
-    with pytest.raises(ValueError):
-        tol.scaled(-1)
 
 
 # ── Ratio fallback ──────────────────────────────────────────────────────
 @ac_proof(
     proof_id="test_ratio_fraction_or_zero", ac_ids=["AC-audit.33.1"], ci_tier="pr_ci"
 )
-def test_AC12_33_1_ratio_fraction_or_zero_and_none():
-    """AC-audit.33.1: Ratio.fraction_or_zero/_or_none replace zero-denominator branching."""
+def test_AC12_33_1_ratio_fraction_or_zero():
+    """AC-audit.33.1: Ratio.fraction_or_zero replaces zero-denominator branching."""
     assert Ratio.fraction_or_zero(2, 8) == Ratio.fraction(2, 8)
     assert Ratio.fraction_or_zero(5, 0) == Ratio.zero()
-    assert Ratio.fraction_or_none(5, 0) is None
-    assert Ratio.fraction_or_none(2, 8) == Ratio.fraction(2, 8)
     # the no-float invariant holds on BOTH inputs even when whole is zero
     with pytest.raises(FloatNotAllowedError):
         Ratio.fraction_or_zero(0.1, 0)
-    with pytest.raises(FloatNotAllowedError):
-        Ratio.fraction_or_none(0.1, 0)
 
 
 @ac_proof(

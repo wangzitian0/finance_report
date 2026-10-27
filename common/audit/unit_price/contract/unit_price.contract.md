@@ -43,7 +43,7 @@
 
 `UnitPrice`, `UNIT_PRICE_QUANTUM`, `UNIT_PRICE_DP`, `UNIT_PRICE_ROUNDING`,
 `UnitPriceError`, `FloatNotAllowedError`, `CurrencyMismatchError`,
-`UnitMismatchError`, `UndefinedUnitPriceError`, `InvalidUnitPricePayloadError`.
+`UnitMismatchError`, `UndefinedUnitPriceError`.
 
 A TypeScript frontend implementation is a **P2 follow-up** (#1253): there are no
 frontend unit-price call sites today, and frontend display helpers (nullable /

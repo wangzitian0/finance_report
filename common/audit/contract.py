@@ -6,7 +6,7 @@ governor) in the package migration standard
 "meta / audit symmetry"). Where ``meta.base`` is the package model that everyone's
 structure conforms to, ``audit.base`` is the **value language** that everyone's
 numbers are expressed in: the cross-runtime Shared-Kernel value types
-(``Money`` / ``Currency`` / ``ExchangeRate`` / ``MoneyTolerance`` /
+(``Money`` / ``Currency`` / ``ExchangeRate`` /
 ``CurrencyBalances`` / ``Ratio`` / ``Quantity`` / ``Unit`` / ``UnitPrice``), plus
 audit's own first base value objects: the promotion gate (``InvariantResult`` /
 ``PromotionDecision`` / ``PromotionVerdict`` / ``evaluate_promotion`` /
@@ -38,6 +38,11 @@ Scope of THIS contract (the physical fold — see ``readme.md`` §Migration stat
   flattening everything into one namespace. Only the 10 non-colliding
   value-object classes are re-exported flat at ``audit``'s root — exactly the
   ``units`` this contract already declared.
+* **The Python kernel has one editable tree and one locked mirror.**
+  ``apps/backend/src/audit`` is the editable source; ``common/audit`` is the
+  standard-library-only mirror that bare-Python CI jobs import.
+  ``tests/tooling/test_audit_mirror_lock.py`` (AC-audit.43.1) fails when a module
+  pair differs (``readme.md`` §Two Python trees, one editable source).
 * **Pins the number-governor invariants to the existing conformance tests.** Each
   ``invariants[].test`` resolves to a real, already-green conformance/guard test,
   so the gate proves audit's numeric guarantees against the SAME vectors that keep
@@ -112,7 +117,6 @@ CONTRACT = PackageContract(
         Unit(name="Money", kind=Kind.VALUE_OBJECT),
         Unit(name="Currency", kind=Kind.VALUE_OBJECT),
         Unit(name="ExchangeRate", kind=Kind.VALUE_OBJECT),
-        Unit(name="MoneyTolerance", kind=Kind.VALUE_OBJECT),
         Unit(name="CurrencyBalance", kind=Kind.VALUE_OBJECT),
         Unit(name="CurrencyBalances", kind=Kind.VALUE_OBJECT),
         Unit(name="Ratio", kind=Kind.VALUE_OBJECT),
@@ -247,7 +251,6 @@ CONTRACT = PackageContract(
         "normalize_currency_code",
         "to_money",
         "ExchangeRate",
-        "MoneyTolerance",
         "STATEMENT_SOURCE_TYPES",
         "JournalEntrySourceType",
         "SourceTypeDowngradeError",
@@ -279,7 +282,6 @@ CONTRACT = PackageContract(
         "TraceRecordCodec",
         "TraceEmitter",
         "TraceJUnitAdapter",
-        "JsonlTraceRecordStore",
         "TERMINAL_AUDIT_POLICY_VERSION",
         "TerminalAuditSpec",
         "TerminalAuditVerifier",
@@ -440,17 +442,17 @@ CONTRACT = PackageContract(
         ac('AC-audit.32.2', 'Cross-language conformance: the Python reference (common/audit/unit_price) and shipped backend (src.audit.unit_price) reproduce the same vectors.json (quantize / product / from_total) and export the same shared_api (identifier-parity guard). Frontend is a P2 follow-up. Was EPIC-012 AC12.32.2.', 'tests/tooling/test_unit_price_conformance.py::test_AC12_32_2_unit_price_quantize_matches_standard', priority='P1'),
         ac('AC-audit.32.3', 'UnitPrice adoption: investment accounting prices buys/sells and lot/avg-cost through UnitPrice (removing the local _quantized_unit_rate helper and UNIT_RATE_QUANTUM literal), and market-data single-sources the price quantum from UNIT_PRICE_QUANTUM. Was EPIC-012 AC12.32.3.', 'tests/tooling/test_unit_price_adoption.py::test_AC12_32_3_investment_accounting_uses_unit_price', priority='P1'),
         # ── group 33: composite value operations (was EPIC-012 AC12.33.*) ──
-        ac('AC-audit.33.1', 'Money exposes is_zero/is_positive/is_negative and a typed Money.sum (cross-currency raises; empty needs a currency); Ratio.fraction_or_zero/fraction_or_none give the zero-denominator fallback; MoneyTolerance(absolute, relative) matches on max(absolute, relative*|expected|), scales, and rejects cross-currency comparison. Was EPIC-012 AC12.33.1.', 'tests/tooling/test_composite_ops.py::test_AC12_33_1_money_predicates_and_sum', priority='P1'),
-        ac('AC-audit.33.2', 'Cross-language conformance: the Python reference and shipped backend reproduce the shared vectors.json groups (predicates/sum/tolerance for money, fraction_or_zero for ratio). Was EPIC-012 AC12.33.2.', 'tests/tooling/test_composite_ops.py::test_AC12_33_2_money_composite_matches_standard', priority='P1'),
+        ac('AC-audit.33.1', 'Money exposes is_zero/is_positive/is_negative and a typed Money.sum (cross-currency raises; empty needs a currency); Ratio.fraction_or_zero gives the zero-denominator fallback. Was EPIC-012 AC12.33.1.', 'tests/tooling/test_composite_ops.py::test_AC12_33_1_money_predicates_and_sum', priority='P1'),
+        ac('AC-audit.33.2', 'Cross-language conformance: the Python reference and shipped backend reproduce the shared vectors.json groups (predicates/sum for money, fraction_or_zero for ratio). Was EPIC-012 AC12.33.2.', 'tests/tooling/test_composite_ops.py::test_AC12_33_2_money_composite_matches_standard', priority='P1'),
         ac('AC-audit.33.3', 'Adoption: zero-denominator ratio branching routes through Ratio.fraction_or_zero (retiring the local _ratio_or_zero helper in portfolio, plus performance-report and reconciliation-stats call sites), and investment accounting uses Money predicates + Money.sum instead of naked Decimal("0") comparisons. Was EPIC-012 AC12.33.3.', 'tests/tooling/test_composite_ops_adoption.py::test_AC12_33_3_zero_denominator_branching_routes_through_ratio', priority='P1'),
         # ── group 36: shared Decimal-scalar codec (was EPIC-012 AC12.36.*) ──
         ac('AC-audit.36.1', 'The four common/ base-package value types route construction-time Decimal coercion through one shared common.audit.decimal_scalar.coerce_decimal; no value type re-inlines the float-rejection body (the IEEE-754 precision-loss message), which lives only in decimal_scalar. Was EPIC-012 AC12.36.1.', 'tests/tooling/test_decimal_scalar_ssot.py::test_AC12_36_1_common_base_packages_share_one_scalar_codec', priority='P1'),
-        ac('AC-audit.36.2', 'The backend self-contained mirror routes every base-package coercion through one shared src.audit.decimal_scalar.coerce_decimal, and each mirrored kernel file edited by #2698 holds the same code in both trees (docstrings and import order excluded). Was EPIC-012 AC12.36.2.', 'tests/tooling/test_decimal_scalar_ssot.py::test_AC12_36_2_backend_base_packages_share_one_scalar_codec', priority='P1'),
+        ac('AC-audit.36.2', 'The backend self-contained mirror routes every base-package coercion through one shared src.audit.decimal_scalar.coerce_decimal. Was EPIC-012 AC12.36.2.', 'tests/tooling/test_decimal_scalar_ssot.py::test_AC12_36_2_backend_base_packages_share_one_scalar_codec', priority='P1'),
         # AC-audit.* migrated from EPIC-012 groups 12.31, 12.35, 12.37, 12.38 (#1419-pattern AC move).
         ac('AC-audit.31.1', 'The SSOT declares a MECE raw-Decimal boundary policy: allowed at base packages, DB/schema/API contracts, parser/provider adapters, generated code, and tests/fixtures; forbidden as naked business semantics in migrated service/application hot paths. Was EPIC-012 AC12.31.1.', 'tests/tooling/test_decimal_boundary_policy.py::test_AC12_31_1_decimal_boundary_policy_is_mece_and_enforced', priority='P1'),
         ac('AC-audit.31.2', 'The FX service preserves the legacy Decimal return contract for DB/API callers but routes cross-currency conversion through Money(amount, source) plus ExchangeRate(source, target, rate). Was EPIC-012 AC12.31.2.', 'apps/backend/tests/pricing/test_convert.py::test_AC12_31_2_convert_amount_routes_through_money_exchange_rate', priority='P1'),
         ac('AC-audit.31.3', 'Migrated quantity/reporting/application hotspots use Quantity helpers instead of naked quantity-zero comparisons or quantity * price, and frontend app pages do not import decimal.js types directly. Was EPIC-012 AC12.31.3.', 'tests/tooling/test_decimal_boundary_policy.py::test_AC12_31_3_migrated_hotspots_use_base_packages', priority='P1'),
-        ac('AC-audit.31.4', 'The Python audit kernel has no wire or DB codec for the value types: no production code called one, and #2698 deleted them. Neither tree defines a wire.py module, a *_to_wire / *_from_wire / *_db_fields / *_db_value function or a WireCodec; the frontend twin keeps its own JSON codecs. Was EPIC-012 AC12.31.4.', 'tests/tooling/test_audit_kernel_codec_removal.py::test_AC_audit_31_4_deleted_wire_codecs_do_not_return', priority='P1'),
+        ac('AC-audit.31.4', 'The Python audit kernel has no wire or DB codec for the value types and no helper without a production caller: no production code called them, and #2698 and #2752 deleted them. Neither tree defines a wire.py module, a *_to_wire / *_from_wire / *_db_fields / *_db_value function, a WireCodec, an Invalid*PayloadError, MoneyTolerance, Ratio.fraction_or_none or JsonlTraceRecordStore; the frontend twin keeps its own JSON codecs. Was EPIC-012 AC12.31.4.', 'tests/tooling/test_audit_kernel_codec_removal.py::test_AC_audit_31_4_deleted_wire_codecs_do_not_return', priority='P1'),
         ac('AC-audit.31.5', 'Migration cleanup removes duplicated money/percent adapters: tests and fixtures use the shared common.testing.money_amount Money adapter, backend services use the shared Money rounding adapter directly, and frontend portfolio/reporting/reconciliation percent call-sites use canonical Ratio format helpers directly. Was EPIC-012 AC12.31.5.', 'tests/tooling/test_base_package_migration_cleanup.py::test_AC12_31_5_money_fixture_helpers_route_through_base_package', priority='P1'),
         ac('AC-audit.31.6', 'Post-merge cleanup retires remaining base-package drift: confidence percent display calls Ratio helpers directly and SSOT FX examples use Money/ExchangeRate instead of hand-rolled Decimal conversion. Was EPIC-012 AC12.31.6.', 'tests/tooling/test_base_package_migration_cleanup.py::test_AC12_31_6_confidence_percent_wrapper_is_retired', priority='P1'),
         ac('AC-audit.31.7', 'Backend Quantity migration cleanup keeps Quantity objects in service calculations, removes service-local and package-level Decimal-to-Decimal quantity facades, and permits raw Decimal only at DB/model/SQL boundaries. Was EPIC-012 AC12.31.7.', 'tests/tooling/test_base_package_migration_cleanup.py::test_AC12_31_7_backend_quantity_business_code_uses_value_type', priority='P1'),
@@ -492,6 +494,7 @@ CONTRACT = PackageContract(
         ac('AC-audit.42.4', 'Latest report snapshots cannot conflict for the same logical report scope and report date ranges cannot be inverted. Was EPIC-011 AC11.18.4.', 'apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_4_report_snapshot_latest_scope_and_date_constraints'),
         ac('AC-audit.42.5', 'Market-data facts enforce positive rates/prices and stock prices are unique by symbol, currency, provider source, and date. Was EPIC-011 AC11.18.5.', 'apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_5_market_data_constraints_and_stock_price_uniqueness'),
         ac('AC-audit.42.6', 'The constraint migration declares preflight checks and migration-risk classification for existing data compatibility. Was EPIC-011 AC11.18.6.', 'apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_6_migration_preflights_and_risk_contract_are_declared'),
+        ac('AC-audit.43.1', 'Every Python module of common/audit holds the same code as its twin in apps/backend/src/audit, with docstrings and import order excluded and string constants compared as they are; the four TraceRecord files also keep docstrings and import order. A module that exists in one tree only, a twin with one backend-only definition and each name that one package surface publishes alone appear in an explicit list with the reason, and no file under common/ or tools/ imports a backend-only module. apps/backend/src/audit is the one editable source; common/audit is the stdlib-only mirror that the bare-Python CI jobs import (#2752).', 'tests/tooling/test_audit_mirror_lock.py::test_AC_audit_43_1_mirrored_modules_are_ast_equal', priority='P1'),
         # ── group global-invariant: cross-package numeric-governance closeout
         # (#1429, umbrella #1416, formalized per the 2026-07-12 scope freeze on
         # #1429). This is audit's `extension` reach into the financial flow

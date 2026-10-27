@@ -62,8 +62,7 @@ be exported by **both** `apps/backend/src/audit/money` (`__all__`) and
 
 `Money`, `Currency`, `ExchangeRate`, `convert`, `ISO_4217_CODES`,
 `MONEY_QUANTUM`, `MoneyError`, `FloatNotAllowedError`,
-`InvalidCurrencyError`, `InvalidExchangeRateError`, `CurrencyMismatchError`,
-`InvalidMoneyPayloadError`.
+`InvalidCurrencyError`, `InvalidExchangeRateError`, `CurrencyMismatchError`.
 
 Intentionally **per-end** (NOT part of the shared surface): backend-only
 `to_money`, `CurrencyBalance(s)`, the `adopt` helper; frontend-only

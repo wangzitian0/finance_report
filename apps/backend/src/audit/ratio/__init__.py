@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from src.audit.ratio.errors import (
     FloatNotAllowedError,
-    InvalidRatioPayloadError,
     RatioError,
     UndefinedRatioError,
 )
@@ -22,7 +21,6 @@ __all__ = [
     "PERCENT_DP",
     "PERCENT_ROUNDING",
     "FloatNotAllowedError",
-    "InvalidRatioPayloadError",
     "Ratio",
     "RatioError",
     "UndefinedRatioError",

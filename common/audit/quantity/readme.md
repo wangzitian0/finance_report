@@ -26,10 +26,10 @@ makes that the only representable form, with one standard quantization
 
 ## Public vs internal
 
-**Public** (`__all__` == `contract.interface`, 10 symbols): `Quantity`, `Unit`,
+**Public** (`__all__` == `contract.interface`, 9 symbols): `Quantity`, `Unit`,
 the constants (`QUANTITY_DP` / `QUANTITY_QUANTUM` / `QUANTITY_ROUNDING`), and the
-errors (`QuantityError`, `FloatNotAllowedError`, `InvalidQuantityPayloadError`,
-`InvalidUnitError`, `UnitMismatchError`).
+errors (`QuantityError`, `FloatNotAllowedError`, `InvalidUnitError`,
+`UnitMismatchError`).
 
 ## Three ends, one spec
 

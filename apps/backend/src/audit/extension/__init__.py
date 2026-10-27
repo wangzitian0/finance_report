@@ -4,7 +4,7 @@ from src.audit.extension.terminal_audit import (
     TERMINAL_AUDIT_POLICY_VERSION,
     TerminalAuditVerifier,
 )
-from src.audit.extension.trace_adapters import JsonlTraceRecordStore, TraceJUnitAdapter
+from src.audit.extension.trace_adapters import TraceJUnitAdapter
 from src.audit.extension.trace_codec import TraceRecordCodec
 from src.audit.extension.trace_decision_projection import (
     current_authoritative_trace_decision_projection,
@@ -19,7 +19,6 @@ from src.audit.extension.trace_repository import (
 )
 
 __all__ = [
-    "JsonlTraceRecordStore",
     "TERMINAL_AUDIT_POLICY_VERSION",
     "TerminalAuditVerifier",
     "SqlTraceRecordRepository",

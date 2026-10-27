@@ -45,5 +45,4 @@
 `tests/tooling/test_quantity_api_parity.py`:
 
 `Quantity`, `Unit`, `QUANTITY_QUANTUM`, `QUANTITY_DP`, `QUANTITY_ROUNDING`,
-`QuantityError`, `FloatNotAllowedError`, `InvalidQuantityPayloadError`,
-`InvalidUnitError`, `UnitMismatchError`.
+`QuantityError`, `FloatNotAllowedError`, `InvalidUnitError`, `UnitMismatchError`.

@@ -12,8 +12,7 @@
     "FloatNotAllowedError",
     "CurrencyMismatchError",
     "UnitMismatchError",
-    "UndefinedUnitPriceError",
-    "InvalidUnitPricePayloadError"
+    "UndefinedUnitPriceError"
   ],
   "quantize": [
     {"rate": "10.5", "currency": "SGD", "unit": "shares", "expected": "10.500000"},

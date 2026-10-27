@@ -28,10 +28,9 @@ checked — not a float multiply that loses precision or silently mixes currenci
 
 ## Public vs internal
 
-**Public** (`__all__` == `contract.interface`, 10 symbols): `UnitPrice`, the
+**Public** (`__all__` == `contract.interface`, 9 symbols): `UnitPrice`, the
 constants, and the errors (`UnitPriceError`, `FloatNotAllowedError`,
-`InvalidUnitPricePayloadError`, `UndefinedUnitPriceError`, `CurrencyMismatchError`,
-`UnitMismatchError`).
+`UndefinedUnitPriceError`, `CurrencyMismatchError`, `UnitMismatchError`).
 
 ## Ends
 

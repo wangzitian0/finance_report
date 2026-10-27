@@ -5,7 +5,6 @@ from __future__ import annotations
 from src.audit.unit_price.errors import (
     CurrencyMismatchError,
     FloatNotAllowedError,
-    InvalidUnitPricePayloadError,
     UndefinedUnitPriceError,
     UnitMismatchError,
     UnitPriceError,
@@ -23,7 +22,6 @@ __all__ = [
     "UNIT_PRICE_ROUNDING",
     "CurrencyMismatchError",
     "FloatNotAllowedError",
-    "InvalidUnitPricePayloadError",
     "UndefinedUnitPriceError",
     "UnitMismatchError",
     "UnitPrice",

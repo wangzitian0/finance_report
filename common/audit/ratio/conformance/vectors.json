@@ -6,7 +6,6 @@
     "Ratio",
     "RatioError",
     "FloatNotAllowedError",
-    "InvalidRatioPayloadError",
     "PERCENT_DP",
     "PERCENT_ROUNDING"
   ],
