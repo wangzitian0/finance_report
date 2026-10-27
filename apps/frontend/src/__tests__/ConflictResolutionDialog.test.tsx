@@ -22,9 +22,10 @@ describe("ConflictResolutionDialog", () => {
         expect(screen.getByText("No conflicts detected for this statement.")).toBeInTheDocument();
 
         // click the overlay background -> should call onClose
-        const overlay = document.querySelector(".fixed.inset-0 > .absolute");
-        if (overlay) fireEvent.click(overlay);
-        expect(onClose).toHaveBeenCalled();
+        const overlay = document.querySelector(".fixed.inset-0 > [aria-hidden='true']");
+        expect(overlay).not.toBeNull();
+        fireEvent.click(overlay!);
+        expect(onClose).toHaveBeenCalledTimes(1);
 
         // Close button in footer - pick the button that has visible text 'Close'
         const closeButtons = screen.getAllByRole("button", { name: /Close/i });
@@ -32,6 +33,10 @@ describe("ConflictResolutionDialog", () => {
         expect(footerClose).toBeDefined();
         fireEvent.click(footerClose!);
         expect(onClose).toHaveBeenCalledTimes(2);
+
+        // The header X button is the third close control.
+        fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
+        expect(onClose).toHaveBeenCalledTimes(3);
     });
 
     it("renders duplicate and transfer candidates with action buttons", () => {

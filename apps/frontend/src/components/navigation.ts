@@ -1,9 +1,6 @@
 import {
     BarChart3,
     BookOpen,
-    Coins,
-    Cpu,
-    ClipboardCheck,
     FileText,
     Home,
     Landmark,
@@ -46,13 +43,8 @@ export const APP_ROUTES = {
     RECONCILIATION_MATCHES: "/reconciliation?tab=matches",
     RECONCILIATION_UNMATCHED: "/reconciliation?tab=unmatched",
     RECONCILIATION_REVIEW_QUEUE: "/reconciliation?tab=review-queue",
-    REPORTS: "/reports",
     SETTINGS: "/settings",
-    PING_PONG: "/ping-pong",
-    LOGIN: "/login",
 } as const;
-
-export type AppRoute = (typeof APP_ROUTES)[keyof typeof APP_ROUTES];
 
 /** The `/portfolio` URL that opens the holding drawer of one ticker. */
 export function portfolioHoldingHref(ticker: string): string {
@@ -99,23 +91,14 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/upload": { label: "Upload", Icon: UploadCloud },
     "/audit": { label: "Audit", Icon: ShieldCheck },
     "/more": { label: "More", Icon: MoreHorizontal },
-    // Legacy routes redirect to the new IA; keep label/icon mappings so any
-    // persisted workspace tabs or breadcrumbs render with the new names.
-    "/dashboard": { label: "Home", Icon: Home },
     "/journal": { label: "Journal", Icon: BookOpen },
-    "/statements": { label: "Statements", Icon: UploadCloud },
-    "/review": { label: "Review", Icon: ClipboardCheck },
     "/portfolio": { label: "Portfolio", Icon: Wallet },
-    // Legacy /assets route redirects to /portfolio; keep its label mapping for
-    // breadcrumbs and any persisted workspace tabs.
-    "/assets": { label: "Portfolio", Icon: Wallet },
+    // A dynamic target page of route-map.json: `[id]` matches one path segment (see getRouteConfig).
+    "/statements/[id]": { label: "Statement", Icon: UploadCloud },
     "/reports": { label: "Reports", Icon: BarChart3 },
     "/reconciliation": { label: "Reconciliation", Icon: Link2 },
     "/chat": { label: "Chat", Icon: MessageSquare },
     "/settings": { label: "Settings", Icon: SlidersHorizontal },
-    "/settings/general": { label: "General Settings", Icon: Coins },
-    "/settings/ai": { label: "AI Settings", Icon: SlidersHorizontal },
-    "/settings/llm": { label: "LLM Models", Icon: Cpu },
     "/ping-pong": { label: "Ping-Pong", Icon: Zap },
     "/login": { label: "Login", Icon: Landmark },
 };
@@ -128,8 +111,15 @@ export function isActive(pathname: string, href: string): boolean {
     return pathname === href || pathname.startsWith(href + "/");
 }
 
+/** The `ROUTE_CONFIG` keys with a `[param]` segment, each with the pattern that matches one concrete path. */
+const DYNAMIC_ROUTES = Object.keys(ROUTE_CONFIG)
+    .filter((path) => path.includes("["))
+    .map((path) => ({ path, pattern: new RegExp(`^${path.replace(/\[[^\]]+\]/g, "[^/]+")}$`) }));
+
 export function getRouteConfig(pathname: string): RouteConfig {
     if (ROUTE_CONFIG[pathname]) return ROUTE_CONFIG[pathname];
+    const dynamic = DYNAMIC_ROUTES.find(({ pattern }) => pattern.test(pathname));
+    if (dynamic) return ROUTE_CONFIG[dynamic.path];
     const segments = pathname.split("/").filter(Boolean);
     while (segments.length > 0) {
         const parentPath = "/" + segments.join("/");

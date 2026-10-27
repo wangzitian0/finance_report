@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { useFocusTrap } from "@/hooks/useFocusTrap";
-import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+import DetailDialog from "@/components/ui/DetailDialog";
 import { apiOperation } from "@/lib/api-client";
 import { compareAmounts } from "@/lib/audit/money";
 import { invalidateLedgerDerivedQueries } from "@/lib/queryClient";
@@ -28,10 +27,7 @@ function previousCalendarDay(periodStart: string): string {
 }
 
 export default function OpeningBalanceModal({ isOpen, onClose, onSuccess, accounts }: OpeningBalanceModalProps) {
-  const dialogRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
-  useFocusTrap(dialogRef, isOpen);
-  useBodyScrollLock(isOpen);
 
   const [entryDate, setEntryDate] = useState("");
   const [periodStart, setPeriodStart] = useState("");
@@ -104,88 +100,73 @@ export default function OpeningBalanceModal({ isOpen, onClose, onSuccess, accoun
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/60" onClick={onClose} />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Set opening balances"
-        className="relative z-10 flex max-h-[90dvh] w-full max-w-lg flex-col card animate-slide-up"
-      >
-        <div className="card-header">
-          <h2 className="text-lg font-semibold">Set opening balances</h2>
+    <DetailDialog isOpen onClose={onClose} title="Set opening balances">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <p className="text-sm text-muted">
+          Enter the balances brought forward into your first report period. We&apos;ll record the bookkeeping entry for you after you confirm the date and amounts — no journal entries required.
+        </p>
+
+        <div>
+          <label htmlFor="opening-period-start" className="mb-1.5 block text-sm font-medium">First report period starts</label>
+          <input id="opening-period-start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="input" />
+          <p className="mt-1 text-xs text-muted">
+            Use the start of the report period, not the first transaction date. For a March report, bring forward the closing balance from February.
+          </p>
+          {suggestedDate && (
+            <button type="button" className="btn-secondary mt-2" onClick={() => setEntryDate(suggestedDate)}>
+              Use {suggestedDate}
+            </button>
+          )}
         </div>
 
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-6">
-            <p className="text-sm text-muted">
-              Enter the balances brought forward into your first report period. We&apos;ll record the bookkeeping entry for you after you confirm the date and amounts — no journal entries required.
-            </p>
+        <div>
+          <label htmlFor="opening-balance-date" className="mb-1.5 block text-sm font-medium">As-of date *</label>
+          <input id="opening-balance-date" type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} className="input" />
+          <p className="mt-1 text-xs text-muted">
+            Confirm the date these balances were held, before your first report period starts. Applying a suggestion does not record an entry.
+          </p>
+        </div>
 
-            <div>
-              <label htmlFor="opening-period-start" className="mb-1.5 block text-sm font-medium">First report period starts</label>
-              <input id="opening-period-start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} className="input" />
-              <p className="mt-1 text-xs text-muted">
-                Use the start of the report period, not the first transaction date. For a March report, bring forward the closing balance from February.
-              </p>
-              {suggestedDate && (
-                <button type="button" className="btn-secondary mt-2" onClick={() => setEntryDate(suggestedDate)}>
-                  Use {suggestedDate}
-                </button>
-              )}
-            </div>
-
-            <div>
-              <label htmlFor="opening-balance-date" className="mb-1.5 block text-sm font-medium">As-of date *</label>
-              <input id="opening-balance-date" type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} className="input" />
-              <p className="mt-1 text-xs text-muted">
-                Confirm the date these balances were held, before your first report period starts. Applying a suggestion does not record an entry.
-              </p>
-            </div>
-
-            {eligibleAccounts.length === 0 ? (
-              <div className="alert-error">Create an asset, liability, or equity account first, then set its opening balance.</div>
-            ) : (
-              <div className="space-y-2">
-                <span className="block text-sm font-medium">Starting balances</span>
-                {eligibleAccounts.map((account) => (
-                  <div key={account.id} className="flex items-center gap-3">
-                    <label htmlFor={`opening-balance-${account.id}`} className="min-w-0 flex-1 truncate text-sm">
-                      {account.name}
-                      <span className="ml-1 text-xs text-muted">{account.currency}</span>
-                    </label>
-                    <input
-                      id={`opening-balance-${account.id}`}
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                      value={amounts[account.id] ?? ""}
-                      onChange={(e) => setAmounts((prev) => ({ ...prev, [account.id]: e.target.value }))}
-                      aria-label={`Opening balance for ${account.name}`}
-                      className="input w-32 text-right"
-                    />
-                  </div>
-                ))}
+        {eligibleAccounts.length === 0 ? (
+          <div className="alert-error">Create an asset, liability, or equity account first, then set its opening balance.</div>
+        ) : (
+          <div className="space-y-2">
+            <span className="block text-sm font-medium">Starting balances</span>
+            {eligibleAccounts.map((account) => (
+              <div key={account.id} className="flex items-center gap-3">
+                <label htmlFor={`opening-balance-${account.id}`} className="min-w-0 flex-1 truncate text-sm">
+                  {account.name}
+                  <span className="ml-1 text-xs text-muted">{account.currency}</span>
+                </label>
+                <input
+                  id={`opening-balance-${account.id}`}
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={amounts[account.id] ?? ""}
+                  onChange={(e) => setAmounts((prev) => ({ ...prev, [account.id]: e.target.value }))}
+                  aria-label={`Opening balance for ${account.name}`}
+                  className="input w-32 text-right"
+                />
               </div>
-            )}
-
-            <div>
-              <label htmlFor="opening-balance-memo" className="mb-1.5 block text-sm font-medium">Memo</label>
-              <input id="opening-balance-memo" type="text" value={memo} onChange={(e) => setMemo(e.target.value)} className="input" />
-            </div>
-
-            {error && <div className="alert-error">{error}</div>}
+            ))}
           </div>
+        )}
 
-          <div className="flex gap-3 border-t border-[var(--border)] p-6 pt-4">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
-            <button type="submit" disabled={submitting || eligibleAccounts.length === 0} className="btn-primary flex-1">
-              {submitting ? "Saving..." : "Record opening balances"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div>
+          <label htmlFor="opening-balance-memo" className="mb-1.5 block text-sm font-medium">Memo</label>
+          <input id="opening-balance-memo" type="text" value={memo} onChange={(e) => setMemo(e.target.value)} className="input" />
+        </div>
+
+        {error && <div className="alert-error">{error}</div>}
+
+        <div className="flex gap-3 border-t border-[var(--border)] pt-4">
+          <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+          <button type="submit" disabled={submitting || eligibleAccounts.length === 0} className="btn-primary flex-1">
+            {submitting ? "Saving..." : "Record opening balances"}
+          </button>
+        </div>
+      </form>
+    </DetailDialog>
   );
 }

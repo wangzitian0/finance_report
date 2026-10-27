@@ -14,18 +14,16 @@ import {
 } from "@/components/navigation"
 import routeMapJson from "@/lib/route-map.json"
 
-type RouteState = "target" | "shell" | "merge" | "redirect"
+type RouteState = "target" | "shell" | "redirect"
 interface RouteEntry {
   path: string
   state: RouteState
   into?: string
-  lane?: string
 }
 
 const routeMap = routeMapJson as { target_page_count: number; routes: RouteEntry[] }
 const routes = routeMap.routes
 const byPath = new Map(routes.map((r) => [r.path, r]))
-const LANES = ["LA", "LB", "LC", "LD"]
 
 const APP_DIR = path.resolve(__dirname, "../app")
 const FLOWS_PATH = path.resolve(__dirname, "../../../../common/meta/flows/thirty_flows_ssot.json")
@@ -75,13 +73,16 @@ describe("route map (single source of truth for routes)", () => {
   })
 
   // AC-meta.fe-ia-nav.32
-  it("AC-meta.fe-ia-nav.32 keeps exactly the target page count and sends every merge and redirect to a live page", () => {
+  it("AC-meta.fe-ia-nav.32 keeps exactly the target page count, only known states and keys, and sends every redirect to a live page", () => {
     const targets = routes.filter((r) => r.state === "target")
     expect(targets.length).toBe(routeMap.target_page_count)
 
-    for (const r of routes.filter((x) => x.state === "merge")) {
-      expect(LANES, `${r.path} needs a lane in ${LANES.join(", ")}`).toContain(r.lane)
-      expect(byPath.get(r.into ?? "")?.state, `${r.path} must merge into a target page`).toBe("target")
+    for (const r of routes) {
+      expect(["target", "shell", "redirect"], `${r.path} has the unknown state ${r.state}`).toContain(r.state)
+      expect(
+        Object.keys(r).filter((key) => !["path", "state", "into"].includes(key)),
+        `${r.path} has a key other than path, state and into`,
+      ).toEqual([])
     }
     for (const r of routes.filter((x) => x.state === "redirect")) {
       const dest = byPath.get(stripQuery(r.into ?? ""))
@@ -123,7 +124,6 @@ describe("route map (single source of truth for routes)", () => {
     for (const [from, into] of Object.entries(expected)) {
       expect(byPath.get(from)?.state, `${from} must be a redirect entry`).toBe("redirect")
       expect(byPath.get(from)?.into, `${from} must redirect into ${into}`).toBe(into)
-      expect(byPath.get(from)?.lane, `${from} must not keep a lane`).toBeUndefined()
       expect(actual.get(toNext(from)), `next.config must redirect ${from}`).toBe(toNext(into))
     }
     expect(actual.get("/statements/:id/review")).toBe("/statements/:id")

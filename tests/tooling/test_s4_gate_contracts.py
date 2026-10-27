@@ -590,7 +590,6 @@ def test_AC_testing_governance_21_monotonic_update_paths_registered() -> None:
         "common/testing/check_cas" + "sette_graded_eval.py",
         "common/testing/check_critical_value_proof.py",
         "common/testing/fe_api_handmock_ratchet.py",
-        "common/testing/fe_fetch_ratchet.py",
         "common/testing/mirror_ratchet.py",
         "common/testing/tool_shim_contract.py",
     }

@@ -18,7 +18,7 @@ import {
   MUTATION_INVALIDATION_MATRIX,
   declaredInvalidations,
   declaredMutationCountByFile,
-} from "@/lib/queryInvalidation";
+} from "./fixtures/mutationInvalidationMatrix";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const srcRoot = resolve(here, "..");
@@ -66,7 +66,7 @@ describe("mutation invalidation matrix lock (#1827 G-no-undeclared-mutations)", 
       expect(
         declared.get(file),
         `${file} has ${count} useMutation call site(s); declare each flow in ` +
-          "MUTATION_INVALIDATION_MATRIX (src/lib/queryInvalidation.ts)",
+          "MUTATION_INVALIDATION_MATRIX (src/__tests__/fixtures/mutationInvalidationMatrix.ts)",
       ).toBe(count);
     }
     for (const [file, count] of declared) {

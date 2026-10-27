@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Single source of truth for every frontend route. State target: one of the 10 final pages. State shell: a page outside the 10 that the app shell needs. State merge: a page that still exists and moves into its target. State redirect: a path with no page that next.config.mjs redirects to its target, in the order of this list. Put a static path before a dynamic path that matches it. Lanes: LA audit queues, LB upload chain, LC three statements, LD reconciliation, portfolio and settings.",
+  "description": "Single source of truth for every frontend route. State target: one of the 10 final pages. State shell: a page outside the 10 that the app shell needs. State redirect: a path with no page that next.config.mjs redirects to its target, in the order of this list. Put a static path before a dynamic path that matches it.",
   "target_page_count": 10,
   "routes": [
     { "path": "/", "state": "target" },

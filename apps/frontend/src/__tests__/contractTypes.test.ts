@@ -99,5 +99,9 @@ describe("frontend contract consolidation (EPIC-025 / #1158)", () => {
       .map((file) => file.replace(resolve(__dirname, "..") + "/", ""));
 
     expect(offenders).toEqual([]);
+
+    // The boundary itself holds one call, the one in `send()`: a second request function is a regression.
+    const apiSource = readFileSync(resolve(__dirname, "../lib/api.ts"), "utf8");
+    expect(apiSource.match(new RegExp(rawFetch.source, "g")) ?? []).toHaveLength(1);
   });
 });

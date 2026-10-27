@@ -328,7 +328,7 @@ CONTRACT = PackageContract(
         # (two-stage-review-ui) ──
         ac('AC-identity.fe-auth.1', '`getUserId` returns `null` when not set', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.1/AC16.5.2 returns null when key is not set', priority='P2'),
         ac('AC-identity.fe-auth.2', '`getUserId` returns stored `userId` from `localStorage`', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.2 returns stored userId from localStorage', priority='P2'),
-        ac('AC-identity.fe-auth.3', '`setUser` stores `userId` and `email` in `localStorage`; it never persists a bearer token, even when the caller provides one (a stale token is actively cleared)', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.3 stores userId and email', priority='P2'),
+        ac('AC-identity.fe-auth.3', '`setUser(userId, email)` stores `userId` and `email` in `localStorage` and nothing else; the frontend has no code that reads, writes or sends a bearer token', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.3 stores userId and email', priority='P2'),
         ac('AC-identity.fe-auth.4', '`clearUser` removes all auth keys from `localStorage`', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.4 removes all auth keys from localStorage', priority='P2'),
         ac('AC-identity.fe-auth.5', '`isAuthenticated` returns `true` when a local session marker (userId) is stored, `false` when none exists', 'apps/frontend/src/__tests__/auth.test.ts::AC16.5.5 returns true when non-secret user session metadata exists', priority='P2'),
         ac('AC-identity.fe-auth.6', 'Login page submits login payload and redirects on success', 'apps/frontend/src/__tests__/loginPage.test.tsx::AC16.12.5 AC22.1.3 submits login payload and redirects to Home', priority='P2'),

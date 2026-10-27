@@ -63,19 +63,6 @@ export function liabilityToneClass(value?: string | number | null): string {
     return comparison > 0 ? "text-[var(--error)]" : "text-muted";
 }
 
-const SOURCE_CLASS_LABELS: Record<string, string> = {
-    bank_statement: "Bank statements",
-    brokerage_statement: "Brokerage statements",
-    settlement_note: "Settlement notes",
-    esop_rsu_plan: "ESOP / RSU plans",
-    property_statement: "Property statements",
-    liability_statement: "Liability statements",
-    csv_export: "CSV exports",
-    manual_record: "Manual records",
-    manual_valuation_snapshot: "Manual valuation snapshots",
-    package_contract: "Package contract",
-};
-
 const ACRONYMS = new Set(["AI", "CSV", "ESOP", "FX", "GAAP", "HK", "LLM", "OCR", "PR", "RSU", "US"]);
 
 /** Title-case an identifier, preserving known acronyms ("csv_export" -> "CSV Export"). */
@@ -97,11 +84,6 @@ export function humanizeIdentifier(value?: string | null): string {
 export function allocationClassLabel(value: string): string {
     if (value === "retirement_and_benefit_assets") return "Retirement & Benefit Assets";
     return humanizeIdentifier(value);
-}
-
-/** Display label for a source-document class, e.g. "bank_statement" -> "Bank statements". */
-export function sourceClassLabel(sourceClass: string): string {
-    return SOURCE_CLASS_LABELS[sourceClass] ?? humanizeIdentifier(sourceClass);
 }
 
 /** Parse-confidence tier label for a 0-100 score. */

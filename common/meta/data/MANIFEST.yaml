@@ -43,7 +43,7 @@ concepts:
 
   frontend_route_map:
     owner: apps/frontend/src/lib/route-map.json
-    description: "Every frontend route with its state (target, shell, merge, redirect), lane and merge target. next.config.mjs redirects and the route guards read it."
+    description: "Every frontend route with its state (target, shell, redirect) and, for a redirect, its target. next.config.mjs redirects and the route guards read it."
     family: frontend
     kind: data
     cross_refs:

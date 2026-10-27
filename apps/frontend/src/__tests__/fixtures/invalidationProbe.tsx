@@ -12,7 +12,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { expect } from "vitest";
 
-import { declaredInvalidations } from "@/lib/queryInvalidation";
+import { declaredInvalidations } from "./mutationInvalidationMatrix";
 
 export const PROBE_SUFFIX = "__invalidation_probe__";
 

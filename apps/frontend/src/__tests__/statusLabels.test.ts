@@ -9,7 +9,6 @@ import {
     humanizeIdentifier,
     pnlColorClass,
     readinessVariant,
-    sourceClassLabel,
 } from "@/lib/statusLabels";
 
 describe("statusLabels (#1609 colour-not-alone)", () => {
@@ -48,12 +47,6 @@ describe("statusLabels — single-homed helpers (#1868 S5)", () => {
         expect(humanizeIdentifier("bank-statement")).toBe("Bank Statement");
         expect(humanizeIdentifier(null)).toBe("Not recorded");
         expect(humanizeIdentifier("")).toBe("Not recorded");
-    });
-
-    it("sourceClassLabel prefers the known map, falls back to humanizeIdentifier", () => {
-        expect(sourceClassLabel("bank_statement")).toBe("Bank statements");
-        expect(sourceClassLabel("manual_valuation_snapshot")).toBe("Manual valuation snapshots");
-        expect(sourceClassLabel("unknown_source")).toBe("Unknown Source");
     });
 
     it("checkSeverityColor/checkTypeLabel cover the stage2 consistency-check vocabulary", () => {

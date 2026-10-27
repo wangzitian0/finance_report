@@ -54,10 +54,6 @@ MONOTONIC_UPDATE_PROOFS = {
         "tests/tooling/test_fe_api_handmock_ratchet.py"
         "::test_AC_testing_fe_handmock_1_ratchet_is_locked_and_only_goes_down"
     ),
-    ("common/testing/fe_fetch_ratchet.py", UPDATE_FLAG): (
-        "tests/tooling/test_fe_fetch_ratchet.py"
-        "::test_AC_testing_fe_fetch_1_ratchet_is_locked_and_only_goes_down"
-    ),
     ("common/testing/mirror_ratchet.py", UPDATE_FLAG): (
         "tests/tooling/test_package_declaration_and_ratchet.py"
         "::test_AC8_24_3_mirror_assertion_ratchet_is_locked_and_only_goes_down"

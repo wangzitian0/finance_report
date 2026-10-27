@@ -118,7 +118,7 @@ export function declaredInvalidations(flow: string): readonly QueryKey[] {
   if (!rule) {
     throw new Error(
       `flow '${flow}' is not declared in MUTATION_INVALIDATION_MATRIX ` +
-        "(src/lib/queryInvalidation.ts) — declare it before testing it",
+        "(src/__tests__/fixtures/mutationInvalidationMatrix.ts) — declare it before testing it",
     );
   }
   return rule.invalidates;

@@ -13,21 +13,6 @@ import {
 const fetchMock = vi.fn();
 global.fetch = fetchMock;
 
-// Create a mock localStorage
-const localStorageMock = {
-  getItem: vi.fn((_key?: string): string | null => null),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
-  length: 0,
-  key: vi.fn(),
-};
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock,
-  writable: true,
-  configurable: true,
-});
-
 // Create a mutable mock location object
 const mockLocation = { href: '', pathname: '/dashboard' };
 
@@ -42,10 +27,8 @@ describe('apiOperation transport & errors', () => {
   beforeEach(() => {
     resetRedirectGuard();
     fetchMock.mockReset();
-    localStorageMock.getItem.mockReset();
     mockLocation.href = '';
     mockLocation.pathname = '/dashboard';
-    localStorageMock.getItem.mockReturnValue(null);
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -194,8 +177,7 @@ describe('apiOperation transport & errors', () => {
     });
   });
 
-  it('handles 204 No Content, tokens, and complex error payloads', async () => {
-    localStorageMock.getItem.mockReturnValue('token-xyz');
+  it('handles 204 No Content and complex error payloads', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 204,
@@ -207,12 +189,7 @@ describe('apiOperation transport & errors', () => {
     expect(res).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/api/accounts/a1'),
-      expect.objectContaining({
-        method: 'DELETE',
-        headers: expect.objectContaining({
-          Authorization: 'Bearer token-xyz',
-        }),
-      }),
+      expect.objectContaining({ method: 'DELETE', credentials: 'include' }),
     );
 
     // 422 Validation error where detail is array
@@ -251,8 +228,7 @@ describe('apiOperation transport & errors', () => {
     ).rejects.toThrow('12345');
   });
 
-  it('DELETE operation redirects on 401 with token', async () => {
-    localStorageMock.getItem.mockReturnValue('del-token');
+  it('DELETE operation redirects on 401', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 401,
@@ -267,12 +243,7 @@ describe('apiOperation transport & errors', () => {
     expect(mockLocation.href).toBe('/login');
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/api/accounts/delete-me'),
-      expect.objectContaining({
-        method: 'DELETE',
-        headers: expect.objectContaining({
-          Authorization: 'Bearer del-token',
-        }),
-      }),
+      expect.objectContaining({ method: 'DELETE', credentials: 'include' }),
     );
   });
 });
@@ -281,13 +252,10 @@ describe('apiOperationStream', () => {
   beforeEach(() => {
     resetRedirectGuard();
     fetchMock.mockReset();
-    localStorageMock.getItem.mockReset();
     mockLocation.href = '';
-    localStorageMock.getItem.mockReturnValue(null);
   });
 
-  it('streams with query, headers, and token', async () => {
-    localStorageMock.getItem.mockReturnValue('mock-token');
+  it('streams with a JSON body and reads the session id', async () => {
     const mockHeaders = {
       get: (header: string) =>
         header.toLowerCase() === 'x-session-id' ? 'sess-123' : null,
@@ -306,12 +274,7 @@ describe('apiOperationStream', () => {
     expect(result.sessionId).toBe('sess-123');
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/api/chat'),
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          Authorization: 'Bearer mock-token',
-        }),
-      }),
+      expect.objectContaining({ method: 'POST', credentials: 'include' }),
     );
   });
 
@@ -354,13 +317,10 @@ describe('apiOperationDownload', () => {
   beforeEach(() => {
     resetRedirectGuard();
     fetchMock.mockReset();
-    localStorageMock.getItem.mockReset();
     mockLocation.href = '';
-    localStorageMock.getItem.mockReturnValue(null);
   });
 
   it('downloads and parses various Content-Disposition headers', async () => {
-    localStorageMock.getItem.mockReturnValue('mock-token');
     const csvBlob = new Blob(['col1,col2\nval1,val2\n'], { type: 'text/csv' });
     fetchMock.mockResolvedValue({
       ok: true,
@@ -385,11 +345,7 @@ describe('apiOperationDownload', () => {
     expect(result.filename).toBe('report 2026.csv');
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/api/reports/export'),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: 'Bearer mock-token',
-        }),
-      }),
+      expect.objectContaining({ credentials: 'include' }),
     );
   });
 
@@ -486,13 +442,10 @@ describe('apiOperationUpload', () => {
   beforeEach(() => {
     resetRedirectGuard();
     fetchMock.mockReset();
-    localStorageMock.getItem.mockReset();
     mockLocation.href = '';
-    localStorageMock.getItem.mockReturnValue(null);
   });
 
-  it('uploads a FormData body with token and handles 204', async () => {
-    localStorageMock.getItem.mockReturnValue('mock-token');
+  it('uploads a FormData body and handles 204', async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -512,13 +465,7 @@ describe('apiOperationUpload', () => {
     expect(result).toEqual({ id: 'stmt-new', original_filename: 'test.pdf' });
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/api/statements/upload'),
-      expect.objectContaining({
-        method: 'POST',
-        body: fd,
-        headers: expect.objectContaining({
-          Authorization: 'Bearer mock-token',
-        }),
-      }),
+      expect.objectContaining({ method: 'POST', body: fd, credentials: 'include' }),
     );
 
     // 204 No content returns undefined

@@ -11,9 +11,6 @@ import {
 import { checkSeverityColor, checkTypeLabel } from "@/lib/statusLabels";
 import type { ConsistencyCheck, PendingMatch } from "@/lib/types";
 
-// useFocusTrap touches DOM focus APIs; keep it a no-op for isolated unit tests.
-vi.mock("@/hooks/useFocusTrap", () => ({ useFocusTrap: vi.fn() }));
-
 function makeMatch(overrides: Partial<PendingMatch> = {}): PendingMatch {
     return {
         id: "m1",
