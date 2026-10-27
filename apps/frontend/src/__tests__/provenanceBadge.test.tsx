@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest"
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
-import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge"
+import { ProvenanceBadge } from "@/components/ui"
 
 describe("ProvenanceBadge", () => {
   // AC-portfolio.fe-ia-portfolio.4

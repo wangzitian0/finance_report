@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import DetailDialog from "@/components/ui/DetailDialog";
+import { DetailDialog } from "@/components/ui/Overlay";
 import { apiOperation } from "@/lib/api-client";
 import { formatAmount, formatCurrencyLocale, multiplyAmount, sumAmounts } from "@/lib/audit/money";
 import { formatDateDisplay, formatDateTimeDisplay } from "@/lib/date";

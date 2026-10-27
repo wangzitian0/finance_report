@@ -134,7 +134,10 @@ tests, collects a minimized current GitHub issue/ruleset snapshot through
 authenticated `gh`, and derives workflow enforcement from the live `finish`
 context. An owning package may expose raw detector facts through the optional
 `common/<package>/extension/governance_detector.py::detect_governance(*,
-repo_root)` provider; the adapter owns discovery and target-SHA provenance and
+repo_root)` provider. The provider holds a `{guarantee id: check}` table and calls
+`common.meta.base.detector_runner.run_detectors`, which owns the observation
+shape, the guarantee-id prefix, and the exception policy (#2759). The adapter owns
+discovery and target-SHA provenance and
 rejects foreign, duplicate, malformed, or proof-bearing output. A passing JUnit
 testcase is not proof by itself: proof id, assertion version, repository, GitHub
 run (any attempt up to the builder's own, projected with the record's own

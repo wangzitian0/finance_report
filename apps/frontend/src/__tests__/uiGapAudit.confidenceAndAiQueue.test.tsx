@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AiSuggestionsQueue } from "@/components/audit/AuditPanels";
 import { AiSettingsPanel } from "@/components/settings/SettingsPanels";
 import { AuditTrailPanel } from "@/components/journal/JournalEntryDetailsModal";
-import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
+import { ConfidenceBadge } from "@/components/ui";
 import { apiOperation } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({

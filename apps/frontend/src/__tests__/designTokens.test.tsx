@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
-import ConfidenceBadge from "@/components/ui/ConfidenceBadge"
+import { ConfidenceBadge } from "@/components/ui"
 import tailwindConfig from "../../tailwind.config"
 
 const extend = tailwindConfig.theme?.extend as Record<string, unknown>

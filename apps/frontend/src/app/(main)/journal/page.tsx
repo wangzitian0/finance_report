@@ -8,8 +8,7 @@ import JournalEntryDetailsModal from "@/components/journal/JournalEntryDetailsMo
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { FilterTabs } from "@/components/ui/FilterTabs";
-import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
-import { EmptyState, LoadingState, StatusBadge } from "@/components/ui";
+import { ConfidenceBadge, EmptyState, LoadingState, StatusBadge } from "@/components/ui";
 import { useToast } from "@/components/ui/Toast";
 import { apiOperation } from "@/lib/api-client";
 import { formatCurrencyLocale, sumAmounts } from "@/lib/audit/money";

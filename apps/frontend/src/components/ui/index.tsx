@@ -1,6 +1,8 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
+import type { DataProvenance } from "@/lib/types";
+
 export function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -201,5 +203,74 @@ export function PageHeader({ title, description, actions, className, ...props }:
       </div>
       {actions && <div className="flex gap-2">{actions}</div>}
     </div>
+  );
+}
+
+export type ConfidenceTier =
+  "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | "DETERMINISTIC";
+
+interface ConfidenceBadgeProps extends Pick<
+  HTMLAttributes<HTMLSpanElement>,
+  "className"
+> {
+  tier: ConfidenceTier;
+}
+
+const TIER_VARIANTS: Record<ConfidenceTier, BadgeVariant> = {
+  TRUSTED: "success",
+  HIGH: "info",
+  MEDIUM: "warning",
+  LOW: "muted",
+  DETERMINISTIC: "success",
+};
+
+const TOOLTIP =
+  "Deterministic system facts and manual entries are trusted; AI-extracted facts remain low until confirmed.";
+
+export function ConfidenceBadge({
+  tier,
+  className,
+}: ConfidenceBadgeProps) {
+  return (
+    <Badge
+      variant={TIER_VARIANTS[tier]}
+      className={`rounded-pill font-semibold ${className ?? ""}`}
+      title={TOOLTIP}
+    >
+      {tier}
+    </Badge>
+  );
+}
+
+const PROVENANCE_LABELS: Record<DataProvenance, string> = {
+  imported: "Imported",
+  manual: "Manual",
+  derived: "Derived",
+};
+
+const PROVENANCE_VARIANTS: Record<DataProvenance, BadgeVariant> = {
+  imported: "success",
+  manual: "warning",
+  derived: "muted",
+};
+
+export function ProvenanceBadge({
+  provenance,
+  className,
+}: {
+  provenance?: DataProvenance | null;
+  className?: string;
+}) {
+  if (!provenance) return null;
+
+  const label = PROVENANCE_LABELS[provenance];
+  return (
+    <Badge
+      variant={PROVENANCE_VARIANTS[provenance]}
+      className={className}
+      aria-label={`Provenance: ${label}`}
+    >
+      {label}
+    </Badge>
   );
 }

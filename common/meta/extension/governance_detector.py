@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from common.meta.base.detector_runner import run_detectors
 from common.meta.extension.governance_census import (
     MIN_FRONTEND_PRODUCTION_FILES,
     verify_governance_ratchet,
@@ -159,40 +160,29 @@ def _check_governance_integration(result: dict[str, Any], repo_root: Path) -> li
     return []
 
 
-_GUARANTEE_CHECKS = [
-    ("app-ownership", _check_app_ownership),
-    ("domain-locality", _check_domain_locality),
-    ("python-boundary-denominator", _check_python_boundary_denominator),
-    ("frontend-export-denominator", _check_frontend_export_denominator),
-    ("operation-consumer-truth", _check_operation_consumer_truth),
-    ("unused-operation-honesty", _check_unused_operation_honesty),
-    ("delivery-surface-truth", _check_delivery_surface_truth),
-    ("unit-accountability", _check_unit_accountability),
-    ("non-vacuity", _check_non_vacuity),
-    ("governance-integration", _check_governance_integration),
-]
+_GUARANTEE_CHECKS = {
+    "app-ownership": _check_app_ownership,
+    "domain-locality": _check_domain_locality,
+    "python-boundary-denominator": _check_python_boundary_denominator,
+    "frontend-export-denominator": _check_frontend_export_denominator,
+    "operation-consumer-truth": _check_operation_consumer_truth,
+    "unused-operation-honesty": _check_unused_operation_honesty,
+    "delivery-surface-truth": _check_delivery_surface_truth,
+    "unit-accountability": _check_unit_accountability,
+    "non-vacuity": _check_non_vacuity,
+    "governance-integration": _check_governance_integration,
+}
 
 
 def detect_governance(*, repo_root: Path) -> list[dict[str, object]]:
     """Scan exhaustive governance invariants and emit detector observations."""
-    ratchet_result = verify_governance_ratchet(repo_root)
-    observations: list[dict[str, object]] = []
-
-    for guarantee_id, check_fn in _GUARANTEE_CHECKS:
-        try:
-            findings = check_fn(ratchet_result, repo_root)
-        except Exception as exc:
-            findings = [f"{guarantee_id}: check raised exception: {exc}"]
-        observations.append(
-            {
-                "guarantee_id": f"meta/{guarantee_id}",
-                "current": len(findings),
-                "target": 0,
-                "findings": findings,
-            }
-        )
-
-    return observations
+    return run_detectors(
+        "meta",
+        _GUARANTEE_CHECKS,
+        verify_governance_ratchet(repo_root),
+        repo_root,
+        catch=(Exception,),
+    )
 
 
 __all__ = ["detect_governance"]
