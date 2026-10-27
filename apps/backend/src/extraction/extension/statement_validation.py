@@ -568,21 +568,3 @@ async def set_opening_balance(
 
     await db.flush()
     return statement
-
-
-async def get_pending_stage1_review(
-    db: AsyncSession,
-    user_id: UUID,
-    limit: int = 50,
-    offset: int = 0,
-) -> list[StatementSummary]:
-    result = await db.execute(
-        select(StatementSummary)
-        .where(StatementSummary.user_id == user_id)
-        .where(StatementSummary.status == BankStatementStatus.PARSED)
-        .where(pending_stage1_review_filter())
-        .order_by(StatementSummary.created_at.desc())
-        .limit(limit)
-        .offset(offset)
-    )
-    return list(result.scalars().all())

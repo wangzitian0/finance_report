@@ -1,4 +1,4 @@
-"""Lazy Evidence Graph materialization and consistency checks."""
+"""Lazy Evidence Graph materialization."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ from dataclasses import dataclass, field
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import exists, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased, selectinload
+from sqlalchemy.orm import selectinload
 
 from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
 from src.extraction.base.source_vocabulary import BankStatementStatus
@@ -48,24 +48,6 @@ class EvidenceMaterializationResult:
     @property
     def write_count(self) -> int:
         return self.created_nodes + self.created_edges
-
-
-@dataclass(frozen=True)
-class EvidenceConsistencyFinding:
-    """Read-only consistency finding for Evidence Graph drift."""
-
-    code: str
-    severity: str
-    entity_type: str
-    entity_id: UUID
-    message: str
-
-
-@dataclass(frozen=True)
-class EvidenceConsistencyReport:
-    """Read-only drift report for operator checks."""
-
-    findings: list[EvidenceConsistencyFinding]
 
 
 class EvidenceGraphMaterializationService:
@@ -115,20 +97,6 @@ class EvidenceGraphMaterializationService:
         else:
             self._add_blocker(result, "unsupported_provenance", f"Unsupported Evidence Graph entity: {entity_type}.")
         return result
-
-    async def detect_consistency_drift(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID | None = None,
-    ) -> EvidenceConsistencyReport:
-        """Return a read-only consistency report without repairing graph rows."""
-        findings: list[EvidenceConsistencyFinding] = []
-        await self._detect_missing_journal_line_nodes(db, user_id=user_id, findings=findings)
-        await self._detect_orphan_nodes(db, user_id=user_id, findings=findings)
-        await self._detect_dangling_edges(db, user_id=user_id, findings=findings)
-        await self._detect_cross_user_edges(db, user_id=user_id, findings=findings)
-        return EvidenceConsistencyReport(findings=findings)
 
     async def _materialize_journal_line(
         self,
@@ -748,165 +716,6 @@ class EvidenceGraphMaterializationService:
                 .limit(1)
             )
         ).scalar_one_or_none()
-
-    async def _detect_missing_journal_line_nodes(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID | None,
-        findings: list[EvidenceConsistencyFinding],
-    ) -> None:
-        query = select(JournalLine.id).join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        if user_id is not None:
-            query = query.where(JournalEntry.user_id == user_id)
-        query = query.where(
-            ~exists()
-            .where(EvidenceNode.user_id == JournalEntry.user_id)
-            .where(EvidenceNode.node_kind == "ledger_line")
-            .where(EvidenceNode.entity_type == "journal_line")
-            .where(EvidenceNode.entity_id == JournalLine.id)
-        )
-        for line_id in (await db.execute(query.limit(100))).scalars().all():
-            findings.append(
-                EvidenceConsistencyFinding(
-                    code="graph_node_missing",
-                    severity="medium",
-                    entity_type="journal_line",
-                    entity_id=line_id,
-                    message="Journal line exists without a ledger_line Evidence Graph node.",
-                )
-            )
-
-    async def _detect_orphan_nodes(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID | None,
-        findings: list[EvidenceConsistencyFinding],
-    ) -> None:
-        query = select(EvidenceNode)
-        if user_id is not None:
-            query = query.where(EvidenceNode.user_id == user_id)
-        for node in (await db.execute(query.limit(200))).scalars().all():
-            if await self._business_entity_exists(db, node=node):
-                continue
-            findings.append(
-                EvidenceConsistencyFinding(
-                    code="orphan_graph_node",
-                    severity="high",
-                    entity_type=node.entity_type,
-                    entity_id=node.entity_id,
-                    message="Evidence Graph node points to a missing or cross-user business entity.",
-                )
-            )
-
-    async def _detect_cross_user_edges(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID | None,
-        findings: list[EvidenceConsistencyFinding],
-    ) -> None:
-        from_node = aliased(EvidenceNode)
-        to_node = aliased(EvidenceNode)
-        query = (
-            select(EvidenceEdge, from_node, to_node)
-            .join(from_node, EvidenceEdge.from_node_id == from_node.id)
-            .join(to_node, EvidenceEdge.to_node_id == to_node.id)
-        )
-        if user_id is not None:
-            query = query.where(EvidenceEdge.user_id == user_id)
-        rows = (await db.execute(query.limit(200))).all()
-        for edge, source, target in rows:
-            if edge.user_id == source.user_id == target.user_id:
-                continue
-            findings.append(
-                EvidenceConsistencyFinding(
-                    code="cross_user_lineage_blocked",
-                    severity="high",
-                    entity_type="evidence_edge",
-                    entity_id=edge.id,
-                    message="Evidence Graph edge user does not match both endpoint users.",
-                )
-            )
-
-    async def _detect_dangling_edges(
-        self,
-        db: AsyncSession,
-        *,
-        user_id: UUID | None,
-        findings: list[EvidenceConsistencyFinding],
-    ) -> None:
-        from_node = aliased(EvidenceNode)
-        to_node = aliased(EvidenceNode)
-        query = (
-            select(EvidenceEdge, from_node.id, to_node.id)
-            .outerjoin(from_node, EvidenceEdge.from_node_id == from_node.id)
-            .outerjoin(to_node, EvidenceEdge.to_node_id == to_node.id)
-        )
-        if user_id is not None:
-            query = query.where(EvidenceEdge.user_id == user_id)
-        rows = (await db.execute(query.limit(200))).all()
-        for edge, from_node_id, to_node_id in rows:
-            if from_node_id is not None and to_node_id is not None:
-                continue
-            findings.append(
-                EvidenceConsistencyFinding(
-                    code="dangling_edge",
-                    severity="high",
-                    entity_type="evidence_edge",
-                    entity_id=edge.id,
-                    message="Evidence Graph edge points to a missing endpoint node.",
-                )
-            )
-
-    async def _business_entity_exists(self, db: AsyncSession, *, node: EvidenceNode) -> bool:
-        if node.entity_type == "journal_line":
-            row = (
-                await db.execute(
-                    select(JournalLine.id)
-                    .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-                    .where(JournalLine.id == node.entity_id)
-                    .where(JournalEntry.user_id == node.user_id)
-                    .limit(1)
-                )
-            ).scalar_one_or_none()
-            return row is not None
-        if node.entity_type == "journal_entry":
-            row = (
-                await db.execute(
-                    select(JournalEntry.id)
-                    .where(JournalEntry.id == node.entity_id)
-                    .where(JournalEntry.user_id == node.user_id)
-                    .limit(1)
-                )
-            ).scalar_one_or_none()
-            return row is not None
-        if node.entity_type == "statement_summary":
-            row = (
-                await db.execute(
-                    select(StatementSummary.id)
-                    .where(StatementSummary.id == node.entity_id)
-                    .where(StatementSummary.user_id == node.user_id)
-                    .limit(1)
-                )
-            ).scalar_one_or_none()
-            return row is not None
-        if node.entity_type == "uploaded_document":
-            row = (
-                await db.execute(
-                    select(UploadedDocument.id)
-                    .where(UploadedDocument.id == node.entity_id)
-                    .where(UploadedDocument.user_id == node.user_id)
-                    .limit(1)
-                )
-            ).scalar_one_or_none()
-            return row is not None
-        if node.entity_type == "atomic_transaction":
-            return (
-                await self._get_owned_atomic_transaction(db, user_id=node.user_id, atomic_id=node.entity_id) is not None
-            )
-        return True
 
     @staticmethod
     def _add_blocker(result: EvidenceMaterializationResult, code: str, message: str) -> None:

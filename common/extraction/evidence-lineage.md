@@ -261,11 +261,10 @@ not return graph evidence.
 ## Materialization and Consistency
 
 Consistency proof for lazy materialization is owned by AC18.10. Evidence Graph
-consistency is maintained through three mechanisms:
+consistency is maintained through two mechanisms:
 
 1. Transactional write-through for new facts.
 2. Bounded lazy materialization for historical facts reached by lineage reads.
-3. Operator dry-run detection for global drift reporting.
 
 New source-to-ledger workflows must write graph nodes and edges inside the same
 database transaction as the owning business facts. If the graph write cannot be
@@ -292,20 +291,13 @@ category, or account-name similarity. If provenance is ambiguous, unsupported,
 missing, or cross-user, the caller must return a blocker instead of writing a
 guessed edge.
 
-Operator consistency checks are read-only by default. They report drift across
-the whole graph or a user scope without modifying business tables or graph rows.
-Execution-mode repair, when added, must remain deterministic, idempotent, and
-limited to the same strong relationships allowed for lazy materialization.
-
 ## Blocker Taxonomy
 
-Lineage APIs and consistency tooling must use explicit blocker codes for graph
-drift and unsupported provenance:
+Lineage APIs must use explicit blocker codes for missing graph proof and
+unsupported provenance:
 
 - `graph_node_missing`: no owned graph node exists for the requested entity identity.
 - `lineage_incomplete`: a graph anchor exists but the requested upstream or downstream path is incomplete.
-- `orphan_graph_node`: a graph node points to a missing business entity.
-- `dangling_edge`: an edge references a missing endpoint node.
 - `entity_missing`: the business entity referenced by an identity cannot be resolved.
 - `ambiguous_provenance`: existing facts do not identify exactly one defensible source or target.
 - `unsupported_provenance`: the source type or entity type is outside the current graph contract.

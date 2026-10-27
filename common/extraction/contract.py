@@ -44,14 +44,13 @@ extracted fact to its source document.
 * ``confidence_metric`` / ``confidence_tier`` (journal-confidence metric
   snapshots) are NOT this package's — they read ledger's aggregates and stay
   in ``services/`` pending the reporting/observability re-home.
-* The OCR layout-parsing call routes through ``src.llm``'s ``ocr_layout_call``
-  chokepoint (#1670), which is why ``llm`` is now a declared dependency. The
-  JSON/vision call sites already went through ``llm`` via
-  ``src.llm``'s ``stream_ai_json`` (physically ``llm/extension/streaming.py``
-  since #1670's fold). Threading per-user provider binding (``user_id``)
-  into these OCR/vision/json call sites — so a BYO-provider user's own model
-  is used, not just the deployment default — is a separate, still-pending
-  follow-up (AC-llm.4.5), independent of the ``llm`` dependency edge itself.
+* The JSON/vision call sites go through ``llm`` via ``src.llm``'s
+  ``stream_ai_json`` (physically ``llm/extension/streaming.py`` since #1670's
+  fold), which is why ``llm`` is a declared dependency. Threading per-user
+  provider binding (``user_id``) into these OCR/vision/json call sites — so a
+  BYO-provider user's own model is used, not just the deployment default — is
+  a separate, still-pending follow-up (AC-llm.4.5), independent of the ``llm``
+  dependency edge itself.
 """
 
 from __future__ import annotations
@@ -516,14 +515,12 @@ CONTRACT = PackageContract(
         "edit_and_approve",
         "extraction_trace_policy_registry",
         "find_in_flight_parse_id",
-        "find_uploaded_document_filename_by_hash",
         "get_correction_stats",
         "get_current_statement_extraction_result",
         "get_known_storage_paths",
         "get_parsing_prompt",
         "get_statement_coverage_rows",
         "get_statement_event_sources",
-        "get_uploaded_document_filename",
         "get_uploaded_document_filenames",
         "looks_like_brokerage_document",
         "looks_like_brokerage_payload",
@@ -646,7 +643,6 @@ CONTRACT = PackageContract(
         ac('AC-extraction.persistence-proof.2', 'Only effective current-source transactions may enter downstream queues or actions; superseded facts stay queryable, and unattached legacy records remain explicitly eligible.', 'apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_effective_membership_excludes_superseded_sources', priority='P1', proof_kind='property'),
         ac('AC-extraction.source-conservation.1', 'An unparseable transaction row cannot silently disappear behind a successful net-balance proof; the source remains reachable with an explicit failure.', 'apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_bad_dates_cannot_hide_offsetting_transactions', priority='P1', proof_kind='property'),
         ac('AC-extraction.source-conservation.2', 'Paged extraction preserves every currency balance and rejects conflicting account or balance declarations without inventing source facts.', 'apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_paged_currency_and_account_conservation', priority='P1', proof_kind='property'),
-        ac('AC-extraction.transaction-identity.5', "Legacy atomic upsert retains its keyword-capture contract and rejects unsupported custody keywords; the additive scoped upsert accepts an explicit validated custody account without changing existing callers' argument binding.", 'apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_legacy_upsert_preserves_keyword_capture'),
         ac('AC-extraction.transaction-identity.1', 'Distinct custody accounts and currencies retain independent atomic transactions while exact imports of the same custody fact remain idempotent.', 'apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_identity_distinguishes_custody_and_currency', priority='P1', proof_kind='property'),
         ac('AC-extraction.transaction-identity.2', 'A versioned identity may reuse a legacy atomic UUID and hash only after source custody and currency agree, without changing historical facts.', 'apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_legacy_identity_reuse_preserves_history', priority='P1', proof_kind='property'),
         ac('AC-extraction.transaction-identity.3', 'An ambiguous historical identity is explicitly reviewable while a novel transaction without custody remains source-isolated.', 'apps/backend/tests/extraction/test_source_ingestion_integrity.py::test_ambiguous_legacy_identity_is_reviewable', priority='P1', proof_kind='property'),
@@ -813,7 +809,7 @@ CONTRACT = PackageContract(
         ac('AC-extraction.112.2', 'Every supported automated SourceCapability resolves to both deterministic PR proof and release-validation proof', 'tests/tooling/test_source_capability_proof.py::test_AC_extraction_112_2_supported_capabilities_require_release_proof', proof_kind='property'),
         ac('AC-extraction.112.3', 'A gap SourceCapability cannot be claimed as covered by the positive semantic proof graph', 'tests/tooling/test_source_capability_proof.py::test_AC_extraction_112_3_gap_capabilities_cannot_claim_proof', proof_kind='property'),
         ac('AC-extraction.111.1', 'Dual-write handles a duplicate document identity by selecting and continuing with the canonical database winner without failing or duplicating the source row.', 'apps/backend/tests/extraction/test_extraction_error_paths.py::test_dual_write_layer2_integrity_error_is_non_fatal', priority='P1', proof_kind='property'),
-        ac('AC-extraction.111.2', 'Malformed transaction source lineage requires review rather than unproven identity adoption.', 'apps/backend/tests/extraction/test_deduplication.py::test_upsert_atomic_transaction_handles_non_list_source_documents', priority='P1', proof_kind='property'),
+        ac('AC-extraction.111.2', 'Malformed transaction source lineage requires review rather than unproven identity adoption.', 'apps/backend/tests/extraction/test_deduplication.py::test_upsert_scoped_atomic_transaction_handles_non_list_source_documents', priority='P1', proof_kind='property'),
         ac('AC-extraction.113.1', 'Pure scoring + routing functions return identical results across N runs on the same input.', 'apps/backend/tests/extraction/test_extraction_determinism.py::test_scoring_and_routing_are_deterministic', proof_kind='property'),
         ac('AC-extraction.113.2', 'Re-parsing identical model output yields identical confidence/status/validation_error across N parses.', 'apps/backend/tests/extraction/test_extraction_determinism.py::test_repeated_parse_yields_identical_confidence_status_validation', proof_kind='property'),
         ac('AC-extraction.113.3', 'Each payload class (bank-valid, bank-balance-invalid, brokerage) routes consistently across N parses.', 'apps/backend/tests/extraction/test_extraction_determinism.py::test_routing_is_consistent_per_payload_class', proof_kind='property'),
@@ -841,14 +837,9 @@ CONTRACT = PackageContract(
         ac('AC-extraction.117.10', 'If every attempt raises, the error propagates so the upload fails as in the single-call path', 'apps/backend/tests/extraction/test_self_consistency.py::test_all_attempts_error_reraises', priority='P1', proof_kind='property'),
         ac('AC-extraction.117.11', 'A transient error on the first attempt does not abort; a later reconciling attempt is returned', 'apps/backend/tests/extraction/test_self_consistency.py::test_first_attempt_error_then_success_recovers', priority='P1', proof_kind='property'),
         ac('AC-extraction.117.12', 'An error after an earlier usable parse keeps trying remaining attempts; a later reconciling parse still wins', 'apps/backend/tests/extraction/test_self_consistency.py::test_error_mid_run_does_not_skip_remaining_attempts', priority='P1', proof_kind='property'),
-        ac('AC-extraction.120.1', 'AC-C1: detector pinpoints the exact break index on a crafted chain with a dropped row', 'apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_1_detector_finds_break_index_on_dropped_row', priority='P1', proof_kind='property'),
-        ac('AC-extraction.120.2', 'AC-C1: a clean running-balance chain reports no break', 'apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_2_clean_chain_reports_no_break', priority='P1', proof_kind='property'),
-        ac('AC-extraction.120.3', 'AC-C1: detection is Decimal-based and tolerant within `BALANCE_TOLERANCE` (no float drift)', 'apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_3_detector_is_decimal_tolerant', priority='P1', proof_kind='property'),
-        ac('AC-extraction.120.4', 'AC-C2: on balance mismatch with a detected break, the repair hook is invoked exactly once', 'apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_4_repair_hook_invoked_once_on_mismatch', priority='P1', proof_kind='property'),
-        ac('AC-extraction.120.5', 'AC-C2: a clean/reconciling chain never invokes the repair hook', 'apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_5_repair_hook_not_invoked_on_clean_chain', priority='P1', proof_kind='property'),
-        ac('AC-extraction.120.6', 'AC-C2: when no repair backend is injected, the hook is a safe no-op returning the original payload', 'apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_6_repair_is_safe_noop_without_backend', priority='P1', proof_kind='property'),
-        ac('AC-extraction.120.7', 'AC-C3: the synthetic dropped-row fixture drives the detector to the correct index and triggers the repair hook', 'apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_7_regression_fixture_detects_and_repairs', priority='P1', proof_kind='property'),
-        ac('AC-extraction.120.8', 'AC-C3: the clean-bank dropped-row regression-corpus fixture triggers the chain-break detector + `repair_under_extraction` end-to-end through `ExtractionService._extract_with_balance_retry` with an injected `RegionReExtractor` (recall stays a soft metric)', 'apps/backend/tests/extraction/test_chain_break_repair.py::test_AC13_20_8_corpus_fixture_triggers_repair_end_to_end', priority='P1', proof_kind='property'),
+        ac('AC-extraction.120.1', 'AC-C1: detector pinpoints the exact break index on a crafted chain with a dropped row', 'apps/backend/tests/extraction/test_chain_break_detector.py::test_AC13_20_1_detector_finds_break_index_on_dropped_row', priority='P1', proof_kind='property'),
+        ac('AC-extraction.120.2', 'AC-C1: a clean running-balance chain reports no break', 'apps/backend/tests/extraction/test_chain_break_detector.py::test_AC13_20_2_clean_chain_reports_no_break', priority='P1', proof_kind='property'),
+        ac('AC-extraction.120.3', 'AC-C1: detection is Decimal-based and tolerant within `BALANCE_TOLERANCE` (no float drift)', 'apps/backend/tests/extraction/test_chain_break_detector.py::test_AC13_20_3_detector_is_decimal_tolerant', priority='P1', proof_kind='property'),
         ac('AC-extraction.123.1', 'User deletion is refused with HTTP 409 (actionable message) while the user has a statement in the `PARSING` (in-flight) state; with no in-flight parse the delete still succeeds (204)', 'apps/backend/tests/api/test_users_router.py::test_AC13_23_1_delete_user_with_in_flight_parse_returns_409', proof_kind='property'),
         ac('AC-extraction.123.2', 'Parse-failure lineage write re-checks user existence and skips the FK-violating insert (no `IntegrityError`) when the owning user is gone', 'apps/backend/tests/extraction/test_parse_user_deletion_lifecycle.py::test_AC13_23_2_failed_lineage_skips_when_user_deleted', proof_kind='property'),
         ac('AC-extraction.123.3', 'The failure handler rolls back before reading ORM attributes (cached `statement_id`); the original error is preserved/logged and never masked by `PendingRollbackError`', 'apps/backend/tests/extraction/test_parse_user_deletion_lifecycle.py::test_AC13_23_3_failure_handler_rolls_back_before_reading_orm', proof_kind='property'),
@@ -896,7 +887,6 @@ CONTRACT = PackageContract(
         ac('AC-extraction.2009.7', 'Each LLM-LED gate failure mode emits a distinct structured reason code and a distinct PII-free metric kind (balance vs dedup vs unevaluable), with no institution name or account identifier in the signal. Was EPIC-020 AC20.9.7.', 'apps/backend/tests/llm/test_llm_led_blocking_gate.py::test_AC20_9_7_each_failure_mode_has_distinct_reason_and_metric'),
         ac('AC-extraction.2009.8', 'A db-backed quarantine persists the terminal `rejected` status to the statement row, writing no Layer-2 financial rows, instead of leaving an upload stuck in `parsing`. Was EPIC-020 AC20.9.8.', 'apps/backend/tests/llm/test_llm_led_blocking_gate.py::test_AC20_9_8_quarantined_statement_persists_rejected_not_stuck_parsing'),
         ac('AC-extraction.2502.1', '`approve_statement_workflow` / `reject_statement_workflow` (`src.extraction.extension.statement_workflow`) own the ordered transition -> side-effect -> commit sequence as one unit (approve: transition, auto-post, commit; reject: transition, commit, refresh), and the statements router delegates to these workflow functions directly instead of inlining approve/reject + commit. Was EPIC-025 AC25.2.1.', 'apps/backend/tests/api/test_statement_workflow_service.py::test_statement_workflow_service', priority='P1', proof_kind='property'),
-        ac('AC-extraction.stage1-review.1', 'get_pending_stage1_review returns an empty list for a user with no pending-review statements. Was EPIC-001 AC1.6.2 (migration closeout wave 3, #1663).', 'apps/backend/tests/review/test_statement_validation.py::test_returns_empty_when_none_pending', priority='P1'),
         # ── group 1807: Evidence Graph foundation — nodes, edges, upsert,
         # bounded traversal (was EPIC-018 AC18.7.1-7, migration closeout
         # continuation, #1663 / #1715) ──
@@ -927,13 +917,12 @@ CONTRACT = PackageContract(
         # ── group 1810: Evidence Graph lazy materialization and consistency
         # guardrails (was EPIC-018 AC18.10.1-7, migration closeout
         # continuation, #1663 / #1715) ──
-        ac('AC-extraction.1810.1', 'The Evidence Graph SSOT defines the graph as an audit projection, business tables as source of truth, and a blocker taxonomy for drift states.', 'apps/backend/tests/extraction/test_evidence_graph_materialization.py::test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift', priority='P1'),
+        ac('AC-extraction.1810.1', 'The Evidence Graph SSOT defines the graph as an audit projection, business tables as source of truth, and a blocker taxonomy; materialization returns explicit blockers for missing, unsupported, and cross-user provenance.', 'apps/backend/tests/extraction/test_evidence_graph_materialization.py::test_AC18_10_7_missing_and_cross_user_requests_return_explicit_blockers', priority='P1'),
         ac('AC-extraction.1810.2', 'New source-to-ledger workflows materialize graph nodes and edges in the same database transaction as their owning business facts.', 'apps/backend/tests/extraction/test_evidence_graph_materialization.py::test_AC18_10_2_graph_writes_share_the_business_transaction', priority='P1'),
         ac('AC-extraction.1810.3', 'The lineage API attempts one bounded deterministic materialization pass when an owned anchor or required local path is missing for historical data.', 'apps/backend/tests/api/test_evidence_lineage_router.py::test_AC18_10_3_AC18_10_4_lineage_api_lazily_materializes_historical_journal_line', priority='P1'),
         ac('AC-extraction.1810.4', 'Lazy materialization is idempotent and only uses strong relationships such as owned source IDs, transaction lineage, and journal_line.journal_entry_id; it never infers links from fuzzy amount, date, or description similarity.', 'apps/backend/tests/extraction/test_evidence_graph_materialization.py::test_AC18_10_4_AC18_10_6_lazy_materialization_is_idempotent_and_preserves_accounting_facts'),
-        ac('AC-extraction.1810.5', 'An operator-safe dry-run detector reports missing graph nodes, graph nodes pointing to missing business entities, dangling edges, cross-user edges, incomplete lineage, and ambiguous or unsupported provenance.', 'apps/backend/tests/extraction/test_evidence_graph_materialization.py::test_AC18_10_5_detector_reports_missing_orphan_and_cross_user_drift'),
-        ac('AC-extraction.1810.6', 'The detector and lazy repair never mutate accounting facts, report amounts, ledger balances, or legacy JournalEntry.source_type/source_id values.', 'apps/backend/tests/extraction/test_evidence_graph_materialization.py::test_AC18_10_4_AC18_10_6_lazy_materialization_is_idempotent_and_preserves_accounting_facts'),
-        ac('AC-extraction.1810.7', 'Tests cover request-time lazy repair, repeated-read idempotency, dry-run no-write behavior, cross-user blocking, unknown provenance blockers, dangling/orphan detection, and request-level write caps.', 'apps/backend/tests/extraction/test_evidence_graph_materialization.py::test_AC18_10_7_materialization_caps_and_unknown_sources_return_blockers', priority='P1'),
+        ac('AC-extraction.1810.6', 'Lazy repair never mutates accounting facts, report amounts, ledger balances, or legacy JournalEntry.source_type/source_id values.', 'apps/backend/tests/extraction/test_evidence_graph_materialization.py::test_AC18_10_4_AC18_10_6_lazy_materialization_is_idempotent_and_preserves_accounting_facts'),
+        ac('AC-extraction.1810.7', 'Tests cover request-time lazy repair, repeated-read idempotency, cross-user blocking, unknown provenance blockers, and request-level write caps.', 'apps/backend/tests/extraction/test_evidence_graph_materialization.py::test_AC18_10_7_materialization_caps_and_unknown_sources_return_blockers', priority='P1'),
         # ── group 1831: Evidence Graph typed properties and fail-fast
         # materialization (was EPIC-018 AC18.31.1-2, migration closeout
         # continuation, #1663 / #1715) ──

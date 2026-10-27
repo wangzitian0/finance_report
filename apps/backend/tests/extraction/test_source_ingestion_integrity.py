@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 from src.extraction import DocumentSource
 from src.extraction.base.paged_extraction import merge_paged_extractions
 from src.extraction.base.source_vocabulary import DocumentType, TransactionDirection
+from src.extraction.base.types import ExtractedTransactionRow
 from src.extraction.base.validation import validate_balance_per_currency
 from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload
 from src.extraction.extension.brokerage_statement_payload import _extract_brokerage_payload_from_metadata
@@ -132,42 +133,26 @@ async def _source(db, user_id, *, account=None, currency="SGD"):
 
 
 async def _upsert(db, user_id, document, *, currency="SGD"):
-    return await DeduplicationService().upsert_atomic_transaction(
-        db=db,
+    service = DeduplicationService()
+    txn_date, amount, direction = date(2025, 1, 2), Decimal("10"), TransactionDirection.IN
+    description, balance_after = "Synthetic deposit", Decimal("110")
+    row = ExtractedTransactionRow(
         user_id=user_id,
-        txn_date=date(2025, 1, 2),
-        amount=Decimal("10"),
-        direction=TransactionDirection.IN,
-        description="Synthetic deposit",
+        txn_date=txn_date,
+        amount=amount,
+        direction=direction.value,
+        description=description,
+        reference=None,
         currency=currency,
-        balance_after=Decimal("110"),
-        source_doc_id=document.id,
-        source_doc_type=DocumentType.BANK_STATEMENT,
+        currency_unresolved=False,
+        balance_after=balance_after,
+        occurrence_index=0,
+        dedup_hash=service.calculate_transaction_hash(
+            user_id, txn_date, amount, direction, description, balance_after=balance_after
+        ),
     )
-
-
-async def test_legacy_upsert_preserves_keyword_capture(db, test_user):
-    """AC-extraction.transaction-identity.5: a new keyword cannot consume legacy kwargs."""
-    account = await AccountFactory.create_async(db, user_id=test_user.id, currency="SGD")
-    document, _ = await _source(db, test_user.id, account=account)
-    with pytest.raises(TypeError, match="custody_account_id"):
-        await DeduplicationService().upsert_atomic_transaction(
-            db=db,
-            user_id=test_user.id,
-            txn_date=date(2025, 1, 2),
-            amount=Decimal("10"),
-            direction=TransactionDirection.IN,
-            description="Synthetic deposit",
-            currency="SGD",
-            source_doc_id=document.id,
-            source_doc_type=DocumentType.BANK_STATEMENT,
-            custody_account_id=account.id,
-        )
-    assert (
-        await db.scalar(
-            select(func.count()).select_from(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id)
-        )
-        == 0
+    return await service.upsert_scoped_atomic_transaction(
+        db=db, row=row, source_doc_id=document.id, source_doc_type=DocumentType.BANK_STATEMENT
     )
 
 

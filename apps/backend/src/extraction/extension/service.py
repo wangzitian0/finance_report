@@ -17,7 +17,6 @@ from src.extraction.base.source_balance_check import SourceBalanceVerdict, check
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
 from src.extraction.base.types import DocumentSource, ExtractedTransactionRow
 from src.extraction.base.validation import (
-    HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD,
     bank_currency_balances,
     compute_confidence_score,
     count_within_document_dedup_collapse,
@@ -47,7 +46,6 @@ from src.extraction.extension.brokerage_positions import (
     looks_like_brokerage_payload,
     parse_brokerage_positions,
 )
-from src.extraction.extension.chain_repair import RegionReExtractor, repair_under_extraction
 from src.extraction.extension.currency_resolution import resolve_ingest_currency
 from src.extraction.extension.custody_binding import (
     BankCustodyAllocation,
@@ -101,11 +99,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
         self.vision_model = self.multimodal_model
         self.ocr_model = self.multimodal_model
         self.deduplication_service = DeduplicationService()
-        # Injectable region re-extraction backend for the under-extraction repair
-        # pass (#1140 / AC13.20). ``None`` => the repair hook is a safe no-op: the
-        # deterministic chain-break detector still runs and logs, but no live model
-        # is called. A real LLM-backed backend is wired separately.
-        self.region_reextractor: RegionReExtractor | None = None
 
     async def _extract_csv_source(
         self,
@@ -1072,15 +1065,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _OcrMixin, _BrokerageMixin, _
                     attempts=max_attempts,
                     best_difference=str(best_diff),
                 )
-            # Under-extraction repair pass (#1140 / AC13.20): whole-document
-            # re-extract did not reconcile. Run the deterministic chain-break
-            # detector and, when it pinpoints a dropped-row region, attempt up to
-            # 3 targeted refinement rounds via the injectable backend.
-            # A successful repair replaces ``best`` and establishes high confidence.
-            repair = repair_under_extraction(best, reextractor=self.region_reextractor, max_rounds=3)
-            if repair.repaired and repair.payload.get("confidence_score", 0) < HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD:
-                repair.payload["confidence_score"] = HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
-            return repair.payload
+            return best
         if last_parse is not None:
             # No balance-computable parse, but at least one attempt produced a
             # (structurally-broken) result; return it so parse_document reports the
