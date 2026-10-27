@@ -163,6 +163,29 @@ def test_AC_meta_governance_ratchet_4_frontend_export_denominator() -> None:
         f"Expected >= {MIN_FRONTEND_PRODUCTION_FILES} frontend files, got {fe_count}"
     )
 
+    # Partial scan: every git-tracked production file must be in the census.
+    # git ls-files is an oracle that the census code does not use, so a scan that
+    # skips one directory or one file fails here at any file count.
+    tracked = subprocess.run(
+        ["git", "ls-files", "--", "apps/frontend/src"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    expected = {
+        path
+        for path in tracked
+        if path.endswith((".ts", ".tsx"))
+        and "__tests__" not in path.split("/")
+        and not path.endswith((".test.ts", ".test.tsx"))
+    }
+    assert len(expected) >= MIN_FRONTEND_PRODUCTION_FILES, (
+        f"git ls-files found {len(expected)} production files; the oracle is empty or broken"
+    )
+    missing = sorted(expected - set(census["frontend_assets"]["production_files"]))
+    assert not missing, f"census missed {len(missing)} tracked files: {missing[:5]}"
+
     # Clean check returns 0 findings
     result = {"census": census}
     assert _check_frontend_export_denominator(result, REPO_ROOT) == []

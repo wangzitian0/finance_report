@@ -111,6 +111,7 @@ def collect_governance_census(repo_root: Path) -> dict[str, Any]:
         },
         "frontend_assets": {
             "production_file_count": len(frontend_files),
+            "production_files": frontend_files,
         },
         "ddd_units": {
             "total_count": total_units,
