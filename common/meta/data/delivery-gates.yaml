@@ -65,17 +65,6 @@ gates:
     description: >
       Promote main-CI SHA images to immutable release tags with digest verification.
 
-  - id: report-main-preview
-    workflow: .github/workflows/notify-infra2.yml
-    job: dispatch
-    trigger: workflow_dispatch     # manual on-demand re-trigger of report-branch-main deploy
-    blocking: false
-    image_free: false
-    description: >
-      Notify infra2 to redeploy the report-branch-main preview for the latest main
-      commit SHA. The receiver requires deploy_v2's branch-form `main` resolution to
-      match the exact verified SHA.
-
   - id: production-release
     workflow: .github/workflows/release.yml
     job: deploy

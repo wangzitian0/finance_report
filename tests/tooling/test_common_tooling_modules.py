@@ -100,7 +100,6 @@ def test_AC8_13_56_tools_coverage_component_is_a_governed_source_root():
     assert component.source_subdir == "tools"
     assert component.ci_lcov_path == "coverage/tools.lcov"
     assert "tools/calculate_unified_coverage.py" in component.expected_sources(ROOT)
-    assert "tools/strip_lcov_branches.py" in component.expected_sources(ROOT)
     assert "tools/test_lifecycle.py" in component.expected_sources(ROOT)
 
     # Library implementations live under common: they are measured by the common component.
@@ -109,9 +108,6 @@ def test_AC8_13_56_tools_coverage_component_is_a_governed_source_root():
         "common/testing/coverage/calculate_unified_coverage.py"
         in common.expected_sources(ROOT)
     )
-    assert "common/testing/coverage/strip_lcov_branches.py" in common.expected_sources(
-        ROOT
-    )
 
 
 def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
@@ -119,7 +115,6 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
     build_tool = importlib.import_module("tools.build_unified_lcov")
     calc_tool = importlib.import_module("tools.calculate_unified_coverage")
     merge_tool = importlib.import_module("tools.merge_lcov")
-    strip_tool = importlib.import_module("tools.strip_lcov_branches")
     policy_tool = importlib.import_module("tools.check_coverage_policy")
     metrics_tool = importlib.import_module("tools.check_ci_metrics_contract")
     diff_tool = importlib.import_module("tools.check_diff_coverage")
@@ -137,10 +132,6 @@ def test_AC8_13_56_coverage_tools_delegate_to_common_implementations():
     assert (
         merge_tool.main
         is importlib.import_module("common.testing.coverage.merge_lcov").main
-    )
-    assert (
-        strip_tool.main
-        is importlib.import_module("common.testing.coverage.strip_lcov_branches").main
     )
     assert (
         policy_tool.main
@@ -235,9 +226,6 @@ def test_AC8_13_58_ci_tools_delegate_to_common_implementations():
         "tools.resolve_release_coordinate": "common.runtime.release_coordinate",
         "tools.verify_release_evidence": "common.runtime.release_evidence",
         "tools.verify_release_images": "common.runtime.release_images",
-        "tools.wait_post_merge_train_turn": (
-            "common.runtime.wait_post_merge_train_turn"
-        ),
     }
 
     for tool_module, common_module in command_modules.items():
