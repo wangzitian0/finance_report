@@ -21,6 +21,7 @@ from src.composition import (
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
+    BROKERAGE_IMPORTABLE_STATUSES,
     BankStatementStatus,
     BrokerageImportRejectedError,
     BrokeragePositionImportService,
@@ -38,6 +39,7 @@ from src.extraction import (
     approve_statement_workflow,
     auto_create_posted_entries_for_statement,
     classification_suggestions,
+    clear_brokerage_import_failure,
     confirm_reviewed_statement_envelope,
     current_reviewed_statement_envelope,
     edit_and_approve,
@@ -45,6 +47,7 @@ from src.extraction import (
     is_bank_custody_source,
     lock_statement_classification,
     pending_stage1_review_filter,
+    record_brokerage_import_failure,
     register_statement_source,
     reject_statement_workflow,
     resolve_bank_custody_account,
@@ -724,7 +727,7 @@ async def import_brokerage_statement_positions(
     statement = await _get_statement_or_404(db, statement_id, user_id)
     transactions = await resolve_statement_transactions(db, statement)
 
-    if statement.status not in (BankStatementStatus.PARSED, BankStatementStatus.APPROVED):
+    if statement.status not in BROKERAGE_IMPORTABLE_STATUSES:
         raise_bad_request(_brokerage_import_not_ready_reason(statement, len(transactions)))
 
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
@@ -758,6 +761,8 @@ async def import_brokerage_statement_positions(
         # linked the same way during posting). Only set it when not already linked.
         if statement.account_id is None and import_result.account_id is not None:
             statement.account_id = import_result.account_id
+        # #2648: only a successful import removes the record of an earlier failed import.
+        await clear_brokerage_import_failure(db, statement_id=statement_id, user_id=user_id)
         await db.commit()
     except Exception as exc:
         # #2649: a rejected source (HTTP 422 with a reason) is a warning, not a server fault.
@@ -766,13 +771,32 @@ async def import_brokerage_statement_positions(
             "statement.brokerage_import.failed",
             audit_event="statement.brokerage_import.failed",
             request_id=request_id,
-            statement_id=str(statement.id),
+            statement_id=str(statement_id),
             phase="brokerage_import_failed",
             model_to_use=None,
             error_type=type(exc).__name__,
             safe_error_message=safe_error_message(str(exc)),
         )
         await db.rollback()
+        # #2648: record the failure in a new transaction. A failure of this write is logged and the
+        # original import error is raised.
+        try:
+            await record_brokerage_import_failure(
+                db,
+                statement_id=statement_id,
+                user_id=user_id,
+                request_id=request_id,
+                reason=exc.message if isinstance(exc, BrokerageImportRejectedError) else None,
+            )
+            await db.commit()
+        except Exception as record_exc:  # noqa: BLE001 - the import error below is the answer
+            await db.rollback()
+            logger.warning(
+                "statement.brokerage_import.failure_not_recorded",
+                request_id=request_id,
+                statement_id=str(statement_id),
+                error_type=type(record_exc).__name__,
+            )
         raise
     logger.info(
         "statement.brokerage_import.completed",

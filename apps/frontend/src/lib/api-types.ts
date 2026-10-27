@@ -2067,6 +2067,17 @@ export interface components {
             account_last4: string | null;
             /** Balance Validated */
             balance_validated: boolean | null;
+            /**
+             * Brokerage Import Failed
+             * @description True when the last brokerage positions import of this parsed or approved statement failed (#2648). Only a successful import clears it.
+             * @default false
+             */
+            brokerage_import_failed: boolean;
+            /**
+             * Brokerage Import Failure Reason
+             * @description The reason of the failed import when brokerage_import_failed is true (#2648).
+             */
+            brokerage_import_failure_reason?: string | null;
             /** Closing Balance */
             closing_balance: string | null;
             /** Confidence Score */
@@ -6298,6 +6309,17 @@ export interface components {
             account_last4: string | null;
             /** Balance Validated */
             balance_validated: boolean | null;
+            /**
+             * Brokerage Import Failed
+             * @description True when the last brokerage positions import of this parsed or approved statement failed (#2648). Only a successful import clears it.
+             * @default false
+             */
+            brokerage_import_failed: boolean;
+            /**
+             * Brokerage Import Failure Reason
+             * @description The reason of the failed import when brokerage_import_failed is true (#2648).
+             */
+            brokerage_import_failure_reason?: string | null;
             /** Closing Balance */
             closing_balance: string | null;
             /** Confidence Score */

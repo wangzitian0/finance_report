@@ -225,6 +225,11 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
 
   it("AC-extraction.reviewed-envelope.6 confirms missing source envelope facts before approval", async () => {
     let confirmed = false;
+    // The mocked POST resolves this promise: the test waits for the request, not for a time (#2648 CI).
+    let markPosted: () => void = () => undefined;
+    const posted = new Promise<void>((resolve) => {
+      markPosted = resolve;
+    });
     mockedApi.mockImplementation((path: string, options?: RequestInit) => {
       if (path === "/api/statements/s1/review") {
         if (confirmed) {
@@ -252,6 +257,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
       if (path === "/api/statements/s1/review/envelope") {
         expect(options).toMatchObject({ method: "POST" });
         confirmed = true;
+        markPosted();
         return Promise.resolve({ id: "review-1" });
       }
       return Promise.reject(new Error(`Unexpected path ${path}`));
@@ -267,6 +273,9 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     expect(await screen.findByText("Confirm missing source facts")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
 
+    // The custody accounts load after the review. A change before the option exists keeps the
+    // select empty, the form stays incomplete and the click sends no request (the CI failure).
+    await within(screen.getByLabelText("Custody account")).findByRole("option", { name: "DBS Cash (SGD)" });
     fireEvent.change(screen.getByLabelText("Custody account"), { target: { value: "a1" } });
     fireEvent.change(screen.getByLabelText("Statement currency"), { target: { value: "SGD" } });
     fireEvent.change(screen.getByLabelText("Period start"), { target: { value: "2024-01-01" } });
@@ -274,9 +283,12 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     fireEvent.change(screen.getByLabelText("Opening balance"), { target: { value: "100" } });
     fireEvent.change(screen.getByLabelText("Closing balance"), { target: { value: "120" } });
     fireEvent.change(screen.getByLabelText("Why are these facts confirmed?"), { target: { value: "The CSV has no statement header." } });
-    fireEvent.click(screen.getByRole("button", { name: "Confirm source envelope" }));
+    const confirm = screen.getByRole("button", { name: "Confirm source envelope" });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
 
-    await waitFor(() => expect(mockedApi).toHaveBeenCalledWith("confirm_statement_review_envelope_statements__statement_id__review_envelope_post", expect.objectContaining({ path: { statement_id: "s1" } })));
+    await posted;
+    expect(mockedApi).toHaveBeenCalledWith("confirm_statement_review_envelope_statements__statement_id__review_envelope_post", expect.objectContaining({ path: { statement_id: "s1" } }));
     await waitFor(() => probe.expectDeclaredInvalidated());
     await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
   });
