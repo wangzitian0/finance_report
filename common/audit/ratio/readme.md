@@ -26,9 +26,9 @@ stored percentage are all deterministic and identical across BE and FE.
 
 ## Public vs internal
 
-**Public** (`__all__` == `contract.interface`, 7 symbols): `Ratio`, the constants
+**Public** (`__all__` == `contract.interface`, 6 symbols): `Ratio`, the constants
 `PERCENT_DP` / `PERCENT_ROUNDING`, and the errors (`RatioError`, `FloatNotAllowedError`,
-`InvalidRatioPayloadError`, `UndefinedRatioError`).
+`UndefinedRatioError`).
 
 ## Three ends, one spec
 

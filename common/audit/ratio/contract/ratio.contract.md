@@ -41,5 +41,4 @@
 `vectors.json["shared_api"]` — exported by **both** `apps/backend/src/audit/ratio`
 (`__all__`) and `apps/frontend/src/lib/audit/ratio` (`index.ts`), enforced by
 `tests/tooling/test_ratio_api_parity.py`:
-`Ratio`, `RatioError`, `FloatNotAllowedError`, `InvalidRatioPayloadError`,
-`PERCENT_DP`, `PERCENT_ROUNDING`.
+`Ratio`, `RatioError`, `FloatNotAllowedError`, `PERCENT_DP`, `PERCENT_ROUNDING`.

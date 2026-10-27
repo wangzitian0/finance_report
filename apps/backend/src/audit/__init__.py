@@ -34,7 +34,6 @@ from src.audit.base.trace_repository import TraceDecisionHead, TraceRecordReposi
 from src.audit.data import TraceConfidenceProjection
 from src.audit.extension import (
     TERMINAL_AUDIT_POLICY_VERSION,
-    JsonlTraceRecordStore,
     SqlTraceRecordRepository,
     TerminalAuditVerifier,
     TraceEmitter,
@@ -52,7 +51,6 @@ from src.audit.money import (
     CurrencyBalances,
     ExchangeRate,
     Money,
-    MoneyTolerance,
 )
 from src.audit.money.adopt import balance_check
 from src.audit.money.convert import convert
@@ -100,7 +98,6 @@ __all__ = [
     "to_money",
     "ExchangeRate",
     "Money",
-    "MoneyTolerance",
     "RECONCILIATION_AUTO_ACCEPT_SCORE",
     "RECONCILIATION_REVIEW_SCORE",
     "STATEMENT_BALANCE_TOLERANCE",
@@ -112,7 +109,6 @@ __all__ = [
     "PromotionVerdict",
     "evaluate_promotion",
     "tier_rank",
-    "JsonlTraceRecordStore",
     "TerminalAuditSpec",
     "TerminalAuditVerifier",
     "TraceAuthorityProfile",

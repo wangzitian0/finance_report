@@ -13,7 +13,5 @@ export {
   QUANTITY_ROUNDING,
   quantity_from_wire,
   quantity_to_wire,
-  type QuantityInput,
-  type QuantityWire,
 } from "./quantity";
 export { formatQuantity } from "./format";

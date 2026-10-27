@@ -8,15 +8,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 
 from src.audit import (
-    JsonlTraceRecordStore,
     Ratio,
     TraceAuthorityProfile,
     TraceCausality,
@@ -230,24 +227,6 @@ def test_codec_and_restore_reject_every_integrity_envelope_failure():
         changed[field] = value
         with pytest.raises(TraceRecordValidationError, match=message):
             TraceRecordCodec.decode(json.dumps(changed))
-
-
-def test_jsonl_adapter_handles_empty_invalid_and_collision_paths(tmp_path: Path, monkeypatch):
-    path = tmp_path / "trace.jsonl"
-    store = JsonlTraceRecordStore(path)
-    record = observation()
-    assert store.append(record) == record
-
-    path.write_text("\n  \n{\n", encoding="utf-8")
-    with pytest.raises(TraceRecordValidationError, match="line 3"):
-        store.append(record)
-
-    monkeypatch.setattr(
-        "src.audit.extension.trace_adapters._decode_jsonl",
-        lambda _content: [SimpleNamespace(record_id=record.record_id, content_digest="0" * 64)],
-    )
-    with pytest.raises(TraceRecordValidationError, match="collision"):
-        store.append(record)
 
 
 async def test_emitter_returns_the_complete_ordered_graph():

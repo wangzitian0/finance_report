@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import pytest
 
 from src.audit import (
-    JsonlTraceRecordStore,
     TraceAuthorityProfile,
     TraceJUnitAdapter,
     TraceRecord,
@@ -63,14 +61,8 @@ def test_AC_audit_trace_record_1_schema_and_codec_are_canonical():
         TraceRecordCodec.decode(json.dumps(wrong_score_type))
 
 
-def test_trace_record_jsonl_and_junit_adapters_use_the_canonical_codec(tmp_path: Path):
+def test_trace_record_junit_adapter_uses_the_canonical_codec():
     record = observation()
-    store = JsonlTraceRecordStore(tmp_path / "trace.jsonl")
-
-    assert store.append(record) == record
-    assert store.append(record) == record
-    stored_lines = (tmp_path / "trace.jsonl").read_text(encoding="utf-8").splitlines()
-    assert [TraceRecordCodec.decode(line) for line in stored_lines] == [record]
 
     captured: dict[str, str] = {}
     TraceJUnitAdapter.emit(lambda name, value: captured.__setitem__(name, value), record)
@@ -86,8 +78,6 @@ def test_trace_record_jsonl_and_junit_adapters_use_the_canonical_codec(tmp_path:
     )
     with pytest.raises(TraceRecordValidationError, match="policy replay"):
         TraceRecordCodec.decode(TraceRecordCodec.encode(decision))
-    with pytest.raises(TraceRecordValidationError, match="policy validation"):
-        store.append(decision)
     with pytest.raises(TraceRecordValidationError, match="policy validation"):
         TraceJUnitAdapter.emit(lambda _name, _value: None, decision)
 

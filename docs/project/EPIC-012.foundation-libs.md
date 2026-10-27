@@ -504,18 +504,16 @@ duplicated local `quantize` helper as raw `Decimal` glue.
 > Migrated `AC-audit.32.<s>` ids (homed in the package roadmap):
 > `AC-audit.32.1` · `AC-audit.32.2` · `AC-audit.32.3`
 
-### AC12.33: Composite value operations — Money predicates/sum, Ratio fallback, MoneyTolerance — migrated to the `audit` package ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
+### AC12.33: Composite value operations — Money predicates/sum, Ratio fallback — migrated to the `audit` package ([#1253](https://github.com/wangzitian0/finance_report/issues/1253))
 
 Reusable composite operations on the existing base elements so business code
 stays typed instead of re-deriving them as raw `Decimal` glue: `Money` gains
 `is_zero`/`is_positive`/`is_negative` and a typed `Money.sum`; `Ratio` gains the
-zero-denominator fallbacks `fraction_or_zero`/`fraction_or_none`; and a new
-`MoneyTolerance` owns the absolute+relative amount-matching band (`max(absolute,
-relative*|expected|)`). These are added cross-language-ready (shared conformance
+zero-denominator fallback `fraction_or_zero`. These are added cross-language-ready (shared conformance
 vectors) but adopted on the backend first.
 
 > **The composite value-operations ACs of this group are no longer defined
-> here.** The Money predicates/sum + Ratio fallback + MoneyTolerance rows, the
+> here.** The Money predicates/sum + Ratio fallback rows, the
 > cross-language conformance row, and the adoption row (were AC12.33.* rows
 > .1–.3) migrated into the `audit` package and are owned by, and sourced
 > directly from, [`common/audit/contract.py`](../../common/audit/contract.py)'s

@@ -24,7 +24,6 @@
   "unbound::audit::ExchangeRate",
   "unbound::audit::JournalEntrySourceType",
   "unbound::audit::Money",
-  "unbound::audit::MoneyTolerance",
   "unbound::audit::Quantity",
   "unbound::audit::Ratio",
   "unbound::audit::Unit",

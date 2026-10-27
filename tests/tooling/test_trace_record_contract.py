@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 import json
 import subprocess
 import sys
@@ -31,40 +30,6 @@ from common.testing.ac_proof_execution import PROOF_EXECUTION_STAGES
 from common.testing.ac_proof import ac_proof
 
 REPO = Path(__file__).resolve().parents[2]
-
-
-def _normalized_trace_ast(path: Path) -> str:
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.ImportFrom):
-            continue
-        if node.module and node.module.startswith("common.audit"):
-            node.module = node.module.replace("common.audit", "audit", 1)
-        elif node.module and node.module.startswith("src.audit"):
-            node.module = node.module.replace("src.audit", "audit", 1)
-        elif node.level == 2 and node.module == "ratio":
-            node.module = "audit.ratio"
-            node.level = 0
-    return ast.dump(tree, include_attributes=False)
-
-
-@pytest.mark.parametrize(
-    ("common_path", "backend_path"),
-    (
-        ("base/trace.py", "base/trace.py"),
-        ("base/trace_repository.py", "base/trace_repository.py"),
-        ("extension/trace_codec.py", "extension/trace_codec.py"),
-        ("extension/trace_adapters.py", "extension/trace_adapters.py"),
-    ),
-)
-def test_trace_record_common_and_backend_mirrors_are_semantically_identical(
-    common_path: str,
-    backend_path: str,
-):
-    common = REPO / "common/audit" / common_path
-    backend = REPO / "apps/backend/src/audit" / backend_path
-
-    assert _normalized_trace_ast(common) == _normalized_trace_ast(backend)
 
 
 @ac_proof(

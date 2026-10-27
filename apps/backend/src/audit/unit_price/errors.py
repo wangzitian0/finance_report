@@ -21,7 +21,3 @@ class UnitMismatchError(UnitPriceError, ValueError):
 
 class UndefinedUnitPriceError(UnitPriceError, ZeroDivisionError):
     """A unit price was derived from a zero quantity (``total / 0`` is undefined)."""
-
-
-class InvalidUnitPricePayloadError(UnitPriceError, ValueError):
-    """A serialized unit-price payload is missing or malformed."""

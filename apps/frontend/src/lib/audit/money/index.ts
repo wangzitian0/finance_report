@@ -26,10 +26,6 @@ export {
   exchange_rate_to_wire,
   money_from_wire,
   money_to_wire,
-  type AmountInput,
-  type ExchangeRateWire,
-  type MoneyWire,
-  type RoundingName,
 } from "./money";
 // Display/formatting + Decimal helpers (consolidated from the former lib/currency.ts,
 // #1167). Behaviour-preserving move so the frontend has one money module; display

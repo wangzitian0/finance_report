@@ -12,8 +12,7 @@
     "QuantityError",
     "FloatNotAllowedError",
     "InvalidUnitError",
-    "UnitMismatchError",
-    "InvalidQuantityPayloadError"
+    "UnitMismatchError"
   ],
   "unit_normalize": [
     {"input": " shares ", "expected": "shares"},

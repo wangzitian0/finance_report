@@ -6,7 +6,7 @@
 // are NOT re-exported here (several names collide across domains, e.g.
 // `FloatNotAllowedError` is defined independently in every domain) — reach those
 // via the domain submodule instead: `import { FloatNotAllowedError } from
-// "@/lib/audit/money"`. `MoneyTolerance` / `CurrencyBalance(s)` / `UnitPrice` have
+// "@/lib/audit/money"`. `CurrencyBalance(s)` / `UnitPrice` have
 // no frontend mirror yet (backend-only / P2 follow-up).
 export { Money, Currency, ExchangeRate } from "./money";
 export { Ratio } from "./ratio";

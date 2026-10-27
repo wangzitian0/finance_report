@@ -40,10 +40,9 @@ def _within_combination_tolerance(
     combination site: the per-config band ``max(absolute, percent * |amount|)``
     widened 2x for combinations.
 
-    Kept on raw ``Decimal`` magnitudes (not ``MoneyTolerance``) because callers
-    first derive ``combined`` from lines filtered by the non-null transaction
-    currency. The helper compares magnitudes only and must never receive a
-    cross-currency nominal sum.
+    Kept on raw ``Decimal`` magnitudes because callers first derive ``combined``
+    from lines filtered by the non-null transaction currency. The helper
+    compares magnitudes only and must never receive a cross-currency nominal sum.
     """
     tolerance = max(transaction.amount * config.amount_percent, config.amount_absolute)
     return abs(combined - transaction.amount) <= tolerance * 2

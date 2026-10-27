@@ -1,9 +1,6 @@
 """Language-neutral TraceRecord codecs and cross-package audit inspection."""
 
-from common.audit.extension.trace_adapters import (
-    JsonlTraceRecordStore,
-    TraceJUnitAdapter,
-)
+from common.audit.extension.trace_adapters import TraceJUnitAdapter
 from common.audit.extension.trace_codec import TraceRecordCodec
 from common.audit.extension.cascade_ownership import (
     DEBT_BASELINE_PATH,
@@ -24,7 +21,6 @@ __all__ = [
     "CascadeInventoryError",
     "CascadeOwnership",
     "CascadeSite",
-    "JsonlTraceRecordStore",
     "TraceJUnitAdapter",
     "TraceRecordCodec",
     "discover_cascades",

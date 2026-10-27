@@ -17,8 +17,6 @@ export {
   PERCENT_ROUNDING,
   ratio_from_wire,
   ratio_to_wire,
-  type RatioInput,
-  type RatioWire,
 } from "./ratio";
 export {
   clampPercentWidthFromPercentValue,

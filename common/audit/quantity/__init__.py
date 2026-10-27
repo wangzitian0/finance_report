@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from common.audit.quantity.errors import (
     FloatNotAllowedError,
-    InvalidQuantityPayloadError,
     InvalidUnitError,
     QuantityError,
     UnitMismatchError,
@@ -22,7 +21,6 @@ __all__ = [
     "QUANTITY_QUANTUM",
     "QUANTITY_ROUNDING",
     "FloatNotAllowedError",
-    "InvalidQuantityPayloadError",
     "InvalidUnitError",
     "Quantity",
     "QuantityError",

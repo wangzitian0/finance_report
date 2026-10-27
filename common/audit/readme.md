@@ -10,7 +10,7 @@
 ## What audit governs
 
 - **`audit.base`** — the value language: the cross-runtime Shared-Kernel value
-  types (`Money` / `Currency` / `ExchangeRate` / `MoneyTolerance` /
+  types (`Money` / `Currency` / `ExchangeRate` /
   `CurrencyBalances` / `Ratio` / `Quantity` / `Unit` / `UnitPrice`), plus audit's
   own base value objects (financial invariants, confidence / provenance, and the
   `TraceRecord` assurance boundary).
@@ -149,9 +149,10 @@ by `data/fk-cascade-debt-baseline.json` so that the set can only shrink.
 The four value domains (`money` / `ratio` / `quantity` / `unit_price`) are a
 cross-runtime **Shared Kernel**: a language-neutral standard
 (`common/audit/<domain>/contract/*.contract.md` + `conformance/vectors.json`)
-with a canonical Python reference in `common/audit/<domain>` and per-end mirrors
-in `apps/backend/src/audit/<domain>` and `apps/frontend/src/lib/audit/<domain>`
-(where a frontend mirror exists), kept in lockstep by the conformance vectors —
+with the one editable Python source in `apps/backend/src/audit/<domain>`, a locked
+Python mirror in `common/audit/<domain>` (see the next section) and a TypeScript
+mirror in `apps/frontend/src/lib/audit/<domain>` (where a frontend mirror exists),
+kept in lockstep by the conformance vectors —
 content unchanged by the fold, only relocated. Each domain stays an internal
 **submodule** of `audit` rather than flattening into one namespace: several
 symbol names collide across domains (`FloatNotAllowedError` is defined
@@ -161,6 +162,25 @@ non-colliding value-object classes are re-exported flat at `audit`'s root
 (`from src.audit import Money`) — exactly the `units` this contract declares.
 Backward compatibility of the language-neutral contracts and conformance vectors
 is sacred; only the physical location and Python/TS import path changed.
+
+### Two Python trees, one editable source
+
+`apps/backend/src/audit` is the one editable source of the Python kernel. Edit the
+backend file first, then apply the same change to the file of the same name in
+`common/audit`. The mirror stays because two consumers cannot import the backend
+tree. The backend image copies only `src`, so `src` cannot import `common`. The
+bare-Python CI jobs (the `lint` gates that run through `uv run --with pyyaml`,
+`ac-traceability`, `ac-behavioral-ratchet`, `evidence-bundle`, the staging AI/OCR
+gate and the E2E virtualenv) install neither the backend nor SQLAlchemy, and
+`src/audit/__init__.py` imports SQLAlchemy at import time, so `common.testing`
+cannot import `src.audit`. `common/audit` therefore stays standard-library only.
+
+`tests/tooling/test_audit_mirror_lock.py` (AC-audit.43.1) locks the two trees. It
+compares the AST of every Python module pair, without docstrings and import order
+(ruff line length is 120 in the backend and 88 here). A module that exists in one
+tree only, a backend-only definition inside a twin, and a name that one package
+surface publishes alone appear in an explicit list with the reason. A module in
+neither list fails the test, so a second copy cannot return silently.
 
 The membership rule for what earns a Shared-Kernel value package, the canonical
 structure every one must follow, and the raw-`Decimal` boundary policy are
@@ -339,10 +359,7 @@ logic or presentation, not base packages).
 
 **Composite operations** live *on* the elements, not as new packages: `Money`
 owns `is_zero`/`is_positive`/`is_negative` and `Money.sum`; `Ratio` owns the
-zero-denominator fallbacks `fraction_or_zero`/`fraction_or_none`. `MoneyTolerance`
-(absolute + relative band, inside `money`) is a comparison *primitive*, not a
-policy — which absolute/percent to use stays with the caller (e.g. reconciliation
-config). These let business code stay typed instead of re-deriving
+zero-denominator fallback `fraction_or_zero`. These let business code stay typed instead of re-deriving
 `sum(..., Decimal("0"))`, `amount <= Decimal("0")`, or `abs(a-b) < Decimal("0.01")`
 (EPIC-012 AC12.33, #1253).
 
@@ -387,8 +404,8 @@ called one, so #2698 deleted the 20 functions and their four `wire.py` modules f
 both Python trees. Python code constructs the value type from a storage `Decimal`
 and reads `.amount`, `.value` or `.rate` back when it writes an ORM field. The
 TypeScript twin (`apps/frontend/src/lib/audit`) keeps JSON codecs that serialize
-decimals as strings, never JSON numbers. Both ends still export the
-`Invalid*PayloadError` classes (`shared_api`).
+decimals as strings, never JSON numbers. #2752 deleted the Python
+`Invalid*PayloadError` classes: no code raised them after the codecs went.
 
 The construction-time coercion (`coerce_decimal`) that every value type shares
 lives once in a single `decimal_scalar` module per layer (`common/audit/decimal_scalar.py`
@@ -443,8 +460,8 @@ hotspots require an AC/test update that explains the boundary.
    `…Mismatch`.
 9. **The language-neutral standard** — `contract/<x>.contract.md` (interface) +
    `conformance/vectors.json` (golden cases) + `shared_api` (identifier set).
-10. **Per-end implementations** — Python reference (`common/<x>`), backend runtime
-    (`apps/backend/src/<x>`), frontend (`apps/frontend/src/lib/<x>`) — each
+10. **Per-end implementations** — backend runtime (`apps/backend/src/audit/<x>`, the
+    editable source), its locked Python mirror (`common/audit/<x>`), frontend (`apps/frontend/src/lib/<x>`) — each
     conformance-tested against the **same** vectors.
 11. **Three guards** — no-`float` (the money narrow-waist guard), one conformance
     suite per stack, and identifier-parity (`test_<x>_api_parity.py`).

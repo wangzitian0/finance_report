@@ -7,9 +7,7 @@
 > [`conformance/vectors.json`](./conformance/vectors.json).
 >
 > The **audit** package's value-language core (L1 `infra` in the five-layer
-> map). It imports the `ratio` package
-> (`MoneyTolerance` is a `Ratio`) — a declared, acyclic **same-layer** edge, which
-> the package model allows ("never up, never sideways-cyclic").
+> map).
 
 ## Why
 
@@ -29,13 +27,11 @@ cannot add two different currencies by accident.
 - **`ExchangeRate`** — a directed, validated rate; `convert()` applies it and
   rounds deterministically (`InvalidExchangeRateError` guards bad rates).
 - **`CurrencyBalances` / `CurrencyBalance`** — a multi-currency balance bag.
-- **`MoneyTolerance`** — an absolute+relative band (a `Ratio`) for "are these two
-  amounts close enough" in matching/reconciliation.
 - **`to_money`** — the canonical 2-dp money rounding (backend runtime).
 
 ## Public vs internal
 
-**Public** (`__all__` == `contract.interface`, 16 symbols): the types above +
+**Public** (`__all__` == `contract.interface`, 14 symbols): the types above +
 `MoneyError` and the typed errors + `convert` + `to_money`. Everything
 else (`guard.py`, `rounding.py` internals) is implementation detail.
 

@@ -72,15 +72,6 @@ class Ratio:
             return cls.zero()
 
     @classmethod
-    def fraction_or_none(cls, part: _RatioInput, whole: _RatioInput) -> Ratio | None:
-        """``fraction(part, whole)`` but a zero whole yields ``None``. Both inputs
-        are still validated (a ``float`` ``part`` raises)."""
-        try:
-            return cls.fraction(part, whole)
-        except UndefinedRatioError:
-            return None
-
-    @classmethod
     def zero(cls) -> Ratio:
         return cls(Decimal("0"))
 
