@@ -26,7 +26,7 @@
 | Upload-page workflow notices | `WorkflowNotices` in `apps/frontend/src/components/workflow/WorkflowNotifications.tsx` on `/upload` (the `/events` route redirects here) |
 | Workflow navigation IA | `apps/frontend/src/components/navigation.ts` |
 | Desktop workflow navigation | `Sidebar` in `apps/frontend/src/components/AppNav.tsx` |
-| Mobile workflow navigation | `apps/frontend/src/components/shell/BottomTabBar.tsx` |
+| Mobile workflow navigation | `BottomTabBar` in `apps/frontend/src/components/AppShell.tsx` |
 | Database migrations | `apps/backend/migrations/versions/0021_add_workflow_events.py`, `apps/backend/migrations/versions/0022_harden_workflow_contract.py`, `apps/backend/migrations/versions/0024_add_workflow_sessions.py`, `apps/backend/migrations/versions/0069_workflow_sync_state.py` |
 | Contract tests | `apps/backend/tests/workflow/test_workflow_events.py`, `apps/backend/tests/workflow/test_workflow_sync_gate.py`, `apps/backend/tests/api/test_workflow_router.py`, `apps/frontend/src/__tests__/navigation.test.ts`, `apps/frontend/src/__tests__/sidebarAndTabs.test.tsx`, `apps/frontend/src/__tests__/bottomTabBar.test.tsx`, `apps/frontend/src/__tests__/workflowApi.test.ts`, `apps/frontend/src/__tests__/workflowSurfaces.test.tsx`, `apps/frontend/src/__tests__/homeActionBanner.test.tsx`, `apps/frontend/playwright/workflow-notifications.spec.ts`, `apps/frontend/playwright/workflow-navigation.spec.ts`, `apps/frontend/playwright/report-readiness.spec.ts` |
 

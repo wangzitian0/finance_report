@@ -4,8 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
-import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
-import { ExcludedHoldingsNote } from "@/components/reports/ExcludedHoldingsNote";
+import { AccountLineageDrawer, ExcludedHoldingsNote, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import { SkeletonBlock } from "@/components/ui";
 import { useBaseCurrency } from "@/hooks/useBaseCurrency";
 import { useCurrencies } from "@/hooks/useCurrencies";

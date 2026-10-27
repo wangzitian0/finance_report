@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
 import { BarChart, formatCompactChartValue } from "@/components/charts/BarChart"
-import { PieChart } from "@/components/charts/PieChart"
+import { PieChart } from "@/components/portfolio/PortfolioSummary"
 
 describe("Chart components", () => {
   // AC-reporting.fe-report-surfaces.19

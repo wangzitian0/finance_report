@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
-import { CashFlowPanel } from "@/components/reports/CashFlowPanel";
-import { PackagePanel } from "@/components/reports/PackagePanel";
+import { CashFlowPanel, PackagePanel } from "@/components/reports/CashFlowAndPackagePanels";
 import { ReportDimensionBar, StatementCockpit } from "@/components/reports/ReportShell";
 import { BalanceSheetPanel, IncomeStatementPanel } from "@/components/reports/StatementPanels";
 import { Badge } from "@/components/ui";

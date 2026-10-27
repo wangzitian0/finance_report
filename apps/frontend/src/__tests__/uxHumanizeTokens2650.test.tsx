@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AdvisorBrief } from "@/components/advisor/AdvisorBrief";
-import { PackagePanel } from "@/components/reports/PackagePanel";
+import { PackagePanel } from "@/components/reports/CashFlowAndPackagePanels";
 import { PackageCover } from "@/components/reports/package/shared";
 import { AccountsPanel } from "@/components/settings/SettingsPanels";
 import { apiOperation } from "@/lib/api-client";
