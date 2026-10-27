@@ -23,12 +23,8 @@ FX_DRIFT_THRESHOLD = Decimal("0.10")
 
 def diagnose_equation_imbalance(
     equation_delta: Decimal,
-    has_pending_drafts: bool = False,
-    has_one_sided_entries: bool = False,
-    has_unclassified_accounts: bool = False,
-    is_multicurrency: bool = False,
     unposted_draft_count: int = 0,
-    unclassified_account_count: int = 0,
+    is_multicurrency: bool = False,
 ) -> EquationDiagnosticResult:
     """Diagnose an accounting equation delta into an actionable cause."""
     delta = to_money(equation_delta)
@@ -45,7 +41,7 @@ def diagnose_equation_imbalance(
         )
 
     # 1. Unposted drafts
-    if has_pending_drafts or unposted_draft_count > 0:
+    if unposted_draft_count > 0:
         return EquationDiagnosticResult(
             is_balanced=False,
             equation_delta=delta,
@@ -58,35 +54,7 @@ def diagnose_equation_imbalance(
             details={"pending_count": unposted_draft_count},
         )
 
-    # 2. One-sided or unbalanced manual journal entries
-    if has_one_sided_entries:
-        return EquationDiagnosticResult(
-            is_balanced=False,
-            equation_delta=delta,
-            primary_category=EquationDiagnosticCategory.ONE_SIDED_ENTRY,
-            confidence=0.98,
-            suggested_action=(
-                f"An unbalanced journal entry exists (delta: {delta}). "
-                "Review manual journal vouchers to ensure total debits equal total credits."
-            ),
-            details={"imbalance": str(delta)},
-        )
-
-    # 3. Unclassified accounts lacking accounting classification
-    if has_unclassified_accounts or unclassified_account_count > 0:
-        return EquationDiagnosticResult(
-            is_balanced=False,
-            equation_delta=delta,
-            primary_category=EquationDiagnosticCategory.UNCLASSIFIED_ACCOUNT,
-            confidence=0.90,
-            suggested_action=(
-                "Update Chart of Accounts to ensure all active accounts have a defined "
-                "Asset, Liability, or Equity classification."
-            ),
-            details={"unclassified_count": unclassified_account_count},
-        )
-
-    # 4. Multi-currency rounding drift
+    # 2. Multi-currency rounding drift
     if is_multicurrency and abs_delta <= FX_DRIFT_THRESHOLD:
         return EquationDiagnosticResult(
             is_balanced=False,
@@ -100,7 +68,7 @@ def diagnose_equation_imbalance(
             details={"is_multicurrency": True, "threshold": str(FX_DRIFT_THRESHOLD)},
         )
 
-    # 5. Default/Unknown discrepancy
+    # 3. Default/Unknown discrepancy
     return EquationDiagnosticResult(
         is_balanced=False,
         equation_delta=delta,
@@ -153,7 +121,6 @@ async def run_balance_sheet_diagnostics(
     )
     return diagnose_equation_imbalance(
         equation_delta=cast(Decimal, report.get("equation_delta", Decimal("0.00"))),
-        has_pending_drafts=pending_count > 0,
         unposted_draft_count=pending_count,
         is_multicurrency=currency_count > 1 or bool(report.get("fx_warnings")),
     )
