@@ -21,23 +21,13 @@ from common.meta.extension.governance_detector import detect_governance
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROVIDERS = sorted(REPO_ROOT.glob("common/*/extension/governance_detector.py"))
-OLD_SHAPE = """
-def _source(repo_root, relative): ...
-def _contains(repo_root, relative, fragments): ...
-def detect_governance(*, repo_root):
-    observations = []
-    for guarantee_id, check in _CHECKS:
-        observations.append(check(repo_root))
-    return observations
-"""
-
-
 SEEDED_SHAPE = """
+def _source(repo_root, relative): ...
 async def _contains(repo_root, relative, fragments): ...
 def _peek(path):
     return path.read_text(encoding="utf-8")
 def detect_governance(*, repo_root):
-    return run_detectors("demo", {}, repo_root)
+    return [check(repo_root) for check in _CHECKS]
 """
 
 
@@ -82,14 +72,11 @@ def test_AC_meta_governance_ratchet_10_providers_delegate_to_one_runner() -> Non
     ]
     for path in PROVIDERS:
         assert _shape_violations(path.read_text(encoding="utf-8")) == [], path
-    assert _shape_violations(OLD_SHAPE) == [
+    assert _shape_violations(SEEDED_SHAPE) == [
         "defines _source",
         "defines _contains",
-        "detect_governance is not one run_detectors call",
-    ]
-    assert _shape_violations(SEEDED_SHAPE) == [
-        "defines _contains",
         "_peek calls read_text",
+        "detect_governance is not one run_detectors call",
     ]
 
 
