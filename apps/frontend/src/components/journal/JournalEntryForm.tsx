@@ -5,7 +5,7 @@ import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
-import DetailDialog from "@/components/ui/DetailDialog";
+import { DetailDialog } from "@/components/ui/Overlay";
 import { apiOperation } from "@/lib/api-client";
 import { formatAmount, isAmountZero, parseAmount, sumAmounts } from "@/lib/audit/money";
 import { Account } from "@/lib/types";

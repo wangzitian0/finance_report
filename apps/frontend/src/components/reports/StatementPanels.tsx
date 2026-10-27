@@ -15,7 +15,7 @@ import {
   ReportToolbar,
 } from "@/components/reports/ReportShell";
 import { InfoHint } from "@/components/ui/InfoHint";
-import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
+import { ProvenanceBadge } from "@/components/ui";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import type { ReportFilters } from "@/hooks/useReportFilters";
 import { amountToChartNumber, formatCurrencyLocale, sumAmounts, toDecimal } from "@/lib/audit/money";

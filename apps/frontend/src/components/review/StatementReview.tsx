@@ -1,6 +1,6 @@
 "use client";
 
-import ConfidenceBadge from "@/components/ui/ConfidenceBadge";
+import { ConfidenceBadge, StatusBadge } from "@/components/ui";
 import type {
   BankStatementTransaction,
   BankStatement,
@@ -13,8 +13,7 @@ import Link from "next/link";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatCategoryLabel, getCategoriesForDirection } from "@/lib/categories";
 import { confidenceLabel, statementDisplayTitle } from "@/lib/statusLabels";
-import { StatusBadge } from "@/components/ui";
-import DetailDialog from "@/components/ui/DetailDialog";
+import { DetailDialog } from "@/components/ui/Overlay";
 import { useRouter } from "next/navigation";
 import { MessageSquareText, Check } from "lucide-react";
 import { apiOperation, apiOperationDownload } from "@/lib/api-client";

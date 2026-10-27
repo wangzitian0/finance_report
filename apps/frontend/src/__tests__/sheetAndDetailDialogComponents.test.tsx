@@ -2,8 +2,7 @@ import "@testing-library/jest-dom/vitest"
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
-import Sheet from "@/components/ui/Sheet"
-import DetailDialog from "@/components/ui/DetailDialog"
+import { Sheet, DetailDialog } from "@/components/ui/Overlay"
 
 
 describe("Sheet component", () => {

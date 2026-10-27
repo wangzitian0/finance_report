@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState, useRef } from "react";
-import { useFocusTrap, useBodyScrollLock } from "./hooks";
+import { useFocusTrap, useBodyScrollLock } from "./Overlay";
 
 interface ConfirmDialogInput {
     label?: string;

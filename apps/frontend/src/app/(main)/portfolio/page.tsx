@@ -13,7 +13,7 @@ import GuidedEvidenceForm, { SOURCE_CLASS_CONFIGS, type EvidenceSourceClass } fr
 import { APP_ROUTES } from "@/components/navigation";
 import { PerformanceCard, AllocationChart } from "@/components/portfolio/PortfolioSummary";
 import { LoadingState } from "@/components/ui";
-import Sheet from "@/components/ui/Sheet";
+import { Sheet } from "@/components/ui/Overlay";
 import { HoldingDetail, HoldingsTable, PriceUpdateForm } from "@/components/portfolio/Holdings";
 import { InvestmentPerformanceSchedule } from "@/components/portfolio/InvestmentPerformanceSchedule";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { FileText, PencilLine } from "lucide-react";
 
-import Sheet from "@/components/ui/Sheet";
+import { Sheet } from "@/components/ui/Overlay";
 import StatementUploader from "@/components/statements/StatementUploader";
 import GuidedEvidenceForm from "@/components/assets/GuidedEvidenceForm";
 

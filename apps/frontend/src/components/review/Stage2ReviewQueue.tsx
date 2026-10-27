@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 
-import DetailDialog from "@/components/ui/DetailDialog";
+import { DetailDialog } from "@/components/ui/Overlay";
 import { InfoHint } from "@/components/ui/InfoHint";
 import { useToast } from "@/components/ui/Toast";
 import { apiOperation } from "@/lib/api-client";

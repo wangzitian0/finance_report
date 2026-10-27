@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 
-import { useBodyScrollLock } from "@/components/ui/hooks";
+import { useBodyScrollLock } from "@/components/ui/Overlay";
 
 afterEach(() => {
     document.body.style.overflow = "";
