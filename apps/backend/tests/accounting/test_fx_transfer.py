@@ -263,11 +263,10 @@ def test_AC4_same_day_round_trip_nets_zero_pnl_minus_fee(ac_evidence):
     issue="#1123",
 )
 def test_AC4_revaluation_pnl_routed_through_fx_revaluation_source_type(ac_evidence):
-    """AC-reconciliation.fx-transfer.7: AC4.14.7: FX revaluation P&L is routed through the fx_revaluation source type."""
+    """AC-reconciliation.fx-transfer.7: AC4.14.7: an unchanged-rate conversion yields no P&L; the fx_revaluation source type stays in the vocabulary."""
     # The conversion event itself yields no P&L when the rate is unchanged.
     assert round_trip_realized_pnl(Decimal("1000.00"), rate_out=_MARKET_RATE, rate_back=_MARKET_RATE) == Decimal("0.00")
-    # The module routes any rate-move gain/loss through fx_revaluation, never a
-    # conversion-event income/expense line.
+    # The vocabulary keeps the fx_revaluation source type for stored rows (#2774).
     assert REVALUATION_SOURCE_TYPE is JournalEntrySourceType.FX_REVALUATION
     assert REVALUATION_SOURCE_TYPE.value == "fx_revaluation"
     ac_evidence(

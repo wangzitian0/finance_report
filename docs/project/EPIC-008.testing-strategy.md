@@ -247,7 +247,8 @@ job inventories or scenario counts into this EPIC.
 > ([`common/extraction/contract.py`](../../common/extraction/contract.py));
 > the remaining rows (were AC8.12.* rows .1/.2/.3) are homed in the `ledger`
 > package roadmap as `AC-ledger.fxrevaluation.1-3` (migration closeout
-> continuation, #1663 / #1707).
+> continuation, #1663 / #1707); row .2 (the flush error of the revaluation
+> booking path) was removed with that path in #2774.
 
 ### AC8.13: Tier 3 Browser E2E — Full Statement Journey
 

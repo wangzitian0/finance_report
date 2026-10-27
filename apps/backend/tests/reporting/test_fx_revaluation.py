@@ -1,28 +1,20 @@
-"""Tests for FX Revaluation Service infrastructure."""
+"""Tests for the unrealized FX calculation (read-only; no revaluation entry is booked)."""
 
 from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
-from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.ledger.extension.fx_revaluation import (
-    AccountRevaluation,
     RevaluationError,
     calculate_account_balance_in_currency,
     calculate_unrealized_fx_for_account,
     calculate_unrealized_fx_gains,
-    create_revaluation_entry,
     get_foreign_currency_accounts,
-    get_or_create_fx_gain_loss_account,
-    get_revaluation_entries_filter,
-    is_revaluation_entry,
-    run_period_end_revaluation,
 )
 from src.pricing import PricingError
 from src.pricing.orm.market_data import FxRate
@@ -116,22 +108,6 @@ class TestGetForeignCurrencyAccounts:
         assert all(a.type in (AccountType.ASSET, AccountType.LIABILITY) for a in accounts)
 
 
-class TestGetOrCreateFxGainLossAccount:
-    async def test_creates_account_if_not_exists(self, db: AsyncSession, test_user_id):
-        account = await get_or_create_fx_gain_loss_account(db, test_user_id)
-
-        assert account is not None
-        assert account.type == AccountType.EQUITY
-        assert account.code == "SYS-FX-REVAL"
-        assert account.currency == "SGD"
-
-    async def test_returns_existing_account(self, db: AsyncSession, test_user_id):
-        account1 = await get_or_create_fx_gain_loss_account(db, test_user_id)
-        account2 = await get_or_create_fx_gain_loss_account(db, test_user_id)
-
-        assert account1.id == account2.id
-
-
 class TestCalculateUnrealizedFxGains:
     async def test_returns_empty_for_no_foreign_accounts(self, db: AsyncSession, test_user_id, sgd_asset_account):
         result = await calculate_unrealized_fx_gains(db, test_user_id, date(2025, 1, 31))
@@ -179,205 +155,6 @@ class TestCalculateUnrealizedFxGains:
         assert result.base_currency == "SGD"
         assert len(result.accounts_revalued) == 1
         assert result.accounts_revalued[0].account_id == usd_asset_account.id
-
-
-class TestIsRevaluationEntry:
-    def test_identifies_revaluation_entry(self):
-        entry = JournalEntry(
-            user_id=uuid4(),
-            entry_date=date.today(),
-            memo="FX Revaluation",
-            source_type=JournalEntrySourceType.FX_REVALUATION,
-            status=JournalEntryStatus.DRAFT,
-        )
-
-        assert is_revaluation_entry(entry) is True
-
-    def test_identifies_non_revaluation_entry(self):
-        entry = JournalEntry(
-            user_id=uuid4(),
-            entry_date=date.today(),
-            memo="Regular Entry",
-            source_type=JournalEntrySourceType.MANUAL,
-            status=JournalEntryStatus.DRAFT,
-        )
-
-        assert is_revaluation_entry(entry) is False
-
-
-class TestCreateRevaluationEntry:
-    async def test_creates_balanced_entry(self, db: AsyncSession, test_user_id, usd_asset_account):
-        fx_account = await get_or_create_fx_gain_loss_account(db, test_user_id)
-
-        revaluations = [
-            AccountRevaluation(
-                account_id=usd_asset_account.id,
-                account_name=usd_asset_account.name,
-                account_currency="USD",
-                original_balance=Decimal("1000"),
-                original_balance_base=Decimal("1300"),
-                revalued_balance_base=Decimal("1350"),
-                unrealized_gain_loss=Decimal("50"),
-                fx_rate_used=Decimal("1.35"),
-            )
-        ]
-
-        entry = await create_revaluation_entry(
-            db=db,
-            user_id=test_user_id,
-            revaluation_date=date(2025, 1, 31),
-            revaluations=revaluations,
-            fx_account=fx_account,
-            auto_post=False,
-        )
-
-        assert entry is not None
-        assert entry.source_type == JournalEntrySourceType.FX_REVALUATION
-        assert len(entry.lines) == 2
-
-        total_debit = sum(line.amount for line in entry.lines if line.direction == Direction.DEBIT)
-        total_credit = sum(line.amount for line in entry.lines if line.direction == Direction.CREDIT)
-        assert total_debit == total_credit
-
-    async def test_returns_none_for_zero_adjustment(self, db: AsyncSession, test_user_id, usd_asset_account):
-        fx_account = await get_or_create_fx_gain_loss_account(db, test_user_id)
-
-        revaluations = [
-            AccountRevaluation(
-                account_id=usd_asset_account.id,
-                account_name=usd_asset_account.name,
-                account_currency="USD",
-                original_balance=Decimal("1000"),
-                original_balance_base=Decimal("1350"),
-                revalued_balance_base=Decimal("1350"),
-                unrealized_gain_loss=Decimal("0"),
-                fx_rate_used=Decimal("1.35"),
-            )
-        ]
-
-        entry = await create_revaluation_entry(
-            db=db,
-            user_id=test_user_id,
-            revaluation_date=date(2025, 1, 31),
-            revaluations=revaluations,
-            fx_account=fx_account,
-        )
-
-        assert entry is None
-
-    async def test_creates_entry_for_loss(self, db: AsyncSession, test_user_id, usd_asset_account):
-        """Test creating revaluation entry for a loss (negative adjustment)."""
-        fx_account = await get_or_create_fx_gain_loss_account(db, test_user_id)
-
-        revaluations = [
-            AccountRevaluation(
-                account_id=usd_asset_account.id,
-                account_name=usd_asset_account.name,
-                account_currency="USD",
-                original_balance=Decimal("1000"),
-                original_balance_base=Decimal("1350"),
-                revalued_balance_base=Decimal("1300"),
-                unrealized_gain_loss=Decimal("-50"),  # Loss
-                fx_rate_used=Decimal("1.30"),
-            )
-        ]
-
-        entry = await create_revaluation_entry(
-            db=db,
-            user_id=test_user_id,
-            revaluation_date=date(2025, 1, 31),
-            revaluations=revaluations,
-            fx_account=fx_account,
-        )
-
-        assert entry is not None
-        assert len(entry.lines) == 2
-
-        # For a loss: asset is credited (reduced), FX account is debited
-        fx_line = next(line for line in entry.lines if line.account_id == fx_account.id)
-        assert fx_line.direction == Direction.DEBIT
-        assert fx_line.amount == Decimal("50")
-
-    async def test_creates_posted_entry_with_auto_post(self, db: AsyncSession, test_user_id, usd_asset_account):
-        """Test that auto_post=True creates a POSTED entry."""
-        fx_account = await get_or_create_fx_gain_loss_account(db, test_user_id)
-
-        revaluations = [
-            AccountRevaluation(
-                account_id=usd_asset_account.id,
-                account_name=usd_asset_account.name,
-                account_currency="USD",
-                original_balance=Decimal("1000"),
-                original_balance_base=Decimal("1300"),
-                revalued_balance_base=Decimal("1350"),
-                unrealized_gain_loss=Decimal("50"),
-                fx_rate_used=Decimal("1.35"),
-            )
-        ]
-
-        entry = await create_revaluation_entry(
-            db=db,
-            user_id=test_user_id,
-            revaluation_date=date(2025, 1, 31),
-            revaluations=revaluations,
-            fx_account=fx_account,
-            auto_post=True,
-        )
-
-        assert entry is not None
-        assert entry.status == JournalEntryStatus.POSTED
-
-    async def test_skips_small_adjustments_in_multi_account(self, db: AsyncSession, test_user_id, usd_asset_account):
-        """Test that small adjustments per account are skipped."""
-        fx_account = await get_or_create_fx_gain_loss_account(db, test_user_id)
-
-        # Create a second USD account
-        usd_account_2 = Account(
-            user_id=test_user_id,
-            name="USD Checking",
-            code="ASSET-USD-002",
-            type=AccountType.ASSET,
-            currency="USD",
-            is_active=True,
-        )
-        db.add(usd_account_2)
-        await db.commit()
-        await db.refresh(usd_account_2)
-
-        revaluations = [
-            AccountRevaluation(
-                account_id=usd_asset_account.id,
-                account_name=usd_asset_account.name,
-                account_currency="USD",
-                original_balance=Decimal("1000"),
-                original_balance_base=Decimal("1300"),
-                revalued_balance_base=Decimal("1350"),
-                unrealized_gain_loss=Decimal("50"),
-                fx_rate_used=Decimal("1.35"),
-            ),
-            AccountRevaluation(
-                account_id=usd_account_2.id,
-                account_name=usd_account_2.name,
-                account_currency="USD",
-                original_balance=Decimal("1"),
-                original_balance_base=Decimal("1.30"),
-                revalued_balance_base=Decimal("1.30"),
-                unrealized_gain_loss=Decimal("0.001"),  # Too small, should be skipped
-                fx_rate_used=Decimal("1.30"),
-            ),
-        ]
-
-        entry = await create_revaluation_entry(
-            db=db,
-            user_id=test_user_id,
-            revaluation_date=date(2025, 1, 31),
-            revaluations=revaluations,
-            fx_account=fx_account,
-        )
-
-        assert entry is not None
-        # Only 2 lines: one for the significant account + one for FX offset
-        assert len(entry.lines) == 2
 
 
 class TestCalculateUnrealizedFxForAccount:
@@ -622,103 +399,6 @@ class TestCalculateUnrealizedFxForAccount:
         assert result.unrealized_gain_loss == Decimal("50")
 
 
-class TestRunPeriodEndRevaluation:
-    async def test_returns_empty_result_for_no_foreign_accounts(
-        self, db: AsyncSession, test_user_id, sgd_asset_account
-    ):
-        """No foreign currency accounts should return empty result."""
-        result = await run_period_end_revaluation(db, test_user_id, date(2025, 1, 31))
-
-        assert result.accounts_revalued == []
-        assert result.journal_entry_id is None
-
-    async def test_creates_entry_for_foreign_accounts_with_balance(
-        self, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account, fx_rate_usd_sgd
-    ):
-        """Foreign currency accounts with balance should create revaluation entry."""
-        # Create entry to give USD account a balance
-        entry = JournalEntry(
-            user_id=test_user_id,
-            entry_date=date(2025, 1, 15),
-            memo="USD deposit",
-            source_type=JournalEntrySourceType.MANUAL,
-            status=JournalEntryStatus.POSTED,
-        )
-        db.add(entry)
-        await db.flush()
-
-        lines = [
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=usd_asset_account.id,
-                direction=Direction.DEBIT,
-                amount=Decimal("1000"),
-                currency="USD",
-                fx_rate=Decimal("1.30"),
-            ),
-            JournalLine(
-                journal_entry_id=entry.id,
-                account_id=sgd_asset_account.id,
-                direction=Direction.CREDIT,
-                amount=Decimal("1300"),
-                currency="SGD",
-                fx_rate=Decimal("1"),
-            ),
-        ]
-        db.add_all(lines)
-        await db.commit()
-
-        result = await run_period_end_revaluation(db, test_user_id, date(2025, 1, 31))
-
-        # Should have accounts revalued (even if gain is 0 due to placeholder logic)
-        assert result.revaluation_date == date(2025, 1, 31)
-        assert result.base_currency == "SGD"
-        assert len(result.accounts_revalued) == 1
-        # Journal entry may or may not be created depending on whether there's a material adjustment
-
-    async def test_runs_with_auto_post(self, db: AsyncSession, test_user_id, sgd_asset_account):
-        """Test run_period_end_revaluation with auto_post flag."""
-        result = await run_period_end_revaluation(db, test_user_id, date(2025, 1, 31), auto_post=True)
-
-        # No foreign accounts, so no entry created
-        assert result.journal_entry_id is None
-
-
-class TestGetRevaluationEntriesFilter:
-    async def test_filter_returns_only_revaluation_entries(self, db: AsyncSession, test_user_id):
-        """Filter should select only FX_REVALUATION entries."""
-        # Create a manual entry
-        manual_entry = JournalEntry(
-            user_id=test_user_id,
-            entry_date=date(2025, 1, 15),
-            memo="Manual entry",
-            source_type=JournalEntrySourceType.MANUAL,
-            status=JournalEntryStatus.DRAFT,
-        )
-        db.add(manual_entry)
-
-        # Create a revaluation entry
-        reval_entry = JournalEntry(
-            user_id=test_user_id,
-            entry_date=date(2025, 1, 31),
-            memo="FX Revaluation",
-            source_type=JournalEntrySourceType.FX_REVALUATION,
-            status=JournalEntryStatus.DRAFT,
-        )
-        db.add(reval_entry)
-        await db.commit()
-
-        # Query using the filter
-        filter_clause = get_revaluation_entries_filter()
-        stmt = select(JournalEntry).where(filter_clause)
-        result = await db.execute(stmt)
-        entries = list(result.scalars().all())
-
-        assert len(entries) == 1
-        assert entries[0].source_type == JournalEntrySourceType.FX_REVALUATION
-        assert entries[0].memo == "FX Revaluation"
-
-
 class TestCalculateAccountBalanceInCurrency:
     async def test_returns_balance_for_account_with_entries(
         self, db: AsyncSession, test_user_id, usd_asset_account, sgd_asset_account
@@ -834,21 +514,6 @@ class TestCalculateAccountBalanceInCurrencyLiability:
         balance = await calculate_account_balance_in_currency(db, liability_account)
         # net_balance = debit - credit = 200 - 500 = -300; liability => return -(-300) = 300
         assert balance == Decimal("300")
-
-
-class TestGetOrCreateFxGainLossAccountFlushError:
-    """Test SQLAlchemyError during flush raises RevaluationError (lines 261-262)."""
-
-    async def test_flush_error_raises_revaluation_error(self, db: AsyncSession, test_user_id):
-        """AC-ledger.fxrevaluation.2: AC8.12.2 – SQLAlchemyError on flush is wrapped in RevaluationError."""
-        from unittest.mock import AsyncMock, patch
-
-        from sqlalchemy.exc import SQLAlchemyError
-
-        with patch.object(db, "flush", new_callable=AsyncMock) as mock_flush:
-            mock_flush.side_effect = SQLAlchemyError("constraint violation")
-            with pytest.raises(RevaluationError, match="Failed to create FX gain/loss account"):
-                await get_or_create_fx_gain_loss_account(db, test_user_id)
 
 
 class TestCalculateUnrealizedFxGainsNoneFiltering:

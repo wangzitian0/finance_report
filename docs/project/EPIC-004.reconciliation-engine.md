@@ -343,8 +343,8 @@ slice adds:
 - net-worth classification (`classify_internal_transfer`) so a matched internal
   transfer is net-zero — the transfer-in is not income and the transfer-out is not
   expense; net worth changes only by the fee (**AC3**);
-- FX gain/loss attribution to revaluation over time via the existing
-  `fx_revaluation` journal source type, so a same-day round-trip conversion nets
+- FX gain/loss attribution to revaluation over time (reporting derives it from the
+  ledger; the `fx_revaluation` journal source type stays for stored rows), so a same-day round-trip conversion nets
   ~zero realized P&L (minus fee/spread), the rate move being a holding-period
   revaluation rather than a conversion-event gain (**AC4**);
 - live wiring of the classification into the reporting net-income / income-statement

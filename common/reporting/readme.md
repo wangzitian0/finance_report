@@ -714,8 +714,10 @@ event** (#1123 AC4). A same-day round-trip conversion A→B→A nets ~zero
 realized P&L (minus fee/spread) because the market rate hasn't moved
 (`round_trip_realized_pnl == -fee`); any later divergence between the
 recorded conversion and a subsequent valuation is a holding-period
-revaluation routed through `FX_REVALUATION`, never booked as a
-conversion-event income/expense line — proven live through
+revaluation that reporting derives from the ledger (`unrealized_fx_gain_loss`,
+`cta_adjustment`), never booked as a conversion-event income/expense line.
+No job books an `FX_REVALUATION` entry (#2774); the source type stays in the
+vocabulary for rows a database already holds — proven live through
 `reporting/test_fx_ledger_autodiscovery_e2e.py::test_AC4_same_day_round_trip_nets_zero_pnl_through_live_report`.
 
 ### Design constraints
