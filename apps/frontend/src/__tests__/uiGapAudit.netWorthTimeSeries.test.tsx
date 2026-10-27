@@ -4,7 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { NetWorthTimeSeriesChart } from "@/components/charts/NetWorthTimeSeriesChart";
+import { NetWorthTimeSeriesChart } from "@/components/reports/StatementPanels";
 import { apiOperation } from "@/lib/api-client";
 import type { NetWorthTimeSeriesResponse } from "@/lib/types";
 

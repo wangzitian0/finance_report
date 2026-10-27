@@ -5,7 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from common.meta.extension.governance_census import verify_governance_ratchet
+from common.meta.extension.governance_census import (
+    MIN_FRONTEND_PRODUCTION_FILES,
+    verify_governance_ratchet,
+)
 
 
 def _check_app_ownership(result: dict[str, Any], repo_root: Path) -> list[str]:
@@ -52,8 +55,10 @@ def _check_frontend_export_denominator(
 ) -> list[str]:
     census = result.get("census", {})
     count = census.get("frontend_assets", {}).get("production_file_count", 0)
-    if count < 100:
-        return [f"frontend asset denominator is below threshold: {count} < 100"]
+    if count < MIN_FRONTEND_PRODUCTION_FILES:
+        return [
+            f"frontend asset denominator is below threshold: {count} < {MIN_FRONTEND_PRODUCTION_FILES}"
+        ]
     return []
 
 

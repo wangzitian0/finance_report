@@ -5,7 +5,7 @@ import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery } from "@tanst
 
 import { SankeyChart } from "@/components/charts/SankeyChart";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
-import { ExportCsvButton, FxWarningBanner, ReportPageShell, ReportToolbar } from "@/components/reports/ReportPageShell";
+import { ExportCsvButton, FxWarningBanner, ReportPageShell, ReportToolbar } from "@/components/reports/ReportShell";
 import { apiOperation } from "@/lib/api-client";
 import { compareAmounts, formatCurrencyLocale, toDecimal } from "@/lib/audit/money";
 import { formatDateDisplay } from "@/lib/date";

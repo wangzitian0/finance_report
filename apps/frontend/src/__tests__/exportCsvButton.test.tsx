@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ExportCsvButton } from "@/components/reports/ReportPageShell";
+import { ExportCsvButton } from "@/components/reports/ReportShell";
 import { apiOperationDownload } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({
