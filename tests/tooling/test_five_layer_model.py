@@ -156,6 +156,6 @@ def test_layer_vocabulary_imports_without_pydantic(module: str) -> None:
 def test_readme_links_the_generated_five_layer_topology() -> None:
     """AC-meta.layer.5: topology is rendered from the canonical layer map."""
     text = (REPO / "common/meta/readme.md").read_text(encoding="utf-8")
-    assert "tools/report_ddd_dependencies.py" in text
+    assert "dependency_index" in text
     assert "PACKAGE_LAYER" in text
     assert "```mermaid" not in text

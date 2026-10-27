@@ -81,13 +81,11 @@ cohesive family — the value types — can share one layer and depend on each
 other acyclically.
 
 The exact active package placement, declared edges, and reverse/transitive
-consumer impact are **not** copied into this document. They are rendered from
+consumer impact are **not** copied into this document. They are computed from
 the canonical [`PACKAGE_LAYER` map](./base/layering.py) and each discovered
-contract by [`tools/report_ddd_dependencies.py`](../../tools/report_ddd_dependencies.py).
-CI publishes that Markdown report in its run summary; locally, run
-`python tools/report_ddd_dependencies.py --base-ref origin/main` to inspect the
-same current topology. This prevents a prose diagram from listing retired
-packages or omitting a newly active one.
+contract by `dependency_index(contracts)` (see
+[Dependency graph](#dependency-graph-is-a-computed-projection)). This prevents
+a prose diagram from listing retired packages or omitting a newly active one.
 
 Two edge *phases* keep the picture acyclic:
 
@@ -154,102 +152,39 @@ Because governance reads the contract, adding a package adds no central index to
 edit: a new package is governed when `common/<pkg>/contract.py` exports a
 module-level `CONTRACT = PackageContract(...)`.
 
-### Dependency impact is a generated review plane
+### Dependency graph is a computed projection
 
 `PackageContract.depends_on` and `PackageContract.interface` remain the authored
 facts. `common/meta/base/dependency_graph.py` validates those facts as one typed
 acyclic graph and computes direct plus transitive consumers; the pure
 `dependency_index` projection exposes that graph without filesystem I/O. There
-is no authored dependency table alongside the contracts.
+is no authored dependency table alongside the contracts. Duplicate, unknown,
+self and cyclic edges fail `check_package_contract`.
 
-`common/meta/extension/dependency_report.py` owns the impure review edge. It
-reads only the dependency-relevant contract literals and public definitions via
-AST, archives the chosen Git base ref into an isolated temporary tree, and
-builds that historical snapshot in a clean `python -I` subprocess before
-comparing it with the working tree. A historical contract is therefore never
-reinterpreted through HEAD's `PackageContract` model. The JSON report includes
-added/removed typed edges, changed public signatures, and the union of base/head
-direct and transitive consumers. Public-boundary inspection starts at each
-implementation root and follows eager, chained, wildcard, and the repository's
-bounded lazy `__getattr__` export forms plus local assignment aliases to the
-owning definition. Its signature retains that binding path plus overload
-declarations, annotated values,
-decorators, generic type parameters, local and repository-imported named defaults,
-annotation aliases (including `TYPE_CHECKING` declarations), class construction,
-repository-owned inherited APIs, public protocol dunder methods, and other public
-class members. Referenced local/imported function/class definitions, class-scope
-values, and decorator bindings are fingerprinted as well. Bare and module-qualified
-project bindings use the same resolver; relative lazy imports retain their explicit
-level. Value bindings are fingerprinted at their assignment/import time, so later
-rebinding cannot rewrite a captured default or alias. Wildcard binding obeys the
-target's `__all__`; missing
-explicit or lazy targets and ambiguous lazy control flow fail closed. Every declared public
-symbol gets exactly one snapshot record, and the repository snapshot is ratcheted
-to zero unresolved dynamic exports; a declaration with no statically visible
-binding is exposed as `dynamic-export` rather than silently matched to an
-unrelated same-named definition. Unreadable refs, empty discovery,
-duplicate/unknown/self edges, and cycles fail closed.
+A public change is judged by the gate that fails on the changed input, not by a
+second base-vs-HEAD comparison (#2758). A removed or re-signed public symbol
+fails the consumer imports (`check_package_contract` rule (e) and test
+collection) and the consumer tests; an undeclared cross-package import fails
+rule (c). A removed or unknown OpenAPI operation fails `tsc`, because
+`apiOperation` takes only a generated operation id, and the committed
+`openapi.json` and `api-types.ts` must equal the backend output.
 
-Direct attribute reads on a statically resolved, zero-argument Pydantic
-`BaseSettings`/`BaseModel` instance project the accessed primitive field rather
-than the entire configuration class (AC-meta.public-boundary.6, #2012). The
-projection retains field defaults and their captured dependencies, model config,
-and bounded field/model validator bodies plus the fields those validators read.
-This prevents an unrelated model default from masquerading as an identity or
-ledger API migration. Whole-object use, unknown fields/bases, constructor
-arguments, factories, complex accessed annotations, computed attributes, custom
-hooks, and ambiguous validators keep the conservative whole-object fingerprint.
-In particular, validators accepting validation-info or dynamic access are not
-assumed independent. Actual accessed-field/dependency changes still enter the
-same breaking-consumer gate; there is no settings exemption or synthetic proof.
+Two rules have no other gate, so they stay as small local checks:
 
-Literal string enums referenced by defaults may move within the same owning
-package without a breaking-change verdict (AC-meta.public-boundary.7). Only
-fully expanded `str, Enum` declarations with literal members qualify; owner,
-class name, member values and the selected default remain part of comparison.
-Methods, unresolved definitions, other classes and quoted text keep conservative
-fingerprints. The raw report still records the original and new binding paths.
+- A declared `CommandBoundary` resolves to exactly one definition in the package
+  implementation, and that definition has no dict annotation, no
+  `Callable[..., X]`, no `Any`/`dict`/`list` return and no unannotated
+  `currency` or `date` parameter (`check_package_contract` rule (g),
+  AC-meta.public-boundary.2).
+- The frontend lint rule `no-restricted-syntax` in `apps/frontend/.eslintrc.json`
+  rejects any import or call of `apiFetch`, `apiStream`, `apiUpload`,
+  `apiDownload` or `apiDelete`. Types cannot catch a new untyped transport that
+  someone adds to `lib/api.ts` (AC-meta.public-boundary.3).
 
-Structural additions preserve existing call bindings (AC-meta.public-boundary.8).
-An unchanged dataclass may append defaulted fields; an existing function or method
-may add optional keyword-only parameters while preserving every existing
-parameter, default, annotation, return type and decorator. A class may add new
-public methods without replacing members. Positional additions, required fields,
-constructor changes and inherited-member ambiguity remain conservative. In
-particular, a new named keyword beside existing `**kwargs` changes capture and
-requires consumer proof. Delimiters or annotation-like text inside quoted
-defaults never count as structural additions or removable metadata. This is a
-bounded signature comparison, not a claim about arbitrary implementation changes.
-Callable fingerprints must also compile: duplicate parameter names are malformed
-input and cannot qualify as compatible additions.
-
-The report is generated CI evidence, not an authored SSOT:
-`.github/workflows/ci.yml` appends its Markdown view to `GITHUB_STEP_SUMMARY`
-and uploads exact governance observations for the package control-plane join,
-while contracts and OpenAPI remain the authored sources. The existing
-dependency-impact step exits non-zero on an incompatible boundary; it is not a
-second required gate. Run the same enforcement locally with:
-
-```bash
-apps/backend/.venv/bin/python tools/report_ddd_dependencies.py \
-  --base-ref origin/main \
-  --fail-on-breaking \
-  --json-out /tmp/ddd-dependencies.json \
-  --governance-observations-out /tmp/ddd-governance-observations.json \
-  --markdown-out /tmp/ddd-dependencies.md
-```
-
-The same snapshot contains declared compile/runtime/context/event relations,
-resolved Python public signatures and explicit financial command boundaries,
-L4 OpenAPI operations, and production frontend operation consumers. The
-generated TypeScript operation table binds each consumer to OpenAPI's method,
-path, parameters, request body, success response, and declared error envelope.
-JSON, stream, multipart upload, and binary download all use that operation
-identity. Deprecated arbitrary-URL helpers remain only as compatibility seams
-for older tests; any production call to them is a blocking finding. OpenAPI
-removals or changes select their frontend source consumers alongside Python's
-direct/transitive package consumers, and every selected consumer requires an
-exact passing proof.
+The governance census counts OpenAPI operations and their frontend consumers
+(`classify_operation_usage` in `extension/governance_census.py`); the generated
+TypeScript operation table binds each consumer to OpenAPI's method, path,
+parameters, request body, success response, and declared error envelope.
 
 That additive discovery has a blind spot: a directory with no discoverable
 `CONTRACT = PackageContract(...)` export is invisible to

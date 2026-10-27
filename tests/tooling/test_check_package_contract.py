@@ -37,6 +37,7 @@ from common.meta.package_contract import (
     TIER_DEFAULT_PROOF_KIND,
     TIER_VALID_PROOF_KINDS,
     ACRecord,
+    CommandBoundary,
     Invariant,
     PackageClass,
     PackageContract,
@@ -58,6 +59,7 @@ def _write_package(
     extra_module: tuple[str, str] | None = None,
     tier: PackageTier = "CODE-ONLY",
     status: PackageStatus = "active",
+    command_boundaries: list[CommandBoundary] | None = None,
 ) -> DiscoveredPackage:
     """Materialize a package in the package model: a ``common/<name>/contract.py``
     spec pointing at a BE implementation under ``apps/backend/src/<name>``.
@@ -87,6 +89,7 @@ def _write_package(
         events=[],
         invariants=invariants or [],
         roadmap=roadmap or [],
+        command_boundaries=command_boundaries or [],
         implementations={"be": impl_rel, "fe": None},
     )
     spec_dir = repo_root / "common" / name
@@ -966,3 +969,107 @@ def test_check_single_package_reports_missing_package(synthetic_repo: Path) -> N
     ok, messages = check_single_package("nonexistent", synthetic_repo)
     assert not ok
     assert any("not discovered" in msg for msg in messages)
+
+
+# --- (g) command boundaries (AC-meta.public-boundary.2) ----------------------
+
+REPO = Path(__file__).resolve().parents[2]
+
+
+def _command_package(
+    repo: Path, body: str, *, symbol: str = "Cmd"
+) -> DiscoveredPackage:
+    return _write_package(
+        repo,
+        "commands",
+        klass="domain",
+        all_names=[symbol],
+        interface=[symbol],
+        extra_module=("commands.py", body),
+        command_boundaries=[
+            CommandBoundary(symbol=symbol, version="1", proof="tests/x.py::test_x")
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        (
+            "@dataclass(frozen=True)\nclass Cmd:\n    payload: dict[str, object] | None = None\n",
+            "dynamic type on field 'payload'",
+        ),
+        (
+            "class Cmd:\n    handler: Callable[..., int]\n",
+            "dynamic type on field 'handler'",
+        ),
+        (
+            "def Cmd(currency, amount: int) -> int:\n    return amount\n",
+            "untyped financial parameter 'currency'",
+        ),
+        (
+            "def Cmd(rows: List[Dict[str, str]]) -> int:\n    return 1\n",
+            "dynamic type on parameter 'rows'",
+        ),
+        (
+            "async def Cmd(amount: int) -> Any:\n    return amount\n",
+            "dynamic return type",
+        ),
+    ],
+)
+def test_AC_meta_public_boundary_2_command_boundary_rejects_dynamic_types(
+    synthetic_repo: Path, body: str, expected: str
+) -> None:
+    """AC-meta.public-boundary.2: a dynamic type on a command boundary fails the gate."""
+    pkg = _command_package(synthetic_repo, body)
+    errors = check_package(pkg, {"commands": "domain"}, synthetic_repo)
+    assert any(expected in e for e in errors), errors
+
+
+def test_AC_meta_public_boundary_2_command_boundary_accepts_typed_definitions(
+    synthetic_repo: Path,
+) -> None:
+    """AC-meta.public-boundary.2: typed fields, a trailing date field and Mapping pass."""
+    body = (
+        "@dataclass(frozen=True)\nclass Cmd:\n"
+        "    amount: Decimal\n    tags: Mapping[str, str]\n    entry_date: date\n"
+    )
+    pkg = _command_package(synthetic_repo, body)
+    assert check_package(pkg, {"commands": "domain"}, synthetic_repo) == []
+
+
+@pytest.mark.parametrize(
+    ("body", "found"),
+    [
+        ("class Other:\n    amount: int\n", 0),
+        ("class Cmd:\n    amount: int\n\ndef Cmd() -> int:\n    return 1\n", 2),
+    ],
+)
+def test_AC_meta_public_boundary_2_command_boundary_needs_exactly_one_definition(
+    synthetic_repo: Path, body: str, found: int
+) -> None:
+    """AC-meta.public-boundary.2: a missing or duplicate definition is not a pass."""
+    pkg = _command_package(synthetic_repo, body)
+    errors = check_package(pkg, {"commands": "domain"}, synthetic_repo)
+    assert any(
+        "exactly one top-level definition" in e and f"found {found}" in e
+        for e in errors
+    ), errors
+
+
+def test_AC_meta_public_boundary_2_real_command_boundaries_are_checked() -> None:
+    """AC-meta.public-boundary.2: the live repo keeps its two boundaries and all pass."""
+    declared = sorted(
+        (package.name, boundary.symbol)
+        for package in discover_packages(REPO)
+        for boundary in package.contract.command_boundaries
+    )
+    assert {
+        ("extraction", "ReviewedStatementEnvelopeCommand"),
+        ("ledger", "AnchoredJournalCommand"),
+    } <= set(declared)
+    for name, symbol in declared:
+        package = next(p for p in discover_packages(REPO) if p.name == name)
+        assert package.impl_dir is not None
+        assert len(cpc._command_definitions(package.impl_dir, symbol)) == 1
+        assert check_single_package(name, REPO)[0]

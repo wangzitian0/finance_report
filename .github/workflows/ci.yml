@@ -123,37 +123,6 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      # The DDD dependency report is the slowest lint check (two full AST
-      # snapshots, base and HEAD). It starts here in the background and the
-      # "DDD Dependency Impact Report" step near the end of this job waits for
-      # it and fails the job with its exit status, so the other lint checks
-      # run meanwhile instead of queueing behind it (#2050).
-      - name: Start DDD Dependency Impact Report
-        env:
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-
-          base_sha="${BASE_SHA:-}"
-          head_sha="${HEAD_SHA:-}"
-          if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]]; then
-            base_sha="$(git rev-parse "${head_sha}^" 2>/dev/null || git rev-parse HEAD^)"
-          fi
-
-          uv run --with pydantic python tools/generate_consumer_proofs.py --output "$RUNNER_TEMP/consumer-proofs.json"
-          {
-            set +e
-            uv run --with pydantic python tools/report_ddd_dependencies.py \
-              --base-ref "$base_sha" \
-              --fail-on-breaking \
-              --consumer-proofs "$RUNNER_TEMP/consumer-proofs.json" \
-              --json-out "$RUNNER_TEMP/ddd-dependency-report.json" \
-              --governance-observations-out "$RUNNER_TEMP/ddd-governance-observations.json" \
-              --markdown-out "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md"
-            echo "$?" > "$RUNNER_TEMP/ddd-dependency-report.exit.tmp"
-            mv "$RUNNER_TEMP/ddd-dependency-report.exit.tmp" "$RUNNER_TEMP/ddd-dependency-report.exit"
-          } > "$RUNNER_TEMP/ddd-dependency-report.log" 2>&1 &
       # Fast-fail (left-move): these SSOT/contract gates are app-independent
       # (`uv run --with pyyaml[--with pydantic]`, no backend sync / npm) and are
       # the drift classes behind most CI failures. Running them BEFORE the
@@ -329,31 +298,6 @@ jobs:
           # passes but a field is wrong"). Pure Python (no key/network/DB), so it
           # runs in lint without touching the AC behavioral-score aggregator.
           python tools/check_cassette_graded_eval.py
-      - name: DDD Dependency Impact Report
-        run: |
-          for _ in {1..540}; do
-            if [ -f "$RUNNER_TEMP/ddd-dependency-report.exit" ]; then
-              break
-            fi
-            sleep 1
-          done
-          cat "$RUNNER_TEMP/ddd-dependency-report.log"
-          if [ -f "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md" ]; then
-            cat "$RUNNER_TEMP/DDD-DEPENDENCY-REPORT.md" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          if [ ! -f "$RUNNER_TEMP/ddd-dependency-report.exit" ]; then
-            echo "::error::DDD dependency report did not finish"
-            exit 1
-          fi
-          exit "$(cat "$RUNNER_TEMP/ddd-dependency-report.exit")"
-      - name: Publish DDD governance observations
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: ddd-governance-observations
-          path: ${{ runner.temp }}/ddd-governance-observations.json
-          if-no-files-found: warn
-          retention-days: 14
       - name: PR Review Thread Merge Gate
         # Issue #755 (scope 2a): block merge while an unresolved P0/P1 (or
         # unresolved Copilot-authored) review thread is open. Skips cleanly on
@@ -1351,13 +1295,6 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Download DDD detector observations
-        if: needs.changes.outputs.pr_required == 'true'
-        uses: actions/download-artifact@v8
-        with:
-          name: ddd-governance-observations
-          path: governance-inputs/ddd
-
       - name: Download backend JUnit evidence
         if: needs.changes.outputs.pr_required == 'true'
         uses: actions/download-artifact@v8
@@ -1389,7 +1326,6 @@ jobs:
             --repository "${{ github.repository }}" \
             --target-sha "${{ github.sha }}" \
             --junit-root governance-inputs/junit \
-            --detector-payload governance-inputs/ddd/ddd-governance-observations.json \
             --output "$RUNNER_TEMP/PACKAGE-GOVERNANCE-OBSERVATIONS.json" \
             --raw-github-out "$RUNNER_TEMP/PACKAGE-GOVERNANCE-GITHUB.json"
 
