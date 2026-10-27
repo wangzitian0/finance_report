@@ -54,8 +54,7 @@ def _normal_candidate_first(repo_root: Path) -> list[str]:
 
 
 def _currency_explicit(repo_root: Path) -> list[str]:
-    path = repo_root / _ENTRY_READS
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    tree = ast.parse(read_source(repo_root, _ENTRY_READS), filename=_ENTRY_READS)
     functions = {
         node.name: node
         for node in tree.body

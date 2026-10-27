@@ -32,11 +32,31 @@ def detect_governance(*, repo_root):
 """
 
 
+SEEDED_SHAPE = """
+async def _contains(repo_root, relative, fragments): ...
+def _peek(path):
+    return path.read_text(encoding="utf-8")
+def detect_governance(*, repo_root):
+    return run_detectors("demo", {}, repo_root)
+"""
+
+
 def _shape_violations(source: str) -> list[str]:
-    """Return why a provider keeps its own runner instead of calling ``run_detectors``."""
-    body = ast.parse(source).body
-    funcs = {node.name: node for node in body if isinstance(node, ast.FunctionDef)}
+    """Return why a provider keeps its own runner or file reader instead of using the runner."""
+    funcs = {
+        node.name: node
+        for node in ast.parse(source).body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
     findings = [f"defines {name}" for name in ("_source", "_contains") if name in funcs]
+    findings += [
+        f"{name} calls read_text"
+        for name, node in funcs.items()
+        if any(
+            isinstance(call, ast.Call) and getattr(call.func, "attr", "") == "read_text"
+            for call in ast.walk(node)
+        )
+    ]
     calls = [
         node
         for node in funcs["detect_governance"].body
@@ -53,7 +73,7 @@ def _shape_violations(source: str) -> list[str]:
 
 
 def test_AC_meta_governance_ratchet_10_providers_delegate_to_one_runner() -> None:
-    """AC-meta.governance-ratchet.10: no provider keeps a private copy of the runner loop."""
+    """AC-meta.governance-ratchet.10: no provider keeps a private runner loop or file reader."""
     assert [path.parts[-3] for path in PROVIDERS] == [
         "extraction",
         "meta",
@@ -66,6 +86,10 @@ def test_AC_meta_governance_ratchet_10_providers_delegate_to_one_runner() -> Non
         "defines _source",
         "defines _contains",
         "detect_governance is not one run_detectors call",
+    ]
+    assert _shape_violations(SEEDED_SHAPE) == [
+        "defines _contains",
+        "_peek calls read_text",
     ]
 
 

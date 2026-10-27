@@ -51,7 +51,11 @@ def missing_fragments(
 
 
 def requires(relative: str, *fragments: str) -> Check:
-    """Build a check that needs every fragment in ``relative``. No fragment would pass on nothing."""
+    """Build a check that needs every fragment in ``relative``.
+
+    A call with no fragment raises ``ValueError``, because a check with nothing
+    to require would always pass.
+    """
     if not fragments:
         raise ValueError(f"{relative}: requires() needs at least one fragment")
     return lambda repo_root: missing_fragments(repo_root, relative, fragments)
