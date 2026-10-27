@@ -57,7 +57,6 @@ from src.extraction import (
     extraction_trace_policy_registry,
     general_account_name,
     get_or_create_account,
-    record_correction,
     settle_drafts_after_posting,
     snapshot_currencies,
     statement_disposition_policy_for_user,
@@ -500,22 +499,3 @@ def compose_correction_callbacks() -> dict[str, Any]:
         "supersede_transfer_legs": _supersede_transfer_legs_for_correction,
         "repost_approved_statement": _repost_approved_statement_for_correction,
     }
-
-
-async def record_user_correction(
-    db: AsyncSession,
-    *,
-    user_id: UUID,
-    transaction_id: UUID,
-    corrected_category: str,
-    corrected_account_id: UUID | None = None,
-) -> Any:
-    """Record a user correction with reconciliation and statement posting callbacks wired (#2423)."""
-    return await record_correction(
-        db,
-        user_id=user_id,
-        transaction_id=transaction_id,
-        corrected_category=corrected_category,
-        corrected_account_id=corrected_account_id,
-        **compose_correction_callbacks(),
-    )

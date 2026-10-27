@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
@@ -165,24 +164,6 @@ def test_backend_otel_absence_is_startup_safe(monkeypatch) -> None:
     logger_module._configure_otel_logging()
 
 
-def test_external_api_logging_omits_sensitive_arguments_by_default(caplog) -> None:
-    """AC-observability.7.3: External API logging omits credentials unless explicitly requested."""
-
-    @logger_module.log_external_api("example-provider")
-    def call_provider(password: str, *, token: str) -> str:
-        assert password
-        assert token
-        return "ok"
-
-    with caplog.at_level(logging.INFO):
-        assert call_provider("super-secret-password", token="bearer-token") == "ok"
-
-    assert "External API call to example-provider" in caplog.text
-    assert "super-secret-password" not in caplog.text
-    assert "bearer-token" not in caplog.text
-    assert "kwargs_keys" not in caplog.text
-
-
 def test_production_renderer_outputs_structured_json(monkeypatch) -> None:
     """AC-observability.7.7: Non-debug renderer emits parseable structured JSON."""
     monkeypatch.setattr(logger_module.settings, "debug", False)
@@ -265,7 +246,7 @@ def test_AC10_9_2_observability_startup_log_uses_runtime_contract(monkeypatch) -
 
 
 def test_AC10_11_1_security_warning_redacts_credentials() -> None:
-    """AC-observability.11.1: Security warning helper never emits raw credentials."""
+    """AC-observability.11.1 AC-observability.7.3: Security warning helper never emits raw credentials."""
     mock_logger = Mock()
 
     observability_module.log_security_warning(
