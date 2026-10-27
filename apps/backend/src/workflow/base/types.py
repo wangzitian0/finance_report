@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from src.platform.base import validate_internal_action_href
+
 
 class WorkflowEventFamily(str, Enum):
     """Product-level workflow event families."""
@@ -62,12 +64,6 @@ class WorkflowSessionStatus(str, Enum):
     ARCHIVED = "archived"
 
 
-def _validate_internal_action_href(value: str) -> str:
-    if not value.startswith("/") or value.startswith("//") or "://" in value:
-        raise ValueError("action_href must be an internal relative path")
-    return value
-
-
 class WorkflowEventCreate(BaseModel):
     """Input contract for deterministic workflow event upserts."""
 
@@ -85,7 +81,7 @@ class WorkflowEventCreate(BaseModel):
     @field_validator("action_href")
     @classmethod
     def validate_action_href(cls, value: str) -> str:
-        return _validate_internal_action_href(value)
+        return validate_internal_action_href(value)
 
 
 class WorkflowEventStatusUpdate(BaseModel):
@@ -137,7 +133,7 @@ class WorkflowNextActionResponse(BaseModel):
     @field_validator("href")
     @classmethod
     def validate_href(cls, value: str) -> str:
-        return _validate_internal_action_href(value)
+        return validate_internal_action_href(value)
 
 
 class WorkflowReportReadinessResponse(BaseModel):
@@ -150,7 +146,7 @@ class WorkflowReportReadinessResponse(BaseModel):
     @field_validator("href")
     @classmethod
     def validate_href(cls, value: str) -> str:
-        return _validate_internal_action_href(value)
+        return validate_internal_action_href(value)
 
 
 class WorkflowEventCountsResponse(BaseModel):
@@ -181,7 +177,7 @@ class WorkflowSessionSummaryResponse(BaseModel):
     def validate_report_href(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        return _validate_internal_action_href(value)
+        return validate_internal_action_href(value)
 
 
 class WorkflowStatusResponse(BaseModel):

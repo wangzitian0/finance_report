@@ -94,6 +94,8 @@ CONTRACT = PackageContract(
     units=[
         # base — the domain-event record (the textbook mechanism-C type).
         Unit(name="DomainEvent", kind=Kind.DOMAIN_EVENT, module="base/event.py"),
+        # base — the one internal action-href check; the reporting and workflow schemas share it.
+        Unit(name="validate_internal_action_href", kind=Kind.FACTORY, module="base/href.py"),
         # the two split blocks (mechanism B): each port lives in base/, its
         # concrete adapter in extension/. The event bus has no dedicated "split"
         # kind in KIND_LAYER, so its port/adapter inversion is modelled the same
@@ -162,6 +164,7 @@ CONTRACT = PackageContract(
         "raise_too_many_requests",
         "raise_unauthorized",
         "platform_system_router",
+        "validate_internal_action_href",
     ],
     events=[],
     invariants=[
@@ -243,6 +246,7 @@ CONTRACT = PackageContract(
         ac('AC-platform.1.3', 'Dispatch is at-least-once: a second run_once does not re-deliver published rows, and re-delivery of a still-pending row is safe for an idempotent handler.', 'apps/backend/tests/platform/test_relay.py::test_redelivery_of_pending_is_idempotent_safe', priority='P1'),
         ac('AC-platform.1.4', 'The platform package converges into the base/extension layering and its published language equals contract.interface; check_package_contract validates platform with no violations.', 'apps/backend/tests/platform/test_contract.py::test_platform_package_passes_governance_gate', priority='P1'),
         ac('AC-platform.1.5', 'counter.record_increment bumps the per-(user, key) tally and enqueues a counter.Incremented event into the shared outbox in the SAME transaction (rollback leaves neither tally nor event).', 'apps/backend/tests/counter/test_outbox_emit.py::test_record_increment_writes_incremented_atomically', priority='P1'),
+        ac('AC-platform.1.6', 'The reporting and workflow schemas share one internal action-href check from platform.base: it passes an internal path unchanged and rejects an external, protocol-relative or relative href with the same message.', 'apps/backend/tests/platform/test_href.py::test_AC_platform_1_6_reporting_and_workflow_schemas_use_the_platform_check', priority='P1'),
         # ── EPIC-012 (foundation-libs) platform/api ACs homed here ──
         # Migrated from the EPIC-012 table: the leading "12" is dropped and the
         # group/seq preserved, so AC12.<g>.<s> becomes AC-platform.<g>.<s>

@@ -1,6 +1,6 @@
 """Layer 4: Reporting Snapshot Service."""
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -18,10 +18,8 @@ class ReportingSnapshotService:
         user_id: UUID,
         report_type: ReportType,
         as_of_date: date,
-        rule_version_id: UUID | None,
         report_data: dict,
         start_date: date | None = None,
-        ttl_seconds: int = 3600,
         snapshot_id: UUID | None = None,
     ) -> ReportSnapshot:
         """Create a new report snapshot and mark it as latest."""
@@ -41,16 +39,14 @@ class ReportingSnapshotService:
             for snap in existing:
                 snap.is_latest = False
 
-            ttl = datetime.now(UTC) + timedelta(seconds=ttl_seconds)
             snapshot = ReportSnapshot(
                 user_id=user_id,
                 report_type=report_type,
                 as_of_date=as_of_date,
                 start_date=start_date,
-                rule_version_id=rule_version_id,
                 report_data=report_data,
                 is_latest=True,
-                ttl=ttl,
+                ttl=datetime.now(UTC),
             )
             # Package assembly pre-allocates its UUID so the frozen document can
             # bind its immutable identity before persistence. Other snapshots

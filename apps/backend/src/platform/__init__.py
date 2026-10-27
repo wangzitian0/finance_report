@@ -38,6 +38,7 @@ from src.platform.base import (
     Outbox,
     OutboxRepository,
     SubscriberRegistry,
+    validate_internal_action_href,
 )
 
 # ORM models owned by this package (moved from src/models, #1675); imported
@@ -101,6 +102,7 @@ __all__ = [
     "raise_too_many_requests",
     "raise_unauthorized",
     "platform_system_router",
+    "validate_internal_action_href",
 ]
 
 

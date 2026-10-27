@@ -58,3 +58,14 @@ def test_flow_24_diagnostics_unknown_discrepancy():
     assert result.is_balanced is False
     assert result.primary_category == EquationDiagnosticCategory.UNKNOWN_DISCREPANCY
     assert result.details == {"delta": "12.50"}
+
+
+def test_flow_24_every_category_is_produced_by_the_diagnosis():
+    """Flow 24: the enum holds only categories that diagnose_equation_imbalance can return."""
+    produced = {
+        diagnose_equation_imbalance(Decimal("0.00")).primary_category,
+        diagnose_equation_imbalance(Decimal("-150.00"), unposted_draft_count=2).primary_category,
+        diagnose_equation_imbalance(Decimal("0.04"), is_multicurrency=True).primary_category,
+        diagnose_equation_imbalance(Decimal("12.50"), is_multicurrency=True).primary_category,
+    }
+    assert produced == set(EquationDiagnosticCategory)

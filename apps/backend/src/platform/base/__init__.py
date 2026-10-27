@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from src.platform.base.bus import EventBus, EventHandler, SubscriberRegistry
 from src.platform.base.event import DomainEvent
+from src.platform.base.href import validate_internal_action_href
 from src.platform.base.outbox import Outbox, OutboxRepository, OutboxRow
 
 __all__ = [
@@ -23,4 +24,5 @@ __all__ = [
     "OutboxRepository",
     "OutboxRow",
     "SubscriberRegistry",
+    "validate_internal_action_href",
 ]
