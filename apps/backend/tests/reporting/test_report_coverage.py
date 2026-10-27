@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from hashlib import sha256
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -21,15 +22,18 @@ from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.reporting.extension.package_document as package_document_mod
+import tests.integration.test_trusted_year_scenario as trusted_year_mod
 from src.config import settings
 from src.extraction import (
     BankStatementStatus,
+    RetireStatementCommand,
     RuleType,
     StatementSourceType,
     StatementSummary,
-    reviewed_bank_custody_account_ids,
+    coverage_bank_custody_account_ids,
+    retire_statement,
 )
-from src.extraction.extension import transaction_classification
+from src.extraction.extension import statement_posting as statement_posting_mod, transaction_classification
 from src.extraction.extension.transaction_classification import CategoryProposal, TransactionCategory
 from src.extraction.orm.layer3 import ClassificationRule
 from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
@@ -38,6 +42,7 @@ from src.ledger import Account, AccountType, initialize_opening_positions
 from src.reporting import current_package_readiness, generate_cash_flow, report_coverage
 from src.routers import reports as reports_router
 from tests.integration.test_trusted_year_scenario import _ingest_reviewed_bank_statement
+from tests.statement_ingestion import posting_dependencies
 
 AS_OF = date(2026, 10, 22)
 
@@ -70,10 +75,12 @@ async def _statement_with_source(
     period_end: date,
     status: BankStatementStatus = BankStatementStatus.APPROVED,
     source_type: StatementSourceType = StatementSourceType.BANK,
+    earlier_source_type: StatementSourceType | None = None,
 ) -> StatementSummary:
     """A statement with a current source result of ``source_type``, so the custody query reaches it.
 
-    Only the custody query reads this result: its payload holds the source type, no facts.
+    ``earlier_source_type`` adds an older result that is not current. Only the custody query reads
+    these results: their payload holds the source type, no facts.
     """
     statement = StatementSummary(
         user_id=user_id,
@@ -89,20 +96,23 @@ async def _statement_with_source(
     )
     db.add(statement)
     await db.flush()
-    record = StatementExtractionResultRecord(
-        user_id=user_id,
-        statement_id=statement.id,
-        content_digest=sha256(f"result:{statement.id}".encode()).hexdigest(),
-        source_content_digest=sha256(f"source:{statement.id}".encode()).hexdigest(),
-        schema_version="2",
-        producer_version="coverage-fixture",
-        payload={"source_type": source_type.value},
-        source_trace_record_id=uuid4(),
-        created_at=datetime.now(UTC),
-    )
-    db.add(record)
+    records = []
+    for index, kind in enumerate(([earlier_source_type] if earlier_source_type else []) + [source_type]):
+        record = StatementExtractionResultRecord(
+            user_id=user_id,
+            statement_id=statement.id,
+            content_digest=sha256(f"result:{statement.id}:{index}".encode()).hexdigest(),
+            source_content_digest=sha256(f"source:{statement.id}".encode()).hexdigest(),
+            schema_version="2",
+            producer_version="coverage-fixture",
+            payload={"source_type": kind.value},
+            source_trace_record_id=uuid4(),
+            created_at=datetime.now(UTC),
+        )
+        db.add(record)
+        records.append(record)
     await db.flush()
-    statement.current_extraction_result_id = record.id
+    statement.current_extraction_result_id = records[-1].id
     await db.flush()
     return statement
 
@@ -214,14 +224,14 @@ async def test_AC_reporting_2646_2_a_statement_that_closes_after_the_date_bounds
     assert [blocker.code for blocker in readiness.blockers] == []
 
 
-async def test_AC_reporting_2646_2_custody_accounts_are_the_reviewed_bank_statements_of_the_user(
+async def test_AC_reporting_2646_2_custody_accounts_are_the_bank_statements_of_the_user_in_any_status(
     db: AsyncSession, test_user
 ) -> None:
-    """AC-reporting.2646.2: ``reviewed_bank_custody_account_ids`` keeps the custody account of a
-    bank statement of the user that is approved, retired or rejected and starts on or before the
-    date, also when it closes after it. Each negative control has a current source result, so only
-    its own predicate removes it: a parsed statement, a brokerage source, a statement that starts
-    after the date, and another user's statement."""
+    """AC-reporting.2646.2: ``coverage_bank_custody_account_ids`` keeps the custody account of a
+    bank statement of the user in any status that starts on or before the date, also when it closes
+    after it. Each negative control has a current source result, so only its own predicate removes
+    it: a brokerage current result (also over an earlier bank result), a statement that starts after
+    the date, and another user's statement."""
     user_id = test_user.id
     as_of = date(2026, 6, 12)
     names = (
@@ -231,6 +241,7 @@ async def test_AC_reporting_2646_2_custody_accounts_are_the_reviewed_bank_statem
         "Rejected",
         "Parsed",
         "Brokerage",
+        "Brokerage over bank",
         "Starts later",
     )
     accounts = {name: await _account(db, user_id, name) for name in names}
@@ -245,6 +256,15 @@ async def test_AC_reporting_2646_2_custody_accounts_are_the_reviewed_bank_statem
     await _statement_with_source(
         db, user_id, accounts["Brokerage"], source_type=StatementSourceType.BROKERAGE, **window
     )
+    # The current result is brokerage; an earlier result was bank. A join to any result keeps it.
+    await _statement_with_source(
+        db,
+        user_id,
+        accounts["Brokerage over bank"],
+        source_type=StatementSourceType.BROKERAGE,
+        earlier_source_type=StatementSourceType.BANK,
+        **window,
+    )
     await _statement_with_source(
         db, user_id, accounts["Starts later"], period_start=date(2026, 6, 13), period_end=date(2026, 7, 10)
     )
@@ -255,9 +275,87 @@ async def test_AC_reporting_2646_2_custody_accounts_are_the_reviewed_bank_statem
     await _statement_with_source(db, other.id, other_bank, **window)
     await db.commit()
 
-    selected = await reviewed_bank_custody_account_ids(db, user_id=user_id, as_of=as_of)
+    selected = await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=as_of)
     by_id = {account.id: name for name, account in accounts.items()} | {other_bank.id: "Other Bank"}
-    assert sorted(by_id[account_id] for account_id in selected) == ["Approved", "Closes later", "Rejected", "Retired"]
+    assert sorted(by_id[account_id] for account_id in selected) == [
+        "Approved",
+        "Closes later",
+        "Parsed",
+        "Rejected",
+        "Retired",
+    ]
+
+
+def _keep_the_statement_parsed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The seed confirms the reviewed envelope but does not approve: the statement stays parsed with
+    an authoritative envelope decision, as before a user approves it."""
+
+    async def not_approved(db, statement_id, _user_id):
+        return await db.get(StatementSummary, statement_id)
+
+    async def no_posting(*_args, **_kwargs):
+        return SimpleNamespace(review_reasons=(), created_count=2)
+
+    monkeypatch.setattr(trusted_year_mod, "approve_statement", not_approved)
+    monkeypatch.setattr(trusted_year_mod, "auto_create_posted_entries_for_statement", no_posting)
+
+
+@pytest.mark.parametrize(
+    ("path", "status"),
+    [
+        ("approved", BankStatementStatus.APPROVED),
+        ("envelope confirmed, not approved", BankStatementStatus.PARSED),
+        ("auto-approval falls back to review", BankStatementStatus.PARSED),
+        ("retired after approval", BankStatementStatus.RETIRED),
+    ],
+)
+async def test_AC_reporting_2646_2_the_custody_set_contains_the_package_cash_set(
+    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch, path: str, status: BankStatementStatus
+) -> None:
+    """AC-reporting.2646.2: the package keeps a bank statement by its trace decision, not by its
+    status. On each real path the package cash account ids are a subset of
+    ``coverage_bank_custody_account_ids``, and the readiness on 2026-06-30 has no blocker. A status
+    filter dropped the parsed statement: the bound had no start and the readiness had
+    ``opening_coverage_starts_after_period`` (the review probe)."""
+    user_id = test_user.id
+    if status is BankStatementStatus.PARSED:
+        _keep_the_statement_parsed(monkeypatch)
+    bank = await _seed_first_bank_statement(db, user_id, monkeypatch)
+    statement = (await db.execute(select(StatementSummary).where(StatementSummary.account_id == bank.id))).scalar_one()
+    if path == "auto-approval falls back to review":
+        # A high-confidence parse makes the statement an auto-approval candidate; a posting guard fails.
+        statement.status = BankStatementStatus.APPROVED
+        statement.confidence_score = 99
+        statement.balance_validated = True
+        await db.commit()
+
+        async def guard_fails(*_args, **_kwargs):
+            raise ValueError("Custody account must be a non-system asset account")
+
+        monkeypatch.setattr(statement_posting_mod, "approve_statement_with_transactions", guard_fails)
+        created = await statement_posting_mod.try_auto_approve_high_confidence_statement(
+            db, statement.id, user_id, dependencies=posting_dependencies()
+        )
+        assert created == 0
+        await db.commit()
+    if path == "retired after approval":
+        await retire_statement(db, RetireStatementCommand(statement_id=statement.id, user_id=user_id))
+        await db.commit()
+    await db.refresh(statement)
+    assert statement.status is status
+
+    as_of = date(2026, 6, 30)
+    contributions = await package_document_mod.PackageAssembler()._contributions(
+        db, user_id=user_id, start_date=as_of - timedelta(days=365), end_date=as_of, as_of_date=as_of
+    )
+    package_cash = package_document_mod._cash_inputs_from_contributions(contributions).account_ids
+    custody = await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=as_of)
+    assert bank.id in package_cash
+    assert package_cash <= custody
+    coverage = await report_coverage(db, user_id=user_id, as_of=as_of)
+    assert (coverage.start, coverage.limiting_account_names) == (date(2026, 6, 5), ("DBS",))
+    readiness = await current_package_readiness(db, user_id=user_id, as_of_date=as_of)
+    assert [blocker.code for blocker in readiness.blockers] == []
 
 
 async def test_AC_reporting_2646_2_two_cash_accounts_opened_on_the_bound_pass_the_check(
