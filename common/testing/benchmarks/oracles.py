@@ -29,6 +29,28 @@ FORBIDDEN_DOM_JARGON: list[str] = [
     "Loading upload-to-report workflow...",
 ]
 
+DEFAULT_BENCHMARK_UI_ROUTES: list[str] = [
+    "/",
+    "/chat",
+    "/audit",
+    "/more",
+    "/upload",
+    "/portfolio",
+    "/reports",
+    "/reports?tab=balance-sheet",
+    "/reports?tab=income-statement",
+    "/reports?tab=cash-flow",
+    "/reports?tab=package",
+    "/reconciliation",
+    "/journal",
+    "/settings",
+]
+
+DEFAULT_BENCHMARK_UI_VIEWPORTS: list[dict[str, int]] = [
+    {"width": 1440, "height": 900},
+    {"width": 390, "height": 844},
+]
+
 HALLUCINATED_DISCREPANCY_TOKENS: list[str] = [
     "discrepancy",
     "discrepancies",
@@ -207,30 +229,25 @@ def verify_browser_ui_hygiene(
     viewport: dict[str, int] | None = None,
     timeout_ms: int = 15000,
     allow_skip_if_no_browser: bool = True,
+    viewports: list[dict[str, int]] | None = None,
 ) -> dict[str, Any]:
     """Validate Pillar 2 (Zero Console Error) & Pillar 3 (DOM Hygiene Scanner).
 
     Uses Playwright to navigate authenticated routes and verifies:
       - Zero console error logs (catching CSP violations and unhandled exceptions)
       - Zero developer jargon in rendered DOM
+      - Zero horizontal overflow across configured desktop and mobile viewports
     """
     if routes is None:
-        routes = [
-            "/dashboard",
-            "/reports?tab=balance-sheet",
-            "/reports?tab=income-statement",
-            "/reports?tab=cash-flow",
-            "/reports",
-            "/upload",
-            "/reconciliation",
-            "/chat",
-            "/journal",
-            "/settings?tab=accounts",
-        ]
+        routes = list(DEFAULT_BENCHMARK_UI_ROUTES)
     if not routes:
         raise ValueError("verify_browser_ui_hygiene requires at least one route")
-    if viewport is None:
-        viewport = {"width": 1440, "height": 900}
+    if viewports is not None:
+        active_viewports = list(viewports)
+    elif viewport is not None:
+        active_viewports = [viewport]
+    else:
+        active_viewports = list(DEFAULT_BENCHMARK_UI_VIEWPORTS)
 
     target_auth = auth_context or runner.last_auth_context
     if not target_auth:
@@ -247,6 +264,8 @@ def verify_browser_ui_hygiene(
     dom_violations: list[str] = []
     visited_routes: list[str] = []
     route_errors: list[str] = []
+    failed_routes: set[str] = set()
+    viewports_verified = [f"{vp['width']}x{vp['height']}" for vp in active_viewports]
 
     try:
         from playwright.sync_api import sync_playwright
@@ -280,56 +299,84 @@ def verify_browser_ui_hygiene(
             raise
 
         try:
-            context = browser.new_context(viewport=viewport)
-            context.add_cookies([cookie])
-            context.add_init_script(init_script)
+            for vp in active_viewports:
+                vp_label = f"{vp['width']}x{vp['height']}"
+                context = browser.new_context(viewport=vp)
+                context.add_cookies([cookie])
+                context.add_init_script(init_script)
 
-            page = context.new_page()
+                page = context.new_page()
 
-            def on_console(msg: Any) -> None:
-                if msg.type == "error":
-                    text = msg.text
-                    if "favicon.ico" in text:
-                        return
-                    console_errors.append(f"[{page.url}] {text}")
+                def on_console(msg: Any) -> None:
+                    if msg.type == "error":
+                        text = msg.text
+                        if "favicon.ico" in text:
+                            return
+                        console_errors.append(f"[{page.url}] {text}")
 
-            def on_page_error(exc: Any) -> None:
-                page_errors.append(f"[{page.url}] {exc}")
+                def on_page_error(exc: Any) -> None:
+                    page_errors.append(f"[{page.url}] {exc}")
 
-            page.on("console", on_console)
-            page.on("pageerror", on_page_error)
+                page.on("console", on_console)
+                page.on("pageerror", on_page_error)
 
-            for route in routes:
-                target_url = f"{runner.base_url}{route}"
-                try:
-                    response = page.goto(
-                        target_url, timeout=timeout_ms, wait_until="domcontentloaded"
-                    )
-                    status_code = getattr(response, "status", None)
-                    if status_code is not None and status_code >= 400:
-                        route_errors.append(f"[{route}] HTTP {status_code}")
-                        continue
+                for route in routes:
+                    target_url = f"{runner.base_url}{route}"
                     try:
-                        page.wait_for_load_state("networkidle", timeout=5000)
-                    except Exception:
-                        pass
-                    page.wait_for_timeout(500)
-                    final_path = urlparse(page.url).path
-                    if final_path.startswith("/login") and not route.startswith(
-                        "/login"
-                    ):
-                        route_errors.append(
-                            f"[{route}] redirected to {final_path}: the session is not authenticated"
+                        response = page.goto(
+                            target_url,
+                            timeout=timeout_ms,
+                            wait_until="domcontentloaded",
                         )
-                        continue
-                    body_text = page.inner_text("body")
-                    visited_routes.append(route)
+                        status_code = getattr(response, "status", None)
+                        if status_code is not None and status_code >= 400:
+                            if route not in failed_routes:
+                                failed_routes.add(route)
+                                route_errors.append(f"[{route}] HTTP {status_code}")
+                            continue
+                        try:
+                            page.wait_for_load_state("networkidle", timeout=5000)
+                        except Exception:
+                            pass
+                        page.wait_for_timeout(500)
+                        final_path = urlparse(page.url).path
+                        if final_path.startswith("/login") and not route.startswith(
+                            "/login"
+                        ):
+                            if route not in failed_routes:
+                                failed_routes.add(route)
+                                route_errors.append(
+                                    f"[{route}] redirected to {final_path}: the session is not authenticated"
+                                )
+                            continue
+                        eval_fn = getattr(page, "evaluate", None)
+                        if callable(eval_fn):
+                            dims = eval_fn(
+                                "() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth })"
+                            )
+                            if isinstance(dims, dict):
+                                scroll_width = int(dims.get("scrollWidth", vp["width"]))
+                                inner_width = int(dims.get("innerWidth", vp["width"]))
+                                if scroll_width > inner_width:
+                                    if route not in failed_routes:
+                                        failed_routes.add(route)
+                                        route_errors.append(
+                                            f"[{route}] horizontal overflow at {vp_label}: scrollWidth={scroll_width} > innerWidth={inner_width}"
+                                        )
+                                    continue
+                        body_text = page.inner_text("body")
+                        if route not in visited_routes:
+                            visited_routes.append(route)
 
-                    violations = scan_dom_hygiene(body_text)
-                    for v in violations:
-                        dom_violations.append(f"[{route}] {v}")
-                except Exception as exc:
-                    route_errors.append(f"[{route}] navigation failed: {exc}")
+                        violations = scan_dom_hygiene(body_text)
+                        for v in violations:
+                            entry = f"[{route}] {v}"
+                            if entry not in dom_violations:
+                                dom_violations.append(entry)
+                    except Exception as exc:
+                        if route not in failed_routes:
+                            failed_routes.add(route)
+                            route_errors.append(f"[{route}] navigation failed: {exc}")
         finally:
             browser.close()
 
@@ -350,6 +397,7 @@ def verify_browser_ui_hygiene(
     return {
         "status": "PASS",
         "visited_routes": visited_routes,
+        "viewports_verified": viewports_verified,
         "route_errors": route_errors,
         "console_errors": all_console_issues,
         "dom_violations": dom_violations,

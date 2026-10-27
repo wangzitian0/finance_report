@@ -575,3 +575,247 @@ def test_wait_for_statement_parsed_retries_on_rate_limit_error() -> None:
     assert result["status"] == "parsed"
     mock_client.post.assert_called_once_with("/api/statements/stmt-rl-1/retry")
     assert mock_client.get.call_count == 2
+
+
+def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) -> None:
+    """AC-testing.benchmarks.4: ScenarioBenchmarkRunner methods for Flows 8, 9, 18, 29 and coverage are wired into Cases 1-3."""
+    from unittest.mock import MagicMock
+
+    from common.testing.benchmarks.cases import case_1, case_2, case_3
+    from common.testing.benchmarks.run_financial_scenario_benchmark import (
+        ScenarioBenchmarkRunner,
+    )
+
+    runner = ScenarioBenchmarkRunner(
+        base_url="http://localhost:8000", replay_mode="replay"
+    )
+    mock_client = MagicMock()
+
+    def _ok(payload: object) -> MagicMock:
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.json.return_value = payload
+        resp.text = "ok"
+        return resp
+
+    mock_client.post.side_effect = [
+        _ok({"id": "stmt-bad", "status": "rejected"}),
+        _ok({"items": [], "total": 0}),
+        _ok(
+            {
+                "account_id": "acc-1",
+                "bank_balance": "0.02",
+                "book_balance": "0.00",
+                "difference": "0.02",
+                "is_gain": True,
+                "journal_entry_id": "je-1",
+            }
+        ),
+    ]
+    mock_client.get.side_effect = [
+        _ok([]),
+        _ok(
+            {
+                "as_of_date": "2025-04-30",
+                "coverage_start": "2025-01-01",
+                "limiting_accounts": [],
+            }
+        ),
+    ]
+
+    rejected = runner.reject_statement(mock_client, "stmt-bad", notes="triage")
+    assert rejected["status"] == "rejected"
+    checks = runner.run_stage2_consistency_checks(mock_client, "stmt-1")
+    assert checks == {"items": [], "total": 0}
+    anomalies = runner.list_transaction_anomalies(mock_client, "txn-1")
+    assert anomalies == []
+    adj = runner.post_reconciliation_adjustment(
+        mock_client,
+        account_id="acc-1",
+        bank_balance="0.02",
+        book_balance="0.00",
+    )
+    assert adj["difference"] == "0.02"
+    cov = runner.get_report_coverage(mock_client, as_of_date="2025-04-30")
+    assert cov["coverage_start"] == "2025-01-01"
+
+    # Verify Case 1 records coverage_start
+    c1_runner = MagicMock()
+    c1_runner.replay_mode = "replay"
+    c1_client = MagicMock()
+    c1_client.get.return_value.json.return_value = {
+        "account_id": "acc-1",
+        "institution": "Standard Chartered Bank",
+    }
+    c1_runner.create_ephemeral_client.return_value = (c1_client, "c1@test.example", {})
+    c1_runner.upload_statement.side_effect = ["m1", "m2", "m3", "m4"]
+    c1_runner.wait_for_statement_parsed.side_effect = [
+        {
+            "opening_balance": "15450.75",
+            "closing_balance": "15271.23",
+            "balance_validated": True,
+            "transactions": [],
+        },
+        {
+            "opening_balance": "15271.23",
+            "closing_balance": "18250.00",
+            "balance_validated": True,
+            "transactions": [],
+        },
+        {
+            "opening_balance": "18250.00",
+            "closing_balance": "21300.00",
+            "balance_validated": True,
+            "transactions": [],
+        },
+        {
+            "opening_balance": "21300.00",
+            "closing_balance": "24200.00",
+            "balance_validated": True,
+            "transactions": [],
+        },
+    ]
+    c1_runner.approve_statement.return_value = {"status": "approved"}
+    c1_runner.get_balance_sheet.side_effect = [
+        {
+            "total_assets": "21300.00",
+            "total_liabilities": "0.00",
+            "total_equity": "15450.75",
+            "net_income": "5849.25",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        },
+        {
+            "total_assets": "24200.00",
+            "total_liabilities": "0.00",
+            "total_equity": "15450.75",
+            "net_income": "8749.25",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        },
+    ]
+    c1_runner.get_income_statement.side_effect = [
+        {"net_income": "5849.25"},
+        {"net_income": "8749.25"},
+    ]
+    c1_runner.get_cash_flow.side_effect = [
+        {
+            "summary": {
+                "beginning_cash": "15450.75",
+                "net_cash_flow": "5849.25",
+                "ending_cash": "21300.00",
+            }
+        },
+        {
+            "summary": {
+                "beginning_cash": "15450.75",
+                "net_cash_flow": "8749.25",
+                "ending_cash": "24200.00",
+            }
+        },
+    ]
+    c1_runner.get_report_coverage.return_value = {
+        "as_of_date": "2025-04-30",
+        "coverage_start": "2025-01-01",
+        "limiting_accounts": [],
+    }
+    c1_runner.query_ai_advisor.return_value = "Your net worth is 24,200.00 SGD."
+    c1_res = case_1.execute_case_1(c1_runner)
+    assert c1_res.status == "PASS", c1_res.error_message
+    assert c1_res.details["coverage_start"] == "2025-01-01"
+
+    # Verify Case 2 exercises Flows 8, 9, and 29
+    c2_runner = MagicMock()
+    c2_client = MagicMock()
+    c2_runner.create_ephemeral_client.return_value = (c2_client, "c2@test.example", {})
+    c2_runner.upload_statement.side_effect = ["h-stmt", "w-stmt", "bad-stmt"]
+    c2_runner.wait_for_statement_parsed.side_effect = [
+        {
+            "opening_balance": "10000.00",
+            "closing_balance": "12800.00",
+            "transactions": [{"id": "txn-h1"}],
+        },
+        {
+            "opening_balance": "5000.00",
+            "closing_balance": "8100.00",
+            "transactions": [{"id": "txn-w1"}],
+        },
+        {
+            "opening_balance": "999.00",
+            "closing_balance": "999.00",
+            "transactions": [],
+        },
+    ]
+    c2_runner.run_stage2_consistency_checks.return_value = {"items": [], "total": 0}
+    c2_runner.list_transaction_anomalies.return_value = []
+    c2_runner.reject_statement.return_value = {"id": "bad-stmt", "status": "rejected"}
+    c2_runner.get_balance_sheet.return_value = {
+        "total_assets": "20900.00",
+        "total_liabilities": "0.00",
+        "total_equity": "15000.00",
+        "net_income": "5900.00",
+        "equation_delta": "0.00",
+        "is_balanced": True,
+    }
+    c2_runner.get_income_statement.return_value = {
+        "total_income": "8500.00",
+        "total_expenses": "2600.00",
+        "net_income": "5900.00",
+    }
+    c2_runner.get_cash_flow.return_value = {
+        "summary": {
+            "beginning_cash": "15000.00",
+            "net_cash_flow": "5900.00",
+            "ending_cash": "20900.00",
+        }
+    }
+    c2_res = case_2.execute_case_2(c2_runner)
+    assert c2_res.status == "PASS", c2_res.error_message
+    assert c2_res.details["flow_8_checks_ran"] is True
+    assert c2_res.details["flow_9_rejected_status"] == "rejected"
+    assert c2_res.details["flow_29_anomalies_checked"] is True
+
+    # Verify Case 3 exercises Flow 18
+    c3_runner = MagicMock()
+    c3_client = MagicMock()
+    c3_runner.create_ephemeral_client.return_value = (c3_client, "c3@test.example", {})
+    c3_runner.create_account.side_effect = [
+        {"id": "cc-1", "name": "Card"},
+        {"id": "exp-1", "name": "Exp"},
+        {"id": "rnd-1", "name": "Rounding Bank"},
+    ]
+    c3_runner.upload_statement.return_value = "stmt-cc"
+    c3_runner.wait_for_statement_parsed.return_value = {
+        "opening_balance": "10000.00",
+        "closing_balance": "8800.00",
+    }
+    c3_runner.get_balance_sheet.side_effect = [
+        {
+            "total_assets": "8800.00",
+            "total_liabilities": "0.00",
+            "total_equity": "10000.00",
+            "net_income": "-1200.00",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        },
+        {
+            "total_assets": "8800.02",
+            "total_liabilities": "0.00",
+            "total_equity": "10000.00",
+            "net_income": "-1199.98",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        },
+    ]
+    c3_runner.get_income_statement.return_value = {
+        "total_income": "0.00",
+        "total_expenses": "1200.00",
+        "net_income": "-1200.00",
+    }
+    c3_runner.post_reconciliation_adjustment.return_value = {
+        "difference": "0.02",
+        "journal_entry_id": "je-adj-1",
+    }
+    c3_res = case_3.execute_case_3(c3_runner)
+    assert c3_res.status == "PASS", c3_res.error_message
+    assert c3_res.details["flow_18_adjustment_difference"] == "0.02"

@@ -372,6 +372,86 @@ class ScenarioBenchmarkRunner:
             )
         return resp.json()
 
+    def reject_statement(
+        self,
+        client: httpx.Client,
+        statement_id: str,
+        notes: str = "Low quality corrupted scan rejected in triage",
+    ) -> dict[str, Any]:
+        """Reject a statement during Stage 1 triage (Flow 9)."""
+        resp = client.post(
+            f"/api/statements/{statement_id}/review/reject",
+            json={"notes": notes},
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Rejection failed for statement {statement_id}: {resp.status_code} {resp.text}"
+            )
+        data = resp.json()
+        if data.get("status") != "rejected":
+            raise RuntimeError(
+                f"Expected rejected status for statement {statement_id}, got: {data}"
+            )
+        return data
+
+    def run_stage2_consistency_checks(
+        self, client: httpx.Client, statement_id: str
+    ) -> dict[str, Any]:
+        """Run Stage 2 consistency and deduplication checks for a statement (Flow 8)."""
+        resp = client.post(f"/api/statements/{statement_id}/stage2/run-checks")
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Stage 2 consistency checks failed for {statement_id}: {resp.status_code} {resp.text}"
+            )
+        return resp.json()
+
+    def list_transaction_anomalies(
+        self, client: httpx.Client, txn_id: str
+    ) -> list[dict[str, Any]]:
+        """List recurring cadence and amount anomalies for a transaction (Flow 29)."""
+        resp = client.get(f"/api/reconciliation/transactions/{txn_id}/anomalies")
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Transaction anomalies request failed for {txn_id}: {resp.status_code} {resp.text}"
+            )
+        return resp.json()
+
+    def post_reconciliation_adjustment(
+        self,
+        client: httpx.Client,
+        account_id: str,
+        bank_balance: str,
+        book_balance: str,
+        threshold: str = "0.05",
+    ) -> dict[str, Any]:
+        """Post an immaterial penny rounding adjustment (Flow 18)."""
+        resp = client.post(
+            "/api/reconciliation/adjustment",
+            json={
+                "account_id": account_id,
+                "bank_balance": bank_balance,
+                "book_balance": book_balance,
+                "threshold": threshold,
+            },
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Reconciliation adjustment failed: {resp.status_code} {resp.text}"
+            )
+        return resp.json()
+
+    def get_report_coverage(
+        self, client: httpx.Client, as_of_date: str | None = None
+    ) -> dict[str, Any]:
+        """Fetch report continuous coverage start date and limiting accounts."""
+        params = f"?as_of_date={as_of_date}" if as_of_date else ""
+        resp = client.get(f"/api/reports/coverage{params}")
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Report coverage request failed: {resp.status_code} {resp.text}"
+            )
+        return resp.json()
+
     def get_balance_sheet(
         self,
         client: httpx.Client,
