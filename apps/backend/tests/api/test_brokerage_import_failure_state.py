@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import SqlTraceRecordRepository, TraceEmitter
 from src.config import settings
@@ -31,6 +32,7 @@ from src.extraction import (
     StatementSummary,
     extraction_trace_policy_registry,
     persist_statement_extraction_result,
+    record_brokerage_import_failure,
 )
 from src.extraction.extension.extraction_trace import build_extraction_trace_records
 from src.routers import statements as statements_router
@@ -311,3 +313,85 @@ async def test_AC_extraction_2648_1_only_a_parsed_or_approved_statement_reports_
         "parsing": (False, None),
         "uploaded": (False, None),
     }
+
+
+#: A concurrent write of another metadata key. A real re-parse also writes ``statement_extraction_result``;
+#: the import path parses that key, so the test changes a key that no import step reads.
+NEW_EXTRACTION = {"within_document_dedup_collapse": 2}
+
+
+async def _write_in_another_session(db_engine, statement_id, metadata) -> None:
+    """A concurrent re-parse: another session replaces the extraction metadata and commits."""
+    async with AsyncSession(db_engine, expire_on_commit=False) as other:
+        row = await other.get(StatementSummary, statement_id)
+        assert row is not None
+        row.extraction_metadata = metadata
+        await other.commit()
+
+
+async def test_AC_extraction_2648_1_a_concurrent_extraction_write_survives_an_import(
+    db, db_engine, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC-extraction.2648.1: the import loads the statement, then another session writes a new
+    extraction (a re-parse) and commits. The successful import and the failed import change only
+    the record key, so the new extraction stays. A write of the whole metadata from the object
+    that the import loaded put the old extraction back (the review probe)."""
+    user_id = test_user.id
+    statement = build_statement(user_id, "ibkr-positions-2648-concurrent", 20)
+    statement.extraction_metadata = {"within_document_dedup_collapse": 1}
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id
+    with pytest.raises(RuntimeError):
+        await _import(db, monkeypatch, statement_id=statement_id, user_id=user_id, outcome=RuntimeError("fault"))
+
+    async def import_while_reparsed(*_args, **_kwargs):
+        # The new extraction keeps a failure record, so the clear of the successful import runs.
+        await _write_in_another_session(
+            db_engine, statement_id, {**NEW_EXTRACTION, BROKERAGE_IMPORT_FAILURE_KEY: {"reason": "x"}}
+        )
+        return _import_result()
+
+    monkeypatch.setattr(statements_router._BROKERAGE_IMPORT_SERVICE, "import_positions", import_while_reparsed)
+    await statements_router.import_brokerage_statement_positions(statement_id=statement_id, db=db, user_id=user_id)
+    assert (await _stored(db, statement_id)).extraction_metadata == NEW_EXTRACTION
+
+    async def fail_while_reparsed(*_args, **_kwargs):
+        await _write_in_another_session(db_engine, statement_id, {"within_document_dedup_collapse": 3})
+        raise RuntimeError("fault")
+
+    monkeypatch.setattr(statements_router._BROKERAGE_IMPORT_SERVICE, "import_positions", fail_while_reparsed)
+    with pytest.raises(RuntimeError):
+        await statements_router.import_brokerage_statement_positions(statement_id=statement_id, db=db, user_id=user_id)
+    stored = (await _stored(db, statement_id)).extraction_metadata
+    assert stored["within_document_dedup_collapse"] == 3
+    assert stored[BROKERAGE_IMPORT_FAILURE_KEY]["reason"] == BROKERAGE_IMPORT_FAILED_MESSAGE
+
+
+async def test_AC_extraction_2648_1_an_import_that_succeeds_after_another_failed_clears_that_failure(
+    db, db_engine, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC-extraction.2648.1: import B loads the statement. While B imports, import A fails and
+    records its failure in another session. B succeeds later, so the statement shows no failure.
+    A clear that read the metadata of the object that B loaded kept the failure."""
+    user_id = test_user.id
+    statement = build_statement(user_id, "ibkr-positions-2648-overlap", 20)
+    db.add(statement)
+    await db.commit()
+    statement_id = statement.id
+
+    async def import_while_another_fails(*_args, **_kwargs):
+        async with AsyncSession(db_engine, expire_on_commit=False) as other:
+            await record_brokerage_import_failure(
+                other, statement_id=statement_id, user_id=user_id, reason="Import A failed.", request_id="request-a"
+            )
+            await other.commit()
+        return _import_result()
+
+    monkeypatch.setattr(statements_router._BROKERAGE_IMPORT_SERVICE, "import_positions", import_while_another_fails)
+    await statements_router.import_brokerage_statement_positions(statement_id=statement_id, db=db, user_id=user_id)
+
+    stored = await _stored(db, statement_id)
+    assert BROKERAGE_IMPORT_FAILURE_KEY not in (stored.extraction_metadata or {})
+    listed = await _listed(db, user_id, statement_id)
+    assert (listed.brokerage_import_failed, listed.brokerage_import_failure_reason) == (False, None)

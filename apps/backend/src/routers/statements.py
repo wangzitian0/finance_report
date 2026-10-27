@@ -4,7 +4,6 @@ import asyncio
 import hashlib
 import mimetypes
 from collections.abc import Sequence
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -22,6 +21,7 @@ from src.composition import (
 from src.config import settings
 from src.deps import CurrentUserId, DbSession
 from src.extraction import (
+    BROKERAGE_IMPORTABLE_STATUSES,
     BankStatementStatus,
     BrokerageImportRejectedError,
     BrokeragePositionImportService,
@@ -710,32 +710,6 @@ async def list_statement_transactions(
     return BankStatementTransactionListResponse(items=items, total=len(items))
 
 
-async def _record_brokerage_import_failure(
-    db: AsyncSession, *, statement_id: UUID, user_id: UUID, request_id: str | None, reason: str | None
-) -> None:
-    """Persist a failed brokerage import on the statement, so the upload list shows it (#2648).
-
-    The statement stays ``parsed``. ``extraction_metadata`` records ``reason`` (the reason of a
-    rejected source, HTTP 422, #2649), the request id and the time. ``validation_error`` does not
-    change. A successful import removes the record. A failure of this write is logged and does
-    not replace the original error.
-    """
-    try:
-        statement = await db.get(StatementSummary, statement_id)
-        if statement is None or statement.user_id != user_id:
-            return
-        record_brokerage_import_failure(statement, reason=reason, request_id=request_id, failed_at=datetime.now(UTC))
-        await db.commit()
-    except Exception as exc:  # noqa: BLE001 - the caller re-raises the import error
-        await db.rollback()
-        logger.warning(
-            "statement.brokerage_import.failure_not_recorded",
-            request_id=request_id,
-            statement_id=str(statement_id),
-            error_type=type(exc).__name__,
-        )
-
-
 # Synchronous 200: the import runs inline and returns the full BrokerageImportResponse
 # (counts + reconciliation results), so the operation is complete on response — not a
 # 202 background job (cf. #1099 AC-platform.29.1).
@@ -753,7 +727,7 @@ async def import_brokerage_statement_positions(
     statement = await _get_statement_or_404(db, statement_id, user_id)
     transactions = await resolve_statement_transactions(db, statement)
 
-    if statement.status not in (BankStatementStatus.PARSED, BankStatementStatus.APPROVED):
+    if statement.status not in BROKERAGE_IMPORTABLE_STATUSES:
         raise_bad_request(_brokerage_import_not_ready_reason(statement, len(transactions)))
 
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
@@ -788,7 +762,7 @@ async def import_brokerage_statement_positions(
         if statement.account_id is None and import_result.account_id is not None:
             statement.account_id = import_result.account_id
         # #2648: only a successful import removes the record of an earlier failed import.
-        clear_brokerage_import_failure(statement)
+        await clear_brokerage_import_failure(db, statement_id=statement_id, user_id=user_id)
         await db.commit()
     except Exception as exc:
         # #2649: a rejected source (HTTP 422 with a reason) is a warning, not a server fault.
@@ -804,13 +778,25 @@ async def import_brokerage_statement_positions(
             safe_error_message=safe_error_message(str(exc)),
         )
         await db.rollback()
-        await _record_brokerage_import_failure(
-            db,
-            statement_id=statement_id,
-            user_id=user_id,
-            request_id=request_id,
-            reason=exc.message if isinstance(exc, BrokerageImportRejectedError) else None,
-        )
+        # #2648: record the failure in a new transaction. A failure of this write is logged and the
+        # original import error is raised.
+        try:
+            await record_brokerage_import_failure(
+                db,
+                statement_id=statement_id,
+                user_id=user_id,
+                request_id=request_id,
+                reason=exc.message if isinstance(exc, BrokerageImportRejectedError) else None,
+            )
+            await db.commit()
+        except Exception as record_exc:  # noqa: BLE001 - the import error below is the answer
+            await db.rollback()
+            logger.warning(
+                "statement.brokerage_import.failure_not_recorded",
+                request_id=request_id,
+                statement_id=str(statement_id),
+                error_type=type(record_exc).__name__,
+            )
         raise
     logger.info(
         "statement.brokerage_import.completed",

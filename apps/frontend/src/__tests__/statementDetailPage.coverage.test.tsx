@@ -159,7 +159,7 @@ describe("StatementDetailPage - coverage additions", () => {
             [IMPORT_OP]: () => Promise.resolve({ broker: "Moomoo", parsed_positions: 1, created_atomic_positions: 1, existing_atomic_positions: 0, reconcile_created: 1, reconcile_updated: 0, reconcile_disposed: 0, skipped: 0 }),
         });
         const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-        const reads = [["portfolio-holdings", false, ""], ["portfolio-summary", ""], ["statements"], ["unrelated"]];
+        const reads = [["portfolio-holdings", false, ""], ["portfolio-summary", ""], ["reports-net-worth-allocation", "", "SGD", true], ["statements"], ["unrelated"]];
         for (const key of reads) client.setQueryData(key, { seeded: true });
 
         renderReviewComponent(<StatementDetailPage /> as any, client);
@@ -167,7 +167,7 @@ describe("StatementDetailPage - coverage additions", () => {
 
         await waitFor(() => expect(screen.getByTestId("import-result-banner")).toBeInTheDocument());
         // The holdings and the statement list are stale; another read is not.
-        expect(reads.map((key) => client.getQueryState(key)?.isInvalidated)).toEqual([true, true, true, false]);
+        expect(reads.map((key) => client.getQueryState(key)?.isInvalidated)).toEqual([true, true, true, true, false]);
     });
 
     it("AC17.8.3 sanitizes sensitive URLs in import error messages", async () => {

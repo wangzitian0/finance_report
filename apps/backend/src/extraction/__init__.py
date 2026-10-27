@@ -107,6 +107,14 @@ from src.extraction.extension.ai_settings import (
     effective_reconciliation,
     reconciliation_enabled,
 )
+from src.extraction.extension.brokerage_import_failure import (
+    BROKERAGE_IMPORT_FAILED_MESSAGE,
+    BROKERAGE_IMPORT_FAILURE_KEY,
+    BROKERAGE_IMPORTABLE_STATUSES,
+    brokerage_import_failure_reason,
+    clear_brokerage_import_failure,
+    record_brokerage_import_failure,
+)
 from src.extraction.extension.brokerage_positions import (
     BrokerageImportRejectedError,
     BrokeragePositionImportService,
@@ -117,14 +125,9 @@ from src.extraction.extension.brokerage_positions import (
     register_position_reconciler,
 )
 from src.extraction.extension.brokerage_statement_payload import (
-    BROKERAGE_IMPORT_FAILED_MESSAGE,
-    BROKERAGE_IMPORT_FAILURE_KEY,
     _brokerage_import_not_ready_reason,
     _brokerage_payload_from_persisted_extraction,
     _brokerage_payload_from_statement,
-    brokerage_import_failure_reason,
-    clear_brokerage_import_failure,
-    record_brokerage_import_failure,
     reject_json_floats,
 )
 from src.extraction.extension.correction_loop import CorrectionLoopService
@@ -336,6 +339,7 @@ __all__ = [
     "UploadedDocument",
     "BROKERAGE_IMPORT_FAILED_MESSAGE",
     "BROKERAGE_IMPORT_FAILURE_KEY",
+    "BROKERAGE_IMPORTABLE_STATUSES",
     "brokerage_import_failure_reason",
     "clear_brokerage_import_failure",
     "record_brokerage_import_failure",

@@ -457,7 +457,12 @@ describe("StatementsPage", () => {
     })
     const retried = { ...brokerage, brokerage_import_failed: false, brokerage_import_failure_reason: null }
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const portfolioReads = [["portfolio-holdings", false, ""], ["portfolio-summary", ""], ["portfolio-allocation", "asset"]]
+    const portfolioReads = [
+      ["portfolio-holdings", false, ""],
+      ["portfolio-summary", ""],
+      ["portfolio-allocation", "asset"],
+      ["reports-net-worth-allocation", "", "SGD", true],
+    ]
     for (const key of [...portfolioReads, ["unrelated"]]) client.setQueryData(key, { seeded: true })
     const stale = () => portfolioReads.map((key) => client.getQueryState(key)?.isInvalidated)
     mockStatementsPageApi({ statements: [{ items: [brokerage] }, { items: [retried] }] })
@@ -473,7 +478,7 @@ describe("StatementsPage", () => {
     expect(within(row).getByText("Import failed")).toBeInTheDocument()
     expect(within(row).getByText(failure)).toBeInTheDocument()
     expect(within(row).queryByText(earlierNote)).toBeNull()
-    expect(stale()).toEqual([false, false, false])
+    expect(stale()).toEqual([false, false, false, false])
     expect(within(row).getByText("No statement period")).toBeInTheDocument()
     expect(within(row).getByText("Not checked")).toBeInTheDocument()
     expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(2)
@@ -491,7 +496,7 @@ describe("StatementsPage", () => {
     await waitFor(() => expect(within(screen.getByTestId("upload-statement-row-s-ibkr")).getByText("Ready to review")).toBeInTheDocument())
     expect(showToastMock).toHaveBeenCalledWith("Brokerage positions imported", "success")
     // The import changed the holdings: every /portfolio read is stale, other reads are not (#2648).
-    expect(stale()).toEqual([true, true, true])
+    expect(stale()).toEqual([true, true, true, true])
     expect(client.getQueryState(["unrelated"])?.isInvalidated).toBe(false)
   })
 

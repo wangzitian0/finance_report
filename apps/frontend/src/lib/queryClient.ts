@@ -21,16 +21,26 @@ export const LEDGER_DERIVED_QUERY_KEYS: readonly QueryKey[] = [
   ["chat", "suggestions"],
 ];
 
-/** True for a read of `/portfolio`: its key starts with a "portfolio-" element (#2648). */
+/**
+ * The first key elements of the `/portfolio` reads that are not ledger-derived prefixes (#2648). The
+ * page also reads `["reports-net-worth-allocation", ...]`: neither `portfolio-` nor `["report"]` covers it.
+ */
+const PORTFOLIO_READ_HEADS = ["reports-net-worth-allocation"] as const;
+
+/** True for a read of `/portfolio`: its key starts with a "portfolio-" element or a listed head. */
 function isPortfolioQueryKey(queryKey: QueryKey): boolean {
   const head = queryKey[0];
-  return typeof head === "string" && head.startsWith("portfolio-");
+  return (
+    typeof head === "string" &&
+    (head.startsWith("portfolio-") || (PORTFOLIO_READ_HEADS as readonly string[]).includes(head))
+  );
 }
 
 /**
- * Mark the reads of `/portfolio` stale, for example `["portfolio-holdings", ...]` and
- * `["portfolio-summary", ...]` (#2648). A successful brokerage import changes them. They are not
- * ledger-derived prefixes: each read has its own first key element.
+ * Mark the reads of `/portfolio` stale, for example `["portfolio-holdings", ...]`,
+ * `["portfolio-summary", ...]` and `["reports-net-worth-allocation", ...]` (#2648). A successful
+ * brokerage import changes them. They are not ledger-derived prefixes: each read has its own first
+ * key element.
  */
 export function invalidatePortfolioQueries(client: QueryClient): Promise<void> {
   return client.invalidateQueries({ predicate: (query) => isPortfolioQueryKey(query.queryKey) });
