@@ -9,7 +9,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { NeedsConfirmationQueue } from "@/components/audit/NeedsConfirmationQueue";
+import { NeedsConfirmationQueue } from "@/components/audit/AuditPanels";
 import UploadPage from "@/app/(main)/upload/page";
 import { HomeActionBanner } from "@/components/home/HomeActionBanner";
 import { apiOperation } from "@/lib/api-client";

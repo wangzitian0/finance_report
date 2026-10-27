@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { ReportPageShell } from "@/components/reports/ReportPageShell";
+import { ReportPageShell } from "@/components/reports/ReportShell";
 
 describe("ReportPageShell", () => {
   // AC-reporting.fe-viz-reports.13

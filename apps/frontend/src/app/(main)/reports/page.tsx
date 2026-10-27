@@ -3,12 +3,10 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
-import { BalanceSheetPanel } from "@/components/reports/BalanceSheetPanel";
 import { CashFlowPanel } from "@/components/reports/CashFlowPanel";
-import { IncomeStatementPanel } from "@/components/reports/IncomeStatementPanel";
 import { PackagePanel } from "@/components/reports/PackagePanel";
-import { ReportDimensionBar } from "@/components/reports/ReportFilters";
-import { StatementCockpit } from "@/components/reports/StatementCockpit";
+import { ReportDimensionBar, StatementCockpit } from "@/components/reports/ReportShell";
+import { BalanceSheetPanel, IncomeStatementPanel } from "@/components/reports/StatementPanels";
 import { Badge } from "@/components/ui";
 import { personalReportPackageQuery } from "@/hooks/usePersonalReportPackage";
 import { REPORT_TABS, reportsHref, useReportFilters, type ReportFilters } from "@/hooks/useReportFilters";

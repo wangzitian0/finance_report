@@ -9,7 +9,7 @@ import {
   InvariantChecksGrid,
   TemporalTimelineGrid,
   TrustScoreHero,
-} from "@/components/audit/TrustScoreHero";
+} from "@/components/audit/AuditPanels";
 import {
   getGradeColor,
   getGradeLabel,

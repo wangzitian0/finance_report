@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { OpeningBalanceWarningBanner } from "@/components/reports/ReportPageShell";
+import { OpeningBalanceWarningBanner } from "@/components/reports/ReportShell";
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,

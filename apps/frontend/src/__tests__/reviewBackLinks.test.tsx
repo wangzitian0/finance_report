@@ -3,7 +3,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 
 import { BackLink } from "@/components/ui/SmartBackLink";
-import { AiSuggestionsQueue } from "@/components/audit/AiSuggestionsQueue";
+import { AiSuggestionsQueue } from "@/components/audit/AuditPanels";
 import { apiOperation } from "@/lib/api-client";
 
 const navigationState = vi.hoisted(() => ({
