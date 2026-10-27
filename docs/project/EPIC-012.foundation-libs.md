@@ -82,11 +82,12 @@ This EPIC addresses technical debt in the foundational libraries that all module
 > AC12.6.* / AC12.7.* / AC12.8.* groups) moved to
 > [`common/observability/contract.py`](../../common/observability/contract.py)'s
 > `roadmap`, landing as `AC-observability.2.1`, `AC-observability.1.3`/`.4`,
-> `AC-observability.4.1`/`.2`/`.5`/`.6`, `AC-observability.4.7`,
-> `AC-observability.13.1` through `.4`, `AC-observability.14.1` through `.5`,
-> and `AC-observability.15.1` through `.4` respectively. This note references
-> the new ids (keeping the registry↔EPIC link intact) but defines none of
-> them — the contract is the single definition source.
+> `AC-observability.4.1`/`.2`/`.5`/`.6`, and `AC-observability.4.7`
+> respectively. This note references the new ids (keeping the registry↔EPIC
+> link intact) but defines none of them — the contract is the single
+> definition source. The AC12.6, AC12.7 and AC12.8 rows (timing, external-API
+> and exception helpers) were deleted with their helpers (#2684); no caller
+> used them.
 
 ### AC12.9: Ratio / percent value type — migrated to the `audit` package ([#1167](https://github.com/wangzitian0/finance_report/issues/1167))
 
@@ -118,9 +119,9 @@ diverging across the codebase and across ends.
 > six groups moved to
 > [`common/observability/contract.py`](../../common/observability/contract.py)'s
 > `roadmap`, landing as `AC-observability.16.1`, `AC-observability.16.2`
-> through `.4`, `AC-observability.4.8` through `.10`,
-> `AC-observability.1.5`/`.6`, `AC-observability.13.5`/`.6`, and
-> `AC-observability.14.6`/`.7` respectively.
+> through `.4`, `AC-observability.4.8` through `.10`, and
+> `AC-observability.1.5`/`.6` respectively. The AC12.16 and AC12.17 rows (async
+> timing and async external-API) were deleted with their helpers (#2684).
 
 ### AC12.18: Config - Environment-Variable Format Contract — migrated to the `config` package
 
