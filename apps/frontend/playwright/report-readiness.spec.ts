@@ -67,7 +67,34 @@ const packageDocument = {
     report_period_end: "2026-05-20",
     generated_at: "2026-05-20",
     required_statements: ["balance_sheet", "notes", "traceability_appendix"],
-    decisions: [],
+    decisions: [
+      {
+        domain: "personal_income",
+        recognition: "Recognize on settlement.",
+        measurement: "Functional currency amount.",
+        classification: "Other income",
+        presentation: "US-like Other income.",
+        disclosure: "Disclose in notes.",
+        line_mappings: { income_statement: "income.other" },
+        review_state: "accepted",
+        policy_field_name: "income_classification",
+        provenance: "deterministic_matrix",
+        evidence_anchors: [{ anchor_id: "journal_line:1", anchor_type: "journal_line", source_system: "canonical_ledger", source_id: "1", description: "Line 1" }],
+      },
+      {
+        domain: "personal_income",
+        recognition: "Recognize on settlement.",
+        measurement: "Functional currency amount.",
+        classification: "Other income",
+        presentation: "US-like Other income.",
+        disclosure: "Disclose in notes.",
+        line_mappings: { income_statement: "income.other" },
+        review_state: "accepted",
+        policy_field_name: "income_classification",
+        provenance: "deterministic_matrix",
+        evidence_anchors: [{ anchor_id: "journal_line:2", anchor_type: "journal_line", source_system: "canonical_ledger", source_id: "2", description: "Line 2" }],
+      },
+    ],
     gaps: [],
   },
   sections: {
@@ -303,6 +330,9 @@ test.describe("AC19.8.7 AC19.8.8 AC22.8.4 AC22.19 report package smoke", () => {
       await expect(
         page.getByRole("heading", { name: "Balance Sheet" }),
       ).toBeVisible();
+      const basisSection = page.locator("#package-framework-policy");
+      await expect(basisSection.getByText("Personal Income")).toHaveCount(1);
+      await expect(basisSection.getByText("2 items")).toBeVisible();
       await expectNoDocumentHorizontalScroll(page);
     });
   }

@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const sankeyMockState = vi.hoisted(() => ({
-  capturedProps: null as { option?: Record<string, unknown>; style?: { height?: string; width?: string } } | null,
+  capturedProps: null as { option?: Record<string, unknown>; notMerge?: boolean; style?: { height?: string; width?: string } } | null,
   capturedLoading: null as ReactNode,
   observerCallback: null as ((mutations: MutationRecord[]) => void) | null,
 }))
@@ -15,7 +15,7 @@ vi.mock("next/dynamic", () => ({
   ) => {
     sankeyMockState.capturedLoading = options?.loading?.() ?? null
     void loader()
-    const MockChart = (props: { option: Record<string, unknown>; style: { height: string; width: string } }) => {
+    const MockChart = (props: { option: Record<string, unknown>; notMerge?: boolean; style: { height: string; width: string } }) => {
       sankeyMockState.capturedProps = props
       return <div data-testid="mock-echarts" />
     }
@@ -101,19 +101,38 @@ describe("SankeyChart", () => {
 
     const option = sankeyMockState.capturedProps?.option as {
       title: { text: string }
-      series: Array<{ data: Array<{ name: string }>; links: Array<{ source: string; target: string; value: number }> }>
+      graphic: unknown[]
+      series: Array<{
+        data: Array<{ name: string; label?: { position?: string } }>
+        links: Array<{ source: string; target: string; value: number }>
+        label: { formatter: (params: { name: string }) => string }
+      }>
     }
+    expect(sankeyMockState.capturedProps?.notMerge).toBe(true)
     expect(option.title.text).toBe("Detailed Cash Flow")
+    expect(option.graphic).toEqual([])
 
     const series = option.series[0]
     const nodeNames = series.data.map((n) => n.name)
-    expect(nodeNames).toContain("Operating")
+    expect(nodeNames).not.toContain("Operating")
+    expect(nodeNames).not.toContain("Investing")
+    expect(nodeNames).not.toContain("Financing")
     expect(nodeNames).toContain("Operating-Inflows")
     expect(nodeNames).toContain("Operating-Outflows")
     expect(nodeNames).toContain("Operating-Sales")
     expect(nodeNames).toContain("Operating-Payroll")
     expect(nodeNames).toContain("Investing-Equipment")
     expect(nodeNames).toContain("Financing-Loan")
+
+    const rightColumnNode = series.data.find((n) => n.name === "Operating-Sales")
+    expect(rightColumnNode?.label?.position).toBe("left")
+    const rightOutflowNode = series.data.find((n) => n.name === "Operating-Outflows")
+    expect(rightOutflowNode?.label?.position).toBe("left")
+
+    expect(series.label.formatter({ name: "Operating-Inflows" })).toBe("Operating Inflows")
+    expect(series.label.formatter({ name: "Operating-Outflows" })).toBe("Operating Outflows")
+    expect(series.label.formatter({ name: "Operating-Sales" })).toBe("Sales")
+    expect(series.label.formatter({ name: "Investing-Equipment" })).toBe("Equipment")
 
     expect(series.links).toEqual(
       expect.arrayContaining([
@@ -128,9 +147,9 @@ describe("SankeyChart", () => {
       tooltip: { formatter: (params: { data: { name?: string; value?: number; source?: string; target?: string } }) => string }
     }).tooltip.formatter
     expect(formatter({ data: { source: "Operating-Inflows", target: "Operating-Sales", value: 3000 } })).toBe(
-      "Operating-Inflows → Operating-Sales: 3,000",
+      "Operating Inflows → Sales: 3,000",
     )
-    expect(formatter({ data: { name: "Operating", value: 12 } })).toBe("Operating: 12")
+    expect(formatter({ data: { name: "Operating-Sales", value: 12 } })).toBe("Sales: 12")
   })
 
   // AC-reporting.fe-report-surfaces.22
@@ -145,7 +164,7 @@ describe("SankeyChart", () => {
     const initialOption = sankeyMockState.capturedProps?.option as {
       series: Array<{ data: Array<{ name: string; itemStyle?: { color: string } }> }>
     }
-    const initialNodeColor = initialOption.series[0].data.find((n) => n.name === "Operating")?.itemStyle?.color
+    const initialNodeColor = initialOption.series[0].data.find((n) => n.name === "Operating-Inflows")?.itemStyle?.color
     expect(initialNodeColor).toBe("#1f9d55")
 
     colors["--success"] = "#00ff99"
@@ -156,7 +175,7 @@ describe("SankeyChart", () => {
       const updatedOption = sankeyMockState.capturedProps?.option as {
         series: Array<{ data: Array<{ name: string; itemStyle?: { color: string } }> }>
       }
-      const updatedNodeColor = updatedOption.series[0].data.find((n) => n.name === "Operating")?.itemStyle?.color
+      const updatedNodeColor = updatedOption.series[0].data.find((n) => n.name === "Operating-Inflows")?.itemStyle?.color
       const subcategoryColor = updatedOption.series[0].data.find((n) => n.name === "Operating-Sales")?.itemStyle?.color
       expect(updatedNodeColor).toBe("#00ff99")
       expect(subcategoryColor).toBe("#334155")
