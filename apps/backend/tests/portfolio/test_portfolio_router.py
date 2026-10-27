@@ -1335,3 +1335,29 @@ async def test_AC17_30_6_allocation_limit_offset_honored(
 
     assert (await client.get("/portfolio/allocation/geography?limit=10000")).status_code == 422
     assert (await client.get("/portfolio/allocation/asset-class?offset=-1")).status_code == 422
+
+
+async def test_portfolio_summary_falls_back_to_ledger_dividend_income_ytd(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    portfolio_with_data,
+):
+    """AC17.7.5: Portfolio summary falls back to posted ledger dividend income when position dividends are empty (#2764)."""
+    await create_valid_posted_entry(
+        db,
+        test_user.id,
+        entry_date=date(date.today().year, 2, 10),
+        memo="Dividend",
+        amount=Decimal("200.00"),
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+        debit_account_type=AccountType.ASSET,
+        credit_account_type=AccountType.INCOME,
+    )
+    await db.commit()
+
+    response = await client.get("/portfolio/summary")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["dividend_income_ytd"] == "200.00"

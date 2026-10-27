@@ -144,6 +144,23 @@ const LABELS: Record<AllocationType, string> = {
   "asset-class": "Asset Class",
 };
 
+const UNCLASSIFIED_LABELS: Record<AllocationType, string> = {
+  sector: "Unclassified sector",
+  geography: "Unclassified geography",
+  "asset-class": "Unclassified asset class",
+};
+
+export function formatAllocationCategory(
+  category: string | null | undefined,
+  type: AllocationType,
+): string {
+  const trimmed = category?.trim() ?? "";
+  if (!trimmed || trimmed.toLowerCase() === "unknown") {
+    return UNCLASSIFIED_LABELS[type];
+  }
+  return trimmed;
+}
+
 export function AllocationChart({ type, title }: AllocationChartProps) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["portfolio-allocation", type],
@@ -186,7 +203,7 @@ export function AllocationChart({ type, title }: AllocationChartProps) {
   }
 
   const segments = data.map((d, i) => ({
-    label: d.category || "Unknown",
+    label: formatAllocationCategory(d.category, type),
     value: percentNumberFromPercentValue(d.percentage, { fallback: 0 }) ?? 0,
     color: CHART_PALETTE[i % CHART_PALETTE.length],
   }));
@@ -194,28 +211,35 @@ export function AllocationChart({ type, title }: AllocationChartProps) {
   return (
     <div className="card p-5">
       <p className="text-xs text-muted uppercase tracking-wide mb-3">{title}</p>
-      <PieChart segments={segments} centerLabel={LABELS[type]} />
+      <PieChart
+        segments={segments}
+        centerLabel={LABELS[type]}
+        showLegend={false}
+      />
       <div className="mt-4 space-y-1.5">
-        {data.map((d, i) => (
-          <div
-            key={d.category}
-            className="flex items-center justify-between text-sm"
-          >
-            <div className="flex items-center gap-2">
-              <span
-                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                style={{
-                  backgroundColor: CHART_PALETTE[i % CHART_PALETTE.length],
-                }}
-              />
-              <span className="truncate">{d.category || "Unknown"}</span>
-              <span className="text-xs text-muted">({d.count})</span>
+        {data.map((d, i) => {
+          const categoryLabel = formatAllocationCategory(d.category, type);
+          return (
+            <div
+              key={`${d.category}-${i}`}
+              className="flex items-center justify-between text-sm"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{
+                    backgroundColor: CHART_PALETTE[i % CHART_PALETTE.length],
+                  }}
+                />
+                <span className="truncate">{categoryLabel}</span>
+                <span className="text-xs text-muted">({d.count})</span>
+              </div>
+              <span className="font-medium">
+                {formatPercentFromPercentValue(d.percentage, { dp: 1 })}
+              </span>
             </div>
-            <span className="font-medium">
-              {formatPercentFromPercentValue(d.percentage, { dp: 1 })}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

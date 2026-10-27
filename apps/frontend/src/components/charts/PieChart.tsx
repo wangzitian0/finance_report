@@ -10,6 +10,7 @@ interface PieChartProps {
   segments: PieSegment[];
   size?: number;
   centerLabel?: string;
+  showLegend?: boolean;
 }
 
 const DEFAULT_SIZE = 180;
@@ -18,6 +19,7 @@ export function PieChart({
   segments,
   size = DEFAULT_SIZE,
   centerLabel = "Assets",
+  showLegend = true,
 }: PieChartProps) {
   const filtered = segments.filter((segment) => segment.value > 0);
   const total = filtered.reduce((sum, segment) => sum + segment.value, 0);
@@ -62,28 +64,30 @@ export function PieChart({
           {centerLabel}
         </text>
       </svg>
-      <div className="grid w-full grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-[var(--foreground-muted)]">
-        {filtered.map((segment) => {
-          const pct = total > 0 ? Math.round((segment.value / total) * 100) : 0;
-          return (
-            <div key={segment.label} className="flex items-center justify-between gap-2 rounded px-1.5 py-1 bg-[var(--background-muted)]/50">
-              <div className="flex items-center gap-2 min-w-0">
+      {showLegend ? (
+        <div className="grid w-full grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-[var(--foreground-muted)]">
+          {filtered.map((segment) => {
+            const pct = total > 0 ? Math.round((segment.value / total) * 100) : 0;
+            return (
+              <div key={segment.label} className="flex items-center justify-between gap-2 rounded px-1.5 py-1 bg-[var(--background-muted)]/50">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: segment.color }}
+                  />
+                  <span className="truncate">{segment.label}</span>
+                </div>
                 <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: segment.color }}
-                />
-                <span className="truncate">{segment.label}</span>
+                  className="shrink-0 font-medium text-[var(--foreground)]"
+                  data-testid={`pie-segment-share-${segment.label}`}
+                >
+                  {`${pct}% · ${formatCompactChartValue(segment.value)}`}
+                </span>
               </div>
-              <span
-                className="shrink-0 font-medium text-[var(--foreground)]"
-                data-testid={`pie-segment-share-${segment.label}`}
-              >
-                {`${pct}% · ${formatCompactChartValue(segment.value)}`}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      ) : null}
       <table className="sr-only">
         <caption>Chart data</caption>
         <thead>

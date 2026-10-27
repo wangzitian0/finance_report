@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from src.audit import Ratio, to_money
 from src.deps import CurrentUserId, DbSession
@@ -13,6 +13,14 @@ from src.extraction import (
     BrokeragePositionImportService,
     ManagedPosition,
     PositionStatus,
+)
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalLine,
+    active_journal_entry_filter,
 )
 from src.observability import get_logger
 from src.portfolio import (
@@ -32,7 +40,7 @@ from src.portfolio import (
     get_sector_allocation as sector_allocation_breakdowns,
     portfolio_service,
 )
-from src.pricing import PricingError
+from src.pricing import PricingError, convert_amount
 from src.schemas.portfolio import (
     BrokerageImportRequest,
     BrokerageImportResponse,
@@ -149,6 +157,43 @@ async def get_holdings(
     return HoldingsListResponse(items=page, total=len(holdings), warnings=warnings)
 
 
+async def _ledger_dividend_income(
+    db: DbSession,
+    user_id: CurrentUserId,
+    *,
+    start_date: date,
+    end_date: date,
+    target_currency: str,
+) -> Decimal:
+    """Sum active ledger dividend income lines in ``[start_date, end_date]``."""
+    result = await db.execute(
+        select(JournalLine, Account, JournalEntry.entry_date)
+        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+        .join(Account, JournalLine.account_id == Account.id)
+        .where(JournalEntry.user_id == user_id)
+        .where(Account.user_id == user_id)
+        .where(active_journal_entry_filter(JournalEntry))
+        .where(Account.type == AccountType.INCOME)
+        .where(func.lower(Account.name).like("%dividend%"))
+        .where(JournalEntry.entry_date >= start_date)
+        .where(JournalEntry.entry_date <= end_date)
+    )
+    total = Decimal("0.00")
+    for line, account, entry_date in result.all():
+        line_currency = (line.currency or account.currency or target_currency).upper()
+        signed_amount = line.amount if line.direction == Direction.CREDIT else -line.amount
+        converted = await convert_amount(
+            db,
+            signed_amount,
+            line_currency,
+            target_currency,
+            entry_date,
+            lazy_load=True,
+        )
+        total += converted
+    return max(total, Decimal("0.00"))
+
+
 @router.get("/summary", response_model=PortfolioSummaryDashboardResponse)
 async def get_portfolio_summary(
     db: DbSession,
@@ -186,12 +231,17 @@ async def get_portfolio_summary(
         dividend_by_asset = await _portfolio_service.get_dividend_income_by_asset(
             db, user_id, start_date=year_start, end_date=report_date, target_currency=summary_currency
         )
+        dividend_total = sum(dividend_by_asset.values(), Decimal("0.00"))
+        if dividend_total == Decimal("0.00"):
+            dividend_total = await _ledger_dividend_income(
+                db, user_id, start_date=year_start, end_date=report_date, target_currency=summary_currency
+            )
     except PricingError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     data = summary.model_dump()
     data["realized_pnl_ytd"] = to_money(sum(realized_by_asset.values(), Decimal("0.00")))
-    data["dividend_income_ytd"] = to_money(sum(dividend_by_asset.values(), Decimal("0.00")))
+    data["dividend_income_ytd"] = to_money(dividend_total)
     return PortfolioSummaryDashboardResponse(**data)
 
 

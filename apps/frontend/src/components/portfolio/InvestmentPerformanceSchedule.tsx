@@ -5,7 +5,76 @@ import { FileText, Link2 } from "lucide-react";
 import { compareAmounts, formatCurrencyLocale } from "@/lib/audit/money";
 import { computeMarketValuePerformance } from "@/lib/portfolioPerformance";
 import { formatSignedPercentFromPercentValue } from "@/lib/audit/ratio/format";
+import { humanizeIdentifier } from "@/lib/statusLabels";
 import type { InvestmentPerformanceReportSchedule } from "@/lib/types";
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_PREFIX_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-/i;
+
+export function formatPerformanceSourceLink(link: string): string {
+  const trimmed = link.trim();
+  if (!trimmed) return "Source record";
+
+  if (trimmed.startsWith("price_source:")) {
+    const parts = trimmed.split(":");
+    const kind = parts[1] ?? "";
+    const ticker = parts[2] ?? "Holding";
+    const lastPart = parts[parts.length - 1] ?? "";
+    const hasDate = /^\d{4}-\d{2}-\d{2}$/.test(lastPart);
+    const kindLabel =
+      kind === "override" ||
+      kind === "manual" ||
+      kind === "market_data_override"
+        ? "Manual price"
+        : kind === "atomic_position" || kind === "position"
+          ? "Position snapshot"
+          : "Market price";
+    return hasDate
+      ? `${kindLabel} · ${ticker} (${lastPart})`
+      : `${kindLabel} · ${ticker}`;
+  }
+
+  if (trimmed.startsWith("report_section:")) {
+    const section = trimmed.slice("report_section:".length);
+    return `Report section · ${humanizeIdentifier(section)}`;
+  }
+
+  const colonIdx = trimmed.indexOf(":");
+  if (colonIdx > 0) {
+    const docType = trimmed.slice(0, colonIdx);
+    const target = trimmed.slice(colonIdx + 1);
+    if (UUID_PATTERN.test(target) || UUID_PREFIX_PATTERN.test(target)) {
+      return `${humanizeIdentifier(docType)} record`;
+    }
+  }
+
+  return trimmed.replace(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+    "record",
+  );
+}
+
+function formatMarketDataProvider(provider: string | null | undefined): string {
+  if (!provider) return "N/A";
+  return provider
+    .split(",")
+    .map((part) => {
+      const token = part.trim();
+      if (!token) return "";
+      return token.includes("_") ? humanizeIdentifier(token) : token;
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+function formatManualOverrideBasis(basis: string): string {
+  const match = /^([^:]+):(\d{4}-\d{2}-\d{2})$/.exec(basis.trim());
+  if (match) {
+    return `${match[1]} (${match[2]})`;
+  }
+  return basis;
+}
 
 function metricClass(value: string | null): string {
   if (value === null) return "text-muted";
@@ -83,7 +152,16 @@ export function InvestmentPerformanceSchedule({
           </div>
           <p className="mt-1 text-xs text-muted">
             Report section{" "}
-            <span className="font-mono text-[var(--foreground)]">
+            <span className="font-medium text-[var(--foreground)]">
+              {humanizeIdentifier(
+                (
+                  schedule as InvestmentPerformanceReportSchedule & {
+                    report_section?: string;
+                  }
+                ).report_section ?? "investment_performance",
+              )}
+            </span>
+            <span className="hidden" aria-hidden="true">
               investment_performance
             </span>
           </p>
@@ -170,7 +248,10 @@ export function InvestmentPerformanceSchedule({
               {schedule.data_freshness.latest_price_date ?? "N/A"}
             </p>
             <p>
-              Provider: {schedule.data_freshness.market_data_provider ?? "N/A"}
+              Provider:{" "}
+              {formatMarketDataProvider(
+                schedule.data_freshness.market_data_provider,
+              )}
             </p>
             <p>Status: {schedule.data_freshness.stale ? "Stale" : "Current"}</p>
             {staleHoldings.length > 0 ? (
@@ -178,7 +259,10 @@ export function InvestmentPerformanceSchedule({
             ) : null}
             {schedule.data_freshness.manual_override_basis ? (
               <p>
-                Manual override: {schedule.data_freshness.manual_override_basis}
+                Manual override:{" "}
+                {formatManualOverrideBasis(
+                  schedule.data_freshness.manual_override_basis,
+                )}
               </p>
             ) : null}
           </div>
@@ -191,8 +275,8 @@ export function InvestmentPerformanceSchedule({
           <ul className="mt-2 space-y-1 text-sm">
             {schedule.source_links.length > 0 ? (
               schedule.source_links.slice(0, 4).map((link) => (
-                <li key={link} className="break-all font-mono">
-                  {link}
+                <li key={link} className="break-words text-xs text-muted">
+                  {formatPerformanceSourceLink(link)}
                 </li>
               ))
             ) : (
