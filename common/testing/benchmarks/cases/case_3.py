@@ -197,6 +197,16 @@ def execute_case_3(runner: ScenarioBenchmarkRunner) -> CaseResult:
             is_balanced,
         ) = _verify_card_repayment_invariants(runner, client)
 
+        # Flow 15 & Flow 16: Inter-Account Transfer Automatic Pairing & Match Acceptance
+        recon_run = runner.run_reconciliation(client)
+        assert "matches_created" in recon_run, (
+            f"Invalid reconciliation run response: {recon_run}"
+        )
+        accepted_matches = runner.accept_reconciliation_matches(client)
+        assert accepted_matches >= 0, (
+            f"Expected non-negative accepted match count, got {accepted_matches}"
+        )
+
         # Flow 18: Reconciliation Immaterial Adjustment & Penny Rounding Write-Off
         rounding_acc = runner.create_account(
             client,
@@ -244,6 +254,8 @@ def execute_case_3(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 "net_income": str(net_income),
                 "equation_delta": str(equation_delta),
                 "is_balanced": is_balanced,
+                "flow_15_matches_created": int(recon_run["matches_created"]),
+                "flow_16_matches_accepted": int(accepted_matches),
                 "flow_18_adjustment_difference": str(adj["difference"]),
             },
         )

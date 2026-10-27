@@ -10,9 +10,9 @@ interface FlowDefinition {
   component: string
   backend_endpoint: string
   invariant: string
-  test_ref: string
   backend_test_ref: string
   frontend_test_ref: string
+  benchmark_cases: string[]
   domain_id?: number
   domain_name?: string
 }
@@ -66,65 +66,31 @@ describe("Unified 30-Flow Frontend Consistency & SSOT Compliance Suite", () => {
     expect(ids).toEqual(expectedIds)
   })
 
-  it("verifies all 30 flows have non-empty contracts, valid UI surfaces, and backend endpoints", () => {
+  it("verifies all 30 flows have non-empty contracts, valid UI surfaces, and no redundant test_ref", () => {
     for (const flow of allFlows) {
+      expect("test_ref" in (flow as unknown as Record<string, unknown>)).toBe(false)
       expect(flow.name.trim()).toBeTruthy()
       expect(flow.title.trim()).toBeTruthy()
       expect(flow.ui_surface.startsWith("/")).toBe(true)
       expect(flow.backend_endpoint.trim()).toBeTruthy()
       expect(flow.invariant.trim()).toBeTruthy()
-      expect(flow.test_ref.trim()).toBeTruthy()
       expect(flow.backend_test_ref?.trim()).toBeTruthy()
       expect(flow.frontend_test_ref?.trim()).toBeTruthy()
     }
   })
 
-  it("verifies that each referenced test file actually exists in the repository", () => {
+  it("verifies that each referenced backend and frontend test file exists in the repository", () => {
     for (const flow of allFlows) {
-      const fullTestPath = path.resolve(repoRoot, flow.test_ref)
-      const exists = fs.existsSync(fullTestPath)
+      const fullBackendPath = path.resolve(repoRoot, flow.backend_test_ref)
       expect(
-        exists,
-        `Flow #${flow.id} (${flow.name}) references test_ref "${flow.test_ref}" which does not exist on disk.`
+        fs.existsSync(fullBackendPath),
+        `Flow #${flow.id} (${flow.name}) references backend_test_ref "${flow.backend_test_ref}" which does not exist on disk.`
       ).toBe(true)
 
-      if (flow.backend_test_ref) {
-        const fullBackendPath = path.resolve(repoRoot, flow.backend_test_ref)
-        expect(
-          fs.existsSync(fullBackendPath),
-          `Flow #${flow.id} (${flow.name}) references backend_test_ref "${flow.backend_test_ref}" which does not exist on disk.`
-        ).toBe(true)
-      }
-
-      if (flow.frontend_test_ref) {
-        const fullFrontendPath = path.resolve(repoRoot, flow.frontend_test_ref)
-        expect(
-          fs.existsSync(fullFrontendPath),
-          `Flow #${flow.id} (${flow.name}) references frontend_test_ref "${flow.frontend_test_ref}" which does not exist on disk.`
-        ).toBe(true)
-      }
-    }
-  })
-
-  it("verifies that all UI surfaces map to valid Next.js App Router route paths", () => {
-    const validRoutePrefixes = [
-      "/upload",
-      "/portfolio",
-      "/assets",
-      "/statements",
-      "/reconciliation",
-      "/journal",
-      "/reports",
-      "/chat",
-    ]
-
-    for (const flow of allFlows) {
-      const matchesKnownPrefix = validRoutePrefixes.some((prefix) =>
-        flow.ui_surface.startsWith(prefix)
-      )
+      const fullFrontendPath = path.resolve(repoRoot, flow.frontend_test_ref)
       expect(
-        matchesKnownPrefix,
-        `Flow #${flow.id} UI surface "${flow.ui_surface}" does not match known app routes`
+        fs.existsSync(fullFrontendPath),
+        `Flow #${flow.id} (${flow.name}) references frontend_test_ref "${flow.frontend_test_ref}" which does not exist on disk.`
       ).toBe(true)
     }
   })

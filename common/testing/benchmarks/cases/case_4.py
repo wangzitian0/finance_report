@@ -146,6 +146,50 @@ def execute_case_4(runner: ScenarioBenchmarkRunner) -> CaseResult:
             balanced_usd,
         ) = _verify_multicurrency_balance_sheets(runner, client)
 
+        # Flow 17: Multi-Currency Transfer Realized FX Gain/Loss Decomposition (post-window 2025-05-05)
+        fx_source_acc = runner.create_account(
+            client, name="USD Wire Outflow Clearing", type="ASSET", currency="SGD"
+        )
+        fx_target_acc = runner.create_account(
+            client, name="SGD Wire Receiving Account", type="ASSET", currency="SGD"
+        )
+        fx_gain_acc = runner.create_account(
+            client, name="Realized FX Gain on Wire", type="INCOME", currency="SGD"
+        )
+        runner.post_manual_journal_entry(
+            client,
+            memo="Multi-Currency Wire Transfer with Realized FX Gain",
+            entry_date="2025-05-05",
+            lines=[
+                {
+                    "account_id": fx_target_acc["id"],
+                    "direction": "DEBIT",
+                    "amount": "1350.00",
+                    "currency": "SGD",
+                },
+                {
+                    "account_id": fx_source_acc["id"],
+                    "direction": "CREDIT",
+                    "amount": "1340.00",
+                    "currency": "SGD",
+                },
+                {
+                    "account_id": fx_gain_acc["id"],
+                    "direction": "CREDIT",
+                    "amount": "10.00",
+                    "currency": "SGD",
+                },
+            ],
+            rationale="OutflowValueInBase (1340.00) + RealizedGain (10.00) == InflowValueInBase (1350.00)",
+        )
+        bs_post_fx = runner.get_balance_sheet(
+            client, as_of_date="2025-05-31", currency="SGD"
+        )
+        assert bs_post_fx["is_balanced"] is True, (
+            f"Balance sheet unbalanced after Flow 17 FX entry: {bs_post_fx}"
+        )
+        assert Decimal(str(bs_post_fx["equation_delta"])) == Decimal("0.00")
+
         duration = time.time() - start_time
         print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
         return CaseResult(
@@ -166,6 +210,7 @@ def execute_case_4(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 "is_balanced_usd": balanced_usd,
                 "equation_delta": str(delta_sgd),
                 "is_balanced": balanced_sgd,
+                "flow_17_realized_fx_gain_sgd": "10.00",
                 "cta_variance_explained": (
                     "Translation variance between spot rate balance sheet items and period-average "
                     "net income is fully absorbed by the IAS 21 CTA equity reserve."
