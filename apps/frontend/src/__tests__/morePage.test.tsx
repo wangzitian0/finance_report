@@ -23,12 +23,14 @@ describe("More overflow (EPIC-022 AC22.21.5)", () => {
         vi.mocked(clearUser).mockReset();
     });
 
-    it("lists Settings, Advanced/Accounts, and Logout, and logs out", async () => {
-        mockedApiOperation.mockResolvedValue({ items: [], total: 0, warnings: [] } as any);
+    it("lists Portfolio, Reports, Settings, Advanced/Accounts, and Logout without gating on brokerage holdings", async () => {
         render(<MorePage />);
 
+        expect(screen.getByRole("link", { name: /Portfolio/i })).toHaveAttribute("href", "/portfolio");
+        expect(screen.getByRole("link", { name: /Reports/i })).toHaveAttribute("href", "/reports");
         expect(screen.getByRole("link", { name: /Settings/i })).toHaveAttribute("href", "/settings");
         expect(screen.getByRole("link", { name: /Accounts/i })).toHaveAttribute("href", "/settings?tab=accounts");
+        expect(mockedApiOperation).not.toHaveBeenCalledWith("get_holdings_portfolio_holdings_get");
 
         fireEvent.click(screen.getByRole("button", { name: /Logout/i }));
         await waitFor(() => expect(clearUser).toHaveBeenCalledTimes(1));
@@ -47,20 +49,5 @@ describe("More overflow (EPIC-022 AC22.21.5)", () => {
         expect(clearUser).not.toHaveBeenCalled();
         expect(pushMock).not.toHaveBeenCalled();
         expect(screen.getByRole("button", { name: "Logout" })).toBeEnabled();
-    });
-
-    it("hides Portfolio when the user holds no securities", async () => {
-        mockedApiOperation.mockResolvedValue({ items: [], total: 0, warnings: [] } as any);
-        render(<MorePage />);
-        await waitFor(() => expect(mockedApiOperation).toHaveBeenCalled());
-        expect(screen.queryByRole("link", { name: /Portfolio/i })).toBeNull();
-    });
-
-    it("shows Portfolio once the user holds securities", async () => {
-        mockedApiOperation.mockResolvedValue({ items: [{ ticker: "AAPL" }], total: 1, warnings: [] } as any);
-        render(<MorePage />);
-        await waitFor(() =>
-            expect(screen.getByRole("link", { name: /Portfolio/i })).toHaveAttribute("href", "/portfolio"),
-        );
     });
 });

@@ -97,7 +97,8 @@ for a non-accountant:
 ### ⑤ ⋯ More — low-frequency overflow
 ```
 👤 user@email
-💼 Portfolio   shown only when the user holds securities (tabs: holdings/prices/evidence)
+💼 Portfolio   holdings / prices / evidence
+📊 Reports     full multi-tab reports
 ⚙️ Settings    merged into one page (tabs: general / AI / LLM)
 🛠️ Advanced    genuine power/dev escape hatch (anything left)
 🚪 Logout
@@ -110,7 +111,7 @@ for a non-accountant:
 | **Redesign** | `/` (Home: net-worth + 3-statement segments + bell); `/settings/*` → merged `/settings` |
 | **New** | `/audit` hub; bottom tab-bar component; ⊕ Add bottom sheet |
 | **Folded into Audit** | `/journal`, `/reconciliation` (+ unmatched and review-queue tabs), `/confidence`, `/processing` (pages kept + back-link to `/audit`) |
-| **Folded into More** | `/portfolio` (conditional), Accounts (`/settings?tab=accounts`), Advanced |
+| **Folded into More** | `/portfolio`, `/reports`, Accounts (`/settings?tab=accounts`), Advanced |
 | **Inbox (reuse)** | `/attention`, `WorkflowNotificationCenter` (the bell) |
 | **Delete / redirect** | `/statements/upload` → `/upload`; `/assets` → `/portfolio`; `/events` → `/notifications` |
 | **Unchanged** | `/statements/[id]` (+`/review`), `/login`, `/ping-pong` (dev) |

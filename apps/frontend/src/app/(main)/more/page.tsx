@@ -1,27 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, LogOut } from "lucide-react";
 
 import { advancedItems, moreItems, type NavItem } from "@/components/navigation";
 import { PageHeader } from "@/components/ui";
-import { apiOperation } from "@/lib/api-client";
 import { useLogout } from "@/hooks/useLogout";
 
 export default function MorePage() {
   const { handleLogout, isLoggingOut, logoutError } = useLogout();
-  const [hasHoldings, setHasHoldings] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    apiOperation("get_holdings_portfolio_holdings_get")
-      .then((data) => { if (active) setHasHoldings((data.items ?? []).length > 0); })
-      .catch(() => { if (active) setHasHoldings(false); });
-    return () => { active = false; };
-  }, []);
-
-  const visibleMoreItems = moreItems.filter((item) => item.href !== "/portfolio" || hasHoldings);
 
   const renderRow = (item: NavItem) => {
     const Icon = item.icon;
@@ -37,7 +24,7 @@ export default function MorePage() {
   return (
     <div className="p-6">
       <PageHeader title="More" description="Everything else — investments, settings, and advanced tools." />
-      <div className="mt-4 space-y-2">{visibleMoreItems.map(renderRow)}</div>
+      <div className="mt-4 space-y-2">{moreItems.map(renderRow)}</div>
       <h2 className="mt-6 mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Advanced</h2>
       <div className="space-y-2">{advancedItems.map(renderRow)}</div>
       <button

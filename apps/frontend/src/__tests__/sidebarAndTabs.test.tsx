@@ -6,6 +6,7 @@ import { WorkspaceTabs } from "@/components/WorkspaceTabs"
 import { apiOperation } from "@/lib/api-client"
 
 const pushMock = vi.fn()
+const refreshMock = vi.fn()
 const toggleSidebarMock = vi.fn()
 const addTabMock = vi.fn()
 const removeTabMock = vi.fn()
@@ -19,7 +20,15 @@ let pathnameMock = "/dashboard"
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathnameMock,
-  useRouter: () => ({ push: pushMock }),
+  useRouter: () => ({ push: pushMock, refresh: refreshMock }),
+}))
+
+vi.mock("@/components/statements/StatementUploader", () => ({
+  default: ({ onUploadComplete }: { onUploadComplete?: () => void }) => (
+    <button type="button" onClick={() => onUploadComplete?.()}>
+      Complete statement upload
+    </button>
+  ),
 }))
 
 vi.mock("@/components/ThemeToggle", () => ({
@@ -53,6 +62,7 @@ vi.mock("@/hooks/useWorkspace", () => ({
 describe("Sidebar and WorkspaceTabs", () => {
   beforeEach(() => {
     pushMock.mockReset()
+    refreshMock.mockReset()
     toggleSidebarMock.mockReset()
     addTabMock.mockReset()
     removeTabMock.mockReset()
@@ -123,9 +133,11 @@ describe("Sidebar and WorkspaceTabs", () => {
 
   // AC-meta.fe-ia-nav.2
   it("AC22.1.3 links the sidebar brand to Home", async () => {
-    render(<Sidebar />)
+    const { container } = render(<Sidebar />)
     const brand = await screen.findByRole("link", { name: /Finance Report home/i })
     expect(brand).toHaveAttribute("href", "/")
+    expect(brand).toHaveTextContent("Finance Report")
+    expect(container.querySelector("aside")).toHaveClass("w-64")
   })
 
   // AC-meta.fe-app-shell.13
@@ -177,7 +189,12 @@ describe("Sidebar and WorkspaceTabs", () => {
     expect(toggleSidebarMock).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole("button", { name: "Add" }))
-    expect(screen.getByRole("dialog", { name: "Add" })).toBeInTheDocument()
+    const dialog = screen.getByRole("dialog", { name: "Add" })
+    expect(dialog).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: /Upload statement/i }))
+    fireEvent.click(screen.getByRole("button", { name: "Complete statement upload" }))
+    expect(refreshMock).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole("dialog", { name: "Upload statement" })).toBeNull()
   })
 
   // AC-meta.fe-app-shell.9

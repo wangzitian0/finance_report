@@ -30,6 +30,7 @@ const routerPushMock = vi.fn()
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: routerPushMock }),
+  useSearchParams: () => new URLSearchParams(),
 }))
 
 vi.mock("@/components/statements/StatementUploader", () => ({
@@ -231,6 +232,7 @@ describe("StatementsPage", () => {
     // Manual records (ESOP/RSU, property, …) is one entry, not one card per class.
     expect(screen.getByText("Manual records")).toBeInTheDocument()
     expect(screen.getByTestId("manual-evidence-form")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Back to Audit/i })).toHaveAttribute("href", "/audit")
   })
 
   // AC-extraction.fe-remainder-extraction.3

@@ -43,6 +43,7 @@ export const APP_ROUTES = {
     RECONCILIATION_MATCHES: "/reconciliation?tab=matches",
     RECONCILIATION_UNMATCHED: "/reconciliation?tab=unmatched",
     RECONCILIATION_REVIEW_QUEUE: "/reconciliation?tab=review-queue",
+    REPORTS: "/reports",
     SETTINGS: "/settings",
 } as const;
 
@@ -73,10 +74,10 @@ export const auditHubItems: NavItem[] = [
     { icon: UploadCloud, label: "Statements", href: APP_ROUTES.UPLOAD, protected: true },
 ];
 
-// `/more` overflow — low-frequency destinations. Portfolio is conditional
-// (rendered only when the user holds securities; gating happens in the page).
+// `/more` overflow — low-frequency destinations.
 export const moreItems: NavItem[] = [
     { icon: Wallet, label: "Portfolio", href: APP_ROUTES.PORTFOLIO, protected: true },
+    { icon: BarChart3, label: "Reports", href: APP_ROUTES.REPORTS, protected: true },
     { icon: SlidersHorizontal, label: "Settings", href: APP_ROUTES.SETTINGS, protected: true },
 ];
 

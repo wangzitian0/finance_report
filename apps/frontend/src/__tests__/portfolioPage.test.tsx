@@ -364,10 +364,14 @@ describe("PortfolioPage", () => {
     );
     const holdingsReads = () =>
       mockedApiFetch.mock.calls.filter(([path]) => String(path).startsWith("/api/portfolio/holdings")).length;
+    const summaryReads = () =>
+      mockedApiFetch.mock.calls.filter(([path]) => String(path).startsWith("/api/portfolio/summary")).length;
 
     render(<PortfolioPage />, { wrapper: createWrapper() });
     await waitFor(() => expect(screen.getByRole("link", { name: "AAPL" })).toBeInTheDocument());
+    await waitFor(() => expect(summaryReads()).toBeGreaterThanOrEqual(1));
     const readsBeforeUpdate = holdingsReads();
+    const summariesBeforeUpdate = summaryReads();
 
     const sheet = screen.getByRole("dialog", { name: "Update Market Prices" });
     fireEvent.change(within(sheet).getByRole("combobox"), { target: { value: "AAPL" } });
@@ -381,6 +385,7 @@ describe("PortfolioPage", () => {
     });
     expect(showToastMock).toHaveBeenCalledWith("Updated 1 price(s)", "success");
     await waitFor(() => expect(holdingsReads()).toBe(readsBeforeUpdate + 1));
+    await waitFor(() => expect(summaryReads()).toBe(summariesBeforeUpdate + 1));
   });
 
   it("AC17.8.4 shows total portfolio value banner when active holdings are loaded", async () => {
