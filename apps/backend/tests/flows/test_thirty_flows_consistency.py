@@ -148,7 +148,7 @@ def test_domain_6_reporting_equation_and_diagnostics():
     assert balanced.is_balanced is True
 
     # Flow 24
-    unbalanced = diagnose_equation_imbalance(Decimal("150.00"), has_pending_drafts=True)
+    unbalanced = diagnose_equation_imbalance(Decimal("150.00"), unposted_draft_count=1)
     assert unbalanced.is_balanced is False
     assert unbalanced.primary_category == EquationDiagnosticCategory.UNPOSTED_DRAFT
 
