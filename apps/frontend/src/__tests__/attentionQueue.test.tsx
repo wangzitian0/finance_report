@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { NeedsConfirmationQueue } from "@/components/audit/NeedsConfirmationQueue";
+import { NeedsConfirmationQueue } from "@/components/audit/AuditPanels";
 import { apiOperation } from "@/lib/api-client";
 
 vi.mock("next/link", () => ({

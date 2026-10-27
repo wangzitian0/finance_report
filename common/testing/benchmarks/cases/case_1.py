@@ -382,6 +382,23 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
             f"Expected continuous 4-month coverage_start 2025-01-01, got {coverage_start}"
         )
 
+        # Flow 24: Accounting Equation Out-of-Balance Diagnostic Triage
+        diagnostics = runner.get_balance_sheet_diagnostics(
+            client, as_of_date="2025-04-30"
+        )
+        assert diagnostics.get("is_balanced") is True, (
+            f"Expected balanced equation diagnostics in Case 1, got {diagnostics}"
+        )
+
+        # Flow 27: Financial Report to PDF Provenance Drilldown
+        lineage = runner.get_account_lineage(
+            client, account_id=str(m1_account_id), as_of_date="2025-04-30"
+        )
+        lineage_lines = lineage.get("lines", [])
+        assert len(lineage_lines) > 0, (
+            f"Expected non-empty account lineage lines for {m1_account_id}, got {lineage}"
+        )
+
         # Pillar 1: AI Semantic Grounding Oracle
         print("  [10/10] Verifying AI Advisor Grounding & Semantic Invariant...")
         advisor_answer = None
@@ -434,6 +451,8 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 "ending_cash": str(end_cash),
                 "equation_delta": str(equation_delta),
                 "is_balanced": is_balanced,
+                "flow_24_diagnostics_balanced": True,
+                "flow_27_lineage_lines": len(lineage_lines),
             },
         )
     except Exception as exc:

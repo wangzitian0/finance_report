@@ -4,8 +4,7 @@ import { useMemo } from "react";
 
 import { AdvisorBrief } from "@/components/advisor/AdvisorBrief";
 import { HomeActionBanner } from "@/components/home/HomeActionBanner";
-import { ReportDimensionBar } from "@/components/reports/ReportFilters";
-import { StatementCockpit } from "@/components/reports/StatementCockpit";
+import { ReportDimensionBar, StatementCockpit } from "@/components/reports/ReportShell";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useReportFilters } from "@/hooks/useReportFilters";
 import { normalizeAdvisorSuggestions } from "@/lib/types";

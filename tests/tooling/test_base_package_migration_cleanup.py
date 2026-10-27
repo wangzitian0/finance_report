@@ -30,7 +30,7 @@ FRONTEND_PERCENT_FILES = [
     Path("apps/frontend/src/app/(main)/portfolio/page.tsx"),
     Path("apps/frontend/src/components/portfolio/HoldingDetail.tsx"),
     # The savings rate of the three-statement cockpit (Home and the /reports Overview, #2621 LC).
-    Path("apps/frontend/src/components/reports/StatementCockpit.tsx"),
+    Path("apps/frontend/src/components/reports/ReportShell.tsx"),
     Path("apps/frontend/src/components/reconciliation/Workbench.tsx"),
 ]
 
@@ -164,7 +164,7 @@ def test_AC12_31_5_backend_money_adapters_are_not_duplicated():
 def test_AC12_31_6_confidence_percent_wrapper_is_retired():
     """AC-audit.31.6: correction-loop UI calls Ratio formatting directly, with no local percent facade."""
     confidence = _read(Path("apps/frontend/src/lib/confidence.ts"))
-    page = _read(Path("apps/frontend/src/components/audit/CorrectionLoopProof.tsx"))
+    page = _read(Path("apps/frontend/src/components/audit/AuditPanels.tsx"))
 
     assert "formatProportionPercent" not in confidence
     assert "formatProportionPercent" not in page

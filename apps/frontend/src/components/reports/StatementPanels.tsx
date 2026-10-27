@@ -1,13 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
+import { useEffect, useMemo, useState } from "react";
 
-import { formatCurrencyLocale, sumAmounts, toDecimal } from "@/lib/audit/money";
-import { useApiQuery } from "@/hooks/useApiQuery";
-import type { ReportFilters } from "@/hooks/useReportFilters";
-import { balanceSheetQueryKey } from "@/lib/sharedQueries";
-import { NetWorthTimeSeriesChart } from "@/components/charts/NetWorthTimeSeriesChart";
+import { BarChart } from "@/components/charts/BarChart";
 import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import { ExcludedHoldingsNote } from "@/components/reports/ExcludedHoldingsNote";
 import {
@@ -16,11 +13,126 @@ import {
   OpeningBalanceWarningBanner,
   ReportPageShell,
   ReportToolbar,
-} from "@/components/reports/ReportPageShell";
-import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
+} from "@/components/reports/ReportShell";
 import { InfoHint } from "@/components/ui/InfoHint";
+import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import type { ReportFilters } from "@/hooks/useReportFilters";
+import { amountToChartNumber, formatCurrencyLocale, sumAmounts, toDecimal } from "@/lib/audit/money";
+import { formatMonthLabel } from "@/lib/date";
+import { balanceSheetQueryKey, incomeStatementQueryKey } from "@/lib/sharedQueries";
 import { liabilityToneClass, reportAccountDisplayName } from "@/lib/statusLabels";
-import { normalizeFxWarningRows, type ReportLine } from "@/lib/types";
+import { normalizeFxWarningRows, type NetWorthTimeSeriesResponse, type ReportLine } from "@/lib/types";
+
+// ECharts loads only when a chart renders, so a page without this chart does not carry it.
+const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false });
+
+/** A period up to this many days draws one point per day. A longer period draws one point per month. */
+const DAILY_GRANULARITY_MAX_DAYS = 92;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function granularityFor(from: string, to: string): "daily" | "monthly" {
+  const days = (Date.parse(to) - Date.parse(from)) / DAY_MS;
+  return days <= DAILY_GRANULARITY_MAX_DAYS ? "daily" : "monthly";
+}
+
+// A revisit of the tab or of a period within this time reuses the cached series (#2583).
+const NET_WORTH_SERIES_STALE_TIME_MS = 60_000;
+
+/**
+ * The net worth history of the dimension-bar period (#2621 LC). The bar is the only period control.
+ * The series uses the restricted-holdings scope of the bar, so its last point equals the net worth
+ * of the balance sheet on the same date (#2645).
+ */
+export function NetWorthTimeSeriesChart({
+  from,
+  to,
+  currency,
+  includeRestricted,
+  enabled = true,
+}: {
+  from: string;
+  to: string;
+  currency?: string;
+  includeRestricted: boolean;
+  /** False while `from` can still move: the chart shows its loading state and does not fetch. */
+  enabled?: boolean;
+}) {
+  const granularity = granularityFor(from, to);
+  const seriesQuery = useApiQuery(
+    ["report", "net-worth-timeseries", from, to, granularity, currency ?? "", includeRestricted],
+    "net_worth_timeseries_reports_net_worth_timeseries_get",
+    { query: { from, to, granularity, currency, include_restricted: includeRestricted } },
+    { staleTime: NET_WORTH_SERIES_STALE_TIME_MS, enabled },
+  );
+  const data: NetWorthTimeSeriesResponse | undefined = seriesQuery.data;
+  const loading = seriesQuery.isPending;
+  const error = seriesQuery.error
+    ? seriesQuery.error.message || "Failed to load net worth history."
+    : null;
+
+  const points = useMemo(() => data?.points ?? [], [data?.points]);
+  const option = useMemo(() => {
+    const labels = points.map((point) =>
+      data?.granularity === "monthly"
+        ? formatMonthLabel(point.date)
+        : point.date.slice(5),
+    );
+    const values = points.map((point) => amountToChartNumber(point.net_worth));
+    return {
+      grid: { left: 48, right: 18, top: 24, bottom: 32 },
+      tooltip: {
+        trigger: "axis",
+        valueFormatter: (value: number) =>
+          formatCurrencyLocale(value, data?.currency ?? "SGD"),
+      },
+      xAxis: { type: "category", data: labels, boundaryGap: false },
+      yAxis: { type: "value" },
+      series: [
+        {
+          name: "Net Worth",
+          type: "line",
+          smooth: true,
+          showSymbol: false,
+          data: values,
+          lineStyle: { color: "#2563eb", width: 2 },
+          areaStyle: { color: "rgba(37, 99, 235, 0.10)" },
+        },
+      ],
+    };
+  }, [data?.currency, data?.granularity, points]);
+
+  return (
+    <section className="card p-5" aria-label="Net worth time-series">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <div>
+          <p className="text-xs text-muted uppercase tracking-wide">
+            Net Worth History
+          </p>
+          <h3 className="font-semibold mt-1">{granularity === "daily" ? "Daily net worth" : "Monthly net worth"}</h3>
+        </div>
+      </div>
+      {loading ? (
+        <p className="text-sm text-muted">Loading net worth history...</p>
+      ) : error ? (
+        <p className="text-sm text-[var(--error)]">{error}</p>
+      ) : points.length < 2 ? (
+        <p className="text-sm text-muted">
+          At least two net worth points are needed to draw a line.
+        </p>
+      ) : (
+        <div data-testid="net-worth-echarts">
+          <ReactECharts
+            option={option}
+            style={{ height: 260, width: "100%" }}
+            notMerge
+            lazyUpdate
+          />
+        </div>
+      )}
+    </section>
+  );
+}
 
 interface AccountNode extends ReportLine {
   children: AccountNode[];
@@ -318,6 +430,211 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
         includeRestricted={includeRestricted}
         enabled={filters.ready}
       />
+
+      <AccountLineageDrawer target={drillTarget} onClose={() => setDrillTarget(null)} />
+    </ReportPageShell>
+  );
+}
+
+const ACCOUNT_TYPE_OPTIONS = [
+  { value: "", label: "All Types" },
+  { value: "INCOME", label: "Income Only" },
+  { value: "EXPENSE", label: "Expenses Only" },
+] as const;
+
+const TAG_OPTIONS = [
+  { value: "business", label: "Business" },
+  { value: "personal", label: "Personal" },
+  { value: "investment", label: "Investment" },
+  { value: "utilities", label: "Utilities" },
+  { value: "transportation", label: "Transportation" },
+  { value: "entertainment", label: "Entertainment" },
+  { value: "food", label: "Food & Dining" },
+];
+
+/** The Income statement tab of `/reports`: income and expenses of the dimension-bar period. */
+export function IncomeStatementPanel({ filters }: { filters: ReportFilters }) {
+  const { startDate, endDate, currency } = filters;
+  const [accountTypeFilter, setAccountTypeFilter] = useState<(typeof ACCOUNT_TYPE_OPTIONS)[number]["value"]>("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [drillTarget, setDrillTarget] = useState<AccountLineageTarget | null>(null);
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+  };
+
+  const reportKey = incomeStatementQueryKey({
+    startDate,
+    endDate,
+    currency,
+    accountType: accountTypeFilter || undefined,
+    tags: selectedTags,
+  });
+  const reportQuery = useApiQuery(
+    reportKey,
+    "income_statement_reports_income_statement_get",
+    {
+      query: {
+        start_date: startDate,
+        end_date: endDate,
+        currency,
+        account_type: accountTypeFilter || undefined,
+        tags: selectedTags.length ? selectedTags : undefined,
+      },
+    },
+    {
+      // The period waits for the coverage start (#2646).
+      enabled: filters.ready,
+      placeholderData: keepPreviousData,
+      select: (data) => ({ ...data, fx_warnings: normalizeFxWarningRows(data.fx_warnings) }),
+    },
+  );
+  const report = reportQuery.data ?? null;
+
+  const barItems = useMemo(
+    () =>
+      report
+        ? report.trends.slice(-12).map((t) => ({
+            label: formatMonthLabel(t.period_start),
+            income: amountToChartNumber(t.total_income),
+            expense: amountToChartNumber(t.total_expenses),
+          }))
+        : [],
+    [report],
+  );
+  const aiPrompt = `Summarize my income statement from ${startDate} to ${endDate} in ${report?.currency ?? currency ?? "my base currency"}. Highlight key trends.`;
+
+  const renderLineRow = (l: ReportLine) => {
+    const openDrill = () =>
+      report &&
+      setDrillTarget({
+        accountId: l.account_id,
+        accountName: l.name,
+        asOfDate: endDate,
+        startDate,
+        currency: report.currency,
+      });
+    return (
+      <div key={l.account_id} className="flex justify-between p-2 rounded-md bg-[var(--background-muted)] text-sm">
+        <span className="flex min-w-0 items-center gap-2">
+          <button type="button" onClick={openDrill} className="truncate text-left hover:text-[var(--accent)] hover:underline">
+            {l.name}
+          </button>
+          <ProvenanceBadge provenance={l.provenance} />
+        </span>
+        <button
+          type="button"
+          className="font-medium tabular-nums underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+          onClick={openDrill}
+          aria-label={`View source transactions for ${l.name}`}
+        >
+          {report ? formatCurrencyLocale(l.amount, report.currency) : "—"}
+        </button>
+      </div>
+    );
+  };
+
+  return (
+    <ReportPageShell
+      title="Income Statement"
+      description="Net Income = Income - Expenses"
+      loadingLabel="Loading income statement"
+      loadingSections={2}
+      isLoading={!filters.ready || reportQuery.isLoading}
+      isError={reportQuery.isError}
+      errorMessage={reportQuery.error?.message}
+      onRetry={() => void reportQuery.refetch()}
+      toolbar={
+        <ReportToolbar
+          aiPrompt={aiPrompt}
+          exportControl={<ExportCsvButton request={{ query: { report_type: "income-statement", format: "csv", start_date: startDate, end_date: endDate, currency } }} />}
+        />
+      }
+    >
+      <div className="flex flex-wrap gap-3 mb-6 text-sm">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-muted uppercase">Account type</span>
+          <select
+            value={accountTypeFilter}
+            onChange={(e) => setAccountTypeFilter(ACCOUNT_TYPE_OPTIONS.find((opt) => opt.value === e.target.value)?.value ?? "")}
+            className="input w-auto"
+          >
+            {ACCOUNT_TYPE_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </label>
+      </div>
+
+      <div className="flex flex-col gap-2 mb-6">
+        <span className="text-xs text-muted uppercase">Tags</span>
+        <div className="flex flex-wrap gap-2">
+          {TAG_OPTIONS.map((tag) => (
+            <button
+              key={tag.value}
+              onClick={() => toggleTag(tag.value)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                selectedTags.includes(tag.value) ? "bg-[var(--accent)] text-white" : "bg-[var(--background-muted)] text-muted hover:bg-[var(--background-muted)]/80"
+              }`}
+            >
+              {tag.label}
+            </button>
+          ))}
+          {selectedTags.length > 0 && (
+            <button
+              onClick={() => setSelectedTags([])}
+              className="px-3 py-1 rounded-full text-xs font-medium bg-[var(--error-muted)] text-[var(--error)] hover:bg-[var(--error-muted)]/80"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+      </div>
+
+      <FxWarningBanner warnings={report?.fx_warnings} />
+
+      <div className="grid gap-4 md:grid-cols-3 mb-6">
+        <div className="card p-5">
+          <p className="text-xs text-muted uppercase">Total Income</p>
+          <p className="text-2xl font-semibold text-[var(--success)] mt-1">{report ? formatCurrencyLocale(report.total_income, report.currency) : "—"}</p>
+        </div>
+        <div className="card p-5">
+          <p className="text-xs text-muted uppercase">Total Expenses</p>
+          <p className="text-2xl font-semibold text-[var(--error)] mt-1">{report ? formatCurrencyLocale(report.total_expenses, report.currency) : "—"}</p>
+        </div>
+        <div className="card p-5">
+          <p className="text-xs text-muted uppercase">Net Income</p>
+          <p className="text-2xl font-semibold mt-1">{report ? formatCurrencyLocale(report.net_income, report.currency) : "—"}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2 mb-6">
+        <div className="card p-5">
+          <h3 className="font-semibold mb-4">Monthly Comparison</h3>
+          {barItems.length ? (
+            <>
+              <BarChart items={barItems} ariaLabel="Monthly income and expense comparison" />
+              <div className="mt-3 flex gap-4 text-xs text-muted">
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[var(--success)]" />Income</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[var(--error)]" />Expense</span>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted">No trend data yet.</p>
+          )}
+        </div>
+        <div className="card p-5">
+          <h3 className="font-semibold mb-3">Income</h3>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {report?.income?.length ? report.income.map(renderLineRow) : <p className="text-sm text-muted">No income categories.</p>}
+          </div>
+        </div>
+      </div>
+
+      <div className="card p-5">
+        <h3 className="font-semibold mb-3">Expenses</h3>
+        <div className="grid gap-2 md:grid-cols-2 max-h-96 overflow-y-auto">
+          {report?.expenses?.length ? report.expenses.map(renderLineRow) : <p className="text-sm text-muted">No expense categories.</p>}
+        </div>
+      </div>
 
       <AccountLineageDrawer target={drillTarget} onClose={() => setDrillTarget(null)} />
     </ReportPageShell>

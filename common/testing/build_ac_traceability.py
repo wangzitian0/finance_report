@@ -33,11 +33,16 @@ from collections import defaultdict
 from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
-from typing import NamedTuple
 
 from common.meta.base.gate_util import display_path
-from common.meta.extension.ac_registry_format import load_registry_entries, sort_key
+from common.meta.extension.ac_registry_format import sort_key
 from common.testing import ac_scan
+from common.testing.check_ac_traceability import (
+    AC,
+    classify_references,
+    is_deprecated,
+    load_multiple_registries,
+)
 from common.testing.test_surface import DEFAULT_AC_TEST_DIRS, default_ac_test_dirs
 
 # ---------------------------------------------------------------------------
@@ -65,14 +70,6 @@ MANUAL_TOKENS = (
 )
 
 
-class AC(NamedTuple):
-    id: str
-    epic: int
-    epic_name: str
-    description: str
-    mandatory: bool
-
-
 ACReferenceStats = ac_scan.ACReferenceStats
 find_test_files = ac_scan.find_test_files
 collect_references = ac_scan.collect_references
@@ -80,51 +77,14 @@ _ac_sort_key = sort_key
 
 
 # ---------------------------------------------------------------------------
-# Loading
-# ---------------------------------------------------------------------------
-
-
-def _load_registry(path: Path) -> list[AC]:
-    if not path.exists():
-        print(f"ERROR: registry not found: {path}", file=sys.stderr)
-        sys.exit(1)
-    out: list[AC] = []
-    for entry in load_registry_entries(path):
-        out.append(
-            AC(
-                id=entry["id"],
-                epic=int(entry["epic"]),
-                epic_name=str(entry.get("epic_name", "")),
-                description=str(entry.get("description", "")),
-                mandatory=bool(entry.get("mandatory", True)),
-            )
-        )
-    return out
-
-
-def load_all_acs(feature_registry: Path, infra_registry: Path) -> list[AC]:
-    """Load both registries, deduplicated by AC ID (feature wins on conflict)."""
-    seen: set[str] = set()
-    combined: list[AC] = []
-    for path in (feature_registry, infra_registry):
-        for ac in _load_registry(path):
-            if ac.id in seen:
-                continue
-            seen.add(ac.id)
-            combined.append(ac)
-    return combined
-
-
-# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-_DEPRECATED_PATTERN = re.compile(r"^~~.+~~$", re.DOTALL)
-
-
-def _is_deprecated(ac: AC) -> bool:
-    """Return True if the AC description uses Markdown strikethrough (~~text~~)."""
-    return bool(_DEPRECATED_PATTERN.match(ac.description.strip()))
+_REFERENCE_STATUS = {
+    "real": "✅ real",
+    "placeholder": "🧪 placeholder-only",
+    "stub": "🧱 stub-only",
+}
 
 
 def _is_manual(ac: AC) -> bool:
@@ -174,34 +134,16 @@ def render_document(
         epic_names.setdefault(epic_num, f"EPIC-{epic_num:03d}")
 
     total_acs = len(acs)
-    deprecated_ids = {ac.id for ac in acs if _is_deprecated(ac)}
+    deprecated_ids = {ac.id for ac in acs if is_deprecated(ac.description)}
     mandatory_acs = [ac for ac in acs if ac.mandatory and ac.id not in deprecated_ids]
     deprecated_count = len(deprecated_ids)
-    real_covered_ids = {
-        ac.id
-        for ac in mandatory_acs
-        if references.get(ac.id) and references[ac.id].real_files
-    }
+    kinds = {ac.id: classify_references(references.get(ac.id)) for ac in mandatory_acs}
+    real_covered_ids = {ac_id for ac_id, kind in kinds.items() if kind == "real"}
     placeholder_only_ids = {
-        ac.id
-        for ac in mandatory_acs
-        if references.get(ac.id)
-        and not references[ac.id].real_files
-        and references[ac.id].placeholder_files
+        ac_id for ac_id, kind in kinds.items() if kind == "placeholder"
     }
-    stub_only_ids = {
-        ac.id
-        for ac in mandatory_acs
-        if references.get(ac.id)
-        and not references[ac.id].real_files
-        and not references[ac.id].placeholder_files
-        and references[ac.id].stub_files
-    }
-    missing_ids = {
-        ac.id
-        for ac in mandatory_acs
-        if not references.get(ac.id) or not references[ac.id].all_files
-    }
+    stub_only_ids = {ac_id for ac_id, kind in kinds.items() if kind == "stub"}
+    missing_ids = {ac_id for ac_id, kind in kinds.items() if kind == "missing"}
     manual_count = sum(
         1 for ac in acs if _is_manual(ac) and ac.id not in deprecated_ids
     )
@@ -298,9 +240,7 @@ def render_document(
         epic_acs = by_epic[epic_num]
         dep_count = sum(1 for ac in epic_acs if ac.id in deprecated_ids)
         mand = [ac for ac in epic_acs if ac.mandatory and ac.id not in deprecated_ids]
-        real_cov = sum(
-            1 for ac in mand if references.get(ac.id) and references[ac.id].real_files
-        )
+        real_cov = sum(1 for ac in mand if ac.id in real_covered_ids)
         placeholder_only = sum(1 for ac in mand if ac.id in placeholder_only_ids)
         stub_only = sum(1 for ac in mand if ac.id in stub_only_ids)
         missing = sum(1 for ac in mand if ac.id in missing_ids)
@@ -321,9 +261,7 @@ def render_document(
         epic_acs = by_epic[epic_num]
         dep_in_epic = sum(1 for ac in epic_acs if ac.id in deprecated_ids)
         mand = [ac for ac in epic_acs if ac.mandatory and ac.id not in deprecated_ids]
-        real_cov = sum(
-            1 for ac in mand if references.get(ac.id) and references[ac.id].real_files
-        )
+        real_cov = sum(1 for ac in mand if ac.id in real_covered_ids)
         pct = (real_cov / len(mand) * 100.0) if mand else 100.0
         slug = _slug(epic_num, epic_names[epic_num])
 
@@ -366,20 +304,9 @@ def render_document(
                         f"{kind}: `{display_path(path, REPO_ROOT)}`"
                         for kind, path in report_paths
                     )
-                    if ac.mandatory:
-                        if stats.real_files:
-                            status = "✅ real"
-                        elif stats.placeholder_files:
-                            status = "🧪 placeholder-only"
-                        else:
-                            status = "🧱 stub-only"
-                    else:
-                        if stats.real_files:
-                            status = "✅ real (optional)"
-                        elif stats.placeholder_files:
-                            status = "🧪 placeholder-only (optional)"
-                        else:
-                            status = "🧱 stub-only (optional)"
+                    status = _REFERENCE_STATUS[classify_references(stats)]
+                    if not ac.mandatory:
+                        status += " (optional)"
                 else:
                     refs_cell = "_none_"
                     if not ac.mandatory:
@@ -487,7 +414,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     test_dirs = list(args.test_dir) if args.test_dir else list(DEFAULT_TEST_DIRS)
 
-    acs = load_all_acs(args.feature_registry, args.infra_registry)
+    acs = load_multiple_registries([args.feature_registry, args.infra_registry])
     test_files = find_test_files(test_dirs)
     references = collect_references(test_files)
 

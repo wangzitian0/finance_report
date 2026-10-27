@@ -7,13 +7,14 @@ import { ChevronRight } from "lucide-react";
 
 import {
   ActionChecklist,
+  AiSuggestionsQueue,
+  CorrectionLoopProof,
   InvariantChecksGrid,
+  NeedsConfirmationQueue,
   TemporalTimelineGrid,
   TrustScoreHero,
-} from "@/components/audit/TrustScoreHero";
-import { AiSuggestionsQueue, useAiSuggestions } from "@/components/audit/AiSuggestionsQueue";
-import { CorrectionLoopProof } from "@/components/audit/CorrectionLoopProof";
-import { NeedsConfirmationQueue } from "@/components/audit/NeedsConfirmationQueue";
+  useAiSuggestions,
+} from "@/components/audit/AuditPanels";
 import { auditHubItems } from "@/components/navigation";
 import { Stage2ReviewQueue } from "@/components/review/Stage2ReviewQueue";
 import { LoadingState, PageHeader } from "@/components/ui";

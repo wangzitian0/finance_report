@@ -1,7 +1,7 @@
 """Tests for tools/lint_doc_consistency.py.
 
 Covers all six checks plus helper functions: parse_vision_anchors,
-parse_epic_anchor, load_registry_acs, is_deprecated, is_stub,
+parse_epic_anchor, load_registry_acs, is_stub,
 collect_ac_refs_in_epics, collect_ac_refs_in_tests,
 check_epic_anchors, check_orphan_vision_anchors, check_registry_to_epic,
 check_epic_to_registry, check_registry_to_tests, check_test_id_epic_alignment,
@@ -168,8 +168,12 @@ def test_AC14_1_10_frontend_raw_fetch_is_limited_to_api_wrapper(tmp_path) -> Non
     api.parent.mkdir(parents=True)
     page.parent.mkdir(parents=True)
     test_file.parent.mkdir(parents=True)
-    api.write_text("export const apiFetch = () => fetch('/api/test')\n", encoding="utf-8")
-    page.write_text("export const load = () => fetch('/api/accounts')\n", encoding="utf-8")
+    api.write_text(
+        "export const apiFetch = () => fetch('/api/test')\n", encoding="utf-8"
+    )
+    page.write_text(
+        "export const load = () => fetch('/api/accounts')\n", encoding="utf-8"
+    )
     test_file.write_text("expect(fetch).toBeDefined()\n", encoding="utf-8")
 
     violations = ldc.check_frontend_raw_fetch_usage(src, {api})
@@ -296,28 +300,8 @@ class TestLoadRegistryAcs:
 
 
 # ---------------------------------------------------------------------------
-# is_deprecated / is_stub
+# is_stub
 # ---------------------------------------------------------------------------
-
-
-class TestIsDeprecated:
-    def test_status_deprecated(self):
-        assert ldc.is_deprecated({"status": "deprecated"})
-
-    def test_status_Deprecated_case_insensitive(self):
-        assert ldc.is_deprecated({"status": "DEPRECATED"})
-
-    def test_deprecated_flag_true(self):
-        assert ldc.is_deprecated({"deprecated": True})
-
-    def test_full_strikethrough_description(self):
-        assert ldc.is_deprecated({"description": "~~removed behavior~~"})
-
-    def test_not_deprecated(self):
-        assert not ldc.is_deprecated({"status": "active"})
-
-    def test_empty_dict(self):
-        assert not ldc.is_deprecated({})
 
 
 class TestIsStub:
@@ -473,7 +457,9 @@ class TestNoAcTestExceptions:
         tests = tmp_path / "tests"
         test_file = tests / "test_unreadable.py"
         test_file.parent.mkdir(parents=True)
-        test_file.write_text("def test_unreadable():\n    assert True\n", encoding="utf-8")
+        test_file.write_text(
+            "def test_unreadable():\n    assert True\n", encoding="utf-8"
+        )
 
         with mock.patch.object(Path, "read_text", side_effect=OSError("blocked")):
             result = ldc.discover_no_ac_test_files(((tests, ("**/*.py",)),))
@@ -738,10 +724,11 @@ class TestCheckRegistryToEpic:
         assert len(violations) == 1
         assert "AC1.1.1" in violations[0].message
 
-    def test_deprecated_skipped(self):
+    def test_status_deprecated_does_not_exempt(self):
+        """The one deprecation rule is strikethrough only; no registry producer emits ``status: deprecated``."""
         acs = [{"id": "AC1.1.1", "status": "deprecated"}]
         violations = ldc.check_registry_to_epic(acs, {})
-        assert violations == []
+        assert len(violations) == 1
 
     def test_package_roadmap_acs_exempt(self):
         """Package-roadmap ACs (epic_name pkg-<name>) need no EPIC back-reference:
@@ -764,7 +751,7 @@ class TestCheckRegistryToEpic:
 
     def test_AC8_13_77_deprecated_stub_orphan_is_retained_as_history(self):
         """AC8.13.77: Deprecated historical placeholders do not count as active ACs."""
-        acs = [{"id": "AC1.1.1", "status": "deprecated"}]
+        acs = [{"id": "AC1.1.1", "description": "~~historical placeholder~~"}]
         violations = ldc.check_registry_to_epic(acs, {})
         assert violations == []
 
@@ -845,10 +832,15 @@ class TestCheckRegistryToTests:
         violations = ldc.check_registry_to_tests(acs, {})
         assert len(violations) == 1
 
-    def test_deprecated_skipped(self):
+    def test_status_deprecated_does_not_exempt(self):
         acs = [{"id": "AC1.1.1", "status": "deprecated", "mandatory": True}]
         violations = ldc.check_registry_to_tests(acs, {})
-        assert violations == []
+        assert len(violations) == 1
+
+    def test_blank_strikethrough_does_not_exempt(self):
+        acs = [{"id": "AC1.1.1", "description": "~~ ~~", "mandatory": True}]
+        violations = ldc.check_registry_to_tests(acs, {})
+        assert len(violations) == 1
 
     def test_strikethrough_deprecated_skipped(self):
         acs = [

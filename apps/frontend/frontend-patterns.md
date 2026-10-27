@@ -317,6 +317,12 @@ app routes
 - **Production calls use `apiOperation*` or domain hooks.** `lib/api.ts` holds the only
   raw `fetch(` call (`contractTypes.test.ts`, AC25.3.2), and the type check rejects a call of a
   retired client function.
+- **Merge two component files only when the same routes load both.** All app routes share
+  one webpack runtime, so a merged module ships every export to every route that imports it.
+  PR #2736 measured this: BarChart and PieChart in one module added 1,972 B raw to `/reports`,
+  which does not use PieChart. Keep a pair apart when a test mocks one file and renders the
+  other, because a `vi.mock` of a shared module replaces both. No gate checks First Load JS:
+  put the `next build` First Load JS of each changed route in the PR body.
 
 ### Automated Layer Boundary Enforcement
 

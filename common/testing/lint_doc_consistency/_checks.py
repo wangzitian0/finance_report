@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from common.meta.base.gate_util import display_path
+from common.testing.check_ac_traceability import is_deprecated
 from common.testing.lint_doc_consistency import _parsing
 
 from common.testing.lint_doc_consistency import _base
@@ -32,7 +33,6 @@ from common.testing.lint_doc_consistency._parsing import (
     _required_mkdocs_nav_docs,
     collect_mkdocs_nav_docs,
     discover_no_ac_test_files,
-    is_deprecated,
     load_traceability_exception_paths,
     parse_epic_anchor,
 )
@@ -177,7 +177,7 @@ def check_registry_to_epic(
     """
     violations: list[Violation] = []
     for ac in registry_acs:
-        if is_deprecated(ac):
+        if is_deprecated(str(ac.get("description", ""))):
             continue
         if str(ac.get("epic_name", "")).startswith("pkg-"):
             continue
@@ -262,7 +262,7 @@ def check_registry_to_tests(
     """Check #5: every non-deprecated AC ID has at least one test reference."""
     violations: list[Violation] = []
     for ac in registry_acs:
-        if is_deprecated(ac):
+        if is_deprecated(str(ac.get("description", ""))):
             continue
         if not ac.get("mandatory", True):
             continue

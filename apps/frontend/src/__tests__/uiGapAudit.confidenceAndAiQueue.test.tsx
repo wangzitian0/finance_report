@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AiSuggestionsQueue } from "@/components/audit/AiSuggestionsQueue";
+import { AiSuggestionsQueue } from "@/components/audit/AuditPanels";
 import AiSettingsPanel from "@/components/settings/AiSettingsPanel";
 import { AuditTrailPanel } from "@/components/journal/JournalEntryDetailsModal";
 import ConfidenceBadge from "@/components/ui/ConfidenceBadge";

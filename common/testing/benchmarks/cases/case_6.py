@@ -285,6 +285,14 @@ def execute_case_6(runner: ScenarioBenchmarkRunner) -> CaseResult:
             final_balanced,
         ) = _verify_final_articulated_balance_sheet(runner, client)
 
+        # Flow 24: Accounting Equation Out-of-Balance Diagnostic Triage
+        diagnostics = runner.get_balance_sheet_diagnostics(
+            client, as_of_date="2025-05-31", currency="SGD"
+        )
+        assert diagnostics.get("is_balanced") is True, (
+            f"Expected balanced equation diagnostics in Case 6, got {diagnostics}"
+        )
+
         duration = time.time() - start_time
         print(f"✅ {case_name} PASSED in {duration:.2f}s\n")
         return CaseResult(
@@ -301,6 +309,7 @@ def execute_case_6(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 "total_equity": str(final_equity),
                 "equation_delta": str(final_delta),
                 "is_balanced": final_balanced,
+                "flow_24_diagnostics_balanced": True,
             },
         )
     except Exception as exc:

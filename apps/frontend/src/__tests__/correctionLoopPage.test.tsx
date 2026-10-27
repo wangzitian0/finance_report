@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CorrectionLoopProof } from "@/components/audit/CorrectionLoopProof";
+import { CorrectionLoopProof } from "@/components/audit/AuditPanels";
 import { apiOperation } from "@/lib/api-client";
 
 vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));

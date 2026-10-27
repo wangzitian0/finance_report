@@ -17,6 +17,7 @@ from common.meta.extension.dependency_report import (
 )
 from common.meta.extension.governance_census import (
     DEFAULT_BASELINE_PATH,
+    MIN_FRONTEND_PRODUCTION_FILES,
     collect_governance_census,
     verify_governance_ratchet,
 )
@@ -158,7 +159,42 @@ def test_AC_meta_governance_ratchet_4_frontend_export_denominator() -> None:
     """AC-meta.governance-ratchet.4: frontend production files are comprehensively discovered."""
     census = collect_governance_census(REPO_ROOT)
     fe_count = census["frontend_assets"]["production_file_count"]
-    assert fe_count >= 150, f"Expected >= 150 frontend files, got {fe_count}"
+    fe_files = census["frontend_assets"]["production_files"]
+    # The detector reads the count. The oracle below reads the list. The count must equal the list length.
+    assert fe_count == len(fe_files), (
+        f"production_file_count is {fe_count}, but production_files has {len(fe_files)} paths"
+    )
+    assert fe_count >= MIN_FRONTEND_PRODUCTION_FILES, (
+        f"Expected >= {MIN_FRONTEND_PRODUCTION_FILES} frontend files, got {fe_count}"
+    )
+
+    # Partial scan: every git-tracked production file must be in the census.
+    # git ls-files is an oracle that the census code does not use, so a scan that
+    # skips one directory or one file fails here at any file count.
+    # -z gives each path verbatim. Without it, git quotes a non-ASCII path and the oracle skips it.
+    tracked = [
+        path
+        for path in subprocess.run(
+            ["git", "ls-files", "-z", "--", "apps/frontend/src"],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.split("\0")
+        if path
+    ]
+    expected = {
+        path
+        for path in tracked
+        if path.endswith((".ts", ".tsx"))
+        and "__tests__" not in path.split("/")
+        and not path.endswith((".test.ts", ".test.tsx"))
+    }
+    assert len(expected) >= MIN_FRONTEND_PRODUCTION_FILES, (
+        f"git ls-files found {len(expected)} production files; the oracle is empty or broken"
+    )
+    missing = sorted(expected - set(fe_files))
+    assert not missing, f"census missed {len(missing)} tracked files: {missing[:5]}"
 
     # Clean check returns 0 findings
     result = {"census": census}

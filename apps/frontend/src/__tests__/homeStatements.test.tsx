@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
-import { StatementCockpit } from "@/components/reports/StatementCockpit";
+import { StatementCockpit } from "@/components/reports/ReportShell";
 import { readReportFilters } from "@/hooks/useReportFilters";
 import { apiOperation } from "@/lib/api-client";
 

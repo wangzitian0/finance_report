@@ -89,7 +89,7 @@ def test_AC4_8_1_reconciliation_benchmark_residual_is_epic_owned() -> None:
     assert epic.find("AC4.6.1 removed") != -1
     assert epic.find("AC-reconciliation.source-type-transfer.1") != -1
     assert "tests/tooling/test_archive_residual_epic_ownership.py" in epic
-    assert "python tools/analyze_test_ac_coverage.py --stdout" in epic
+    assert "python tools/build_ac_traceability.py" in epic
     assert "python tools/check_ac_index.py" in epic
     assert "scripts/tests/test_archive_residual_epic_ownership.py" not in epic
     assert "python scripts/" not in epic

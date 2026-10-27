@@ -21,6 +21,10 @@ DEFAULT_BASELINE_PATH = (
     Path(__file__).resolve().parents[1] / "data" / "governance-ratchet-baseline.json"
 )
 
+#: Lower bound of the frontend production files that the census must find.
+#: A count below it means that discovery broke, not that files were merged.
+MIN_FRONTEND_PRODUCTION_FILES = 100
+
 
 def collect_governance_census(repo_root: Path) -> dict[str, Any]:
     """Measure the exhaustive governance denominator across backend and frontend."""
@@ -107,6 +111,7 @@ def collect_governance_census(repo_root: Path) -> dict[str, Any]:
         },
         "frontend_assets": {
             "production_file_count": len(frontend_files),
+            "production_files": frontend_files,
         },
         "ddd_units": {
             "total_count": total_units,
@@ -149,9 +154,12 @@ def verify_governance_ratchet(
         findings.append(
             f"vacuous backend root module census: expected >= 5, got {census['backend_root_modules']['count']}"
         )
-    if census["frontend_assets"]["production_file_count"] < 100:
+    if (
+        census["frontend_assets"]["production_file_count"]
+        < MIN_FRONTEND_PRODUCTION_FILES
+    ):
         findings.append(
-            f"vacuous frontend asset census: expected >= 100, got {census['frontend_assets']['production_file_count']}"
+            f"vacuous frontend asset census: expected >= {MIN_FRONTEND_PRODUCTION_FILES}, got {census['frontend_assets']['production_file_count']}"
         )
     if census["operations"]["total_operations"] < 50:
         findings.append(
@@ -205,6 +213,7 @@ def verify_governance_ratchet(
 
 __all__ = [
     "DEFAULT_BASELINE_PATH",
+    "MIN_FRONTEND_PRODUCTION_FILES",
     "collect_governance_census",
     "verify_governance_ratchet",
 ]
