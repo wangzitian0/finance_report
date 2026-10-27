@@ -61,6 +61,8 @@ export function IncomeStatementPanel({ filters }: { filters: ReportFilters }) {
       },
     },
     {
+      // The period waits for the coverage start (#2646).
+      enabled: filters.ready,
       placeholderData: keepPreviousData,
       select: (data) => ({ ...data, fx_warnings: normalizeFxWarningRows(data.fx_warnings) }),
     },
@@ -112,7 +114,7 @@ export function IncomeStatementPanel({ filters }: { filters: ReportFilters }) {
       description="Net Income = Income - Expenses"
       loadingLabel="Loading income statement"
       loadingSections={2}
-      isLoading={reportQuery.isLoading}
+      isLoading={!filters.ready || reportQuery.isLoading}
       isError={reportQuery.isError}
       errorMessage={reportQuery.error?.message}
       onRetry={() => void reportQuery.refetch()}

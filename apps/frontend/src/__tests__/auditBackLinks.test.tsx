@@ -36,7 +36,7 @@ describe("Audit hub back-link (EPIC-022 AC22.21.3)", () => {
         render(<AuditBackLink />);
         expect(screen.getByRole("link", { name: /Back to Needs Confirmation/i })).toHaveAttribute(
             "href",
-            "/audit",
+            "/audit?tab=needs-you",
         );
     });
 });

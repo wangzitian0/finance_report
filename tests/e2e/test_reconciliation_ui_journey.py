@@ -31,7 +31,10 @@ async def test_reconciliation_workbench_surface_and_navigation(
 ):
     """EPIC-004 EPIC-007 EPIC-008 / AC-reconciliation.workbench.1 AC8.13.9: Reconciliation workbench layout and tab navigation."""
     page = authenticated_page
-    await page.goto(f"{APP_URL}/reconciliation", wait_until="domcontentloaded")
+    # Without `tab`, the page opens on Unmatched when a row is unmatched (#2646): name the Matches tab.
+    await page.goto(
+        f"{APP_URL}/reconciliation?tab=matches", wait_until="domcontentloaded"
+    )
     assert "/login" not in page.url
 
     # 1. Assert workbench heading and analytics

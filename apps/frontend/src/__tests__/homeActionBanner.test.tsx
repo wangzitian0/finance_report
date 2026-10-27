@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HomeActionBanner, pickHomeAction } from "@/components/home/HomeActionBanner";
 import { apiOperation } from "@/lib/api-client";
+import type { AttentionItem } from "@/lib/attention";
 import type { WorkflowStatusResponse } from "@/lib/types";
 
 vi.mock("next/link", () => ({
@@ -18,11 +19,12 @@ vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
 
 const mockedApiOperation = vi.mocked(apiOperation);
 
-function mockSources(stats: unknown, statements: unknown[] = [], processing: unknown[] = []) {
+function mockSources(stats: unknown, statements: unknown[] = [], processing: unknown[] = [], unmatched: unknown[] = []) {
   mockedApiOperation.mockImplementation(((operationId: string) => {
     if (operationId === "list_statements_statements_get") return Promise.resolve({ items: statements, total: statements.length });
     if (operationId === "reconciliation_stats_reconciliation_stats_get") return Promise.resolve(stats);
     if (operationId === "list_processing_pending_accounts_processing_pending_get") return Promise.resolve({ items: processing, total: processing.length });
+    if (operationId === "list_unmatched_reconciliation_unmatched_get") return Promise.resolve({ items: unmatched, total: unmatched.length });
     return Promise.resolve(null);
   }) as never);
 }
@@ -38,6 +40,7 @@ const status = (primary_state: WorkflowStatusResponse["primary_state"]): Workflo
 describe("Home action banner (#2621 LC, EPIC-022 AC22.6.2)", () => {
   beforeEach(() => mockedApiOperation.mockReset());
 
+  // AC-reconciliation.fe-ia-reconciliation.4
   it("AC22.6.2 shows the confirmation count of the attention sources and links to the /audit queue", async () => {
     mockSources(
       { total_transactions: 100, matched_transactions: 80, unmatched_transactions: 5, pending_review: 3, auto_accepted: 70, match_rate: 80, score_distribution: {} },
@@ -47,8 +50,41 @@ describe("Home action banner (#2621 LC, EPIC-022 AC22.6.2)", () => {
 
     // unmatched (1 item) + pending review (1 item) = 2 needing confirmation.
     const banner = await screen.findByRole("region", { name: "Needs attention" });
-    expect(within(banner).getByRole("heading", { name: "2 items need your confirmation" })).toBeInTheDocument();
-    expect(within(banner).getByRole("link", { name: "Open Needs Confirmation" })).toHaveAttribute("href", "/audit");
+    expect(within(banner).getByRole("heading", { name: "2 items need you" })).toBeInTheDocument();
+    expect(within(banner).getByRole("link", { name: "Open Needs you" })).toHaveAttribute("href", "/audit?tab=needs-you");
+  });
+
+  // AC-reporting.fe-period-cockpit.9
+  it("AC-reporting.fe-period-cockpit.9 names the count and the first item of the queue before a workflow blocker", async () => {
+    // The data of the #2646 review: one unmatched row, a brokerage file at 20 % and a statement at 80 %,
+    // while the report package is blocked.
+    mockSources(
+      { total_transactions: 26, matched_transactions: 25, unmatched_transactions: 1, pending_review: 0, auto_accepted: 25, match_rate: 96, score_distribution: {} },
+      [
+        { id: "s-oct", status: "parsed", original_filename: "october.csv", confidence_score: 80, balance_validated: true },
+        { id: "s-ibkr", status: "parsed", original_filename: "ibkr.csv", confidence_score: 20, balance_validated: true },
+      ],
+      [],
+      [{ id: "t1", description: "PayNow Transfer REF 4471" }],
+    );
+    const blocked = status("blocked");
+    const baseImplementation = mockedApiOperation.getMockImplementation()!;
+    mockedApiOperation.mockImplementation(((operationId: string, request: unknown) =>
+      operationId === "get_workflow_status_endpoint_workflow_status_get"
+        ? Promise.resolve(blocked)
+        : baseImplementation(operationId as never, request as never)) as never);
+
+    render(<HomeActionBanner />);
+
+    const banner = await screen.findByRole("region", { name: "Needs attention" });
+    expect(within(banner).getByRole("heading", { name: "3 items need you" })).toBeInTheDocument();
+    expect(within(banner).getByRole("link", { name: "PayNow Transfer REF 4471" })).toHaveAttribute(
+      "href",
+      "/reconciliation?tab=unmatched&from=attention",
+    );
+    expect(banner).toHaveTextContent("1 unmatched transaction · no ledger match yet");
+    expect(within(banner).queryByText("A blocker holds your reports")).toBeNull();
+    expect(mockedApiOperation).toHaveBeenCalledWith("list_unmatched_reconciliation_unmatched_get", { query: { limit: 1 } });
   });
 
   it("AC22.6.2 stays silent when nothing needs attention", async () => {
@@ -99,14 +135,24 @@ describe("Home action banner (#2621 LC, EPIC-022 AC22.6.2)", () => {
   });
 
   // AC-reporting.fe-period-cockpit.6
-  it("AC-reporting.fe-period-cockpit.6 picks at most one action: workflow first, then the first upload, then the confirmation count", () => {
-    expect(pickHomeAction(status("blocked"), 4)).toMatchObject({ title: "A blocker holds your reports", cta: "Review required", href: "/audit" });
-    expect(pickHomeAction(status("needs_action"), 4)).toMatchObject({ title: "An item needs your review", summary: "Confirm the source." });
-    expect(pickHomeAction(status("empty"), 4)).toMatchObject({ title: "Upload your first statement", href: "/upload" });
-    expect(pickHomeAction(status("ready"), 1)).toMatchObject({ title: "1 item needs your confirmation", href: "/audit" });
-    expect(pickHomeAction(status("processing"), 3)).toMatchObject({ title: "3 items need your confirmation" });
-    expect(pickHomeAction(status("ready"), 0)).toBeNull();
-    expect(pickHomeAction(status("processing"), 0)).toBeNull();
-    expect(pickHomeAction(null, 0)).toBeNull();
+  it("AC-reporting.fe-period-cockpit.6 picks at most one action: the queue first, then the workflow, then the first upload", () => {
+    const item = (id: string, title: string, href: string): AttentionItem => ({
+      id, kind: "statement_review", title, detail: "Parsed — ready to review", reason: "", confidence: 20, href,
+    });
+    const queue = [item("statement:a", "ibkr.csv", "/statements/a"), item("statement:b", "october.csv", "/statements/b")];
+    for (const state of ["blocked", "needs_action", "empty", "ready", "processing"] as const) {
+      expect(pickHomeAction(status(state), queue), state).toMatchObject({
+        title: "2 items need you",
+        href: "/audit?tab=needs-you",
+        firstItem: { title: "ibkr.csv", detail: "Parsed — ready to review", href: "/statements/a?from=attention" },
+      });
+    }
+    expect(pickHomeAction(null, queue.slice(0, 1))).toMatchObject({ title: "1 item needs you" });
+    expect(pickHomeAction(status("blocked"), [])).toMatchObject({ title: "A blocker holds your reports", cta: "Review required", href: "/audit" });
+    expect(pickHomeAction(status("needs_action"), [])).toMatchObject({ title: "An item needs your review", summary: "Confirm the source." });
+    expect(pickHomeAction(status("empty"), [])).toMatchObject({ title: "Upload your first statement", href: "/upload" });
+    expect(pickHomeAction(status("ready"), [])).toBeNull();
+    expect(pickHomeAction(status("processing"), [])).toBeNull();
+    expect(pickHomeAction(null, [])).toBeNull();
   });
 });

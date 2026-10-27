@@ -33,18 +33,21 @@ export function NetWorthTimeSeriesChart({
   to,
   currency,
   includeRestricted,
+  enabled = true,
 }: {
   from: string;
   to: string;
   currency?: string;
   includeRestricted: boolean;
+  /** False while `from` can still move: the chart shows its loading state and does not fetch. */
+  enabled?: boolean;
 }) {
   const granularity = granularityFor(from, to);
   const seriesQuery = useApiQuery(
     ["report", "net-worth-timeseries", from, to, granularity, currency ?? "", includeRestricted],
     "net_worth_timeseries_reports_net_worth_timeseries_get",
     { query: { from, to, granularity, currency, include_restricted: includeRestricted } },
-    { staleTime: NET_WORTH_SERIES_STALE_TIME_MS },
+    { staleTime: NET_WORTH_SERIES_STALE_TIME_MS, enabled },
   );
   const data: NetWorthTimeSeriesResponse | undefined = seriesQuery.data;
   const loading = seriesQuery.isPending;

@@ -18,9 +18,9 @@
     { "path": "/more", "state": "shell" },
     { "path": "/ping-pong", "state": "shell" },
 
-    { "path": "/attention", "state": "redirect", "into": "/audit" },
-    { "path": "/confidence", "state": "redirect", "into": "/audit" },
-    { "path": "/review/ai-suggestions", "state": "redirect", "into": "/audit" },
+    { "path": "/attention", "state": "redirect", "into": "/audit?tab=needs-you" },
+    { "path": "/confidence", "state": "redirect", "into": "/audit?tab=needs-you" },
+    { "path": "/review/ai-suggestions", "state": "redirect", "into": "/audit?tab=needs-you" },
     { "path": "/review/run/[runId]", "state": "redirect", "into": "/audit?run_id=:runId" },
 
     { "path": "/notifications", "state": "redirect", "into": "/upload" },

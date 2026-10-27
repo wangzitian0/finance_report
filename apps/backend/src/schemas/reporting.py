@@ -564,6 +564,22 @@ class PersonalReportPackageInputCoverage(BaseModel):
     )
 
 
+class ReportCoverageResponse(BaseModel):
+    """The first day that the default report period can start without a cash coverage gap (#2646)."""
+
+    as_of_date: date = Field(description="The date of the opening positions that the bound reads.")
+    coverage_start: date | None = Field(
+        default=None,
+        description="The latest opening position of a cash account on or before as_of_date. A period that "
+        "starts earlier has the cash-flow proof reason opening_coverage_starts_after_period. None when no "
+        "cash account has an opening position.",
+    )
+    limiting_accounts: list[str] = Field(
+        default_factory=list,
+        description="The names of the cash accounts whose opening position is on coverage_start.",
+    )
+
+
 class PersonalReportPackageReadinessResponse(BaseModel):
     """Readiness derived from the document's exact authority coverage."""
 

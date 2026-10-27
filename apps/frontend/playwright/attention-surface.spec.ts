@@ -98,8 +98,8 @@ test.describe("AC22.6.4 attention surface smoke", () => {
 
       const banner = page.getByRole("region", { name: "Needs attention" });
       await expect(banner).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
-      await expect(banner.getByRole("heading", { name: /need(s)? your confirmation/ })).toBeVisible();
-      await expect(banner.getByRole("link", { name: "Open Needs Confirmation" })).toHaveAttribute("href", "/audit");
+      await expect(banner.getByRole("heading", { name: /^\d+ items? needs? you$/ })).toBeVisible();
+      await expect(banner.getByRole("link", { name: "Open Needs you" })).toHaveAttribute("href", "/audit?tab=needs-you");
 
       await expectNoDocumentHorizontalScroll(page);
     });

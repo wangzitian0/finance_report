@@ -1,9 +1,11 @@
 import "@testing-library/jest-dom/vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import OpeningBalanceModal from "@/components/accounts/OpeningBalanceModal";
 import { apiOperation } from "@/lib/api-client";
+import { REPORT_COVERAGE_QUERY_KEY } from "@/lib/sharedQueries";
 import type { Account } from "@/lib/types";
 
 vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }));
@@ -51,6 +53,28 @@ describe("OpeningBalanceModal (#949 / AC2.15.8)", () => {
         fireEvent.click(screen.getByRole("button", { name: "Record opening balances" }));
         await waitFor(() => expect(mockedApi).toHaveBeenCalledTimes(1));
         expect(((mockedApi.mock.calls[0][1] as any)?.body as { entry_date: string }).entry_date).toBe("2026-02-27");
+    });
+
+    // AC-reporting.fe-period-cockpit.11
+    it("AC-reporting.fe-period-cockpit.11 marks the coverage start and the ledger reads stale after it records opening balances", async () => {
+        mockedApi.mockResolvedValueOnce({ id: "opening-entry" });
+        const client = new QueryClient();
+        const coverageKey = [...REPORT_COVERAGE_QUERY_KEY, "2026-10-22"];
+        const reads = [coverageKey, ["accounts"], ["report", "balance-sheet"], ["dashboard"]];
+        for (const key of reads) client.setQueryData(key, { seeded: true });
+        const onSuccess = vi.fn();
+        render(
+            <QueryClientProvider client={client}>
+                <OpeningBalanceModal isOpen onClose={vi.fn()} onSuccess={onSuccess} accounts={accounts} />
+            </QueryClientProvider>,
+        );
+        fireEvent.change(screen.getByLabelText("As-of date *"), { target: { value: "2026-06-30" } });
+        fireEvent.change(screen.getByLabelText("Opening balance for Cash"), { target: { value: "100.00" } });
+        expect(reads.map((key) => client.getQueryState(key)?.isInvalidated)).toEqual([false, false, false, false]);
+
+        fireEvent.click(screen.getByRole("button", { name: "Record opening balances" }));
+        await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+        expect(reads.map((key) => client.getQueryState(key)?.isInvalidated)).toEqual([true, true, true, true]);
     });
 
     it.each([

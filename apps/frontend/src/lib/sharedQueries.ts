@@ -14,10 +14,19 @@ export const SHARED_STALE_MS = 60_000;
 
 /** `GET /statements`: the lean list (no transactions). */
 export const STATEMENTS_LIST_QUERY_KEY = ["statements", "list"] as const;
+/**
+ * `GET /reports/coverage`: the cash coverage start that bounds the default report view, the view with
+ * no `period` and no `start` in the URL (#2646). The key ends with the period end.
+ */
+export const REPORT_COVERAGE_QUERY_KEY = ["report", "coverage"] as const;
 /** `GET /reconciliation/stats`. */
 export const RECONCILIATION_STATS_QUERY_KEY = ["reconciliation", "stats"] as const;
 /** `GET /accounts/processing/pending`. */
 export const PROCESSING_PENDING_QUERY_KEY = ["accounts", "processing", "pending"] as const;
+/** `GET /reconciliation/unmatched?limit=1`: the newest unmatched row that names the queue item (#2646). */
+export const UNMATCHED_FIRST_QUERY_KEY = ["reconciliation", "unmatched", "first"] as const;
+/** The request of `UNMATCHED_FIRST_QUERY_KEY`. */
+export const UNMATCHED_FIRST_REQUEST = { query: { limit: 1 } } as const;
 
 export interface BalanceSheetKeyParams {
   asOfDate?: string;

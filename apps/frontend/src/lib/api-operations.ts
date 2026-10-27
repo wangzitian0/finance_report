@@ -125,6 +125,7 @@ export const API_OPERATIONS = {
   "register_auth_register_post": { method: "POST", path: "/api/auth/register" },
   "reject_match_reconciliation_matches__match_id__reject_post": { method: "POST", path: "/api/reconciliation/matches/{match_id}/reject" },
   "reject_statement_stage1_statements__statement_id__review_reject_post": { method: "POST", path: "/api/statements/{statement_id}/review/reject" },
+  "report_coverage_reports_coverage_get": { method: "GET", path: "/api/reports/coverage" },
   "resolve_consistency_check_statements_consistency_checks__check_id__resolve_post": { method: "POST", path: "/api/statements/consistency-checks/{check_id}/resolve" },
   "resolve_review_conflicts_review_conflicts__statement_id__resolve_post": { method: "POST", path: "/api/review/conflicts/{statement_id}/resolve" },
   "resolve_transaction_currency_endpoint_review_transactions__transaction_id__currency_post": { method: "POST", path: "/api/review/transactions/{transaction_id}/currency" },
