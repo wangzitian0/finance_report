@@ -60,8 +60,10 @@ asserts:
 
   (g) a declared ``CommandBoundary`` resolves to exactly one definition in the
       package implementation, and that definition carries no dynamic type
-      (``dict`` annotations, ``Callable[..., X]``, an ``Any``/``dict``/``list``
-      return, or an unannotated ``currency``/``date`` parameter). No other gate
+      (a ``dict`` annotation or ``Callable[..., X]`` on a field, parameter,
+      variadic parameter or return, nested or quoted included; a missing
+      return annotation or an ``Any``/``dict``/``list`` return; an unannotated
+      ``currency``/``date`` parameter). No other gate
       reads the field types of a decision-authorized financial command
       (AC-meta.public-boundary.2, #2758).
 
@@ -704,7 +706,7 @@ def _check_no_dependency_cycle(packages: list[DiscoveredPackage]) -> list[str]:
     enforced globally here rather than by a strict rank ordering ("never up, never
     sideways-cyclic"). The compatibility name remains because existing callers use
     it, but duplicate/unknown/self dependencies now fail through the same graph
-    builder consumed by the data projection and impact report.
+    builder consumed by the data projection.
     """
     try:
         build_dependency_graph([package.contract for package in packages])
@@ -917,13 +919,22 @@ def _dynamic_type_findings(
                     findings.append(f"dynamic type on field '{child.target.id}'")
         return findings
     arguments = node.args
-    for arg in (*arguments.posonlyargs, *arguments.args, *arguments.kwonlyargs):
+    parameters = [
+        *arguments.posonlyargs,
+        *arguments.args,
+        *arguments.kwonlyargs,
+        *(item for item in (arguments.vararg, arguments.kwarg) if item is not None),
+    ]
+    for arg in parameters:
         if arg.annotation is None:
             if arg.arg in _FINANCIAL_PRIMITIVE_PARAMS:
                 findings.append(f"untyped financial parameter '{arg.arg}'")
         elif _DYNAMIC_ANNOTATION.search(ast.unparse(arg.annotation)):
             findings.append(f"dynamic type on parameter '{arg.arg}'")
-    if node.returns is not None and _DYNAMIC_RETURN.match(ast.unparse(node.returns)):
+    # A missing return annotation is a missing return shape. A dynamic type
+    # anywhere in the return, including a quoted one, is dynamic.
+    returned = "Any" if node.returns is None else ast.unparse(node.returns)
+    if _DYNAMIC_RETURN.match(returned) or _DYNAMIC_ANNOTATION.search(returned):
         findings.append("dynamic return type")
     return findings
 

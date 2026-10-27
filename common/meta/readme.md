@@ -172,10 +172,11 @@ rule (c). A removed or unknown OpenAPI operation fails `tsc`, because
 Two rules have no other gate, so they stay as small local checks:
 
 - A declared `CommandBoundary` resolves to exactly one definition in the package
-  implementation, and that definition has no dict annotation, no
-  `Callable[..., X]`, no `Any`/`dict`/`list` return and no unannotated
-  `currency` or `date` parameter (`check_package_contract` rule (g),
-  AC-meta.public-boundary.2).
+  implementation, and that definition has no `dict` annotation or
+  `Callable[..., X]` on a field, parameter, variadic parameter or return
+  (nested or quoted included), no missing return shape (no return annotation, or
+  an `Any`/`dict`/`list` return) and no unannotated `currency` or `date`
+  parameter (`check_package_contract` rule (g), AC-meta.public-boundary.2).
 - The frontend lint rule `no-restricted-syntax` in `apps/frontend/.eslintrc.json`
   rejects any import or call of `apiFetch`, `apiStream`, `apiUpload`,
   `apiDownload` or `apiDelete`. Types cannot catch a new untyped transport that

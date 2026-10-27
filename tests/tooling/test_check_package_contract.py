@@ -1015,6 +1015,38 @@ def _command_package(
             "async def Cmd(amount: int) -> Any:\n    return amount\n",
             "dynamic return type",
         ),
+        # A missing return annotation is a missing return shape (the deleted
+        # report read it as ``Any``).
+        (
+            "def Cmd(amount: int):\n    return amount\n",
+            "dynamic return type",
+        ),
+        # A dynamic type nested in the return, or quoted, is still dynamic.
+        (
+            "def Cmd(amount: int) -> Optional[dict[str, str]]:\n    return None\n",
+            "dynamic return type",
+        ),
+        (
+            "def Cmd(amount: int) -> tuple[dict[str, str], int]:\n    return {}, 1\n",
+            "dynamic return type",
+        ),
+        (
+            "def Cmd(amount: int) -> 'dict[str, str]':\n    return {}\n",
+            "dynamic return type",
+        ),
+        (
+            "def Cmd(amount: int) -> Optional[Callable[..., int]]:\n    return None\n",
+            "dynamic return type",
+        ),
+        # Variadic parameters carry annotations too.
+        (
+            "def Cmd(*args: dict[str, str]) -> int:\n    return 1\n",
+            "dynamic type on parameter 'args'",
+        ),
+        (
+            "def Cmd(**kwargs: dict[str, str]) -> int:\n    return 1\n",
+            "dynamic type on parameter 'kwargs'",
+        ),
     ],
 )
 def test_AC_meta_public_boundary_2_command_boundary_rejects_dynamic_types(
@@ -1026,14 +1058,19 @@ def test_AC_meta_public_boundary_2_command_boundary_rejects_dynamic_types(
     assert any(expected in e for e in errors), errors
 
 
-def test_AC_meta_public_boundary_2_command_boundary_accepts_typed_definitions(
-    synthetic_repo: Path,
-) -> None:
-    """AC-meta.public-boundary.2: typed fields, a trailing date field and Mapping pass."""
-    body = (
+@pytest.mark.parametrize(
+    "body",
+    [
         "@dataclass(frozen=True)\nclass Cmd:\n"
-        "    amount: Decimal\n    tags: Mapping[str, str]\n    entry_date: date\n"
-    )
+        "    amount: Decimal\n    tags: Mapping[str, str]\n    entry_date: date\n",
+        "async def Cmd(amount: Decimal, currency: str, *args: int, **kwargs: str)"
+        " -> Receipt:\n    return Receipt()\n",
+    ],
+)
+def test_AC_meta_public_boundary_2_command_boundary_accepts_typed_definitions(
+    synthetic_repo: Path, body: str
+) -> None:
+    """AC-meta.public-boundary.2: typed fields, a trailing date field, Mapping and typed callables pass."""
     pkg = _command_package(synthetic_repo, body)
     assert check_package(pkg, {"commands": "domain"}, synthetic_repo) == []
 
