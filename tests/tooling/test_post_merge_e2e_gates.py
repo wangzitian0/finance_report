@@ -25,29 +25,6 @@ def _lacks(text: str, *snippets: str) -> None:
         assert s not in text
 
 
-def _run_payload(
-    run_id: int,
-    status: str,
-    created_at: str,
-    workflow_id: int = 100,
-    conclusion: str | None = None,
-    **extra: object,
-) -> dict[str, object]:
-    d = {
-        "id": run_id,
-        "workflow_id": workflow_id,
-        "status": status,
-        "conclusion": conclusion
-        if conclusion is not None
-        else ("success" if status == "completed" else None),
-        "created_at": created_at,
-        "html_url": f"https://github.test/runs/{run_id}",
-        "display_title": extra.get("display_title", f"run-{run_id}"),
-    }
-    d.update(extra)
-    return d
-
-
 class _FakeResponse:
     def __init__(self, data: object, code: int = 200) -> None:
         if isinstance(data, (bytes, bytearray)):
