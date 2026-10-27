@@ -178,11 +178,12 @@ times. The final model removes that:
   (`common/testing/ac_proof.py`), score floors from `ac-score-baseline.jsonl`,
   vision items from `vision.md`, and macro outcomes from
   `common/testing/data/critical-proof-outcomes.yaml`.
-- **Derived views, never committed.** The critical-proof matrix, the vision-proof
-  matrix, and the EPIC-status table are rendered ON DEMAND from the graph
+- **Derived views, never committed.** The critical-proof matrix and the
+  EPIC-status table are rendered ON DEMAND from the graph
   (`python -m common.testing.generate_critical_proof_matrix`,
-  `tools/generate_vision_proof_matrix.py`,
-  `tools/generate_epic_status.py --stdout`, all to stdout). None is
+  `tools/generate_epic_status.py --stdout`, both to stdout). The vision-proof
+  matrix is built in memory by `generate_vision_proof_matrix.build_matrix`,
+  which `ac_graph` calls; it has no command line. None is
   committed-materialized, so there is nothing for two unrelated PRs to collide
   on. The consumers that used to read the committed YAML (the critical-proof
   checker and the staging AI/OCR gate) build the matrix in-memory from the graph

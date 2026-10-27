@@ -1112,7 +1112,7 @@ CONTRACT = PackageContract(
             owner="common/testing/generate_vision_proof_matrix.py",
             description=(
                 "Vision-anchor -> EPIC -> AC -> test proof matrix, a DERIVED (not committed) "
-                "view of the one AC-keyed graph, rendered on demand and gated by "
+                "view of the one AC-keyed graph, built in memory by build_matrix and gated by "
                 "tools/check_ac_index.py (supersedes #442/#480)."
             ),
             cross_refs=[
@@ -1121,10 +1121,7 @@ CONTRACT = PackageContract(
                 "docs/project/EPIC-014.ttd-transformation.md",
                 ".github/workflows/ci.yml",
             ],
-            proofs=[
-                "tests/tooling/test_generate_vision_proof_matrix.py",
-                "tools/generate_vision_proof_matrix.py",
-            ],
+            proofs=["tests/tooling/test_generate_vision_proof_matrix.py"],
             family="tdd",
             kind="matrix",
             parent="ac_graph",

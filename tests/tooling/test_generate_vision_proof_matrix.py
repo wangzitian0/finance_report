@@ -1,10 +1,10 @@
 """Tests for the generated vision-to-proof matrix.
 
-AC14.1.19: The vision -> AC -> test proof matrix is mechanically generated from
-vision.md anchors, EPIC ``Vision Anchor`` declarations, the AC registries, and
-test references. It is a DERIVED view of the one AC-keyed graph, rendered on
-demand (YAML + MkDocs page) and never committed-materialized; consistency (no
-dangling vision item) is gated by ``tools/check_ac_index.py``.
+AC14.1.19: The vision -> AC -> test proof matrix is built from vision.md
+anchors, EPIC ``Vision Anchor`` declarations, the AC registries, and test
+references. It is a DERIVED view of the one AC-keyed graph (``ac_graph`` calls
+``build_matrix``) and is never committed; consistency (no dangling vision item)
+is gated by ``tools/check_ac_index.py``.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import yaml
 from common.testing import generate_vision_proof_matrix as gvpm
 
 
@@ -49,49 +48,6 @@ def test_AC14_1_19_matrix_maps_vision_to_ac_to_test() -> None:
     assert migrated["epic"] == "pkg-portfolio"
     expected_tests = {"apps/frontend/src/__tests__/holdingDetailPage.test.tsx"}
     assert expected_tests.issubset(migrated["tests"])
-
-
-def test_AC14_1_19_rendered_yaml_is_parseable_and_deterministic() -> None:
-    """AC14.1.19: the YAML artifact round-trips and is byte-stable."""
-    rendered = gvpm.render_yaml(_build())
-    parsed = yaml.safe_load(rendered)
-    assert parsed["version"]
-    assert isinstance(parsed["vision_nodes"], list) and parsed["vision_nodes"]
-    # Deterministic: regenerating yields identical bytes.
-    assert gvpm.render_yaml(_build()) == rendered
-
-
-def test_AC14_1_19_matrix_is_a_derived_view_not_committed() -> None:
-    """AC14.1.19: the vision matrix is a DERIVED view, never committed-materialized.
-
-    The previously-committed YAML + MkDocs page are removed; the matrix is
-    rendered on demand from the AC graph and gated by tools/check_ac_index.py.
-    """
-    repo_root = Path(__file__).resolve().parents[2]
-    assert not (repo_root / "docs/ssot/vision-proof-matrix.yaml").exists()
-    assert not (repo_root / "docs/reference/vision-proof-matrix.md").exists()
-    # The on-demand renderers still produce a generated, parseable artifact.
-    yaml_text = gvpm.render_yaml(_build())
-    md_text = gvpm.render_markdown(_build())
-    assert "DO NOT edit" in yaml_text
-    assert "generate_vision_proof_matrix.py" in yaml_text
-    assert "Vision-to-Proof Matrix" in md_text
-    assert "generate_vision_proof_matrix.py" in md_text
-
-
-def test_AC14_1_19_check_builds_without_committing() -> None:
-    """AC14.1.19: --check builds the matrix and never byte-compares a committed file."""
-    assert gvpm.main(["--check"]) == 0
-
-
-def test_AC14_1_19_on_demand_render_writes_only_when_requested(tmp_path) -> None:
-    """AC14.1.19: the matrix is rendered on demand to an explicit output only."""
-    yaml_out = tmp_path / "matrix.yaml"
-    md_out = tmp_path / "matrix.md"
-    assert gvpm.main(["--yaml-output", str(yaml_out), "--md-output", str(md_out)]) == 0
-    assert yaml_out.exists() and md_out.exists()
-    # Deterministic: a second render is byte-identical.
-    assert gvpm.render_yaml(_build()) == yaml_out.read_text(encoding="utf-8")
 
 
 def test_AC14_1_19_wrapped_vision_anchor_continuation_is_captured(
