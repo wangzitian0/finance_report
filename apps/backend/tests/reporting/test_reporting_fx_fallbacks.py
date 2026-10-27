@@ -239,10 +239,10 @@ async def test_aggregate_net_income_with_start_date(db: AsyncSession, accounts, 
     )
     await db.commit()
 
-    net_all = await _aggregate_net_income_sql(db, user_id, "SGD", date(2025, 3, 1))
+    net_all, _ = await _aggregate_net_income_sql(db, user_id, "SGD", date(2025, 3, 1))
     assert net_all == Decimal("1500.00")
 
-    net_filtered = await _aggregate_net_income_sql(db, user_id, "SGD", date(2025, 3, 1), start_date=date(2025, 2, 1))
+    net_filtered, _ = await _aggregate_net_income_sql(db, user_id, "SGD", date(2025, 3, 1), start_date=date(2025, 2, 1))
     assert net_filtered == Decimal("500.00")
 
 

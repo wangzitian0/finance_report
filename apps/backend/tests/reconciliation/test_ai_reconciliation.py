@@ -1,6 +1,6 @@
 """EPIC-018 Phase 3: Tests for AI-assisted reconciliation scoring.
 
-The ``calculate_match_score``-level hybrid/feature-flag behavior
+The ``score_single``-level hybrid/feature-flag behavior
 (AC-reconciliation.1803.1/.2, formerly AC18.3.2/AC18.3.3) lives in
 ``test_reconciliation_hybrid_scoring.py`` instead of here — kept out of this
 file specifically so a package-wide LLM-test-marker scan (this file used to

@@ -56,7 +56,10 @@ async def _read_all(db, db_engine, client, user_id) -> dict[str, tuple[Any, Any]
 
     async def month_to_date_net_income() -> Any:
         # The advisor and the package read the net income of one month: a narrow date range.
-        return str(await _aggregate_net_income_sql(db, user_id, "SGD", date(2026, 1, 31), start_date=date(2026, 1, 1)))
+        net_income, _ = await _aggregate_net_income_sql(
+            db, user_id, "SGD", date(2026, 1, 31), start_date=date(2026, 1, 1)
+        )
+        return str(net_income)
 
     actions = {path: get(path) for path in REPORT_PATHS}
     actions[MONTH_TO_DATE_NET_INCOME] = month_to_date_net_income

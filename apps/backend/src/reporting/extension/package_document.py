@@ -765,10 +765,10 @@ class PackageAssembler:
             # Position and flow sections have different periods and FX averaging
             # windows. Compare each against its matching ledger projection rather
             # than comparing lifetime income with the selected month's income.
-            cumulative_net_income = _quantize_money(await _aggregate_net_income_sql(db, user_id, currency, as_of_date))
-            period_net_income = _quantize_money(
-                await _aggregate_net_income_sql(db, user_id, currency, end_date, start_date=start_date)
-            )
+            cumulative_raw, _ = await _aggregate_net_income_sql(db, user_id, currency, as_of_date)
+            period_raw, _ = await _aggregate_net_income_sql(db, user_id, currency, end_date, start_date=start_date)
+            cumulative_net_income = _quantize_money(cumulative_raw)
+            period_net_income = _quantize_money(period_raw)
             readiness = self._readiness(
                 policy=policy,
                 coverage=coverage,
@@ -860,11 +860,7 @@ class PackageAssembler:
             parents=(section_observation, *parents),
         )
         emitted = await TraceEmitter(repository).emit_many((section_observation, decision))
-        await self._after_trace_flush()
         return emitted[-1].record_id
-
-    async def _after_trace_flush(self) -> None:
-        """Fault-injection seam; production intentionally does nothing."""
 
     @staticmethod
     def _readiness(

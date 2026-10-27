@@ -25,10 +25,8 @@ from src.reconciliation import (
     ReconciliationStatus,
     _candidate_is_better,
     _find_normal_candidates,
-    calculate_match_score,
     execute_matching,
     extract_merchant_tokens,
-    find_candidates,
     normalize_text,
     prune_candidates,
     score_amount,
@@ -37,6 +35,7 @@ from src.reconciliation import (
     score_description,
     score_group,
     score_pattern,
+    score_single,
     weighted_total,
 )
 from tests.ledger._ledger_helpers import create_valid_posted_entry
@@ -446,7 +445,7 @@ def test_prune_candidates():
     assert pruned[1].id == candidates[2].id
 
 
-async def test_calculate_match_score_overrides(db: AsyncSession):
+async def test_score_group_overrides(db: AsyncSession):
     txn = AtomicTransaction(
         description="Test",
         amount=Decimal("100.00"),
@@ -526,23 +525,6 @@ async def test_execute_matching_many_to_one_batch(db: AsyncSession, test_user):
     assert len(matches) == 2
     for m in matches:
         assert m.score_breakdown.get("many_to_one_bonus") == 10.0
-
-
-async def test_find_candidates(db: AsyncSession, test_user):
-    user_id = test_user.id
-    base_date = date(2024, 1, 1)
-    entry = JournalEntry(
-        user_id=user_id,
-        entry_date=base_date,
-        memo="Find Me",
-        status=JournalEntryStatus.POSTED,
-    )
-    db.add(entry)
-    await db.flush()
-
-    candidates = await find_candidates(db, base_date, DEFAULT_CONFIG, user_id)
-    assert len(candidates) == 1
-    assert candidates[0].memo == "Find Me"
 
 
 async def test_execute_matching_skip_unbalanced(db: AsyncSession, test_user):
@@ -1078,8 +1060,8 @@ async def test_execute_matching_multi_entry_unbalanced_skip(db: AsyncSession, te
     assert all(str(entry_b.id) not in match.journal_entry_ids for match in matches)
 
 
-async def test_calculate_match_score_no_history_override(db: AsyncSession):
-    """Cover line 426: calculate_match_score without history_score_override calls score_pattern."""
+async def test_score_single_no_history_override(db: AsyncSession):
+    """score_single without history_score calls score_pattern."""
     user_id = uuid4()
     db.add(User(id=user_id, email=f"no-hist-{uuid4()}@example.com", hashed_password="hashed"))
     await db.flush()
@@ -1099,7 +1081,7 @@ async def test_calculate_match_score_no_history_override(db: AsyncSession):
     )
     loaded_entry = result.scalar_one()
 
-    candidate = await calculate_match_score(db, txns[0], [loaded_entry], DEFAULT_CONFIG, user_id=user_id)
+    candidate = await score_single(db, txns[0], [loaded_entry], DEFAULT_CONFIG, user_id=user_id)
     assert candidate.score > 0
     assert "history" in candidate.breakdown
 

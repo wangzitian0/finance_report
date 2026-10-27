@@ -13,7 +13,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import JournalEntrySourceType, TraceDecisionRef, VersionedTraceRef
+from src.audit import JournalEntrySourceType, TraceDecisionRef, TraceEmitter, VersionedTraceRef
 from src.audit.orm.trace_record import TraceRecordRow
 from src.config import settings
 from src.deps import PaginationParams
@@ -799,8 +799,10 @@ async def _install_trace_anchored_package_fixture(
     async def skip_market_data_refresh(*_args, **_kwargs) -> None:
         return None
 
-    async def fault_after_package_trace_flush(*_args, **_kwargs) -> None:
-        raise RuntimeError("fault_after_package_trace_flush")
+    class FaultAfterFlushEmitter(TraceEmitter):
+        async def emit_many(self, records):
+            await super().emit_many(records)
+            raise RuntimeError("fault_after_package_trace_flush")
 
     monkeypatch.setattr("src.routers.reports.PackageAssembler", PackageAssembler)
     monkeypatch.setattr("src.routers.reports._ensure_report_market_data_fresh", skip_market_data_refresh)
@@ -811,7 +813,7 @@ async def _install_trace_anchored_package_fixture(
     monkeypatch.setattr(PackageAssembler, "_sections", fixture_sections)
     monkeypatch.setattr(PackageAssembler, "_contributions", fixture_contributions)
     if fault_after_trace_flush:
-        monkeypatch.setattr(PackageAssembler, "_after_trace_flush", fault_after_package_trace_flush)
+        monkeypatch.setattr("src.reporting.extension.package_document.TraceEmitter", FaultAfterFlushEmitter)
     return disposition_transaction.id
 
 
@@ -994,13 +996,15 @@ async def test_AC_reporting_package_document_5_trace_and_snapshot_rollback_toget
             db=db,
             user_id=test_user.id,
         )
-    await db.rollback()
-
-    package_trace_count = await db.scalar(
+    package_trace_rows = (
         select(func.count(TraceRecordRow.id))
         .where(TraceRecordRow.scope_id == str(user_id))
         .where(TraceRecordRow.target_kind == "personal_report_package")
     )
+    assert await db.scalar(package_trace_rows) > 0, "the fault must fire after the package trace rows are flushed"
+    await db.rollback()
+
+    package_trace_count = await db.scalar(package_trace_rows)
     package_snapshot_count = await db.scalar(
         select(func.count(ReportSnapshot.id))
         .where(ReportSnapshot.user_id == user_id)

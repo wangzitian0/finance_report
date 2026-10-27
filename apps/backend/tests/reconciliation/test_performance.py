@@ -22,8 +22,8 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.reconciliation import (
     DEFAULT_CONFIG,
-    calculate_match_score,
     execute_matching,
+    score_single,
 )
 
 
@@ -200,7 +200,7 @@ class TestMatchingAccuracy:
 
         # Calculate match score
         await db.refresh(entry, ["lines"])
-        score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id)
+        score_result = await score_single(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id)
 
         # Unrelated transaction should score LOW (< 60 = unmatched)
         assert score_result.score < 60, f"Unrelated transaction should score < 60, got {score_result.score}"
@@ -261,7 +261,7 @@ class TestMatchingAccuracy:
 
         # Should find the match (score >= 60 for review queue)
         await db.refresh(entry, ["lines"])
-        score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id)
+        score_result = await score_single(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id)
 
         assert score_result.score >= 60, f"Similar transaction should score >= 60, got {score_result.score}"
 
@@ -459,7 +459,7 @@ class TestCrossMonthMatching:
 
         # Should still find a reasonable match despite 1-day difference
         await db.refresh(entry, ["lines"])
-        score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id)
+        score_result = await score_single(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id)
 
         # Date penalty should be small (1 day difference)
         # Amount and description are exact, so should score well
@@ -523,7 +523,7 @@ class TestCrossMonthMatching:
 
         # Should still match despite 3-day weekend gap
         await db.refresh(entry, ["lines"])
-        score_result = await calculate_match_score(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id)
+        score_result = await score_single(db, txn, [entry], DEFAULT_CONFIG, user_id=user_id)
 
         # 3-day gap has some penalty, but amount match + similar description should compensate
         assert score_result.score >= 65, f"Weekend gap (3 days) match should score >= 65, got {score_result.score}"

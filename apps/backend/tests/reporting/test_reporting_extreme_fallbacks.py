@@ -278,7 +278,7 @@ async def test_net_income_sql_uses_period_average_rate(db: AsyncSession, test_us
     )
     await db.commit()
 
-    net_income = await _aggregate_net_income_sql(
+    net_income, _ = await _aggregate_net_income_sql(
         db,
         test_user_id,
         "SGD",
@@ -325,9 +325,13 @@ async def test_net_income_sql_detects_missing_fx_map_row() -> None:
 
     fake_db.execute = AsyncMock(side_effect=[transfer_result, discovery_result, currency_result, agg_result])
 
-    # Patch get_average_rate so we don't need to mock DB FX queries; USD gets a rate
-    with patch("src.reporting.extension._core.get_average_rate", new_callable=AsyncMock) as mock_avg:
+    # Patch the average and spot rate lookups so we don't need to mock DB FX queries; USD gets a rate
+    with (
+        patch("src.reporting.extension._core.get_average_rate", new_callable=AsyncMock) as mock_avg,
+        patch("src.reporting.extension._core.get_exchange_rate", new_callable=AsyncMock) as mock_spot,
+    ):
         mock_avg.return_value = Decimal("1.35")
+        mock_spot.return_value = Decimal("1.35")
         with pytest.raises(ReportError, match="data consistency error"):
             await _aggregate_net_income_sql(fake_db, uuid4(), "SGD", as_of_date=date(2025, 1, 31))
 

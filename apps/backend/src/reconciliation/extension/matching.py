@@ -151,42 +151,6 @@ async def score_group(
     )
 
 
-async def calculate_match_score(
-    db: AsyncSession,
-    transaction: AtomicTransaction,
-    entries: list[JournalEntry],
-    config: ReconciliationConfig,
-    user_id: UUID,
-    *,
-    history_score_override: float | None = None,
-) -> MatchCandidate:
-    """Compatibility name for normal scoring; group callers use ``score_group``."""
-    return await score_single(
-        db,
-        transaction,
-        entries,
-        config,
-        user_id,
-        history_score=history_score_override,
-    )
-
-
-async def find_candidates(
-    db: AsyncSession,
-    txn_date: date,
-    config: ReconciliationConfig,
-    user_id: UUID,
-) -> list[JournalEntry]:
-    """Find journal entry candidates near a transaction date."""
-    date_start = txn_date - timedelta(days=config.date_days)
-    date_end = txn_date + timedelta(days=config.date_days)
-    return await SqlReconciliationRepository(db).list_journal_candidates(
-        user_id=user_id,
-        start_date=date_start,
-        end_date=date_end,
-    )
-
-
 async def accepted_transfer_txn_ids(
     db: AsyncSession,
     txn_ids: Sequence[UUID],
@@ -245,7 +209,7 @@ async def execute_matching(
     if not transactions:
         return []
 
-    # Optimization: Pre-fetch all candidates for the entire period to avoid N+1 find_candidates
+    # Optimization: Pre-fetch all candidates for the entire period to avoid an N+1 candidate query per transaction
     min_date = min(txn.txn_date for txn in transactions) - timedelta(days=config.date_days)
     max_date = max(txn.txn_date for txn in transactions) + timedelta(days=config.date_days)
 

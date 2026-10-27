@@ -35,8 +35,7 @@ either side.
 - **Match score** — a weighted composite of amount/date/description/business-
   logic/pattern sub-scores in `[0, 100]` (`score_amount`/`score_date`/
   `score_description`/`score_business_logic`/`score_pattern` composed by
-  the explicit `score_single` or `score_group` entry point;
-  `calculate_match_score` remains the compatibility name for single scoring).
+  the explicit `score_single` or `score_group` entry point).
   Scores at or above the auto-accept threshold auto-accept; the review band
   routes to `PENDING_REVIEW`. A Processing leg that follows an AI classification stores the AI
   score instead (100 when the user chose the class); the leg is not a matcher result.
