@@ -434,7 +434,7 @@ jobs:
             apps/backend/ci-context/schema-migration-context.txt
           retention-days: 14
   backend:
-    name: Backend Tests (Shard ${{ matrix.shard }}/4)
+    name: Backend Tests (Shard ${{ matrix.shard }}/${{ strategy.job-total }})
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
@@ -442,7 +442,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        # The matrix is the one place that sets the shard count: the job name and
+        # --splits read strategy.job-total. Raise it when the slowest shard
+        # passes 4 minutes (#2688).
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
 
     services:
       postgres:
@@ -471,7 +474,7 @@ jobs:
 
 
 
-      - name: Run Tests (Shard ${{ matrix.shard }}/4)
+      - name: Run Tests (Shard ${{ matrix.shard }}/${{ strategy.job-total }})
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report_test
           S3_ACCESS_KEY: minio
@@ -503,7 +506,7 @@ jobs:
           # it (that collection alone was 37-58 s per shard, #2050). Every
           # tests/**/test_*.py file lands in exactly one shard.
           python ../../tools/backend_shard_files.py \
-            --splits 4 \
+            --splits ${{ strategy.job-total }} \
             --group ${{ matrix.shard }} \
             --splitting-algorithm=least_duration \
             --durations-path ci/backend-test-durations.json \
@@ -513,10 +516,10 @@ jobs:
             BACKEND_SHARD_TESTS+=("$test_file")
           done < "$RUNNER_TEMP/backend-shard-tests.txt"
           if [ "${#BACKEND_SHARD_TESTS[@]}" -eq 0 ]; then
-            echo "::error::backend shard ${{ matrix.shard }}/4 selected no test files"
+            echo "::error::backend shard ${{ matrix.shard }}/${{ strategy.job-total }} selected no test files"
             exit 1
           fi
-          echo "Shard ${{ matrix.shard }}/4 runs ${#BACKEND_SHARD_TESTS[@]} test files"
+          echo "Shard ${{ matrix.shard }}/${{ strategy.job-total }} runs ${#BACKEND_SHARD_TESTS[@]} test files"
           uv run pytest -n auto -v \
             -m "not slow and not e2e and not integration" \
             --cov=src \
@@ -763,39 +766,11 @@ jobs:
         run: npm run build
         working-directory: apps/frontend
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package-lock.json') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
       - name: Install Frontend Playwright Browser
-        # #1767: retry a transient toolchain download (network flake on the
-        # ~400MB chromium fetch) with bounded exponential backoff, mirroring
-        # .github/actions/setup-e2e-tests's retry_download idiom. Cached above,
-        # so a warm cache skips the download and this step is a fast no-op.
-        run: |
-          set -uo pipefail
-          attempts=3
-          delay=10
-          for n in $(seq 1 "$attempts"); do
-            echo "::group::playwright install chromium (attempt ${n}/${attempts})"
-            if npx playwright install chromium --with-deps; then
-              echo "::endgroup::"
-              exit 0
-            fi
-            echo "::endgroup::"
-            if [ "$n" -lt "$attempts" ]; then
-              echo "playwright install attempt ${n} failed; retrying in ${delay}s..."
-              sleep "$delay"
-              delay=$((delay * 2))
-            fi
-          done
-          echo "::error::playwright install chromium failed after ${attempts} attempts."
-          exit 1
-        working-directory: apps/frontend
+        uses: ./.github/actions/install-playwright
+        with:
+          command: npx playwright
+          working-directory: apps/frontend
 
       - name: Run Frontend Playwright Tests
         run: npm run test:e2e -- --reporter=line,html
@@ -852,39 +827,11 @@ jobs:
         run: npm run build
         working-directory: apps/frontend
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('apps/frontend/package-lock.json') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
       - name: Install Frontend Playwright Browser
-        # #1767: retry a transient toolchain download (network flake on the
-        # ~400MB chromium fetch) with bounded exponential backoff, mirroring
-        # .github/actions/setup-e2e-tests's retry_download idiom. Cached above,
-        # so a warm cache skips the download and this step is a fast no-op.
-        run: |
-          set -uo pipefail
-          attempts=3
-          delay=10
-          for n in $(seq 1 "$attempts"); do
-            echo "::group::playwright install chromium (attempt ${n}/${attempts})"
-            if npx playwright install chromium --with-deps; then
-              echo "::endgroup::"
-              exit 0
-            fi
-            echo "::endgroup::"
-            if [ "$n" -lt "$attempts" ]; then
-              echo "playwright install attempt ${n} failed; retrying in ${delay}s..."
-              sleep "$delay"
-              delay=$((delay * 2))
-            fi
-          done
-          echo "::error::playwright install chromium failed after ${attempts} attempts."
-          exit 1
-        working-directory: apps/frontend
+        uses: ./.github/actions/install-playwright
+        with:
+          command: npx playwright
+          working-directory: apps/frontend
 
       - name: Run Frontend Telemetry-Emission E2E (#1169 / EPIC-024 AC24.2)
         # Real-browser proof that browser OTel spans export to /v1/traces and
@@ -1680,7 +1627,7 @@ jobs:
           | Stage | Coverage Effect | Behavior Proof |
           |---|---|---|
           | schema-migrations | not included in unified coverage | yes (Alembic DDL/schema drift) |
-          | backend (4-way shard) | contributes to unified line coverage baseline | yes |
+          | backend (sharded) | contributes to unified line coverage baseline | yes |
           | backend-integration | not included in unified coverage | yes (marker 'integration') |
           | frontend-build | not included in unified coverage | yes (typecheck + production build) |
           | frontend-vitest | contributes to unified line coverage baseline | yes |
@@ -1821,3 +1768,61 @@ jobs:
             echo "Heavy backend/frontend/coverage jobs skipped for lightweight changes."
           fi
           echo "✅ All checks passed!"
+
+  # #2688: the time budget of this run. A PR run only prints the verdict. A main run past its
+  # budget turns this job red and comments on the budget issue. Job-level continue-on-error
+  # keeps the ci.yml run conclusion green whatever happens here (an overrun, a script crash,
+  # a missing timing input or an SDK install flake): release.yml requires a successful main
+  # CI run (verify_source_ci), so this job must never decide that conclusion.
+  pipeline-budget:
+    name: Pipeline Budget
+    needs: [finish]
+    if: ${{ !cancelled() }}
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        continue-on-error: true
+
+      - name: Set up Python
+        continue-on-error: true
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install infra2-sdk
+        continue-on-error: true
+        uses: ./.github/actions/install-infra2-sdk
+
+      - name: Print the time budget verdict
+        if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python tools/github_workflow_timing_summary.py \
+            --repo "${{ github.repository }}" \
+            --run-id "${{ github.run_id }}" \
+            --title "CI Time Budget" \
+            --summary-path "$GITHUB_STEP_SUMMARY" \
+            --budget "${{ github.event_name == 'pull_request' && 'pr' || 'main' }}"
+
+      # No step-level continue-on-error: a budget check that cannot run must show red on this job.
+      - name: Enforce the main-branch time budget
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python tools/github_workflow_timing_summary.py \
+            --repo "${{ github.repository }}" \
+            --run-id "${{ github.run_id }}" \
+            --title "Main CI Time Budget" \
+            --summary-path "$GITHUB_STEP_SUMMARY" \
+            --budget main \
+            --enforce \
+            --comment

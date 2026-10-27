@@ -2,6 +2,7 @@ httpx
 pytest
 pytest-asyncio
 pytest-playwright
+playwright==1.57.0
 pytest-xdist
 reportlab
 pyyaml

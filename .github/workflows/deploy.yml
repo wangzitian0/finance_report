@@ -769,8 +769,12 @@ jobs:
 
   financial-benchmark:
     name: Financial Benchmark
-    needs: [build-and-deploy, provider-gate, ai-ocr-gate]
-    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.provider-gate.result == 'success' && needs.ai-ocr-gate.result == 'success' }}
+    # Runs beside the AI/OCR gate, not after it (#2688): the benchmark reads staging and needs
+    # no output of the gate. It keeps the gate's run conditions, so it runs only when the gate
+    # runs, and post-merge-delivery fails when either one fails. Measured on branch run
+    # 40304815766: no timeout in either job (gate test 91 s, was 95 s).
+    needs: [build-and-deploy, provider-gate]
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' && needs.provider-gate.result == 'success' }}
     # benchmark.yml publishes the report to GitHub Pages. A caller must grant what the called job requests.
     permissions:
       contents: write
@@ -902,9 +906,12 @@ jobs:
     timeout-minutes: 10
     needs: [build-and-deploy, provider-gate, ai-ocr-gate, financial-benchmark, post-merge-delivery]
     if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' }}
+    # #2688: a budget overrun shows on this job but must not turn the deploy run red.
+    continue-on-error: true
     permissions:
       actions: read
       contents: read
+      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -919,7 +926,10 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/install-infra2-sdk
 
+      # #2688: a branch dispatch only prints the verdict against the 15 minute
+      # tag-to-staging budget.
       - name: Write post-merge timing summary
+        if: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -928,7 +938,24 @@ jobs:
             --repo "${{ github.repository }}" \
             --run-id "${{ github.run_id }}" \
             --title "Post-merge Timing Summary" \
-            --summary-path "$GITHUB_STEP_SUMMARY"
+            --summary-path "$GITHUB_STEP_SUMMARY" \
+            --budget release
+
+      # A tag or main run that exceeds the budget fails this non-required job and
+      # comments on the budget issue. No step-level continue-on-error: a check that cannot run must show red.
+      - name: Write post-merge timing summary and enforce the time budget
+        if: ${{ github.ref_type == 'tag' || github.ref == 'refs/heads/main' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python tools/github_workflow_timing_summary.py \
+            --repo "${{ github.repository }}" \
+            --run-id "${{ github.run_id }}" \
+            --title "Post-merge Timing Summary" \
+            --summary-path "$GITHUB_STEP_SUMMARY" \
+            --budget release \
+            --enforce \
+            --comment
 
   # Release image promotion jobs
   promote:

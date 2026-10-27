@@ -46,10 +46,6 @@ concurrency:
   group: financial-benchmark-${{ inputs.version_ref || github.ref }}
   cancel-in-progress: false
 
-env:
-  UV_VERSION: "0.9.18"
-  PYTHON_VERSION: "3.12.12"
-
 jobs:
   run-benchmark:
     name: Run Financial Benchmark
@@ -67,16 +63,12 @@ jobs:
           ref: ${{ inputs.commit_ref || github.sha }}
           fetch-depth: 0
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v8.2.0
-        with:
-          version: ${{ env.UV_VERSION }}
-          save-cache: false
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
+      # The E2E toolchain carries the benchmark's Python packages (httpx, reportlab,
+      # pyyaml, playwright) and the one cached Playwright install. Pillars 2 and 3
+      # (zero console errors, DOM hygiene) need a real browser. Without one the UI
+      # case is SKIPPED, and a SKIPPED case fails the run (#2318).
+      - name: Set up the E2E toolchain and Playwright browser
+        uses: ./.github/actions/setup-e2e-tests
 
       - name: Resolve target version
         id: target
@@ -104,14 +96,7 @@ jobs:
 
       - name: Sync benchmark fixtures
         run: |
-          uv run --with httpx --with pyyaml python tools/sync_benchmark_fixtures.py
-
-      # Pillars 2 and 3 (zero console errors, DOM hygiene) need a real browser. Without
-      # one the UI case is SKIPPED, and a SKIPPED case fails the run (#2318). The
-      # version pin matches apps/backend/uv.lock.
-      - name: Install Playwright browser
-        run: |
-          uv run --with "playwright==1.57.0" python -m playwright install --with-deps chromium
+          python tools/sync_benchmark_fixtures.py
 
       # No continue-on-error: a failed or skipped case must turn this run red. The index
       # and Pages steps below use `if: always()`, so the report is still published.
@@ -125,7 +110,7 @@ jobs:
           set -uo pipefail
           mkdir -p "docs/benchmarks/${VERSION_REF}"
 
-          uv run --with httpx --with reportlab --with pyyaml --with "playwright==1.57.0" python tools/run_financial_scenario_benchmark.py \
+          python tools/run_financial_scenario_benchmark.py \
             --app-url "$APP_URL" \
             --case "$CASE" \
             --version-ref "$VERSION_REF" \

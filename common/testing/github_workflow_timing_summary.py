@@ -3,6 +3,12 @@
 
 The script reads a workflow run through `gh run view` and writes queue time,
 execution time, and per-job durations to a Markdown summary file.
+
+With `--budget` it also compares the execution window with the owner's pipeline
+budget (#2688). `--enforce` exits 1 when the budget is exceeded, and
+`--comment` posts the overrun on the budget issue once per run. The time before
+the first job starts never counts: it depends on runner capacity, not on the
+workflow. A job that waits for a runner later in the run does count.
 """
 
 from __future__ import annotations
@@ -17,6 +23,20 @@ from pathlib import Path
 from typing import Any
 
 from common.runtime.github_api import parse_github_time
+
+# Owner budgets for the execution window of one run, in seconds (#2688, goal G28).
+# pr: PR checks, 3-4 minutes. main: main-branch regression after a merge, 7-8
+# minutes. release: the staging deploy run after a tag, 15 minutes. Each is the upper
+# bound. The release window starts at the first job of the dispatched deploy run, so the
+# tag-push image run and the gap before the dispatch are not in it.
+PIPELINE_BUDGET_SECONDS: dict[str, int] = {
+    "pr": 4 * 60,
+    "main": 8 * 60,
+    "release": 15 * 60,
+}
+SLOWEST_JOBS_IN_COMMENT = 3
+# The one issue that receives an overrun comment.
+PIPELINE_BUDGET_ISSUE = "2688"
 
 
 @dataclass(frozen=True)
@@ -53,7 +73,44 @@ def _job_from_payload(raw: dict[str, Any]) -> JobTiming:
     )
 
 
-def format_timing_summary(run: dict[str, Any], *, title: str) -> str:
+@dataclass(frozen=True)
+class RunTiming:
+    jobs: list[JobTiming]
+    queue_seconds: int | None
+    execution_seconds: int | None
+    run_seconds: int | None
+
+
+@dataclass(frozen=True)
+class BudgetVerdict:
+    kind: str
+    budget_seconds: int
+    execution_seconds: int | None
+
+    @property
+    def measured(self) -> bool:
+        return self.execution_seconds is not None
+
+    @property
+    def exceeded(self) -> bool:
+        return (
+            self.execution_seconds is not None
+            and self.execution_seconds > self.budget_seconds
+        )
+
+    def describe(self) -> str:
+        measured = format_duration(self.execution_seconds)
+        budget = format_duration(self.budget_seconds)
+        if self.execution_seconds is None:
+            state = "not measured"
+        elif self.exceeded:
+            state = "OVER"
+        else:
+            state = "within"
+        return f"Budget `{self.kind}`: execution window `{measured}` of `{budget}` ({state})"
+
+
+def run_timing(run: dict[str, Any]) -> RunTiming:
     created_at = parse_github_time(run.get("createdAt"))
     updated_at = parse_github_time(run.get("updatedAt"))
     jobs = [_job_from_payload(job) for job in run.get("jobs", [])]
@@ -81,6 +138,26 @@ def format_timing_summary(run: dict[str, Any], *, title: str) -> str:
         execution_seconds = max(
             0, int((last_completed - first_started).total_seconds())
         )
+    return RunTiming(jobs, queue_seconds, execution_seconds, run_seconds)
+
+
+def budget_verdict(run: dict[str, Any], kind: str) -> BudgetVerdict:
+    return BudgetVerdict(
+        kind=kind,
+        budget_seconds=PIPELINE_BUDGET_SECONDS[kind],
+        execution_seconds=run_timing(run).execution_seconds,
+    )
+
+
+def format_timing_summary(
+    run: dict[str, Any], *, title: str, budget_kind: str | None = None
+) -> str:
+    timing = run_timing(run)
+    jobs = timing.jobs
+    queue_seconds = timing.queue_seconds
+    execution_seconds = timing.execution_seconds
+    run_seconds = timing.run_seconds
+    completed_jobs = [job for job in jobs if job.completed_at is not None]
 
     sorted_jobs = sorted(
         jobs,
@@ -108,6 +185,8 @@ def format_timing_summary(run: dict[str, Any], *, title: str) -> str:
         lines.append(
             f"- Longest completed job: `{longest.name}` at `{format_duration(longest.duration_seconds)}`"
         )
+    if budget_kind is not None:
+        lines.append(f"- {budget_verdict(run, budget_kind).describe()}")
 
     lines.extend(
         [
@@ -154,21 +233,140 @@ def load_run(repo: str, run_id: str) -> dict[str, Any]:
     return json.loads(result.stdout)
 
 
+def format_overrun_comment(
+    run: dict[str, Any], verdict: BudgetVerdict, *, title: str
+) -> str:
+    slowest = sorted(
+        (job for job in run_timing(run).jobs if job.duration_seconds is not None),
+        key=lambda job: job.duration_seconds or 0,
+        reverse=True,
+    )[:SLOWEST_JOBS_IN_COMMENT]
+    lines = [
+        f"Pipeline budget exceeded: **{title}** ran for "
+        f"`{format_duration(verdict.execution_seconds)}` against the "
+        f"`{format_duration(verdict.budget_seconds)}` `{verdict.kind}` budget.",
+        "",
+        f"Run: {run.get('url', 'unknown')}",
+        "",
+        "Slowest jobs:",
+    ]
+    lines.extend(
+        f"- `{job.name}`: `{format_duration(job.duration_seconds)}`" for job in slowest
+    )
+    return "\n".join(lines) + "\n"
+
+
+def post_issue_comment(repo: str, issue: str, body: str) -> None:
+    subprocess.run(
+        ["gh", "issue", "comment", issue, "--repo", repo, "--body", body],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+
+
+def already_commented(repo: str, issue: str, run_url: str) -> bool:
+    """True when a comment on the issue already names this run (a rerun posts once)."""
+    try:
+        listing = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "view",
+                issue,
+                "--repo",
+                repo,
+                "--json",
+                "comments",
+                "--jq",
+                ".comments[].body",
+            ],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+    except (subprocess.CalledProcessError, OSError):
+        return False
+    return run_url != "unknown" and run_url in listing.stdout
+
+
+def check_budget(
+    run: dict[str, Any],
+    *,
+    kind: str,
+    title: str,
+    repo: str,
+    enforce: bool,
+    comment: bool,
+) -> int:
+    """Print the verdict. Return 1 only when `enforce` is set and the run fails it."""
+    verdict = budget_verdict(run, kind)
+    print(verdict.describe())
+    if not verdict.measured:
+        print(f"::error::The `{kind}` budget cannot be checked: no job has run.")
+        return 1 if enforce else 0
+    if not verdict.exceeded:
+        return 0
+    print(
+        f"::{'error' if enforce else 'warning'}::Pipeline budget exceeded: {title} ran "
+        f"{format_duration(verdict.execution_seconds)} against "
+        f"{format_duration(verdict.budget_seconds)} ({kind})."
+    )
+    if comment:
+        issue = PIPELINE_BUDGET_ISSUE
+        try:
+            if already_commented(repo, issue, str(run.get("url", "unknown"))):
+                print(f"Issue {issue} already names this run; not commenting again.")
+            else:
+                post_issue_comment(
+                    repo, issue, format_overrun_comment(run, verdict, title=title)
+                )
+        except (subprocess.CalledProcessError, OSError) as exc:
+            print(f"::warning::Could not comment on issue {issue}: {exc}")
+    return 1 if enforce else 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Write GitHub Actions timing summary")
     parser.add_argument("--repo", required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--title", default="Workflow Timing Summary")
     parser.add_argument("--summary-path", type=Path, required=True)
+    parser.add_argument(
+        "--budget",
+        choices=sorted(PIPELINE_BUDGET_SECONDS),
+        help="Compare the execution window with this budget and print the verdict.",
+    )
+    parser.add_argument(
+        "--enforce",
+        action="store_true",
+        help="Exit 1 when the --budget is exceeded or cannot be measured.",
+    )
+    parser.add_argument(
+        "--comment",
+        action="store_true",
+        help=f"Comment on issue {PIPELINE_BUDGET_ISSUE} when the --budget is exceeded.",
+    )
     args = parser.parse_args(argv)
+    if (args.enforce or args.comment) and not args.budget:
+        parser.error("--enforce and --comment need --budget")
 
     run = load_run(args.repo, args.run_id)
-    summary = format_timing_summary(run, title=args.title)
+    summary = format_timing_summary(run, title=args.title, budget_kind=args.budget)
     with args.summary_path.open("a", encoding="utf-8") as fh:
         fh.write("\n")
         fh.write(summary)
     print(f"Wrote workflow timing summary to {args.summary_path}")
-    return 0
+    if args.budget is None:
+        return 0
+    return check_budget(
+        run,
+        kind=args.budget,
+        title=args.title,
+        repo=args.repo,
+        enforce=args.enforce,
+        comment=args.comment,
+    )
 
 
 if __name__ == "__main__":

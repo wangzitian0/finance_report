@@ -195,13 +195,18 @@ SSOT_FORBIDDEN_PROSE: dict[str, tuple[tuple[str, str], ...]] = {
         ),
         (
             "Shards 1-8",
-            "the backend fast path uses 4 seeded shards (consolidated from 8, "
-            "AC-testing.ci-structure.8), not 8 shards",
+            "the shard count is set only by the `backend` job matrix in ci.yml "
+            "(#2688), not by a range in ci-cd.md",
+        ),
+        (
+            "4 seeded file-level shards",
+            "the shard count is set only by the `backend` job matrix in ci.yml "
+            "(#2688), not by a number in ci-cd.md",
         ),
         (
             "Shards 1-5",
-            "the backend fast path uses 4 seeded shards (consolidated from 8, "
-            "AC-testing.ci-structure.8), not 5 shards",
+            "the shard count is set only by the `backend` job matrix in ci.yml "
+            "(#2688), not by a range in ci-cd.md",
         ),
     ),
     "common/runtime/deployment.md": (
