@@ -19,7 +19,7 @@ import { invalidateLedgerDerivedQueries, invalidatePortfolioQueries } from "@/li
 import { SHARED_STALE_MS, STATEMENTS_LIST_QUERY_KEY } from "@/lib/sharedQueries";
 import { BankStatement, normalizeBankStatement } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/audit/money";
-import { currencyCodeOrDash } from "@/lib/statusLabels";
+import { PARSING_POLL_MS, currencyCodeOrDash, statementDisplayTitle } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
 
 function statusDisplay(status: string): { label: string; variant: BadgeVariant } {
@@ -43,18 +43,11 @@ function rowStateDisplay(statement: BankStatement): { label: string; variant: Ba
   return statusDisplay(statement.status);
 }
 
-/** The balance check badge. Only a parsing statement says "Parsing" (#2648). */
+/** The balance check badge (#2648). */
 function balanceCheckDisplay(statement: BankStatement): { label: string; variant: BadgeVariant } {
-  if (statement.status === "parsing") return { label: "Parsing", variant: "muted" };
   if (statement.balance_validated === null || statement.balance_validated === undefined) return { label: "Not checked", variant: "muted" };
   return statement.balance_validated ? { label: "✓ Verified", variant: "success" } : { label: "Needs Review", variant: "warning" };
 }
-
-function statementDisplayTitle(statement: BankStatement): string {
-  return statement.original_filename || `${statement.institution} (${statement.period_start ?? ""} – ${statement.period_end ?? ""})`;
-}
-
-const PARSING_POLL_MS = 3000;
 
 export default function UploadPage() {
   const { showToast } = useToast();
@@ -193,18 +186,19 @@ export default function UploadPage() {
               const state = rowStateDisplay(statement);
               const balanceCheck = balanceCheckDisplay(statement);
               const importFailed = state.label === "Import failed";
+              const isParsing = statement.status === "parsing";
               const currency = statement.currency || "SGD";
               return (
               <div key={statement.id} data-testid={`upload-statement-row-${statement.id}`} className="relative block px-4 py-4 hover:bg-[var(--background-muted)]/50 transition-colors sm:px-6">
                 {/* On a phone the actions go under the title, so the row never widens the page (#2648). */}
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex min-w-0 items-center gap-2 mb-1">
-                      <Link href={`/statements/${statement.id}`} className="min-w-0 font-medium truncate hover:text-[var(--accent)] after:absolute after:inset-0">
+                  <div className="w-full min-w-0 flex-1">
+                    <div className="flex min-w-0 items-start justify-between gap-2 mb-1 sm:justify-start">
+                      <Link href={`/statements/${statement.id}`} className="min-w-0 flex-1 font-medium truncate hover:text-[var(--accent)] after:absolute after:inset-0 sm:flex-initial">
                         {statementDisplayTitle(statement)}
                       </Link>
-                      <Badge variant={state.variant}>
-                        {statement.status === "parsing" && (
+                      <Badge variant={state.variant} className="shrink-0">
+                        {isParsing && (
                           <span className="inline-block w-3 h-3 mr-1 border-2 border-current border-t-transparent rounded-full animate-spin" />
                         )}
                         {state.label}
@@ -216,41 +210,28 @@ export default function UploadPage() {
                     ) : statement.status === "rejected" && statement.validation_error ? (
                       <div className="text-xs text-[var(--error)] mt-1 line-clamp-2 [overflow-wrap:anywhere]">{statement.validation_error}</div>
                     ) : null}
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
                       <span className="[overflow-wrap:anywhere]">{statement.institution}</span>
                       <span>•</span>
-                      <span>{formatPeriod(statement.period_start, statement.period_end, statement.status === "parsing" ? "Parsing..." : undefined)}</span>
+                      <span className="whitespace-nowrap">{formatPeriod(statement.period_start, statement.period_end, isParsing ? "Parsing..." : undefined)}</span>
                       <span>•</span>
                       <span>{currencyCodeOrDash(statement.currency)}</span>
                     </div>
                   </div>
                   <div className="relative z-10 flex flex-wrap items-center gap-2 sm:flex-shrink-0 sm:flex-col sm:items-end">
                     {importFailed ? (
-                      <Button
-                        variant="primary"
-                        className="text-sm"
-                        disabled={retryingImportId === statement.id}
-                        onClick={() => void retryBrokerageImport(statement.id)}
-                      >
+                      <Button variant="primary" className="text-sm" disabled={retryingImportId === statement.id} onClick={() => void retryBrokerageImport(statement.id)}>
                         {retryingImportId === statement.id ? "Retrying..." : "Retry import"}
                       </Button>
                     ) : statement.status === "parsed" ? (
                       <div className="flex flex-wrap items-center gap-2">
-                        <Button variant="primary" className="text-sm" onClick={() => router.push(`/statements/${statement.id}`)}>
-                          Review & Approve →
-                        </Button>
-                        <Button variant="secondary" className="text-xs hidden sm:inline-flex" onClick={() => router.push("/reports?tab=balance-sheet")}>
-                          View Report
-                        </Button>
+                        <Button variant="primary" className="text-sm" onClick={() => router.push(`/statements/${statement.id}`)}>Review & Approve →</Button>
+                        <Button variant="secondary" className="text-xs hidden sm:inline-flex" onClick={() => router.push("/reports?tab=balance-sheet")}>View Report</Button>
                       </div>
                     ) : statement.status === "approved" ? (
                       <div className="flex flex-wrap items-center gap-2">
-                        <Button variant="secondary" className="text-sm" onClick={() => router.push(`/statements/${statement.id}`)}>
-                          View Transactions
-                        </Button>
-                        <Button variant="secondary" className="text-sm" onClick={() => router.push("/reports?tab=balance-sheet")}>
-                          View Report →
-                        </Button>
+                        <Button variant="secondary" className="text-sm" onClick={() => router.push(`/statements/${statement.id}`)}>View Transactions</Button>
+                        <Button variant="secondary" className="text-sm" onClick={() => router.push("/reports?tab=balance-sheet")}>View Report →</Button>
                       </div>
                     ) : null}
                     <IconButton
@@ -264,31 +245,35 @@ export default function UploadPage() {
                       }}
                       className="text-muted hover:text-[var(--error)]"
                     />
-                    <div className="sm:text-right">
-                      <div className="text-lg font-semibold text-[var(--accent)]">{statement.confidence_score ?? "—"}%</div>
-                      <div className="text-xs text-muted">confidence</div>
-                    </div>
+                    {!isParsing && (
+                      <div className="sm:text-right">
+                        <div className="text-lg font-semibold text-[var(--accent)]">{statement.confidence_score ?? "—"}%</div>
+                        <div className="text-xs text-muted">confidence</div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
-                  <div>
-                    <span className="text-muted">Opening:</span>{" "}
-                    <span>{statement.opening_balance == null ? "—" : formatCurrencyLocale(statement.opening_balance, currency)}</span>
+                {!isParsing && (
+                  <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+                    <div>
+                      <span className="text-muted">Opening:</span>{" "}
+                      <span>{statement.opening_balance == null ? "—" : formatCurrencyLocale(statement.opening_balance, currency)}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted">Closing:</span>{" "}
+                      <span>{statement.closing_balance == null ? "—" : formatCurrencyLocale(statement.closing_balance, currency)}</span>
+                    </div>
+                    {balanceCheck.label === "Needs Review" ? (
+                      <span className="relative z-10 inline-flex items-center">
+                        <Badge variant="warning">Needs Review</Badge>
+                        <InfoHint term="needs_review" label="Needs review" />
+                      </span>
+                    ) : (
+                      <Badge variant={balanceCheck.variant}>{balanceCheck.label}</Badge>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-muted">Closing:</span>{" "}
-                    <span>{statement.closing_balance == null ? "—" : formatCurrencyLocale(statement.closing_balance, currency)}</span>
-                  </div>
-                  {balanceCheck.label === "Needs Review" ? (
-                    <span className="relative z-10 inline-flex items-center">
-                      <Badge variant="warning">Needs Review</Badge>
-                      <InfoHint term="needs_review" label="Needs review" />
-                    </span>
-                  ) : (
-                    <Badge variant={balanceCheck.variant}>{balanceCheck.label}</Badge>
-                  )}
-                </div>
+                )}
               </div>
               );
             })}

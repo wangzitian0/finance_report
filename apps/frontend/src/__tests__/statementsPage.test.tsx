@@ -605,7 +605,9 @@ describe("StatementsPage", () => {
               institution: "DBS",
               period_start: "2026-02-01",
               period_end: "2026-02-28",
-              currency: "SGD",
+              currency: "CNY",
+              opening_balance: "0.00",
+              closing_balance: "0.00",
             }),
           ],
         },
@@ -619,6 +621,10 @@ describe("StatementsPage", () => {
         screen.getByRole("link", { name: "DBS (2026-02-01 – 2026-02-28)" }),
       ).toHaveAttribute("href", "/statements/s-fallback"),
     )
+    const row = screen.getByTestId("upload-statement-row-s-fallback")
+    expect(within(row).queryByText(/Opening:/)).toBeNull()
+    expect(within(row).queryByText(/Closing:/)).toBeNull()
+    expect(within(row).queryByText(/confidence/i)).toBeNull()
     expect(screen.getByTestId("upload-processing-summary")).toHaveTextContent(
       "1 parsing · 0 parsed · 0 approved",
     )

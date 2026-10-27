@@ -118,3 +118,28 @@ export function checkTypeLabel(type: string): string {
             return type;
     }
 }
+
+export const PARSING_POLL_MS = 3000;
+
+/** Canonical statement display title shared by `/upload` and `/statements/[id]`. */
+export function statementDisplayTitle(statement: {
+    original_filename?: string | null;
+    institution?: string | null;
+    period_start?: string | null;
+    period_end?: string | null;
+}): string {
+    return statement.original_filename || `${statement.institution ?? ""} (${statement.period_start ?? ""} – ${statement.period_end ?? ""})`;
+}
+
+const BROKERAGE_ALIASES = ["interactive brokers", "ibkr", "ib llc", "moomoo", "futu sg", "futu", "富途"];
+
+/** True when the statement belongs to a brokerage positions source (#2729). */
+export function canImportBrokerageStatement(statement: {
+    institution?: string | null;
+    original_filename?: string | null;
+    brokerage_import_failed?: boolean | null;
+}): boolean {
+    if (statement.brokerage_import_failed) return true;
+    const haystack = `${statement.institution ?? ""} ${statement.original_filename ?? ""}`.toLowerCase();
+    return BROKERAGE_ALIASES.some((alias) => haystack.includes(alias));
+}

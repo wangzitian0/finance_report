@@ -222,4 +222,15 @@ test.describe("AC-extraction.human-source-review.4 statement review click path",
       await expect(page.getByText("pending", { exact: true })).toHaveCount(0);
     });
   }
+
+  // AC-extraction.fe-stage1-review.28
+  test("AC-extraction.fe-stage1-review.28 hides Import to Portfolio on bank statements and collapses unavailable PDF preview at 390x844", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/statements/${PDF_ID}`, { waitUntil: "networkidle" });
+    await expect(page.getByRole("heading", { name: "PDF Preview" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    await expect(page.getByRole("button", { name: /Import to Portfolio/i })).toHaveCount(0);
+    const previewCard = page.getByRole("heading", { name: "PDF Preview" }).locator("xpath=ancestor::div[contains(@class,'card')][1]");
+    const cardBox = await previewCard.boundingBox();
+    expect(cardBox?.height ?? 999, "unavailable PDF preview card height in px").toBeLessThanOrEqual(160);
+  });
 });

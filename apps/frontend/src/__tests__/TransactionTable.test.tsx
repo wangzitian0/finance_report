@@ -296,6 +296,11 @@ describe("TransactionTable (read-only)", () => {
         expect(screen.queryByText("pending")).toBeNull();
         expect(screen.getAllByText("matched")).toHaveLength(2);
 
+        // Even if a caller passes status="pending" on an approved statement, it renders matched (#2729).
+        rerender(<TransactionTable transactions={statement.transactions.map((t) => ({ ...t, status: "pending" }))} currency="SGD" statementStatus="approved" />);
+        expect(screen.queryByText("pending")).toBeNull();
+        expect(screen.getAllByText("matched")).toHaveLength(2);
+
         // The same rows of a parsed statement still wait for review.
         rerender(<TransactionTable transactions={statement.transactions} currency="SGD" statementStatus="parsed" />);
         expect(screen.getAllByText("pending")).toHaveLength(2);
