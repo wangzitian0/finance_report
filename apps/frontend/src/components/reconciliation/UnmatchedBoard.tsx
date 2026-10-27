@@ -208,14 +208,14 @@ export default function UnmatchedBoard() {
   const canSubmit = activeDraft !== null && isReviewedDispositionComplete(activeDraft.intent, activeDraft.counterAccountId, activeDraft.category, activeDraft.rationale);
 
   return (
-    <div>
-      <div className="page-header flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
+    <div className="min-w-0">
+      <div className="page-header flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 min-w-0">
+        <div className="min-w-0">
           <h1 className="page-title">Unmatched Transactions</h1>
           <p className="page-description">Confirm the economic meaning before a source transaction can be posted.</p>
           <p className="mt-1 text-xs text-muted">Flags and hidden rows are local workspace triage only.</p>
         </div>
-        <span className="badge badge-warning">{items.length} unmatched · {flagged.size} flagged</span>
+        <span className="badge badge-warning whitespace-nowrap shrink-0 self-start lg:self-auto">{items.length} unmatched · {flagged.size} flagged</span>
       </div>
 
       {error && <div className="mb-4 alert-error">{error}</div>}
@@ -231,27 +231,27 @@ export default function UnmatchedBoard() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="card p-5">
-          <div className="flex justify-between items-center mb-4">
+      <div className="grid gap-4 lg:grid-cols-2 min-w-0">
+        <div className="card p-5 min-w-0 overflow-hidden">
+          <div className="flex flex-wrap justify-between items-center gap-2 mb-4 min-w-0">
             <h2 className="font-semibold">Unmatched List</h2>
-            <span className="text-xs text-muted">{items.length} records</span>
+            <span className="text-xs text-muted whitespace-nowrap shrink-0">{items.length} records</span>
           </div>
-          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+          <div className="space-y-2 max-h-[400px] overflow-y-auto min-w-0">
             {items.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setSelected(item)}
-                className={`w-full text-left p-3 rounded-md transition-colors ${selected?.id === item.id ? "bg-[var(--accent-muted)] border border-[var(--accent)]" : "bg-[var(--background-muted)] hover:bg-[var(--background-muted)]/80"}`}
+                className={`w-full min-w-0 overflow-hidden text-left p-3 rounded-md transition-colors ${selected?.id === item.id ? "bg-[var(--accent-muted)] border border-[var(--accent)]" : "bg-[var(--background-muted)] hover:bg-[var(--background-muted)]/80"}`}
               >
-                <div className="flex justify-between items-start gap-2">
-                  <div className="min-w-0">
+                <div className="flex justify-between items-start gap-2 min-w-0">
+                  <div className="min-w-0 flex-1 overflow-hidden">
                     <p className="font-medium text-sm truncate">{item.description}</p>
                     <p className="text-xs text-muted">{item.txn_date} · {item.direction === "IN" ? "In" : "Out"}</p>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="font-semibold text-[var(--accent)]">{formatTxnAmount(item)}</div>
-                    {flagged.has(item.id) && <span className="badge badge-warning text-[10px]">Flagged locally</span>}
+                  <div className="text-right shrink-0">
+                    <div className="font-semibold tabular-nums whitespace-nowrap text-[var(--accent)]">{formatTxnAmount(item)}</div>
+                    {flagged.has(item.id) && <span className="badge badge-warning text-[10px] whitespace-nowrap">Flagged locally</span>}
                   </div>
                 </div>
               </button>
@@ -260,20 +260,20 @@ export default function UnmatchedBoard() {
           </div>
         </div>
 
-        <div className="card p-5">
+        <div className="card p-5 min-w-0 overflow-hidden">
           <h2 className="font-semibold mb-4">Reviewed Disposition</h2>
           {!selected || !activeDraft ? (
             <p className="text-sm text-muted">Select a transaction to review</p>
           ) : (
-            <div className="space-y-4">
-              <div className="p-3 rounded-md bg-[var(--background-muted)]">
-                <p className="font-medium">{selected.description}</p>
+            <div className="space-y-4 min-w-0">
+              <div className="p-3 rounded-md bg-[var(--background-muted)] min-w-0 overflow-hidden">
+                <p className="font-medium truncate">{selected.description}</p>
                 <p className="text-xs text-muted">{selected.txn_date} · {selected.direction === "IN" ? "Inflow" : "Outflow"}</p>
-                <p className="text-xl font-semibold text-[var(--accent)] mt-1">{formatTxnAmount(selected)}</p>
-                {selected.reference && <p className="text-xs text-muted">Ref: {selected.reference}</p>}
+                <p className="text-xl font-semibold tabular-nums whitespace-nowrap text-[var(--accent)] mt-1">{formatTxnAmount(selected)}</p>
+                {selected.reference && <p className="text-xs text-muted truncate">Ref: {selected.reference}</p>}
               </div>
 
-              <label className="block text-sm font-medium">
+              <label className="block text-sm font-medium min-w-0">
                 Economic intent
                 <select
                   className="input mt-1 w-full"
@@ -296,12 +296,12 @@ export default function UnmatchedBoard() {
                 </div>
               ) : (
                 <>
-                  <div>
-                    <div className="flex items-center justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center justify-between gap-2 min-w-0">
                       <label htmlFor="counter-account-select" className="block text-sm font-medium">Counter account</label>
                       <button
                         type="button"
-                        className="text-xs text-[var(--accent)] hover:underline"
+                        className="text-xs text-[var(--accent)] hover:underline whitespace-nowrap shrink-0"
                         onClick={() => setAccountCreationType(compatibleAccountTypes(activeDraft.intent)[0] || "EXPENSE")}
                       >
                         + Create counter account

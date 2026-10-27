@@ -103,7 +103,7 @@ export function NetWorthTimeSeriesChart({
   }, [data?.currency, data?.granularity, points]);
 
   return (
-    <section className="card p-5" aria-label="Net worth time-series">
+    <section className="card p-5 min-w-0 overflow-hidden" aria-label="Net worth time-series">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div>
           <p className="text-xs text-muted uppercase tracking-wide">
@@ -220,15 +220,15 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
         aria-expanded={hasChildren ? isExpanded : undefined}
       >
         <div
-          className="flex items-center justify-between px-3 py-2 text-sm rounded-md hover:bg-[var(--background-muted)]/50"
+          className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-md hover:bg-[var(--background-muted)]/50 min-w-0"
           style={{ paddingLeft: depth * 16 + 12 }}
         >
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
             {hasChildren && (
               <button
                 onClick={() => toggle(node.account_id)}
                 aria-label={isExpanded ? `Collapse ${displayName}` : `Expand ${displayName}`}
-                className="-my-2 flex h-11 w-11 items-center justify-center text-base leading-none text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+                className="-my-2 flex h-11 w-11 shrink-0 items-center justify-center text-base leading-none text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
               >
                 <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--background-muted)] text-xs" aria-hidden="true">
                   {isExpanded ? "–" : "+"}
@@ -240,29 +240,29 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
             </button>
             {node.name === "Processing" && <InfoHint term="transfers_in_transit" label="Transfers in transit" />}
             {isForeign && node.source_currency && (
-              <span className="badge badge-muted text-[11px]">{node.source_currency}</span>
+              <span className="badge badge-muted text-[11px] shrink-0">{node.source_currency}</span>
             )}
             <ProvenanceBadge provenance={node.provenance} />
           </div>
           {report ? (
-            <div className="flex flex-col items-end">
+            <div className="flex flex-col items-end shrink-0">
               <button
                 type="button"
-                className="font-medium tabular-nums underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+                className="font-medium tabular-nums whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
                 onClick={openDrill}
                 aria-label={`View source transactions for ${displayName}`}
               >
                 {formatCurrencyLocale(node.amount, report.currency)}
               </button>
               {isForeign && hasNativeAmount && (
-                <span className={`text-xs tabular-nums ${missingFxConversion ? "text-[var(--warning)]" : "text-muted"}`}>
+                <span className={`text-xs tabular-nums whitespace-nowrap ${missingFxConversion ? "text-[var(--warning)]" : "text-muted"}`}>
                   {formatCurrencyLocale(node.native_amount!, node.source_currency!)}
                   {missingFxConversion ? " · No FX rate" : ""}
                 </span>
               )}
             </div>
           ) : (
-            <span className="font-medium">—</span>
+            <span className="font-medium shrink-0">—</span>
           )}
         </div>
         {hasChildren && isExpanded && (
@@ -315,42 +315,42 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
         </div>
       )}
 
-      <details className="card mb-6 group" data-testid="balance-equation-detail">
-        <summary className="p-4 font-semibold cursor-pointer list-none flex items-center justify-between hover:bg-[var(--background-muted)] rounded-lg transition-colors select-none">
-          <span className="flex items-center gap-2">
+      <details className="card mb-6 group min-w-0 overflow-hidden" data-testid="balance-equation-detail">
+        <summary className="p-4 font-semibold cursor-pointer list-none flex items-center justify-between gap-2 hover:bg-[var(--background-muted)] rounded-lg transition-colors select-none min-w-0">
+          <span className="flex flex-wrap items-center gap-2 min-w-0">
             <span>Balance Equation Detail</span>
-            <span className="text-xs font-normal text-muted">
+            <span className="text-xs font-normal text-muted whitespace-nowrap">
               {report?.is_balanced ? "Books in balance" : report ? `Delta: ${formatCurrencyLocale(report.equation_delta, report.currency)}` : "—"}
             </span>
           </span>
-          <span className="text-xs text-muted group-open:rotate-180 transition-transform">▼</span>
+          <span className="text-xs text-muted group-open:rotate-180 transition-transform shrink-0">▼</span>
         </summary>
-        <div className="p-5 pt-1 border-t border-[var(--border)]">
+        <div className="p-5 pt-1 border-t border-[var(--border)] min-w-0">
           <dl className="grid gap-3 text-sm grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
-            <div>
-              <dt className="text-xs text-muted uppercase">Net Income</dt>
-              <dd className="mt-1 font-medium">{report ? formatCurrencyLocale(report.net_income ?? 0, report.currency) : "—"}</dd>
+            <div className="min-w-0">
+              <dt className="text-xs text-muted uppercase truncate">Net Income</dt>
+              <dd className="mt-1 font-medium tabular-nums whitespace-nowrap">{report ? formatCurrencyLocale(report.net_income ?? 0, report.currency) : "—"}</dd>
             </div>
-            <div>
-              <dt className="text-xs text-muted uppercase">Unrealized FX</dt>
-              <dd className="mt-1 font-medium">{report ? formatCurrencyLocale(report.unrealized_fx_gain_loss ?? 0, report.currency) : "—"}</dd>
+            <div className="min-w-0">
+              <dt className="text-xs text-muted uppercase truncate">Unrealized FX</dt>
+              <dd className="mt-1 font-medium tabular-nums whitespace-nowrap">{report ? formatCurrencyLocale(report.unrealized_fx_gain_loss ?? 0, report.currency) : "—"}</dd>
             </div>
-            <div>
-              <dt className="text-xs text-muted uppercase">Net Worth Adjustment</dt>
-              <dd className="mt-1 font-medium">{report ? formatCurrencyLocale(report.net_worth_adjustment_gain_loss ?? 0, report.currency) : "—"}</dd>
+            <div className="min-w-0">
+              <dt className="text-xs text-muted uppercase truncate">Net Worth Adjustment</dt>
+              <dd className="mt-1 font-medium tabular-nums whitespace-nowrap">{report ? formatCurrencyLocale(report.net_worth_adjustment_gain_loss ?? 0, report.currency) : "—"}</dd>
             </div>
-            <div data-testid="equation-detail-cta">
-              <dt className="text-xs text-muted uppercase">CTA Adjustment</dt>
-              <dd className="mt-1 font-medium" aria-label="Currency translation adjustment">
+            <div className="min-w-0" data-testid="equation-detail-cta">
+              <dt className="text-xs text-muted uppercase truncate">CTA Adjustment</dt>
+              <dd className="mt-1 font-medium tabular-nums whitespace-nowrap" aria-label="Currency translation adjustment">
                 {report ? formatCurrencyLocale(report.cta_adjustment ?? "0.00", report.currency) : "—"}
               </dd>
             </div>
-            <div>
-              <dt className="text-xs text-muted uppercase">Equation Delta</dt>
-              <dd className="mt-1 font-medium">{report ? formatCurrencyLocale(report.equation_delta, report.currency) : "—"}</dd>
+            <div className="min-w-0">
+              <dt className="text-xs text-muted uppercase truncate">Equation Delta</dt>
+              <dd className="mt-1 font-medium tabular-nums whitespace-nowrap">{report ? formatCurrencyLocale(report.equation_delta, report.currency) : "—"}</dd>
             </div>
-            <div>
-              <dt className="text-xs text-muted uppercase">Restricted Treatment</dt>
+            <div className="min-w-0">
+              <dt className="text-xs text-muted uppercase truncate">Restricted Treatment</dt>
               <dd className="mt-1 font-medium">{includeRestricted ? "Included" : "Excluded"}</dd>
             </div>
           </dl>
@@ -358,55 +358,55 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
       </details>
 
       <div className="grid gap-4 lg:grid-cols-3 mb-6">
-        <div className="card p-5" id="assets">
+        <div className="card p-5 min-w-0 overflow-hidden" id="assets">
           <h2 className="font-semibold mb-3">Assets</h2>
-          <div role="tree" aria-label="Balance Sheet - Assets" className="space-y-1">
+          <div role="tree" aria-label="Balance Sheet - Assets" className="space-y-1 min-w-0">
             {assetsTree.length ? assetsTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}
           </div>
-          <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold text-[var(--success)]">
+          <div className="mt-4 pt-3 border-t border-[var(--border)] font-semibold text-[var(--success)] whitespace-nowrap">
             Total: {report ? formatCurrencyLocale(report.total_assets, report.currency) : "—"}
           </div>
         </div>
-        <div className="card p-5" id="liabilities">
+        <div className="card p-5 min-w-0 overflow-hidden" id="liabilities">
           <h2 className="font-semibold mb-3">Liabilities</h2>
-          <div role="tree" aria-label="Balance Sheet - Liabilities" className="space-y-1">
+          <div role="tree" aria-label="Balance Sheet - Liabilities" className="space-y-1 min-w-0">
             {liabilitiesTree.length ? liabilitiesTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}
           </div>
-          <div className={`mt-4 pt-3 border-t border-[var(--border)] font-semibold ${report ? liabilityToneClass(report.total_liabilities) : "text-muted"}`}>
+          <div className={`mt-4 pt-3 border-t border-[var(--border)] font-semibold whitespace-nowrap ${report ? liabilityToneClass(report.total_liabilities) : "text-muted"}`}>
             Total: {report ? formatCurrencyLocale(report.total_liabilities, report.currency) : "—"}
           </div>
         </div>
-        <div className="card p-5" id="equity">
+        <div className="card p-5 min-w-0 overflow-hidden" id="equity">
           <h2 className="font-semibold mb-3">Equity</h2>
-          <div role="tree" aria-label="Balance Sheet - Equity" className="space-y-1">
+          <div role="tree" aria-label="Balance Sheet - Equity" className="space-y-1 min-w-0">
             {equityTree.length ? equityTree.map((n) => renderNode(n)) : <span className="text-muted">—</span>}
           </div>
-          <div className="mt-4 pt-3 border-t border-[var(--border)] space-y-1 text-sm">
-            <div className="flex justify-between text-muted">
-              <span>Opening Equity:</span>
-              <span>{report ? formatCurrencyLocale(report.total_equity, report.currency) : "—"}</span>
+          <div className="mt-4 pt-3 border-t border-[var(--border)] space-y-1 text-sm min-w-0">
+            <div className="flex justify-between gap-2 text-muted min-w-0">
+              <span className="min-w-0 truncate">Opening Equity:</span>
+              <span className="whitespace-nowrap shrink-0 tabular-nums">{report ? formatCurrencyLocale(report.total_equity, report.currency) : "—"}</span>
             </div>
-            <div className="flex justify-between text-muted">
-              <span>Net Income (P&L):</span>
-              <span className={report && toDecimal(report.net_income ?? 0).isNegative() ? "text-[var(--error)] font-medium" : "text-[var(--success)] font-medium"}>
+            <div className="flex justify-between gap-2 text-muted min-w-0">
+              <span className="min-w-0 truncate">Net Income (P&L):</span>
+              <span className={`whitespace-nowrap shrink-0 tabular-nums ${report && toDecimal(report.net_income ?? 0).isNegative() ? "text-[var(--error)] font-medium" : "text-[var(--success)] font-medium"}`}>
                 {report ? formatCurrencyLocale(report.net_income ?? 0, report.currency) : "—"}
               </span>
             </div>
             {report && fxAndCta && !fxAndCta.isZero() && (
-              <div className="flex justify-between text-muted" data-testid="equity-fx-cta">
-                <span>FX and translation (CTA):</span>
-                <span>{formatCurrencyLocale(fxAndCta, report.currency)}</span>
+              <div className="flex justify-between gap-2 text-muted min-w-0" data-testid="equity-fx-cta">
+                <span className="min-w-0 truncate">FX and translation (CTA):</span>
+                <span className="whitespace-nowrap shrink-0 tabular-nums">{formatCurrencyLocale(fxAndCta, report.currency)}</span>
               </div>
             )}
             {report && valuationAdjustment && !valuationAdjustment.isZero() && (
-              <div className="flex justify-between text-muted" data-testid="equity-valuations">
-                <span>Manual and market valuations:</span>
-                <span>{formatCurrencyLocale(valuationAdjustment, report.currency)}</span>
+              <div className="flex justify-between gap-2 text-muted min-w-0" data-testid="equity-valuations">
+                <span className="min-w-0 truncate">Manual and market valuations:</span>
+                <span className="whitespace-nowrap shrink-0 tabular-nums">{formatCurrencyLocale(valuationAdjustment, report.currency)}</span>
               </div>
             )}
-            <div className="pt-2 border-t border-[var(--border)] font-semibold flex justify-between">
-              <span>Total:</span>
-              <span>
+            <div className="pt-2 border-t border-[var(--border)] font-semibold flex justify-between gap-2 min-w-0">
+              <span className="min-w-0 truncate">Total:</span>
+              <span className="whitespace-nowrap shrink-0 tabular-nums">
                 {report && fxAndCta && valuationAdjustment
                   ? formatCurrencyLocale(
                       sumAmounts([report.total_equity, report.net_income ?? 0, fxAndCta, valuationAdjustment]),
@@ -515,8 +515,8 @@ export function IncomeStatementPanel({ filters }: { filters: ReportFilters }) {
         currency: report.currency,
       });
     return (
-      <div key={l.account_id} className="flex justify-between p-2 rounded-md bg-[var(--background-muted)] text-sm">
-        <span className="flex min-w-0 items-center gap-2">
+      <div key={l.account_id} className="flex justify-between gap-2 p-2 rounded-md bg-[var(--background-muted)] text-sm min-w-0">
+        <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
           <button type="button" onClick={openDrill} className="truncate text-left hover:text-[var(--accent)] hover:underline">
             {l.name}
           </button>
@@ -524,7 +524,7 @@ export function IncomeStatementPanel({ filters }: { filters: ReportFilters }) {
         </span>
         <button
           type="button"
-          className="font-medium tabular-nums underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+          className="font-medium tabular-nums whitespace-nowrap shrink-0 underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
           onClick={openDrill}
           aria-label={`View source transactions for ${l.name}`}
         >
