@@ -637,7 +637,7 @@ gates:
     owner: reusable benchmark.yml (deploy caller)
     triggers: [workflow_dispatch]
     blocks_workflow: true
-    execution_condition: "always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' && needs.provider-gate.result == 'success'"
+    execution_condition: "always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.provider-gate.result == 'success' && needs.ai-ocr-gate.result == 'success'"
     inputs: [staging_environment, version_ref, commit_ref]
     outputs: [benchmark_summary]
     artifacts: []
@@ -706,7 +706,7 @@ gates:
     inputs: [staging_job_results]
     outputs: [step_summary]
     artifacts: []
-    failure_semantics: Staging summary could not be produced, or a tag or main run passed the 15 minute tag-to-staging budget (#2688); upstream jobs still own deploy gate failures.
+    failure_semantics: Staging summary could not be produced, or a tag or main run of the staging deploy passed the 15 minute budget (#2688). Job-level continue-on-error keeps the deploy run conclusion unchanged; upstream jobs still own deploy gate failures.
     action: keep
   - id: benchmark.run_benchmark
     stage: staging.release_validation

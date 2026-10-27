@@ -769,12 +769,11 @@ jobs:
 
   financial-benchmark:
     name: Financial Benchmark
-    # Runs beside the AI/OCR gate, not after it (#2688): the benchmark reads staging and needs
-    # no output of the gate. It keeps the gate's run conditions, so it runs only when the gate
-    # runs, and post-merge-delivery fails when either one fails. Measured on branch run
-    # 40304815766: no timeout in either job (gate test 91 s, was 95 s).
-    needs: [build-and-deploy, provider-gate]
-    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.build-and-deploy.outputs.ai_ocr_required == 'true' && needs.provider-gate.outputs.provider_status == 'pass' && needs.provider-gate.result == 'success' }}
+    # Kept after the AI/OCR gate (#2688). Branch run 40304815766 did not overlap the two jobs:
+    # the gate's setup spent 11m38s in apt, so its test ran after the benchmark had finished.
+    # Run them side by side only after a run where the step timestamps overlap shows no timeout.
+    needs: [build-and-deploy, provider-gate, ai-ocr-gate]
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.target == 'staging' && needs.build-and-deploy.result == 'success' && needs.build-and-deploy.outputs.staging_required == 'true' && needs.provider-gate.result == 'success' && needs.ai-ocr-gate.result == 'success' }}
     # benchmark.yml publishes the report to GitHub Pages. A caller must grant what the called job requests.
     permissions:
       contents: write

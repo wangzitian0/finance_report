@@ -4963,6 +4963,8 @@ def test_AC8_13_34_main_ci_budget_is_enforced_by_a_non_required_job() -> None:
     # Not a merge gate: finish does not wait for it, and the ruleset requires only finish.
     assert "pipeline-budget" not in jobs["finish"]["needs"]
     assert budget["needs"] == ["finish"]
+    # `always()` would also run the job on a cancelled run.
+    assert budget["if"] == "${{ !cancelled() }}"
     # release.yml requires a successful main CI run (verify_source_ci), so a red budget job
     # must never fail the run: job-level continue-on-error, and no needs on it elsewhere.
     assert budget["continue-on-error"] is True
@@ -5037,21 +5039,14 @@ def test_AC8_13_34_release_budget_is_enforced_on_tag_and_main_runs_only() -> Non
     assert needing == []
 
 
-def test_AC8_13_14_financial_benchmark_runs_beside_the_ai_ocr_gate() -> None:
-    """AC-testing.deploy-gates.5: the benchmark waits for the provider gate, not the AI/OCR gate (#2688).
+def test_AC8_13_14_financial_benchmark_stays_after_the_ai_ocr_gate() -> None:
+    """AC-testing.deploy-gates.5: the benchmark waits for the AI/OCR gate (#2688 item 2).
 
-    It keeps every run condition of the AI/OCR gate, so it still runs only when the gate
-    runs, and post-merge-delivery still fails the delivery when either one fails.
+    Branch run 40304815766 never overlapped the two jobs, so running them side by side is
+    not measured. Change this order only with a run whose step timestamps overlap.
     """
     jobs = yaml.safe_load(read(".github/workflows/deploy.yml"))["jobs"]
     benchmark = jobs["financial-benchmark"]
-    gate_clauses = set(re.split(r" && ", jobs["ai-ocr-gate"]["if"].strip("${} ")))
-    benchmark_clauses = set(re.split(r" && ", benchmark["if"].strip("${} ")))
 
-    assert benchmark["needs"] == ["build-and-deploy", "provider-gate"]
-    assert "ai-ocr-gate" not in benchmark["if"]
-    assert gate_clauses <= benchmark_clauses
-    assert "needs.build-and-deploy.result == 'success'" in benchmark_clauses
-    delivery = jobs["post-merge-delivery"]
-    assert {"ai-ocr-gate", "financial-benchmark"} <= set(delivery["needs"])
-    assert 'benchmark_result" != "success"' in read(".github/workflows/deploy.yml")
+    assert benchmark["needs"] == ["build-and-deploy", "provider-gate", "ai-ocr-gate"]
+    assert "needs.ai-ocr-gate.result == 'success'" in benchmark["if"]

@@ -223,6 +223,9 @@ def _main_with(
 
     def fake_run(args, *, check, text, capture_output):
         if args[:3] == ["gh", "issue", "view"]:
+            # Only the budget issue of this repository answers.
+            on_budget_issue = args[3] == timing_summary.PIPELINE_BUDGET_ISSUE
+            assert on_budget_issue and args[4:6] == ["--repo", "owner/repo"]
             return subprocess.CompletedProcess(
                 args, 0, stdout=existing_comments, stderr=""
             )
@@ -447,3 +450,22 @@ def test_the_comment_goes_to_the_one_budget_issue(monkeypatch, tmp_path) -> None
 
     assert timing_summary.PIPELINE_BUDGET_ISSUE == "2688"
     assert gh_calls[0][3] == timing_summary.PIPELINE_BUDGET_ISSUE
+
+
+def test_a_comment_for_a_longer_run_id_does_not_count_as_this_run(
+    monkeypatch, tmp_path
+) -> None:
+    run = _run_taking(9 * 60)
+    run["url"] = "https://github.example/actions/runs/9"
+
+    code, gh_calls, _ = _main_with(
+        monkeypatch,
+        tmp_path,
+        run,
+        "--budget",
+        "main",
+        "--comment",
+        existing_comments="Run: https://github.example/actions/runs/90",
+    )
+
+    assert (code, len(gh_calls)) == (0, 1)
