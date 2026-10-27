@@ -17,12 +17,6 @@ from common.audit.ratio.errors import (
     UndefinedRatioError,
 )
 from common.audit.ratio.ratio import PERCENT_DP, PERCENT_ROUNDING, Ratio
-from common.audit.ratio.wire import (
-    ratio_from_db_value,
-    ratio_from_wire,
-    ratio_to_db_value,
-    ratio_to_wire,
-)
 
 __all__ = [
     "PERCENT_DP",
@@ -32,8 +26,4 @@ __all__ = [
     "Ratio",
     "RatioError",
     "UndefinedRatioError",
-    "ratio_from_db_value",
-    "ratio_from_wire",
-    "ratio_to_db_value",
-    "ratio_to_wire",
 ]

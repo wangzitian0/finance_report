@@ -17,7 +17,7 @@ subject+resolve path), the two user-scoped write recorders
 (``record_manual_valuation``/``record_override`` — each also publishes
 ``PriceObserved`` through the platform outbox, atomically with the write),
 the full FX lookup surface absorbed from the retired ``services/fx.py``
-(#1610 P2 — ``get_exchange_rate`` + the ``convert_*`` trio +
+(#1610 P2 — ``get_exchange_rate`` + the ``convert_*`` pair +
 ``get_average_rate`` with ``fx_warnings``/average-window parity, plus
 ``PrefetchedFxRates``), the manual-valuation balance-sheet line builder
 (``build_manual_valuation_lines``, absorbed from
@@ -70,7 +70,6 @@ from src.pricing.extension import (
     SqlObservationRepository,
     convert_amount,
     convert_money,
-    convert_to_base,
     ensure_market_data_fresh,
     get_average_rate,
     get_exchange_rate,
@@ -154,7 +153,6 @@ __all__ = [
     "build_manual_valuation_lines_series",
     "convert_amount",
     "convert_money",
-    "convert_to_base",
     "ensure_market_data_fresh",
     "get_average_rate",
     "get_exchange_rate",

@@ -4,7 +4,7 @@ Verifies:
 1. In-transit Processing Account (Code 1199) is strictly reserved for internal transfer reconciliation (TransferPair).
 2. External statements stage unverified transactions exclusively in Layer 2 AtomicTransaction;
    routing external statement postings to Code 1199 is rejected.
-3. submit_anchored_journal_entry_v2 enforces DecisionAnchor validation and double-entry balance.
+3. submit_anchored_journal_entry enforces DecisionAnchor validation and double-entry balance.
 4. Direct DB bypass triggers physical check constraints and triggers.
 5. Zero journal state pollution on malformed/unbalanced statement imports.
 """
@@ -49,7 +49,7 @@ from src.ledger import (
     PROCESSING_ACCOUNT_CODE,
     Account,
     AccountType,
-    AnchoredJournalCommandV2,
+    AnchoredJournalCommand,
     DecisionAnchor,
     DecisionAnchorError,
     Direction,
@@ -58,7 +58,7 @@ from src.ledger import (
     JournalEntryStatus,
     JournalLine,
     ValidationError,
-    submit_anchored_journal_entry_v2,
+    submit_anchored_journal_entry,
 )
 from src.ledger.base.decision_anchor import journal_command_target
 
@@ -319,10 +319,10 @@ async def test_AC_ledger_80_3_anchored_gateway_rejects_processing_account_for_no
     with pytest.raises(
         ValidationError, match=r"Processing account \(code 1199\) is reserved for internal transfer reconciliation"
     ):
-        await submit_anchored_journal_entry_v2(
+        await submit_anchored_journal_entry(
             db,
             user_id=user_id,
-            command=AnchoredJournalCommandV2.from_mappings(
+            command=AnchoredJournalCommand.from_mappings(
                 entry_date=date(2024, 1, 15),
                 memo="Illegal processing route",
                 lines_data=lines_data,
@@ -369,10 +369,10 @@ async def test_AC_ledger_80_4_gateway_enforces_double_entry_balance_and_rejectio
     await TraceEmitter(repository).emit_many((obs, dec))
 
     with pytest.raises(ValidationError):
-        await submit_anchored_journal_entry_v2(
+        await submit_anchored_journal_entry(
             db,
             user_id=user_id,
-            command=AnchoredJournalCommandV2.from_mappings(
+            command=AnchoredJournalCommand.from_mappings(
                 entry_date=date(2024, 1, 15),
                 memo="Unbalanced entry",
                 lines_data=unbalanced_lines,
@@ -399,10 +399,10 @@ async def test_AC_ledger_80_4_gateway_enforces_double_entry_balance_and_rejectio
         source_identity=f"test:{uuid4()}",
     )
     with pytest.raises(DecisionAnchorError):
-        await submit_anchored_journal_entry_v2(
+        await submit_anchored_journal_entry(
             db,
             user_id=user_id,
-            command=AnchoredJournalCommandV2.from_mappings(
+            command=AnchoredJournalCommand.from_mappings(
                 entry_date=date(2026, 9, 21),
                 memo="Different memo",
                 lines_data=[

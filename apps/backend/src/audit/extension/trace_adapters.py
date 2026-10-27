@@ -43,16 +43,6 @@ class JsonlTraceRecordStore:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
         return record
 
-    def read_all(self) -> list[TraceRecord]:
-        if not self._path.exists():
-            return []
-        with self._path.open("r", encoding="utf-8") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
-            try:
-                return _decode_jsonl(handle.read())
-            finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-
 
 class TraceJUnitAdapter:
     """Emit the same canonical record through pytest/JUnit properties."""

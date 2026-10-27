@@ -12,39 +12,6 @@ from src.reporting.orm import ReportSnapshot, ReportType
 class ReportingSnapshotService:
     """Service for managing financial report snapshots (Layer 4)."""
 
-    async def get_snapshot(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        report_type: ReportType,
-        as_of_date: date,
-        start_date: date | None = None,
-        rule_version_id: UUID | None = None,
-    ) -> ReportSnapshot | None:
-        """Get an existing snapshot.
-
-        If rule_version_id is provided, gets that specific version.
-        Otherwise, gets the latest version for that date.
-        """
-        query = (
-            select(ReportSnapshot)
-            .where(ReportSnapshot.user_id == user_id)
-            .where(ReportSnapshot.report_type == report_type)
-            .where(ReportSnapshot.as_of_date == as_of_date)
-        )
-        if start_date is None:
-            query = query.where(ReportSnapshot.start_date.is_(None))
-        else:
-            query = query.where(ReportSnapshot.start_date == start_date)
-
-        if rule_version_id is not None:
-            query = query.where(ReportSnapshot.rule_version_id == rule_version_id)
-        else:
-            query = query.where(ReportSnapshot.is_latest == True)  # noqa: E712
-
-        result = await db.execute(query)
-        return result.scalar_one_or_none()
-
     async def create_snapshot(
         self,
         db: AsyncSession,

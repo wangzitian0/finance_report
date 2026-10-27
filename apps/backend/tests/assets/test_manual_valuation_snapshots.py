@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
 from src.pricing import (
@@ -14,7 +15,9 @@ from src.pricing import (
     ValuationComponentItem,
     ValuationService,
     ValuationServiceError,
+    record_manual_valuation,
 )
+from src.pricing.orm.manual_valuation import ManualValuationSnapshot
 from src.schemas.assets import ManualValuationSnapshotCreate, ManualValuationSnapshotUpdate
 from src.schemas.provenance import DataProvenance
 
@@ -192,22 +195,27 @@ def test_AC22_13_1_valuation_component_item_uses_normalized_provenance_type() ->
     assert ValuationComponentItem.__dataclass_fields__["provenance"].type == DataProvenance
 
 
+class _HeadQueryIssued(Exception):
+    """Raised by the fake session once ``record_manual_valuation`` has issued its head query."""
+
+
 @pytest.mark.no_db
 async def test_AC11_19_1_current_valuation_head_query_takes_row_lock() -> None:
     """AC11.19.1: Correction hand-off locks the current head before superseding it."""
-    service = ValuationService()
     db = MagicMock()
-    result = MagicMock()
-    result.scalar_one_or_none.return_value = None
-    db.execute = AsyncMock(return_value=result)
+    db.execute = AsyncMock(side_effect=_HeadQueryIssued)
 
-    await service._current_valuation_head(
-        db,
-        uuid4(),
-        component_type=ManualValuationComponentType.PROPERTY_VALUE,
-        source="manual appraisal",
-        as_of_date=date(2026, 5, 18),
-    )
+    with pytest.raises(_HeadQueryIssued):
+        await record_manual_valuation(
+            db,
+            uuid4(),
+            component_type=ManualValuationComponentType.PROPERTY_VALUE,
+            liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
+            as_of=date(2026, 5, 18),
+            value=Decimal("1000000.00"),
+            currency="SGD",
+            source="manual appraisal",
+        )
 
     statement = db.execute.await_args.args[0]
     compiled = str(statement.compile(dialect=postgresql.dialect()))
@@ -335,7 +343,20 @@ async def test_AC11_19_1_manual_valuation_correction_appends_version_and_preserv
     assert corrected.superseded_by_id is None
 
     # Full history is retrievable, newest first, keyed by the currency-less identity.
-    history = await service.list_valuation_versions(db, test_user.id, **identity)
+    history = (
+        (
+            await db.execute(
+                select(ManualValuationSnapshot)
+                .where(ManualValuationSnapshot.user_id == test_user.id)
+                .where(ManualValuationSnapshot.component_type == identity["component_type"])
+                .where(ManualValuationSnapshot.source == identity["source"])
+                .where(ManualValuationSnapshot.as_of_date == identity["as_of_date"])
+                .order_by(ManualValuationSnapshot.version.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
     assert [(h.version, h.value) for h in history] == [
         (2, Decimal("1100000.00")),
         (1, Decimal("1000000.00")),

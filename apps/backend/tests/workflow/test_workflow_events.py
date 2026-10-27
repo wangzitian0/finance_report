@@ -38,7 +38,6 @@ from src.workflow.extension.events import (
     _insert_workflow_event_conflict_safe,
     _workflow_event_from_payload,
     build_uploaded_statement_event_payload,
-    derive_uploaded_statement_event,
     get_or_create_active_workflow_session,
     get_workflow_status,
     list_workflow_events,
@@ -444,20 +443,23 @@ async def test_AC19_1_4_upsert_uploaded_statement_event_is_deterministic(db, tes
         file_hash="a" * 64,
     )
 
-    first = await derive_uploaded_statement_event(db, statement, user_id=test_user.id)
-    second = await derive_uploaded_statement_event(db, statement, user_id=test_user.id)
-    await db.flush()
+    uploaded_events = (
+        select(WorkflowEvent)
+        .where(WorkflowEvent.user_id == test_user.id)
+        .where(WorkflowEvent.source_id == statement.id)
+        .where(WorkflowEvent.family == WorkflowEventFamily.SOURCE_UPLOADED)
+    )
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    first = (await db.execute(uploaded_events)).scalar_one()
+    await sync_workflow_events_for_user(db, user_id=test_user.id)
+    second = (await db.execute(uploaded_events)).scalar_one()
 
     assert first.id == second.id
-    assert first.family == WorkflowEventFamily.SOURCE_UPLOADED
     assert first.severity == WorkflowEventSeverity.INFO
     assert first.status == WorkflowEventStatus.UNREAD
     assert first.action_href == f"/statements/{statement.id}"
     assert first.report_impact == WorkflowReportImpact.PROCESSING
     assert first.session_id is not None
-
-    count = await db.scalar(select(func.count(WorkflowEvent.id)).where(WorkflowEvent.user_id == test_user.id))
-    assert count == 1
 
 
 async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user) -> None:
@@ -465,16 +467,6 @@ async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user)
     other_user = User(email=f"other-{uuid4()}@example.com", hashed_password="hashed")
     db.add(other_user)
     await db.flush()
-
-    statement, _document = await _make_statement(
-        db,
-        test_user.id,
-        original_filename="owned.csv",
-        file_hash="b" * 64,
-    )
-
-    with pytest.raises(ValueError, match="statement.user_id must match user_id"):
-        await derive_uploaded_statement_event(db, statement, user_id=other_user.id)
 
     event = await upsert_workflow_event(
         db,

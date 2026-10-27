@@ -13,9 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "backend")
 
 from src.runtime.extension.env_keys import (
     get_project_root,
-    parse_secrets_ctmpl,
     parse_env_example,
-    parse_config_py,
+    settings_env_key_sets,
     check_consistency,
     print_report,
     generate_fix_suggestions,
@@ -35,73 +34,6 @@ class TestGetProjectRoot:
         result = get_project_root()
         assert (result / "common").exists()
         assert (result / "tools").exists()
-
-
-class TestParseSecretsCtmpl:
-    """Tests for parse_secrets_ctmpl function."""
-
-    def test_returns_empty_set_for_missing_file(self, tmp_path, capsys):
-        """Should return empty set when file doesn't exist."""
-        missing_file = tmp_path / "nonexistent.ctmpl"
-        result = parse_secrets_ctmpl(missing_file)
-
-        assert result == set()
-        captured = capsys.readouterr()
-        assert "WARNING" in captured.out
-
-    def test_extracts_env_var_keys(self, tmp_path):
-        """Should extract KEY names from KEY=value lines."""
-        ctmpl_file = tmp_path / "secrets.ctmpl"
-        ctmpl_file.write_text("""DATABASE_URL={{ with secret "..." }}{{ .Data.data.url }}{{ end }}
-S3_BUCKET={{ with secret "..." }}{{ .Data.data.bucket }}{{ end }}
-""")
-
-        result = parse_secrets_ctmpl(ctmpl_file)
-
-        assert "DATABASE_URL" in result
-        assert "S3_BUCKET" in result
-        assert len(result) == 2
-
-    def test_skips_template_variable_assignments(self, tmp_path):
-        """Should skip {{- $var := ...}} template variable assignments."""
-        ctmpl_file = tmp_path / "secrets.ctmpl"
-        ctmpl_file.write_text("""{{- $pg_password := with secret "..." }}{{ .Data.data.password }}{{ end }}
-DATABASE_URL=postgres://user:{{ $pg_password }}@host/db
-""")
-
-        result = parse_secrets_ctmpl(ctmpl_file)
-
-        # Should only have DATABASE_URL, not the template var
-        assert "DATABASE_URL" in result
-        assert len(result) == 1
-
-    def test_skips_control_flow_lines(self, tmp_path):
-        """Should skip {{- with/end/if/else ...}} control flow."""
-        ctmpl_file = tmp_path / "secrets.ctmpl"
-        ctmpl_file.write_text("""{{- with secret "secret/path" -}}
-DATABASE_URL={{ .Data.data.url }}
-{{- end }}
-{{- if .Data.data.optional }}
-OPTIONAL_KEY={{ .Data.data.optional }}
-{{- else }}
-FALLBACK_KEY=default
-{{- end }}
-""")
-
-        result = parse_secrets_ctmpl(ctmpl_file)
-
-        assert "DATABASE_URL" in result
-        assert "OPTIONAL_KEY" in result
-        assert "FALLBACK_KEY" in result
-
-    def test_handles_empty_file(self, tmp_path):
-        """Should return empty set for empty file."""
-        ctmpl_file = tmp_path / "secrets.ctmpl"
-        ctmpl_file.write_text("")
-
-        result = parse_secrets_ctmpl(ctmpl_file)
-
-        assert result == set()
 
 
 class TestParseEnvExample:
@@ -226,431 +158,197 @@ DEBUG=true
         assert result == {"DATABASE_URL", "DEBUG"}
 
 
-class TestParseConfigPy:
-    """Tests for parse_config_py function."""
+class TestSettingsEnvKeySets:
+    """Tests for settings_env_key_sets: the real Settings model, not a source parse."""
 
-    def test_returns_empty_dict_for_missing_file(self, tmp_path, capsys):
-        """Should return empty dict when file doesn't exist."""
-        missing_file = tmp_path / "config.py"
-        result = parse_config_py(missing_file)
+    def test_lists_every_settings_field(self):
+        from src.config import Settings
 
-        assert result == {}
-        captured = capsys.readouterr()
-        assert "WARNING" in captured.out
+        assert set(settings_env_key_sets()) == set(Settings.model_fields)
 
-    def test_extracts_field_from_settings_class(self, tmp_path):
-        """Should extract annotated fields from Settings class."""
-        config_file = tmp_path / "config.py"
-        config_file.write_text("""
-from pydantic import Field
-from pydantic_settings import BaseSettings
+    def test_unaliased_field_reads_its_upper_case_name(self):
+        assert settings_env_key_sets()["debug"] == frozenset({"DEBUG"})
 
-class Settings(BaseSettings):
-    database_url: str = Field(default="postgres://localhost/db")
-    debug: bool = False
-""")
-
-        result = parse_config_py(config_file)
-
-        assert "database_url" in result
-        assert result["database_url"]["env_name"] == "DATABASE_URL"
-        assert result["database_url"]["has_default"] is True
-        assert "debug" in result
-
-    def test_extracts_validation_alias(self, tmp_path):
-        """Should extract validation_alias from Field()."""
-        config_file = tmp_path / "config.py"
-        config_file.write_text("""
-from pydantic import Field
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    db_url: str = Field(validation_alias="DATABASE_URL")
-""")
-
-        result = parse_config_py(config_file)
-
-        assert "db_url" in result
-        assert result["db_url"]["env_name"] == "DATABASE_URL"
-
-    def test_extracts_alias_choices(self, tmp_path):
-        """Should extract AliasChoices from Field()."""
-        config_file = tmp_path / "config.py"
-        config_file.write_text("""
-from pydantic import Field, AliasChoices
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    s3_key: str = Field(validation_alias=AliasChoices("S3_ACCESS_KEY", "s3_access_key"))
-""")
-
-        result = parse_config_py(config_file)
-
-        assert "s3_key" in result
-        assert result["s3_key"]["env_name"] == "S3_ACCESS_KEY"
-
-    def test_skips_model_config(self, tmp_path):
-        """Should skip model_config field."""
-        config_file = tmp_path / "config.py"
-        config_file.write_text("""
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    model_config = {"env_file": ".env"}
-    database_url: str = "default"
-""")
-
-        result = parse_config_py(config_file)
-
-        assert "model_config" not in result
-        assert "database_url" in result
-
-    def test_skips_methods_and_decorators(self, tmp_path):
-        """Should skip methods and decorators."""
-        config_file = tmp_path / "config.py"
-        config_file.write_text("""
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    database_url: str = "default"
-    
-    @property
-    def db_string(self) -> str:
-        return self.database_url
-    
-    def get_url(self):
-        return self.database_url
-""")
-
-        result = parse_config_py(config_file)
-
-        assert len(result) == 1
-        assert "database_url" in result
-
-    def test_stops_at_next_class(self, tmp_path):
-        """Should stop parsing when another class is encountered."""
-        config_file = tmp_path / "config.py"
-        config_file.write_text("""
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    database_url: str = "default"
-
-class OtherModel:
-    other_field: str = "value"
-""")
-
-        result = parse_config_py(config_file)
-
-        assert "database_url" in result
-        assert "other_field" not in result
+    def test_alias_choices_field_lists_every_accepted_name(self):
+        assert settings_env_key_sets()["environment"] == frozenset(
+            {"ENV", "ENVIRONMENT"}
+        )
 
 
 class TestCheckConsistency:
     """Tests for check_consistency function."""
 
     def test_returns_is_consistent_true_when_all_match(self):
-        """Should return is_consistent=True when all sources match."""
-        ctmpl_keys = {"DATABASE_URL", "API_KEY"}
-        config_fields = {
-            "database_url": {"env_name": "DATABASE_URL"},
-            "api_key": {"env_name": "API_KEY"},
+        field_keys = {
+            "database_url": frozenset({"DATABASE_URL"}),
+            "api_key": frozenset({"API_KEY"}),
         }
-        env_example_keys = {"DATABASE_URL", "API_KEY"}
 
-        result = check_consistency(ctmpl_keys, config_fields, env_example_keys)
+        result = check_consistency(field_keys, {"DATABASE_URL", "API_KEY"})
 
         assert result["is_consistent"] is True
-        assert result["missing_in_config"] == set()
         assert result["undocumented_in_example"] == set()
-
-    def test_detects_missing_in_config(self):
-        """Should detect keys in ctmpl but not in config."""
-        ctmpl_keys = {"DATABASE_URL", "MISSING_KEY"}
-        config_fields = {
-            "database_url": {"env_name": "DATABASE_URL"},
-        }
-        env_example_keys = {"DATABASE_URL", "MISSING_KEY"}
-
-        result = check_consistency(ctmpl_keys, config_fields, env_example_keys)
-
-        assert result["is_consistent"] is False
-        assert "MISSING_KEY" in result["missing_in_config"]
+        assert result["config_field_count"] == 2
 
     def test_detects_undocumented_in_example(self):
-        """Should detect keys in config but not in env_example."""
-        ctmpl_keys = {"DATABASE_URL"}
-        config_fields = {
-            "database_url": {"env_name": "DATABASE_URL"},
-            "debug": {"env_name": "DEBUG"},
+        field_keys = {
+            "database_url": frozenset({"DATABASE_URL"}),
+            "debug": frozenset({"DEBUG"}),
         }
-        env_example_keys = {"DATABASE_URL"}
 
-        result = check_consistency(ctmpl_keys, config_fields, env_example_keys)
+        result = check_consistency(field_keys, {"DATABASE_URL"})
 
         assert result["is_consistent"] is False
-        assert "DEBUG" in result["undocumented_in_example"]
+        assert result["undocumented_in_example"] == {"DEBUG"}
+
+    def test_documenting_any_alias_of_a_field_counts(self):
+        field_keys = {"environment": frozenset({"ENV", "ENVIRONMENT"})}
+
+        assert check_consistency(field_keys, {"ENVIRONMENT"})["is_consistent"] is True
+        assert check_consistency(field_keys, {"ENV"})["is_consistent"] is True
+
+    def test_an_aliased_field_with_no_documented_alias_is_reported_with_every_name(
+        self,
+    ):
+        field_keys = {"environment": frozenset({"ENV", "ENVIRONMENT"})}
+
+        result = check_consistency(field_keys, set())
+
+        assert result["undocumented_in_example"] == {"ENV/ENVIRONMENT"}
 
     def test_ignores_next_public_keys_in_suspicious(self):
-        """Should NOT flag NEXT_PUBLIC_ keys as suspicious."""
-        ctmpl_keys = {"DATABASE_URL"}
-        config_fields = {
-            "database_url": {"env_name": "DATABASE_URL"},
-        }
-        env_example_keys = {"DATABASE_URL", "NEXT_PUBLIC_API_URL"}
+        field_keys = {"database_url": frozenset({"DATABASE_URL"})}
 
-        result = check_consistency(ctmpl_keys, config_fields, env_example_keys)
+        result = check_consistency(field_keys, {"DATABASE_URL", "NEXT_PUBLIC_API_URL"})
 
         assert "NEXT_PUBLIC_API_URL" not in result["suspicious_extra_keys"]
 
     def test_ignores_dokploy_keys_in_suspicious(self):
-        """Should NOT flag DOKPLOY_ keys as suspicious."""
-        ctmpl_keys = {"DATABASE_URL"}
-        config_fields = {
-            "database_url": {"env_name": "DATABASE_URL"},
-        }
-        env_example_keys = {"DATABASE_URL", "DOKPLOY_TOKEN"}
+        field_keys = {"database_url": frozenset({"DATABASE_URL"})}
 
-        result = check_consistency(ctmpl_keys, config_fields, env_example_keys)
+        result = check_consistency(field_keys, {"DATABASE_URL", "DOKPLOY_TOKEN"})
 
         assert "DOKPLOY_TOKEN" not in result["suspicious_extra_keys"]
 
     def test_flags_other_extra_keys_as_suspicious(self):
-        """Should flag other extra keys as suspicious."""
-        ctmpl_keys = {"DATABASE_URL"}
-        config_fields = {
-            "database_url": {"env_name": "DATABASE_URL"},
-        }
-        env_example_keys = {"DATABASE_URL", "RANDOM_KEY"}
+        field_keys = {"database_url": frozenset({"DATABASE_URL"})}
 
-        result = check_consistency(ctmpl_keys, config_fields, env_example_keys)
+        result = check_consistency(field_keys, {"DATABASE_URL", "RANDOM_KEY"})
 
-        assert "RANDOM_KEY" in result["suspicious_extra_keys"]
+        assert result["suspicious_extra_keys"] == {"RANDOM_KEY"}
+
+    def test_an_alias_in_the_example_is_not_suspicious(self):
+        field_keys = {"environment": frozenset({"ENV", "ENVIRONMENT"})}
+
+        result = check_consistency(field_keys, {"ENV", "ENVIRONMENT"})
+
+        assert result["suspicious_extra_keys"] == set()
+
+
+def _report(**overrides):
+    result = {
+        "config_field_count": 1,
+        "env_example_keys": {"KEY1"},
+        "undocumented_in_example": set(),
+        "suspicious_extra_keys": set(),
+        "is_consistent": True,
+    }
+    result.update(overrides)
+    return result
 
 
 class TestPrintReport:
     """Tests for print_report function."""
 
-    def test_does_not_crash_with_consistent_result(self, capsys):
-        """Should print report without crashing when consistent."""
-        result = {
-            "ctmpl_keys": {"KEY1"},
-            "config_env_names": {"KEY1"},
-            "env_example_keys": {"KEY1"},
-            "missing_in_config": set(),
-            "undocumented_in_example": set(),
-            "suspicious_extra_keys": set(),
-            "is_consistent": True,
-        }
-
-        print_report(result)
+    def test_prints_the_pass_line_when_consistent(self, capsys):
+        print_report(_report())
 
         captured = capsys.readouterr()
         assert "Consistency check passed" in captured.out
+        assert "secrets.ctmpl" not in captured.out
 
-    def test_does_not_crash_with_inconsistent_result(self, capsys):
-        """Should print report without crashing when inconsistent."""
-        result = {
-            "ctmpl_keys": {"KEY1", "KEY2"},
-            "config_env_names": {"KEY1"},
-            "env_example_keys": {"KEY1"},
-            "missing_in_config": {"KEY2"},
-            "undocumented_in_example": set(),
-            "suspicious_extra_keys": set(),
-            "is_consistent": False,
-        }
+    def test_prints_undocumented_keys_and_the_failure_line(self, capsys):
+        print_report(
+            _report(undocumented_in_example={"SECRET_KEY"}, is_consistent=False)
+        )
 
-        print_report(result)
-
-        captured = capsys.readouterr()
-        assert "ERROR" in captured.out
-        assert "KEY2" in captured.out
-
-    def test_verbose_shows_suspicious_keys(self, capsys):
-        """Should show suspicious keys when verbose=True."""
-        result = {
-            "ctmpl_keys": {"KEY1"},
-            "config_env_names": {"KEY1"},
-            "env_example_keys": {"KEY1", "EXTRA"},
-            "missing_in_config": set(),
-            "undocumented_in_example": set(),
-            "suspicious_extra_keys": {"EXTRA"},
-            "is_consistent": True,
-        }
-
-        print_report(result, verbose=True)
-
-        captured = capsys.readouterr()
-        assert "EXTRA" in captured.out
-
-
-class TestGenerateFixSuggestions:
-    """Tests for generate_fix_suggestions function."""
-
-    def test_does_not_crash_with_no_issues(self, capsys):
-        """Should not crash when no issues exist."""
-        result = {
-            "missing_in_config": set(),
-            "undocumented_in_example": set(),
-        }
-
-        generate_fix_suggestions(result)
-
-        # Should not raise
-
-    def test_suggests_config_fix_for_missing_keys(self, capsys):
-        """Should suggest config.py fix for missing keys."""
-        result = {
-            "missing_in_config": {"DATABASE_URL"},
-            "undocumented_in_example": set(),
-        }
-
-        generate_fix_suggestions(result)
-
-        captured = capsys.readouterr()
-        assert "config.py" in captured.out
-        assert "DATABASE_URL" in captured.out
-
-    def test_suggests_env_example_fix_for_undocumented(self, capsys):
-        """Should suggest .env.example fix for undocumented keys."""
-        result = {
-            "missing_in_config": set(),
-            "undocumented_in_example": {"DEBUG"},
-        }
-
-        generate_fix_suggestions(result)
-
-        captured = capsys.readouterr()
-        assert ".env.example" in captured.out
-        assert "DEBUG=" in captured.out
-
-
-# ---------------------------------------------------------------------------
-# Coverage gap: print_report undocumented keys (lines 222-224)
-# ---------------------------------------------------------------------------
-
-
-class TestPrintReportEdgeCases:
-    def test_prints_undocumented_keys(self, capsys):
-        """print_report prints undocumented keys in .env.example (lines 221-224)."""
-        result = {
-            "ctmpl_keys": {"KEY1"},
-            "config_env_names": {"KEY1", "SECRET_KEY"},
-            "env_example_keys": {"KEY1"},
-            "missing_in_config": set(),
-            "undocumented_in_example": {"SECRET_KEY"},
-            "suspicious_extra_keys": set(),
-            "is_consistent": False,
-        }
-        print_report(result)
         captured = capsys.readouterr()
         assert "Undocumented" in captured.out
         assert "SECRET_KEY" in captured.out
         assert "Inconsistency found" in captured.out
 
+    def test_verbose_shows_suspicious_keys(self, capsys):
+        print_report(_report(suspicious_extra_keys={"EXTRA"}), verbose=True)
 
-# ---------------------------------------------------------------------------
-# Coverage gap: main() function (lines 260-290, 294)
-# ---------------------------------------------------------------------------
+        assert "EXTRA" in capsys.readouterr().out
+
+    def test_quiet_hides_suspicious_keys(self, capsys):
+        print_report(_report(suspicious_extra_keys={"EXTRA"}))
+
+        assert "EXTRA" not in capsys.readouterr().out
+
+
+class TestGenerateFixSuggestions:
+    """Tests for generate_fix_suggestions function."""
+
+    def test_prints_nothing_when_no_issues_exist(self, capsys):
+        generate_fix_suggestions(_report())
+
+        assert capsys.readouterr().out == ""
+
+    def test_suggests_env_example_fix_for_undocumented(self, capsys):
+        generate_fix_suggestions(
+            _report(undocumented_in_example={"DEBUG"}, is_consistent=False)
+        )
+
+        captured = capsys.readouterr()
+        assert ".env.example" in captured.out
+        assert "tools/generate_env_reference.py" in captured.out
+        assert "DEBUG=" in captured.out
 
 
 class TestMainFunction:
-    def test_main_exits_0_when_consistent(self, monkeypatch, tmp_path):
-        """main() exits 0 when all sources are consistent (lines 260-290)."""
+    def _run(self, monkeypatch, root, *argv):
         from src.runtime.extension.env_keys import main
 
-        config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text("""
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    database_url: str = "postgres://localhost/db"
-""")
-
-        env_file = tmp_path / ".env.example"
-        env_file.write_text("DATABASE_URL=postgres://localhost/db\n")
-
         monkeypatch.setattr(
-            "src.runtime.extension.env_keys.get_project_root", lambda: tmp_path
+            "src.runtime.extension.env_keys.get_project_root", lambda: root
         )
-        monkeypatch.setattr(sys, "argv", ["check_env_keys.py"])
-
+        monkeypatch.setattr(sys, "argv", ["check_env_keys.py", *argv])
         with pytest.raises(SystemExit) as exc:
             main()
-        assert exc.value.code == 0
+        return exc.value.code
 
-    def test_main_exits_1_when_inconsistent(self, monkeypatch, tmp_path):
-        """main() exits 1 when inconsistency found."""
-        from src.runtime.extension.env_keys import main
+    def test_main_exits_0_for_the_committed_env_example(self, monkeypatch):
+        assert self._run(monkeypatch, get_project_root()) == 0
 
-        config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text("""
-from pydantic_settings import BaseSettings
+    def test_main_exits_1_when_the_example_documents_no_settings_key(
+        self, monkeypatch, tmp_path
+    ):
+        (tmp_path / ".env.example").write_text("")
 
-class Settings(BaseSettings):
-    database_url: str = "default"
-""")
+        assert self._run(monkeypatch, tmp_path) == 1
 
-        env_file = tmp_path / ".env.example"
-        env_file.write_text("")
+    def test_main_exits_1_when_the_example_is_missing(self, monkeypatch, tmp_path):
+        assert self._run(monkeypatch, tmp_path) == 1
 
-        monkeypatch.setattr(
-            "src.runtime.extension.env_keys.get_project_root", lambda: tmp_path
+    def test_main_with_diff_flag_lists_keys_the_example_has_beyond_settings(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        documented = "".join(
+            f"{min(keys)}=\n" for keys in settings_env_key_sets().values()
         )
-        monkeypatch.setattr(sys, "argv", ["check_env_keys.py"])
+        (tmp_path / ".env.example").write_text(documented + "EXTRA_FRONTEND_KEY=1\n")
 
-        with pytest.raises(SystemExit) as exc:
-            main()
-        assert exc.value.code == 1
+        assert self._run(monkeypatch, tmp_path, "--diff") == 0
+        assert "EXTRA_FRONTEND_KEY" in capsys.readouterr().out
 
-    def test_main_with_diff_flag(self, monkeypatch, tmp_path):
-        """main() with --diff flag shows verbose output."""
-        from src.runtime.extension.env_keys import main
+    def test_main_with_fix_flag_prints_the_undocumented_keys(
+        self, monkeypatch, tmp_path, capsys
+    ):
+        (tmp_path / ".env.example").write_text("")
 
-        config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text("""
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    database_url: str = "default"
-""")
-
-        env_file = tmp_path / ".env.example"
-        env_file.write_text("DATABASE_URL=default\n")
-
-        monkeypatch.setattr(
-            "src.runtime.extension.env_keys.get_project_root", lambda: tmp_path
-        )
-        monkeypatch.setattr(sys, "argv", ["check_env_keys.py", "--diff"])
-
-        with pytest.raises(SystemExit) as exc:
-            main()
-        assert exc.value.code == 0
-
-    def test_main_with_fix_flag(self, monkeypatch, tmp_path):
-        """main() with --fix flag generates suggestions."""
-        from src.runtime.extension.env_keys import main
-
-        config_file = tmp_path / "apps" / "backend" / "src" / "config.py"
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text("""
-from pydantic_settings import BaseSettings
-
-class Settings(BaseSettings):
-    database_url: str = "default"
-""")
-
-        env_file = tmp_path / ".env.example"
-        env_file.write_text("")
-
-        monkeypatch.setattr(
-            "src.runtime.extension.env_keys.get_project_root", lambda: tmp_path
-        )
-        monkeypatch.setattr(sys, "argv", ["check_env_keys.py", "--fix"])
-
-        with pytest.raises(SystemExit) as exc:
-            main()
-        assert exc.value.code == 1
+        assert self._run(monkeypatch, tmp_path, "--fix") == 1
+        output = capsys.readouterr().out
+        assert "tools/generate_env_reference.py" in output
+        assert "DEBUG=" in output

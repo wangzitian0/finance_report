@@ -204,7 +204,7 @@ def test_AC2_21_1_multi_currency_balance_is_not_a_scalar():
             CurrencyBalance(Currency("SGD"), Money(Decimal("200"), "SGD"), Money(Decimal("250"), "SGD")),
         )
     )
-    assert balances.is_multi_currency()
+    assert len(balances) == 2
     assert set(balances.currencies()) == {"USD", "SGD"}
     # No scalar accessor exists that would let it masquerade as one currency.
     assert not hasattr(balances, "amount")
@@ -238,21 +238,25 @@ def test_AC2_21_1_balance_rejects_currency_mismatch_and_duplicates():
 
 
 @ac_proof(
-    proof_id="test_currency_balances_jsonb_round_trip_backend",
+    proof_id="test_currency_balances_from_jsonb_parses_typed_money_backend",
     ac_ids=["AC-audit.21.1"],
     ci_tier="pr_ci",
     issue="#1170",
 )
-def test_AC2_21_1_currency_balances_jsonb_round_trip():
-    """AC-audit.21.1: CurrencyBalances round-trips the StatementSummary JSONB shape."""
+def test_AC2_21_1_currency_balances_from_jsonb_parses_typed_money():
+    """AC-audit.21.1: CurrencyBalances reads the StatementSummary JSONB shape as typed Money."""
     rows = [
         {"currency": "USD", "opening": "100.00", "closing": "150.00"},
         {"currency": "SGD", "opening": "200.00", "closing": "250.00"},
     ]
     parsed = CurrencyBalances.from_jsonb(rows)
-    assert parsed.to_jsonb() == rows
-    # Amounts serialise as strings (never JSON floats).
-    assert all(isinstance(r["opening"], str) for r in parsed.to_jsonb())
+    assert parsed.currencies() == ("USD", "SGD")
+    usd = parsed.get("USD")
+    assert usd is not None
+    assert (usd.opening, usd.closing) == (Money(Decimal("100.00"), "USD"), Money(Decimal("150.00"), "USD"))
+    sgd = parsed.get("SGD")
+    assert sgd is not None
+    assert (sgd.opening, sgd.closing) == (Money(Decimal("200.00"), "SGD"), Money(Decimal("250.00"), "SGD"))
     # Empty / None collapses to an empty container, not a scalar.
     assert len(CurrencyBalances.from_jsonb(None)) == 0
 
@@ -296,7 +300,7 @@ def test_AC2_21_1_currency_balances_surface_and_parsing():
     bal = CurrencyBalance(Currency("USD"), Money(Decimal("1"), "USD"), Money(Decimal("2"), "USD"))
     balances = CurrencyBalances((bal,))
     assert list(iter(balances)) == [bal]
-    assert not balances.is_multi_currency()
+    assert len(balances) == 1
     assert balances.get("SGD") is None
     # Amount parsing accepts Decimal / int / str; rejects float and other types.
     parsed = CurrencyBalances.from_jsonb([{"currency": "USD", "opening": Decimal("1"), "closing": 2}])

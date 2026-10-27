@@ -200,15 +200,12 @@ CONTRACT = PackageContract(
             kind=Kind.DOMAIN_SERVICE,
             module="extension/fx.py",
         ),
-        # convert_amount/convert_money/convert_to_base: thin lookup+math
+        # convert_amount/convert_money: thin lookup+math
         # bridges over get_exchange_rate/get_average_rate (lookup) +
         # audit.money.convert (math, rate passed in — ruling 5, audit never
         # looks up a rate).
         Unit(name="convert_amount", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"),
         Unit(name="convert_money", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"),
-        Unit(
-            name="convert_to_base", kind=Kind.DOMAIN_SERVICE, module="extension/fx.py"
-        ),
         # get_average_rate: the mean of the repository's own candidates in a
         # date range (not a separate SQL AVG query) — the repository stays
         # "what observations exist"; averaging is pricing's own logic.
@@ -395,7 +392,7 @@ CONTRACT = PackageContract(
     # event type), the extraction-event ingest subscriber + its wiring helper
     # (#1642 — pricing is also the bus's first consumer), the full FX lookup
     # surface absorbed from the retired services/fx.py (#1610 P2: the
-    # convert_* trio + average-rate wrappers with fx_warnings, plus
+    # convert_* pair + average-rate wrappers with fx_warnings, plus
     # PrefetchedFxRates), the manual-valuation balance-sheet line builder
     # (absorbed from services/reporting/manual_valuation.py), the crawler
     # sync (moved in from apps/backend/src/services/market_data/), and the
@@ -446,7 +443,6 @@ CONTRACT = PackageContract(
         "build_manual_valuation_lines_series",
         "convert_amount",
         "convert_money",
-        "convert_to_base",
         "ensure_market_data_fresh",
         "get_average_rate",
         "get_exchange_rate",

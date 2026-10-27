@@ -27,6 +27,7 @@ from src.composition import market_data_scopes, observed_fx_pairs
 from src.config import settings
 from src.database import async_session_maker, engine, init_db
 from src.extraction import (
+    StatementClassificationBusy,
     find_in_flight_parse_id,
     get_known_storage_paths,
     get_statement_coverage_rows,
@@ -450,6 +451,19 @@ async def base_app_exception_handler(request: Request, exc: BaseAppException) ->
     )
     body = ErrorResponse(error_id=exc.error_id, detail=exc.message, request_id=request_id)
     return JSONResponse(status_code=exc.status_code, content=body.model_dump())
+
+
+@app.exception_handler(StatementClassificationBusy)
+async def statement_classification_busy_handler(request: Request, exc: StatementClassificationBusy) -> JSONResponse:
+    """Answer 409 when another task still classifies the statement of a request (#2637).
+
+    One handler serves every route that can wait for the lock: the approve, the fill and the correction. The
+    request changed nothing, and the session rolls back when the request ends.
+    """
+    _ = request
+    request_id = current_request_id()
+    body = ErrorResponse(error_id=error_code_for_status(409).value, detail=str(exc), request_id=request_id)
+    return JSONResponse(status_code=409, content=body.model_dump())
 
 
 @app.exception_handler(StarletteHTTPException)

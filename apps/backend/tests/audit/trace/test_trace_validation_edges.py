@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -31,7 +32,6 @@ from src.audit import (
     TraceTargetClass,
     VersionedTraceRef,
 )
-from src.audit.base.trace import parent_manifest_digest
 
 from .conftest import authority, decision_policy, observation
 
@@ -179,7 +179,10 @@ def test_current_heads_and_manifest_drop_stale_or_causally_orphaned_decisions():
         supersedes_id=parent.record_id,
     )
 
-    assert parent_manifest_digest([parent]) == decision.evidence_manifest_digest
+    expected_manifest_digest = hashlib.sha256(
+        json.dumps([parent.content_digest], separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    assert decision.evidence_manifest_digest == expected_manifest_digest
     from src.audit.base.trace import current_heads
 
     assert current_heads([parent, decision, correction]) == [correction]
@@ -232,13 +235,13 @@ def test_codec_and_restore_reject_every_integrity_envelope_failure():
 def test_jsonl_adapter_handles_empty_invalid_and_collision_paths(tmp_path: Path, monkeypatch):
     path = tmp_path / "trace.jsonl"
     store = JsonlTraceRecordStore(path)
-    assert store.read_all() == []
+    record = observation()
+    assert store.append(record) == record
 
     path.write_text("\n  \n{\n", encoding="utf-8")
     with pytest.raises(TraceRecordValidationError, match="line 3"):
-        store.read_all()
+        store.append(record)
 
-    record = observation()
     monkeypatch.setattr(
         "src.audit.extension.trace_adapters._decode_jsonl",
         lambda _content: [SimpleNamespace(record_id=record.record_id, content_digest="0" * 64)],

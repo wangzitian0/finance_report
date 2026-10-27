@@ -25,8 +25,7 @@
 | `compare` | same-unit only; cross-unit ⇒ typed error |
 | `neg` / `abs` / `* scalar` | keeps the same unit |
 | `ratio_to(whole)` / `Quantity / Quantity` | same-unit quantities derive a `Ratio`; zero whole is undefined through `Ratio.fraction` |
-| `quantity_to_wire` / `quantity_from_wire` | JSON boundary; value is a decimal string and unit is a string; JSON numbers are rejected |
-| `quantity_to_db_fields` / `quantity_from_db_fields` | DB boundary for Python/backend code; value is an exact `Decimal`, unit is a string |
+| `quantity_to_wire` / `quantity_from_wire` | **Frontend only.** JSON boundary; value is a decimal string and unit is a string; JSON numbers are rejected. Python has no wire or DB codec: no production code called one (#2698) |
 
 ## Invariants
 
@@ -35,9 +34,9 @@
    passed.
 3. **No cross-unit arithmetic** without an explicit future conversion table.
 4. **Quantity ratios are `Ratio`**, not naked Decimal division.
-5. **Boundary codecs are package-owned.** Wire payloads use decimal strings
-   (never JSON numbers); DB adapters expose exact `Decimal` values only at the
-   storage edge. Malformed payloads raise typed quantity errors.
+5. **Python has no boundary codec.** Python code moves quantities through
+   `Decimal` columns and typed fields. The frontend twin keeps JSON codecs whose
+   payloads use decimal strings, never JSON numbers.
 
 ## Shared API Surface
 
@@ -47,5 +46,4 @@
 
 `Quantity`, `Unit`, `QUANTITY_QUANTUM`, `QUANTITY_DP`, `QUANTITY_ROUNDING`,
 `QuantityError`, `FloatNotAllowedError`, `InvalidQuantityPayloadError`,
-`InvalidUnitError`, `UnitMismatchError`, `quantity_to_wire`,
-`quantity_from_wire`.
+`InvalidUnitError`, `UnitMismatchError`.

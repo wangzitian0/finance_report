@@ -1,33 +1,23 @@
-"""Byte-identical adoption helpers for routing hot paths through Money (#1171).
+"""Byte-identical adoption helper for routing a hot path through Money (#1171).
 
-The reconciliation and reporting hot paths must keep producing **byte-identical**
-totals while being routed through the money value types. Two realities make a
-naive swap unsafe, so these helpers exist:
+The reconciliation balance loop must keep producing **byte-identical** totals while
+being routed through the money value types. ``Money``/``Currency`` validate ISO-4217
+strictly, but that path legitimately carries the reconciliation ``"*"`` sentinel and
+currencies outside the active ISO set. So :func:`balance_check` routes through ``Money``
+**only when the currency is a valid ISO code**, and otherwise falls back to the *exact
+same* Decimal arithmetic the call-site used before — byte-identical for every input,
+ISO or not.
 
-1. ``Money``/``Currency`` validate ISO-4217 strictly, but those paths legitimately
-   carry the reconciliation ``"*"`` sentinel and (for FX) currencies outside the
-   active ISO set. So each helper routes through ``Money``/``convert`` **only when
-   both currencies are valid ISO codes**, and otherwise falls back to the *exact
-   same* Decimal arithmetic the call-site used before — byte-identical for every
-   input, ISO or not.
-2. Aggregations sum **unquantized** products and quantize the total once. Routing
-   per-term through ``convert`` (which quantizes each term) would change the total.
-   :func:`restate_unrounded` therefore does not quantize; :func:`restate` is for
-   the single-shot conversions that already quantized.
-
-Every helper returns a ``Decimal`` so call-sites are a drop-in replacement.
+The helper returns ``Decimal`` values so call-sites are a drop-in replacement.
 """
 
 from __future__ import annotations
 
 from decimal import Decimal
 
-from src.audit.money.convert import convert
 from src.audit.money.currency import Currency
 from src.audit.money.errors import InvalidCurrencyError
-from src.audit.money.exchange_rate import ExchangeRate
 from src.audit.money.money import Money
-from src.audit.money.rounding import to_money
 
 
 def _iso(*codes: str | None) -> bool:
@@ -40,31 +30,6 @@ def _iso(*codes: str | None) -> bool:
         return True
     except InvalidCurrencyError:
         return False
-
-
-def restate(amount: Decimal, from_ccy: str, rate: Decimal, to_ccy: str) -> Decimal:
-    """Convert ``amount`` (``from_ccy``) into ``to_ccy`` at ``rate``, quantized 2 dp.
-
-    Byte-identical to the legacy ``to_money(amount * rate)``: for ISO currencies it
-    routes through the single :func:`convert` FX primitive (same banker's rounding
-    at the boundary); otherwise it falls back to that exact Decimal computation.
-    """
-    if _iso(from_ccy, to_ccy):
-        return convert(Money(amount, from_ccy), ExchangeRate(from_ccy, to_ccy, rate)).amount
-    return to_money(amount * Decimal(rate))
-
-
-def restate_unrounded(amount: Decimal, from_ccy: str, rate: Decimal, to_ccy: str) -> Decimal:
-    """Restate ``amount`` (``from_ccy``) into ``to_ccy`` at ``rate``, **unquantized**.
-
-    For aggregations that sum products and quantize the total once. Byte-identical
-    to the legacy ``Decimal(str(amount)) * rate``: for ISO currencies it builds a
-    typed, currency-correct ``Money`` in the target; otherwise identical Decimal.
-    """
-    product = Decimal(str(amount)) * rate
-    if _iso(from_ccy, to_ccy):
-        return Money(product, to_ccy).amount
-    return product
 
 
 def balance_check(

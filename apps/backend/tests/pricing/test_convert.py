@@ -1,10 +1,10 @@
-"""``convert_amount``/``convert_money``/``convert_to_base`` — the lookup+math bridges.
+"""``convert_amount``/``convert_money`` — the lookup+math bridges.
 
 Pre-AC-roadmap structural tests (the pricing package's roadmap is still
 empty, #1610 P5) — see ``docs/project/traceability-exceptions.md``.
 The ``AC-pricing.fx.3`` tests and the relocated ``AC-audit.31.2`` proof
 anchor the #1610 P2 absorption of the retired ``services/fx.py`` surface
-(average-rate windows on the ``convert_*`` trio) into this package.
+(average-rate windows on the ``convert_*`` pair) into this package.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import ExchangeRate, Money
 from src.pricing import FxWarning, PricingError
 from src.pricing.base.errors import NoObservationError
-from src.pricing.extension.fx import convert_amount, convert_money, convert_to_base
+from src.pricing.extension.fx import convert_amount, convert_money
 from src.pricing.orm.market_data import FxRate
 
 pytestmark = pytest.mark.asyncio
@@ -84,25 +84,6 @@ async def test_convert_money_lazy_load_falls_back_to_the_crawler_path(db: AsyncS
 
     result = await convert_money(db, Money(Decimal("100"), "HKD"), "SGD", date(2026, 6, 30), lazy_load=True)
     assert result == Money(Decimal("17.24"), "SGD")
-
-
-async def test_convert_to_base_uses_the_configured_base_currency(db: AsyncSession, monkeypatch: pytest.MonkeyPatch):
-    import src.pricing.extension.fx as fx_module
-
-    monkeypatch.setattr(fx_module.settings, "base_currency", "SGD")
-    db.add(
-        FxRate(
-            base_currency="USD",
-            quote_currency="SGD",
-            rate=Decimal("1.35"),
-            rate_date=date(2026, 6, 1),
-            source="test",
-        )
-    )
-    await db.commit()
-
-    result = await convert_to_base(db, Decimal("100"), "USD", date(2026, 6, 15))
-    assert result == Decimal("135.00")
 
 
 async def test_AC_pricing_fx_3_convert_amount_uses_average_rate_window(db: AsyncSession):
@@ -230,8 +211,17 @@ async def test_AC12_31_2_convert_amount_routes_through_money_exchange_rate(
     assert typed_rate == ExchangeRate("USD", "SGD", Decimal("1.200000"))
 
 
+@ac_proof(
+    proof_id="test_convert_amount_fails_closed_outside_iso_4217",
+    ac_ids=["AC-money.22.3"],
+    ci_tier="pr_ci",
+    issue="#2698",
+)
 async def test_convert_amount_wraps_invalid_currency_as_pricing_error(db: AsyncSession, monkeypatch):
-    """Legacy/provider rate rows with non-ISO codes should not leak Money errors."""
+    """AC-money.22.3: a currency outside ISO-4217 raises PricingError, never a fallback product.
+
+    Legacy/provider rate rows with non-ISO codes should not leak Money errors.
+    """
     import src.pricing.extension.fx as fx_module
 
     async def fake_get_exchange_rate(*args, **kwargs) -> Decimal:

@@ -10,7 +10,7 @@ tables + the ingest store), the two user-scoped write recorders
 ``ingest_statement_price`` + the ``subscribe_price_ingest`` wiring the app
 composition root calls, #1642), the full FX lookup surface absorbed from
 ``services/fx.py`` (#1610 P2 — ``get_exchange_rate`` + the ``convert_*``
-trio + ``get_average_rate`` with the ``fx_warnings`` side-channel and
+pair + ``get_average_rate`` with the ``fx_warnings`` side-channel and
 average-rate windows, plus ``PrefetchedFxRates``; see ``extension/fx.py``),
 the manual-valuation balance-sheet line builder
 (``build_manual_valuation_lines``, absorbed from
@@ -33,7 +33,6 @@ from src.pricing.extension.fx import (
     PrefetchedFxRates,
     convert_amount,
     convert_money,
-    convert_to_base,
     get_average_rate,
     get_exchange_rate,
     get_exchange_rate_series,
@@ -84,7 +83,6 @@ __all__ = [
     "SqlObservationRepository",
     "convert_amount",
     "convert_money",
-    "convert_to_base",
     "ensure_market_data_fresh",
     "get_average_rate",
     "get_exchange_rate",

@@ -162,8 +162,9 @@ def test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry():
     ), "opening stock must not bypass the validated anchored repository"
     for caller, callee in (
         ("submit_system_journal_entry", "submit_anchored_journal_entry"),
-        ("submit_anchored_journal_entry", "_submit_anchored_journal_entry"),
-        ("_submit_anchored_journal_entry", "_create_anchored_journal_entry"),
+        ("submit_manual_journal_entry", "submit_anchored_journal_entry"),
+        ("submit_anchored_journal_entry", "_create_anchored_journal_entry"),
+        ("submit_anchored_journal_entries", "_create_anchored_journal_entries"),
     ):
         assert delegates(function("anchored_posting", caller), callee)
     # One builder checks a draft against the ledger rules and persists nothing. Both sinks (one entry and

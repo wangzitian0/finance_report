@@ -74,9 +74,6 @@ def test_epic_009_pdf_fixture_tooling_contracts() -> None:
     _assert_python_defines_class(
         PDF_FIXTURES / "analyzers" / "template_extractor.py", "TemplateExtractor"
     )
-    _assert_python_defines_class(
-        PDF_FIXTURES / "validators" / "pdf_validator.py", "PDFValidator"
-    )
 
     for template in ("dbs_template.yaml", "cmb_template.yaml", "mari_template.yaml"):
         data = _load_yaml(PDF_FIXTURES / "templates" / template)

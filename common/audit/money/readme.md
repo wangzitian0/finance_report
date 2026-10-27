@@ -31,13 +31,12 @@ cannot add two different currencies by accident.
 - **`CurrencyBalances` / `CurrencyBalance`** — a multi-currency balance bag.
 - **`MoneyTolerance`** — an absolute+relative band (a `Ratio`) for "are these two
   amounts close enough" in matching/reconciliation.
-- **wire/db adapters** — `money_{to,from}_{wire,db_fields}`,
-  `exchange_rate_{to,from}_{wire,db_fields}`, `to_money` convert at the boundary.
+- **`to_money`** — the canonical 2-dp money rounding (backend runtime).
 
 ## Public vs internal
 
-**Public** (`__all__` == `contract.interface`, 24 symbols): the types above +
-`MoneyError` and the typed errors + `convert` + the wire/db adapters. Everything
+**Public** (`__all__` == `contract.interface`, 16 symbols): the types above +
+`MoneyError` and the typed errors + `convert` + `to_money`. Everything
 else (`guard.py`, `rounding.py` internals) is implementation detail.
 
 ## Three ends, one spec

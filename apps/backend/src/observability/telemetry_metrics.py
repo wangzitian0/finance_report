@@ -107,6 +107,11 @@ def _create_instruments(meter: Any) -> None:
         unit="1",
         description="Statement parse outcomes.",
     )
+    _instruments["statement_classification_outcome"] = meter.create_counter(
+        "finance.statement_classification.outcome",
+        unit="1",
+        description="Outcomes of the classification pass that runs after a statement is parsed.",
+    )
     _instruments["ai_provider_latency"] = meter.create_histogram(
         "finance.ai_provider.latency",
         unit="ms",
@@ -304,6 +309,12 @@ def record_statement_parse_outcome(*, outcome: str, parser: str = "default") -> 
     counter = _instruments.get("statement_parse_outcome")
     if counter is not None:
         counter.add(1, {"outcome": outcome, "parser": parser})
+
+
+def record_statement_classification_outcome(*, outcome: str) -> None:
+    counter = _instruments.get("statement_classification_outcome")
+    if counter is not None:
+        counter.add(1, {"outcome": outcome})
 
 
 def record_ai_provider_call(

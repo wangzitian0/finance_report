@@ -1,4 +1,4 @@
-"""``get_exchange_rate`` + the ``convert_*`` trio — the FX-specific lookup services.
+"""``get_exchange_rate`` + the ``convert_*`` pair — the FX-specific lookup services.
 
 The single FX lookup implementation (#1610 P2 absorbed ``services/fx.py`` —
 that module is retired; every consumer resolves rates through this package's
@@ -6,7 +6,7 @@ published surface). Thin: the identity rate (a currency against itself is
 always exactly 1, a business rule that doesn't belong in the subject-agnostic
 ``resolve()``) is handled here, then the general ``PriceableSubject`` +
 ``resolve()`` path takes over — no FX-specific storage or resolution logic
-duplicated. ``convert_amount``/``convert_money``/``convert_to_base`` are thin
+duplicated. ``convert_amount``/``convert_money`` are thin
 lookup+math bridges: the lookup is ``get_exchange_rate``/``get_average_rate``
 above, the math is ``audit.money.convert`` (rate passed in, per boundary
 ruling 5 — audit never looks up a rate).
@@ -21,7 +21,7 @@ Carried over from ``services/fx.py`` for its repointed consumers:
 - **``fx_warnings`` side-channel** (AC-pricing.fx.1) — the caller learns it
   got the period-end spot fallback instead of a true average; reporting
   surfaces these warnings on the generated report payloads.
-- **Average-rate windows on the ``convert_*`` trio** (AC-pricing.fx.3) — the
+- **Average-rate windows on the ``convert_*`` pair** (AC-pricing.fx.3) — the
   income-statement convention converts flows at the period-average rate.
 - **``PrefetchedFxRates``** (AC-pricing.fx.2) — the explicit batch-prefetch
   cache the report builders use to avoid per-line lookups.
@@ -40,7 +40,6 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import src.config
 from src.audit import Currency, ExchangeRate, Money, MoneyError, convert as _money_convert, normalize_currency_code
 from src.observability import get_logger
 from src.pricing.base.errors import NoObservationError, PricingError
@@ -48,9 +47,6 @@ from src.pricing.base.policy import ResolutionPolicy
 from src.pricing.base.subject import PriceableSubject
 from src.pricing.extension.repository import SqlObservationRepository
 from src.pricing.extension.resolve import resolve, resolve_series
-
-# Bound from the bare published root (config publishes no named symbols).
-settings = src.config.settings
 
 logger = get_logger(__name__)
 
@@ -282,22 +278,6 @@ async def convert_money(
         lazy_load=lazy_load,
     )
     return Money(converted, Currency.of(target_currency))
-
-
-async def convert_to_base(
-    db: AsyncSession,
-    amount: Decimal,
-    currency: str,
-    rate_date: date,
-) -> Decimal:
-    """Convert ``amount`` into the configured base currency."""
-    return await convert_amount(
-        db,
-        amount=amount,
-        currency=currency,
-        target_currency=settings.base_currency,
-        rate_date=rate_date,
-    )
 
 
 class PrefetchedFxRates:

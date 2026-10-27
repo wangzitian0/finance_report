@@ -249,7 +249,6 @@ CONTRACT = PackageContract(
         "AccountType",
         "AccountingError",
         "AnchoredJournalCommand",
-        "AnchoredJournalCommandV2",
         "ConfidenceTier",
         "DEFAULT_STALE_AFTER_DAYS",
         "DegenerateEntryError",
@@ -301,9 +300,8 @@ CONTRACT = PackageContract(
         "list_journal_contributions",
         "list_processing_transfer_legs",
         "post_entry",
-        "submit_anchored_journal_entries_v2",
+        "submit_anchored_journal_entries",
         "submit_anchored_journal_entry",
-        "submit_anchored_journal_entry_v2",
         "submit_manual_journal_entry",
         "submit_system_journal_entry",
         "validate_manual_journal_entry_for_post",
@@ -322,7 +320,7 @@ CONTRACT = PackageContract(
     ],
     command_boundaries=[
         CommandBoundary(
-            symbol="AnchoredJournalCommandV2",
+            symbol="AnchoredJournalCommand",
             version="2",
             proof=(
                 "apps/backend/tests/ledger/test_decision_anchor.py"
@@ -661,9 +659,9 @@ CONTRACT = PackageContract(
         ac('AC-ledger.80.1', 'list_journal_contributions publishes posted or reconciled journal facts with their exact current DecisionAnchor and line/account data; source type, entry recency, or status alone never grants package authority.', 'apps/backend/tests/ledger/test_decision_anchor.py::test_AC_ledger_80_1_publishes_only_current_decision_anchored_journal_facts', proof_kind='exact'),
         ac('AC-ledger.80.2', "ledger_trace_policy_registry publishes the complete policy decoder required by package consumers; consumers never import ledger's internal policy classes.", 'apps/backend/tests/ledger/test_decision_anchor.py::test_AC_ledger_80_2_publishes_decision_policy_registry', proof_kind='exact'),
         ac('AC-ledger.80.3', 'External statements are staged via Layer 2 AtomicTransaction and strictly forbidden from routing through Processing Account (Code 1199); non-system journal entries referencing Code 1199 are rejected at the ledger boundary (#2052).', 'apps/backend/tests/ledger/test_ledger_authority_boundary.py::test_AC_ledger_80_3_external_statement_staging_rejects_processing_account', proof_kind='exact'),
-        ac('AC-ledger.80.4', 'submit_anchored_journal_entry_v2 enforces DecisionAnchor validation and double-entry balance in base currency, preserving a clean ledger state upon rejection (#2052).', 'apps/backend/tests/ledger/test_ledger_authority_boundary.py::test_AC_ledger_80_4_gateway_enforces_double_entry_balance_and_rejection_preserves_clean_ledger', proof_kind='exact'),
+        ac('AC-ledger.80.4', 'submit_anchored_journal_entry enforces DecisionAnchor validation and double-entry balance in base currency, preserving a clean ledger state upon rejection (#2052).', 'apps/backend/tests/ledger/test_ledger_authority_boundary.py::test_AC_ledger_80_4_gateway_enforces_double_entry_balance_and_rejection_preserves_clean_ledger', proof_kind='exact'),
         # ── group anchored-batch: the anchored command port accepts a set of commands (#2612) ──
-        ac('AC-ledger.anchored-batch.1', 'submit_anchored_journal_entries_v2 persists the entries that one submit_anchored_journal_entry_v2 call per command persists: the same facts, lines, anchors and status.', 'apps/backend/tests/ledger/test_anchored_batch.py::test_AC_ledger_anchored_batch_1_batch_persists_the_entries_of_one_submit_per_command', priority='P1'),
+        ac('AC-ledger.anchored-batch.1', 'submit_anchored_journal_entries persists the entries that one submit_anchored_journal_entry call per command persists: the same facts, lines, anchors and status.', 'apps/backend/tests/ledger/test_anchored_batch.py::test_AC_ledger_anchored_batch_1_batch_persists_the_entries_of_one_submit_per_command', priority='P1'),
         ac('AC-ledger.anchored-batch.2', 'The batch port issues a number of SQL statements that does not grow with the number of commands, at most 10.', 'apps/backend/tests/ledger/test_anchored_batch.py::test_AC_ledger_anchored_batch_2_batch_statement_count_does_not_grow_with_the_set', priority='P1'),
         ac('AC-ledger.anchored-batch.3', 'A resubmitted batch returns the same entries and persists no entry. A decision other than the owner of a source target is refused.', 'apps/backend/tests/ledger/test_anchored_batch.py::test_AC_ledger_anchored_batch_3_batch_is_idempotent_and_refuses_a_different_owner_of_a_target', priority='P1'),
         ac('AC-ledger.anchored-batch.4', 'One command with an invalid anchor persists none of the commands of its batch.', 'apps/backend/tests/ledger/test_anchored_batch.py::test_AC_ledger_anchored_batch_4_one_invalid_command_persists_none_of_the_set', priority='P1'),

@@ -43,6 +43,7 @@ from src.extraction import (
     edit_and_approve,
     get_current_statement_extraction_result,
     is_bank_custody_source,
+    lock_statement_classification,
     pending_stage1_review_filter,
     register_statement_source,
     reject_statement_workflow,
@@ -980,6 +981,7 @@ async def approve_statement_stage1(
 ) -> Stage1ApprovalResponse:
     """Stage 1: Approve statement with balance validation."""
     try:
+        await lock_statement_classification(db, statement_id)
         statement = await _get_statement_or_404(db, statement_id, user_id)
         if request and request.create_account_if_missing and not statement.account_id:
             await _create_statement_account_from_confirmation(db, statement, user_id)

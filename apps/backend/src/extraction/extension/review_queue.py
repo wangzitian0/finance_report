@@ -35,15 +35,15 @@ from src.ledger import (
     PROCESSING_ACCOUNT_CODE,
     Account,
     AccountType,
-    AnchoredJournalCommandV2,
+    AnchoredJournalCommand,
     DecisionAnchor,
     Direction,
     JournalEntry,
     ValidationError,
     account_service,
     fit_journal_memo,
-    submit_anchored_journal_entries_v2,
-    submit_anchored_journal_entry_v2,
+    submit_anchored_journal_entries,
+    submit_anchored_journal_entry,
 )
 from src.observability import get_logger
 
@@ -359,8 +359,8 @@ async def _plan_entry_command(
     )
 
 
-def _journal_command(plan: PlannedEntryCommand, decision_anchor: DecisionAnchor) -> AnchoredJournalCommandV2:
-    return AnchoredJournalCommandV2.from_mappings(
+def _journal_command(plan: PlannedEntryCommand, decision_anchor: DecisionAnchor) -> AnchoredJournalCommand:
+    return AnchoredJournalCommand.from_mappings(
         entry_date=plan.txn.txn_date,
         memo=plan.memo,
         lines_data=plan.lines_data,
@@ -430,7 +430,7 @@ async def _create_entry_from_txn(
             base_currency=plan.base_currency,
             source_id=txn.id,
         )
-        entry = await submit_anchored_journal_entry_v2(
+        entry = await submit_anchored_journal_entry(
             db,
             user_id=user_id,
             command=_journal_command(plan, decision_anchor),
@@ -590,7 +590,7 @@ async def create_entries_from_txns(
                     for request, plan in zip(requests, plans, strict=True)
                 ],
             )
-            created = await submit_anchored_journal_entries_v2(
+            created = await submit_anchored_journal_entries(
                 db,
                 user_id=user_id,
                 commands=[_journal_command(plan, anchor) for plan, anchor in zip(plans, anchors, strict=True)],

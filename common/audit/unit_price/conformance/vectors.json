@@ -13,9 +13,7 @@
     "CurrencyMismatchError",
     "UnitMismatchError",
     "UndefinedUnitPriceError",
-    "InvalidUnitPricePayloadError",
-    "unit_price_to_wire",
-    "unit_price_from_wire"
+    "InvalidUnitPricePayloadError"
   ],
   "quantize": [
     {"rate": "10.5", "currency": "SGD", "unit": "shares", "expected": "10.500000"},

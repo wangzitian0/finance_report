@@ -6,6 +6,7 @@ second ``run_once`` does NOT re-dispatch it. Re-delivery of a still-pending row 
 safe for an idempotent handler (at-least-once is the contract).
 """
 
+import asyncio
 from datetime import UTC, datetime
 
 import pytest
@@ -130,3 +131,27 @@ def _event_from_row(row: OutboxRecord) -> DomainEvent:
     ev = DomainEvent(event_type=row.event_type, occurred_at=row.occurred_at)
     object.__setattr__(ev, "payload", lambda: dict(row.payload))
     return ev
+
+
+@pytest.mark.asyncio
+async def test_composition_root_dispatcher_polls_run_once_and_survives_a_failing_pass(monkeypatch):
+    """The dispatcher in ``src.main`` is the only poll loop: a failed pass is retried, not fatal."""
+    import src.main as main_module
+
+    stop_event = asyncio.Event()
+    passes: list[int] = []
+
+    class _FlakyRelay:
+        async def run_once(self, session) -> int:
+            passes.append(1)
+            if len(passes) == 1:
+                raise RuntimeError("first pass fails")
+            stop_event.set()
+            return 0
+
+    monkeypatch.setattr(main_module, "outbox_relay", _FlakyRelay())
+    monkeypatch.setattr(main_module, "OUTBOX_RELAY_POLL_SECONDS", 0.01)
+
+    await asyncio.wait_for(main_module.run_outbox_relay(stop_event), timeout=5)
+
+    assert len(passes) == 2

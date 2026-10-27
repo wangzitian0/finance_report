@@ -43,12 +43,6 @@ logger = get_logger(__name__)
 
 _REPORT_STATUSES = (JournalEntryStatus.POSTED, JournalEntryStatus.RECONCILED)
 REPORTING_QUANTITY_UNIT = "units"
-_ALLOCATION_METADATA_KEYS = {
-    "source_currency",
-    "allocation_asset_class",
-    "allocation_liquidity_class",
-    "allocation_source_type",
-}
 
 
 def _restate_unrounded(amount: Decimal | int | str, rate: Decimal) -> Decimal:
@@ -89,10 +83,6 @@ def _build_account_lines(
 
 def _line_total(lines: Sequence[dict[str, Any]]) -> Decimal:
     return _quantize_money(sum((Decimal(str(line["amount"])) for line in lines), Decimal("0")))
-
-
-def _strip_allocation_metadata(lines: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [{key: value for key, value in line.items() if key not in _ALLOCATION_METADATA_KEYS} for line in lines]
 
 
 def _ledger_allocation_asset_class(account: Account) -> str:

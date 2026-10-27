@@ -32,6 +32,10 @@ ALLOWED_SERVICE_COMMIT_BOUNDARIES = {
     # transaction boundary at the service layer so the router stays thin.
     ("statement_workflow.py", "approve_statement_workflow"),
     ("statement_workflow.py", "reject_statement_workflow"),
+    # #2637: the pass after parse owns its session (a background task of the ingestion). Its single commit
+    # writes the classification rows of one statement, the policy rule row that anchors them and the rows that
+    # the pass supersedes or promotes. The commit releases the lock of that statement.
+    ("statement_preclassification.py", "_classify"),
 }
 
 # The scheduler moved into pricing (#1610 P2) and kept its documented

@@ -53,12 +53,10 @@ from src.ledger.orm.journal import (
 
 __all__ = [
     "AnchoredJournalCommand",
-    "AnchoredJournalCommandV2",
     "current_anchored_journal_entries",
     "ledger_trace_policy_registry",
-    "submit_anchored_journal_entries_v2",
+    "submit_anchored_journal_entries",
     "submit_anchored_journal_entry",
-    "submit_anchored_journal_entry_v2",
     "submit_manual_journal_entry",
     "submit_system_journal_entry",
     "validate_manual_journal_entry_for_post",
@@ -119,20 +117,6 @@ class JournalCommandLine:
 
 @dataclass(frozen=True, slots=True)
 class AnchoredJournalCommand:
-    """Legacy v1 command retained for source-compatible evolution."""
-
-    entry_date: date
-    memo: str
-    lines_data: list[dict]
-    source_type: JournalEntrySourceType
-    source_id: UUID | None
-    source_identity: str
-    decision_anchor: DecisionAnchor
-    post_immediately: bool
-
-
-@dataclass(frozen=True, slots=True)
-class AnchoredJournalCommandV2:
     """A balanced journal payload plus the exact decision that authorizes it."""
 
     entry_date: date
@@ -157,7 +141,7 @@ class AnchoredJournalCommandV2:
         source_identity: str,
         decision_anchor: DecisionAnchor,
         post_immediately: bool,
-    ) -> AnchoredJournalCommandV2:
+    ) -> AnchoredJournalCommand:
         """Validate legacy mappings once when they enter the typed command port."""
         return cls(
             entry_date=entry_date,
@@ -430,10 +414,11 @@ async def submit_manual_journal_entry(
         lines_data=normalized_lines,
         base_currency=base_currency,
     )
-    command = AnchoredJournalCommand(
+    command = AnchoredJournalCommand.from_mappings(
         entry_date=entry_date,
         memo=memo,
         lines_data=normalized_lines,
+        base_currency=base_currency,
         source_type=JournalEntrySourceType.MANUAL,
         source_id=None,
         source_identity=anchor.target.id,
@@ -522,10 +507,11 @@ async def submit_system_journal_entry(
     return await submit_anchored_journal_entry(
         db,
         user_id=user_id,
-        command=AnchoredJournalCommand(
+        command=AnchoredJournalCommand.from_mappings(
             entry_date=entry_date,
             memo=memo,
             lines_data=normalized_lines,
+            base_currency=base_currency,
             source_type=source_type,
             source_id=source_id,
             source_identity=source_identity,
@@ -693,45 +679,59 @@ async def submit_anchored_journal_entry(
     base_currency: str,
     trace_repository: TraceRecordRepository | None = None,
 ) -> JournalEntry:
-    """Submit the source-compatible v1 command."""
-    return await _submit_anchored_journal_entry(
-        db,
-        user_id=user_id,
-        command=command,
+    """Verify one decision and persist its journal fact exactly once.
+
+    The target identity, rather than caller-selected source metadata, is the
+    idempotency boundary. A changed decision for the same source must produce a
+    correction/void workflow, never a second competing journal fact.
+    """
+    repository = trace_repository or SqlTraceRecordRepository(db)
+    expected_target = journal_command_target(
+        entry_date=command.entry_date,
+        memo=command.memo,
+        lines_data=command.lines_data,
         base_currency=base_currency,
-        trace_repository=trace_repository,
+        source_identity=command.source_identity,
     )
+    await validate_decision_anchor(
+        repository,
+        user_id=user_id,
+        anchor=command.decision_anchor,
+        expected_target=expected_target,
+    )
+    existing = await _existing_for_target(db, user_id=user_id, target=expected_target)
+    if existing is not None:
+        if existing.decision_anchor_id == command.decision_anchor.decision_id:
+            return existing
+        raise DecisionAnchorError("a different decision already owns this immutable source target")
+
+    entry = await _create_anchored_journal_entry(
+        db,
+        user_id,
+        entry_date=command.entry_date,
+        memo=command.memo,
+        lines_data=command.lines_data,
+        source_type=command.source_type,
+        source_id=command.source_id,
+        base_currency=base_currency,
+        decision_anchor=command.decision_anchor,
+    )
+    if command.post_immediately:
+        return await post_journal_entry(db, entry, user_id, base_currency=base_currency)
+    return entry
 
 
-async def submit_anchored_journal_entry_v2(
+async def submit_anchored_journal_entries(
     db: AsyncSession,
     *,
     user_id: UUID,
-    command: AnchoredJournalCommandV2,
-    base_currency: str,
-    trace_repository: TraceRecordRepository | None = None,
-) -> JournalEntry:
-    """Submit a typed v2 command without changing the v1 public contract."""
-    return await _submit_anchored_journal_entry(
-        db,
-        user_id=user_id,
-        command=command,
-        base_currency=base_currency,
-        trace_repository=trace_repository,
-    )
-
-
-async def submit_anchored_journal_entries_v2(
-    db: AsyncSession,
-    *,
-    user_id: UUID,
-    commands: Sequence[AnchoredJournalCommandV2],
+    commands: Sequence[AnchoredJournalCommand],
     base_currency: str,
     trace_repository: TraceRecordRepository | None = None,
 ) -> list[JournalEntry]:
     """Verify many decisions and persist their journal facts exactly once each.
 
-    Each entry equals the one that ``submit_anchored_journal_entry_v2`` returns for the same command. The
+    Each entry equals the one that ``submit_anchored_journal_entry`` returns for the same command. The
     set costs one existence read, one insert pair and one update, whatever its size. The anchors, the
     owners of the targets and the ledger rules of every command are checked before the first entry is
     added to the session. One failed check therefore persists none of the commands. A failure at the
@@ -752,7 +752,7 @@ async def submit_anchored_journal_entries_v2(
     ]
     if len({target.id for target in targets}) != len(targets):
         return [
-            await submit_anchored_journal_entry_v2(
+            await submit_anchored_journal_entry(
                 db, user_id=user_id, command=command, base_currency=base_currency, trace_repository=repository
             )
             for command in commands
@@ -799,53 +799,3 @@ async def submit_anchored_journal_entries_v2(
     for entry, index in zip(created, fresh, strict=True):
         results[index] = entry
     return [results[index] for index in range(len(commands))]
-
-
-async def _submit_anchored_journal_entry(
-    db: AsyncSession,
-    *,
-    user_id: UUID,
-    command: AnchoredJournalCommand | AnchoredJournalCommandV2,
-    base_currency: str,
-    trace_repository: TraceRecordRepository | None = None,
-) -> JournalEntry:
-    """Verify one decision and persist its journal fact exactly once.
-
-    The target identity, rather than caller-selected source metadata, is the
-    idempotency boundary. A changed decision for the same source must produce a
-    correction/void workflow, never a second competing journal fact.
-    """
-    repository = trace_repository or SqlTraceRecordRepository(db)
-    expected_target = journal_command_target(
-        entry_date=command.entry_date,
-        memo=command.memo,
-        lines_data=command.lines_data,
-        base_currency=base_currency,
-        source_identity=command.source_identity,
-    )
-    await validate_decision_anchor(
-        repository,
-        user_id=user_id,
-        anchor=command.decision_anchor,
-        expected_target=expected_target,
-    )
-    existing = await _existing_for_target(db, user_id=user_id, target=expected_target)
-    if existing is not None:
-        if existing.decision_anchor_id == command.decision_anchor.decision_id:
-            return existing
-        raise DecisionAnchorError("a different decision already owns this immutable source target")
-
-    entry = await _create_anchored_journal_entry(
-        db,
-        user_id,
-        entry_date=command.entry_date,
-        memo=command.memo,
-        lines_data=command.lines_data,
-        source_type=command.source_type,
-        source_id=command.source_id,
-        base_currency=base_currency,
-        decision_anchor=command.decision_anchor,
-    )
-    if command.post_immediately:
-        return await post_journal_entry(db, entry, user_id, base_currency=base_currency)
-    return entry

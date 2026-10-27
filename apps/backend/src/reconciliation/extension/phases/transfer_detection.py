@@ -31,12 +31,9 @@ async def run_transfer_detection_phase(
     matched_txn_ids: set[UUID],
     repository: ReconciliationRepository,
     user_id: UUID,
-    currency: str | None = None,
 ) -> list[ReconciliationMatch]:
     """Materialize transfer fallback only after normal candidates are exhausted."""
     created_matches: list[ReconciliationMatch] = []
-    # Kept for call compatibility; AtomicTransaction.currency is authoritative.
-    del currency
     base_currency: str | None = None
     for txn in transactions:
         if txn.id in matched_txn_ids:

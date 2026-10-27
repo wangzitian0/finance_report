@@ -9,13 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.elements import ColumnElement
 
-from src.extraction import (
-    StatementEventSource,
-    find_uploaded_document_filename_by_hash,
-    get_statement_event_sources,
-    get_uploaded_document_filename,
-    get_uploaded_document_filenames,
-)
+from src.extraction import get_statement_event_sources, get_uploaded_document_filenames
 from src.reconciliation import count_pending_review_items
 from src.reporting import current_package_readiness
 from src.workflow.base.types import (
@@ -269,32 +263,6 @@ async def upsert_workflow_event(
     await db.flush()
     await refresh_workflow_session_summary(db, user_id=user_id, session_id=session_id)
     return event
-
-
-async def _statement_filename(db: AsyncSession, statement: StatementEventSource) -> str:
-    """Resolve the display filename for a statement summary via its ODS document."""
-    document_id = statement.uploaded_document_id
-    if document_id is not None:
-        filename = await get_uploaded_document_filename(db, document_id)
-        if filename:
-            return filename
-    filename = await find_uploaded_document_filename_by_hash(db, statement.user_id, statement.file_hash)
-    return filename or statement.file_hash
-
-
-async def derive_uploaded_statement_event(
-    db: AsyncSession,
-    statement: StatementEventSource,
-    *,
-    user_id: UUID,
-) -> WorkflowEvent:
-    """Upsert the initial uploaded-statement workflow event."""
-    if statement.user_id != user_id:
-        raise ValueError("statement.user_id must match user_id")
-
-    filename = await _statement_filename(db, statement)
-    payload = build_uploaded_statement_event_payload(statement, filename)
-    return await upsert_workflow_event(db, user_id=user_id, payload=payload)
 
 
 async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID) -> dict:

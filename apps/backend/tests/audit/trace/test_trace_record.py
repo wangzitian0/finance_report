@@ -69,7 +69,8 @@ def test_trace_record_jsonl_and_junit_adapters_use_the_canonical_codec(tmp_path:
 
     assert store.append(record) == record
     assert store.append(record) == record
-    assert store.read_all() == [record]
+    stored_lines = (tmp_path / "trace.jsonl").read_text(encoding="utf-8").splitlines()
+    assert [TraceRecordCodec.decode(line) for line in stored_lines] == [record]
 
     captured: dict[str, str] = {}
     TraceJUnitAdapter.emit(lambda name, value: captured.__setitem__(name, value), record)
