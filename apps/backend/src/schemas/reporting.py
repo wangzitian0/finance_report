@@ -577,13 +577,15 @@ class ReportCoverageResponse(BaseModel):
     as_of_date: date = Field(description="The date of the opening positions that the bound reads.")
     coverage_start: date | None = Field(
         default=None,
-        description="The latest opening position of a cash account on or before as_of_date. A period that "
-        "starts earlier has the cash-flow proof reason opening_coverage_starts_after_period. None when no "
-        "cash account has an opening position.",
+        description="The latest opening position, on or before as_of_date, of the accounts that the bound reads: "
+        "the cash accounts by name and a superset of the cash accounts of the report package. A period that "
+        "starts on this day has no cash-flow proof reason opening_coverage_starts_after_period; one that starts "
+        "earlier can have it. None when no such account has an opening position.",
     )
     limiting_accounts: list[str] = Field(
         default_factory=list,
-        description="The names of the cash accounts whose opening position is on coverage_start.",
+        description="The names of the accounts, of the set that the bound reads, whose opening position is on "
+        "coverage_start.",
     )
     latest_statement_end: date | None = Field(
         default=None,

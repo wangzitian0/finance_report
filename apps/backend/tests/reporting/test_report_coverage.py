@@ -23,17 +23,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.reporting.extension.package_document as package_document_mod
 import tests.integration.test_trusted_year_scenario as trusted_year_mod
+from src.audit import SqlTraceRecordRepository, TraceEmitter
 from src.config import settings
+from src.database import create_session_maker_from_db
 from src.extraction import (
     BankStatementStatus,
+    ExtractedTransactionFact,
+    ExtractionMethod,
+    ParseJob,
     RetireStatementCommand,
     RuleType,
+    SourceProvenance,
+    StatementBalanceFact,
+    StatementEvidenceType,
+    StatementExtractionResult,
     StatementSourceType,
     StatementSummary,
     coverage_bank_custody_account_ids,
+    extraction_trace_policy_registry,
+    persist_statement_extraction_result,
     retire_statement,
 )
 from src.extraction.extension import statement_posting as statement_posting_mod, transaction_classification
+from src.extraction.extension.extraction_trace import build_extraction_trace_records
+from src.extraction.extension.reviewed_statement_envelope import current_reviewed_statement_envelope
+from src.extraction.extension.statement_contribution import resolve_statement_contribution
 from src.extraction.extension.transaction_classification import CategoryProposal, TransactionCategory
 from src.extraction.orm.layer3 import ClassificationRule
 from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
@@ -41,8 +55,11 @@ from src.identity import User
 from src.ledger import Account, AccountType, initialize_opening_positions
 from src.reporting import current_package_readiness, generate_cash_flow, report_coverage
 from src.routers import reports as reports_router
-from tests.integration.test_trusted_year_scenario import _ingest_reviewed_bank_statement
-from tests.statement_ingestion import posting_dependencies
+from tests.integration.test_trusted_year_scenario import _bank_csv, _ingest_reviewed_bank_statement
+from tests.statement_ingestion import (
+    execute_statement_ingestion,
+    posting_dependencies,
+)
 
 AS_OF = date(2026, 10, 22)
 
@@ -243,6 +260,7 @@ async def test_AC_reporting_2646_2_custody_accounts_are_the_bank_statements_of_t
         "Brokerage",
         "Brokerage over bank",
         "Starts later",
+        "Starts on the date",
     )
     accounts = {name: await _account(db, user_id, name) for name in names}
     window = {"period_start": date(2026, 5, 1), "period_end": date(2026, 5, 28)}
@@ -268,6 +286,10 @@ async def test_AC_reporting_2646_2_custody_accounts_are_the_bank_statements_of_t
     await _statement_with_source(
         db, user_id, accounts["Starts later"], period_start=date(2026, 6, 13), period_end=date(2026, 7, 10)
     )
+    # A statement that starts on the date counts: the filter is "on or before", not "before".
+    await _statement_with_source(
+        db, user_id, accounts["Starts on the date"], period_start=as_of, period_end=date(2026, 7, 10)
+    )
     other = User(email="custody-other@example.com", hashed_password="hashed")
     db.add(other)
     await db.flush()
@@ -283,6 +305,7 @@ async def test_AC_reporting_2646_2_custody_accounts_are_the_bank_statements_of_t
         "Parsed",
         "Rejected",
         "Retired",
+        "Starts on the date",
     ]
 
 
@@ -305,7 +328,6 @@ def _keep_the_statement_parsed(monkeypatch: pytest.MonkeyPatch) -> None:
     [
         ("approved", BankStatementStatus.APPROVED),
         ("envelope confirmed, not approved", BankStatementStatus.PARSED),
-        ("auto-approval falls back to review", BankStatementStatus.PARSED),
         ("retired after approval", BankStatementStatus.RETIRED),
     ],
 )
@@ -322,22 +344,6 @@ async def test_AC_reporting_2646_2_the_custody_set_contains_the_package_cash_set
         _keep_the_statement_parsed(monkeypatch)
     bank = await _seed_first_bank_statement(db, user_id, monkeypatch)
     statement = (await db.execute(select(StatementSummary).where(StatementSummary.account_id == bank.id))).scalar_one()
-    if path == "auto-approval falls back to review":
-        # A high-confidence parse makes the statement an auto-approval candidate; a posting guard fails.
-        statement.status = BankStatementStatus.APPROVED
-        statement.confidence_score = 99
-        statement.balance_validated = True
-        await db.commit()
-
-        async def guard_fails(*_args, **_kwargs):
-            raise ValueError("Custody account must be a non-system asset account")
-
-        monkeypatch.setattr(statement_posting_mod, "approve_statement_with_transactions", guard_fails)
-        created = await statement_posting_mod.try_auto_approve_high_confidence_statement(
-            db, statement.id, user_id, dependencies=posting_dependencies()
-        )
-        assert created == 0
-        await db.commit()
     if path == "retired after approval":
         await retire_statement(db, RetireStatementCommand(statement_id=statement.id, user_id=user_id))
         await db.commit()
@@ -356,6 +362,168 @@ async def test_AC_reporting_2646_2_the_custody_set_contains_the_package_cash_set
     assert (coverage.start, coverage.limiting_account_names) == (date(2026, 6, 5), ("DBS",))
     readiness = await current_package_readiness(db, user_id=user_id, as_of_date=as_of)
     assert [blocker.code for blocker in readiness.blockers] == []
+
+
+async def _package_cash_and_custody(db: AsyncSession, user_id: UUID, as_of: date) -> tuple[frozenset, frozenset]:
+    contributions = await package_document_mod.PackageAssembler()._contributions(
+        db, user_id=user_id, start_date=as_of - timedelta(days=365), end_date=as_of, as_of_date=as_of
+    )
+    package_cash = package_document_mod._cash_inputs_from_contributions(contributions).account_ids
+    return package_cash, await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=as_of)
+
+
+async def test_AC_reporting_2646_2_a_reparse_that_clears_the_summary_period_keeps_the_statement(
+    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC-reporting.2646.2: a confirmed envelope, not approved, then a retry of the same source
+    (``POST /statements/{id}/retry``). The source has no period, so the re-parse writes no period
+    to the summary, but the result record and the envelope stay current and the package keeps the
+    statement. The custody query reads the envelope period, so the custody set still holds the
+    account and the readiness has no coverage blocker (the review probe of #2717)."""
+    user_id = test_user.id
+    _keep_the_statement_parsed(monkeypatch)
+    bank = await _seed_first_bank_statement(db, user_id, monkeypatch)
+    bank_id = bank.id  # expire_all below expires the fixture rows
+    statement = (await db.execute(select(StatementSummary).where(StatementSummary.account_id == bank_id))).scalar_one()
+    statement_id, file_hash, result_before = statement.id, statement.file_hash, statement.current_extraction_result_id
+    as_of = date(2026, 6, 30)
+
+    # POST /statements/{id}/retry: status parsing, commit, then the same parse job again.
+    statement.status = BankStatementStatus.PARSING
+    statement.validation_error = None
+    await db.commit()
+    await execute_statement_ingestion(
+        ParseJob(
+            statement_id=statement_id,
+            filename="trusted-year-v0.csv",
+            institution="DBS",
+            user_id=user_id,
+            account_id=bank_id,
+            file_hash=file_hash,
+            storage_key="trusted-year/v0.csv",
+            model=None,
+        ),
+        content=_bank_csv(),
+        session_maker=create_session_maker_from_db(db),
+    )
+    db.expire_all()
+    reparsed = await db.get(StatementSummary, statement_id)
+    assert reparsed is not None
+    envelope = await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement_id)
+    # The preconditions of the probe: same result, no summary period, a current envelope period.
+    assert (reparsed.current_extraction_result_id, reparsed.period_start) == (result_before, None)
+    assert envelope is not None
+    assert envelope.period_start == date(2026, 6, 5)
+
+    package_cash, custody = await _package_cash_and_custody(db, user_id, as_of)
+    assert bank_id in package_cash
+    assert package_cash <= custody
+    coverage = await report_coverage(db, user_id=user_id, as_of=as_of)
+    assert (coverage.start, coverage.limiting_account_names) == (date(2026, 6, 5), ("DBS",))
+    readiness = await current_package_readiness(db, user_id=user_id, as_of_date=as_of)
+    assert "opening_coverage_starts_after_period" not in [blocker.code for blocker in readiness.blockers]
+
+
+#: The guard message of the auto-approval fallback that the next test forces.
+_GUARD_MESSAGE = "Custody account must be a non-system asset account"
+
+
+async def test_AC_reporting_2646_2_an_auto_approval_that_falls_back_keeps_the_statement(
+    db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC-reporting.2646.2: a high-confidence source result with no envelope: the promotion decision
+    of the parse is authoritative. The auto-approval guard fails, so the statement goes back to parsed with
+    the guard message (not the lock-failure branch, which writes no message). The package keeps the
+    statement as cash, and the custody set contains the package cash set."""
+    user_id = test_user.id
+    bank = await _account(db, user_id, "DBS")
+    # A complete, balance-validated source result at 0.95 confidence: the parse decides
+    # "extraction_promoted" (authoritative) and the statement is an auto-approval candidate.
+    statement = StatementSummary(
+        user_id=user_id,
+        file_hash=sha256(b"coverage-auto-approval-fallback").hexdigest(),
+        institution="DBS",
+        account_id=bank.id,
+        currency="SGD",
+        period_start=date(2026, 6, 5),
+        period_end=date(2026, 6, 15),
+        opening_balance=Decimal("1000.00"),
+        closing_balance=Decimal("1100.00"),
+        status=BankStatementStatus.APPROVED,
+        confidence_score=99,
+        balance_validated=True,
+    )
+    db.add(statement)
+    await db.flush()
+    source_result = StatementExtractionResult.create(
+        producer_version="csv-parser@1",
+        source_content_digest="c" * 64,
+        source_type=StatementSourceType.BANK,
+        evidence_type=StatementEvidenceType.TRANSACTION_LEDGER,
+        institution="DBS",
+        account_last4="7174",
+        period_start=date(2026, 6, 5),
+        period_end=date(2026, 6, 15),
+        balances=(StatementBalanceFact(currency="SGD", opening=Decimal("1000.00"), closing=Decimal("1100.00")),),
+        transactions=(
+            ExtractedTransactionFact(
+                fact_id="row-1",
+                transaction_date=date(2026, 6, 10),
+                description="Salary credit",
+                amount=Decimal("100.00"),
+                direction="IN",
+                currency="SGD",
+                balance_after=Decimal("1100.00"),
+                confidence=Decimal("0.95"),
+            ),
+        ),
+        positions=(),
+        confidence=Decimal("0.95"),
+        balance_validated=True,
+        warnings=(),
+        review_reasons=(),
+        provenance=SourceProvenance(
+            intake_mode="csv", method=ExtractionMethod.DETERMINISTIC, provider="csv-parser", model="csv-parser@1"
+        ),
+        statement_currency="SGD",
+    )
+    trace_records = build_extraction_trace_records(
+        source_result,
+        user_id=user_id,
+        execution_id=f"test:{statement.id}:result:{source_result.result_id}",
+        occurred_at=datetime.now(UTC),
+    )
+    await TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry())).emit_many(trace_records)
+    await persist_statement_extraction_result(
+        db, statement=statement, result=source_result, source_trace_record_id=trace_records[0].record_id
+    )
+    await initialize_opening_positions(
+        db, user_id, entry_date=date(2026, 6, 5), balances={bank.id: Decimal("1000.00")}, currency="SGD"
+    )
+    await db.commit()
+
+    async def guard_fails(*_args, **_kwargs):
+        raise ValueError(_GUARD_MESSAGE)
+
+    monkeypatch.setattr(statement_posting_mod, "approve_statement_with_transactions", guard_fails)
+    created = await statement_posting_mod.try_auto_approve_high_confidence_statement(
+        db, statement.id, user_id, dependencies=posting_dependencies()
+    )
+    await db.commit()
+    await db.refresh(statement)
+    assert (created, statement.status, statement.validation_error) == (0, BankStatementStatus.PARSED, _GUARD_MESSAGE)
+    assert await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement.id) is None
+    contribution = await resolve_statement_contribution(db, user_id=user_id, statement_id=statement.id)
+    assert contribution.state == "authoritative", contribution.reason_code
+    assert contribution.decision is not None
+    assert contribution.decision.target.kind == "statement_extraction_result"
+
+    as_of = date(2026, 6, 30)
+    package_cash, custody = await _package_cash_and_custody(db, user_id, as_of)
+    assert bank.id in package_cash
+    assert package_cash <= custody
+    coverage = await report_coverage(db, user_id=user_id, as_of=as_of)
+    assert (coverage.start, coverage.limiting_account_names) == (date(2026, 6, 5), ("DBS",))
 
 
 async def test_AC_reporting_2646_2_two_cash_accounts_opened_on_the_bound_pass_the_check(
@@ -393,10 +561,10 @@ async def test_AC_reporting_2646_2_coverage_start_is_the_latest_cash_opening(
     db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """AC-reporting.2646.2: the bound is the latest opening position of a cash account. A card
-    statement that starts earlier, an unapproved bank statement, and the statements and openings of
-    another user do not move it. ``GET /reports/coverage`` serves the same date. The accounts here are
-    cash by name; ``..._custody_accounts_are_the_reviewed_bank_statements_of_the_user`` proves each
-    predicate of the custody path with controls that have a current source result."""
+    statement that starts earlier and the statements and openings of another user do not move it.
+    ``GET /reports/coverage`` serves the same date. The accounts here are cash by name;
+    ``..._custody_accounts_are_the_bank_statements_of_the_user_in_any_status`` proves each predicate
+    of the custody path with controls that have a current source result."""
     user_id = test_user.id
     periods = _record_readiness_periods(monkeypatch)
 
