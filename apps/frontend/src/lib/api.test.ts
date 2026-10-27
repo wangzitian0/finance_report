@@ -286,7 +286,7 @@ describe('apiOperationStream', () => {
     localStorageMock.getItem.mockReturnValue(null);
   });
 
-  it('delegates to requestStream with query, headers, and token', async () => {
+  it('streams with query, headers, and token', async () => {
     localStorageMock.getItem.mockReturnValue('mock-token');
     const mockHeaders = {
       get: (header: string) =>
@@ -359,7 +359,7 @@ describe('apiOperationDownload', () => {
     localStorageMock.getItem.mockReturnValue(null);
   });
 
-  it('delegates to requestDownload and parses various Content-Disposition headers', async () => {
+  it('downloads and parses various Content-Disposition headers', async () => {
     localStorageMock.getItem.mockReturnValue('mock-token');
     const csvBlob = new Blob(['col1,col2\nval1,val2\n'], { type: 'text/csv' });
     fetchMock.mockResolvedValue({
@@ -491,7 +491,7 @@ describe('apiOperationUpload', () => {
     localStorageMock.getItem.mockReturnValue(null);
   });
 
-  it('delegates to requestUpload with FormData body, token, and handles 204', async () => {
+  it('uploads a FormData body with token and handles 204', async () => {
     localStorageMock.getItem.mockReturnValue('mock-token');
     fetchMock.mockResolvedValueOnce({
       ok: true,
