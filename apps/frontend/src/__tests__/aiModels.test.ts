@@ -84,8 +84,7 @@ describe("fetchAiModels", () => {
 
         // default_model is the first catalogue entry's id.
         expect(result.default_model).toBe("google/gemini-flash");
-        // fallback_models are the remaining ids.
-        expect(result.fallback_models).toEqual(["anthropic/claude-3"]);
+        expect("fallback_models" in result).toBe(false);
         // Each model is mapped: name = id.
         expect(result.models).toEqual([
             {
@@ -107,7 +106,6 @@ describe("fetchAiModels", () => {
         const result = await fetchAiModels();
 
         expect(result.default_model).toBe("");
-        expect(result.fallback_models).toEqual([]);
         expect(result.models).toEqual([]);
     });
 });

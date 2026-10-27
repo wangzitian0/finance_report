@@ -4,9 +4,7 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 BACKEND_ROOT = ROOT_DIR / "apps" / "backend"
@@ -16,22 +14,10 @@ if str(ROOT_DIR) not in sys.path:
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(1, str(BACKEND_ROOT))
 
-from common.platform import api_response_vectors as _impl  # noqa: E402
-
-_impl_build_vector_files = _impl.build_vector_files
-
-
-def build_vector_files() -> dict[Path, dict[str, Any]]:
-    _impl.ROOT_DIR = getattr(sys.modules[__name__], "ROOT_DIR", ROOT_DIR)
-    return _impl_build_vector_files()
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    _this = sys.modules[__name__]
-    _impl.ROOT_DIR = getattr(_this, "ROOT_DIR", ROOT_DIR)
-    _impl.build_vector_files = getattr(_this, "build_vector_files")
-    return _impl.main(argv)
-
+from common.platform.api_response_vectors import (  # noqa: E402, F401
+    build_vector_files as build_vector_files,
+    main,
+)
 
 if __name__ == "__main__":
     raise SystemExit(main())

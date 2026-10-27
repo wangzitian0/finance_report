@@ -46,7 +46,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
     vi.mocked(fetchAiModels).mockReset();
     vi.mocked(fetchAiModels).mockResolvedValue({
       default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
       models: baseModels,
     });
     vi.mocked(apiOperationUpload).mockReset();
@@ -155,7 +154,6 @@ describe("AC3.5.3 StatementUploader model selection", () => {
   it("errors when default model is not in the filtered catalog", async () => {
     vi.mocked(fetchAiModels).mockResolvedValue({
       default_model: "google/gemini-3-flash-preview",
-      fallback_models: [],
       models: [baseModels[1]],
     });
 
