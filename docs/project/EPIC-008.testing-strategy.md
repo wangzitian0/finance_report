@@ -413,7 +413,7 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.143 removed, canonical: migrated to `AC-testing.coverage.5`.)
 > (AC8.13.144 removed, canonical: migrated to `AC-testing.deploy-gates.29`.)
 > (AC8.13.145 removed, canonical: migrated to `AC-testing.ci-structure.6`.)
-> (AC8.13.146 removed, canonical: migrated to `AC-testing.deploy-gates.30`.)
+> (AC8.13.146 removed with the `notify-infra2.yml` workflow, #2686.)
 > (AC8.13.147 removed, canonical: migrated to `AC-testing.ci-structure.7`.)
 > (AC8.13.148 removed, canonical: migrated to `AC-testing.ci-structure.8`.)
 > (AC8.13.149 removed, canonical: migrated to `AC-testing.ci-structure.9`.)

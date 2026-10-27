@@ -76,12 +76,15 @@ export function toTransactionViewModel(
     reference: ("reference" in raw ? raw.reference : null) ?? null,
     currency: ("currency" in raw ? raw.currency : null) ?? null,
     balance_after: overrides?.balance_after ?? rawBalanceAfter ?? null,
-    status: overrides?.status ?? "pending",
-    confidence: overrides?.confidence ?? derivedConfidence ?? "low",
+    // The wire has no transaction status. The statement table derives it from the statement
+    // state, so the view model does not invent one (#2647: an approved statement showed "pending").
+    status: overrides?.status,
+    // A row with no tier has no confidence: it is not rated, not low (#2647).
+    confidence: overrides?.confidence ?? derivedConfidence,
     confidence_tier:
       overrides?.confidence_tier ??
       (rawConfidence as "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | null | undefined) ??
-      "LOW",
+      null,
     confidence_score:
       overrides?.confidence_score ?? rawConfidenceScore ?? null,
     confidence_reason: overrides?.confidence_reason ?? null,

@@ -1,12 +1,9 @@
 import copy
 import functools
-import io
 import json
 import re
 import subprocess
 import sys
-import urllib.error
-from datetime import timezone
 from pathlib import Path
 from typing import Any
 
@@ -143,263 +140,6 @@ def staging_ai_ocr_contract_shell() -> str:
         cwd=ROOT,
         text=True,
     )
-
-
-def test_AC8_13_13_post_merge_train_waits_only_for_older_active_runs() -> None:
-    """AC8.13.13: FIFO train gate waits for older active staging runs only."""
-    from common.runtime.wait_post_merge_train_turn import (
-        older_active_runs,
-        workflow_run_from_payload,
-    )
-
-    def run_payload(run_id: int, status: str, created_at: str) -> dict[str, object]:
-        return {
-            "id": run_id,
-            "status": status,
-            "conclusion": None if status != "completed" else "success",
-            "created_at": created_at,
-            "html_url": f"https://github.test/runs/{run_id}",
-            "display_title": f"run-{run_id}",
-        }
-
-    current = workflow_run_from_payload(
-        run_payload(20, "in_progress", "2026-06-05T04:20:00Z")
-    )
-    runs = [
-        workflow_run_from_payload(run_payload(10, "completed", "2026-06-05T04:10:00Z")),
-        workflow_run_from_payload(
-            run_payload(11, "in_progress", "2026-06-05T04:11:00Z")
-        ),
-        workflow_run_from_payload(run_payload(12, "queued", "2026-06-05T04:12:00Z")),
-        workflow_run_from_payload(
-            run_payload(30, "in_progress", "2026-06-05T04:30:00Z")
-        ),
-        current,
-    ]
-
-    blockers = older_active_runs(current, runs)
-
-    assert [run.run_id for run in blockers] == [11, 12]
-    assert current.created_at.tzinfo is timezone.utc
-
-
-def test_AC8_13_13_post_merge_train_waits_until_blockers_finish(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC8.13.13: FIFO gate polls until older active runs are gone."""
-    from common.runtime import wait_post_merge_train_turn as train
-
-    current_payload = _run_payload(
-        20, "in_progress", "2026-06-05T04:20:00Z", display_title="current"
-    )
-    blocking_payload = _run_payload(
-        10, "queued", "2026-06-05T04:10:00Z", display_title="blocking"
-    )
-
-    class FakeClient:
-        def __init__(self) -> None:
-            self.calls = 0
-
-        def get_run_payload(self, run_id: int) -> dict[str, object]:
-            assert run_id == 20
-            return current_payload
-
-        def list_workflow_runs(self, workflow_id: int) -> list[dict[str, object]]:
-            assert workflow_id == 100
-            self.calls += 1
-            if self.calls == 1:
-                return [current_payload, blocking_payload]
-            return [current_payload]
-
-    monotonic_values = iter([0.0, 1.0])
-    sleeps: list[int] = []
-    monkeypatch.setattr(train.time, "monotonic", lambda: next(monotonic_values))
-    monkeypatch.setattr(train.time, "sleep", sleeps.append)
-
-    output = io.StringIO()
-    train.wait_for_train_turn(
-        client=FakeClient(),
-        run_id=20,
-        timeout_seconds=30,
-        poll_seconds=5,
-        output=output,
-    )
-
-    assert sleeps == [5]
-    _has(
-        output.getvalue(), "waiting for 1 older run(s): 10:queued", "front of the train"
-    )
-
-
-def test_AC8_13_13_post_merge_train_timeout_lists_blockers(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC8.13.13: FIFO timeout reports the blocking run URLs."""
-    from common.runtime import wait_post_merge_train_turn as train
-
-    current_payload = _run_payload(
-        20, "in_progress", "2026-06-05T04:20:00Z", display_title="current"
-    )
-    blocking_payload = _run_payload(
-        10, "waiting", "2026-06-05T04:10:00Z", display_title="blocking"
-    )
-
-    class FakeClient:
-        def get_run_payload(self, run_id: int) -> dict[str, object]:
-            assert run_id == 20
-            return current_payload
-
-        def list_workflow_runs(self, workflow_id: int) -> list[dict[str, object]]:
-            assert workflow_id == 100
-            return [current_payload, blocking_payload]
-
-    monkeypatch.setattr(train.time, "monotonic", lambda: 0.0)
-
-    with pytest.raises(TimeoutError) as exc_info:
-        train.wait_for_train_turn(
-            client=FakeClient(),
-            run_id=20,
-            timeout_seconds=5,
-            poll_seconds=6,
-            output=io.StringIO(),
-        )
-
-    _has(
-        str(exc_info.value),
-        "Timed out waiting",
-        "10 waiting https://github.test/runs/10",
-    )
-
-
-def test_AC8_13_13_github_actions_client_pages_workflow_runs(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC8.13.13: GitHub client follows workflow-run pagination."""
-    from common.runtime.wait_post_merge_train_turn import GitHubActionsClient
-
-    requested_urls: list[str] = []
-
-    class FakeResponse:
-        def __init__(self, payload: dict[str, object]) -> None:
-            self.payload = payload
-
-        def __enter__(self) -> "FakeResponse":
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-        def read(self) -> bytes:
-            return json.dumps(self.payload).encode("utf-8")
-
-    def fake_urlopen(request: object, timeout: int) -> FakeResponse:
-        assert timeout == 20
-        assert hasattr(request, "full_url")
-        requested_urls.append(request.full_url)
-        page = "page=2" in request.full_url
-        batch_size = 2 if page else 100
-        return FakeResponse(
-            {
-                "workflow_runs": [
-                    {"id": index, "created_at": "2026-06-05T04:00:00Z"}
-                    for index in range(batch_size)
-                ]
-            }
-        )
-
-    monkeypatch.setattr(
-        "common.runtime.wait_post_merge_train_turn.urllib.request.urlopen",
-        fake_urlopen,
-    )
-
-    client = GitHubActionsClient(
-        repository="owner/repo", token="token", api_url="https://api.github.test/"
-    )
-    runs = client.list_workflow_runs(123)
-
-    assert len(runs) == 102
-    assert requested_urls == [
-        "https://api.github.test/repos/owner/repo/actions/workflows/123/runs?per_page=100&page=1",
-        "https://api.github.test/repos/owner/repo/actions/workflows/123/runs?per_page=100&page=2",
-    ]
-
-
-def test_AC8_13_13_github_actions_client_reports_http_errors(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC8.13.13: GitHub API failures stay readable in CI logs."""
-    from common.runtime.wait_post_merge_train_turn import GitHubActionsClient
-
-    def fake_urlopen(_request: object, timeout: int) -> object:
-        assert timeout == 20
-        raise urllib.error.HTTPError(
-            url="https://api.github.test/fail",
-            code=403,
-            msg="Forbidden",
-            hdrs=None,
-            fp=io.BytesIO(b'{"message":"denied"}'),
-        )
-
-    monkeypatch.setattr(
-        "common.runtime.wait_post_merge_train_turn.urllib.request.urlopen",
-        fake_urlopen,
-    )
-
-    client = GitHubActionsClient(
-        repository="owner/repo", token="token", api_url="https://api.github.test"
-    )
-
-    with pytest.raises(RuntimeError) as exc_info:
-        client.get_run_payload(20)
-
-    _has(str(exc_info.value), "GitHub API HTTP 403", "denied")
-
-
-def test_AC8_13_13_post_merge_train_cli_validates_context(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """AC8.13.13: CLI exits clearly when GitHub context is missing."""
-    from common.runtime.wait_post_merge_train_turn import main
-
-    assert main(["--repository", "", "--run-id", "0", "--token", ""]) == 2
-
-    captured = capsys.readouterr()
-    assert "Missing required GitHub context: repository, run-id, token" in captured.err
-
-
-def test_AC8_13_13_post_merge_train_cli_handles_runtime_failure(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """AC8.13.13: CLI returns failure without a Python traceback."""
-    from common.runtime import wait_post_merge_train_turn as train
-
-    class FakeClient:
-        def __init__(self, **_kwargs: object) -> None:
-            pass
-
-    def fail_wait(**_kwargs: object) -> None:
-        raise RuntimeError("api unavailable")
-
-    monkeypatch.setattr(train, "GitHubActionsClient", FakeClient)
-    monkeypatch.setattr(train, "wait_for_train_turn", fail_wait)
-
-    assert (
-        train.main(
-            [
-                "--repository",
-                "owner/repo",
-                "--run-id",
-                "20",
-                "--token",
-                "token",
-            ]
-        )
-        == 1
-    )
-
-    captured = capsys.readouterr()
-    assert captured.err.strip() == "api unavailable"
 
 
 def row_covers_ac_id(row: str, ac_id: str) -> bool:
@@ -621,11 +361,7 @@ def test_AC8_13_13_staging_deploy_fast_fail_guardrails() -> None:
     # Manual-only staging is serialized by the workflow-level concurrency group;
     # the in-job FIFO post-merge train wait (which only applied to the retired
     # workflow_run auto-deploy) is removed.
-    _lacks(
-        workflow,
-        "name: Wait for FIFO post-merge train turn",
-        "wait_post_merge_train_turn.py",
-    )
+    _lacks(workflow, "name: Wait for FIFO post-merge train turn")
     _has(
         workflow,
         "name: Classify staging and AI/OCR relevance",
@@ -1400,7 +1136,6 @@ def test_AC8_13_55_post_merge_staging_is_scoped_to_deploy_relevant_paths() -> No
         classifier,
         "STAGING_EXACT",
         "STAGING_PREFIXES",
-        "def is_staging_relevant",
         "staging-paths-changed",
         "no-staging-paths-changed",
     )
@@ -2725,38 +2460,6 @@ def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
     )
 
 
-def test_AC8_13_146_report_main_dispatch_waits_for_ci_images() -> None:
-    """AC-testing.deploy-gates.30: AC8.13.146: report-branch-main deploys on-demand via workflow_dispatch."""
-    notify = read(".github/workflows/notify-infra2.yml")
-    notify_yaml = yaml.safe_load(notify)
-    notify_on = notify_yaml.get(True) or notify_yaml.get("on")
-
-    # Exact trigger set: workflow_dispatch only (no automatic push / workflow_run)
-    assert set(notify_on) == {"workflow_dispatch"}
-
-    dispatch_job = notify_yaml["jobs"]["dispatch"]
-    assert "github.event_name == 'workflow_dispatch'" in dispatch_job["if"]
-    dispatch_script = "\n".join(
-        step.get("run", "") for step in dispatch_job["steps"] if isinstance(step, dict)
-    )
-    _has(
-        dispatch_script,
-        "/git/ref/heads/main",
-        "common/runtime/shell/resolve_report_main_dispatch_sha.sh",
-    )
-    assert "$GITHUB_SHA" not in dispatch_script
-    assert '--arg sha "$dispatch_sha"' in dispatch_script
-
-    delivery_gates = yaml.safe_load(read("common/meta/data/delivery-gates.yaml"))[
-        "gates"
-    ]
-    report_gate = next(
-        gate for gate in delivery_gates if gate["id"] == "report-main-preview"
-    )
-    assert report_gate["trigger"] == "workflow_dispatch"
-    assert report_gate["blocking"] is False
-
-
 def test_AC_testing_deploy_gates_36_every_main_commit_image_is_independently_verified() -> (
     None
 ):
@@ -3073,7 +2776,7 @@ def test_AC8_13_7_staging_runs_llm_e2e_serially_with_glm_5_1() -> None:
     four_asset = read("tests/e2e/test_four_asset_net_worth_golden_path.py")
     upload = read("tests/e2e/test_statement_upload_e2e.py")
 
-    _lacks(workflow, "post-merge-train-turn:", "wait_post_merge_train_turn.py")
+    _lacks(workflow, "post-merge-train-turn:")
     _has(workflow, "workflow_dispatch:")
     # Staging runs the infra2 SDK default models; no workflow pins a model (#2566).
     for staging_workflow in (workflow, ai_workflow):

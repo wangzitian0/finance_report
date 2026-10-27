@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import * as money from "@/lib/audit/money";
 import { TransactionTable } from "@/components/review/TransactionTable";
-import type { BankStatementTransaction } from "@/lib/types";
+import { normalizeBankStatement, toTransactionViewModel, type BankStatementTransaction } from "@/lib/types";
+import type { Schemas } from "@/lib/api-schema";
 
 describe("TransactionTable (read-only)", () => {
     const originalMatchMedia = window.matchMedia;
@@ -205,6 +206,99 @@ describe("TransactionTable (read-only)", () => {
         expect(screen.getByText("unmatched")).toBeInTheDocument();
         expect(screen.getByText("pending")).toBeInTheDocument();
         expect(screen.queryByText("matched")).not.toBeInTheDocument();
+    });
+
+    // AC-extraction.fe-stage1-review.23
+    it("AC-extraction.fe-stage1-review.23 pins the low-confidence rows on top and keeps the other rows in date order", () => {
+        const row = (id: string, description: string, tier: BankStatementTransaction["confidence_tier"]): BankStatementTransaction => ({
+            ...sample[0],
+            id,
+            description,
+            confidence_tier: tier,
+        });
+        // The API order of the #2647 October statement (date order): the LOW row was the last row.
+        const rows = [
+            row("t-salary", "Salary", "HIGH"),
+            row("t-grab", "Grab ride", "MEDIUM"),
+            row("t-rent", "Rent", "TRUSTED"),
+            row("t-fee", "Card fee", "LOW"),
+            row("t-groceries", "Groceries", "HIGH"),
+            row("t-paynow", "PayNow Transfer REF 4471", "LOW"),
+        ];
+        render(<TransactionTable transactions={rows} currency="SGD" />);
+
+        // Only the LOW rows move. MEDIUM, HIGH and TRUSTED rows keep the API (date) order: no sort by tier.
+        const expected = ["Card fee", "PayNow Transfer REF 4471", "Salary", "Grab ride", "Rent", "Groceries"];
+        const region = screen.getByTestId("stage1-desktop-transaction-region");
+        const desktopRows = within(region).getAllByRole("row").slice(1);
+        expect(desktopRows.map((tr) => tr.querySelector("[title]")?.getAttribute("title"))).toEqual(expected);
+        // A pinned row states its position in date order; the other rows sit at that position.
+        expect(desktopRows.map((tr) => tr.querySelector("[data-testid='date-row-number']")?.textContent ?? null)).toEqual([
+            "Row 4 of 6 by date", "Row 6 of 6 by date", null, null, null, null,
+        ]);
+        expect(screen.getByText("6 total · by date")).toBeInTheDocument();
+        const mobileCards = within(screen.getByTestId("stage1-mobile-transaction-list")).getAllByRole("article");
+        expect(mobileCards.map((card) => card.getAttribute("data-testid")?.replace("stage1-mobile-transaction-card-", ""))).toEqual([
+            "t-fee", "t-paynow", "t-salary", "t-grab", "t-rent", "t-groceries",
+        ]);
+        expect(within(mobileCards[1]).getByTestId("date-row-number")).toHaveTextContent("Row 6 of 6 by date");
+        expect(within(mobileCards[2]).queryByTestId("date-row-number")).toBeNull();
+        expect(screen.getByTestId("low-confidence-count")).toHaveTextContent("2 low confidence · shown first");
+    });
+
+    // AC-extraction.fe-stage1-review.23
+    it("AC-extraction.fe-stage1-review.23 shows no low-confidence count when no row is low", () => {
+        render(<TransactionTable transactions={[{ ...sample[0], confidence_tier: "HIGH" }]} currency="SGD" />);
+        expect(screen.queryByTestId("low-confidence-count")).toBeNull();
+    });
+
+    // AC-extraction.fe-stage1-review.27
+    it("AC-extraction.fe-stage1-review.27 shows a row with no confidence tier as not rated, not pinned and not counted", () => {
+        // An atomic transaction with no tier, as the API can send it.
+        const unrated = toTransactionViewModel({
+            id: "t-unrated", statement_id: "s1", txn_date: "2026-10-03", description: "Unrated transfer", amount: "10.00",
+            direction: "OUT", reference: null, currency: "SGD", created_at: "", updated_at: "",
+        } as Schemas["AtomicTransactionResponse"]);
+        expect([unrated.confidence_tier, unrated.confidence]).toEqual([null, undefined]);
+        // The unrated row comes before a HIGH row: a sort that moves unrated rows after rated rows fails.
+        const rows: BankStatementTransaction[] = [
+            unrated as BankStatementTransaction,
+            { ...sample[0], id: "t-high", description: "Salary", confidence_tier: "HIGH" },
+            { ...sample[0], id: "t-low", description: "Card fee", confidence_tier: "LOW" },
+        ];
+        render(<TransactionTable transactions={rows} currency="SGD" />);
+
+        const region = screen.getByTestId("stage1-desktop-transaction-region");
+        const desktopRows = within(region).getAllByRole("row").slice(1);
+        expect(desktopRows.map((tr) => tr.querySelector("[title]")?.getAttribute("title"))).toEqual(["Card fee", "Unrated transfer", "Salary"]);
+        expect(within(desktopRows[1]).getByText("Not rated")).toHaveClass("badge-muted");
+        expect(within(desktopRows[1]).queryByText(/low/i)).toBeNull();
+        expect(within(desktopRows[1]).queryByTestId("date-row-number")).toBeNull();
+        expect(screen.getByTestId("low-confidence-count")).toHaveTextContent("1 low confidence · shown first");
+    });
+
+    // AC-extraction.fe-stage1-review.24
+    it("AC-extraction.fe-stage1-review.24 shows no pending chip on an approved statement read from the API", () => {
+        // The API sends no transaction status. Before #2647 the view model filled in "pending".
+        const wire = {
+            id: "s1", user_id: "u1", file_path: "statements/oct.csv", original_filename: "oct.csv", institution: "DBS",
+            status: "approved", account_id: "a1", currency: "SGD", period_start: "2026-10-01", period_end: "2026-10-31",
+            opening_balance: "100.00", closing_balance: "120.00", confidence_score: 80, balance_validated: true, validation_error: null,
+            created_at: "2026-10-31T00:00:00Z", updated_at: "2026-10-31T00:00:00Z",
+            transactions: [
+                { id: "w1", statement_id: "s1", txn_date: "2026-10-02", description: "Salary", amount: "20.00", direction: "IN", currency: "SGD", confidence_tier: "HIGH", created_at: "", updated_at: "" },
+                { id: "w2", statement_id: "s1", txn_date: "2026-10-14", description: "PayNow Transfer REF 4471", amount: "250.00", direction: "OUT", currency: "SGD", confidence_tier: "LOW", created_at: "", updated_at: "" },
+            ],
+        } as unknown as Schemas["BankStatementResponse"];
+        const statement = normalizeBankStatement(wire);
+
+        const { rerender } = render(<TransactionTable transactions={statement.transactions} currency="SGD" statementStatus="approved" />);
+        expect(screen.queryByText("pending")).toBeNull();
+        expect(screen.getAllByText("matched")).toHaveLength(2);
+
+        // The same rows of a parsed statement still wait for review.
+        rerender(<TransactionTable transactions={statement.transactions} currency="SGD" statementStatus="parsed" />);
+        expect(screen.getAllByText("pending")).toHaveLength(2);
     });
 
     // AC-extraction.fe-stage1-review.21

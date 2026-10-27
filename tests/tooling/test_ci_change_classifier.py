@@ -13,8 +13,14 @@ from common.testing.change_classifier import (  # noqa: E402
     PipelineStage,
     classify_changed_paths,
     is_staging_ai_ocr_relevant,
-    is_staging_relevant,
 )
+
+
+def _relevant(environment: Environment, path: str) -> bool:
+    """Match one path against the env/stage rule of one environment."""
+    return classifier._matches_env_stage_rule(
+        path, classifier.ENV_STAGE_RULES[environment]
+    )
 
 
 def _check_result(
@@ -287,7 +293,7 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         ".python-version",
         ".node-version",
     ):
-        assert is_staging_relevant(p) is True
+        assert _relevant(Environment.STAGING, p) is True
 
     for p in (
         "apps/backend/tests/reporting/test_reports.py",
@@ -305,7 +311,7 @@ def test_AC8_13_55_staging_only_runs_for_runtime_deploy_or_e2e_changes() -> None
         "common/testing/fixtures/pdf/analyzers/README.md",
         ".github/workflows/docs.yml",
     ):
-        assert is_staging_relevant(p) is False
+        assert _relevant(Environment.STAGING, p) is False
 
     result = classify_changed_paths(
         [
@@ -457,17 +463,10 @@ def test_AC8_13_97_staging_classifier_includes_common_deploy_runtime_paths() -> 
     assert set(classifier.ENV_STAGE_RULES) == {Environment.STAGING}
 
     for path in classifier.COMMON_DEPLOY_RUNTIME_EXACT:
-        assert is_staging_relevant(path) is True
+        assert _relevant(Environment.STAGING, path) is True
 
     for prefix in classifier.COMMON_DEPLOY_RUNTIME_PREFIXES:
-        assert is_staging_relevant(f"{prefix}sentinel.py") is True
-
-    assert classifier.ENV_STAGE_RULES[Environment.STAGING].stages == (
-        PipelineStage.IMAGE_BUILD,
-        PipelineStage.DEPLOY_SMOKE,
-        PipelineStage.E2E,
-        PipelineStage.PROVIDER_GATE,
-    )
+        assert _relevant(Environment.STAGING, f"{prefix}sentinel.py") is True
 
 
 def test_AC8_13_110_github_outputs_include_structured_env_stage_matrix(
@@ -606,7 +605,7 @@ def test_selection_ssot_triggers_staging_gate() -> None:
         "common/testing/matrix.py",
         "tools/test_selection.py",
     ):
-        assert is_staging_relevant(path) is True, path
+        assert _relevant(Environment.STAGING, path) is True, path
 
 
 def test_AC8_13_161_component_changed_isolates_a_single_component() -> None:

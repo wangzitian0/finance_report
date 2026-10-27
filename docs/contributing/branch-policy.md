@@ -19,7 +19,6 @@
    - Every actionable review thread is resolved — human reviewer, Copilot, or `/code-review` alike. An actionable finding requests a concrete code, documentation, test, or process change; questions and informational comments do not count.
    - The protected-file checklist below holds for every protected file the PR touches. No owner quote is needed.
    - Merging does not reach **production**, and triggers no other irreversible side effect. Scope this by environment, not by "any deploy":
-     - The automatic `report-branch-main` **preview** redeploy never blocks agent merge. `.github/workflows/notify-infra2.yml` dispatches it after every green `main` CI run.
      - A **staging** deploy (`.github/workflows/deploy.yml`, manual `workflow_dispatch`) is the agent's to trigger.
      - **Production** is gated. It deploys only through the separate, manual `.github/workflows/release.yml` (`workflow_dispatch` on a pinned `version_ref` release tag).
      - Dispatching `release.yml` with `dry_run=false` needs the owner's approval and presence for that `version_ref`. Any other action that promotes a head SHA to production needs the same approval.

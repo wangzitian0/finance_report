@@ -74,7 +74,7 @@ def test_build_unified_lcov_rewrites_component_source_paths(tmp_path):
 
 
 def test_build_unified_lcov_can_emit_line_only_coveralls_report(tmp_path):
-    """AC8.13.66: Unified Coveralls LCOV omits branch counters."""
+    """AC-testing.coverage.3: AC8.13.66: Unified Coveralls LCOV omits branch counters."""
     backend = _component("backend", "apps/backend", "src", "coverage/backend.lcov")
 
     coverage_dir = tmp_path / "coverage"
