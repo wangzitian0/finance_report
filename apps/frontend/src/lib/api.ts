@@ -1,4 +1,3 @@
-import { getAccessToken } from "./auth";
 import { API_OPERATIONS, type ApiOperationId } from "./api-operations";
 import type { components, operations } from "./api-types";
 
@@ -234,19 +233,15 @@ async function send(
   { body, json }: { body?: BodyInit; json: boolean },
 ): Promise<Response> {
   const parts = (request ?? {}) as OperationParts;
-  const token = getAccessToken();
-  const headers: HeadersInit = {
-    // A FormData body sets its own Content-Type, with the boundary.
-    ...(json ? { "Content-Type": "application/json" } : {}),
-    ...(parts.headers || {}),
-  };
-  if (token) (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-
   const res = await fetch(operationUrl(operationId, parts), {
     method: API_OPERATIONS[operationId].method,
     body,
     credentials: "include",
-    headers,
+    headers: {
+      // A FormData body sets its own Content-Type, with the boundary.
+      ...(json ? { "Content-Type": "application/json" } : {}),
+      ...(parts.headers || {}),
+    },
     signal: parts.signal,
   });
 

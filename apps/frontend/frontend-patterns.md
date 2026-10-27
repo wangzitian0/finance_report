@@ -231,7 +231,7 @@ All API calls must go through the typed operation functions of `lib/api.ts`: `ap
 
 **Rules:**
 - **NO Direct `fetch()`**: Never use the native `fetch()` API for internal `/api/*` calls.
-- **Authorization**: Browser auth uses the backend-managed **HttpOnly access-token cookie**, sent automatically because the utility calls `fetch` with `credentials: "include"`. The utility still adds a `Bearer <token>` header when `getAccessToken()` returns one (e.g. SSR/non-browser callers that hold a token), but in the browser the token is not persisted to local storage.
+- **Authorization**: Browser auth uses the backend-managed **HttpOnly access-token cookie**, sent automatically because `send()` calls `fetch` with `credentials: "include"`. The frontend never reads, stores or sends a bearer token.
 - **Structured errors (#1005)**: On a non-2xx the utility throws an `ApiError`
   carrying `status`, `errorId`, and `requestId` parsed from the backend's
   `{error_id, detail, request_id}` body. Branch on the machine-readable code
@@ -314,16 +314,14 @@ app routes
 - **Route pages stay thin (<300 lines).** Pages should compose feature modules and express
   page-level intent. They should not own raw endpoint construction, complex inline
   review forms, or repeated loading/error/empty/retry markup (`test_fe_no_godfile.py`).
-- **The retired client functions `apiFetch`, `apiStream`, `apiDelete` and `apiUpload` have no
-  call site (locked at 0).** `common/testing/fe_fetch_ratchet.py` enforces a strict
-  shrink-only baseline of 0 call sites under `components/` and `app/`. Production calls use
-  `apiOperation*` or domain hooks.
+- **Production calls use `apiOperation*` or domain hooks.** `lib/api.ts` holds the only
+  raw `fetch(` call (`contractTypes.test.ts`, AC25.3.2), and the type check rejects a call of a
+  retired client function.
 
 ### Automated Layer Boundary Enforcement
 
 Layer rules are enforced by CI gates:
 - `tests/tooling/test_fe_layer_boundaries.py`: guards down-only imports (`lib` never imports `components/` or `app/`, `api.ts` never imports React/UI, `hooks/` never imports `app/`, `components/ui/` never imports `@/hooks/`).
-- `tests/tooling/test_fe_fetch_ratchet.py`: guards the 0-callsite baseline for raw client methods in components.
 - `tests/tooling/test_fe_wire_type_ssot.py`: guards that wire types resolve to generated `Schemas["..."]` aliases.
 - `tests/tooling/test_fe_no_godfile.py`: guards that workflow and route page files remain under 300 lines.
 - `tests/tooling/test_fe_helper_ssot.py`: guards single-homed helper definitions.
@@ -443,14 +441,12 @@ redirect.
 Browser credentials live in the backend-managed **HttpOnly cookie**
 (`finance_access_token`); frontend storage keeps only **non-secret** user metadata
 (`finance_user_id`, `finance_user_email`) and must **not** persist bearer tokens.
-`getAccessToken()` is legacy/SSR compatibility only.
 
 ### Redirect-on-401 (`lib/api.ts`)
 
 Every `apiOperation*` call sends same-origin credentials (`credentials: "include"`) so the HttpOnly
 cookie rides along; on a `401` in the browser it redirects to `/login`. Direct API
-clients (curl, tests) may still pass `Authorization: Bearer <token>` for
-compatibility.
+clients (curl, tests) may still pass `Authorization: Bearer <token>` to the backend.
 
 ### Browser security headers
 

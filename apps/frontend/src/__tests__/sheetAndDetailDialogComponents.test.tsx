@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest"
 import Sheet from "@/components/ui/Sheet"
 import DetailDialog from "@/components/ui/DetailDialog"
 
-vi.mock("@/hooks/useFocusTrap", () => ({ useFocusTrap: vi.fn() }))
 
 describe("Sheet component", () => {
   it("renders nothing when isOpen=false", () => {

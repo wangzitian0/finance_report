@@ -22,7 +22,7 @@ import type {
   PersonalReportPackageTraceabilityLineSummary,
   PersonalReportPackageTraceabilitySummary,
 } from "@/lib/types";
-import { countLabel, humanizeIdentifier, sourceClassLabel } from "@/lib/statusLabels";
+import { countLabel, humanizeIdentifier } from "@/lib/statusLabels";
 
 export const FRAMEWORK_LABELS: Record<string, string> = {
   personal_us_gaap_like: "US-like",
@@ -60,14 +60,6 @@ export function packageTocLinks(contract: PersonalReportPackageContractResponse,
 
 export function formatScheduleCurrency(value: MoneyValue, currency: string): string {
   return formatCurrencyLocale(value, currency, "en-US", { maximumFractionDigits: 0 }).replace(/\u00a0/g, " ");
-}
-
-export function renderCsv(values?: string[]): string {
-  return values && values.length ? values.join(", ") : "none";
-}
-
-export function renderSourceClasses(values?: string[]): string {
-  return values && values.length ? values.map(sourceClassLabel).join(", ") : "none";
 }
 
 export function renderAnchorDetail(primary: string, detailCount: number) {

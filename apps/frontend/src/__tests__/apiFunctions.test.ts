@@ -1,17 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-// localStorage mock (must be set before importing api module)
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: (key: string) => store[key] ?? null,
-    setItem: (key: string, value: string) => { store[key] = value; },
-    removeItem: (key: string) => { delete store[key]; },
-    clear: () => { store = {}; },
-  };
-})();
-vi.stubGlobal('localStorage', localStorageMock);
-
 function makeFetchMock(status: number, body: unknown, headers: Record<string, string> = {}) {
   return vi.fn().mockResolvedValue({
     ok: status >= 200 && status < 300,
@@ -26,14 +14,11 @@ function makeFetchMock(status: number, body: unknown, headers: Record<string, st
 
 describe('apiOperation', () => {
   beforeEach(() => {
-    localStorageMock.clear();
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   // AC-meta.fe-http-client.1
@@ -110,19 +95,6 @@ describe('apiOperation', () => {
     expect(calledUrl).toMatch(/\/api\/app-config\/base-currency/);
   });
 
-  // AC-meta.fe-http-client.14
-  it('AC16.10.14 includes Authorization header when token present', async () => {
-    localStorageMock.setItem('finance_access_token', 'test-jwt-token');
-    const fetchMock = makeFetchMock(200, {});
-    vi.stubGlobal('fetch', fetchMock);
-
-    const { apiOperation } = await import('../lib/api');
-    await apiOperation('get_me_auth_me_get');
-
-    const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
-    expect(calledHeaders['Authorization']).toBe('Bearer test-jwt-token');
-  });
-
   // AC-identity.fe-auth2.1
   it('AC1.10.3 sends HttpOnly auth cookies by default', async () => {
     const fetchMock = makeFetchMock(200, {});
@@ -170,14 +142,11 @@ describe('apiOperation', () => {
 
 describe('resetRedirectGuard', () => {
   beforeEach(() => {
-    localStorageMock.clear();
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   // AC-meta.fe-http-client.6
@@ -189,14 +158,11 @@ describe('resetRedirectGuard', () => {
 
 describe('apiDelete', () => {
   beforeEach(() => {
-    localStorageMock.clear();
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   // AC-meta.fe-http-client.7
@@ -244,34 +210,16 @@ describe('apiDelete', () => {
     ).rejects.toThrow('Authentication required');
     expect(window.location.href).toBe('/login');
   });
-
-  it('test_AC8_13_48 includes Authorization header when deleting with a token', async () => {
-    localStorageMock.setItem('finance_access_token', 'delete-token');
-    const fetchMock = makeFetchMock(200, '');
-    vi.stubGlobal('fetch', fetchMock);
-
-    const { apiOperation } = await import('../lib/api');
-    await apiOperation('delete_account_accounts__account_id__delete', {
-      path: { account_id: '1' },
-    });
-
-    const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
-    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/accounts\/1/);
-    expect(calledHeaders['Authorization']).toBe('Bearer delete-token');
-  });
 });
 
 
 describe('apiOperationStream', () => {
   beforeEach(() => {
-    localStorageMock.clear();
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   // AC-meta.fe-http-client.9
@@ -307,22 +255,6 @@ describe('apiOperationStream', () => {
     ).rejects.toThrow('Service Unavailable');
   });
 
-  it('test_AC8_13_48 includes Authorization header on streams', async () => {
-    localStorageMock.setItem('finance_access_token', 'stream-token');
-    const fetchMock = makeFetchMock(200, {}, { 'X-Session-Id': 'sess-auth' });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const { apiOperationStream } = await import('../lib/api');
-    const result = await apiOperationStream('chat_message_chat_post', {
-      body: { message: 'hello' } as any,
-    });
-
-    const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
-    expect(result.sessionId).toBe('sess-auth');
-    expect(fetchMock.mock.calls[0][0]).toMatch(/\/api\/chat/);
-    expect(calledHeaders['Authorization']).toBe('Bearer stream-token');
-  });
-
   it('test_AC8_13_48 handles non-object and invalid JSON stream errors', async () => {
     const { apiOperationStream } = await import('../lib/api');
 
@@ -348,14 +280,11 @@ describe('apiOperationStream', () => {
 
 describe('apiOperationUpload', () => {
   beforeEach(() => {
-    localStorageMock.clear();
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   // AC-meta.fe-http-client.11
@@ -388,22 +317,6 @@ describe('apiOperationUpload', () => {
       body: fd,
     });
     expect(result).toBeUndefined();
-  });
-
-  // AC-meta.fe-http-client.16
-  it('AC16.10.16 includes Authorization header when token present', async () => {
-    localStorageMock.setItem('finance_access_token', 'upload-token');
-    const fetchMock = makeFetchMock(200, {});
-    vi.stubGlobal('fetch', fetchMock);
-
-    const { apiOperationUpload } = await import('../lib/api');
-    const fd = new FormData();
-    await apiOperationUpload('upload_statement_statements_upload_post', {
-      body: fd,
-    });
-
-    const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
-    expect(calledHeaders['Authorization']).toBe('Bearer upload-token');
   });
 
   // AC-meta.fe-http-client.17
@@ -471,14 +384,11 @@ describe('apiOperationUpload', () => {
 
 describe('user settings & session bootstrap client (EPIC-022 AC22.15 / #1010)', () => {
   beforeEach(() => {
-    localStorageMock.clear();
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   // AC-meta.fe-ia-nav.19
@@ -547,19 +457,15 @@ describe('user settings & session bootstrap client (EPIC-022 AC22.15 / #1010)', 
 
 describe('apiOperationDownload', () => {
   beforeEach(() => {
-    localStorageMock.clear();
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   // AC-meta.fe-http-client.21
   it('AC5.17.1 downloads authenticated CSV blobs and preserves the server filename', async () => {
-    localStorageMock.setItem('finance_access_token', 'download-token');
     const csvBlob = new Blob(['section,account,amount\nAssets,Cash,100.00\n'], { type: 'text/csv' });
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -580,8 +486,7 @@ describe('apiOperationDownload', () => {
       query: { report_type: 'cash-flow' } as any,
     });
 
-    const calledHeaders = fetchMock.mock.calls[0][1].headers as Record<string, string>;
-    expect(calledHeaders.Authorization).toBe('Bearer download-token');
+    expect(fetchMock.mock.calls[0][1]).toEqual(expect.objectContaining({ credentials: 'include' }));
     expect(result.blob).toBe(csvBlob);
     expect(result.filename).toBe('cash-flow-2026-01-01-to-2026-01-31.csv');
   });
@@ -659,14 +564,11 @@ describe('apiOperationDownload', () => {
 
 describe('base currency app-config api (EPIC-012 AC12.39)', () => {
   beforeEach(() => {
-    localStorageMock.clear();
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    vi.stubGlobal('localStorage', localStorageMock);
   });
 
   it('AC12.39 get_base_currency_app_config_base_currency_get GETs the effective base currency', async () => {

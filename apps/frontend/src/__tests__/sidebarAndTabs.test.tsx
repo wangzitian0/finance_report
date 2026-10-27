@@ -216,11 +216,11 @@ describe("Sidebar and WorkspaceTabs", () => {
   });
 
   // AC-meta.fe-app-shell.14
-  it("AC16.19.13 WorkspaceTabs labels /assets tab as Portfolio from ROUTE_CONFIG", async () => {
-    pathnameMock = "/assets"
+  it("AC16.19.13 WorkspaceTabs labels /portfolio tab as Portfolio from ROUTE_CONFIG", async () => {
+    pathnameMock = "/portfolio"
     render(<WorkspaceTabs />)
     await waitFor(() =>
-      expect(addTabMock).toHaveBeenCalledWith(expect.objectContaining({ label: "Portfolio", href: "/assets" }))
+      expect(addTabMock).toHaveBeenCalledWith(expect.objectContaining({ label: "Portfolio", href: "/portfolio" }))
     )
   })
 

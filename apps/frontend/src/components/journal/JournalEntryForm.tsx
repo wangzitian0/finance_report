@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
-import { useFocusTrap } from "@/hooks/useFocusTrap";
+import DetailDialog from "@/components/ui/DetailDialog";
 import { apiOperation } from "@/lib/api-client";
 import { formatAmount, isAmountZero, parseAmount, sumAmounts } from "@/lib/audit/money";
 import { Account } from "@/lib/types";
@@ -66,9 +66,6 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [postImmediately, setPostImmediately] = useState(false);
-  const dialogRef = useRef<HTMLDivElement>(null);
-
-  useFocusTrap(dialogRef, isOpen);
 
   const {
     register,
@@ -155,141 +152,134 @@ export default function JournalEntryForm({ isOpen, onClose, onSuccess }: Journal
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4">
-      <div className="fixed inset-0 bg-black/60" onClick={onClose} />
-      <div ref={dialogRef} className="relative z-10 w-full max-w-2xl card animate-slide-up my-8">
-        <div className="card-header">
-          <h2 className="text-lg font-semibold">New Journal Entry</h2>
-          <p className="text-sm text-muted">Create a balanced double-entry transaction</p>
+    <DetailDialog isOpen onClose={onClose} title="New Journal Entry" maxWidth="max-w-2xl">
+      <p className="mb-4 text-sm text-muted">Create a balanced double-entry transaction</p>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Date *</label>
+            <input type="date" {...register("entry_date")} className="input" />
+            {errors.entry_date && <p className="text-sm text-[var(--error)] mt-1">{errors.entry_date.message}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Memo *</label>
+            <input type="text" {...register("memo")} placeholder="Description" className="input" />
+            {errors.memo && <p className="text-sm text-[var(--error)] mt-1">{errors.memo.message}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1.5">Attestation *</label>
+            <input type="text" {...register("rationale")} placeholder="Why this entry is correct" className="input" />
+            {errors.rationale && <p className="text-sm text-[var(--error)] mt-1">{errors.rationale.message}</p>}
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Date *</label>
-              <input type="date" {...register("entry_date")} className="input" />
-              {errors.entry_date && <p className="text-sm text-[var(--error)] mt-1">{errors.entry_date.message}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Memo *</label>
-              <input type="text" {...register("memo")} placeholder="Description" className="input" />
-              {errors.memo && <p className="text-sm text-[var(--error)] mt-1">{errors.memo.message}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Attestation *</label>
-              <input type="text" {...register("rationale")} placeholder="Why this entry is correct" className="input" />
-              {errors.rationale && <p className="text-sm text-[var(--error)] mt-1">{errors.rationale.message}</p>}
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-medium">Journal Lines</label>
-              <button
-                type="button"
-                onClick={() => append({ account_id: "", direction: "DEBIT", amount: "", currency: "SGD" })}
-                className="text-sm text-[var(--accent)] hover:underline"
-              >
-                + Add Line
-              </button>
-            </div>
-            <div className="space-y-2">
-              {fields.map((field, index) => (
-                <div key={field.id} className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_96px_112px_88px_112px_auto] md:items-center">
-                  <select {...register(`lines.${index}.account_id`)} className="input flex-1 text-sm" aria-label={`Line ${index + 1} account`}>
-                    <option value="">Select Account</option>
-                    {accounts.map((acc) => (
-                      <option key={acc.id} value={acc.id}>{acc.code ? `${acc.code} - ` : ""}{acc.name}</option>
-                    ))}
-                  </select>
-                  <select
-                    {...register(`lines.${index}.direction`)}
-                    className={`input w-24 text-sm ${lines[index]?.direction === "DEBIT" ? "text-[var(--info)]" : "text-[var(--success)]"}`}
-                    aria-label={`Line ${index + 1} direction`}
-                  >
-                    <option value="DEBIT">Debit</option>
-                    <option value="CREDIT">Credit</option>
-                  </select>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    {...register(`lines.${index}.amount`)}
-                    placeholder="0.00"
-                    className="input text-sm text-right"
-                    aria-label={`Line ${index + 1} amount`}
-                  />
-                  <input
-                    type="text"
-                    maxLength={3}
-                    {...register(`lines.${index}.currency`)}
-                    placeholder="SGD"
-                    className="input text-sm uppercase"
-                    aria-label={`Line ${index + 1} currency`}
-                  />
-                  <input
-                    type="number"
-                    step="0.000001"
-                    min="0"
-                    {...register(`lines.${index}.fx_rate`)}
-                    placeholder="FX rate"
-                    disabled={(lines[index]?.currency || BASE_CURRENCY).trim().toUpperCase() === BASE_CURRENCY}
-                    className="input text-sm text-right disabled:opacity-40"
-                    aria-label={`Line ${index + 1} FX rate`}
-                  />
-                  {fields.length > 2 && (
-                    <button
-                      type="button"
-                      onClick={() => remove(index)}
-                      className="btn-ghost p-2 text-muted hover:text-[var(--error)]"
-                      aria-label={`Remove line ${index + 1}`}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-            {errors.lines && "message" in errors.lines && <p className="text-sm text-[var(--error)] mt-1">{errors.lines.message}</p>}
-          </div>
-
-          <div
-            className={`p-3 rounded-md flex items-center justify-between ${
-              isBalanced ? "bg-[var(--success-muted)] border border-[var(--success)]/30" : "bg-[var(--error-muted)] border border-[var(--error)]/30"
-            }`}
-          >
-            <div className="flex gap-6 text-sm">
-              <div><span className="text-muted">Debits:</span> <span className="font-medium">{formatAmount(totalDebits, 2)}</span></div>
-              <div><span className="text-muted">Credits:</span> <span className="font-medium">{formatAmount(totalCredits, 2)}</span></div>
-            </div>
-            <span className={`text-sm font-medium ${isBalanced ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
-              {isBalanced && !hasMissingFxRate ? "✓ Balanced in SGD" : "⚠ Unbalanced or missing FX"}
-            </span>
-          </div>
-
-          {error && <div className="alert-error">{error}</div>}
-
-          <div className="flex items-center gap-2 py-2">
-            <input
-              type="checkbox"
-              id="postImmediately"
-              checked={postImmediately}
-              onChange={(e) => setPostImmediately(e.target.checked)}
-              className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
-            />
-            <label htmlFor="postImmediately" className="text-sm cursor-pointer select-none">Post transaction immediately</label>
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
-            <button type="submit" disabled={isSubmitting || !isBalanced || hasMissingFxRate} className="btn-primary flex-1">
-              {isSubmitting ? "Processing..." : postImmediately ? "Create & Post" : "Create Draft"}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm font-medium">Journal Lines</label>
+            <button
+              type="button"
+              onClick={() => append({ account_id: "", direction: "DEBIT", amount: "", currency: "SGD" })}
+              className="text-sm text-[var(--accent)] hover:underline"
+            >
+              + Add Line
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+          <div className="space-y-2">
+            {fields.map((field, index) => (
+              <div key={field.id} className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_96px_112px_88px_112px_auto] md:items-center">
+                <select {...register(`lines.${index}.account_id`)} className="input flex-1 text-sm" aria-label={`Line ${index + 1} account`}>
+                  <option value="">Select Account</option>
+                  {accounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>{acc.code ? `${acc.code} - ` : ""}{acc.name}</option>
+                  ))}
+                </select>
+                <select
+                  {...register(`lines.${index}.direction`)}
+                  className={`input w-24 text-sm ${lines[index]?.direction === "DEBIT" ? "text-[var(--info)]" : "text-[var(--success)]"}`}
+                  aria-label={`Line ${index + 1} direction`}
+                >
+                  <option value="DEBIT">Debit</option>
+                  <option value="CREDIT">Credit</option>
+                </select>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  {...register(`lines.${index}.amount`)}
+                  placeholder="0.00"
+                  className="input text-sm text-right"
+                  aria-label={`Line ${index + 1} amount`}
+                />
+                <input
+                  type="text"
+                  maxLength={3}
+                  {...register(`lines.${index}.currency`)}
+                  placeholder="SGD"
+                  className="input text-sm uppercase"
+                  aria-label={`Line ${index + 1} currency`}
+                />
+                <input
+                  type="number"
+                  step="0.000001"
+                  min="0"
+                  {...register(`lines.${index}.fx_rate`)}
+                  placeholder="FX rate"
+                  disabled={(lines[index]?.currency || BASE_CURRENCY).trim().toUpperCase() === BASE_CURRENCY}
+                  className="input text-sm text-right disabled:opacity-40"
+                  aria-label={`Line ${index + 1} FX rate`}
+                />
+                {fields.length > 2 && (
+                  <button
+                    type="button"
+                    onClick={() => remove(index)}
+                    className="btn-ghost p-2 text-muted hover:text-[var(--error)]"
+                    aria-label={`Remove line ${index + 1}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          {errors.lines && "message" in errors.lines && <p className="text-sm text-[var(--error)] mt-1">{errors.lines.message}</p>}
+        </div>
+
+        <div
+          className={`p-3 rounded-md flex items-center justify-between ${
+            isBalanced ? "bg-[var(--success-muted)] border border-[var(--success)]/30" : "bg-[var(--error-muted)] border border-[var(--error)]/30"
+          }`}
+        >
+          <div className="flex gap-6 text-sm">
+            <div><span className="text-muted">Debits:</span> <span className="font-medium">{formatAmount(totalDebits, 2)}</span></div>
+            <div><span className="text-muted">Credits:</span> <span className="font-medium">{formatAmount(totalCredits, 2)}</span></div>
+          </div>
+          <span className={`text-sm font-medium ${isBalanced ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
+            {isBalanced && !hasMissingFxRate ? "✓ Balanced in SGD" : "⚠ Unbalanced or missing FX"}
+          </span>
+        </div>
+
+        {error && <div className="alert-error">{error}</div>}
+
+        <div className="flex items-center gap-2 py-2">
+          <input
+            type="checkbox"
+            id="postImmediately"
+            checked={postImmediately}
+            onChange={(e) => setPostImmediately(e.target.checked)}
+            className="rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
+          />
+          <label htmlFor="postImmediately" className="text-sm cursor-pointer select-none">Post transaction immediately</label>
+        </div>
+
+        <div className="flex gap-3 pt-2">
+          <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+          <button type="submit" disabled={isSubmitting || !isBalanced || hasMissingFxRate} className="btn-primary flex-1">
+            {isSubmitting ? "Processing..." : postImmediately ? "Create & Post" : "Create Draft"}
+          </button>
+        </div>
+      </form>
+    </DetailDialog>
   );
 }

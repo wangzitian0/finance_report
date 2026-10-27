@@ -63,7 +63,7 @@ describe("LoginPage", () => {
       )
     })
     expect(mockedSetUser).toHaveBeenCalledTimes(1)
-    expect(mockedSetUser).toHaveBeenCalledWith("u1", "user@example.com", "token-1")
+    expect(mockedSetUser).toHaveBeenCalledWith("u1", "user@example.com")
     expect(pushMock).toHaveBeenCalledTimes(1)
     expect(pushMock).toHaveBeenCalledWith("/")
   })

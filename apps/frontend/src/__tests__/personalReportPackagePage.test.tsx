@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PersonalReportPackageSections } from "@/lib/types";
 import ReportsPage from "@/app/(main)/reports/page";
-import { PackageSectionCards, renderCsv, renderSourceClasses } from "@/components/reports/package/shared";
+import { PackageSectionCards } from "@/components/reports/package/shared";
 import { personalReportPackageQuery } from "@/hooks/usePersonalReportPackage";
 import { readReportFilters } from "@/hooks/useReportFilters";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
@@ -794,11 +794,6 @@ describe("PersonalReportPackagePage", () => {
     expect(await screen.findByText(/77777777-7777-4777-8777-777777777777 journal_command/)).toBeInTheDocument();
     expect(evidenceRequests("/api/reports/package/line-details?")).toEqual([]);
     expect(evidenceRequests("/api/reports/package/manifest-entries?")).toEqual([]);
-  });
-
-  it("renders absent disclosure list values explicitly", () => {
-    expect(renderCsv()).toBe("none");
-    expect(renderSourceClasses([])).toBe("none");
   });
 
   it("AC22.18.3 tracks REPORT_GENERATED with the framework id after a successful snapshot", async () => {

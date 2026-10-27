@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
     getUserId,
     getUserEmail,
-    getAccessToken,
     setUser,
     clearUser,
     isAuthenticated,
@@ -50,17 +49,6 @@ describe("auth utilities", () => {
         });
     });
 
-    describe("getAccessToken", () => {
-        it("returns null when no token is stored", () => {
-            expect(getAccessToken()).toBeNull();
-        });
-
-        it("returns legacy stored token from localStorage for API-client compatibility", () => {
-            localStorage.setItem("finance_access_token", "eyJhbGci...");
-            expect(getAccessToken()).toBe("eyJhbGci...");
-        });
-    });
-
     describe("setUser", () => {
         // AC-identity.fe-auth.3
         it("AC16.5.3 stores userId and email", () => {
@@ -68,32 +56,15 @@ describe("auth utilities", () => {
             expect(localStorage.getItem("finance_user_id")).toBe("user-456");
             expect(localStorage.getItem("finance_user_email")).toBe("alice@example.com");
         });
-
-        it("AC16.5.3 does not persist bearer token when provided by login response", () => {
-            setUser("user-456", "alice@example.com", "token-abc");
-            expect(localStorage.getItem("finance_access_token")).toBeNull();
-        });
-
-        it("AC16.5.3 does not set token when not provided", () => {
-            setUser("user-456", "alice@example.com");
-            expect(localStorage.getItem("finance_access_token")).toBeNull();
-        });
-
-        it("AC16.5.3 clears stale bearer token when token is not provided", () => {
-            localStorage.setItem("finance_access_token", "stale-token");
-            setUser("user-456", "alice@example.com");
-            expect(localStorage.getItem("finance_access_token")).toBeNull();
-        });
     });
 
     describe("clearUser", () => {
         // AC-identity.fe-auth.4
         it("AC16.5.4 removes all auth keys from localStorage", () => {
-            setUser("user-789", "bob@example.com", "my-token");
+            setUser("user-789", "bob@example.com");
             clearUser();
             expect(localStorage.getItem("finance_user_id")).toBeNull();
             expect(localStorage.getItem("finance_user_email")).toBeNull();
-            expect(localStorage.getItem("finance_access_token")).toBeNull();
         });
     });
 
@@ -104,9 +75,8 @@ describe("auth utilities", () => {
 
         // AC-identity.fe-auth.5
         it("AC16.5.5 returns true when non-secret user session metadata exists", () => {
-            setUser("user-456", "alice@example.com", "valid-token");
+            setUser("user-456", "alice@example.com");
             expect(isAuthenticated()).toBe(true);
-            expect(localStorage.getItem("finance_access_token")).toBeNull();
         });
     });
 });

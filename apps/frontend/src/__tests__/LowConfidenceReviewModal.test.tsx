@@ -273,10 +273,10 @@ describe("LowConfidenceReviewModal", () => {
       />
     );
 
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
 
-    const closeButton = screen.getByRole("button", { name: "Close" });
+    const closeButton = screen.getByRole("button", { name: "Close modal" });
     fireEvent.click(closeButton);
     expect(onClose).toHaveBeenCalledTimes(2);
 
@@ -287,8 +287,22 @@ describe("LowConfidenceReviewModal", () => {
         transaction={mockTransaction}
       />
     );
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores Escape and the close button while a save is in flight", async () => {
+    mockApiOperation.mockImplementationOnce(() => new Promise(() => {}));
+    const onClose = vi.fn();
+    render(<LowConfidenceReviewModal isOpen onClose={onClose} transaction={mockTransaction} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Dining" }));
+    fireEvent.click(screen.getByRole("button", { name: /Save Correction/i }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Saving/i })).toBeDisabled());
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("does not render mutable amount or direction inputs and filters category chips by direction", () => {

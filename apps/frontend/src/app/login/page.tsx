@@ -33,7 +33,7 @@ export default function LoginPage() {
               body: { email, password },
             });
 
-      setUser(data.id, data.email, data.access_token);
+      setUser(data.id, data.email);
       // EPIC-022 AC22.18.3 (#1109): instrument the signup funnel step. Only
       // the register success path is a new-user signup; plain login is not.
       if (mode === "register") {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useRef } from "react";
-import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { useFocusTrap } from "@/components/ui/hooks";
 
 describe("useFocusTrap", () => {
     it("returns early when container is not present", () => {

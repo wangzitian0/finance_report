@@ -12,6 +12,7 @@ import {
   isActive,
   moreItems,
 } from "@/components/navigation";
+import routeMapJson from "@/lib/route-map.json";
 
 const ACCOUNTING_JARGON_HREFS = [
   "/journal",
@@ -90,8 +91,7 @@ describe("navigation metadata", () => {
     expect(getRouteConfig("/audit").label).toBe("Audit");
     expect(getRouteConfig("/more").label).toBe("More");
     expect(getRouteConfig("/settings").label).toBe("Settings");
-    expect(getRouteConfig("/settings/ai").label).toBe("AI Settings");
-    expect(getRouteConfig("/settings/llm").label).toBe("LLM Models");
+    expect(getRouteConfig("/portfolio/AAPL").label).toBe("Portfolio");
     expect(getRouteConfig("/").label).toBe("Home");
     expect(getRouteConfig("/upload").label).toBe("Upload");
     expect(getRouteConfig("/custom-report_page").label).toBe("Custom Report Page");
@@ -99,11 +99,14 @@ describe("navigation metadata", () => {
   });
 
   // AC-meta.fe-ia-nav.20
-  it("AC22.18.1 keeps retired upload-chain aliases out of ROUTE_CONFIG so no stale label leaks", () => {
-    for (const retired of ["/events", "/notifications", "/processing", "/accounts/processing"]) {
+  it("AC22.18.1 keeps every redirect route of the route map out of ROUTE_CONFIG so no stale label leaks", () => {
+    const redirects = routeMapJson.routes.filter((r) => r.state === "redirect").map((r) => r.path);
+    expect(redirects).toContain("/events");
+    expect(redirects).toContain("/assets");
+    for (const retired of redirects) {
       expect(ROUTE_CONFIG[retired], `${retired} must not have a ROUTE_CONFIG entry`).toBeUndefined();
-      expect(getRouteConfig(retired).Icon, `${retired} must fall back to the default icon`).toBe(DEFAULT_ROUTE_ICON);
     }
+    expect(getRouteConfig("/events").Icon).toBe(DEFAULT_ROUTE_ICON);
     expect(getRouteConfig("/events").label).toBe("Events");
   });
 
@@ -132,6 +135,5 @@ describe("navigation metadata", () => {
     expect(APP_ROUTES.AUDIT).toBe("/audit");
     expect(APP_ROUTES.CHAT).toBe("/chat");
     expect(APP_ROUTES.RECONCILIATION_REVIEW_QUEUE).toBe("/reconciliation?tab=review-queue");
-    expect(APP_ROUTES.REPORTS).toBe("/reports");
   });
 });

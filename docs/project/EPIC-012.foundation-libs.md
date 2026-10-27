@@ -358,7 +358,7 @@ consolidated here. The removed inventory is retained in
 | Library | File | Status |
 |---------|------|--------|
 | API Client | `lib/api.ts` | ✅ Unified fetch wrapper |
-| Auth | `lib/auth.ts` | ✅ Token management |
+| Auth | `lib/auth.ts` | ✅ Session metadata (user id, email) |
 | Currency | `lib/currency.ts` | ✅ Decimal.js |
 | Workspace | `hooks/useWorkspace.tsx` | ✅ Tab/sidebar state |
 

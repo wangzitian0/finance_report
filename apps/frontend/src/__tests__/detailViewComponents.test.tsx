@@ -11,7 +11,6 @@ import type { Account, JournalEntry, JournalLine, JournalEntryResponse, JournalE
 import { accountsListVector } from "./fixtures/apiVectors"
 
 vi.mock("@/lib/api-client", () => ({ apiOperation: vi.fn() }))
-vi.mock("@/hooks/useFocusTrap", () => ({ useFocusTrap: vi.fn() }))
 
 function createWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
