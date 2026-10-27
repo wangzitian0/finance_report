@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -287,7 +288,10 @@ def already_commented(repo: str, issue: str, run_url: str) -> bool:
         )
     except (subprocess.CalledProcessError, OSError):
         return False
-    return run_url != "unknown" and run_url in listing.stdout
+    # The URL must end the number: runs/9 must not match a comment for runs/90.
+    return run_url != "unknown" and bool(
+        re.search(re.escape(run_url) + r"(?!\d)", listing.stdout)
+    )
 
 
 def check_budget(
