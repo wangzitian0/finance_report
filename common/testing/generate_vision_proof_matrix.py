@@ -1,47 +1,30 @@
-#!/usr/bin/env python3
-"""Mechanically generate the vision -> AC -> test proof matrix.
+"""Build the vision -> AC -> test proof matrix.
 
-This is the single, generated, drift-gated artifact that maps the irreducible
-``vision.md`` nodes (axioms, the Decision Filter, Directional Commitments, and
-Non-Goals — every node carried by an ``<a id="...">`` anchor) to the EPICs that
-declare ``Vision Anchor: <id>``, then down to those EPICs' Acceptance Criteria
-and the tests that reference them.
+The matrix maps the irreducible ``vision.md`` nodes (axioms, the Decision
+Filter, Directional Commitments, and Non-Goals; every node carried by an
+``<a id="...">`` anchor) to the EPICs that declare ``Vision Anchor: <id>``, then
+down to those EPICs' Acceptance Criteria and the tests that reference them.
 
-The chain is fully derivable, so the matrix is never hand-maintained:
+The chain is derived, never hand-maintained:
 
     vision.md (<a id="..."> anchor)
         <- EPIC docs ("Vision Anchor: <id>")
             -> AC registries (docs/ac_registry.yaml + docs/infra_registry.yaml)
                 -> test references (ACx.y.z found in the AC test directories)
 
-The matrix is a derived view. CI checks that it builds and that dangling vision
-items fail through ``tools/check_ac_index.py``; no matrix file or MkDocs page is
-committed-materialized.
-
-Usage::
-
-    python tools/generate_vision_proof_matrix.py --check
-    python tools/generate_vision_proof_matrix.py --yaml-output /tmp/vision-proof-matrix.yaml
-    python tools/generate_vision_proof_matrix.py --md-output /tmp/vision-proof-matrix.md
+The matrix is a derived view. ``common/testing/ac_graph.py`` calls
+``build_matrix``, and ``tools/check_ac_index.py`` fails on a dangling vision
+item. Nothing renders or commits the matrix.
 """
 
 from __future__ import annotations
 
-import argparse
 import functools
 import os
 import re
-import sys
 from collections import defaultdict
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
-
-try:
-    import yaml
-except ImportError:  # pragma: no cover - import guard
-    print("ERROR: PyYAML not installed. Run: pip install pyyaml", file=sys.stderr)
-    sys.exit(1)
 
 from common.meta.extension.ac_registry_format import load_registry_entries, sort_key
 from common.testing.ac_scan import collect_real_refs
@@ -52,8 +35,6 @@ VISION_PATH = REPO_ROOT / "vision.md"
 EPIC_DIR = REPO_ROOT / "docs" / "project"
 FEATURE_REGISTRY = REPO_ROOT / "docs" / "ac_registry.yaml"
 INFRA_REGISTRY = REPO_ROOT / "docs" / "infra_registry.yaml"
-
-VERSION = "1.0"
 
 # vision.md anchors are declared as <a id="..."></a>.
 _ANCHOR_RE = re.compile(r'<a\s+id="([^"]+)"\s*>')
@@ -220,10 +201,10 @@ def _epic_num(epic_id: str) -> int:
 def _package_vision_acs(repo_root: Path) -> dict[str, dict[str, str]]:
     """Return package ACs that directly declare a ``vision.md`` anchor.
 
-    Package discovery is rooted in the checkout being rendered, matching the
+    Package discovery is rooted in the checkout being scanned, matching the
     EPIC and registry scans. The projection remains pure; this caller owns the
     filesystem discovery and enriches each indexed AC with its package and
-    statement for the rendered matrix.
+    statement for the matrix.
     """
     from common.meta.data.projection import ac_vision_index
     from common.meta.extension.check_package_contract import discover_packages
@@ -250,7 +231,7 @@ def build_matrix(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
 
     Building scans vision.md, every EPIC doc, both AC registries, and the AC
     test directories under ``repo_root``, so it is memoized per ``repo_root``:
-    repeated calls (the CLI plus several tests) reuse one scan within a process.
+    repeated calls (the AC graph plus several tests) reuse one scan within a process.
     Threading ``repo_root`` through keeps the whole matrix sourced from ONE
     consistent checkout, so callers like ``ac_graph.build_ac_graph(repo_root=...)``
     (temp worktrees, tests) never mix this checkout's vision.md with another
@@ -314,212 +295,13 @@ def build_matrix(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
                     "tests": test_refs.get(ac_id, []),
                 }
             )
-        proven = sum(1 for ac in node_acs if ac["tests"])
         nodes.append(
             {
                 "anchor": anchor,
                 "label": anchors[anchor],
                 "owner_epics": owner_epics,
-                "ac_count": len(node_acs),
-                "ac_with_test_count": proven,
                 "acs": node_acs,
             }
         )
 
-    total_acs = sum(node["ac_count"] for node in nodes)
-    total_proven = sum(node["ac_with_test_count"] for node in nodes)
-    return {
-        "version": VERSION,
-        "description": (
-            "Generated vision -> AC -> test proof matrix. Maps every vision.md "
-            "anchor to the EPICs that declare it, their Acceptance Criteria, and "
-            "the tests that reference each AC. Generated by "
-            "tools/generate_vision_proof_matrix.py; do not edit by hand."
-        ),
-        "summary": {
-            "vision_nodes": len(nodes),
-            "vision_nodes_with_owner_epic": sum(
-                1 for node in nodes if node["owner_epics"]
-            ),
-            "total_acs": total_acs,
-            "acs_with_real_test": total_proven,
-        },
-        "vision_nodes": nodes,
-    }
-
-
-class _IndentedDumper(yaml.SafeDumper):
-    def increase_indent(self, flow=False, indentless=False):  # noqa: ANN001
-        return super().increase_indent(flow, False)
-
-
-def render_yaml(matrix: dict[str, Any]) -> str:
-    """Render the matrix as deterministic, parseable YAML with a header."""
-    body = yaml.dump(
-        matrix,
-        Dumper=_IndentedDumper,
-        sort_keys=False,
-        allow_unicode=False,
-        width=100,
-    )
-    return (
-        "# DO NOT edit this file manually - it is generated.\n"
-        "# Regenerate: python tools/generate_vision_proof_matrix.py\n"
-        f"{body}"
-    )
-
-
-def render_markdown(matrix: dict[str, Any]) -> str:
-    """Render the navigable MkDocs page for the matrix."""
-    summary = matrix["summary"]
-    lines = [
-        "# Generated Vision-to-Proof Matrix",
-        "",
-        "> Generated by `python tools/generate_vision_proof_matrix.py`. Do not edit by hand.",
-        "> Parseable YAML is generated on demand with "
-        "`python tools/generate_vision_proof_matrix.py --yaml-output <path>`.",
-        "",
-        "This matrix is the single generated map from the irreducible `vision.md` "
-        "nodes (anchors) to the EPICs that declare them, their Acceptance Criteria, "
-        "and the tests that reference each AC. The chain "
-        "`vision anchor -> EPIC -> AC -> test` is derived, never hand-maintained, "
-        "and CI fails on drift.",
-        "",
-        "## Summary",
-        "",
-        "| Metric | Count |",
-        "|---|---:|",
-        f"| Vision nodes (anchors) | {summary['vision_nodes']} |",
-        f"| Vision nodes with an owning EPIC | {summary['vision_nodes_with_owner_epic']} |",
-        f"| Acceptance Criteria mapped | {summary['total_acs']} |",
-        f"| ACs with a real test reference | {summary['acs_with_real_test']} |",
-        "",
-        "## Vision nodes",
-        "",
-        "| Vision anchor | Node | Owner EPICs | ACs | ACs with test |",
-        "|---|---|---|---:|---:|",
-    ]
-    for node in matrix["vision_nodes"]:
-        owners = ", ".join(node["owner_epics"]) or "_none_"
-        lines.append(
-            f"| `{node['anchor']}` | {_md_escape(node['label'])} | {owners} | "
-            f"{node['ac_count']} | {node['ac_with_test_count']} |"
-        )
-    lines.append("")
-
-    for node in matrix["vision_nodes"]:
-        lines.append(f"### `{node['anchor']}`")
-        lines.append("")
-        lines.append(f"- **Node**: {_md_escape(node['label'])}")
-        lines.append(f"- **Owner EPICs**: {', '.join(node['owner_epics']) or '_none_'}")
-        lines.append(
-            f"- **ACs**: {node['ac_count']} ({node['ac_with_test_count']} with a real test reference)"
-        )
-        lines.append("")
-        if not node["acs"]:
-            lines.append("_No Acceptance Criteria are anchored to this node yet._")
-            lines.append("")
-            continue
-        lines.append("| AC | EPIC | Description | Tests |")
-        lines.append("|---|---|---|---|")
-        for ac in node["acs"]:
-            tests = (
-                "<br>".join(f"`{path}`" for path in ac["tests"])
-                if ac["tests"]
-                else "_none_"
-            )
-            lines.append(
-                f"| {ac['id']} | {ac['epic']} | {_md_escape(ac['description'])} | {tests} |"
-            )
-        lines.append("")
-
-    # This page reproduces AC descriptions verbatim, so it can incidentally
-    # echo rule keywords (thresholds, the Decimal rule, the transaction
-    # boundary). Those rules are owned elsewhere; point at the canonical SSOT
-    # owners so the rule-keyword cross-reference gate stays satisfied and
-    # readers reach the source of truth, not this generated mirror.
-    lines.extend(
-        [
-            "## Rule ownership",
-            "",
-            "AC descriptions above are mirrored from the EPIC docs and may echo "
-            "rule keywords. The rules themselves are owned by their SSOT files:",
-            "",
-            "- See: common/reconciliation/readme.md#thresholds",
-            "- See: common/ledger/readme.md#decimal-rule",
-            "- See: common/ledger/readme.md#async-tx-boundary",
-            "- See: common/ledger/readme.md#entry-balance",
-            "- See: common/meta/schema.md#enum-naming",
-            "",
-        ]
-    )
-
-    return "\n".join(lines).rstrip() + "\n"
-
-
-def _md_escape(text: str) -> str:
-    return text.replace("|", "\\|").replace("\n", " ").strip()
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--yaml-output",
-        type=Path,
-        default=None,
-        help="Write the parseable YAML matrix to a file (default: stdout, never committed).",
-    )
-    parser.add_argument(
-        "--md-output",
-        type=Path,
-        default=None,
-        help="Write the MkDocs page to a file (default: not written).",
-    )
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help=(
-            "Build the matrix and exit 0 if it builds. The vision matrix is a "
-            "derived (not committed) view of the AC graph; dangling vision items "
-            "are gated by tools/check_ac_index.py, not by a byte-compare."
-        ),
-    )
-    args = parser.parse_args(argv)
-
-    matrix = build_matrix()
-    yaml_text = render_yaml(matrix)
-    md_text = render_markdown(matrix)
-
-    if args.check:
-        print(
-            "OK: vision-proof matrix builds from vision.md anchors + AC registries "
-            f"({matrix['summary']['vision_nodes']} vision nodes, "
-            f"{matrix['summary']['total_acs']} ACs). The matrix is a derived view "
-            "and is not committed; dangling vision items are gated by "
-            "tools/check_ac_index.py."
-        )
-        return 0
-
-    wrote_file = False
-    if args.yaml_output is not None:
-        args.yaml_output.parent.mkdir(parents=True, exist_ok=True)
-        args.yaml_output.write_text(yaml_text, encoding="utf-8")
-        wrote_file = True
-    if args.md_output is not None:
-        args.md_output.parent.mkdir(parents=True, exist_ok=True)
-        args.md_output.write_text(md_text, encoding="utf-8")
-        wrote_file = True
-
-    if wrote_file:
-        print(
-            "Wrote vision-proof matrix view(s) "
-            f"({matrix['summary']['vision_nodes']} vision nodes, "
-            f"{matrix['summary']['total_acs']} ACs)."
-        )
-    else:
-        sys.stdout.write(yaml_text)
-    return 0
-
-
-if __name__ == "__main__":  # pragma: no cover
-    raise SystemExit(main())
+    return {"vision_nodes": nodes}
