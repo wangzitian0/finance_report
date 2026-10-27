@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import subprocess
+
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -97,18 +99,71 @@ def test_no_step_of_the_install_action_is_skipped_by_a_cache_hit() -> None:
     assert "cache-hit" not in (ROOT / ACTION).read_text(encoding="utf-8")
 
 
-def test_the_install_keeps_the_original_error_when_the_retries_run_out() -> None:
-    """AC-testing.toolchain.11: the last attempt's output is printed after the final error."""
+def _run_install_step(
+    tmp_path: Path, *, fail_first: int
+) -> tuple[subprocess.CompletedProcess[str], int]:
+    """Run the real install step under GitHub's shell flags with a fake playwright.
+
+    The fake fails with exit code 7 on its first `fail_first` calls. A `sleep` shim keeps
+    the backoff out of the test. Returns the process and the number of playwright calls.
+    """
     install = next(
         step["run"]
         for step in _yaml(ACTION)["runs"]["steps"]
         if "$PLAYWRIGHT_BROWSER" in step.get("run", "") and " install " in step["run"]
     )
+    counter = tmp_path / "calls"
+    counter.write_text("0", encoding="utf-8")
+    fake = tmp_path / "fake-playwright"
+    fake.write_text(
+        "#!/bin/sh\n"
+        f"n=$(($(cat {counter}) + 1)); echo $n > {counter}\n"
+        'echo "browser download attempt $n: network down"\n'
+        f'[ "$n" -le {fail_first} ] && exit 7\n'
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    (tmp_path / "sleep").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (tmp_path / "sleep").chmod(0o755)
+    completed = subprocess.run(
+        # GitHub runs `shell: bash` steps as `bash --noprofile --norc -eo pipefail {0}`.
+        ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", install],
+        env={
+            "PATH": f"{tmp_path}:/usr/bin:/bin",
+            "PLAYWRIGHT_COMMAND": str(fake),
+            "PLAYWRIGHT_BROWSER": "chromium",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return completed, int(counter.read_text(encoding="utf-8"))
 
-    assert '2>&1 | tee "$log"' in install
-    assert 'rc="${PIPESTATUS[0]}"' in install
-    assert install.index("::error::") < install.index('cat "$log"')
-    assert install.rstrip().endswith('exit "$rc"')
+
+def test_the_install_retries_a_failed_download_under_githubs_shell(tmp_path) -> None:
+    """AC-testing.toolchain.11: a download that fails once is retried and the step passes.
+
+    Under `bash -eo pipefail` a pipeline that is not guarded by `set +e` ends the step on
+    the first failure, so a source-text check of the loop cannot see the defect.
+    """
+    completed, calls = _run_install_step(tmp_path, fail_first=1)
+
+    assert (completed.returncode, calls) == (0, 2)
+    assert "retrying in 10s" in completed.stdout
+
+
+def test_the_install_keeps_the_original_error_when_the_retries_run_out(
+    tmp_path,
+) -> None:
+    """AC-testing.toolchain.11: three failed attempts exit with the tool's code and its last error."""
+    completed, calls = _run_install_step(tmp_path, fail_first=99)
+
+    assert (completed.returncode, calls) == (7, 3)
+    error_at = completed.stdout.index("::error::playwright install chromium failed")
+    assert "(rc=7). Original error:" in completed.stdout
+    # The last attempt's output is printed again after the final error line.
+    assert "browser download attempt 3: network down" in completed.stdout[error_at:]
 
 
 def test_the_install_adds_one_browser_and_no_apt_packages() -> None:

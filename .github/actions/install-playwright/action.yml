@@ -68,8 +68,12 @@ runs:
         rc=1
         for n in $(seq 1 "$attempts"); do
           echo "::group::playwright install ${PLAYWRIGHT_BROWSER} (attempt ${n}/${attempts})"
+          # GitHub runs `bash -eo pipefail`: without set +e the first failed download
+          # would end the step and the retries below would never run.
+          set +e
           "${playwright[@]}" install "$PLAYWRIGHT_BROWSER" 2>&1 | tee "$log"
           rc="${PIPESTATUS[0]}"
+          set -e
           echo "::endgroup::"
           if [ "$rc" -eq 0 ]; then
             exit 0
