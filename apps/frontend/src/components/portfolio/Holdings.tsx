@@ -8,7 +8,7 @@ import { formatDateDisplay } from "@/lib/date";
 import { formatSignedPercentFromPercentValue } from "@/lib/audit/ratio/format";
 import { pnlColorClass } from "@/lib/statusLabels";
 import { portfolioHoldingHref } from "@/components/navigation";
-import { ProvenanceBadge } from "@/components/ui/ProvenanceBadge";
+import { ProvenanceBadge } from "@/components/ui";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiOperation } from "@/lib/api-client";

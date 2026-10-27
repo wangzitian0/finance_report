@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import DetailDialog from "@/components/ui/DetailDialog";
+import { DetailDialog } from "@/components/ui/Overlay";
 import { useLlmConfigStatus } from "@/hooks/useLlmConfigStatus";
 import { apiOperation } from "@/lib/api-client";
 import type { LlmProtocolFamily, LlmProviderResponse } from "@/lib/types";

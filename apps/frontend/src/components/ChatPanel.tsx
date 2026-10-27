@@ -19,7 +19,7 @@ import {
   AdvisorBrief,
   safeAdvisorHref,
 } from "@/components/advisor/AdvisorBrief";
-import Sheet from "@/components/ui/Sheet";
+import { Sheet } from "@/components/ui/Overlay";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 
 const DISCLAIMER_EN = "The above analysis is for reference only.";

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ArrowRight, Bell, Check, ChevronRight, ExternalLink, Inbox, Loader2 } from "lucide-react";
 
-import Sheet from "@/components/ui/Sheet";
+import { Sheet } from "@/components/ui/Overlay";
 import { Alert, Badge, EmptyState, cx } from "@/components/ui";
 import { isWorkflowStatusResponse, useWorkflowEventsQuery, useWorkflowLifecycleMutation, useWorkflowStatusQuery } from "@/hooks/useWorkflowStatus";
 import { countLabel } from "@/lib/statusLabels";

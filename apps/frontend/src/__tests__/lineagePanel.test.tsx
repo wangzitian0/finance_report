@@ -6,8 +6,8 @@ import { LineagePanel } from "@/components/reports/AccountLineageDrawer"
 import { apiOperation } from "@/lib/api-client"
 import type { LineageAnchor } from "@/lib/lineage"
 
-vi.mock("@/components/ui/Sheet", () => ({
-  default: ({ isOpen, title, children }: { isOpen: boolean; title: string; children: ReactNode }) =>
+vi.mock("@/components/ui/Overlay", () => ({
+  Sheet: ({ isOpen, title, children }: { isOpen: boolean; title: string; children: ReactNode }) =>
     isOpen ? (
       <div role="dialog" aria-label={title}>
         {children}

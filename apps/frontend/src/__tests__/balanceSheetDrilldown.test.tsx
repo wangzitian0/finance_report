@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { AccountLineageDrawer } from "@/components/reports/AccountLineageDrawer"
 import { apiOperation } from "@/lib/api-client"
 
-vi.mock("@/components/ui/Sheet", () => ({
-  default: ({
+vi.mock("@/components/ui/Overlay", () => ({
+  Sheet: ({
     isOpen,
     title,
     children,

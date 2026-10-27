@@ -112,7 +112,7 @@ The frontend token contract is defined in two layers:
 
 - `tailwind.config.ts`
 - `app/globals.css`
-- `components/ui/ConfidenceBadge.tsx`
+- `components/ui/index.tsx` (`ConfidenceBadge`)
 - `src/__tests__/designTokens.test.tsx`
 
 ## 5. UI Primitives
@@ -275,7 +275,7 @@ workspace packages. Each layer lives under `apps/frontend/src/`:
 | **Money boundary** | `lib/audit/money` | Decimal-safe monetary parsing, arithmetic, and formatting (`decimal.js`). |
 | **Quantity boundary** | `lib/audit/quantity` | Decimal-safe quantity value type and quantity formatting. |
 | **Query helpers** | `hooks/*` | React Query wrappers over the transport layer (e.g. `useApiQuery`) and feature data hooks (`useStatementCockpit`, `useReportFilters`, `useCurrencies`). |
-| **UI primitives** | `components/ui/*` | Presentational, token-backed controls and state surfaces (`Button`, `Alert`, `EmptyState`, `Sheet`, `Toast`, badges), with local DOM accessibility hooks under `components/ui/hooks/`. |
+| **UI primitives** | `components/ui/*` | Presentational, token-backed controls and state surfaces (`Button`, `Alert`, `EmptyState`, `Sheet`, `Toast`, badges), with the DOM accessibility hooks `useFocusTrap` and `useBodyScrollLock` in `components/ui/Overlay.tsx`. |
 | **Feature modules** | `components/<feature>/*` | Domain UI aligned with backend bounded contexts (e.g. `components/statements/*` for `ledger/source`, `components/review/*` for `reconciliation`, `components/reports/*` for `reporting`). |
 | **Route pages** | `app/(main)/**/page.tsx` | Thin composition + page-level intent only (<300 lines). |
 
@@ -297,7 +297,7 @@ app routes
   Query, or root `@/hooks/*`.** Primitives stay presentational: they take props and render
   token-backed markup. They do not import `lib/api`, `@tanstack/react-query`,
   query hooks, or feature components. Any DOM accessibility hooks needed by primitives
-  live inside `components/ui/hooks/` (`test_fe_layer_boundaries.py`,
+  live inside `components/ui/` (`Overlay.tsx`) (`test_fe_layer_boundaries.py`,
   `AC-meta.fe-contract-types.6`).
 - **`lib/` must not import UI components or route pages.** Foundational libraries under `lib/`
   depend only on lower-level utilities and contracts. They must not import
