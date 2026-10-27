@@ -43,6 +43,18 @@ class ReportLine(BaseModel):
     parent_id: UUID | None = None
     amount: Decimal
     provenance: DataProvenance | None = None
+    source_currency: str | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        min_length=3,
+        max_length=3,
+        description="Native currency of the underlying account or valuation line.",
+    )
+    native_amount: Decimal | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Signed balance in the account's native currency.",
+    )
 
 
 class AccountLineageLine(BaseModel):

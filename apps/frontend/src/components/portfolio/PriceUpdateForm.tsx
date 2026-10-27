@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/Toast";
 import { apiOperation } from "@/lib/api-client";
-import { PriceUpdate, PriceUpdateResponse } from "@/lib/types";
+import { PriceUpdate } from "@/lib/types";
 
 interface PriceRow {
   asset_identifier: string;

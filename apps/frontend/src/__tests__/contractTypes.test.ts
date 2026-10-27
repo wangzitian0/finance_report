@@ -104,4 +104,17 @@ describe("frontend contract consolidation (EPIC-025 / #1158)", () => {
     const apiSource = readFileSync(resolve(__dirname, "../lib/api.ts"), "utf8");
     expect(apiSource.match(new RegExp(rawFetch.source, "g")) ?? []).toHaveLength(1);
   });
+
+  it("AC25.3.1: lib/types.ts does not retain redundant pass-through aliases (#2728 /ssot)", () => {
+    const typesSource = readFileSync(resolve(__dirname, "../lib/types.ts"), "utf8");
+    for (const removedAlias of [
+      "BankStatementTransactionSummary",
+      "ChatMetadata",
+      "PriceUpdateResponse",
+      "PingState =",
+    ]) {
+      expect(typesSource).not.toContain(removedAlias);
+    }
+    expect(typesSource).not.toContain("export function summarizeTraceabilityAppendix");
+  });
 });

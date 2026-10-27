@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 
 import { apiOperation } from "@/lib/api-client";
-import type { PingState } from "@/lib/types";
+import type { PingStateResponse } from "@/lib/types";
 
 export default function PingPongPage() {
-  const [pingState, setPingState] = useState<PingState | null>(null);
+  const [pingState, setPingState] = useState<PingStateResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState<string | null>(null);

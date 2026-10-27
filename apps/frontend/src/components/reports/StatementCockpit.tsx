@@ -11,6 +11,7 @@ import { useStatementCockpit } from "@/hooks/useStatementCockpit";
 import { formatDateDisplay } from "@/lib/date";
 import { compareAmounts, formatCurrencyLocale, subtractAmounts, toDecimal, type MonetaryInput } from "@/lib/audit/money";
 import { formatPercentFromPercentValue, percentNumberFromParts } from "@/lib/audit/ratio/format";
+import { reportAccountDisplayName } from "@/lib/statusLabels";
 
 /**
  * The three-statement cockpit of Home and of the `/reports` Overview (#2621 LC, #2548 P1).
@@ -119,7 +120,7 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
       [...(balanceSheet?.assets ?? []), ...(balanceSheet?.liabilities ?? [])].map((line) => ({
         key: line.account_id,
         accountId: line.account_id,
-        name: line.name,
+        name: reportAccountDisplayName(line.name),
         amount: String(line.amount),
       })),
     ),

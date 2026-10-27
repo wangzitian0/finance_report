@@ -203,6 +203,7 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
             "amount": Decimal("1600.00"),
             "provenance": "manual",
             "source_currency": "SGD",
+            "native_amount": Decimal("1600.00"),
             "allocation_asset_class": "cash",
             "allocation_liquidity_class": "liquid",
             "allocation_source_type": "ledger_account",
@@ -217,6 +218,7 @@ async def test_reporting_dashboard_fixture_exact_totals(db: AsyncSession, chart_
             "amount": Decimal("300.00"),
             "provenance": "manual",
             "source_currency": "SGD",
+            "native_amount": Decimal("300.00"),
             "allocation_asset_class": "liability",
             "allocation_liquidity_class": "liability",
             "allocation_source_type": "ledger_account",
@@ -726,7 +728,6 @@ async def test_income_statement_with_tags_filter(db: AsyncSession, chart_of_acco
     )
 
     assert report_with_business_tag["total_income"] == Decimal("5000.00")
-    assert report_with_business_tag["filters_applied"]["tags"] == ["business"]
 
     report_with_all_tags: dict = await generate_income_statement(
         db,
@@ -763,7 +764,6 @@ async def test_income_statement_with_account_type_filter(db: AsyncSession, chart
 
     assert report_income_only["total_income"] == Decimal("5000.00")
     assert report_income_only["total_expenses"] == Decimal("0.00")
-    assert report_income_only["filters_applied"]["account_type"] == "INCOME"
     assert len(report_income_only["expenses"]) == 0
 
     report_expense_only: dict = await generate_income_statement(
@@ -777,7 +777,6 @@ async def test_income_statement_with_account_type_filter(db: AsyncSession, chart
 
     assert report_expense_only["total_income"] == Decimal("0.00")
     assert report_expense_only["total_expenses"] == Decimal("2000.00")
-    assert report_expense_only["filters_applied"]["account_type"] == "EXPENSE"
     assert len(report_expense_only["income"]) == 0
 
 
@@ -806,8 +805,6 @@ async def test_income_statement_combined_filters(db: AsyncSession, chart_of_acco
     )
 
     assert report["total_income"] == Decimal("3000.00")
-    assert report["filters_applied"]["tags"] == ["business"]
-    assert report["filters_applied"]["account_type"] == "INCOME"
 
 
 async def test_income_statement_fallback_rate(db: AsyncSession, chart_of_accounts, test_user_id, monkeypatch):

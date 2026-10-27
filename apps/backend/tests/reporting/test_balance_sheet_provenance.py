@@ -100,7 +100,6 @@ async def test_balance_sheet_aggregate_provenance_is_populated(db, test_user):
 
 
 _ALLOCATION_METADATA_KEYS = {
-    "source_currency",
     "allocation_asset_class",
     "allocation_liquidity_class",
     "allocation_source_type",

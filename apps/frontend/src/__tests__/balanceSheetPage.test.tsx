@@ -240,7 +240,8 @@ describe("BalanceSheetPage", () => {
     expect(screen.queryByTestId("equity-valuations")).toBeNull()
   })
 
-  it("AC22.3.4 opens the source drill-down when an amount is clicked", async () => {
+  // AC-reporting.2728.3
+  it("AC-reporting.2728.3 opens the source drill-down from either the account name or the dotted-underlined amount", async () => {
     mockedApiFetch.mockImplementation((operationId: string) => {
       if (operationId === "account_lineage_reports_account_lineage_get") {
         return Promise.resolve({
@@ -282,12 +283,85 @@ describe("BalanceSheetPage", () => {
     render(<BalanceSheetPage />)
 
     await waitFor(() => expect(screen.getByText("Cash")).toBeInTheDocument())
-    fireEvent.click(screen.getByRole("button", { name: "View source transactions for Cash" }))
+    const amountBtn = screen.getByRole("button", { name: "View source transactions for Cash" })
+    expect(amountBtn).toHaveClass("decoration-dotted")
+    fireEvent.click(amountBtn)
     await waitFor(() => expect(screen.getByText("Opening deposit")).toBeInTheDocument())
 
     // Closing the drawer clears the drill target.
     fireEvent.click(screen.getByRole("button", { name: "Close panel" }))
     await waitFor(() => expect(screen.queryByText("Opening deposit")).toBeNull())
+
+    // Clicking the account name also opens the source drill-down (#2728).
+    fireEvent.click(screen.getByRole("button", { name: "Cash" }))
+    await waitFor(() => expect(screen.getByText("Opening deposit")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }))
+    await waitFor(() => expect(screen.queryByText("Opening deposit")).toBeNull())
+  })
+
+  // AC-reporting.2728.2
+  it("AC-reporting.2728.2 labels Processing as Transfers in transit and discloses foreign-currency native balances", async () => {
+    mockedApiFetch.mockResolvedValue({
+      as_of_date: "2026-02-01",
+      currency: "SGD",
+      assets: [
+        {
+          account_id: "proc-1",
+          name: "Processing",
+          type: "ASSET",
+          parent_id: null,
+          amount: "-250.00",
+          source_currency: "SGD",
+          native_amount: "-250.00",
+        },
+        {
+          account_id: "cmb-1",
+          name: "China Merchants Bank ••7788",
+          type: "ASSET",
+          parent_id: null,
+          amount: "0.00",
+          source_currency: "CNY",
+          native_amount: "47939.43",
+        },
+        {
+          account_id: "usd-1",
+          name: "IBKR USD Cash",
+          type: "ASSET",
+          parent_id: null,
+          amount: "1350.00",
+          source_currency: "USD",
+          native_amount: "1000.00",
+        },
+      ],
+      liabilities: [],
+      equity: [],
+      total_assets: "1100.00",
+      total_liabilities: "0.00",
+      total_equity: "1100.00",
+      fx_warnings: [
+        {
+          type: "missing_fx_rate_partial_skip",
+          base_currency: "CNY",
+          quote_currency: "SGD",
+          rate_date: "2026-02-01",
+        },
+      ],
+      equation_delta: "0.00",
+      is_balanced: true,
+    })
+
+    render(<BalanceSheetPage />)
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Transfers in transit" })).toBeInTheDocument())
+    expect(screen.queryByRole("button", { name: "Processing" })).toBeNull()
+    expect(screen.getByRole("img", { name: /Transfers in transit:/i })).toBeInTheDocument()
+    // Foreign account with missing FX rate shows native balance and missing-FX warning instead of silent SGD 0.00.
+    expect(screen.getByText(/CN¥47,939\.43/)).toBeInTheDocument()
+    expect(screen.getByText(/No FX rate/i)).toBeInTheDocument()
+    // Converted foreign account shows its native amount alongside the report-currency amount.
+    expect(screen.getByText(/\$1,000\.00/)).toBeInTheDocument()
+    // FxWarningBanner renders real backend base_currency/quote_currency/rate_date keys clearly.
+    expect(screen.getByText(/CNY to SGD on 2026-02-01/)).toBeInTheDocument()
   })
 
   // AC-reporting.fe-report-surfaces.12

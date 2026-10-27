@@ -9,8 +9,11 @@ import type { FxWarning } from "@/lib/types";
 
 function formatWarning(warning: FxWarning): string {
   if (warning.message) return warning.message;
-  const route = warning.from_currency && warning.to_currency ? `${warning.from_currency} to ${warning.to_currency}` : "FX conversion";
-  const date = warning.date ? ` on ${warning.date}` : "";
+  const from = warning.base_currency ?? warning.from_currency;
+  const to = warning.quote_currency ?? warning.to_currency;
+  const route = from && to ? `${from} to ${to}` : "FX conversion";
+  const when = warning.rate_date ?? warning.date;
+  const date = when ? ` on ${when}` : "";
   const fallback = warning.fallback_date ? `; using ${warning.fallback_date}` : "";
   return `${warning.type}: ${route}${date}${fallback}`;
 }
@@ -22,7 +25,7 @@ export function FxWarningBanner({ warnings }: { warnings?: FxWarning[] }) {
       <p className="font-medium text-[var(--warning)]">Partial FX data used</p>
       <ul className="mt-2 space-y-1 text-muted">
         {warnings.map((w) => (
-          <li key={`${w.type}:${w.from_currency ?? ""}-${w.to_currency ?? ""}:${w.date ?? ""}:${w.fallback_date ?? ""}`}>{formatWarning(w)}</li>
+          <li key={formatWarning(w)}>{formatWarning(w)}</li>
         ))}
       </ul>
     </div>

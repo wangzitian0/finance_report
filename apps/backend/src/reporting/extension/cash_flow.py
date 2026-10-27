@@ -25,10 +25,11 @@ from src.ledger import (
     JournalLine,
     ProcessingAccount,
 )
+from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
 from src.reporting.base.cash_flow_calculator import calculate_cash_flow_bridge
 from src.reporting.extension import fx_gateway
-from src.reporting.extension._core import _REPORT_STATUSES, _line_total
+from src.reporting.extension._core import _line_total
 from src.reporting.extension.reporting_calc import ReportError, _normalize_currency, _quantize_money
 
 logger = get_logger(__name__)
@@ -278,7 +279,6 @@ def _cash_event_rows_statement(
     foreign_line = aliased(JournalLine)
     foreign_account = aliased(Account)
     cash_line = aliased(JournalLine)
-    voided_entry = aliased(JournalEntry)
     has_foreign_account = exists(
         select(foreign_line.id)
         .join(foreign_account, foreign_line.account_id == foreign_account.id)
@@ -307,8 +307,7 @@ def _cash_event_rows_statement(
         .where(JournalEntry.user_id == user_id)
         .where(Account.user_id == user_id)
         .where(~has_foreign_account)
-        .where(JournalEntry.status.in_(_REPORT_STATUSES))
-        .where(~exists(select(voided_entry.id).where(voided_entry.void_reversal_entry_id == JournalEntry.id)))
+        .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.entry_date <= end_date)
         .order_by(JournalEntry.entry_date, JournalEntry.id, JournalLine.id)
     )

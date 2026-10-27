@@ -9,6 +9,7 @@ import {
     humanizeIdentifier,
     pnlColorClass,
     readinessVariant,
+    reportAccountDisplayName,
 } from "@/lib/statusLabels";
 
 describe("statusLabels (#1609 colour-not-alone)", () => {
@@ -72,5 +73,10 @@ describe("statusLabels — single-homed helpers (#1868 S5)", () => {
         expect(readinessVariant("processing")).toBe("warning");
         expect(readinessVariant("draft")).toBe("muted");
         expect(readinessVariant("none")).toBe("info");
+    });
+
+    it("reportAccountDisplayName maps internal Processing clearing account to plain-English label (#2728)", () => {
+        expect(reportAccountDisplayName("Processing")).toBe("Transfers in transit");
+        expect(reportAccountDisplayName("GXS Bank")).toBe("GXS Bank");
     });
 });

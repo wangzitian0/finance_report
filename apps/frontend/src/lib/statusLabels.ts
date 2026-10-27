@@ -143,3 +143,8 @@ export function canImportBrokerageStatement(statement: {
     const haystack = `${statement.institution ?? ""} ${statement.original_filename ?? ""}`.toLowerCase();
     return BROKERAGE_ALIASES.some((alias) => haystack.includes(alias));
 }
+
+/** Reader-facing label for a report account name: the Processing clearing account is shown as Transfers in transit (#2728). */
+export function reportAccountDisplayName(name: string): string {
+    return name === "Processing" ? "Transfers in transit" : name;
+}

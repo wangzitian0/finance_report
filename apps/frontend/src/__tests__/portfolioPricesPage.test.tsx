@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { PriceUpdateForm } from "@/components/portfolio/PriceUpdateForm"
 import { apiOperation } from "@/lib/api-client"
-import type { PortfolioHolding, PriceUpdateResponse } from "@/lib/types"
+import type { PortfolioHolding, PriceUpdateBatchResponse } from "@/lib/types"
 
 const showToastMock = vi.fn()
 
@@ -127,7 +127,7 @@ describe("PriceUpdateForm in the price drawer", () => {
   })
 
   it("submits price update and shows success toast", async () => {
-    const mockResponse: PriceUpdateResponse = {
+    const mockResponse: PriceUpdateBatchResponse = {
       updated_count: 1,
       results: [
         {

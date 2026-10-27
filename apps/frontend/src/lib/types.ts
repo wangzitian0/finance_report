@@ -52,8 +52,6 @@ export type BankStatementTransaction = BankStatementTransactionViewModel;
 
 export type BankTransactionSummary = Schemas["BankTransactionSummary"];
 
-export type BankStatementTransactionSummary = BankTransactionSummary;
-
 export type BalanceValidationResult = Schemas["BalanceValidationResult"];
 
 export interface BankStatementViewModel
@@ -94,6 +92,9 @@ export type AccountLineageResponse = Schemas["AccountLineageResponse"];
 export interface FxWarning {
   type: string;
   message?: string;
+  base_currency?: string;
+  quote_currency?: string;
+  rate_date?: string;
   from_currency?: string;
   to_currency?: string;
   date?: string;
@@ -269,12 +270,11 @@ export interface ChatActionChip {
   count?: number | null;
 }
 
-export interface ChatMetadata {
+export interface ChatResponseMetadata {
   grounded: boolean;
   citations: ChatCitation[];
   actions: ChatActionChip[];
 }
-export type ChatResponseMetadata = ChatMetadata;
 
 export type ChatSuggestionsResponse = Schemas["ChatSuggestionsResponse"];
 
@@ -370,7 +370,7 @@ function summarizeTraceabilityAnchor(
  * The summary of a complete appendix. It equals the summary that the backend sends for a
  * preview (`traceability_summary` in `package_document.py`), so one page renders both.
  */
-export function summarizeTraceabilityAppendix(
+function summarizeTraceabilityAppendix(
   appendix: PersonalReportPackageTraceabilityResponse,
 ): PersonalReportPackageTraceabilitySummary {
   return {
@@ -579,7 +579,7 @@ export type PendingMatch = Schemas["Stage2PendingMatch"];
 export type Stage2Data = Schemas["Stage2ReviewQueueResponse"];
 
 export type UnmatchedTransactionsResponse =
-  ListResponse<BankStatementTransactionSummary>;
+  ListResponse<BankTransactionSummary>;
 
 export type NetWorthTimeSeriesPoint = Schemas["NetWorthTimeSeriesPoint"];
 
@@ -653,7 +653,6 @@ export type AllocationBreakdown = Schemas["AllocationBreakdownResponse"];
 export type PriceUpdate = Schemas["PriceUpdateRequest"];
 
 export type PriceUpdateBatchResponse = Schemas["PriceUpdateBatchResponse"];
-export type PriceUpdateResponse = PriceUpdateBatchResponse;
 
 export type ProcessingSummaryResponse = Schemas["ProcessingSummaryResponse"];
 
@@ -682,7 +681,6 @@ export type UserAiSettingsUpdate = Schemas["UserAiSettingsUpdate"];
 export type BaseCurrency = Schemas["BaseCurrencyResponse"];
 
 export type PingStateResponse = Schemas["PingStateResponse"];
-export type PingState = PingStateResponse;
 
 // ── LLM configuration (EPIC-023 PR4) ───────────────────────────────────────
 //
