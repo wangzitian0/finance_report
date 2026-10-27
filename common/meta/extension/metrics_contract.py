@@ -7,6 +7,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
+from common.meta.base.gate_util import duplicate_values
 from common.meta.extension.coverage.policy import (
     COMPONENTS,
     ROOT_DIR,
@@ -87,16 +88,6 @@ def find_uncovered_source_roots(
     return sorted(discovered - governed)
 
 
-def _duplicate_values(values: list[str]) -> list[str]:
-    seen: set[str] = set()
-    duplicates: set[str] = set()
-    for value in values:
-        if value in seen:
-            duplicates.add(value)
-        seen.add(value)
-    return sorted(duplicates)
-
-
 def _validate_policy_shape(
     repo_root: Path,
     components: tuple[CoverageComponent, ...],
@@ -106,11 +97,11 @@ def _validate_policy_shape(
     source_roots = policy_source_roots(repo_root, components)
     ci_lcov_paths = [component.ci_lcov_path for component in components]
 
-    for duplicate in _duplicate_values(names):
+    for duplicate in duplicate_values(names):
         errors.append(f"duplicate coverage component name: {duplicate}")
-    for duplicate in _duplicate_values(source_roots):
+    for duplicate in duplicate_values(source_roots):
         errors.append(f"duplicate coverage source root: {duplicate}")
-    for duplicate in _duplicate_values(ci_lcov_paths):
+    for duplicate in duplicate_values(ci_lcov_paths):
         errors.append(f"duplicate CI LCOV path: {duplicate}")
 
     for component in components:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from common.meta.base.gate_util import display_path
 from common.testing import lint_doc_consistency as ldc
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -29,7 +30,9 @@ def test_AC8_13_132_product_e2e_tests_are_not_exception_eligible() -> None:
 
 def test_AC8_13_132_registry_paths_cover_discovered_no_ac_files() -> None:
     """AC8.13.132: the registry is not stale — it lists the discovered no-AC files."""
-    discovered = {ldc._display_path(path) for path in ldc.discover_no_ac_test_files()}
+    discovered = {
+        display_path(path, ldc.REPO_ROOT) for path in ldc.discover_no_ac_test_files()
+    }
     classified = ldc.load_traceability_exception_paths(EXCEPTIONS)
     missing = sorted(discovered - classified)
     assert missing == [], "unclassified no-AC test files: " + ", ".join(missing)

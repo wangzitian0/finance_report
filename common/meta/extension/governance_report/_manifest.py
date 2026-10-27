@@ -16,6 +16,7 @@ except ImportError:  # pragma: no cover - CLI guard
     yaml = None
 
 
+from common.meta.base.gate_util import display_path
 from common.meta.extension.governance_report._base import (
     SSOT_FILE_EXCLUDES,
     SSOT_FILE_SUFFIXES,
@@ -31,7 +32,6 @@ from common.meta.extension.governance_report._util import (
     _as_strings,
     _display_ref,
     _file_part,
-    _source_relative_path,
 )
 
 
@@ -105,7 +105,7 @@ def _load_manifest_entries(
         return _entries_from_manifest_data(source, {source.entry_key: computed})
 
     if not source.manifest_path.exists():
-        manifest = _source_relative_path(source.manifest_path, source.source_root)
+        manifest = display_path(source.manifest_path, source.source_root)
         return [], [f"{source.system}: manifest not found: {manifest}"]
 
     return _load_manifest_entries_from_text(

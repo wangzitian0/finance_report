@@ -25,7 +25,7 @@ BACKEND_ROOT = REPO_ROOT / "apps" / "backend"
 OUTPUT_PATH = REPO_ROOT / "apps" / "frontend" / "openapi.json"
 
 
-def _load_openapi() -> dict[str, Any]:
+def load_openapi() -> dict[str, Any]:
     if str(BACKEND_ROOT) not in sys.path:
         sys.path.insert(0, str(BACKEND_ROOT))
     from src.main import app  # noqa: PLC0415
@@ -42,7 +42,7 @@ def render(openapi: dict[str, Any]) -> str:
 
 
 def generate() -> str:
-    return render(_load_openapi())
+    return render(load_openapi())
 
 
 def diff_json_paths(current: Any, rendered: Any, prefix: str = "") -> list[str]:

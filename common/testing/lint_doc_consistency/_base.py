@@ -59,23 +59,6 @@ CHECK6_FIXTURE_EXCLUDE: set[str] = {
     "AC10.2.1",
 }
 
-EXCLUDED_DIRS = {
-    "node_modules",
-    "__pycache__",
-    ".next",
-    "dist",
-    ".cache",
-    ".pytest_cache",
-}
-
-TEST_FILE_SUFFIXES = (
-    "_test.py",
-    ".test.ts",
-    ".test.tsx",
-    ".spec.ts",
-    ".spec.tsx",
-)
-
 # Matches BOTH AC id grammars (mirrors common.testing.ac_traceability_refs):
 # legacy ``AC{epic}.{n}.{n}`` and package-scoped ``AC-{package}.{group}.{n}``,
 # where ``group`` is either numeric or a word-entity slug (e.g. ``guardrail``,

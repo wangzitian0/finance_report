@@ -12,6 +12,7 @@ except ImportError:  # pragma: no cover - CLI guard
     yaml = None
 
 
+from common.meta.base.gate_util import display_path
 from common.meta.extension.governance_report._base import (
     GATE_EXCEPTION_PATH,
     GATE_HLS_RULE,
@@ -39,7 +40,6 @@ from common.meta.extension.governance_report._types import (
     ManifestSource,
 )
 from common.meta.extension.governance_report._util import (
-    _display_path,
     _file_part,
     _gate_target,
     _has_proof,
@@ -141,7 +141,7 @@ def _resolve_repo_path(repo_root: Path, path: Path) -> Path:
 
 def _exception_path_for_report(repo_root: Path, exceptions_path: Path | None) -> str:
     configured_path = exceptions_path or GATE_EXCEPTION_PATH
-    return _display_path(_resolve_repo_path(repo_root, configured_path), repo_root)
+    return display_path(_resolve_repo_path(repo_root, configured_path), repo_root)
 
 
 def _load_exception_targets(repo_root: Path, exceptions_path: Path | None) -> set[str]:
@@ -153,20 +153,20 @@ def _load_exception_targets(repo_root: Path, exceptions_path: Path | None) -> se
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except Exception as exc:  # pragma: no cover - exact parser errors vary
-        display_path = _display_path(path, repo_root)
+        shown_path = display_path(path, repo_root)
         raise RuntimeError(
-            f"Invalid SSOT governance exceptions YAML in {display_path}: {exc}"
+            f"Invalid SSOT governance exceptions YAML in {shown_path}: {exc}"
         ) from exc
-    display_path = _display_path(path, repo_root)
+    shown_path = display_path(path, repo_root)
     if not isinstance(data, Mapping):
         raise RuntimeError(
-            f"Invalid SSOT governance exceptions YAML in {display_path}: "
+            f"Invalid SSOT governance exceptions YAML in {shown_path}: "
             "root must be a mapping"
         )
     raw_exceptions = data.get("exceptions")
     if not isinstance(raw_exceptions, list):
         raise RuntimeError(
-            f"Invalid SSOT governance exceptions YAML in {display_path}: "
+            f"Invalid SSOT governance exceptions YAML in {shown_path}: "
             "exceptions must be a list"
         )
 
@@ -175,7 +175,7 @@ def _load_exception_targets(repo_root: Path, exceptions_path: Path | None) -> se
     for index, item in enumerate(raw_exceptions):
         if not isinstance(item, Mapping):
             raise RuntimeError(
-                f"Invalid SSOT governance exceptions YAML in {display_path}: "
+                f"Invalid SSOT governance exceptions YAML in {shown_path}: "
                 f"entry {index} must be a mapping"
             )
         missing = [
@@ -185,19 +185,19 @@ def _load_exception_targets(repo_root: Path, exceptions_path: Path | None) -> se
         ]
         if missing:
             raise RuntimeError(
-                f"Invalid SSOT governance exceptions YAML in {display_path}: "
+                f"Invalid SSOT governance exceptions YAML in {shown_path}: "
                 f"entry {index} missing required field(s): {', '.join(missing)}"
             )
         target = item["target"]
         issue = item["issue"]
         if "/issues/" not in issue:
             raise RuntimeError(
-                f"Invalid SSOT governance exceptions YAML in {display_path}: "
+                f"Invalid SSOT governance exceptions YAML in {shown_path}: "
                 f"entry {index} issue must link a GitHub issue"
             )
         if target in targets:
             raise RuntimeError(
-                f"Invalid SSOT governance exceptions YAML in {display_path}: "
+                f"Invalid SSOT governance exceptions YAML in {shown_path}: "
                 f"duplicate exception target {target!r}"
             )
         targets.add(target)

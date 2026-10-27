@@ -15,20 +15,11 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from common.meta.extension.generate_api_operations import HTTP_METHODS
+from common.platform import generate_openapi_spec
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
-BACKEND_ROOT = REPO_ROOT / "apps" / "backend"
 OUTPUT_PATH = REPO_ROOT / "docs" / "reference" / "api.md"
-
-
-HTTP_METHODS = ("get", "post", "put", "patch", "delete", "options", "head")
-
-
-def _load_openapi() -> dict[str, Any]:
-    if str(BACKEND_ROOT) not in sys.path:
-        sys.path.insert(0, str(BACKEND_ROOT))
-    from src.main import app  # noqa: PLC0415
-
-    return app.openapi()
 
 
 def _schema_name(schema: dict[str, Any] | None) -> str:
@@ -163,7 +154,7 @@ def render_openapi_reference(schema: dict[str, Any]) -> str:
 
 
 def generate() -> str:
-    return render_openapi_reference(_load_openapi())
+    return render_openapi_reference(generate_openapi_spec.load_openapi())
 
 
 def main(argv: Sequence[str] | None = None) -> int:

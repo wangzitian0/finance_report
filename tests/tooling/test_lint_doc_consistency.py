@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest import mock
 
+from common.testing import ac_scan
 from common.testing import lint_doc_consistency as ldc
 
 
@@ -634,6 +635,14 @@ class TestCollectAcRefsInTests:
         tf.write_text("# AC1.1.1\n")
         refs = ldc.collect_ac_refs_in_tests([tests])
         assert "AC1.1.1" not in refs
+
+    def test_scan_sets_are_the_ac_scan_sets(self, tmp_path):
+        assert ldc.EXCLUDED_DIRS is ac_scan.EXCLUDED_DIRS
+        assert ldc.TEST_FILE_SUFFIXES is ac_scan.TEST_FILE_SUFFIXES
+        (tmp_path / ".pytest_cache").mkdir()
+        (tmp_path / ".pytest_cache" / "test_cached.py").write_text("# AC1.1.1\n")
+        assert ac_scan.find_test_files([tmp_path]) == []
+        assert ldc.collect_ac_refs_in_tests([tmp_path]) == {}
 
     def test_missing_directory_skipped(self, tmp_path):
         refs = ldc.collect_ac_refs_in_tests([tmp_path / "nonexistent"])

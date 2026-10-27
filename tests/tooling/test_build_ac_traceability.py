@@ -1,7 +1,7 @@
 """Tests for tools/build_ac_traceability.py.
 
 Covers _load_registry, load_all_acs, find_test_files, collect_references,
-helper utilities (_ac_sort_key, _is_manual, _rel, _md_escape, _slug),
+helper utilities (_ac_sort_key, _is_manual, _md_escape, _slug),
 render_document, and main() in both write and --check modes.
 """
 
@@ -240,19 +240,6 @@ class TestHelpers:
         # ~~x~~ is the minimum valid deprecated description (one char between markers)
         ac = bat.AC("AC1.1.1", 1, "x", "~~x~~", True)
         assert bat._is_deprecated(ac)
-
-    def test_rel_inside_repo(self, tmp_path):
-        f = tmp_path / "apps" / "backend" / "tests" / "test_x.py"
-        f.parent.mkdir(parents=True)
-        f.touch()
-        with mock.patch.object(bat, "REPO_ROOT", tmp_path):
-            result = bat._rel(f)
-        assert result == "apps/backend/tests/test_x.py"
-
-    def test_rel_outside_repo(self, tmp_path):
-        f = tmp_path / "some" / "external" / "file.py"
-        result = bat._rel(f)
-        assert "external" in result
 
     def test_md_escape_pipe(self):
         assert bat._md_escape("a|b") == "a\\|b"

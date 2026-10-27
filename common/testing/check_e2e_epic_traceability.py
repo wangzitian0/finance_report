@@ -14,6 +14,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from common.meta.base.gate_cli import run_gate
+from common.meta.base.gate_util import display_path, duplicate_values
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_E2E_ROOTS = (
@@ -165,13 +166,6 @@ class TraceabilityResult:
         return errors
 
 
-def _rel(path: Path, repo_root: Path) -> str:
-    try:
-        return path.relative_to(repo_root).as_posix()
-    except ValueError:
-        return path.as_posix()
-
-
 def discover_project_epics(repo_root: Path) -> list[ProjectEpic]:
     project_root = repo_root / "docs" / "project"
     if not project_root.exists():
@@ -187,7 +181,7 @@ def discover_project_epics(repo_root: Path) -> list[ProjectEpic]:
         if existing is None or kind is ProjectEpicKind.RESIDUE or has_epic_residue:
             epics[epic_id] = ProjectEpic(
                 id=epic_id,
-                path=_rel(path, repo_root),
+                path=display_path(path, repo_root),
                 kind=kind,
                 has_epic_residue=has_epic_residue,
             )
@@ -196,16 +190,6 @@ def discover_project_epics(repo_root: Path) -> list[ProjectEpic]:
 
 def _markdown_cells(line: str) -> list[str]:
     return [cell.strip() for cell in line.strip().strip("|").split("|")]
-
-
-def _duplicate_values(values: list[str]) -> list[str]:
-    seen: set[str] = set()
-    duplicates: set[str] = set()
-    for value in values:
-        if value in seen:
-            duplicates.add(value)
-        seen.add(value)
-    return sorted(duplicates)
 
 
 def _validate_readme_epic_link(
@@ -292,7 +276,7 @@ def discover_readme_epics(repo_root: Path) -> tuple[list[str], list[str]]:
                     )
                 )
 
-    duplicates = _duplicate_values(epic_ids)
+    duplicates = duplicate_values(epic_ids)
     for epic_id in duplicates:
         errors.append(f"README EPIC map duplicates EPIC row: {epic_id}")
 
@@ -320,7 +304,7 @@ def _has_excluded_part(path: Path) -> bool:
 def _is_e2e_like_asset(path: Path, repo_root: Path) -> bool:
     if not path.is_file() or path.suffix not in E2E_ASSET_SUFFIXES:
         return False
-    rel_parts = Path(_rel(path, repo_root)).parts
+    rel_parts = Path(display_path(path, repo_root)).parts
     if _has_excluded_part(Path(*rel_parts)):
         return False
     parent_parts = [part.lower() for part in rel_parts[:-1]]
@@ -341,7 +325,7 @@ def discover_e2e_assets(repo_root: Path) -> list[str]:
         for f in files:
             path = Path(root) / f
             if _is_e2e_like_asset(path, repo_root):
-                assets.append(_rel(path, repo_root))
+                assets.append(display_path(path, repo_root))
     return sorted(assets)
 
 
@@ -378,7 +362,7 @@ def _decorator_markers(node: ast.AST) -> set[str]:
 def _collect_tests_from_file(
     path: Path, repo_root: Path
 ) -> tuple[list[E2ETest], ParseError | None]:
-    rel_path = _rel(path, repo_root)
+    rel_path = display_path(path, repo_root)
     try:
         module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except SyntaxError as exc:

@@ -13,9 +13,12 @@ from decimal import Decimal
 from pathlib import Path
 
 from common.testing.check_llm_cassettes import (
+    _IN_DIRECTIONS,
+    _OUT_DIRECTIONS,
     balance_violation,
     check,
     exempt_count,
+    production_direction_aliases,
     _response_text,
 )
 
@@ -46,6 +49,17 @@ def test_AC23_7_1_balance_violation_detects_a_drifted_cassette() -> None:
         ],  # net -5 -> closing should be 95, not 130
     }
     assert balance_violation(drifted) is not None
+
+
+def test_AC23_7_1_direction_aliases_are_read_from_the_production_parser(tmp_path):
+    """AC-llm.7.1: a production alias is known to the checker without a second edit."""
+    from src.extraction.base import validation  # noqa: PLC0415
+
+    assert _IN_DIRECTIONS == frozenset(validation.IN_DIRECTION_ALIASES)
+    assert _OUT_DIRECTIONS == frozenset(validation.OUT_DIRECTION_ALIASES)
+    source = tmp_path / "validation.py"
+    source.write_text('IN_DIRECTION_ALIASES = {"X"}\nOUT_DIRECTION_ALIASES = {"Y"}\n')
+    assert production_direction_aliases(source) == ({"X"}, {"Y"})
 
 
 def test_AC23_7_1_balance_uses_direction_not_just_amount_sign() -> None:

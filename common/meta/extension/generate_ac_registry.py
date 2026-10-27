@@ -19,6 +19,7 @@ from common.meta.base.authority_matrix import (
 from common.meta.base.authority_matrix import (
     TIER_DEFAULT_PROOF_KIND as _TIER_DEFAULT_PROOF_KIND,
 )
+from common.meta.base.gate_util import call_name
 from common.meta.extension.ac_registry_format import (
     PKG_AC_PATTERN,
     epic_group_key,
@@ -403,7 +404,7 @@ def package_contract_meta(contract_path: Path) -> dict | None:
     tree = ast.parse(contract_path.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if not (
-            isinstance(node, ast.Call) and _call_name(node.func) == "PackageContract"
+            isinstance(node, ast.Call) and call_name(node.func) == "PackageContract"
         ):
             continue
         roadmap: list[dict] = []
@@ -411,7 +412,7 @@ def package_contract_meta(contract_path: Path) -> dict | None:
             if kw.arg != "roadmap" or not isinstance(kw.value, (ast.List, ast.Tuple)):
                 continue
             for elt in kw.value.elts:
-                if isinstance(elt, ast.Call) and _call_name(elt.func) in (
+                if isinstance(elt, ast.Call) and call_name(elt.func) in (
                     "ACRecord",
                     "ac",
                 ):
@@ -451,7 +452,7 @@ def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
         # The single ``CONTRACT = PackageContract(...)`` assignment; read its
         # package-level ``tier`` then each ``ACRecord(...)`` in ``roadmap=[...]``.
         if not (
-            isinstance(node, ast.Call) and _call_name(node.func) == "PackageContract"
+            isinstance(node, ast.Call) and call_name(node.func) == "PackageContract"
         ):
             continue
         package_tier = _ac_record_field(node, "tier")
@@ -461,7 +462,7 @@ def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
             for elt in kw.value.elts:
                 if not (
                     isinstance(elt, ast.Call)
-                    and _call_name(elt.func) in ("ACRecord", "ac")
+                    and call_name(elt.func) in ("ACRecord", "ac")
                 ):
                     continue
                 ac_id = _ac_record_field(elt, "id")
@@ -480,15 +481,6 @@ def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
                     }
                 )
     return records
-
-
-def _call_name(func: ast.expr) -> str | None:
-    """Return the bare callee name of an ``ast.Call`` func (``Name`` or attr)."""
-    if isinstance(func, ast.Name):
-        return func.id
-    if isinstance(func, ast.Attribute):
-        return func.attr
-    return None
 
 
 def _package_roadmap_acs(source_dir: Path) -> dict[str, dict]:

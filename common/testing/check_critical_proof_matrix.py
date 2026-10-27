@@ -24,6 +24,7 @@ from typing import Any
 
 import yaml
 
+from common.meta.base.gate_util import display_path
 from common.meta.extension.ac_registry_format import load_registry_entries
 from common.testing.ac_traceability_refs import AC_PATTERN
 
@@ -106,17 +107,10 @@ class MatrixValidation:
         ]
 
 
-def _rel(path: Path, repo_root: Path) -> str:
-    try:
-        return path.relative_to(repo_root).as_posix()
-    except ValueError:
-        return path.as_posix()
-
-
 def _load_registry_ids(repo_root: Path) -> set[str]:
     ids: set[str] = set()
     for default_path in REGISTRY_PATHS:
-        registry_path = repo_root / _rel(default_path, REPO_ROOT)
+        registry_path = repo_root / display_path(default_path, REPO_ROOT)
         if not registry_path.exists():
             continue
         for entry in load_registry_entries(registry_path):

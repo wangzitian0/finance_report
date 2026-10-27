@@ -12,7 +12,14 @@ from typing import Callable, TypeAlias
 from common.testing.ac_traceability_refs import AC_PATTERN, classify_reference_file
 from common.testing.test_surface import default_ac_test_dirs
 
-EXCLUDED_DIRS = {"node_modules", "__pycache__", ".next", "dist", ".cache"}
+EXCLUDED_DIRS = {
+    "node_modules",
+    "__pycache__",
+    ".next",
+    "dist",
+    ".cache",
+    ".pytest_cache",
+}
 TEST_FILE_SUFFIXES = ("_test.py", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
 
 DisplayPath: TypeAlias = str | Path

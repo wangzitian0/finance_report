@@ -10,6 +10,7 @@ import sys
 import time
 from collections.abc import Callable, Sequence
 
+from common.meta.base.gate_util import required_arg
 from common.runtime.github_api import write_github_output as _write_github_output
 
 InspectImage = Callable[[str], tuple[int, str]]
@@ -91,13 +92,6 @@ def verify_release_images(
     return digests
 
 
-def _required(value: str, name: str) -> str:
-    value = value.strip()
-    if not value:
-        raise ValueError(f"{name} is required")
-    return value
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--registry", default=os.getenv("REGISTRY", ""))
@@ -111,9 +105,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        registry = _required(args.registry, "registry")
-        image_prefix = _required(args.image_prefix, "image-prefix")
-        version_ref = _required(args.version_ref, "version-ref")
+        registry = required_arg(args.registry, "registry")
+        image_prefix = required_arg(args.image_prefix, "image-prefix")
+        version_ref = required_arg(args.version_ref, "version-ref")
 
         if args.dry_run:
             print(

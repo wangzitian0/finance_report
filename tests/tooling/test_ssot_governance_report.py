@@ -281,10 +281,6 @@ def test_AC14_1_12_helper_and_error_branches_stay_report_only(
 
     outside_path = tmp_path.parent / "outside.md"
     assert (
-        governance_report._display_path(outside_path, tmp_path)
-        == outside_path.as_posix()
-    )
-    assert (
         governance_report._display_ref(
             outside_path.parent,
             "docs/ssot/outside.md",
@@ -725,11 +721,6 @@ def test_AC14_1_13_gate_helper_edges_remain_incremental(
     """AC14.1.13: Gate helper edge cases stay scoped to changed surfaces."""
 
     outside_root = tmp_path.parent / "outside-root"
-    outside_path = outside_root / "docs/ssot/outside.md"
-    assert (
-        governance_report._source_relative_path(outside_path, tmp_path)
-        == outside_path.as_posix()
-    )
 
     finance_source = governance_report.ManifestSource(
         system="finance_report",

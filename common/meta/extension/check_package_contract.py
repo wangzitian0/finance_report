@@ -84,6 +84,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from common.meta.base.gate_cli import run_gate
+from common.meta.base.gate_util import call_name
 from common.meta.base.dependency_graph import build_dependency_graph
 from common.meta.base.package_contract import (
     KIND_LAYER,
@@ -621,15 +622,6 @@ def _collect_orm_ownership(
     return table_owner, model_owner
 
 
-def _call_func_name(func: ast.expr) -> str | None:
-    """The bare callable name of a call target (``ForeignKey`` / ``sa.ForeignKey``)."""
-    if isinstance(func, ast.Name):
-        return func.id
-    if isinstance(func, ast.Attribute):
-        return func.attr
-    return None
-
-
 def _check_cross_domain_fk(
     pkg: DiscoveredPackage,
     registered: dict[str, str],
@@ -678,7 +670,7 @@ def _check_cross_domain_fk(
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
-            name = _call_func_name(node.func)
+            name = call_name(node.func)
             if name == "relationship" and node.args:
                 arg = node.args[0]
                 cls: str | None = None

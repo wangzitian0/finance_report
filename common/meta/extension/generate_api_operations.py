@@ -8,7 +8,8 @@ from collections.abc import Sequence
 from pathlib import Path
 
 
-HTTP_METHODS = {"get", "put", "post", "delete", "patch", "options", "head", "trace"}
+# The one ordered OpenAPI operation-method list; every consumer reads this tuple.
+HTTP_METHODS = ("get", "post", "put", "patch", "delete", "options", "head", "trace")
 
 
 def render(spec_path: Path) -> str:

@@ -19,12 +19,12 @@ except ImportError:  # pragma: no cover - environment guard
     sys.exit(1)
 
 
+from common.meta.base.gate_util import display_path
+from common.testing.ac_scan import EXCLUDED_DIRS, TEST_FILE_SUFFIXES
 from common.testing.lint_doc_consistency._base import (
     AC_PATTERN,
-    EXCLUDED_DIRS,
     MKDOCS_CONFIG,
     REMOVED_ANNOTATION_RE,
-    TEST_FILE_SUFFIXES,
     TOTAL_AC_SUMMARY_TOKEN,
 )
 
@@ -264,13 +264,6 @@ def load_traceability_exception_paths(exception_path: Path) -> set[str]:
     }
 
 
-def _display_path(path: Path) -> str:
-    try:
-        return str(path.relative_to(_base.REPO_ROOT))
-    except ValueError:
-        return str(path)
-
-
 def collect_mkdocs_nav_docs(mkdocs_path: Path = MKDOCS_CONFIG) -> set[str]:
     """Return repository-relative Markdown paths referenced by MkDocs nav."""
     text = mkdocs_path.read_text(encoding="utf-8")
@@ -286,7 +279,7 @@ def collect_mkdocs_nav_docs(mkdocs_path: Path = MKDOCS_CONFIG) -> set[str]:
 
 def _required_mkdocs_nav_docs() -> set[str]:
     docs = {
-        _display_path(path)
+        display_path(path, _base.REPO_ROOT)
         for path in (_base.REPO_ROOT / "docs").rglob("*.md")
         if path.is_file()
     }

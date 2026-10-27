@@ -35,6 +35,7 @@ from datetime import date
 from pathlib import Path
 from typing import NamedTuple
 
+from common.meta.base.gate_util import display_path
 from common.meta.extension.ac_registry_format import load_registry_entries, sort_key
 from common.testing import ac_scan
 from common.testing.test_surface import DEFAULT_AC_TEST_DIRS, default_ac_test_dirs
@@ -129,13 +130,6 @@ def _is_deprecated(ac: AC) -> bool:
 def _is_manual(ac: AC) -> bool:
     desc = ac.description.lower()
     return any(tok in desc for tok in MANUAL_TOKENS)
-
-
-def _rel(path: Path) -> str:
-    try:
-        return str(path.relative_to(REPO_ROOT))
-    except ValueError:
-        return str(path)
 
 
 def _md_escape(text: str) -> str:
@@ -237,7 +231,7 @@ def render_document(
     )
     lines.append(
         "> **Scope**: All EPICs in `docs/project/`. Test scan: "
-        + ", ".join(f"`{_rel(d)}`" for d in test_dirs)
+        + ", ".join(f"`{display_path(d, REPO_ROOT)}`" for d in test_dirs)
         + "."
     )
     lines.append("")
@@ -369,7 +363,8 @@ def render_document(
                 report_paths = stats.files_for_report()
                 if report_paths:
                     refs_cell = "<br>".join(
-                        f"{kind}: `{_rel(path)}`" for kind, path in report_paths
+                        f"{kind}: `{display_path(path, REPO_ROOT)}`"
+                        for kind, path in report_paths
                     )
                     if ac.mandatory:
                         if stats.real_files:
