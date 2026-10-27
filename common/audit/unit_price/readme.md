@@ -25,15 +25,13 @@ checked — not a float multiply that loses precision or silently mixes currenci
   a currency clash raises `CurrencyMismatchError` and a unit clash raises
   `UnitMismatchError`.
 - **undefined** — an undefined unit price raises `UndefinedUnitPriceError`.
-- **wire/db adapters** — `unit_price_{to,from}_{wire,db_fields}` convert at the
-  boundary.
 
 ## Public vs internal
 
-**Public** (`__all__` == `contract.interface`, 14 symbols): `UnitPrice`, the
-constants, the errors (`UnitPriceError`, `FloatNotAllowedError`,
+**Public** (`__all__` == `contract.interface`, 10 symbols): `UnitPrice`, the
+constants, and the errors (`UnitPriceError`, `FloatNotAllowedError`,
 `InvalidUnitPricePayloadError`, `UndefinedUnitPriceError`, `CurrencyMismatchError`,
-`UnitMismatchError`), and the wire/db adapters.
+`UnitMismatchError`).
 
 ## Ends
 

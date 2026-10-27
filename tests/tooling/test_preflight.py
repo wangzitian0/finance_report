@@ -67,7 +67,7 @@ class TestSelectChecks:
     def test_AC_testing_preflight_1_backend_proof_test_selects_ac_index(self):
         """AC-testing.preflight.1: changed backend proofs re-run AC integrity locally."""
         names = [
-            c.name for c in preflight.select_checks(["apps/backend/tests/audit/test_boundary_codecs.py"], tier="static")
+            c.name for c in preflight.select_checks(["apps/backend/tests/audit/test_money_tolerance_backend.py"], tier="static")
         ]
         assert "ac-proof-traceability" in names
 

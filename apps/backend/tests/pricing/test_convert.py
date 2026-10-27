@@ -211,8 +211,17 @@ async def test_AC12_31_2_convert_amount_routes_through_money_exchange_rate(
     assert typed_rate == ExchangeRate("USD", "SGD", Decimal("1.200000"))
 
 
+@ac_proof(
+    proof_id="test_convert_amount_fails_closed_outside_iso_4217",
+    ac_ids=["AC-money.22.3"],
+    ci_tier="pr_ci",
+    issue="#2698",
+)
 async def test_convert_amount_wraps_invalid_currency_as_pricing_error(db: AsyncSession, monkeypatch):
-    """Legacy/provider rate rows with non-ISO codes should not leak Money errors."""
+    """AC-money.22.3: a currency outside ISO-4217 raises PricingError, never a fallback product.
+
+    Legacy/provider rate rows with non-ISO codes should not leak Money errors.
+    """
     import src.pricing.extension.fx as fx_module
 
     async def fake_get_exchange_rate(*args, **kwargs) -> Decimal:

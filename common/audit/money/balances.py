@@ -8,10 +8,10 @@ unrepresentable — it holds one :class:`CurrencyBalance` per currency and expos
 balance" across currencies. Summing across currencies is intentionally not
 offered (it requires :func:`common.audit.money.convert` and a chosen base currency).
 
-It round-trips the existing ``StatementSummary.currency_balances`` JSONB shape
+It reads the existing ``StatementSummary.currency_balances`` JSONB shape
 ``[{"currency", "opening", "closing"}]`` so adoption (PR2, #1171) is a typed
-accessor over the column rather than a migration. Amounts are serialised as
-strings (never JSON floats) per the decimal red line.
+accessor over the column rather than a migration. Amounts are parsed from
+strings, never from JSON floats, per the decimal red line.
 """
 
 from __future__ import annotations
@@ -93,16 +93,13 @@ class CurrencyBalances:
                 return bal
         return None
 
-    def is_multi_currency(self) -> bool:
-        return len(self.balances) > 1
-
     def __iter__(self):
         return iter(self.balances)
 
     def __len__(self) -> int:
         return len(self.balances)
 
-    # ── JSONB round-trip (StatementSummary.currency_balances) ───────────
+    # ── JSONB read (StatementSummary.currency_balances) ─────────────────
     @classmethod
     def from_jsonb(cls, rows: list[dict] | None) -> CurrencyBalances:
         """Build from the ``[{currency, opening, closing}]`` JSONB shape."""
@@ -118,14 +115,3 @@ class CurrencyBalances:
             closing = Money(_parse_amount(row.get("closing"), "closing"), currency)
             out.append(CurrencyBalance(currency, opening, closing))
         return cls(tuple(out))
-
-    def to_jsonb(self) -> list[dict]:
-        """Serialise to the JSONB shape, amounts as strings (never floats)."""
-        return [
-            {
-                "currency": bal.currency.code,
-                "opening": str(bal.opening.amount),
-                "closing": str(bal.closing.amount),
-            }
-            for bal in self.balances
-        ]

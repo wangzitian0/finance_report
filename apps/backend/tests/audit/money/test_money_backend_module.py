@@ -8,11 +8,10 @@ behaviour-preserving way:
   JSONB as a typed ``CurrencyBalances`` (no scalar collapse).
 - AC-audit.22.4 — ``TransferLeg.money`` exposes a leg's value as a typed ``Money``.
 
-(AC-audit.22.2 reconciliation + AC-money.22.3 reporting hot-path arithmetic adoption
-are proven separately in ``test_money_adopt.py``; AC-money.22.3 has migrated into
-the money package roadmap. Routing them through Money's ISO-4217 validation needs
+(AC-audit.22.2 reconciliation hot-path arithmetic adoption is proven separately in
+``test_money_adopt.py``. Routing it through Money's ISO-4217 validation needs
 non-ISO-currency-tolerant handling, hence the dedicated byte-identical adoption
-helpers there.)
+helper there.)
 """
 
 import json
@@ -157,7 +156,7 @@ def test_AC2_22_1_statement_summary_typed_currency_balances():
         {"currency": "SGD", "opening": "200.00", "closing": "250.00"},
     ]
     balances = stmt.typed_currency_balances()
-    assert balances.is_multi_currency()
+    assert len(balances) == 2
     assert balances.get("USD").closing == Money(Decimal("150.00"), "USD")
     # No scalar accessor that could collapse the multi-currency balance.
     assert not hasattr(balances, "amount")

@@ -9,8 +9,6 @@ from common.audit.decimal_scalar import coerce_decimal
 from common.audit.money.currency import Currency
 from common.audit.money.errors import FloatNotAllowedError, InvalidExchangeRateError
 
-_RateInput = Decimal | int
-
 
 def _coerce_rate(value: object) -> Decimal:
     """Coerce via the shared codec (AC-audit.36.1); positivity stays FX-specific."""

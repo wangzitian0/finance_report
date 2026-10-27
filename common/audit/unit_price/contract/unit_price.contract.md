@@ -24,8 +24,6 @@
 | `from_total(money, quantity)` → `UnitPrice` | `Money / Quantity`; keeps the money's currency and the quantity's unit; **zero quantity is undefined** (raises) |
 | `neg` / `abs` | keeps currency + unit |
 | `compare` | **same currency AND same unit only**; otherwise typed error |
-| `unit_price_to_wire` / `unit_price_from_wire` | JSON boundary; rate is a decimal string, currency/unit are string codes; JSON numbers rejected |
-| `unit_price_to_db_fields` / `unit_price_from_db_fields` | DB boundary for Python/backend code; rate is an exact `Decimal`, currency/unit are strings |
 
 ## Invariants
 
@@ -35,9 +33,8 @@
 3. **A unit price applies to a quantity only when units agree**, and the product
    is `Money` in the price's currency, never a naked `Decimal`.
 4. **No cross-currency / cross-unit comparison** of unit prices.
-5. **Boundary codecs are package-owned.** Wire payloads use decimal strings
-   (never JSON numbers); DB adapters expose exact `Decimal` rates only at the
-   storage edge. Malformed payloads raise typed unit-price errors.
+5. **No boundary codec.** Python code moves unit prices through `Decimal`
+   columns and typed fields. No production code called a wire or DB codec (#2698).
 
 ## Shared API Surface
 
@@ -46,8 +43,7 @@
 
 `UnitPrice`, `UNIT_PRICE_QUANTUM`, `UNIT_PRICE_DP`, `UNIT_PRICE_ROUNDING`,
 `UnitPriceError`, `FloatNotAllowedError`, `CurrencyMismatchError`,
-`UnitMismatchError`, `UndefinedUnitPriceError`, `InvalidUnitPricePayloadError`,
-`unit_price_to_wire`, `unit_price_from_wire`.
+`UnitMismatchError`, `UndefinedUnitPriceError`, `InvalidUnitPricePayloadError`.
 
 A TypeScript frontend implementation is a **P2 follow-up** (#1253): there are no
 frontend unit-price call sites today, and frontend display helpers (nullable /

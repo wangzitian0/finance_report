@@ -8,9 +8,7 @@
     "FloatNotAllowedError",
     "InvalidRatioPayloadError",
     "PERCENT_DP",
-    "PERCENT_ROUNDING",
-    "ratio_to_wire",
-    "ratio_from_wire"
+    "PERCENT_ROUNDING"
   ],
   "to_percent": [
     {"ratio": "0.125", "dp": 2, "expected": "12.50"},

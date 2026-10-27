@@ -155,8 +155,8 @@ in `apps/backend/src/audit/<domain>` and `apps/frontend/src/lib/audit/<domain>`
 content unchanged by the fold, only relocated. Each domain stays an internal
 **submodule** of `audit` rather than flattening into one namespace: several
 symbol names collide across domains (`FloatNotAllowedError` is defined
-independently in every domain), so a consumer reaches domain-specific errors/
-wire codecs via `from src.audit.money import FloatNotAllowedError`. Only the 10
+independently in every domain), so a consumer reaches domain-specific
+errors via `from src.audit.money import FloatNotAllowedError`. Only the 10
 non-colliding value-object classes are re-exported flat at `audit`'s root
 (`from src.audit import Money`) — exactly the `units` this contract declares.
 Backward compatibility of the language-neutral contracts and conformance vectors
@@ -361,19 +361,18 @@ logic, code should use the MECE base element that owns the semantics:
 
 Raw `Decimal` is allowed only as a physical substrate where the surrounding
 layer is explicitly a boundary or test fixture. Hand-written semantic conversion
-at those boundaries must route through the owning base-package codec/adapter,
-not through local `Decimal(str(...))` helpers.
+at those boundaries must construct the owning base-package value type, not use
+local `Decimal(str(...))` helpers.
 
 1. **Base packages** — `common/audit/money`, `common/audit/ratio`, `common/audit/quantity` and the
    backend/frontend runtime copies may use `Decimal`/`decimal.js` internally.
 2. **DB models and migrations** — SQLAlchemy `Numeric` columns, Alembic
    migrations, and repository/query predicates store exact numeric values; code
-   that turns storage fields into business values must call the package DB
-   adapters such as `money_from_db_fields`, `ratio_from_db_value`, or
-   `quantity_from_db_fields`.
+   that turns storage fields into business values must construct the owning value
+   type, such as `Money(amount, currency)`, `Ratio(value)`, or `Quantity(value, unit)`.
 3. **Schemas and API contracts** — Pydantic/TypeScript API shapes may expose
-   exact decimals as string-backed fields while preserving existing wire shapes;
-   hand-authored JSON conversion must use the package wire codecs.
+   exact decimals as string-backed fields while preserving existing wire shapes.
+   Python has no wire codec; the TypeScript twin keeps its own.
 4. **Parser and provider adapters** — OCR, CSV/PDF parsers, market-data
    providers, and import adapters may parse external numbers into raw
    `Decimal` before handing them to domain services, then immediately cross the
@@ -381,31 +380,22 @@ not through local `Decimal(str(...))` helpers.
 5. **Tests, fixtures, and generated code** — tests may build exact inputs and
    assert exact outputs; generated API types may mirror the wire contract.
 
-#### Boundary codec surface
+#### No Python boundary codec
 
-Each base package owns the codecs that cross storage/wire boundaries:
+The Python kernel has no wire or DB codec for the value types. No production code
+called one, so #2698 deleted the 20 functions and their four `wire.py` modules from
+both Python trees. Python code constructs the value type from a storage `Decimal`
+and reads `.amount`, `.value` or `.rate` back when it writes an ORM field. The
+TypeScript twin (`apps/frontend/src/lib/audit`) keeps JSON codecs that serialize
+decimals as strings, never JSON numbers. Both ends still export the
+`Invalid*PayloadError` classes (`shared_api`).
 
-| Package | JSON / wire codec | DB adapter |
-|---------|-------------------|------------|
-| `money` | `money_to_wire` / `money_from_wire`; `exchange_rate_to_wire` / `exchange_rate_from_wire` | `money_to_db_fields` / `money_from_db_fields`; `exchange_rate_to_db_fields` / `exchange_rate_from_db_fields` |
-| `ratio` | `ratio_to_wire` / `ratio_from_wire` | `ratio_to_db_value` / `ratio_from_db_value` |
-| `quantity` | `quantity_to_wire` / `quantity_from_wire` | `quantity_to_db_fields` / `quantity_from_db_fields` |
-| `unit_price` | `unit_price_to_wire` / `unit_price_from_wire` | `unit_price_to_db_fields` / `unit_price_from_db_fields` |
-
-Wire codecs serialize decimals as JSON strings, never JSON numbers. DB adapters
-return exact `Decimal` storage fields plus their semantic key (`currency` or
-`unit`) where applicable. Malformed boundary payloads raise typed base-package
-errors (`Invalid*PayloadError` or `FloatNotAllowedError`), giving application
-code one place to audit and translate failures.
-
-The Decimal-scalar mechanics shared by every package's codec — the canonical
-wire string form (`decimal_to_wire`), the construction-time coercion
-(`coerce_decimal`), and the wire-parse / mapping / field triad (`WireCodec`) —
-live once in a single `decimal_scalar` module per layer (`common/audit/decimal_scalar.py`
-and its `apps/backend/src` mirror), parameterized by each package's typed errors.
-It is dependency-light substrate, not a fifth base package, so the family stays
-bounded (§2). Routing every package through it is enforced by AC12.36, so the
-per-package codec bodies cannot silently re-duplicate.
+The construction-time coercion (`coerce_decimal`) that every value type shares
+lives once in a single `decimal_scalar` module per layer (`common/audit/decimal_scalar.py`
+and its `apps/backend/src` mirror), parameterized by each package's
+`FloatNotAllowedError`. It is dependency-light substrate, not a fifth base package,
+so the family stays bounded (§2). Routing every package through it is enforced by
+AC12.36, so the per-package coercion bodies cannot silently re-duplicate.
 
 Runtime service code should keep the owning value type alive once a raw storage
 field crosses into business logic. For example, backend services should turn a
@@ -447,8 +437,8 @@ hotspots require an AC/test update that explains the boundary.
    quantity: `Quantity / Quantity -> Ratio`).
 6. **Per-key container** (where applicable) — aggregation that makes cross-key
    summing structurally impossible (money: `CurrencyBalances`).
-7. **Serialization + storage adapters** — to/from the wire as **strings**
-   (never JSON float) and to/from exact DB fields through package-owned helpers.
+7. **Serialization** — the TypeScript twin writes the wire as **strings** (never
+   JSON float). Python has no wire or DB adapter (#2698).
 8. **Typed error hierarchy** — base `XError` → `FloatNotAllowed` / `Invalid…` /
    `…Mismatch`.
 9. **The language-neutral standard** — `contract/<x>.contract.md` (interface) +

@@ -23,13 +23,12 @@ stored percentage are all deterministic and identical across BE and FE.
   origin) raises `UndefinedRatioError`.
 - **percent rendering** — `to_percent()` / `from_percent()` use `PERCENT_DP` +
   `PERCENT_ROUNDING` so a percentage round-trips within the standard precision.
-- **wire/db adapters** — `ratio_{to,from}_{wire,db_value}` convert at the boundary.
 
 ## Public vs internal
 
-**Public** (`__all__` == `contract.interface`, 11 symbols): `Ratio`, the constants
-`PERCENT_DP` / `PERCENT_ROUNDING`, the errors (`RatioError`, `FloatNotAllowedError`,
-`InvalidRatioPayloadError`, `UndefinedRatioError`), and the wire/db adapters.
+**Public** (`__all__` == `contract.interface`, 7 symbols): `Ratio`, the constants
+`PERCENT_DP` / `PERCENT_ROUNDING`, and the errors (`RatioError`, `FloatNotAllowedError`,
+`InvalidRatioPayloadError`, `UndefinedRatioError`).
 
 ## Three ends, one spec
 
