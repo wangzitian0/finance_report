@@ -110,6 +110,26 @@ describe("navigation metadata", () => {
     expect(getRouteConfig("/events").label).toBe("Events");
   });
 
+  // AC-meta.fe-ia-nav.36
+  it("AC-meta.fe-ia-nav.36 labels every dynamic target page of the route map by pattern, not by its parameter", () => {
+    const dynamicTargets = routeMapJson.routes
+      .filter((r) => r.state === "target" && r.path.includes("["))
+      .map((r) => r.path);
+    expect(dynamicTargets).toContain("/statements/[id]");
+
+    const uuid = "3f2b8c1e-9d4a-4e57-8a60-1c2d3e4f5a6b";
+    for (const target of dynamicTargets) {
+      const entry = ROUTE_CONFIG[target];
+      expect(entry, `${target} needs a ROUTE_CONFIG entry`).toBeDefined();
+      const concrete = target.replace(/\[[^\]]+\]/g, uuid);
+      expect(getRouteConfig(concrete), `${concrete} must resolve to ${target}`).toBe(entry);
+      expect(getRouteConfig(concrete).label).not.toContain(uuid);
+    }
+    expect(getRouteConfig(`/statements/${uuid}`).label).toBe("Statement");
+    // A pattern matches one segment only: a deeper path still resolves through its parents.
+    expect(getRouteConfig(`/statements/${uuid}/extra`).label).not.toBe("Statement");
+  });
+
   // Single-homed from Sidebar.tsx/BottomTabBar.tsx byte-identical duplicates (#1868 S5).
   it("isActive matches home exactly and other routes exactly or by path prefix", () => {
     expect(isActive("/", "/")).toBe(true);

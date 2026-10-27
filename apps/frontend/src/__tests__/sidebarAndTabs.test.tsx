@@ -224,6 +224,25 @@ describe("Sidebar and WorkspaceTabs", () => {
     )
   })
 
+  // AC-meta.fe-ia-nav.36
+  it("AC-meta.fe-ia-nav.36 WorkspaceTabs names a statement tab Statement, never by its id", async () => {
+    const uuid = "3f2b8c1e-9d4a-4e57-8a60-1c2d3e4f5a6b"
+    const href = `/statements/${uuid}`
+    pathnameMock = href
+    const { unmount } = render(<WorkspaceTabs />)
+    await waitFor(() => expect(addTabMock).toHaveBeenCalledTimes(1))
+    const added = addTabMock.mock.calls[0][0] as { label: string; href: string; icon: string }
+    expect(added).toEqual(expect.objectContaining({ label: "Statement", href }))
+    unmount()
+
+    // Render the tab the page just added, as the workspace store would hold it.
+    workspaceMockData = { ...workspaceMockData, tabs: [{ id: "tab-s", ...added }], activeTabId: "tab-s" }
+    render(<WorkspaceTabs />)
+    const close = screen.getByRole("button", { name: `Close ${added.label} tab` })
+    expect(close.getAttribute("aria-label")).toBe("Close Statement tab")
+    expect(close.getAttribute("aria-label")).not.toContain(uuid)
+  })
+
   // AC-meta.fe-app-shell.15
   it("AC16.19.14 WorkspaceTabs section header is Open Tabs in both empty and active states", () => {
     render(<WorkspaceTabs />)

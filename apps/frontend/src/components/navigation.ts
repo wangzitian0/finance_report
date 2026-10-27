@@ -93,6 +93,8 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/more": { label: "More", Icon: MoreHorizontal },
     "/journal": { label: "Journal", Icon: BookOpen },
     "/portfolio": { label: "Portfolio", Icon: Wallet },
+    // A dynamic target page of route-map.json: `[id]` matches one path segment (see getRouteConfig).
+    "/statements/[id]": { label: "Statement", Icon: UploadCloud },
     "/reports": { label: "Reports", Icon: BarChart3 },
     "/reconciliation": { label: "Reconciliation", Icon: Link2 },
     "/chat": { label: "Chat", Icon: MessageSquare },
@@ -109,8 +111,15 @@ export function isActive(pathname: string, href: string): boolean {
     return pathname === href || pathname.startsWith(href + "/");
 }
 
+/** The `ROUTE_CONFIG` keys with a `[param]` segment, each with the pattern that matches one concrete path. */
+const DYNAMIC_ROUTES = Object.keys(ROUTE_CONFIG)
+    .filter((path) => path.includes("["))
+    .map((path) => ({ path, pattern: new RegExp(`^${path.replace(/\[[^\]]+\]/g, "[^/]+")}$`) }));
+
 export function getRouteConfig(pathname: string): RouteConfig {
     if (ROUTE_CONFIG[pathname]) return ROUTE_CONFIG[pathname];
+    const dynamic = DYNAMIC_ROUTES.find(({ pattern }) => pattern.test(pathname));
+    if (dynamic) return ROUTE_CONFIG[dynamic.path];
     const segments = pathname.split("/").filter(Boolean);
     while (segments.length > 0) {
         const parentPath = "/" + segments.join("/");

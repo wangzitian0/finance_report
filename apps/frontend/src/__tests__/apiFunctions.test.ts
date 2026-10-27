@@ -19,6 +19,7 @@ describe('apiOperation', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    localStorage.clear();
   });
 
   // AC-meta.fe-http-client.1
@@ -97,6 +98,8 @@ describe('apiOperation', () => {
 
   // AC-identity.fe-auth2.1
   it('AC1.10.3 sends HttpOnly auth cookies by default', async () => {
+    // No bearer token: a browser that ran an old build still holds this key, and no code reads it.
+    localStorage.setItem('finance_access_token', 'stale-jwt');
     const fetchMock = makeFetchMock(200, {});
     vi.stubGlobal('fetch', fetchMock);
 
