@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -15,7 +14,7 @@ from sqlalchemy import Select, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from src.audit import JournalEntrySourceType
+from src.audit import JournalEntrySourceType, text_digest
 from src.ledger import (
     Account,
     AccountType,
@@ -355,7 +354,7 @@ def cash_flow_line_id(item: Mapping[str, Any]) -> str:
     """
     category = str(item["category"])
     key = "\x1f".join((category, str(item.get("description") or ""), str(item.get("account_id") or "")))
-    return f"{category.lower()}-{hashlib.sha256(key.encode()).hexdigest()[:16]}"
+    return f"{category.lower()}-{text_digest(key)[:16]}"
 
 
 async def generate_cash_flow(

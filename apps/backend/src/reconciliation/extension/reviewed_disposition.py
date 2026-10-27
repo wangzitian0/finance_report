@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
@@ -11,7 +9,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, TraceEmitter
+from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, TraceEmitter, canonical_json_digest
 from src.config_app import get_effective_base_currency
 from src.extraction import (
     DispositionContext,
@@ -54,8 +52,7 @@ def _command_digest(command: ReviewedDispositionCommand) -> str:
         "category": command.category.strip() if command.category else None,
         "rationale": command.rationale.strip(),
     }
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(encoded).hexdigest()
+    return canonical_json_digest(payload)
 
 
 def _statement_transaction(txn: AtomicTransaction) -> StatementTransaction:

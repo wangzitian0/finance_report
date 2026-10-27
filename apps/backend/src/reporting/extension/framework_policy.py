@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from datetime import date
@@ -12,6 +11,7 @@ from uuid import UUID
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import canonical_json_digest
 from src.extraction.orm.layer2 import AssetType, AtomicPosition
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryAuthorityState, JournalLine, ProcessingAccount
 from src.ledger.orm.journal import active_journal_entry_filter
@@ -323,7 +323,7 @@ def _result_id(
 ) -> str:
     decision_payloads = [decision.model_dump(mode="json") for decision in decisions]
     gap_payloads = [gap.model_dump(mode="json") for gap in gaps]
-    payload = json.dumps(
+    digest = canonical_json_digest(
         {
             "framework_id": framework_id.value,
             "matrix_version": matrix_version,
@@ -334,11 +334,8 @@ def _result_id(
                 key=lambda decision: json.dumps(decision, sort_keys=True, separators=(",", ":")),
             ),
             "gaps": sorted(gap_payloads, key=lambda gap: json.dumps(gap, sort_keys=True, separators=(",", ":"))),
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+        }
+    )[:16]
     return (
         f"policy-result:{framework_id.value}:{report_period_start.isoformat()}:{report_period_end.isoformat()}:{digest}"
     )

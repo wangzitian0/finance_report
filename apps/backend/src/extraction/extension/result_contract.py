@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from datetime import date
 from decimal import Decimal
 
+from src.audit import canonical_json_digest
 from src.extraction.base.result import (
     ExtractedPositionFact,
     ExtractedTransactionFact,
@@ -31,7 +30,7 @@ def _position_id(position: BrokeragePositionSnapshot) -> str:
         "quantity": str(position.quantity),
         "market_value": str(position.market_value),
     }
-    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return canonical_json_digest(payload)
 
 
 def _period(

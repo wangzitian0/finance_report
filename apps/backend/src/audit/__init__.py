@@ -32,6 +32,7 @@ from src.audit.base.trace import (
 )
 from src.audit.base.trace_repository import TraceDecisionHead, TraceRecordRepository
 from src.audit.data import TraceConfidenceProjection
+from src.audit.digest import canonical_json_digest, text_digest
 from src.audit.extension import (
     TERMINAL_AUDIT_POLICY_VERSION,
     SqlTraceRecordRepository,
@@ -96,6 +97,8 @@ __all__ = [
     "convert",
     "normalize_currency_code",
     "to_money",
+    "canonical_json_digest",
+    "text_digest",
     "ExchangeRate",
     "Money",
     "RECONCILIATION_AUTO_ACCEPT_SCORE",

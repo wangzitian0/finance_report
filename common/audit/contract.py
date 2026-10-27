@@ -250,6 +250,8 @@ CONTRACT = PackageContract(
         "convert",
         "normalize_currency_code",
         "to_money",
+        "canonical_json_digest",
+        "text_digest",
         "ExchangeRate",
         "STATEMENT_SOURCE_TYPES",
         "JournalEntrySourceType",
@@ -495,6 +497,8 @@ CONTRACT = PackageContract(
         ac('AC-audit.42.5', 'Market-data facts enforce positive rates/prices and stock prices are unique by symbol, currency, provider source, and date. Was EPIC-011 AC11.18.5.', 'apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_5_market_data_constraints_and_stock_price_uniqueness'),
         ac('AC-audit.42.6', 'The constraint migration declares preflight checks and migration-risk classification for existing data compatibility. Was EPIC-011 AC11.18.6.', 'apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_6_migration_preflights_and_risk_contract_are_declared'),
         ac('AC-audit.43.1', 'Every Python module of common/audit holds the same code as its twin in apps/backend/src/audit, with docstrings and import order excluded and string constants compared as they are; the four TraceRecord files also keep docstrings and import order. A module that exists in one tree only, a twin with one backend-only definition and each name that one package surface publishes alone appear in an explicit list with the reason, and no file under common/ or tools/ imports a backend-only module. apps/backend/src/audit is the one editable source; common/audit is the stdlib-only mirror that the bare-Python CI jobs import (#2752).', 'tests/tooling/test_audit_mirror_lock.py::test_AC_audit_43_1_mirrored_modules_are_ast_equal', priority='P1'),
+        ac('AC-audit.44.1', 'canonical_json_digest (SHA-256 of sorted, compact JSON with default=str) and text_digest (SHA-256 of a UTF-8 string) in apps/backend/src/audit/digest.py return the exact bytes of the private copies and inline expressions that they replaced, for the digests that trace records, command digests, result ids and policy versions store; the reviewed-envelope owner digest keeps the JSON-quoted form (#2768).', 'apps/backend/tests/audit/test_digest_helpers.py::test_AC_audit_44_1_canonical_json_digest_keeps_the_old_bytes', priority='P1'),
+        ac('AC-audit.44.2', 'apps/backend/src holds one definition of the canonical-JSON SHA-256 and one of the text SHA-256: outside audit/digest.py, a function that combines hashlib.sha256 with json.dumps(sort_keys=True), or hashlib.sha256(<str>.encode()).hexdigest(), fails unless it sits in an explicit list with the reason that it is another byte form or a file hash (#2768).', 'tests/tooling/test_digest_single_definition.py::test_AC_audit_44_2_backend_src_has_no_second_digest_definition', priority='P1'),
         # ── group global-invariant: cross-package numeric-governance closeout
         # (#1429, umbrella #1416, formalized per the 2026-07-12 scope freeze on
         # #1429). This is audit's `extension` reach into the financial flow

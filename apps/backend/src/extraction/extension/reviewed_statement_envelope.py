@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -25,6 +23,7 @@ from src.audit import (
     TraceScope,
     TraceTargetClass,
     VersionedTraceRef,
+    canonical_json_digest,
 )
 from src.extraction.base.result import StatementEvidenceType, StatementExtractionResult, StatementSourceType
 from src.extraction.base.reviewed_statement_envelope import (
@@ -45,11 +44,6 @@ class ReviewedStatementEnvelopeConflict(ValueError):
     """A different review command targets an already-confirmed source version."""
 
 
-def _digest(value: object) -> str:
-    serialized = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(serialized.encode()).hexdigest()
-
-
 def _authority(*, tier: str, proof_kind: str, provenance: str, execution_stage: str) -> TraceAuthorityProfile:
     return TraceAuthorityProfile(
         package="extraction",
@@ -57,7 +51,9 @@ def _authority(*, tier: str, proof_kind: str, provenance: str, execution_stage: 
         proof_kind=proof_kind,
         provenance=provenance,
         execution_stage=execution_stage,
-        assertion_owner_digest=_digest(f"reviewed-statement-envelope:{tier}:{proof_kind}:v1"),
+        # The owner string is hashed in its canonical JSON form (with quotes). Stored
+        # `assertion_owner_digest` values depend on it: do not use `text_digest` here.
+        assertion_owner_digest=canonical_json_digest(f"reviewed-statement-envelope:{tier}:{proof_kind}:v1"),
         producer_version="1",
     )
 

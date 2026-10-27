@@ -8,8 +8,6 @@ for authority outside this package.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -32,6 +30,7 @@ from src.audit import (
     TraceScope,
     TraceTargetClass,
     VersionedTraceRef,
+    canonical_json_digest,
 )
 from src.pricing.base.contribution import (
     MarketValuationSelection,
@@ -53,10 +52,6 @@ from src.pricing.extension.resolve import resolve
 _OBSERVATION_ASSERTION = VersionedTraceRef("pricing_valuation_input", "selected-observation", "1")
 
 
-def _digest(payload: object) -> str:
-    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
-
-
 def _authority(*, provenance: str, stage: str, producer_version: str) -> TraceAuthorityProfile:
     return TraceAuthorityProfile(
         package="pricing",
@@ -64,7 +59,7 @@ def _authority(*, provenance: str, stage: str, producer_version: str) -> TraceAu
         proof_kind="property",
         provenance=provenance,
         execution_stage=stage,
-        assertion_owner_digest=_digest(
+        assertion_owner_digest=canonical_json_digest(
             {
                 "package": "pricing",
                 "policy": "valuation-attestation",
@@ -82,7 +77,7 @@ def _system_authority() -> TraceAuthorityProfile:
         proof_kind="exact",
         provenance="deterministic",
         execution_stage="product.runtime",
-        assertion_owner_digest=_digest(
+        assertion_owner_digest=canonical_json_digest(
             {
                 "package": "pricing",
                 "policy": "resolved-market-valuation",
@@ -156,7 +151,7 @@ def pricing_trace_policy_registry() -> TraceDecisionPolicyRegistry:
 
 def valuation_observation_version(observation: PriceObservation) -> str:
     """Digest the exact observation version selected for package use."""
-    return _digest(
+    return canonical_json_digest(
         {
             "as_of": observation.as_of.isoformat(),
             "currency": observation.currency,
@@ -193,7 +188,7 @@ def resolved_market_valuation_target(
     return VersionedTraceRef(
         kind="pricing_resolved_valuation",
         id="pricing-resolution:"
-        + _digest(
+        + canonical_json_digest(
             {
                 "policy": policy_id,
                 "requested_as_of": requested_as_of.isoformat(),
@@ -201,7 +196,7 @@ def resolved_market_valuation_target(
                 "subject_kind": subject.kind.value,
             }
         ),
-        version=_digest(
+        version=canonical_json_digest(
             {
                 "observation_version": valuation_observation_version(observation),
                 "policy": policy_id,

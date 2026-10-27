@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -20,6 +19,7 @@ from src.audit import (
     TraceScope,
     TraceTargetClass,
     VersionedTraceRef,
+    text_digest,
 )
 from src.extraction.base.result import ExtractionMethod, StatementExtractionResult
 from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
@@ -32,10 +32,6 @@ from src.extraction.extension.disposition_trace import (
 from src.extraction.extension.reviewed_statement_envelope import reviewed_envelope_trace_policies
 
 
-def _digest(value: str) -> str:
-    return hashlib.sha256(value.encode()).hexdigest()
-
-
 def _authority(*, tier: str, proof_kind: str, provenance: str, producer_version: str) -> TraceAuthorityProfile:
     return TraceAuthorityProfile(
         package="extraction",
@@ -43,7 +39,7 @@ def _authority(*, tier: str, proof_kind: str, provenance: str, producer_version:
         proof_kind=proof_kind,
         provenance=provenance,
         execution_stage="product.runtime",
-        assertion_owner_digest=_digest(f"extraction:{tier}:{proof_kind}:v1"),
+        assertion_owner_digest=text_digest(f"extraction:{tier}:{proof_kind}:v1"),
         producer_version=producer_version,
     )
 

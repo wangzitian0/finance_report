@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import re
 from dataclasses import dataclass, field
 from datetime import date
@@ -12,6 +10,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid5
 
+from src.audit import canonical_json_digest
 from src.extraction.base.source_capability import (
     SOURCE_CAPABILITIES as SOURCE_CAPABILITIES,
     SourceCapability as SourceCapability,
@@ -188,9 +187,7 @@ class StatementExtractionResult:
         for name in ("warnings", "review_reasons"):
             if any(not item.strip() for item in getattr(self, name)):
                 raise ValueError(f"{name} cannot contain blanks")
-        digest = hashlib.sha256(
-            json.dumps(self._semantic_payload(), sort_keys=True, separators=(",", ":")).encode()
-        ).hexdigest()
+        digest = canonical_json_digest(self._semantic_payload())
         object.__setattr__(self, "content_digest", digest)
         object.__setattr__(self, "result_id", uuid5(_NAMESPACE, digest))
 

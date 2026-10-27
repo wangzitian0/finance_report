@@ -187,6 +187,18 @@ the other tree counts as a difference. The four TraceRecord files (`base/trace.p
 also keep docstrings and import order. A second test fails when a file under
 `common/` or `tools/` imports a backend-only module.
 
+### Two digest definitions (AC-audit.44.1, AC-audit.44.2)
+
+`apps/backend/src/audit/digest.py` holds the two SHA-256 definitions of the backend:
+`canonical_json_digest(value)` hashes sorted, compact JSON (`default=str`), and
+`text_digest(text)` hashes one UTF-8 string. The canonical digest of a string has quotes,
+so it differs from the text digest of the same string. Trace records, command digests, result ids
+and policy versions store these values: keep the bytes. The module is backend-only and has no mirror.
+`tests/tooling/test_digest_single_definition.py` fails when a function in `apps/backend/src`
+combines `hashlib.sha256` with `json.dumps(sort_keys=True)`, or hashes `<str>.encode()`, outside
+that module and outside its list of other byte forms and file hashes. The bare-Python
+`common/testing/executed_proof.py` keeps its own canonical digest because tooling cannot import `src.audit`.
+
 The membership rule for what earns a Shared-Kernel value package, the canonical
 structure every one must follow, and the raw-`Decimal` boundary policy are
 internalized below in [§Base packages (value-type narrow waists)](#base-packages)

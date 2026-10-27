@@ -15,14 +15,13 @@ reproducible even after later corrections arrive (AC-pricing.bitemporal.1).
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from enum import IntEnum, StrEnum
 from uuid import UUID, uuid4
 
+from src.audit import canonical_json_digest
 from src.pricing.base.errors import InvalidObservationError
 from src.pricing.base.subject import PriceableSubject
 
@@ -44,8 +43,7 @@ def pricing_valuation_lineage_id(
         "subject_key": subject.key,
         "subject_kind": subject.kind.value,
     }
-    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    return f"manual-valuation:{digest}"
+    return f"manual-valuation:{canonical_json_digest(payload)}"
 
 
 class ObservationSource(StrEnum):
