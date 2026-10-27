@@ -69,7 +69,8 @@ from src.extraction.extension.statement_validation import (
 )
 from src.extraction.extension.transaction_classification import (
     classification_suggestions,
-    classify_by_effective_policy,
+    classify_statement_by_effective_policy,
+    try_lock_statement_classification,
 )
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.layer2 import AtomicTransaction
@@ -150,6 +151,22 @@ def _clear_economic_review_notice(statement: StatementSummary) -> None:
         statement.validation_error = None
 
 
+async def posted_entry_txn_ids(db: AsyncSession, user_id: UUID, txn_ids: Sequence[UUID]) -> set[UUID]:
+    """The ids of the statement transactions that a live anchored journal entry already covers.
+
+    The posting skips these rows, and so does the classification pass after parse (#2637).
+    """
+    result = await db.execute(
+        current_anchored_journal_entries(
+            user_id=user_id,
+            target_kind="journal_command",
+            target_ids={f"statement-transaction:{txn_id}" for txn_id in txn_ids},
+        ).where(JournalEntry.status != JournalEntryStatus.VOID)
+    )
+    wanted = set(txn_ids)
+    return {entry.source_id for entry in result.scalars().all() if entry.source_id in wanted}
+
+
 async def auto_create_posted_entries_for_statement(
     db: AsyncSession,
     statement: StatementSummary,
@@ -168,16 +185,7 @@ async def auto_create_posted_entries_for_statement(
         _clear_economic_review_notice(statement)
         return StatementPostingOutcome(status=StatementPostingStatus.POSTED, created_count=0)
 
-    statement_target_ids = {f"statement-transaction:{txn_id}" for txn_id in txn_ids}
-    existing_entry_result = await db.execute(
-        current_anchored_journal_entries(
-            user_id=user_id,
-            target_kind="journal_command",
-            target_ids=statement_target_ids,
-        ).where(JournalEntry.status != JournalEntryStatus.VOID)
-    )
-    existing_entries = list(existing_entry_result.scalars().all())
-    existing_entry_txn_ids = {entry.source_id for entry in existing_entries if entry.source_id in txn_ids}
+    existing_entry_txn_ids = await posted_entry_txn_ids(db, user_id, txn_ids)
 
     # Pre-anchor historical rows are not evidence that this source command is
     # accepted. Do not silently skip them or generate a duplicate; route the
@@ -213,7 +221,7 @@ async def auto_create_posted_entries_for_statement(
 
     # Classification proposes P&L meaning. Disposition is the sole authority that
     # can turn that proposal plus reconciliation/account context into a command.
-    await classify_by_effective_policy(db, user_id, txns_to_post)
+    await classify_statement_by_effective_policy(db, user_id, statement.id, txns_to_post)
     legs_posted = 0
     if dependencies.post_named_transfers is not None and dependencies.disposition_mode is DispositionMode.ENFORCE:
         if await auto_accept_enabled(db, user_id):
@@ -750,6 +758,15 @@ async def try_auto_approve_high_confidence_statement(
     )
     statement = result.scalar_one_or_none()
     if statement is None or not is_high_confidence_auto_approve_candidate(statement):
+        return 0
+
+    # The parse session holds the statement row already. A wait for the classification lock here could meet an approve
+    # request that holds the lock and waits for the row, and a poll hides that cycle. So the auto-approve does not
+    # wait: it leaves the statement to the review (#2637).
+    if not await try_lock_statement_classification(db, statement_id):
+        statement.status = BankStatementStatus.PARSED
+        statement.stage1_status = Stage1Status.PENDING_REVIEW
+        await db.flush()
         return 0
 
     try:

@@ -38,6 +38,7 @@ from sqlalchemy.orm import aliased
 import src.config
 from src.extraction.base.disposition import EconomicIntent
 from src.extraction.base.source_vocabulary import ClassificationStatus, RuleType, TransactionDirection
+from src.extraction.base.types import StatementClassificationBusy
 from src.extraction.extension.ai_settings import auto_accept_enabled, classification_enabled
 from src.extraction.extension.classification import ClassificationService
 from src.extraction.extension.correction_service import invalidate_correction_cache
@@ -564,6 +565,16 @@ async def _propose_batch(
     return [_proposal_from_item(item) for item in _normalize_scale(items)]
 
 
+async def _lock_policy_rule(db: AsyncSession, user_id: UUID, policy: ClassificationPolicy) -> None:
+    """Take the lock that serializes the writers of the model rows of one user and one policy version.
+
+    The lock lasts to the end of the transaction. A call takes it again when the session already holds it, so a cached
+    rule never skips the wait for another writer.
+    """
+    lock_key = f"policy_rule:{user_id}:{POLICY_RULE_NAME}:{policy.version}"
+    await db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0))))
+
+
 async def _ensure_policy_rule(db: AsyncSession, user_id: UUID, policy: ClassificationPolicy) -> ClassificationRule:
     """Materialize the policy version as its append-only ``ClassificationRule`` anchor.
 
@@ -578,8 +589,7 @@ async def _ensure_policy_rule(db: AsyncSession, user_id: UUID, policy: Classific
     if cached is not None and cached in db:
         return cached
 
-    lock_key = f"policy_rule:{user_id}:{POLICY_RULE_NAME}:{policy.version}"
-    await db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(lock_key, 0))))
+    await _lock_policy_rule(db, user_id, policy)
 
     existing = (
         await db.execute(
@@ -794,6 +804,7 @@ async def classify_transactions(
     policy: ClassificationPolicy | None,
     proposer: Proposer | None = None,
     commit_basis: bool = True,
+    apply_rules: bool = True,
 ) -> list[ClassificationOutcome]:
     """Classify ``transactions`` under an optional model ``policy``.
 
@@ -806,6 +817,9 @@ async def classify_transactions(
     repayment at any score above 0: their Processing leg posts them. A score of 0 on one of these four
     classes is no answer, and so is a row without a readable answer: neither writes anything.
     ``commit_basis=False`` is pro-forma: same verdicts, zero writes.
+    ``apply_rules=False`` still keeps the rows that a rule matches away from the model, but it writes no rule row:
+    the pass that runs before the approval leaves the rule rows to the approval, which reads the rules of that
+    moment (#2637).
     """
     if not transactions:
         return []
@@ -819,7 +833,7 @@ async def classify_transactions(
             matched_rule = next((rule for rule in rules if service._match_rule(txn, rule)), None)
             if matched_rule is not None:
                 ruled[txn.id] = matched_rule
-        if ruled and commit_basis:
+        if ruled and commit_basis and apply_rules:
             await service.apply_rules(
                 db,
                 user_id,
@@ -837,7 +851,7 @@ async def classify_transactions(
                 atomic_txn_id=txn.id,
                 disposition="rule",
                 policy_version=ruled[txn.id].version_number,
-                wrote_row=commit_basis,
+                wrote_row=commit_basis and apply_rules,
             )
             if txn.id in ruled
             else ClassificationOutcome(
@@ -916,6 +930,26 @@ async def classify_transactions(
         if policy_rule is None:
             policy_rule = await _ensure_policy_rule(db, user_id, policy)
         return policy_rule
+
+    if commit_basis and any(proposal is not None for proposal in proposals):
+        # Two statements can share a row, and the pass of the other statement can answer that row while the model
+        # works here. The policy lock makes the second writer wait for the commit of the first, and the read after
+        # it sees the rows of the first. Without the read the second flush breaks the unique key (#2637). The step
+        # takes the lock and writes no rule row: a pass that writes no answer leaves the rule table as it was.
+        await _lock_policy_rule(db, user_id, policy)
+        proposed_ids = [txn.id for txn in to_propose]
+        already_classified |= set(
+            (
+                await db.execute(
+                    select(TransactionClassification.atomic_txn_id)
+                    .where(TransactionClassification.atomic_txn_id.in_(proposed_ids))
+                    .where(TransactionClassification.rule_version_id.in_(current_policy_rules))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        already_classified |= await _user_decided_txn_ids(db, user_id, proposed_ids)
 
     async def write_fallback(txn: AtomicTransaction, proposal: CategoryProposal, reason: str) -> None:
         rule = await ensure_rule()
@@ -1139,7 +1173,7 @@ async def classify_transactions(
         sweep_ids = set(new_row_txn_ids) | {txn.id for txn in transactions if txn.id in already_classified}
         await _supersede_older_model_rows(db, user_id, sorted(sweep_ids), policy.version)
         await db.flush()
-        written = set(new_row_txn_ids) | set(ruled)
+        written = set(new_row_txn_ids) | (set(ruled) if apply_rules else set())
         outcomes = [
             outcome.model_copy(update={"wrote_row": True}) if outcome.atomic_txn_id in written else outcome
             for outcome in outcomes
@@ -1551,6 +1585,8 @@ async def classify_by_effective_policy(
     db: AsyncSession,
     user_id: UUID,
     transactions: Sequence[AtomicTransaction],
+    *,
+    apply_rules: bool = True,
 ) -> list[ClassificationOutcome]:
     """The production posting seam (#1545): classify each transaction under the
     policy in effect on its OWN txn_date.
@@ -1559,12 +1595,13 @@ async def classify_by_effective_policy(
     only suppresses model proposals for unmatched transactions, which then reach
     disposition as explicit no-proposal review cases. A transaction whose date no
     policy covers is skipped rather than crashing the posting path.
+    ``apply_rules=False`` is for the pass after parse (see ``classify_transactions``).
     """
     if not transactions:
         return []
 
     if not await classification_enabled(db, user_id):
-        return await classify_transactions(db, user_id, transactions, policy=None)
+        return await classify_transactions(db, user_id, transactions, policy=None, apply_rules=apply_rules)
 
     by_version: dict[int, list[AtomicTransaction]] = {}
     policies: dict[int, ClassificationPolicy] = {}
@@ -1585,5 +1622,71 @@ async def classify_by_effective_policy(
 
     outcomes: list[ClassificationOutcome] = []
     for version in sorted(by_version):
-        outcomes.extend(await classify_transactions(db, user_id, by_version[version], policy=policies[version]))
+        outcomes.extend(
+            await classify_transactions(
+                db, user_id, by_version[version], policy=policies[version], apply_rules=apply_rules
+            )
+        )
     return outcomes
+
+
+#: The pass after parse stops after this many seconds. A model call times out after 60 s and a statement sends at
+#: most four calls at one time, so three waves of calls fit (#2637).
+CLASSIFICATION_PHASE_DEADLINE_SECONDS = 180.0
+
+#: An approval waits this long for a pass that holds the lock of its statement: the deadline of that pass and a
+#: margin for its commit. The pass has then ended, so only a stuck task can still hold the lock.
+CLASSIFICATION_LOCK_WAIT_SECONDS = CLASSIFICATION_PHASE_DEADLINE_SECONDS + 20.0
+
+#: Seconds between two tries for the lock. A poll is one short statement.
+_LOCK_POLL_SECONDS = 0.25
+
+
+def _statement_lock_key(statement_id: UUID):
+    return func.hashtextextended(f"statement_classification:{statement_id}", 0)
+
+
+async def try_lock_statement_classification(db: AsyncSession, statement_id: UUID) -> bool:
+    """Take the lock of the classification of one statement without waiting. It lasts to the end of the transaction.
+
+    One holder at a time reads the answers of a statement, asks the model for the missing ones and writes them.
+    A second holder would not see the uncommitted answers of the first, would ask the model for the same rows and
+    would fail on the unique key of the classification table (#2637).
+    """
+    return bool(await db.scalar(select(func.pg_try_advisory_xact_lock(_statement_lock_key(statement_id)))))
+
+
+async def lock_statement_classification(db: AsyncSession, statement_id: UUID) -> None:
+    """Wait for the lock of the classification of one statement.
+
+    The wait is a poll with a limit. A blocking lock call has no limit, and a lock timeout of the database aborts
+    the whole transaction of the caller. The database cannot see a wait cycle that goes through a poll, so every
+    caller takes this lock before any row lock of the statement: the approve route takes it first and reads the
+    statement after the wait, so a retire that committed meanwhile shows in that read. The pass takes it before it
+    reads the statement row without a row lock. The wait then ends when the holder commits.
+    After ``CLASSIFICATION_LOCK_WAIT_SECONDS`` the call raises ``StatementClassificationBusy``, and the caller
+    changes nothing.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + CLASSIFICATION_LOCK_WAIT_SECONDS
+    while not await try_lock_statement_classification(db, statement_id):
+        if loop.time() >= deadline:
+            raise StatementClassificationBusy(
+                "Classification of this statement is still running. Wait a moment and retry."
+            )
+        await asyncio.sleep(_LOCK_POLL_SECONDS)
+
+
+async def classify_statement_by_effective_policy(
+    db: AsyncSession,
+    user_id: UUID,
+    statement_id: UUID,
+    transactions: Sequence[AtomicTransaction],
+) -> list[ClassificationOutcome]:
+    """``classify_by_effective_policy`` for rows of one statement, once the lock of that statement is held.
+
+    The approval and the one-click fill call this. A pass that runs after parse may hold the lock. This call then
+    waits for it, reads the answers that it wrote, and asks the model only for the rows that have no answer.
+    """
+    await lock_statement_classification(db, statement_id)
+    return await classify_by_effective_policy(db, user_id, transactions)

@@ -56,6 +56,7 @@ from src.observability.telemetry_metrics import (
     record_http_request,
     record_rate_limit_rejected,
     record_reconciliation_match_outcome,
+    record_statement_classification_outcome,
     record_statement_parse_outcome,
     run_with_async_parse_tracking,
 )
@@ -89,6 +90,7 @@ __all__ = [
     "record_http_request",
     "record_rate_limit_rejected",
     "record_reconciliation_match_outcome",
+    "record_statement_classification_outcome",
     "record_statement_parse_outcome",
     "run_with_async_parse_tracking",
     "safe_error_message",
