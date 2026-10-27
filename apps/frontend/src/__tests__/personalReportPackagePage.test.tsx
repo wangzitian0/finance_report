@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PersonalReportPackageSections } from "@/lib/types";
 import ReportsPage from "@/app/(main)/reports/page";
-import { PackageSectionCards } from "@/components/reports/package/shared";
+import { PackageSectionCards, renderCsv, renderSourceClasses } from "@/components/reports/package/shared";
 import { personalReportPackageQuery } from "@/hooks/usePersonalReportPackage";
 import { readReportFilters } from "@/hooks/useReportFilters";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
@@ -1035,6 +1035,31 @@ describe("PersonalReportPackagePage", () => {
     if (!(traceabilitySection instanceof HTMLElement)) throw new Error("Expected traceability section.");
     expect(within(traceabilitySection).getAllByText("Pending Review").length).toBeGreaterThanOrEqual(1);
     expect(within(traceabilitySection).queryByText("pending_review")).not.toBeInTheDocument();
+  });
+
+  it("#2727 groups duplicate Reporting Basis decisions by rule and shows an item count badge", async () => {
+    const otherIncomeDecision = {
+      ...frameworkPolicy.decisions[0],
+      domain: "personal_income" as const,
+      classification: "Other income",
+      presentation: "US-like Other income.",
+      line_mappings: { ...frameworkPolicy.decisions[0].line_mappings, income_statement: "income.other" },
+    };
+    mockPackageApi(readiness, {
+      ...frameworkPolicy,
+      decisions: [
+        frameworkPolicy.decisions[0],
+        { ...otherIncomeDecision, evidence_anchors: [{ anchor_id: "journal_line:1", anchor_type: "journal_line", source_system: "canonical_ledger", source_id: "1", description: "Line 1" }] },
+        { ...otherIncomeDecision, evidence_anchors: [{ anchor_id: "journal_line:2", anchor_type: "journal_line", source_system: "canonical_ledger", source_id: "2", description: "Line 2" }] },
+        { ...otherIncomeDecision, evidence_anchors: [{ anchor_id: "journal_line:3", anchor_type: "journal_line", source_system: "canonical_ledger", source_id: "3", description: "Line 3" }] },
+      ],
+    });
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    const basisSection = (await screen.findByRole("heading", { name: "Reporting Basis" })).closest("section");
+    if (!(basisSection instanceof HTMLElement)) throw new Error("Expected Reporting Basis section.");
+    expect(within(basisSection).getAllByText("Personal Income")).toHaveLength(1);
+    expect(within(basisSection).getByText("3 items")).toBeInTheDocument();
   });
 
   // AC-reporting.fe-ia-reports.24
