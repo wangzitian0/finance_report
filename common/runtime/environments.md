@@ -1,4 +1,4 @@
-# Six Environments SSOT
+# Five Environments SSOT
 
 > **SSOT Key**: `environments`
 > **App-side view** of how this software *consumes* deployment environments —
@@ -37,9 +37,12 @@
 | **1** | **Local Dev** | `localhost:3000` | Manual<br>`moon run :dev -- --backend` | Source (Host)<br>uvicorn/next dev | Shared Containers<br>(Podman/Docker) | `finance_report` | Container name suffix |
 | **2** | **Local CI** | `localhost:3000` | Manual<br>`moon run :lint && moon run :test` | Source (Host)<br>pytest | Shared Containers<br>(Podman/Docker) | `finance_report_test_{namespace}` | DB/bucket name |
 | **3** | **GitHub CI** | - | Push/PR<br>`ci.yml` | Source (Runner)<br>pytest | GitHub Services<br>(Ephemeral) | `finance_report_test` | Job isolation |
-| **4** | **PR Preview** | `report-pr-<N>.zitian.party` | On-demand PR preview<br>`preview.yml` (`workflow_dispatch`) | Source (Host build)<br>Dokploy preview compose | Shared Platform / Dokploy host | Ephemeral Postgres/MinIO | Dokploy `report-pr-<N>` compose |
-| **5** | **Staging** | `report-staging.zitian.party` | **Manual**<br>`deploy.yml` (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
-| **6** | **Production** | `report.zitian.party` | Manual release, owner-approved<br>`release.yml` (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
+| **4** | **Staging** | `report-staging.zitian.party` | **Manual**<br>`deploy.yml` (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name<br>`-staging` |
+| **5** | **Production** | `report.zitian.party` | Manual release, owner-approved<br>`release.yml` (`workflow_dispatch`) | **Docker Images**<br>(GHCR) | Dedicated infra2<br>+ Shared Platform | Dedicated DB/Redis | Bucket name |
+
+The app owns no PR preview environment. infra2's `deploy_v2` provisions its own
+`preview/*` slots (for example `report-branch-main`); the app consumes them as
+described in the data-lane section below.
 
 Environment taxonomy is not the delivery pipeline stage count. The CI/CD model
 is documented in [ci-cd.md](../testing/ci-cd.md) as a sparse environment x pipeline stage
@@ -96,16 +99,10 @@ before invoking `moon`, `uv`, `npm`, `gh`, Docker, or Podman.
 - Runtime, test, script, CI, dependency, and coverage-policy changes run the full backend/frontend/unified coverage gate.
 - Lightweight documentation, markdown, issue-template, and `.github/workflows/docs.yml` changes skip the heavy backend/frontend/coverage jobs while still running lint, SSOT checks, AC traceability, and the final aggregate check.
 
-PR validation and preview:
+PR validation:
 
 **PR Validation** — owned by CI:
 - PR merge authority is owned synchronously on `pull_request` events by `ci.yml#finish`. Unit, integration, build, typecheck, lint, and coverage gates run directly in GitHub Actions.
-
-**Persistent PR Preview (Dokploy)** — on-demand, non-blocking inspection:
-- No automatic persistent Dokploy URL: preview deployment is on-demand via `workflow_dispatch`, not automatic on every PR push.
-- The `deploy-preview` job runs on-demand via `workflow_dispatch` for manual inspection at `report-pr-<N>.<domain>`. It is not merge authority.
-- It uses the app-side `tools/pr_preview_lifecycle.py` path: Dokploy clones the PR branch and builds from source on the host. It does not pull or push GHCR PR images.
-- Reclaim is **infra2-owned**: on PR close `preview.yml#cleanup` dispatches a vendor-neutral `preview-teardown` signal to infra2, which performs the authoritative idempotent 1:1 teardown (`preview-teardown.yml` → `deploy_v2 --type preview/pr --down`). Stale PR image tags are pruned by the scheduled maintenance workflow.
 
 ### Production Environments (Staging + Production)
 
@@ -133,7 +130,6 @@ PR validation and preview:
 | **Local Dev** | `finance-report-backend` | `finance-report-frontend` | `finance_report` | `statements` |
 | **Local CI** | *(uses Local Dev containers)* | *(uses Local Dev containers)* | `finance_report_test_{namespace}` | `statements-{namespace}` |
 | **GitHub CI** | *(GitHub Services)* | *(N/A)* | `finance_report_test` | `statements` (mock) |
-| **PR Preview** | Runner compose backend service | Runner compose frontend service | `postgres` service DNS | `minio` service DNS |
 | **Staging** | `finance_report-backend-staging` | `finance_report-frontend-staging` | `finance_report-postgres-staging` | `finance-report-staging` |
 | **Production** | `finance_report-backend` | `finance_report-frontend` | `finance_report-postgres` | `finance-report-production` |
 
@@ -146,9 +142,6 @@ PR validation and preview:
   `10.app/secrets.ctmpl` (`DATABASE_URL` → `finance_report-postgres${suffix}`,
   `REDIS_URL` → `finance_report-redis${suffix}`). `ENV_SUFFIX` is `-staging` for
   Staging, empty for Production.
-- **PR Preview** raw compose removes fixed container names and uses compose service
-  DNS on a project-scoped internal network, because Dokploy compose project names
-  can change across retries while the PR route remains stable.
 
 ---
 
@@ -157,7 +150,6 @@ PR validation and preview:
 | Workflow File | Environment | Trigger | Actions |
 |---------------|-------------|---------|---------|
 | `.github/workflows/ci.yml` | GitHub CI | Push/PR to main | Run lint, traceability, backend shards, frontend build/tests, common/tools coverage, unified coverage, and image validation |
-| `.github/workflows/preview.yml` | PR Preview | Manual dispatch for persistent preview; PR closed for cleanup | Deploy/cleanup an on-demand non-blocking persistent Dokploy preview at report-pr-<N>.<domain> |
 | `.github/workflows/deploy.yml` | Release images | Tag `vX.Y.Z` push | Promote main-CI SHA images to immutable release tags |
 | `.github/workflows/deploy.yml` | Staging | Manual (`workflow_dispatch`) | Deploy an existing release `version_ref` via deploy_v2, then smoke/E2E/AI-OCR gates |
 | `.github/workflows/release.yml` | Production | Manual (`workflow_dispatch`) | Dry-run, or deploy an existing release `version_ref` via deploy_v2. A deploy (`dry_run=false`) needs the owner's approval and presence |
@@ -166,7 +158,7 @@ PR validation and preview:
 
 ## Shared Platform Resources
 
-The production Platform layer (the observability backend, MinIO, Traefik) runs as **Singleton** services.  Staging and PR environments use **logical isolation**:
+The production Platform layer (the observability backend, MinIO, Traefik) runs as **Singleton** services.  Staging uses **logical isolation**:
 
 | Service | Scope | Isolation Method | Example |
 |---------|-------|------------------|---------|
@@ -183,8 +175,6 @@ and
 [infra2 environment SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/core.environments.md#telemetry-identity).
 This App doc does not enumerate those values.
 
-**Note**: PR Previews have **dedicated MinIO/DB/Redis** to allow destructive testing, but send logs to shared the observability backend.
-
 ---
 
 ## Test Strategy by Environment
@@ -194,7 +184,6 @@ This App doc does not enumerate those values.
 | **Local Dev** | None (manual testing) | Fast iteration | — |
 | **Local CI** | Unit + integration with coverage policy from `common/meta/extension/coverage/policy.py` | Pre-push validation | ~30s |
 | **GitHub CI** | Lint, AC traceability, unit + integration with unified coverage for heavy changes | Quality gate | ~7min heavy / lightweight skips heavy jobs |
-| **PR Preview** | Runner-local health check + non-LLM E2E; optional manual Dokploy inspection | Merge validation + opt-in inspection | ~3-5min when enabled |
 | **Staging** | Image deploy, smoke, non-LLM E2E, performance; AI/OCR regression recorded separately | **Deployment validation** + recorded full-provider validation | ~6min deploy + variable AI/OCR replay |
 | **Production** | Health check only | Availability check | ~10s |
 

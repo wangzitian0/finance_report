@@ -3,7 +3,7 @@
 The public deploy front door is ``deploy_v2(service, type, version_ref, iac_ref)``.
 The data lane is derived from the selected environment before red-line checks run;
 it is not a public deploy coordinate. These four red lines are *decided constraints*;
-they live in ``environments.md`` (the six-environment SSOT) so every environment
+they live in ``environments.md`` (the environments SSOT) so every environment
 inherits them. See EPIC-007 AC7.12.6, root #876.
 """
 

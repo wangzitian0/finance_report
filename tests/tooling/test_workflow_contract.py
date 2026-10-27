@@ -27,7 +27,6 @@ _CONTRACT_INPUTS = (
     ".github/workflows/ci.yml",
     ".github/workflows/deploy.yml",
     ".github/workflows/docs.yml",
-    ".github/workflows/preview.yml",
     ".github/workflows/maintenance.yml",
     ".github/actions/setup-e2e-tests/action.yml",
     "common/testing/ci-cd.md",

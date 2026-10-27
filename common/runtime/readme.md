@@ -36,7 +36,7 @@ prove the correlated infra2 workflow run before App health gates begin.
 
 ## Ubiquitous language
 
-`toolchain.toml` owns local, preview, and CI dependency image pins.
+`toolchain.toml` owns local and CI dependency image pins.
 `check_toolchain_contract.py` verifies tool configurations, Compose files, and workflow projections
 (AC-testing.toolchain.1, #2037). A green job cannot hide another job's stale pin.
 
@@ -60,10 +60,11 @@ while including the workflow entrypoint in the tooling coverage measurement.
     recording**, and the real behaviour is validated only against staging.
 - **Substitute** — the per-environment stand-in for a dependency. A *backend* may
   differ per environment (in-memory ≠ minio ≠ real S3); that is expected and fine.
-- **Env tier** — one of the six environments (Local Dev / Local CI / GitHub CI /
-  PR Preview / Staging / Production). CI and Preview use **light substitutes**
-  (Preview = same as CI but persistent); Staging and Production use **real**
-  backends.
+- **Env tier** — one of the environments a dependency is declared for (Local Dev /
+  Local CI / GitHub CI / Preview / Staging / Production). CI and Preview use
+  **light substitutes** (Preview = same as CI but persistent); Staging and
+  Production use **real** backends. Preview is the infra2-provisioned preview
+  slot; the app owns no PR preview stack.
 - **Declared vs present** — each env *declares* its required dependencies (via env
   vars, owned with `config`); a dependency is either **present** or **absent** —
   there is no `skipped`.

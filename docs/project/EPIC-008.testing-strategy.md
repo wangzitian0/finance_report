@@ -81,7 +81,7 @@ Integration tests and E2E tests are intentionally different in this project:
 | Tier 1 API E2E (`-m e2e`) | Retired / Consolidated: API contract flows consolidated into Bench V2 scenario suite (`tests/tooling/test_benchmark_scenario_suite.py`) | Consolidated into Bench V2 and `backend-integration` stage (#2193) | Behavioral proof for ACs and regression risk |
 | Frontend Playwright | Provider-free specs under `apps/frontend/playwright` | Explicit CI stage inside the `frontend` job after build and Vitest; env-gated specs are not required proof | Browser UI behavioral proof only, not part of unified line coverage |
 | Tier 2 HTTP E2E | Deploy-aware HTTP-level flows through `tools/tier2_http_e2e.py` | Staging deploy after shell smoke and before broader deployed E2E | Behavioral proof only, not part of unified line coverage |
-| Tier 3 Browser E2E | `tests/e2e` Playwright/browser scenarios | Post-merge staging/prod gates and PR preview where appropriate | Behavioral proof only; AC pass rate requires real pass (skip and stub-only do not count) |
+| Tier 3 Browser E2E | `tests/e2e` Playwright/browser scenarios | Post-merge staging/prod gates | Behavioral proof only; AC pass rate requires real pass (skip and stub-only do not count) |
 
 ### Stage-by-Stage Semantics
 
@@ -327,7 +327,6 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.35 removed, canonical: migrated to `AC-testing.acgates.3`.)
 > (AC8.13.36 removed, canonical: migrated to `AC-testing.deploy-gates.9`.)
 > (AC8.13.37 removed, canonical: migrated to `AC-testing.acgates.4`.)
-> (AC8.13.38 removed, canonical: migrated to `AC-testing.preview.1`.)
 > (AC8.13.39 removed, canonical: migrated to `AC-testing.toolchain.1`.)
 > (AC8.13.40 removed, canonical: migrated to `AC-testing.deploy-gates.10`.)
 > (AC8.13.41 removed, canonical: migrated to `AC-testing.acgates.5`.)
@@ -355,7 +354,6 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.68 removed, canonical: migrated to `AC-testing.acgates.8`.)
 > (AC8.13.69 removed, canonical: migrated to `AC-testing.lifecycle.1`.)
 > (AC8.13.70 removed, canonical: migrated to `AC-testing.acgates.9`.)
-> (AC8.13.71 removed, canonical: migrated to `AC-testing.preview.3`.)
 > (AC8.13.72 removed, canonical: migrated to `AC-testing.preview.4`.)
 > (AC8.13.73 removed, canonical: migrated to `AC-testing.preview.5`.)
 > (AC8.13.74 removed, canonical: migrated to `AC-testing.preview.6`.)
@@ -371,28 +369,20 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.86 removed, canonical: migrated to `AC-testing.ci-structure.5`.)
 > (AC8.13.87 removed, canonical: migrated to `AC-testing.product-gates.11`.)
 > (AC8.13.88 removed, canonical: migrated to `AC-testing.product-gates.12`.)
-> (AC8.13.89 removed, canonical: migrated to `AC-testing.preview.7`.)
 > (AC8.13.93 removed, canonical: migrated to `AC-testing.deploy-gates.19`.)
 > (AC8.13.94 removed, canonical: migrated to `AC-testing.governance.3`.)
 > (AC8.13.95 removed, canonical: migrated to `AC-testing.governance.4`.)
-> (AC8.13.96 removed, canonical: migrated to `AC-testing.classifier.3`.)
 > (AC8.13.97 removed, canonical: migrated to `AC-testing.classifier.4`.)
-> (AC8.13.98 removed, canonical: migrated to `AC-testing.preview.8`.)
 > (AC8.13.99 removed, canonical: migrated to `AC-testing.toolchain.10`.)
-> (AC8.13.100 removed, canonical: migrated to `AC-testing.preview.9`.)
-> (AC8.13.101 removed, canonical: migrated to `AC-testing.preview.10`.)
-> (AC8.13.102 removed, canonical: migrated to `AC-testing.preview.11`.)
 > (AC8.13.103 removed, canonical: migrated to `AC-testing.deploy-gates.20`.)
 > (AC8.13.104 removed, canonical: migrated to `AC-testing.classifier.5`.)
 > (AC8.13.105 removed, canonical: migrated to `AC-testing.deploy-gates.21`.)
-> (AC8.13.107 removed, canonical: migrated to `AC-testing.preview.12`.)
 > (AC8.13.108 removed, canonical: migrated to `AC-testing.deploy-gates.22`.)
 > (AC8.13.109 removed, canonical: migrated to `AC-testing.deploy-gates.23`.)
 > (AC8.13.110 removed, canonical: migrated to `AC-testing.classifier.6`.)
 > (AC8.13.111 removed, canonical: migrated to `AC-testing.classifier.7`.)
 > (AC8.13.112 removed, canonical: migrated to `AC-testing.classifier.8`.)
 > (AC8.13.113 removed, canonical: migrated to `AC-testing.deploy-gates.24`.)
-> (AC8.13.114 removed, canonical: migrated to `AC-testing.preview.13`.)
 > (AC8.13.115 removed, canonical: migrated to `AC-testing.preview.14`.)
 > (AC8.13.116 removed, canonical: migrated to `AC-testing.deploy-gates.25`.)
 > (AC8.13.118 removed, canonical: migrated to `AC-testing.governance.5`.)
@@ -402,7 +392,6 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.122 removed, canonical: migrated to `AC-testing.schema.2`.)
 > (AC8.13.123 removed, canonical: migrated to `AC-testing.schema.3`.)
 > (AC8.13.124 removed, canonical: migrated to `AC-testing.acgates.13`.)
-> (AC8.13.125 removed, canonical: migrated to `AC-testing.preview.15`.)
 > (AC8.13.126 removed, canonical: migrated to `AC-testing.governance.6`.)
 > (AC8.13.127 removed, canonical: migrated to `AC-testing.schema.4`.)
 > (AC8.13.128 removed, canonical: migrated to `AC-testing.schema.5`.)
@@ -432,7 +421,6 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.152 removed, canonical: migrated to `AC-testing.classifier.9`.)
 > (AC8.13.153 removed, canonical: migrated to `AC-testing.gate-inventory.4`.)
 > (AC8.13.154 removed, canonical: migrated to `AC-testing.gate-inventory.5`.)
-> (AC8.13.155 removed, canonical: migrated to `AC-testing.gate-inventory.6`.)
 > (AC8.13.156 removed, canonical: migrated to `AC-testing.deploy-gates.31`.)
 > (AC8.13.157 removed, canonical: migrated to `AC-testing.deploy-gates.32`.)
 > (AC8.13.158 removed, canonical: migrated to `AC-testing.deploy-gates.33`.)
@@ -584,7 +572,7 @@ LLM-gated journeys (#1146 PR-B/PR-C) into CI; the browser/Playwright selector
 fixes for `test_statement_upload_e2e` / `test_statement_full_journey` /
 `test_four_asset_net_worth_golden_path` and the `_api_url(...)` fix in
 `test_personal_financial_report_package` (#1142) are deferred to that follow-up,
-which runs in the full-stack `preview.yml` lane that carries the frontend bundle.
+which runs in the full-stack lane that carries the frontend bundle (`preview.yml`, deleted in #2699).
 
 > (AC8.21.1 removed, canonical: migrated to `AC-testing.seeded-journey.1`.)
 > (AC8.21.2 removed, canonical: migrated to `AC-testing.seeded-journey.2`.)
@@ -601,7 +589,7 @@ for test placement and selection (issue #1556): the docs YAML is its generated
 view, every root E2E spec has a named ownership row (needs + audit status),
 the pre-merge in-runner selection is derived (audited AND no external needs —
 so an unaudited or provider-dependent spec can never silently enter the
-merge-blocking path), and `preview.yml` consumes the selection at runtime via
+merge-blocking path), and `deploy.yml` consumes the selection at runtime via
 `tools/test_selection.py --shell` instead of restating it. Charter:
 `common/testing/readme.md`; follow-ups: #1557 (all workflows + ci_tier↔JUnit
 reconciliation), #1558 (package declaration rollout + mirror-assertion ratchet).
@@ -675,7 +663,6 @@ be filled just for symmetry.
 |---|---|---|---|---|---|---|---|---|---|
 | `local` | default | focused/static contracts | risk-triggered only | risk-triggered only | not default | no | no | no | no |
 | `pr` | covered by full gates | required | required for heavy changes | required for heavy changes | Tier-1/provider-free required for heavy changes | dry-run for heavy changes | no | no | no |
-| `pr-preview` | no | no | no | no | runtime/UI/API preview-relevant subset after successful PR CI | no PR images | runner `/api/health` + smoke/E2E | no | no |
 | `staging` | no | no | no | no | merged-SHA non-LLM plus provider-backed regression when required | reuse or build missing SHA images | required | runs when real provider proof is required | no |
 | `prd` | no | no | no | no | prod-safe smoke only | release image proof | required | no first-time proof | required |
 
@@ -684,10 +671,6 @@ Operational interpretation:
   not full remote-equivalent CI.
 - PR CI is the deterministic merge authority for business behavior, coverage,
   traceability, and image build proof.
-- PR preview proves the PR head can boot, route through the runner edge, report
-  the expected version, and pass provider-free smoke/E2E after the matching PR
-  CI succeeds; it no longer creates PR preview images or a persistent Dokploy
-  URL.
 - Staging consumes only successful `main` SHAs, always proves real infra and
   non-LLM deployed behavior for deploy-relevant changes, and runs provider
   proof only when real provider evidence is required for AI/OCR, extraction,
@@ -756,7 +739,7 @@ review and release process.
   `env_stage_required`, `env_stage_reasons`, and provider gate matrices.
 - 2026-06-10: `PR Test Environment` now uses a stable per-PR canonical URL
   (`report-pr-<pr>.<domain>`) with commit-scoped aliases preserved for backward
-  compatibility. This closes #783 and is now documented through AC-testing.preview.10.
+  compatibility. This closes #783. The PR preview stack was deleted later (#2699).
 - 2026-06-12: PR preview follows successful PR `CI` `workflow_run` events and
   runs only a runner-local full-stack preview. PR image build/push/preflight and
   immediate PR image deletion were removed; legacy Dokploy resources are
@@ -821,8 +804,7 @@ The simplification priority remains:
 
 #### 5 counterfactual assumptions + 5 operational guardrails
 
-1. If PR preview was still using commit-only hostnames, old `report-pr-<pr>.<domain>`
-   readers would still pass only by route alias mismatch: fixed by AC-testing.preview.10.
+1. PR preview hostname aliasing: retired with the PR preview stack (#2699).
 2. If `ci_change_classifier` regressed to `docs`-only heavy skip for runtime
    paths, PR CI would stop running backend/frontend/e2e for changed runtime files.
 3. If `env_stage_required` drifted from job conditions, merge authority would
@@ -835,14 +817,13 @@ The simplification priority remains:
    retries would dominate; provider gate is explicit and runs only on AI/OCR-relevant
    changes.
 6. If stale resources were not captured, next run latency would accumulate;
-   current controls cover PR previews, GHCR tag pruning, host hygiene
+   current controls cover GHCR tag pruning, host hygiene
    (infra2-owned), and stale version visibility in deployment context.
 7. The in-runner E2E gate runs synchronously on `pull_request`, not asynchronously
    via `workflow_run`: a `workflow_run` gate fires only after CI, so a fast or auto
    merge could land before it ran — and GitHub counts a skipped required check as
    passed, which made the "merge authority" bypassable. A synchronous `pull_request`
-   check must pass before merge. (The heavier persistent preview stays on-demand via
-   `workflow_dispatch`; the gate is image-free so it needs no CI artifact.)
+   check must pass before merge.
 8. If staging consumed PR-head SHAs instead of successful `main` merge SHAs, deploy
    reproducibility and release provenance would weaken; staging tracks workflow_run
    SHA and uses successful main SHA gates.

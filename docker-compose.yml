@@ -1,6 +1,6 @@
 # Unified Docker Compose Configuration
 #
-# Controls all 6 environments via Profiles and Environment Variables.
+# Controls all 5 environments via Profiles and Environment Variables.
 #
 # Profiles:
 #   - infra: Starts Postgres, MinIO (Local Dev, PR)

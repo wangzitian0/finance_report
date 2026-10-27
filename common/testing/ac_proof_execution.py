@@ -13,7 +13,6 @@ PROOF_EXECUTION_STAGES = (
     "local.advisory",
     "product.runtime",
     "github_ci.merge_authority",
-    "preview.runtime",
     "staging.release_validation",
     "staging.provider_regression",
     "prod.release_integrity",

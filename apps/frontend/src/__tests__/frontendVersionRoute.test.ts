@@ -4,7 +4,7 @@ import { GET } from "@/app/frontend-version.json/route"
 
 describe("frontend version route", () => {
   // AC-runtime.fe-deploy.1
-  it("AC8.13.90 returns deployed frontend version metadata for PR preview readiness", async () => {
+  it("AC8.13.90 returns deployed frontend version metadata for deploy readiness", async () => {
     const previousSha = process.env.GIT_COMMIT_SHA
     process.env.GIT_COMMIT_SHA = "test-sha-123"
 

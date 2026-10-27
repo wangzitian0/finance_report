@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 
 import yaml
@@ -15,31 +16,13 @@ def read(path: Path | str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def load_yaml(path: Path | str) -> dict:
-    data = yaml.safe_load(read(path))
-    assert isinstance(data, dict), f"{path} must parse as a YAML mapping"
-    return data
-
-
-def test_pr_preview_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
-    """AC7.9.1 AC7.9.2 AC7.9.3 AC7.9.4 AC7.9.5: PR preview validates runtime health, API, domain, and storage upload paths."""
-    workflow = read(".github/workflows/preview.yml")
+def test_staging_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
+    """AC7.9.1 AC7.9.2 AC7.9.3 AC7.9.4 AC7.9.5: Staging validates runtime health, API, domain, and storage upload paths."""
     staging = read(".github/workflows/deploy.yml")
     smoke = read("common/runtime/shell/smoke_test.sh")
     hard_gate = read("tests/e2e/test_vision_upload_to_dashboard_hard_gate.py")
 
-    assert "workflow_run:" not in workflow
-    assert "types: [closed]" in workflow
-    assert 'action_reason = "pull-request-sync"' not in workflow
-    assert "python tools/pr_preview_lifecycle.py" in workflow
-    assert "--action cleanup" not in workflow
-    assert "preview-teardown" in workflow
-    assert "Deploy preview lifecycle" in workflow
-    assert "--action deploy" in workflow
-    assert "Wait for API readiness" not in workflow
-    assert 'echo "S3_BUCKET=statements"' in workflow or "S3_BUCKET:-statements" in read(
-        "docker-compose.yml"
-    )
+    assert "S3_BUCKET:-statements" in read("docker-compose.yml")
     assert "bash tools/smoke_test.sh" in staging
     assert (
         'eval "$(python tools/test_selection.py --stage staging_core_e2e --shell)"'
@@ -64,41 +47,106 @@ def test_pr_preview_gate_exercises_health_smoke_e2e_and_storage_paths() -> None:
     assert "dashboard" in hard_gate.lower()
 
 
-def test_pr_preview_follows_successful_ci_without_dokploy_deploy() -> None:
-    """Issue #839: PR preview follows CI and does not build/push PR images."""
-    workflow = load_yaml(".github/workflows/preview.yml")
-    workflow_text = read(".github/workflows/preview.yml")
-    jobs = workflow["jobs"]
-
-    assert "preview_opt_in" not in yaml.safe_dump(workflow)
-    assert "workflow_run:" not in workflow_text
-    assert "types: [closed]" in workflow_text
-    assert 'action_reason = "pull-request-sync"' not in workflow_text
-    assert 'action = "cleanup"' in workflow_text
-    assert "build-preview-backend-image" not in jobs
-    assert "build-preview-frontend-image" not in jobs
-    assert "deploy" not in jobs
-    assert "docker/build-push-action@v7" not in workflow_text
-    assert "Delete GHCR images" not in workflow_text
-
-    cleanup_blob = yaml.safe_dump(jobs["cleanup"])
-    assert "pr_preview_lifecycle.py" not in cleanup_blob
-    assert "--action cleanup" not in cleanup_blob
-    assert "preview-teardown" in cleanup_blob
-    assert "infra2/dispatches" in cleanup_blob
-
-    env_doc = read("common/runtime/environments.md")
-    assert "pull_request" in env_doc
-    assert "No automatic persistent Dokploy URL" in env_doc
-
-
-def test_in_runner_e2e_is_image_free_and_self_cleaning() -> None:
+def test_in_runner_e2e_compose_files_stay_retired() -> None:
     """Issue #839: full-stack E2E compose resources are clean and never leak."""
-    workflow = load_yaml(".github/workflows/preview.yml")
-    deploy_preview = workflow["jobs"]["deploy-preview"]
-
-    assert "pr_preview_required == 'true'" in deploy_preview["if"]
-    assert "preview_opt_in" not in deploy_preview["if"]
-
     assert not (ROOT / "docker-compose.ci-e2e.yml").exists()
     assert not (ROOT / "tools" / "ci" / "e2e-nginx.conf").exists()
+
+
+GIT_SHA_COMPOSE_VALUE = "${GIT_COMMIT_SHA:-}"
+BACKEND_COMPOSE_KEYS_OWNED_BY_CONFIG = (
+    "AI_PROVIDER",
+    "AI_BASE_URL",
+    "AI_CHAT_COMPLETIONS_PATH",
+)
+
+
+def git_sha_wiring_violations(
+    compose: dict, frontend_dockerfile: str, frontend_version_route: str
+) -> list[str]:
+    """Return what is wrong with the deployed-version plumbing and the backend compose env."""
+    violations: list[str] = []
+    backend = compose["services"]["backend"]
+    frontend = compose["services"]["frontend"]
+    if backend.get("environment", {}).get("GIT_COMMIT_SHA") != GIT_SHA_COMPOSE_VALUE:
+        violations.append("backend environment does not pass GIT_COMMIT_SHA")
+    if (
+        frontend.get("build", {}).get("args", {}).get("GIT_COMMIT_SHA")
+        != GIT_SHA_COMPOSE_VALUE
+    ):
+        violations.append("frontend build args do not pass GIT_COMMIT_SHA")
+    if frontend.get("environment", {}).get("GIT_COMMIT_SHA") != GIT_SHA_COMPOSE_VALUE:
+        violations.append("frontend environment does not pass GIT_COMMIT_SHA")
+    for needle in (
+        "ARG GIT_COMMIT_SHA=unknown",
+        "ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}",
+    ):
+        if frontend_dockerfile.count(needle) < 2:
+            violations.append(f"frontend Dockerfile lacks `{needle}` in a stage")
+    if "process.env.GIT_COMMIT_SHA" not in frontend_version_route:
+        violations.append("frontend-version route does not read GIT_COMMIT_SHA")
+    declared = set(backend.get("environment", {})) | set(
+        backend.get("build", {}).get("args", {})
+    )
+    for key in BACKEND_COMPOSE_KEYS_OWNED_BY_CONFIG:
+        if key in declared:
+            violations.append(f"backend compose declares {key}; config.py owns it")
+    return violations
+
+
+def _git_sha_wiring_inputs() -> tuple[dict, str, str]:
+    compose = yaml.safe_load(read("docker-compose.yml"))
+    return (
+        compose,
+        read("apps/frontend/Dockerfile"),
+        read("apps/frontend/src/app/frontend-version.json/route.ts"),
+    )
+
+
+def test_AC_runtime_fe_deploy_1_git_sha_reaches_backend_runtime_and_frontend_build() -> (
+    None
+):
+    """AC-runtime.fe-deploy.1: compose and the frontend Dockerfile carry GIT_COMMIT_SHA to /frontend-version.json; the backend compose keeps AI config out."""
+    assert git_sha_wiring_violations(*_git_sha_wiring_inputs()) == []
+
+
+def test_AC_runtime_fe_deploy_1_git_sha_wiring_fails_on_each_drift() -> None:
+    """AC-runtime.fe-deploy.1: each mutation of the real files turns the wiring check red."""
+    compose, dockerfile, route = _git_sha_wiring_inputs()
+
+    # The ARG/ENV pair appears in the build stage and in the runtime stage; losing
+    # either one breaks /frontend-version.json.
+    no_arg = dockerfile.replace("ARG GIT_COMMIT_SHA=unknown", "", 1)
+    assert no_arg != dockerfile
+    assert git_sha_wiring_violations(compose, no_arg, route) == [
+        "frontend Dockerfile lacks `ARG GIT_COMMIT_SHA=unknown` in a stage"
+    ]
+    no_env = dockerfile[::-1].replace(
+        "ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}"[::-1], "", 1
+    )[::-1]
+    assert no_env != dockerfile
+    assert git_sha_wiring_violations(compose, no_env, route) == [
+        "frontend Dockerfile lacks `ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}` in a stage"
+    ]
+    assert git_sha_wiring_violations(compose, dockerfile, "no sha here") == [
+        "frontend-version route does not read GIT_COMMIT_SHA"
+    ]
+
+    no_backend_sha = copy.deepcopy(compose)
+    del no_backend_sha["services"]["backend"]["environment"]["GIT_COMMIT_SHA"]
+    assert git_sha_wiring_violations(no_backend_sha, dockerfile, route) == [
+        "backend environment does not pass GIT_COMMIT_SHA"
+    ]
+
+    no_build_arg = copy.deepcopy(compose)
+    del no_build_arg["services"]["frontend"]["build"]["args"]["GIT_COMMIT_SHA"]
+    assert git_sha_wiring_violations(no_build_arg, dockerfile, route) == [
+        "frontend build args do not pass GIT_COMMIT_SHA"
+    ]
+
+    for key in BACKEND_COMPOSE_KEYS_OWNED_BY_CONFIG:
+        drifted = copy.deepcopy(compose)
+        drifted["services"]["backend"]["environment"][key] = "x"
+        assert git_sha_wiring_violations(drifted, dockerfile, route) == [
+            f"backend compose declares {key}; config.py owns it"
+        ]

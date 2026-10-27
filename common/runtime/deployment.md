@@ -14,7 +14,6 @@ Finance Report uses **two git repositories** for configuration:
 | Environment | Configuration Source | Purpose |
 |-------------|---------------------|---------|
 | **Local/CI** | `/docker-compose.yml` | Development + local/CI service containers |
-| **PR preview** | persistent: `/docker-compose.pr-preview.yml` | On-demand persistent Dokploy preview built from source on the host (no registry push) at `report-pr-<N>.<domain>`; PR merge authority is owned by CI |
 | **Staging/Production** | infra2-owned IaC selected by a versioned `DeployRequest` | Production with Vault secrets |
 
 Finance Report does not check out infra2 source. It pins the
@@ -51,19 +50,6 @@ implementation any app dispatching a `DeployRequest` reuses).
 - Env vars for staging/prod stored in HashiCorp Vault
 - Backend startup is fail-closed for protected runtimes: public, staging, and production deployments must not use development defaults for `SECRET_KEY`, `DATABASE_URL`, or `S3_SECRET_KEY`.
 - Container names include env suffix (e.g., `-staging`)
-- Persistent Dokploy PR previews use `/docker-compose.pr-preview.yml`, deployed
-  non-blocking on demand via `workflow_dispatch`. Dokploy clones the PR branch
-  and builds backend/frontend from source on the host (`up -d --build`); no GHCR
-  image is pulled or pushed. The preview persists until PR close, then is removed
-  by native `compose.delete`.
-- **Preview compose project MUST equal Dokploy's `appName`.** `compose.delete`
-  tears the stack down with `docker compose down` scoped to the `appName`. The
-  preview `up` command therefore passes `-p <appName>` (read back from
-  `compose.one`), and the deploy env MUST NOT set `COMPOSE_PROJECT_NAME`.
-  Overriding the project (e.g. to `finance_report_pr_<n>`) desyncs `up` from
-  `down`: `compose.delete` removes the Dokploy record and on-disk compose
-  directory but `down` matches no containers, orphaning the whole stack with
-  nothing left to reap it.
 
 ---
 
@@ -257,7 +243,7 @@ fields so a stale-version production failure can be triaged without rerunning
 business-correctness gates in production.
 
 Dokploy deploy diagnostics must never print raw API response bodies. The shared
-shell helper still redacts raw response bodies for preview/cleanup operations.
+shell helper redacts raw response bodies.
 The fixed staging/prod deploy path uses the infra2 Python Dokploy client, whose
 errors include method, endpoint, status, and reason phrase but not response
 bodies, auth headers, or full environment payloads. The fixed path writes only
@@ -301,12 +287,9 @@ host GC — aged stopped non-preview containers, build cache, unused images, all
 unused Docker networks, oversized Docker json logs, and systemd journal vacuum —
 runs as a Dokploy `dokploy-server` Schedule Job provisioned by infra2's
 `tools/host_hygiene_schedule.py` and kept ensured by infra2's `ops-checks`
-host-hygiene job. See infra2 `docs/ssot/ops.pipeline.md §11`. PR preview
-environments are reaped by infra2's event-driven teardown (`preview-teardown.yml`)
-+ the `preview-leak-check` fallback, never by host hygiene.
+host-hygiene job. See infra2 `docs/ssot/ops.pipeline.md §11`.
 
-PR preview no longer creates PR-scoped GHCR images. Immediate PR-close cleanup
-therefore does not delete image tags. The scheduled cleanup still prunes legacy
+The app creates no PR-scoped GHCR images. The scheduled cleanup still prunes legacy
 closed-PR `pr-<number>-<sha>` tags older than 14 days while keeping tags for
 currently open PRs.
 
@@ -427,7 +410,7 @@ If a change requires new environment variables or changes to `docker-compose.yml
 
 ## Related
 
-- [environments.md](./environments.md) — Six environment overview and naming
+- [environments.md](./environments.md) — Five environment overview and naming
 - [development.md](../meta/development.md) — Local development and Moon commands
 - [ci-cd.md](../testing/ci-cd.md) — CI job structure and test strategy
 - [observability.md](../observability/observability.md) — App observability runtime contract and OTLP setup

@@ -29,9 +29,6 @@ def _check_result(
     heavy: bool | None = None,
     heavy_files: tuple[str, ...] | None = None,
     reason: str | None = None,
-    preview: bool | None = None,
-    preview_files: tuple[str, ...] | None = None,
-    preview_reason: str | None = None,
     staging: bool | None = None,
     staging_files: tuple[str, ...] | None = None,
     staging_reason: str | None = None,
@@ -47,12 +44,6 @@ def _check_result(
         assert result.heavy_files == heavy_files
     if reason is not None:
         assert result.reason == reason
-    if preview is not None:
-        assert result.pr_preview_required is preview
-    if preview_files is not None:
-        assert result.pr_preview_files == preview_files
-    if preview_reason is not None:
-        assert result.pr_preview_reason == preview_reason
     if staging is not None:
         assert result.staging_required is staging
     if staging_files is not None:
@@ -86,9 +77,6 @@ def test_AC8_13_20_docs_and_docs_workflow_are_lightweight() -> None:
         heavy=False,
         heavy_files=(),
         reason="lightweight-docs-or-docs-workflow-only",
-        preview=False,
-        preview_files=(),
-        preview_reason="no-pr-preview-paths-changed",
         staging=False,
         staging_files=(),
         staging_reason="no-staging-paths-changed",
@@ -160,11 +148,6 @@ def test_AC8_13_20_multi_commit_runtime_path_requires_heavy_ci() -> None:
         "apps/backend/src/services/reporting.py",
         "apps/frontend/src/app/page.tsx",
     )
-    assert result.pr_preview_required is True
-    assert result.pr_preview_files == (
-        "apps/backend/src/services/reporting.py",
-        "apps/frontend/src/app/page.tsx",
-    )
     assert result.staging_required is True
     assert result.staging_files == (
         "apps/backend/src/services/reporting.py",
@@ -200,9 +183,6 @@ def test_AC8_13_20_empty_change_set_requires_heavy_ci() -> None:
         heavy=True,
         reason="no-changed-files-detected",
         heavy_files=(),
-        preview=True,
-        preview_files=(),
-        preview_reason="no-changed-files-detected",
         staging=True,
         staging_reason="no-changed-files-detected",
         ai_ocr=True,
@@ -210,111 +190,8 @@ def test_AC8_13_20_empty_change_set_requires_heavy_ci() -> None:
     )
 
 
-def test_AC8_13_20_pr_preview_only_runs_for_app_e2e_or_compose_changes() -> None:
-    """AC8.13.20: PR preview deploys are scoped to runtime, E2E, and compose changes."""
-    for p in (
-        "apps/backend/src/routers/statements.py",
-        "apps/backend/pyproject.toml",
-        "apps/frontend/src/app/page.tsx",
-        "apps/frontend/src/lib/api.ts",
-        "apps/frontend/package-lock.json",
-        "tests/e2e/test_gxs_browser_journey.py",
-        "docker-compose.yml",
-        "docker-compose.pr-preview.yml",
-        "tools/generate_pdf_fixtures.py",
-        "common/testing/fixtures/pdf/generators/dbs_generator.py",
-        "common/testing/fixtures/pdf/templates/dbs_template.yaml",
-    ):
-        assert _relevant(Environment.PR_PREVIEW, p) is True
-
-    for p in (
-        "common/testing/fixtures/pdf/README.md",
-        "common/testing/fixtures/pdf/FONT_HANDLING.md",
-        "common/testing/fixtures/pdf/analyzers/README.md",
-        "apps/backend/tests/reporting/test_reports.py",
-        "apps/backend/README.md",
-        "apps/frontend/src/lib/api.test.ts",
-        "apps/frontend/src/__tests__/homeActionBanner.test.tsx",
-        "apps/frontend/README.md",
-        "common/testing/ac_traceability_refs.py",
-        ".github/workflows/ci.yml",
-    ):
-        assert _relevant(Environment.PR_PREVIEW, p) is False
-
-    result = classify_changed_paths(
-        [
-            "common/testing/ac_traceability_refs.py",
-            "docs/ssot/README.md",
-            ".github/workflows/ci.yml",
-        ]
-    )
-    _check_result(
-        result,
-        heavy=True,
-        preview=False,
-        preview_reason="no-pr-preview-paths-changed",
-        staging=True,
-        staging_files=(".github/workflows/ci.yml",),
-        staging_reason="staging-paths-changed",
-        ai_ocr=False,
-    )
-
-    app_res = classify_changed_paths(
-        [
-            "apps/backend/tests/reporting/test_reports.py",
-            "apps/frontend/src/lib/api.test.ts",
-            "apps/frontend/README.md",
-        ]
-    )
-    _check_result(app_res, heavy=True, preview=False, staging=False)
-
-
-def test_AC8_13_96_pr_preview_classifier_includes_preview_infrastructure_paths() -> (
-    None
-):
-    """AC-testing.classifier.3: AC8.13.96: PR preview workflow and lifecycle changes exercise preview proof."""
-    for p in (
-        ".github/workflows/preview.yml",
-        ".github/workflows/maintenance.yml",
-        ".github/actions/setup-e2e-tests/action.yml",
-        "docker-compose.pr-preview.yml",
-        "tools/pr_preview_lifecycle.py",
-        "common/runtime/dev/pr_preview_lifecycle/_preview.py",
-    ):
-        assert _relevant(Environment.PR_PREVIEW, p) is True
-
-    for p in (
-        "docs/ssot/README.md",
-        "docs/project/archive/AC-TEST-TRACEABILITY-AUDIT.md",
-        "apps/backend/tests/reporting/test_reports.py",
-        "apps/frontend/src/lib/api.test.ts",
-    ):
-        assert _relevant(Environment.PR_PREVIEW, p) is False
-
-    result = classify_changed_paths(
-        [
-            "docs/ssot/README.md",
-            ".github/workflows/preview.yml",
-            "common/runtime/dev/pr_preview_lifecycle/_preview.py",
-        ]
-    )
-    _check_result(
-        result,
-        heavy=True,
-        preview=True,
-        preview_files=(
-            ".github/workflows/preview.yml",
-            "common/runtime/dev/pr_preview_lifecycle/_preview.py",
-        ),
-        preview_reason="pr-preview-paths-changed",
-        staging=False,
-        ai_ocr=False,
-    )
-    assert _relevant(Environment.STAGING, "docker-compose.pr-preview.yml") is False
-
-
-def test_AC8_13_20_pdf_fixture_docs_do_not_trigger_preview_or_staging() -> None:
-    """AC8.13.20: PDF fixture MkDocs/doc entrypoint changes do not deploy previews."""
+def test_AC8_13_20_pdf_fixture_docs_do_not_trigger_staging() -> None:
+    """AC8.13.20: PDF fixture MkDocs/doc entrypoint changes do not deploy staging."""
     result = classify_changed_paths(
         [
             "common/testing/readme.md",
@@ -328,9 +205,6 @@ def test_AC8_13_20_pdf_fixture_docs_do_not_trigger_preview_or_staging() -> None:
     _check_result(
         result,
         heavy=True,
-        preview=False,
-        preview_files=(),
-        preview_reason="no-pr-preview-paths-changed",
         staging=False,
         staging_files=(),
         staging_reason="no-staging-paths-changed",
@@ -371,14 +245,12 @@ def test_AC8_13_104_staging_ai_ocr_runs_only_for_provider_risk_paths() -> None:
     runtime_res = classify_changed_paths(
         [
             "docs/ssot/README.md",
-            ".github/workflows/preview.yml",
             "apps/backend/src/extraction/extension/prompts/statement.py",
         ]
     )
     _check_result(
         runtime_res,
         heavy=True,
-        preview=True,
         staging=True,
         ai_ocr=True,
         ai_ocr_files=("apps/backend/src/extraction/extension/prompts/statement.py",),
@@ -480,14 +352,11 @@ def test_AC8_13_20_github_outputs_and_summary_include_heavy_files(
     assert json.loads(output_lines["env_stage_required"]) == {
         "local": True,
         "pr": True,
-        "pr-preview": False,
         "staging": False,
         "prd": False,
     }
     # Legacy per-env scalar outputs are retired: the structured matrix above is
     # the sole machine-readable gate contract (AC8.13.110).
-    assert "pr_preview_required" not in output_lines
-    assert "pr_preview_reason" not in output_lines
     assert "staging_required" not in output_lines
     assert "staging_reason" not in output_lines
     assert "staging_ai_ocr_required" not in output_lines
@@ -495,14 +364,13 @@ def test_AC8_13_20_github_outputs_and_summary_include_heavy_files(
     summary_text = summary.read_text(encoding="utf-8")
     assert "## Change Classification" in summary_text
     assert "- Heavy CI required: `true`" in summary_text
-    assert "- PR preview required: `false`" in summary_text
     assert "- Staging deploy required: `false`" in summary_text
     assert "- Staging AI/OCR required: `false`" in summary_text
     assert "- `tools/ci_change_classifier.py`" in summary_text
 
 
-def test_AC8_13_20_summary_includes_pr_preview_files(tmp_path: Path) -> None:
-    """AC8.13.20: PR preview-triggering files are visible in the summary."""
+def test_AC8_13_20_summary_includes_staging_files(tmp_path: Path) -> None:
+    """AC8.13.20: Staging-triggering files are visible in the summary."""
     result = classify_changed_paths(
         [
             "apps/frontend/src/app/page.tsx",
@@ -514,10 +382,9 @@ def test_AC8_13_20_summary_includes_pr_preview_files(tmp_path: Path) -> None:
     classifier.write_github_summary(result, summary)
 
     summary_text = summary.read_text(encoding="utf-8")
-    assert "PR preview-triggering files:" in summary_text
+    assert "Staging-triggering files:" in summary_text
     assert "- `apps/frontend/src/app/page.tsx`" in summary_text
     assert "- `tests/e2e/test_gxs_browser_journey.py`" in summary_text
-    assert "Staging-triggering files:" in summary_text
 
 
 def test_AC8_13_20_cli_writes_outputs_summary_and_stdout(
@@ -553,12 +420,11 @@ def test_AC8_13_20_cli_writes_outputs_summary_and_stdout(
         "changed_files=2",
     ):
         assert s in stdout
-    assert "pr_preview_required=" not in stdout and "staging_required=" not in stdout
+    assert "staging_required=" not in stdout
 
     github_output_text = github_output.read_text(encoding="utf-8")
     assert "heavy_required=false" in github_output_text
     assert "env_stage_required=" in github_output_text
-    assert "pr_preview_required=" not in github_output_text
     assert "staging_required=" not in github_output_text
     assert "Changed files: `2`" in github_summary.read_text(encoding="utf-8")
 
@@ -570,7 +436,6 @@ def test_AC8_13_97_env_stage_matrix_keeps_environments_separate_from_pipeline_st
     assert set(ENV_STAGE_MATRIX) == {
         Environment.LOCAL,
         Environment.PR,
-        Environment.PR_PREVIEW,
         Environment.STAGING,
         Environment.PRODUCTION,
     }
@@ -585,11 +450,6 @@ def test_AC8_13_97_env_stage_matrix_keeps_environments_separate_from_pipeline_st
     ):
         assert stage in ENV_STAGE_MATRIX[Environment.PR]
     assert PipelineStage.DEPLOY_SMOKE not in ENV_STAGE_MATRIX[Environment.PR]
-    assert ENV_STAGE_MATRIX[Environment.PR_PREVIEW] == (
-        PipelineStage.IMAGE_BUILD,
-        PipelineStage.DEPLOY_SMOKE,
-        PipelineStage.E2E,
-    )
     assert PipelineStage.PROVIDER_GATE in ENV_STAGE_MATRIX[Environment.STAGING]
     assert PipelineStage.FULL_UNIT not in ENV_STAGE_MATRIX[Environment.STAGING]
     assert ENV_STAGE_MATRIX[Environment.PRODUCTION] == (
@@ -598,28 +458,15 @@ def test_AC8_13_97_env_stage_matrix_keeps_environments_separate_from_pipeline_st
     )
 
 
-def test_AC8_13_97_deployed_env_classifiers_share_common_runtime_rules() -> None:
-    """AC-testing.classifier.4: AC8.13.97: Shared runtime paths cannot drift between preview and staging classifiers."""
+def test_AC8_13_97_staging_classifier_includes_common_deploy_runtime_paths() -> None:
+    """AC-testing.classifier.4: AC8.13.97: The staging rule covers every shared deploy-runtime path and the table has no other deployed-environment rule."""
+    assert set(classifier.ENV_STAGE_RULES) == {Environment.STAGING}
+
     for path in classifier.COMMON_DEPLOY_RUNTIME_EXACT:
-        assert _relevant(Environment.PR_PREVIEW, path) is True
         assert _relevant(Environment.STAGING, path) is True
 
     for prefix in classifier.COMMON_DEPLOY_RUNTIME_PREFIXES:
-        p = f"{prefix}sentinel.py"
-        assert _relevant(Environment.PR_PREVIEW, p) is True
-        assert _relevant(Environment.STAGING, p) is True
-
-    assert classifier.ENV_STAGE_RULES[Environment.PR_PREVIEW].stages == (
-        PipelineStage.IMAGE_BUILD,
-        PipelineStage.DEPLOY_SMOKE,
-        PipelineStage.E2E,
-    )
-    assert classifier.ENV_STAGE_RULES[Environment.STAGING].stages == (
-        PipelineStage.IMAGE_BUILD,
-        PipelineStage.DEPLOY_SMOKE,
-        PipelineStage.E2E,
-        PipelineStage.PROVIDER_GATE,
-    )
+        assert _relevant(Environment.STAGING, f"{prefix}sentinel.py") is True
 
 
 def test_AC8_13_110_github_outputs_include_structured_env_stage_matrix(
@@ -629,7 +476,6 @@ def test_AC8_13_110_github_outputs_include_structured_env_stage_matrix(
     result = classify_changed_paths(
         [
             "apps/backend/src/services/reporting.py",
-            ".github/workflows/preview.yml",
             "docs/ssot/README.md",
         ]
     )
@@ -643,14 +489,12 @@ def test_AC8_13_110_github_outputs_include_structured_env_stage_matrix(
     assert json.loads(lines["env_stage_required"]) == {
         "local": True,
         "pr": True,
-        "pr-preview": True,
         "staging": True,
         "prd": False,
     }
     assert json.loads(lines["env_stage_reasons"]) == {
         "local": "local-advisory-default",
         "pr": "runtime-or-ci-paths-changed",
-        "pr-preview": "pr-preview-paths-changed",
         "staging": "staging-paths-changed",
         "prd": "production-release-dispatch-only",
     }
@@ -664,23 +508,18 @@ def test_AC8_13_110_github_outputs_include_structured_env_stage_matrix(
             "e2e",
             "image-build",
         ],
-        "pr-preview": ["image-build", "deploy-smoke", "e2e"],
         "staging": ["image-build", "deploy-smoke", "e2e", "provider-gate"],
         "prd": ["release-integrity", "deploy-smoke"],
     }
-    expected_files = [
-        "apps/backend/src/services/reporting.py",
-        ".github/workflows/preview.yml",
-    ]
+    expected_files = ["apps/backend/src/services/reporting.py"]
     assert json.loads(lines["env_stage_files"]) == {
         "local": expected_files + ["docs/ssot/README.md"],
         "pr": expected_files,
-        "pr-preview": expected_files,
-        "staging": ["apps/backend/src/services/reporting.py"],
+        "staging": expected_files,
         "prd": [],
     }
     assert json.loads(lines["provider_gate_required"]) == {"staging": False}
-    for k in ("pr_preview_required", "staging_required", "staging_ai_ocr_required"):
+    for k in ("staging_required", "staging_ai_ocr_required"):
         assert k not in lines
 
 
@@ -693,11 +532,10 @@ def test_AC8_13_111_structured_env_stage_outputs_cover_complete_environment_axis
     reasons = classifier._env_stage_reasons(result)
     files = classifier._env_stage_files(result)
 
-    assert list(required) == ["local", "pr", "pr-preview", "staging", "prd"]
+    assert list(required) == ["local", "pr", "staging", "prd"]
     assert required == {
         "local": True,
         "pr": False,
-        "pr-preview": False,
         "staging": False,
         "prd": False,
     }
@@ -735,10 +573,6 @@ def test_AC8_13_110_summary_prints_env_stage_matrix(tmp_path: Path) -> None:
         in summary_text
     )
     assert (
-        "| `pr-preview` | `false` | `no-pr-preview-paths-changed` | `image-build, deploy-smoke, e2e` | `0` |"
-        in summary_text
-    )
-    assert (
         "| `staging` | `false` | `no-staging-paths-changed` | `image-build, deploy-smoke, e2e, provider-gate` | `0` |"
         in summary_text
     )
@@ -766,13 +600,12 @@ def test_AC8_13_111_summary_prints_staging_provider_gate_files(tmp_path: Path) -
 
 
 def test_selection_ssot_triggers_staging_gate() -> None:
-    """#1547 / #2497: changing selection SSOT runs Staging E2E gate, not preview."""
+    """#1547 / #2497: changing selection SSOT runs the Staging E2E gate."""
     for path in (
         "common/testing/matrix.py",
         "tools/test_selection.py",
     ):
         assert _relevant(Environment.STAGING, path) is True, path
-        assert _relevant(Environment.PR_PREVIEW, path) is False, path
 
 
 def test_AC8_13_161_component_changed_isolates_a_single_component() -> None:
@@ -890,7 +723,6 @@ def test_all_declared_classifier_paths_exist_on_disk() -> None:
         cc.COMMON_DEPLOY_RUNTIME_EXACT,
         cc.IMAGE_BUILD_EXACT,
         cc.CI_DEFINITION_PATHS,
-        cc.PR_PREVIEW_ONLY_EXACT,
         cc.STAGING_ONLY_EXACT,
         cc.STAGING_AI_OCR_EXACT,
         cc.PDF_FIXTURE_RUNTIME_EXACT,
@@ -904,7 +736,6 @@ def test_all_declared_classifier_paths_exist_on_disk() -> None:
         cc.LIGHTWEIGHT_PREFIXES,
         cc.COMMON_DEPLOY_RUNTIME_PREFIXES,
         cc.IMAGE_BUILD_PREFIXES,
-        cc.PR_PREVIEW_ONLY_PREFIXES,
         cc.PDF_FIXTURE_RUNTIME_PREFIXES,
     ]
     for prefix_tuple in prefix_tuples:
@@ -913,10 +744,3 @@ def test_all_declared_classifier_paths_exist_on_disk() -> None:
             assert path.exists(), (
                 f"Prefix {prefix} does not match an existing path on disk"
             )
-
-    # Also assert that files under common/runtime/dev/pr_preview_lifecycle/ classify as preview-only
-    pkg_file = "common/runtime/dev/pr_preview_lifecycle/_preview.py"
-    res = cc.classify_changed_paths([pkg_file])
-    assert res.envs[cc.Environment.PR_PREVIEW].required is True
-    assert res.envs[cc.Environment.STAGING].required is False
-    assert res.staging_ai_ocr_required is False

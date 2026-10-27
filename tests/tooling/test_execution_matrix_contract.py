@@ -2,7 +2,7 @@
 
 The matrix (common/testing/matrix.py) is the SSOT for path→stage
 classification and per-stage test selection; common/testing/data/test-execution-matrix.yaml
-is its generated view and .github/workflows/preview.yml its runtime consumer
+is its generated view and .github/workflows/deploy.yml its runtime consumer
 (issues #1547 / #1556).
 """
 
@@ -61,7 +61,7 @@ def test_AC8_22_1_generated_yaml_parses_identically_for_consumers() -> None:
     assert parsed == expected
 
 
-def test_AC8_22_2_preview_workflow_derives_selection_from_matrix() -> None:
+def test_AC8_22_2_staging_workflow_derives_selection_from_matrix() -> None:
     """AC-testing.matrix.2: AC8.22.2: deploy.yml consumes the CLI; no hardcoded whitelist remains."""
     step = _staging_e2e_run_step()
     assert (
@@ -76,7 +76,7 @@ def test_AC8_22_2_preview_workflow_derives_selection_from_matrix() -> None:
     assert "tests/e2e/" not in step
 
 
-def test_AC8_22_3_preview_selection_is_audited_and_dependency_free() -> None:
+def test_AC8_22_3_staging_selection_is_audited_and_dependency_free() -> None:
     """AC-testing.matrix.3: AC8.22.3: selection = audited non-LLM rows; provider-
     dependent specs can never creep into the staging core E2E path."""
     selection = matrix.staging_core_e2e_selection()

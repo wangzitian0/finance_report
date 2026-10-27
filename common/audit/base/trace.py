@@ -30,7 +30,6 @@ _VALID_STAGES = frozenset(
     {
         "local.advisory",
         "github_ci.merge_authority",
-        "preview.runtime",
         "staging.release_validation",
         "staging.provider_regression",
         "prod.release_integrity",

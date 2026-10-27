@@ -160,7 +160,7 @@ listed in [ci-cd.md](../testing/ci-cd.md#path-risk-to-local-gate-matrix), then r
 PR CI and deployed gates for full consistency proof.
 
 For schema and migration changes, run the same deterministic Alembic proof that
-PR CI uses before relying on preview or staging:
+PR CI uses before relying on staging:
 
 ```bash
 cd apps/backend
@@ -199,11 +199,11 @@ Live docs: [wangzitian0.github.io/finance_report](https://wangzitian0.github.io/
 
 ---
 
-## Six Environments
+## Environments
 
 > **See dedicated file** → **[common/runtime/environments.md](../runtime/environments.md)**
 >
-> Covers: Local Dev / Local CI / GitHub CI / PR Preview / Staging / Production,
+> Covers: Local Dev / Local CI / GitHub CI / Staging / Production,
 > container naming patterns, and isolation details.
 
 ---
@@ -391,27 +391,15 @@ python tools/cleanup_orphaned_dbs.py --all      # Clean ALL test DBs
 VPS_HOST=cloud.zitian.party ./tools/check_resource_leaks.sh
 ```
 
-### PR Preview Cleanup (Automated)
+### PR Image Tag Cleanup (Automated)
 
-Current PR preview runs inside the GitHub runner after a successful PR `CI`
-workflow and does not create Dokploy deployments, shared VPS containers, or PR
-preview GHCR images.
+The app has no PR preview stack and creates no PR-scoped GHCR images. The
+scheduled `PR Preview Cleanup` workflow (`maintenance.yml`) is the fallback for
+legacy `pr-<number>-<sha>` tags. Every six hours it:
+- Compares legacy PR tags with currently open GitHub PRs.
+- Prunes closed-PR GHCR tags after the retention window.
 
-When a PR is closed, merged, or interrupted by failed/cancelled/timed-out CI,
-GitHub Actions automatically reconciles historical preview resources:
-- ✅ Legacy Dokploy stack on VPS
-- ✅ Legacy compose-scoped Docker volumes (`postgres_data`, `redis_data`, `minio_data`)
-- ✅ Legacy closed-PR GHCR tags through the scheduled fallback workflow only
-
-The scheduled `PR Preview Cleanup` workflow is the fallback cleanup path for
-missed PR close events or old Dokploy cleanup failures. Every six hours it:
-- Lists historical preview resources matching PR-scoped naming.
-- Compares them with currently open GitHub PRs.
-- Removes only closed/missing PR preview resources and their compose-scoped volumes.
-- Prunes legacy closed-PR GHCR tags after the retention window.
-- Runs bounded Docker build-cache and unused-image pruning with age filters.
-
-The scheduled `GHCR SHA Retention` workflow is separate from PR preview cleanup.
+The scheduled `GHCR SHA Retention` workflow is separate from PR tag cleanup.
 It prunes backend/frontend `:<sha>` GHCR package versions older than 28 days,
 preserving live staging/production deploy SHAs and every `vX.Y.Z` release tag.
 
@@ -428,7 +416,7 @@ gh workflow run maintenance.yml -f task=ghcr-sha-retention -f ghcr_dry_run=true
 
 | Document | Content |
 |----------|---------|
-| [environments.md](../runtime/environments.md) | Six environments, container naming, isolation |
+| [environments.md](../runtime/environments.md) | Five environments, container naming, isolation |
 | [ci-cd.md](../testing/ci-cd.md) | CI job structure, coverage gate, test modes |
 | [deployment.md](../runtime/deployment.md) | Deployment workflows, Vault, release process |
 | [coverage.md](../testing/coverage.md) | Unified coverage system |

@@ -1,6 +1,6 @@
 """EPIC-007 AC7.17.1: the deploy-smoke gate asserts only real public routes.
 
-`common/runtime/shell/smoke_test.sh` runs in the staging / PR-preview health gate.
+`common/runtime/shell/smoke_test.sh` runs in the staging health gate.
 Every page route it asserts via ``check_endpoint "...Page" "$BASE_URL/<route>"``
 must map to a real, public Next.js route under ``apps/frontend/src/app``. A check
 for a non-existent path (e.g. the legacy ``/dashboard``, which 404s) makes the

@@ -162,11 +162,9 @@ jobs:
           path: ci-context/
           retention-days: 14
 
-  # PR preview GHCR image hygiene. Dokploy preview RECLAIM (stale/closed-PR
-  # composes) is NOT done here — it is owned by infra2: event-driven teardown on
-  # PR close (infra2 preview-teardown.yml) + the hourly preview-leak-check
-  # detection fallback. This job only prunes stale PR-preview GHCR image tags
-  # (the app's own images).
+  # Legacy PR image tag hygiene. The app has no PR preview stack and no workflow
+  # creates `pr-<N>-<sha>` tags any more; this job only prunes stale tags of that
+  # shape from the app's own GHCR images. It does not touch Dokploy.
   cleanup:
     name: Prune stale PR preview GHCR tags
     if: ${{ (github.event_name == 'schedule' && github.event.schedule == '37 */6 * * *') || (github.event_name == 'workflow_dispatch' && (inputs.task == 'pr-preview-cleanup' || inputs.task == 'all')) }}
