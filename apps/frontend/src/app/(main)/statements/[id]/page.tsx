@@ -13,7 +13,7 @@ import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 import { confirmStatementReviewEnvelope } from "@/lib/statementReviewApi";
 import { ATTENTION_RETURN_HREF, ATTENTION_RETURN_LABEL, NEEDS_YOU_HREF, isAttentionOrigin, withAttentionSource } from "@/lib/attentionNavigation";
 import { BankStatement, BrokerageImportResponse, normalizeBankStatement } from "@/lib/types";
-import { currencyCodeOrDash } from "@/lib/statusLabels";
+import { PARSING_POLL_MS, canImportBrokerageStatement, currencyCodeOrDash } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
 import { invalidateLedgerDerivedQueries, invalidatePortfolioQueries } from "@/lib/queryClient";
 import { PdfPreviewPane, hasInlinePreview } from "@/components/review/PdfPreviewPane";
@@ -52,7 +52,6 @@ export default function StatementDetailPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [polling, setPolling] = useState(false);
-  const [, setConsecutiveErrors] = useState(0);
   const [pollingStoppedReason, setPollingStoppedReason] = useState<string | null>(null);
   const [parsingStartTime, setParsingStartTime] = useState<number | null>(null);
   const [importResult, setImportResult] = useState<BrokerageImportResponse | null>(null);
@@ -70,6 +69,7 @@ export default function StatementDetailPage() {
   });
   const mountedRef = useRef(false);
   const pollingRef = useRef(false);
+  const consecutiveErrorsRef = useRef(0);
   const requestSequenceRef = useRef(0);
   const activeRequestRef = useRef<{ controller: AbortController; requestId: number } | null>(null);
   const approvedNow = approvedEntries !== null && statement?.status === "approved";
@@ -103,7 +103,7 @@ export default function StatementDetailPage() {
       }
       setStatement(normalizeBankStatement(data));
       setError(null);
-      setConsecutiveErrors(0);
+      consecutiveErrorsRef.current = 0;
       if (data.status === "parsing") {
         updatePolling(true);
         setParsingStartTime((prev) => prev ?? Date.now());
@@ -114,15 +114,12 @@ export default function StatementDetailPage() {
     } catch (err) {
       if (!ownsResult()) return;
       const errorMessage = err instanceof Error ? err.message : "Failed to load statement";
-      setConsecutiveErrors((prev) => {
-        const newCount = prev + 1;
-        if (pollingRef.current && newCount >= 3) {
-          updatePolling(false);
-          setPollingStoppedReason(`Auto-refresh stopped after 3 consecutive errors. Last error: ${errorMessage}`);
-          showToast("Auto-refresh stopped due to repeated errors", "error");
-        }
-        return newCount;
-      });
+      consecutiveErrorsRef.current += 1;
+      if (pollingRef.current && consecutiveErrorsRef.current >= 3) {
+        updatePolling(false);
+        setPollingStoppedReason(`Auto-refresh stopped after 3 consecutive errors. Last error: ${errorMessage}`);
+        showToast("Auto-refresh stopped due to repeated errors", "error");
+      }
       setError(errorMessage);
     } finally {
       if (activeRequestRef.current?.requestId === requestId) {
@@ -134,7 +131,7 @@ export default function StatementDetailPage() {
 
   const resumePolling = useCallback(() => {
     setPollingStoppedReason(null);
-    setConsecutiveErrors(0);
+    consecutiveErrorsRef.current = 0;
     setParsingStartTime(Date.now());
     updatePolling(true);
     void fetchStatement();
@@ -170,7 +167,7 @@ export default function StatementDetailPage() {
         return;
       }
       void fetchStatement({ supersede: false });
-    }, 3000);
+    }, PARSING_POLL_MS);
     return () => clearInterval(interval);
   }, [polling, fetchStatement, parsingStartTime, showToast, updatePolling]);
 
@@ -372,7 +369,7 @@ export default function StatementDetailPage() {
   }
 
   const canRetry = statement.status === "parsed" || (statement.status === "parsing" && Boolean(pollingStoppedReason));
-  const canImport = !importResult && (statement.status === "parsed" || statement.status === "approved");
+  const canImport = !importResult && (statement.status === "parsed" || statement.status === "approved") && canImportBrokerageStatement(statement);
   const validationResult = review?.balance_validation_result ?? null;
   const balanceValid = Boolean(validationResult?.opening_match && validationResult?.closing_match);
   const hasUnresolvedConflicts = !(conflictsResolved || conflicts?.resolved) && (duplicateCandidates.length > 0 || transferPairCandidates.length > 0);
@@ -385,6 +382,7 @@ export default function StatementDetailPage() {
   const returnTo = encodeURIComponent(`/statements/${statementId}`);
   // A CSV source has no preview panel, and the table takes the full width (#2647).
   const showPreview = hasInlinePreview(statement.original_filename || statement.file_path);
+  const hasDocument = Boolean(statement.file_path) && statement.status !== "parsing";
 
   return (
     <div className="p-6">
@@ -453,7 +451,7 @@ export default function StatementDetailPage() {
       {/* Only the desktop table beside a preview has a fixed height. Without a preview, and on a phone, the
           rows grow with the page. On a phone the rows come before the preview (#2647). */}
       <div data-testid="statement-side-by-side-workbench" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {showPreview && <div className="order-2 h-[480px] lg:order-1 lg:col-span-5 lg:min-h-[540px] lg:h-[600px]"><PdfPreviewPane statementId={statementId} hasDocument={Boolean(statement.file_path) && statement.status !== "parsing"} /></div>}
+        {showPreview && <div className={`order-2 lg:order-1 lg:col-span-5 ${hasDocument ? "h-[480px] lg:min-h-[540px] lg:h-[600px]" : ""}`}><PdfPreviewPane statementId={statementId} hasDocument={hasDocument} /></div>}
         <div className={`order-1 min-w-0 lg:order-2 ${showPreview ? "lg:col-span-7 lg:min-h-[540px] lg:h-[600px]" : "lg:col-span-12"}`}><TransactionTable transactions={statement.transactions} currency={statement.currency || "SGD"} onSelectTransaction={setReviewingTxn} statementStatus={statement.status} /></div>
       </div>
       <LowConfidenceReviewModal isOpen={reviewingTxn !== null} onClose={() => setReviewingTxn(null)} transaction={reviewingTxn} currency={reviewingTxn?.currency || statement.currency || "SGD"} onSuccess={() => { void refreshAfterReview(); }} />

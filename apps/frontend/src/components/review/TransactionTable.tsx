@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatCategoryLabel } from "@/lib/categories";
-import { confidenceLabel } from "@/lib/statusLabels";
+import { confidenceLabel, statementDisplayTitle } from "@/lib/statusLabels";
 import type { BankStatement, BankStatementTransaction, BalanceValidationResult, BrokerageImportResponse, MoneyValue } from "@/lib/types";
 import { StatusBadge } from "@/components/ui";
 import DetailDialog from "@/components/ui/DetailDialog";
@@ -224,7 +224,7 @@ function DateRowNumber({ row, total }: { row: OrderedStatementRow<Transaction>; 
 export function TransactionTable({ transactions, currency, onSelectTransaction, statementStatus }: { transactions: Transaction[]; currency: string; onSelectTransaction?: (txn: Transaction) => void; statementStatus?: string }) {
   const rows = pinLowConfidenceRows(transactions ?? []);
   const lowCount = rows.filter((row) => row.pinned).length;
-  const renderStatus = (txn: Transaction) => <StatusBadge status={txn.status ?? (statementStatus === "approved" ? "matched" : "pending")} variants={{ pending: "warning", matched: "success", unmatched: "error" }} />;
+  const renderStatus = (txn: Transaction) => <StatusBadge status={statementStatus === "approved" ? "matched" : (txn.status ?? "pending")} variants={{ pending: "warning", matched: "success", unmatched: "error" }} />;
   const renderConf = (txn: Transaction) => <RowConfidenceBadge txn={txn} />;
   return (
     <div className="card flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden">
@@ -284,12 +284,11 @@ export function TransactionTable({ transactions, currency, onSelectTransaction, 
 export function StatementHeader({ statement, canImport, canRetry, canDelete = true, importLoading, retryLoading, deleteLoading = false, onBrokerageImport, onRetry, onDelete, formatCode, formatPeriod }: {
   statement: BankStatement; canImport: boolean; canRetry: boolean; canDelete?: boolean; importLoading: boolean; retryLoading: boolean; deleteLoading?: boolean; onBrokerageImport: () => void; onRetry: () => void; onDelete?: () => void; formatCode: (c?: string | null) => string; formatPeriod: (s?: string | null, e?: string | null, missing?: string) => string;
 }) {
-  const displayTitle = statement.original_filename || `${statement.institution} (${statement.period_start ?? ""} – ${statement.period_end ?? ""})`;
   return (
     <div className="page-header flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div className="flex-1 min-w-0 w-full">
         <div className="flex flex-wrap items-center gap-3 mb-2">
-          <h1 className="page-title truncate">{displayTitle}</h1>
+          <h1 className="page-title truncate">{statementDisplayTitle(statement)}</h1>
           <StatusBadge status={statement.status} variants={{ approved: "success", rejected: "error", parsed: "warning" }} />
           {statement.original_filename && <span data-testid="statement-original-filename-badge" className="inline-flex items-center rounded-md border border-[var(--border)] bg-[var(--background-muted)] px-2.5 py-0.5 text-xs font-medium text-[var(--foreground-muted)]">Source file: {statement.original_filename}</span>}
         </div>

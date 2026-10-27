@@ -61,6 +61,18 @@ _HELPER_DEFS = {
         r"^\s*(?:export\s+)?(?:function\s+readinessVariant\(|const\s+readinessVariant\s*=)",
         re.MULTILINE,
     ),
+    "statementDisplayTitle": re.compile(
+        r"^\s*(?:export\s+)?(?:function\s+statementDisplayTitle\(|const\s+statementDisplayTitle\s*=)",
+        re.MULTILINE,
+    ),
+    "PARSING_POLL_MS": re.compile(
+        r"^\s*(?:export\s+)?const\s+PARSING_POLL_MS\s*=",
+        re.MULTILINE,
+    ),
+    "canImportBrokerageStatement": re.compile(
+        r"^\s*(?:export\s+)?(?:function\s+canImportBrokerageStatement\(|const\s+canImportBrokerageStatement\s*=)",
+        re.MULTILINE,
+    ),
 }
 
 # The one canonical home each helper is allowed to be defined in
@@ -73,6 +85,9 @@ _CANONICAL_HOME = {
     "isActive": "apps/frontend/src/components/navigation.ts",
     "formatCurrency": None,  # renamed to currencyCodeOrDash; zero definitions allowed anywhere
     "readinessVariant": "apps/frontend/src/lib/statusLabels.ts",
+    "statementDisplayTitle": "apps/frontend/src/lib/statusLabels.ts",
+    "PARSING_POLL_MS": "apps/frontend/src/lib/statusLabels.ts",
+    "canImportBrokerageStatement": "apps/frontend/src/lib/statusLabels.ts",
 }
 
 
@@ -119,3 +134,35 @@ def test_AC_fe_helper_ssot_1_each_helper_defined_at_most_once():
             )
 
     assert not violations, "helper single-homing regressed:\n" + "\n".join(violations)
+
+
+def test_brokerage_aliases_match_between_frontend_and_backend():
+    """AC-extraction.fe-stage1-review.28: frontend BROKERAGE_ALIASES matches backend _BROKER_ALIASES."""
+    fe_text = (FRONTEND_SRC / "lib" / "statusLabels.ts").read_text(encoding="utf-8")
+    fe_match = re.search(r"const\s+BROKERAGE_ALIASES\s*=\s*\[([^\]]+)\]", fe_text)
+    assert fe_match is not None, (
+        "BROKERAGE_ALIASES missing in apps/frontend/src/lib/statusLabels.ts"
+    )
+    fe_aliases = tuple(re.findall(r'"([^"]+)"', fe_match.group(1)))
+
+    be_path = (
+        REPO
+        / "apps"
+        / "backend"
+        / "src"
+        / "extraction"
+        / "extension"
+        / "brokerage_positions.py"
+    )
+    be_text = be_path.read_text(encoding="utf-8")
+    be_match = re.search(r"_BROKER_ALIASES\s*=\s*\(([\s\S]*?)\n\)", be_text)
+    assert be_match is not None, "_BROKER_ALIASES missing in brokerage_positions.py"
+    be_aliases: list[str] = []
+    for line in be_match.group(1).splitlines():
+        tokens = re.findall(r'"([^"]+)"', line)
+        if len(tokens) > 1:
+            be_aliases.extend(tokens[1:])
+
+    assert fe_aliases == tuple(be_aliases), (
+        f"Frontend BROKERAGE_ALIASES {fe_aliases} drifted from backend _BROKER_ALIASES {tuple(be_aliases)}"
+    )

@@ -60,6 +60,43 @@ const STATEMENTS = [
   statementRow("2648a0b1-0000-4000-8000-000000000009", "dbs-2026-09.csv", "approved", { period_start: "2026-09-01", period_end: "2026-09-30" }),
   statementRow("2648a0b1-0000-4000-8000-000000000008", "dbs-2026-08.csv", "approved", { period_start: "2026-08-01", period_end: "2026-08-31" }),
   statementRow("2648a0b1-0000-4000-8000-000000000007", "dbs-2026-07.csv", "approved"),
+  statementRow("2648a0b1-0000-4000-8000-000000000011", "cmb_statement_fixture.pdf", "parsed", {
+    institution: "GXS Bank",
+    period_start: "2025-03-01",
+    period_end: "2025-03-31",
+    currency: "SGD",
+    confidence_score: 85,
+  }),
+  statementRow("2648a0b1-0000-4000-8000-000000000012", "gxs_approved_statement_202503.pdf", "approved", {
+    institution: "GXS Bank",
+    period_start: "2025-03-01",
+    period_end: "2025-03-31",
+    currency: "SGD",
+    confidence_score: 98,
+  }),
+  statementRow("2648a0b1-0000-4000-8000-000000000013", "cny_parsing_statement_202610.pdf", "parsing", {
+    institution: "CMB",
+    period_start: null,
+    period_end: null,
+    currency: "CNY",
+    opening_balance: "0.00",
+    closing_balance: "0.00",
+    confidence_score: null,
+    balance_validated: null,
+  }),
+];
+
+const TRANSFERS = [
+  {
+    entry_id: "tf-1",
+    from_account: "DBS Multiplier ••4471",
+    to_account: "(unmatched destination) GXS Bank ••9912",
+    amount: "1500.00",
+    currency: "SGD",
+    initiated_date: "2026-10-20",
+    days_outstanding: 9,
+    description: "FAST Transfer to GXS",
+  },
 ];
 
 const event = (id: string, severity: string, title: string, summary: string, actionHref: string) => ({
@@ -111,6 +148,7 @@ async function installMocks(page: Page) {
         active_session: null,
       };
     } else if (path === "/api/workflow/events") body = { items: EVENTS, total: EVENTS.length, sessions: [] };
+    else if (path === "/api/accounts/processing/pending") body = { items: TRANSFERS, total: TRANSFERS.length };
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
 }
@@ -194,4 +232,49 @@ test.describe("#2648 upload page", () => {
       await expect(row.getByText("Import failed", { exact: true })).toBeVisible();
     });
   }
+
+  // AC-extraction.fe-upload-layout.6
+  test("AC-extraction.fe-upload-layout.6 stacks mobile upload cards and transfers without overlap or clipping at 390x844", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/upload", { waitUntil: "networkidle" });
+
+    const approvedRow = page.getByTestId("upload-statement-row-2648a0b1-0000-4000-8000-000000000012");
+    await expect(approvedRow).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS });
+    const approvedBadge = approvedRow.getByText("Approved", { exact: true });
+    const viewTxnsBtn = approvedRow.getByRole("button", { name: "View Transactions" });
+    const badgeBox = await approvedBadge.boundingBox();
+    const btnBox = await viewTxnsBtn.boundingBox();
+    expect(badgeBox).not.toBeNull();
+    expect(btnBox).not.toBeNull();
+    const overlaps =
+      badgeBox!.x < btnBox!.x + btnBox!.width &&
+      badgeBox!.x + badgeBox!.width > btnBox!.x &&
+      badgeBox!.y < btnBox!.y + btnBox!.height &&
+      badgeBox!.y + badgeBox!.height > btnBox!.y;
+    expect(overlaps, "Approved badge must not overlap View Transactions button").toBe(false);
+
+    // Metadata line must not wrap into a narrow 1-word vertical column (height <= 2 lines, i.e. <= 44px).
+    const metaBox = await approvedRow.getByText("2025-03-01 to 2025-03-31").boundingBox();
+    expect(metaBox?.height ?? 999, "metadata period height in px").toBeLessThanOrEqual(40);
+
+    // Ready to review card filename displays at least 18 characters width (>= 140px before truncation).
+    const readyRow = page.getByTestId("upload-statement-row-2648a0b1-0000-4000-8000-000000000011");
+    const titleBox = await readyRow.getByRole("link", { name: "cmb_statement_fixture.pdf" }).boundingBox();
+    expect(titleBox?.width ?? 0, "filename link width at 390px").toBeGreaterThanOrEqual(140);
+
+    // Parsing card hides Opening: 0.00 / Closing: 0.00 / confidence placeholders.
+    const parsingRow = page.getByTestId("upload-statement-row-2648a0b1-0000-4000-8000-000000000013");
+    await expect(parsingRow).toBeVisible();
+    await expect(parsingRow.getByText(/Opening:/)).toHaveCount(0);
+    await expect(parsingRow.getByText(/Closing:/)).toHaveCount(0);
+    await expect(parsingRow.getByText(/confidence/i)).toHaveCount(0);
+
+    // Transfers in flight renders full From and To text without right-edge clipping at 390px.
+    const transfers = page.getByRole("region", { name: "Transfers in flight" });
+    await expect(transfers).toBeVisible();
+    const toText = transfers.getByText("(unmatched destination) GXS Bank ••9912").first();
+    await expect(toText).toBeVisible();
+    const toBox = await toText.boundingBox();
+    expect((toBox?.x ?? 0) + (toBox?.width ?? 999), "To account right edge <= 390px").toBeLessThanOrEqual(390);
+  });
 });

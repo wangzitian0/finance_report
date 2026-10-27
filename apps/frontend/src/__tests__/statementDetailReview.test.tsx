@@ -578,4 +578,36 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
       view.unmount();
     }
   });
+
+  // AC-extraction.fe-stage1-review.28
+  it("AC-extraction.fe-stage1-review.28 hides Import to Portfolio on bank statements and collapses unavailable PDF preview", async () => {
+    mockedApi.mockImplementation((path: string) => {
+      if (path === "/api/statements/s1/review") {
+        return Promise.resolve({
+          ...baseStatement,
+          original_filename: "bsb_001_straits_capital.pdf",
+          institution: "Straits Capital",
+          file_path: "",
+          status: "approved",
+          transactions: [{ ...baseStatement.transactions[0], status: "pending" }],
+        });
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`));
+    });
+
+    const { StatementHeader } = await import("@/components/review/TransactionTable");
+    const { statementDisplayTitle, canImportBrokerageStatement } = await import("@/lib/statusLabels");
+    expect(statementDisplayTitle({ original_filename: "", institution: "DBS", period_start: "2026-01-01", period_end: "2026-01-31" })).toBe("DBS (2026-01-01 – 2026-01-31)");
+    expect(canImportBrokerageStatement({ institution: "Straits Capital", original_filename: "bsb_001_straits_capital.pdf", brokerage_import_failed: false })).toBe(false);
+    expect(canImportBrokerageStatement({ institution: "Interactive Brokers", original_filename: "ibkr.pdf", brokerage_import_failed: false })).toBe(true);
+    void StatementHeader;
+
+    renderReviewComponent(<StatementReviewPage /> as never);
+    const workbench = await screen.findByTestId("statement-side-by-side-workbench");
+    expect(await within(workbench).findAllByText("Salary")).not.toHaveLength(0);
+    expect(screen.queryByRole("button", { name: /import brokerage positions to portfolio/i })).toBeNull();
+    expect(screen.queryByText("pending")).toBeNull();
+    const previewWrapper = within(workbench).getByRole("heading", { name: "PDF Preview" }).closest(".order-2");
+    expect(previewWrapper).not.toHaveClass("h-[480px]");
+  });
 });

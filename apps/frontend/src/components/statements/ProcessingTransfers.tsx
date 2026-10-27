@@ -33,8 +33,8 @@ export function ProcessingTransfers() {
         <span className="text-xs text-muted">Waiting for the matching statement · {items.length} total</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-[var(--background-muted)] border-b border-[var(--border)]">
+        <table className="w-full text-left text-sm block sm:table">
+          <thead className="hidden sm:table-header-group bg-[var(--background-muted)] border-b border-[var(--border)]">
             <tr>
               <th className="px-6 py-3 font-semibold">Started</th>
               <th className="px-6 py-3 font-semibold">From</th>
@@ -44,14 +44,14 @@ export function ProcessingTransfers() {
               <th className="px-6 py-3 font-semibold">Description</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[var(--border)]">
+          <tbody className="block sm:table-row-group divide-y divide-[var(--border)]">
             {items.map((item) => (
-              <tr key={item.entry_id} className="hover:bg-[var(--background-muted)]/50 transition-colors">
-                <td className="px-6 py-4 whitespace-nowrap">{formatDateDisplay(item.initiated_date)}</td>
-                <td className="px-6 py-4">{item.from_account}</td>
-                <td className="px-6 py-4">{item.to_account}</td>
-                <td className="px-6 py-4 text-right font-mono">{formatCurrencyLocale(item.amount, item.currency)}</td>
-                <td className="px-6 py-4">
+              <tr key={item.entry_id} className="block p-4 space-y-1.5 sm:table-row sm:p-0 sm:space-y-0 hover:bg-[var(--background-muted)]/50 transition-colors">
+                <td className="block sm:table-cell sm:px-6 sm:py-4 whitespace-nowrap text-xs text-muted sm:text-sm sm:text-[var(--foreground)]">{formatDateDisplay(item.initiated_date)}</td>
+                <td className="block sm:table-cell sm:px-6 sm:py-4 break-words"><span className="text-xs text-muted mr-1 sm:hidden">From:</span>{item.from_account}</td>
+                <td className="block sm:table-cell sm:px-6 sm:py-4 break-words"><span className="text-xs text-muted mr-1 sm:hidden">To:</span>{item.to_account}</td>
+                <td className="block sm:table-cell sm:px-6 sm:py-4 sm:text-right font-mono font-semibold sm:font-normal">{formatCurrencyLocale(item.amount, item.currency)}</td>
+                <td className="block sm:table-cell sm:px-6 sm:py-4">
                   <div className="flex items-center gap-2">
                     <span>{item.days_outstanding}d</span>
                     {item.days_outstanding > OVERDUE_DAYS && (
@@ -62,7 +62,7 @@ export function ProcessingTransfers() {
                     )}
                   </div>
                 </td>
-                <td className="px-6 py-4">{item.description}</td>
+                <td className="block sm:table-cell sm:px-6 sm:py-4 break-words text-xs text-muted sm:text-sm sm:text-[var(--foreground)]">{item.description}</td>
               </tr>
             ))}
           </tbody>
