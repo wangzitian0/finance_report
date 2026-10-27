@@ -1235,42 +1235,66 @@ def test_gate_util_helpers_keep_the_behavior_of_the_removed_copies() -> None:
     assert [gate_util.call_name(call.func) for call in calls] == ["F", "B", None]
 
 
+def _docless_body(function: ast.FunctionDef) -> str:
+    body = function.body[1:] if ast.get_docstring(function) else function.body
+    return ast.dump(ast.Module(body=body, type_ignores=[]))
+
+
+def _is_posix_fallback_copy(node: ast.Try) -> bool:
+    """``try: <p>.relative_to(..) ... except ValueError: return/assign <p> as text``."""
+    receivers = {
+        ast.dump(call.func.value)
+        for call in ast.walk(ast.Module(body=node.body, type_ignores=[]))
+        if isinstance(call, ast.Call) and getattr(call.func, "attr", "") == "relative_to"
+    }
+    return any(
+        getattr(handler.type, "id", "") == "ValueError"
+        and len(handler.body) == 1
+        and isinstance(handler.body[0], (ast.Return, ast.Assign))
+        and any(receiver in ast.dump(handler.body[0]) for receiver in receivers)
+        for handler in node.handlers
+    )
+
+
 def test_shared_gate_facts_keep_one_definition_each() -> None:
-    """Each shared fact has one defining module; the retired copies stay deleted."""
+    """Copies are found by body or relative_to pattern (any name); constants by name."""
     util = "common/meta/base/gate_util.py"
-    owners = {
-        "display_path": util,
-        "duplicate_values": util,
-        "required_arg": util,
-        "call_name": util,
-        "load_openapi": "common/platform/generate_openapi_spec.py",
+    owned = [
+        f"{util}:{name}" for name in ("duplicate_values", "call_name", "required_arg")
+    ] + [
+        "common/platform/generate_openapi_spec.py:load_openapi",
+        "apps/backend/src/extraction/base/source_capability.py:required_text",
+    ]
+    constants = {
         "HTTP_METHODS": "common/meta/extension/generate_api_operations.py",
         "EXCLUDED_DIRS": "common/testing/ac_scan.py",
         "TEST_FILE_SUFFIXES": "common/testing/ac_scan.py",
-        "required_text": "apps/backend/src/extraction/base/source_capability.py",
     }
-    retired = set(
-        "_rel _relative _relative_path _source_relative_path _duplicate_values "
-        "_required _call_func_name _call_name _load_openapi _HTTP_METHODS "
-        "_display_path".split()
-    )
-    scanned = {
-        ROOT / "common" / package: retired
-        for package in ("meta", "platform", "runtime", "testing")
-    } | {ROOT / "apps/backend/src/extraction/base": {"_text"}}
-    defined: dict[str, list[str]] = {}
-    for root, root_retired in scanned.items():
-        for path in root.rglob("*.py"):
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            names = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
-            names |= {
-                target.id
-                for node in tree.body
-                if isinstance(node, ast.Assign)
-                for target in node.targets
-                if isinstance(target, ast.Name)
-            }
-            for name in names & (owners.keys() | root_retired):
-                defined.setdefault(name, []).append(str(path.relative_to(ROOT)))
+    trees = {
+        str(path.relative_to(ROOT)): ast.parse(path.read_text(encoding="utf-8"))
+        for root in ("common", "tools", "apps/backend/src/extraction/base")
+        for path in (ROOT / root).rglob("*.py")
+    }
+    functions = {
+        f"{rel}:{node.name}": _docless_body(node)
+        for rel, tree in trees.items()
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef)
+    }
+    bodies = {functions[site] for site in owned}
+    assert sorted(s for s, body in functions.items() if body in bodies) == sorted(owned)
 
-    assert defined == {name: [owner] for name, owner in owners.items()}
+    nodes = [(rel, n) for rel, tree in trees.items() for n in ast.walk(tree)]
+    assert [
+        f"{rel}:{node.lineno}"
+        for rel, node in nodes
+        if rel != util and isinstance(node, ast.Try) and _is_posix_fallback_copy(node)
+    ] == []
+    assert {
+        (rel, target.id)
+        for rel, tree in trees.items()
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name) and target.id in constants
+    } == {(rel, name) for name, rel in constants.items()}

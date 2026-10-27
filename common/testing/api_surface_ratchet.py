@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from common.meta.base.gate_util import display_path
 from common.meta.base.layering import PACKAGE_LAYER
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -27,18 +28,11 @@ BASELINE_UPDATE_MODE = "shrink-only"
 TERMINAL_API_HOME = "extension/api"
 
 
-def _relative_to_root(path: Path) -> str:
-    try:
-        return path.relative_to(REPO_ROOT).as_posix()
-    except ValueError:
-        return str(path)
-
-
 def router_files() -> set[str]:
     if not ROUTERS_DIR.exists():
         return set()
     return {
-        _relative_to_root(path)
+        display_path(path, REPO_ROOT)
         for path in ROUTERS_DIR.glob("*.py")
         if path.name != "__init__.py"
     }
@@ -87,7 +81,7 @@ def base_schema_import_files() -> list[str]:
         if not base_dir.is_dir():
             continue
         violations.extend(
-            _relative_to_root(path)
+            display_path(path, REPO_ROOT)
             for path in base_dir.rglob("*.py")
             if "__pycache__" not in path.parts and _imports_schemas(path)
         )

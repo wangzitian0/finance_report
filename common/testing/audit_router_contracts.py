@@ -20,6 +20,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from common.meta.base.gate_util import display_path
 from common.meta.extension.generate_api_operations import HTTP_METHODS
 
 DEFAULT_ROUTER_DIR = Path("apps/backend/src/routers")
@@ -95,10 +96,7 @@ def _route_literal(call: ast.Call) -> str:
 
 def scan_file(path: Path, *, repo_root: Path) -> list[UntypedEndpoint]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    try:
-        rel = path.relative_to(repo_root).as_posix()
-    except ValueError:
-        rel = path.as_posix()
+    rel = display_path(path, repo_root)
 
     router_names = _router_names(tree)
     findings: list[UntypedEndpoint] = []

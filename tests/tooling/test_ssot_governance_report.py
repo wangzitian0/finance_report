@@ -743,14 +743,6 @@ def test_AC14_1_13_gate_helper_edges_remain_incremental(
         ["docs/readme.md", "docs/ssot/README.md", "docs/ssot/owned.md"]
     ) == ["docs/ssot/owned.md"]
     assert (
-        governance_report._source_manifest_repo_path(
-            outside_source,
-            tmp_path,
-        )
-        == outside_source.manifest_path.as_posix()
-    )
-
-    assert (
         governance_report._read_base_manifest_text(
             tmp_path,
             finance_source,

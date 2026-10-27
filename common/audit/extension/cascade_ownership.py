@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Sequence
 
+from common.meta.base.gate_util import call_name
+
 INVENTORY_PATH = Path(__file__).resolve().parents[1] / "data/fk-cascade-ownership.json"
 DEBT_BASELINE_PATH = (
     Path(__file__).resolve().parents[1] / "data/fk-cascade-debt-baseline.json"
@@ -53,14 +55,6 @@ class CascadeOwnership:
     issue: str | None = None
 
 
-def _call_name(call: ast.Call) -> str | None:
-    if isinstance(call.func, ast.Attribute):
-        return call.func.attr
-    if isinstance(call.func, ast.Name):
-        return call.func.id
-    return None
-
-
 def _assigned_name(statement: ast.stmt) -> tuple[str | None, ast.AST | None]:
     if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
         return statement.target.id, statement.value
@@ -99,7 +93,7 @@ def _call_argument(call: ast.Call, keyword: str, position: int) -> ast.expr | No
     positional = call.args[position] if len(call.args) > position else None
     if keyword_values and positional is not None:
         raise CascadeInventoryError(
-            f"{_call_name(call)} provides {keyword} both positionally and by keyword"
+            f"{call_name(call.func)} provides {keyword} both positionally and by keyword"
         )
     return keyword_values[0] if keyword_values else positional
 
@@ -109,27 +103,27 @@ def _cascade_target(
 ) -> tuple[str, str, str | None] | None:
     if not isinstance(node, ast.Call):
         return None
-    syntactic_name = _call_name(node)
-    call_name = aliases.get(syntactic_name or "", syntactic_name)
-    if call_name not in {"ForeignKey", "ForeignKeyConstraint"}:
+    syntactic_name = call_name(node.func)
+    resolved_name = aliases.get(syntactic_name or "", syntactic_name)
+    if resolved_name not in {"ForeignKey", "ForeignKeyConstraint"}:
         return None
     if any(isinstance(argument, ast.Starred) for argument in node.args) or any(
         keyword.arg is None for keyword in node.keywords
     ):
         raise CascadeInventoryError(
-            f"{call_name} uses unpacked arguments that ownership review cannot resolve"
+            f"{resolved_name} uses unpacked arguments that ownership review cannot resolve"
         )
-    ondelete_position = 5 if call_name == "ForeignKey" else 4
+    ondelete_position = 5 if resolved_name == "ForeignKey" else 4
     ondelete = _call_argument(node, "ondelete", ondelete_position)
     if ondelete is None:
         return None
     if not (isinstance(ondelete, ast.Constant) and isinstance(ondelete.value, str)):
         raise CascadeInventoryError(
-            f"{call_name} ondelete must be a literal for ownership review"
+            f"{resolved_name} ondelete must be a literal for ownership review"
         )
     if ondelete.value.strip().upper() != "CASCADE":
         return None
-    if call_name == "ForeignKey":
+    if resolved_name == "ForeignKey":
         if not node.args:
             raise CascadeInventoryError("CASCADE ForeignKey has no target argument")
         target = node.args[0]
@@ -286,7 +280,7 @@ def _site_label(node: ast.Call, parents: dict[ast.AST, ast.AST]) -> str:
         cursor = parents[cursor]
         if (
             isinstance(cursor, ast.Call)
-            and _call_name(cursor) == "Column"
+            and call_name(cursor.func) == "Column"
             and cursor.args
             and isinstance(cursor.args[0], ast.Constant)
             and isinstance(cursor.args[0].value, str)

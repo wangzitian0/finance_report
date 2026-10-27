@@ -169,5 +169,3 @@ def test_baseline_requires_the_declared_shape_and_handles_external_paths(
     )
     with pytest.raises(ValueError, match="package_schema_import_files"):
         api_surface_ratchet._load_baseline()
-
-    assert api_surface_ratchet._relative_to_root(tmp_path) == str(tmp_path)
