@@ -93,17 +93,20 @@ async def _statement_with_source(
     status: BankStatementStatus = BankStatementStatus.APPROVED,
     source_type: StatementSourceType = StatementSourceType.BANK,
     earlier_source_type: StatementSourceType | None = None,
-    result_period_start: date | None = None,
+    result_period_start: date | str | None = None,
     envelope_period_start: date | None = None,
+    superseded_envelope_period_start: date | None = None,
     earlier_envelope_period_start: date | None = None,
 ) -> StatementSummary:
     """A statement with a current source result of ``source_type``, so the custody query reaches it.
 
     ``period_start`` and ``period_end`` are the summary period. ``earlier_source_type`` adds an
     older result that is not current. Only the custody query reads these results: their payload
-    holds the source type and ``result_period_start``, no facts. ``envelope_period_start`` adds a
-    reviewed envelope on the current result, and ``earlier_envelope_period_start`` adds one on the
-    older result.
+    holds the source type and ``result_period_start``, no facts. A ``str`` start goes into the
+    payload as it is. ``envelope_period_start`` adds a reviewed envelope on the current result.
+    ``superseded_envelope_period_start`` adds an older envelope on the current result, which the
+    first one supersedes (``supersedes_id``, a later ``created_at``), as a re-confirmation writes
+    it. ``earlier_envelope_period_start`` adds an envelope on the older result.
     """
     statement = StatementSummary(
         user_id=user_id,
@@ -129,7 +132,15 @@ async def _statement_with_source(
             schema_version="2",
             producer_version="coverage-fixture",
             payload={"source_type": kind.value}
-            | ({"period_start": result_period_start.isoformat()} if result_period_start else {}),
+            | (
+                {}
+                if result_period_start is None
+                else {
+                    "period_start": result_period_start
+                    if isinstance(result_period_start, str)
+                    else result_period_start.isoformat()
+                }
+            ),
             source_trace_record_id=uuid4(),
             created_at=datetime.now(UTC),
         )
@@ -137,14 +148,15 @@ async def _statement_with_source(
         records.append(record)
     await db.flush()
     statement.current_extraction_result_id = records[-1].id
-    envelopes = [(records[-1], envelope_period_start)]
+    # Each chain is oldest first; each envelope supersedes the one before it and is one second newer.
+    chains = [(records[-1], (superseded_envelope_period_start, envelope_period_start))]
     if earlier_source_type:
-        envelopes.append((records[0], earlier_envelope_period_start))
-    for record, envelope_start in envelopes:
-        if envelope_start is None:
-            continue
-        db.add(
-            ReviewedStatementEnvelope(
+        chains.append((records[0], (earlier_envelope_period_start,)))
+    created_at = datetime.now(UTC)
+    for record, starts in chains:
+        previous: ReviewedStatementEnvelope | None = None
+        for index, envelope_start in enumerate(start for start in starts if start is not None):
+            envelope = ReviewedStatementEnvelope(
                 user_id=user_id,
                 statement_id=statement.id,
                 source_result_id=record.id,
@@ -155,11 +167,14 @@ async def _statement_with_source(
                 opening_balance=Decimal("1000.00"),
                 closing_balance=Decimal("1200.00"),
                 rationale="coverage fixture",
-                command_digest=sha256(f"envelope:{record.id}".encode()).hexdigest(),
+                command_digest=sha256(f"envelope:{record.id}:{index}".encode()).hexdigest(),
                 review_trace_record_id=uuid4(),
-                created_at=datetime.now(UTC),
+                supersedes_id=previous.id if previous is not None else None,
+                created_at=created_at + timedelta(seconds=index),
             )
-        )
+            db.add(envelope)
+            await db.flush()
+            previous = envelope
     await db.flush()
     return statement
 
@@ -342,10 +357,11 @@ async def test_AC_reporting_2646_2_custody_accounts_are_the_bank_statements_of_t
 async def test_AC_reporting_2646_2_the_custody_start_is_the_envelope_then_the_result_then_the_summary(
     db: AsyncSession, test_user
 ) -> None:
-    """AC-reporting.2646.2: the custody query reads the period start that the package reads. The
-    reviewed envelope on the current result comes first, then the current source result, then the
-    summary. Each statement has a different start in each place, so only the correct order keeps
-    the correct accounts. An envelope on an older result does not count."""
+    """AC-reporting.2646.2: the custody start is the first start that is not empty in this order: the
+    newest reviewed envelope (by ``created_at``) on the current source result, the current source
+    result, the summary. Each statement has a different start in each place, so only this order
+    keeps the correct accounts. An older envelope that a newer one supersedes and an envelope on an
+    older result do not count."""
     user_id = test_user.id
     as_of = date(2026, 6, 12)
     before, after = date(2026, 5, 1), date(2026, 6, 20)
@@ -354,7 +370,10 @@ async def test_AC_reporting_2646_2_the_custody_start_is_the_envelope_then_the_re
         "Summary start only",
         "Envelope moves the start before",
         "Envelope moves the start after",
+        "Newest envelope moves the start before",
+        "Newest envelope moves the start after",
         "Result over summary",
+        "Result moves the start before",
         "Envelope on an older result",
     )
     accounts = {name: await _account(db, user_id, name) for name in names}
@@ -390,6 +409,27 @@ async def test_AC_reporting_2646_2_the_custody_start_is_the_envelope_then_the_re
         result_period_start=before,
         envelope_period_start=after,
     )
+    # Two envelopes on the current result: a re-confirmation supersedes the older one.
+    await _statement_with_source(
+        db,
+        user_id,
+        accounts["Newest envelope moves the start before"],
+        period_start=after,
+        period_end=date(2026, 7, 10),
+        result_period_start=after,
+        superseded_envelope_period_start=after,
+        envelope_period_start=before,
+    )
+    await _statement_with_source(
+        db,
+        user_id,
+        accounts["Newest envelope moves the start after"],
+        period_start=before,
+        period_end=date(2026, 7, 10),
+        result_period_start=before,
+        superseded_envelope_period_start=before,
+        envelope_period_start=after,
+    )
     await _statement_with_source(
         db,
         user_id,
@@ -397,6 +437,14 @@ async def test_AC_reporting_2646_2_the_custody_start_is_the_envelope_then_the_re
         period_start=before,
         period_end=date(2026, 7, 10),
         result_period_start=after,
+    )
+    await _statement_with_source(
+        db,
+        user_id,
+        accounts["Result moves the start before"],
+        period_start=after,
+        period_end=date(2026, 7, 10),
+        result_period_start=before,
     )
     await _statement_with_source(
         db,
@@ -414,9 +462,36 @@ async def test_AC_reporting_2646_2_the_custody_start_is_the_envelope_then_the_re
     by_id = {account.id: name for name, account in accounts.items()}
     assert sorted(by_id[account_id] for account_id in selected) == [
         "Envelope moves the start before",
+        "Newest envelope moves the start before",
+        "Result moves the start before",
         "Result start only",
         "Summary start only",
     ]
+
+
+async def test_AC_reporting_2646_2_an_empty_result_start_reads_as_no_start(db: AsyncSession, test_user) -> None:
+    """AC-reporting.2646.2: an empty ``period_start`` in the payload of the current source result
+    reads as no start, as in ``StatementExtractionResult.from_payload``. The custody query does not
+    raise, and the summary start is the fallback."""
+    user_id = test_user.id
+    as_of = date(2026, 6, 12)
+    with_summary = await _account(db, user_id, "Empty result start, summary start before")
+    without_summary = await _account(db, user_id, "Empty result start, no summary start")
+    await _statement_with_source(
+        db, user_id, with_summary, period_start=date(2026, 5, 1), period_end=date(2026, 5, 28), result_period_start=""
+    )
+    await _statement_with_source(
+        db,
+        user_id,
+        without_summary,
+        period_start=None,
+        period_end=None,
+        status=BankStatementStatus.PARSED,
+        result_period_start="",
+    )
+    await db.commit()
+
+    assert await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=as_of) == frozenset({with_summary.id})
 
 
 def _keep_the_statement_parsed(monkeypatch: pytest.MonkeyPatch) -> None:
