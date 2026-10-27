@@ -37,21 +37,18 @@ def is_bank_custody_source(source: StatementExtractionResult | None, document: U
     return document is None or document.document_type is not DocumentType.BROKERAGE_STATEMENT
 
 
-#: The statement statuses whose custody account counts for the cash coverage bound (#2646). A
-#: reviewed statement keeps its current source result and its decision when it is later retired or
-#: rejected, and the report package still reads it.
-REVIEWED_STATEMENT_STATUSES = (BankStatementStatus.APPROVED, BankStatementStatus.RETIRED, BankStatementStatus.REJECTED)
+async def coverage_bank_custody_account_ids(db: AsyncSession, *, user_id: UUID, as_of: date) -> frozenset[UUID]:
+    """The custody accounts of the user's bank statements that start on or before ``as_of`` (#2646).
 
-
-async def reviewed_bank_custody_account_ids(db: AsyncSession, *, user_id: UUID, as_of: date) -> frozenset[UUID]:
-    """The custody accounts of the reviewed bank statements that start on or before ``as_of`` (#2646).
-
-    One query. The report package reads a bank statement that closes after ``as_of`` when it has
-    movement in the period, so the period end is not a filter: a statement that starts on or before
-    ``as_of`` can have such movement. A bank statement is a statement whose current source result
-    has the source type ``bank_statement``, as the package selects its cash accounts. A statement
-    that waits for review (uploaded, parsing, parsed) does not count. The composite foreign key of
-    the source result holds the user of the statement, so one user filter covers both rows.
+    One query. It is a deliberate superset of the cash accounts of the report package. The package
+    keeps a bank statement by the trace decision of its current source result, not by its status:
+    a statement can stay ``parsed`` with an authoritative decision (a confirmed envelope before
+    approval, an auto-approval that falls back to review). So no status filter applies. The
+    package also reads a statement that closes after ``as_of`` when it has movement in the period,
+    so the period end is not a filter. A wider set can only move the coverage start later; it can
+    never cause ``opening_coverage_starts_after_period``. A bank statement is a statement whose
+    current source result has the source type ``bank_statement``. The composite foreign key of the
+    source result holds the user of the statement, so one user filter covers both rows.
     """
     rows = await db.execute(
         select(StatementSummary.account_id)
@@ -61,7 +58,6 @@ async def reviewed_bank_custody_account_ids(db: AsyncSession, *, user_id: UUID, 
         )
         .where(
             StatementSummary.user_id == user_id,
-            StatementSummary.status.in_(REVIEWED_STATEMENT_STATUSES),
             StatementSummary.account_id.is_not(None),
             StatementSummary.period_start.is_not(None),
             StatementSummary.period_start <= as_of,
