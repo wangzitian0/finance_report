@@ -102,6 +102,17 @@ describe("LowConfidenceReviewModal", () => {
     expect(screen.getByText("medium")).toBeInTheDocument();
   });
 
+  // AC-extraction.fe-stage1-review.27
+  it("AC-extraction.fe-stage1-review.27 the review modal labels a row with no tier Not rated, with the table badge", () => {
+    const unrated: BankStatementTransaction = { ...mockTransaction, confidence_tier: null, confidence: undefined };
+    render(<LowConfidenceReviewModal isOpen onClose={vi.fn()} transaction={unrated} />);
+
+    const badge = screen.getByText("Not rated");
+    expect(badge).toHaveClass("badge", "badge-muted");
+    expect(badge).not.toHaveClass("badge-warning");
+    expect(screen.queryByText(/^low$/i)).toBeNull();
+  });
+
   it("selects category via quick category chips and select dropdown", async () => {
     render(
       <LowConfidenceReviewModal
