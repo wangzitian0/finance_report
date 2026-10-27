@@ -2,28 +2,53 @@
   "suite": "financial_reporting_temporal_scenarios",
   "version_ref": "v0.2.31",
   "app_url": "https://report-staging.zitian.party",
-  "run_at": "2026-10-26T10:22:39.711814+00:00",
+  "run_at": "2026-10-27T03:22:26.901697+00:00",
   "summary": {
     "total": 7,
-    "passed": 6,
+    "passed": 7,
     "skipped": 0,
-    "failed": 1,
-    "success": false
+    "failed": 0,
+    "success": true
   },
   "results": [
     {
       "case_id": "case_1",
       "case_name": "Case 1: Consecutive 4-Month Rollforward & Q1 Articulation",
-      "status": "FAIL",
-      "duration_seconds": 255.41694331169128,
-      "details": {},
-      "error_message": "Pillar 1 Invariant Failure: AI Advisor hallucinated discrepancy/imbalance token 'discrepancy' in response: # Your Net Worth & Balance Check\n\n## Current Net Worth\n\nYour net worth is **SGD 24,200.00**, calculated as:\n\n| Item | Amount |\n|------|--------|\n| Total Assets | SGD 24,200.00 |\n| Total Liabilities | SGD 0.00 |\n| **Net Worth** | **SGD 24,200.00** |\n\n## Balance Discrepancy Check\n\nI verified the accounting consistency from two perspectives, and **both reconcile perfectly \u2014 no discrepancies were found**:\n\n**1. Balance sheet equation:**\n- Net Worth = Total Assets \u2212 Total Liabilities = SGD 24,200.00 \u2212 SGD 0.00 = **SGD 24,200.00** \u2713\n\n**2. Equity equation:**\n- Net Worth = Opening Equity + Cumulative Net Income = SGD 15,450.75 + SGD 8,749.25 = **SGD 24,200.00** \u2713\n\n## Data Quality Indicators\n\n- **Reconciliation match rate:** 100.0%\n- **Unmatched transactions:** 0\n- **Balance sheet confidence tier:** DETERMINISTIC\n- **Pending review items:** 0\n- **Blocking issues:** None\n\n## Summary\n\nYour ledger is in excellent shape \u2014 fully reconciled with zero unmatched transactions, and your net worth is internally consistent across all accounting identities. You currently have no liabilities, so your net worth equals your total assets.\n\nThe above analysis is for reference only."
+      "status": "PASS",
+      "duration_seconds": 235.80090522766113,
+      "details": {
+        "m1_closing_balance": "15271.23",
+        "month_1_ending_balance": "15271.23",
+        "m2_opening_balance": "15271.23",
+        "month_2_opening_cash": "15271.23",
+        "m2_closing_balance": "18250.00",
+        "month_2_ending_balance": "18250.00",
+        "m3_opening_balance": "18250.00",
+        "month_3_opening_cash": "18250.00",
+        "m3_closing_balance": "21300.00",
+        "month_3_ending_balance": "21300.00",
+        "m4_opening_balance": "21300.00",
+        "month_4_opening_cash": "21300.00",
+        "m4_closing_balance": "24200.00",
+        "month_4_ending_balance": "24200.00",
+        "q1_net_income": "5849.25",
+        "q1_assets": "21300.00",
+        "total_assets": "24200.00",
+        "month_4_assets": "24200.00",
+        "total_equity": "15450.75",
+        "cumulative_net_income": "8749.25",
+        "beginning_cash": "15450.75",
+        "ending_cash": "24200.00",
+        "equation_delta": "0.00",
+        "is_balanced": true
+      },
+      "error_message": null
     },
     {
       "case_id": "case_2",
       "case_name": "Case 2: Multi-PII Household Operations & Category Reconciliation",
       "status": "PASS",
-      "duration_seconds": 43.35559296607971,
+      "duration_seconds": 54.61020016670227,
       "details": {
         "household_husband_cash": "12800.00",
         "household_wife_cash": "8100.00",
@@ -45,7 +70,7 @@
       "case_id": "case_3",
       "case_name": "Case 3: Credit Card Liability & Non-P&L Repayment Clearance",
       "status": "PASS",
-      "duration_seconds": 43.08483099937439,
+      "duration_seconds": 38.49420499801636,
       "details": {
         "card_spend_recorded": "1200.00",
         "bank_repayment": "1200.00",
@@ -66,7 +91,7 @@
       "case_id": "case_4",
       "case_name": "Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet",
       "status": "PASS",
-      "duration_seconds": 74.94220805168152,
+      "duration_seconds": 89.20215940475464,
       "details": {
         "currencies_consolidated": "SGD, USD, HKD",
         "sgd_closing_balance": "12800.00",
@@ -88,7 +113,7 @@
       "case_id": "case_5",
       "case_name": "Case 5: Holistic Multi-Asset & Tax Ecosystem",
       "status": "PASS",
-      "duration_seconds": 4.890399694442749,
+      "duration_seconds": 6.1996543407440186,
       "details": {
         "holdings_count": 2,
         "symbols": "AAPL, VT",
@@ -111,7 +136,7 @@
       "case_id": "case_6",
       "case_name": "Case 6: Bank Overdraft & Capital Gain Disposal",
       "status": "PASS",
-      "duration_seconds": 7.554150342941284,
+      "duration_seconds": 6.963533401489258,
       "details": {
         "overdraft_cash": "-1500.00",
         "ending_cash": "11000.00",
@@ -128,7 +153,7 @@
       "case_id": "case_ui",
       "case_name": "Case UI: Browser Zero-Console-Error & DOM Hygiene Oracle",
       "status": "PASS",
-      "duration_seconds": 43.6138916015625,
+      "duration_seconds": 39.351396322250366,
       "details": {
         "status": "PASS",
         "visited_routes": [

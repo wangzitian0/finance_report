@@ -55,6 +55,7 @@
         }
         .badge-pass { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
         .badge-fail { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge-skip { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3); }
         .card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -72,6 +73,7 @@
             padding: 16px;
         }
         .stat-label { display: block; font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+        .stat-note { display: block; font-size: 0.75rem; color: var(--text-secondary); }
         .stat-value { font-size: 1.5rem; font-weight: 700; margin-top: 4px; color: #fff; }
         .metric-diff-better { color: #34d399; font-size: 0.85rem; }
         .metric-diff-worse { color: #f87171; font-size: 0.85rem; }
@@ -156,28 +158,29 @@
             <div class="header-title-row">
                 <div>
                     <h1 class="h1-title">Financial Scenario Benchmark: v0.2.31</h1>
-                    <p class="meta-text">Target: <strong>https://report-staging.zitian.party</strong> • Executed: <strong>2026-10-26T10:22:39.711814+00:00</strong></p>
+                    <p class="meta-text">Target: <strong>https://report-staging.zitian.party</strong> • Executed: <strong>2026-10-27T03:22:26.901697+00:00</strong></p>
                 </div>
-                <span class="badge badge-fail">RECONCILIATION REGRESSION</span>
+                <span class="badge badge-pass">ALL 7 SCENARIOS PASSED</span>
             </div>
         </header>
 
         <div class="grid grid-4 card">
             <div class="stat-box">
-                <span class="stat-label">Scenarios Evaluated</span>
-                <span class="stat-value">6 / 7</span>
+                <span class="stat-label">Scenarios Passed</span>
+                <span class="stat-value">7 / 7</span>
             </div>
             <div class="stat-box">
                 <span class="stat-label">Total Duration</span>
-                <span class="stat-value">472.86s</span>
+                <span class="stat-value">470.62s</span>
             </div>
             <div class="stat-box">
-                <span class="stat-label">Accounting Balance Delta</span>
+                <span class="stat-label">Largest Balance Delta</span>
                 <span class="stat-value">0.00 SGD</span>
+                <span class="stat-note">recorded by 6 of 7 cases</span>
             </div>
             <div class="stat-box">
-                <span class="stat-label">P&amp;L Contamination</span>
-                <span class="stat-value">0.00 SGD</span>
+                <span class="stat-label">Cases Not Passed</span>
+                <span class="stat-value">0</span>
             </div>
         </div>
 
@@ -198,25 +201,25 @@
                     <tr>
                         <td><strong>Balance Sheet Identity</strong></td>
                         <td><code>Assets ≡ Liabilities + Equity + Net Income</code></td>
-                        <td>Exact Equality (Δ = 0.00 SGD across all snapshots)</td>
+                        <td>Largest recorded |Δ| is 0.00 SGD, recorded by 3 of 3 cases</td>
                         <td><span class="badge badge-pass">PASS</span></td>
                     </tr>
                     <tr>
                         <td><strong>Temporal Multi-Period Rollforward</strong></td>
                         <td><code>Month_{n+1} Opening Cash ≡ Month_n Closing Cash</code></td>
-                        <td>Jan Closing ($15,450.75) ≡ Feb Opening ($15,450.75)</td>
+                        <td>Closing balances of months 1 to 4: 15271.23, 18250.00, 21300.00, 24200.00</td>
                         <td><span class="badge badge-pass">PASS</span></td>
                     </tr>
                     <tr>
-                        <td><strong>Asset Reallocation / Swap Non-Contamination</strong></td>
-                        <td><code>Δ Revenue = 0.00, Δ Expense = 0.00, Δ Net Income = 0.00</code></td>
-                        <td>5,000 SGD Bank-to-Brokerage produced 0.00 P&amp;L impact</td>
+                        <td><strong>Credit Card Liability Clearance (No Double Counting)</strong></td>
+                        <td><code>Card spend recorded once; repayment moves cash and liability only</code></td>
+                        <td>Card spend 1200.00, bank repayment 1200.00, net income -1200.00</td>
                         <td><span class="badge badge-pass">PASS</span></td>
                     </tr>
                     <tr>
                         <td><strong>Retained Earnings Articulation</strong></td>
                         <td><code>Closing Equity = Opening Equity + Net Income</code></td>
-                        <td>Net Income rolls without leakage into Retained Earnings</td>
+                        <td>Cumulative net income 8749.25</td>
                         <td><span class="badge badge-pass">PASS</span></td>
                     </tr>
                 </tbody>
@@ -232,62 +235,53 @@
                     <h3 class="scenario-title">Case 1: Consecutive 4-Month Rollforward &amp; Q1 Articulation</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 255.42s</span>
-                    <span class="badge badge-fail">FAIL</span>
+                    <span class="duration-tag">⏱️ 235.80s</span>
+                    <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
-            <div class='error-banner'><strong>Error:</strong> Pillar 1 Invariant Failure: AI Advisor hallucinated discrepancy/imbalance token &#x27;discrepancy&#x27; in response: # Your Net Worth &amp; Balance Check
-
-## Current Net Worth
-
-Your net worth is **SGD 24,200.00**, calculated as:
-
-| Item | Amount |
-|------|--------|
-| Total Assets | SGD 24,200.00 |
-| Total Liabilities | SGD 0.00 |
-| **Net Worth** | **SGD 24,200.00** |
-
-## Balance Discrepancy Check
-
-I verified the accounting consistency from two perspectives, and **both reconcile perfectly — no discrepancies were found**:
-
-**1. Balance sheet equation:**
-- Net Worth = Total Assets − Total Liabilities = SGD 24,200.00 − SGD 0.00 = **SGD 24,200.00** ✓
-
-**2. Equity equation:**
-- Net Worth = Opening Equity + Cumulative Net Income = SGD 15,450.75 + SGD 8,749.25 = **SGD 24,200.00** ✓
-
-## Data Quality Indicators
-
-- **Reconciliation match rate:** 100.0%
-- **Unmatched transactions:** 0
-- **Balance sheet confidence tier:** DETERMINISTIC
-- **Pending review items:** 0
-- **Blocking issues:** None
-
-## Summary
-
-Your ledger is in excellent shape — fully reconciled with zero unmatched transactions, and your net worth is internally consistent across all accounting identities. You currently have no liabilities, so your net worth equals your total assets.
-
-The above analysis is for reference only.</div>
+            
             
     <table class="data-table">
         <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
         <tbody>
-            <tr><td>Month 1 (Jan 2025) Ending Balance</td><td>$15,271.23</td><td>❌ Unconfirmed</td></tr>
-            <tr><td>Month 2 (Feb 2025) Ending Balance</td><td>$18,250.00</td><td>❌ Discontinuous</td></tr>
-            <tr><td>Month 3 (Mar 2025 - Q1 Close) Ending Balance</td><td>$21,300.00</td><td>❌ Discontinuous</td></tr>
-            <tr><td>Month 4 (Apr 2025 - Q2 Transition) Ending Balance</td><td>$24,200.00</td><td>❌ Discontinuous</td></tr>
-            <tr><td>Q1 Cumulative Net Income</td><td>$5,849.25</td><td>❌ Mismatched</td></tr>
-            <tr><td>4-Month Cumulative Net Income</td><td>$8,749.25</td><td>❌ Mismatched</td></tr>
-            <tr><td>Balance Sheet Equation Delta (A - L - E)</td><td>$0.00</td><td><span class="badge badge-fail">Delta SGD Regression</span></td></tr>
+            <tr><td>Month 1 (Jan 2025) Ending Balance</td><td>$15271.23</td><td>✅ Anchor Confirmed</td></tr>
+            <tr><td>Month 2 (Feb 2025) Ending Balance</td><td>$18250.00</td><td>✅ Exact Continuity Rollforward</td></tr>
+            <tr><td>Month 3 (Mar 2025 - Q1 Close) Ending Balance</td><td>$21300.00</td><td>✅ Q1 Continuity Confirmed</td></tr>
+            <tr><td>Month 4 (Apr 2025 - Q2 Transition) Ending Balance</td><td>$24200.00</td><td>✅ 4-Month Rollforward Intact</td></tr>
+            <tr><td>Q1 Cumulative Net Income</td><td>$5849.25</td><td>✅ Articulated to Q1 Retained Earnings</td></tr>
+            <tr><td>4-Month Cumulative Net Income</td><td>$8749.25</td><td>✅ Articulated to Retained Earnings</td></tr>
+            <tr><td>Balance Sheet Equation Delta (A - L - E)</td><td>$0.00</td><td><span class="badge badge-pass">0.00 SGD Balanced</span></td></tr>
         </tbody>
     </table>
     
             <details class="raw-details">
                 <summary>Inspect Raw Adjudication Telemetry</summary>
-                <pre class="raw-json">{}</pre>
+                <pre class="raw-json">{
+  &quot;m1_closing_balance&quot;: &quot;15271.23&quot;,
+  &quot;month_1_ending_balance&quot;: &quot;15271.23&quot;,
+  &quot;m2_opening_balance&quot;: &quot;15271.23&quot;,
+  &quot;month_2_opening_cash&quot;: &quot;15271.23&quot;,
+  &quot;m2_closing_balance&quot;: &quot;18250.00&quot;,
+  &quot;month_2_ending_balance&quot;: &quot;18250.00&quot;,
+  &quot;m3_opening_balance&quot;: &quot;18250.00&quot;,
+  &quot;month_3_opening_cash&quot;: &quot;18250.00&quot;,
+  &quot;m3_closing_balance&quot;: &quot;21300.00&quot;,
+  &quot;month_3_ending_balance&quot;: &quot;21300.00&quot;,
+  &quot;m4_opening_balance&quot;: &quot;21300.00&quot;,
+  &quot;month_4_opening_cash&quot;: &quot;21300.00&quot;,
+  &quot;m4_closing_balance&quot;: &quot;24200.00&quot;,
+  &quot;month_4_ending_balance&quot;: &quot;24200.00&quot;,
+  &quot;q1_net_income&quot;: &quot;5849.25&quot;,
+  &quot;q1_assets&quot;: &quot;21300.00&quot;,
+  &quot;total_assets&quot;: &quot;24200.00&quot;,
+  &quot;month_4_assets&quot;: &quot;24200.00&quot;,
+  &quot;total_equity&quot;: &quot;15450.75&quot;,
+  &quot;cumulative_net_income&quot;: &quot;8749.25&quot;,
+  &quot;beginning_cash&quot;: &quot;15450.75&quot;,
+  &quot;ending_cash&quot;: &quot;24200.00&quot;,
+  &quot;equation_delta&quot;: &quot;0.00&quot;,
+  &quot;is_balanced&quot;: true
+}</pre>
             </details>
         </div>
         
@@ -298,7 +292,7 @@ The above analysis is for reference only.</div>
                     <h3 class="scenario-title">Case 2: Multi-PII Household Operations &amp; Category Reconciliation</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 43.36s</span>
+                    <span class="duration-tag">⏱️ 54.61s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -310,7 +304,7 @@ The above analysis is for reference only.</div>
             <tr><td>Husband Account (DBS Bank) Ending Cash</td><td>$12800.00</td><td>✅ Source Account Reconciled</td></tr>
             <tr><td>Wife Account (Standard Chartered) Ending Cash</td><td>$8100.00</td><td>✅ Multi-PII Account Reconciled</td></tr>
             <tr><td>Consolidated Operating Revenue</td><td>+$8500.00</td><td>✅ Combined Inflow Reconciled</td></tr>
-            <tr><td>Consolidated Operating Expenses</td><td>-$2600.00</td><td>✅ Family Expenses Categorized</td></tr>
+            <tr><td>Consolidated Operating Expenses</td><td>+$2600.00</td><td>✅ Family Expenses Categorized</td></tr>
             <tr><td>Consolidated Net Operating Income</td><td>+$5900.00</td><td>✅ P&amp;L Sum Reconciled</td></tr>
             <tr><td>Consolidated Total Liquid Cash</td><td>$20900.00</td><td>✅ Cash Flow Ending Cash Conserved</td></tr>
             <tr><td>Balance Sheet Equation Delta</td><td>$0.00</td><td><span class="badge badge-pass">0.00 SGD Balanced</span></td></tr>
@@ -344,7 +338,7 @@ The above analysis is for reference only.</div>
                     <h3 class="scenario-title">Case 3: Credit Card Liability &amp; Non-P&amp;L Repayment Clearance</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 43.08s</span>
+                    <span class="duration-tag">⏱️ 38.49s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -353,11 +347,11 @@ The above analysis is for reference only.</div>
     <table class="data-table">
         <thead><tr><th>Financial Assertion</th><th>Value (SGD)</th><th>Reconciliation Status</th></tr></thead>
         <tbody>
-            <tr><td>Credit Card Incurred Charges (Liability Incurrence)</td><td>-$1200.00</td><td>✅ Card Expense &amp; Liability Tracked</td></tr>
-            <tr><td>Bank Account Settlement Payment Outflow</td><td>-$1200.00</td><td>✅ Bank Cash Outflow Tracked</td></tr>
+            <tr><td>Credit Card Incurred Charges (Liability Incurrence)</td><td>+$1200.00</td><td>✅ Card Expense &amp; Liability Tracked</td></tr>
+            <tr><td>Bank Account Settlement Payment Outflow</td><td>+$1200.00</td><td>✅ Bank Cash Outflow Tracked</td></tr>
             <tr><td>Credit Card Liability Ending Balance</td><td>$0.00</td><td>✅ Liability Fully Cleared</td></tr>
             <tr><td>Ending Bank Liquid Cash Balance</td><td>$8800.00</td><td>✅ Cash Balance Conserved</td></tr>
-            <tr><td>P&amp;L Double-Counting Prevention (Net Income)</td><td>$-1200.00</td><td><span class="badge badge-pass">Zero Double-Counting (Pure Liability Clearance)</span></td></tr>
+            <tr><td>P&amp;L Double-Counting Prevention (Net Income)</td><td>-$1200.00</td><td><span class="badge badge-pass">Zero Double-Counting (Pure Liability Clearance)</span></td></tr>
             <tr><td>Balance Sheet Equation Delta</td><td>$0.00</td><td><span class="badge badge-pass">0.00 SGD Balanced</span></td></tr>
         </tbody>
     </table>
@@ -388,7 +382,7 @@ The above analysis is for reference only.</div>
                     <h3 class="scenario-title">Case 4: Multi-National &amp; Multi-Currency Consolidated Balance Sheet</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 74.94s</span>
+                    <span class="duration-tag">⏱️ 89.20s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -433,7 +427,7 @@ The above analysis is for reference only.</div>
                     <h3 class="scenario-title">Case 5: Holistic Multi-Asset &amp; Tax Ecosystem</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 4.89s</span>
+                    <span class="duration-tag">⏱️ 6.20s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -479,23 +473,21 @@ The above analysis is for reference only.</div>
                     <h3 class="scenario-title">Case 6: Bank Overdraft &amp; Capital Gain Disposal</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 7.55s</span>
+                    <span class="duration-tag">⏱️ 6.96s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
             
             
-    <table class="details-table">
-        <thead>
-            <tr><th>Accounting Invariant</th><th>Reported Metric</th><th>Integrity Check</th></tr>
-        </thead>
+    <table class="data-table">
+        <thead><tr><th>Accounting Invariant</th><th>Reported Metric</th><th>Integrity Check</th></tr></thead>
         <tbody>
-            <tr><td>Overdraft Checkpoint Cash Balance</td><td>$-1500.00 SGD</td><td>✅ Negative Balance Equation Validated</td></tr>
+            <tr><td>Overdraft Checkpoint Cash Balance</td><td>-$1500.00 SGD</td><td>✅ Negative Balance Equation Validated</td></tr>
             <tr><td>Realized Capital Gain from Art Disposal</td><td>+$2500.00 SGD</td><td>✅ Capital Gain Recognized in P&amp;L</td></tr>
             <tr><td>Final Period Net Income</td><td>$0.00 SGD</td><td>✅ Expense Offset by Capital Gain</td></tr>
             <tr><td>Final Period Total Assets</td><td>$11000.00 SGD</td><td>✅ Ending Assets Reconciled</td></tr>
             <tr><td>Final Period Total Equity</td><td>$11000.00 SGD</td><td>✅ Ending Equity Reconciled</td></tr>
-            <tr><td>Balance Sheet Equation Delta</td><td>$0.00</td><td><span class="badge badge-pass">✅ Balanced (Δ = 0.00 SGD)</span></td></tr>
+            <tr><td>Balance Sheet Equation Delta</td><td>$0.00</td><td><span class="badge badge-pass">0.00 SGD Balanced</span></td></tr>
         </tbody>
     </table>
     
@@ -521,7 +513,7 @@ The above analysis is for reference only.</div>
                     <h3 class="scenario-title">Case UI: Browser Zero-Console-Error &amp; DOM Hygiene Oracle</h3>
                 </div>
                 <div class="scenario-meta">
-                    <span class="duration-tag">⏱️ 43.61s</span>
+                    <span class="duration-tag">⏱️ 39.35s</span>
                     <span class="badge badge-pass">PASS</span>
                 </div>
             </div>
@@ -570,7 +562,7 @@ The above analysis is for reference only.</div>
 
         <footer>
             <span>Finance-Report System Benchmark Suite • Autonomous Zero-Raster-Image Report</span>
-            <span>Generated from live environment validation</span>
+            <span>Generated from the results that the run recorded</span>
         </footer>
     </div>
 </body>
