@@ -552,3 +552,42 @@ async def test_AC_reporting_2646_3_coverage_reads_a_fixed_number_of_queries_at_y
     with _count_statements(db_engine) as without_bound:
         await current_package_readiness(db, user_id=user_id, as_of_date=as_of)
     assert len(bounded) - len(without_bound) <= COVERAGE_QUERY_BUDGET, (len(bounded), len(without_bound))
+
+
+async def test_AC_reporting_2726_1_coverage_exposes_latest_approved_statement_end(db: AsyncSession, test_user) -> None:
+    """AC-reporting.2726.1: ``GET /reports/coverage`` exposes ``latest_statement_end`` as the latest
+    approved statement period end on or before ``as_of_date``, ignoring parsed statements, statements
+    ending after ``as_of_date``, and other users' statements."""
+    user_id = test_user.id
+    as_of = date(2026, 10, 27)
+    assert (await reports_router.report_coverage(as_of_date=as_of, db=db, user_id=user_id)).latest_statement_end is None
+
+    bank = await _account(db, user_id, "DBS Savings")
+    await _open(db, user_id, bank, date(2025, 1, 1))
+    await _approved_statement(db, user_id, bank, date(2025, 1, 1))
+    await _approved_statement(db, user_id, bank, date(2025, 3, 1))
+    # Unapproved statement and future statement do not move latest_statement_end.
+    db.add(
+        StatementSummary(
+            user_id=user_id,
+            file_hash="c" * 64,
+            institution="DBS",
+            account_id=bank.id,
+            currency="SGD",
+            period_start=date(2026, 6, 1),
+            period_end=date(2026, 6, 30),
+            status=BankStatementStatus.PARSED,
+        )
+    )
+    await _approved_statement(db, user_id, bank, date(2026, 11, 1))
+    other = User(email="latest-stmt-other@example.com", hashed_password="hashed")
+    db.add(other)
+    await db.flush()
+    other_bank = await _account(db, other.id, "Other Bank")
+    await _approved_statement(db, other.id, other_bank, date(2026, 9, 1))
+    await db.commit()
+
+    response = await reports_router.report_coverage(as_of_date=as_of, db=db, user_id=user_id)
+    assert response.coverage_start == date(2025, 1, 1)
+    assert response.latest_statement_end == date(2025, 3, 28)
+    assert (await report_coverage(db, user_id=user_id, as_of=as_of)).latest_statement_end == date(2025, 3, 28)

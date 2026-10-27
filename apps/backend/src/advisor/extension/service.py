@@ -12,6 +12,7 @@ flight); the observed-FX-pair composer's owner is still the app remainder
 from __future__ import annotations
 
 import asyncio
+import calendar
 import hashlib
 import json
 import re
@@ -23,7 +24,7 @@ from enum import Enum
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
@@ -48,7 +49,14 @@ from src.advisor.extension import app_reads
 from src.advisor.extension.cache import _CACHE
 from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.audit import to_money
-from src.ledger import AccountType, worst_confidence_tier
+from src.ledger import (
+    Account,
+    AccountType,
+    JournalEntry,
+    JournalLine,
+    active_journal_entry_filter,
+    worst_confidence_tier,
+)
 from src.llm import (
     ReasoningEffort,
     Scene,
@@ -270,6 +278,38 @@ class AIAdvisorService:
             monthly_expenses = Decimal(str(income_statement["total_expenses"]))
             income_lines = cast(list[dict[str, Any]], income_statement.get("income") or [])
             expense_lines = cast(list[dict[str, Any]], income_statement.get("expenses") or [])
+            if monthly_income == Decimal("0") and monthly_expenses == Decimal("0"):
+                latest_pnl_date = await db.scalar(
+                    select(func.max(JournalEntry.entry_date))
+                    .join(JournalLine, JournalLine.journal_entry_id == JournalEntry.id)
+                    .join(Account, JournalLine.account_id == Account.id)
+                    .where(
+                        JournalEntry.user_id == user_id,
+                        Account.user_id == user_id,
+                        Account.type.in_((AccountType.INCOME, AccountType.EXPENSE)),
+                        active_journal_entry_filter(JournalEntry),
+                        JournalEntry.entry_date < start_date,
+                    )
+                )
+                if latest_pnl_date is not None:
+                    hist_start = latest_pnl_date.replace(day=1)
+                    hist_end = latest_pnl_date.replace(
+                        day=calendar.monthrange(latest_pnl_date.year, latest_pnl_date.month)[1]
+                    )
+                    income_statement = cast(
+                        dict[str, Any],
+                        await generate_income_statement(
+                            db,
+                            user_id,
+                            start_date=hist_start,
+                            end_date=hist_end,
+                            currency=currency,
+                        ),
+                    )
+                    monthly_income = Decimal(str(income_statement["total_income"]))
+                    monthly_expenses = Decimal(str(income_statement["total_expenses"]))
+                    income_lines = cast(list[dict[str, Any]], income_statement.get("income") or [])
+                    expense_lines = cast(list[dict[str, Any]], income_statement.get("expenses") or [])
             income_statement_confidence_tier = (
                 worst_confidence_tier(
                     [line.get("confidence_tier") for line in [*income_lines, *expense_lines]],
@@ -280,6 +320,7 @@ class AIAdvisorService:
         except ReportError:
             monthly_income = Decimal("0")
             monthly_expenses = Decimal("0")
+            expense_lines = []
             income_statement_confidence_tier = "UNAVAILABLE"
 
         try:
@@ -294,6 +335,17 @@ class AIAdvisorService:
                 ),
             )
             top_items = cast(list[dict[str, Any]], breakdown.get("items") or [])[:3]
+            if not top_items and expense_lines:
+                sorted_expenses = sorted(
+                    expense_lines,
+                    key=lambda line: Decimal(str(line.get("amount") or "0")),
+                    reverse=True,
+                )[:3]
+                top_items = [
+                    {"category_name": line["name"], "total": line["amount"]}
+                    for line in sorted_expenses
+                    if Decimal(str(line.get("amount") or "0")) != Decimal("0")
+                ]
             top_expenses = ", ".join(f"{item['category_name']}: {currency} {item['total']}" for item in top_items)
         except ReportError:
             top_expenses = "N/A"

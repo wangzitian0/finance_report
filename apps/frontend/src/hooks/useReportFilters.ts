@@ -92,6 +92,11 @@ export interface ReportFilters {
    * view. Empty otherwise. An opening balance before that day removes the bound of its account.
    */
   coverageLimitingAccounts: readonly string[];
+  /**
+   * The latest approved statement period end when it precedes the default view's `startDate` (#2726).
+   * Null otherwise.
+   */
+  latestStatementEnd: string | null;
   /** The `end` of the previous period. Null for `All` and for a custom period. */
   previousEnd: string | null;
   /** The `end` of the next period. Null when no next period exists. An empty string is the current period. */
@@ -106,12 +111,14 @@ export interface ReportFilters {
   ready: boolean;
 }
 
-/** The fields of `GET /reports/coverage` that the default view reads (#2646). */
+/** The fields of `GET /reports/coverage` that the default view and `All` read (#2646, #2726). */
 export interface ReportCoverageViewModel {
   /** `coverage_start`. Null applies no bound. */
   start: string | null;
   /** `limiting_accounts`: the names of the cash accounts whose opening balance is on `start`. */
   limitingAccounts: readonly string[];
+  /** `latest_statement_end`: the latest approved statement period end on or before `as_of_date`. */
+  latestStatementEnd?: string | null;
 }
 
 function toLocalDate(value: string): Date {
@@ -189,12 +196,18 @@ export function readReportFilters(
     ? resolvePeriodRange(preset, end ? toLocalDate(end) : now)
     : { startDate: start, endDate: end || today };
   const { endDate } = range;
+  const usesCoverageBound = isDefaultPeriod || preset === "All";
   const bound =
-    isDefaultPeriod && coverage?.start && isValidReportDate(coverage.start) ? coverage.start : null;
-  // The default view starts no earlier than the coverage start. An explicit period keeps its start.
+    usesCoverageBound && coverage?.start && isValidReportDate(coverage.start) ? coverage.start : null;
+  // The default view and `All` start no earlier than the coverage start (#2646, #2726).
   const reachesCoverageStart = bound !== null && range.startDate <= bound && bound <= endDate;
   const startDate = reachesCoverageStart ? bound : range.startDate;
   const openingDate = reachesCoverageStart ? bound : preset === "All" ? null : dayBefore(startDate);
+  const latestEnd =
+    isDefaultPeriod && coverage?.latestStatementEnd && isValidReportDate(coverage.latestStatementEnd)
+      ? coverage.latestStatementEnd
+      : null;
+  const latestStatementEnd = latestEnd && latestEnd < startDate ? latestEnd : null;
   const steps = preset !== null && preset !== "All";
 
   const dimensions = new URLSearchParams();
@@ -216,7 +229,8 @@ export function readReportFilters(
     openingDate,
     isDefaultPeriod,
     opensAtCoverageStart: reachesCoverageStart,
-    coverageLimitingAccounts: reachesCoverageStart ? (coverage?.limitingAccounts ?? []) : [],
+    coverageLimitingAccounts: isDefaultPeriod && reachesCoverageStart ? (coverage?.limitingAccounts ?? []) : [],
+    latestStatementEnd,
     // The default view has no previous period before the coverage start. An explicit preset steps back.
     previousEnd: steps && !reachesCoverageStart ? dayBefore(startDate) : null,
     nextEnd: steps && end && end < today ? nextPeriodEnd(preset, end, today) : null,
@@ -250,23 +264,26 @@ export function useReportFilters(): UseReportFiltersResult {
   const pathname = usePathname();
   const search = searchParams.toString();
   // The bound moves only the start, so the period end and the view kind do not depend on it.
-  const { endDate, isDefaultPeriod } = useMemo(() => readReportFilters(new URLSearchParams(search)), [search]);
-  // The backend owns the bound: the workflow readiness reads the same date (#2646).
+  const { endDate, isDefaultPeriod, preset } = useMemo(() => readReportFilters(new URLSearchParams(search)), [search]);
+  const usesCoverageBound = isDefaultPeriod || preset === "All";
+  // The backend owns the bound: the workflow readiness reads the same date (#2646, #2726).
   const coverage = useApiQuery(
     [...REPORT_COVERAGE_QUERY_KEY, endDate],
     "report_coverage_reports_coverage_get",
     { query: { as_of_date: endDate } },
-    { staleTime: SHARED_STALE_MS, enabled: isDefaultPeriod },
+    { staleTime: SHARED_STALE_MS, enabled: usesCoverageBound },
   );
   const coverageStart = coverage.data?.coverage_start ?? null;
   const limitingAccounts = coverage.data?.limiting_accounts;
+  const latestStatementEnd = coverage.data?.latest_statement_end ?? null;
   const filters = useMemo(
     () =>
       readReportFilters(new URLSearchParams(search), new Date(), {
         start: coverageStart,
         limitingAccounts: limitingAccounts ?? [],
+        latestStatementEnd,
       }),
-    [search, coverageStart, limitingAccounts],
+    [search, coverageStart, limitingAccounts, latestStatementEnd],
   );
 
   const update = useCallback(
@@ -298,8 +315,8 @@ export function useReportFilters(): UseReportFiltersResult {
 
   return {
     ...filters,
-    // A failed read applies no bound: the reports still load. An explicit period does not wait.
-    ready: !isDefaultPeriod || !coverage.isPending,
+    // A failed read applies no bound: the reports still load. An explicit period other than `All` does not wait.
+    ready: !usesCoverageBound || !coverage.isPending,
     // A chosen preset is explicit, the default `1Y` too: it shows its full period (#2646).
     setPreset: useCallback((preset: ReportPeriodPreset) => update({ period: preset, start: "", end: "" }), [update]),
     setCustomPeriod: useCallback(

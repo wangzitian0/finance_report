@@ -1202,3 +1202,61 @@ async def test_get_financial_context_articulates_net_worth_and_equity_rollforwar
     assert "Net worth: SGD 24200.00" in prompt
     assert "Opening equity: SGD 15450.75" in prompt
     assert "Cumulative net income: SGD 8749.25" in prompt
+
+
+async def test_AC_advisor_context_7_financial_context_anchors_to_latest_active_month(
+    db: AsyncSession, test_user
+) -> None:
+    """AC-advisor.context.7: When the current calendar month has zero income and expenses but earlier
+    posted activity exists (for example in March 2025), ``get_financial_context`` anchors
+    ``monthly_income``, ``monthly_expenses``, and ``top_expenses`` to that latest active month."""
+    service = AIAdvisorService()
+    user_id = test_user.id
+
+    cash = Account(user_id=user_id, name="DBS Cash", type=AccountType.ASSET, currency="SGD")
+    income = Account(user_id=user_id, name="Salary", type=AccountType.INCOME, currency="SGD")
+    expense = Account(user_id=user_id, name="Rent", type=AccountType.EXPENSE, currency="SGD")
+    db.add_all([cash, income, expense])
+    await db.flush()
+
+    hist_entry = JournalEntry(
+        user_id=user_id,
+        entry_date=date(2025, 3, 15),
+        memo="March 2025 payroll and rent",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(hist_entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=hist_entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("4000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=hist_entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("6000.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=hist_entry.id,
+                account_id=expense.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("2000.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    context = await service.get_financial_context(db, user_id)
+
+    assert context["monthly_income"] == "SGD 6000.00"
+    assert context["monthly_expenses"] == "SGD 2000.00"
+    assert "Rent: SGD 2000.00" in context["top_expenses"]

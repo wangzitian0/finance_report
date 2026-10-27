@@ -2,14 +2,14 @@
 // period of a new user has no coverage blocker and its "Change in period" is not the whole net worth.
 // An explicit preset keeps its full period.
 
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "@/app/(main)/page";
 import { apiOperation } from "@/lib/api-client";
 
-import { setTestUrl } from "./helpers/nextNavigation";
+import { setTestUrl, testUrl } from "./helpers/nextNavigation";
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: { href: string; children: ReactNode }) => (
@@ -26,6 +26,7 @@ const mockedApiOperation = vi.mocked(apiOperation);
 /** The cash coverage start of the #2646 review data: the opening balances of the July statement. */
 const FIRST_STATEMENT = "2026-07-01";
 let coverageStart: string | null = FIRST_STATEMENT;
+let latestStatementEnd: string | null = null;
 /** The cash account whose opening balance is on the coverage start. */
 const LIMITING_ACCOUNTS = ["OCBC Bank"];
 
@@ -46,7 +47,12 @@ function respond(operationId: string, request: { query?: Record<string, unknown>
   const query = request.query ?? {};
   switch (operationId) {
     case "report_coverage_reports_coverage_get":
-      return { as_of_date: query.as_of_date, coverage_start: coverageStart, limiting_accounts: coverageStart ? LIMITING_ACCOUNTS : [] };
+      return {
+        as_of_date: query.as_of_date,
+        coverage_start: coverageStart,
+        limiting_accounts: coverageStart ? LIMITING_ACCOUNTS : [],
+        latest_statement_end: latestStatementEnd,
+      };
     case "balance_sheet_reports_balance_sheet_get":
       // The opening balances post on the coverage start.
       return query.as_of_date === coverageStart ? balanceSheet(String(coverageStart), "3500") : balanceSheet(String(query.as_of_date), "5000");
@@ -85,6 +91,7 @@ describe("Home period and the first statement (#2646)", () => {
     // The default 1Y period that ends on 2026-10-22 starts on 2025-11-01, before the coverage start.
     setTestUrl("/?end=2026-10-22");
     coverageStart = FIRST_STATEMENT;
+    latestStatementEnd = null;
   });
 
   // AC-reporting.fe-period-cockpit.8
@@ -147,27 +154,46 @@ describe("Home period and the first statement (#2646)", () => {
   });
 
   // AC-reporting.fe-period-cockpit.10
-  it("AC-reporting.fe-period-cockpit.10 shows an explicit 1Y and All in full with no coverage bound", async () => {
-    const cases = [
-      ["1Y", "Nov 1, 2025 – Oct 22, 2026", "2025-11-01", false],
-      ["All", "Jan 1, 2000 – Oct 22, 2026", "2000-01-01", true],
-    ] as const;
-    for (const [preset, range, startDate, previousDisabled] of cases) {
-      mockedApiOperation.mockClear();
-      setTestUrl(`/?period=${preset}&end=2026-10-22`);
-      const view = render(<HomePage />);
+  it("AC-reporting.fe-period-cockpit.10 shows an explicit 1Y in full and bounds All to coverage start", async () => {
+    mockedApiOperation.mockClear();
+    setTestUrl("/?period=1Y&end=2026-10-22");
+    const oneYear = render(<HomePage />);
 
-      expect(screen.getByTestId("report-period-range"), preset).toHaveTextContent(range);
-      await waitFor(() => expect(requestsOf("income_statement_reports_income_statement_get"), preset).toHaveLength(1));
-      expect(requestsOf("income_statement_reports_income_statement_get")[0], preset).toMatchObject({ start_date: startDate, end_date: "2026-10-22" });
-      await waitFor(() => expect(requestsOf("cash_flow_reports_cash_flow_get"), preset).toHaveLength(1));
-      expect(requestsOf("cash_flow_reports_cash_flow_get")[0], preset).toMatchObject({ start_date: startDate });
-      expect(screen.getByRole("button", { name: "Previous period" }), preset).toHaveProperty("disabled", previousDisabled);
-      expect(screen.queryByTestId("report-coverage-note"), preset).toBeNull();
-      expect(screen.queryByTestId("change-in-period-basis"), preset).toBeNull();
-      // An explicit preset does not read the coverage start.
-      expect(requestsOf("report_coverage_reports_coverage_get"), preset).toEqual([]);
-      view.unmount();
-    }
+    expect(screen.getByTestId("report-period-range")).toHaveTextContent("Nov 1, 2025 – Oct 22, 2026");
+    await waitFor(() => expect(requestsOf("income_statement_reports_income_statement_get")).toHaveLength(1));
+    expect(requestsOf("income_statement_reports_income_statement_get")[0]).toMatchObject({ start_date: "2025-11-01", end_date: "2026-10-22" });
+    await waitFor(() => expect(requestsOf("cash_flow_reports_cash_flow_get")).toHaveLength(1));
+    expect(requestsOf("cash_flow_reports_cash_flow_get")[0]).toMatchObject({ start_date: "2025-11-01" });
+    expect(screen.getByRole("button", { name: "Previous period" })).toHaveProperty("disabled", false);
+    expect(screen.queryByTestId("report-coverage-note")).toBeNull();
+    expect(screen.queryByTestId("change-in-period-basis")).toBeNull();
+    // An explicit 1Y preset does not read the coverage start.
+    expect(requestsOf("report_coverage_reports_coverage_get")).toEqual([]);
+    oneYear.unmount();
+
+    mockedApiOperation.mockClear();
+    setTestUrl("/?period=All&end=2026-10-22");
+    const allBounded = render(<HomePage />);
+
+    await waitFor(() => expect(screen.getByTestId("report-period-range")).toHaveTextContent("Jul 1, 2026 – Oct 22, 2026"));
+    await waitFor(() => expect(requestsOf("income_statement_reports_income_statement_get")).toHaveLength(1));
+    expect(requestsOf("income_statement_reports_income_statement_get")[0]).toMatchObject({ start_date: FIRST_STATEMENT, end_date: "2026-10-22" });
+    await waitFor(() => expect(requestsOf("cash_flow_reports_cash_flow_get")).toHaveLength(1));
+    expect(requestsOf("cash_flow_reports_cash_flow_get")[0]).toMatchObject({ start_date: FIRST_STATEMENT });
+    expect(screen.getByRole("button", { name: "Previous period" })).toBeDisabled();
+    expect(requestsOf("report_coverage_reports_coverage_get")).toEqual([{ as_of_date: "2026-10-22" }]);
+    allBounded.unmount();
+  });
+
+  // AC-reporting.2726.2
+  it("AC-reporting.2726.2 shows a one-click banner jumping to the latest statement period when statements precede the default 1Y window", async () => {
+    coverageStart = "2025-01-01";
+    latestStatementEnd = "2025-03-31";
+    render(<HomePage />);
+
+    const banner = await screen.findByTestId("report-latest-statement-banner");
+    expect(banner).toHaveTextContent("Latest statement ends Mar 31, 2025, before this period.");
+    fireEvent.click(within(banner).getByRole("button", { name: /Jump to Mar 31, 2025/i }));
+    expect(testUrl()).toBe("/?end=2025-03-31");
   });
 });

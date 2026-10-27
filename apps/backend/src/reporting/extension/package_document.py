@@ -1325,7 +1325,7 @@ def package_preview(document: PersonalReportPackageDocument) -> PersonalReportPa
 
 
 async def report_coverage(db: AsyncSession, *, user_id: UUID, as_of: date) -> CashCoverage:
-    """The coverage start that bounds the default report view, and the accounts that set it (#2646).
+    """The coverage start that bounds the default report view, and the accounts that set it (#2646, #2726).
 
     The cash-flow check reads the opening positions of the cash accounts
     (``opening_coverage_start``). Two callers select those accounts: ``GET /reports/cash-flow`` by
@@ -1338,8 +1338,17 @@ async def report_coverage(db: AsyncSession, *, user_id: UUID, as_of: date) -> Ca
     the first statement keeps its history. A fixed number of queries: it does not resolve each
     statement. ``GET /reports/coverage`` serves it.
     """
-    custody_ids = await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=as_of)
-    return await cash_coverage(db, user_id, as_of=as_of, cash_account_id_sets=(None, custody_ids))
+    latest_end: list[date | None] = []
+    custody_ids = await coverage_bank_custody_account_ids(
+        db, user_id=user_id, as_of=as_of, out_latest_approved_end=latest_end
+    )
+    return await cash_coverage(
+        db,
+        user_id,
+        as_of=as_of,
+        cash_account_id_sets=(None, custody_ids),
+        latest_statement_end=latest_end[0] if latest_end else None,
+    )
 
 
 async def current_package_readiness(

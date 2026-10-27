@@ -143,12 +143,24 @@ export function ReportDimensionBar({
           </label>
         )}
       </div>
-      {filters.ready && filters.opensAtCoverageStart && (
+      {filters.ready && filters.isDefaultPeriod && filters.opensAtCoverageStart && (
         <p data-testid="report-coverage-note" className="text-xs text-muted">
           {coverageNote(filters.startDate, filters.coverageLimitingAccounts)}{" "}
           <Link href="/settings?tab=accounts" className="font-medium text-[var(--accent)] hover:underline">
             Add an opening balance
           </Link>
+        </p>
+      )}
+      {filters.ready && filters.latestStatementEnd && (
+        <p data-testid="report-latest-statement-banner" className="text-xs text-muted">
+          {`Latest statement ends ${formatDateDisplay(filters.latestStatementEnd)}, before this period.`}{" "}
+          <button
+            type="button"
+            onClick={() => filters.goToPeriodEnd(filters.latestStatementEnd!)}
+            className="font-medium text-[var(--accent)] hover:underline"
+          >
+            {`Jump to ${formatDateDisplay(filters.latestStatementEnd)}`}
+          </button>
         </p>
       )}
     </div>

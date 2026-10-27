@@ -96,7 +96,7 @@ describe("report period dimensions", () => {
   })
 
   // AC-reporting.fe-period-cockpit.7
-  it("AC-reporting.fe-period-cockpit.7 starts only the default view no earlier than the coverage start", () => {
+  it("AC-reporting.fe-period-cockpit.7 starts only the default view and All no earlier than the coverage start", () => {
     const first = "2026-07-01"
     const coverage = { start: first, limitingAccounts: ["OCBC Bank"] }
     const bounded = (query: string) => readReportFilters(new URLSearchParams(query), TODAY, coverage)
@@ -126,17 +126,23 @@ describe("report period dimensions", () => {
       coverageLimitingAccounts: [],
       previousEnd: "2025-05-31",
     })
-    // A default view that starts after the coverage start does not change.
-    expect(readReportFilters(new URLSearchParams(""), TODAY, { start: "2025-01-01", limitingAccounts: ["OCBC Bank"] })).toMatchObject({
+    // A default view that starts after the coverage start does not change, and exposes latestStatementEnd when it precedes startDate.
+    expect(
+      readReportFilters(new URLSearchParams(""), TODAY, {
+        start: "2025-01-01",
+        limitingAccounts: ["OCBC Bank"],
+        latestStatementEnd: "2025-03-31",
+      }),
+    ).toMatchObject({
       startDate: "2025-11-01",
       openingDate: "2025-10-31",
       opensAtCoverageStart: false,
       coverageLimitingAccounts: [],
+      latestStatementEnd: "2025-03-31",
       previousEnd: "2025-10-31",
     })
 
-    // An explicit preset, 1Y too, keeps its full period and its previous period: the coverage blocker
-    // of the reports explains the missing opening balance.
+    // An explicit preset other than All, 1Y too, keeps its full period and its previous period.
     expect(bounded("period=1Y")).toMatchObject({
       preset: "1Y",
       startDate: "2025-11-01",
@@ -147,7 +153,13 @@ describe("report period dimensions", () => {
       previousEnd: "2025-10-31",
       dimensionQuery: "period=1Y",
     })
-    expect(bounded("period=All")).toMatchObject({ startDate: "2000-01-01", openingDate: null, opensAtCoverageStart: false, previousEnd: null })
+    // `All` bounds its start and opening date to `coverage_start` when available (#2726).
+    expect(bounded("period=All")).toMatchObject({
+      startDate: first,
+      openingDate: first,
+      opensAtCoverageStart: true,
+      previousEnd: null,
+    })
     expect(bounded("period=3Y")).toMatchObject({ startDate: "2023-11-01", openingDate: "2023-10-31", previousEnd: "2023-10-31" })
     expect(bounded("period=1Q&end=2026-09-30")).toMatchObject({ startDate: first, openingDate: "2026-06-30", previousEnd: "2026-06-30", nextEnd: "" })
     // A custom period keeps its start and the day before it as its opening balance sheet.
@@ -166,6 +178,11 @@ describe("report period dimensions", () => {
         openingDate: "2025-10-31",
         opensAtCoverageStart: false,
         coverageLimitingAccounts: [],
+      })
+      expect(readReportFilters(new URLSearchParams("period=All"), TODAY, none)).toMatchObject({
+        startDate: "2000-01-01",
+        openingDate: null,
+        opensAtCoverageStart: false,
       })
     }
   })

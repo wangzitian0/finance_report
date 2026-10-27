@@ -5931,6 +5931,11 @@ export interface components {
              */
             coverage_start?: string | null;
             /**
+             * Latest Statement End
+             * @description The latest approved statement period_end on or before as_of_date (#2726).
+             */
+            latest_statement_end?: string | null;
+            /**
              * Limiting Accounts
              * @description The names of the cash accounts whose opening position is on coverage_start.
              */
