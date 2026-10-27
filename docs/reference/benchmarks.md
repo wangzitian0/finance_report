@@ -89,8 +89,8 @@ The V2 benchmark test matrix covers end-to-end multi-period accounting sufficien
 
 Bench V2 covers 30 canonical wealth and accounting flows in 7 domains.
 
-- The registry `common/meta/flows/thirty_flows_ssot.json` owns the flows, their domains, and their invariants. [thirty-wealth-flows.md](thirty-wealth-flows.md) renders it.
-- `FLOW_TO_CASES` in `common/testing/benchmarks/case_types.py` maps each flow to the benchmark cases that cover it. The tooling suite fails when its flow ids differ from the registry.
+- The registry `common/meta/flows/thirty_flows_ssot.json` owns the flows, their domains, their invariants, and their `benchmark_cases`. [thirty-wealth-flows.md](thirty-wealth-flows.md) renders it.
+- `common/testing/benchmarks/case_types.py` reads `FLOW_TO_DOMAIN` and `FLOW_TO_CASES` from it. The tooling suite fails when its flow ids differ from the registry.
 - Select a subset with `--domain 1,4` or `--flow 14,23`, and leave `--case` unset. An unknown case, domain or flow id exits with code 2.
 - `apps/backend/tests/reporting/test_bench_articulation_matrix.py` checks the same invariants in memory, without a live stack.
 

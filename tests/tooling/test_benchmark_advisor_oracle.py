@@ -394,6 +394,21 @@ CORPUS: list[tuple[str, str, str]] = [
         "FINDING",
         "净资产 SGD 24,200.00\n### Discrepancy Check：资产比负债加权益多 SGD 2,900",
     ),
+    (
+        "clean_v0_2_26_heading_everything_balances",
+        "CLEAN",
+        "## Balance Discrepancy Check\n\nI verified the accounting consistency of your records, and **everything balances perfectly — no discrepancies found**:\n\nYour net worth is SGD 24,200.00.",
+    ),
+    (
+        "clean_v0_2_31_heading_two_perspectives_reconcile",
+        "CLEAN",
+        "## Balance Discrepancy Check\n\nI verified the accounting consistency from two perspectives, and **both reconcile perfectly — no discrepancies were found**:\n\nYour net worth is SGD 24,200.00.",
+    ),
+    (
+        "finding_after_verified_two_perspectives",
+        "FINDING",
+        "## Balance Discrepancy Check\n\nI verified the accounting consistency from two perspectives, and found a discrepancy of SGD 100.00 in your SGD 24,200.00 net worth.",
+    ),
 ]
 
 

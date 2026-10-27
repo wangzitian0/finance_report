@@ -40,40 +40,35 @@ def load_flow_to_domain(path: Path = FLOWS_SSOT_PATH) -> dict[int, int]:
 # Domain of each flow. The registry JSON is the only source.
 FLOW_TO_DOMAIN: dict[int, int] = load_flow_to_domain()
 
+
+def load_flow_to_cases(path: Path = FLOWS_SSOT_PATH) -> dict[int, list[str]]:
+    """Read flow id -> benchmark cases from the 30-flow registry."""
+    try:
+        registry = json.loads(path.read_text(encoding="utf-8"))
+        result: dict[int, list[str]] = {}
+        for domain in registry["domains"]:
+            for flow in domain["flows"]:
+                cases = flow["benchmark_cases"]
+                if not isinstance(cases, list) or not cases:
+                    raise ValueError(
+                        f"Flow {flow.get('id')} benchmark_cases must be a non-empty list"
+                    )
+                for c in cases:
+                    if not isinstance(c, str) or not c:
+                        raise ValueError(
+                            f"Flow {flow.get('id')} benchmark_cases entries must be non-empty strings"
+                        )
+                result[flow["id"]] = list(cases)
+        return result
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise ValueError(
+            f"Cannot read the 30-flow registry {path}: {type(exc).__name__}: {exc}"
+        ) from exc
+
+
 # Canonical mapping from 30 flows to holistic cases (1..6).
-# Its key set must equal the registry flow ids (enforced by the tooling suite).
-FLOW_TO_CASES: dict[int, list[str]] = {
-    1: ["1"],
-    2: ["1"],
-    3: ["2"],
-    4: ["5"],
-    5: ["5", "6"],
-    6: ["1"],
-    7: ["1"],
-    8: ["2"],
-    9: ["2"],
-    10: ["1"],
-    11: ["2"],
-    12: ["2"],
-    13: ["2"],
-    14: ["2", "5"],
-    15: ["3"],
-    16: ["3"],
-    17: ["4"],
-    18: ["3"],
-    19: ["5"],
-    20: ["5"],
-    21: ["5", "6"],
-    22: ["5"],
-    23: ["1", "4", "6"],
-    24: ["1", "6"],
-    25: ["1"],
-    26: ["1"],
-    27: ["1", "5"],
-    28: ["5"],
-    29: ["2"],
-    30: ["5"],
-}
+# The registry JSON is the only source.
+FLOW_TO_CASES: dict[int, list[str]] = load_flow_to_cases()
 
 # Domain to holistic cases derived deterministically from FLOW_TO_DOMAIN and FLOW_TO_CASES
 DOMAIN_TO_CASES: dict[int, list[str]] = {

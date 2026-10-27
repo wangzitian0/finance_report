@@ -382,7 +382,7 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
         try:
             advisor_answer = runner.query_ai_advisor(
                 client,
-                "What is my current net worth and are there any balance discrepancies?",
+                "What is my current net worth and do my accounts reconcile?",
             )
             print(f"        AI Advisor response: {advisor_answer[:120]}...")
         except Exception as exc:
@@ -412,23 +412,15 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
             duration_seconds=duration,
             details={
                 "m1_closing_balance": str(m1_closing),
-                "month_1_ending_balance": str(m1_closing),
                 "m2_opening_balance": str(m2_data["opening_balance"]),
-                "month_2_opening_cash": str(m2_data["opening_balance"]),
                 "m2_closing_balance": str(m2_data["closing_balance"]),
-                "month_2_ending_balance": str(m2_data["closing_balance"]),
                 "m3_opening_balance": str(m3_data["opening_balance"]),
-                "month_3_opening_cash": str(m3_data["opening_balance"]),
                 "m3_closing_balance": str(m3_data["closing_balance"]),
-                "month_3_ending_balance": str(m3_data["closing_balance"]),
                 "m4_opening_balance": str(m4_data["opening_balance"]),
-                "month_4_opening_cash": str(m4_data["opening_balance"]),
                 "m4_closing_balance": str(m4_data["closing_balance"]),
-                "month_4_ending_balance": str(m4_data["closing_balance"]),
                 "q1_net_income": str(q1_net_income),
                 "q1_assets": str(q1_assets),
                 "total_assets": str(total_assets),
-                "month_4_assets": str(total_assets),
                 "total_equity": str(total_equity),
                 "cumulative_net_income": str(cum_net_income),
                 "beginning_cash": str(beg_cash),

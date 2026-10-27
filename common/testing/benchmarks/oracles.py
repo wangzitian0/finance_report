@@ -77,11 +77,13 @@ _HEADING = rf"(?:balance\s+|ledger\s+)?discrepanc(?:y|ies)(?:\s+{_REVIEW_WORD})?
 _BETWEEN = (
     r"(?:\s*\([^)]*\))?(?:\s+(?:result|results|status|outcome|summary))?"
     r"[\s:\uff1a\-\u2014\u2013*_#>|\u2022\u00b7]*"
+    r"(?:(?:i|we)\s+(?:verified|checked|confirmed)\s+[^.!?\n:;]*?(?:,\s*and\s+|\s*[—–-]\s*)\**[\s*_#>|\u2022\u00b7]*)?"
     r"(?:(?:found|shows?|showed|reports?|reported|returned|is|was|came\s+back|and)\s+)*"
 )
 _CLEAN_VERDICT = (
     r"(?:(?:no|zero|nothing|nil|passed|pass|clear|all\s+clear|balanced|consistent|clean|"
     r"n/a|not\s+applicable|everything\s+(?:balances|matches|agrees|reconciles)|"
+    r"both\s+(?:reconcile|balance|match|agree)(?:\s+perfectly)?|"
     r"all\s+(?:balanced|matched|consistent))"
     rf"{_WORD_END}|none(?![a-z0-9-])(?!\s+of\b)"
     r"|\u2705|\u2713|\u2714|\u2611"
@@ -91,7 +93,7 @@ _CLEAN_VERDICT = (
 NEGATED_DISCREPANCY_PATTERNS: list[str] = [
     rf"{_WORD_START}{_NEGATION_PREFIX}\s*(?:a|an|any)?\s*{_ADJECTIVE}{_ISSUE}",
     rf"{_HEADING}(?={_BETWEEN}{_CLEAN_VERDICT})",
-    rf"{_WORD_START}no\s+(?:balance\s+)?discrepanc(?:y|ies)\s+found",
+    rf"{_WORD_START}no\s+(?:balance\s+)?discrepanc(?:y|ies)\s+(?:(?:was|were)\s+)?found",
     rf"{_WORD_START}no\s+ledger\s+imbalance",
     rf"{_WORD_START}not\s+unbalanced",
     r"(?:不存在|没有(?:发现|出现)?|无|未(?:发现|见|出现)|并未(?:发现|出现)|并无)"
