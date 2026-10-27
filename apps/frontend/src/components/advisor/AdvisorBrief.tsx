@@ -12,6 +12,7 @@ import {
 
 import { humanizeWorkflowText } from "@/components/workflow/workflowFormat";
 import routeMap from "@/lib/route-map.json";
+import { humanizeIdentifier } from "@/lib/statusLabels";
 import type { AdvisorSuggestion } from "@/lib/types";
 
 const SAFE_ROUTE_FALLBACK = "/";
@@ -127,7 +128,7 @@ export function AdvisorBrief({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-sm font-semibold">{titleText}</h3>
-                    <span className="badge badge-muted">{suggestion.confidence_tier}</span>
+                    <span className="badge badge-muted">{humanizeIdentifier(suggestion.confidence_tier)}</span>
                   </div>
                   <p className="mt-2 break-words text-sm">{humanizeWorkflowText(suggestion.basis)}</p>
                   <p className="mt-2 break-words text-xs text-muted">{suggestion.limitation}</p>
@@ -138,7 +139,7 @@ export function AdvisorBrief({
                 {suggestion.source_refs && suggestion.source_refs.length > 0 ? (
                   suggestion.source_refs.map((source, sourceIndex) => (
                     <span key={`${source}-${sourceIndex}`} className="badge badge-info">
-                      {source}
+                      {humanizeIdentifier(humanizeWorkflowText(source))}
                     </span>
                   ))
                 ) : (

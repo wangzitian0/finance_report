@@ -148,3 +148,16 @@ export function canImportBrokerageStatement(statement: {
 export function reportAccountDisplayName(name: string): string {
     return name === "Processing" ? "Transfers in transit" : name;
 }
+
+const SYSTEM_ACCOUNT_CODE_LABELS: Record<string, string> = {
+    "AUTO-ASSET": "Auto-created",
+    "SYS-PROCESSING": "System clearing",
+    "AUTO-EQUITY-OPENING": "Opening equity",
+    "AUTO-BANK": "Auto bank",
+    "SYS-FX-REVAL": "FX revaluation",
+};
+
+/** Reader-facing label for an account code badge: humanizes internal system codes while preserving user codes (#2650). */
+export function formatAccountCodeBadge(code: string): string {
+    return SYSTEM_ACCOUNT_CODE_LABELS[code] ?? code;
+}

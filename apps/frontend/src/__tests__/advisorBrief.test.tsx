@@ -65,7 +65,7 @@ describe("AdvisorBrief", () => {
     expect(screen.getByText("Advisor signal")).toBeInTheDocument();
     expect(screen.getByText("Report package is blocked by one review-required item.")).toBeInTheDocument();
     expect(screen.getByText("Do not rely on the final report until review is complete.")).toBeInTheDocument();
-    expect(screen.getByText("workflow.status")).toBeInTheDocument();
+    expect(screen.getByText("Workflow Status")).toBeInTheDocument();
     expect(screen.getByText("source unavailable")).toBeInTheDocument();
 
     const cards = screen.getAllByTestId(/advisor-brief-card-/);
@@ -112,7 +112,7 @@ describe("AdvisorBrief", () => {
       );
 
       const card = screen.getByTestId("advisor-brief-card-0");
-      expect(within(card).getAllByText("workflow.status")).toHaveLength(2);
+      expect(within(card).getAllByText("Workflow Status")).toHaveLength(2);
       expect(
         consoleError.mock.calls.some((call) => call.some((arg) => String(arg).includes("same key"))),
       ).toBe(false);
