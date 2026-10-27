@@ -12,7 +12,7 @@ reports for current metrics.
 
 Current generated AC snapshot values are owned by:
 
-- `python tools/analyze_test_ac_coverage.py --no-write --stdout`
+- `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md`
 - `python tools/check_ac_index.py`
 
 Placeholder assertion, pure-pass, pure-skip, and stub-only detection are enforced

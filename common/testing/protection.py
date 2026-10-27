@@ -32,17 +32,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from common.testing.ac_graph import AcGraph
+from common.testing.check_ac_traceability import is_deprecated
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FLOOR = REPO_ROOT / "common" / "testing" / "data" / "protection-floor.json"
 
 # The protection types enforced by the count floor, in a stable display order.
 PROTECTION_TYPES = ("has_real_ref", "has_proof", "has_score", "has_mirror")
-
-
-def _is_deprecated(description: str) -> bool:
-    text = description.strip()
-    return text.startswith("~~") and text.endswith("~~") and len(text) > 4
 
 
 def _ac_has_mirror(graph: AcGraph, proof_ids: tuple[str, ...]) -> bool:
@@ -62,7 +58,7 @@ def count_protection_types(graph: AcGraph) -> dict[str, int]:
     """
     counts = dict.fromkeys(PROTECTION_TYPES, 0)
     for node in graph.nodes.values():
-        if not node.mandatory or _is_deprecated(node.description):
+        if not node.mandatory or is_deprecated(node.description):
             continue
         if node.real_test_files:
             counts["has_real_ref"] += 1
@@ -146,13 +142,17 @@ def write_floor(path: Path, floor: dict[str, int]) -> None:
         "version": 1,
         "floor": {ptype: int(floor.get(ptype, 0)) for ptype in PROTECTION_TYPES},
     }
-    path.write_text(json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8"
+    )
 
 
 def update_floor(graph: AcGraph, floor_path: Path = DEFAULT_FLOOR) -> dict[str, int]:
     """Raise each floor to the current count (never lowers). Returns the new floor."""
     counts = count_protection_types(graph)
     current_floor = load_floor(floor_path)
-    raised = {ptype: max(current_floor[ptype], counts[ptype]) for ptype in PROTECTION_TYPES}
+    raised = {
+        ptype: max(current_floor[ptype], counts[ptype]) for ptype in PROTECTION_TYPES
+    }
     write_floor(floor_path, raised)
     return raised

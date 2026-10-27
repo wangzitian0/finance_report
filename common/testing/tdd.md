@@ -180,8 +180,9 @@ times. The final model removes that:
   `common/testing/data/critical-proof-outcomes.yaml`.
 - **Derived views, never committed.** The critical-proof matrix and the
   EPIC-status table are rendered ON DEMAND from the graph
-  (`python -m common.testing.generate_critical_proof_matrix`,
-  `tools/generate_epic_status.py --stdout`, both to stdout). The vision-proof
+  (`python -m common.testing.generate_critical_proof_matrix` to stdout; the
+  per-EPIC table is the "Coverage by EPIC" section of
+  `tools/build_ac_traceability.py`). The vision-proof
   matrix is built in memory by `generate_vision_proof_matrix.build_matrix`,
   which `ac_graph` calls; it has no command line. None is
   committed-materialized, so there is nothing for two unrelated PRs to collide
@@ -371,8 +372,8 @@ exception path.
 
 Manual verification cleanup is tracked in
 [issue #454](https://github.com/wangzitian0/finance_report/issues/454).
-Invalid AC references are reported by
-`python tools/analyze_test_ac_coverage.py --no-write --stdout` and CI
+Per-EPIC traceability status is reported by
+`python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md` and CI
 traceability artifacts.
 AC integrity and triage are validated by
 `python tools/check_ac_index.py`.
@@ -393,7 +394,7 @@ Use these before claiming a documentation or implementation change is aligned:
 
 ```bash
 python tools/generate_ac_registry.py --check
-python tools/analyze_test_ac_coverage.py --no-write --stdout
+python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md
 python tools/check_e2e_epic_traceability.py
 # The single AC-index gate (two gates). Its INTEGRITY gate folds in the former
 # standalone CI-stage traceability and critical-proof-matrix contracts, so those
@@ -454,4 +455,4 @@ mechanically validated matrices.
 - [Root README](https://github.com/wangzitian0/finance_report/blob/main/README.md)
 - [Coverage SSOT](./coverage.md)
 - [CI/CD SSOT](./ci-cd.md)
-- `python tools/analyze_test_ac_coverage.py --no-write --stdout`
+- `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md`

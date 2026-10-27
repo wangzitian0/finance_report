@@ -8,7 +8,6 @@ import pytest
 
 from common.meta.extension.ac_registry_format import sort_key
 from common.testing import ac_scan, ac_score_baseline_format, jsonl_baseline
-from common.testing import analyze_test_ac_coverage as coverage_analysis
 from common.testing import build_ac_traceability, check_ac_traceability
 
 
@@ -122,4 +121,3 @@ def test_AC_testing_governance_15_traceability_tools_share_scanner_and_canonical
     references = ac_scan.collect_references(discovered)
     assert set(references) == {"AC-audit.36.1", "AC-ledger.36.1"}
     assert sort_key("AC-audit.36.1") != sort_key("AC-ledger.36.1")
-    assert coverage_analysis.ac_scan is ac_scan

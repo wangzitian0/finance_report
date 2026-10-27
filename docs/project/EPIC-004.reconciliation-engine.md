@@ -234,7 +234,7 @@ See: common/ledger/readme.md#decimal-rule
       100-transaction manual false-positive audit plus 10,000-transaction
       benchmark evidence, and fails CI when the `>=95%`, `<0.5%`, `<2%`, or
       `<10s` targets are missed. Current traceability review also uses
-      `python tools/analyze_test_ac_coverage.py --stdout` and
+      `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md` and
       `python tools/check_ac_index.py`.
 
 ## 🗄️ Archive Integration Notes

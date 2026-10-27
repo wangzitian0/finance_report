@@ -6,6 +6,11 @@ single consolidated gate (:mod:`common.testing.check_ac_index`) — which calls
 ``run_traceability`` + ``traceability_failure_messages`` inside Gate A — and by
 the traceability unit tests. There is no ``main()`` / argument parser / report
 printer here any more: the one gate entry point is ``tools/check_ac_index.py``.
+
+It also owns the two shared AC rules: :func:`is_deprecated` (the one deprecation
+rule) and :func:`classify_references` (the one real / placeholder / stub /
+missing classifier). The protection count, the doc lint and the audit builder
+(``build_ac_traceability``) call them instead of keeping copies.
 """
 
 from __future__ import annotations
@@ -109,10 +114,10 @@ def load_registry(registry_path: Path) -> list[AC]:
     return [
         AC(
             id=entry["id"],
-            epic=entry["epic"],
-            epic_name=entry.get("epic_name", ""),
-            description=entry.get("description", ""),
-            mandatory=entry.get("mandatory", True),
+            epic=int(entry["epic"]),
+            epic_name=str(entry.get("epic_name", "")),
+            description=str(entry.get("description", "")),
+            mandatory=bool(entry.get("mandatory", True)),
         )
         for entry in load_registry_entries(registry_path)
     ]
@@ -147,51 +152,53 @@ def collect_referenced_acs(
     )
 
 
-def is_deprecated(ac: AC) -> bool:
-    description = ac.description.strip()
-    return (
-        description.startswith("~~")
-        and description.endswith("~~")
-        and len(description) > 4
-    )
+def is_deprecated(description: str) -> bool:
+    """The one deprecation rule: a non-blank ``~~strikethrough~~`` description.
+
+    Every AC consumer (this gate, the protection count, the doc lint, the audit
+    builder) calls this function. ``~~~~`` and ``~~ ~~`` are not deprecated: an
+    empty strikethrough must not exempt a mandatory AC from its test.
+    """
+    text = description.strip()
+    return text.startswith("~~") and text.endswith("~~") and bool(text[2:-2].strip())
+
+
+def classify_references(stats: ACReferenceStats | None) -> str:
+    """The one classifier of an AC's test references.
+
+    Returns ``real`` (a behavioral test), ``placeholder`` (only trivial
+    assertions, ``pass`` or skips), ``stub`` (only ``_ac_stubs`` files) or
+    ``missing`` (no reference at all), in that priority order.
+    """
+    if stats is None or not stats.all_files:
+        return "missing"
+    if stats.real_files:
+        return "real"
+    if stats.placeholder_files:
+        return "placeholder"
+    return "stub"
 
 
 def check_traceability(
     acs: list[AC], references: dict[str, ACReferenceStats]
 ) -> TraceabilityResult:
-    mandatory = [ac for ac in acs if ac.mandatory and not is_deprecated(ac)]
-    covered = [
-        ac.id
-        for ac in mandatory
-        if references.get(ac.id) and references[ac.id].ci_real_files
-    ]
-    unexecuted_only = [
-        ac.id
-        for ac in mandatory
-        if references.get(ac.id)
-        and references[ac.id].real_files
-        and not references[ac.id].ci_real_files
-    ]
-    placeholder_only = [
-        ac.id
-        for ac in mandatory
-        if references.get(ac.id)
-        and not references[ac.id].real_files
-        and references[ac.id].placeholder_files
-    ]
-    stub_only = [
-        ac.id
-        for ac in mandatory
-        if references.get(ac.id)
-        and not references[ac.id].real_files
-        and not references[ac.id].placeholder_files
-        and references[ac.id].stub_files
-    ]
-    missing = [
-        ac.id
-        for ac in mandatory
-        if not references.get(ac.id) or not references[ac.id].all_files
-    ]
+    mandatory = [ac for ac in acs if ac.mandatory and not is_deprecated(ac.description)]
+    covered: list[str] = []
+    unexecuted_only: list[str] = []
+    placeholder_only: list[str] = []
+    stub_only: list[str] = []
+    missing: list[str] = []
+    for ac in mandatory:
+        stats = references.get(ac.id)
+        kind = classify_references(stats)
+        if kind == "real":
+            (covered if stats.ci_real_files else unexecuted_only).append(ac.id)
+        elif kind == "placeholder":
+            placeholder_only.append(ac.id)
+        elif kind == "stub":
+            stub_only.append(ac.id)
+        else:
+            missing.append(ac.id)
     return TraceabilityResult(
         covered=covered,
         placeholder_only=placeholder_only,
@@ -210,7 +217,16 @@ def traceability_failure_messages(result: TraceabilityResult) -> list[str]:
     (unexecuted-only > placeholder-only > stub-only > missing). This is the
     single source of the gate wording, reused by both ``main()`` and the
     consolidated ``check_ac_index`` gate so neither drifts from the other.
+
+    A result with zero mandatory ACs fails: an empty or unreadable registry
+    must not pass as "nothing is untraced".
     """
+    if result.mandatory_total == 0:
+        return [
+            "TRACEABILITY GATE FAILED: 0 mandatory AC(s) were scanned.\n"
+            "  An empty registry cannot pass. Check docs/ac_registry.yaml, "
+            "docs/infra_registry.yaml and their epic_source."
+        ]
     if result.unexecuted_only:
         return [
             "TRACEABILITY GATE FAILED: "
