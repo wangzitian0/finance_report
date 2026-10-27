@@ -204,7 +204,7 @@ export function readReportFilters(
   const startDate = reachesCoverageStart ? bound : range.startDate;
   const openingDate = reachesCoverageStart ? bound : preset === "All" ? null : dayBefore(startDate);
   const latestEnd =
-    isDefaultPeriod && coverage?.latestStatementEnd && isValidReportDate(coverage.latestStatementEnd)
+    usesCoverageBound && coverage?.latestStatementEnd && isValidReportDate(coverage.latestStatementEnd)
       ? coverage.latestStatementEnd
       : null;
   const latestStatementEnd = latestEnd && latestEnd < startDate ? latestEnd : null;
@@ -229,7 +229,7 @@ export function readReportFilters(
     openingDate,
     isDefaultPeriod,
     opensAtCoverageStart: reachesCoverageStart,
-    coverageLimitingAccounts: isDefaultPeriod && reachesCoverageStart ? (coverage?.limitingAccounts ?? []) : [],
+    coverageLimitingAccounts: reachesCoverageStart ? (coverage?.limitingAccounts ?? []) : [],
     latestStatementEnd,
     // The default view has no previous period before the coverage start. An explicit preset steps back.
     previousEnd: steps && !reachesCoverageStart ? dayBefore(startDate) : null,
