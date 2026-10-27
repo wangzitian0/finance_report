@@ -34,6 +34,7 @@ def test_AC8_13_74_maintenance_cleanup_is_ghcr_pruning_only() -> None:
     assert "workflow_dispatch:" in workflow
     # The scheduled job only prunes the app's own stale GHCR PR-preview image tags.
     assert "Prune stale PR preview GHCR tags" in workflow
+    assert "DOKPLOY" not in workflow
     assert "docker builder prune" not in workflow
     assert "docker image prune" not in workflow
     assert "journal-vacuum" not in workflow

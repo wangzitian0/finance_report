@@ -111,14 +111,15 @@ def test_AC8_13_39_contract_reports_missing_toolchain(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("path", "image_key", "occurrence"),
     [
-        (".github/actions/setup-minio/action.yml", image, 0)
+        (path, image, 0)
+        for path in (".github/actions/setup-minio/action.yml", "docker-compose.yml")
         for image in ("minio", "minio_client")
     ],
 )
 def test_minio_image_drift_fails_in_each_environment(
     tmp_path: Path, path: str, image_key: str, occurrence: int
 ) -> None:
-    """AC-testing.toolchain.1: Every CI job uses the governed image."""
+    """AC-testing.toolchain.1: Every CI job and the root compose file use the governed image."""
     _copy_contract_inputs(tmp_path)
     image = contract.load_toolchain(tmp_path)["images"][image_key]
     target = tmp_path / path

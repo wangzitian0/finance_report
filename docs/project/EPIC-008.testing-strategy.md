@@ -372,7 +372,6 @@ job inventories or scenario counts into this EPIC.
 > (AC8.13.93 removed, canonical: migrated to `AC-testing.deploy-gates.19`.)
 > (AC8.13.94 removed, canonical: migrated to `AC-testing.governance.3`.)
 > (AC8.13.95 removed, canonical: migrated to `AC-testing.governance.4`.)
-> (AC8.13.96 removed, canonical: migrated to `AC-testing.classifier.3`.)
 > (AC8.13.97 removed, canonical: migrated to `AC-testing.classifier.4`.)
 > (AC8.13.99 removed, canonical: migrated to `AC-testing.toolchain.10`.)
 > (AC8.13.103 removed, canonical: migrated to `AC-testing.deploy-gates.20`.)
