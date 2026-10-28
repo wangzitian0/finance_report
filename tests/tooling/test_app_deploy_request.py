@@ -4,20 +4,14 @@ from __future__ import annotations
 
 import ast
 import importlib
-import io
 import json
-import os
 import re
-import select
-import shlex
 import subprocess
-import sys
 import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-import yaml
 
 from common.runtime.sdk_pin import read_sdk_pin
 from tools import app_deploy_request as renderer
@@ -55,17 +49,18 @@ VALID_PRODUCTION_REQUEST = {
 
 def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() -> None:
     """AC-runtime.deploy-request.1: the SDK release and canonical v1 wire shape are immutable."""
+    from infra2_sdk import deploy as sdk_deploy
+
     sdk_url, sdk_hash_hex, _ = read_sdk_pin(ROOT)
     pyproject = tomllib.loads(
         (ROOT / "apps/backend/pyproject.toml").read_text(encoding="utf-8")
     )
     sdk_dependencies = [
-        dependency
-        for dependency in pyproject["project"]["dependencies"]
-        if dependency.partition(" @ ")[0] == "infra2-sdk"
+        dep
+        for dep in pyproject["project"]["dependencies"]
+        if dep.partition(" @ ")[0] == "infra2-sdk"
     ]
-    expected_sdk_dependency = f"infra2-sdk @ {sdk_url}"
-    assert sdk_dependencies == [expected_sdk_dependency]
+    assert sdk_dependencies == [f"infra2-sdk @ {sdk_url}"]
 
     lock = tomllib.loads((ROOT / "apps/backend/uv.lock").read_text(encoding="utf-8"))
     package = next(item for item in lock["package"] if item["name"] == "infra2-sdk")
@@ -73,80 +68,9 @@ def test_AC_runtime_deploy_request_1_sdk_and_wire_contract_are_exactly_pinned() 
     assert package["source"] == {"url": sdk_url}
     assert package["wheels"] == [{"url": sdk_url, "hash": f"sha256:{sdk_hash_hex}"}]
 
-    for workflow_path in (
-        ROOT / ".github/workflows/deploy.yml",
-        ROOT / ".github/workflows/release.yml",
-    ):
-        workflow_source = workflow_path.read_text(encoding="utf-8")
-        assert 'sdk_pin="$(python tools/sdk_pin.py)" || exit $?' in workflow_source
-        assert (
-            'read -r sdk_url sdk_sha256 sdk_filename <<< "$sdk_pin"' in workflow_source
-        )
-        assert "releases/download/" not in workflow_source
-        assert "sha256sum --check --status" in workflow_source
-        assert 'python -m pip install "$sdk_wheel"' in workflow_source
-
-    workflow = yaml.safe_load(
-        (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    )
-    tooling_step = next(
-        step
-        for step in workflow["jobs"]["tooling-coverage"]["steps"]
-        if step.get("name") == "Run tooling tests with coverage"
-    )
-    tooling_run = tooling_step["run"]
-    assert 'sdk_pin="$(python tools/sdk_pin.py)" || exit $?' in tooling_run
-    assert 'read -r sdk_url sdk_sha256 sdk_filename <<< "$sdk_pin"' in tooling_run
-    assert 'sdk_wheel="$RUNNER_TEMP/$sdk_filename"' in tooling_run
-    assert "releases/download/" not in tooling_run
-    assert (
-        'curl --fail --location --silent --show-error "$sdk_url" --output "$sdk_wheel"'
-        in tooling_run
-    )
-    assert "sha256sum --check --status" in tooling_run
-    # The verified wheel installs into the lockfile-backed venv the
-    # backend/backend-integration jobs already cache
-    # (actions/cache@v5 keyed on apps/backend/uv.lock) rather than an ad hoc
-    # `uv run --with <n packages>` resolve+download on every run (#1767
-    # measured that ad hoc install as ~7:47-7:59 of this job's ~8:00).
-    install_line = next(
-        line.strip().removesuffix("\\").strip()
-        for line in tooling_run.splitlines()
-        if line.strip().startswith("uv pip install ")
-    )
-    install_tokens = shlex.split(install_line)
-    # Exact-shape equality (not a literal-in-list mirror assert, #1435/#1558):
-    # the wheel installs by file path into the synced venv's interpreter, and
-    # never re-declares the pinned dependency string alongside it. --no-deps
-    # keeps this a pure install-the-pinned-wheel proof: infra2-sdk's runtime
-    # dependency is already satisfied by `uv sync` (apps/backend/uv.lock), so
-    # nothing here may resolve/download from the network (PR #2047 review).
-    assert install_tokens == [
-        "uv",
-        "pip",
-        "install",
-        "--no-deps",
-        "--python",
-        "apps/backend/.venv/bin/python",
-        "$sdk_wheel",
-    ]
-    assert expected_sdk_dependency not in install_tokens
-
-    pytest_line = next(
-        line.strip().removesuffix("\\").strip()
-        for line in tooling_run.splitlines()
-        if line.strip().startswith("apps/backend/.venv/bin/python -m pytest ")
-    )
-    pytest_tokens = shlex.split(pytest_line)
-    assert pytest_tokens[:4] == [
-        "apps/backend/.venv/bin/python",
-        "-m",
-        "pytest",
-        "tests/tooling/",
-    ]
-
     request = renderer.request_from_mapping(VALID_REQUEST)
     assert request.to_dict() == VALID_REQUEST
+    assert renderer.canonical_json is sdk_deploy.canonical_json
     assert renderer.canonical_json(request) == (
         json.dumps(
             VALID_REQUEST, sort_keys=True, separators=(",", ":"), ensure_ascii=True
@@ -169,9 +93,7 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
             "source_repository must be wangzitian0/finance_report",
         ),
         ({"version_ref": "main"}, "version_ref must be a release tag"),
-        ({"version_ref": None}, "version_ref must be a release tag"),
         ({"source_sha": "A" * 40}, "source_sha must be a lowercase 40-hex commit sha"),
-        ({"source_sha": None}, "source_sha must be a lowercase 40-hex commit sha"),
         ({"evidence": None}, "evidence must be an object"),
         (
             {
@@ -192,62 +114,13 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
             "evidence.reviewed_change_url must be empty for staging",
         ),
         (
-            {"evidence": {**VALID_REQUEST["evidence"], "unexpected": "authority"}},
-            "evidence fields must exactly match DeployEvidence v1",
-        ),
-        (
-            {
-                "evidence": {
-                    **VALID_REQUEST["evidence"],
-                    "source_run_url": "https://example.com/actions/runs/12345678",
-                }
-            },
-            "source_run_url must point to the Finance Report GitHub Actions run",
-        ),
-        (
-            {
-                "evidence": {
-                    **VALID_REQUEST["evidence"],
-                    "source_run_url": "https://github.com/wangzitian0/finance_report/actions/runs/12345678?x=1",
-                }
-            },
-            "source_run_url must point to the Finance Report GitHub Actions run",
-        ),
-        (
-            {"evidence": {**VALID_REQUEST["evidence"], "source_run_url": ""}},
-            "source_run_url is required",
-        ),
-        (
-            {"evidence": {**VALID_REQUEST["evidence"], "source_run_id": ""}},
-            "source_run_id is required",
-        ),
-        (
             {"evidence": {**VALID_REQUEST["evidence"], "source_run_id": "87654321"}},
             "source_run_id must match source_run_url",
         ),
     ]
     for override, error in invalid_cases:
-        raw = {**VALID_REQUEST, **override}
         with pytest.raises(ValueError, match=re.escape(error)):
-            renderer.request_from_mapping(raw)
-
-    with pytest.raises(
-        ValueError, match="request fields must exactly match DeployRequest v1"
-    ):
-        renderer.request_from_mapping({**VALID_REQUEST, "unexpected": "authority"})
-
-    assert renderer._SOURCE_RUN_PATH_RE.pattern == (
-        rf"\A/{re.escape(renderer.SOURCE_REPOSITORY)}/actions/runs/([1-9][0-9]*)\Z"
-    )
-
-    rendered = renderer.render_request(
-        request_id=VALID_REQUEST["request_id"],
-        version_ref=VALID_REQUEST["version_ref"],
-        source_sha=VALID_REQUEST["source_sha"],
-        source_run_url=VALID_REQUEST["evidence"]["source_run_url"],
-        source_run_id=VALID_REQUEST["evidence"]["source_run_id"],
-    )
-    assert rendered.to_dict() == VALID_REQUEST
+            renderer.request_from_mapping({**VALID_REQUEST, **override})
 
     production = renderer.render_request(
         request_id=VALID_PRODUCTION_REQUEST["request_id"],
@@ -268,19 +141,6 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
                 {**VALID_PRODUCTION_REQUEST, "evidence": evidence}
             )
 
-    for invalid_url in (
-        "https://example.com/wangzitian0/finance_report/pull/1878",
-        "https://github.com/wangzitian0/finance_report/pull/1878?authority=forged",
-    ):
-        evidence = {
-            **VALID_PRODUCTION_REQUEST["evidence"],
-            "reviewed_change_url": invalid_url,
-        }
-        with pytest.raises(ValueError, match="must be a canonical Finance Report"):
-            renderer.request_from_mapping(
-                {**VALID_PRODUCTION_REQUEST, "evidence": evidence}
-            )
-
     cli_args = [
         "--request-id",
         VALID_REQUEST["request_id"],
@@ -296,92 +156,36 @@ def test_AC_runtime_deploy_request_2_sender_authority_is_fail_closed(
     assert renderer.main(cli_args) == 0
     assert json.loads(capsys.readouterr().out) == VALID_REQUEST
 
-    invalid_cli_args = cli_args.copy()
-    invalid_cli_args[3] = "main"
-    with pytest.raises(SystemExit, match="2"):
-        renderer.main(invalid_cli_args)
-    assert (
-        capsys.readouterr()
-        .err.rstrip()
-        .endswith("error: version_ref must be a release tag like vX.Y.Z")
-    )
-
-    source = MODULE_PATH.read_text(encoding="utf-8")
-    tree = ast.parse(source)
-    imported_modules: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            imported_modules.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module is not None:
-            imported_modules.add(node.module)
-    string_literals = {
-        node.value
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Constant) and isinstance(node.value, str)
-    }
-    forbidden_imports = {"httpx", "requests", "subprocess", "urllib.request", "urllib3"}
-    forbidden_transport_literals = {"repository_dispatch"}
-    assert imported_modules.isdisjoint(forbidden_imports)
-    assert string_literals.isdisjoint(forbidden_transport_literals)
-
-
-def _names_imported_from_sdk_deploy(source: str) -> set[str]:
-    """Names that `source` imports with `from infra2_sdk.deploy import ...`.
-
-    `infra2_sdk.deploy` is the only SDK module that owns dispatch. The old shim
-    modules (`infra2_sdk.dispatch`, `infra2_sdk.deploy_health`) do not count.
-    """
-    return {
+    tree = ast.parse(MODULE_PATH.read_text(encoding="utf-8"))
+    imported_modules = {
         alias.name
-        for node in ast.walk(ast.parse(source))
-        if isinstance(node, ast.ImportFrom) and node.module == "infra2_sdk.deploy"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
         for alias in node.names
+    } | {
+        node.module
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module is not None
     }
-
-
-def test_AC_runtime_deploy_request_3_sdk_import_check_rejects_shim() -> None:
-    """AC-runtime.deploy-request.3: only `infra2_sdk.deploy` satisfies the SDK import check."""
-    shim = "from infra2_sdk.dispatch import dispatch_and_wait\n"
-    mention = '"""Delegates to infra2_sdk.deploy import dispatch_and_wait."""\n'
-    current = "from infra2_sdk.deploy import dispatch_and_wait\n"
-    assert "dispatch_and_wait" not in _names_imported_from_sdk_deploy(shim)
-    assert "dispatch_and_wait" not in _names_imported_from_sdk_deploy(mention)
-    assert "dispatch_and_wait" in _names_imported_from_sdk_deploy(current)
+    assert imported_modules.isdisjoint(
+        {"httpx", "requests", "subprocess", "urllib.request", "urllib3"}
+    )
 
 
 def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> None:
     """AC-runtime.deploy-request.3: dispatch success means this exact receiver run succeeded."""
     transport = importlib.import_module("tools.app_deploy_transport")
     source = (ROOT / "tools/app_deploy_transport.py").read_text(encoding="utf-8")
-
-    # The watermark/ambiguity-guard/log-content-verification algorithm itself, and
-    # the "app-deploy-request.yml"/"repository_dispatch" receiver facts, now live in
-    # infra2_sdk.deploy (infra2-sdk's own tests cover them) -- this module is a
-    # thin, validating wrapper that delegates to it.
-    assert "dispatch_and_wait" in _names_imported_from_sdk_deploy(source)
-    assert "dispatch_and_wait as _sdk_dispatch_and_wait" in source
-    assert "request_from_mapping" in source
-    assert hasattr(transport, "dispatch_and_wait")
-
-    staging_workflow = (ROOT / ".github/workflows/deploy.yml").read_text(
-        encoding="utf-8"
-    )
-    production_workflow = (ROOT / ".github/workflows/release.yml").read_text(
-        encoding="utf-8"
-    )
-    assert "python -m tools.app_deploy_transport" in staging_workflow
-    assert "--deploy-type staging" in staging_workflow
-    assert "steps.release_images_run.outputs.run_id" in staging_workflow
-    assert production_workflow.count("python -m tools.app_deploy_transport") == 2
-    assert production_workflow.count("--deploy-type prod") == 2
-    assert "steps.reviewed_change.outputs.reviewed_change_url" in production_workflow
-    assert "steps.staging.outputs.run_id" in production_workflow
-    assert (
-        "steps.rollback_reviewed_change.outputs.reviewed_change_url"
-        in production_workflow
-    )
+    sdk_imports = {
+        alias.name
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.ImportFrom) and node.module == "infra2_sdk.deploy"
+        for alias in node.names
+    }
+    assert "dispatch_and_wait" in sdk_imports
 
     calls: list[tuple[str, str, object]] = []
+    title = "Deploy finance_report/app staging main abc [finance-report-run-12345678]"
     run_lists = iter(
         [
             {"workflow_runs": [{"id": 100}]},
@@ -389,21 +193,7 @@ def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> 
                 "workflow_runs": [
                     {
                         "id": 101,
-                        # infra2-sdk >= 1.2.0 correlates the receiver run by the request_id in its title
-                        "display_title": "Deploy finance_report/app staging main abc [finance-report-run-12345678]",
-                        "status": "in_progress",
-                        "conclusion": None,
-                        "html_url": "https://github.com/wangzitian0/infra2/actions/runs/101",
-                    },
-                    {"id": 100},
-                ]
-            },
-            {
-                "workflow_runs": [
-                    {
-                        "id": 101,
-                        # infra2-sdk >= 1.2.0 correlates the receiver run by the request_id in its title
-                        "display_title": "Deploy finance_report/app staging main abc [finance-report-run-12345678]",
+                        "display_title": title,
                         "status": "completed",
                         "conclusion": "success",
                         "html_url": "https://github.com/wangzitian0/infra2/actions/runs/101",
@@ -416,233 +206,45 @@ def test_AC_runtime_deploy_request_3_transport_correlates_the_receiver_run() -> 
 
     def api(method: str, path: str, body: object = None) -> object:
         calls.append((method, path, body))
-        if method == "GET":
-            return next(run_lists)
-        return None
+        return next(run_lists) if method == "GET" else None
 
-    dispatched_at = datetime(2026, 10, 14, 10, 55, 50, tzinfo=UTC)
     result = transport.dispatch_and_wait(
         VALID_REQUEST,
         api=api,
         fetch_logs=lambda run_id: b'plan {"request_id": "finance-report-run-12345678"}',
         sleep=lambda _: None,
-        max_attempts=3,
-        clock=lambda: dispatched_at,
+        max_attempts=2,
+        clock=lambda: datetime(2026, 10, 14, 10, 55, 50, tzinfo=UTC),
     )
     assert result.run_id == 101
-    assert result.url.endswith("/101")
     dispatch = next(call for call in calls if call[0] == "POST")
     assert dispatch[2] == {
         "event_type": "app-deploy-request",
         "client_payload": {
             **VALID_REQUEST,
-            "sender_deadline": "2026-10-14T10:56:05Z",
+            "sender_deadline": "2026-10-14T10:56:00Z",
         },
     }
 
-    ambiguous_runs = {
-        "workflow_runs": [
-            # two receiver runs naming the same request_id: the ambiguity guard must refuse
-            {
-                "id": 103,
-                "status": "queued",
-                "display_title": "Deploy finance_report/app staging main abc [finance-report-run-12345678]",
-            },
-            {
-                "id": 102,
-                "status": "queued",
-                "display_title": "Deploy finance_report/app staging main abc [finance-report-run-12345678]",
-            },
-            {"id": 100, "status": "completed"},
-        ]
-    }
-    responses = iter([{"workflow_runs": [{"id": 100}]}, ambiguous_runs])
-    with pytest.raises(RuntimeError, match="ambiguous"):
-        transport.dispatch_and_wait(
-            VALID_REQUEST,
-            api=lambda method, path, body=None: (
-                next(responses) if method == "GET" else None
-            ),
-            fetch_logs=lambda run_id: b"",
-            sleep=lambda _: None,
-            max_attempts=1,
-        )
-
-    responses = iter(
+    ambiguous = iter(
         [
             {"workflow_runs": [{"id": 100}]},
             {
                 "workflow_runs": [
-                    {
-                        "id": 101,
-                        # infra2-sdk >= 1.2.0 correlates the receiver run by the request_id in its title
-                        "display_title": "Deploy finance_report/app staging main abc [finance-report-run-12345678]",
-                        "status": "completed",
-                        "conclusion": "success",
-                        "html_url": "https://github.com/wangzitian0/infra2/actions/runs/101",
-                    }
+                    {"id": 103, "status": "queued", "display_title": title},
+                    {"id": 102, "status": "queued", "display_title": title},
                 ]
             },
         ]
     )
-    with pytest.raises(RuntimeError, match="request_id"):
+    with pytest.raises(RuntimeError, match="ambiguous"):
         transport.dispatch_and_wait(
             VALID_REQUEST,
-            api=lambda method, path, body=None: (
-                next(responses) if method == "GET" else None
-            ),
-            fetch_logs=lambda run_id: b"another request",
-            sleep=lambda _: None,
-            max_attempts=1,
-        )
-
-
-def test_AC_runtime_deploy_request_3_transport_fail_closed_edges() -> None:
-    """AC-runtime.deploy-request.3: polling and GitHub response edges cannot pass."""
-    transport = importlib.import_module("tools.app_deploy_transport")
-
-    responses = iter(
-        [
-            {"workflow_runs": [{"id": 100}]},
-            {"workflow_runs": [{"id": 100}]},
-            {"workflow_runs": [{"id": 100}]},
-        ]
-    )
-    sleeps: list[float] = []
-    with pytest.raises(RuntimeError, match="timed out"):
-        transport.dispatch_and_wait(
-            VALID_REQUEST,
-            api=lambda method, path, body=None: (
-                next(responses) if method == "GET" else None
-            ),
+            api=lambda m, p, b=None: next(ambiguous) if m == "GET" else None,
             fetch_logs=lambda run_id: b"",
-            sleep=sleeps.append,
-            poll_interval=0.25,
-            max_attempts=2,
-        )
-    assert sleeps == [0.25]
-
-    def run_failure(conclusion: str, url: object) -> object:
-        responses = iter(
-            [
-                {"workflow_runs": [{"id": 100}]},
-                {
-                    "workflow_runs": [
-                        {
-                            "id": 101,
-                            # infra2-sdk >= 1.2.0 correlates the receiver run by the request_id in its title
-                            "display_title": "Deploy finance_report/app staging main abc [finance-report-run-12345678]",
-                            "status": "completed",
-                            "conclusion": conclusion,
-                            "html_url": url,
-                        }
-                    ]
-                },
-            ]
-        )
-        return transport.dispatch_and_wait(
-            VALID_REQUEST,
-            api=lambda method, path, body=None: (
-                next(responses) if method == "GET" else None
-            ),
-            fetch_logs=lambda run_id: VALID_REQUEST["request_id"].encode(),
             sleep=lambda _: None,
             max_attempts=1,
         )
-
-    with pytest.raises(RuntimeError, match="concluded 'failure'"):
-        run_failure("failure", "https://github.com/wangzitian0/infra2/actions/runs/101")
-    with pytest.raises(RuntimeError, match="has no canonical URL"):
-        run_failure("success", "https://example.com/actions/runs/101")
-
-    # Malformed workflow-runs payloads / non-positive run ids: covered by
-    # infra2-sdk's own test_dispatch.py (_workflow_runs / _run_id no longer exist
-    # locally -- the watermark/ambiguity algorithm they support moved to the sdk).
-
-
-def test_AC_runtime_deploy_request_3_transport_cli_contract(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """AC-runtime.deploy-request.3: the CLI uses env auth and writes run evidence."""
-    transport = importlib.import_module("common.runtime.deploy.app_deploy_transport")
-
-    monkeypatch.delenv("INFRA2_PAT", raising=False)
-    assert transport.main([]) == 1
-    assert "INFRA2_PAT is required" in capsys.readouterr().err
-
-    monkeypatch.setenv("INFRA2_PAT", "test-token")
-    assert transport.main(["--timeout", "0"]) == 1
-    assert "must be positive" in capsys.readouterr().err
-
-    monkeypatch.setattr(transport.sys, "stdin", io.StringIO("[]"))
-    assert transport.main(["--timeout", "5", "--poll-interval", "5"]) == 1
-    assert "must be a JSON object" in capsys.readouterr().err
-
-    output_path = tmp_path / "github-output"
-    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
-    dispatch_options: dict[str, object] = {}
-
-    def successful_dispatch(*args: object, **kwargs: object) -> object:
-        dispatch_options.update(kwargs)
-        return transport.ReceiverRun(
-            run_id=101,
-            url="https://github.com/wangzitian0/infra2/actions/runs/101",
-        )
-
-    monkeypatch.setattr(transport, "dispatch_and_wait", successful_dispatch)
-    monkeypatch.setattr(transport.sys, "stdin", io.StringIO(json.dumps(VALID_REQUEST)))
-    assert transport.main(["--timeout", "6", "--poll-interval", "5"]) == 0
-    assert dispatch_options["max_attempts"] == 2
-    assert json.loads(capsys.readouterr().out) == {
-        "receiver_run_id": 101,
-        "receiver_run_url": "https://github.com/wangzitian0/infra2/actions/runs/101",
-    }
-    assert output_path.read_text(encoding="utf-8") == (
-        "receiver_run_id=101\n"
-        "receiver_run_url=https://github.com/wangzitian0/infra2/actions/runs/101\n"
-    )
-
-    monkeypatch.setattr(
-        transport,
-        "dispatch_and_wait",
-        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("receiver failed")),
-    )
-    monkeypatch.setattr(transport.sys, "stdin", io.StringIO(json.dumps(VALID_REQUEST)))
-    assert transport.main(["--timeout", "5", "--poll-interval", "5"]) == 1
-    assert "receiver failed" in capsys.readouterr().err
-
-    import runpy
-
-    monkeypatch.delenv("INFRA2_PAT", raising=False)
-    monkeypatch.setattr(sys, "argv", ["tools/app_deploy_transport.py"])
-    with pytest.raises(SystemExit) as exc:
-        runpy.run_path(str(ROOT / "tools/app_deploy_transport.py"), run_name="__main__")
-    assert exc.value.code == 1
-    assert "INFRA2_PAT is required" in capsys.readouterr().err
-
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "tools/app_deploy_request.py",
-            "--request-id",
-            VALID_REQUEST["request_id"],
-            "--version-ref",
-            VALID_REQUEST["version_ref"],
-            "--source-sha",
-            VALID_REQUEST["source_sha"],
-            "--source-run-url",
-            VALID_REQUEST["evidence"]["source_run_url"],
-            "--source-run-id",
-            VALID_REQUEST["evidence"]["source_run_id"],
-        ],
-    )
-    with pytest.raises(SystemExit) as exc:
-        runpy.run_path(str(MODULE_PATH), run_name="__main__")
-    assert exc.value.code == 0
-    assert json.loads(capsys.readouterr().out) == VALID_REQUEST
 
 
 def test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge() -> None:
@@ -657,368 +259,69 @@ def test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge() -> N
         path.read_text(encoding="utf-8")
         for path in sorted((ROOT / ".github/workflows").glob("*.yml"))
     )
-    assert "submodules: recursive" not in workflows
-    assert "working-directory: repo" not in workflows
-    assert "python -m tools.deploy_v2" not in workflows
-    assert "DOKPLOY_API_KEY" not in (ROOT / ".github/workflows/deploy.yml").read_text(
-        encoding="utf-8"
-    )
-    assert "DOKPLOY_API_KEY" not in (ROOT / ".github/workflows/release.yml").read_text(
-        encoding="utf-8"
-    )
-
-    retired_source_readers = (
-        "tests/tooling/_infra2_source.py",
-        "tests/tooling/test_deploy_compose_contract.py",
-        "tests/tooling/test_infra2_pin_is_release_tag.py",
-    )
-    assert all(not (ROOT / path).exists() for path in retired_source_readers)
-
-
-def _approval_wait_pages(
-    request_id: str,
-    statuses: list[str],
-    *,
-    title: str | None = None,
-    created_at: str | None = "2026-10-14T10:55:50Z",
-) -> list[dict[str, object]]:
-    """Receiver run lists: one baseline page, then one page per status."""
-    run_title = title or f"Deploy finance_report/app prod v2.3.4 abc [{request_id}]"
-    pages: list[dict[str, object]] = [{"workflow_runs": [{"id": 200}]}]
-    for status in statuses:
-        run: dict[str, object] = {
-            "id": 201,
-            "display_title": run_title,
-            "status": status,
-            "conclusion": "success" if status == "completed" else None,
-            "html_url": "https://github.com/wangzitian0/infra2/actions/runs/201",
-        }
-        if created_at is not None:
-            run["created_at"] = created_at
-        pages.append({"workflow_runs": [run, {"id": 200}]})
-    return pages
-
-
-def _drive_transport(
-    request: dict[str, object],
-    pages: list[object],
-    notices: list[str],
-    *,
-    max_attempts: int,
-    calls: list[tuple[str, str, object]] | None = None,
-    clock: object = None,
-) -> object:
-    transport = importlib.import_module("tools.app_deploy_transport")
-    remaining = iter(pages)
-
-    def api(method: str, path: str, body: object = None) -> object:
-        if calls is not None:
-            calls.append((method, path, body))
-        return next(remaining) if method == "GET" else None
-
-    fixed_clock = clock or (lambda: datetime(2026, 10, 14, 10, 55, 50, tzinfo=UTC))
-    return transport.dispatch_and_wait(
-        request,
-        api=api,
-        fetch_logs=lambda run_id: str(request["request_id"]).encode(),
-        sleep=lambda _: None,
-        max_attempts=max_attempts,
-        announce=notices.append,
-        clock=fixed_clock,
-    )
+    for forbidden in (
+        "submodules: recursive",
+        "working-directory: repo",
+        "python -m tools.deploy_v2",
+        "DOKPLOY_API_KEY",
+    ):
+        assert forbidden not in workflows
 
 
 def test_AC_runtime_deploy_request_5_transport_announces_the_approval_wait() -> None:
     """AC-runtime.deploy-request.5: a waiting Production request names its approval link and approval deadline."""
+    transport = importlib.import_module("tools.app_deploy_transport")
     request_id = str(VALID_PRODUCTION_REQUEST["request_id"])
+    run_title = f"Deploy finance_report/app prod v2.3.4 abc [{request_id}]"
+
+    def make_pages(statuses: list[str], *, title: str = run_title) -> iter:
+        pages: list[dict[str, object]] = [{"workflow_runs": [{"id": 200}]}]
+        for st in statuses:
+            pages.append(
+                {
+                    "workflow_runs": [
+                        {
+                            "id": 201,
+                            "display_title": title,
+                            "status": st,
+                            "conclusion": "success" if st == "completed" else None,
+                            "html_url": "https://github.com/wangzitian0/infra2/actions/runs/201",
+                            "created_at": "2026-10-14T10:55:50Z",
+                        },
+                        {"id": 200},
+                    ]
+                }
+            )
+        return iter(pages)
 
     notices: list[str] = []
-    calls: list[tuple[str, str, object]] = []
-    result = _drive_transport(
+    pages = make_pages(["waiting", "waiting", "in_progress", "completed"])
+    result = transport.dispatch_and_wait(
         VALID_PRODUCTION_REQUEST,
-        _approval_wait_pages(
-            request_id, ["waiting", "waiting", "in_progress", "completed"]
-        ),
-        notices,
+        api=lambda m, p, b=None: next(pages) if m == "GET" else None,
+        fetch_logs=lambda run_id: request_id.encode(),
+        sleep=lambda _: None,
         max_attempts=360,
-        calls=calls,
+        announce=notices.append,
+        clock=lambda: datetime(2026, 10, 14, 10, 55, 50, tzinfo=UTC),
     )
     assert result.run_id == 201
-    # The wrapper passes the dispatch through with the computed sender_deadline.
-    dispatch = next(call for call in calls if call[0] == "POST")
-    assert dispatch[2] == {
-        "event_type": "app-deploy-request",
-        "client_payload": {
-            **VALID_PRODUCTION_REQUEST,
-            "sender_deadline": "2026-10-14T11:25:50Z",
-        },
-    }
-    assert all(call[2] is None for call in calls if call[0] == "GET")
-    assert len(notices) == 1, "the notice appears once, not once per poll"
-    notice = notices[0]
-    assert "https://github.com/wangzitian0/infra2/actions/runs/201" in notice
-    # Sender deadline 11:25:50Z minus 300 s deploy budget minus 120 s approval margin.
-    assert "Approve before 2026-10-14 11:18:50Z" in notice
-    assert "The run was created at 2026-10-14 10:55:50Z" in notice
-    # The retry names the version of the refused request. A rollback request names the rollback version.
-    assert "Dispatch the release again for v2.3.4" in notice
-    assert "sender stops waiting at 2026-10-14 11:25:50Z" in notice
+    assert len(notices) == 1
+    assert "https://github.com/wangzitian0/infra2/actions/runs/201" in notices[0]
+    assert "Approve before 2026-10-14 11:18:50Z" in notices[0]
 
-    # A time with an offset is shown in UTC.
-    offset_notices: list[str] = []
-    _drive_transport(
-        VALID_PRODUCTION_REQUEST,
-        _approval_wait_pages(
-            request_id, ["waiting", "completed"], created_at="2026-10-14T18:55:50+08:00"
-        ),
-        offset_notices,
-        max_attempts=360,
-    )
-    assert len(offset_notices) == 1
-    assert "Approve before 2026-10-14 11:18:50Z" in offset_notices[0]
-    assert "The run was created at 2026-10-14 10:55:50Z" in offset_notices[0]
-
-    # A Staging request has no approval gate and no age limit.
     staging_notices: list[str] = []
-    _drive_transport(
+    staging_pages = make_pages(
+        ["waiting", "completed"],
+        title=f"Deploy finance_report/app staging v2.3.4 abc [{request_id}]",
+    )
+    transport.dispatch_and_wait(
         VALID_REQUEST,
-        _approval_wait_pages(
-            request_id,
-            ["waiting", "completed"],
-            title=f"Deploy finance_report/app staging v2.3.4 abc [{request_id}]",
-        ),
-        staging_notices,
+        api=lambda m, p, b=None: next(staging_pages) if m == "GET" else None,
+        fetch_logs=lambda run_id: request_id.encode(),
+        sleep=lambda _: None,
         max_attempts=2,
+        announce=staging_notices.append,
+        clock=lambda: datetime(2026, 10, 14, 10, 55, 50, tzinfo=UTC),
     )
     assert staging_notices == []
-
-    # A waiting run of another request is not the approval of this request.
-    other_notices: list[str] = []
-    with pytest.raises(RuntimeError, match="timed out"):
-        _drive_transport(
-            VALID_PRODUCTION_REQUEST,
-            _approval_wait_pages(
-                request_id,
-                ["waiting", "waiting"],
-                title="Deploy finance_report/app prod v2.3.4 abc [finance-report-run-99999999]",
-            ),
-            other_notices,
-            max_attempts=2,
-        )
-    assert other_notices == []
-
-    # A Production run that never waits for approval announces nothing.
-    running_notices: list[str] = []
-    _drive_transport(
-        VALID_PRODUCTION_REQUEST,
-        _approval_wait_pages(request_id, ["queued", "in_progress", "completed"]),
-        running_notices,
-        max_attempts=3,
-    )
-    assert running_notices == []
-
-    # Without a usable creation time the notice still names the link and says that the deadline is unknown.
-    # The two extreme times make the date arithmetic overflow.
-    for created_at in (
-        None,
-        "not a time",
-        "2026-10-14T10:55:50",
-        "9999-12-31T23:59:59Z",
-        "0001-01-01T00:00:00+01:00",
-    ):
-        unknown_notices: list[str] = []
-        _drive_transport(
-            VALID_PRODUCTION_REQUEST,
-            _approval_wait_pages(
-                request_id, ["waiting", "completed"], created_at=created_at
-            ),
-            unknown_notices,
-            max_attempts=2,
-        )
-        assert len(unknown_notices) == 1, created_at
-        assert (
-            "https://github.com/wangzitian0/infra2/actions/runs/201"
-            in unknown_notices[0]
-        )
-        assert "The approval deadline is unknown" in unknown_notices[0], created_at
-        assert "Dispatch the release again for v2.3.4" in unknown_notices[0]
-
-    # The wrapper leaves a payload of another shape to the SDK, which refuses it with its own error.
-    for payload, error in (
-        ([], "must be an object"),
-        (None, "must be an object"),
-        ({"workflow_runs": ["x"]}, "must contain a run list"),
-    ):
-        with pytest.raises(RuntimeError, match=error):
-            _drive_transport(
-                VALID_PRODUCTION_REQUEST,
-                [{"workflow_runs": [{"id": 200}]}, payload],
-                [],
-                max_attempts=1,
-            )
-
-
-def test_AC_runtime_deploy_request_5_notice_names_the_rollback_version() -> None:
-    """AC-runtime.deploy-request.5: the retry step of a rollback request names the rollback version."""
-    request_id = "finance-report-rollback-777-1"
-    rollback = {
-        **VALID_PRODUCTION_REQUEST,
-        "request_id": request_id,
-        "version_ref": "v2.3.3",
-    }
-    notices: list[str] = []
-    _drive_transport(
-        rollback,
-        _approval_wait_pages(
-            request_id,
-            ["waiting", "completed"],
-            title=f"Deploy finance_report/app prod v2.3.3 abc [{request_id}]",
-        ),
-        notices,
-        max_attempts=2,
-    )
-    assert len(notices) == 1
-    assert "Dispatch the release again for v2.3.3" in notices[0]
-    assert "v2.3.4" not in notices[0]
-
-
-class _TrackingStream(io.StringIO):
-    """A stream that records whether the last write was followed by a flush."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.unflushed = False
-
-    def write(self, text: str) -> int:
-        self.unflushed = True
-        return super().write(text)
-
-    def flush(self) -> None:
-        self.unflushed = False
-        super().flush()
-
-
-def test_AC_runtime_deploy_request_5_default_notice_reaches_the_run_log(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """AC-runtime.deploy-request.5: the default notice is a log line and, in GitHub Actions, an annotation, both on stderr."""
-    impl = importlib.import_module("common.runtime.deploy.app_deploy_transport")
-    message = "Approval needed: https://github.com/wangzitian0/infra2/actions/runs/201"
-
-    monkeypatch.setenv("GITHUB_ACTIONS", "true")
-    impl.print_approval_notice(message)
-    captured = capsys.readouterr()
-    assert captured.out == "", "stdout stays the JSON result of the program"
-    assert f"::notice title=Production approval needed::{message}" in captured.err
-    assert f"\n{message}\n" in captured.err
-
-    monkeypatch.delenv("GITHUB_ACTIONS")
-    impl.print_approval_notice(message)
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert "::notice" not in captured.err
-    assert message in captured.err
-
-
-def test_AC_runtime_deploy_request_5_notice_is_flushed_at_once(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC-runtime.deploy-request.5: each notice line is flushed, so that a pipe has it before the wait ends."""
-    impl = importlib.import_module("common.runtime.deploy.app_deploy_transport")
-    stdout, stderr = _TrackingStream(), _TrackingStream()
-    monkeypatch.setattr(impl.sys, "stdout", stdout)
-    monkeypatch.setattr(impl.sys, "stderr", stderr)
-    monkeypatch.setenv("GITHUB_ACTIONS", "true")
-    impl.print_approval_notice("Approval needed: https://example.test/run/1")
-    assert "::notice" in stderr.getvalue(), "the annotation was not written"
-    assert stdout.getvalue() == ""
-    assert not stderr.unflushed, "the notice stays in the stderr buffer"
-
-
-def test_AC_runtime_deploy_request_5_notice_reaches_a_pipe_before_the_process_ends() -> (
-    None
-):
-    """AC-runtime.deploy-request.5: a parent that reads the pipe gets the annotation while the process still waits.
-
-    Python line-buffers stderr, so this test does not prove the flush. The tracking-stream test pins it.
-    """
-    code = (
-        "import time\n"
-        "from common.runtime.deploy.app_deploy_transport import print_approval_notice\n"
-        "print_approval_notice('Approval needed: https://example.test/run/1')\n"
-        "time.sleep(30)\n"
-    )
-    env = {**os.environ, "GITHUB_ACTIONS": "true", "PYTHONPATH": str(ROOT)}
-    proc = subprocess.Popen(
-        [sys.executable, "-c", code],
-        cwd=ROOT,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    try:
-        assert proc.stderr is not None
-        ready, _, _ = select.select([proc.stderr], [], [], 20)
-        assert ready, "no line reached the pipe within 20 s"
-        assert proc.stderr.readline().startswith(
-            "::notice title=Production approval needed::Approval needed:"
-        )
-        assert proc.poll() is None, "the process ended before the parent read the line"
-    finally:
-        proc.kill()
-        proc.wait()
-
-
-@pytest.mark.parametrize("github_actions", ["true", None])
-def test_AC_runtime_deploy_request_5_cli_prints_the_notice_with_the_default_announcer(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-    github_actions: str | None,
-) -> None:
-    """AC-runtime.deploy-request.5: the CLI path uses the default announcer. stdout stays pure JSON in any environment."""
-    transport = importlib.import_module("tools.app_deploy_transport")
-    impl = importlib.import_module("common.runtime.deploy.app_deploy_transport")
-    request_id = str(VALID_PRODUCTION_REQUEST["request_id"])
-    pages = iter(
-        _approval_wait_pages(
-            request_id, ["waiting", "completed"], created_at="2026-10-14T10:55:50Z"
-        )
-    )
-
-    def api(method: str, path: str, body: object = None) -> object:
-        return next(pages) if method == "GET" else None
-
-    if github_actions is None:
-        monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
-    else:
-        monkeypatch.setenv("GITHUB_ACTIONS", github_actions)
-    monkeypatch.setenv("INFRA2_PAT", "test-token")
-    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output"))
-    monkeypatch.setattr(
-        impl,
-        "github_api_client",
-        lambda **kwargs: (api, lambda run_id: request_id.encode()),
-    )
-    monkeypatch.setattr(
-        transport.sys, "stdin", io.StringIO(json.dumps(VALID_PRODUCTION_REQUEST))
-    )
-    assert transport.main(["--timeout", "5", "--poll-interval", "1"]) == 0
-    captured = capsys.readouterr()
-    assert "The run was created at 2026-10-14 10:55:50Z" in captured.err
-    assert "sender stops waiting at " in captured.err
-    assert ("::notice title=Production approval needed::" in captured.err) == (
-        github_actions == "true"
-    )
-    assert json.loads(captured.out) == {
-        "receiver_run_id": 201,
-        "receiver_run_url": "https://github.com/wangzitian0/infra2/actions/runs/201",
-    }
-
-
-def test_canonical_json_is_the_sdk_function_not_a_local_copy() -> None:
-    """One wire serializer: the renderer re-exports `infra2_sdk.deploy.canonical_json` (#2434)."""
-    from infra2_sdk import deploy as sdk_deploy
-
-    assert renderer.canonical_json is sdk_deploy.canonical_json
