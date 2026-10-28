@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.audit.money.currency import normalize_currency_code
-from src.extraction.base.paged_extraction import build_paged_prompt, merge_paged_extractions
+from src.extraction.base.paged_extraction import build_paged_meta_prompt, build_paged_prompt, merge_paged_extractions
 from src.extraction.base.result import ExtractionMethod, StatementEvidenceType, StatementExtractionResult
 from src.extraction.base.source_balance_check import SourceBalanceVerdict, check_closing_balance_against_text
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
@@ -1323,12 +1323,43 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _BrokerageMixin, _CsvMixin):
         pages_per_call = self.PDF_VISION_MAX_PAGES
         total_pages = getattr(media_batches, "total_pages", None) or sum(len(media) for media in media_batches)
 
-        # Non-first parts carry page 1 as a leading context image: scanned
+        # Stage 1 (#2813): For multi-page PDFs (> 5 pages), extract document-level
+        # metadata in one shot from the deduplicated head + tail pages (first 5 +
+        # last 5 pages) so the model sees both the cover/opening summary and the
+        # final closing summary (including Balance Carried Forward totals).
+        parts: list[dict[str, Any]] = []
+        pop_meta = getattr(media_batches, "pop_head_tail_meta_pages", None)
+        if callable(pop_meta):
+            meta_media, meta_page_numbers = await asyncio.to_thread(pop_meta)
+        else:
+            all_flat = [img for batch in media_batches for img in batch]
+            head_end = min(len(all_flat), pages_per_call)
+            tail_start = max(head_end, len(all_flat) - pages_per_call)
+            meta_media = [*all_flat[:head_end], *all_flat[tail_start:]]
+            meta_page_numbers = [*range(1, head_end + 1), *range(tail_start + 1, len(all_flat) + 1)]
+        meta_prompt = build_paged_meta_prompt(
+            prompt,
+            page_numbers=meta_page_numbers,
+            total_pages=total_pages,
+        )
+        meta_messages = _messages(meta_prompt, meta_media)
+        del meta_media
+        meta_part = await self._extract_json_with_model(
+            messages=meta_messages,
+            model=model,
+            seed_override=seed_override,
+            user_id=user_id,
+        )
+        del meta_messages
+        # Stage 1 is strictly metadata; Stage 2 owns transactions and positions.
+        meta_clean = {k: v for k, v in meta_part.items() if k not in ("transactions", "positions")}
+        parts.append(meta_clean)
+
+        # Stage 2: Non-first parts carry page 1 as a leading context image: scanned
         # statements and some brokers do not repeat table headers on
         # continuation pages, so a bare batch cannot tell which column is
         # withdrawal vs deposit or which currency applies (#1832).
         context_page: dict[str, Any] | None = None
-        parts: list[dict[str, Any]] = []
         for part_index in range(1, part_count + 1):
             media = await _load_batch(part_index - 1)
             if part_index == 1:
@@ -1357,6 +1388,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _BrokerageMixin, _CsvMixin):
             del messages
             parts.append(part)
 
+        # If Stage 1 extracted an authoritative closing_balance from the head+tail
+        # summary pages and no Stage 2 batch overrode it (or if a Stage 2 batch
+        # emitted a stray value), preserve Stage 1's closing_balance when Stage 2's
+        # final batch did not explicitly state one.
         merged = merge_paged_extractions(parts)
         logger.info(
             "Merged paged vision extraction",

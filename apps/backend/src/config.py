@@ -462,7 +462,7 @@ class Settings(BaseSettings):
         json_schema_extra={"group": "AI Provider", "example": "360"},
     )
     ai_json_max_tokens: int = Field(
-        default=8192,
+        default=32768,
         validation_alias="AI_JSON_MAX_TOKENS",
         description="Max tokens for AI JSON completion calls.",
         json_schema_extra={"group": "AI Provider"},

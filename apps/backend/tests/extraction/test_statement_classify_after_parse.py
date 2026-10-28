@@ -1463,3 +1463,119 @@ async def test_AC_extraction_statement_classify_5_the_goldens_have_one_row_to_a_
     for path in (GOLDEN_PATH, REVIEW_PATH_GOLDEN_PATH):
         text_of_golden = path.read_text()
         assert text_of_golden == format_golden(json.loads(text_of_golden)), path.name
+
+
+async def test_AC_extraction_2813_3_propose_batch_pins_deterministic_decode_and_recovers_auto_post(
+    db, test_user, monkeypatch
+):
+    """AC-extraction.2813.3: _propose_batch passes deterministic decode kwargs
+    (temperature=0.0, do_sample=False, max_tokens, thinking) for active indexed
+    policies, and StatementIngestionUseCase.execute re-attempts auto-approval
+    after classify_parsed_statement finishes with CLASSIFIED when a high-confidence
+    statement was held in PARSED solely for economic review (#2813)."""
+    from src.extraction.extension.transaction_classification import (
+        POLICY_VERSIONS,
+        _propose_batch,
+    )
+
+    # Part 1: Verify _propose_batch passes deterministic decode parameters on active indexed policies.
+    captured_kwargs: dict = {}
+
+    def fake_stream_ai_json(**kwargs):
+        captured_kwargs.update(kwargs)
+
+        async def _stream():
+            yield '[{"index": 0, "category": "DINING", "confidence": 92, "reason": "coffee"}]'
+
+        return _stream()
+
+    monkeypatch.setattr("src.llm.stream_ai_json", fake_stream_ai_json)
+    dummy_txn = AtomicTransaction(
+        id=uuid4(),
+        user_id=test_user.id,
+        txn_date=date(2026, 1, 2),
+        amount=Decimal("12.50"),
+        direction=TransactionDirection.OUT,
+        description="Coffee 000",
+        currency="SGD",
+        dedup_hash="a" * 64,
+        source_documents=[],
+    )
+    active_policy = POLICY_VERSIONS[-1]
+    proposals = await _propose_batch([dummy_txn], active_policy, test_user.id, indexed=True)
+    assert len(proposals) == 1
+    assert proposals[0] is not None and proposals[0].category == "DINING"
+    assert captured_kwargs.get("temperature") == 0.0
+    assert captured_kwargs.get("do_sample") is False
+    assert captured_kwargs.get("max_tokens") == settings.ai_json_max_tokens
+    assert "thinking" in captured_kwargs
+
+    # Part 2: High-confidence PDF statement where the first classification pass inside
+    # try_auto_approve_high_confidence_statement has a transient refusal on one row
+    # (leaving statement PARSED with 'Economic review required: intent_missing'), and
+    # the subsequent classify_parsed_statement succeeds -> statement recovers to APPROVED
+    # and auto-posts its journal entries!
+    call_idx = 0
+
+    async def flaky_then_healthy_proposer(transactions, _policy):
+        nonlocal call_idx
+        call_idx += 1
+        results: list[CategoryProposal | None] = []
+        for idx, transaction in enumerate(transactions):
+            if call_idx == 1 and idx == len(transactions) - 1:
+                results.append(None)
+                continue
+            kind = transaction.description.split()[0]
+            category, confidence = ANSWERS[kind]
+            results.append(CategoryProposal(category=category.value, confidence=confidence, reason="fixture"))
+        return results
+
+    monkeypatch.setattr(transaction_classification, "propose_categories", flaky_then_healthy_proposer)
+
+    rows = _rows(3)
+    opening = Decimal("1000.00")
+    closing = _closing(rows, opening)
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(
+        return_value={
+            "institution": "DBS",
+            "account_last4": "1234",
+            "currency": "SGD",
+            "period_start": rows[0]["date"].isoformat(),
+            "period_end": rows[-1]["date"].isoformat(),
+            "opening_balance": str(opening),
+            "closing_balance": str(closing),
+            "transactions": [
+                {
+                    "date": row["date"].isoformat(),
+                    "description": row["description"],
+                    "amount": str(row["amount"]),
+                    "direction": row["direction"].value,
+                    "currency": "SGD",
+                }
+                for row in rows
+            ],
+        }
+    )
+    from io import BytesIO
+
+    from reportlab.pdfgen import canvas
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf)
+    c.drawString(72, 720, f"Opening: {opening} Closing: {closing}")
+    for r in rows:
+        c.drawString(72, 700, f"{r['date'].isoformat()} {r['description']} {r['amount']}")
+    c.showPage()
+    c.save()
+    content = buf.getvalue()
+    file_hash = hashlib.sha256(content).hexdigest()
+    statement_id = await _new_parsing_statement(db, test_user.id, file_hash)
+
+    outcome = await _use_case(db, service).execute(
+        _job(statement_id, test_user.id, "high_conf.pdf", file_hash), content=content
+    )
+
+    assert outcome.status is StatementIngestionStatus.COMPLETED
+    assert await _status_of(_sessions(db), statement_id) is BankStatementStatus.APPROVED
+    assert outcome.auto_posted_count == 3

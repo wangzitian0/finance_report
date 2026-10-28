@@ -26,7 +26,7 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `AI_CHAT_COMPLETIONS_PATH` | `/chat/completions` |  |  | AI Provider | Chat completions path appended to the AI base URL. |
 | `AI_EXTRACT_MAX_ATTEMPTS` | `2` |  |  | AI Provider | Max balance-aware re-extract attempts for bank statements (1 disables retry). |
 | `AI_JSON_DISABLE_THINKING` | `true` |  |  | AI Provider | Request disabled thinking for AI JSON calls; reasoning-only models use their lowest supported effort. |
-| `AI_JSON_MAX_TOKENS` | `8192` |  |  | AI Provider | Max tokens for AI JSON completion calls. |
+| `AI_JSON_MAX_TOKENS` | `32768` |  |  | AI Provider | Max tokens for AI JSON completion calls. |
 | `AI_JSON_SEED` |  |  |  | AI Provider | Fixed decoding seed for reproducible extraction; off by default (only set for seed-supporting models). |
 | `AI_JSON_TIMEOUT_SECONDS` | `360` |  |  | AI Provider | Timeout (seconds) for AI JSON completion calls. |
 | `AI_PROVIDER` | `zai` |  | yes | AI Provider | AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults). |

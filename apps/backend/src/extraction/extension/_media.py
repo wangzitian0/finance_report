@@ -44,6 +44,49 @@ class _PdfVisionBatchSequence(Sequence[list[dict[str, Any]]]):
     def __len__(self) -> int:
         return self.batch_count
 
+    def pop_head_tail_meta_pages(self) -> tuple[list[dict[str, Any]], list[int]]:
+        """Render the deduplicated first ``batch_size`` and last ``batch_size`` pages for Stage 1 metadata (#2813).
+
+        Also caches batch 0 so Stage 2 does not re-render pages 1..batch_size.
+        """
+        head_batch = self.pop_batch(0)
+        self._cached_batch_index = 0
+        self._cached_batch = head_batch
+
+        head_end = min(self.total_pages, self.batch_size)
+        tail_start = max(head_end, self.total_pages - self.batch_size)
+        page_numbers = list(range(1, head_end + 1))
+        meta_pages = list(head_batch)
+
+        if tail_start < self.total_pages:
+            fitz = self._owner._import_fitz()
+            document = self._owner._open_pdf_document(fitz, self._file_content)
+            try:
+                max_total_bytes = getattr(
+                    self._owner,
+                    "PDF_VISION_MAX_TOTAL_IMAGE_BYTES",
+                    _MediaMixin.PDF_VISION_MAX_TOTAL_IMAGE_BYTES,
+                )
+                for page_index in range(tail_start, self.total_pages):
+                    payload, page_bytes = self._owner._render_pdf_page_image_payload(
+                        document,
+                        fitz,
+                        page_index,
+                    )
+                    self.total_image_bytes += page_bytes
+                    if max_total_bytes > 0 and self.total_image_bytes > max_total_bytes:
+                        raise ExtractionError(
+                            f"Rendered PDF vision payloads ({self.total_image_bytes:,} bytes) exceed the "
+                            f"{max_total_bytes:,} bytes in-process memory bound."
+                        )
+                    meta_pages.append(payload)
+                    page_numbers.append(page_index + 1)
+            finally:
+                document.close()
+                fitz.TOOLS.store_shrink(100)
+
+        return meta_pages, page_numbers
+
     def pop_batch(self, batch_index: int) -> list[dict[str, Any]]:
         """Render and return one batch without retaining it on the sequence."""
         if batch_index < 0:
