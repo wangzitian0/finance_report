@@ -239,7 +239,7 @@ def test_all_thirty_flows_have_physical_runner_invocations_in_mapped_cases() -> 
         4: {"create_valuation_snapshot"},
         5: {"create_valuation_snapshot", "post_manual_journal_entry"},
         6: {"approve_statement"},
-        7: {"wait_for_statement_parsed"},
+        7: {"assert_approval_blocked_by_balance_mismatch"},
         8: {"run_stage2_consistency_checks"},
         9: {"reject_statement"},
         10: {"query_ai_advisor"},

@@ -26,6 +26,24 @@ def _import_brokerage_and_update_prices(
     runner: ScenarioBenchmarkRunner, client: httpx.Client
 ) -> None:
     print("  [2/6] Importing Interactive Brokers positions...")
+    brokerage_csv = (
+        "Symbol,Quantity,Market Value,Currency\n"
+        "AAPL,10,2000.00,USD\n"
+        "VT,50,5500.00,USD\n"
+    ).encode("utf-8")
+    brokerage_stmt_id = runner.upload_statement(
+        client,
+        brokerage_csv,
+        "ibkr_positions_20250430.csv",
+        institution="Interactive Brokers",
+    )
+    brokerage_stmt = runner.wait_for_statement_parsed(client, brokerage_stmt_id)
+    if brokerage_stmt.get("status") != "parsed":
+        raise RuntimeError(
+            f"Expected brokerage CSV statement status 'parsed', got {brokerage_stmt.get('status')}"
+        )
+    runner.assert_brokerage_import_requires_snapshot_date(client, brokerage_stmt_id)
+
     brokerage_payload = {
         "institution": "Interactive Brokers",
         "statement": {"period_end": "2025-04-30", "currency": "USD"},
@@ -51,7 +69,15 @@ def _import_brokerage_and_update_prices(
         ],
     }
     import_resp = runner.import_brokerage_positions(
-        client, brokerage_payload, filename="ibkr_positions_20250430.json"
+        client,
+        brokerage_payload,
+        filename="ibkr_positions_20250430.json",
+        source_document_id=brokerage_stmt_id,
+    )
+    runner.reject_statement(
+        client,
+        brokerage_stmt_id,
+        notes="Undated brokerage CSV superseded by dated position snapshot",
     )
     print(
         f"        Imported positions: Created={import_resp.get('created_atomic_positions')}, "
@@ -392,6 +418,7 @@ def execute_case_5(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 "total_equity": str(total_equity),
                 "equation_delta": str(equation_delta),
                 "is_balanced": is_balanced,
+                "flow_19_brokerage_statement_uploaded": True,
                 "flow_20_dividend_net_sgd": "70.00",
                 "flow_22_mortgage_principal_sgd": "2100.00",
                 "flow_27_lineage_lines": len(lineage_lines),

@@ -240,6 +240,46 @@ def _ingest_chained_months(
     return m2_data, m3_data, m4_data
 
 
+def _verify_flow_7_and_24_mismatch_and_diagnostics(
+    runner: ScenarioBenchmarkRunner, client: httpx.Client
+) -> tuple[bool, bool]:
+    print(
+        "  [5b/9] Verifying Flow 7 balance mismatch block and Flow 24 pending statement triage..."
+    )
+    tampered_csv = (
+        "Date,Description,Amount,Currency,Statement Opening Balance,Statement Closing Balance\n"
+        "2025-04-29,TAMPERED DEPOSIT,500.00,SGD,1000.00,9999.00\n"
+    ).encode("utf-8")
+    bad_stmt_id = runner.upload_statement(
+        client,
+        tampered_csv,
+        "tampered_dbs_2025_04_mismatch.csv",
+        institution="DBS Bank",
+    )
+    bad_stmt = runner.wait_for_statement_parsed(client, bad_stmt_id)
+    if bad_stmt.get("balance_validated") is not False:
+        raise RuntimeError(
+            f"Expected balance_validated=False for tampered statement {bad_stmt_id}, got: {bad_stmt}"
+        )
+    runner.assert_approval_blocked_by_balance_mismatch(client, bad_stmt_id)
+    dq_pending = runner.get_data_quality_health(
+        client, as_of_date="2025-04-30", currency="SGD"
+    )
+    if not any(
+        item.get("id") == "review_pending_statements"
+        for item in dq_pending.get("action_items", [])
+    ):
+        raise RuntimeError(
+            f"Expected review_pending_statements in data-quality action_items while statement {bad_stmt_id} is pending, got: {dq_pending}"
+        )
+    runner.reject_statement(
+        client,
+        bad_stmt_id,
+        notes="Tampered closing balance rejected by Flow 7 Stage-1 defense",
+    )
+    return True, True
+
+
 def _verify_q1_checkpoint(
     runner: ScenarioBenchmarkRunner, client: httpx.Client
 ) -> tuple[Decimal, Decimal]:
@@ -365,6 +405,10 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 runner, client, temp_dir, m1_closing, m1_account_id, m1_institution
             )
 
+        flow_7_blocked, flow_24_pending_triage = (
+            _verify_flow_7_and_24_mismatch_and_diagnostics(runner, client)
+        )
+
         q1_assets, q1_net_income = _verify_q1_checkpoint(runner, client)
         (
             total_assets,
@@ -386,9 +430,10 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
         diagnostics = runner.get_balance_sheet_diagnostics(
             client, as_of_date="2025-04-30"
         )
-        assert diagnostics.get("is_balanced") is True, (
-            f"Expected balanced equation diagnostics in Case 1, got {diagnostics}"
-        )
+        assert (
+            diagnostics.get("is_balanced") is True
+            and diagnostics.get("primary_category") == "balanced"
+        ), f"Expected balanced equation diagnostics in Case 1, got {diagnostics}"
 
         # Flow 27: Financial Report to PDF Provenance Drilldown
         lineage = runner.get_account_lineage(
@@ -451,6 +496,8 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
                 "ending_cash": str(end_cash),
                 "equation_delta": str(equation_delta),
                 "is_balanced": is_balanced,
+                "flow_7_mismatch_blocked": flow_7_blocked,
+                "flow_24_pending_triage_verified": flow_24_pending_triage,
                 "flow_24_diagnostics_balanced": True,
                 "flow_27_lineage_lines": len(lineage_lines),
             },
