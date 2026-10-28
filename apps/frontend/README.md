@@ -18,6 +18,7 @@ Open <http://localhost:3000> for local development.
 | Need | Source |
 |---|---|
 | Frontend architecture and UI patterns | [frontend-patterns.md](../../apps/frontend/frontend-patterns.md) |
+| Route inventory and redirects (10 target, 2 shell) | [route-map.json](src/lib/route-map.json) |
 | API client rule | [frontend-patterns.md](../../apps/frontend/frontend-patterns.md) |
 | Environment contract | [environments.md](../../common/runtime/environments.md), [.env.example](../../.env.example) |
 | API endpoints and schemas | [Generated API reference](../../docs/reference/api.md), `/api/docs` |
