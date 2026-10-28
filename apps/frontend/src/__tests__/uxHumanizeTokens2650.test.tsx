@@ -51,7 +51,8 @@ function createWrapper() {
 }
 
 describe("Issue #2650 — humanize internal tokens across Advisor, Package, and Settings", () => {
-  it("humanizes snake_case confidence_tier and source_refs badges in AdvisorBrief", () => {
+  // AC-advisor.fe-remainder-chat.2
+  it("AC21.3.2 humanizes snake_case confidence_tier and source_refs badges in AdvisorBrief", () => {
     const suggestions: AdvisorSuggestion[] = [
       {
         basis: "Two items need review before relying on package readiness.",
@@ -90,7 +91,8 @@ describe("Issue #2650 — humanize internal tokens across Advisor, Package, and 
     expect(within(card1).getByText("Reconciliation")).toBeInTheDocument();
   });
 
-  it("humanizes package_id slug in PackageCover and renders PackageLoadingSkeleton on cold cache in PackagePanel", () => {
+  // AC-reporting.fe-ia-reports.15
+  it("AC22.8.2 humanizes package_id slug in PackageCover and renders PackageLoadingSkeleton on cold cache in PackagePanel", () => {
     const contract: PersonalReportPackageContractResponse = {
       package_id: "personal-financial-report-package",
       version: "1.0.0",
