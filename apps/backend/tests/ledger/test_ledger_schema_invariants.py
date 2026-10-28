@@ -313,8 +313,8 @@ async def test_AC2_14_5_void_transition_requires_reversal_relationship(db: Async
     assert rec_entry.status == JournalEntryStatus.VOID
 
 
-async def test_AC2_14_4_reconcile_posted_usd_entry_uses_row_base_currency(db: AsyncSession, test_user):
-    """AC-ledger.14.4: Reconciling a USD entry validates against journal_entries.base_currency without GUC."""
+async def test_AC_ledger_14_8_reconcile_posted_usd_entry_uses_row_base_currency(db: AsyncSession, test_user):
+    """AC-ledger.14.8: Reconciling a USD entry validates against journal_entries.base_currency without GUC."""
     test_user.base_currency = "USD"
     await db.flush()
     user_id = test_user.id
@@ -357,8 +357,8 @@ async def test_AC2_14_4_reconcile_posted_usd_entry_uses_row_base_currency(db: As
     assert entry.status == JournalEntryStatus.RECONCILED
 
 
-async def test_AC2_14_4_immutability_guard_rejects_base_currency_mutation(db: AsyncSession, test_user):
-    """AC-ledger.14.4: Immutability trigger rejects base_currency mutation on reconcile and void transitions."""
+async def test_AC_ledger_14_9_immutability_guard_rejects_base_currency_mutation(db: AsyncSession, test_user):
+    """AC-ledger.14.9: Immutability trigger rejects base_currency mutation on reconcile and void transitions."""
     user_id = test_user.id
     posted, _d, _c = await _valid_posted_entry(db, user_id, memo="posted with SGD base")
     posted_id = posted.id
