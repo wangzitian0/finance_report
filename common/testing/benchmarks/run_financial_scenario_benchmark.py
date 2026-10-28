@@ -147,10 +147,22 @@ class ScenarioBenchmarkRunner:
             institution = "Operating"
         if filename.endswith(".csv") and not account_id:
             account_name = f"{institution} Cash Account"
-            acc = self.create_account(
-                client, name=account_name, type="ASSET", currency=currency
+            cache: dict[tuple[int, str, str], str] | None = getattr(
+                self, "_client_account_cache", None
             )
-            account_id = acc["id"]
+            if cache is None:
+                cache = {}
+                self._client_account_cache = cache
+            cache_key = (id(client), account_name, currency)
+            cached_account_id = cache.get(cache_key)
+            if cached_account_id is not None:
+                account_id = cached_account_id
+            else:
+                acc = self.create_account(
+                    client, name=account_name, type="ASSET", currency=currency
+                )
+                account_id = acc["id"]
+                cache[cache_key] = str(account_id)
 
         content_type = "text/csv" if filename.endswith(".csv") else "application/pdf"
         files = {"file": (filename, file_bytes, content_type)}

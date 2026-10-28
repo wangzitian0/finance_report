@@ -607,6 +607,72 @@ class TestReconciliationEndpoints:
         )
         assert classifications.scalars().all() == []
 
+    async def test_submit_reviewed_disposition_auto_binds_unmapped_statement_account(
+        self, client: AsyncClient, db, test_user: User
+    ):
+        """Reviewed disposition on an unmapped statement auto-resolves/creates the custody account."""
+        statement = await create_test_statement(
+            db,
+            test_user,
+            account_id=None,
+            institution="Standard Chartered Bank",
+            account_last4="9988",
+            currency="SGD",
+        )
+        expense = Account(
+            user_id=test_user.id,
+            name=f"Expense - Unmapped Statement {uuid4().hex[:8]}",
+            type=AccountType.EXPENSE,
+            currency="SGD",
+        )
+        transaction = create_test_transaction(db, statement, amount=Decimal("88.50"))
+        db.add_all([expense, transaction])
+        await db.commit()
+
+        response = await client.post(
+            f"/reconciliation/unmatched/{transaction.id}/reviewed-disposition",
+            json={
+                "intent": "expense",
+                "counter_account_id": str(expense.id),
+                "category": "DINING",
+                "rationale": "Adjudicating unmatched transaction before Stage 1 confirmation.",
+            },
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        await db.refresh(statement)
+        assert statement.account_id is not None
+        custody_account = await db.get(Account, statement.account_id)
+        assert custody_account is not None
+        assert custody_account.name == "Standard Chartered Bank *9988"
+        assert custody_account.type == AccountType.ASSET
+        assert custody_account.currency == "SGD"
+
+        second_statement = await create_test_statement(
+            db,
+            test_user,
+            account_id=None,
+            institution="Standard Chartered Bank",
+            account_last4="9988",
+            currency="SGD",
+        )
+        second_txn = create_test_transaction(db, second_statement, amount=Decimal("42.00"))
+        db.add(second_txn)
+        await db.commit()
+
+        second_response = await client.post(
+            f"/reconciliation/unmatched/{second_txn.id}/reviewed-disposition",
+            json={
+                "intent": "expense",
+                "counter_account_id": str(expense.id),
+                "category": "DINING",
+                "rationale": "Second unmapped statement reuses existing custody account.",
+            },
+        )
+        assert second_response.status_code == status.HTTP_200_OK
+        await db.refresh(second_statement)
+        assert second_statement.account_id == custody_account.id
+
     async def test_submit_reviewed_disposition_not_found(self, client: AsyncClient):
         """AC-reconciliation.review-queue.10: unknown source transactions cannot be reviewed or posted."""
         response = await client.post(
