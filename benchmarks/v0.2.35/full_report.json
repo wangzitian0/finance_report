@@ -2,7 +2,7 @@
   "suite": "financial_reporting_temporal_scenarios",
   "version_ref": "v0.2.35",
   "app_url": "https://report-staging.zitian.party",
-  "run_at": "2026-10-28T06:43:14.686660+00:00",
+  "run_at": "2026-10-28T06:56:45.821101+00:00",
   "summary": {
     "total": 7,
     "passed": 6,
@@ -15,7 +15,7 @@
       "case_id": "case_1",
       "case_name": "Case 1: Consecutive 4-Month Rollforward & Q1 Articulation",
       "status": "PASS",
-      "duration_seconds": 340.7469024658203,
+      "duration_seconds": 324.5010576248169,
       "details": {
         "m1_closing_balance": "15271.23",
         "m2_opening_balance": "15271.23",
@@ -43,15 +43,15 @@
       "case_id": "case_2",
       "case_name": "Case 2: Multi-PII Household Operations & Category Reconciliation",
       "status": "FAIL",
-      "duration_seconds": 79.29239749908447,
+      "duration_seconds": 44.716126918792725,
       "details": {},
-      "error_message": "Batch approve matches failed: 409 {\"error_id\":\"conflict\",\"detail\":\"Cannot batch approve while there are unresolved consistency checks\",\"request_id\":\"7aa22e22-49c3-422f-89f0-da26e84f8a33\"}"
+      "error_message": "Batch approve matches failed: 409 {\"error_id\":\"conflict\",\"detail\":\"Cannot batch approve while there are unresolved consistency checks\",\"request_id\":\"535d56a5-c038-4faf-9ca4-0d1bf4d06121\"}"
     },
     {
       "case_id": "case_3",
       "case_name": "Case 3: Credit Card Liability & Non-P&L Repayment Clearance",
       "status": "PASS",
-      "duration_seconds": 66.87619972229004,
+      "duration_seconds": 37.266900300979614,
       "details": {
         "card_spend_recorded": "1200.00",
         "bank_repayment": "1200.00",
@@ -75,7 +75,7 @@
       "case_id": "case_4",
       "case_name": "Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet",
       "status": "PASS",
-      "duration_seconds": 85.92842555046082,
+      "duration_seconds": 79.28914141654968,
       "details": {
         "currencies_consolidated": "SGD, USD, HKD",
         "sgd_closing_balance": "12800.00",
@@ -98,7 +98,7 @@
       "case_id": "case_5",
       "case_name": "Case 5: Holistic Multi-Asset & Tax Ecosystem",
       "status": "PASS",
-      "duration_seconds": 65.52085423469543,
+      "duration_seconds": 56.51939296722412,
       "details": {
         "holdings_count": 2,
         "symbols": "AAPL, VT",
@@ -125,7 +125,7 @@
       "case_id": "case_6",
       "case_name": "Case 6: Bank Overdraft & Capital Gain Disposal",
       "status": "PASS",
-      "duration_seconds": 6.039222717285156,
+      "duration_seconds": 13.452718496322632,
       "details": {
         "overdraft_cash": "-1500.00",
         "ending_cash": "11000.00",
@@ -143,7 +143,7 @@
       "case_id": "case_ui",
       "case_name": "Case UI: Browser Zero-Console-Error & DOM Hygiene Oracle",
       "status": "PASS",
-      "duration_seconds": 91.10444617271423,
+      "duration_seconds": 102.76210045814514,
       "details": {
         "status": "PASS",
         "visited_routes": [
