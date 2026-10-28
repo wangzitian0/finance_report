@@ -139,7 +139,7 @@ export default function JournalPage() {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-start gap-2 mb-1">
-                      <span className="font-medium break-words line-clamp-2 min-w-0">{entry.memo || "No description"}</span>
+                      <span className="font-medium break-words line-clamp-2 min-w-0">{entry.memo}</span>
                       <StatusBadge status={entry.status} variants={{ posted: "success", reconciled: "primary", void: "error" }} />
                     </div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">

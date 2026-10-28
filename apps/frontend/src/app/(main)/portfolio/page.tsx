@@ -57,7 +57,7 @@ function AllocationSource({
       <Link
         href={APP_ROUTES.PORTFOLIO_EVIDENCE}
         scroll={false}
-        className="block line-clamp-2 break-words font-medium text-[var(--accent)] hover:text-[var(--foreground)] hover:underline"
+        className="block truncate font-medium text-[var(--accent)] hover:text-[var(--foreground)] hover:underline"
       >
         {line.label}
       </Link>

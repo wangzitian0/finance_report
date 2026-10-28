@@ -152,7 +152,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("statement.pdf")).toBeInTheDocument();
     // The failed statement read, the retried statement read, then the review read.
-    expect(reviewAttempts).toBe(3);
+    await waitFor(() => expect(reviewAttempts).toBe(3));
   });
 
   // AC-extraction.fe-stage1-review.8
