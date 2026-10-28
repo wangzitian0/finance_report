@@ -122,8 +122,8 @@ async def test_AC_audit_39_6_put_changes_only_the_callers_base_currency(
     assert operator_row is None
 
 
-async def test_AC12_39_2_only_boundary_modules_read_settings_base_currency() -> None:
-    """AC-audit.39.2: Only the config/ORM-default boundary reads settings.base_currency (#2552)."""
+async def test_AC_audit_39_7_only_boundary_modules_read_settings_base_currency() -> None:
+    """AC-audit.39.7: Only the config/ORM-default boundary reads settings.base_currency (#2552)."""
     backend_root = Path(__file__).resolve().parents[2]
     src_root = backend_root / "src"
     allowed = {
@@ -148,11 +148,11 @@ async def test_AC12_39_2_only_boundary_modules_read_settings_base_currency() -> 
     assert violators == set(), f"Unexpected settings.base_currency readers: {sorted(violators)}"
 
 
-async def test_AC12_39_2_usd_user_reports_and_revaluation_use_user_effective_base_currency(
+async def test_AC_audit_39_8_usd_user_reports_and_revaluation_use_user_effective_base_currency(
     db: AsyncSession,
     test_user: User,
 ) -> None:
-    """AC-audit.39.2: A USD-base user sees USD reports and USD FX revaluation when settings.base_currency is SGD (#2552)."""
+    """AC-audit.39.8: A USD-base user sees USD reports and USD FX revaluation when settings.base_currency is SGD (#2552)."""
     assert Currency(settings.base_currency).code == "SGD"
     test_user.base_currency = "USD"
     await db.flush()
