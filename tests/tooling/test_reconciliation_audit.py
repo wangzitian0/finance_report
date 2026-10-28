@@ -95,7 +95,9 @@ def test_AC4_10_2_reconciliation_audit_reports_intentional_false_positive() -> N
 def test_AC4_10_3_ci_gates_reconciliation_audit_thresholds() -> None:
     """AC4.10.3: CI gates reconciliation audit target thresholds."""
     workflow = (ROOT / ".github/workflows/ci.yml").read_text()
-    ci_cd = ((ROOT / "common/testing/ci-cd.md").read_text() + (ROOT / "common/runtime/ci-cd.md").read_text())
+    ci_cd = (ROOT / "common/testing/ci-cd.md").read_text() + (
+        ROOT / "common/runtime/ci-cd.md"
+    ).read_text()
     epic = (ROOT / "docs/project/EPIC-004.reconciliation-engine.md").read_text()
 
     assert "tools/reconciliation_audit.py" in workflow
@@ -105,9 +107,7 @@ def test_AC4_10_3_ci_gates_reconciliation_audit_thresholds() -> None:
         "${{ runner.temp }}/reconciliation-audit/reconciliation-audit.json" in workflow
     )
     assert "${{ runner.temp }}/reconciliation-audit/reconciliation-audit.md" in workflow
-    fail_condition = workflow.split('if [ "$registry_status"', 1)[1].split("exit 1", 1)[
-        0
-    ]
+    fail_condition = workflow.split('if [ "$e2e_status"', 1)[1].split("exit 1", 1)[0]
     assert "reconciliation_audit_status" in fail_condition
     assert "non-gating EPIC-004 accuracy evidence" not in ci_cd
     assert "hard gate" in ci_cd

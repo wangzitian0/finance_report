@@ -23,14 +23,13 @@ In practice a new AC almost always belongs to a package now.)
   `roadmap` as an `ACRecord` with id `AC-<pkg>.<group>.<seq>` — `<group>` is an
   entity name or a numeric group (e.g. `AC-ledger.journal-entry.3`,
   `AC-identity.1.2`). **Never** add it to an EPIC table and never mirror it
-  back there — `check_epic_package_dual` fails CI when the same id lives in
-  both sources.
-- **Legacy surface only** (no owning package — a shrinking set) → the old
-  flow: a row in the owning `docs/project/EPIC-*.md` table, materialized via
-  `docs/ac_registry.yaml` (feature) or `docs/infra_registry.yaml` (infra).
+  back there.
+- **Legacy surface only** (no owning package — a shrinking set) → a marked
+  residue row (`<!-- epic-owned: CATEGORY -->`) in the owning
+  `docs/project/EPIC-*.md` table, loaded in memory by
+  `common/meta/extension/generate_ac_registry.py`.
 - **Moving an existing EPIC row into a package is atomic**: delete the EPIC
-  row and add the roadmap entry in the *same PR* (the dual gate enforces
-  exactly this shape).
+  row, update the residue baseline, and add the roadmap entry in the *same PR*.
 
 Either way, still anchor the *work* to an EPIC in `docs/project/` as its
 horizontal goal — the anchor is a goal reference, not the AC's home.
@@ -55,18 +54,17 @@ horizontal goal — the anchor is a goal reference, not the AC's home.
 4. **Doc sync.** Migrated package: its `contract.py`/`readme.md`. Legacy: the
    SSOT doc owning any base term you touched.
 
-## Always regenerate + verify before pushing
+## Always verify before pushing
 
-The registry aggregates **both** sources (package roadmaps + legacy EPIC
-tables) — it drifts if you don't regenerate:
+The AC index is computed in memory by `common/meta/extension/generate_ac_registry.py`
+from package roadmaps and marked EPIC residue:
 
 ```bash
-apps/backend/.venv/bin/python tools/generate_ac_registry.py     # sync the index
 apps/backend/.venv/bin/python tools/check_ac_index.py           # gate: every mandatory AC has a real CI test
-apps/backend/.venv/bin/python tools/check_package_migration_safety.py  # gate: package migration safety (dual-def, tier literal, drafts)
+apps/backend/.venv/bin/python tools/check_package_migration_safety.py  # gate: package migration safety (tier literal, drafts, reconcile)
 ```
 
-The **preflight** skill picks the right gates for your diff — prefer
+The **preflight** gate runner picks the right gates for your diff — prefer
 `apps/backend/.venv/bin/python tools/preflight.py` (an interpreter with the
 project deps) so you can't forget.
 
@@ -74,12 +72,8 @@ project deps) so you can't forget.
 
 - The `test` field / EPIC-table test name must **exactly** match the real
   test — the gates parse both sides.
-- The same AC id in a roadmap AND an EPIC table turns
-  `check_epic_package_dual` red; the fix is deleting the EPIC row, not the
-  roadmap entry (migration never lowers a standard — #1416 Decision A).
-- `docs/ac_registry.yaml` is generated — never hand-edit it; edit the
-  roadmap/EPIC and regenerate. The only hand-authored entries live in
-  `docs/ac_registry_overrides.yaml`.
+- Unmarked EPIC rows fail `tests/tooling/test_epic_residue_ratchet.py`; new ACs
+  belong in the owning package's `contract.py` `roadmap`.
 - A new AC with no executing test fails the gate as "missing" — write the
   test, don't just register the row.
 - Picking an AC number already used by an open PR causes a collision; check
