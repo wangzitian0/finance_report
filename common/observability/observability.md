@@ -334,7 +334,7 @@ finance_report (this repo)
 infra2 platform
     ├── Vault (secrets injection)
     ├── OTLP collector (log shipping)
-    └── MinIO (file storage)
+    └── S3 object store (file storage)
 ```
 
 ### 10.2 Dependency Health Matrix
@@ -343,7 +343,7 @@ infra2 platform
 |------------|----------------------|--------------|
 | **Vault** | infra2: `invoke vault.status` | Container fails to start (no secrets) |
 | **the observability backend Collector** | infra2: `invoke signoz.shared.status` | Silent degradation (logs lost) |
-| **MinIO** | App: `/health` endpoint | 503 returned, uploads fail |
+| **S3 object store** | App: `/health` endpoint | 503 returned, uploads fail |
 | **PostgreSQL** | App: `/health` + Bootloader | Container won't start |
 | **Redis** | App: `/health` endpoint | 503 returned, rate limiting disabled |
 
