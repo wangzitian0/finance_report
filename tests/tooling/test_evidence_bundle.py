@@ -367,6 +367,9 @@ def test_gate_map_matches_ci_workflow_ssot() -> None:
     assert len(gate_map_jobs) >= 15
     assert "verify-sha-image-published" in gate_map_jobs
     assert gate_map_jobs == expected_jobs
+    by_job = {entry["job"]: entry["blocking"] for entry in eb.GATE_MAP}
+    assert by_job["lint"] is True
+    assert by_job["frontend-build"] == "conditional"
 
 
 def test_load_gate_map_sandbox_isolation(tmp_path: Path) -> None:

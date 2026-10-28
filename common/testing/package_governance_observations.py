@@ -543,10 +543,7 @@ def _workflow_job_for_gate(gate_id: str, jobs: dict[str, Any]) -> str:
     candidate = gate_id.removeprefix("ci.")
     if candidate in jobs:
         return candidate
-    hyphenated = candidate.replace("_", "-")
-    if hyphenated in jobs:
-        return hyphenated
-    return hyphenated
+    return candidate.replace("_", "-")
 
 
 def build_observation_bundle(
