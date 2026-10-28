@@ -90,7 +90,7 @@ def load_gate_map(repo_root: Path = REPO_ROOT) -> tuple[dict[str, Any], ...]:
         if job_name not in required_jobs:
             continue
         lane = _CI_LANE_BY_JOB.get(job_name, job_name.split("-", 1)[0])
-        conditional = f'needs.{job_name}.result }}" != "skipped"' in check_script
+        conditional = f'needs.{job_name}.result }}}}" != "skipped"' in check_script
         result.append(
             {
                 "lane": lane,
