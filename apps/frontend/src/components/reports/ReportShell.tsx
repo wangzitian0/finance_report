@@ -57,7 +57,7 @@ export function ReportDimensionBar({
               aria-label={`Period ${preset}`}
               aria-pressed={filters.preset === preset}
               onClick={() => filters.setPreset(preset)}
-              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+              className={`min-h-8 rounded px-2.5 py-1.5 text-xs font-medium transition-colors ${
                 filters.preset === preset
                   ? "bg-[var(--background-card)] text-[var(--foreground)] shadow-sm"
                   : "text-muted hover:text-[var(--foreground)]"
@@ -73,7 +73,7 @@ export function ReportDimensionBar({
             // The default view waits for its coverage start: a custom period copies the shown dates.
             disabled={!filters.ready}
             onClick={() => filters.setCustomPeriod(filters.startDate, filters.endDate)}
-            className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+            className={`min-h-8 rounded px-2.5 py-1.5 text-xs font-medium transition-colors ${
               filters.preset === null
                 ? "bg-[var(--background-card)] text-[var(--foreground)] shadow-sm"
                 : "text-muted hover:text-[var(--foreground)]"
@@ -176,7 +176,7 @@ export function ReportDimensionBar({
           <button
             type="button"
             onClick={() => filters.goToPeriodEnd(filters.latestStatementEnd!)}
-            className="rounded bg-[var(--warning)]/15 px-2.5 py-1 font-semibold text-[var(--warning)] hover:bg-[var(--warning)]/25"
+            className="min-h-8 inline-flex items-center rounded bg-[var(--warning)]/15 px-2.5 py-1 font-semibold text-[var(--warning)] hover:bg-[var(--warning)]/25"
           >
             {`Jump to ${formatDateDisplay(filters.latestStatementEnd)}`}
           </button>
@@ -613,7 +613,7 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
               <Link
                 href={reportsHref(statement.tab, filters.dimensionQuery)}
                 aria-label={`Open the ${statement.label.toLowerCase()} report`}
-                className="text-xs text-[var(--accent)] hover:underline"
+                className="min-h-8 -my-1 inline-flex items-center px-1.5 text-xs text-[var(--accent)] hover:underline"
               >
                 Open ↗
               </Link>

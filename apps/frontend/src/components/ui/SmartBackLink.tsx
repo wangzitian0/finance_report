@@ -24,7 +24,7 @@ export function BackLink({ href = "/upload", children }: { href?: string; childr
       : children;
 
   return (
-    <Link href={targetHref} className="inline-flex items-center gap-1 text-sm text-muted hover:text-[var(--foreground)]">
+    <Link href={targetHref} className="min-h-8 inline-flex items-center gap-1 py-1 text-sm text-muted hover:text-[var(--foreground)]">
       <ChevronLeft className="h-4 w-4" aria-hidden="true" />
       {label}
     </Link>

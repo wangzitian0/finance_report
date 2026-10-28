@@ -133,16 +133,16 @@ export default function JournalPage() {
             return (
               <div
                 key={entry.id}
-                className="px-6 py-4 hover:bg-[var(--background-muted)]/50 transition-colors cursor-pointer"
+                className="px-4 sm:px-6 py-4 hover:bg-[var(--background-muted)]/50 transition-colors cursor-pointer"
                 onClick={() => setSelectedEntry(entry)}
               >
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium truncate">{entry.memo}</span>
+                    <div className="flex flex-wrap items-start gap-2 mb-1">
+                      <span className="font-medium break-words line-clamp-2 min-w-0">{entry.memo}</span>
                       <StatusBadge status={entry.status} variants={{ posted: "success", reconciled: "primary", void: "error" }} />
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-muted">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                       <span>{formatDateDisplay(entry.entry_date)}</span>
                       <span>•</span>
                       <span>{entry.lines.length} lines</span>
@@ -156,9 +156,9 @@ export default function JournalPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <div className="font-semibold">{formatCurrencyLocale(debits, entry.lines[0]?.currency || "SGD")}</div>
+                  <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
+                    <div className="text-left sm:text-right">
+                      <div className="font-semibold tabular-nums whitespace-nowrap">{formatCurrencyLocale(debits, entry.lines[0]?.currency || "SGD")}</div>
                       <div className="text-xs text-muted">Total</div>
                     </div>
                     {entry.status === "draft" && (

@@ -145,6 +145,7 @@ export default function StatementDetailPage() {
     setConflictsResolved(false);
     setReviewingTxn(null);
     setApprovedEntries(null);
+    setEnvelopeDraft({ accountId: "", currency: "", periodStart: "", periodEnd: "", openingBalance: "", closingBalance: "", rationale: "" });
     void fetchStatement();
     return () => {
       mountedRef.current = false;
@@ -196,6 +197,18 @@ export default function StatementDetailPage() {
   const sourceEnvelopeReviewable = Boolean(review?.source_envelope_reviewable);
   const requiresEnvelopeConfirmation = isParsed && sourceEnvelopeReviewable && !review?.reviewed_envelope;
   const requiresOtherSourceReview = isParsed && !sourceEnvelopeReviewable && sourceMissingFacts.length > 0 && !review?.reviewed_envelope;
+  const hasUnclassifiedPendingTxns =
+    isParsed &&
+    !requiresEnvelopeConfirmation &&
+    !requiresOtherSourceReview &&
+    (statement?.transactions ?? []).some(
+      (t) =>
+        (t.status ?? "pending") === "pending" &&
+        !t.category &&
+        !t.proposed_category &&
+        !t.confidence &&
+        !t.confidence_tier,
+    );
 
   const { data: custodyAccountsData } = useQuery({
     queryKey: ["statement-review-custody-accounts", statementId],
@@ -295,11 +308,25 @@ export default function StatementDetailPage() {
 
   useEffect(() => {
     if (!review || !requiresEnvelopeConfirmation) return;
-    setEnvelopeDraft({
-      accountId: review.account_id || "", currency: review.currency || "", periodStart: review.period_start || "", periodEnd: review.period_end || "",
-      openingBalance: review.opening_balance?.toString() || "", closingBalance: review.closing_balance?.toString() || "", rationale: "",
-    });
-  }, [review, requiresEnvelopeConfirmation]);
+    const targetCurrency = (review.currency || statement?.currency || "").toUpperCase();
+    const matchingAccounts = targetCurrency
+      ? (custodyAccountsData?.items ?? []).filter((a) => a.currency?.toUpperCase() === targetCurrency)
+      : [];
+    const institution = statement?.institution?.trim().toLowerCase() ?? "";
+    const autoAccount = !review.account_id
+      ? (institution ? matchingAccounts.find((a) => a.name.toLowerCase().includes(institution)) : undefined) ??
+        (matchingAccounts.length === 1 ? matchingAccounts[0] : undefined)
+      : undefined;
+    setEnvelopeDraft((current) => ({
+      accountId: review.account_id || current.accountId || autoAccount?.id || "",
+      currency: review.currency || current.currency || "",
+      periodStart: review.period_start || current.periodStart || "",
+      periodEnd: review.period_end || current.periodEnd || "",
+      openingBalance: review.opening_balance?.toString() || current.openingBalance || "",
+      closingBalance: review.closing_balance?.toString() || current.closingBalance || "",
+      rationale: current.rationale || "",
+    }));
+  }, [review, requiresEnvelopeConfirmation, custodyAccountsData?.items, statement?.currency, statement?.institution]);
 
   const handleRetry = async () => {
     setRetryLoading(true);
@@ -388,7 +415,7 @@ export default function StatementDetailPage() {
   return (
     <div className="p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <Link href={returnHref} className="text-sm text-muted hover:text-[var(--foreground)] flex items-center gap-1">← {returnLabel}</Link>
+        <Link href={returnHref} className="min-h-8 inline-flex items-center gap-1 py-1 text-sm text-muted hover:text-[var(--foreground)]">← {returnLabel}</Link>
         {isParsed && pendingStatements.length > 0 && (
           <div className="flex items-center gap-2">
             <button onClick={() => prevId && router.push(statementHref(prevId))} disabled={!prevId} className="btn-ghost btn-sm disabled:opacity-30" title="Previous pending statement">← Prev</button>
@@ -416,7 +443,7 @@ export default function StatementDetailPage() {
           <ReviewActionBar onApprove={() => setApproveDialogOpen(true)} onReject={() => setRejectDialogOpen(true)} actionLoading={approveMutation.isPending || rejectMutation.isPending} balanceValid={balanceValid} statementStatus={statement.status} approvalBlockedReason={approvalBlockedReason} onResolveConflicts={hasUnresolvedConflicts ? () => setConflictDialogOpen(true) : undefined} onReparse={handleRetry} reparsePending={retryLoading} />
         </div>
       )}
-      {(economicReviewRequired || statement.validation_error?.startsWith("Economic review required:")) && isParsed && (
+      {(economicReviewRequired || hasUnclassifiedPendingTxns || statement.validation_error?.startsWith("Economic review required:")) && isParsed && (
         <section className="mb-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-4">
           <h2 className="font-semibold text-[var(--foreground)]">Transaction classifications need review</h2>
           <p className="mt-1 text-sm text-muted">These transactions need your confirmation before they can be posted into the journal. Auto-fill accepts the AI suggestion for each row and uses a general category for rows without one. A transfer or a card repayment is posted to the Processing account until the other side of the movement arrives. A loan payment goes to Loans Payable and a trade to Investments. A row in a foreign currency stays here for you. You can also review every row manually.</p>
@@ -462,7 +489,7 @@ export default function StatementDetailPage() {
       </div>
       <LowConfidenceReviewModal isOpen={reviewingTxn !== null} onClose={() => setReviewingTxn(null)} transaction={reviewingTxn} currency={reviewingTxn?.currency || statement.currency || "SGD"} onSuccess={() => { void refreshAfterReview(); }} />
       <ConflictResolutionDialog isOpen={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} duplicateCandidates={duplicateCandidates} transferPairCandidates={transferPairCandidates} onResolve={(action) => resolveConflictsMutation.mutate(action)} isResolving={resolveConflictsMutation.isPending} />
-      <ConfirmDialog isOpen={approveDialogOpen} onCancel={() => !approveMutation.isPending && setApproveDialogOpen(false)} onConfirm={() => approveMutation.mutate()} title="Approve Statement" message={review?.account_id ? "This will approve the statement with balance validation. Proceed?" : "This will create and map an asset account for this statement, then approve it with balance validation. Proceed?"} confirmLabel="Approve" loading={approveMutation.isPending} />
+      <ConfirmDialog isOpen={approveDialogOpen} onCancel={() => !approveMutation.isPending && setApproveDialogOpen(false)} onConfirm={() => approveMutation.mutate(hasUnclassifiedPendingTxns ? { autoFill: true } : undefined)} title="Approve Statement" message={review?.account_id ? "This will approve the statement with balance validation. Proceed?" : "This will create and map an asset account for this statement, then approve it with balance validation. Proceed?"} confirmLabel="Approve" loading={approveMutation.isPending} />
       <ConfirmDialog isOpen={rejectDialogOpen} onCancel={() => !rejectMutation.isPending && setRejectDialogOpen(false)} onConfirm={(reason) => rejectMutation.mutate(reason)} title="Reject Statement" message="Parsed transactions can't be edited. To fix a mis-parse, reject this statement and re-parse it (Retry Parse) on this page. This will mark the statement as rejected." confirmLabel="Reject" confirmVariant="danger" input={{ label: "Rejection Reason (optional)", placeholder: "Enter reason for rejection..." }} loading={rejectMutation.isPending} />
       <ConfirmDialog isOpen={deleteDialogOpen} title="Delete Statement" message="Are you sure you want to delete this statement? This action cannot be undone and will remove all associated parsed transactions and errors." confirmLabel="Delete" confirmVariant="danger" loading={deleteLoading} onConfirm={handleDeleteStatement} onCancel={() => setDeleteDialogOpen(false)} />
     </div>

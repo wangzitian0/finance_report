@@ -241,11 +241,11 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
               </button>
             )}
             {isManualValuation ? (
-              <Link href="/portfolio?panel=evidence" className="truncate text-left hover:text-[var(--accent)] hover:underline">
+              <Link href="/portfolio?panel=evidence" className="line-clamp-2 break-words text-left hover:text-[var(--accent)] hover:underline">
                 {displayName}
               </Link>
             ) : (
-              <button type="button" onClick={openDrill} className="truncate text-left hover:text-[var(--accent)] hover:underline">
+              <button type="button" onClick={openDrill} className="line-clamp-2 break-words text-left hover:text-[var(--accent)] hover:underline">
                 {displayName}
               </button>
             )}
@@ -378,7 +378,7 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
         </div>
       </details>
 
-      <div className="grid gap-4 lg:grid-cols-3 mb-6">
+      <div className="grid gap-4 xl:grid-cols-3 mb-6">
         <div className="card p-5 min-w-0 overflow-hidden" id="assets">
           <h2 className="font-semibold mb-3">Assets</h2>
           <div role="tree" aria-label="Balance Sheet - Assets" className="space-y-1 min-w-0">

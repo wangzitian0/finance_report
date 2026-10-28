@@ -339,7 +339,7 @@ export function PackageInputManifestSection({
       </div>
       <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
         <div className="rounded border border-[var(--border)] p-3"><dt className="text-xs text-muted">Authoritative inputs</dt><dd className="mt-1 font-semibold">{coverage.authoritative_input_count}</dd></div>
-        <div className="rounded border border-[var(--border)] p-3"><dt className="text-xs text-muted">Unproven inputs</dt><dd className="mt-1 font-semibold">{coverage.unproven_input_count}</dd></div>
+        <div className="rounded border border-[var(--border)] p-3"><dt className="text-xs text-muted">Unconfirmed items</dt><dd className="mt-1 font-semibold">{coverage.unproven_input_count}</dd></div>
       </dl>
       <details
         className="mt-4 rounded border border-[var(--border)] p-3 text-sm print:hidden"

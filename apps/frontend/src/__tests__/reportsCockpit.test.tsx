@@ -235,7 +235,7 @@ describe("Reports page (#2621 LC)", () => {
     const cockpit = await screen.findByRole("region", { name: "Report readiness cockpit" })
     await waitFor(() => expect(cockpit).toHaveTextContent("Blocked"))
     expect(cockpit).toHaveTextContent("2 blockers")
-    expect(cockpit).toHaveTextContent("2 unproven inputs")
+    expect(cockpit).toHaveTextContent("2 unconfirmed items")
     expect(cockpit).toHaveTextContent("Pending source review")
     expect(screen.getByRole("link", { name: "Resolve report blockers" })).toHaveAttribute("href", "/journal")
 
@@ -300,7 +300,7 @@ describe("Reports page (#2621 LC)", () => {
     render(<ReportsPage />)
 
     const cockpit = await screen.findByRole("region", { name: "Report readiness cockpit" })
-    await waitFor(() => expect(cockpit).toHaveTextContent("0 unproven inputs"))
+    await waitFor(() => expect(cockpit).toHaveTextContent("0 unconfirmed items"))
     expect(cockpit).toHaveTextContent("All inputs in this package document have current authority decisions.")
     expect(cockpit).toHaveTextContent("No blockers reported.")
   })

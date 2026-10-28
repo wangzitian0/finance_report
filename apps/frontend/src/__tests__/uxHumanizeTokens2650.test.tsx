@@ -279,6 +279,7 @@ describe("Issue #2650 — humanize internal tokens across Advisor, Package, and 
       "Workflow has 2 action-required events.",
     );
     expect(humanizeWorkflowText("Pending statement(s) need attention")).toBe("Pending statements need attention");
+    expect(humanizeWorkflowText("Unproven package input: 3")).toBe("Unconfirmed statement entries: 3");
 
     render(
       <AdvisorBrief
@@ -300,7 +301,7 @@ describe("Issue #2650 — humanize internal tokens across Advisor, Package, and 
 
   it("renders the 7 everyday screens (Home, Upload, Statement, Audit, Reports, Portfolio, Chat) with 0 banned jargon matches", async () => {
     const bannedJargon =
-      /\b(invariant|invariants|rollforward|source envelope|reviewed disposition|economic intent|held-out|leakage)\b|\b[a-z]+_[a-z_]+\b|\(s\)/i;
+      /\b(invariant|invariants|rollforward|source envelope|reviewed disposition|economic intent|held-out|leakage|authority decisions|unproven inputs|unproven package input|scene bindings)\b|\b[a-z]+_[a-z_]+\b|\(s\)/i;
 
     const extractVisibleText = (container: HTMLElement): string => {
       const clone = container.cloneNode(true) as HTMLElement;

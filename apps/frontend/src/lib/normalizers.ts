@@ -46,6 +46,10 @@ export function toTransactionViewModel(
 ): BankStatementTransactionViewModel {
   const isAtomic = "created_at" in raw;
   const rawConfidence = "confidence_tier" in raw ? raw.confidence_tier : undefined;
+  const rawLegacyConfidence =
+    "confidence" in raw
+      ? (raw as { confidence?: "high" | "medium" | "low" }).confidence
+      : undefined;
   const rawConfidenceScore =
     "confidence_score" in raw ? raw.confidence_score : undefined;
   const rawProposedCategory =
@@ -80,7 +84,7 @@ export function toTransactionViewModel(
     // state, so the view model does not invent one (#2647: an approved statement showed "pending").
     status: overrides?.status,
     // A row with no tier has no confidence: it is not rated, not low (#2647).
-    confidence: overrides?.confidence ?? derivedConfidence,
+    confidence: overrides?.confidence ?? derivedConfidence ?? rawLegacyConfidence,
     confidence_tier:
       overrides?.confidence_tier ??
       (rawConfidence as "TRUSTED" | "HIGH" | "MEDIUM" | "LOW" | null | undefined) ??

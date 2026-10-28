@@ -435,7 +435,7 @@ export function NeedsConfirmationQueue() {
               <Link key={item.id} href={withAttentionSource(item.href)} className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-[var(--background-muted)]/50">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium truncate">{item.title}</span>
+                    <span className="font-medium line-clamp-2 break-words">{item.title}</span>
                     {KIND_TERM[item.kind] && <InfoHint term={KIND_TERM[item.kind] as GlossaryTerm} label={item.detail} />}
                   </div>
                   <p className="text-xs text-muted mt-0.5">{item.detail}</p>

@@ -136,6 +136,7 @@ describe("Issue #2762 responsive overflow and negative currency wrapping", () =>
     expect(amountBtn.parentElement).toHaveClass("shrink-0")
 
     const labelBtn = screen.getByRole("button", { name: "Margin Cash Account With Very Long Label" })
+    expect(labelBtn).toHaveClass("line-clamp-2", "break-words")
     expect(labelBtn.parentElement).toHaveClass("min-w-0", "flex-1")
 
     const assetsCard = document.getElementById("assets")!
