@@ -21,7 +21,7 @@ import { compareAmounts, formatCurrencyLocale, subtractAmounts, toDecimal, type 
 import { formatPercentFromPercentValue, percentNumberFromParts } from "@/lib/audit/ratio/format";
 import { formatDateDisplay } from "@/lib/date";
 import { reportAccountDisplayName } from "@/lib/statusLabels";
-import type { FxWarning } from "@/lib/types";
+import type { FxWarning, ReportLine } from "@/lib/types";
 
 /**
  * The dimension bar of Home and of every `/reports` tab (#2621 LC, #2548 P1).
@@ -448,6 +448,7 @@ interface DrillRow {
   accountId: string;
   name: string;
   amount: string;
+  sourceType?: ReportLine["allocation_source_type"];
 }
 
 function largestRows(rows: DrillRow[]): DrillRow[] {
@@ -525,6 +526,7 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
         accountId: line.account_id,
         name: reportAccountDisplayName(line.name),
         amount: String(line.amount),
+        sourceType: line.allocation_source_type ?? (line.provenance === "manual" ? "manual_valuation" : undefined),
       })),
     ),
     income: largestRows(
@@ -555,7 +557,8 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
   const hasAnyRows =
     rowsByStatement.balance.length > 0 || rowsByStatement.income.length > 0 || rowsByStatement.cash.length > 0;
 
-  const openLineage = (row: DrillRow) =>
+  const openLineage = (row: DrillRow) => {
+    if (row.sourceType === "manual_valuation") return;
     setLineageTarget({
       accountId: row.accountId,
       accountName: row.name,
@@ -564,6 +567,7 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
       startDate: active === "balance" ? undefined : filters.startDate,
       currency: activeCurrency,
     });
+  };
 
   return (
     <section aria-label="Three-statement cockpit" className="space-y-3">
@@ -644,15 +648,26 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
           <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
             {activeRows.map((row) => (
               <li key={row.key}>
-                <button
-                  type="button"
-                  aria-label={`View source transactions for ${row.name}`}
-                  onClick={() => openLineage(row)}
-                  className="flex w-full items-center justify-between gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-left text-xs hover:border-[var(--accent)]"
-                >
-                  <span className="truncate">{row.name}</span>
-                  <span className="shrink-0 font-medium tabular-nums">{money(row.amount, activeCurrency)} ›</span>
-                </button>
+                {row.sourceType === "manual_valuation" ? (
+                  <Link
+                    href="/portfolio?panel=evidence"
+                    aria-label={`View valuation evidence for ${row.name}`}
+                    className="flex w-full items-center justify-between gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-left text-xs hover:border-[var(--accent)]"
+                  >
+                    <span className="truncate">{row.name}</span>
+                    <span className="shrink-0 font-medium tabular-nums">{money(row.amount, activeCurrency)} ›</span>
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label={`View source transactions for ${row.name}`}
+                    onClick={() => openLineage(row)}
+                    className="flex w-full items-center justify-between gap-2 rounded-md border border-[var(--border)] px-3 py-2 text-left text-xs hover:border-[var(--accent)]"
+                  >
+                    <span className="truncate">{row.name}</span>
+                    <span className="shrink-0 font-medium tabular-nums">{money(row.amount, activeCurrency)} ›</span>
+                  </button>
+                )}
               </li>
             ))}
           </ul>

@@ -9,7 +9,11 @@ import { balanceSheetVector } from "./fixtures/apiVectors"
 import { setTestUrl } from "./helpers/nextNavigation"
 
 vi.mock("next/link", () => ({
-  default: ({ href, children }: { href: string; children: ReactNode }) => <a href={href}>{children}</a>,
+  default: ({ href, children, ...props }: { href: string; children: ReactNode; [key: string]: unknown }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
 }))
 
 vi.mock("next/navigation", async () => (await import("./helpers/nextNavigation")).nextNavigationMock)
@@ -297,6 +301,81 @@ describe("BalanceSheetPage", () => {
     await waitFor(() => expect(screen.getByText("Opening deposit")).toBeInTheDocument())
     fireEvent.click(screen.getByRole("button", { name: "Close panel" }))
     await waitFor(() => expect(screen.queryByText("Opening deposit")).toBeNull())
+  })
+
+  // AC-reporting.2654.2
+  it("AC-reporting.2654.2 routes manual valuation lines to /portfolio?panel=evidence without calling account-lineage", async () => {
+    mockedApiFetch.mockImplementation((operationId: string) => {
+      if (operationId === "account_lineage_reports_account_lineage_get") {
+        return Promise.resolve({
+          account_id: "a-root",
+          account_name: "Cash",
+          account_type: "ASSET",
+          currency: "SGD",
+          as_of_date: "2026-02-01",
+          start_date: null,
+          total: "1000.00",
+          lines: [],
+        })
+      }
+      return Promise.resolve({
+        as_of_date: "2026-02-01",
+        currency: "SGD",
+        assets: [
+          {
+            account_id: "a-root",
+            name: "Cash",
+            type: "ASSET",
+            parent_id: null,
+            amount: "1000.00",
+            provenance: "manual",
+            allocation_source_type: "ledger_account",
+          },
+          {
+            account_id: "val-comp-1",
+            name: "Valuation: CPF Ordinary Account (cpf balance)",
+            type: "ASSET",
+            parent_id: null,
+            amount: "42000.00",
+            provenance: "manual",
+            allocation_source_type: "manual_valuation",
+          },
+        ],
+        liabilities: [],
+        equity: [],
+        total_assets: "43000.00",
+        total_liabilities: "0.00",
+        total_equity: "43000.00",
+        equation_delta: "0.00",
+        is_balanced: true,
+      })
+    })
+
+    render(<BalanceSheetPage />)
+
+    const nameLink = await screen.findByRole("link", { name: "Valuation: CPF Ordinary Account (cpf balance)" })
+    expect(nameLink).toHaveAttribute("href", "/portfolio?panel=evidence")
+    const amountLink = screen.getByRole("link", {
+      name: "View valuation evidence for Valuation: CPF Ordinary Account (cpf balance)",
+    })
+    expect(amountLink).toHaveAttribute("href", "/portfolio?panel=evidence")
+
+    fireEvent.click(nameLink)
+    fireEvent.click(amountLink)
+
+    const lineageCalls = mockedApiFetch.mock.calls.filter(
+      ([operationId]) => operationId === "account_lineage_reports_account_lineage_get",
+    )
+    expect(lineageCalls).toEqual([])
+
+    // A ledger account with manual provenance still opens AccountLineageDrawer.
+    fireEvent.click(screen.getByRole("button", { name: "Cash" }))
+    await waitFor(() =>
+      expect(mockedApiFetch).toHaveBeenCalledWith(
+        "account_lineage_reports_account_lineage_get",
+        expect.objectContaining({ query: expect.objectContaining({ account_id: "a-root" }) }),
+      ),
+    )
   })
 
   // AC-reporting.2728.2

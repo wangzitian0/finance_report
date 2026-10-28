@@ -6030,6 +6030,11 @@ export interface components {
              * Format: uuid
              */
             account_id: string;
+            /**
+             * Allocation Source Type
+             * @description Origin of a report line (ledger account, manual valuation, portfolio market adjustment, portfolio cost basis, or internal transfer fee).
+             */
+            allocation_source_type?: ("ledger_account" | "manual_valuation" | "portfolio_market_adjustment" | "portfolio_cost_basis" | "internal_transfer_fee") | null;
             /** Amount */
             amount: string;
             /** @description Canonical framework line identity when this is a consolidated report line. */
