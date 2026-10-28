@@ -26,6 +26,7 @@ import {
 import { Badge, EmptyState, LoadingState, type BadgeVariant } from "@/components/ui";
 import { InfoHint, type GlossaryTerm } from "@/components/ui/InfoHint";
 import { BackLink } from "@/components/ui/SmartBackLink";
+import { humanizeWorkflowText } from "@/components/workflow/workflowFormat";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useAttentionQueue } from "@/hooks/useAttentionQueue";
 import { getGradeColor, getGradeLabel } from "@/hooks/useDataQualityHealth";
@@ -108,15 +109,15 @@ export function TrustScoreHero({ score, grade, asOfDate, currency, isRefreshing,
                 {gradeLabel}
               </span>
             </div>
-            <h2 className="text-xl font-bold">Data Quality & Invariant Trust</h2>
+            <h2 className="text-xl font-bold">Data Quality & Book Health</h2>
             <p className="max-w-md text-sm text-muted">
               {held
                 ? heldReason
                 : score >= 95
-                ? "All mathematical invariants verified: Assets = Liabilities + Equity with continuous rollforward."
+                ? "All book checks verified: Assets = Liabilities + Equity with continuous monthly statements."
                 : score >= 80
-                  ? "Core accounting equation balanced; complete temporal timeline gaps to achieve full audit readiness."
-                  : "Accounting discrepancies detected. Follow the action plan below to restore data invariants."}
+                  ? "Core accounting equation balanced; fill monthly statement gaps to complete audit readiness."
+                  : "Accounting discrepancies detected. Follow the action plan below to fix book checks."}
             </p>
           </div>
         </div>
@@ -178,9 +179,9 @@ export function ActionChecklist({
           <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
         </span>
         <div>
-          <p className="text-base font-bold text-[var(--success)]">100% Invariant Perfection · Audit Ready</p>
+          <p className="text-base font-bold text-[var(--success)]">All Book Checks Pass · Audit Ready</p>
           <p className="mt-0.5 text-sm text-muted">
-            All accounting balance proofs, temporal rollforward continuity, and reconciliation purity checks are fully satisfied. No remedial actions required.
+            All accounting balance checks, monthly statement continuity, and reconciliation checks pass. No actions required.
           </p>
         </div>
       </div>
@@ -236,7 +237,7 @@ export function ActionChecklist({
                     <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-semibold ${isP0 ? "bg-[var(--error)] text-white" : isP1 ? "bg-[var(--warning)] text-white" : "bg-[var(--background-muted)] text-muted"}`}>
                       {item.priority}
                     </span>
-                    <span className="font-semibold text-sm">{item.title}</span>
+                    <span className="font-semibold text-sm">{humanizeWorkflowText(item.title)}</span>
                     {/* An action that does not change the score shows no boost (#2645). */}
                     {item.score_boost > 0 && (
                       <span className="rounded-full bg-[color-mix(in_srgb,var(--success)_15%,transparent)] px-2 py-0.5 text-[11px] font-bold text-[var(--success)]">
@@ -244,7 +245,7 @@ export function ActionChecklist({
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted max-w-xl">{item.description}</p>
+                  <p className="text-xs text-muted max-w-xl">{humanizeWorkflowText(item.description)}</p>
                 </div>
               </div>
 
@@ -272,15 +273,15 @@ export function InvariantChecksGrid({
 }) {
   const cards = [
     { invariant: equationInvariant, icon: Scale, fallbackName: "Accounting Equation Balance", proofFormula: "Assets = Liabilities + Equity (Δ = 0.00)" },
-    { invariant: temporalInvariant, icon: History, fallbackName: "Temporal Continuity & Rollforward", proofFormula: "Consecutive Monthly Statements (Mn+1 ≡ Mn)" },
-    { invariant: reconciliationInvariant, icon: CreditCard, fallbackName: "Reconciliation & Debt Clearance Purity", proofFormula: "Liability Settlement Purity (0 P&L Leakage)" },
+    { invariant: temporalInvariant, icon: History, fallbackName: "Monthly Statement Continuity", proofFormula: "Consecutive Monthly Statements (Mn+1 ≡ Mn)" },
+    { invariant: reconciliationInvariant, icon: CreditCard, fallbackName: "Reconciliation & Debt Clearance", proofFormula: "Liability Settlement Check (0 Unmatched Transfers)" },
     { invariant: lineageInvariant, icon: Link2, fallbackName: "Evidence Lineage & Traceability Anchors", proofFormula: "Immutable Source Document Anchoring" },
   ];
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold">Invariant Proofs & Mathematical Health</h3>
+        <h3 className="text-base font-semibold">Book Checks & Balance Health</h3>
         <span className="text-xs text-muted">Continuous real-time verification</span>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -300,16 +301,16 @@ export function InvariantChecksGrid({
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ backgroundColor: `color-mix(in srgb, ${toneVar} 15%, transparent)`, color: toneVar }}>
                       <Icon className="h-4 w-4" aria-hidden="true" />
                     </span>
-                    <span className="text-sm font-semibold">{invariant?.name || fallbackName}</span>
+                    <span className="text-sm font-semibold">{humanizeWorkflowText(invariant?.name) || fallbackName}</span>
                   </div>
                   <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium" style={{ backgroundColor: `color-mix(in srgb, ${toneVar} 15%, transparent)`, color: toneVar }}>
                     {isHealthy ? <><CheckCircle2 className="h-3 w-3" aria-hidden="true" />Verified</> : <><AlertTriangle className="h-3 w-3" aria-hidden="true" />Attention</>}
                   </span>
                 </div>
                 <p className="mt-3 text-xs font-mono text-muted">{proofFormula}</p>
-                <p className="mt-1 text-sm font-medium">{invariant?.summary ?? "Pending verification."}</p>
+                <p className="mt-1 text-sm font-medium">{humanizeWorkflowText(invariant?.summary) || "Pending verification."}</p>
               </div>
-              {invariant?.detail && <p className="mt-3 border-t border-[var(--border)] pt-2 text-xs text-muted">{invariant.detail}</p>}
+              {invariant?.detail && <p className="mt-3 border-t border-[var(--border)] pt-2 text-xs text-muted">{humanizeWorkflowText(invariant.detail)}</p>}
             </div>
           );
         })}
@@ -325,8 +326,8 @@ export function TemporalTimelineGrid({ timeline }: { timeline: MonthContinuityBu
     <div className="space-y-3">
       <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-center">
         <div>
-          <h3 className="text-base font-semibold">Temporal Continuity Timeline</h3>
-          <p className="text-xs text-muted">12-month statement coverage & consecutive cash rollforward continuity</p>
+          <h3 className="text-base font-semibold">Monthly Statement Timeline</h3>
+          <p className="text-xs text-muted">12-month statement coverage & consecutive monthly balance continuity</p>
         </div>
         <div className="flex items-center gap-3 text-[11px] text-muted">
           <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[var(--success)]" /> Continuous</span>
@@ -645,7 +646,7 @@ export function CorrectionLoopProof() {
       {summary && !error && (
         <section className="card p-5">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="font-semibold">Held-out replay</h3>
+            <h3 className="font-semibold">Accuracy on Past Edits</h3>
             {summary.hasHoldout && <Badge variant={summary.reduced ? "success" : "muted"}>{summary.reduced ? "Improves extraction" : "No measurable improvement"}</Badge>}
           </div>
           <p className="mt-1 text-sm text-muted">Shows how past review corrections reduce extraction errors on new statements.</p>
@@ -655,7 +656,7 @@ export function CorrectionLoopProof() {
               <div className="rounded-md bg-[var(--background-muted)] p-3"><p className="text-2xl font-semibold tabular-nums">{summary.after}</p><p className="mt-1 text-xs text-muted">After correction reuse</p></div>
             </div>
           ) : (
-            <EmptyState framed={false} className="mt-4" title="Not enough correction history yet" description="A held-out proof appears after enough recurring corrections exist." />
+            <EmptyState framed={false} className="mt-4" title="Not enough correction history yet" description="An accuracy check appears after enough recurring corrections exist." />
           )}
         </section>
       )}

@@ -121,11 +121,11 @@ async def test_reconciliation_unmatched_interactive_disposition(page: Page):
     # 5. Click the transaction to activate Reviewed Disposition drawer
     await txn_item.click()
     await expect(
-        page.get_by_role("heading", name="Reviewed Disposition", exact=True)
+        page.get_by_role("heading", name="Transaction Review", exact=True)
     ).to_be_visible()
 
     # 6. Fill Reviewed Disposition form: select Expense intent, select counter account, fill category and rationale
-    intent_select = page.get_by_label("Economic intent")
+    intent_select = page.get_by_label("Transaction type")
     await intent_select.select_option(value="expense")
 
     counter_select = page.locator("#counter-account-select")

@@ -70,8 +70,8 @@ function iconForSuggestion(suggestion: AdvisorSuggestion) {
 function promptForSuggestion(suggestion: AdvisorSuggestion): string {
   return [
     "Explain this Advisor Brief item using only the cited application facts.",
-    `Basis: ${suggestion.basis}`,
-    `Limitation: ${suggestion.limitation}`,
+    `Basis: ${humanizeWorkflowText(suggestion.basis)}`,
+    `Limitation: ${humanizeWorkflowText(suggestion.limitation)}`,
     `Sources: ${suggestion.source_refs?.join(", ") || "not provided"}`,
     `Next action: ${safeAdvisorHref(suggestion.next_action_href)}`,
   ].join("\n");
@@ -98,8 +98,8 @@ export function AdvisorBrief({
     <section className={`card p-5 ${className}`} aria-label="Advisor Brief" data-testid="advisor-brief">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          {!compact ? <p className="mt-2 max-w-3xl text-sm text-muted">{description}</p> : null}
+          <h2 className="text-lg font-semibold">{humanizeWorkflowText(title)}</h2>
+          {!compact ? <p className="mt-2 max-w-3xl text-sm text-muted">{humanizeWorkflowText(description)}</p> : null}
         </div>
         <Link
           href={`/chat?prompt=${encodeURIComponent("Summarize my current Advisor Brief and list the safest next action.")}`}
@@ -127,11 +127,11 @@ export function AdvisorBrief({
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-semibold">{titleText}</h3>
+                    <h3 className="text-sm font-semibold">{humanizeWorkflowText(titleText)}</h3>
                     <span className="badge badge-muted">{humanizeIdentifier(suggestion.confidence_tier)}</span>
                   </div>
                   <p className="mt-2 break-words text-sm">{humanizeWorkflowText(suggestion.basis)}</p>
-                  <p className="mt-2 break-words text-xs text-muted">{suggestion.limitation}</p>
+                  <p className="mt-2 break-words text-xs text-muted">{humanizeWorkflowText(suggestion.limitation)}</p>
                 </div>
               </div>
 

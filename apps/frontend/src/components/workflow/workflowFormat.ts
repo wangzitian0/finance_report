@@ -40,11 +40,23 @@ const WORKFLOW_JARGON_REPLACEMENTS: Array<[RegExp, string]> = [
   [/Package section invariant failed:\s*cash_balance_input_missing/gi, "Ending cash balance awaits bank statement verification."],
   [/Package section invariant failed:\s*cash_identity_missing/gi, "Cash account balance awaits bank statement verification."],
   [/Package section invariant failed/gi, "Statement balance check needed"],
+  [/\binvariants\b/gi, "checks"],
+  [/\binvariant\b/gi, "check"],
+  [/\brollforward\b/gi, "continuity"],
+  [/\bleakage\b/gi, "unmatched transfers"],
 ];
 
 export function humanizeWorkflowText(value?: string | null): string {
   if (!value) return "";
-  return WORKFLOW_JARGON_REPLACEMENTS.reduce((acc, [pat, rep]) => acc.replace(pat, rep), value);
+  const replaced = WORKFLOW_JARGON_REPLACEMENTS.reduce((acc, [pat, rep]) => acc.replace(pat, rep), value);
+  return replaced
+    .replace(/\b([a-z]+_[a-z_]+)\b/gi, (match) => match.replace(/_/g, " "))
+    .replace(
+      /(\d+)((?:\s+[A-Za-z-]+)*\s+)([A-Za-z-]+)\(s\)/g,
+      (_match, count: string, middle: string, word: string) =>
+        Number(count) === 1 ? `${count}${middle}${word}` : `${count}${middle}${word}s`,
+    )
+    .replace(/([A-Za-z-]+)\(s\)/g, (_match, word: string) => `${word}s`);
 }
 
 export const nextActionSummary = (status: WorkflowStatusResponse) => humanizeWorkflowText(status.next_action.summary);

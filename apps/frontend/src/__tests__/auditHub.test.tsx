@@ -243,7 +243,7 @@ describe("Audit hub (EPIC-022 AC22.21.3)", () => {
             await act(async () => {
                 await new Promise((resolve) => setTimeout(resolve, 20));
             });
-            expect(screen.getByText("Evaluating accounting invariants and temporal timeline..."), pendingOperation).toBeInTheDocument();
+            expect(screen.getByText("Checking account balances and monthly statement coverage..."), pendingOperation).toBeInTheDocument();
             expect(screen.queryByText(/Audit[- ]Ready/i), pendingOperation).toBeNull();
 
             await act(async () => {

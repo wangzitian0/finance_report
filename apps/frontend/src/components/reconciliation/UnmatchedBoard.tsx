@@ -191,7 +191,7 @@ export default function UnmatchedBoard() {
       setError(null);
       await refresh();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Failed to post reviewed disposition.");
+      setError(requestError instanceof Error ? requestError.message : "Failed to save transaction review.");
     } finally {
       setPosting(false);
     }
@@ -261,7 +261,7 @@ export default function UnmatchedBoard() {
         </div>
 
         <div className="card p-5 min-w-0 overflow-hidden">
-          <h2 className="font-semibold mb-4">Reviewed Disposition</h2>
+          <h2 className="font-semibold mb-4">Transaction Review</h2>
           {!selected || !activeDraft ? (
             <p className="text-sm text-muted">Select a transaction to review</p>
           ) : (
@@ -274,7 +274,7 @@ export default function UnmatchedBoard() {
               </div>
 
               <label className="block text-sm font-medium min-w-0">
-                Economic intent
+                Transaction type
                 <select
                   className="input mt-1 w-full"
                   value={activeDraft.intent}
@@ -292,7 +292,7 @@ export default function UnmatchedBoard() {
                 </div>
               ) : activeDraft.intent === "unknown" ? (
                 <div className="rounded-md border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-3 text-sm">
-                  Unknown economic intent must be resolved from source evidence before it can be posted.
+                  Unknown transaction type must be resolved from source evidence before it can be posted.
                 </div>
               ) : (
                 <>

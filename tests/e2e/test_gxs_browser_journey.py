@@ -127,10 +127,10 @@ async def test_gxs_browser_upload_to_saved_package(
             ),
         )
         await transaction.click()
-        detail = page.get_by_text("Reviewed Disposition", exact=True).locator("..")
+        detail = page.get_by_text("Transaction Review", exact=True).locator("..")
         await expect(detail).to_contain_text(row["date"])
         intent, category = DISPOSITIONS[row["description"]]
-        await page.get_by_label("Economic intent").select_option(intent)
+        await page.get_by_label("Transaction type").select_option(intent)
         await page.get_by_label("Report category").fill(category)
         await page.get_by_label("Review rationale").fill(
             "The independent generated GXS fixture declares this economic meaning."
@@ -159,7 +159,7 @@ async def test_gxs_browser_upload_to_saved_package(
             assert (await pending.value).status == 201
             await expect(account_dialog).not_to_be_visible()
             await expect(detail).to_contain_text(row["date"])
-            await expect(page.get_by_label("Economic intent")).to_have_value(intent)
+            await expect(page.get_by_label("Transaction type")).to_have_value(intent)
             await expect(page.get_by_label("Report category")).to_have_value(category)
             await expect(page.get_by_label("Review rationale")).to_have_value(
                 "The independent generated GXS fixture declares this economic meaning."

@@ -168,7 +168,7 @@ function HealthTab() {
       {isLoading || !hold.settled ? (
         <div className="card space-y-4 p-8 text-center">
           <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[var(--border)] border-t-[var(--accent)]" />
-          <p className="text-sm text-muted">Evaluating accounting invariants and temporal timeline...</p>
+          <p className="text-sm text-muted">Checking account balances and monthly statement coverage...</p>
         </div>
       ) : isError || !data || typeof data.score !== "number" || !data.equation_invariant ? (
         <div className="card border-[var(--error)] p-6 text-center">

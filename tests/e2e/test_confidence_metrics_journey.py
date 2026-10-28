@@ -335,7 +335,7 @@ async def test_proportion_of_low_confidence_data_is_measured(
             "Correction Loop Proof", timeout=30000
         )
         await expect(page.locator("main")).to_contain_text(
-            "Held-out replay", timeout=30000
+            "Accuracy on Past Edits", timeout=30000
         )
         await expect(page.locator("main")).to_contain_text(
             "Improves extraction", timeout=30000

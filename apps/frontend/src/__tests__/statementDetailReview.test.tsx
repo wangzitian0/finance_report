@@ -283,7 +283,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     fireEvent.change(screen.getByLabelText("Opening balance"), { target: { value: "100" } });
     fireEvent.change(screen.getByLabelText("Closing balance"), { target: { value: "120" } });
     fireEvent.change(screen.getByLabelText("Why are these facts confirmed?"), { target: { value: "The CSV has no statement header." } });
-    const confirm = screen.getByRole("button", { name: "Confirm source envelope" });
+    const confirm = screen.getByRole("button", { name: "Confirm statement details" });
     expect(confirm).toBeEnabled();
     fireEvent.click(confirm);
 
@@ -291,6 +291,7 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     expect(mockedApi).toHaveBeenCalledWith("confirm_statement_review_envelope_statements__statement_id__review_envelope_post", expect.objectContaining({ path: { statement_id: "s1" } }));
     await waitFor(() => probe.expectDeclaredInvalidated());
     await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled());
+    expect(screen.getByText(/Statement details confirmed and linked to the current extraction result/i)).toBeInTheDocument();
   });
 
   it("AC-extraction.reviewed-envelope.6 does not offer a cash envelope for unsupported source facts", async () => {
@@ -308,8 +309,8 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
 
     renderReviewComponent(<StatementReviewPage /> as never);
     expect(await screen.findByText("Source review required")).toBeInTheDocument();
-    expect(screen.getByText(/transaction currency cannot be confirmed by a cash statement envelope/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Confirm source envelope" })).not.toBeInTheDocument();
+    expect(screen.getByText(/transaction currency cannot be confirmed by a cash statement check/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Confirm statement details" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
   });
 

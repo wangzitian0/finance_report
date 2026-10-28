@@ -186,7 +186,7 @@ describe("Personal Data Quality Observatory (#2294)", () => {
         screen.getByText("Accounting Equation Balance"),
       ).toBeInTheDocument();
       expect(
-        screen.getByText("Temporal Continuity & Rollforward"),
+        screen.getByText("Temporal Continuity & continuity"),
       ).toBeInTheDocument();
       expect(
         screen.getByText("Reconciliation & Debt Clearance Purity"),
@@ -251,7 +251,7 @@ describe("Personal Data Quality Observatory (#2294)", () => {
       render(<ActionChecklist actionItems={[]} />);
 
       expect(
-        screen.getByText("100% Invariant Perfection · Audit Ready"),
+        screen.getByText("All Book Checks Pass · Audit Ready"),
       ).toBeInTheDocument();
     });
   });
