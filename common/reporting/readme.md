@@ -370,7 +370,11 @@ combines contributing posted/reconciled `JournalEntry.source_type` values —
 a single known class stays that class, mixed known classes collapse to
 `derived`, unknown-only inputs stay `null`. Portfolio market valuation
 adjustment lines are `derived`; manual valuation snapshot synthetic lines
-are `manual`.
+are `manual`. Balance-sheet `ReportLine` responses also expose an optional
+`allocation_source_type` (`ledger_account`, `manual_valuation`, or
+`portfolio_market_adjustment`); `BalanceSheetPanel` and `StatementCockpit`
+route `manual_valuation` lines to `/portfolio?panel=evidence` instead of
+`AccountLineageDrawer` (#2654).
 
 ### Personal financial-report package contract
 

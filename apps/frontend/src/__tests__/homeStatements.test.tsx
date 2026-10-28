@@ -204,6 +204,58 @@ describe("Three-statement cockpit (#2621 LC, #2548 P1)", () => {
         expect(screen.queryByRole("button", { name: "View source transactions for Broker transfer" })).toBeNull();
     });
 
+    // AC-reporting.2654.2
+    it("AC-reporting.2654.2 routes manual valuation rows in the Balance cockpit to /portfolio?panel=evidence without calling account-lineage", async () => {
+        mockedApiOperation.mockImplementation(((operationId: string) => {
+            if (operationId === "balance_sheet_reports_balance_sheet_get") {
+                return Promise.resolve({
+                    ...balanceSheetAt("2026-03-31", "82000", "2000"),
+                    assets: [
+                        {
+                            account_id: "val-cpf-1",
+                            name: "Valuation: CPF Ordinary Account (cpf balance)",
+                            type: "ASSET",
+                            amount: "50000",
+                            provenance: "manual",
+                            allocation_source_type: "manual_valuation",
+                        },
+                        {
+                            account_id: "acc-cash",
+                            name: "DBS Multiplier",
+                            type: "ASSET",
+                            amount: "12000",
+                            provenance: "manual",
+                            allocation_source_type: "ledger_account",
+                        },
+                    ],
+                });
+            }
+            if (operationId === "income_statement_reports_income_statement_get") return Promise.resolve(incomeStatement);
+            if (operationId === "cash_flow_reports_cash_flow_get") return Promise.resolve(cashFlow);
+            if (operationId === "account_lineage_reports_account_lineage_get") return new Promise(() => undefined);
+            return Promise.reject(new Error(`unexpected ${operationId}`));
+        }) as never);
+
+        render(<StatementCockpit filters={Q1_2026} />);
+
+        const evidenceLink = await screen.findByRole("link", {
+            name: "View valuation evidence for Valuation: CPF Ordinary Account (cpf balance)",
+        });
+        expect(evidenceLink).toHaveAttribute("href", "/portfolio?panel=evidence");
+        fireEvent.click(evidenceLink);
+        expect(
+            mockedApiOperation.mock.calls.filter(([id]) => id === "account_lineage_reports_account_lineage_get"),
+        ).toEqual([]);
+
+        const ledgerBtn = screen.getByRole("button", { name: "View source transactions for DBS Multiplier" });
+        fireEvent.click(ledgerBtn);
+        await waitFor(() =>
+            expect(mockedApiOperation).toHaveBeenCalledWith("account_lineage_reports_account_lineage_get", {
+                query: { account_id: "acc-cash", as_of_date: "2026-03-31", currency: "SGD", start_date: undefined },
+            }),
+        );
+    });
+
     // AC-reporting.fe-period-cockpit.5
     it("omits the no-op Statement switcher when all three statements have zero drill-down rows (#2730)", async () => {
         mockedApiOperation.mockImplementation(((operationId: string) => {

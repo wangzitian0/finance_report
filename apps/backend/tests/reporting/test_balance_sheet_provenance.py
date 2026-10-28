@@ -99,16 +99,17 @@ async def test_balance_sheet_aggregate_provenance_is_populated(db, test_user):
     assert mixed["provenance"] == "derived"
 
 
-_ALLOCATION_METADATA_KEYS = {
+_INTERNAL_ALLOCATION_METADATA_KEYS = {
     "allocation_asset_class",
     "allocation_liquidity_class",
-    "allocation_source_type",
 }
+_ALLOCATION_METADATA_KEYS = _INTERNAL_ALLOCATION_METADATA_KEYS | {"allocation_source_type"}
 
 
+# AC-reporting.2654.1
 @pytest.mark.asyncio
 async def test_balance_sheet_lines_carry_allocation_metadata_and_response_drops_it(db, test_user):
-    """The service always emits allocation metadata; the response schema is the one place that removes it."""
+    """The service emits allocation metadata; the response schema strips internal keys and keeps allocation_source_type."""
     cash = Account(user_id=test_user.id, name="Cash", type=AccountType.ASSET, currency="SGD")
     salary = Account(user_id=test_user.id, name="Salary", type=AccountType.INCOME, currency="SGD")
     db.add_all([cash, salary])
@@ -128,4 +129,5 @@ async def test_balance_sheet_lines_carry_allocation_metadata_and_response_drops_
     assert all(_ALLOCATION_METADATA_KEYS <= set(line) for line in report["assets"])
     response_lines = BalanceSheetResponse.model_validate(report).model_dump()["assets"]
     assert response_lines
-    assert all(not (_ALLOCATION_METADATA_KEYS & set(line)) for line in response_lines)
+    assert all(not (_INTERNAL_ALLOCATION_METADATA_KEYS & set(line)) for line in response_lines)
+    assert all(line.get("allocation_source_type") == "ledger_account" for line in response_lines)

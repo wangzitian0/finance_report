@@ -56,6 +56,11 @@ class ReportLine(BaseModel):
         exclude_if=lambda value: value is None,
         description="Signed balance in the account's native currency.",
     )
+    allocation_source_type: Literal["ledger_account", "manual_valuation", "portfolio_market_adjustment"] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Origin of a balance-sheet line (ledger account, manual valuation, or portfolio market adjustment).",
+    )
 
 
 class AccountLineageLine(BaseModel):

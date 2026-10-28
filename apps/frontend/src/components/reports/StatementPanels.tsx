@@ -2,6 +2,7 @@
 
 import { keepPreviousData } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { BarChart } from "@/components/charts/BarChart";
@@ -204,8 +205,13 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
     const hasChildren = node.children.length > 0;
     const isExpanded = expanded.has(node.account_id);
     const displayName = reportAccountDisplayName(node.name);
+    const isManualValuation =
+      node.allocation_source_type === "manual_valuation" ||
+      (!node.allocation_source_type && node.provenance === "manual");
     const openDrill = () =>
-      report && setDrillTarget({ accountId: node.account_id, accountName: displayName, asOfDate, currency: report.currency });
+      report &&
+      !isManualValuation &&
+      setDrillTarget({ accountId: node.account_id, accountName: displayName, asOfDate, currency: report.currency });
     const isForeign = Boolean(report && node.source_currency && node.source_currency !== report.currency);
     const hasNativeAmount = node.native_amount !== undefined && node.native_amount !== null;
     const missingFxConversion =
@@ -234,9 +240,15 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
                 </span>
               </button>
             )}
-            <button type="button" onClick={openDrill} className="truncate text-left hover:text-[var(--accent)] hover:underline">
-              {displayName}
-            </button>
+            {isManualValuation ? (
+              <Link href="/portfolio?panel=evidence" className="truncate text-left hover:text-[var(--accent)] hover:underline">
+                {displayName}
+              </Link>
+            ) : (
+              <button type="button" onClick={openDrill} className="truncate text-left hover:text-[var(--accent)] hover:underline">
+                {displayName}
+              </button>
+            )}
             {node.name === "Processing" && <InfoHint term="transfers_in_transit" label="Transfers in transit" />}
             {isForeign && node.source_currency && (
               <span className="badge badge-muted text-[11px] shrink-0">{node.source_currency}</span>
@@ -245,14 +257,24 @@ export function BalanceSheetPanel({ filters }: { filters: ReportFilters }) {
           </div>
           {report ? (
             <div className="flex flex-col items-end shrink-0">
-              <button
-                type="button"
-                className="font-medium tabular-nums whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
-                onClick={openDrill}
-                aria-label={`View source transactions for ${displayName}`}
-              >
-                {formatCurrencyLocale(node.amount, report.currency)}
-              </button>
+              {isManualValuation ? (
+                <Link
+                  href="/portfolio?panel=evidence"
+                  className="font-medium tabular-nums whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+                  aria-label={`View valuation evidence for ${displayName}`}
+                >
+                  {formatCurrencyLocale(node.amount, report.currency)}
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className="font-medium tabular-nums whitespace-nowrap underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]"
+                  onClick={openDrill}
+                  aria-label={`View source transactions for ${displayName}`}
+                >
+                  {formatCurrencyLocale(node.amount, report.currency)}
+                </button>
+              )}
               {isForeign && hasNativeAmount && (
                 <span className={`text-xs tabular-nums whitespace-nowrap ${missingFxConversion ? "text-[var(--warning)]" : "text-muted"}`}>
                   {formatCurrencyLocale(node.native_amount!, node.source_currency!)}
