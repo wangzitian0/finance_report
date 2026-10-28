@@ -1,0 +1,215 @@
+{
+  "checkpoints": {
+    "U1": {
+      "proofs": [
+        {
+          "status": "not-run",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "not-run",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        },
+        {
+          "status": "not-run",
+          "test": "test_zero_click_statement_journey::test_upload_alone_produces_the_base_tables_and_the_three_statements"
+        }
+      ],
+      "status": "not-run"
+    },
+    "U10": {
+      "proofs": [
+        {
+          "status": "not-run",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        }
+      ],
+      "status": "not-run"
+    },
+    "U11": {
+      "proofs": [
+        {
+          "status": "not-run",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "not-run",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        }
+      ],
+      "status": "not-run"
+    },
+    "U12": {
+      "proofs": [
+        {
+          "status": "not-run",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "not-run",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        },
+        {
+          "status": "not-run",
+          "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser"
+        },
+        {
+          "status": "not-run",
+          "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing"
+        },
+        {
+          "status": "not-run",
+          "test": "test_stage1_routing_journey::test_stage1_accepts_clean_source_and_reviews_broken_source"
+        },
+        {
+          "status": "not-run",
+          "test": "test_twelve_month_journey::test_twelve_consecutive_months_tie_out_on_deployed_revision"
+        },
+        {
+          "status": "not-run",
+          "test": "test_confidence_metrics_journey::test_proportion_of_low_confidence_data_is_measured"
+        },
+        {
+          "status": "not-run",
+          "test": "test_zero_click_statement_journey::test_upload_alone_produces_the_base_tables_and_the_three_statements"
+        },
+        {
+          "status": "not-run",
+          "test": "test_assistant_chat_journey::test_assistant_answers_from_the_data_of_the_user"
+        }
+      ],
+      "status": "not-run"
+    },
+    "U13": {
+      "proofs": [
+        {
+          "status": "not-run",
+          "test": "test_confidence_metrics_journey::test_proportion_of_low_confidence_data_is_measured"
+        }
+      ],
+      "status": "not-run"
+    },
+    "U14": {
+      "proofs": [
+        {
+          "status": "not-run",
+          "test": "test_assistant_chat_journey::test_assistant_answers_from_the_data_of_the_user"
+        }
+      ],
+      "status": "not-run"
+    },
+    "U2": {
+      "proofs": [
+        {
+          "status": "not-run",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "not-run",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        },
+        {
+          "status": "not-run",
+          "test": "test_zero_click_statement_journey::test_upload_alone_produces_the_base_tables_and_the_three_statements"
+        }
+      ],
+      "status": "not-run"
+    },
+    "U3": {
+      "proofs": [
+        {
+          "status": "not-run",
+          "test": "test_stage1_routing_journey::test_stage1_accepts_clean_source_and_reviews_broken_source"
+        }
+      ],
+      "status": "not-run"
+    },
+    "U4": {
+      "proofs": [
+        {
+          "status": "not-run",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        }
+      ],
+      "status": "not-run"
+    },
+    "U5": {
+      "proofs": [
+        {
+          "status": "not-run",
+          "test": "test_opening_balance_browser_journey::test_opening_balance_recorded_through_browser"
+        }
+      ],
+      "status": "not-run"
+    },
+    "U6": {
+      "proofs": [
+        {
+          "status": "not-run",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        },
+        {
+          "status": "not-run",
+          "test": "test_zero_click_statement_journey::test_upload_alone_produces_the_base_tables_and_the_three_statements"
+        }
+      ],
+      "status": "not-run"
+    },
+    "U7": {
+      "proofs": [
+        {
+          "status": "not-run",
+          "test": "test_transfer_processing_journey::test_transfer_between_accounts_clears_through_processing"
+        }
+      ],
+      "status": "not-run"
+    },
+    "U8": {
+      "proofs": [
+        {
+          "status": "not-run",
+          "test": "test_gxs_browser_journey::test_gxs_browser_upload_to_saved_package"
+        },
+        {
+          "status": "not-run",
+          "test": "test_institution_statement_journeys::test_gxs_statement_journey_matches_expected_balances"
+        }
+      ],
+      "status": "not-run"
+    },
+    "U9": {
+      "proofs": [
+        {
+          "status": "not-run",
+          "test": "test_twelve_month_journey::test_twelve_consecutive_months_tie_out_on_deployed_revision"
+        }
+      ],
+      "status": "not-run"
+    }
+  },
+  "counts": {
+    "failed": 0,
+    "passed": 0,
+    "skipped": 0,
+    "total": 0
+  },
+  "expected_version": null,
+  "junit": false,
+  "lane": "canary",
+  "map_note": null,
+  "reason": "the staging AI/OCR gate job did not run (Deploy Staging concluded failure)",
+  "recorded_at": "2026-10-28T08:54:01+00:00",
+  "run": {
+    "attempt": 1,
+    "completed_at": "2026-10-28T08:53:50Z",
+    "conclusion": "failure",
+    "event": "workflow_dispatch",
+    "id": "40659321917",
+    "url": "https://github.com/wangzitian0/finance_report/actions/runs/40659321917",
+    "workflow": ".github/workflows/deploy.yml"
+  },
+  "schema": 1,
+  "status": "not-run",
+  "tested_sha": "3154a0b3bdd3796199ef629635d503ed49b5b3b8",
+  "tests": []
+}
