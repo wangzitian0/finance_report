@@ -31,7 +31,7 @@ const expenseAccount = {
   is_active: true,
 };
 
-const findReadyReviewDraft = () => screen.findByLabelText("Economic intent");
+const findReadyReviewDraft = () => screen.findByLabelText("Transaction type");
 
 describe("UnmatchedBoard", () => {
   const mockedApiOperation = vi.mocked(apiOperation);
@@ -73,7 +73,7 @@ describe("UnmatchedBoard", () => {
     fireEvent.click(form.getByRole("button", { name: "Create Account" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(mockedApiOperation).toHaveBeenCalledTimes(3);
-    expect(screen.getByLabelText("Economic intent")).toHaveValue("expense");
+    expect(screen.getByLabelText("Transaction type")).toHaveValue("expense");
     expect(screen.getByLabelText("Report category")).toHaveValue("DINING");
     expect(screen.getByLabelText("Review rationale")).toHaveValue("Receipt reviewed.");
     expect(screen.getByLabelText("Counter account")).toHaveValue("");
@@ -105,7 +105,7 @@ describe("UnmatchedBoard", () => {
     expect(await form.findByText("Account name already exists")).toBeInTheDocument();
     fireEvent.click(form.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Economic intent")).toHaveValue("expense");
+    expect(screen.getByLabelText("Transaction type")).toHaveValue("expense");
     expect(screen.getByLabelText("Report category")).toHaveValue("DINING");
     expect(screen.getByLabelText("Review rationale")).toHaveValue("Receipt reviewed.");
     expect(screen.getByRole("button", { name: "Confirm and Post" })).toBeDisabled();
@@ -269,7 +269,7 @@ describe("UnmatchedBoard", () => {
     const intent = await findReadyReviewDraft();
     fireEvent.change(intent, { target: { value: "unknown" } });
 
-    expect(screen.getByText(/Unknown economic intent must be resolved/i)).toBeInTheDocument();
+    expect(screen.getByText(/Unknown transaction type/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Confirm and Post" })).not.toBeInTheDocument();
   });
 
@@ -285,7 +285,7 @@ describe("UnmatchedBoard", () => {
     fireEvent.click(screen.getByRole("button", { name: /Salary/ }));
 
     expect(await findReadyReviewDraft()).toHaveValue("unknown");
-    fireEvent.change(screen.getByLabelText("Economic intent"), {
+    fireEvent.change(screen.getByLabelText("Transaction type"), {
       target: { value: "income" },
     });
     expect(await screen.findByRole("option", { name: /Income - Salary/ })).toBeInTheDocument();

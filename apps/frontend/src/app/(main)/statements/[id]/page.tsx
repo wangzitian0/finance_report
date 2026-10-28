@@ -251,7 +251,7 @@ export default function StatementDetailPage() {
       });
     },
     onSuccess: () => {
-      showToast("Source envelope confirmed. You can now continue the review.", "success");
+      showToast("Statement details confirmed. You can now continue the review.", "success");
       queryClient.invalidateQueries({ queryKey: ["statement-review", statementId] });
     },
     onError: (err) => showToast(err instanceof Error ? err.message : "Failed to confirm source facts", "error"),
@@ -375,7 +375,7 @@ export default function StatementDetailPage() {
   const balanceValid = Boolean(validationResult?.opening_match && validationResult?.closing_match);
   const hasUnresolvedConflicts = !(conflictsResolved || conflicts?.resolved) && (duplicateCandidates.length > 0 || transferPairCandidates.length > 0);
   const approvalBlockedReason = requiresEnvelopeConfirmation ? "Confirm the source facts before approving this statement."
-    : requiresOtherSourceReview ? "This source has facts that a cash statement envelope cannot confirm."
+    : requiresOtherSourceReview ? "This source has facts that a cash statement check cannot confirm."
     : hasUnresolvedConflicts ? "Resolve duplicate and transfer-pair candidates before approval" : null;
   const currentIndex = pendingStatements.findIndex((s) => s.id === statementId);
   const prevId = currentIndex > 0 ? pendingStatements[currentIndex - 1].id : null;

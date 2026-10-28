@@ -188,7 +188,7 @@ export function SourceEnvelopeConfirmation({ requiresEnvelopeConfirmation, requi
           </div>
           <label className="mt-3 block text-sm font-medium" htmlFor="envelope-rationale">Why are these facts confirmed?<textarea id="envelope-rationale" value={envelopeDraft.rationale} onChange={(e) => onDraftChange((c) => ({ ...c, rationale: e.target.value }))} className="input mt-1 min-h-20 w-full" placeholder="State the page, export header, or other source evidence used." /></label>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={onConfirm} disabled={isPending || !isComplete} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">{isPending ? "Confirming..." : "Confirm source envelope"}</button>
+            <button type="button" onClick={onConfirm} disabled={isPending || !isComplete} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">{isPending ? "Confirming..." : "Confirm statement details"}</button>
             <button type="button" onClick={() => onDraftChange((c) => ({ ...c, rationale: "Confirmed statement header and opening/closing balances against source file" }))} className="btn-secondary btn-sm">Use standard confirmation note</button>
           </div>
         </section>
@@ -196,10 +196,10 @@ export function SourceEnvelopeConfirmation({ requiresEnvelopeConfirmation, requi
       {requiresOtherSourceReview && (
         <section className="mb-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-4" aria-labelledby="source-review-required-heading">
           <h2 id="source-review-required-heading" className="font-semibold">Source review required</h2>
-          <p className="mt-1 text-sm text-muted">{missingText} cannot be confirmed by a cash statement envelope. Re-parse the source or use the review path that owns those facts.</p>
+          <p className="mt-1 text-sm text-muted">{missingText} cannot be confirmed by a cash statement check. Re-parse the source or use the review path that owns those facts.</p>
         </section>
       )}
-      {Boolean(reviewedEnvelope) && <p className="mb-4 rounded-md border border-[var(--success)]/30 bg-[var(--success-muted)] p-3 text-sm">Source envelope confirmed and anchored to the current extraction result.</p>}
+      {Boolean(reviewedEnvelope) && <p className="mb-4 rounded-md border border-[var(--success)]/30 bg-[var(--success-muted)] p-3 text-sm">Statement details confirmed and linked to the current extraction result.</p>}
     </>
   );
 }

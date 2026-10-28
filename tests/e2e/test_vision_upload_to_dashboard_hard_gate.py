@@ -145,7 +145,7 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
         lambda response: f"/api/statements/{statement_id}/review/envelope"
         in response.url
     ) as envelope_info:
-        await page.get_by_role("button", name="Confirm source envelope").click()
+        await page.get_by_role("button", name="Confirm statement details").click()
     envelope_response = await envelope_info.value
     assert envelope_response.status == 200, await envelope_response.text()
     await expect(approve_button).to_be_enabled(timeout=20_000)

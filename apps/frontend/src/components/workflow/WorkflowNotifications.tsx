@@ -94,7 +94,7 @@ export function WorkflowInbox({ events, sessions = [], onStatusChange }: {
         <details key={session.id} className="rounded-md border border-border bg-surface-card p-3" open={session.status === "active"}>
           <summary className="cursor-pointer list-none">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0"><h3 className="text-sm font-semibold [overflow-wrap:anywhere]">{session.title}</h3><p className="mt-1 text-xs text-muted [overflow-wrap:anywhere]">{session.summary}</p></div>
+              <div className="min-w-0"><h3 className="text-sm font-semibold [overflow-wrap:anywhere]">{humanizeWorkflowText(session.title)}</h3><p className="mt-1 text-xs text-muted [overflow-wrap:anywhere]">{humanizeWorkflowText(session.summary)}</p></div>
               <Badge variant={session.event_counts.blocked > 0 ? "error" : session.event_counts.action_required > 0 ? "warning" : "muted"}>{countLabel(sessionEvents.length, "event")}</Badge>
             </div>
             <p className="mt-2 text-xs text-muted">Latest: {session.last_event_at ? formatEventTime(session.last_event_at) : "No events yet"}</p>
@@ -148,7 +148,7 @@ export function WorkflowStatusFeed({ status, events }: WorkflowStatusFeedProps) 
         <div className="min-w-0 space-y-3">
           {actionable.slice(0, 3).map((e) => (
             <article key={e.id} className={cx("rounded-md border p-3 text-sm", e.severity === "blocked" ? "border-status-error bg-status-error-muted" : "border-status-warning bg-status-warning-muted")}>
-              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="font-medium [overflow-wrap:anywhere]">{e.title}</h3><p className="mt-1 text-sm text-muted [overflow-wrap:anywhere]">{e.summary}</p></div><Link href={e.action_href} className="btn-secondary shrink-0 px-3 py-1.5 text-xs" aria-label={`Open ${e.title}`}>Open</Link></div>
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="font-medium [overflow-wrap:anywhere]">{humanizeWorkflowText(e.title)}</h3><p className="mt-1 text-sm text-muted [overflow-wrap:anywhere]">{humanizeWorkflowText(e.summary)}</p></div><Link href={e.action_href} className="btn-secondary shrink-0 px-3 py-1.5 text-xs" aria-label={`Open ${humanizeWorkflowText(e.title)}`}>Open</Link></div>
             </article>
           ))}
           {actionable.length === 0 && <div className="rounded-md border border-border bg-surface-muted p-3 text-sm text-muted">No action required</div>}
@@ -156,7 +156,7 @@ export function WorkflowStatusFeed({ status, events }: WorkflowStatusFeedProps) 
         <div className="min-w-0 rounded-md border border-border bg-surface-muted p-3">
           <div className="flex items-center gap-2"><Inbox className="h-4 w-4 text-muted" aria-hidden="true" /><h3 className="text-sm font-semibold">Routine automation</h3></div>
           <p className="mt-2 text-sm text-muted">{countLabel(routine.length, "routine event")}</p>
-          {routine.length > 0 && <p className="mt-1 text-xs text-muted [overflow-wrap:anywhere]">Latest: {routine[0]?.title}</p>}
+          {routine.length > 0 && <p className="mt-1 text-xs text-muted [overflow-wrap:anywhere]">Latest: {humanizeWorkflowText(routine[0]?.title)}</p>}
         </div>
       </div>
     </section>

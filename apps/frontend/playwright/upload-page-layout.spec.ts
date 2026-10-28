@@ -182,7 +182,7 @@ test.describe("#2648 upload page", () => {
 
     // The workflow details hold the long file names: they wrap when the user opens them.
     await page.getByTestId("upload-workflow-summary").locator(":scope > summary").click();
-    await expect(page.getByText("Package section invariant failed")).toBeVisible();
+    await expect(page.getByText("Statement balance check needed").first()).toBeVisible();
     const open = await measure();
     expect(open.scrollWidth, `scrollWidth, details open; widest: ${open.widest.join(" | ")}`).toBeLessThanOrEqual(375);
   });
@@ -200,7 +200,7 @@ test.describe("#2648 upload page", () => {
     const summary = page.getByTestId("upload-workflow-summary");
     await expect(summary).toBeVisible();
     await expect(summary).toContainText("1 blocker");
-    await expect(page.getByText("Package section invariant failed")).toBeHidden();
+    await expect(page.getByText("Statement balance check needed").first()).toBeHidden();
   });
 
   for (const { label, width, height } of [
