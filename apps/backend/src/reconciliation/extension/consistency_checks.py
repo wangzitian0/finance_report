@@ -456,6 +456,12 @@ async def has_unresolved_checks(
         select(ConsistencyCheck.id)
         .where(ConsistencyCheck.user_id == user_id)
         .where(ConsistencyCheck.status == CheckStatus.PENDING)
+        .where(
+            or_(
+                ConsistencyCheck.severity.is_(None),
+                ConsistencyCheck.severity != "low",
+            )
+        )
         .limit(1)
     )
     if run_id:

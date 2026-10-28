@@ -18,7 +18,9 @@ from src.extraction import (
     DispositionStatus,
     IntentProposal,
     IntentProposalOrigin,
+    StatementSummary,
     StatementTransaction,
+    UploadedDocument,
     build_disposition_trace_records,
     create_entry_from_txn,
     effective_statement_transaction_filter,
@@ -26,7 +28,9 @@ from src.extraction import (
 )
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import (
+    PROCESSING_ACCOUNT_CODE,
     Account,
+    AccountType,
     JournalEntry,
     JournalEntryAuthorityState,
     JournalEntryStatus,
@@ -64,6 +68,62 @@ def _statement_transaction(txn: AtomicTransaction) -> StatementTransaction:
         direction=txn.direction,
         description=txn.description,
     )
+
+
+async def _ensure_statement_custody_account(
+    db: AsyncSession,
+    *,
+    txn: AtomicTransaction,
+    user_id: UUID,
+) -> None:
+    doc_ids = [
+        UUID(str(entry["doc_id"]))
+        for entry in (txn.source_documents or [])
+        if isinstance(entry, dict) and entry.get("doc_id")
+    ]
+    result = await db.execute(
+        select(StatementSummary)
+        .join(UploadedDocument, StatementSummary.uploaded_document_id == UploadedDocument.id)
+        .where(StatementSummary.user_id == user_id)
+        .where(UploadedDocument.id.in_(doc_ids))
+        .limit(1)
+    )
+    statement = result.scalar_one_or_none()
+    if statement is None or statement.account_id is not None:
+        return
+
+    currency = (statement.currency or txn.currency or "SGD").strip().upper()
+    institution = (statement.institution or "").strip() or "Statement Account"
+    account_name = (
+        f"{institution} *{statement.account_last4.strip()}"
+        if statement.account_last4 and statement.account_last4.strip()
+        else institution
+    )
+    existing_result = await db.execute(
+        select(Account)
+        .where(Account.user_id == user_id)
+        .where(Account.name == account_name)
+        .where(Account.type == AccountType.ASSET)
+        .where(Account.currency == currency)
+        .where(Account.is_active.is_(True))
+        .where((Account.code.is_(None)) | (Account.code != PROCESSING_ACCOUNT_CODE))
+        .order_by(Account.created_at, Account.id)
+        .limit(1)
+    )
+    bank_account = existing_result.scalar_one_or_none()
+    if bank_account is None:
+        bank_account = Account(
+            user_id=user_id,
+            name=account_name,
+            type=AccountType.ASSET,
+            currency=currency,
+            code="AUTO-BANK",
+            description=f"Created from reviewed disposition on statement {statement.id}",
+        )
+        db.add(bank_account)
+        await db.flush()
+    statement.account_id = bank_account.id
+    await db.flush()
 
 
 async def _find_existing_entry(
@@ -244,6 +304,8 @@ async def submit_reviewed_disposition(
         proposal=proposal,
         decision=decision,
     )
+
+    await _ensure_statement_custody_account(db, txn=txn, user_id=user_id)
 
     try:
         return await create_entry_from_txn(

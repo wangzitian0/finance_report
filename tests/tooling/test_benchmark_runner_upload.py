@@ -85,3 +85,27 @@ def test_AC_testing_benchmarks_16_a_pdf_without_an_institution_sends_no_institut
 
     assert client.posts[0]["data"] == {}
     assert runner.created_accounts == []  # type: ignore[attr-defined]
+
+
+def test_AC_testing_benchmarks_16_repeated_csv_uploads_for_same_institution_reuse_account(
+    runner: ScenarioBenchmarkRunner,
+) -> None:
+    client = _Client()
+
+    runner.upload_statement(
+        client, b"a,b\n", "scb_jan.csv", institution="Standard Chartered Bank"
+    )  # type: ignore[arg-type]
+    runner.upload_statement(
+        client, b"a,b\n", "scb_feb.csv", institution="Standard Chartered Bank"
+    )  # type: ignore[arg-type]
+
+    assert len(client.posts) == 2
+    assert client.posts[0]["data"] == {
+        "account_id": "account-1",
+        "institution": "Standard Chartered Bank",
+    }
+    assert client.posts[1]["data"] == {
+        "account_id": "account-1",
+        "institution": "Standard Chartered Bank",
+    }
+    assert runner.created_accounts == ["Standard Chartered Bank Cash Account"]  # type: ignore[attr-defined]

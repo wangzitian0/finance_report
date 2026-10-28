@@ -1710,3 +1710,28 @@ async def test_resolve_uploaded_document_enforces_user_isolation(db, test_user):
     resolved_own = await _resolve_uploaded_document(db, statement, test_user.id)
     assert resolved_own is not None
     assert resolved_own.id == user_doc.id
+
+
+async def test_create_statement_account_from_confirmation_reuses_existing_active_account(db, test_user):
+    """_create_statement_account_from_confirmation reuses an existing active ASSET account (#2800)."""
+    first_stmt = build_statement(test_user.id, "hash_confirm_dedup_1", 80)
+    first_stmt.account_id = None
+    first_stmt.institution = "Standard Chartered Bank"
+    first_stmt.account_last4 = None
+    first_stmt.currency = "SGD"
+    db.add(first_stmt)
+
+    second_stmt = build_statement(test_user.id, "hash_confirm_dedup_2", 80)
+    second_stmt.account_id = None
+    second_stmt.institution = "Standard Chartered Bank"
+    second_stmt.account_last4 = None
+    second_stmt.currency = "SGD"
+    db.add(second_stmt)
+    await db.commit()
+
+    first_account = await statements_router._create_statement_account_from_confirmation(db, first_stmt, test_user.id)
+    second_account = await statements_router._create_statement_account_from_confirmation(db, second_stmt, test_user.id)
+
+    assert first_account.name == "Standard Chartered Bank"
+    assert second_account.id == first_account.id
+    assert second_stmt.account_id == first_account.id

@@ -281,6 +281,36 @@ class TestResolveCheck:
         assert await has_unresolved_checks(db, user_id, run_id="run-alpha") is True
         assert await has_unresolved_checks(db, user_id, run_id="run-beta") is False
 
+    async def test_has_unresolved_checks_ignores_low_severity_anomalies(self, db, user_id):
+        """Low-severity informational checks (e.g. NEW_MERCHANT) do not block Stage 2 batch approval."""
+        low_check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            check_type=CheckType.ANOMALY,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn_low"],
+            details={"anomaly_type": "NEW_MERCHANT"},
+            severity="low",
+        )
+        db.add(low_check)
+        await db.flush()
+
+        assert await has_unresolved_checks(db, user_id) is False
+
+        medium_check = ConsistencyCheck(
+            id=uuid4(),
+            user_id=user_id,
+            check_type=CheckType.ANOMALY,
+            status=CheckStatus.PENDING,
+            related_txn_ids=["txn_med"],
+            details={"anomaly_type": "LARGE_AMOUNT"},
+            severity="medium",
+        )
+        db.add(medium_check)
+        await db.flush()
+
+        assert await has_unresolved_checks(db, user_id) is True
+
 
 class TestRunAllConsistencyChecks:
     async def test_run_all_aggregates_results(self, db, user_id, approved_statement):
