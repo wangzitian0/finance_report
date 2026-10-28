@@ -275,13 +275,11 @@ just `assert True` moved up one level.
 ```
 test  --record_ac_evidence(record_property, ...)-->  junit-xml <property>
       --package-contract resolver----------------->  canonical trace_record property
-      --tools/aggregate_ac_evidence.py-->            per-AC aggregate JSON
 
 scenario-bound @ac_proof
       --pytest call-phase PASS-------------------->  canonical trace_record property
       --one registered post-proof consumer-------->  canonical observation property
       --tools/check_pr_ci_evidence.py------------->  exact repo/commit/run proof gate
-      --tools/check_ac_score_baseline.py-->          L2 + L3 ratchet gate
 ```
 
 During Audit PR-A (#1906), package-scoped AC ids also shadow-emit the canonical
@@ -293,30 +291,17 @@ evidence manifest.
 Legacy EPIC ids remain without TraceRecord authority rather than being guessed
 into the package graph.
 
-- **L2 (always hard):** every baselined AC must show `code == pass` this run.
-- **L3 (ratchet):** current score ≥ baseline; the baseline only moves up via
-  `--update` (mirrors the existing `unified-coverage.json` line-coverage ratchet).
-- **New ACs** are informational until adopted — each AC matures from soft to
-  enforced on its own schedule. No big-bang migration of the ~1200 ACs.
-
 ### CI wiring (blocking, not a follow-up)
-
-The ratchet is a **hard, only-goes-up CI gate** today, not a deferred spike:
 
 - The dedicated `ac-behavioral-ratchet` job in `.github/workflows/ci.yml` waits
   on every test stage that emits junit (`backend`, `backend-integration`,
-  `frontend`), downloads their junit artifacts, runs
-  `tools/aggregate_ac_evidence.py` to reduce them per AC, then runs
-  `tools/check_ac_score_baseline.py` against the checked-in
-  `common/testing/data/ac-score-baseline.jsonl`. It is a **separate** job — not part of
+  `frontend`), downloads their junit artifacts, and runs
+  `tools/check_pr_ci_evidence.py`. It is a **separate** job — not part of
   `ac-traceability`.
 - The `finish` aggregation job **requires** `ac-behavioral-ratchet` to succeed
   (both via `needs:` and an explicit `result != "success"` failure check) on the
-  PR test path, so a baselined AC that regresses below its score, goes missing,
-  or reports a non-`pass` `code` blocks the merge gate — exactly like the
-  line-coverage ratchet.
-- If no junit evidence reaches the job, the aggregate is empty and every
-  baselined AC is reported as `missing`, which fails the gate: a lost or
+  PR test path.
+- If no junit evidence reaches the job, the check fails: a lost or
   un-uploaded artifact cannot pass vacuously.
 
 ## Two consumers, one emission
@@ -331,8 +316,7 @@ the eval emitter.
 
 ## Anchored ACs (real end-to-end)
 
-Each AC below emits a deterministic, measured score that the blocking ratchet
-enforces:
+Each AC below emits a deterministic, measured score via `record_ac_evidence`:
 
 - **AC4.1.4** (reconciliation description similarity) emits its measured
   similarity in `apps/backend/tests/reconciliation/test_reconciliation_scoring.py`.
@@ -343,11 +327,9 @@ enforces:
   measured debit/credit imbalance of a multi-line salary entry posted through the
   real `post_journal_entry` path in
   `apps/backend/tests/ledger/test_accounting_equation.py`. This is the
-  reference pattern for anchoring a flagship money journey to L2 + L3.
+  reference pattern for anchoring a flagship money journey.
 
-Seeded baseline: `common/testing/data/ac-score-baseline.jsonl` (sorted, line-oriented JSONL
-with `merge=union` so independent ACs auto-merge — one AC per line — instead of
-all ACs colliding in one central JSON object). Hermetic proof of the whole chain:
+Hermetic proof of the evidence record and TraceRecord emission:
 `tests/tooling/test_ac_evidence_pipeline.py`.
 
 `record_ac_evidence()` still emits its in-body `pass` as `UNPROVEN`: a measured

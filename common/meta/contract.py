@@ -394,11 +394,11 @@ CONTRACT = PackageContract(
         # ── residue: the post-migration EPIC tables hold only explicitly
         # marked residue (#1719 "retire the center"; #1416 DoD addition
         # 2026-07-11 makes "genuinely EPIC-owned" machine-checkable). ──
-        ac('AC-meta.residue.1', 'Every AC definition line that stays in a docs/project/EPIC-*.md doc carries an explicit residue marker (<!-- epic-owned: fe-only|fe-half|horizontal|pending-package -->) declaring why it is not in a package roadmap; unmarked EPIC AC rows == 0 is the umbrella scoreboard metric. The per-file per-category census must equal common/meta/data/epic-residue-baseline.json (the fk-cascade idiom): silent residue growth fails CI and adding residue requires raising the baseline in the same PR, where the diff makes the choice reviewable; the EPIC file set may only shrink (a new EPIC file fails; a deleted one must prune the baseline); an EPIC file with zero marked rows must carry an explicit <!-- epic-file: design-doc|goal-stub --> justification. The registry generator feeds the AC registry from marked rows only, so an unmarked row is invisible to the registry AND fails the gate.', 'tests/tooling/test_epic_residue_ratchet.py::test_AC_meta_residue_1_census_equals_baseline_and_files_only_shrink'),
+        ac('AC-meta.residue.1', 'Every AC definition line that stays in a docs/project/EPIC-*.md doc carries an explicit residue marker (<!-- epic-owned: fe-only|fe-half|horizontal|pending-package -->) declaring why it is not in a package roadmap; unmarked EPIC AC rows == 0 is the umbrella scoreboard metric. The per-file per-category census must equal EPIC_RESIDUE_BASELINE in tests/tooling/test_epic_residue_ratchet.py (the fk-cascade idiom): silent residue growth fails CI and adding residue requires raising the baseline in the same PR, where the diff makes the choice reviewable; the EPIC file set may only shrink (a new EPIC file fails; a deleted one must prune the baseline); an EPIC file with zero marked rows must carry an explicit <!-- epic-file: design-doc|goal-stub --> justification. The registry generator feeds the AC registry from marked rows only, so an unmarked row is invisible to the registry AND fails the gate.', 'tests/tooling/test_epic_residue_ratchet.py::test_AC_meta_residue_1_census_equals_baseline_and_files_only_shrink'),
         # ── terminal: both retired centers (docs/ssot/ entirely, and
         # docs/project/'s file set) cannot silently regrow (#1823,
         # Package-ization 4/4, FINAL — "retire the center" closeout). ──
-        ac('AC-meta.residue.2', "docs/ssot/ does not exist (retired in #1823: MANIFEST.yaml and epic-residue-baseline.json relocated to common/meta/data/, README.md tombstone retired), and docs/project/'s directory listing is frozen to an explicit, checked-in allowlist — the EPIC-*.md half sourced from AC-meta.residue.1's own baseline (single source, no duplicated vocabulary), the non-EPIC half a hardcoded frozenset. Either directory growing outside its allowlist fails CI; a deliberate addition requires a same-PR edit here, making the choice reviewable — the same fk-cascade idiom AC-meta.residue.1 uses for EPIC file counts.", 'tests/tooling/test_terminal_centers_allowlist.py::test_docs_project_directory_listing_is_frozen', priority='P1'),
+        ac('AC-meta.residue.2', "docs/ssot/ does not exist (retired in #1823: MANIFEST.yaml relocated to common/meta/data/, README.md tombstone retired), and docs/project/'s directory listing is frozen to an explicit, checked-in allowlist — the EPIC-*.md half sourced from AC-meta.residue.1's own baseline (single source, no duplicated vocabulary), the non-EPIC half a hardcoded frozenset. Either directory growing outside its allowlist fails CI; a deliberate addition requires a same-PR edit here, making the choice reviewable — the same fk-cascade idiom AC-meta.residue.1 uses for EPIC file counts.", 'tests/tooling/test_terminal_centers_allowlist.py::test_docs_project_directory_listing_is_frozen', priority='P1'),
         # ── manifest: common/meta/data/MANIFEST.yaml stays hand-authored (a
         # full computed concept index is a follow-up, #1799). Relocated from
         # docs/ssot/ in #1823 (Package-ization 4/4); the former per-file
@@ -874,24 +874,6 @@ CONTRACT = PackageContract(
             parent="package_model",
         ),
         ConceptRecord(
-            key="base_purity_baseline",
-            owner="common/meta/data/base-purity-baseline.json",
-            description=(
-                "Exact shrink-only inventory of legacy ORM, configuration, observability, "
-                "network, and session dependencies in package base layers; "
-                "check_base_purity rejects newly introduced or stale entries."
-            ),
-            cross_refs=[
-                "common/meta/extension/base_purity.py",
-                "common/meta/extension/check_base_purity.py",
-                "tools/check_base_purity.py",
-            ],
-            family="platform",
-            kind="baseline",
-            authority="machine_generated",
-            parent="package_model",
-        ),
-        ConceptRecord(
             key="l4_root_import_baseline",
             owner="common/meta/extension/app_boundary.py",
             description=(
@@ -905,25 +887,6 @@ CONTRACT = PackageContract(
             ],
             family="platform",
             kind="concept",
-            parent="package_model",
-        ),
-        ConceptRecord(
-            key="public_orm_export_baseline",
-            owner="common/meta/data/public-orm-export-baseline.json",
-            description=(
-                "Exact shrink-only inventory of ORM-defined symbols exported from "
-                "package roots; check_public_orm_exports rejects newly introduced, "
-                "stale, or unreadable persistence-coupled public language."
-            ),
-            cross_refs=[
-                "common/meta/extension/public_orm_exports.py",
-                "common/meta/extension/check_public_orm_exports.py",
-                "tools/check_public_orm_exports.py",
-                "tests/tooling/test_public_orm_exports.py",
-            ],
-            family="platform",
-            kind="baseline",
-            authority="machine_generated",
             parent="package_model",
         ),
         ConceptRecord(
@@ -1119,30 +1082,6 @@ CONTRACT = PackageContract(
             ],
             family="development",
             kind="concept",
-        ),
-        ConceptRecord(
-            key="epic_residue_baseline",
-            owner="common/meta/data/epic-residue-baseline.json",
-            description=(
-                "Ratchet census of the post-migration EPIC residue (#1719) - per "
-                "docs/project/EPIC-*.md file, the count of AC definition lines per explicit "
-                "residue category (fe-only / fe-half / horizontal / pending-package, single "
-                "vocabulary source common/meta/extension/generate_ac_registry.py "
-                "EPIC_RESIDUE_CATEGORIES); CI enforces unmarked EPIC AC rows == 0 (the "
-                "umbrella scoreboard metric), census == baseline so residue growth is a "
-                "same-PR reviewable baseline edit, a shrink-only EPIC file set, and an "
-                "explicit design-doc/goal-stub justification on every zero-row EPIC file "
-                "(AC-meta.residue.1)."
-            ),
-            cross_refs=[
-                "tests/tooling/test_epic_residue_ratchet.py",
-                "common/meta/extension/generate_ac_registry.py",
-                "common/meta/migration-standard.md",
-            ],
-            family="platform",
-            kind="baseline",
-            authority="machine_generated",
-            parent="package_model",
         ),
         ConceptRecord(
             key="local_host_shells",

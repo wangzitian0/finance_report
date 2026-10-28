@@ -2417,11 +2417,14 @@ def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
     )
     assert "pattern: backend-tier1-e2e-*-test-context" not in ratchet_block
     assert "name: frontend-vitest-test-context" in ratchet_block
-    _lacks(ratchet_block, "uv run --with pyyaml python tools/aggregate_ac_evidence.py")
+    _lacks(
+        ratchet_block,
+        "tools/aggregate_ac_evidence.py",
+        "tools/check_ac_score_baseline.py",
+    )
     _has(
         ratchet_block,
-        "python tools/aggregate_ac_evidence.py",
-        "python tools/check_ac_score_baseline.py",
+        "python tools/check_pr_ci_evidence.py",
     )
 
 

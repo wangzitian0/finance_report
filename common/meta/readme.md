@@ -276,9 +276,9 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
    form is the target (the package owns its ACs). Renumbering is a cross-repo
    rename, so REPOINT every reference to the old numeric id in the SAME change,
    or the lint cross-checks fire:
-   - **floor baselines** — if the old id is in `ac-score-baseline.jsonl` /
+   - **floor baselines** — if the old id affects
      `protection-floor.json` (raise-only), migrate that entry too, else Gate B
-     reds on the net-deleted id. (Grep both first; most legacy ids are tracked.)
+     reds on the net-deleted id.
    - **other EPIC docs** — repoint cross-references (`lint_doc_consistency`
      check4 `epic_to_registry`; e.g. EPIC-008's e2e map pointed at `AC26.x`).
    - **test references** — update the id in the test docstrings/`@ac_proof`

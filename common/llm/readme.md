@@ -320,9 +320,7 @@ end-to-end so `0.10 × 3 == 0.30` holds exactly.
 
 The per-case floor is persisted as sorted, line-oriented JSONL at
 `common/testing/fixtures/cassette-eval-baseline.jsonl` (one case per line,
-`merge=union` in `.gitattributes` so PRs ratcheting different cases auto-merge).
-This mirrors the established AC behavioural-score ratchet
-(`common/testing/data/ac-score-baseline.jsonl`, `common/testing/check_ac_score_baseline.py`):
+`merge=union` in `.gitattributes` so PRs ratcheting different cases auto-merge):
 
 - **Gate:** `tools/check_cassette_graded_eval.py` fails if any case scores below
   its floor (minus a tiny epsilon), if a baselined case lost its floor, **or if a

@@ -23,13 +23,13 @@ concepts that belong in a package.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
+
+from tests.tooling.test_epic_residue_ratchet import EPIC_RESIDUE_BASELINE
 
 REPO = Path(__file__).resolve().parents[2]
 PROJECT_DIR = REPO / "docs" / "project"
 SSOT_DIR = REPO / "docs" / "ssot"
-EPIC_RESIDUE_BASELINE = REPO / "common" / "meta" / "data" / "epic-residue-baseline.json"
 
 # Non-EPIC docs/project/ files frozen at the #1823 terminal snapshot. Shrink-only:
 # deleting one requires pruning this set in the same PR; adding a new one requires
@@ -97,8 +97,7 @@ def test_docs_project_directory_listing_is_frozen() -> None:
     entry) is always allowed; growing outside the allowlist, file or
     directory, is not.
     """
-    payload = json.loads(EPIC_RESIDUE_BASELINE.read_text(encoding="utf-8"))
-    allowlist = set(payload["files"]) | set(NON_EPIC_DOCS_PROJECT_ALLOWLIST)
+    allowlist = set(EPIC_RESIDUE_BASELINE) | set(NON_EPIC_DOCS_PROJECT_ALLOWLIST)
 
     violations = _project_directory_violations(PROJECT_DIR, allowlist)
     assert not violations, (

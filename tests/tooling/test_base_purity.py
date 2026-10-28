@@ -6,7 +6,13 @@ import json
 from pathlib import Path
 
 from common.meta.extension.base_purity import discover_impurities
-from common.meta.extension.check_base_purity import main, violations
+from common.meta.extension.check_base_purity import (
+    BASELINE_BASE_IMPURITIES,
+    main,
+    violations,
+)
+
+REPO = Path(__file__).resolve().parents[2]
 
 
 def test_AC_meta_dependency_governance_4_base_impurity_is_exact(tmp_path: Path) -> None:
@@ -23,6 +29,8 @@ def test_AC_meta_dependency_governance_4_base_impurity_is_exact(tmp_path: Path) 
     assert discover_impurities(src) == [
         "ledger/base/rule.py::from src.ledger.orm.journal import JournalEntry"
     ]
+    assert not (REPO / "common/meta/data/base-purity-baseline.json").exists()
+    assert len(BASELINE_BASE_IMPURITIES) == 2
     assert main() == 0
 
 

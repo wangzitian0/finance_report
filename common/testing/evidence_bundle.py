@@ -125,18 +125,15 @@ def coverage_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
 
 
 def ac_score_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
-    """The per-AC behavioural-score floor (common/testing/data/ac-score-baseline.jsonl).
-
-    Unlike its cassette_eval_baseline sibling, ac_score_baseline_format.load_jsonl
-    does not itself default a missing file to empty — it is a production module
-    also called by check_ac_score_baseline's ratchet gate, where a missing
-    committed baseline file is a real error, not a normal state. This reader
-    guards the missing-file case itself instead of changing that contract.
-    """
-    from common.testing.ac_score_baseline_format import load_jsonl
+    """The per-AC behavioural-score floor (common/testing/data/ac-score-baseline.jsonl)."""
+    from common.testing.jsonl_baseline import load_jsonl
 
     path = repo_root / "common" / "testing" / "data" / "ac-score-baseline.jsonl"
-    payload = load_jsonl(path) if path.exists() else {"acs": {}}
+    payload = (
+        load_jsonl(path, identifier_key="ac_id", collection_key="acs")
+        if path.exists()
+        else {"acs": {}}
+    )
     acs = payload.get("acs", {})
     scores = [float(record.get("score", 0.0)) for record in acs.values()]
     return {

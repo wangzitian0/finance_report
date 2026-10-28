@@ -100,7 +100,6 @@ def test_baseline_inventory_covers_the_repos_real_ratchet_files() -> None:
     files = {entry["file"] for entry in inventory}
     known_ratchets = {
         "common/testing/mirror-assertion-baseline.json",
-        "common/testing/data/ac-score-baseline.jsonl",
         "common/testing/data/protection-floor.json",
         "common/meta/data/ac-tier-baseline.json",
         "docs/project/traceability-exceptions.md",

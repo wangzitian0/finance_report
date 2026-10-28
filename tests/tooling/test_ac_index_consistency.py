@@ -38,11 +38,9 @@ from pathlib import Path
 from common.testing import (
     baseline_update_contract,
     check_ac_index as gate,
-    check_ac_score_baseline as ratchet,
     protection,
 )
 from common.testing.ac_graph import AcGraph, AcNode, Outcome, ProofEdge, VisionItem
-from common.testing.ac_score_baseline_format import write_jsonl
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -209,51 +207,6 @@ def test_AC8_13_139_gate_fails_on_macro_outcome_missing_proof() -> None:
     )
     errors = gate.check_integrity(graph)
     assert any("no-such-proof" in e and "does not resolve" in e for e in errors), errors
-
-
-def test_AC8_13_139_gate_fails_on_ratchet_regression(tmp_path) -> None:
-    """AC8.13.139: the persisted JSONL ratchet still catches a score regression."""
-    baseline = tmp_path / "baseline.jsonl"
-    write_jsonl(
-        baseline,
-        {
-            "version": 1,
-            "acs": {
-                "AC1.1.1": {"score": 0.9, "metric": "m", "provenance": "deterministic"}
-            },
-        },
-    )
-    regressed = tmp_path / "current.json"
-    regressed.write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "acs": {
-                    "AC1.1.1": {
-                        "code": "pass",
-                        "score": 0.4,
-                        "metric": "m",
-                        "provenance": "deterministic",
-                    }
-                },
-            }
-        ),
-        encoding="utf-8",
-    )
-    # Directly via the ratchet (the gate delegates to this exact code path).
-    assert ratchet.main([str(regressed), "--baseline", str(baseline)]) == 1
-    # And via the unified gate's --ratchet-current wiring.
-    assert (
-        gate.main(
-            [
-                "--ratchet-current",
-                str(regressed),
-                "--ratchet-baseline",
-                str(baseline),
-            ]
-        )
-        == 1
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -451,7 +404,7 @@ def test_AC8_13_140_update_floor_raises_floors(tmp_path, monkeypatch) -> None:
 
 
 def test_AC8_13_139_no_committed_materialized_index_files() -> None:
-    """AC8.13.139: no committed materialized matrix/vision/status file is required.
+    """AC-testing.acgates.15: AC8.13.139: no committed materialized matrix/vision/status/score-baseline file is required.
 
     The aggregate views are derived on demand; the previously-committed copies
     must be absent, and the README EPIC-status block must hold the stable pointer
@@ -461,6 +414,7 @@ def test_AC8_13_139_no_committed_materialized_index_files() -> None:
         "docs/ssot/critical-proof-matrix.yaml",
         "docs/ssot/vision-proof-matrix.yaml",
         "docs/reference/vision-proof-matrix.md",
+        "common/testing/data/ac-score-baseline.jsonl",
     ):
         assert not (REPO_ROOT / relative).exists(), (
             f"{relative} must NOT be committed-materialized any more"

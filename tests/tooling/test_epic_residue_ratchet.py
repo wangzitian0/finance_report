@@ -57,7 +57,35 @@ from common.meta.extension.generate_ac_registry import (
 )
 
 REPO = Path(__file__).resolve().parents[2]
-BASELINE_PATH = REPO / "common/meta/data/epic-residue-baseline.json"
+
+EPIC_RESIDUE_BASELINE: dict[str, dict[str, int]] = {
+    "EPIC-001.phase0-setup.md": {"horizontal": 1},
+    "EPIC-002.double-entry-core.md": {},
+    "EPIC-003.statement-parsing.md": {},
+    "EPIC-004.reconciliation-engine.md": {"horizontal": 2},
+    "EPIC-005.reporting-visualization.md": {},
+    "EPIC-006.ai-advisor.md": {},
+    "EPIC-007.deployment.md": {"horizontal": 31},
+    "EPIC-008.testing-strategy.md": {"horizontal": 3},
+    "EPIC-010.observability-logging.md": {},
+    "EPIC-011.asset-lifecycle.md": {},
+    "EPIC-012.foundation-libs.md": {"horizontal": 6},
+    "EPIC-013.statement-parsing-v2.md": {},
+    "EPIC-014.ttd-transformation.md": {},
+    "EPIC-015.processing-account.md": {},
+    "EPIC-016.two-stage-review-ui.md": {"fe-only": 1, "horizontal": 1},
+    "EPIC-017.portfolio-management.md": {},
+    "EPIC-018.ai-driven-pipeline.md": {},
+    "EPIC-019.event-driven-upload-to-report-ux.md": {"fe-half": 1},
+    "EPIC-020.framework-aware-personal-reporting.md": {},
+    "EPIC-021.application-ai-advisor.md": {"horizontal": 1},
+    "EPIC-022.everyday-user-ia.md": {},
+    "EPIC-022.pwa-bottom-tab-ia.design.md": {},
+    "EPIC-023.llm-provider-abstraction.md": {},
+    "EPIC-024.frontend-observability.md": {},
+    "EPIC-025.dry-ssot-simplification.md": {},
+    "EPIC-026.ac-authority-tiers.md": {"horizontal": 1},
+}
 
 #: Row-level residue marker. Kept in sync with the generator's parser by
 #: sourcing the CATEGORY vocabulary from the same module constant.
@@ -152,12 +180,8 @@ def test_AC_meta_residue_1_unmarked_epic_ac_rows_is_zero() -> None:
 
 
 def test_AC_meta_residue_1_census_equals_baseline_and_files_only_shrink() -> None:
-    assert BASELINE_PATH.exists(), (
-        f"missing {BASELINE_PATH.name}: check in the residue baseline "
-        "(common/meta/data/epic-residue-baseline.json) so the census is ratcheted"
-    )
-    payload = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
-    baseline: dict[str, dict[str, int]] = payload["files"]
+    assert not (REPO / "common/meta/data/epic-residue-baseline.json").exists()
+    baseline: dict[str, dict[str, int]] = EPIC_RESIDUE_BASELINE
     per_file, _unmarked, _invalid = _census()
 
     new_files = sorted(set(per_file) - set(baseline))
@@ -165,13 +189,13 @@ def test_AC_meta_residue_1_census_equals_baseline_and_files_only_shrink() -> Non
         "new EPIC file(s) — the EPIC file set may only shrink from the "
         "#1719 sanction (new ACs belong in a package contract.py roadmap, "
         "never a new EPIC table). If this file is genuinely sanctioned, add "
-        "it to common/meta/data/epic-residue-baseline.json in this same PR so the "
+        "it to EPIC_RESIDUE_BASELINE in this same PR so the "
         f"choice is visible in review.\nnew: {new_files}"
     )
     stale_files = sorted(set(baseline) - set(per_file))
     assert not stale_files, (
         "the baseline over-counts — EPIC file(s) were deleted (good!); "
-        "prune common/meta/data/epic-residue-baseline.json in the same PR so the "
+        "prune EPIC_RESIDUE_BASELINE in the same PR so the "
         f"ratchet stays tight.\nstale: {stale_files}"
     )
 
@@ -182,7 +206,7 @@ def test_AC_meta_residue_1_census_equals_baseline_and_files_only_shrink() -> Non
     }
     assert not drift, (
         "the marked-residue census drifted from "
-        "common/meta/data/epic-residue-baseline.json — update the baseline in this "
+        "EPIC_RESIDUE_BASELINE — update the baseline in this "
         "same PR so residue growth is a reviewable choice and migration "
         "shrink stays visible (AC-meta.residue.1).\n"
         f"drift (baseline, actual): {json.dumps(drift, indent=2)}"

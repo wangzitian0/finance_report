@@ -287,19 +287,6 @@ def check_repo_contracts(repo_root: Path) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _run_score_ratchet(repo_root: Path, current: Path, baseline: Path | None) -> int:
-    from common.testing.check_ac_score_baseline import (
-        DEFAULT_BASELINE,
-    )
-    from common.testing.check_ac_score_baseline import (
-        main as ratchet_main,
-    )
-
-    argv = [str(current)]
-    argv += ["--baseline", str(baseline or DEFAULT_BASELINE)]
-    return ratchet_main(argv)
-
-
 def _render_protection_dashboard(counts: dict[str, int], floor: dict[str, int]) -> str:
     lines = ["PROTECTION dashboard (mandatory, active ACs per type):"]
     for ptype in PROTECTION_TYPES:
@@ -312,26 +299,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description=(
             "Exactly two gates over the AC-keyed graph: A) INTEGRITY (hard: every "
             "AC managed + no dangling reference), B) PROTECTION RATCHET (per-type "
-            "count floor + per-AC score floor, monotonic and conflict-safe)."
+            "count floor, monotonic and conflict-safe)."
         )
     )
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
-    parser.add_argument(
-        "--ratchet-current",
-        type=Path,
-        default=None,
-        help=(
-            "Aggregated current AC-evidence JSON. When provided, the persisted "
-            "behavioural-score floor (Gate B part 1) is checked too (delegated to "
-            "check_ac_score_baseline)."
-        ),
-    )
-    parser.add_argument(
-        "--ratchet-baseline",
-        type=Path,
-        default=None,
-        help="JSONL ratchet baseline (default: common/testing/data/ac-score-baseline.jsonl).",
-    )
     parser.add_argument(
         "--floor-file",
         type=Path,
@@ -418,23 +389,7 @@ def _run_command(
         )
         return 1
 
-    # Part 1: per-AC behavioural-score floor (delegated, unchanged).
-    if args.ratchet_current is not None:
-        rc = _run_score_ratchet(repo_root, args.ratchet_current, args.ratchet_baseline)
-        if rc != 0:
-            print(
-                "::error title=AC index PROTECTION::behavioural-score ratchet regressed",
-                file=sys.stderr,
-            )
-            return rc
-        score_message = "score floor intact."
-    else:
-        score_message = (
-            "score floor delegated until --ratchet-current is provided "
-            "(CI enforces it in ac-behavioral-ratchet)."
-        )
-
-    print(f"[PROTECTION] PASSED: no per-type count regression; {score_message}")
+    print("[PROTECTION] PASSED: no per-type count regression.")
     return 0
 
 
