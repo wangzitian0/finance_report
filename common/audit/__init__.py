@@ -13,7 +13,8 @@ from typing import TYPE_CHECKING
 _COMMON_DIR = Path(__file__).resolve().parent
 _BACKEND_DIR = _COMMON_DIR.parents[1] / "apps" / "backend"
 if str(_BACKEND_DIR) not in sys.path:
-    sys.path.insert(0, str(_BACKEND_DIR))
+    # Append, never prepend: apps/backend/tests must not shadow the repo-root tests package.
+    sys.path.append(str(_BACKEND_DIR))
 
 _COMMON_ONLY = frozenset(
     {
