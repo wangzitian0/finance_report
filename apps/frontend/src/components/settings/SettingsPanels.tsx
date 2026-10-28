@@ -358,7 +358,7 @@ export function LlmSettingsPanel() {
       </section>
 
       <form onSubmit={handleSubmit}>
-        <h2 className="mb-3 text-lg font-semibold">Scene bindings</h2>
+        <h2 className="mb-3 text-lg font-semibold">Task model assignments</h2>
         <div className="space-y-4">
           {SCENES.map(({ scene, label, description }) => {
             const binding = draft.find((b) => b.scene === scene)!;

@@ -611,4 +611,85 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     const previewWrapper = within(workbench).getByRole("heading", { name: "PDF Preview" }).closest(".order-2");
     expect(previewWrapper).not.toHaveClass("h-[480px]");
   });
+
+  // AC-extraction.fe-stage1-review.17
+  it("proactively displays Transaction classifications need review and auto-fills categories when unrated pending transactions exist (#2801)", async () => {
+    let capturedBody: { auto_fill_default_categories?: boolean } | null = null;
+    mockedApi.mockImplementation((path: string, options?: RequestInit) => {
+      if (path === "/api/statements/s1/review") {
+        return Promise.resolve({
+          ...baseStatement,
+          account_id: null,
+          source_envelope_reviewable: true,
+          source_missing_facts: ["balances"],
+          source_result_digest: "a".repeat(64),
+          reviewed_envelope: null,
+          transactions: [
+            {
+              id: "txn-unrated",
+              txn_date: "2024-01-03",
+              description: "PAYNOW TRANSFER",
+              reference: "REF-1",
+              amount: 20,
+              direction: "OUT",
+              currency: "SGD",
+              balance_after: 120,
+            },
+          ],
+        });
+      }
+      if (path === "/api/accounts?account_type=ASSET&is_active=true") {
+        return Promise.resolve({
+          items: [
+            { id: "acc-ocbc", name: "OCBC Savings", type: "ASSET", currency: "SGD", is_active: true },
+            { id: "acc-dbs", name: "DBS Cash Account", type: "ASSET", currency: "SGD", is_active: true },
+          ],
+          total: 2,
+        });
+      }
+      if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+      if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
+      return Promise.reject(new Error(`Unexpected path ${path}`));
+    });
+
+    const firstView = renderReviewComponent(<StatementReviewPage /> as never);
+    await waitFor(() => expect(screen.getByLabelText("Custody account")).toHaveValue("acc-dbs"));
+    firstView.unmount();
+
+    mockedApi.mockImplementation((path: string, options?: RequestInit) => {
+      if (path === "/api/statements/s1/review") {
+        return Promise.resolve({
+          ...baseStatement,
+          validation_error: null,
+          transactions: [
+            {
+              id: "txn-unrated",
+              txn_date: "2024-01-03",
+              description: "PAYNOW TRANSFER",
+              reference: "REF-1",
+              amount: 20,
+              direction: "OUT",
+              currency: "SGD",
+              balance_after: 120,
+            },
+          ],
+        });
+      }
+      if (path === "/api/statements/pending-review") return Promise.resolve({ items: [{ id: "s1" }], total: 1 });
+      if (path === "/api/review/conflicts/s1") return Promise.resolve(emptyConflicts);
+      if (path === "/api/statements/s1/review/approve") {
+        capturedBody = JSON.parse(options?.body as string);
+        return Promise.resolve({ journal_entries_created: 1 });
+      }
+      return Promise.reject(new Error(`Unexpected path ${path}`));
+    });
+
+    renderReviewComponent(<StatementReviewPage /> as never);
+    expect(await screen.findByText("Transaction classifications need review")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Auto-Fill Default Categories & Approve" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "Approve Statement" })).getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(capturedBody).toMatchObject({ auto_fill_default_categories: true }));
+  });
 });

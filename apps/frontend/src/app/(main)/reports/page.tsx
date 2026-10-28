@@ -156,8 +156,8 @@ function ReportsReadinessCockpit({
         {([
           ["Readiness", readiness.label],
           ["Blockers", countLabel(readiness.blocking_count, "blocker")],
-          ["Authority decisions", countLabel(coverage?.manifest_decision_count ?? 0, "decision")],
-          ["Unproven inputs", countLabel(unprovenInputCount, "unproven input")],
+          ["Confirmed items", countLabel(coverage?.manifest_decision_count ?? 0, "decision")],
+          ["Unconfirmed items", countLabel(unprovenInputCount, "unconfirmed item")],
         ] as const).map(([dt, dd]) => (
           <div key={dt}><dt className="text-xs text-muted">{dt}</dt><dd className="mt-1 font-semibold">{dd}</dd></div>
         ))}
@@ -165,7 +165,7 @@ function ReportsReadinessCockpit({
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <div className="rounded border border-[var(--border)] p-3">
-          <h3 className="text-sm font-semibold">Authority coverage</h3>
+          <h3 className="text-sm font-semibold">Verified sources</h3>
           <p className="mt-2 text-sm text-muted">
             {unprovenInputCount ? `${countLabel(unprovenInputCount, "input")} still need current authority decisions.` : "All inputs in this package document have current authority decisions."}
           </p>

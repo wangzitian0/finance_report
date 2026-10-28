@@ -40,6 +40,7 @@ const WORKFLOW_JARGON_REPLACEMENTS: Array<[RegExp, string]> = [
   [/Package section invariant failed:\s*cash_balance_input_missing/gi, "Ending cash balance awaits bank statement verification."],
   [/Package section invariant failed:\s*cash_identity_missing/gi, "Cash account balance awaits bank statement verification."],
   [/Package section invariant failed/gi, "Statement balance check needed"],
+  [/Unproven package input/gi, "Unconfirmed statement entries"],
   [/\binvariants\b/gi, "checks"],
   [/\binvariant\b/gi, "check"],
   [/\brollforward\b/gi, "continuity"],

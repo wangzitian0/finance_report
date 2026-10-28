@@ -46,7 +46,7 @@ function AllocationSource({
         type="button"
         onClick={() => onOpenLineage(accountId, line.label)}
         aria-label={`View source transactions for ${line.label}`}
-        className="max-w-full truncate text-left hover:text-[var(--foreground)] hover:underline"
+        className="max-w-full line-clamp-2 break-words text-left hover:text-[var(--foreground)] hover:underline"
       >
         {line.label}
       </button>
@@ -57,7 +57,7 @@ function AllocationSource({
       <Link
         href={APP_ROUTES.PORTFOLIO_EVIDENCE}
         scroll={false}
-        className="block truncate font-medium text-[var(--accent)] hover:text-[var(--foreground)] hover:underline"
+        className="block line-clamp-2 break-words font-medium text-[var(--accent)] hover:text-[var(--foreground)] hover:underline"
       >
         {line.label}
       </Link>
@@ -297,7 +297,7 @@ export default function PortfolioPage() {
                     </p>
                     <ul className="mt-1 space-y-1">
                       {row.source_lines.slice(0, 2).map((line) => (
-                        <li key={`${line.source_type}-${line.source_id ?? line.label}`} className="truncate" title={line.label}>
+                        <li key={`${line.source_type}-${line.source_id ?? line.label}`} className="min-w-0 break-words" title={line.label}>
                           <AllocationSource
                             line={line}
                             onOpenLineage={(accountId, accountName) =>

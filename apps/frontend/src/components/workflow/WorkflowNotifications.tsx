@@ -36,7 +36,7 @@ export function FlowStepBanner({ current }: { current: FlowStep }) {
           const isDone = index < currentIndex;
           return (
             <li key={step.key} className="flex items-center gap-1">
-              <Link href={step.href} aria-current={isCurrent ? "step" : undefined} className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors ${isCurrent ? "bg-[var(--accent-muted)] font-semibold text-[var(--accent)]" : "text-muted hover:text-[var(--foreground)]"}`}>
+              <Link href={step.href} aria-current={isCurrent ? "step" : undefined} className={`min-h-8 inline-flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors ${isCurrent ? "bg-[var(--accent-muted)] font-semibold text-[var(--accent)]" : "text-muted hover:text-[var(--foreground)]"}`}>
                 <span aria-hidden="true" className={`flex h-5 w-5 items-center justify-center rounded-full text-xs ${isCurrent ? "bg-[var(--accent)] text-white" : isDone ? "bg-[var(--success-muted)] text-[var(--success)]" : "bg-[var(--background-muted)] text-muted"}`}>
                   {isDone ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : index + 1}
                 </span>
