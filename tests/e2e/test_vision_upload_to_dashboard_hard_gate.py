@@ -149,6 +149,10 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
     envelope_response = await envelope_info.value
     assert envelope_response.status == 200, await envelope_response.text()
     await expect(approve_button).to_be_enabled(timeout=20_000)
+    # Rank 1 (#2801): the classification banner shows before any Approve click, so no 409 round trip.
+    await expect(
+        page.get_by_text("Transaction classifications need review")
+    ).to_be_visible(timeout=15_000)
     async with page.expect_response(
         lambda response: f"/api/statements/{statement_id}/review/approve"
         in response.url
@@ -156,32 +160,21 @@ async def test_statement_upload_to_dashboard_vision_hard_gate(
         await approve_button.click()
         dialog = page.locator('[role="dialog"]')
         await expect(dialog).to_be_visible(timeout=5_000)
+        await expect(dialog).to_contain_text("filed under default categories")
         await dialog.get_by_role("button", name="Approve").click()
     approve_response = await approve_info.value
     approve_body = await approve_response.json()
-    assert approve_response.status == 409, approve_body
-    assert approve_body["detail"] == "Economic review required: intent_missing"
-
-    await expect(page).to_have_url(re.compile(r"/statements/[^/]+$"), timeout=15_000)
-    await expect(
-        page.get_by_text(
-            "Economic classification needs review before entries can be posted."
-        )
-    ).to_be_visible(timeout=15_000)
+    assert approve_response.status == 200, approve_body
 
     reviewed_response = await page.request.get(
         _get_url(f"/api/statements/{statement_id}/review")
     )
     reviewed_statement = await reviewed_response.json()
     assert reviewed_response.status == 200, reviewed_statement
-    assert reviewed_statement["status"] == "parsed"
-    assert reviewed_statement["stage1_status"] == "pending_review"
-    assert (
-        reviewed_statement["validation_error"]
-        == "Economic review required: intent_missing"
-    )
+    assert reviewed_statement["status"] == "approved"
+    assert reviewed_statement["stage1_status"] == "approved"
 
     journal_response = await page.request.get(_get_url("/api/journal-entries?limit=10"))
     journal_body = await journal_response.json()
     assert journal_response.status == 200, journal_body
-    assert journal_body["total"] == 0
+    assert journal_body["total"] > 0

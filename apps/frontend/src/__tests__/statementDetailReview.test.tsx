@@ -689,7 +689,9 @@ describe("AC16.1.2 AC16.1.3 Statement review page", () => {
     expect(screen.getByRole("button", { name: "Auto-Fill Default Categories & Approve" })).toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
-    fireEvent.click(within(await screen.findByRole("dialog", { name: "Approve Statement" })).getByRole("button", { name: "Approve" }));
+    const approveDialog = await screen.findByRole("dialog", { name: "Approve Statement" });
+    expect(within(approveDialog).getByText(/filed under default categories/)).toBeInTheDocument();
+    fireEvent.click(within(approveDialog).getByRole("button", { name: "Approve" }));
     await waitFor(() => expect(capturedBody).toMatchObject({ auto_fill_default_categories: true }));
   });
 });
