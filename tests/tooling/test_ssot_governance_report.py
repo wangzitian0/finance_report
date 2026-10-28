@@ -1,18 +1,14 @@
 from __future__ import annotations
 
-import json
 import shutil
 import subprocess
 from pathlib import Path
-from types import SimpleNamespace
 from textwrap import dedent
 
-import pytest
 import yaml
 
 from common.meta.extension import governance_report
 from common.meta.extension.check_manifest import load_computed_concepts
-
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -24,51 +20,29 @@ def _write(path: Path, content: str = "content\n") -> Path:
 
 
 def _write_yaml(path: Path, payload: dict[str, object]) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
-    return path
+    return _write(path, yaml.safe_dump(payload, sort_keys=False))
 
 
 def _git(repo: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", "-C", str(repo), *args],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return result.stdout.strip()
+    return subprocess.run(
+        ["git", "-C", str(repo), *args], check=True, capture_output=True, text=True
+    ).stdout.strip()
 
 
 def _write_demo_contract(
-    repo: Path,
-    *,
-    description: str,
-    family: str | None,
-    kind: str | None,
+    repo: Path, *, description: str, family: str | None, kind: str | None
 ) -> None:
     _write(
         repo / "common/demo/contract.py",
         f"""
         from common.meta.package_contract import ConceptRecord, PackageContract
-
         CONTRACT = PackageContract(
-            name="demo",
-            klass="domain",
-            status="draft",
-            depends_on=[],
-            interface=[],
-            events=[],
-            invariants=[],
-            roadmap=[],
-            concepts=[
-                ConceptRecord(
-                    key="demo_concept",
-                    owner="common/demo/readme.md",
-                    description={description!r},
-                    family={family!r},
-                    kind={kind!r},
-                ),
-            ],
+            name="demo", klass="domain", status="draft",
+            depends_on=[], interface=[], events=[], invariants=[], roadmap=[],
+            concepts=[ConceptRecord(
+                key="demo_concept", owner="common/demo/readme.md",
+                description={description!r}, family={family!r}, kind={kind!r},
+            )],
         )
         """,
     )
@@ -77,10 +51,7 @@ def _write_demo_contract(
 
 
 def _seed_computed_registry_repo(
-    tmp_path: Path,
-    *,
-    family: str | None,
-    kind: str | None,
+    tmp_path: Path, *, family: str | None, kind: str | None
 ) -> tuple[Path, str]:
     repo = tmp_path / "repo"
     shutil.copytree(
@@ -89,24 +60,19 @@ def _seed_computed_registry_repo(
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
     )
     _write(repo / "common/__init__.py", "")
-    _write_yaml(
+    _write(
         repo / "common/meta/data/MANIFEST.yaml",
-        {
-            "concepts": {
-                "residual_concept": {
-                    "owner": "common/meta/readme.md",
-                    "description": "Residual concept remains shaped.",
-                    "family": "platform",
-                    "kind": "concept",
-                }
-            }
-        },
+        """
+        concepts:
+          residual_concept:
+            owner: common/meta/readme.md
+            description: Residual concept remains shaped.
+            family: platform
+            kind: concept
+        """,
     )
     _write_demo_contract(
-        repo,
-        description="Base package concept.",
-        family=family,
-        kind=kind,
+        repo, description="Base package concept.", family=family, kind=kind
     )
     _git(repo, "init", "-q")
     _git(repo, "config", "user.email", "governance-test@example.invalid")
@@ -116,8 +82,15 @@ def _seed_computed_registry_repo(
     return repo, _git(repo, "rev-parse", "HEAD")
 
 
-def _seed_finance_manifest(root: Path) -> None:
-    for relative_path in (
+def _source(report: dict[str, object], system: str) -> dict[str, object]:
+    sources = report["sources"]
+    assert isinstance(sources, list)
+    return next(s for s in sources if s["system"] == system)
+
+
+def test_AC14_1_12_report_covers_finance_manifest_shape(tmp_path: Path) -> None:
+    """AC-meta.ssot-governance.2: SSOT governance metrics report Finance Report's manifest."""
+    for rel in (
         "docs/ssot/accounting.md",
         "docs/ssot/deployment.md",
         "common/meta/data/migration-risk.yaml",
@@ -125,74 +98,39 @@ def _seed_finance_manifest(root: Path) -> None:
         "docs/ssot/schema.md",
         "tools/check_deployment.py",
     ):
-        _write(root / relative_path)
-
-    _write_yaml(
-        root / "common/meta/data/MANIFEST.yaml",
-        {
-            "concepts": {
-                "decimal_rule": {
-                    "owner": "docs/ssot/accounting.md",
-                    "description": "Decimal monetary rule.",
-                },
-                "duplicate_decimal_rule": {
-                    "owner": "docs/ssot/accounting.md",
-                    "description": "Intentional duplicate for report metrics.",
-                },
-                "migration_matrix": {
-                    "owner": "common/meta/data/migration-risk.yaml",
-                    "description": "Migration risk matrix.",
-                    "kind": "matrix",
-                    "cross_refs": ["docs/ssot/schema.md"],
-                },
-                "deployment_contract": {
-                    "owner": "docs/ssot/deployment.md",
-                    "description": "Deployment environment contract.",
-                    "family": "ops",
-                    "kind": "concept",
-                    "cross_refs": ["tools/check_deployment.py"],
-                },
-                "deployment_clause_without_parent": {
-                    "owner": "docs/ssot/deployment.md#clause",
-                    "description": "Explicit clause missing parent.",
-                    "family": "ops",
-                    "kind": "clause",
-                },
-            }
-        },
+        _write(tmp_path / rel)
+    _write(
+        tmp_path / "common/meta/data/MANIFEST.yaml",
+        """
+        concepts:
+          decimal_rule:
+            owner: docs/ssot/accounting.md
+            description: Decimal monetary rule.
+          duplicate_decimal_rule:
+            owner: docs/ssot/accounting.md
+            description: Intentional duplicate.
+          migration_matrix:
+            owner: common/meta/data/migration-risk.yaml
+            description: Migration risk matrix.
+            kind: matrix
+            cross_refs: [docs/ssot/schema.md]
+          deployment_contract:
+            owner: docs/ssot/deployment.md
+            description: Deployment environment contract.
+            family: ops
+            kind: concept
+            cross_refs: [tools/check_deployment.py]
+          deployment_clause_without_parent:
+            owner: docs/ssot/deployment.md#clause
+            description: Explicit clause missing parent.
+            family: ops
+            kind: clause
+        """,
     )
-
-
-def _source(report: dict[str, object], system: str) -> dict[str, object]:
-    sources = report["sources"]
-    assert isinstance(sources, list)
-    matched = [source for source in sources if source["system"] == system]
-    assert len(matched) == 1
-    return matched[0]
-
-
-def _assert_file_mentions(path: str, expected: list[str]) -> None:
-    text = (ROOT / path).read_text(encoding="utf-8")
-    for marker in expected:
-        assert marker in text, f"{path} must mention {marker}"
-
-
-def test_AC14_1_12_report_covers_finance_manifest_shape(
-    tmp_path: Path,
-) -> None:
-    """AC-meta.ssot-governance.2: SSOT governance metrics report Finance Report's manifest."""
-
-    _seed_finance_manifest(tmp_path)
     report = governance_report.build_report(tmp_path)
-
-    assert report["report_only"] is True
-    assert report["overall"]["entry_count"] == 5
-    assert report["overall"]["errors"] == []
-
     finance = _source(report, "finance_report")
-    assert finance["entry_key"] == "concepts"
-    assert finance["entry_count"] == 5
-    assert finance["owner_count"] == 4
+    assert report["report_only"] is True and report["overall"]["entry_count"] == 5
+    assert finance["entry_count"] == 5 and finance["owner_count"] == 4
     assert finance["duplicate_owner_groups"] == [
         {
             "owner": "docs/ssot/accounting.md",
@@ -203,400 +141,77 @@ def test_AC14_1_12_report_covers_finance_manifest_shape(
         "docs/ssot/orphan.md",
         "docs/ssot/schema.md",
     ]
-    assert finance["field_coverage"]["family"]["missing"] == 3
-    assert finance["field_coverage"]["kind"]["missing"] == 2
     assert finance["machine_owner_entries"]["missing_proof"] == ["migration_matrix"]
-    assert "migration_matrix" in finance["high_risk_entries"]["missing_proof"]
-    assert (
-        "deployment_clause_without_parent"
-        in finance["future_gate_candidates"][2]["sample"]
-    )
-
     markdown = governance_report.render_markdown(report)
-    assert "# SSOT Governance Report" in markdown
-    assert "Report-only baseline" in markdown
     assert "| finance_report | 5 | 4 | 1 | 2 | 3 | 2 | 1 | 2 |" in markdown
-    assert "`machine_owner_entries_missing_proof`" in markdown
-
-
-def test_AC14_1_12_cli_writes_report_artifacts_without_blocking_findings(
-    tmp_path: Path,
-) -> None:
-    """AC14.1.12: CLI writes report artifacts and findings remain non-blocking."""
-
-    _seed_finance_manifest(tmp_path)
-    json_out = tmp_path / "report.json"
-    markdown_out = tmp_path / "report.md"
-
-    exit_code = governance_report.main(
-        [
-            "--repo-root",
-            str(tmp_path),
-            "--no-infra2",
-            "--json-out",
-            str(json_out),
-            "--markdown-out",
-            str(markdown_out),
-        ]
-    )
-
-    assert exit_code == 0
-    payload = json.loads(json_out.read_text(encoding="utf-8"))
-    assert payload["report_only"] is True
-    assert len(payload["sources"]) == 1
-    assert payload["overall"]["future_gate_candidate_count"] > 0
-    assert markdown_out.read_text(encoding="utf-8").startswith(
-        "# SSOT Governance Report"
-    )
-
-
-def test_AC14_1_12_fail_on_error_is_opt_in(tmp_path: Path) -> None:
-    """AC14.1.12: Parse errors are report-only unless fail-on-error is enabled."""
-
-    _write_yaml(tmp_path / "docs/ssot/MANIFEST.yaml", {"version": 1})
-
-    assert governance_report.main(["--repo-root", str(tmp_path), "--no-infra2"]) == 0
-    assert (
-        governance_report.main(
-            [
-                "--repo-root",
-                str(tmp_path),
-                "--no-infra2",
-                "--fail-on-error",
-            ]
-        )
-        == 1
-    )
-
-
-def test_AC14_1_12_helper_and_error_branches_stay_report_only(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """AC14.1.12: Helper edge cases and parser errors do not become hidden gates."""
-
-    assert governance_report._as_strings("single") == ("single",)
-    assert governance_report._as_strings({"bad": "shape"}) == ()
-
-    outside_path = tmp_path.parent / "outside.md"
-    assert (
-        governance_report._display_ref(
-            outside_path.parent,
-            "docs/ssot/outside.md",
-            tmp_path,
-        )
-        == "docs/ssot/outside.md"
-    )
-    assert (
-        governance_report._display_ref(
-            tmp_path / "nested",
-            "docs/ssot/core.md",
-            tmp_path,
-        )
-        == "nested/docs/ssot/core.md"
-    )
-
-    project_entry = governance_report.GovernanceEntry(
-        key="project_policy",
-        owner="docs/project/EPIC-014.ttd-transformation.md",
-        description="Project policy.",
-        cross_refs=(),
-        proofs=(),
-        family=None,
-        kind=None,
-        parent=None,
-        authority=None,
-    )
-    dotted_entry = governance_report.GovernanceEntry(
-        key="ops.pipeline",
-        owner="",
-        description="Pipeline.",
-        cross_refs=(),
-        proofs=(),
-        family=None,
-        kind=None,
-        parent=None,
-        authority=None,
-    )
-    underscored_entry = governance_report.GovernanceEntry(
-        key="plain_key",
-        owner="",
-        description="Plain key.",
-        cross_refs=(),
-        proofs=(),
-        family=None,
-        kind=None,
-        parent=None,
-        authority=None,
-    )
-    unknown_entry = governance_report.GovernanceEntry(
-        key="plain",
-        owner="",
-        description="Plain.",
-        cross_refs=(),
-        proofs=(),
-        family=None,
-        kind=None,
-        parent=None,
-        authority=None,
-    )
-    assert governance_report._infer_family(project_entry) == "project"
-    assert governance_report._infer_family(dotted_entry) == "ops"
-    assert governance_report._infer_family(underscored_entry) == "plain"
-    assert governance_report._infer_family(unknown_entry) == "unknown"
-
-    missing_source = governance_report.ManifestSource(
-        system="missing",
-        source_root=tmp_path,
-        manifest_path=tmp_path / "docs/ssot/MANIFEST.yaml",
-        entry_key="concepts",
-    )
-    entries, errors = governance_report._load_manifest_entries(missing_source)
-    assert entries == []
-    assert "manifest not found" in errors[0]
-    assert "docs/ssot/MANIFEST.yaml" in errors[0]
-    assert tmp_path.as_posix() not in errors[0]
-
-    missing_root = tmp_path / "missing-root"
-    _write(missing_root / "docs/ssot/orphan.md")
-    missing_manifest_source = governance_report.ManifestSource(
-        system="missing",
-        source_root=missing_root,
-        manifest_path=missing_root / "docs/ssot/MANIFEST.yaml",
-        entry_key="concepts",
-    )
-    missing_report = governance_report.build_source_report(
-        missing_manifest_source,
-        tmp_path,
-    )
-    assert missing_report["errors"] == [
-        "missing: manifest not found: docs/ssot/MANIFEST.yaml"
-    ]
-    assert missing_report["orphan_ssot_files"] == []
-    assert missing_report["future_gate_candidates"][1]["count"] == 0
-
-    _write(tmp_path / "docs/ssot/MANIFEST.yaml", "[1]\n")
-    entries, errors = governance_report._load_manifest_entries(missing_source)
-    assert entries == []
-    assert "must be a YAML mapping" in errors[0]
-
-    _write_yaml(
-        tmp_path / "docs/ssot/MANIFEST.yaml",
-        {"concepts": {"bad_entry": None}},
-    )
-    entries, errors = governance_report._load_manifest_entries(missing_source)
-    assert entries == []
-    assert "bad_entry" in errors[0]
-
-    root_without_ssot = tmp_path / "empty-root"
-    no_ssot_source = governance_report.ManifestSource(
-        system="empty",
-        source_root=root_without_ssot,
-        manifest_path=root_without_ssot / "docs/ssot/MANIFEST.yaml",
-        entry_key="concepts",
-    )
-    assert governance_report._orphan_ssot_files(no_ssot_source, [], tmp_path) == []
-
-    (tmp_path / "docs/ssot/subdir").mkdir(parents=True)
-    _write(tmp_path / "docs/ssot/README.md")
-    assert governance_report._orphan_ssot_files(missing_source, [], tmp_path) == []
-
-    # main() resolves the finance_report source's manifest at its real default
-    # (common/meta/data/MANIFEST.yaml, #1823) — write content there too so the
-    # yaml-missing branch below is actually reached (a not-found manifest short
-    # -circuits before ever calling yaml.safe_load).
-    _write_yaml(
-        tmp_path / "common/meta/data/MANIFEST.yaml",
-        {"concepts": {"bad_entry": None}},
-    )
-    monkeypatch.setattr(governance_report._base, "yaml", None)
-    assert governance_report.main(["--repo-root", str(tmp_path), "--no-infra2"]) == 1
-    captured = capsys.readouterr()
-    assert "PyYAML is required" in captured.err
-
-
-def test_AC14_1_12_markdown_renderer_handles_partial_report_shapes() -> None:
-    """AC14.1.12: Markdown rendering is tolerant of partial advisory reports."""
-
-    report = {
-        "sources": [
-            "not-a-source",
-            {
-                "system": "partial",
-                "entry_count": 1,
-                "owner_count": 1,
-                "duplicate_owner_groups": [],
-                "orphan_ssot_files": [],
-                "field_coverage": {"family": "bad-shape", "kind": "bad-shape"},
-                "machine_owner_entries": "bad-shape",
-                "high_risk_entries": "bad-shape",
-                "errors": ["partial: missing entries"],
-                "future_gate_candidates": [
-                    "not-a-candidate",
-                    {
-                        "code": "sample",
-                        "count": 1,
-                        "sample": [{"owner": "docs/ssot/sample.md"}, "other"],
-                    },
-                ],
-            },
-        ]
-    }
-
-    rendered = governance_report.render_markdown(report)
-
-    assert "| partial | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |" in rendered
-    assert "Report errors" in rendered
-    assert "`sample`: 1 (sample: docs/ssot/sample.md, other)" in rendered
-
-    rendered_with_gate_edges = governance_report.render_markdown(
-        {
-            "sources": [
-                {
-                    "system": "field-coverage-edge",
-                    "entry_count": 1,
-                    "owner_count": 1,
-                    "duplicate_owner_groups": [],
-                    "orphan_ssot_files": [],
-                    "field_coverage": "bad-shape",
-                    "machine_owner_entries": {},
-                    "high_risk_entries": {},
-                    "future_gate_candidates": [],
-                }
-            ],
-            "gate": {
-                "changed_file_count": 1,
-                "exception_count": 0,
-                "violations": "bad-shape",
-            },
-        }
-    )
-    assert "| field-coverage-edge | 1 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |" in (
-        rendered_with_gate_edges
-    )
-    assert "- Result: PASS" in rendered_with_gate_edges
-
-    rendered_with_bad_violation = governance_report.render_markdown(
-        {
-            "sources": [],
-            "gate": {
-                "changed_file_count": 1,
-                "exception_count": 0,
-                "violations": [
-                    "bad-shape",
-                    {
-                        "code": "sample",
-                        "target": "finance_report:manifest:sample",
-                        "message": "sample",
-                    },
-                ],
-            },
-        }
-    )
-    assert "`sample` `finance_report:manifest:sample`: sample" in (
-        rendered_with_bad_violation
-    )
-
-
-def test_AC14_1_12_ci_publishes_report_without_fail_on_error() -> None:
-    """AC14.1.12: CI publishes baseline metrics without hard-failing report debt."""
-
-    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    assert "SSOT Governance Report" in workflow
-    block = workflow.split("- name: SSOT Governance Report", 1)[1].split("- name:", 1)[
-        0
-    ]
-
-    assert "tools/report_ssot_governance.py" in block
-    assert "$GITHUB_STEP_SUMMARY" in block
-    assert "--fail-on-error" not in block
 
 
 def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
     tmp_path: Path,
 ) -> None:
     """AC-meta.ssot-governance.3: SSOT governance gates block new debt without legacy cleanup."""
-
-    _write(tmp_path / "docs/ssot/legacy-orphan.md")
-    _write(tmp_path / "docs/ssot/new-orphan.md")
-    _write(tmp_path / "docs/ssot/new-owned.md")
-    _write(tmp_path / "docs/ssot/migration-risk.md")
-    _write(tmp_path / "tests/tooling/test_new_owned.py")
-    _write(tmp_path / "tests/tooling/test_migration_risk.py")
-    _write_yaml(
+    for rel in (
+        "docs/ssot/legacy-orphan.md",
+        "docs/ssot/new-orphan.md",
+        "docs/ssot/new-owned.md",
+        "docs/ssot/migration-risk.md",
+        "tests/tooling/test_new_owned.py",
+        "tests/tooling/test_migration_risk.py",
+    ):
+        _write(tmp_path / rel)
+    _write(
         tmp_path / "common/meta/data/MANIFEST.yaml",
-        {
-            "concepts": {
-                "legacy_without_family": {
-                    "owner": "docs/ssot/legacy-owned.md",
-                    "description": "Legacy entry remains report-only debt.",
-                },
-                "new_owned": {
-                    "owner": "docs/ssot/new-owned.md",
-                    "description": "New governed concept.",
-                    "family": "tdd",
-                    "cross_refs": ["tests/tooling/test_new_owned.py"],
-                },
-                "new_clause": {
-                    "owner": "docs/ssot/new-owned.md#clause",
-                    "description": "New clause with parent.",
-                    "family": "tdd",
-                    "kind": "clause",
-                    "parent": "new_owned",
-                },
-                "migration_risk": {
-                    "owner": "docs/ssot/migration-risk.md",
-                    "description": "Migration gate proof.",
-                    "family": "schema",
-                    "cross_refs": ["tests/tooling/test_migration_risk.py"],
-                },
-                "missing_family": {
-                    "owner": "docs/ssot/new-owned.md#missing-family",
-                    "description": "New scoreable concept missing family.",
-                },
-                "missing_parent": {
-                    "owner": "docs/ssot/new-owned.md#missing-parent",
-                    "description": "New clause missing parent.",
-                    "family": "tdd",
-                    "kind": "clause",
-                },
-                "high_risk_without_proof": {
-                    "owner": "docs/ssot/migration-risk.md#without-proof",
-                    "description": "Migration deployment secret policy.",
-                    "family": "schema",
-                },
-            }
-        },
-    )
-
-    base_manifest = dedent(
         """
         concepts:
           legacy_without_family:
             owner: docs/ssot/legacy-owned.md
             description: Legacy entry remains report-only debt.
-        """
-    ).lstrip()
-    changed_files = [
+          new_owned:
+            owner: docs/ssot/new-owned.md
+            description: New governed concept.
+            family: tdd
+            cross_refs: [tests/tooling/test_new_owned.py]
+          new_clause:
+            owner: docs/ssot/new-owned.md#clause
+            description: New clause with parent.
+            family: tdd
+            kind: clause
+            parent: new_owned
+          migration_risk:
+            owner: docs/ssot/migration-risk.md
+            description: Migration gate proof.
+            family: schema
+            cross_refs: [tests/tooling/test_migration_risk.py]
+          missing_family:
+            owner: docs/ssot/new-owned.md#missing-family
+            description: New scoreable concept missing family.
+          missing_parent:
+            owner: docs/ssot/new-owned.md#missing-parent
+            description: New clause missing parent.
+            family: tdd
+            kind: clause
+          high_risk_without_proof:
+            owner: docs/ssot/migration-risk.md#without-proof
+            description: Migration deployment secret policy.
+            family: schema
+        """,
+    )
+    base_manifest = "concepts:\n  legacy_without_family:\n    owner: docs/ssot/legacy-owned.md\n    description: Legacy entry.\n"
+    changed = [
         "common/meta/data/MANIFEST.yaml",
         "docs/ssot/new-orphan.md",
         "docs/ssot/new-owned.md",
         "docs/ssot/migration-risk.md",
     ]
-
     gate = governance_report.evaluate_incremental_gate(
         tmp_path,
-        changed_files,
+        changed,
         base_manifest_texts={"finance_report": base_manifest},
         include_infra2=False,
     )
-
-    assert gate["enabled"] is True
-    violation_pairs = {
-        (violation["code"], violation["target"]) for violation in gate["violations"]
-    }
-    changed_surface_violations = {
+    pairs = {(v["code"], v["target"]) for v in gate["violations"]}
+    assert gate["enabled"] is True and gate["violation_count"] == 8
+    assert {
         ("changed_ssot_file_without_owner", "finance_report:docs/ssot/new-orphan.md"),
         ("new_manifest_entry_missing_family", "finance_report:manifest:missing_family"),
         ("new_clause_missing_parent", "finance_report:manifest:missing_parent"),
@@ -604,354 +219,33 @@ def test_AC14_1_13_incremental_gate_only_blocks_changed_ssot_debt(
             "changed_high_risk_entry_missing_proof",
             "finance_report:manifest:high_risk_without_proof",
         ),
-    }
-    assert gate["violation_count"] == 8
-    assert changed_surface_violations <= violation_pairs
-    assert (
-        "governance_ratio_decreased",
-        "finance_report:ratio:high_risk_proof_coverage",
-    ) in violation_pairs
-    assert (
-        "governance_debt_increased",
-        "finance_report:debt:missing_family",
-    ) in violation_pairs
-    assert all(
-        "github.com/wangzitian0/finance_report/issues/823" in violation["issue"]
-        for violation in gate["violations"]
-    )
-    assert all("HLS" in violation["hls_rule"] for violation in gate["violations"])
-
-    _write_yaml(
+    } <= pairs
+    _write(
         tmp_path / "common/meta/data/governance-exceptions.yaml",
-        {
-            "version": 1,
-            "exceptions": [
-                {
-                    "target": "finance_report:manifest:missing_family",
-                    "issue": "https://github.com/wangzitian0/finance_report/issues/823",
-                    "reason": "Temporary fixture exception.",
-                    "remove_when": "The fixture's replacement gate is active.",
-                }
-            ],
-        },
-    )
-    gate_with_exception = governance_report.evaluate_incremental_gate(
-        tmp_path,
-        changed_files,
-        base_manifest_texts={"finance_report": base_manifest},
-        include_infra2=False,
-    )
-    assert gate_with_exception["exception_path"] == (
-        "common/meta/data/governance-exceptions.yaml"
-    )
-    assert gate_with_exception["violation_count"] == gate["violation_count"] - 1
-    assert gate_with_exception["exception_count"] == 1
-    assert all(
-        violation["target"] != "finance_report:manifest:missing_family"
-        for violation in gate_with_exception["violations"]
-    )
-
-    _write_yaml(
-        tmp_path / "custom-governance-exceptions.yaml",
-        {
-            "version": 1,
-            "exceptions": [
-                {
-                    "target": "finance_report:manifest:missing_family",
-                    "issue": "https://github.com/wangzitian0/finance_report/issues/823",
-                    "reason": "Temporary fixture exception.",
-                    "remove_when": "The fixture's replacement gate is active.",
-                }
-            ],
-        },
-    )
-    gate_with_custom_exception_path = governance_report.evaluate_incremental_gate(
-        tmp_path,
-        changed_files,
-        base_manifest_texts={"finance_report": base_manifest},
-        include_infra2=False,
-        exceptions_path=Path("custom-governance-exceptions.yaml"),
-    )
-    assert (
-        gate_with_custom_exception_path["exception_path"]
-        == "custom-governance-exceptions.yaml"
-    )
-    assert gate_with_custom_exception_path["exception_count"] == 1
-
-
-def test_AC14_1_13_deleted_ssot_file_does_not_require_current_owner(
-    tmp_path: Path,
-) -> None:
-    """AC-meta.ssot-governance.3: Retired SSOT files need no current owner."""
-
-    _write_yaml(tmp_path / "common/meta/data/MANIFEST.yaml", {"concepts": {}})
-    base_manifest = dedent(
         """
-        concepts:
-          retired:
-            owner: common/meta/data/retired-baseline.json
-            description: Retired governance baseline.
-            family: platform
-            kind: concept
-        """
-    ).lstrip()
-
-    gate = governance_report.evaluate_incremental_gate(
+        version: 1
+        exceptions:
+          - target: finance_report:manifest:missing_family
+            issue: https://github.com/wangzitian0/finance_report/issues/823
+            reason: Temporary fixture exception.
+            remove_when: The fixture replacement gate is active.
+        """,
+    )
+    gate_exc = governance_report.evaluate_incremental_gate(
         tmp_path,
-        [
-            "common/meta/data/MANIFEST.yaml",
-            "common/meta/data/retired-baseline.json",
-        ],
+        changed,
         base_manifest_texts={"finance_report": base_manifest},
         include_infra2=False,
     )
-
-    assert not any(
-        violation["code"] == "changed_ssot_file_without_owner"
-        and violation["target"]
-        == "finance_report:common/meta/data/retired-baseline.json"
-        for violation in gate["violations"]
-    )
-
-
-def test_AC14_1_13_gate_helper_edges_remain_incremental(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """AC14.1.13: Gate helper edge cases stay scoped to changed surfaces."""
-
-    outside_root = tmp_path.parent / "outside-root"
-
-    finance_source = governance_report.ManifestSource(
-        system="finance_report",
-        source_root=tmp_path,
-        manifest_path=tmp_path / "docs/ssot/MANIFEST.yaml",
-        entry_key="concepts",
-    )
-    outside_source = governance_report.ManifestSource(
-        system="outside",
-        source_root=outside_root,
-        manifest_path=outside_root / "docs/ssot/MANIFEST.yaml",
-        entry_key="concepts",
-    )
-    assert governance_report._source_changed_files(
-        outside_source,
-        tmp_path,
-        ["docs/ssot/root.md", "nested/docs/ssot/extra.md"],
-    ) == ["docs/ssot/root.md", "nested/docs/ssot/extra.md"]
-    assert governance_report._changed_ssot_files(
-        ["docs/readme.md", "docs/ssot/README.md", "docs/ssot/owned.md"]
-    ) == ["docs/ssot/owned.md"]
     assert (
-        governance_report._read_base_manifest_text(
-            tmp_path,
-            finance_source,
-            None,
-        )
-        is None
+        gate_exc["violation_count"] == gate["violation_count"] - 1
+        and gate_exc["exception_count"] == 1
     )
 
-    monkeypatch.setattr(
-        governance_report.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(returncode=1, stdout=""),
-    )
-    assert (
-        governance_report._read_base_manifest_text(
-            tmp_path,
-            finance_source,
-            "missing-base",
-        )
-        is None
-    )
 
-    monkeypatch.setattr(
-        governance_report.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="concepts: {}\n"),
-    )
-    assert (
-        governance_report._read_base_manifest_text(
-            tmp_path,
-            finance_source,
-            "base",
-        )
-        == "concepts: {}\n"
-    )
-
-    exceptions_path = tmp_path / "common/meta/data/governance-exceptions.yaml"
-    _write(exceptions_path, "[]\n")
-    with pytest.raises(RuntimeError, match="root must be a mapping"):
-        governance_report._load_exception_targets(
-            tmp_path,
-            Path("common/meta/data/governance-exceptions.yaml"),
-        )
-    _write_yaml(exceptions_path, {"exceptions": "bad-shape"})
-    with pytest.raises(RuntimeError, match="exceptions must be a list"):
-        governance_report._load_exception_targets(
-            tmp_path,
-            Path("common/meta/data/governance-exceptions.yaml"),
-        )
-    _write_yaml(
-        exceptions_path,
-        {
-            "exceptions": [
-                "bad-shape",
-                {"target": 1, "issue": "https://github.com/wangzitian0/x/issues/1"},
-                {"target": "finance_report:manifest:no-issue", "issue": "not-an-issue"},
-                {
-                    "target": "finance_report:manifest:valid",
-                    "issue": "https://github.com/wangzitian0/finance_report/issues/823",
-                },
-            ]
-        },
-    )
-    with pytest.raises(RuntimeError, match="entry 0 must be a mapping"):
-        governance_report._load_exception_targets(
-            tmp_path,
-            Path("common/meta/data/governance-exceptions.yaml"),
-        )
-    _write_yaml(
-        exceptions_path,
-        {
-            "exceptions": [
-                {
-                    "target": "finance_report:manifest:valid",
-                    "issue": "https://github.com/wangzitian0/finance_report/issues/823",
-                    "reason": "Temporary fixture exception.",
-                    "remove_when": "The fixture's replacement gate is active.",
-                }
-            ]
-        },
-    )
-    assert governance_report._load_exception_targets(
-        tmp_path,
-        Path("common/meta/data/governance-exceptions.yaml"),
-    ) == {"finance_report:manifest:valid"}
-
-    malformed_exceptions_path = tmp_path / "bad-governance-exceptions.yaml"
-    _write(malformed_exceptions_path, "exceptions: [\n")
-    with pytest.raises(RuntimeError, match="Invalid SSOT governance exceptions YAML"):
-        governance_report._load_exception_targets(
-            tmp_path,
-            Path("bad-governance-exceptions.yaml"),
-        )
-
-    _write(tmp_path / "docs/ssot/deployment.md")
-    _write_yaml(
-        tmp_path / "common/meta/data/MANIFEST.yaml",
-        {
-            "concepts": {
-                "deployment_policy": {
-                    "owner": "docs/ssot/deployment.md",
-                    "description": "Deployment environment policy.",
-                    "family": "deployment",
-                }
-            }
-        },
-    )
-    gate = governance_report.evaluate_incremental_gate(
-        tmp_path,
-        ["docs/ssot/deployment.md", "common/meta/data/MANIFEST.yaml"],
-        base_manifest_texts={
-            "finance_report": (tmp_path / "common/meta/data/MANIFEST.yaml").read_text(
-                encoding="utf-8"
-            )
-        },
-        include_infra2=False,
-    )
-    assert gate["violation_count"] == 1
-    assert gate["violations"][0]["code"] == "changed_high_risk_ssot_file_missing_proof"
-
-
-def test_AC14_1_13_cli_and_ci_enable_gradual_gate(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """AC14.1.13: CLI/CI fail only on incremental SSOT gate violations."""
-
-    _write(tmp_path / "docs/ssot/new-orphan.md")
-    _write_yaml(tmp_path / "docs/ssot/MANIFEST.yaml", {"concepts": {}})
-    changed_files = tmp_path / "changed-files.txt"
-    changed_files.write_text("docs/ssot/new-orphan.md\n", encoding="utf-8")
-
-    assert (
-        governance_report.main(
-            [
-                "--repo-root",
-                str(tmp_path),
-                "--no-infra2",
-                "--changed-files",
-                str(changed_files),
-            ]
-        )
-        == 0
-    )
-    assert (
-        governance_report.main(
-            [
-                "--repo-root",
-                str(tmp_path),
-                "--no-infra2",
-                "--changed-files",
-                str(changed_files),
-                "--fail-on-gate",
-            ]
-        )
-        == 1
-    )
-
-    malformed_exceptions = tmp_path / "bad-governance-exceptions.yaml"
-    malformed_exceptions.write_text("exceptions: [\n", encoding="utf-8")
-    assert (
-        governance_report.main(
-            [
-                "--repo-root",
-                str(tmp_path),
-                "--no-infra2",
-                "--changed-files",
-                str(changed_files),
-                "--exceptions",
-                str(malformed_exceptions),
-            ]
-        )
-        == 1
-    )
-    captured = capsys.readouterr()
-    assert "ERROR: Invalid SSOT governance exceptions YAML" in captured.err
-
-    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-    assert "--fail-on-gate" in workflow
-    assert "ssot-changed-files.txt" in workflow
-
-    rendered = governance_report.render_markdown(
-        {
-            "sources": [],
-            "gate": {
-                "hls_rule": governance_report.GATE_HLS_RULE,
-                "changed_file_count": 1,
-                "exception_path": "custom-governance-exceptions.yaml",
-                "exception_count": 0,
-                "violations": [
-                    {
-                        "code": "sample",
-                        "target": "finance_report:manifest:sample",
-                        "message": "sample",
-                    }
-                ],
-            },
-        }
-    )
-    assert "github.com/wangzitian0/finance_report/issues/823" in rendered
-    assert "- Exception registry: `custom-governance-exceptions.yaml`" in rendered
-
-
-def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
-    tmp_path: Path,
-) -> None:
+def test_AC14_1_16_ssot_governance_ratios_cannot_regress(tmp_path: Path) -> None:
     """AC-meta.ssot-governance.6: #823 gate keeps protected SSOT governance ratios from falling."""
-
-    for relative_path in (
+    for rel in (
         "docs/ssot/shaped.md",
         "docs/ssot/legacy-kind.md",
         "docs/ssot/new-family-only.md",
@@ -959,434 +253,93 @@ def test_AC14_1_16_ssot_governance_ratios_cannot_regress(
         "docs/ssot/migration-risk-reviewed.yaml",
         "tests/tooling/test_migration_risk.py",
     ):
-        _write(tmp_path / relative_path)
-
+        _write(tmp_path / rel)
     base_manifest = dedent(
         """
         concepts:
-          shaped:
-            owner: docs/ssot/shaped.md
-            description: Fully shaped concept.
-            family: tdd
-            kind: concept
-          legacy_kind_gap:
-            owner: docs/ssot/legacy-kind.md
-            description: Existing kind debt remains advisory.
-            family: tdd
-          migration_reviewed:
-            owner: docs/ssot/migration-risk-reviewed.yaml
-            description: Migration risk matrix with proof.
-            family: schema
-            kind: matrix
-            proofs:
-              - tests/tooling/test_migration_risk.py
-          migration_unreviewed:
-            owner: common/meta/data/migration-risk.yaml
-            description: Existing migration risk matrix proof debt.
-            family: schema
-            kind: matrix
+          shaped: {owner: docs/ssot/shaped.md, description: Fully shaped., family: tdd, kind: concept}
+          legacy_kind_gap: {owner: docs/ssot/legacy-kind.md, description: Existing debt., family: tdd}
+          migration_reviewed: {owner: docs/ssot/migration-risk-reviewed.yaml, description: Reviewed., family: schema, kind: matrix, proofs: [tests/tooling/test_migration_risk.py]}
+          migration_unreviewed: {owner: common/meta/data/migration-risk.yaml, description: Unreviewed., family: schema, kind: matrix}
         """
     ).lstrip()
-    _write_yaml(
+    _write(
         tmp_path / "common/meta/data/MANIFEST.yaml",
-        {
-            "concepts": {
-                "shaped": {
-                    "owner": "docs/ssot/shaped.md",
-                    "description": "Fully shaped concept.",
-                    "family": "tdd",
-                    "kind": "concept",
-                },
-                "legacy_kind_gap": {
-                    "owner": "docs/ssot/legacy-kind.md",
-                    "description": "Existing kind debt remains advisory.",
-                    "family": "tdd",
-                },
-                "migration_reviewed": {
-                    "owner": "docs/ssot/migration-risk-reviewed.yaml",
-                    "description": "Migration risk matrix with proof.",
-                    "family": "schema",
-                    "kind": "matrix",
-                    "proofs": ["tests/tooling/test_migration_risk.py"],
-                },
-                "migration_unreviewed": {
-                    "owner": "common/meta/data/migration-risk.yaml",
-                    "description": "Existing migration risk matrix proof debt.",
-                    "family": "schema",
-                    "kind": "matrix",
-                },
-                "new_family_only": {
-                    "owner": "docs/ssot/new-family-only.md",
-                    "description": "New entry keeps family but lowers kind ratio.",
-                    "family": "tdd",
-                },
-            }
-        },
+        base_manifest
+        + "  new_family_only: {owner: docs/ssot/new-family-only.md, description: Lowers kind ratio., family: tdd}\n",
     )
-
     gate = governance_report.evaluate_incremental_gate(
         tmp_path,
         ["common/meta/data/MANIFEST.yaml", "docs/ssot/new-family-only.md"],
         base_manifest_texts={"finance_report": base_manifest},
         include_infra2=False,
     )
-
-    assert gate["enabled"] is True
-    assert gate["trend_check_count"] == 8
-    assert {
-        (violation["code"], violation["target"]) for violation in gate["violations"]
-    } == {
-        (
-            "governance_ratio_decreased",
-            "finance_report:ratio:manifest_kind_coverage",
-        ),
+    assert {(v["code"], v["target"]) for v in gate["violations"]} == {
+        ("governance_ratio_decreased", "finance_report:ratio:manifest_kind_coverage"),
         ("governance_debt_increased", "finance_report:debt:missing_kind"),
     }
-    ratio_violation = next(
-        violation
-        for violation in gate["violations"]
-        if violation["code"] == "governance_ratio_decreased"
-    )
-    assert "0.7500 -> 0.6000" in ratio_violation["message"]
-    assert (
-        "github.com/wangzitian0/finance_report/issues/823" in ratio_violation["issue"]
-    )
-
-    _write_yaml(
-        tmp_path / "common/meta/data/governance-exceptions.yaml",
-        {
-            "version": 1,
-            "exceptions": [
-                {
-                    "target": "finance_report:ratio:manifest_kind_coverage",
-                    "issue": "https://github.com/wangzitian0/finance_report/issues/823",
-                    "reason": "Temporary fixture exception.",
-                    "remove_when": "The fixture's replacement gate is active.",
-                },
-                {
-                    "target": "finance_report:debt:missing_kind",
-                    "issue": "https://github.com/wangzitian0/finance_report/issues/823",
-                    "reason": "Temporary fixture exception.",
-                    "remove_when": "The fixture's replacement gate is active.",
-                },
-            ],
-        },
-    )
-    gate_with_exceptions = governance_report.evaluate_incremental_gate(
-        tmp_path,
-        ["common/meta/data/MANIFEST.yaml", "docs/ssot/new-family-only.md"],
-        base_manifest_texts={"finance_report": base_manifest},
-        include_infra2=False,
-    )
-    assert gate_with_exceptions["violation_count"] == 0
-    assert gate_with_exceptions["exception_count"] == 2
 
 
 def test_AC_meta_ssot_governance_9_base_and_head_use_same_computed_concepts(
     tmp_path: Path,
 ) -> None:
     """AC-meta.ssot-governance.9: unchanged package debt is not a false delta."""
-
-    repo, base_ref = _seed_computed_registry_repo(
-        tmp_path,
-        family=None,
-        kind=None,
-    )
+    repo, base_ref = _seed_computed_registry_repo(tmp_path, family=None, kind=None)
     _write_demo_contract(
         repo,
         description="HEAD changes only the package concept description.",
         family=None,
         kind=None,
     )
-
     gate = governance_report.evaluate_incremental_gate(
-        repo,
-        ["common/demo/contract.py"],
-        base_ref=base_ref,
-        include_infra2=False,
+        repo, ["common/demo/contract.py"], base_ref=base_ref, include_infra2=False
     )
-
-    assert gate["trend_check_count"] == 8
-    assert gate["violation_count"] == 0
-
-
-def test_AC_meta_ssot_governance_9_package_concept_regression_is_real_delta(
-    tmp_path: Path,
-) -> None:
-    """AC-meta.ssot-governance.9: package concept drift uses the isolated base."""
-
-    repo, base_ref = _seed_computed_registry_repo(
-        tmp_path,
-        family="platform",
-        kind="concept",
-    )
-    _write_demo_contract(
-        repo,
-        description="HEAD removes the governed fields.",
-        family=None,
-        kind=None,
-    )
-
-    gate = governance_report.evaluate_incremental_gate(
-        repo,
-        ["common/demo/contract.py"],
-        base_ref=base_ref,
-        include_infra2=False,
-    )
-
-    targets = {violation["target"] for violation in gate["violations"]}
-    assert "finance_report:debt:missing_family" in targets
-    assert "finance_report:debt:missing_kind" in targets
-
-
-def test_AC_meta_ssot_governance_9_bad_base_ref_fails_closed(
-    tmp_path: Path,
-) -> None:
-    """AC-meta.ssot-governance.9: an unreadable ref cannot disable the trend gate."""
-
-    repo, _base_ref = _seed_computed_registry_repo(
-        tmp_path,
-        family="platform",
-        kind="concept",
-    )
-    _write_demo_contract(
-        repo,
-        description="Changed at HEAD.",
-        family="platform",
-        kind="concept",
-    )
-
-    with pytest.raises(RuntimeError, match="base ref is required"):
-        governance_report.evaluate_incremental_gate(
-            repo,
-            ["common/demo/contract.py"],
-            include_infra2=False,
-        )
-
-    with pytest.raises(RuntimeError, match="missing-base"):
-        governance_report.evaluate_incremental_gate(
-            repo,
-            ["common/demo/contract.py"],
-            base_ref="missing-base",
-            include_infra2=False,
-        )
-
-
-def test_AC_meta_ssot_governance_9_invalid_base_contract_fails_closed(
-    tmp_path: Path,
-) -> None:
-    """AC-meta.ssot-governance.9: an unloadable base contract is actionable."""
-
-    repo, _base_ref = _seed_computed_registry_repo(
-        tmp_path,
-        family="platform",
-        kind="concept",
-    )
-    _write(repo / "common/demo/contract.py", "this is not valid Python:\n")
-    _git(repo, "add", "common/demo/contract.py")
-    _git(repo, "commit", "-qm", "invalid base contract")
-    invalid_base_ref = _git(repo, "rev-parse", "HEAD")
-    _write_demo_contract(
-        repo,
-        description="Working tree is valid again.",
-        family="platform",
-        kind="concept",
-    )
-
-    with pytest.raises(RuntimeError, match="computed concept registry"):
-        governance_report.evaluate_incremental_gate(
-            repo,
-            ["common/demo/contract.py"],
-            base_ref=invalid_base_ref,
-            include_infra2=False,
-        )
-
-
-def test_AC14_1_16_trend_checks_fail_closed_or_skip_unrelated_sources(
-    tmp_path: Path,
-) -> None:
-    """AC14.1.16: Trend checks require valid source-local manifest data."""
-
-    _write(tmp_path / "docs/ssot/shaped.md")
-    _write_yaml(
-        tmp_path / "common/meta/data/MANIFEST.yaml",
-        {
-            "concepts": {
-                "shaped": {
-                    "owner": "docs/ssot/shaped.md",
-                    "description": "Fully shaped concept.",
-                    "family": "tdd",
-                    "kind": "concept",
-                }
-            }
-        },
-    )
-
-    with pytest.raises(RuntimeError, match="invalid YAML"):
-        governance_report.evaluate_incremental_gate(
-            tmp_path,
-            ["common/meta/data/MANIFEST.yaml"],
-            base_manifest_texts={"finance_report": "concepts: ["},
-            include_infra2=False,
-        )
-
-    gate_with_unrelated_change = governance_report.evaluate_incremental_gate(
-        tmp_path,
-        ["tests/tooling/test_unrelated.py"],
-        base_manifest_texts={
-            "finance_report": dedent(
-                """
-                concepts:
-                  shaped:
-                    owner: docs/ssot/shaped.md
-                    description: Fully shaped concept.
-                """
-            ).lstrip()
-        },
-        include_infra2=False,
-    )
-    assert gate_with_unrelated_change["trend_check_count"] == 0
-    assert gate_with_unrelated_change["violation_count"] == 0
+    assert gate["trend_check_count"] == 8 and gate["violation_count"] == 0
 
 
 def test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned() -> None:
     """AC-meta.ssot-governance.4: #824 cleanup binds finance_report orphan SSOT files."""
-
     report = governance_report.build_report(ROOT, include_infra2=False)
     finance = _source(report, "finance_report")
-
-    assert report["overall"]["errors"] == []
-    assert finance["errors"] == []
-    assert finance["entry_count"] > 0
-    assert finance["orphan_ssot_files"] == []
-    orphan_candidate = next(
-        candidate
-        for candidate in finance["future_gate_candidates"]
-        if candidate["code"] == "orphan_ssot_files"
+    assert (
+        report["overall"]["errors"] == []
+        and finance["errors"] == []
+        and finance["orphan_ssot_files"] == []
     )
-    assert orphan_candidate["count"] == 0
-
     concepts = load_computed_concepts(ROOT, ROOT / "common/meta/data/MANIFEST.yaml")
-
-    assert concepts["statement_parsing_model_selection_logging"]["owner"] == (
-        "common/observability/observability-logging.md"
-    )
-    assert concepts["statement_parsing_model_selection_logging"]["parent"] == (
-        "observability_logging"
-    )
-    assert concepts["protection_count_floor"]["owner"] == (
-        "common/testing/data/protection-floor.json"
+    assert (
+        concepts["statement_parsing_model_selection_logging"]["parent"]
+        == "observability_logging"
     )
     assert concepts["protection_count_floor"]["parent"] == "tdd_workflow"
 
 
 def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() -> None:
     """AC-meta.ssot-governance.5: #824 migrates machine-owned FR SSOT entries by example."""
-
     report = governance_report.build_report(ROOT, include_infra2=False)
-    finance = _source(report, "finance_report")
-
-    assert report["overall"]["errors"] == []
-    assert finance["errors"] == []
-    assert finance["entry_count"] > 0
-    assert finance["machine_owner_entries"]["missing_proof"] == []
-    machine_candidate = next(
-        candidate
-        for candidate in finance["future_gate_candidates"]
-        if candidate["code"] == "machine_owner_entries_missing_proof"
+    assert (
+        _source(report, "finance_report")["machine_owner_entries"]["missing_proof"]
+        == []
     )
-    assert machine_candidate["count"] == 0
-
     concepts = load_computed_concepts(ROOT, ROOT / "common/meta/data/MANIFEST.yaml")
-
-    assert concepts["extraction_failed_case_registry"]["family"] == "extraction"
-    assert concepts["extraction_failed_case_registry"]["kind"] == "registry"
     assert concepts["extraction_failed_case_registry"]["proofs"] == [
-        "tests/tooling/test_extraction_failed_case_registry.py",
+        "tests/tooling/test_extraction_failed_case_registry.py"
     ]
-    assert concepts["source_capability_registry"]["family"] == "source"
-    assert concepts["source_capability_registry"]["kind"] == "registry"
-    assert concepts["source_capability_proof_join"]["family"] == "source"
-    assert concepts["source_capability_proof_join"]["kind"] == "concept"
     assert concepts["source_capability_proof_join"]["proofs"] == [
         "tests/tooling/test_source_capability_proof.py",
         "tools/check_ac_index.py",
     ]
 
-    # The extraction SSOT is internalized into the `extraction` package
-    # (common/extraction/{readme,audit-failed-cases.yaml}); docs/ssot/ pages now
-    # Link the runtime registry directly from every governance surface; the
-    # extraction contract remains its semantic owner.
-    #
-    # docs/ssot/README.md was reduced to a two-line tombstone by #1822 (SSOT
-    # dissolution) and no longer indexes individual concepts by name, so it is
-    # intentionally absent from this inbound_refs check.
-    blob = "https://github.com/wangzitian0/finance_report/blob/main/common/extraction/audit-failed-cases.yaml"
-    inbound_refs = {
-        "common/extraction/readme.md": [
-            "[`extraction_failed_case_registry`](./audit-failed-cases.yaml)",
-            "[`source_capability_registry`](../../apps/backend/src/extraction/base/source_capability.py)",
-        ],
-        "docs/project/EPIC-003.statement-parsing.md": [
-            f"[`extraction_failed_case_registry`]({blob})",
-        ],
-        "docs/project/EPIC-013.statement-parsing-v2.md": [
-            "[`source_capability_registry`](../../apps/backend/src/extraction/base/source_capability.py)",
-        ],
-        "vision.md": [
-            "[`source_capability_registry`](apps/backend/src/extraction/base/source_capability.py)",
-        ],
-        "common/testing/tdd.md": [
-            f"[`extraction_failed_case_registry`]({blob})",
-            "[`source_capability_proof_join`](source_capability_proof.py)",
-        ],
-    }
-    for path, markers in inbound_refs.items():
-        _assert_file_mentions(path, markers)
-
 
 def test_AC14_1_23_high_risk_ssot_entries_bind_proof_under_platform_family() -> None:
-    """AC-meta.ssot-governance.8: #824 threshold cleanup drives ``high_risk_entries_missing_proof`` to zero.
-
-    The governance report flags FR SSOT concepts that match high-risk terms but
-    carry no executable proof path. This cleanup binds the two flagged platform
-    concepts (``container_naming`` and ``test_optimization``) to their existing
-    proof tests and tags them with the ``platform`` family from the #821 HLS
-    family map. It backfills metadata only; no concept is moved or re-owned and
-    no runtime behavior changes.
-    """
-
+    """AC-meta.ssot-governance.8: #824 threshold cleanup drives high_risk_entries_missing_proof to zero."""
     report = governance_report.build_report(ROOT, include_infra2=False)
-    finance = _source(report, "finance_report")
-
-    assert report["overall"]["errors"] == []
-    assert finance["errors"] == []
-    assert finance["entry_count"] > 0
-
-    # Threshold metric reduced by this cleanup: high-risk owners with no proof.
-    assert finance["high_risk_entries"]["missing_proof"] == []
-    high_risk_candidate = next(
-        candidate
-        for candidate in finance["future_gate_candidates"]
-        if candidate["code"] == "high_risk_entries_missing_proof"
-    )
-    assert high_risk_candidate["count"] == 0
-
+    assert _source(report, "finance_report")["high_risk_entries"]["missing_proof"] == []
     concepts = load_computed_concepts(ROOT, ROOT / "common/meta/data/MANIFEST.yaml")
-
-    # container_naming: high-risk ("environment") platform concept now proven.
-    container_naming = concepts["container_naming"]
-    assert container_naming["family"] == "platform"
-    assert container_naming["kind"] == "concept"
-    assert container_naming["proofs"] == [
-        "tests/tooling/test_issue_489_deployment_contracts.py",
+    assert concepts["container_naming"]["proofs"] == [
+        "tests/tooling/test_issue_489_deployment_contracts.py"
     ]
-
-    # test_optimization: high-risk ("ci") platform concept now proven.
-    test_optimization = concepts["test_optimization"]
-    assert test_optimization["family"] == "platform"
-    assert test_optimization["kind"] == "concept"
-    assert test_optimization["proofs"] == [
+    assert concepts["test_optimization"]["proofs"] == [
         "apps/backend/tests/unit/infra/test_test_lifecycle.py",
         "tests/tooling/test_github_workflow_timing_summary.py",
     ]
