@@ -6,13 +6,18 @@ arithmetic for the ``"*"`` sentinel / non-ISO codes — these tests assert the r
 is the SAME as the legacy arithmetic for every branch, so the totals are byte-identical.
 """
 
+from datetime import UTC, datetime
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from common.testing.ac_proof import ac_proof
 
+from src.audit.money import Currency, CurrencyMismatchError, Money
 from src.audit.money.adopt import balance_check
 from src.extraction.base.validation import validate_balance_per_currency
+from src.extraction.orm.statement_summary import StatementSummary
+from src.reconciliation.extension.fx_transfer import TransferLeg
 
 pytestmark = pytest.mark.no_db
 
@@ -62,3 +67,54 @@ def test_AC2_22_2_per_currency_validation_totals_unchanged():
     assert by_ccy["USD"]["expected_closing"] == "150.00"
     assert by_ccy["SGD"]["expected_closing"] == "250.00"
     assert by_ccy["BTC"]["expected_closing"] == "3.00"  # fallback path, same result
+
+
+@ac_proof(
+    proof_id="test_transfer_leg_money",
+    ac_ids=["AC-audit.22.4"],
+    ci_tier="pr_ci",
+    issue="#1171",
+)
+def test_AC2_22_4_transfer_leg_exposes_typed_money():
+    """AC-audit.22.4: TransferLeg.money is the leg value as Money (same amount/currency)."""
+    leg = TransferLeg(
+        user_id=uuid4(),
+        account_id=uuid4(),
+        direction="OUT",
+        amount=Decimal("100.00"),
+        currency="usd",
+        occurred_at=datetime.now(UTC),
+    )
+    assert leg.money == Money(Decimal("100.00"), "USD")
+    assert leg.money.currency == Currency("USD")
+    other = TransferLeg(
+        user_id=uuid4(),
+        account_id=uuid4(),
+        direction="IN",
+        amount=Decimal("135.00"),
+        currency="SGD",
+        occurred_at=datetime.now(UTC),
+    )
+    with pytest.raises(CurrencyMismatchError):
+        _ = leg.money + other.money
+
+
+@ac_proof(
+    proof_id="test_statement_summary_typed_balances",
+    ac_ids=["AC-audit.22.1"],
+    ci_tier="pr_ci",
+    issue="#1171",
+)
+def test_AC2_22_1_statement_summary_typed_currency_balances():
+    """AC-audit.22.1: typed_currency_balances reads the JSONB as per-currency Money."""
+    stmt = StatementSummary()
+    stmt.currency_balances = [
+        {"currency": "USD", "opening": "100.00", "closing": "150.00"},
+        {"currency": "SGD", "opening": "200.00", "closing": "250.00"},
+    ]
+    balances = stmt.typed_currency_balances()
+    assert len(balances) == 2
+    assert balances.get("USD").closing == Money(Decimal("150.00"), "USD")
+    assert not hasattr(balances, "amount")
+    empty = StatementSummary()
+    assert len(empty.typed_currency_balances()) == 0

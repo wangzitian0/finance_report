@@ -63,8 +63,11 @@ def _assert_layer_shares_one_coercion(layer_root: str, import_prefix: str) -> No
     ci_tier="pr_ci",
 )
 def test_AC12_36_1_common_base_packages_share_one_scalar_codec():
-    """AC-audit.36.1: the four common base packages share one decimal_scalar coercion."""
-    _assert_layer_shares_one_coercion("common", "common.audit")
+    """AC-audit.36.1: common.audit.decimal_scalar bridges to the single shared scalar codec."""
+    from src.audit.decimal_scalar import coerce_decimal as backend_coerce
+
+    assert coerce_decimal is backend_coerce
+    _assert_layer_shares_one_coercion("apps/backend/src", "src.audit")
 
 
 @ac_proof(

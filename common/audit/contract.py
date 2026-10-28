@@ -38,11 +38,11 @@ Scope of THIS contract (the physical fold — see ``readme.md`` §Migration stat
   flattening everything into one namespace. Only the 10 non-colliding
   value-object classes are re-exported flat at ``audit``'s root — exactly the
   ``units`` this contract already declared.
-* **The Python kernel has one editable tree and one locked mirror.**
-  ``apps/backend/src/audit`` is the editable source; ``common/audit`` is the
-  standard-library-only mirror that bare-Python CI jobs import.
-  ``tests/tooling/test_audit_mirror_lock.py`` (AC-audit.43.1) fails when a module
-  pair differs (``readme.md`` §Two Python trees, one editable source).
+* **The Python kernel has one physical implementation (`apps/backend/src/audit`).**
+  ``common/audit/__init__.py`` bridges ``common.audit.*`` directly to ``src.audit.*``
+  so bare-Python CI jobs import the exact same classes without SQLAlchemy at import time.
+  ``tests/tooling/test_audit_mirror_lock.py`` (AC-audit.43.1) enforces zero duplicate
+  kernel modules under ``common/audit``.
 * **Pins the number-governor invariants to the existing conformance tests.** Each
   ``invariants[].test`` resolves to a real, already-green conformance/guard test,
   so the gate proves audit's numeric guarantees against the SAME vectors that keep
@@ -431,9 +431,9 @@ CONTRACT = PackageContract(
         # ── groups 21–22: multi-currency balances + typed-Money adoption
         # (was EPIC-002 AC2.21.*/AC2.22.*, minus the HU-retained rows) ──
         ac('AC-audit.21.1', 'CurrencyBalances holds one balance per currency with no scalar accessor (a multi-currency statement is structurally inexpressible as a scalar) and round-trips the StatementSummary.currency_balances JSONB shape; closes the representation gap behind #1139/#1123', 'tests/tooling/test_money_value_type.py::test_AC2_21_1_multi_currency_balance_is_not_a_scalar'),
-        ac('AC-audit.22.1', 'StatementSummary.typed_currency_balances() reads the per-currency JSONB as a typed CurrencyBalances (no scalar collapse)', 'apps/backend/tests/audit/money/test_money_backend_module.py::test_AC2_22_1_statement_summary_typed_currency_balances', priority='P1'),
+        ac('AC-audit.22.1', 'StatementSummary.typed_currency_balances() reads the per-currency JSONB as a typed CurrencyBalances (no scalar collapse)', 'apps/backend/tests/audit/money/test_money_adopt.py::test_AC2_22_1_statement_summary_typed_currency_balances', priority='P1'),
         ac('AC-audit.22.2', "Reconciliation per-currency balance check routes through same-currency Money; per-currency totals are byte-identical to the legacy arithmetic (incl. '*'/non-ISO fallback)", 'apps/backend/tests/audit/money/test_money_adopt.py::test_AC2_22_2_per_currency_validation_totals_unchanged'),
-        ac('AC-audit.22.4', "TransferLeg.money exposes a leg's value as a typed Money (same-currency-only combination)", 'apps/backend/tests/audit/money/test_money_backend_module.py::test_AC2_22_4_transfer_leg_exposes_typed_money', priority='P1'),
+        ac('AC-audit.22.4', "TransferLeg.money exposes a leg's value as a typed Money (same-currency-only combination)", 'apps/backend/tests/audit/money/test_money_adopt.py::test_AC2_22_4_transfer_leg_exposes_typed_money', priority='P1'),
         # ── group 30: Quantity + ExchangeRate (was EPIC-012 AC12.30.*) ──
         ac('AC-audit.30.1', 'Quantity(value, unit) rejects float/bool, is Decimal-backed/immutable, quantizes to 6 dp / ROUND_HALF_UP, supports same-unit arithmetic/comparison, and derives Ratio from same-unit quantities. Was EPIC-012 AC12.30.1.', 'tests/tooling/test_quantity_value_type.py::test_AC12_30_1_quantity_rejects_float_and_is_decimal_backed', priority='P1'),
         ac('AC-audit.30.2', 'Cross-language conformance: Python reference, shipped backend src.audit.quantity, and frontend lib/quantity reproduce the same vectors.json and export the same shared_api. Was EPIC-012 AC12.30.2.', 'tests/tooling/test_quantity_conformance.py::test_AC12_30_2_quantity_quantize_matches_standard', priority='P1'),
@@ -498,7 +498,7 @@ CONTRACT = PackageContract(
         ac('AC-audit.42.4', 'Latest report snapshots cannot conflict for the same logical report scope and report date ranges cannot be inverted. Was EPIC-011 AC11.18.4.', 'apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_4_report_snapshot_latest_scope_and_date_constraints'),
         ac('AC-audit.42.5', 'Market-data facts enforce positive rates/prices and stock prices are unique by symbol, currency, provider source, and date. Was EPIC-011 AC11.18.5.', 'apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_5_market_data_constraints_and_stock_price_uniqueness'),
         ac('AC-audit.42.6', 'The constraint migration declares preflight checks and migration-risk classification for existing data compatibility. Was EPIC-011 AC11.18.6.', 'apps/backend/tests/infra/test_financial_fact_schema_invariants.py::test_AC11_18_6_migration_preflights_and_risk_contract_are_declared'),
-        ac('AC-audit.43.1', 'Every Python module of common/audit holds the same code as its twin in apps/backend/src/audit, with docstrings and import order excluded and string constants compared as they are; the four TraceRecord files also keep docstrings and import order. A module that exists in one tree only, a twin with one backend-only definition and each name that one package surface publishes alone appear in an explicit list with the reason, and no file under common/ or tools/ imports a backend-only module. apps/backend/src/audit is the one editable source; common/audit is the stdlib-only mirror that the bare-Python CI jobs import (#2752).', 'tests/tooling/test_audit_mirror_lock.py::test_AC_audit_43_1_mirrored_modules_are_ast_equal', priority='P1'),
+        ac('AC-audit.43.1', 'apps/backend/src/audit is the single Python kernel implementation; common/audit holds only the contract, bare-Python guard/vector loaders, and __init__.py which bridges common.audit.* to src.audit.* with object identity and without requiring SQLAlchemy at import time (#2752).', 'tests/tooling/test_audit_mirror_lock.py::test_AC_audit_43_1_mirrored_modules_are_ast_equal', priority='P1'),
         ac('AC-audit.44.1', 'canonical_json_digest (SHA-256 of sorted, compact JSON; its default argument goes to json.dumps, and a call site passes default=str only where the replaced code did) and text_digest (SHA-256 of a UTF-8 string) in apps/backend/src/audit/digest.py return the exact bytes of the private copies and inline expressions that they replaced, for the digests that trace records, command digests, result ids, transaction hashes and policy versions store; a value that JSON cannot encode still raises TypeError at a site that had no default; the reviewed-envelope owner digest keeps the JSON-quoted form (#2768).', 'apps/backend/tests/audit/test_digest_helpers.py::test_AC_audit_44_1_canonical_json_digest_keeps_the_old_bytes', priority='P1'),
         ac('AC-audit.44.2', 'apps/backend/src holds one definition of the canonical-JSON SHA-256 and one of the text SHA-256: outside audit/digest.py, a function that combines hashlib.sha256 with json.dumps(sort_keys=True), or hashlib.sha256(<str>.encode()).hexdigest(), fails unless that call sits in an explicit list with its own reason (another byte form, a mirrored file or a file hash); the scan covers hashlib.new("sha256"), import aliases, bytes held in a variable and update() chains (#2768).', 'tests/tooling/test_digest_single_definition.py::test_AC_audit_44_2_backend_src_has_no_second_digest_definition', priority='P1'),
         # ── group global-invariant: cross-package numeric-governance closeout
@@ -578,10 +578,8 @@ CONTRACT = PackageContract(
                 "value family)."
             ),
             cross_refs=[
-                "common/audit/ratio/__init__.py",
                 "common/audit/ratio/contract/ratio.contract.md",
                 "common/audit/ratio/conformance/vectors.json",
-                "common/audit/quantity/__init__.py",
                 "common/audit/quantity/contract/quantity.contract.md",
                 "common/audit/quantity/conformance/vectors.json",
                 "apps/backend/src/audit/ratio/__init__.py",
@@ -593,10 +591,8 @@ CONTRACT = PackageContract(
             proofs=[
                 "tests/tooling/test_ratio_value_type.py",
                 "tests/tooling/test_ratio_conformance.py",
-                "tests/tooling/test_ratio_api_parity.py",
                 "tests/tooling/test_quantity_value_type.py",
                 "tests/tooling/test_quantity_conformance.py",
-                "tests/tooling/test_quantity_api_parity.py",
             ],
             family="platform",
             kind="concept",
@@ -607,11 +603,10 @@ CONTRACT = PackageContract(
             owner="common/audit/money/readme.md#money-type",
             description=(
                 "Money/Currency/ExchangeRate/convert/CurrencyBalances value types in "
-                "common/audit/money/ make bad money states unrepresentable (#1167)."
+                "apps/backend/src/audit/money/ make bad money states unrepresentable (#1167)."
             ),
             cross_refs=[
                 "docs/project/EPIC-002.double-entry-core.md",
-                "common/audit/money/__init__.py",
                 "common/audit/money/contract/money.contract.md",
                 "common/audit/money/conformance/vectors.json",
                 "apps/backend/src/audit/money/__init__.py",

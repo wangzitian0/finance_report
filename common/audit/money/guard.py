@@ -118,8 +118,7 @@ def float_violations(repo_root: Path = REPO_ROOT) -> list[str]:
 
 # One conformance suite per stack that consumes the standard. Absence == drift.
 REQUIRED_CONFORMANCE_SUITES = (
-    "tests/tooling/test_money_conformance.py",  # Python reference impl
-    "apps/backend/tests/audit/money/test_money_conformance_backend.py",  # shipped backend path
+    "tests/tooling/test_money_conformance.py",  # Python impl
     "apps/frontend/src/lib/audit/money/money.conformance.test.ts",  # frontend impl
 )
 
