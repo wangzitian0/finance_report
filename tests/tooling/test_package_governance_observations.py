@@ -217,19 +217,9 @@ def _inputs() -> dict[str, object]:
                 ],
             }
         ],
-        "gate_inventory": {
-            "branch_required_status_contexts": ["finish"],
-            "gates": [
-                {
-                    "id": "ci.demo",
-                    "job": "demo",
-                    "required_by_finish": True,
-                    "blocks_workflow": True,
-                }
-            ],
-        },
         "workflow": {
             "jobs": {
+                "demo": {},
                 "finish": {
                     "needs": ["demo"],
                     "steps": [
@@ -242,7 +232,7 @@ def _inputs() -> dict[str, object]:
                             ),
                         }
                     ],
-                }
+                },
             }
         },
         "rulesets": [
@@ -537,7 +527,6 @@ def test_control_detector_never_synthesizes_green_for_missing_raw_facts() -> Non
         open_issue_urls={ISSUE_URL},
         existing_payloads=[],
         target_sha=TARGET_SHA,
-        gate_inventory=_inputs()["gate_inventory"],
         workflow=workflow,
         rulesets=_inputs()["rulesets"],
         issue_payloads=_inputs()["issue_payloads"],
@@ -595,7 +584,6 @@ def test_control_detector_ignores_app_and_frontend_governance_initiative_payload
         open_issue_urls={ISSUE_URL},
         existing_payloads=existing_payloads,
         target_sha=TARGET_SHA,
-        gate_inventory=_inputs()["gate_inventory"],
         workflow=_inputs()["workflow"],
         rulesets=_inputs()["rulesets"],
         issue_payloads=_inputs()["issue_payloads"],
@@ -1097,8 +1085,8 @@ def test_payload_reader_rejects_invalid_or_non_object_json(tmp_path: Path) -> No
         observation_adapter._read_payload(payload)
 
     inputs = _inputs()
-    inputs["gate_inventory"]["gates"][0]["required_by_finish"] = False
-    with pytest.raises(ObservationInputError, match="finish reachability disagree"):
+    inputs["workflow"]["jobs"]["finish"]["needs"] = []
+    with pytest.raises(ObservationInputError, match="finish does not depend on"):
         build_observation_bundle(**inputs)
 
     inputs = _inputs()
@@ -1161,8 +1149,6 @@ def test_observation_adapter_main_writes_live_bundle_and_redacted_snapshot(
     tooling_junit = junit_root / "tooling/tooling-junit.xml"
     tooling_junit.parent.mkdir()
     _write_executed_proof_junit(tooling_junit)
-    inventory = tmp_path / "inventory.yaml"
-    inventory.write_text(yaml.safe_dump(_inputs()["gate_inventory"]), encoding="utf-8")
     workflow_path = tmp_path / ".github/workflows/ci.yml"
     workflow_path.parent.mkdir(parents=True)
     workflow_path.write_text(yaml.safe_dump(_inputs()["workflow"]), encoding="utf-8")
@@ -1211,8 +1197,6 @@ def test_observation_adapter_main_writes_live_bundle_and_redacted_snapshot(
                 TARGET_SHA,
                 "--junit-root",
                 str(junit_root),
-                "--gate-inventory",
-                str(inventory),
                 "--output",
                 str(output),
                 "--raw-github-out",
@@ -1239,8 +1223,6 @@ def test_observation_adapter_main_writes_live_bundle_and_redacted_snapshot(
                 TARGET_SHA,
                 "--junit-root",
                 str(empty),
-                "--gate-inventory",
-                str(inventory),
                 "--output",
                 str(output),
                 "--raw-github-out",

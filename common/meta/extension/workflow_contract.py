@@ -74,7 +74,7 @@ WORKFLOW_CONTRACT: dict[str, dict[str, tuple[str, ...]]] = {
     },
     ".github/workflows/deploy-freshness.yml": {
         # Daily age bound on what staging/production serve versus origin/main;
-        # the `freshness` job id is the one ci-gate-inventory.yaml keys on, and
+        # the `freshness` job id is the one workflow_contract keys on, and
         # the schedule is the primary trigger (dispatch only overrides bounds).
         "jobs": ("freshness",),
         "triggers": ("schedule", "workflow_dispatch"),

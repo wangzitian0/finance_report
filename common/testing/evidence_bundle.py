@@ -36,10 +36,29 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BUNDLE_VERSION = 1
 
 
+_CI_LANE_BY_JOB: dict[str, str] = {
+    "changes": "classification",
+    "lint": "static",
+    "schema-migrations": "schema",
+    "backend": "backend",
+    "backend-integration": "backend",
+    "frontend-build": "frontend",
+    "frontend-vitest": "frontend",
+    "frontend-playwright": "frontend",
+    "frontend-telemetry-e2e": "frontend",
+    "container-images": "images",
+    "verify-sha-image-published": "images",
+    "tooling-coverage": "tooling",
+    "unified-coverage": "coverage",
+    "ac-traceability": "static",
+    "ac-behavioral-ratchet": "ac-ratchet",
+}
+
+
 def load_gate_map(repo_root: Path = REPO_ROOT) -> tuple[dict[str, Any], ...]:
-    """Load the gate map from the CI gate inventory SSOT."""
-    inventory_path = repo_root / "common" / "meta" / "data" / "ci-gate-inventory.yaml"
-    if not inventory_path.exists():
+    """Load the gate map directly from the .github/workflows/ci.yml SSOT."""
+    workflow_path = repo_root / ".github" / "workflows" / "ci.yml"
+    if not workflow_path.exists():
         return ()
 
     try:
@@ -47,33 +66,43 @@ def load_gate_map(repo_root: Path = REPO_ROOT) -> tuple[dict[str, Any], ...]:
     except ImportError:  # pragma: no cover
         return ()
 
-    inventory = yaml.safe_load(inventory_path.read_text(encoding="utf-8"))
-    if not isinstance(inventory, dict):
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    if not isinstance(workflow, dict):
         return ()
-    gates = inventory.get("gates", [])
-    if not isinstance(gates, list):
+    jobs = workflow.get("jobs", {})
+    if not isinstance(jobs, dict):
         return ()
+    finish = jobs.get("finish", {})
+    if not isinstance(finish, dict):
+        return ()
+    finish_needs = finish.get("needs", [])
+    if not isinstance(finish_needs, list):
+        return ()
+    required_jobs = {str(job_id) for job_id in finish_needs}
+    check_script = "\n".join(
+        str(step.get("run", ""))
+        for step in finish.get("steps", [])
+        if isinstance(step, dict)
+    )
     result: list[dict[str, Any]] = []
-    for gate in gates:
-        if (
-            isinstance(gate, dict)
-            and gate.get("workflow") == ".github/workflows/ci.yml"
-            and "lane" in gate
-        ):
-            result.append(
-                {
-                    "lane": gate["lane"],
-                    "job": gate["job"],
-                    "blocking": gate.get(
-                        "blocking", gate.get("required_by_finish", True)
-                    ),
-                }
-            )
+    for job_id in jobs:
+        job_name = str(job_id)
+        if job_name not in required_jobs:
+            continue
+        lane = _CI_LANE_BY_JOB.get(job_name, job_name.split("-", 1)[0])
+        conditional = f'needs.{job_name}.result }}" != "skipped"' in check_script
+        result.append(
+            {
+                "lane": lane,
+                "job": job_name,
+                "blocking": "conditional" if conditional else True,
+            }
+        )
     return tuple(result)
 
 
 # Gate map: lane -> job -> blocking?. Loaded dynamically from the authoritative
-# CI gate inventory SSOT (common/meta/data/ci-gate-inventory.yaml).
+# CI workflow SSOT (.github/workflows/ci.yml).
 GATE_MAP: tuple[dict[str, Any], ...] = load_gate_map(REPO_ROOT)
 
 
