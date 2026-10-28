@@ -19,7 +19,7 @@ def run_db_setup():
     if not url:
         print("❌ ERROR: DATABASE_URL not set")
         sys.exit(1)
-    
+
     sync_url = url.replace("postgresql+asyncpg://", "postgresql://")
 
     print("⏳ Waiting for database...")
@@ -38,13 +38,13 @@ def run_db_setup():
                 print(f"  Still waiting ({i+1}/60)...")
                 print(f"    Last error: {type(e).__name__}: {e}")
             time.sleep(1)
-    
+
     if not conn:
         print("❌ ERROR: Database connection timeout (60s)")
         if last_error:
             print(f"   Last error: {type(last_error).__name__}: {last_error}")
         sys.exit(1)
-    
+
     print("✅ Database connected")
 
     try:
@@ -56,15 +56,15 @@ def run_db_setup():
 
             try:
                 cur.execute("""
-                    SELECT count(*) FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
+                    SELECT count(*) FROM information_schema.tables
+                    WHERE table_schema = 'public'
                     AND table_name != 'alembic_version'
                 """)
                 table_count = cur.fetchone()[0]
 
                 cur.execute("""
                     SELECT EXISTS (
-                        SELECT FROM information_schema.tables 
+                        SELECT FROM information_schema.tables
                         WHERE table_schema = 'public' AND table_name = 'alembic_version'
                     )
                 """)
@@ -76,7 +76,7 @@ def run_db_setup():
                 if table_count > 0 and not has_alembic:
                     print(f"⚠️  Stamping {table_count} existing tables...")
                     command.stamp(alembic_cfg, "head")
-                
+
                 print("🚀 Running migrations...")
                 start = time.time()
                 command.upgrade(alembic_cfg, "head")
@@ -104,4 +104,4 @@ if __name__ == "__main__":
 EOF
 
 echo "🎬 Starting application..."
-exec uvicorn src.main:app --host 0.0.0.0 --port 8000
+exec uvicorn src.main:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 120 "$@"

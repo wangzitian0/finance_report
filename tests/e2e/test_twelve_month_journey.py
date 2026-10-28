@@ -39,6 +39,7 @@ from common.testing.provider_review import (
 )
 from deployment_pin import assert_pinned_deployment, resolve_expected_commit
 from journey_checkpoint import checkpoint
+from transport_retry import ReconnectCount, get_with_reconnect
 from playwright.async_api import Locator, Page, expect
 
 APP_URL = os.getenv("APP_URL", "http://localhost:3000")
@@ -141,11 +142,15 @@ def _month_csv(
     return "\n".join(rows)
 
 
-async def _wait_for_parsed(client: httpx.AsyncClient, statement_id: str) -> dict:
+async def _wait_for_parsed(
+    client: httpx.AsyncClient, statement_id: str, reconnects: ReconnectCount
+) -> dict:
     deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000
     last_payload: dict | None = None
     while asyncio.get_running_loop().time() < deadline:
-        response = await client.get(_api_url(f"/statements/{statement_id}"))
+        response = await get_with_reconnect(
+            client, _api_url(f"/statements/{statement_id}"), reconnects
+        )
         assert response.status_code == 200, (
             f"statement poll failed for {statement_id}: {response.text}"
         )
@@ -181,223 +186,235 @@ async def test_twelve_consecutive_months_tie_out_on_deployed_revision(
     await _assert_pinned_before_journey(page, record_property)
 
     headers = await _auth_headers(page)
-    async with httpx.AsyncClient(
-        headers=headers, verify=False, timeout=120.0
-    ) as client:
-        # 1. Create dedicated asset account for the full year proof.
-        acc_resp = await client.post(
-            _api_url("/accounts"),
-            json={
-                "name": "Twelve Month Proof Savings",
-                "type": "ASSET",
-                "currency": CURRENCY,
-            },
-        )
-        assert acc_resp.status_code == 201, f"account creation failed: {acc_resp.text}"
-        account_id = acc_resp.json()["id"]
-
-        # 2. Record opening balance on 2025-12-31.
-        opening_resp = await client.post(
-            _api_url("/accounts/opening-balances"),
-            json={
-                "entry_date": "2025-12-31",
-                "balances": {account_id: str(INITIAL_OPENING_BALANCE)},
-                "currency": CURRENCY,
-                "memo": "Initial opening cash before 2026 statements",
-            },
-        )
-        assert opening_resp.status_code == 201, (
-            f"opening balance failed: {opening_resp.status_code} {opening_resp.text}"
-        )
-
-        assert EXPECTED_TOTAL_INCOME == Decimal("60000.00")
-        assert EXPECTED_TOTAL_EXPENSES == Decimal("18000.00")
-        assert EXPECTED_NET_INCOME == Decimal("42000.00")
-        assert EXPECTED_ENDING_CASH == Decimal("52000.00")
-        assert EXPECTED_TOTAL_ASSETS == Decimal("52000.00")
-
-        # 3. Sequentially ingest 12 consecutive months.
-        running_balance = INITIAL_OPENING_BALANCE
-        uploaded_filenames: list[str] = []
-        for month_idx in range(1, TOTAL_MONTHS + 1):
-            days_in_month = calendar.monthrange(2026, month_idx)[1]
-            period_start = date(2026, month_idx, 1)
-            period_end = date(2026, month_idx, days_in_month)
-            month_opening = running_balance
-            month_closing = running_balance + MONTHLY_NET
-
-            csv_text = _month_csv(
-                period_start=period_start,
-                period_end=period_end,
-                opening=month_opening,
-                closing=month_closing,
-            )
-            filename = f"statement_2026_{month_idx:02d}_{uuid.uuid4().hex[:6]}.csv"
-            uploaded_filenames.append(filename)
-            upload_resp = await client.post(
-                _api_url("/statements/upload"),
-                data={
-                    "institution": "Twelve Month Savings Bank",
-                    "account_id": account_id,
+    reconnects = ReconnectCount()
+    try:
+        async with httpx.AsyncClient(
+            headers=headers, verify=False, timeout=120.0
+        ) as client:
+            # 1. Create dedicated asset account for the full year proof.
+            acc_resp = await client.post(
+                _api_url("/accounts"),
+                json={
+                    "name": "Twelve Month Proof Savings",
+                    "type": "ASSET",
+                    "currency": CURRENCY,
                 },
-                files={"file": (filename, csv_text.encode("utf-8"), "text/csv")},
             )
-            assert upload_resp.status_code in (200, 201, 202), (
-                f"month {month_idx} upload failed: {upload_resp.text}"
+            assert acc_resp.status_code == 201, (
+                f"account creation failed: {acc_resp.text}"
             )
-            statement_id = upload_resp.json()["id"]
+            account_id = acc_resp.json()["id"]
 
-            parsed = await _wait_for_parsed(client, statement_id)
-            assert len(parsed["transactions"]) == 2
+            # 2. Record opening balance on 2025-12-31.
+            opening_resp = await client.post(
+                _api_url("/accounts/opening-balances"),
+                json={
+                    "entry_date": "2025-12-31",
+                    "balances": {account_id: str(INITIAL_OPENING_BALANCE)},
+                    "currency": CURRENCY,
+                    "memo": "Initial opening cash before 2026 statements",
+                },
+            )
+            assert opening_resp.status_code == 201, (
+                f"opening balance failed: {opening_resp.status_code} {opening_resp.text}"
+            )
 
-            approval = await approve_statement_with_fixture_review(
-                client,
-                api_url=_api_url,
-                statement_id=statement_id,
-                transactions=parsed["transactions"],
-                dispositions=DISPOSITIONS,
-                envelope=FixtureEnvelope(
-                    currency=CURRENCY,
+            assert EXPECTED_TOTAL_INCOME == Decimal("60000.00")
+            assert EXPECTED_TOTAL_EXPENSES == Decimal("18000.00")
+            assert EXPECTED_NET_INCOME == Decimal("42000.00")
+            assert EXPECTED_ENDING_CASH == Decimal("52000.00")
+            assert EXPECTED_TOTAL_ASSETS == Decimal("52000.00")
+
+            # 3. Sequentially ingest 12 consecutive months.
+            running_balance = INITIAL_OPENING_BALANCE
+            uploaded_filenames: list[str] = []
+            for month_idx in range(1, TOTAL_MONTHS + 1):
+                days_in_month = calendar.monthrange(2026, month_idx)[1]
+                period_start = date(2026, month_idx, 1)
+                period_end = date(2026, month_idx, days_in_month)
+                month_opening = running_balance
+                month_closing = running_balance + MONTHLY_NET
+
+                csv_text = _month_csv(
                     period_start=period_start,
                     period_end=period_end,
-                    opening_balance=month_opening,
-                    closing_balance=month_closing,
-                    rationale="The generated monthly CSV declares these source facts.",
-                ),
+                    opening=month_opening,
+                    closing=month_closing,
+                )
+                filename = f"statement_2026_{month_idx:02d}_{uuid.uuid4().hex[:6]}.csv"
+                uploaded_filenames.append(filename)
+                upload_resp = await client.post(
+                    _api_url("/statements/upload"),
+                    data={
+                        "institution": "Twelve Month Savings Bank",
+                        "account_id": account_id,
+                    },
+                    files={"file": (filename, csv_text.encode("utf-8"), "text/csv")},
+                )
+                assert upload_resp.status_code in (200, 201, 202), (
+                    f"month {month_idx} upload failed: {upload_resp.text}"
+                )
+                statement_id = upload_resp.json()["id"]
+
+                parsed = await _wait_for_parsed(client, statement_id, reconnects)
+                assert len(parsed["transactions"]) == 2
+
+                approval = await approve_statement_with_fixture_review(
+                    client,
+                    api_url=_api_url,
+                    statement_id=statement_id,
+                    transactions=parsed["transactions"],
+                    dispositions=DISPOSITIONS,
+                    envelope=FixtureEnvelope(
+                        currency=CURRENCY,
+                        period_start=period_start,
+                        period_end=period_end,
+                        opening_balance=month_opening,
+                        closing_balance=month_closing,
+                        rationale="The generated monthly CSV declares these source facts.",
+                    ),
+                )
+                assert approval["status"] == "approved", (
+                    f"month {month_idx} approval failed: {approval}"
+                )
+                running_balance = month_closing
+
+            # 4. Verify the annual balance sheet as of 2026-12-31.
+            bs_resp = await client.get(
+                _api_url("/reports/balance-sheet"),
+                params={"as_of_date": YEAR_END, "currency": CURRENCY},
             )
-            assert approval["status"] == "approved", (
-                f"month {month_idx} approval failed: {approval}"
+            assert bs_resp.status_code == 200, f"balance sheet failed: {bs_resp.text}"
+            bs = bs_resp.json()
+            assert bs["is_balanced"] is True, f"balance sheet not balanced: {bs}"
+            assert Decimal(str(bs["equation_delta"])) == Decimal("0.00")
+            assert Decimal(str(bs["total_assets"])) == EXPECTED_TOTAL_ASSETS
+            assert (
+                Decimal(str(bs["total_equity"])) + Decimal(str(bs["net_income"]))
+                == EXPECTED_TOTAL_ASSETS
             )
-            running_balance = month_closing
 
-        # 4. Verify the annual balance sheet as of 2026-12-31.
-        bs_resp = await client.get(
-            _api_url("/reports/balance-sheet"),
-            params={"as_of_date": YEAR_END, "currency": CURRENCY},
-        )
-        assert bs_resp.status_code == 200, f"balance sheet failed: {bs_resp.text}"
-        bs = bs_resp.json()
-        assert bs["is_balanced"] is True, f"balance sheet not balanced: {bs}"
-        assert Decimal(str(bs["equation_delta"])) == Decimal("0.00")
-        assert Decimal(str(bs["total_assets"])) == EXPECTED_TOTAL_ASSETS
-        assert (
-            Decimal(str(bs["total_equity"])) + Decimal(str(bs["net_income"]))
-            == EXPECTED_TOTAL_ASSETS
-        )
+            # 5. Verify the annual income statement for 2026.
+            inc_resp = await client.get(
+                _api_url("/reports/income-statement"),
+                params={
+                    "start_date": YEAR_START,
+                    "end_date": YEAR_END,
+                    "currency": CURRENCY,
+                },
+            )
+            assert inc_resp.status_code == 200, (
+                f"income statement failed: {inc_resp.text}"
+            )
+            inc = inc_resp.json()
+            assert Decimal(str(inc["total_income"])) == EXPECTED_TOTAL_INCOME
+            assert Decimal(str(inc["total_expenses"])) == EXPECTED_TOTAL_EXPENSES
+            assert Decimal(str(inc["net_income"])) == EXPECTED_NET_INCOME
 
-        # 5. Verify the annual income statement for 2026.
-        inc_resp = await client.get(
-            _api_url("/reports/income-statement"),
-            params={
-                "start_date": YEAR_START,
-                "end_date": YEAR_END,
-                "currency": CURRENCY,
-            },
-        )
-        assert inc_resp.status_code == 200, f"income statement failed: {inc_resp.text}"
-        inc = inc_resp.json()
-        assert Decimal(str(inc["total_income"])) == EXPECTED_TOTAL_INCOME
-        assert Decimal(str(inc["total_expenses"])) == EXPECTED_TOTAL_EXPENSES
-        assert Decimal(str(inc["net_income"])) == EXPECTED_NET_INCOME
+            # 6. Verify the annual cash flow statement for 2026.
+            cf_resp = await client.get(
+                _api_url("/reports/cash-flow"),
+                params={
+                    "start_date": YEAR_START,
+                    "end_date": YEAR_END,
+                    "currency": CURRENCY,
+                },
+            )
+            assert cf_resp.status_code == 200, f"cash flow failed: {cf_resp.text}"
+            cf = cf_resp.json()
+            cf_summary = cf["summary"]
+            beginning_cash = Decimal(str(cf_summary["beginning_cash"]))
+            net_cash_flow = Decimal(str(cf_summary["net_cash_flow"]))
+            ending_cash = Decimal(str(cf_summary["ending_cash"]))
+            assert beginning_cash == INITIAL_OPENING_BALANCE
+            assert net_cash_flow == EXPECTED_NET_INCOME
+            assert ending_cash == EXPECTED_ENDING_CASH
+            assert Decimal(str(bs["total_assets"])) == ending_cash
 
-        # 6. Verify the annual cash flow statement for 2026.
-        cf_resp = await client.get(
-            _api_url("/reports/cash-flow"),
-            params={
-                "start_date": YEAR_START,
-                "end_date": YEAR_END,
-                "currency": CURRENCY,
-            },
-        )
-        assert cf_resp.status_code == 200, f"cash flow failed: {cf_resp.text}"
-        cf = cf_resp.json()
-        cf_summary = cf["summary"]
-        beginning_cash = Decimal(str(cf_summary["beginning_cash"]))
-        net_cash_flow = Decimal(str(cf_summary["net_cash_flow"]))
-        ending_cash = Decimal(str(cf_summary["ending_cash"]))
-        assert beginning_cash == INITIAL_OPENING_BALANCE
-        assert net_cash_flow == EXPECTED_NET_INCOME
-        assert ending_cash == EXPECTED_ENDING_CASH
-        assert Decimal(str(bs["total_assets"])) == ending_cash
+            # 7. Generate annual report package and verify trusted status, and check 12 approved statements.
+            pkg_resp = await client.post(
+                _api_url("/reports/package/generate"),
+                json={
+                    "start_date": YEAR_START,
+                    "end_date": YEAR_END,
+                    "as_of_date": YEAR_END,
+                    "currency": CURRENCY,
+                },
+            )
+            assert pkg_resp.status_code == 200, (
+                f"package generate failed: {pkg_resp.text}"
+            )
+            pkg = pkg_resp.json()
+            assert pkg["status"] == "trusted", f"package not trusted: {pkg}"
 
-        # 7. Generate annual report package and verify trusted status, and check 12 approved statements.
-        pkg_resp = await client.post(
-            _api_url("/reports/package/generate"),
-            json={
-                "start_date": YEAR_START,
-                "end_date": YEAR_END,
-                "as_of_date": YEAR_END,
-                "currency": CURRENCY,
-            },
-        )
-        assert pkg_resp.status_code == 200, f"package generate failed: {pkg_resp.text}"
-        pkg = pkg_resp.json()
-        assert pkg["status"] == "trusted", f"package not trusted: {pkg}"
+            stmts_resp = await client.get(_api_url("/statements"))
+            assert stmts_resp.status_code == 200, (
+                f"statements list failed: {stmts_resp.text}"
+            )
+            items = stmts_resp.json()["items"]
+            approved_items = [s for s in items if s["status"] == "approved"]
+            assert len(approved_items) == TOTAL_MONTHS, (
+                f"expected {TOTAL_MONTHS} approved statements, got {len(approved_items)}"
+            )
 
-        stmts_resp = await client.get(_api_url("/statements"))
-        assert stmts_resp.status_code == 200, (
-            f"statements list failed: {stmts_resp.text}"
-        )
-        items = stmts_resp.json()["items"]
-        approved_items = [s for s in items if s["status"] == "approved"]
-        assert len(approved_items) == TOTAL_MONTHS, (
-            f"expected {TOTAL_MONTHS} approved statements, got {len(approved_items)}"
-        )
+            # 8. Verify reports and statements in the real browser UI.
+            await page.goto(
+                f"{APP_URL.rstrip('/')}/reports?tab=balance-sheet&end={YEAR_END}&currency={CURRENCY}",
+                wait_until="domcontentloaded",
+            )
+            await expect(page.locator("#assets")).to_contain_text(
+                f"{EXPECTED_TOTAL_ASSETS:,.2f}", timeout=30000
+            )
+            await expect(page.locator("#equity")).to_contain_text(
+                f"{EXPECTED_TOTAL_ASSETS:,.2f}", timeout=30000
+            )
 
-        # 8. Verify reports and statements in the real browser UI.
-        await page.goto(
-            f"{APP_URL.rstrip('/')}/reports?tab=balance-sheet&end={YEAR_END}&currency={CURRENCY}",
-            wait_until="domcontentloaded",
-        )
-        await expect(page.locator("#assets")).to_contain_text(
-            f"{EXPECTED_TOTAL_ASSETS:,.2f}", timeout=30000
-        )
-        await expect(page.locator("#equity")).to_contain_text(
-            f"{EXPECTED_TOTAL_ASSETS:,.2f}", timeout=30000
-        )
+            await page.goto(
+                f"{APP_URL.rstrip('/')}/reports?tab=income-statement&start={YEAR_START}&end={YEAR_END}&currency={CURRENCY}",
+                wait_until="domcontentloaded",
+            )
+            await expect(
+                page.locator(".card").filter(has_text="Total Income")
+            ).to_contain_text(f"{EXPECTED_TOTAL_INCOME:,.2f}", timeout=30000)
+            await expect(
+                page.locator(".card").filter(has_text="Total Expenses")
+            ).to_contain_text(f"{EXPECTED_TOTAL_EXPENSES:,.2f}", timeout=30000)
+            await expect(
+                page.locator(".card").filter(has_text="Net Income")
+            ).to_contain_text(f"{EXPECTED_NET_INCOME:,.2f}", timeout=30000)
 
-        await page.goto(
-            f"{APP_URL.rstrip('/')}/reports?tab=income-statement&start={YEAR_START}&end={YEAR_END}&currency={CURRENCY}",
-            wait_until="domcontentloaded",
-        )
-        await expect(
-            page.locator(".card").filter(has_text="Total Income")
-        ).to_contain_text(f"{EXPECTED_TOTAL_INCOME:,.2f}", timeout=30000)
-        await expect(
-            page.locator(".card").filter(has_text="Total Expenses")
-        ).to_contain_text(f"{EXPECTED_TOTAL_EXPENSES:,.2f}", timeout=30000)
-        await expect(
-            page.locator(".card").filter(has_text="Net Income")
-        ).to_contain_text(f"{EXPECTED_NET_INCOME:,.2f}", timeout=30000)
+            await page.goto(
+                f"{APP_URL.rstrip('/')}/reports?tab=cash-flow&start={YEAR_START}&end={YEAR_END}&currency={CURRENCY}",
+                wait_until="domcontentloaded",
+            )
+            await expect(_summary_card(page, "Net Cash Flow")).to_contain_text(
+                f"{EXPECTED_NET_INCOME:,.2f}", timeout=30000
+            )
+            await expect(_summary_card(page, "Ending Cash")).to_contain_text(
+                f"{EXPECTED_ENDING_CASH:,.2f}", timeout=30000
+            )
+            await expect(page.get_by_label("Cash reconciliation")).to_contain_text(
+                f"{EXPECTED_NET_INCOME:,.2f}", timeout=30000
+            )
+            await expect(page.get_by_label("Cash reconciliation")).to_contain_text(
+                f"{EXPECTED_ENDING_CASH:,.2f}", timeout=30000
+            )
 
-        await page.goto(
-            f"{APP_URL.rstrip('/')}/reports?tab=cash-flow&start={YEAR_START}&end={YEAR_END}&currency={CURRENCY}",
-            wait_until="domcontentloaded",
-        )
-        await expect(_summary_card(page, "Net Cash Flow")).to_contain_text(
-            f"{EXPECTED_NET_INCOME:,.2f}", timeout=30000
-        )
-        await expect(_summary_card(page, "Ending Cash")).to_contain_text(
-            f"{EXPECTED_ENDING_CASH:,.2f}", timeout=30000
-        )
-        await expect(page.get_by_label("Cash reconciliation")).to_contain_text(
-            f"{EXPECTED_NET_INCOME:,.2f}", timeout=30000
-        )
-        await expect(page.get_by_label("Cash reconciliation")).to_contain_text(
-            f"{EXPECTED_ENDING_CASH:,.2f}", timeout=30000
-        )
+            await page.goto(
+                f"{APP_URL.rstrip('/')}/statements", wait_until="domcontentloaded"
+            )
+            await page.locator("main").wait_for(state="visible", timeout=30000)
+            await expect(page.get_by_text(f"{TOTAL_MONTHS} total")).to_be_visible(
+                timeout=30000
+            )
+            for expected_filename in uploaded_filenames:
+                row = page.locator(".relative.block").filter(has_text=expected_filename)
+                await expect(row).to_be_visible(timeout=30000)
+                await expect(row).to_contain_text("Approved")
 
-        await page.goto(
-            f"{APP_URL.rstrip('/')}/statements", wait_until="domcontentloaded"
-        )
-        await page.locator("main").wait_for(state="visible", timeout=30000)
-        await expect(page.get_by_text(f"{TOTAL_MONTHS} total")).to_be_visible(
-            timeout=30000
-        )
-        for expected_filename in uploaded_filenames:
-            row = page.locator(".relative.block").filter(has_text=expected_filename)
-            await expect(row).to_be_visible(timeout=30000)
-            await expect(row).to_contain_text("Approved")
-
-        # 9. Record checkpoint U9.
-        checkpoint(record_property, "U9")
+            # 9. Record checkpoint U9.
+            checkpoint(record_property, "U9")
+    finally:
+        # Report reconnect count even when the journey fails (#2610).
+        record_property("poll_reconnects", reconnects.value)
+        print(f"twelve-month journey: poll reconnects = {reconnects.value}")
