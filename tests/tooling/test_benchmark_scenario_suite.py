@@ -691,8 +691,8 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
     manifest = runner.export_annual_tax_archive(mock_client, year=2025, currency="SGD")
     assert len(manifest["files"]) == 1
 
-    # Verify Case 1 records coverage_start, Flow 24 diagnostics, and Flow 27 lineage
-    c1_runner = MagicMock()
+    # Verify Case 1 records coverage_start, Flow 7 mismatch block, Flow 24 diagnostics, and Flow 27 lineage
+    c1_runner = MagicMock(unsafe=True)
     c1_runner.replay_mode = "replay"
     c1_client = MagicMock()
     c1_client.get.return_value.json.return_value = {
@@ -700,7 +700,7 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
         "institution": "Standard Chartered Bank",
     }
     c1_runner.create_ephemeral_client.return_value = (c1_client, "c1@test.example", {})
-    c1_runner.upload_statement.side_effect = ["m1", "m2", "m3", "m4"]
+    c1_runner.upload_statement.side_effect = ["m1", "m2", "m3", "m4", "bad-m4"]
     c1_runner.wait_for_statement_parsed.side_effect = [
         {
             "opening_balance": "15450.75",
@@ -726,8 +726,22 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
             "balance_validated": True,
             "transactions": [],
         },
+        {
+            "id": "bad-m4",
+            "status": "parsed",
+            "balance_validated": False,
+            "transactions": [],
+        },
     ]
     c1_runner.approve_statement.return_value = {"status": "approved"}
+    c1_runner.assert_approval_blocked_by_balance_mismatch.return_value = {
+        "status_code": 400,
+        "detail": "Balance mismatch",
+    }
+    c1_runner.get_data_quality_health.return_value = {
+        "action_items": [{"id": "review_pending_statements"}]
+    }
+    c1_runner.reject_statement.return_value = {"id": "bad-m4", "status": "rejected"}
     c1_runner.get_balance_sheet.side_effect = [
         {
             "total_assets": "21300.00",
@@ -771,12 +785,17 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
         "coverage_start": "2025-01-01",
         "limiting_accounts": [],
     }
-    c1_runner.get_balance_sheet_diagnostics.return_value = {"is_balanced": True}
+    c1_runner.get_balance_sheet_diagnostics.return_value = {
+        "is_balanced": True,
+        "primary_category": "balanced",
+    }
     c1_runner.get_account_lineage.return_value = {"lines": [{"entry_id": "je-1"}]}
     c1_runner.query_ai_advisor.return_value = "Your net worth is 24,200.00 SGD."
     c1_res = case_1.execute_case_1(c1_runner)
     assert c1_res.status == "PASS", c1_res.error_message
     assert c1_res.details["coverage_start"] == "2025-01-01"
+    assert c1_res.details["flow_7_mismatch_blocked"] is True
+    assert c1_res.details["flow_24_pending_triage_verified"] is True
     assert c1_res.details["flow_24_diagnostics_balanced"] is True
     assert c1_res.details["flow_27_lineage_lines"] == 1
 
@@ -927,10 +946,22 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
     assert c4_res.status == "PASS", c4_res.error_message
     assert c4_res.details["flow_17_realized_fx_gain_sgd"] == "10.00"
 
-    # Verify Case 5 exercises Flows 20, 22, 27, 28, and 30
-    c5_runner = MagicMock()
+    # Verify Case 5 exercises Flows 19, 20, 22, 27, 28, and 30
+    c5_runner = MagicMock(unsafe=True)
     c5_client = MagicMock()
     c5_runner.create_ephemeral_client.return_value = (c5_client, "c5@test.example", {})
+    c5_runner.upload_statement.return_value = "brk-stmt-1"
+    c5_runner.wait_for_statement_parsed.return_value = {
+        "id": "brk-stmt-1",
+        "status": "parsed",
+    }
+    c5_runner.assert_brokerage_import_requires_snapshot_date.return_value = {
+        "error_id": "brokerage_snapshot_date_missing"
+    }
+    c5_runner.reject_statement.return_value = {
+        "id": "brk-stmt-1",
+        "status": "rejected",
+    }
     c5_runner.import_brokerage_positions.return_value = {"created_atomic_positions": 2}
     c5_runner.get_holdings.return_value = {
         "items": [{"symbol": "AAPL"}, {"symbol": "VT"}]
@@ -981,6 +1012,7 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
     c5_runner.query_ai_advisor.return_value = "Portfolio holdings AAPL and VT verified."
     c5_res = case_5.execute_case_5(c5_runner)
     assert c5_res.status == "PASS", c5_res.error_message
+    assert c5_res.details["flow_19_brokerage_statement_uploaded"] is True
     assert c5_res.details["flow_20_dividend_net_sgd"] == "70.00"
     assert c5_res.details["flow_22_mortgage_principal_sgd"] == "2100.00"
     assert c5_res.details["flow_27_lineage_lines"] == 1
@@ -1019,3 +1051,120 @@ def test_runner_nominal_gap_helpers_and_case_execution_wiring(tmp_path: Path) ->
     c6_res = case_6.execute_case_6(c6_runner)
     assert c6_res.status == "PASS", c6_res.error_message
     assert c6_res.details["flow_24_diagnostics_balanced"] is True
+
+
+def test_runner_flow_7_19_24_hardening_helpers_and_failure_branches() -> None:
+    """AC-testing.benchmarks.4: Flow 7, 19, and 24 helpers enforce falsifiable pass and error paths."""
+    from unittest.mock import MagicMock
+
+    from common.testing.benchmarks.cases import case_1, case_5
+    from common.testing.benchmarks.run_financial_scenario_benchmark import (
+        ScenarioBenchmarkRunner,
+    )
+
+    runner = ScenarioBenchmarkRunner(
+        base_url="http://localhost:8000", replay_mode="replay"
+    )
+    mock_client = MagicMock()
+
+    def _resp(status_code: int, payload: object, text: str = "err") -> MagicMock:
+        r = MagicMock()
+        r.status_code = status_code
+        r.json.return_value = payload
+        r.text = text
+        return r
+
+    # 1. assert_approval_blocked_by_balance_mismatch pass and fail
+    mock_client.post.return_value = _resp(
+        400, {"detail": "Balance mismatch"}, "Balance mismatch"
+    )
+    blocked = runner.assert_approval_blocked_by_balance_mismatch(mock_client, "stmt-7")
+    assert blocked == {"status_code": 400, "detail": "Balance mismatch"}
+
+    mock_client.post.return_value = _resp(200, {"status": "approved"}, "ok")
+    with pytest.raises(RuntimeError, match="Expected balance mismatch approval block"):
+        runner.assert_approval_blocked_by_balance_mismatch(mock_client, "stmt-7")
+
+    # 2. assert_brokerage_import_requires_snapshot_date pass and fail
+    mock_client.post.return_value = _resp(
+        422, {"error_id": "brokerage_snapshot_date_missing"}, "missing snapshot date"
+    )
+    brk_err = runner.assert_brokerage_import_requires_snapshot_date(
+        mock_client, "stmt-19"
+    )
+    assert brk_err["error_id"] == "brokerage_snapshot_date_missing"
+
+    mock_client.post.return_value = _resp(200, {"created_atomic_positions": 1}, "ok")
+    with pytest.raises(
+        RuntimeError, match="Expected undated brokerage CSV import to fail with 422"
+    ):
+        runner.assert_brokerage_import_requires_snapshot_date(mock_client, "stmt-19")
+
+    mock_client.post.return_value = _resp(422, {"detail": "unrelated error"}, "bad")
+    with pytest.raises(
+        RuntimeError, match="Expected brokerage_snapshot_date_missing error"
+    ):
+        runner.assert_brokerage_import_requires_snapshot_date(mock_client, "stmt-19")
+
+    # 3. get_data_quality_health pass and fail
+    mock_client.get.return_value = _resp(
+        200, {"action_items": [{"id": "review_pending_statements"}]}, "ok"
+    )
+    dq = runner.get_data_quality_health(
+        mock_client, as_of_date="2025-04-30", currency="SGD"
+    )
+    assert dq["action_items"][0]["id"] == "review_pending_statements"
+    mock_client.get.assert_called_with(
+        "/api/reports/data-quality",
+        params={"as_of_date": "2025-04-30", "currency": "SGD"},
+    )
+
+    mock_client.get.return_value = _resp(500, {}, "server error")
+    with pytest.raises(RuntimeError, match="Get data quality health failed: 500"):
+        runner.get_data_quality_health(mock_client)
+
+    # 4. import_brokerage_positions with source_document_id pass and fail
+    mock_client.post.return_value = _resp(200, {"created_atomic_positions": 2}, "ok")
+    imp_res = runner.import_brokerage_positions(
+        mock_client,
+        {"positions": []},
+        filename="ibkr.json",
+        source_document_id="stmt-19",
+    )
+    assert imp_res["created_atomic_positions"] == 2
+    mock_client.post.assert_called_with(
+        "/api/portfolio/brokerage/import",
+        json={
+            "filename": "ibkr.json",
+            "payload": {"positions": []},
+            "source_document_id": "stmt-19",
+        },
+    )
+
+    mock_client.post.return_value = _resp(400, {}, "bad import")
+    with pytest.raises(RuntimeError, match="Brokerage import request failed: 400"):
+        runner.import_brokerage_positions(mock_client, {"positions": []})
+
+    # 5. Case 1 and Case 5 negative guard branches
+    bad_c1_runner = MagicMock(unsafe=True)
+    bad_c1_runner.upload_statement.return_value = "bad-1"
+    bad_c1_runner.wait_for_statement_parsed.return_value = {"balance_validated": True}
+    with pytest.raises(RuntimeError, match="Expected balance_validated=False"):
+        case_1._verify_flow_7_and_24_mismatch_and_diagnostics(
+            bad_c1_runner, mock_client
+        )
+
+    bad_c1_runner.wait_for_statement_parsed.return_value = {"balance_validated": False}
+    bad_c1_runner.get_data_quality_health.return_value = {"action_items": []}
+    with pytest.raises(RuntimeError, match="Expected review_pending_statements"):
+        case_1._verify_flow_7_and_24_mismatch_and_diagnostics(
+            bad_c1_runner, mock_client
+        )
+
+    bad_c5_runner = MagicMock(unsafe=True)
+    bad_c5_runner.upload_statement.return_value = "brk-1"
+    bad_c5_runner.wait_for_statement_parsed.return_value = {"status": "approved"}
+    with pytest.raises(
+        RuntimeError, match="Expected brokerage CSV statement status 'parsed'"
+    ):
+        case_5._import_brokerage_and_update_prices(bad_c5_runner, mock_client)

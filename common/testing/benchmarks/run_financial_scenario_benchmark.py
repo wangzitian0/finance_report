@@ -409,6 +409,66 @@ class ScenarioBenchmarkRunner:
             )
         return data
 
+    def assert_approval_blocked_by_balance_mismatch(
+        self, client: httpx.Client, statement_id: str
+    ) -> dict[str, Any]:
+        """Verify Stage 1 approval fails with 400 or 422 on a balance mismatch (Flow 7)."""
+        resp = client.post(
+            f"/api/statements/{statement_id}/review/approve",
+            json={},
+        )
+        if resp.status_code not in (400, 422):
+            raise RuntimeError(
+                f"Expected balance mismatch approval block (400/422) for {statement_id}, got {resp.status_code}: {resp.text}"
+            )
+        body = resp.json()
+        detail = body.get("detail", resp.text) if isinstance(body, dict) else resp.text
+        return {"status_code": resp.status_code, "detail": detail}
+
+    def assert_brokerage_import_requires_snapshot_date(
+        self, client: httpx.Client, statement_id: str
+    ) -> dict[str, Any]:
+        """Verify brokerage import rejects an undated CSV statement with 422 (Flow 19)."""
+        resp = client.post(
+            f"/api/statements/{statement_id}/brokerage/import",
+            json={},
+        )
+        if resp.status_code != 422:
+            raise RuntimeError(
+                f"Expected undated brokerage CSV import to fail with 422 for {statement_id}, got {resp.status_code}: {resp.text}"
+            )
+        body = resp.json()
+        if not (
+            isinstance(body, dict)
+            and (
+                body.get("error_id") == "brokerage_snapshot_date_missing"
+                or "snapshot" in str(body).lower()
+            )
+        ):
+            raise RuntimeError(
+                f"Expected brokerage_snapshot_date_missing error for {statement_id}, got: {body}"
+            )
+        return body
+
+    def get_data_quality_health(
+        self,
+        client: httpx.Client,
+        as_of_date: str | None = None,
+        currency: str | None = None,
+    ) -> dict[str, Any]:
+        """Fetch personal data quality health and pending triage actions (Flow 24)."""
+        params: dict[str, str] = {}
+        if as_of_date:
+            params["as_of_date"] = as_of_date
+        if currency:
+            params["currency"] = currency
+        resp = client.get("/api/reports/data-quality", params=params)
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Get data quality health failed: {resp.status_code} {resp.text}"
+            )
+        return resp.json()
+
     def run_stage2_consistency_checks(
         self, client: httpx.Client, statement_id: str
     ) -> dict[str, Any]:
@@ -628,10 +688,14 @@ class ScenarioBenchmarkRunner:
         client: httpx.Client,
         payload: dict[str, Any],
         filename: str = "brokerage_statement.csv",
+        source_document_id: str | None = None,
     ) -> dict[str, Any]:
+        body: dict[str, Any] = {"filename": filename, "payload": payload}
+        if source_document_id is not None:
+            body["source_document_id"] = source_document_id
         resp = client.post(
             "/api/portfolio/brokerage/import",
-            json={"filename": filename, "payload": payload},
+            json=body,
         )
         if resp.status_code != 200:
             raise RuntimeError(
