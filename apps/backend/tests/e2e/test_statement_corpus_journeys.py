@@ -73,7 +73,7 @@ CORPUS_FINGERPRINTS: tuple[str, ...] = (
     # vision / brokerage (Moomoo) — 48 txns, negative closing balance
     "a531a974fd0bd144fd4a31f63d94384210f043c94bfc81631b20d3f178c779ed",
     # vision / named_bank — synthetic OCR class distinct from generic_hf
-    "d2bef919d2918989d2a6dbc8bbf019bd6bd2107d97f2e1bd85c91185c36e4fd0",
+    "f480cf4eb7050d96a674f2ff45fe92c1bad7920ff26df9c754469e40db64b219",
     # vision / generic_hf — largest corpus statement (170 txns)
     "5f1ef733e543f140966bfaadc1be1e2acc012ef4ca7394379228cd9896a5d934",
     # text / generic_hf — 161-txn large text statement

@@ -32,6 +32,40 @@ def _is_empty(value: Any) -> bool:
     return value is None or value == "" or value == []
 
 
+def build_paged_meta_prompt(
+    base_prompt: str,
+    *,
+    page_numbers: list[int],
+    total_pages: int,
+) -> str:
+    """Build the Stage 1 metadata extraction prompt for multi-page PDFs (#2813).
+
+    Receives the deduplicated head + tail pages (first 5 pages and last 5 pages)
+    of a multi-page PDF so the model sees both the cover/opening summary and the
+    final closing summary on a single call.
+    """
+    pages_label = ", ".join(str(p) for p in page_numbers)
+    return (
+        f"{base_prompt}\n\n"
+        f"IMPORTANT — STAGE 1 — DOCUMENT METADATA (pages {pages_label} of a {total_pages}-page statement):\n"
+        "- The images below are the head (opening) and tail (closing) pages of the document.\n"
+        "- Extract ONLY document-level metadata in this stage: institution, account_last4, "
+        "currency, period_start, period_end, opening_balance, closing_balance, balances, "
+        "and snapshot_date (when present).\n"
+        "- Return an empty array [] for transactions and positions in this stage (rows are "
+        "extracted in Stage 2).\n"
+        "- opening_balance: extract the statement opening balance / Balance Brought Forward "
+        "from the opening pages.\n"
+        "- closing_balance: extract the final statement ending / closing balance from the "
+        "closing summary pages. When a bank statement prints the final period ending balance "
+        "on the last transaction or summary page as 'Balance Carried Forward' or 'Ending Balance', "
+        "use that final-page summary figure as closing_balance.\n"
+        "- Extract both period_start and period_end (converting single-date headers such as "
+        "'As at 30 Nov 2024' to the statement month's start and end dates when the rows span "
+        "that month)."
+    )
+
+
 def build_paged_prompt(
     base_prompt: str,
     *,

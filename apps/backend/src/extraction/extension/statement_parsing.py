@@ -24,16 +24,22 @@ from src.extraction.base.types import (
     StatementIngestionOutcome,
     StatementIngestionStatus,
 )
+from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
 from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload
 from src.extraction.extension.brokerage_statement_payload import _extract_brokerage_payload_from_metadata
 from src.extraction.extension.extraction_trace import build_extraction_trace_records
 from src.extraction.extension.reviewed_statement_envelope import persist_statement_extraction_result
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_posting import (
+    ECONOMIC_REVIEW_NOTICE,
     StatementPostingDependencies,
     try_auto_approve_high_confidence_statement,
 )
-from src.extraction.extension.statement_preclassification import classify_parsed_statement
+from src.extraction.extension.statement_preclassification import (
+    StatementClassificationPhase,
+    classify_parsed_statement,
+)
+from src.extraction.extension.statement_workflow import approve_statement_workflow
 from src.extraction.extension.transaction_identity import TransactionIdentityReviewRequired
 from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.statement_summary import StatementSummary
@@ -105,8 +111,58 @@ class StatementIngestionUseCase:
             # raises, so a model failure cannot fail the parse or make a durable runner retry it. The source bytes
             # are not needed any more.
             del content
-            await classify_parsed_statement(self.session_maker, statement_id=job.statement_id, user_id=job.user_id)
+            phase = await classify_parsed_statement(
+                self.session_maker, statement_id=job.statement_id, user_id=job.user_id
+            )
+            if phase is StatementClassificationPhase.CLASSIFIED:
+                recovered = await _try_recover_auto_approve_after_classification(
+                    self.session_maker,
+                    statement_id=job.statement_id,
+                    user_id=job.user_id,
+                    posting_dependencies=self.posting_dependencies,
+                )
+                if recovered > 0:
+                    outcome = replace(outcome, auto_posted_count=outcome.auto_posted_count + recovered)
         return outcome
+
+
+async def _try_recover_auto_approve_after_classification(
+    session_maker: async_sessionmaker[AsyncSession],
+    *,
+    statement_id: UUID,
+    user_id: UUID,
+    posting_dependencies: StatementPostingDependencies,
+) -> int:
+    """Re-attempt auto-approval when post-parse classification resolves a transient intent_missing (#2813)."""
+    try:
+        async with session_maker() as session:
+            statement = await session.get(StatementSummary, statement_id)
+            if (
+                statement is None
+                or statement.user_id != user_id
+                or statement.status is not BankStatementStatus.PARSED
+                or statement.balance_validated is not True
+                or statement.confidence_score is None
+                or statement.confidence_score < HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
+                or statement.account_id is None
+                or not (statement.validation_error or "").startswith(ECONOMIC_REVIEW_NOTICE)
+            ):
+                return 0
+            outcome = await approve_statement_workflow(
+                session,
+                statement_id,
+                user_id,
+                dependencies=posting_dependencies,
+            )
+            return outcome.created_count
+    except Exception as exc:  # noqa: BLE001 - best-effort recovery after post-parse classification
+        logger.warning(
+            "statement.auto_approve_recovery.failed",
+            statement_id=str(statement_id),
+            error_type=type(exc).__name__,
+            safe_error_message=safe_error_message(str(exc)),
+        )
+        return 0
 
 
 def build_statement_ingestion_use_case(

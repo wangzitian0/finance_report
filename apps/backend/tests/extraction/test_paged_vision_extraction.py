@@ -211,6 +211,12 @@ class TestBatchedExtractFlow:
                 "institution": "DBS",
                 "currency": "SGD",
                 "opening_balance": "100.00",
+                "closing_balance": "175.00",
+            },
+            {
+                "institution": "DBS",
+                "currency": "SGD",
+                "opening_balance": "100.00",
                 "closing_balance": None,
                 "transactions": [{"description": "t1"}],
             },
@@ -222,9 +228,12 @@ class TestBatchedExtractFlow:
         with patch.object(service, "_extract_json_with_model", mock_extract):
             merged = await service.extract_financial_data(pdf_bytes, "DBS", "pdf")
 
-        assert mock_extract.await_count == 3
+        assert mock_extract.await_count == 4
+        meta_content = mock_extract.await_args_list[0].kwargs["messages"][0]["content"]
+        assert "STAGE 1 — DOCUMENT METADATA" in meta_content[0]["text"]
+        assert len(meta_content[1:]) == 10
         first_page_payload = None
-        for index, call in enumerate(mock_extract.await_args_list, start=1):
+        for index, call in enumerate(mock_extract.await_args_list[1:], start=1):
             content = call.kwargs["messages"][0]["content"]
             text = content[0]["text"]
             assert f"({index}/3)" in text
@@ -308,8 +317,8 @@ class TestBatchedExtractFlow:
         gc.collect()
         assert max_concurrent_calls == 1
         assert len(merged["transactions"]) == 6
-        # Batch 1 holds 5 page payloads; continuation batches hold 1 context page + 5 batch pages = 6.
-        assert live_payload_counts == [5, 6, 6, 6, 6, 6], f"Unexpected live payload counts: {live_payload_counts}"
+        # Stage 1 meta holds 5 head + 5 tail = 10 page payloads; Stage 2 batch 1 holds 5; continuation batches hold 1 context + 5 = 6.
+        assert live_payload_counts == [10, 5, 6, 6, 6, 6, 6], f"Unexpected live payload counts: {live_payload_counts}"
         # Measured peak traced memory is ~6.4 MiB (vs ~250+ MiB before #2595).
         assert peak_bytes < 32 * 1024 * 1024, f"Peak traced memory {peak_bytes} B exceeded 32 MiB bound"
 
@@ -334,3 +343,79 @@ class TestBatchedExtractFlow:
             await service.extract_financial_data(pdf_bytes, "DBS", "pdf")
 
         assert mock_extract.await_count == 0
+
+
+async def test_AC_extraction_2813_1_staged_head_tail_meta_and_body_batches(monkeypatch):
+    """AC-extraction.2813.1: multi-page PDFs (> 5 pages) run Stage 1 head+tail
+    metadata extraction on the deduplicated first 5 + last 5 pages followed by
+    Stage 2 body batch extraction, while small PDFs (<= 5 pages) extract in a
+    single shot (#2813)."""
+    from src.config import settings
+    from src.extraction.base.paged_extraction import build_paged_meta_prompt
+
+    monkeypatch.setattr(settings, "ai_provider", "zai")
+    service = ExtractionService()
+    service.api_key = "test-key"
+
+    # 1. Small PDF (3 pages <= 5): single-shot extraction (1 model call).
+    small_mock = AsyncMock(return_value={"institution": "DBS", "transactions": [{"description": "small"}]})
+    with patch.object(service, "_extract_json_with_model", small_mock):
+        small_res = await service.extract_financial_data(_pdf_with_pages(3), "DBS", "pdf")
+    assert small_mock.await_count == 1
+    assert small_res["transactions"] == [{"description": "small"}]
+
+    # 2. Large PDF (12 pages > 5): Stage 1 (head pages 1..5 + tail pages 8..12 = 10 pages)
+    #    followed by Stage 2 (3 body batches: 1..5, 6..10, 11..12).
+    pdf_bytes = _pdf_with_pages(12)
+    batches_ref = list(service._render_pdf_pages_as_image_payload_batches(pdf_bytes))
+    all_pages = [p for b in batches_ref for p in b]
+    expected_head_tail = [*all_pages[:5], *all_pages[7:12]]  # pages 1..5 and 8..12 (10 pages)
+
+    call_payloads = [
+        # Stage 1 metadata call (sees head + tail together, including final-page Balance Carried Forward)
+        {
+            "institution": "DBS POSB",
+            "account_last4": "8123",
+            "currency": "SGD",
+            "period_start": "2024-11-01",
+            "period_end": "2024-11-30",
+            "opening_balance": "124781.91",
+            "closing_balance": "133583.07",
+            "transactions": [],
+        },
+        # Stage 2 body batches 1..3
+        {"transactions": [{"description": "batch-1-txn"}]},
+        {"transactions": [{"description": "batch-2-txn"}]},
+        {"transactions": [{"description": "batch-3-txn"}]},
+    ]
+    large_mock = AsyncMock(side_effect=call_payloads)
+    with patch.object(service, "_extract_json_with_model", large_mock):
+        merged = await service.extract_financial_data(pdf_bytes, "DBS", "pdf")
+
+    assert large_mock.await_count == 4
+    # Verify Stage 1 metadata call received head (1-5) + tail (8-12) = 10 pages and metadata prompt
+    meta_call_content = large_mock.await_args_list[0].kwargs["messages"][0]["content"]
+    meta_prompt_text = meta_call_content[0]["text"]
+    meta_images = meta_call_content[1:]
+    assert "STAGE 1 — DOCUMENT METADATA" in meta_prompt_text
+    assert "Balance Carried Forward" in meta_prompt_text
+    assert len(meta_images) == 10
+    assert meta_images == expected_head_tail
+
+    # Verify build_paged_meta_prompt directly
+    direct_meta_prompt = build_paged_meta_prompt("BASE", page_numbers=[1, 2, 3, 4, 5, 8, 9, 10, 11, 12], total_pages=12)
+    assert "pages 1, 2, 3, 4, 5, 8, 9, 10, 11, 12 of a 12-page statement" in direct_meta_prompt
+
+    # Verify merged result preserves Stage 1 metadata and all Stage 2 transactions in order
+    assert merged["institution"] == "DBS POSB"
+    assert merged["account_last4"] == "8123"
+    assert merged["currency"] == "SGD"
+    assert merged["period_start"] == "2024-11-01"
+    assert merged["period_end"] == "2024-11-30"
+    assert merged["opening_balance"] == "124781.91"
+    assert merged["closing_balance"] == "133583.07"
+    assert [t["description"] for t in merged["transactions"]] == [
+        "batch-1-txn",
+        "batch-2-txn",
+        "batch-3-txn",
+    ]

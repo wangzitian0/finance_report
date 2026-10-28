@@ -27,7 +27,7 @@ from contextvars import ContextVar
 from datetime import date
 from decimal import Decimal
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -524,11 +524,20 @@ async def _propose_batch(
         )
 
     try:
+        decode_kwargs: dict[str, Any] = {}
+        if indexed:
+            decode_kwargs = {
+                "max_tokens": settings.ai_json_max_tokens,
+                "temperature": 0.0,
+                "do_sample": False,
+                "thinking": {"type": "disabled"} if settings.ai_json_disable_thinking else None,
+            }
         stream = stream_ai_json(
             messages=[{"role": "user", "content": prompt}],
             model=settings.small_model,
             timeout=60.0,
             user_id=owner,
+            **decode_kwargs,
         )
         content = await accumulate_stream(stream)
         if not content or not content.strip():

@@ -82,6 +82,7 @@ class _CoerceMixin:
                 continue
             # Scan one balanced top-level object starting at i.
             depth = 0
+            bracket_depth = 0
             in_string = False
             escaped = False
             end = None
@@ -104,12 +105,20 @@ class _CoerceMixin:
                     if depth == 0:
                         end = j
                         break
+                elif char == "[":
+                    bracket_depth += 1
+                elif char == "]" and bracket_depth > 0:
+                    bracket_depth -= 1
             if end is None:
-                # This ``{`` never balances (leading junk like ``note: {oops`` or a
-                # truncated tail). Skip just this brace and keep scanning, so a
-                # complete object appearing later is still recovered. A salvaged
-                # fragment that is not a real statement is caught downstream by
-                # completeness/period validation.
+                # If this unclosed ``{`` opened a JSON array ``[`` that never
+                # closed (a mid-array token truncation of the outer statement
+                # object), do NOT descend into the array to salvage an inner
+                # transaction element (#2813).
+                if bracket_depth > 0:
+                    break
+                # Otherwise this ``{`` is a stray unmatched brace in leading or
+                # trailing prose (like ``note: {oops``). Skip just this brace and
+                # keep scanning so a complete object appearing later is recovered.
                 i += 1
                 continue
             objects.append(text[i : end + 1])

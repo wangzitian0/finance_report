@@ -135,3 +135,34 @@ class TestExtractionSalvagesFencedResponse:
                     messages=[{"role": "user", "content": "x"}],
                     model="test-model",
                 )
+
+
+async def test_AC_extraction_2813_2_truncated_outer_statement_does_not_salvage_inner_transaction():
+    """AC-extraction.2813.2: ai_json_max_tokens defaults to 32768, and a truncated
+    outer JSON object containing an unclosed transactions array returns None from
+    _repair_json_object and raises ExtractionError instead of salvaging one inner
+    transaction dict (#2813)."""
+    from src.config import Settings
+
+    assert Settings().ai_json_max_tokens == 32768
+
+    truncated_stream = (
+        '{"institution": "DBS POSB", "account_last4": "8123", "currency": "SGD", '
+        '"opening_balance": "124781.91", "closing_balance": null, "transactions": ['
+        '{"date": "2024-11-01", "description": "PayNow Transfer", "amount": "15.00", '
+        '"direction": "OUT", "currency": "SGD", "balance_after": "124766.91"}, '
+        '{"date": "2024-11-02", "description": "Truncated mid-row'
+    )
+    assert ExtractionService._repair_json_object(truncated_stream) is None
+
+    service = ExtractionService()
+    with (
+        patch.object(service, "api_key", "test-key"),
+        patch("src.extraction.extension.service.stream_ai_json", return_value=MagicMock()),
+        patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value=truncated_stream)),
+    ):
+        with pytest.raises(ExtractionError, match="json_parse"):
+            await service._extract_json_with_model(
+                messages=[{"role": "user", "content": "x"}],
+                model="test-model",
+            )

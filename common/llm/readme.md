@@ -351,7 +351,7 @@ The eval set covers a **modality × institution-class × edge-condition** matrix
 |-----------------|----------|-------------------|----------------|
 | `d69fbafc…` | text | generic | happy_path |
 | `cb5dd1f7…` | text | generic | duplicate_rows (#1254) |
-| `d2bef919…` | vision | named_bank | happy_path |
+| `f480cf4e…` | vision | named_bank | happy_path |
 
 Minimum case count: **3** (`MIN_CASES`). Required axes asserted by
 `test_AC23_8_1_eval_set_covers_documented_matrix_to_min_count`: both modalities
