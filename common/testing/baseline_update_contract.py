@@ -34,10 +34,6 @@ MONOTONIC_UPDATE_PROOFS = {
         "tests/tooling/test_api_surface_ratchet.py"
         "::test_router_ratchet_rejects_new_file_and_update_cannot_adopt_it"
     ),
-    ("common/testing/check_ac_score_baseline.py", UPDATE_FLAG): (
-        "tests/tooling/test_s4_gate_contracts.py"
-        "::test_AC_testing_governance_21_real_updates_refuse_regression_debt"
-    ),
     ("common/testing/check_ac_index.py", f"{UPDATE_FLAG}-floor"): (
         "tests/tooling/test_ac_index_consistency.py"
         "::test_AC8_13_140_update_floor_raises_floors"

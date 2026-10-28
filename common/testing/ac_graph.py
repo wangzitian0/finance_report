@@ -44,7 +44,6 @@ import yaml
 
 from common.meta.extension.generate_ac_registry import build_registry_entries
 from common.testing.ac_scan import collect_real_refs
-from common.testing.ac_score_baseline_format import load_jsonl
 from common.testing.generate_critical_proof_matrix import (
     CollectedProof,
     collect_proofs,
@@ -55,7 +54,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTCOMES = (
     REPO_ROOT / "common" / "testing" / "data" / "critical-proof-outcomes.yaml"
 )
-DEFAULT_BASELINE = REPO_ROOT / "common" / "testing" / "data" / "ac-score-baseline.jsonl"
 
 
 @dataclass(frozen=True)
@@ -196,21 +194,6 @@ def _outcomes(outcomes_doc: dict[str, Any]) -> list[Outcome]:
     return outcomes
 
 
-def _load_scores(baseline_path: Path) -> dict[str, float]:
-    if not baseline_path.exists():
-        return {}
-    payload = load_jsonl(baseline_path)
-    acs = payload.get("acs", {})
-    scores: dict[str, float] = {}
-    if isinstance(acs, dict):
-        for ac_id, record in acs.items():
-            try:
-                scores[str(ac_id)] = float(record.get("score", 0.0))
-            except (TypeError, ValueError):
-                continue
-    return scores
-
-
 @dataclass(frozen=True)
 class ProofsOnlyGraph:
     """The minimal proofs+outcomes slice of the AC graph.
@@ -264,7 +247,6 @@ def build_ac_graph(
     repo_root: Path = REPO_ROOT,
     *,
     outcomes_path: Path | None = None,
-    baseline_path: Path | None = None,
 ) -> AcGraph:
     """Build the single AC-keyed graph from the sharded sources.
 
@@ -276,9 +258,6 @@ def build_ac_graph(
     repo_root = repo_root.resolve()
     outcomes_path = outcomes_path or (
         repo_root / DEFAULT_OUTCOMES.relative_to(REPO_ROOT)
-    )
-    baseline_path = baseline_path or (
-        repo_root / DEFAULT_BASELINE.relative_to(REPO_ROOT)
     )
 
     # AC nodes from EPIC docs (via the registry loader) + overrides.
@@ -295,9 +274,6 @@ def build_ac_graph(
     # Real test references (one shared scan).
     real_refs = _collect_real_refs(repo_root)
 
-    # Persisted ratchet floors.
-    scores = _load_scores(baseline_path)
-
     nodes: dict[str, AcNode] = {}
     for ac_id, entry in registry.items():
         nodes[ac_id] = AcNode(
@@ -308,7 +284,7 @@ def build_ac_graph(
             mandatory=bool(entry.get("mandatory", True)),
             real_test_files=tuple(sorted(real_refs.get(ac_id, set()))),
             proof_ids=tuple(sorted(proofs_by_ac.get(ac_id, []))),
-            score=scores.get(ac_id),
+            score=None,
         )
 
     outcomes_doc = yaml.safe_load(outcomes_path.read_text(encoding="utf-8")) or {}

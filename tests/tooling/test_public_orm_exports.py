@@ -5,8 +5,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from common.meta.extension.check_public_orm_exports import main, violations
+from common.meta.extension.check_public_orm_exports import (
+    BASELINE_PUBLIC_ORM_EXPORTS,
+    main,
+    violations,
+)
 from common.meta.extension.public_orm_exports import discover_public_orm_exports
+
+REPO = Path(__file__).resolve().parents[2]
 
 
 def test_AC_meta_dependency_governance_5_public_orm_exports_are_exact(
@@ -25,6 +31,8 @@ def test_AC_meta_dependency_governance_5_public_orm_exports_are_exact(
     assert discover_public_orm_exports(tmp_path / "apps/backend/src") == [
         "ledger::JournalEntry"
     ]
+    assert not (REPO / "common/meta/data/public-orm-export-baseline.json").exists()
+    assert len(BASELINE_PUBLIC_ORM_EXPORTS) == 55
     assert main() == 0
 
 

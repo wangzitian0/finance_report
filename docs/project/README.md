@@ -50,7 +50,7 @@ and additional banks / XLSX / OCR ingest.
   Every AC definition line that stays in `docs/project/EPIC-*.md` carries a
   `<!-- epic-owned: fe-only|fe-half|horizontal|pending-package -->` marker;
   the residue ratchet (`tests/tooling/test_epic_residue_ratchet.py`,
-  baseline `common/meta/data/epic-residue-baseline.json`) enforces unmarked
+  `EPIC_RESIDUE_BASELINE`) enforces unmarked
   rows == 0, census == baseline, and a shrink-only EPIC file set.
   `pending-package` rows are the tracked non-permanent remainder for the
   post-migration backlog. `docs/project/`'s own directory listing (which

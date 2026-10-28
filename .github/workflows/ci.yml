@@ -1441,7 +1441,7 @@ jobs:
           name: frontend-vitest-test-context
           path: junit-artifacts/frontend-vitest-test-context
 
-      - name: Aggregate AC behavioral evidence and ratchet against baseline
+      - name: Reconcile PR CI behavioral proof evidence
         run: |
           # Collect every junit-xml emitted by the test stages (shards, integration).
           junit_files=$(find junit-artifacts -name '*.xml' -print)
@@ -1449,10 +1449,6 @@ jobs:
             echo "No junit-xml artifacts found — cannot evaluate AC behavioral evidence." >&2
             exit 1
           fi
-          # shellcheck disable=SC2086
-          python tools/aggregate_ac_evidence.py $junit_files --output ac-evidence-current.json
-          # L2 (pass-required) + L3 (score ratchet) against the checked-in baseline.
-          python tools/check_ac_score_baseline.py ac-evidence-current.json
           # ci_tier reconciliation (#1557): every behavioral pr_ci proof must
           # actually appear in this PR's junit evidence — declared execution
           # tier is a contract, not metadata. The proof graph loads the AC

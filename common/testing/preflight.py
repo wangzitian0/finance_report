@@ -341,7 +341,6 @@ CHECKS: tuple[Check, ...] = (
         name="public-orm-exports",
         globs=(
             "apps/backend/src/*/__init__.py",
-            "common/meta/data/public-orm-export-baseline.json",
             "common/meta/extension/public_orm_exports.py",
             "common/meta/extension/check_public_orm_exports.py",
             "tools/check_public_orm_exports.py",
@@ -354,7 +353,6 @@ CHECKS: tuple[Check, ...] = (
         name="base-purity",
         globs=(
             "apps/backend/src/*.py",
-            "common/meta/data/base-purity-baseline.json",
             "common/meta/extension/base_purity.py",
             "common/meta/extension/check_base_purity.py",
             "tools/check_base_purity.py",
@@ -547,7 +545,8 @@ def select_checks(
     return [
         check
         for check in checks
-        if (tier == "full" or check.tier == tier) and any(_matches(f, g) for f in files for g in check.globs)
+        if (tier == "full" or check.tier == tier)
+        and any(_matches(f, g) for f in files for g in check.globs)
     ]
 
 
@@ -566,12 +565,16 @@ def select_named_checks(
     known = {check.name for check in checks}
     unknown = [name for name in wanted if name not in known]
     if unknown:
-        raise ValueError(f"unknown gate name(s): {', '.join(unknown)}; known: {', '.join(sorted(known))}")
+        raise ValueError(
+            f"unknown gate name(s): {', '.join(unknown)}; known: {', '.join(sorted(known))}"
+        )
     return [check for check in checks if check.name in wanted]
 
 
 def _default_git(args: Sequence[str]) -> str:
-    return subprocess.run(["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=False).stdout
+    return subprocess.run(
+        ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=False
+    ).stdout
 
 
 def changed_files(base: str | None = None, *, git: Git = _default_git) -> list[str]:
@@ -680,12 +683,19 @@ def run_checks(
     results: list[CheckResult] = []
     for check in checks:
         cwd = str(REPO_ROOT / check.cwd)
-        matching_paths = tuple(path for path in changed_files if any(_matches(path, glob) for glob in check.globs))
+        matching_paths = tuple(
+            path
+            for path in changed_files
+            if any(_matches(path, glob) for glob in check.globs)
+        )
         if ci and not quiet:
             print(f"::group::Gate [{check.tier}] {check.name}", flush=True)
         ok = True
         for command in check.commands:
-            if runner(_resolve(command, python, matching_paths=matching_paths), cwd) != 0:
+            if (
+                runner(_resolve(command, python, matching_paths=matching_paths), cwd)
+                != 0
+            ):
                 ok = False
                 break
         if ci:
@@ -753,9 +763,15 @@ def run(
     runner: Runner = _default_runner,
     git: Git = _default_git,
 ) -> int:
-    parser = argparse.ArgumentParser(description="Run the gate checks relevant to the current diff.")
-    parser.add_argument("--base", default=None, help="Diff base (default: merge-base with origin/main).")
-    parser.add_argument("--list", action="store_true", help="List the checks that would run, then exit.")
+    parser = argparse.ArgumentParser(
+        description="Run the gate checks relevant to the current diff."
+    )
+    parser.add_argument(
+        "--base", default=None, help="Diff base (default: merge-base with origin/main)."
+    )
+    parser.add_argument(
+        "--list", action="store_true", help="List the checks that would run, then exit."
+    )
     parser.add_argument(
         "--changed",
         nargs="*",
@@ -818,15 +834,27 @@ def run(
         files = ()
     elif args.all:
         files = ()
-        selected = [check for check in CHECKS if args.tier == "full" or check.tier == args.tier]
+        selected = [
+            check for check in CHECKS if args.tier == "full" or check.tier == args.tier
+        ]
     else:
-        files = args.changed if args.changed is not None else changed_files(args.base, git=git)
+        files = (
+            args.changed
+            if args.changed is not None
+            else changed_files(args.base, git=git)
+        )
         selected = select_checks(files, tier=args.tier)
 
     if args.list:
         if not selected or args.all:
-            inventory = [check for check in CHECKS if args.tier == "full" or check.tier == args.tier]
-            print(f"Registered preflight gate inventory ({args.tier} tier, {len(inventory)} gates):")
+            inventory = [
+                check
+                for check in CHECKS
+                if args.tier == "full" or check.tier == args.tier
+            ]
+            print(
+                f"Registered preflight gate inventory ({args.tier} tier, {len(inventory)} gates):"
+            )
             for check in inventory:
                 print(f"  [{check.tier}] {check.name}: {check.why}")
             return 0
@@ -834,9 +862,13 @@ def run(
             print(f"  [{check.tier}] {check.name}: {check.why}")
         return 0
 
-    effective_runner = _default_quiet_runner if runner is _default_runner and args.quiet else runner
+    effective_runner = (
+        _default_quiet_runner if runner is _default_runner and args.quiet else runner
+    )
 
-    root_targets, backend_targets = resolve_changed_pytest_targets(files) if args.pytest_changed else ([], [])
+    root_targets, backend_targets = (
+        resolve_changed_pytest_targets(files) if args.pytest_changed else ([], [])
+    )
 
     if not selected and not root_targets and not backend_targets:
         print("preflight: no relevant gates for the current diff.")
@@ -848,7 +880,9 @@ def run(
             if args.only:
                 print(f"preflight: running {len(selected)} named gate(s)...")
             else:
-                print(f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)...")
+                print(
+                    f"preflight: running {len(selected)} gate(s) for {len(files)} changed file(s)..."
+                )
         results = run_checks(
             selected,
             changed_files=files,

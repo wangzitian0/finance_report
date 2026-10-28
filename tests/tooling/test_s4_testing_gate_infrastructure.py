@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from common.meta.extension.ac_registry_format import sort_key
-from common.testing import ac_scan, ac_score_baseline_format, jsonl_baseline
+from common.testing import ac_scan, jsonl_baseline
 from common.testing import build_ac_traceability, check_ac_traceability
 
 
@@ -26,8 +26,12 @@ def test_AC_testing_governance_14_jsonl_baseline_bindings_share_parameterized_be
     }
 
     ac_path = tmp_path / "acs.jsonl"
-    ac_score_baseline_format.write_jsonl(ac_path, ac_payload)
-    loaded = ac_score_baseline_format.load_jsonl(ac_path)
+    jsonl_baseline.write_jsonl(
+        ac_path, ac_payload, identifier_key="ac_id", collection_key="acs"
+    )
+    loaded = jsonl_baseline.load_jsonl(
+        ac_path, identifier_key="ac_id", collection_key="acs"
+    )
     assert loaded["acs"]["AC-testing.governance.14"] == {
         "score": 0.8,
         "metric": "m",

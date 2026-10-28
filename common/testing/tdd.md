@@ -175,7 +175,7 @@ times. The final model removes that:
 - **Sharded sources only.** The graph is built from sources that no two
   independent PRs share: AC nodes from the EPIC docs (via the registry loader),
   proof edges from the co-located `@ac_proof(...)` decorators
-  (`common/testing/ac_proof.py`), score floors from `ac-score-baseline.jsonl`,
+  (`common/testing/ac_proof.py`),
   vision items from `vision.md`, and macro outcomes from
   `common/testing/data/critical-proof-outcomes.yaml`.
 - **Derived views, never committed.** The critical-proof matrix and the
@@ -189,12 +189,6 @@ times. The final model removes that:
   on. The consumers that used to read the committed YAML (the critical-proof
   checker and the staging AI/OCR gate) build the matrix in-memory from the graph
   instead.
-- **One persisted artifact, conflict-free.** The only on-disk index is the
-  behavioral-score ratchet floor, `common/testing/data/ac-score-baseline.jsonl`: a floor
-  that must survive across runs and must NOT be regenerated from current state.
-  It is stored as sorted, one-AC-per-line JSONL with `merge=union` in
-  `.gitattributes`, so PRs adopting *different* ACs auto-merge and only same-AC
-  edits conflict.
 - **Exactly TWO AC-index gates.** `tools/check_ac_index.py` builds the graph once
   and runs exactly two labelled report sections (`[INTEGRITY]` and
   `[PROTECTION]`), replacing the three per-view byte-compares:
@@ -216,19 +210,11 @@ times. The final model removes that:
     — trust_mode/mirror/required_markers/scope/ci_tier + manual_gate evidence +
     macro-outcome shape). The engine is unified but the per-edge-type and
     per-contract error wording is preserved verbatim from the legacy checks.
-  - **Gate B — PROTECTION RATCHET (soft, monotonic):** two conflict-safe
-    sub-parts that must never regress, but they have different CI entry points
-    because one needs JUnit artifacts. *Part 1* is the per-AC behavioural-score
-    floor over `ac-score-baseline.jsonl` (delegated unchanged to
-    `check_ac_score_baseline`; `merge=union`, so PRs adopting different ACs
-    auto-merge). In CI this part runs in the dedicated
-    `ac-behavioral-ratchet` job after the JUnit-emitting backend/frontend test
-    stages. *Part 2* is the per-type COUNT floor over
+  - **Gate B — PROTECTION RATCHET (soft, monotonic):** the per-type COUNT floor over
     `common/testing/data/protection-floor.json`: for each protection type (`has_real_ref`,
     `has_proof`, `has_score`, `has_mirror`) the current count of mandatory active
     ACs must be `>=` the committed floor. `tools/check_ac_index.py` enforces this
-    count floor in the fast `lint` job and can delegate Part 1 only when invoked
-    with `--ratchet-current`. **Conflict-safety convention:** a normal PR that
+    count floor in the fast `lint` job. **Conflict-safety convention:** a normal PR that
     ADDS protection only RAISES the *current* count, which passes `current >=
     floor` WITHOUT editing `protection-floor.json`; the floor is bumped ONLY by
     the explicit `tools/check_ac_index.py --update-floor` ("lock in gains")
@@ -253,9 +239,7 @@ with the same message. Those two modules remain importable libraries (their own
 unit tests still exercise them directly, and `common.testing.generate_critical_proof_matrix`
 still renders the matrix on demand); they are simply not invoked as their own CI
 gates any more. The gate runs ONCE, in the fast `lint` job; the `ac-traceability`
-CI job no longer re-runs it. The L3 behavioral-score ratchet
-(`tools/check_ac_score_baseline.py`) stays enforced separately in the
-`ac-behavioral-ratchet` job (it needs the junit aggregate). Only the storage of
+CI job no longer re-runs it. Only the storage of
 the aggregate views moved from committed-materialized to derived-on-demand; no
 protection was weakened.
 
@@ -340,7 +324,7 @@ file into an independent HLS concept:
 
 - `common/observability/observability-logging.md` is a child playbook of
   `observability_logging`.
-- `common/testing/data/ac-score-baseline.jsonl` is a machine baseline artifact of
+- `common/testing/data/protection-floor.json` is a machine baseline artifact of
   `tdd_workflow`.
 
 The second cleanup threshold is

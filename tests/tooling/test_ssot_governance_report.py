@@ -1274,10 +1274,10 @@ def test_AC14_1_14_finance_report_orphan_ssot_files_are_manifest_owned() -> None
     assert concepts["statement_parsing_model_selection_logging"]["parent"] == (
         "observability_logging"
     )
-    assert concepts["ac_score_ratchet_baseline"]["owner"] == (
-        "common/testing/data/ac-score-baseline.jsonl"
+    assert concepts["protection_count_floor"]["owner"] == (
+        "common/testing/data/protection-floor.json"
     )
-    assert concepts["ac_score_ratchet_baseline"]["parent"] == "tdd_workflow"
+    assert concepts["protection_count_floor"]["parent"] == "tdd_workflow"
 
 
 def test_AC14_1_15_machine_owned_ssot_entries_have_explicit_shape_and_proof() -> None:

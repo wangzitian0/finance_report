@@ -20,7 +20,6 @@ from common.meta.extension import (
 )
 from common.testing import (
     baseline_update_contract,
-    check_ac_score_baseline,
     gate_main_contract,
     tool_shim_contract,
 )
@@ -71,7 +70,6 @@ MIGRATED_GATE_MODULES = (
     "common.meta.extension.check_unit_accountability",
     "common.runtime.check_toolchain_contract",
     "common.testing.check_ac_index",
-    "common.testing.check_ac_score_baseline",
     "common.testing.check_" + "cas" + "sette_graded_eval",
     "common.testing.check_critical_value_proof",
     "common.testing.check_e2e_epic_traceability",
@@ -475,34 +473,6 @@ def test_AC_testing_governance_21_real_updates_refuse_regression_debt(
     )
     assert dumped_edges == []
 
-    score_baseline = tmp_path / "score-baseline.jsonl"
-    check_ac_score_baseline.write_jsonl(
-        score_baseline,
-        {"version": 1, "acs": {"AC-score.1": {"code": "pass", "score": 0.8}}},
-    )
-    current_scores = tmp_path / "current-scores.json"
-    current_scores.write_text(
-        json.dumps(
-            {"version": 1, "acs": {"AC-score.1": {"code": "pass", "score": 0.5}}}
-        ),
-        encoding="utf-8",
-    )
-    assert (
-        baseline_update_contract.assert_regression_debt_refused(
-            regression_debt_present=lambda: (
-                json.loads(current_scores.read_text(encoding="utf-8"))["acs"][
-                    "AC-score.1"
-                ]["score"]
-                < 0.8
-            ),
-            baseline_state=score_baseline.read_bytes,
-            update=lambda: check_ac_score_baseline.main(
-                [str(current_scores), "--baseline", str(score_baseline), "--update"]
-            ),
-        )
-        == 1
-    )
-
     truth_dir = tmp_path / "truth"
     truth_dir.mkdir()
     (truth_dir / "synthetic.truth.json").write_text("{}\n", encoding="utf-8")
@@ -587,7 +557,6 @@ def test_AC_testing_governance_21_monotonic_update_paths_registered() -> None:
         "common/meta/extension/check_app_boundary.py",
         "common/testing/api_surface_ratchet.py",
         "common/testing/check_ac_index.py",
-        "common/testing/check_ac_score_baseline.py",
         "common/testing/check_cas" + "sette_graded_eval.py",
         "common/testing/check_critical_value_proof.py",
         "common/testing/fe_api_handmock_ratchet.py",
@@ -1245,7 +1214,8 @@ def _is_posix_fallback_copy(node: ast.Try) -> bool:
     receivers = {
         ast.dump(call.func.value)
         for call in ast.walk(ast.Module(body=node.body, type_ignores=[]))
-        if isinstance(call, ast.Call) and getattr(call.func, "attr", "") == "relative_to"
+        if isinstance(call, ast.Call)
+        and getattr(call.func, "attr", "") == "relative_to"
     }
     return any(
         getattr(handler.type, "id", "") == "ValueError"

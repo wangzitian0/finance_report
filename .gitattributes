@@ -1,20 +1,10 @@
-# Conflict-free ratchet baseline storage.
-#
-# common/testing/data/ac-score-baseline.jsonl is a PERSISTED ratchet stored as sorted,
-# line-oriented JSONL (one AC per line). `merge=union` makes git concatenate
-# both sides on merge, so two PRs that adopt DIFFERENT ACs auto-merge by union;
-# only two PRs editing the SAME AC line produce a (legitimate, semantic)
-# conflict. Re-run `tools/check_ac_score_baseline.py --update` to re-sort/normalise
-# after a union merge if line order drifts.
-common/testing/data/ac-score-baseline.jsonl merge=union
-
 # openapi-typescript generated artifact (20k lines). Collapse its diff in
 # GitHub reviews via linguist-generated. Keep the file committed: three
 # frontend modules import it and the build expects it present.
 apps/frontend/src/lib/api-types.ts linguist-generated=true
 
 # common/testing/fixtures/cassette-eval-baseline.jsonl is the cassette graded-eval
-# ratchet floor (EPIC-023 AC23.8), stored as sorted JSONL (one case per line). Same
-# rationale: PRs ratcheting DIFFERENT cases auto-merge by union; only same-case
+# ratchet floor (EPIC-023 AC23.8), stored as sorted JSONL (one case per line).
+# PRs ratcheting DIFFERENT cases auto-merge by union; only same-case
 # edits conflict.
 common/testing/fixtures/cassette-eval-baseline.jsonl merge=union

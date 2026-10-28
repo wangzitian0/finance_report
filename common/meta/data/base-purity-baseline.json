@@ -1,4 +1,0 @@
-[
-  "llm/base/secrets.py::import src.config",
-  "llm/base/usage.py::from src.observability import get_logger"
-]
