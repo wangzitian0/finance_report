@@ -5,15 +5,12 @@ from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from src.audit import Ratio, to_money
 from src.deps import CurrentUserId, DbSession
-from src.extraction import (
-    BrokeragePositionImportService,
-    ManagedPosition,
-    PositionStatus,
-)
+from src.extraction import BrokeragePositionImportService, ManagedPosition, PositionStatus
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine, active_journal_entry_filter
 from src.observability import get_logger
 from src.portfolio import (
     AssetNotFoundError,
@@ -32,7 +29,7 @@ from src.portfolio import (
     get_sector_allocation as sector_allocation_breakdowns,
     portfolio_service,
 )
-from src.pricing import PricingError
+from src.pricing import PricingError, convert_amount
 from src.schemas.portfolio import (
     BrokerageImportRequest,
     BrokerageImportResponse,
@@ -160,21 +157,22 @@ async def get_portfolio_summary(
     try:
         summary = await _portfolio_service.get_portfolio_summary(db=db, user_id=user_id, as_of_date=as_of_date)
     except (PortfolioNotFoundError, AssetNotFoundError):
+        z = Decimal("0.00")
         return PortfolioSummaryDashboardResponse(
-            total_market_value=Decimal("0.00"),
-            total_cost_basis=Decimal("0.00"),
-            total_unrealized_pnl=Decimal("0.00"),
-            total_unrealized_pnl_percent=Decimal("0.00"),
-            total_realized_pnl=Decimal("0.00"),
-            total_realized_pnl_percent=Decimal("0.00"),
-            net_pnl=Decimal("0.00"),
-            net_pnl_percent=Decimal("0.00"),
+            total_market_value=z,
+            total_cost_basis=z,
+            total_unrealized_pnl=z,
+            total_unrealized_pnl_percent=z,
+            total_realized_pnl=z,
+            total_realized_pnl_percent=z,
+            net_pnl=z,
+            net_pnl_percent=z,
             holdings_count=0,
             active_positions_count=0,
             disposed_positions_count=0,
             currency="SGD",
-            realized_pnl_ytd=Decimal("0.00"),
-            dividend_income_ytd=Decimal("0.00"),
+            realized_pnl_ytd=z,
+            dividend_income_ytd=z,
         )
 
     year_start = date(report_date.year, 1, 1)
@@ -186,12 +184,28 @@ async def get_portfolio_summary(
         dividend_by_asset = await _portfolio_service.get_dividend_income_by_asset(
             db, user_id, start_date=year_start, end_date=report_date, target_currency=summary_currency
         )
+        dividend_total = sum(dividend_by_asset.values(), Decimal("0.00"))
+        if dividend_total == Decimal("0.00"):
+            rows = await db.execute(
+                select(JournalLine, Account, JournalEntry.entry_date)
+                .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
+                .join(Account, JournalLine.account_id == Account.id)
+                .where(JournalEntry.user_id == user_id, Account.user_id == user_id)
+                .where(active_journal_entry_filter(JournalEntry), Account.type == AccountType.INCOME)
+                .where(func.lower(Account.name).like("%dividend%"))
+                .where(JournalEntry.entry_date >= year_start, JournalEntry.entry_date <= report_date)
+            )
+            for line, account, entry_date in rows.all():
+                ccy = (line.currency or account.currency or summary_currency).upper()
+                amt = line.amount if line.direction == Direction.CREDIT else -line.amount
+                dividend_total += await convert_amount(db, amt, ccy, summary_currency, entry_date, lazy_load=True)
+            dividend_total = max(dividend_total, Decimal("0.00"))
     except PricingError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
     data = summary.model_dump()
     data["realized_pnl_ytd"] = to_money(sum(realized_by_asset.values(), Decimal("0.00")))
-    data["dividend_income_ytd"] = to_money(sum(dividend_by_asset.values(), Decimal("0.00")))
+    data["dividend_income_ytd"] = to_money(dividend_total)
     return PortfolioSummaryDashboardResponse(**data)
 
 
@@ -436,20 +450,8 @@ async def get_sector_allocation(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
     """Get sector allocation breakdown (bounded by limit/offset; see AC17.30)."""
-    logger.info(
-        "Getting sector allocation",
-        user_id=str(user_id),
-        as_of_date=as_of_date,
-        limit=limit,
-        offset=offset,
-    )
-
-    breakdowns = await sector_allocation_breakdowns(
-        db=db,
-        user_id=user_id,
-        as_of_date=as_of_date or date.today(),
-    )
-
+    logger.info("Getting sector allocation", user_id=str(user_id), as_of_date=as_of_date, limit=limit, offset=offset)
+    breakdowns = await sector_allocation_breakdowns(db=db, user_id=user_id, as_of_date=as_of_date or date.today())
     page = list(breakdowns)[offset : offset + limit]
     logger.info("Retrieved sector allocation", count=len(page), total=len(breakdowns))
     return [AllocationBreakdownResponse(**b.to_dict()) for b in page]
@@ -464,20 +466,8 @@ async def get_geography_allocation(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
     """Get geography allocation breakdown (bounded by limit/offset; see AC17.30)."""
-    logger.info(
-        "Getting geography allocation",
-        user_id=str(user_id),
-        as_of_date=as_of_date,
-        limit=limit,
-        offset=offset,
-    )
-
-    breakdowns = await geography_allocation_breakdowns(
-        db=db,
-        user_id=user_id,
-        as_of_date=as_of_date or date.today(),
-    )
-
+    logger.info("Getting geography allocation", user_id=str(user_id), as_of_date=as_of_date, limit=limit, offset=offset)
+    breakdowns = await geography_allocation_breakdowns(db=db, user_id=user_id, as_of_date=as_of_date or date.today())
     page = list(breakdowns)[offset : offset + limit]
     logger.info("Retrieved geography allocation", count=len(page), total=len(breakdowns))
     return [AllocationBreakdownResponse(**b.to_dict()) for b in page]
@@ -493,19 +483,9 @@ async def get_asset_class_allocation(
 ) -> list[AllocationBreakdownResponse]:
     """Get asset class allocation breakdown (bounded by limit/offset; see AC17.30)."""
     logger.info(
-        "Getting asset class allocation",
-        user_id=str(user_id),
-        as_of_date=as_of_date,
-        limit=limit,
-        offset=offset,
+        "Getting asset class allocation", user_id=str(user_id), as_of_date=as_of_date, limit=limit, offset=offset
     )
-
-    breakdowns = await asset_class_allocation_breakdowns(
-        db=db,
-        user_id=user_id,
-        as_of_date=as_of_date or date.today(),
-    )
-
+    breakdowns = await asset_class_allocation_breakdowns(db=db, user_id=user_id, as_of_date=as_of_date or date.today())
     page = list(breakdowns)[offset : offset + limit]
     logger.info("Retrieved asset class allocation", count=len(page), total=len(breakdowns))
     return [AllocationBreakdownResponse(**b.to_dict()) for b in page]
@@ -518,19 +498,8 @@ async def update_prices(
     request: PriceUpdateBatchRequest,
 ) -> PriceUpdateBatchResponse:
     """Update market prices manually (batch)."""
-    logger.info(
-        "Updating market prices",
-        user_id=str(user_id),
-        count=len(request.updates),
-    )
-
-    results = await _portfolio_service.update_market_prices(
-        db=db,
-        user_id=user_id,
-        updates=request.updates,
-    )
-
+    logger.info("Updating market prices", user_id=str(user_id), count=len(request.updates))
+    results = await _portfolio_service.update_market_prices(db=db, user_id=user_id, updates=request.updates)
     await db.commit()
-
     logger.info("Market prices updated", updated_count=len(results))
     return PriceUpdateBatchResponse(updated_count=len(results), results=results)

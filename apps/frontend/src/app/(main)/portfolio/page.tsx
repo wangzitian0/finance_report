@@ -20,7 +20,11 @@ import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/re
 import { ExcludedHoldingsNote } from "@/components/reports/ExcludedHoldingsNote";
 import { DEFAULT_INCLUDE_RESTRICTED } from "@/hooks/useReportFilters";
 import { amountToChartNumber, formatCurrencyLocale, sumAmounts } from "@/lib/audit/money";
-import { clampPercentWidthFromPercentValue, formatPercentFromPercentValue } from "@/lib/audit/ratio/format";
+import {
+  clampPercentWidthFromPercentValue,
+  formatPercentFromPercentValue,
+  percentNumberFromPercentValue,
+} from "@/lib/audit/ratio/format";
 import { allocationClassLabel } from "@/lib/statusLabels";
 import type { NetWorthAllocationRow, NetWorthAllocationSourceLine } from "@/lib/types";
 
@@ -51,7 +55,11 @@ function AllocationSource({
   }
   if (line.source_type === "manual_valuation") {
     return (
-      <Link href={APP_ROUTES.PORTFOLIO_EVIDENCE} scroll={false} className="hover:text-[var(--foreground)]">
+      <Link
+        href={APP_ROUTES.PORTFOLIO_EVIDENCE}
+        scroll={false}
+        className="block truncate font-medium text-[var(--accent)] hover:text-[var(--foreground)] hover:underline"
+      >
         {line.label}
       </Link>
     );
@@ -241,7 +249,21 @@ export default function PortfolioPage() {
             <div className="px-3 py-4 text-sm text-muted">No allocation rows available</div>
           ) : (
             allocationRows.map((row: NetWorthAllocationRow) => {
-              const isNeg = amountToChartNumber(row.value) < 0;
+              const rowAmount = amountToChartNumber(row.value);
+              const isNeg = rowAmount < 0;
+              const pctNumber = percentNumberFromPercentValue(row.percentage_of_net_worth, { fallback: null });
+              const exceedsHundred = pctNumber !== null && Math.abs(pctNumber) > 100;
+              const totalAssetsNum = amountToChartNumber(netWorthAllocation?.total_assets ?? "0");
+              const totalLiabilitiesNum = Math.abs(amountToChartNumber(netWorthAllocation?.total_liabilities ?? "0"));
+              const barWidth = isNeg
+                ? totalLiabilitiesNum > 0
+                  ? `${Math.min(100, Math.max(0, (Math.abs(rowAmount) / totalLiabilitiesNum) * 100)).toFixed(1)}%`
+                  : clampPercentWidthFromPercentValue(
+                      pctNumber !== null ? String(Math.abs(pctNumber)) : row.percentage_of_net_worth,
+                    )
+                : exceedsHundred && totalAssetsNum > 0
+                  ? `${Math.min(100, Math.max(0, (rowAmount / totalAssetsNum) * 100)).toFixed(1)}%`
+                  : clampPercentWidthFromPercentValue(row.percentage_of_net_worth);
               return (
                 <div
                   key={`${row.asset_class}-${row.liquidity_class}-${row.source_currency}`}
@@ -252,15 +274,23 @@ export default function PortfolioPage() {
                     <p className="mt-1 text-xs text-muted">{allocationClassLabel(row.liquidity_class)}</p>
                     <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--background-muted)]" aria-hidden="true">
                       <div
-                        className={`h-full rounded-full ${isNeg ? "bg-[var(--error)]" : "bg-[var(--accent)]"}`}
-                        style={{ width: clampPercentWidthFromPercentValue(row.percentage_of_net_worth) }}
+                        data-testid={isNeg ? "allocation-bar-liability" : "allocation-bar-asset"}
+                        className={`h-full rounded-full ${isNeg ? "bg-[var(--error)]/60" : "bg-[var(--accent)]"}`}
+                        style={{ width: barWidth }}
                       />
                     </div>
                   </div>
                   <p className={`text-sm font-medium md:text-right ${isNeg ? "text-[var(--error)]" : "text-[var(--foreground)]"}`}>
                     {formatCurrencyLocale(row.value, netWorthAllocation?.currency ?? reportCurrency)}
                   </p>
-                  <p className="text-sm text-muted md:text-right">{formatPercentFromPercentValue(row.percentage_of_net_worth, { dp: 1 })}</p>
+                  <div className="md:text-right">
+                    <p className="text-sm text-muted">{formatPercentFromPercentValue(row.percentage_of_net_worth, { dp: 1 })}</p>
+                    {isNeg ? (
+                      <p className="text-xs text-[var(--error)]">Liability offset of net worth</p>
+                    ) : exceedsHundred ? (
+                      <p className="text-xs text-muted">Gross share of net worth</p>
+                    ) : null}
+                  </div>
                   <p className="text-sm text-muted md:text-right">{row.source_currency}</p>
                   <div className="min-w-0 text-sm text-muted">
                     <p className="font-medium text-[var(--foreground)]">
