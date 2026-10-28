@@ -43,7 +43,8 @@ describe("Issue #2763: report coverage notes, opening balance warnings, and Firs
     window.localStorage.clear();
   });
 
-  it("keeps coverageLimitingAccounts and report-coverage-note visible for All and after jumping to latestStatementEnd", async () => {
+  // AC-reporting.fe-period-cockpit.7 / AC-reporting.2726.2
+  it("AC-reporting.fe-period-cockpit.7 keeps coverageLimitingAccounts and report-coverage-note visible for All and after jumping to latestStatementEnd", async () => {
     const today = new Date(2026, 9, 27);
     const coverage = {
       start: "2025-03-01",
@@ -91,7 +92,8 @@ describe("Issue #2763: report coverage notes, opening balance warnings, and Firs
     );
   });
 
-  it("renders all distinct account messages in OpeningBalanceWarningBanner when multiple warnings exist", () => {
+  // AC-reporting.fe-report-surfaces.1
+  it("AC-reporting.fe-report-surfaces.1 renders all distinct account messages in OpeningBalanceWarningBanner when multiple warnings exist", () => {
     render(
       <OpeningBalanceWarningBanner
         warnings={[
@@ -115,7 +117,8 @@ describe("Issue #2763: report coverage notes, opening balance warnings, and Firs
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
   });
 
-  it("persists FirstRunModal dismissal in localStorage across remounts and tucks protocol/base URL under Advanced settings", () => {
+  // AC-meta.fe-app-shell.1
+  it("AC-meta.fe-app-shell.1 persists FirstRunModal dismissal in localStorage across remounts and tucks protocol/base URL under Advanced settings", () => {
     mockedLlmStatus.mockReturnValue({ configured: false, loading: false, refresh });
 
     const firstRender = render(<FirstRunModal />);
