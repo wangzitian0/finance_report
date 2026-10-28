@@ -490,21 +490,16 @@ def test_AC8_13_158_canary_transient_classification_owned_by_provider_gate() -> 
 
 def test_AC8_13_160_ci_cd_distinguishes_canary_from_audit_replay() -> None:
     """AC-testing.deploy-gates.35: AC8.13.160: SSOT distinguishes the blocking minimal AI/OCR Canary from the
-    nightly comprehensive Audit Replay, and the split is a recorded decision."""
+    nightly comprehensive Audit Replay, and the split is enforced in workflows."""
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
 
     _has(ci_cd, "AI/OCR Canary", "Audit Replay", "audit-replay.yml")
     # The canary is the minimal blocking-path liveness check.
     assert "test_brokerage_upload_to_portfolio_value.py" in ci_cd
-    # The split is recorded as an intentional keep_separate decision in the
-    # gate inventory.
-    inventory = yaml.safe_load(read("common/meta/data/ci-gate-inventory.yaml"))
-    candidate = next(
-        item
-        for item in inventory["deferred_candidates"]
-        if item["id"] == "ai_ocr_canary_vs_audit_replay"
-    )
-    assert candidate["status"] == "keep_separate"
+    deploy_wf = yaml.safe_load(read(".github/workflows/deploy.yml"))
+    audit_wf = yaml.safe_load(read(".github/workflows/audit-replay.yml"))
+    assert deploy_wf["jobs"]["ai-ocr-gate"]["with"]["corpus"] == "canary"
+    assert "audit_replay" in audit_wf["jobs"]["audit-replay"]["with"]["corpus"]
 
 
 def test_AC8_13_14_staging_ai_ocr_gate_is_separate_deploy_job() -> None:
@@ -2327,7 +2322,6 @@ def test_AC8_13_148_backend_shards_use_seeded_least_duration_split() -> None:
     workflow_text = read(".github/workflows/ci.yml")
     workflow = yaml.safe_load(workflow_text)
     backend_job = workflow["jobs"]["backend"]
-    inventory = read("common/meta/data/ci-gate-inventory.yaml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
     durations = json.loads(read("apps/backend/ci/backend-test-durations.json"))
 
@@ -2374,12 +2368,6 @@ def test_AC8_13_148_backend_shards_use_seeded_least_duration_split() -> None:
         "apps/backend/ci/backend-test-durations.json",
         "not runner-local cache writes",
     )
-    backend_gate = next(
-        gate
-        for gate in yaml.safe_load(inventory)["gates"]
-        if gate["id"] == "ci.backend"
-    )
-    assert backend_gate["matrix_legs"] == len(shards)
 
 
 def test_AC8_13_149_fan_in_jobs_download_only_required_artifacts() -> None:
@@ -2565,7 +2553,6 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
     """AC-testing.deploy-gates.29: AC8.13.144: production rollback uses deploy_v2 and confirms previous health."""
     workflow = read(".github/workflows/release.yml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-    inventory = read("common/meta/data/ci-gate-inventory.yaml")
 
     rollback_block = workflow.split(
         "- name: Roll back production after post-deploy failure", 1
@@ -2665,7 +2652,6 @@ def test_AC8_13_144_production_release_rolls_back_with_deploy_v2_after_post_depl
         "production_before_rollback_ref=${{ steps.production_before.outputs.rollback_ref }}",
     )
     assert "Production release rollback uses the infra2 receiver" in ci_cd
-    assert "production_rollback" in inventory
 
 
 def test_AC8_13_67_production_release_preserves_version_metadata() -> None:
@@ -3490,7 +3476,6 @@ def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main
     """AC-testing.coverage.5: AC8.13.143: main baseline updates are automated through a PR, not a direct push."""
     workflow = read(".github/workflows/ci.yml")
     ci_cd = read("common/testing/ci-cd.md") + read("common/runtime/ci-cd.md")
-    inventory = read("common/meta/data/ci-gate-inventory.yaml")
 
     unified_coverage_block = workflow.split("  unified-coverage:", 1)[1].split(
         "  unified-coverage-baseline-pr:", 1
@@ -3539,7 +3524,6 @@ def test_AC8_13_143_unified_coverage_updates_baseline_through_pr_not_direct_main
     assert "[skip ci]" not in baseline_block
     assert "unified-coverage-baseline-pr" not in workflow.split("  finish:", 1)[1]
     assert "automatic baseline PR" in ci_cd
-    _has(inventory, "task_category: coverage_fan_in", "baseline_update_pr_on_main")
 
 
 def test_AC8_13_66_coveralls_uploads_use_line_only_lcov() -> None:

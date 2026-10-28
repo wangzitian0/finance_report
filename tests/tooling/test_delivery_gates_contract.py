@@ -51,16 +51,13 @@ def test_every_gate_workflow_declares_its_manifest_trigger():
 
 
 def test_merge_authority_gate_is_synchronous_not_bypassable():
-    """The required merge authority in ci-gate-inventory.yaml is ci.yml#finish, which runs
-    synchronously on pull_request (pull_request trigger, branch_required_context=finish)."""
-    inv = _load("common/meta/data/ci-gate-inventory.yaml")
-    gates = inv["gates"]
-    finish = next(g for g in gates if g["id"] == "ci.finish")
-    assert finish["workflow"] == ".github/workflows/ci.yml"
-    assert finish["job"] == "finish"
-    assert finish["branch_required_context"] == "finish"
-    assert finish["blocks_workflow"] is True
-    assert "pull_request" in finish["triggers"]
+    """The required merge authority in .github/workflows/ci.yml is finish, which runs
+    synchronously on pull_request."""
+    ci_wf = _load(".github/workflows/ci.yml")
+    assert "pull_request" in _workflow_on(ci_wf)
+    finish = (ci_wf.get("jobs") or {}).get("finish")
+    assert isinstance(finish, dict)
+    assert finish.get("needs")
 
 
 def test_staging_benchmark_is_wired_via_workflow_call():

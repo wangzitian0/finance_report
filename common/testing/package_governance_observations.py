@@ -537,6 +537,18 @@ def _reject_duplicate_coordinates(
         seen.add(value)
 
 
+def _workflow_job_for_gate(gate_id: str, jobs: dict[str, Any]) -> str:
+    if not gate_id.startswith("ci."):
+        return ""
+    candidate = gate_id.removeprefix("ci.")
+    if candidate in jobs:
+        return candidate
+    hyphenated = candidate.replace("_", "-")
+    if hyphenated in jobs:
+        return hyphenated
+    return hyphenated
+
+
 def build_observation_bundle(
     *,
     contracts: list[PackageContract],
@@ -544,7 +556,6 @@ def build_observation_bundle(
     observed_at: datetime,
     detector_payloads: list[dict[str, Any]],
     proof_payloads: list[dict[str, Any]],
-    gate_inventory: dict[str, Any],
     workflow: dict[str, Any],
     rulesets: list[dict[str, Any]],
     issue_payloads: list[dict[str, Any]],
@@ -632,30 +643,20 @@ def build_observation_bundle(
             proofs.append(dict(item) | {"source": "junit-executed-proof"})
     _reject_duplicate_coordinates(proofs, coordinate="guarantee_id", label="proof")
 
-    inventory_contexts = {
-        str(context)
-        for context in gate_inventory.get("branch_required_status_contexts", [])
-    }
     live_contexts = _required_contexts(rulesets)
-    if not inventory_contexts or inventory_contexts != live_contexts:
+    if live_contexts != {"finish"}:
         raise ObservationInputError(
             "declared and live required status contexts do not reconcile"
         )
-    if len(live_contexts) != 1:
-        raise ObservationInputError(
-            "exactly one live required finish context is required"
-        )
-    live_context = next(iter(sorted(live_contexts)))
+    live_context = "finish"
     jobs = workflow.get("jobs", {})
-    finish = jobs.get(live_context, {}) if isinstance(jobs, dict) else {}
+    job_mapping = jobs if isinstance(jobs, dict) else {}
+    finish = job_mapping.get(live_context, {})
     finish_needs = finish.get("needs", []) if isinstance(finish, dict) else []
     if isinstance(finish_needs, str):
         finish_needs = [finish_needs]
     workflow_jobs = {str(item) for item in finish_needs}
     blocked_jobs = _finish_blocked_jobs(finish) if isinstance(finish, dict) else set()
-    gates_by_id = {
-        str(gate.get("id")): gate for gate in gate_inventory.get("gates", [])
-    }
     declared_gate_ids = sorted(
         {
             guarantee.enforcing_gate
@@ -666,22 +667,21 @@ def build_observation_bundle(
     )
     enforcement = []
     for gate_id in declared_gate_ids:
-        gate = gates_by_id.get(gate_id, {})
-        gate_job = str(gate.get("job") or "")
-        reaches_finish = gate_job in workflow_jobs
-        if bool(gate.get("required_by_finish")) != reaches_finish:
+        gate_job = _workflow_job_for_gate(gate_id, job_mapping)
+        reaches_finish = bool(gate_job) and gate_job in workflow_jobs
+        if not reaches_finish:
             raise ObservationInputError(
-                f"{gate_id}: inventory and workflow finish reachability disagree"
+                f"{gate_id}: workflow finish does not depend on {gate_job!r}"
             )
         blocks_finish = reaches_finish and gate_job in blocked_jobs
-        if bool(gate.get("blocks_workflow")) != blocks_finish:
+        if not blocks_finish:
             raise ObservationInputError(
                 f"{gate_id}: finish depends on {gate_job!r} but does not block its failure"
             )
         enforcement.append(
             {
                 "gate_id": gate_id,
-                "declared_blocking": bool(gate.get("blocks_workflow")),
+                "declared_blocking": True,
                 "workflow_required": blocks_finish,
                 "live_required": bool(live_context),
                 "required_context": live_context,
@@ -840,7 +840,6 @@ def _control_detector_payload(
     open_issue_urls: set[str],
     existing_payloads: list[dict[str, Any]],
     target_sha: str,
-    gate_inventory: dict[str, Any],
     workflow: dict[str, Any],
     rulesets: list[dict[str, Any]],
     issue_payloads: list[dict[str, Any]],
@@ -868,13 +867,11 @@ def _control_detector_payload(
         str(item.get("html_url")): str(item.get("state") or "").lower()
         for item in issue_payloads
     }
-    gates_by_id = {
-        str(item.get("id")): item for item in gate_inventory.get("gates", [])
-    }
     live_contexts = _required_contexts(rulesets)
     jobs = workflow.get("jobs", {}) if isinstance(workflow, dict) else {}
+    job_mapping = jobs if isinstance(jobs, dict) else {}
     finish_context = next(iter(live_contexts), "") if len(live_contexts) == 1 else ""
-    finish = jobs.get(finish_context, {}) if isinstance(jobs, dict) else {}
+    finish = job_mapping.get(finish_context, {})
     needs = finish.get("needs", []) if isinstance(finish, dict) else []
     if isinstance(needs, str):
         needs = [needs]
@@ -902,8 +899,7 @@ def _control_detector_payload(
                     findings.append("governance-ac-not-in-projection")
                 if issue_states.get(initiative.issue) != "open":
                     findings.append("missing-open-issue-observation")
-                gate = gates_by_id.get(guarantee.enforcing_gate)
-                gate_job = str((gate or {}).get("job") or "")
+                gate_job = _workflow_job_for_gate(guarantee.enforcing_gate, job_mapping)
                 if not finish_context:
                     findings.append("missing-single-live-finish-context")
                 if not gate_job or gate_job not in finish_needs:
@@ -933,7 +929,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--target-sha", required=True)
     parser.add_argument("--junit-root", type=Path, required=True)
     parser.add_argument("--detector-payload", type=Path, action="append", default=[])
-    parser.add_argument("--gate-inventory", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--raw-github-out", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -990,12 +985,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ),
             )
         )
-        inventory_path = args.gate_inventory or (
-            repo_root / "common/meta/data/ci-gate-inventory.yaml"
-        )
-        gate_inventory = yaml.safe_load(inventory_path.read_text(encoding="utf-8"))
-        if not isinstance(gate_inventory, dict):
-            raise ObservationInputError("gate inventory is not a mapping")
         workflow = yaml.safe_load(
             (repo_root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         )
@@ -1007,7 +996,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 open_issue_urls=open_issue_urls,
                 existing_payloads=detector_payloads,
                 target_sha=target_sha,
-                gate_inventory=gate_inventory,
                 workflow=workflow,
                 rulesets=github["rulesets"],
                 issue_payloads=github["issues"],
@@ -1019,7 +1007,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             observed_at=observed_at,
             detector_payloads=detector_payloads,
             proof_payloads=proof_payloads,
-            gate_inventory=gate_inventory,
             workflow=workflow,
             rulesets=github["rulesets"],
             issue_payloads=github["issues"],

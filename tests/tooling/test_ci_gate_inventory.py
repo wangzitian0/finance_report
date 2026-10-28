@@ -1,4 +1,4 @@
-"""CI gate inventory contract tests."""
+"""CI workflow gate and proof-execution vocabulary contract tests."""
 
 from __future__ import annotations
 
@@ -7,13 +7,14 @@ from typing import Any
 
 import yaml
 
+from common.testing import evidence_bundle as eb
 from common.testing.ac_proof_execution import (
     PROOF_EXECUTION_STAGES,
     PROOF_TASK_CATEGORIES,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
-INVENTORY = ROOT / "common" / "meta" / "data" / "ci-gate-inventory.yaml"
+RETIRED_INVENTORY = ROOT / "common" / "meta" / "data" / "ci-gate-inventory.yaml"
 WORKFLOWS = ROOT / ".github" / "workflows"
 
 EXPECTED_STAGES = set(PROOF_EXECUTION_STAGES)
@@ -35,13 +36,6 @@ def _workflow_jobs() -> set[tuple[str, str]]:
     return jobs
 
 
-def _inventory_gates() -> list[dict[str, Any]]:
-    data = _load_yaml(INVENTORY)
-    gates = data.get("gates")
-    assert isinstance(gates, list)
-    return gates
-
-
 def _job_run_commands(workflow: dict[str, Any], job_id: str) -> str:
     job = workflow["jobs"][job_id]
     return "\n".join(
@@ -52,86 +46,31 @@ def _job_run_commands(workflow: dict[str, Any], job_id: str) -> str:
 
 
 def test_AC8_13_151_ci_gate_inventory_uses_shared_proof_execution_vocabulary() -> None:
-    """AC-testing.gate-inventory.3: AC8.13.151: inventory vocabulary is shared with proof execution helpers."""
-
-    data = _load_yaml(INVENTORY)
-    stages = data.get("stages")
-    task_categories = data.get("task_categories")
-    assert isinstance(stages, dict)
-    assert isinstance(task_categories, dict)
-    assert tuple(stages) == PROOF_EXECUTION_STAGES
-    assert tuple(task_categories) == PROOF_TASK_CATEGORIES
+    """AC-testing.gate-inventory.3: AC8.13.151: proof execution vocabulary is documented in ci-cd.md with no YAML mirror."""
+    assert not RETIRED_INVENTORY.exists()
+    ci_cd = (ROOT / "common" / "testing" / "ci-cd.md").read_text(encoding="utf-8")
+    assert all(f"`{stage}`" in ci_cd for stage in PROOF_EXECUTION_STAGES)
+    assert all(f"`{task_category}`" in ci_cd for task_category in PROOF_TASK_CATEGORIES)
 
 
 def test_AC8_13_142_ci_gate_inventory_uses_stage_and_task_category_per_job() -> None:
-    """AC-testing.gate-inventory.1: AC8.13.142: every workflow job has one stage and one task_category."""
-
-    data = _load_yaml(INVENTORY)
-    assert "categories" not in data
-    stages = data.get("stages")
-    task_categories = data.get("task_categories")
-    assert isinstance(stages, dict)
-    assert isinstance(task_categories, dict)
-    assert set(stages) == EXPECTED_STAGES
-    assert set(task_categories) == EXPECTED_TASK_CATEGORIES
-
-    gates = _inventory_gates()
-    assert {gate["id"] for gate in gates}
-    assert len({gate["id"] for gate in gates}) == len(gates)
-
-    inventory_jobs = {(gate["workflow"], gate["job"]) for gate in gates}
-    assert inventory_jobs == _workflow_jobs()
-
-    for gate in gates:
-        assert "category" not in gate
-        assert gate["stage"] in EXPECTED_STAGES
-        assert gate["task_category"] in EXPECTED_TASK_CATEGORIES
-        assert isinstance(gate["owner"], str) and gate["owner"]
-        assert isinstance(gate["failure_semantics"], str) and gate["failure_semantics"]
-        assert gate["action"] in {
-            "keep",
-            "observe",
-            "candidate_remove_duplicate",
-            "candidate_merge_later",
-        }
+    """AC-testing.gate-inventory.1: AC8.13.142: workflows are the single source of truth for CI jobs and finish.needs."""
+    assert not RETIRED_INVENTORY.exists()
+    assert _workflow_jobs()
+    workflow = _load_yaml(WORKFLOWS / "ci.yml")
+    finish_needs = set(workflow["jobs"]["finish"]["needs"])
+    gate_map_jobs = {entry["job"] for entry in eb.load_gate_map(ROOT)}
+    assert gate_map_jobs == finish_needs
 
 
 def test_AC8_13_142_finish_inventory_matches_ci_fan_in() -> None:
-    """AC8.13.142: inventory keeps finish as the sole aggregate merge gate."""
-
+    """AC8.13.142: ci.yml keeps finish as the sole aggregate merge gate."""
     workflow = _load_yaml(ROOT / ".github" / "workflows" / "ci.yml")
-    finish_needs = set(workflow["jobs"]["finish"]["needs"])
-
-    gates = _inventory_gates()
-    finish_gate = next(gate for gate in gates if gate["id"] == "ci.finish")
-    assert finish_gate["stage"] == "github_ci.merge_authority"
-    assert finish_gate["task_category"] == "aggregate"
-    assert finish_gate["branch_required_context"] == "finish"
-
-    inventory_finish_needs = {
-        gate["job"]
-        for gate in gates
-        if gate["workflow"] == ".github/workflows/ci.yml"
-        and gate.get("required_by_finish")
-    }
-    assert inventory_finish_needs == finish_needs
-
-
-def test_AC8_13_142_inventory_artifacts_match_live_workflows() -> None:
-    """AC8.13.142: declared gate artifacts stay anchored to live workflow names."""
-
-    workflow_text_by_path = {
-        f".github/workflows/{workflow.name}": workflow.read_text(encoding="utf-8")
-        for workflow in sorted(WORKFLOWS.glob("*.yml"))
-    }
-
-    for gate in _inventory_gates():
-        artifacts = gate.get("artifacts") or []
-        assert isinstance(artifacts, list)
-        workflow_text = workflow_text_by_path[gate["workflow"]]
-        for artifact in artifacts:
-            assert isinstance(artifact, str)
-            assert artifact in workflow_text, (gate["id"], artifact)
+    finish = workflow["jobs"]["finish"]
+    finish_needs = set(finish["needs"])
+    assert "evidence-bundle" not in finish_needs
+    assert "pipeline-budget" not in finish_needs
+    assert "unified-coverage-baseline-pr" not in finish_needs
 
 
 def test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow() -> None:
@@ -168,16 +107,6 @@ def test_AC8_13_153_staging_ai_ocr_gate_is_a_single_reusable_workflow() -> None:
         assert job.get("secrets") == "inherit"
         # A caller cannot also inline steps — the body must not be duplicated.
         assert "steps" not in job
-
-    # The duplicate cleanup is recorded explicitly, like every other resolved one.
-    inventory = _load_yaml(INVENTORY)
-    cleanup = next(
-        item
-        for item in inventory["resolved_duplicate_cleanups"]
-        if item["id"] == "staging_ai_ocr_gate_duplicate"
-    )
-    assert cleanup["status"] == "removed"
-    assert cleanup["retained_owner"] == "staging_ai_ocr_gate.reusable_run"
 
 
 def test_AC8_13_154_production_release_line_lives_in_release_yml() -> None:
@@ -220,20 +149,7 @@ def test_AC8_13_154_production_release_line_lives_in_release_yml() -> None:
 
 
 def test_AC8_13_142_duplicate_cleanup_is_explicit_not_implicit() -> None:
-    """AC8.13.142: duplicate gate cleanup stays recorded after deletion."""
-
-    data = _load_yaml(INVENTORY)
-    cleanups = data.get("resolved_duplicate_cleanups")
-    assert isinstance(cleanups, list)
-    assert cleanups
-
-    audit_cleanup = next(
-        item for item in cleanups if item["id"] == "frontend_prod_audit_duplicate"
-    )
-    assert audit_cleanup["status"] == "removed"
-    assert audit_cleanup["retained_owner"] == "ci.lint"
-    assert audit_cleanup["removed_from"] == ["ci.frontend_build"]
-
+    """AC8.13.142: duplicate frontend prod audit stays removed from frontend build/test jobs."""
     workflow = _load_yaml(ROOT / ".github" / "workflows" / "ci.yml")
     assert "npm run audit:prod" in _job_run_commands(workflow, "lint")
     for job_id in (

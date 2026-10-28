@@ -977,25 +977,6 @@ CONTRACT = PackageContract(
             parent="tdd_workflow",
         ),
         ConceptRecord(
-            key="ci_gate_inventory",
-            owner="common/meta/data/ci-gate-inventory.yaml",
-            description=(
-                "Transitional workflow-job inventory mapping current gates to proof stage and "
-                "task_category, plus finish fan-in ownership and duplicate cleanup "
-                "candidates."
-            ),
-            cross_refs=[
-                "common/testing/ci-cd.md",
-                "docs/project/EPIC-008.testing-strategy.md",
-                ".github/workflows/ci.yml",
-            ],
-            proofs=["tests/tooling/test_ci_gate_inventory.py"],
-            family="delivery",
-            kind="matrix",
-            authority="human_curated",
-            parent="ci_workflow",
-        ),
-        ConceptRecord(
             key="data_layering",
             owner="common/meta/schema.md#data-layering",
             description=(
