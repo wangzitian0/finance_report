@@ -48,7 +48,9 @@ concepts:
     kind: data
     cross_refs:
       - apps/frontend/next.config.mjs
+      - apps/frontend/frontend-patterns.md
       - apps/frontend/src/__tests__/routeMap.test.ts
+      - tests/tooling/test_backend_route_hrefs.py
 
   security_red_lines:
     owner: docs/agents/red-lines.md

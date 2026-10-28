@@ -178,9 +178,9 @@ Every UI-system change must leave both semantic and visual proof in the same PR.
   entity type when a source field is absent.
 - Dense trust and attention explanations must keep at least the normal
   `text-content-muted` contrast token unless a stronger contrast proof exists.
-- Links from the `/attention` queue to review or processing destinations must
+- Links from the `/audit` queue to review or processing destinations must
   append `from=attention`. Destination back-links must use that source marker to
-  return to `/attention`, while preserving the existing notification or module
+  return to `/audit`, while preserving the existing notification or module
   fallback when the marker is absent.
 
 - Dialog, sheet, toast, tab/navigation, and icon-only control changes need
@@ -219,7 +219,7 @@ Every UI-system change must leave both semantic and visual proof in the same PR.
 ### Applied In
 
 - `components/settings/SettingsPanels.tsx` (`AccountsPanel`)
-- `app/(main)/statements/page.tsx`
+- `app/(main)/upload/page.tsx`
 - `playwright/ui-visual-smoke.spec.ts`
 - `src/__tests__/uiPrimitives.test.tsx`
 - `src/__tests__/accountsPage.test.tsx`
@@ -331,22 +331,12 @@ Layer rules are enforced by CI gates:
 - `tests/tooling/test_fe_wire_type_ssot.py`: guards that wire types resolve to generated `Schemas["..."]` aliases.
 - `tests/tooling/test_fe_no_godfile.py`: guards that workflow and route page files remain under 300 lines.
 - `tests/tooling/test_fe_helper_ssot.py`: guards single-homed helper definitions.
+- `tests/tooling/test_backend_route_hrefs.py`: guards that backend `workflow`, `reporting`, and `advisor` packages emit no `redirect` routes from `src/lib/route-map.json` and that `apps/frontend/frontend-patterns.md` cites only existing files.
+- `src/__tests__/uxHumanizeTokens2650.test.tsx`: guards that the 7 everyday screens render no banned internal jargon (`invariant`, `rollforward`, `source envelope`, `reviewed disposition`, `economic intent`, `held-out`, `leakage`, raw `snake_case`, or `(s)`), using `humanizeWorkflowText` in `components/workflow/workflowFormat.ts`.
 
 ### Why no `shared/*` or `packages/*` directory yet
 
-The original design sketch named these layers `shared/ui`, `shared/api`,
-`shared/query`, and `shared/money`. They were **deliberately not** materialized
-as physical `apps/frontend/src/shared/*` folders or workspace `packages/*`.
-Instead the same boundaries are realized in place — `lib/`, `hooks/`, and
-`components/ui/` — and kept honest by the dependency rules above plus the
-`lib/api.ts` red line (no raw `fetch()`).
-
-Package extraction (e.g. `packages/ui`, `packages/frontend-api`,
-`packages/financial-core`) is **deferred future work**. It should only happen
-**after** the boundaries above are stable and proven by reuse across multiple
-features. Extracting packages before that point would freeze boundaries that are
-still settling and add tooling cost without a reuse payoff. Until then, treat the
-import-path rules in this section as the contract.
+These boundaries live in place (`lib/`, `hooks/`, `components/ui/`) instead of separate `shared/*` or `packages/*` directories, enforced by the import-path gates above and the `lib/api.ts` red line. Extract workspace packages only after multi-feature reuse proves the boundaries stable.
 
 ## 8. Monetary Amounts
 
@@ -365,10 +355,7 @@ Frontend monetary display and arithmetic must use `decimal.js` through
 
 ## 9. Responsive Navigation
 
-The app is mobile/PWA-first. `components/navigation.ts` is the single route
-source of truth, shared by a mobile bottom tab bar (`BottomTabBar` in `components/AppShell`)
-and the desktop sidebar (`Sidebar` in `components/AppNav`), which mirror the **same** targets
-(EPIC-022 AC22.21).
+The app is mobile/PWA-first. `src/lib/route-map.json` owns the route inventory (10 `target` routes, 2 `shell` routes, 27 `redirect` routes, 0 `merge`, guarded by `src/__tests__/routeMap.test.ts` and `tests/tooling/test_backend_route_hrefs.py`), while `components/navigation.ts` defines the 5 primary navigation hit targets shared by the mobile bottom tab bar (`BottomTabBar` in `components/AppShell`) and desktop sidebar (`Sidebar` in `components/AppNav`) (EPIC-022 AC22.21).
 
 **Rules:**
 - The bottom tab bar is exactly five hit targets: Home, Chat, a center **Add**
@@ -405,8 +392,8 @@ document-level horizontal scrolling.
 
 **Applied In:**
 - `components/settings/SettingsPanels.tsx` (`AccountsPanel`)
-- `app/(main)/review/ai-suggestions/page.tsx`
-- `app/(main)/statements/[id]/review/page.tsx`
+- `app/(main)/audit/page.tsx`
+- `app/(main)/statements/[id]/page.tsx`
 - `components/review/Stage2ReviewQueue.tsx`
 - `components/review/StatementReview.tsx` (`TransactionTable`)
 - `components/journal/JournalEntryDetailsModal.tsx`
@@ -516,5 +503,5 @@ The Dashboard must give first-time users a direct path into the core flow instea
 
 ### Code References
 
-- `app/(main)/dashboard/page.tsx` — onboarding detection and links
+- `app/(main)/page.tsx` — onboarding detection and links
 - `src/__tests__/dashboardPage.test.tsx` — AC16.12.17–AC16.12.19 coverage

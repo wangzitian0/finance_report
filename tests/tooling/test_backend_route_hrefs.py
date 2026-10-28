@@ -14,12 +14,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ROUTE_MAP_PATH = REPO_ROOT / "apps" / "frontend" / "src" / "lib" / "route-map.json"
+FRONTEND_PATTERNS_PATH = REPO_ROOT / "apps" / "frontend" / "frontend-patterns.md"
 BACKEND_PACKAGES = (
     REPO_ROOT / "apps" / "backend" / "src" / "workflow",
     REPO_ROOT / "apps" / "backend" / "src" / "reporting",
     REPO_ROOT / "apps" / "backend" / "src" / "advisor",
 )
 DYNAMIC_SEGMENT_RE = re.compile(r"\[[^/\]]+\]")
+DOC_FILE_REF_RE = re.compile(r"`([^`\n]+\.(?:tsx?|py|json|mjs|css))`")
 
 
 def load_redirect_route_patterns(
@@ -134,3 +136,38 @@ def sample(statement):
     assert any("/reports/package" in item for item in violations)
     assert any("/statements/[id]/review" in item for item in violations)
     assert any("/review" in item for item in violations)
+
+
+def scan_doc_for_missing_file_refs(
+    markdown: str,
+    *,
+    repo_root: Path = REPO_ROOT,
+) -> list[str]:
+    """Return any backticked relative file path in ``markdown`` that does not exist on disk."""
+    search_roots = (
+        repo_root,
+        repo_root / "apps" / "frontend",
+        repo_root / "apps" / "frontend" / "src",
+    )
+    missing: list[str] = []
+    for match in DOC_FILE_REF_RE.finditer(markdown):
+        candidate = match.group(1).strip()
+        if "/" not in candidate or "*" in candidate or "<" in candidate:
+            continue
+        if any((root / candidate).is_file() for root in search_roots):
+            continue
+        missing.append(candidate)
+    return missing
+
+
+def test_AC_platform_36_1_frontend_patterns_cites_only_existing_files() -> None:
+    """AC-platform.36.1: apps/frontend/frontend-patterns.md cites only existing file paths."""
+    markdown = FRONTEND_PATTERNS_PATH.read_text(encoding="utf-8")
+    missing = scan_doc_for_missing_file_refs(markdown)
+    assert missing == [], (
+        "apps/frontend/frontend-patterns.md cites deleted files:\n" + "\n".join(missing)
+    )
+    synthetic_missing = scan_doc_for_missing_file_refs(
+        "- `app/(main)/statements/page.tsx`\n- `app/(main)/upload/page.tsx`\n"
+    )
+    assert synthetic_missing == ["app/(main)/statements/page.tsx"]
