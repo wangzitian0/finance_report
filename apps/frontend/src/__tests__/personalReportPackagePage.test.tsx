@@ -377,6 +377,23 @@ function previewAppendix(appendix: unknown) {
   };
 }
 
+// The preview carries the decision count and a first page of decisions (#2583 S11).
+const PREVIEW_DECISIONS = 25;
+
+function evidenceReferenceCount(policy: typeof frameworkPolicy) {
+  const anchors = [...policy.decisions, ...policy.gaps].flatMap((item) => item.evidence_anchors ?? []);
+  return new Set(anchors.map((anchor) => `${anchor.anchor_type}:${anchor.source_id}`)).size;
+}
+
+function previewPolicy(policy = frameworkPolicy) {
+  return {
+    ...policy,
+    decision_count: policy.decisions.length,
+    evidence_reference_count: evidenceReferenceCount(policy),
+    decisions: policy.decisions.slice(0, PREVIEW_DECISIONS),
+  };
+}
+
 function packagePreview(readinessPayload = readiness, policyPayload = frameworkPolicy, traceabilityPayload: unknown = traceabilityAppendix) {
   const {
     snapshot_id: _snapshotId,
@@ -385,14 +402,34 @@ function packagePreview(readinessPayload = readiness, policyPayload = frameworkP
     input_manifest: _manifest,
     ...preview
   } = packageDocument(readinessPayload, policyPayload, traceabilityPayload);
-  return { ...preview, status: "draft", sections: { ...preview.sections, traceability_appendix: previewAppendix(traceabilityPayload) } };
+  const { operating: _operating, investing: _investing, financing: _financing, ...cashFlowSummary } = cashFlow;
+  return {
+    ...preview,
+    status: "draft",
+    framework_policy: previewPolicy(policyPayload),
+    sections: {
+      ...preview.sections,
+      cash_flow: {
+        ...cashFlowSummary,
+        operating: [],
+        investing: [],
+        financing: [],
+        lineage_summary: { event_count: 0, classified_event_count: 0, unclassified_event_count: 0, opening_stock_event_count: 0 },
+      },
+      traceability_appendix: previewAppendix(traceabilityPayload),
+    },
+  };
 }
 
 // The evidence pages of the preview: slices of the complete fixture lists.
-function evidencePage(path: string, traceabilityPayload: unknown) {
+function evidencePage(path: string, traceabilityPayload: unknown, policyPayload = frameworkPolicy) {
   const url = new URL(path, "http://localhost");
   const limit = Number(url.searchParams.get("limit"));
   const offset = Number(url.searchParams.get("offset"));
+  if (url.pathname === "/api/reports/package/policy-decisions") {
+    const decisions = policyPayload.decisions;
+    return { total: decisions.length, limit, offset, decisions: decisions.slice(offset, offset + limit) };
+  }
   if (url.pathname === "/api/reports/package/manifest-entries") {
     const entries = packageDocument().input_manifest;
     return { total: entries.length, limit, offset, entries: entries.slice(offset, offset + limit) };
@@ -405,7 +442,13 @@ function evidencePage(path: string, traceabilityPayload: unknown) {
   return { line_id: lineId, anchor, total: details.length, limit, offset, details: details.slice(offset, offset + limit) };
 }
 
-const evidenceRequests = (prefix: "/api/reports/package/line-details?" | "/api/reports/package/manifest-entries?") =>
+const evidenceRequests = (
+  prefix:
+    | "/api/reports/package/line-details?"
+    | "/api/reports/package/manifest-entries?"
+    | "/api/reports/package/policy-decisions?"
+    | "/api/reports/package/cash-flow-events?",
+) =>
   mockedApiFetch.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith(prefix));
 
 const packageSnapshot = {
@@ -461,8 +504,12 @@ function mockPackageApi(
       return snapshotGenerateResult instanceof Error ? Promise.reject(snapshotGenerateResult) : Promise.resolve(snapshotGenerateResult);
     }
     if (path.startsWith("/api/reports/package?")) return Promise.resolve(packagePreview(readinessPayload, policyPayload, traceabilityPayload));
-    if (path.startsWith("/api/reports/package/line-details?") || path.startsWith("/api/reports/package/manifest-entries?")) {
-      return Promise.resolve(evidencePage(path, traceabilityPayload));
+    if (
+      path.startsWith("/api/reports/package/line-details?") ||
+      path.startsWith("/api/reports/package/manifest-entries?") ||
+      path.startsWith("/api/reports/package/policy-decisions?")
+    ) {
+      return Promise.resolve(evidencePage(path, traceabilityPayload, policyPayload));
     }
     if (path.startsWith("/api/evidence/lineage?")) {
       return lineagePayload instanceof Error ? Promise.reject(lineagePayload) : Promise.resolve(lineagePayload);
@@ -702,8 +749,11 @@ describe("PersonalReportPackagePage", () => {
     expect(await screen.findByRole("heading", { name: "Reporting Basis" })).toBeInTheDocument();
     expect(screen.getAllByText("US-like").length).toBeGreaterThanOrEqual(1);
     expectInsideClosedAuditDetails("policy-result:personal_us_gaap_like:2025-05-20:2026-05-20:fixture");
-    expectInsideClosedAuditDetails("assets.marketable_securities");
     expectInsideClosedAuditDetails("unsupported_policy_domain");
+    // The decisions load when the user opens the audit details (#2583 S11).
+    expect(screen.queryByText("assets.marketable_securities")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Reporting basis audit details"));
+    expect(await screen.findByText("assets.marketable_securities")).toBeInTheDocument();
   });
 
   it("AC20.6.1 keeps framework package sections pinned to the selected report date", async () => {
@@ -892,7 +942,8 @@ describe("PersonalReportPackagePage", () => {
     await screen.findByRole("heading", { name: "Balance Sheet" });
     expect(screen.getAllByText("Personal Report Package").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Personal Financial Report Package").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("balance_sheet").length).toBeGreaterThanOrEqual(1);
+    const toc = screen.getByRole("navigation", { name: "Report package table of contents" });
+    expect(within(toc).getByRole("link", { name: "Balance Sheet ready" })).toHaveAttribute("href", "#package-section-balance_sheet");
     expect(screen.getByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Annualized Income Schedule" })).toBeInTheDocument();
   });
@@ -1437,6 +1488,120 @@ describe("PersonalReportPackagePage", () => {
       expect(evidenceRequests("/api/reports/package/line-details?")).toEqual([expect.stringContaining("anchor=source_anchor")]);
       unmount();
     }
+  });
+
+  // A policy with more decisions than one page: the cards show the first page, and the audit details list all.
+  const manyDecisions = (count: number) =>
+    Array.from({ length: count }, (_unused, index) => ({
+      ...frameworkPolicy.decisions[0],
+      evidence_anchors: [
+        { anchor_id: `journal_line:line-${index}`, anchor_type: "journal_line", source_system: "canonical_ledger", source_id: `line-${index}`, description: "Accepted posted economic category" },
+      ],
+      line_mappings: { ...frameworkPolicy.decisions[0].line_mappings, balance_sheet: `assets.line_${index}` },
+    }));
+
+  it("AC-reporting.fe-fetch-budget.9 loads the policy decisions only after the user opens the audit details", async () => {
+    const policy = { ...frameworkPolicy, decisions: manyDecisions(30) };
+    mockPackageApi(readiness, policy);
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("heading", { name: "Reporting Basis" });
+    // The preview holds the count and a first page: 25 cards of 30 decisions.
+    expect(screen.getByText("Showing 25 of 30 decisions. The reporting basis audit details list all of them.")).toBeInTheDocument();
+    expect(screen.getByText("Decisions").nextElementSibling).toHaveTextContent("30");
+    expect(screen.getAllByText("Marketable investment asset.")).toHaveLength(25);
+    expect(evidenceRequests("/api/reports/package/policy-decisions?")).toEqual([]);
+    expect(evidenceRequests("/api/reports/package/cash-flow-events?")).toEqual([]);
+    expect(screen.queryByText("assets.line_29")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Reporting basis audit details"));
+    expect(await screen.findByText("assets.line_29")).toBeInTheDocument();
+    expect(screen.getByText("Policy decisions: 30 of 30")).toBeInTheDocument();
+    expect(evidenceRequests("/api/reports/package/policy-decisions?")).toEqual([
+      expect.stringMatching(/framework_id=personal_us_gaap_like.*limit=200&offset=0|limit=200&offset=0.*framework_id=personal_us_gaap_like/),
+    ]);
+    expect(evidenceRequests("/api/reports/package/cash-flow-events?")).toEqual([]);
+  });
+
+  it("AC-reporting.fe-fetch-budget.9 pages a long decision list and shows a failed one", async () => {
+    const policy = { ...frameworkPolicy, decisions: manyDecisions(201) };
+    mockPackageApi(readiness, policy);
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("heading", { name: "Reporting Basis" });
+    fireEvent.click(screen.getByText("Reporting basis audit details"));
+    const list = await screen.findByRole("region", { name: "Policy decisions" });
+    expect(await within(list).findByText("assets.line_199")).toBeInTheDocument();
+    expect(within(list).queryByText("assets.line_200")).not.toBeInTheDocument();
+    expect(list).toHaveTextContent("Policy decisions: 200 of 201");
+    fireEvent.click(within(list).getByRole("button", { name: "Load more policy decisions" }));
+    expect(await within(list).findByText("assets.line_200")).toBeInTheDocument();
+    expect(list).toHaveTextContent("Policy decisions: 201 of 201");
+    expect(within(list).queryByRole("button", { name: "Load more policy decisions" })).not.toBeInTheDocument();
+    expect(evidenceRequests("/api/reports/package/policy-decisions?")).toEqual([
+      expect.stringContaining("offset=0"),
+      expect.stringContaining("offset=200"),
+    ]);
+  });
+
+  it("AC-reporting.fe-fetch-budget.9 shows a failed decision list inside the audit details", async () => {
+    mockPackageApi(readiness, { ...frameworkPolicy, decisions: manyDecisions(30) });
+    const settled = mockedApiFetch.getMockImplementation()!;
+    mockedApiFetch.mockImplementation((path: string, options?: RequestInit) =>
+      path.startsWith("/api/reports/package/policy-decisions?") ? Promise.reject(new Error("Decisions unavailable")) : settled(path, options),
+    );
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("heading", { name: "Reporting Basis" });
+    fireEvent.click(screen.getByText("Reporting basis audit details"));
+    expect(await screen.findByText("Decisions unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Showing 25 of 30 decisions. The reporting basis audit details list all of them.")).toBeInTheDocument();
+  });
+
+  it("AC-reporting.fe-fetch-budget.9 issues no decision request for an empty list, and a snapshot reads its stored decisions", async () => {
+    mockPackageApi(readiness, { ...frameworkPolicy, decisions: [] });
+    const empty = renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("heading", { name: "Reporting Basis" });
+    fireEvent.click(screen.getByText("Reporting basis audit details"));
+    expect(screen.queryByRole("region", { name: "Policy decisions" })).not.toBeInTheDocument();
+    expect(evidenceRequests("/api/reports/package/policy-decisions?")).toEqual([]);
+    empty.unmount();
+
+    mockedApiFetch.mockReset();
+    const policy = { ...frameworkPolicy, decisions: manyDecisions(30) };
+    const snapshot = { ...packageSnapshot, document: packageDocument(readiness, policy, traceabilityAppendix, "frozen", "snap-001") };
+    mockPackageApi(readiness, policy, traceabilityAppendix, lineageResponse, [snapshot], snapshot);
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Reopen" }));
+    await screen.findByText("Frozen snapshot snap-001");
+    // A snapshot stores every decision: the cards show a first page and the audit details read the stored list.
+    expect(screen.getByText("Showing 25 of 30 decisions. The reporting basis audit details list all of them.")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Reporting basis audit details"));
+    expect(await screen.findByText("assets.line_29")).toBeInTheDocument();
+    expect(screen.getByText("Policy decisions: 30 of 30")).toBeInTheDocument();
+    expect(evidenceRequests("/api/reports/package/policy-decisions?")).toEqual([]);
+  });
+
+  it("AC-reporting.fe-fetch-budget.9 lists a decision that has no evidence anchor", async () => {
+    mockPackageApi(readiness, { ...frameworkPolicy, decisions: [{ ...frameworkPolicy.decisions[0], evidence_anchors: [] }] });
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("heading", { name: "Reporting Basis" });
+    expect(screen.getByText("Marketable investment asset.")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Reporting basis audit details"));
+    expect(await screen.findByText("Policy decisions: 1 of 1")).toBeInTheDocument();
+    expect(screen.getByText("assets.marketable_securities")).toBeInTheDocument();
+  });
+
+  it("AC-reporting.fe-fetch-budget.9 counts the evidence references of the whole policy, not of the first page", async () => {
+    mockPackageApi(readiness, { ...frameworkPolicy, decisions: manyDecisions(30) });
+    renderPackagePage();
+    fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
+    await screen.findByRole("heading", { name: "Export Options" });
+    // 30 decision anchors and 1 gap anchor exist; the page lists the 25 + 1 it holds and names the rest.
+    expect(screen.getByText(/and 5 more in the snapshot export/)).toBeInTheDocument();
   });
 
   const sharedClient = () => new QueryClient({ defaultOptions: { queries: { staleTime: 60_000, retry: false } } });

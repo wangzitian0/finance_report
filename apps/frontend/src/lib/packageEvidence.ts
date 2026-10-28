@@ -1,11 +1,12 @@
 /**
- * Evidence lists of one package document: the details of each traceability line and the input
- * manifest entries (#2583 S8).
+ * Evidence lists of one package document: the details of each traceability line, the input
+ * manifest entries (#2583 S8) and the framework policy decisions (S11).
  *
- * A preview carries only their counts. The page loads a list page by page when the user opens
- * it. A frozen snapshot stores the complete lists, so the page slices them without a request.
- * Each page request reads the package contribution set again (about 0.3 s of backend CPU at
- * one year of data), so a page holds 200 entries and every reader shares one cache entry.
+ * A preview carries only their counts, and a first page of decisions. The page loads a list
+ * page by page when the user opens it. A frozen snapshot stores the complete lists, so the page
+ * slices them without a request. Each page request reads the package contribution set again
+ * (about 0.3 s of backend CPU at one year of data), so a page holds 200 entries and every
+ * reader shares one cache entry.
  */
 
 import { infiniteQueryOptions, type QueryClient } from "@tanstack/react-query";
@@ -17,6 +18,7 @@ import type {
   PersonalReportPackageDocument,
   PersonalReportPackageLineDetailsPage,
   PersonalReportPackageManifestEntriesPage,
+  PersonalReportPackagePolicyDecisionsPage,
   PersonalReportPackageTraceabilityAnchorName,
   PersonalReportPackageTraceabilityLineSummary,
 } from "@/lib/types";
@@ -96,6 +98,28 @@ export async function fetchManifestEntriesPage(
   });
 }
 
+export async function fetchPolicyDecisionsPage(
+  document: PersonalReportPackageDocument,
+  offset: number,
+  signal?: AbortSignal,
+): Promise<PersonalReportPackagePolicyDecisionsPage> {
+  const limit = PACKAGE_EVIDENCE_PAGE_SIZE;
+  const frozen = document.frozen_evidence;
+  if (frozen) {
+    return {
+      total: frozen.framework_policy_decisions.length,
+      limit,
+      offset,
+      decisions: frozen.framework_policy_decisions.slice(offset, offset + limit),
+    };
+  }
+  const { start_date, end_date, as_of_date, framework_id } = document.context;
+  return apiOperation("list_personal_report_package_policy_decisions_reports_package_policy_decisions_get", {
+    query: { start_date, end_date, as_of_date, framework_id, limit, offset },
+    signal,
+  });
+}
+
 /** The one cache entry of the details of a line anchor: the list and the lineage trace share it. */
 export function lineDetailsQueryOptions(
   document: PersonalReportPackageDocument,
@@ -105,6 +129,17 @@ export function lineDetailsQueryOptions(
   return infiniteQueryOptions({
     queryKey: [...packageEvidenceKey(document), "line-details", lineId, anchor] as const,
     queryFn: ({ pageParam, signal }) => fetchLineDetailsPage(document, lineId, anchor, pageParam, signal),
+    initialPageParam: 0,
+    getNextPageParam: nextOffset,
+    staleTime: SHARED_STALE_MS,
+  });
+}
+
+/** The decisions depend on the framework, so the key holds it. */
+export function policyDecisionsQueryOptions(document: PersonalReportPackageDocument) {
+  return infiniteQueryOptions({
+    queryKey: [...packageEvidenceKey(document), "policy-decisions", document.context.framework_id] as const,
+    queryFn: ({ pageParam, signal }) => fetchPolicyDecisionsPage(document, pageParam, signal),
     initialPageParam: 0,
     getNextPageParam: nextOffset,
     staleTime: SHARED_STALE_MS,

@@ -171,10 +171,26 @@ export type PersonalReportPackageTraceManifestEntry =
 export type PersonalReportPackageStatementDispositionPolicy =
   Schemas["PersonalReportPackageStatementDispositionPolicy"];
 
+/**
+ * The cash-flow fields that the package page reads. A preview has lines with event counts and a
+ * snapshot has every item and lineage record; the page shows neither list (#2583 S11).
+ */
+export type PackageCashFlow = Pick<
+  CashFlowPreview,
+  | "start_date"
+  | "end_date"
+  | "currency"
+  | "summary"
+  | "cash_bridge"
+  | "proof_state"
+  | "proof_reasons"
+  | "fx_warnings"
+>;
+
 export interface PersonalReportPackageSectionsViewModel {
   balance_sheet: BalanceSheetResponse;
   income_statement: IncomeStatementResponse;
-  cash_flow: CashFlowResponse;
+  cash_flow: PackageCashFlow;
   investment_performance: InvestmentPerformanceReportSchedule;
   annualized_income_long_term: AnnualizedIncomeScheduleResponse;
   notes: PersonalReportPackageNotesResponse;
@@ -193,6 +209,7 @@ export interface PersonalReportPackageFrozenEvidence {
   snapshot_id: string;
   traceability_appendix: PersonalReportPackageTraceabilityResponse;
   input_manifest: PersonalReportPackageTraceManifestEntry[];
+  framework_policy_decisions: Schemas["FrameworkPolicyDecision"][];
 }
 
 export interface PersonalReportPackageReadinessViewModel {
@@ -203,6 +220,35 @@ export interface PersonalReportPackageReadinessViewModel {
   blocking_count: number;
   blockers: Schemas["PersonalReportPackageReadinessBlocker"][];
   input_coverage: Schemas["PersonalReportPackageInputCoverage"];
+}
+
+/**
+ * The framework policy that the package page shows. `decisions` is a first page: the preview
+ * sends one, and a snapshot is cut to one. The page loads every decision page by page when the
+ * user opens the reporting basis audit details (#2583 S11).
+ */
+export interface PackageFrameworkPolicy
+  extends Omit<Schemas["FrameworkPolicyPreview"], "decisions" | "gaps"> {
+  decisions: (Schemas["FrameworkPolicyDecision"] & {
+    evidence_anchors?: Schemas["FrameworkPolicyEvidenceAnchor"][];
+  })[];
+  gaps: (Schemas["FrameworkPolicyGap"] & {
+    evidence_anchors?: Schemas["FrameworkPolicyEvidenceAnchor"][];
+  })[];
+}
+
+/** Decisions of a snapshot that the page shows before the user opens the list. It equals `PACKAGE_POLICY_PREVIEW_DECISIONS` of the backend. */
+export const PACKAGE_POLICY_PREVIEW_DECISIONS = 25;
+
+/** The sorted distinct `anchor_type:source_id` references of decisions and gaps, as the snapshot export writes them. */
+export function evidenceReferences(
+  items: readonly { evidence_anchors?: readonly Schemas["FrameworkPolicyEvidenceAnchor"][] }[],
+): string[] {
+  const references = items
+    .flatMap((item) => item.evidence_anchors ?? [])
+    .filter((anchor) => anchor.anchor_type && anchor.source_id)
+    .map((anchor) => `${anchor.anchor_type}:${anchor.source_id}`);
+  return Array.from(new Set(references)).sort();
 }
 
 export interface PersonalReportPackageDocumentViewModel {
@@ -225,14 +271,7 @@ export interface PersonalReportPackageDocumentViewModel {
   };
   contract: PersonalReportPackageContractResponse;
   readiness: PersonalReportPackageReadinessViewModel;
-  framework_policy: Schemas["FrameworkPolicyResult"] & {
-    decisions: (Schemas["FrameworkPolicyDecision"] & {
-      evidence_anchors?: Schemas["FrameworkPolicyEvidenceAnchor"][];
-    })[];
-    gaps: (Schemas["FrameworkPolicyGap"] & {
-      evidence_anchors?: Schemas["FrameworkPolicyEvidenceAnchor"][];
-    })[];
-  };
+  framework_policy: PackageFrameworkPolicy;
   statement_disposition_policy?: PersonalReportPackageStatementDispositionPolicy | null;
   sections: PersonalReportPackageSectionsViewModel;
   /** Null for a preview. */
@@ -338,6 +377,9 @@ export type FrameworkPolicyGap =
 export type FrameworkPolicyResult =
   Schemas["FrameworkPolicyResult"];
 
+export type PersonalReportPackagePolicyDecisionsPage =
+  Schemas["PersonalReportPackagePolicyDecisionsPage"];
+
 export function normalizeFxWarningRows(
   rows: Array<Record<string, string>> | undefined,
 ): FxWarning[] {
@@ -405,12 +447,20 @@ export function normalizePersonalReportPackageDocument(
     traceability_appendix: summarizeTraceabilityAppendix(
       document.sections.traceability_appendix,
     ),
+    policy_counts: {
+      decision_count: document.framework_policy.decisions.length,
+      evidence_reference_count: evidenceReferences([
+        ...document.framework_policy.decisions,
+        ...(document.framework_policy.gaps ?? []),
+      ]).length,
+    },
     frozen_evidence:
       snapshotId && document.lifecycle === "frozen"
         ? {
             snapshot_id: snapshotId,
             traceability_appendix: document.sections.traceability_appendix,
             input_manifest: document.input_manifest,
+            framework_policy_decisions: document.framework_policy.decisions,
           }
         : null,
   });
@@ -425,6 +475,10 @@ export function normalizePersonalReportPackagePreview(
     package_decision_id: null,
     frozen_at: null,
     traceability_appendix: preview.sections.traceability_appendix,
+    policy_counts: {
+      decision_count: preview.framework_policy.decision_count,
+      evidence_reference_count: preview.framework_policy.evidence_reference_count,
+    },
     frozen_evidence: null,
   });
 }
@@ -438,6 +492,7 @@ function normalizePackagePayload(
     package_decision_id: string | null;
     frozen_at: string | null;
     traceability_appendix: PersonalReportPackageTraceabilitySummary;
+    policy_counts: { decision_count: number; evidence_reference_count: number };
     frozen_evidence: PersonalReportPackageFrozenEvidence | null;
   },
 ): PersonalReportPackageDocument {
@@ -469,10 +524,13 @@ function normalizePackagePayload(
     },
     framework_policy: {
       ...document.framework_policy,
-      decisions: document.framework_policy.decisions.map((decision) => ({
-        ...decision,
-        evidence_anchors: decision.evidence_anchors ?? [],
-      })),
+      ...identity.policy_counts,
+      decisions: document.framework_policy.decisions
+        .slice(0, PACKAGE_POLICY_PREVIEW_DECISIONS)
+        .map((decision) => ({
+          ...decision,
+          evidence_anchors: decision.evidence_anchors ?? [],
+        })),
       gaps: (document.framework_policy.gaps ?? []).map((gap) => ({
         ...gap,
         evidence_anchors: gap.evidence_anchors ?? [],
@@ -496,7 +554,13 @@ function normalizePackagePayload(
         ),
       },
       cash_flow: {
-        ...document.sections.cash_flow,
+        start_date: document.sections.cash_flow.start_date,
+        end_date: document.sections.cash_flow.end_date,
+        currency: document.sections.cash_flow.currency,
+        summary: document.sections.cash_flow.summary,
+        cash_bridge: document.sections.cash_flow.cash_bridge,
+        proof_state: document.sections.cash_flow.proof_state,
+        proof_reasons: document.sections.cash_flow.proof_reasons,
         fx_warnings: normalizeFxWarningRows(
           document.sections.cash_flow.fx_warnings,
         ),

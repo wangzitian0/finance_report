@@ -67,6 +67,8 @@ const packageDocument = {
     report_period_end: "2026-05-20",
     generated_at: "2026-05-20",
     required_statements: ["balance_sheet", "notes", "traceability_appendix"],
+    decision_count: 2,
+    evidence_reference_count: 2,
     decisions: [
       {
         domain: "personal_income",
@@ -145,6 +147,12 @@ const packageDocument = {
         ending_cash: "0.00",
       },
       fx_warnings: [],
+      lineage_summary: {
+        event_count: 0,
+        classified_event_count: 0,
+        unclassified_event_count: 0,
+        opening_stock_event_count: 0,
+      },
       proof_state: "unproven",
       proof_reasons: ["cash_identity_missing"],
     },

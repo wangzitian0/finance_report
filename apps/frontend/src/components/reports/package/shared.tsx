@@ -2,7 +2,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Download, FileJson, Network, Printer, Save, X } from "lucide-react";
 
-import { ManifestEntries, TraceabilityLineEvidence } from "@/components/reports/package/evidence";
+import { ManifestEntries, PolicyDecisions, TraceabilityLineEvidence } from "@/components/reports/package/evidence";
 import { SkeletonBlock } from "@/components/ui";
 import { ExcludedHoldingsNote } from "@/components/reports/AccountLineageDrawer";
 import { formatCurrencyLocale, subtractAmounts } from "@/lib/audit/money";
@@ -10,8 +10,8 @@ import { nodeDisplayTitle, nodeLabel, nodeSourceHref } from "@/lib/lineage";
 import type {
   AnnualizedIncomeScheduleResponse,
   EvidenceLineageResponse,
-  FrameworkPolicyResult,
   MoneyValue,
+  PackageFrameworkPolicy,
   PersonalReportPackageContractResponse,
   PersonalReportPackageDocument,
   PersonalReportPackageInputCoverage,
@@ -23,6 +23,7 @@ import type {
   PersonalReportPackageTraceabilitySummary,
 } from "@/lib/types";
 import { countLabel, humanizeIdentifier } from "@/lib/statusLabels";
+import { evidenceReferences } from "@/lib/types";
 
 export const FRAMEWORK_LABELS: Record<string, string> = {
   personal_us_gaap_like: "US-like",
@@ -71,12 +72,9 @@ export function renderAnchorDetail(primary: string, detailCount: number) {
   );
 }
 
-export function evidenceBundleReferences(policyResult: FrameworkPolicyResult): string[] {
-  const anchors = [
-    ...(policyResult.decisions ?? []).flatMap((d) => d.evidence_anchors ?? []),
-    ...(policyResult.gaps ?? []).flatMap((g) => g.evidence_anchors ?? []),
-  ].filter((a): a is NonNullable<typeof a> => Boolean(a));
-  return Array.from(new Set(anchors.map((a) => `${a.anchor_type}:${a.source_id}`))).sort();
+/** The references of the decisions and gaps that the page holds. A preview holds a first page of decisions. */
+export function evidenceBundleReferences(policyResult: PackageFrameworkPolicy): string[] {
+  return evidenceReferences([...(policyResult.decisions ?? []), ...(policyResult.gaps ?? [])]);
 }
 
 export function formatSnapshotTimestamp(value?: string | null): string {
@@ -357,7 +355,15 @@ export function PackageInputManifestSection({
   );
 }
 
-export function PackageFrameworkPolicySection({ policy }: { policy: FrameworkPolicyResult }) {
+export function PackageFrameworkPolicySection({
+  policy,
+  document,
+}: {
+  policy: PackageFrameworkPolicy;
+  document: PersonalReportPackageDocument;
+}) {
+  // The decisions load when the user opens the audit details (#2583 S11). The cards show the first page.
+  const [auditOpen, setAuditOpen] = useState(false);
   const frameworkLabel = FRAMEWORK_LABELS[policy.framework_id] ?? humanizeIdentifier(policy.framework_id);
   const gaps = policy.gaps ?? [];
   const decisions = policy.decisions ?? [];
@@ -386,7 +392,7 @@ export function PackageFrameworkPolicySection({ policy }: { policy: FrameworkPol
       <dl className="mt-5 grid md:grid-cols-4 gap-3 text-sm">
         <div><dt className="text-xs text-muted">Reporting basis</dt><dd className="mt-1 font-semibold">{frameworkLabel}</dd></div>
         <div><dt className="text-xs text-muted">Required statements</dt><dd className="mt-1 font-semibold">{requiredStatements.length}</dd></div>
-        <div><dt className="text-xs text-muted">Decisions</dt><dd className="mt-1 font-semibold">{decisions.length}</dd></div>
+        <div><dt className="text-xs text-muted">Decisions</dt><dd className="mt-1 font-semibold">{policy.decision_count}</dd></div>
         <div><dt className="text-xs text-muted">Reporting gaps</dt><dd className="mt-1 font-semibold">{gaps.length}</dd></div>
       </dl>
       <div className="mt-5 grid lg:grid-cols-2 gap-4">
@@ -412,27 +418,23 @@ export function PackageFrameworkPolicySection({ policy }: { policy: FrameworkPol
           </article>
         ))}
       </div>
-      <details className="mt-5 rounded border border-[var(--border)] p-3 text-sm print:hidden">
+      {policy.decision_count > decisions.length ? (
+        <p className="mt-3 text-xs text-muted">
+          {`Showing ${decisions.length} of ${policy.decision_count} decisions. The reporting basis audit details list all of them.`}
+        </p>
+      ) : null}
+      <details
+        className="mt-5 rounded border border-[var(--border)] p-3 text-sm print:hidden"
+        onToggle={(event) => setAuditOpen(event.currentTarget.open)}
+      >
         <summary className="cursor-pointer font-medium">Reporting basis audit details</summary>
         <dl className="mt-3 grid gap-3 md:grid-cols-2">
           <div><dt className="text-xs text-muted">Framework</dt><dd className="mt-1 break-all font-mono text-xs">{policy.framework_id}</dd></div>
           <div><dt className="text-xs text-muted">Matrix Version</dt><dd className="mt-1 font-semibold">{policy.matrix_version}</dd></div>
           <div className="md:col-span-2"><dt className="text-xs text-muted">Framework Policy Result</dt><dd className="mt-1 break-all font-mono text-xs">{policy.result_id}</dd></div>
         </dl>
+        {auditOpen && policy.decision_count > 0 ? <PolicyDecisions document={document} /> : null}
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          {groupedDecisions.map(({ key, decision: d }) => (
-            <article key={`audit:${key}`} className="min-w-0 rounded border border-[var(--border)] p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0"><p className="font-medium break-words">{d.domain}</p><p className="mt-1 text-xs font-mono text-muted break-all">{d.review_state}</p></div>
-                <span className="badge badge-muted shrink-0">{d.provenance}</span>
-              </div>
-              <dl className="mt-3 space-y-1 text-xs">
-                {Object.entries(d.line_mappings).map(([section, line]) => (
-                  <div key={`${key}:${section}`} className="flex justify-between gap-3"><dt className="text-muted shrink-0">{section}</dt><dd className="min-w-0 break-all font-mono text-right">{line}</dd></div>
-                ))}
-              </dl>
-            </article>
-          ))}
           {gaps.map((g) => (
             <article key={`audit:${g.code}:${g.fact_id}`} className="min-w-0 rounded border border-[var(--border)] p-3">
               <div className="flex items-start justify-between gap-3">
@@ -638,12 +640,14 @@ export function PackageNotesSection({ notes }: { notes: PersonalReportPackageNot
 export function PackageExportContractSection({
   contract,
   policy,
-  evidenceReferences,
+  evidenceReferences: shownReferences,
 }: {
   contract: PersonalReportPackageContractResponse;
-  policy: FrameworkPolicyResult;
+  policy: PackageFrameworkPolicy;
   evidenceReferences: string[];
 }) {
+  // The page holds a first page of decisions, so it lists the references of that page. The snapshot export lists all.
+  const unlisted = policy.evidence_reference_count - shownReferences.length;
   const frameworkLabel = FRAMEWORK_LABELS[policy.framework_id] ?? policy.framework_id;
   return (
     <section id="package-export-contract" className="card p-5">
@@ -660,7 +664,7 @@ export function PackageExportContractSection({
           <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">CSV Columns</dt><dd className="min-w-0 break-words font-mono text-xs text-right">{contract.export_contract.csv_columns.join(", ")}</dd></div>
           <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Framework Policy Result</dt><dd className="min-w-0 max-w-md break-all font-mono text-xs text-right">{policy.result_id}</dd></div>
           <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Framework Policy Matrix Version</dt><dd className="font-medium">{policy.matrix_version}</dd></div>
-          <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Evidence Bundle References</dt><dd className="min-w-0 max-w-md break-all font-mono text-xs text-right">{evidenceReferences.join(", ") || "none"}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="text-muted shrink-0">Evidence Bundle References</dt><dd className="min-w-0 max-w-md break-all font-mono text-xs text-right">{shownReferences.join(", ") || "none"}{unlisted > 0 ? ` and ${unlisted} more in the snapshot export` : ""}</dd></div>
         </dl>
       </details>
     </section>

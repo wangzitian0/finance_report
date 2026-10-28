@@ -66,7 +66,7 @@ export interface PersonalReportPackageQueryParams {
 }
 
 /**
- * The preview of the personal report package (about 60 KB for a year of data, #2583 S8).
+ * The preview of the personal report package (about 60 KB for a year of data, #2583 S8, S11).
  *
  * The Package tab and the Overview tab of `/reports` read it through this one query, so they share
  * one cache entry. A date change keeps the previous document on screen while the next one loads

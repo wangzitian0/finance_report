@@ -43,7 +43,7 @@ from src.pricing import (
     resolve_manual_valuation_contributions,
     resolve_selected_market_valuation_contribution,
 )
-from src.reporting.base.cash_flow_types import CashFlowResponse
+from src.reporting.base.cash_flow_types import CashFlowPreview, CashFlowResponse
 from src.reporting.base.package_contribution import PackageCashInputs, PackageSectionContribution, PackageSectionId
 from src.reporting.base.package_decision import (
     PACKAGE_DECISION_POLICY_VERSION,
@@ -61,6 +61,8 @@ from src.reporting.extension.annualized_income import generate_annualized_income
 from src.reporting.extension.cash_flow import (
     CashCoverage,
     cash_coverage,
+    cash_flow_line_events,
+    cash_flow_preview,
     cash_flow_proof_reason_text,
     generate_cash_flow,
 )
@@ -69,11 +71,15 @@ from src.reporting.extension.framework_report import (
     assemble_framework_balance_sheet,
     assemble_framework_income_statement,
 )
+from src.reporting.extension.report_package import package_evidence_references
 from src.reporting.extension.report_traceability import build_personal_report_package_traceability_payload
 from src.schemas.portfolio import InvestmentPerformanceReportScheduleResponse
 from src.schemas.reporting import (
     BalanceSheetResponse,
     ExcludedHoldingRow,
+    FrameworkPolicyDecision,
+    FrameworkPolicyPreview,
+    FrameworkPolicyResult,
     IncomeStatementResponse,
     PersonalReportPackageContext,
     PersonalReportPackageContractResponse,
@@ -976,12 +982,8 @@ class PackageAssembler:
         from src.ledger import list_opening_positions
 
         opening_results = await list_opening_positions(db, user_id=user_id, as_of=as_of_date)
-        # Extraction's as_of filter selects closing stock. Movement evidence can
-        # belong to a statement that closes later, so select its sections here.
-        statement_results = await list_statement_contributions(db, user_id=user_id, as_of=date.max)
-        statement_contributions = tuple(
-            _statement_section_contribution(item, start_date=start_date, end_date=end_date, as_of_date=as_of_date)
-            for item in statement_results
+        statement_contributions = await self._statement_contributions(
+            db, user_id=user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date
         )
         journal_results = await list_journal_contributions(
             db,
@@ -996,12 +998,7 @@ class PackageAssembler:
             policy=ResolutionPolicy(),
         )
         return (
-            *(
-                item
-                for item in statement_contributions
-                if (item.payload.effective_period_end is not None and item.payload.effective_period_end <= as_of_date)
-                or "income_statement" in item.section_ids
-            ),
+            *statement_contributions,
             *(
                 _journal_section_contribution(item, start_date=start_date, end_date=end_date)
                 for item in journal_results
@@ -1013,6 +1010,29 @@ class PackageAssembler:
                 _opening_section_contribution(item)
                 for item in sorted(opening_results, key=lambda position: str(position.account_id))
             ),
+        )
+
+    @staticmethod
+    async def _statement_contributions(
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+    ) -> tuple[PackageSectionContribution[Any], ...]:
+        """Return the statement-source contributions of the package. They select the cash accounts."""
+        # Extraction's as_of filter selects closing stock. Movement evidence can
+        # belong to a statement that closes later, so select its sections here.
+        statement_results = await list_statement_contributions(db, user_id=user_id, as_of=date.max)
+        return tuple(
+            item
+            for item in (
+                _statement_section_contribution(item, start_date=start_date, end_date=end_date, as_of_date=as_of_date)
+                for item in statement_results
+            )
+            if (item.payload.effective_period_end is not None and item.payload.effective_period_end <= as_of_date)
+            or "income_statement" in item.section_ids
         )
 
     @staticmethod
@@ -1149,6 +1169,59 @@ class PackageAssembler:
                 ),
             )
         return manifest
+
+    async def policy_decisions(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        framework_id: PersonalReportingFrameworkId,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+    ) -> list[FrameworkPolicyDecision]:
+        """Return the framework policy decisions that ``assemble`` writes for the same arguments.
+
+        This path derives the policy only. It builds no section and no readiness (#2583 S11).
+        """
+        policy = await derive_user_framework_policy_result(
+            db,
+            user_id,
+            framework_id=framework_id,
+            report_period_start=start_date,
+            report_period_end=end_date,
+            as_of_date=as_of_date,
+        )
+        return policy.decisions
+
+    async def cash_flow_events(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+        line_id: str,
+    ) -> list[dict[str, object]] | None:
+        """Return the lineage records of one cash-flow line, as ``assemble`` writes them, or None for no line.
+
+        ``assemble`` builds the cash flow for the cash accounts of the authoritative bank statements.
+        ``GET /reports/cash-flow`` infers its cash accounts from account names, so its events can differ.
+        """
+        statements = await self._statement_contributions(
+            db, user_id=user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date
+        )
+        return await cash_flow_line_events(
+            db,
+            user_id,
+            line_id=line_id,
+            start_date=start_date,
+            end_date=end_date,
+            currency=currency,
+            cash_account_ids=_cash_inputs_from_contributions(statements).account_ids,
+        )
 
     async def _selected_market_contributions(
         self,
@@ -1290,11 +1363,29 @@ def traceability_summary(
     )
 
 
+#: Decisions that the preview carries. ``GET /reports/package/policy-decisions`` returns all of them (#2583 S11).
+PACKAGE_POLICY_PREVIEW_DECISIONS = 25
+
+
+def framework_policy_preview(policy: FrameworkPolicyResult) -> FrameworkPolicyPreview:
+    """Keep a first page of the decisions of a policy result, and add the counts of the complete result."""
+    return FrameworkPolicyPreview(
+        **{
+            **dict(policy),
+            "decisions": policy.decisions[:PACKAGE_POLICY_PREVIEW_DECISIONS],
+            "decision_count": len(policy.decisions),
+            "evidence_reference_count": len(package_evidence_references(policy)),
+        }
+    )
+
+
 def package_preview(document: PersonalReportPackageDocument) -> PersonalReportPackagePreview:
     """Project a preview document to the bounded preview payload (#2583).
 
     The appendix keeps one summary for each line. The input manifest entries are not in the
-    payload: ``readiness.input_coverage`` gives their counts. A frozen document has no preview.
+    payload: ``readiness.input_coverage`` gives their counts. The framework policy keeps a first
+    page of decisions, and the cash flow keeps one line for each activity, direction and
+    counterpart (S11). A frozen document has no preview.
     """
     if document.lifecycle is not PersonalReportPackageDocumentLifecycle.PREVIEW:
         raise ValueError("only a preview document has a preview payload")
@@ -1310,12 +1401,12 @@ def package_preview(document: PersonalReportPackageDocument) -> PersonalReportPa
         context=document.context,
         contract=document.contract,
         readiness=document.readiness,
-        framework_policy=document.framework_policy,
+        framework_policy=framework_policy_preview(document.framework_policy),
         statement_disposition_policy=document.statement_disposition_policy,
         sections=PersonalReportPackagePreviewSections(
             balance_sheet=sections.balance_sheet,
             income_statement=sections.income_statement,
-            cash_flow=sections.cash_flow,
+            cash_flow=CashFlowPreview.model_validate(cash_flow_preview(sections.cash_flow.model_dump())),
             investment_performance=sections.investment_performance,
             annualized_income_long_term=sections.annualized_income_long_term,
             notes=sections.notes,

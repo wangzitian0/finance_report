@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `139`
-- Schema count: `282`
+- Endpoint count: `141`
+- Schema count: `284`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -33,7 +33,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `notifications` | 1 |
 | `portfolio` | 13 |
 | `reconciliation` | 11 |
-| `reports` | 23 |
+| `reports` | 25 |
 | `review` | 9 |
 | `statements` | 15 |
 | `untagged` | 2 |
@@ -233,9 +233,11 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/net-worth/timeseries` | yes | `from`* (query), `to`* (query), `granularity` (query), `currency` (query), `include_restricted` (query) | - | `200` `NetWorthTimeSeriesResponse` | Net Worth Timeseries |
 | `GET` | `/reports/package` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `include_restricted` (query) | - | `200` `PersonalReportPackagePreview` | Preview Personal Report Package |
 | `POST` | `/reports/package/annual-archive` | yes | - | `AnnualTaxArchiveRequest` | `200` - | Export Annual Tax Archive |
+| `GET` | `/reports/package/cash-flow-events` | yes | `line_id`* (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `limit` (query), `offset` (query) | - | `200` `CashFlowLineEventsPage` | List Personal Report Package Cash Flow Events |
 | `POST` | `/reports/package/generate` | yes | - | `PersonalReportPackageGenerateRequest` | `200` `PersonalReportPackageSnapshotResponse` | Generate Personal Report Package Snapshot |
 | `GET` | `/reports/package/line-details` | yes | `line_id`* (query), `anchor`* (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `limit` (query), `offset` (query) | - | `200` `PersonalReportPackageLineDetailsPage` | List Personal Report Package Line Details |
 | `GET` | `/reports/package/manifest-entries` | yes | `start_date` (query), `end_date` (query), `as_of_date` (query), `currency` (query), `limit` (query), `offset` (query) | - | `200` `PersonalReportPackageManifestEntriesPage` | List Personal Report Package Manifest Entries |
+| `GET` | `/reports/package/policy-decisions` | yes | `framework_id` (query), `start_date` (query), `end_date` (query), `as_of_date` (query), `limit` (query), `offset` (query) | - | `200` `PersonalReportPackagePolicyDecisionsPage` | List Personal Report Package Policy Decisions |
 | `GET` | `/reports/package/snapshots` | yes | `limit` (query), `offset` (query) | - | `200` array[`PersonalReportPackageSnapshotSummary`] | List Personal Report Package Snapshots |
 | `GET` | `/reports/package/snapshots/{snapshot_id}` | yes | `snapshot_id`* (path) | - | `200` `PersonalReportPackageSnapshotResponse` | Get Personal Report Package Snapshot |
 | `GET` | `/reports/package/snapshots/{snapshot_id}/export` | yes | `snapshot_id`* (path), `format` (query) | - | `200` - | Export Personal Report Package Snapshot |

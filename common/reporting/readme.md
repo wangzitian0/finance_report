@@ -382,6 +382,18 @@ Each traceability line keeps its metadata, its anchor states and a `detail_count
 per anchor. It has no identifiers, no details and no input manifest entries;
 `readiness.input_coverage` gives the manifest counts. At one year of activity the
 preview is about 60 KB; the complete document was 3.9 MB.
+The framework policy keeps the decision count, the count of distinct evidence
+references and a first page of 25 decisions (`FrameworkPolicyPreview`, #2583 S11).
+`GET /api/reports/package/policy-decisions` returns every decision page by page, in
+the order of the snapshot (the policy facts are sorted by fact id, so the order does
+not depend on the database). The cash flow keeps `CashFlowPreview`: one line for
+each activity, direction and counterpart with its event count, and the lineage
+counts. `GET /api/reports/package/cash-flow-events` returns the lineage records of
+one line page by page. The package builds its cash flow for the cash accounts of the
+authoritative bank statements, so these pages differ from
+`GET /api/reports/cash-flow/line-events`, which infers the cash accounts from account
+names. With one year of reviewed statements (960 transactions) the preview was
+1.4 MB before S11: 804 KB of decisions and 558 KB of cash flow.
 `GET /api/reports/package/line-details` (one line anchor) and
 `GET /api/reports/package/manifest-entries` return those lists page by page with
 the shared `limit`/`offset` bounds. They read the same contribution set as the

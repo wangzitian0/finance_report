@@ -100,6 +100,9 @@ _EXPORTS = {
     "package_snapshot_response": "src.reporting.extension.report_package",
     "package_snapshot_summary": "src.reporting.extension.report_package",
     "register_manual_valuation_lines_provider": "src.reporting.extension.balance_sheet",
+    "render_balance_sheet_csv": "src.reporting.extension.report_csv",
+    "render_cash_flow_csv": "src.reporting.extension.report_csv",
+    "render_income_statement_csv": "src.reporting.extension.report_csv",
     "resolve_line_currency": "src.reporting.extension.reporting_calc",
 }
 
@@ -178,6 +181,9 @@ __all__ = [
     "package_snapshot_response",
     "package_snapshot_summary",
     "register_manual_valuation_lines_provider",
+    "render_balance_sheet_csv",
+    "render_cash_flow_csv",
+    "render_income_statement_csv",
     "resolve_line_currency",
 ]
 
@@ -261,6 +267,11 @@ if TYPE_CHECKING:
         package_preview,
         personal_report_package_decision_ref,
         report_coverage,
+    )
+    from src.reporting.extension.report_csv import (
+        render_balance_sheet_csv,
+        render_cash_flow_csv,
+        render_income_statement_csv,
     )
     from src.reporting.extension.report_package import (
         PackageDocumentVersionError,
