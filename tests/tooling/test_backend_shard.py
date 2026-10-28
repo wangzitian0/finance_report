@@ -160,9 +160,35 @@ def test_AC_testing_ci_structure_13_cli_prints_one_group(
     )
 
 
-def test_AC_testing_ci_structure_13_shim_runs_without_backend_dependencies() -> None:
+def test_AC_testing_ci_structure_13_shim_runs_without_backend_dependencies(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     """AC-testing.ci-structure.13: the shard step runs before `uv sync`, so the tool
     must work on an isolated interpreter with no third-party packages."""
+    import runpy
+
+    from tools import backend_shard_files
+
+    argv = [
+        "--splits",
+        str(SHARD_COUNT),
+        "--group",
+        "1",
+        "--splitting-algorithm=least_duration",
+        "--durations-path",
+        str(SEED),
+        "--backend-root",
+        str(BACKEND),
+    ]
+    assert backend_shard_files.main(argv) == 0
+    assert capsys.readouterr().out.split() == _real_partition()[1][0]
+
+    monkeypatch.setattr(sys, "argv", ["tools/backend_shard_files.py", *argv])
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(str(ROOT / "tools/backend_shard_files.py"), run_name="__main__")
+    assert exc.value.code == 0
+    assert capsys.readouterr().out.split() == _real_partition()[1][0]
+
     completed = subprocess.run(
         [
             sys.executable,

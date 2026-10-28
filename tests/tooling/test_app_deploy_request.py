@@ -613,6 +613,37 @@ def test_AC_runtime_deploy_request_3_transport_cli_contract(
     assert transport.main(["--timeout", "5", "--poll-interval", "5"]) == 1
     assert "receiver failed" in capsys.readouterr().err
 
+    import runpy
+
+    monkeypatch.delenv("INFRA2_PAT", raising=False)
+    monkeypatch.setattr(sys, "argv", ["tools/app_deploy_transport.py"])
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(str(ROOT / "tools/app_deploy_transport.py"), run_name="__main__")
+    assert exc.value.code == 1
+    assert "INFRA2_PAT is required" in capsys.readouterr().err
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "tools/app_deploy_request.py",
+            "--request-id",
+            VALID_REQUEST["request_id"],
+            "--version-ref",
+            VALID_REQUEST["version_ref"],
+            "--source-sha",
+            VALID_REQUEST["source_sha"],
+            "--source-run-url",
+            VALID_REQUEST["evidence"]["source_run_url"],
+            "--source-run-id",
+            VALID_REQUEST["evidence"]["source_run_id"],
+        ],
+    )
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(str(MODULE_PATH), run_name="__main__")
+    assert exc.value.code == 0
+    assert json.loads(capsys.readouterr().out) == VALID_REQUEST
+
 
 def test_AC_runtime_deploy_request_4_repository_has_no_infra2_source_edge() -> None:
     """AC-runtime.deploy-request.4 AC-meta.infra-boundary.1 AC-meta.infra-boundary.2: App consumes SDK/URLs, never an infra2 checkout."""
