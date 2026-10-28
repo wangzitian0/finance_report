@@ -9,7 +9,6 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import src.config
 from src.audit import (
     Currency,
     ExchangeRate,
@@ -18,6 +17,7 @@ from src.audit import (
     normalize_currency_code,
     to_money,
 )
+from src.config_app import get_effective_base_currency
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
@@ -38,7 +38,6 @@ from src.schemas import (
     AnnualizedIncomeScheduleResponse,
 )
 
-settings = src.config.settings
 logger = get_logger(__name__)
 
 
@@ -73,7 +72,7 @@ async def generate_annualized_income_schedule(
     )
     income_rows = income_result.all()
 
-    reporting_currency = normalize_currency_code(currency or settings.base_currency)
+    reporting_currency = normalize_currency_code(currency or await get_effective_base_currency(db, user_id=user_id))
     target_ccy = Currency(reporting_currency)
     snapshots = (
         await list_current_manual_valuation_facts(

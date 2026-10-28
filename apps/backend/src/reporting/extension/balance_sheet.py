@@ -10,7 +10,7 @@ from uuid import UUID
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.config import settings
+from src.config_app import get_effective_base_currency
 from src.ledger import AccountType, RevaluationError, calculate_unrealized_fx_gains
 from src.observability import ErrorIds, get_logger
 from src.pricing import FxWarning, PricingError, get_exchange_rate
@@ -187,7 +187,9 @@ async def _compute_unrealized_fx_gain_loss(
     try:
         fx_revaluation = await calculate_unrealized_fx_gains(db, user_id, as_of_date)
         raw_unrealized = fx_revaluation.total_unrealized_gain_loss
-        base_curr = settings.base_currency.upper()
+        base_curr = (
+            getattr(fx_revaluation, "base_currency", None) or await get_effective_base_currency(db, user_id=user_id)
+        ).upper()
         if normalized_target != base_curr:
             try:
                 rate = await get_exchange_rate(
@@ -249,7 +251,8 @@ async def generate_balance_sheet(
     derives provenance. Callers that do not render per-line provenance
     (the advisor summary) pass False to skip that scan.
     """
-    target_currency = _normalize_currency(currency)
+    base_curr = (await get_effective_base_currency(db, user_id=user_id)).upper()
+    target_currency = _normalize_currency(currency or base_curr)
     fx_warnings: list[FxWarning] = []
     portfolio_warnings: list[FxWarning] = []
     account_types = (AccountType.ASSET, AccountType.LIABILITY, AccountType.EQUITY)
@@ -377,26 +380,19 @@ async def generate_balance_sheet(
     net_worth_adjustment = _quantize_money(
         _line_total(portfolio_adjustments) + _line_total(valuation_assets) - _line_total(valuation_liabilities)
     )
-    base_curr = settings.base_currency.upper()
     is_presentation_currency = target_currency.upper() != base_curr
     is_multicurrency = bool(included_ledger_currencies - {target_currency})
 
     if is_presentation_currency:
-        # Under IAS 21 paragraph 39, financial statements translated into a different
-        # presentation currency translate assets/liabilities at closing spot rates and
-        # income/expenses at transaction/average rates. All resulting exchange differences
-        # are recognized in other comprehensive income as the presentation CTA reserve.
         unadjusted_total = total_liabilities + total_equity + net_income + unrealized_fx + net_worth_adjustment
         cta_adjustment = _quantize_money(total_assets - unadjusted_total)
     elif is_multicurrency:
-        # Functional currency reporting: CTA strictly absorbs translation variances
-        # between spot rate balance sheet items, period-average net income, and
-        # opening equity position variances, without circular plugging.
         equity_translation_variance = await _aggregate_equity_translation_variance_sql(
             db,
             user_id,
             target_currency,
             as_of_date,
+            base_currency=base_curr,
             fx_warnings=fx_warnings,
         )
         cta_adjustment = calculate_currency_translation_adjustment(

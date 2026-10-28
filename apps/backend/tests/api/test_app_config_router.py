@@ -5,6 +5,10 @@ validation (invalid -> 422), DB persistence, the accessor precedence (own value,
 operator default, env default), and user scope of the update.
 """
 
+import ast
+from datetime import date
+from decimal import Decimal
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -13,11 +17,23 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import JournalEntrySourceType
 from src.audit.money import Currency
 from src.config import settings
 from src.config_app import get_effective_base_currency
 from src.identity import User, create_access_token
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+    calculate_unrealized_fx_gains,
+)
 from src.platform import BASE_CURRENCY_KEY, AppConfig
+from src.pricing import FxRate
+from src.reporting import generate_balance_sheet, generate_income_statement
 
 pytestmark = pytest.mark.asyncio
 
@@ -104,3 +120,125 @@ async def test_AC_audit_39_6_put_changes_only_the_callers_base_currency(
     assert other_response.json() == {"base_currency": default}
     operator_row = await db.scalar(select(AppConfig).where(AppConfig.key == BASE_CURRENCY_KEY))
     assert operator_row is None
+
+
+async def test_AC12_39_2_only_boundary_modules_read_settings_base_currency() -> None:
+    """AC-audit.39.2: Only the config/ORM-default boundary reads settings.base_currency (#2552)."""
+    backend_root = Path(__file__).resolve().parents[2]
+    src_root = backend_root / "src"
+    allowed = {
+        "src/config_app.py",
+        "src/ledger/orm/journal.py",
+        "src/ledger/extension/repository.py",
+    }
+    violators: set[str] = set()
+    for path in sorted(src_root.rglob("*.py")):
+        rel = path.relative_to(backend_root).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Attribute) or node.attr != "base_currency":
+                continue
+            owner = node.value
+            if isinstance(owner, ast.Name) and owner.id == "settings":
+                if rel not in allowed:
+                    violators.add(rel)
+            elif isinstance(owner, ast.Attribute) and owner.attr == "settings":
+                if rel not in allowed:
+                    violators.add(rel)
+    assert violators == set(), f"Unexpected settings.base_currency readers: {sorted(violators)}"
+
+
+async def test_AC12_39_2_usd_user_reports_and_revaluation_use_user_effective_base_currency(
+    db: AsyncSession,
+    test_user: User,
+) -> None:
+    """AC-audit.39.2: A USD-base user sees USD reports and USD FX revaluation when settings.base_currency is SGD (#2552)."""
+    assert Currency(settings.base_currency).code == "SGD"
+    test_user.base_currency = "USD"
+    await db.flush()
+
+    entry_day = date(2025, 3, 10)
+    report_day = date(2025, 3, 20)
+    db.add_all(
+        [
+            FxRate(
+                base_currency="EUR",
+                quote_currency="USD",
+                rate=Decimal("1.100000"),
+                rate_date=entry_day,
+                source="ECB",
+            ),
+            FxRate(
+                base_currency="EUR",
+                quote_currency="USD",
+                rate=Decimal("1.200000"),
+                rate_date=report_day,
+                source="ECB",
+            ),
+        ]
+    )
+    usd_cash = Account(user_id=test_user.id, name="USD Checking", type=AccountType.ASSET, currency="USD")
+    eur_cash = Account(user_id=test_user.id, name="EUR Vault", type=AccountType.ASSET, currency="EUR")
+    usd_income = Account(user_id=test_user.id, name="USD Consulting", type=AccountType.INCOME, currency="USD")
+    db.add_all([usd_cash, eur_cash, usd_income])
+    await db.flush()
+
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=entry_day,
+        memo="USD and EUR consulting receipt",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+        base_currency="USD",
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=usd_cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("200.00"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=eur_cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("100.00"),
+                currency="EUR",
+                fx_rate=Decimal("1.100000"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=usd_income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("310.00"),
+                currency="USD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    reval = await calculate_unrealized_fx_gains(db, test_user.id, report_day)
+    assert reval.base_currency == "USD"
+    assert len(reval.accounts_revalued) == 1
+    assert reval.accounts_revalued[0].account_currency == "EUR"
+    assert reval.total_unrealized_gain_loss == Decimal("10.00")
+
+    bs = await generate_balance_sheet(db, test_user.id, as_of_date=report_day)
+    assert bs["currency"] == "USD"
+    assert bs["total_assets"] == Decimal("320.00")
+    assert bs["unrealized_fx_gain_loss"] == Decimal("10.00")
+    assert bs["is_balanced"] is True
+
+    inc = await generate_income_statement(
+        db,
+        test_user.id,
+        start_date=date(2025, 3, 1),
+        end_date=report_day,
+    )
+    assert inc["currency"] == "USD"
+    assert inc["total_income"] == Decimal("310.00")
+    assert inc["unrealized_fx_gain_loss"] == Decimal("10.00")

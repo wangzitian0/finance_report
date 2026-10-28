@@ -11,6 +11,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config_app import get_effective_base_currency
 from src.extraction import BankStatementStatus, StatementSummary
 from src.ledger import JournalEntry, JournalEntryStatus
 from src.observability import get_logger
@@ -63,7 +64,7 @@ async def compute_personal_data_quality(
 ) -> PersonalDataQualityHealthResponse:
     """Compute complete financial data quality, invariants, timeline, and actions."""
     report_date = as_of_date or date.today()
-    report_currency = _normalize_currency(currency)
+    report_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
 
     # 1. Equation Invariant
     # The default (full) scope converts each restricted and illiquid valuation. When one has

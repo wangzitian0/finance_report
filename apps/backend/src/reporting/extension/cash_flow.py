@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from src.audit import JournalEntrySourceType, text_digest
+from src.config_app import get_effective_base_currency
 from src.ledger import (
     Account,
     AccountType,
@@ -550,7 +551,7 @@ async def _build_cash_flow(
     """Build the cash-flow document and its line records in one pass over the cash events."""
     if start_date > end_date:
         raise ReportError("start_date must be before end_date")
-    target_currency = _normalize_currency(currency)
+    target_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
 
     accounts = list((await db.execute(select(Account).where(Account.user_id == user_id))).scalars().all())
     account_by_id = {account.id: account for account in accounts}

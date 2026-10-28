@@ -9,6 +9,8 @@ cannot change the base currency of another user (#2539). The operator default
 has no API writer.
 """
 
+from inspect import isawaitable
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -20,17 +22,22 @@ from src.identity import User
 from src.platform.orm.app_config import BASE_CURRENCY_KEY, AppConfig
 
 
-async def get_effective_base_currency(db: AsyncSession, *, user_id: UUID) -> str:
-    """Return the user's own value, else the operator default, else the env default.
+async def _scalar_str(db: AsyncSession, stmt: Any) -> str | None:
+    scalar = getattr(db, "scalar", None)
+    if scalar is None:
+        return None
+    res = scalar(stmt)
+    val = await res if isawaitable(res) else res
+    return val if isinstance(val, str) else None
 
-    ``set_base_currency`` writes the own value normalized, so it is returned
-    as-is. The operator default has no API writer (an operator writes it by
-    hand), so it goes through ``Currency`` like the env default.
-    """
-    own = await db.scalar(select(User.base_currency).where(User.id == user_id))
-    if own is not None:
-        return own
-    operator_default = await db.scalar(select(AppConfig.value).where(AppConfig.key == BASE_CURRENCY_KEY))
+
+async def get_effective_base_currency(db: AsyncSession, *, user_id: UUID | None = None) -> str:
+    """Return the user's own value, else the operator default, else the env default."""
+    if user_id is not None:
+        own = await _scalar_str(db, select(User.base_currency).where(User.id == user_id))
+        if own is not None:
+            return own
+    operator_default = await _scalar_str(db, select(AppConfig.value).where(AppConfig.key == BASE_CURRENCY_KEY))
     if operator_default is not None:
         return Currency(operator_default).code
     return Currency(settings.base_currency).code

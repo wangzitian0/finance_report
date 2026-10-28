@@ -12,8 +12,8 @@ from uuid import UUID
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import src.config
 from src.audit.ratio import Ratio
+from src.config_app import get_effective_base_currency
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition
 from src.ledger import Account
@@ -21,9 +21,6 @@ from src.observability import get_logger
 from src.portfolio.base.errors import InsufficientDataError, XIRRCalculationError
 from src.portfolio.orm.portfolio import DividendIncome, InvestmentTransaction, InvestmentTransactionType
 from src.pricing import convert_amount
-
-# Bound from the bare published root (config publishes no named symbols).
-settings = src.config.settings
 
 logger = get_logger(__name__)
 
@@ -33,7 +30,7 @@ async def batch_latest_atomic_positions(
     user_id: UUID,
     asset_identifiers: list[str],
     as_of_date: date,
-) -> dict[tuple[str, str], AtomicPosition]:
+) -> dict[tuple[str, str | None], AtomicPosition]:
     """
     Batch-fetch the latest AtomicPosition for each (asset_identifier, broker) pair.
 
@@ -125,15 +122,14 @@ async def calculate_xirr(
     )
     result = await db.execute(query)
     transactions = result.scalars().all()
+    base_currency = await get_effective_base_currency(db, user_id=user_id)
 
-    # Convert transactions to cash flows using XIRR convention:
-    # BUY = negative investor cash outflow; SELL/DIVIDEND = positive inflow.
     for txn in transactions:
         amount_base = await convert_amount(
             db,
             txn.gross_amount,
             txn.currency,
-            settings.base_currency,
+            base_currency,
             txn.transaction_date,
         )
         sign = -1 if txn.transaction_type == InvestmentTransactionType.BUY else 1
@@ -141,9 +137,7 @@ async def calculate_xirr(
         dates.append(txn.transaction_date)
         amounts.append(amount_base * sign)
 
-    # Get position value as of as_of_date as the final cash flow (positive =
-    # portfolio value).
-    total_value = await _get_portfolio_value(db, user_id, as_of_date)
+    total_value = await _get_portfolio_value(db, user_id, as_of_date, base_currency)
 
     if total_value > Decimal("0"):
         dates.append(as_of_date)
@@ -194,10 +188,18 @@ def _xirr_newton(amounts: list[Decimal], days: list[int], guess: Decimal, max_it
         if base <= Decimal("0"):
             break
 
-        npv = sum(cf / _decimal_power(base, Decimal(day) / Decimal("365")) for cf, day in zip(amounts, days))
+        npv = sum(
+            (cf / _decimal_power(base, Decimal(day) / Decimal("365")) for cf, day in zip(amounts, days)),
+            Decimal("0"),
+        )
         d_npv = sum(
-            -(Decimal(day) / Decimal("365")) * cf / _decimal_power(base, (Decimal(day) / Decimal("365")) + Decimal("1"))
-            for cf, day in zip(amounts, days)
+            (
+                -(Decimal(day) / Decimal("365"))
+                * cf
+                / _decimal_power(base, (Decimal(day) / Decimal("365")) + Decimal("1"))
+                for cf, day in zip(amounts, days)
+            ),
+            Decimal("0"),
         )
         if abs(d_npv) < Decimal("1e-10"):
             break
@@ -241,7 +243,10 @@ def _xirr_bisection(amounts: list[Decimal], days: list[int], max_iter: int, tole
 
     def npv(rate: Decimal) -> Decimal:
         base = Decimal("1") + rate
-        return sum(cf / _decimal_power(base, Decimal(day) / Decimal("365")) for cf, day in zip(amounts, days))
+        return sum(
+            (cf / _decimal_power(base, Decimal(day) / Decimal("365")) for cf, day in zip(amounts, days)),
+            Decimal("0"),
+        )
 
     npv_lo = npv(lo)
     npv_hi = npv(hi)
@@ -290,12 +295,10 @@ async def calculate_time_weighted_return(
     Raises:
         InsufficientDataError: Need at least two position snapshots
     """
-    # Get position snapshots at start and end of period
-    start_value = await _get_portfolio_value(db, user_id, period_start)
-    end_value = await _get_portfolio_value(db, user_id, period_end)
+    base_currency = await get_effective_base_currency(db, user_id=user_id)
+    start_value = await _get_portfolio_value(db, user_id, period_start, base_currency)
+    end_value = await _get_portfolio_value(db, user_id, period_end, base_currency)
 
-    # Get net investment cash flows during period. Positive values are money
-    # added to the portfolio; negative values are money withdrawn.
     query = select(InvestmentTransaction).where(
         InvestmentTransaction.user_id == user_id,
         and_(
@@ -312,7 +315,7 @@ async def calculate_time_weighted_return(
             db,
             txn.gross_amount,
             txn.currency,
-            settings.base_currency,
+            base_currency,
             txn.transaction_date,
         )
         sign = 1 if txn.transaction_type == InvestmentTransactionType.BUY else -1
@@ -380,6 +383,7 @@ async def calculate_dividend_yield(
         )
     )
     dividends = result.scalars().all()
+    base_currency = await get_effective_base_currency(db, user_id=user_id)
 
     annual_dividends = Decimal("0")
     for dividend in dividends:
@@ -387,11 +391,11 @@ async def calculate_dividend_yield(
             db,
             dividend.amount,
             dividend.currency,
-            settings.base_currency,
+            base_currency,
             dividend.payment_date,
         )
 
-    current_value = await _get_portfolio_value(db, user_id, as_of_date)
+    current_value = await _get_portfolio_value(db, user_id, as_of_date, base_currency)
     if current_value == Decimal("0"):
         if annual_dividends == Decimal("0"):
             dividend_yield_ratio = Ratio.zero()
@@ -406,32 +410,9 @@ async def _get_portfolio_value(
     db: AsyncSession,
     user_id: UUID,
     as_of_date: date,
+    base_currency: str | None = None,
 ) -> Decimal:
-    """
-    Get total portfolio value as of a specific date.
-
-    Uses batched query to avoid N+1 pattern. Point-in-time (#1791 follow-up):
-    considers every position this user has ever held, not just ones still
-    ManagedPosition.status == ACTIVE *today* -- a position bought before and
-    disposed after as_of_date was still held on that date and must count.
-    Whether it was held as of as_of_date is decided by its own snapshot
-    quantity on that date (mirrors holdings.py:_get_snapshot_holdings), not
-    by current status.
-
-    Looks up each position by (asset_identifier, broker), not asset_identifier
-    alone -- the same ticker can be held at two different brokers (Account.name
-    is the broker key), and collapsing on asset_identifier would silently drop
-    one broker's contribution (or double-count it, depending which side of the
-    lookup collapses).
-
-    Args:
-        db: Database session
-        user_id: User ID
-        as_of_date: Date to get value for
-
-    Returns:
-        Decimal: Total portfolio value in base currency
-    """
+    """Get total portfolio value as of a specific date in base currency."""
     query = (
         select(ManagedPosition.asset_identifier, Account.name)
         .join(Account, ManagedPosition.account_id == Account.id)
@@ -441,8 +422,8 @@ async def _get_portfolio_value(
     position_keys = result.all()
     asset_ids = [identifier for identifier, _broker in position_keys]
 
-    # Batch-fetch latest atomic positions (fixes N+1)
     atomic_map = await batch_latest_atomic_positions(db, user_id, asset_ids, as_of_date)
+    resolved_base = base_currency or await get_effective_base_currency(db, user_id=user_id)
 
     total_value = Decimal("0")
     for identifier, broker in position_keys:
@@ -453,7 +434,7 @@ async def _get_portfolio_value(
             db,
             atomic.market_value or Decimal("0"),
             atomic.currency,
-            settings.base_currency,
+            resolved_base,
             as_of_date,
         )
         total_value += value_base

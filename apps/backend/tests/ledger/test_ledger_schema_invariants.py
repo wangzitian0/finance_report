@@ -13,8 +13,8 @@ from src.audit import JournalEntrySourceType
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 
 
-async def _account(db: AsyncSession, user_id, name: str, account_type: AccountType) -> Account:
-    account = Account(user_id=user_id, name=name, type=account_type, is_active=True)
+async def _account(db: AsyncSession, user_id, name: str, account_type: AccountType, currency: str = "SGD") -> Account:
+    account = Account(user_id=user_id, name=name, type=account_type, currency=currency, is_active=True)
     db.add(account)
     await db.flush()
     return account
@@ -311,3 +311,71 @@ async def test_AC2_14_5_void_transition_requires_reversal_relationship(db: Async
     await db.commit()
     await db.refresh(rec_entry)
     assert rec_entry.status == JournalEntryStatus.VOID
+
+
+async def test_AC2_14_4_reconcile_posted_usd_entry_uses_row_base_currency(db: AsyncSession, test_user):
+    """AC-ledger.14.4: Reconciling a USD entry validates against journal_entries.base_currency without GUC."""
+    test_user.base_currency = "USD"
+    await db.flush()
+    user_id = test_user.id
+    cash = await _account(db, user_id, "USD Cash", AccountType.ASSET, "USD")
+    revenue = await _account(db, user_id, "USD Revenue", AccountType.INCOME, "USD")
+
+    entry = JournalEntry(
+        user_id=user_id,
+        entry_date=date.today(),
+        memo="USD invoice",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+        base_currency="USD",
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=cash.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("250.00"),
+                currency="USD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=revenue.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("250.00"),
+                currency="USD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    entry.status = JournalEntryStatus.RECONCILED
+    await db.commit()
+    await db.refresh(entry)
+    assert entry.status == JournalEntryStatus.RECONCILED
+
+
+async def test_AC2_14_4_immutability_guard_rejects_base_currency_mutation(db: AsyncSession, test_user):
+    """AC-ledger.14.4: Immutability trigger rejects base_currency mutation on reconcile and void transitions."""
+    user_id = test_user.id
+    posted, _d, _c = await _valid_posted_entry(db, user_id, memo="posted with SGD base")
+    posted_id = posted.id
+
+    posted.status = JournalEntryStatus.RECONCILED
+    posted.base_currency = "USD"
+    with pytest.raises(IntegrityError):
+        await db.commit()
+    await db.rollback()
+
+    posted = await db.get(JournalEntry, posted_id)
+    assert posted is not None
+    reversal, _rev_d, _rev_c = await _valid_posted_entry(db, user_id, memo="guard reversal")
+    posted.status = JournalEntryStatus.VOID
+    posted.void_reason = "void with base mutation"
+    posted.void_reversal_entry_id = reversal.id
+    posted.base_currency = "USD"
+    with pytest.raises(IntegrityError):
+        await db.commit()
+    await db.rollback()

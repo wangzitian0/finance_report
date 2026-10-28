@@ -7,7 +7,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import src.config
+from src.config_app import get_effective_base_currency
 from src.ledger.base.types.entry import Entry
 from src.ledger.extension.anchored_posting import submit_system_journal_entry
 from src.ledger.orm.journal import JournalEntry
@@ -26,9 +26,7 @@ async def post_entry(
 ) -> JournalEntry:
     """Persist a balanced :class:`Entry` under a deterministic system decision."""
     if base_currency is None:
-        # Compatibility for callers outside this slice; migrated delivery paths
-        # pass their persisted effective base explicitly.
-        base_currency = src.config.settings.base_currency
+        base_currency = await get_effective_base_currency(db, user_id=user_id)
     lines_data = [
         {
             "account_id": leg.account_id,

@@ -20,7 +20,6 @@ from typing import ClassVar
 
 from src.audit import JournalEntrySourceType, normalize_source_type
 from src.audit.money import to_money
-from src.config import settings
 from src.ledger import Account, AccountType, Direction, JournalLine
 from src.schemas.base import normalize_currency_code
 from src.schemas.provenance import DataProvenance
@@ -33,10 +32,8 @@ _IMPORTED_SOURCE_TYPES = {
 _MANUAL_SOURCE_TYPES = {JournalEntrySourceType.MANUAL}
 _DERIVED_SOURCE_TYPES = {JournalEntrySourceType.SYSTEM, JournalEntrySourceType.FX_REVALUATION}
 
-# Limit to ~1 year of daily data to ensure report performance and prevent memory issues.
 MAX_TREND_POINTS = 366
 MAX_NET_WORTH_DAILY_POINTS = 366
-# A monthly net-worth series keeps its latest 366 months (30.5 years) (#2583).
 MAX_NET_WORTH_MONTHLY_POINTS = 366
 
 
@@ -53,9 +50,7 @@ class PeriodSpan:
 
 
 def _normalize_currency(code: str | None) -> str:
-    if not code:
-        return normalize_currency_code(settings.base_currency)
-    return normalize_currency_code(code)
+    return normalize_currency_code(code or "SGD")
 
 
 def resolve_line_currency(line: JournalLine, account: Account, *, base_currency: str) -> str:
