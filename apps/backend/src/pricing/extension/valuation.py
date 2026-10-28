@@ -5,8 +5,9 @@ Valuation snapshots and their versioned read models are pricing-owned facts
 ``src.portfolio.extension.positions``.
 """
 
+import re
 from bisect import bisect_right
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
@@ -69,53 +70,82 @@ class ValuationComponentsResult:
     total_liabilities: Decimal
     net_worth_delta: Decimal
     warnings: list[dict[str, str]] = field(default_factory=list)
-    # The current components that the scope excludes (#2645). The totals above do not include them.
     excluded_items: list[ValuationComponentItem] = field(default_factory=list)
+    unrecorded_assets: list[ValuationComponentItem] = field(default_factory=list)
 
 
-# A scope without restricted holdings excludes the assets of these liquidity classes.
 _RESTRICTED_LIQUIDITY_CLASSES = frozenset(
     {ManualValuationLiquidityClass.RESTRICTED.value, ManualValuationLiquidityClass.ILLIQUID.value}
 )
+_LIABILITY_AFFIXES = ("mortgage", "loan", "balance", "liability", "payable", "debt", "financing")
+_ASSET_PREFIXES = ("property", "real estate", "home", "house", "residence")
+
+
+def _stem_keys(text: str) -> set[str]:
+    norm = " ".join(re.sub(r"[^a-z0-9]+", " ", text.lower()).split())
+    if not norm:
+        return set()
+    keys = {norm}
+    words = [w for w in norm.split() if w not in _LIABILITY_AFFIXES]
+    if words:
+        stripped = " ".join(words)
+        keys.add(stripped)
+        for prefix in _ASSET_PREFIXES:
+            if stripped.startswith(f"{prefix} ") and len(stripped) > len(prefix) + 1:
+                keys.add(stripped[len(prefix) + 1 :].strip())
+    return {k for k in keys if k}
+
+
+def _financed_asset_of_liability(
+    source: str,
+    assets: Sequence[ValuationComponentItem],
+    *,
+    allow_class_fallback: bool = False,
+) -> ValuationComponentItem | None:
+    liability_keys = _stem_keys(source)
+    if liability_keys:
+        for asset in assets:
+            if liability_keys & _stem_keys(asset.source):
+                return asset
+    if allow_class_fallback:
+        real_estate = [a for a in assets if _manual_valuation_allocation_asset_class(a.component_type) == "real_estate"]
+        if real_estate and all(a.liquidity_class in _RESTRICTED_LIQUIDITY_CLASSES for a in real_estate):
+            return real_estate[0]
+    return None
 
 
 def split_net_worth_scope(
     items: Sequence[ValuationComponentItem],
     *,
     include_restricted: bool,
+    unrecorded_assets: Sequence[ValuationComponentItem] = (),
 ) -> tuple[list[ValuationComponentItem], list[ValuationComponentItem]]:
-    """Return the manual valuations inside and outside one restricted-holdings scope (#2645).
+    """Return the manual valuations inside and outside one restricted-holdings scope (#2645, #2659).
 
     This function is the only definition of the scope. The full scope holds each
     component. The scope without restricted holdings excludes each restricted or
-    illiquid asset valuation. It also excludes each liability valuation whose
-    allocation class (``_manual_valuation_allocation_asset_class``, a fixed map
-    from the component type) is the class of an excluded asset. Only
-    ``mortgage_balance`` shares a class with an asset type (``real_estate``), so
-    a mortgage valuation leaves with an excluded property valuation.
-
-    Limits (#2659). There is no link from one liability to one asset:
-    - A ledger liability account, for example a mortgage kept as a loan account,
-      always counts. Only manual valuations take part in the scope.
-    - When one property valuation is excluded, every mortgage valuation leaves,
-      also the mortgage of a property valuation that is set to liquid.
-    - The rule reads the components current on the as-of date. A mortgage valuation
-      that is older than its property valuation counts until the property date.
+    illiquid asset valuation and each liability linked to an excluded asset
+    (current or not-yet-recorded on ``as_of_date``). A liability whose asset is
+    liquid stays in the scope.
     """
     if include_restricted:
         return list(items), []
-    excluded_classes = {
-        _manual_valuation_allocation_asset_class(item.component_type)
-        for item in items
-        if item.liquidity_class in _RESTRICTED_LIQUIDITY_CLASSES
-    }
+    liability_cls = ManualValuationLiquidityClass.LIABILITY.value
+    candidate_assets = [item for item in (*items, *unrecorded_assets) if item.liquidity_class != liability_cls]
     included: list[ValuationComponentItem] = []
     excluded: list[ValuationComponentItem] = []
     for item in items:
-        is_excluded = item.liquidity_class in _RESTRICTED_LIQUIDITY_CLASSES or (
-            item.liquidity_class == ManualValuationLiquidityClass.LIABILITY.value
-            and _manual_valuation_allocation_asset_class(item.component_type) in excluded_classes
-        )
+        if item.liquidity_class in _RESTRICTED_LIQUIDITY_CLASSES:
+            is_excluded = True
+        elif item.liquidity_class == liability_cls:
+            financed = _financed_asset_of_liability(
+                item.source,
+                candidate_assets,
+                allow_class_fallback=(item.component_type == ManualValuationComponentType.MORTGAGE_BALANCE.value),
+            )
+            is_excluded = financed is not None and financed.liquidity_class in _RESTRICTED_LIQUIDITY_CLASSES
+        else:
+            is_excluded = False
         (excluded if is_excluded else included).append(item)
     return included, excluded
 
@@ -406,6 +436,41 @@ class ValuationService:
             .having(func.min(ManualValuationSnapshot.as_of_date) > as_of_date)
             .order_by(ManualValuationSnapshot.component_type, ManualValuationSnapshot.source)
         )
+        gap_list = list(gap_rows)
+        liability = ManualValuationLiquidityClass.LIABILITY.value
+        current_items = [
+            ValuationComponentItem(
+                id=snapshot.id,
+                component_type=snapshot.component_type.value,
+                liquidity_class=snapshot.liquidity_class.value,
+                as_of_date=snapshot.as_of_date,
+                value=to_money(snapshot.value),
+                currency=snapshot.currency,
+                source=snapshot.source,
+                provenance="manual",
+            )
+            for snapshot in snapshots
+        ]
+        unrecorded_assets = [
+            ValuationComponentItem(
+                id=UUID(int=0),
+                component_type=row.component_type.value,
+                liquidity_class=row.latest_liquidity_class.value,
+                as_of_date=row.earliest_as_of_date,
+                value=Decimal("0.00"),
+                currency="SGD",
+                source=row.source,
+                provenance="manual",
+            )
+            for row in gap_list
+            if row.latest_liquidity_class.value != liability
+        ]
+        items, excluded_items = split_net_worth_scope(
+            current_items,
+            include_restricted=include_restricted,
+            unrecorded_assets=unrecorded_assets,
+        )
+        candidate_assets = [item for item in (*current_items, *unrecorded_assets) if item.liquidity_class != liability]
         warnings: list[dict[str, str]] = [
             {
                 "type": "valuation_component_not_yet_recorded",
@@ -419,27 +484,24 @@ class ValuationService:
                     f"{row.earliest_as_of_date.isoformat()}); it is excluded from these totals."
                 ),
             }
-            for row in gap_rows
-            if include_restricted or row.latest_liquidity_class not in _RESTRICTED_LIQUIDITY_CLASSES
-        ]
-
-        items, excluded_items = split_net_worth_scope(
-            [
-                ValuationComponentItem(
-                    id=snapshot.id,
-                    component_type=snapshot.component_type.value,
-                    liquidity_class=snapshot.liquidity_class.value,
-                    as_of_date=snapshot.as_of_date,
-                    value=to_money(snapshot.value),
-                    currency=snapshot.currency,
-                    source=snapshot.source,
-                    provenance="manual",
+            for row in gap_list
+            if include_restricted
+            or (
+                row.latest_liquidity_class.value not in _RESTRICTED_LIQUIDITY_CLASSES
+                and not (
+                    row.latest_liquidity_class.value == liability
+                    and (
+                        financed := _financed_asset_of_liability(
+                            row.source,
+                            candidate_assets,
+                            allow_class_fallback=(row.component_type == ManualValuationComponentType.MORTGAGE_BALANCE),
+                        )
+                    )
+                    is not None
+                    and financed.liquidity_class in _RESTRICTED_LIQUIDITY_CLASSES
                 )
-                for snapshot in snapshots
-            ],
-            include_restricted=include_restricted,
-        )
-        liability = ManualValuationLiquidityClass.LIABILITY.value
+            )
+        ]
         total_assets = to_money(sum((item.value for item in items if item.liquidity_class != liability), Decimal("0")))
         total_liabilities = to_money(
             sum((item.value for item in items if item.liquidity_class == liability), Decimal("0"))
@@ -451,6 +513,7 @@ class ValuationService:
             net_worth_delta=to_money(total_assets - total_liabilities),
             warnings=warnings,
             excluded_items=excluded_items,
+            unrecorded_assets=unrecorded_assets,
         )
 
 
@@ -537,35 +600,16 @@ async def build_manual_valuation_lines(
     include_restricted: bool = True,
     warnings: list[dict[str, str]] | None = None,
     excluded_lines: list[dict[str, Any]] | None = None,
+    liability_lines: list[dict[str, Any]] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Build balance sheet lines from latest manual valuation components.
 
-    ``warnings`` is an optional accumulator (same pattern as the portfolio
-    market-adjustment builder): components whose only snapshot postdates
-    ``as_of_date`` are absent from the lines, and the caller's report should
-    disclose that instead of presenting a silently incomplete total (#1796).
-
-    ``excluded_lines`` is an optional accumulator too. It receives one line in
-    ``target_currency`` for each component that the scope excludes
-    (``split_net_worth_scope``), so the caller can name what it left out (#2645).
-    The totals do not depend on an excluded line. Thus a pricing-family FX error
-    on an excluded component does not raise: its line has the amount None and a
-    ``conversion_warning`` that names the component, the currency pair and the
-    error type. Any other error still raises.
-
-    Raises the pricing error family
-    (:class:`~src.pricing.base.errors.PricingError`) when a required FX rate
-    is unavailable even after the lazy crawler fallback — the reporting
-    caller maps that to its own ``ReportError`` at the boundary.
+    When ``include_restricted`` is False and ``liability_lines`` is supplied, any
+    ledger liability line whose name links to an excluded asset valuation is
+    moved from ``liability_lines`` into ``excluded_lines`` (#2659).
     """
-    # Deferred import: extension/fx.py is a sibling composed by market_data;
-    # importing it at module scope would tighten the intra-extension import
-    # order for no gain.
     from src.pricing.extension.fx import convert_amount
 
-    # Normalize once up front (matches source_currency's .upper() below) so an
-    # already-equal pair (e.g. caller passes lowercase) never triggers a
-    # needless FX conversion call.
     target_currency = target_currency.upper()
     components = await ValuationService().get_latest_valuation_components(
         db,
@@ -600,8 +644,6 @@ async def build_manual_valuation_lines(
                     {
                         **_manual_valuation_line(component, None),
                         "conversion_warning": {
-                            # NoObservationError: no stored or fetched rate. Any other
-                            # pricing error: the rate exists but the conversion failed.
                             "type": (
                                 "missing_fx_rate_excluded_holding"
                                 if isinstance(exc, NoObservationError)
@@ -616,6 +658,27 @@ async def build_manual_valuation_lines(
                         },
                     }
                 )
+    if not include_restricted and liability_lines:
+        liability_cls = ManualValuationLiquidityClass.LIABILITY.value
+        candidate_assets = [
+            item
+            for item in (*components.items, *components.excluded_items, *components.unrecorded_assets)
+            if item.liquidity_class != liability_cls
+        ]
+        kept: list[dict[str, Any]] = []
+        for line in liability_lines:
+            financed = _financed_asset_of_liability(str(line.get("name", "")), candidate_assets)
+            if financed is not None and financed.liquidity_class in _RESTRICTED_LIQUIDITY_CLASSES:
+                if excluded_lines is not None:
+                    excluded_lines.append(
+                        {
+                            **line,
+                            "allocation_asset_class": _manual_valuation_allocation_asset_class(financed.component_type),
+                        }
+                    )
+            else:
+                kept.append(line)
+        liability_lines[:] = kept
     return _split_manual_valuation_lines(lines)
 
 
@@ -626,16 +689,10 @@ async def build_manual_valuation_lines_series(
     as_of_dates: Sequence[date],
     target_currency: str,
     include_restricted: bool = True,
+    ledger_liability_names: Mapping[UUID, str] | None = None,
+    excluded_ledger_ids_by_date: dict[date, set[UUID]] | None = None,
 ) -> dict[date, tuple[list[dict[str, Any]], list[dict[str, Any]]]]:
-    """Return the ``build_manual_valuation_lines`` lines for each date in ``as_of_dates``.
-
-    The lines are equal to one ``build_manual_valuation_lines`` call per date.
-    The warnings are not returned. The selected components change only on a
-    date that holds a current snapshot. Thus the components are read once per
-    such date, not once per requested date. The FX rates are read once per
-    source currency. An FX miss raises the pricing error family, as the
-    single-date builder does.
-    """
+    """Return the ``build_manual_valuation_lines`` lines for each date in ``as_of_dates``."""
     from src.pricing.extension.fx import _convert_money_amount, get_exchange_rate, get_exchange_rate_series
 
     target_currency = target_currency.upper()
@@ -661,6 +718,8 @@ async def build_manual_valuation_lines_series(
         selected_snapshot_date[as_of_date] = snapshot_dates[position - 1] if position else None
 
     components_by_snapshot_date: dict[date, list[ValuationComponentItem]] = {}
+    candidate_assets_by_snapshot_date: dict[date, list[ValuationComponentItem]] = {}
+    liability_cls = ManualValuationLiquidityClass.LIABILITY.value
     for snapshot_date in sorted({value for value in selected_snapshot_date.values() if value is not None}):
         components = await ValuationService().get_latest_valuation_components(
             db,
@@ -669,6 +728,33 @@ async def build_manual_valuation_lines_series(
             include_restricted=include_restricted,
         )
         components_by_snapshot_date[snapshot_date] = components.items
+        candidate_assets_by_snapshot_date[snapshot_date] = [
+            item
+            for item in (*components.items, *components.excluded_items, *components.unrecorded_assets)
+            if item.liquidity_class != liability_cls
+        ]
+
+    if not include_restricted and ledger_liability_names and excluded_ledger_ids_by_date is not None:
+        fallback_assets: list[ValuationComponentItem] = next(iter(candidate_assets_by_snapshot_date.values()), [])
+        if not fallback_assets and not snapshot_dates:
+            earliest = await ValuationService().get_latest_valuation_components(
+                db, user_id, as_of_date=ordered[0], include_restricted=False
+            )
+            fallback_assets = [
+                item
+                for item in (*earliest.items, *earliest.excluded_items, *earliest.unrecorded_assets)
+                for _ in (1,)
+                if item.liquidity_class != liability_cls
+            ]
+        for as_of_date in ordered:
+            snap_date = selected_snapshot_date[as_of_date]
+            assets_for_date = candidate_assets_by_snapshot_date[snap_date] if snap_date is not None else fallback_assets
+            excluded_ledger_ids_by_date[as_of_date] = {
+                acc_id
+                for acc_id, name in ledger_liability_names.items()
+                if (financed := _financed_asset_of_liability(name, assets_for_date)) is not None
+                and financed.liquidity_class in _RESTRICTED_LIQUIDITY_CLASSES
+            }
 
     def components_on(as_of_date: date) -> list[ValuationComponentItem]:
         snapshot_date = selected_snapshot_date[as_of_date]

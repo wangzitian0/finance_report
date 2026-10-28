@@ -94,11 +94,11 @@ def _component(
 
 
 def test_AC_pricing_manualvaluation_12_scope_excludes_a_liability_with_its_asset() -> None:
-    """AC-pricing.manualvaluation.12: a scope without restricted holdings excludes a liability with its asset (#2645).
+    """AC-pricing.manualvaluation.12: a scope without restricted holdings excludes a liability with its asset (#2645, #2659).
 
-    The excluded property takes its mortgage out. A mortgage without an excluded
-    property stays. A general liability and a liquid asset stay. The full scope
-    holds each component.
+    The excluded property takes its mortgage out. A mortgage linked to a liquid
+    property stays even when another property is illiquid. A mortgage older than
+    its unrecorded illiquid property is excluded too.
     """
     property_value = _component(
         ManualValuationComponentType.PROPERTY_VALUE, ManualValuationLiquidityClass.ILLIQUID, "Condo"
@@ -120,6 +120,28 @@ def test_AC_pricing_manualvaluation_12_scope_excludes_a_liability_with_its_asset
     included, excluded = split_net_worth_scope([mortgage, tax_refund], include_restricted=False)
     assert [item.source for item in included] == ["Condo loan", "Refund"]
     assert excluded == []
+
+    # Unrecorded illiquid property on a later date still excludes its earlier mortgage (#2659 Case 3).
+    included, excluded = split_net_worth_scope(
+        [mortgage, tax_refund], include_restricted=False, unrecorded_assets=[property_value]
+    )
+    assert [item.source for item in included] == ["Refund"]
+    assert [item.source for item in excluded] == ["Condo loan"]
+
+    # Mixed liquidity in one class (#2659 Case 2): Mortgage B stays with liquid Property B.
+    prop_a = _component(
+        ManualValuationComponentType.PROPERTY_VALUE, ManualValuationLiquidityClass.ILLIQUID, "Property A"
+    )
+    mort_a = _component(
+        ManualValuationComponentType.MORTGAGE_BALANCE, ManualValuationLiquidityClass.LIABILITY, "Mortgage A"
+    )
+    prop_b = _component(ManualValuationComponentType.PROPERTY_VALUE, ManualValuationLiquidityClass.LIQUID, "Property B")
+    mort_b = _component(
+        ManualValuationComponentType.MORTGAGE_BALANCE, ManualValuationLiquidityClass.LIABILITY, "Mortgage B"
+    )
+    included, excluded = split_net_worth_scope([prop_a, mort_a, prop_b, mort_b], include_restricted=False)
+    assert [item.source for item in included] == ["Property B", "Mortgage B"]
+    assert [item.source for item in excluded] == ["Property A", "Mortgage A"]
 
     included, excluded = split_net_worth_scope(components, include_restricted=True)
     assert included == components

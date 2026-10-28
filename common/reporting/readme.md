@@ -621,17 +621,13 @@ sum) for one as-of date and one `include_restricted` scope
   `hooks/useReportFilters.ts` (Home, `/reports`, Portfolio) (AC-platform.29.9).
 - `include_restricted=false` is the liquid scope. `pricing.split_net_worth_scope`
   is its only definition: it excludes each restricted or illiquid asset
-  valuation and each liability valuation whose allocation class (a fixed map
-  from the component type) is the class of an excluded asset. Only
-  `mortgage_balance` shares a class with an asset type (`real_estate`), so a
-  mortgage valuation leaves with an excluded property valuation
-  (AC-pricing.manualvaluation.12).
-- Limits of the rule (#2659): no record links one liability to one asset. A
-  ledger liability account, for example a mortgage kept as a loan account,
-  always counts. When one property valuation is excluded, every mortgage
-  valuation leaves, also the mortgage of a property valuation set to liquid.
-  The rule reads the valuations current on each as-of date, so a mortgage
-  valuation older than its property valuation counts until the property date.
+  valuation and each liability linked to an excluded asset (current or not yet
+  recorded on `as_of_date`), while keeping a liability whose financed asset is
+  liquid (`AC-pricing.manualvaluation.12`, #2659). `build_manual_valuation_lines`
+  and `build_manual_valuation_lines_series` apply the same asset-link exclusion
+  to ledger liability accounts, moving excluded ledger liabilities into
+  `excluded_holdings` and `net_worth_adjustment_gain_loss` so the balance sheet,
+  allocation schedule, and time-series stay equal and balanced (#2659).
 - A scoped response returns `excluded_holdings`: one row per excluded asset
   class with its excluded assets, excluded liabilities and net. Home, the
   Balance sheet tab and Portfolio label the figure "Liquid net worth" and list

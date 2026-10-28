@@ -705,3 +705,162 @@ def test_AC_reporting_net_worth_scope_22_main_shape_document_keeps_its_decision_
 
     assert document.model_dump(mode="json") == stored
     assert personal_report_package_decision_ref(document).target.version == MAIN_SHAPE_DECISION_VERSION
+
+
+async def test_issue_2659_case_1_ledger_liability_and_manual_property_valuation(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """#2659 Case 1: a ledger liability account linked to an excluded property leaves with it in the liquid scope."""
+    bank = Account(user_id=test_user.id, name="DBS Savings", type=AccountType.ASSET, currency="SGD")
+    loan = Account(user_id=test_user.id, name="Condo loan", type=AccountType.LIABILITY, currency="SGD")
+    opening = Account(user_id=test_user.id, name="Opening Balance", type=AccountType.EQUITY, currency="SGD")
+    db.add_all([bank, loan, opening])
+    await db.flush()
+
+    await _post(db, test_user.id, date(2025, 12, 1), "Opening cash", bank, opening, BANK_BALANCE)
+    await _post(db, test_user.id, date(2025, 12, 1), "Opening mortgage", opening, loan, MORTGAGE)
+    db.add(
+        ManualValuationSnapshot(
+            user_id=test_user.id,
+            component_type=ManualValuationComponentType.PROPERTY_VALUE,
+            liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
+            value=PROPERTY,
+            currency="SGD",
+            as_of_date=VALUATION_DATE,
+            source="Condo",
+        )
+    )
+    await db.commit()
+
+    liquid_worths = await _surface_net_worths(client, False)
+    assert liquid_worths == dict.fromkeys(liquid_worths, BANK_BALANCE)
+
+    sheet = await _get(
+        client, f"/reports/balance-sheet?as_of_date={AS_OF.isoformat()}&currency=SGD&include_restricted=false"
+    )
+    assert sheet["is_balanced"] is True
+    assert _money(sheet["total_assets"]) == BANK_BALANCE
+    assert _money(sheet["total_liabilities"]) == Decimal("0.00")
+    assert sheet["excluded_holdings"] == [
+        {
+            "asset_class": "real_estate",
+            "total_assets": "1200000.00",
+            "total_liabilities": "650000.00",
+            "net_worth": "550000.00",
+            "warnings": [],
+        }
+    ]
+
+
+async def test_issue_2659_case_2_mixed_liquidity_in_one_class(
+    client: AsyncClient,
+) -> None:
+    """#2659 Case 2: setting Property B to liquid via PATCH keeps Property B and Mortgage B while excluding A."""
+    for payload in (
+        {
+            "component_type": "property_value",
+            "as_of_date": "2026-09-30",
+            "value": "1000000.00",
+            "currency": "SGD",
+            "source": "Property A",
+        },
+        {
+            "component_type": "mortgage_balance",
+            "as_of_date": "2026-09-30",
+            "value": "400000.00",
+            "currency": "SGD",
+            "source": "Mortgage A",
+        },
+        {
+            "component_type": "property_value",
+            "as_of_date": "2026-09-30",
+            "value": "500000.00",
+            "currency": "SGD",
+            "source": "Property B",
+        },
+        {
+            "component_type": "mortgage_balance",
+            "as_of_date": "2026-09-30",
+            "value": "200000.00",
+            "currency": "SGD",
+            "source": "Mortgage B",
+        },
+    ):
+        resp = await client.post("/assets/valuation-snapshots", json=payload)
+        assert resp.status_code == 201
+        if payload["source"] == "Property B":
+            prop_b_id = resp.json()["id"]
+
+    patch_resp = await client.patch(
+        f"/assets/valuation-snapshots/{prop_b_id}",
+        json={"liquidity_class": "liquid"},
+    )
+    assert patch_resp.status_code == 200
+
+    sheet = await _get(
+        client, f"/reports/balance-sheet?as_of_date={AS_OF.isoformat()}&currency=SGD&include_restricted=false"
+    )
+    assert _money(sheet["total_assets"]) == Decimal("500000.00")
+    assert _money(sheet["total_liabilities"]) == Decimal("200000.00")
+    assert _money(sheet["total_assets"]) - _money(sheet["total_liabilities"]) == Decimal("300000.00")
+    assert sheet["is_balanced"] is True
+    assert sheet["excluded_holdings"] == [
+        {
+            "asset_class": "real_estate",
+            "total_assets": "1000000.00",
+            "total_liabilities": "400000.00",
+            "net_worth": "600000.00",
+            "warnings": [],
+        }
+    ]
+
+
+async def test_issue_2659_case_3_different_first_dates_for_mortgage_and_property(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """#2659 Case 3: a mortgage valuation dated 2026-01-31 with its illiquid property dated 2026-03-31 is excluded on all liquid series points."""
+    bank = Account(user_id=test_user.id, name="DBS Savings", type=AccountType.ASSET, currency="SGD")
+    opening = Account(user_id=test_user.id, name="Opening Balance", type=AccountType.EQUITY, currency="SGD")
+    db.add_all([bank, opening])
+    await db.flush()
+    await _post(db, test_user.id, date(2026, 1, 1), "Opening cash", bank, opening, BANK_BALANCE)
+    db.add_all(
+        [
+            ManualValuationSnapshot(
+                user_id=test_user.id,
+                component_type=ManualValuationComponentType.MORTGAGE_BALANCE,
+                liquidity_class=ManualValuationLiquidityClass.LIABILITY,
+                value=MORTGAGE,
+                currency="SGD",
+                as_of_date=date(2026, 1, 31),
+                source="Condo loan",
+            ),
+            ManualValuationSnapshot(
+                user_id=test_user.id,
+                component_type=ManualValuationComponentType.PROPERTY_VALUE,
+                liquidity_class=ManualValuationLiquidityClass.ILLIQUID,
+                value=PROPERTY,
+                currency="SGD",
+                as_of_date=date(2026, 3, 31),
+                source="Condo",
+            ),
+        ]
+    )
+    await db.commit()
+
+    series = await _get(
+        client,
+        "/reports/net-worth/timeseries?from=2026-01-01&to=2026-04-30&granularity=monthly&currency=SGD&include_restricted=false",
+    )
+    assert [
+        (point["date"], _money(point["total_liabilities"]), _money(point["net_worth"])) for point in series["points"]
+    ] == [
+        ("2026-01-31", Decimal("0.00"), BANK_BALANCE),
+        ("2026-02-28", Decimal("0.00"), BANK_BALANCE),
+        ("2026-03-31", Decimal("0.00"), BANK_BALANCE),
+        ("2026-04-30", Decimal("0.00"), BANK_BALANCE),
+    ]
