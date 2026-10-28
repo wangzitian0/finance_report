@@ -24,6 +24,7 @@ function setStatus(configured: boolean | null) {
 beforeEach(() => {
   mockedApiOperation.mockReset();
   refresh.mockReset();
+  window.localStorage.clear();
 });
 
 describe("FirstRunModal (EPIC-023 PR4)", () => {

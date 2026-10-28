@@ -159,7 +159,7 @@ export function ReportDimensionBar({
           </label>
         )}
       </div>
-      {filters.ready && filters.isDefaultPeriod && filters.opensAtCoverageStart && (
+      {filters.ready && filters.opensAtCoverageStart && (
         <p data-testid="report-coverage-note" className="text-xs text-muted">
           {coverageNote(filters.startDate, filters.coverageLimitingAccounts)}{" "}
           <Link href="/settings?tab=accounts" className="font-medium text-[var(--accent)] hover:underline">
@@ -168,16 +168,20 @@ export function ReportDimensionBar({
         </p>
       )}
       {filters.ready && filters.latestStatementEnd && (
-        <p data-testid="report-latest-statement-banner" className="text-xs text-muted">
-          {`Latest statement ends ${formatDateDisplay(filters.latestStatementEnd)}, before this period.`}{" "}
+        <div
+          data-testid="report-latest-statement-banner"
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-[var(--warning)]/40 bg-[var(--warning-muted)] px-3 py-2 text-xs text-[var(--foreground)]"
+        >
+          <span>{`Latest statement ends ${formatDateDisplay(filters.latestStatementEnd)}, before this period.`}</span>
           <button
             type="button"
             onClick={() => filters.goToPeriodEnd(filters.latestStatementEnd!)}
-            className="font-medium text-[var(--accent)] hover:underline"
+            className="rounded bg-[var(--warning)]/15 px-2.5 py-1 font-semibold text-[var(--warning)] hover:bg-[var(--warning)]/25"
           >
             {`Jump to ${formatDateDisplay(filters.latestStatementEnd)}`}
           </button>
-        </p>
+        </div>
       )}
     </div>
   );
@@ -222,13 +226,38 @@ export function FxWarningBanner({ warnings }: { warnings?: FxWarning[] }) {
 const DEFAULT_OPENING_MSG =
   "Activity is recorded without an opening balance, so account totals reflect only period movement, not your actual starting balances. Record opening balances to trust these totals.";
 
+function formatOpeningBalanceWarning(warning: FxWarning): string | null {
+  const account = warning.account_name?.trim() || warning.account?.trim();
+  const msg = warning.message?.trim();
+  if (account && msg) {
+    return msg.includes(account) ? msg : `${account}: ${msg}`;
+  }
+  if (account) {
+    return warning.earliest_activity_date
+      ? `${account} has no opening balance before ${warning.earliest_activity_date}.`
+      : `${account} has no opening balance recorded.`;
+  }
+  return msg || null;
+}
+
 export function OpeningBalanceWarningBanner({ warnings }: { warnings?: FxWarning[] }) {
   if (!warnings?.length) return null;
-  const message = warnings.find((w) => w.message)?.message ?? DEFAULT_OPENING_MSG;
+  const distinctMessages = Array.from(
+    new Set(warnings.map(formatOpeningBalanceWarning).filter((m): m is string => Boolean(m))),
+  );
+  const messages = distinctMessages.length > 0 ? distinctMessages : [DEFAULT_OPENING_MSG];
   return (
     <div role="alert" className="mb-6 rounded-md border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-4 text-sm">
       <p className="font-medium text-[var(--warning)]">Opening balances not recorded</p>
-      <p className="mt-1 text-muted">{message}</p>
+      {messages.length === 1 ? (
+        <p className="mt-1 text-muted">{messages[0]}</p>
+      ) : (
+        <ul className="mt-1 list-disc space-y-1 pl-5 text-muted">
+          {messages.map((msg) => (
+            <li key={msg}>{msg}</li>
+          ))}
+        </ul>
+      )}
       <Link href="/settings?tab=accounts" className="mt-2 inline-flex items-center gap-1 font-medium text-[var(--warning)] hover:underline">
         Set opening balances →
       </Link>
