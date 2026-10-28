@@ -52,6 +52,8 @@ describe("Issue #2762 responsive overflow and negative currency wrapping", () =>
     navigationState.searchParams = new URLSearchParams()
   })
 
+  // AC-reporting.fe-report-surfaces.11
+  // AC-reporting.2728.2
   it("renders BalanceSheetPanel negative currency amounts with whitespace-nowrap inside a shrink-0 wrapper and min-w-0 section cards", async () => {
     mockedApiOperation.mockImplementation(((operationId: string) => {
       if (operationId === "balance_sheet_reports_balance_sheet_get") {
@@ -150,6 +152,7 @@ describe("Issue #2762 responsive overflow and negative currency wrapping", () =>
     expect(equityTotalValue).toHaveClass("whitespace-nowrap", "shrink-0")
   })
 
+  // AC-portfolio.fe-ia-portfolio.1
   it("enforces min-w-0 and responsive column containment on HoldingsTable", () => {
     const holding: PortfolioHolding = {
       id: "h-2762",
@@ -191,6 +194,7 @@ describe("Issue #2762 responsive overflow and negative currency wrapping", () =>
     expect(marketValueCell).toHaveClass("whitespace-nowrap", "tabular-nums")
   })
 
+  // AC-reconciliation.fe-remainder-reconciliation.1
   it("enforces min-w-0 and whitespace-nowrap shrink-0 amounts on UnmatchedBoard", async () => {
     mockedApiOperation
       .mockResolvedValueOnce({
