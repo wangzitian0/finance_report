@@ -177,13 +177,8 @@ def _extract_ac_definition(
     return ac_id, ac_epic, desc, tier, proof_kind, residue
 
 
-_HEADING_AC_PATTERN = re.compile(r"^#{2,6}\s+(AC\d+\.\d+)\b")
-
-
 def _epic_files(epic_dir: str | Path | None = None) -> list[Path]:
     source_dir = Path(epic_dir or EPIC_DIR)
-    if not source_dir.exists():
-        return []
     return [
         source_dir / f
         for f in sorted(os.listdir(source_dir))
@@ -191,32 +186,6 @@ def _epic_files(epic_dir: str | Path | None = None) -> list[Path]:
         and "IMPLEMENTATION" not in f
         and "ENCODING" not in f
     ]
-
-
-def find_ac_collisions(
-    epic_dir: str | Path | None = None,
-) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
-    """Find AC identity collisions in EPIC docs."""
-    def_locations: dict[str, list[str]] = {}
-    heading_locations: dict[str, list[str]] = {}
-    for path in _epic_files(epic_dir):
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                stripped = line.strip()
-                heading = _HEADING_AC_PATTERN.match(stripped)
-                if heading:
-                    heading_locations.setdefault(
-                        f"{path.name}:{heading.group(1)}", []
-                    ).append(path.name)
-                    continue
-                if not stripped.startswith("|"):
-                    continue
-                cells = [cell.strip() for cell in stripped.strip("|").split("|")]
-                if cells and AC_PATTERN.fullmatch(cells[0]):
-                    def_locations.setdefault(cells[0], []).append(path.name)
-    duplicate_definitions = {k: v for k, v in def_locations.items() if len(v) > 1}
-    duplicate_headings = {k: v for k, v in heading_locations.items() if len(v) > 1}
-    return duplicate_definitions, duplicate_headings
 
 
 def _repo_root_for(source_dir: Path) -> Path:
@@ -430,43 +399,20 @@ def extract_acs(
 
 
 def build_registry_entries(
-    existing_acs: dict[str, dict] | str | Path | None = None,
+    existing_acs: dict[str, dict] | None = None,
     epic_source: str | Path | None = None,
 ) -> dict[str, dict]:
     """Return the complete current registry from in-memory EPIC residue and package roadmaps."""
-    if isinstance(existing_acs, (str, Path)):
-        epic_source = existing_acs
-        existing_acs = None
     extracted = extract_acs(existing_acs=existing_acs, epic_dir=epic_source)
     return dict(sorted(extracted.items(), key=lambda item: sort_key(item[0])))
 
 
 def iter_registry_entries(payload: dict[str, Any]) -> Iterable[dict[str, Any]]:
-    """Yield registry entries from a grouped ACx -> ACx.y registry payload."""
+    """Yield registry entries from the grouped ACx -> ACx.y registry payload."""
     groups = payload.get("groups") or {}
     for _epic_key, scenario_groups in groups.items():
-        if not isinstance(scenario_groups, dict):
-            continue
-        if isinstance(scenario_groups.get("acs"), dict):
-            epic_num = int(_epic_key) if str(_epic_key).isdigit() else 0
-            epic_name = str(scenario_groups.get("epic_name", ""))
-            for ac_id, body in scenario_groups["acs"].items():
-                body_map = dict(body) if isinstance(body, dict) else {}
-                entry: dict[str, Any] = {
-                    "id": str(ac_id),
-                    "epic": epic_num,
-                    "epic_name": epic_name,
-                    "description": str(body_map.get("description", "")),
-                    "mandatory": bool(body_map.get("mandatory", True)),
-                }
-                for extra in ("status", "tier", "proof_kind"):
-                    if extra in body_map:
-                        entry[extra] = body_map[extra]
-                yield entry
-            continue
-        for _scenario_key, entries in scenario_groups.items():
-            if isinstance(entries, list):
-                yield from (dict(entry) for entry in entries if isinstance(entry, dict))
+        for _scenario_key, entries in (scenario_groups or {}).items():
+            yield from (dict(entry) for entry in entries or [])
 
 
 def load_registry_entries(path: Path) -> list[dict[str, Any]]:
@@ -485,20 +431,7 @@ def load_registry_entries(path: Path) -> list[dict[str, Any]]:
         return [by_id[ac_id] for ac_id in sorted(by_id, key=sort_key)]
 
     payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    if payload.get("generated_from_epics"):
-        epic_src = payload.get("epic_source")
-        source_path = Path(epic_src) if epic_src else project_dir
-        for ac_id, source in build_registry_entries(epic_source=source_path).items():
-            entry = dict(source)
-            entry["id"] = ac_id
-            entry["mandatory"] = bool(entry.get("mandatory", True))
-            by_id[ac_id] = entry
-    elif isinstance(payload.get("acs"), list):
-        for entry in payload["acs"]:
-            if isinstance(entry, dict) and "id" in entry:
-                by_id[str(entry["id"])] = dict(entry)
-    else:
-        for entry in iter_registry_entries(payload):
-            if "id" in entry:
-                by_id[str(entry["id"])] = dict(entry)
+    for entry in iter_registry_entries(payload):
+        if "id" in entry:
+            by_id[str(entry["id"])] = dict(entry)
     return [by_id[ac_id] for ac_id in sorted(by_id, key=sort_key)]
