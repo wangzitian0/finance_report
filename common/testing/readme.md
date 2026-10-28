@@ -62,6 +62,10 @@ The testing architecture strictly separates accounting mathematical verification
 from deployed user journeys (#2318, #2370):
 1. **Bench V2**: Pure accounting mathematical assertions and multi-period invariant
    checks ($\Delta = 0.00$ SGD), driven by `common/meta/flows/thirty_flows_ssot.json`.
+   Fixture SHA-256 pins live in `common/testing/fixtures/benchmarks/manifest.yaml`
+   (synced via `tools/sync_benchmark_fixtures.py`). Synthetic CSV generators in
+   `common/testing/benchmarks/statement_generators.py` keep a zero-orphan contract with
+   `cases/case_1.py`..`case_6.py`, executed via `tools/run_financial_scenario_benchmark.py`.
    It runs no multi-step user journey. Its only browser step is the read-only route
    check of Pillars 2 and 3 (`case_ui`): each route must load, log no console error,
    and show no developer jargon (`AC-testing.benchmarks.3`).

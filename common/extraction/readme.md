@@ -632,11 +632,14 @@ Routing after parsing depends on the document class, on purpose (#981):
   - **Balance valid + confidence < 60** → `uploaded` (genuinely low-signal parse → manual entry).
   - CSV exports without source statement balances take the inferred-balance path
     (`has_inferred_csv_balances`), which forces `parsed`/review with `balance_valid = False`.
+    CSV exports with declared balances that do not reconcile also land in `parsed` (review)
+    with `balance_validated = False` and are blocked at Stage-1 approval (#2504,
+    `AC-extraction.2504.1`), rather than being quarantined to `rejected`.
 - **Brokerage statements** always route to `parsed` (review) regardless of `balance_valid`,
   because they reconcile via `AtomicPosition` position snapshots rather than a running-balance
   chain — `balance_valid` is not a meaningful gating signal for them.
 
-So the "balance invalid" outcome now lands **both** a (non-CSV) bank statement and a brokerage
+So the "balance invalid" outcome now lands **both** a bank statement and a brokerage
 statement in `parsed`/review — a single deterministic, reviewable terminal state (#1141, folding
 #1085). `uploaded` is reserved for genuinely low-signal valid-balance parses, not for
 parsed-but-unreconciled statements. Owner: `ExtractionService` status selection
@@ -745,7 +748,7 @@ Persistence checkpoints use the actual canonical statement/source identities.
   running-balance chain fails to reconcile, `_extract_with_balance_retry`
   re-extracts up to `AI_EXTRACT_MAX_ATTEMPTS` times (each with a varied seed —
   configured seed, then +1, +2 …) and keeps the first parse that reconciles before
-  routing to `uploaded` (#989 Step B). Brokerage payloads are never retried; if no
+  routing to `parsed`/review (#989 Step B, updated by #1141). Brokerage payloads are never retried; if no
   attempt reconciles, the smallest-difference result is kept so routing is
   unchanged. Only failing parses retry, so average cost is bounded; set
   `AI_EXTRACT_MAX_ATTEMPTS=1` to disable.

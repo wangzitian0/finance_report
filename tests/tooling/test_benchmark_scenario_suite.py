@@ -1168,3 +1168,14 @@ def test_runner_flow_7_19_24_hardening_helpers_and_failure_branches() -> None:
         RuntimeError, match="Expected brokerage CSV statement status 'parsed'"
     ):
         case_5._import_brokerage_and_update_prices(bad_c5_runner, mock_client)
+
+
+def test_ssot_benchmark_and_storage_doc_convergence() -> None:
+    """Guard against duplicate benchmark README and stale storage/extraction doc drift."""
+    assert not (REPO_ROOT / "common/testing/fixtures/benchmarks/README.md").exists()
+    assert "**MinIO** (Prod)" not in (
+        REPO_ROOT / "common/runtime/environments.md"
+    ).read_text(encoding="utf-8")
+    assert "before routing to `uploaded`" not in (
+        REPO_ROOT / "common/extraction/readme.md"
+    ).read_text(encoding="utf-8")

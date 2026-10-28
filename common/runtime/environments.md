@@ -112,7 +112,7 @@ PR validation:
   images to that retained release tag, then staging deploys it via `deploy_v2`.
 - Deployed to Dokploy **manually** via `deploy.yml` (`workflow_dispatch`); it does **not** auto-follow push to main. CI is the development quality gate, not a staging deploy trigger.
 - Persistent data, stable environment for QA
-- Uses dedicated DB/Redis + shared Platform (the observability backend, MinIO with bucket isolation)
+- Uses dedicated DB/Redis + shared Platform (the observability backend, the S3 object store with bucket isolation)
 
 **Production** — Manual release process:
 - **Image deployment**: Built from version tags (`v1.2.3`)
@@ -158,12 +158,12 @@ PR validation:
 
 ## Shared Platform Resources
 
-The production Platform layer (the observability backend, MinIO, Traefik) runs as **Singleton** services.  Staging uses **logical isolation**:
+The production Platform layer (the observability backend, the S3 object store, Traefik) runs as **Singleton** services.  Staging uses **logical isolation**:
 
 | Service | Scope | Isolation Method | Example |
 |---------|-------|------------------|---------|
 | **the observability backend** | Singleton | infra2-owned telemetry identity (see below) | — |
-| **MinIO** (Prod) | Singleton | Separate buckets | `finance-report-staging`, `finance-report-production` |
+| **the S3 object store** (Prod) | Singleton | Separate buckets (infra2-owned) | `finance-report-staging`, `finance-report-production` |
 | **Postgres** | Dedicated | Separate containers/instances | One per environment |
 | **Redis** | Dedicated | Separate containers/instances | One per environment |
 
