@@ -276,7 +276,7 @@ async def test_AC_workflow_sync_4_fingerprint_changes_only_with_an_input(
             summary="Ready",
             source_type="report_package",
             source_id=uuid4(),
-            action_href="/reports/package",
+            action_href="/reports?tab=package",
             dedupe_key="excluded-table-probe",
         )
     )

@@ -203,7 +203,7 @@ def test_AC_advisor_context_5_suggestion_rules_read_only_reconciliation_summary_
         "readiness": {
             "state": "blocked",
             "label": "Blocked",
-            "action_href": "/reports/package",
+            "action_href": "/reports?tab=package",
             "blocking_count": 2,
             "blockers": [{"code": "cash_identity_missing"}],
             "input_coverage": {},

@@ -244,10 +244,10 @@ from poisoning the outer transaction and cascading 500s.
 
 ```text
 /statements/{statement_id}
-/review
+/audit
 /reconciliation?tab=review-queue
 /reconciliation?tab=unmatched
-/reports/package
+/reports?tab=package
 ```
 
 Invalid examples:
@@ -288,7 +288,7 @@ PATCH /workflow/events/{event_id}
   `open_report`, or `none`, plus a count, internal route, cockpit label, and
   cockpit summary.
 - `report_readiness`: `none`, `processing`, `ready`, `blocked`, or `stale`,
-  plus a blocking count and `/reports/package` route.
+  plus a blocking count and `/reports?tab=package` route.
 - `event_counts`: unread, action-required, and blocked counts.
 - `active_session`: current active workflow session summary, or null when no
   workflow state exists.
@@ -392,8 +392,8 @@ Next-action routing rules of the workflow status:
 
 - Upload is the default label only when no higher-priority blocker or
   action-required state wins the workflow priority.
-- Processing actions route to `/events` so the user sees session history rather
-  than a raw statement list. Ready actions route directly to `/reports/package`.
+- Processing actions route to `/upload` so the user sees session history rather
+  than a raw statement list. Ready actions route directly to `/reports?tab=package`.
 
 ---
 

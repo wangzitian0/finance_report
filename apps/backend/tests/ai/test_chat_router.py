@@ -55,7 +55,7 @@ async def test_AC21_3_1_chat_suggestions_include_structured_advisor_facts() -> N
         "confidence_tier": "blocked",
         "source_refs": ["workflow.status", "report_package.readiness"],
         "limitation": "The report should not be treated as final until review is complete.",
-        "next_action_href": "/reports/package",
+        "next_action_href": "/reports?tab=package",
     }
     mock_db = MagicMock()
     mock_user_id = uuid4()
@@ -74,7 +74,7 @@ async def test_AC21_3_1_chat_suggestions_include_structured_advisor_facts() -> N
     assert structured.confidence_tier == "blocked"
     assert structured.source_refs == ["workflow.status", "report_package.readiness"]
     assert structured.limitation == advisor_fact["limitation"]
-    assert structured.next_action_href == "/reports/package"
+    assert structured.next_action_href == "/reports?tab=package"
     mock_service.get_advisor_suggestions.assert_awaited_once_with(mock_db, mock_user_id)
 
 
@@ -267,7 +267,7 @@ async def test_AC22_14_1_chat_response_exposes_grounding_metadata_header() -> No
                 "label": "Balance Sheet",
                 "source_ref": "balance_sheet.total_equity",
                 "confidence_tier": "TRUSTED",
-                "href": "/reports/balance-sheet",
+                "href": "/reports?tab=balance-sheet",
             }
         ],
         "actions": [

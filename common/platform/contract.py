@@ -340,7 +340,7 @@ CONTRACT = PackageContract(
         # unified notification inbox (was EPIC-022 AC22.2.2/.5/AC22.4.1,
         # migration closeout continuation, #1663 / #1712); the frontend
         # halves stay in EPIC-022 ──
-        ac('AC-platform.36.1', "A Stage 1 review-required workflow event deep-links to that statement's review page (/statements/{id}/review). Was EPIC-022 AC22.2.2.", 'apps/backend/tests/workflow/test_workflow_events.py::test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved', priority='P1'),
+        ac('AC-platform.36.1', "A Stage 1 review-required workflow event deep-links to that statement's detail page (/statements/{id}). Was EPIC-022 AC22.2.2.", 'apps/backend/tests/workflow/test_workflow_events.py::test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved', priority='P1'),
         ac('AC-platform.36.2', 'Review-required events are deduplicated by (user, dedupe_key) so re-syncing the same statement does not duplicate the inbox card. Was EPIC-022 AC22.2.5.', 'apps/backend/tests/workflow/test_workflow_events.py::test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_preserved', priority='P1'),
         ac('AC-platform.36.3', 'A user with pending Stage 2 reconciliation matches gets a reconciliation-review attention event in the workflow inbox that deep-links to /reconciliation?tab=review-queue (proven from match state through to event). Was EPIC-022 AC22.4.1.', 'apps/backend/tests/workflow/test_workflow_events.py::test_AC22_4_1_pending_stage2_match_surfaces_reconciliation_review_event', priority='P1'),
         # ── Wave B (#1821): frontend-proof rows migrated from EPIC-022

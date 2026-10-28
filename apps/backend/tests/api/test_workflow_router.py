@@ -235,11 +235,11 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     assert empty["next_action"] == _next_action(
         "upload",
         count=0,
-        href="/statements/upload",
+        href="/upload",
         label="Upload statements",
         summary="Add source documents to start the upload-to-report workflow.",
     )
-    assert empty["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
+    assert empty["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports?tab=package"}
     assert empty["event_counts"] == {"unread": 0, "action_required": 0, "blocked": 0}
     assert empty["active_session"] is None
 
@@ -256,11 +256,11 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     assert processing["next_action"] == _next_action(
         "wait",
         count=1,
-        href="/events",
+        href="/upload",
         label="View processing",
         summary="Automation is processing source files; open the session timeline for progress.",
     )
-    assert processing["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
+    assert processing["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports?tab=package"}
     assert processing["event_counts"] == {"unread": 1, "action_required": 0, "blocked": 0}
     assert processing["active_session"]["title"] == "Upload-to-report session"
     assert processing["active_session"]["source_count"] == 1
@@ -286,7 +286,7 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
         label="Review required",
         summary="Confirm the source or review item so trusted report preparation can continue.",
     )
-    assert needs_action["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
+    assert needs_action["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports?tab=package"}
     assert needs_action["event_counts"] == {"unread": 2, "action_required": 1, "blocked": 0}
 
     await _create_event(
@@ -309,7 +309,7 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
         label="Resolve blocker",
         summary="Resolve the blocking condition before the report package can be trusted.",
     )
-    assert blocked["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
+    assert blocked["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports?tab=package"}
     assert blocked["event_counts"] == {"unread": 3, "action_required": 1, "blocked": 1}
 
     unproven_user = User(email=f"unproven-{uuid4()}@example.com", hashed_password="hashed")
@@ -345,11 +345,11 @@ async def test_AC19_2_2_workflow_status_endpoint_returns_priority_summaries(
     assert unproven["next_action"] == _next_action(
         "resolve_blocker",
         count=5,
-        href="/reports/package",
+        href="/reports?tab=package",
         label="Resolve blocker",
         summary="Resolve the blocking condition before the report package can be trusted.",
     )
-    assert unproven["report_readiness"] == {"state": "blocked", "blocking_count": 5, "href": "/reports/package"}
+    assert unproven["report_readiness"] == {"state": "blocked", "blocking_count": 5, "href": "/reports?tab=package"}
     assert unproven["event_counts"] == {"unread": 4, "action_required": 0, "blocked": 3}
 
 
@@ -368,17 +368,17 @@ async def test_AC19_2_2_workflow_status_consumes_package_readiness_fact_source(
     await db.commit()
 
     ready = await _get_as_user(public_client, test_user.id, "/workflow/status")
-    assert ready["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
+    assert ready["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports?tab=package"}
 
     await _report_snapshot(db, test_user.id, updated_at=datetime(2026, 5, 2, tzinfo=UTC))
     await db.commit()
     generated = await _get_as_user(public_client, test_user.id, "/workflow/status")
-    assert generated["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
+    assert generated["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports?tab=package"}
 
     statement.updated_at = datetime(2026, 5, 3, tzinfo=UTC)
     await db.commit()
     stale = await _get_as_user(public_client, test_user.id, "/workflow/status")
-    assert stale["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
+    assert stale["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports?tab=package"}
 
     blocked_user = User(email=f"package-blocked-{uuid4()}@example.com", hashed_password="hashed")
     db.add(blocked_user)
@@ -401,11 +401,11 @@ async def test_AC19_2_2_workflow_status_consumes_package_readiness_fact_source(
     assert blocked["next_action"] == _next_action(
         "review_required",
         count=1,
-        href=f"/statements/{blocked_statement.id}/review",
+        href=f"/statements/{blocked_statement.id}",
         label="Review required",
         summary="Confirm the source or review item so trusted report preparation can continue.",
     )
-    assert blocked["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports/package"}
+    assert blocked["report_readiness"] == {"state": "none", "blocking_count": 0, "href": "/reports?tab=package"}
     assert blocked["event_counts"] == {"unread": 2, "action_required": 1, "blocked": 0}
 
 
@@ -447,7 +447,7 @@ async def test_AC19_2_3_workflow_events_endpoint_lists_bounded_user_events(
         family=WorkflowEventFamily.REVIEW_REQUIRED,
         severity=WorkflowEventSeverity.ACTION_REQUIRED,
         report_impact=WorkflowReportImpact.BLOCKED,
-        action_href="/review",
+        action_href="/audit",
         title="Newer active event",
         occurred_at=now - timedelta(minutes=1),
     )
@@ -502,7 +502,7 @@ async def test_AC19_2_4_workflow_event_patch_is_user_scoped(
         family=WorkflowEventFamily.REVIEW_REQUIRED,
         severity=WorkflowEventSeverity.ACTION_REQUIRED,
         report_impact=WorkflowReportImpact.BLOCKED,
-        action_href="/review",
+        action_href="/audit",
         title="Patch owned event",
     )
     await db.commit()

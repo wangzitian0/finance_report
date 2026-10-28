@@ -78,8 +78,8 @@ DISPOSITIONS = {
 }
 # The citations that tie the answer to the two reports of the oracle.
 REPORT_CITATIONS = {
-    "balance_sheet.total_equity": "/reports/balance-sheet",
-    "income_statement.current_month": "/reports/income-statement",
+    "balance_sheet.total_equity": "/reports?tab=balance-sheet",
+    "income_statement.current_month": "/reports?tab=income-statement",
 }
 
 

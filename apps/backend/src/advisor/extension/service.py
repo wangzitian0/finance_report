@@ -474,7 +474,7 @@ class AIAdvisorService:
             return {
                 "state": "draft",
                 "label": "Unavailable",
-                "action_href": "/reports/package",
+                "action_href": "/reports?tab=package",
                 "blocking_count": 0,
                 "blockers": [],
                 "input_coverage": {
@@ -505,7 +505,7 @@ class AIAdvisorService:
                 "next_action": {
                     "type": "upload",
                     "count": 0,
-                    "href": "/statements/upload",
+                    "href": "/upload",
                     "label": "Upload statements",
                     "summary": "Add source documents to start the workflow.",
                 },
@@ -559,7 +559,7 @@ class AIAdvisorService:
             "trusted": readiness.get("document_status") == "trusted",
             "blocking_count": int(readiness.get("blocking_count") or 0),
             "blockers": readiness.get("blockers", []),
-            "action_href": readiness.get("action_href", "/reports/package"),
+            "action_href": readiness.get("action_href", "/reports?tab=package"),
             "generated_at": readiness.get("generated_at"),
             "stale_since": readiness.get("stale_since"),
         }
@@ -602,7 +602,7 @@ class AIAdvisorService:
                     confidence_tier="review_required",
                     source_refs=["workflow"],
                     limitation="Pending review items may affect report readiness and advisory conclusions.",
-                    next_action_href=str(next_action.get("href") or "/review"),
+                    next_action_href=str(next_action.get("href") or "/audit"),
                 )
             )
 
@@ -699,7 +699,7 @@ class AIAdvisorService:
                 "Balance Sheet",
                 "balance_sheet.total_equity",
                 context.get("balance_sheet_confidence_tier"),
-                "/reports/balance-sheet",
+                "/reports?tab=balance-sheet",
             )
 
         if asks_cash_flow or pending_review:
@@ -707,7 +707,7 @@ class AIAdvisorService:
                 "Income Statement",
                 "income_statement.current_month",
                 context.get("income_statement_confidence_tier"),
-                "/reports/income-statement",
+                "/reports?tab=income-statement",
             )
 
         if pending_review:
@@ -770,7 +770,10 @@ class AIAdvisorService:
     def _safe_chat_href(self, href: str) -> str:
         trimmed = href.strip()
         for route in CHAT_METADATA_SAFE_HREFS:
-            if trimmed == route or trimmed.startswith(f"{route}?") or trimmed.startswith(f"{route}#"):
+            if "?" in route:
+                if trimmed == route or trimmed.startswith(f"{route}&") or trimmed.startswith(f"{route}#"):
+                    return route
+            elif trimmed == route or trimmed.startswith(f"{route}?") or trimmed.startswith(f"{route}#"):
                 return route
         return "/"
 

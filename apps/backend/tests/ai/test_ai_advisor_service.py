@@ -366,7 +366,7 @@ async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_su
             "package_id": "personal-financial-report-package",
             "state": "blocked",
             "label": "Blocked",
-            "action_href": "/review",
+            "action_href": "/audit",
             "blocking_count": 2,
             "blockers": [
                 {
@@ -375,7 +375,7 @@ async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_su
                     "severity": "blocking",
                     "count": 2,
                     "reason": "Review required.",
-                    "action_href": "/review",
+                    "action_href": "/audit",
                 }
             ],
             "input_coverage": {
@@ -396,14 +396,14 @@ async def test_AC21_2_1_advisor_context_includes_readiness_trust_workflow_and_su
             next_action=WorkflowNextActionResponse(
                 type=WorkflowNextActionType.REVIEW_REQUIRED,
                 count=2,
-                href="/review",
+                href="/audit",
                 label="Review required",
                 summary="Confirm pending source review items.",
             ),
             report_readiness=WorkflowReportReadinessResponse(
                 state=WorkflowReportReadinessState.BLOCKED,
                 blocking_count=2,
-                href="/reports/package",
+                href="/reports?tab=package",
             ),
             event_counts=WorkflowEventCountsResponse(unread=1, action_required=2, blocked=0),
             active_session=None,
@@ -629,6 +629,12 @@ def test_AC22_14_3_chat_grounding_metadata_links_pending_review_without_write_ac
             "count": 2,
         }
     ]
+    assert service._safe_chat_href("/reports?tab=balance-sheet&currency=SGD") == "/reports?tab=balance-sheet"
+    assert service._safe_chat_href("/reports?tab=package#readiness") == "/reports?tab=package"
+    assert service._safe_chat_href("/reconciliation?tab=review-queue&limit=10") == "/reconciliation?tab=review-queue"
+    assert service._safe_chat_href("/reconciliation?tab=review-queue?evil=1") == "/"
+    assert service._safe_chat_href("/audit?tab=needs-you") == "/audit"
+    assert service._safe_chat_href("/reports/package") == "/"
 
 
 @pytest.mark.no_db

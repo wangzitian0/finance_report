@@ -93,10 +93,10 @@ def build_review_required_event_payload(statement: StatementEventSource, filenam
         severity=WorkflowEventSeverity.ACTION_REQUIRED,
         title="Source review required",
         summary=f"{filename} needs source review before report readiness can advance.",
-        # Deep-link straight to this statement's review surface (EPIC-022 PR2):
+        # Deep-link straight to this statement's detail surface (#2631):
         # the standalone Review Queue page is gone; the notification card is the
         # entry point, so it must point at the specific item to review.
-        action_href=f"/statements/{statement.id}/review",
+        action_href=f"/statements/{statement.id}",
         report_impact=WorkflowReportImpact.BLOCKED,
     )
 

@@ -356,7 +356,7 @@ def _package_document(
         "package_id": "personal-financial-report-package",
         "state": readiness_state,
         "label": readiness_state.title(),
-        "action_href": "/reports/package",
+        "action_href": "/reports?tab=package",
         "blocking_count": blocking_count,
         "blockers": [],
         "input_coverage": {"manifest_decision_count": 1, "authoritative_input_count": 1, "unproven_input_count": 0},

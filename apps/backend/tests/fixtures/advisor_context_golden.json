@@ -57,10 +57,10 @@
     "total_market_value": "0.00"
    },
    "report_readiness": {
-    "action_href": "/reports/package",
+    "action_href": "/reports?tab=package",
     "blockers": [
      {
-      "action_href": "/reports/package",
+      "action_href": "/reports?tab=package",
       "code": "cash_identity_missing",
       "count": 1,
       "label": "Package section invariant failed",
@@ -68,7 +68,7 @@
       "severity": "blocking"
      },
      {
-      "action_href": "/reports/package",
+      "action_href": "/reports?tab=package",
       "code": "cash_balance_input_missing",
       "count": 1,
       "label": "Package section invariant failed",
@@ -89,7 +89,7 @@
      "basis": "Report readiness is blocked with 2 blocker(s).",
      "confidence_tier": "blocked",
      "limitation": "Do not describe the report package as trusted until blockers are resolved.",
-     "next_action_href": "/reports/package",
+     "next_action_href": "/reports?tab=package",
      "source_refs": [
       "report_readiness",
       "authority_coverage"
@@ -99,7 +99,7 @@
      "basis": "Workflow has 1 action-required event(s).",
      "confidence_tier": "review_required",
      "limitation": "Pending review items may affect report readiness and advisory conclusions.",
-     "next_action_href": "/reports/package",
+     "next_action_href": "/reports?tab=package",
      "source_refs": [
       "workflow"
      ]
@@ -137,7 +137,7 @@
      "report_href": null,
      "report_readiness": {
       "blocking_count": 2,
-      "href": "/reports/package",
+      "href": "/reports?tab=package",
       "state": "blocked"
      },
      "source_count": 7,
@@ -153,7 +153,7 @@
     },
     "next_action": {
      "count": 3,
-     "href": "/reports/package",
+     "href": "/reports?tab=package",
      "label": "Resolve blocker",
      "summary": "Resolve the blocking condition before the report package can be trusted.",
      "type": "resolve_blocker"
@@ -161,7 +161,7 @@
     "primary_state": "blocked",
     "report_readiness": {
      "blocking_count": 2,
-     "href": "/reports/package",
+     "href": "/reports?tab=package",
      "state": "blocked"
     }
    }
@@ -224,10 +224,10 @@
      "total_market_value": "0.00"
     },
     "report_readiness": {
-     "action_href": "/reports/package",
+     "action_href": "/reports?tab=package",
      "blockers": [
       {
-       "action_href": "/reports/package",
+       "action_href": "/reports?tab=package",
        "code": "cash_identity_missing",
        "count": 1,
        "label": "Package section invariant failed",
@@ -235,7 +235,7 @@
        "severity": "blocking"
       },
       {
-       "action_href": "/reports/package",
+       "action_href": "/reports?tab=package",
        "code": "cash_balance_input_missing",
        "count": 1,
        "label": "Package section invariant failed",
@@ -256,7 +256,7 @@
       "basis": "Report readiness is blocked with 2 blocker(s).",
       "confidence_tier": "blocked",
       "limitation": "Do not describe the report package as trusted until blockers are resolved.",
-      "next_action_href": "/reports/package",
+      "next_action_href": "/reports?tab=package",
       "source_refs": [
        "report_readiness",
        "authority_coverage"
@@ -266,7 +266,7 @@
       "basis": "Workflow has 1 action-required event(s).",
       "confidence_tier": "review_required",
       "limitation": "Pending review items may affect report readiness and advisory conclusions.",
-      "next_action_href": "/reports/package",
+      "next_action_href": "/reports?tab=package",
       "source_refs": [
        "workflow"
       ]
@@ -304,7 +304,7 @@
       "report_href": null,
       "report_readiness": {
        "blocking_count": 2,
-       "href": "/reports/package",
+       "href": "/reports?tab=package",
        "state": "blocked"
       },
       "source_count": 7,
@@ -320,7 +320,7 @@
      },
      "next_action": {
       "count": 3,
-      "href": "/reports/package",
+      "href": "/reports?tab=package",
       "label": "Resolve blocker",
       "summary": "Resolve the blocking condition before the report package can be trusted.",
       "type": "resolve_blocker"
@@ -328,7 +328,7 @@
      "primary_state": "blocked",
      "report_readiness": {
       "blocking_count": 2,
-      "href": "/reports/package",
+      "href": "/reports?tab=package",
       "state": "blocked"
      }
     }
@@ -408,10 +408,10 @@
     "total_market_value": "0.00"
    },
    "report_readiness": {
-    "action_href": "/reports/package",
+    "action_href": "/reports?tab=package",
     "blockers": [
      {
-      "action_href": "/reports/package",
+      "action_href": "/reports?tab=package",
       "code": "cash_identity_missing",
       "count": 1,
       "label": "Package section invariant failed",
@@ -419,7 +419,7 @@
       "severity": "blocking"
      },
      {
-      "action_href": "/reports/package",
+      "action_href": "/reports?tab=package",
       "code": "cash_balance_input_missing",
       "count": 1,
       "label": "Package section invariant failed",
@@ -440,7 +440,7 @@
      "basis": "Report readiness is blocked with 2 blocker(s).",
      "confidence_tier": "blocked",
      "limitation": "Do not describe the report package as trusted until blockers are resolved.",
-     "next_action_href": "/reports/package",
+     "next_action_href": "/reports?tab=package",
      "source_refs": [
       "report_readiness",
       "authority_coverage"
@@ -450,7 +450,7 @@
      "basis": "Workflow has 1 action-required event(s).",
      "confidence_tier": "review_required",
      "limitation": "Pending review items may affect report readiness and advisory conclusions.",
-     "next_action_href": "/reports/package",
+     "next_action_href": "/reports?tab=package",
      "source_refs": [
       "workflow"
      ]
@@ -488,7 +488,7 @@
      "report_href": null,
      "report_readiness": {
       "blocking_count": 2,
-      "href": "/reports/package",
+      "href": "/reports?tab=package",
       "state": "blocked"
      },
      "source_count": 7,
@@ -504,7 +504,7 @@
     },
     "next_action": {
      "count": 3,
-     "href": "/reports/package",
+     "href": "/reports?tab=package",
      "label": "Resolve blocker",
      "summary": "Resolve the blocking condition before the report package can be trusted.",
      "type": "resolve_blocker"
@@ -512,7 +512,7 @@
     "primary_state": "blocked",
     "report_readiness": {
      "blocking_count": 2,
-     "href": "/reports/package",
+     "href": "/reports?tab=package",
      "state": "blocked"
     }
    }
@@ -575,10 +575,10 @@
      "total_market_value": "0.00"
     },
     "report_readiness": {
-     "action_href": "/reports/package",
+     "action_href": "/reports?tab=package",
      "blockers": [
       {
-       "action_href": "/reports/package",
+       "action_href": "/reports?tab=package",
        "code": "cash_identity_missing",
        "count": 1,
        "label": "Package section invariant failed",
@@ -586,7 +586,7 @@
        "severity": "blocking"
       },
       {
-       "action_href": "/reports/package",
+       "action_href": "/reports?tab=package",
        "code": "cash_balance_input_missing",
        "count": 1,
        "label": "Package section invariant failed",
@@ -607,7 +607,7 @@
       "basis": "Report readiness is blocked with 2 blocker(s).",
       "confidence_tier": "blocked",
       "limitation": "Do not describe the report package as trusted until blockers are resolved.",
-      "next_action_href": "/reports/package",
+      "next_action_href": "/reports?tab=package",
       "source_refs": [
        "report_readiness",
        "authority_coverage"
@@ -617,7 +617,7 @@
       "basis": "Workflow has 1 action-required event(s).",
       "confidence_tier": "review_required",
       "limitation": "Pending review items may affect report readiness and advisory conclusions.",
-      "next_action_href": "/reports/package",
+      "next_action_href": "/reports?tab=package",
       "source_refs": [
        "workflow"
       ]
@@ -655,7 +655,7 @@
       "report_href": null,
       "report_readiness": {
        "blocking_count": 2,
-       "href": "/reports/package",
+       "href": "/reports?tab=package",
        "state": "blocked"
       },
       "source_count": 7,
@@ -671,7 +671,7 @@
      },
      "next_action": {
       "count": 3,
-      "href": "/reports/package",
+      "href": "/reports?tab=package",
       "label": "Resolve blocker",
       "summary": "Resolve the blocking condition before the report package can be trusted.",
       "type": "resolve_blocker"
@@ -679,7 +679,7 @@
      "primary_state": "blocked",
      "report_readiness": {
       "blocking_count": 2,
-      "href": "/reports/package",
+      "href": "/reports?tab=package",
       "state": "blocked"
      }
     }
