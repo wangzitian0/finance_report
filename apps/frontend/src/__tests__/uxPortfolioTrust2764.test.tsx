@@ -55,7 +55,9 @@ describe("Issue #2764 portfolio valuation provenance, donut legends, and net-wor
     navState.searchParams = new URLSearchParams();
   });
 
-  it("humanizes raw price_source UUID links, statement UUIDs, provider names, and report_section", () => {
+  // AC-portfolio.fe-ia-portfolio.1
+  // AC-reporting.fe-viz-reports.2
+  it("AC5.8.1 humanizes raw price_source UUID links, statement UUIDs, provider names, and report_section", () => {
     expect(
       formatPerformanceSourceLink(
         "price_source:override:AAPL:1581301e-269d-4847-8fb7-fd21763d1f0d:2025-03-31",
@@ -185,7 +187,8 @@ describe("Issue #2764 portfolio valuation provenance, donut legends, and net-wor
     expect(container.textContent).not.toContain("Unknown");
   });
 
-  it("truncates long manual valuation links (#2762) and clarifies negative/leveraged net-worth allocation bars", async () => {
+  // AC-portfolio.fe-assets2.18
+  it("AC17.14.3 truncates long manual valuation links (#2762) and clarifies negative/leveraged net-worth allocation bars", async () => {
     mockedApiOperation.mockImplementation(async (operationId: string) => {
       if (operationId === "get_holdings_portfolio_holdings_get") {
         return {
