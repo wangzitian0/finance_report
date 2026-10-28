@@ -51,7 +51,9 @@ async def test_AC_testing_e2e_poll_reconnect_1_a_closed_connection_is_retried_an
     assert calls["n"] == 3
 
 
-async def test_AC_testing_e2e_poll_reconnect_1_the_fourth_closed_connection_in_a_row_fails():
+async def test_AC_testing_e2e_poll_reconnect_1_the_fourth_closed_connection_in_a_row_fails(
+    capsys,
+):
     handler, calls = _failing_first(10, httpx.ReadError("reset"))
     count = ReconnectCount()
     async with _client(handler) as client:
@@ -62,6 +64,8 @@ async def test_AC_testing_e2e_poll_reconnect_1_the_fourth_closed_connection_in_a
     assert MAX_CONSECUTIVE_RECONNECTS == 3
     assert count.value == 3
     assert calls["n"] == 4
+    output = capsys.readouterr().out
+    assert "transport_retry: reconnect 3/3 (total=3)" in output
 
 
 async def test_AC_testing_e2e_poll_reconnect_1_the_consecutive_limit_resets_after_a_success():

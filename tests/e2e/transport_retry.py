@@ -41,9 +41,13 @@ async def get_with_reconnect(
     while True:
         try:
             return await client.get(url)
-        except _CLOSED_CONNECTION:
+        except _CLOSED_CONNECTION as exc:
             consecutive += 1
             if consecutive > MAX_CONSECUTIVE_RECONNECTS:
                 raise
             count.value += 1
+            print(
+                f"transport_retry: reconnect {consecutive}/{MAX_CONSECUTIVE_RECONNECTS} "
+                f"(total={count.value}) for {url} after {type(exc).__name__}"
+            )
             await asyncio.sleep(pause)
