@@ -751,15 +751,8 @@ async def test_create_entry_from_txn_lazy_loads_missing_fx_rate(db, test_user):
     )
 
     with patch(
-        # Patches the injected port, not src.pricing.get_exchange_rate: #1675
-        # D5c inverted review_queue.py's fx lookup into
-        # register_fx_rate_provider() (a real ledger/extraction <-> pricing
-        # cycle otherwise, since pricing now depends on extraction's
-        # published ORM entities), so conftest.py's module-top registration
-        # captures the real get_exchange_rate once at import time. Patching
-        # src.pricing.get_exchange_rate after that has no effect on the
-        # already-bound reference; patch the module-level slot instead.
-        "src.extraction.extension.review_queue._get_exchange_rate",
+        # review_queue binds get_exchange_rate at import time; patch that name.
+        "src.extraction.extension.review_queue.get_exchange_rate",
     ) as mock_get_rate:
         mock_get_rate.return_value = Decimal("0.19")
         entry = await _create_reviewed_entry(db, txn, user_id=test_user.id)
@@ -783,9 +776,7 @@ async def test_create_entry_from_txn_still_fails_closed_when_fx_rate_unresolvabl
     )
 
     with patch(
-        # Patches the injected port, not src.pricing.get_exchange_rate: see
-        # test_create_entry_from_txn_lazy_loads_missing_fx_rate above.
-        "src.extraction.extension.review_queue._get_exchange_rate",
+        "src.extraction.extension.review_queue.get_exchange_rate",
         side_effect=PricingError("No FX rate available for CNY/SGD on 2025-01-15"),
     ) as mock_get_rate:
         with pytest.raises(ValueError, match="FX rate required to create CNY journal entry"):

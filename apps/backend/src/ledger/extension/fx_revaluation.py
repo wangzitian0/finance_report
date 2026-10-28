@@ -7,11 +7,9 @@ entry: reporting recomputes the value on every report (#2774).
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -27,19 +25,7 @@ from src.ledger.orm.journal import (
     active_journal_entry_filter,
 )
 from src.observability import get_logger
-
-
-class FxRateProvider(Protocol):
-    def __call__(
-        self,
-        db: AsyncSession,
-        base_currency: str,
-        quote_currency: str,
-        rate_date: date,
-        *,
-        lazy_load: bool = False,
-    ) -> Awaitable[Decimal]: ...
-
+from src.pricing import PricingError, get_exchange_rate
 
 logger = get_logger(__name__)
 settings = src.config.settings
@@ -49,51 +35,6 @@ REVALUATION_ACCOUNT_TYPES = (AccountType.ASSET, AccountType.LIABILITY)
 
 class RevaluationError(Exception):
     pass
-
-
-class _FxRateProviderNotRegisteredError(Exception):
-    """Placeholder bound to :data:`FxRateError` before wiring.
-
-    Never raised by anything, so a pre-wiring ``except FxRateError`` simply
-    matches nothing instead of crashing on a non-exception sentinel (mirrors
-    ``reporting.extension.fx_gateway`` and ``extraction.extension.review_queue``).
-    """
-
-
-# ``ledger`` and ``pricing`` are both L3 domains; pricing's own
-# repository/manual-valuation reads need extraction's published ORM entities,
-# and extraction needs ledger's Account/JournalEntry types, so a direct
-# ledger -> pricing import here would make depends_on cyclic
-# (ledger -> pricing -> extraction -> ledger). Same inversion as
-# ``reporting.extension.fx_gateway`` (#1666) and
-# ``extraction.extension.review_queue`` (#1675 D5c): the port lives here,
-# main.py (L4) wires the real pricing.get_exchange_rate/PricingError at
-# startup; tests wire it directly.
-_get_exchange_rate: FxRateProvider | None = None
-
-#: The injected FX-unavailable exception class (``src.pricing.PricingError``
-#: today). Reference late-bound as ``fx_revaluation.PricingError``.
-PricingError: type[Exception] = _FxRateProviderNotRegisteredError
-
-
-def register_fx_revaluation_provider(
-    get_exchange_rate: FxRateProvider,
-    *,
-    fx_rate_error: type[Exception],
-) -> None:
-    """Wire the FX-rate lookup (see module note above)."""
-    global _get_exchange_rate, PricingError
-    _get_exchange_rate = get_exchange_rate
-    PricingError = fx_rate_error
-
-
-def _require_fx_rate_provider() -> FxRateProvider:
-    if _get_exchange_rate is None:
-        raise RuntimeError(
-            "fx_revaluation.register_fx_revaluation_provider() was never called — "
-            "main.py wires it at startup; a test exercising this path must call it too."
-        )
-    return _get_exchange_rate
 
 
 @dataclass
@@ -210,7 +151,7 @@ async def calculate_account_historical_cost(
     for row in result.all():
         if row.fx_rate is None:
             try:
-                rate = await _require_fx_rate_provider()(db, account.currency, base_currency, row.entry_date)
+                rate = await get_exchange_rate(db, account.currency, base_currency, row.entry_date)
             except PricingError:
                 logger.warning(
                     "Historical FX rate missing for revaluation cost basis, falling back to revaluation-date rate",
@@ -219,7 +160,7 @@ async def calculate_account_historical_cost(
                     entry_date=row.entry_date.isoformat(),
                     revaluation_date=as_of_date.isoformat(),
                 )
-                rate = await _require_fx_rate_provider()(db, account.currency, base_currency, as_of_date)
+                rate = await get_exchange_rate(db, account.currency, base_currency, as_of_date)
         else:
             rate = Decimal(str(row.fx_rate))
         converted = Decimal(str(row.amount)) * rate
@@ -252,7 +193,7 @@ async def calculate_unrealized_fx_for_account(
         return None
 
     try:
-        current_rate = await _require_fx_rate_provider()(
+        current_rate = await get_exchange_rate(
             db,
             base_currency=account.currency,
             quote_currency=base_currency,

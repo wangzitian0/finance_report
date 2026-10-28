@@ -87,11 +87,9 @@ CONTRACT = PackageContract(
         "platform",
         # ``portfolio`` was dropped (#1675 D5c): the former direct
         # ``PositionService`` import is now ``register_position_reconciler``,
-        # an inverted port wired by main.py. ``pricing`` was dropped the same
-        # way: the former FX-rate-lookup import (review-queue journal
-        # promotion, #1610 P2's pricing.get_exchange_rate) is now
-        # ``register_fx_rate_provider``, also wired by main.py — extraction
-        # no longer imports either package directly.
+        # an inverted port wired by main.py. ``pricing`` is imported directly
+        # because ``pricing`` imports no other domain package (#2774).
+        "pricing",
         "runtime",
     ],
     context=ContextScope(
@@ -149,6 +147,12 @@ CONTRACT = PackageContract(
             consumer="extraction",
             mode="composition",
             reason="Uses platform persistence mixins and shared application exceptions without owning the substrate.",
+        ),
+        ContextRelation(
+            provider="pricing",
+            consumer="extraction",
+            mode="published-language",
+            reason="Uses pricing FX-rate lookup and ExchangeRateLookup port language for cross-currency statement posting.",
         ),
         ContextRelation(
             provider="runtime",
@@ -531,7 +535,6 @@ CONTRACT = PackageContract(
         "record_correction",
         "resolve_statement_contribution",
         "list_statement_contributions",
-        "register_fx_rate_provider",
         "register_position_reconciler",
         "register_statement_source",
         "reject_json_floats",
@@ -657,7 +660,6 @@ CONTRACT = PackageContract(
         ac('AC-extraction.source-vocabulary.1', 'Source-domain enum members have one pure base-layer owner with unchanged string values and no direct dependency on persistence or application configuration.', 'tests/tooling/test_extraction_vocabulary.py::test_source_vocabulary_values_are_stable', proof_kind='property'),
         ac('AC-extraction.source-vocabulary.2', 'Persistence adapters and the published extraction interface use the same domain enum objects; named SQL enum bindings retain their stored values.', 'apps/backend/tests/extraction/test_source_vocabulary.py::test_source_enum_persistence_compatibility', proof_kind='property'),
         ac('AC-extraction.source-vocabulary.3', 'Retired source-enum owners and ORM vocabulary imports cannot return; extraction base has zero direct reverse ORM dependencies.', 'tests/tooling/test_extraction_vocabulary.py::test_source_vocabulary_has_one_owner', proof_kind='property'),
-        ac('AC-extraction.fx-port.1', "Extraction's FX-rate registration exposes the exact pricing lookup shape without Callable[..., Any] erasure.", 'tests/tooling/test_s3_pr_d_structure.py::test_AC_s3_typed_fx_ports_have_no_erased_registration_or_forwarders'),
         ac('AC-extraction.1.1', 'Parse DBS PDF', 'apps/backend/tests/extraction/test_extraction_invariants.py::test_balance_chain_invariant_holds_for_consistent_statements', proof_kind='invariant'),
         ac('AC-extraction.1.2', 'Parse CSV (DBS)', 'apps/backend/tests/extraction/test_csv_parsing.py::test_parse_dbs_csv', proof_kind='property'),
         ac('AC-extraction.1.3', 'Parse CSV (Wise)', 'apps/backend/tests/extraction/test_csv_parsing.py::test_parse_wise_csv', proof_kind='property'),

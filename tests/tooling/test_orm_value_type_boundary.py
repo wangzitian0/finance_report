@@ -93,9 +93,10 @@ def test_AC12_35_3_portfolio_holdings_value_flows_as_money():
     assert "UnitPrice(latest_price" in src
 
     # reporting's portfolio valuation also flows Money via the same helpers
-    # (through reporting's injected FX seam since the #1666 fold)
+    # (imported from pricing's published surface since #2774)
     market = _read("apps/backend/src/reporting/extension/portfolio_market.py")
-    assert "fx_gateway.convert_money(" in market
+    assert "from src.pricing import" in market
+    assert "await convert_money(" in market
     assert "position.cost_basis_money" in market
     assert "position.quantity_qty" in market
 

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit.money import to_money
 from src.observability import ErrorIds, get_logger
-from src.pricing import FxConversion
+from src.pricing import FxConversion, PricingError, get_exchange_rate
 from src.reconciliation import (
     DEFAULT_RATE_TOLERANCE,
     DEFAULT_TIME_WINDOW,
@@ -22,8 +22,6 @@ from src.reconciliation import (
     discover_fx_conversions,
     pair_fx_legs,
 )
-from src.reporting.extension import fx_gateway
-from src.reporting.extension.fx_gateway import get_exchange_rate
 
 logger = get_logger(__name__)
 
@@ -102,7 +100,7 @@ async def _internal_transfer_adjustment(
     async def _resolve_market_rate(base: str, quote: str, on_date: date) -> Decimal | None:
         try:
             return await get_exchange_rate(db, base, quote, on_date, lazy_load=True)
-        except fx_gateway.FxRateError:
+        except PricingError:
             return None
 
     recorded_anchor_pairs = {
@@ -166,6 +164,8 @@ async def _internal_transfer_adjustment(
         if not classification.is_internal_transfer:
             continue
 
+        if conversion.from_journal_entry_id is None or conversion.to_journal_entry_id is None:
+            continue
         excluded.add(conversion.from_journal_entry_id)
         excluded.add(conversion.to_journal_entry_id)
 
@@ -179,7 +179,7 @@ async def _internal_transfer_adjustment(
                     as_of_date,
                     lazy_load=True,
                 )
-            except fx_gateway.FxRateError:
+            except PricingError:
                 # The transfer legs are still a matched internal transfer and MUST
                 # stay excluded (otherwise the double-counted income/expense legs
                 # are re-introduced). Only the fee adjustment is omitted when its

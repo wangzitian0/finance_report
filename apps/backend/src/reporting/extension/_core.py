@@ -22,13 +22,7 @@ from src.ledger import (
 )
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
-from src.pricing import ManualValuationLiquidityClass
-from src.reporting.extension import fx_gateway
-from src.reporting.extension.fx_gateway import (
-    FxWarning,
-    get_average_rate,
-    get_exchange_rate,
-)
+from src.pricing import FxWarning, ManualValuationLiquidityClass, PricingError, get_average_rate, get_exchange_rate
 from src.reporting.extension.internal_transfer import _internal_transfer_adjustment
 from src.reporting.extension.reporting_calc import (
     ReportError,
@@ -134,7 +128,7 @@ async def _get_fx_rates_map(
 
         try:
             rates[source] = await get_exchange_rate(db, source, target, rate_date, lazy_load=True)
-        except fx_gateway.FxRateError as exc:
+        except PricingError as exc:
             warning = {
                 "type": "missing_fx_rate_partial_skip",
                 "base_currency": source,
@@ -380,7 +374,7 @@ async def _aggregate_net_income_sql(
                 fx_warnings=fx_warnings,
                 lazy_load=True,
             )
-        except fx_gateway.FxRateError as exc:
+        except PricingError as exc:
             raise ReportError(str(exc)) from exc
 
         fx_rate_map[source] = rate
@@ -512,7 +506,7 @@ async def _aggregate_equity_translation_variance_sql(
         else:
             try:
                 hist_rate = await get_exchange_rate(db, curr, target, row.entry_date, lazy_load=False)
-            except fx_gateway.FxRateError:
+            except PricingError:
                 hist_rate = spot_rate
 
         rate_delta = spot_rate - hist_rate

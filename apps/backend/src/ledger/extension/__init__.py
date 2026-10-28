@@ -26,11 +26,7 @@ from src.ledger.extension.anchored_posting import (
 )
 from src.ledger.extension.contribution import list_journal_contributions
 from src.ledger.extension.currencies import used_currencies
-from src.ledger.extension.fx_revaluation import (
-    RevaluationError,
-    calculate_unrealized_fx_gains,
-    register_fx_revaluation_provider,
-)
+from src.ledger.extension.fx_revaluation import RevaluationError, calculate_unrealized_fx_gains
 from src.ledger.extension.opening_positions import list_opening_positions
 from src.ledger.extension.post import post_entry
 from src.ledger.extension.processing import (
@@ -79,7 +75,6 @@ __all__ = [
     "post_journal_entry",
     "post_opening_balance_entry",
     "initialize_opening_positions",
-    "register_fx_revaluation_provider",
     "used_currencies",
     "validate_line_account_ownership",
     "void_journal_entry",

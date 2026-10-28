@@ -60,7 +60,7 @@ from src.extraction.extension.disposition_policy import (
     statement_disposition_policy_for_user,
 )
 from src.extraction.extension.disposition_trace import DispositionTraceInput, emit_disposition_trace_records_many
-from src.extraction.extension.review_queue import FxRateProvider, StatementEntryRequest, create_entries_from_txns
+from src.extraction.extension.review_queue import StatementEntryRequest, create_entries_from_txns
 from src.extraction.extension.reviewed_statement_envelope import get_current_statement_extraction_result
 from src.extraction.extension.statement_validation import (
     BalanceChainValidationError,
@@ -86,6 +86,7 @@ from src.ledger import (
     current_anchored_journal_entries,
 )
 from src.observability import get_logger
+from src.pricing import ExchangeRateLookup
 
 logger = get_logger(__name__)
 
@@ -111,7 +112,7 @@ class StatementPostingDependencies:
     """Cross-domain reads required to turn approved statement facts into entries."""
 
     transfer_exclusions: TransferExclusionsProvider
-    fx_rate_provider: FxRateProvider
+    fx_rate_provider: ExchangeRateLookup
     fx_rate_error: type[Exception]
     trace_emitter_factory: TraceEmitterFactory
     disposition_mode: DispositionMode

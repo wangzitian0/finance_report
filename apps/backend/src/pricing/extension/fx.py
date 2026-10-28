@@ -34,9 +34,10 @@ first, improve second). ``PrefetchedFxRates`` covers the hot batch paths.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Awaitable, Sequence
 from datetime import date
 from decimal import Decimal
+from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,6 +54,26 @@ logger = get_logger(__name__)
 #: A structured, JSON-serializable FX degradation notice (e.g. the
 #: average-rate period-end fallback) reports surface to their consumers.
 FxWarning = dict[str, str]
+
+
+class ExchangeRateLookup(Protocol):
+    """The one FX spot-rate port: a currency pair and a date in, a rate out.
+
+    :func:`get_exchange_rate` implements it. A caller that accepts a replacement
+    lookup (extraction's posting dependencies) types the parameter with this
+    Protocol. No other Protocol with this shape may exist
+    (``tests/tooling/test_single_fx_rate_port.py``, #2774).
+    """
+
+    def __call__(
+        self,
+        db: AsyncSession,
+        base_currency: str,
+        quote_currency: str,
+        rate_date: date,
+        *,
+        lazy_load: bool = False,
+    ) -> Awaitable[Decimal]: ...
 
 
 def _append_fx_warning(fx_warnings: list[FxWarning] | None, warning: FxWarning) -> None:

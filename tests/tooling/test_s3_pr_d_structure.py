@@ -53,23 +53,17 @@ def test_AC_counter_repository_5_async_adapter_and_api_composition() -> None:
 
 @ac_proof(
     proof_id="typed_fx_ports",
-    ac_ids=[
-        "AC-advisor.fx-port.1",
-        "AC-extraction.fx-port.1",
-        "AC-ledger.fx-port.1",
-        "AC-reporting.fx-port.1",
-    ],
+    ac_ids=["AC-advisor.fx-port.1"],
     ci_tier="pr_ci",
 )
 def test_AC_s3_typed_fx_ports_have_no_erased_registration_or_forwarders() -> None:
-    """#1866 G-typed-ports: every FX registry exposes an exact typed call shape."""
-    paths = (
-        SRC / "reporting/extension/fx_gateway.py",
-        SRC / "advisor/extension/app_reads.py",
-        SRC / "extraction/extension/review_queue.py",
-        SRC / "ledger/extension/fx_revaluation.py",
-    )
+    """#1866 G-typed-ports: the advisor FX registry exposes an exact typed call shape.
+
+    Extraction, ledger and reporting no longer register FX callables (#2774).
+    """
+    paths = (SRC / "advisor/extension/app_reads.py",)
     failures: list[str] = []
+    scanned: list[str] = []
     for path in paths:
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
@@ -86,6 +80,7 @@ def test_AC_s3_typed_fx_ports_have_no_erased_registration_or_forwarders() -> Non
                 }
             ):
                 continue
+            scanned.append(node.name)
             rendered = ast.unparse(node)
             if (
                 node.args.vararg
@@ -94,6 +89,9 @@ def test_AC_s3_typed_fx_ports_have_no_erased_registration_or_forwarders() -> Non
                 or ": Any" in rendered
             ):
                 failures.append(f"{path.relative_to(REPO)}:{node.lineno}:{node.name}")
+    assert "register_fx_pairs_read" in scanned, (
+        f"the scan found no advisor FX registration: {scanned}"
+    )
     assert not failures, "type-erased FX seams: " + ", ".join(failures)
 
 

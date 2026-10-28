@@ -15,9 +15,8 @@ from src.audit.ratio import Ratio
 from src.ledger import Account, AccountType, JournalEntry, JournalLine
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
-from src.pricing import ManualValuationLiquidityClass
+from src.pricing import ManualValuationLiquidityClass, PrefetchedFxRates, PricingError, get_exchange_rate_series
 from src.reporting.base.types import DEFAULT_INCLUDE_RESTRICTED
-from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import _load_accounts, _single_source_currency
 from src.reporting.extension.balance_sheet import _build_manual_valuation_lines_series, generate_balance_sheet
 from src.reporting.extension.portfolio_market import (
@@ -308,11 +307,11 @@ async def get_account_trend(
         if row.currency.upper() != target_currency:
             fx_needs.append((row.currency, target_currency, row.entry_date, None, None))
 
-    fx_rates = fx_gateway.PrefetchedFxRates(lazy_load=True)
+    fx_rates = PrefetchedFxRates(lazy_load=True)
     if fx_needs:
         try:
             await fx_rates.prefetch(db, fx_needs)
-        except fx_gateway.FxRateError as exc:
+        except PricingError as exc:
             logger.error(
                 "FX pre-fetch failed for account trend",
                 error_id=ErrorIds.REPORT_GENERATION_FAILED,
@@ -432,10 +431,10 @@ async def _ledger_net_worth_balances(
             continue
         rate_dates = [point for point in point_dates if point >= seen_on]
         try:
-            rates_by_currency[currency_code] = await fx_gateway.get_exchange_rate_series(
+            rates_by_currency[currency_code] = await get_exchange_rate_series(
                 db, currency_code, target_currency, rate_dates, lazy_load=True
             )
-        except fx_gateway.FxRateError:
+        except PricingError:
             rates_by_currency[currency_code] = {}
 
     balances: list[tuple[dict[UUID, Decimal], dict[UUID, Decimal]]] = []
@@ -568,7 +567,7 @@ async def get_net_worth_timeseries(
             target_currency=target_currency,
             include_restricted=include_restricted,
         )
-    except fx_gateway.FxRateError as exc:
+    except PricingError as exc:
         raise ReportError(str(exc)) from exc
 
     points: list[dict[str, object]] = []
@@ -659,11 +658,11 @@ async def get_category_breakdown(
         if row.currency.upper() != target_currency:
             fx_needs.append((row.currency, target_currency, today, start_date, today))
 
-    fx_rates = fx_gateway.PrefetchedFxRates(lazy_load=True)
+    fx_rates = PrefetchedFxRates(lazy_load=True)
     if fx_needs:
         try:
             await fx_rates.prefetch(db, fx_needs)
-        except fx_gateway.FxRateError as exc:
+        except PricingError as exc:
             logger.error(
                 "FX pre-fetch failed for category breakdown",
                 error_id=ErrorIds.REPORT_GENERATION_FAILED,

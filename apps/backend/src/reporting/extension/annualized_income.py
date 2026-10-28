@@ -26,9 +26,10 @@ from src.pricing import (
     ManualValuationComponentType,
     ManualValuationLiquidityClass,
     NoObservationError,
+    PrefetchedFxRates,
+    PricingError,
     list_current_manual_valuation_facts,
 )
-from src.reporting.extension import fx_gateway
 from src.reporting.extension.reporting_calc import AnnualizedIncomeTotals, income_bucket, resolve_line_currency
 from src.schemas import (
     AnnualizedIncomeScheduleHolding,
@@ -99,11 +100,11 @@ async def generate_annualized_income_schedule(
         if source_currency != reporting_currency:
             fx_pairs.append((source_currency, reporting_currency, report_date, start_date, report_date))
 
-    prefetched_fx = fx_gateway.PrefetchedFxRates(lazy_load=True)
+    prefetched_fx = PrefetchedFxRates(lazy_load=True)
     if fx_pairs:
         try:
             await prefetched_fx.prefetch(db, fx_pairs)
-        except fx_gateway.FxRateError as exc:
+        except PricingError as exc:
             raise_bad_request(str(exc), cause=exc)
     # A restricted holding is outside the liquid net worth. An FX error on it must not
     # fail the schedule: the holding stays listed in its own currency, and the total
@@ -113,7 +114,7 @@ async def generate_annualized_income_schedule(
     for holding_currency in sorted({normalize_currency_code(s.currency) for s in snapshots} - {reporting_currency}):
         try:
             await prefetched_fx.prefetch(db, [(holding_currency, reporting_currency, report_date, None, None)])
-        except fx_gateway.FxRateError as exc:
+        except PricingError as exc:
             # The same warning types as an excluded balance-sheet valuation (pricing valuation.py).
             warning_type = (
                 "missing_fx_rate_excluded_holding"

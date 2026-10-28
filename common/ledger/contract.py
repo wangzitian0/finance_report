@@ -102,20 +102,17 @@ CONTRACT = PackageContract(
     tier="CODE-ONLY",
     # audit/observability are lower-layer (infra, L1) than ledger (domain,
     # L3), so those edges are downward. (money folded into audit — issue
-    # #1419.) ``pricing`` was dropped (#1675 D5c): the former direct FX
-    # revaluation import (#1610 P2's pricing.get_exchange_rate) is now
-    # ``register_fx_revaluation_provider``, an inverted port wired by
-    # main.py — pricing depends on extraction (ManualValuationSnapshot et
-    # al.), and a direct ledger -> pricing edge would cycle
-    # (ledger -> pricing -> extraction -> ledger). ``platform`` was added
-    # (#1675 D6): the base ORM mixins (UUIDMixin/UserOwnedMixin/TimestampMixin)
-    # moved from src/models/base.py to platform.orm.base, also a downward edge
-    # (platform is infra, L1). ``extraction`` is deliberately NOT declared:
-    # account_coverage.py's statement-envelope read goes through the inverted
+    # #1419.) ``pricing`` is imported directly for unrealized FX gain/loss
+    # lookup because ``pricing`` imports no other domain package (#2774).
+    # ``platform`` was added (#1675 D6): the base ORM mixins
+    # (UUIDMixin/UserOwnedMixin/TimestampMixin) moved from src/models/base.py
+    # to platform.orm.base, also a downward edge (platform is infra, L1).
+    # ``extraction`` is deliberately NOT declared: account_coverage.py's
+    # statement-envelope read goes through the inverted
     # ``register_statement_coverage_reader`` port (extraction is domain, L3,
     # same rank as ledger, and extraction already depends_on ledger — a direct
     # edge would cycle).
-    depends_on=["audit", "observability", "platform"],
+    depends_on=["audit", "observability", "platform", "pricing"],
     context=ContextScope(
         purpose="Own double-entry financial facts: accounts, journal entries, posting and voiding rules, and processing-account transfer semantics.",
         in_scope=[
@@ -153,6 +150,12 @@ CONTRACT = PackageContract(
             consumer="ledger",
             mode="composition",
             reason="Uses platform persistence mixins for ledger ORM rows without owning the shared persistence substrate.",
+        ),
+        ContextRelation(
+            provider="pricing",
+            consumer="ledger",
+            mode="published-language",
+            reason="Uses pricing FX-rate lookup for read-only unrealized FX gain/loss calculation.",
         ),
     ],
     roles=["base", "extension", "data"],
@@ -307,7 +310,6 @@ CONTRACT = PackageContract(
         "validate_manual_journal_entry_for_post",
         "post_journal_entry",
         "post_opening_balance_entry",
-        "register_fx_revaluation_provider",
         "register_statement_coverage_reader",
         "used_currencies",
         "worst_confidence_tier",
@@ -415,7 +417,6 @@ CONTRACT = PackageContract(
         ac('AC-ledger.opening-position.5', 'Opening positions retain immutable evidence and do not reinterpret voided or unproven history as initialized.', 'apps/backend/tests/ledger/test_opening_position.py::test_opening_projection_and_immutability'),
         ac('AC-ledger.opening-position.6', 'A trusted opening position is a dated stock with a public evidence-bearing projection, never a fabricated prior-day flow.', 'apps/backend/tests/ledger/test_opening_position.py::test_opening_projection_preserves_date'),
         ac('AC-ledger.statement-category.1', 'The accepted economic category is pinned on the counter-account journal command before authorization.', 'apps/backend/tests/ledger/test_opening_position.py::test_statement_category_is_pinned'),
-        ac('AC-ledger.fx-port.1', "Ledger's FX revaluation registration exposes the exact pricing lookup shape without Callable[..., Any] erasure.", 'tests/tooling/test_s3_pr_d_structure.py::test_AC_s3_typed_fx_ports_have_no_erased_registration_or_forwarders'),
         ac('AC-ledger.78.1', 'ConfidenceTier owns the one worst_confidence_tier rank function; reporting and advisor consume it with explicit empty-input defaults, and unknown tiers fail closed as less trusted than every known tier.', 'apps/backend/tests/ledger/test_confidence_tier_owner.py::test_AC_ledger_78_1_worst_confidence_tier_is_single_homed', priority='P1'),
         # ── EPIC-002 double-entry core (slice 3c-ii of #1420): groups 1–12 ──
         # (was AC2.1.* … AC2.12.*; AC2.13.* … AC2.23.* land in slice 3c-iii.)

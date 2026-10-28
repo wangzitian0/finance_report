@@ -14,18 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryAuthorityState, JournalLine
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
+from src.pricing import FxWarning, PrefetchedFxRates, PricingError, convert_money
 from src.reporting.base.income_statement_calculator import calculate_income_statement_totals
 from src.reporting.base.l1_registry import economic_category_line
-from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
     _build_account_lines,
     _load_accounts,
 )
 from src.reporting.extension.balance_sheet import _compute_unrealized_fx_gain_loss
-from src.reporting.extension.fx_gateway import (
-    FxWarning,
-    convert_money,
-)
 from src.reporting.extension.internal_transfer import _internal_transfer_adjustment
 from src.reporting.extension.reporting_calc import (
     ReportError,
@@ -154,11 +150,11 @@ async def generate_income_statement(
             fx_needs.append((line.currency, target_currency, entry.entry_date, period_key, month_end))
 
     # Batch pre-fetch all needed FX rates
-    fx_rates = fx_gateway.PrefetchedFxRates(fx_warnings, lazy_load=True)
+    fx_rates = PrefetchedFxRates(fx_warnings, lazy_load=True)
     if fx_needs:
         try:
             await fx_rates.prefetch(db, fx_needs)
-        except fx_gateway.FxRateError as exc:
+        except PricingError as exc:
             logger.error(
                 "FX pre-fetch failed for income statement",
                 error_id=ErrorIds.REPORT_GENERATION_FAILED,
@@ -363,7 +359,7 @@ async def _convert_line_total_with_fallback(
     target_currency: str,
     start_date: date,
     end_date: date,
-    fx_rates: fx_gateway.PrefetchedFxRatesPort,
+    fx_rates: PrefetchedFxRates,
     fx_warnings: list[FxWarning],
 ) -> Decimal:
     """Resolve total converted amount for a journal line, falling back from pre-fetched average to spot rate."""
@@ -384,7 +380,7 @@ async def _convert_line_total_with_fallback(
             lazy_load=True,
         )
         return converted_money.amount
-    except fx_gateway.FxRateError as exc:
+    except PricingError as exc:
         logger.warning(
             "Average FX rate unavailable, falling back to spot",
             error_id=ErrorIds.REPORT_FX_FALLBACK,
@@ -404,7 +400,7 @@ async def _convert_line_total_with_fallback(
                 lazy_load=True,
             )
             return converted_money.amount
-        except fx_gateway.FxRateError as final_exc:
+        except PricingError as final_exc:
             logger.error(
                 "All FX rate fallbacks failed for income statement",
                 error_id=ErrorIds.REPORT_GENERATION_FAILED,

@@ -29,6 +29,7 @@ behind the composition root's :data:`MarketDataScopeProvider`).
 from __future__ import annotations
 
 from src.pricing.extension.fx import (
+    ExchangeRateLookup,
     FxWarning,
     PrefetchedFxRates,
     convert_amount,
@@ -71,6 +72,7 @@ from src.pricing.extension.valuation_contribution import (
 )
 
 __all__ = [
+    "ExchangeRateLookup",
     "FxWarning",
     "MARKET_DATA_QUANTITY_UNIT",
     "MARKET_DATA_SYNC_TZ",

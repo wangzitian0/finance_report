@@ -17,18 +17,16 @@
 >   `internal_transfer.py`, `portfolio_market.py`), framework assembly
 >   (`framework_policy.py`, `framework_report.py`), the package lane
 >   (`package_document.py`, `report_traceability.py`, `report_package.py`,
->   `reporting_snapshot.py`), the calculation primitives
->   (`reporting_calc.py`), and the injected FX seam (`fx_gateway.py`).
+>   `reporting_snapshot.py`), and the calculation primitives
+>   (`reporting_calc.py`).
 > - `data/` — reserved for the declared projections (no module yet).
 >
 > Reporting keeps zero FX logic and zero manual-valuation logic of its own —
-> both arrive by composition-root injection (`register_fx_gateway` /
-> `register_manual_valuation_lines_provider`, wired in `main.py` and the
-> backend test conftest) rather than a direct import, so a rename inside the
-> owning package never touches reporting's consumer modules. Both ports now
-> repoint to `pricing` (#1610 retired the `services/fx.py` /
-> `services/reporting/manual_valuation.py` implementations they originally
-> pointed at).
+> FX lookup and conversion import `pricing`'s published surface directly
+> (#2774), and manual valuation arrives by composition-root injection
+> (`register_manual_valuation_lines_provider`, wired in `main.py` and the
+> backend test conftest). Both point to `pricing` (#1610 retired the
+> `services/fx.py` / `services/reporting/manual_valuation.py` implementations).
 >
 > **Status: `active`, `tier="CODE-ONLY"`** (flipped in migration closeout
 > wave 2, #1663 — see [Status](#status) below).

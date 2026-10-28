@@ -6,11 +6,9 @@ explicit reviewed-disposition command. It lives in extraction because
 invent an account or an economic meaning.
 """
 
-from collections.abc import Awaitable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date
 from decimal import Decimal
-from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import select
@@ -46,64 +44,10 @@ from src.ledger import (
     submit_anchored_journal_entry,
 )
 from src.observability import get_logger
-
-
-class FxRateProvider(Protocol):
-    def __call__(
-        self,
-        db: AsyncSession,
-        base_currency: str,
-        quote_currency: str,
-        rate_date: date,
-        *,
-        lazy_load: bool = False,
-    ) -> Awaitable[Decimal]: ...
-
-
-class _FxRateProviderNotRegisteredError(Exception):
-    """Placeholder bound to :data:`FxRateError` before wiring.
-
-    Never raised by anything, so a pre-wiring ``except FxRateError`` simply
-    matches nothing instead of crashing on a non-exception sentinel (mirrors
-    ``reporting.extension.fx_gateway``'s identical placeholder).
-    """
-
+from src.pricing import ExchangeRateLookup, PricingError, get_exchange_rate
 
 logger = get_logger(__name__)
 settings = src.config.settings
-
-# ``extraction`` owns the review workflow, not pricing's implementation.
-# Keep the FX capability behind an injected provider so the dependency is
-# explicit at the composition root. This is the same inversion as
-# ``reporting.extension.fx_gateway`` (#1666) and the #1675 D3 / D5c provider
-# ports: the port lives here, main.py (L4) wires the real
-# pricing.get_exchange_rate/PricingError at startup; tests wire it directly.
-_get_exchange_rate: "FxRateProvider | None" = None
-
-#: The injected FX-unavailable exception class (``src.pricing.PricingError``
-#: today). Reference late-bound as ``review_queue.FxRateError``.
-FxRateError: type[Exception] = _FxRateProviderNotRegisteredError
-
-
-def register_fx_rate_provider(
-    get_exchange_rate: "FxRateProvider",
-    *,
-    fx_rate_error: type[Exception],
-) -> None:
-    """Wire the FX-rate lookup (see module note above)."""
-    global _get_exchange_rate, FxRateError
-    _get_exchange_rate = get_exchange_rate
-    FxRateError = fx_rate_error
-
-
-def _require_fx_rate_provider() -> "FxRateProvider":
-    if _get_exchange_rate is None:
-        raise RuntimeError(
-            "review_queue.register_fx_rate_provider() was never called — "
-            "main.py wires it at startup (#1675 D5c); a test exercising this "
-            "path must call it too."
-        )
-    return _get_exchange_rate
 
 
 async def _resolve_statement_summary(
@@ -211,7 +155,7 @@ async def _plan_entry_command(
     source_type: JournalEntrySourceType = JournalEntrySourceType.AUTO_PARSED,
     preloaded_statement: StatementSummary | None = None,
     preloaded_bank_account: Account | None = None,
-    fx_rate_provider: FxRateProvider | None = None,
+    fx_rate_provider: ExchangeRateLookup | None = None,
     fx_rate_error: type[Exception] | None = None,
     disposition: DispositionDecision | None = None,
     counter_account: Account | None = None,
@@ -263,9 +207,9 @@ async def _plan_entry_command(
             # it. Only when that chain also comes up empty does this still fail
             # closed below -- a journal entry cannot post without a real rate,
             # unlike a report line, which can just omit the value.
-            provider = fx_rate_provider or _require_fx_rate_provider()
+            provider = fx_rate_provider or get_exchange_rate
             line_fx_rate = await provider(db, currency, base_currency, txn.txn_date, lazy_load=True)
-        except fx_rate_error or FxRateError as exc:
+        except fx_rate_error or PricingError as exc:
             raise ValueError(f"FX rate required to create {currency} journal entry: {exc}") from exc
 
     # Use statement's linked account if available.
@@ -389,7 +333,7 @@ async def _create_entry_from_txn(
     source_type: JournalEntrySourceType = JournalEntrySourceType.AUTO_PARSED,
     preloaded_statement: StatementSummary | None = None,
     preloaded_bank_account: Account | None = None,
-    fx_rate_provider: FxRateProvider | None = None,
+    fx_rate_provider: ExchangeRateLookup | None = None,
     fx_rate_error: type[Exception] | None = None,
     disposition: DispositionDecision | None = None,
     counter_account: Account | None = None,
@@ -485,7 +429,7 @@ async def create_entry_from_txn(
     source_type: JournalEntrySourceType = JournalEntrySourceType.AUTO_PARSED,
     preloaded_statement: StatementSummary | None = None,
     preloaded_bank_account: Account | None = None,
-    fx_rate_provider: FxRateProvider | None = None,
+    fx_rate_provider: ExchangeRateLookup | None = None,
     fx_rate_error: type[Exception] | None = None,
     disposition: DispositionDecision | None = None,
     counter_account: Account | None = None,
@@ -544,7 +488,7 @@ async def create_entries_from_txns(
     auto_post: bool,
     preloaded_statement: StatementSummary,
     preloaded_bank_account: Account,
-    fx_rate_provider: FxRateProvider | None,
+    fx_rate_provider: ExchangeRateLookup | None,
     fx_rate_error: type[Exception] | None,
     trace_emitter: TraceEmitter,
 ) -> list[JournalEntry]:

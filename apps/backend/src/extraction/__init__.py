@@ -170,7 +170,6 @@ from src.extraction.extension.prompts.statement import SYSTEM_PROMPT, get_parsin
 from src.extraction.extension.review_queue import (
     create_entry_from_txn,
     get_or_create_account,
-    register_fx_rate_provider,
 )
 from src.extraction.extension.reviewed_statement_envelope import (
     ReviewedStatementEnvelopeConflict,
@@ -396,7 +395,6 @@ __all__ = [
     "record_correction",
     "resolve_statement_contribution",
     "list_statement_contributions",
-    "register_fx_rate_provider",
     "register_position_reconciler",
     "reject_statement_workflow",
     "retire_statement",

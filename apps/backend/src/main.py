@@ -31,12 +31,11 @@ from src.extraction import (
     find_in_flight_parse_id,
     get_known_storage_paths,
     get_statement_coverage_rows,
-    register_fx_rate_provider,
     register_position_reconciler,
     run_parsing_supervisor,
 )
 from src.identity import auth_router, register_in_flight_parse_checker, users_router
-from src.ledger import register_fx_revaluation_provider, register_statement_coverage_reader
+from src.ledger import register_statement_coverage_reader
 from src.observability import (
     ErrorIds,
     configure_database_pool_metrics,
@@ -61,22 +60,12 @@ from src.platform import (
 )
 from src.portfolio import PositionService
 from src.pricing import (
-    PrefetchedFxRates,
-    PricingError,
     build_manual_valuation_lines,
     build_manual_valuation_lines_series,
-    convert_amount,
-    convert_money,
-    get_average_rate,
-    get_exchange_rate,
-    get_exchange_rate_series,
     run_market_data_scheduler,
     subscribe_price_ingest,
 )
-from src.reporting import (
-    register_fx_gateway,
-    register_manual_valuation_lines_provider,
-)
+from src.reporting import register_manual_valuation_lines_provider
 from src.routers import (
     accounts,
     ai_feedback,
@@ -127,44 +116,19 @@ logger = get_logger(__name__)
 # services/market_data_scheduler.py), so it still arrives by injection.
 register_fx_pairs_read(observed_fx_pairs)
 
-# Wire reporting's FX seam and manual-valuation lines port (#1666): reporting
-# (L3) must not import the pricing package directly through the app
-# remainder's old services/fx.py — the composition root injects the real
-# implementations, same inversion as the readiness port above. #1610 landed:
-# both registrations now repoint to src.pricing (services/fx.py and
-# services/reporting/manual_valuation.py are deleted).
-register_fx_gateway(
-    get_exchange_rate=get_exchange_rate,
-    get_exchange_rate_series=get_exchange_rate_series,
-    get_average_rate=get_average_rate,
-    convert_amount=convert_amount,
-    convert_money=convert_money,
-    prefetched_fx_rates=PrefetchedFxRates,
-    fx_rate_error=PricingError,
-)
+# Wire reporting's manual-valuation lines port (#1666). FX rate lookup is no
+# port: ledger, extraction and reporting import src.pricing directly, because
+# pricing imports no other domain package (#2774).
 register_manual_valuation_lines_provider(
     build_manual_valuation_lines, series_provider=build_manual_valuation_lines_series
 )
 
-# Wire extraction's FX-rate port (#1675 D5c): extraction's review-queue
-# journal-entry creation needs a currency-conversion rate, but a module-level
-# `from src.pricing import ...` there would cycle (pricing's own
-# repository/manual-valuation reads import extraction's published ORM
-# entities, ManualValuationSnapshot et al.) — same inversion as the reporting
-# gate above.
-register_fx_rate_provider(get_exchange_rate, fx_rate_error=PricingError)
-
-# Wire ledger's FX-revaluation port (#1675 D5c): same inversion, same reason
-# — pricing now depends on extraction, so a direct ledger -> pricing import
-# would cycle (ledger -> pricing -> extraction -> ledger).
-register_fx_revaluation_provider(get_exchange_rate, fx_rate_error=PricingError)
-
 register_known_storage_paths_provider(get_known_storage_paths)
 
 # Wire ledger's and identity's StatementSummary read-model ports to the real
-# extraction-domain lookups (#1675 D6): same inversion, same reason as the FX
-# ports above — extraction already depends_on both ledger and identity, so a
-# direct reverse import would cycle (both are domain, L3, same rank).
+# extraction-domain lookups (#1675 D6): extraction already depends_on both
+# ledger and identity, so a direct reverse import would cycle (both are domain,
+# L3, same rank).
 register_statement_coverage_reader(get_statement_coverage_rows)
 register_in_flight_parse_checker(find_in_flight_parse_id)
 
