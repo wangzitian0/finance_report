@@ -111,7 +111,7 @@ export function PackageCover({
         <div className="min-w-0">
           <p className="text-xs uppercase tracking-wide text-muted">Personal financial-report package</p>
           <h2 className="mt-2 text-2xl font-semibold">Personal Report Package</h2>
-          <p className="mt-2 break-all font-mono text-sm text-muted">{contract.package_id}</p>
+          <p className="mt-2 break-all text-sm text-muted">{humanizeIdentifier(contract.package_id)}</p>
         </div>
         <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:min-w-[28rem]">
           <div><dt className="text-xs text-muted">Framework</dt><dd className="mt-1 font-semibold">{selectedFrameworkLabel ?? "Framework not selected"}</dd></div>
@@ -170,6 +170,7 @@ export function PackageSetupGuidance() {
 export function PackageLoadingSkeleton() {
   return (
     <section role="status" aria-label="Loading report package" aria-busy="true" aria-live="polite" className="space-y-4">
+      <span className="sr-only">Loading package document...</span>
       <div className="grid gap-4 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <div key={index} className="card p-4">

@@ -891,7 +891,7 @@ describe("PersonalReportPackagePage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "US-like" }));
     await screen.findByRole("heading", { name: "Balance Sheet" });
     expect(screen.getAllByText("Personal Report Package").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("personal-financial-report-package").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Personal Financial Report Package").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("balance_sheet").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole("heading", { name: "Balance Sheet" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Annualized Income Schedule" })).toBeInTheDocument();
@@ -920,7 +920,7 @@ describe("PersonalReportPackagePage", () => {
     await screen.findByRole("button", { name: /Generate Snapshot/i });
     const cover = await screen.findByRole("region", { name: "Report package cover" });
     expect(within(cover).getByText("Personal Report Package")).toBeInTheDocument();
-    expect(within(cover).getByText("personal-financial-report-package")).toBeInTheDocument();
+    expect(within(cover).getByText("Personal Financial Report Package")).toBeInTheDocument();
     expect(within(cover).getByText("US-like")).toBeInTheDocument();
     expect(within(cover).getByText("2026-05-20")).toBeInTheDocument();
     const toc = screen.getByRole("navigation", { name: "Report package table of contents" });

@@ -25,6 +25,7 @@ import OpeningBalanceModal from "@/components/accounts/OpeningBalanceModal";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { Alert, Badge, Button, EmptyState, IconButton, LoadingState, PageHeader } from "@/components/ui";
 import { formatCurrencyLocale } from "@/lib/audit/money";
+import { formatAccountCodeBadge } from "@/lib/statusLabels";
 import { Account } from "@/lib/types";
 
 export function GeneralSettingsPanel() {
@@ -597,7 +598,7 @@ export function AccountsPanel() {
                     <div data-account-field="identity" className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="break-words font-medium">{account.name}</span>
-                        {account.code && <span className="text-xs text-muted font-mono">{account.code}</span>}
+                        {account.code && <span className="text-xs text-muted font-mono">{formatAccountCodeBadge(account.code)}</span>}
                         {!account.is_active && <Badge variant="muted">Inactive</Badge>}
                       </div>
                       {account.description && <p className="break-words text-xs text-muted sm:truncate">{account.description}</p>}

@@ -286,7 +286,7 @@ test.describe("AC19.8.7 AC19.8.8 AC22.8.4 AC22.19 report package smoke", () => {
         timeout: COLD_ROUTE_TIMEOUT_MS,
       });
       const cover = page.getByRole("region", { name: "Report package cover" });
-      await expect(cover.getByText("personal-financial-report-package")).toBeVisible();
+      await expect(cover.getByText("Personal Financial Report Package")).toBeVisible();
       await expect(cover.getByText("US-like")).toBeVisible();
 
       const tableOfContents = page.getByRole("navigation", {

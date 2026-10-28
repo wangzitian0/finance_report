@@ -158,11 +158,7 @@ export function PackagePanel({ filters }: { filters: ReportFilters }) {
   if (error) return <div className="text-[var(--error)]">{error}</div>;
 
   if (!contract) {
-    return (
-      <div role="status" aria-label="Loading report package" aria-busy="true" aria-live="polite" className="text-muted">
-        Loading package document...
-      </div>
-    );
+    return <PackageLoadingSkeleton />;
   }
 
   const selectedFrameworkLabel = selectedFrameworkId ? (FRAMEWORK_LABELS[selectedFrameworkId] ?? selectedFrameworkId) : null;
