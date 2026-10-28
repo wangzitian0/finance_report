@@ -7,11 +7,19 @@ the diagnostic engine categorizes the root cause into one of the produced bucket
 3. UNKNOWN_DISCREPANCY: Any other non-zero delta
 """
 
+from datetime import date
 from decimal import Decimal
 
+import pytest
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.audit import JournalEntrySourceType
+from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.reporting import (
     EquationDiagnosticCategory,
     diagnose_equation_imbalance,
+    run_balance_sheet_diagnostics,
 )
 
 
@@ -72,3 +80,111 @@ def test_flow_24_every_category_is_produced_by_the_diagnosis():
         diagnose_equation_imbalance(Decimal("12.50"), is_multicurrency=True).primary_category,
     }
     assert produced == set(EquationDiagnosticCategory)
+
+
+@pytest.mark.asyncio
+async def test_AC_reporting_2664_1_balanced_usd_entry_without_fx_rate_row_never_reports_unclassified_discrepancy(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-reporting.2664.1: a balanced USD entry with entry fx_rate=1.35 and no stored FxRate row either balances or reports a named missing-rate cause (#2664)."""
+    import src.pricing.extension.market_data.service as md_service
+
+    bank = Account(user_id=test_user.id, name="DBS Savings", type=AccountType.ASSET, currency="SGD")
+    equity = Account(user_id=test_user.id, name="Opening Balance", type=AccountType.EQUITY, currency="SGD")
+    db.add_all([bank, equity])
+    await db.flush()
+
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2026, 10, 24),
+        memo="USD opening contribution",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=bank.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("500.00"),
+                currency="USD",
+                fx_rate=Decimal("1.35"),
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("500.00"),
+                currency="USD",
+                fx_rate=Decimal("1.35"),
+            ),
+        ]
+    )
+    await db.commit()
+
+    # Path A: lazy_load resolves a spot rate (e.g. 1.27832 != 1.35) when no FxRate row is pre-seeded.
+    async def resolve_spot(_db, base: str, quote: str, _rate_date: date) -> Decimal | None:
+        if (base.upper(), quote.upper()) == ("USD", "SGD"):
+            return Decimal("1.27832")
+        return None
+
+    monkeypatch.setattr(md_service, "resolve_missing_fx_rate", resolve_spot)
+    diag_with_lazy_spot = await run_balance_sheet_diagnostics(
+        db, test_user.id, as_of_date=date(2026, 10, 24), currency="SGD"
+    )
+    assert "Unclassified discrepancy" not in diag_with_lazy_spot.suggested_action
+    assert diag_with_lazy_spot.is_balanced is True
+    assert diag_with_lazy_spot.equation_delta == Decimal("0.00")
+
+    dq_resp = await client.get("/reports/data-quality?as_of_date=2026-10-24&currency=SGD")
+    assert dq_resp.status_code == 200
+    dq_body = dq_resp.json()
+    assert dq_body["equation_invariant"]["is_healthy"] is True
+    assert Decimal(str(dq_body["equation_invariant"]["delta"])) == Decimal("0.00")
+    assert all("Unclassified discrepancy" not in item["description"] for item in dq_body["action_items"])
+
+    # Path B: no FxRate row and lazy_load finds no rate on a mixed USD/SGD balanced entry.
+    async def resolve_none(_db, _base: str, _quote: str, _rate_date: date) -> Decimal | None:
+        return None
+
+    monkeypatch.setattr(md_service, "resolve_missing_fx_rate", resolve_none)
+    mixed_entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2026, 10, 24),
+        memo="USD asset funded by SGD equity",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(mixed_entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=mixed_entry.id,
+                account_id=bank.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("500.00"),
+                currency="USD",
+                fx_rate=Decimal("1.35"),
+            ),
+            JournalLine(
+                journal_entry_id=mixed_entry.id,
+                account_id=equity.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("675.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    diag_missing = await run_balance_sheet_diagnostics(db, test_user.id, as_of_date=date(2026, 10, 24), currency="SGD")
+    assert "Unclassified discrepancy" not in diag_missing.suggested_action
+    assert "USD/SGD" in diag_missing.suggested_action
+    assert diag_missing.primary_category == EquationDiagnosticCategory.FX_ROUNDING_DRIFT

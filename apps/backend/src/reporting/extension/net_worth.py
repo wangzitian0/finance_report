@@ -367,19 +367,15 @@ async def _ledger_net_worth_balances(
     user_id: UUID,
     point_dates: list[date],
     target_currency: str,
+    *,
+    liability_names: dict[UUID, str] | None = None,
 ) -> list[tuple[dict[UUID, Decimal], dict[UUID, Decimal]]]:
-    """Return the asset and liability ledger balances by account for each point date.
-
-    Each balance equals the balance-sheet line amount of ``_aggregate_balances_sql``
-    on that date: the same entry filter, the spot FX rate on the point date, the
-    same skip of a currency without a rate, and the same per-account rounding.
-    Two grouped queries read the balance before the first point and the daily
-    movements up to the last point. A running sum replaces one query per point.
-    """
+    """Return the asset and liability ledger balances by account for each point date."""
     first_point = point_dates[0]
     signed_columns = (
         JournalLine.account_id,
         Account.type,
+        Account.name,
         JournalLine.currency,
         JournalLine.direction,
     )
@@ -411,6 +407,8 @@ async def _ledger_net_worth_balances(
 
     def apply(row: Any) -> None:
         account_types[row.account_id] = row.type
+        if liability_names is not None and row.type == AccountType.LIABILITY:
+            liability_names[row.account_id] = row.name
         key = (row.account_id, row.currency)
         running[key] = running.get(key, Decimal("0")) + _signed_amount(row.type, row.direction, row.total)
 
@@ -554,12 +552,15 @@ async def get_net_worth_timeseries(
     spans = _iter_periods(start_date, end_date, granularity)
     point_dates = [span.start if granularity == "daily" else span.end for span in spans]
 
+    ledger_liability_names: dict[UUID, str] = {}
     with localcontext() as context:
-        # Exact products and sums, as the balance-sheet SQL computes them.
         context.prec = 60
-        ledger = await _ledger_net_worth_balances(db, user_id, point_dates, target_currency)
+        ledger = await _ledger_net_worth_balances(
+            db, user_id, point_dates, target_currency, liability_names=ledger_liability_names
+        )
     ledger_assets = [assets for assets, _ in ledger]
     portfolio_totals = await _portfolio_adjustment_totals(db, user_id, point_dates, ledger_assets, target_currency)
+    excluded_ledger_ids_by_date: dict[date, set[UUID]] = {}
     try:
         valuation_lines = await _build_manual_valuation_lines_series(
             db,
@@ -567,6 +568,8 @@ async def get_net_worth_timeseries(
             as_of_dates=point_dates,
             target_currency=target_currency,
             include_restricted=include_restricted,
+            ledger_liability_names=ledger_liability_names,
+            excluded_ledger_ids_by_date=excluded_ledger_ids_by_date,
         )
     except PricingError as exc:
         raise ReportError(str(exc)) from exc
@@ -574,13 +577,14 @@ async def get_net_worth_timeseries(
     points: list[dict[str, object]] = []
     for point_date, (assets, liabilities), portfolio_total in zip(point_dates, ledger, portfolio_totals, strict=True):
         valuation_assets, valuation_liabilities = valuation_lines[point_date]
+        excluded_ids = excluded_ledger_ids_by_date.get(point_date, set())
         total_assets = _quantize_money(
             sum(assets.values(), Decimal("0"))
             + portfolio_total
             + sum((Decimal(str(line["amount"])) for line in valuation_assets), Decimal("0"))
         )
         total_liabilities = _quantize_money(
-            sum(liabilities.values(), Decimal("0"))
+            sum((amt for acc_id, amt in liabilities.items() if acc_id not in excluded_ids), Decimal("0"))
             + sum((Decimal(str(line["amount"])) for line in valuation_liabilities), Decimal("0"))
         )
         points.append(

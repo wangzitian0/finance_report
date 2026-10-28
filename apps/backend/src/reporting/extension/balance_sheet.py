@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import inspect
 from datetime import date
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -87,6 +88,7 @@ async def _build_manual_valuation_lines(
     include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
     warnings: list[FxWarning] | None = None,
     excluded_lines: list[dict] | None = None,
+    liability_lines: list[dict] | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """Dispatch to the registered manual-valuation lines provider."""
     if _manual_valuation_lines_provider is None:
@@ -95,15 +97,18 @@ async def _build_manual_valuation_lines(
             "called — main.py wires it at startup (#1666); a test exercising this "
             "path without the app must call it too (the backend test conftest does)."
         )
-    return await _manual_valuation_lines_provider(
-        db,
-        user_id,
-        as_of_date=as_of_date,
-        target_currency=target_currency,
-        include_restricted=include_restricted,
-        warnings=warnings,
-        excluded_lines=excluded_lines,
-    )
+    kwargs: dict[str, Any] = {
+        "as_of_date": as_of_date,
+        "target_currency": target_currency,
+        "include_restricted": include_restricted,
+        "warnings": warnings,
+        "excluded_lines": excluded_lines,
+    }
+    if liability_lines is not None:
+        params = inspect.signature(_manual_valuation_lines_provider).parameters
+        if "liability_lines" in params or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()):
+            kwargs["liability_lines"] = liability_lines
+    return await _manual_valuation_lines_provider(db, user_id, **kwargs)
 
 
 def _excluded_holdings(excluded_lines: Sequence[dict]) -> list[dict[str, object]]:
@@ -157,6 +162,8 @@ async def _build_manual_valuation_lines_series(
     as_of_dates: Sequence[date],
     target_currency: str,
     include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
+    ledger_liability_names: dict[UUID, str] | None = None,
+    excluded_ledger_ids_by_date: dict[date, set[UUID]] | None = None,
 ) -> dict[date, tuple[list[dict], list[dict]]]:
     """Dispatch to the registered manual-valuation lines series provider."""
     if _manual_valuation_lines_series_provider is None:
@@ -165,13 +172,19 @@ async def _build_manual_valuation_lines_series(
             "called — main.py wires it at startup (#1666); a test exercising this "
             "path without the app must call it too (the backend test conftest does)."
         )
-    return await _manual_valuation_lines_series_provider(
-        db,
-        user_id,
-        as_of_dates=as_of_dates,
-        target_currency=target_currency,
-        include_restricted=include_restricted,
-    )
+    kwargs: dict[str, Any] = {
+        "as_of_dates": as_of_dates,
+        "target_currency": target_currency,
+        "include_restricted": include_restricted,
+    }
+    if ledger_liability_names is not None or excluded_ledger_ids_by_date is not None:
+        params = inspect.signature(_manual_valuation_lines_series_provider).parameters
+        has_var_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+        if ledger_liability_names is not None and ("ledger_liability_names" in params or has_var_kw):
+            kwargs["ledger_liability_names"] = ledger_liability_names
+        if excluded_ledger_ids_by_date is not None and ("excluded_ledger_ids_by_date" in params or has_var_kw):
+            kwargs["excluded_ledger_ids_by_date"] = excluded_ledger_ids_by_date
+    return await _manual_valuation_lines_series_provider(db, user_id, **kwargs)
 
 
 async def _compute_unrealized_fx_gain_loss(
@@ -270,6 +283,7 @@ async def generate_balance_sheet(
             account_types,
             target_currency,
             as_of_date,
+            base_currency=base_curr,
             fx_warnings=fx_warnings,
             included_currencies=included_ledger_currencies,
             native_balances=native_balances,
@@ -328,6 +342,7 @@ async def generate_balance_sheet(
         warnings=portfolio_warnings,
     )
     excluded_valuation_lines: list[dict] = []
+    ledger_liabilities_before = _line_total(liabilities)
     try:
         valuation_assets, valuation_liabilities = await _build_manual_valuation_lines(
             db,
@@ -337,13 +352,11 @@ async def generate_balance_sheet(
             include_restricted=include_restricted,
             warnings=portfolio_warnings,
             excluded_lines=excluded_valuation_lines,
+            liability_lines=liabilities,
         )
     except PricingError as exc:
-        # pricing.build_manual_valuation_lines (registered above) raises its
-        # own error family on an FX miss rather than catching internally —
-        # reporting owns the ReportError mapping at this boundary, same as
-        # every other FX call site in this file.
         raise ReportError(str(exc)) from exc
+    excluded_ledger_liabilities = ledger_liabilities_before - _line_total(liabilities)
     assets.extend(portfolio_adjustments)
     assets.extend(valuation_assets)
     liabilities.extend(valuation_liabilities)
@@ -352,8 +365,6 @@ async def generate_balance_sheet(
     total_liabilities = _line_total(liabilities)
     total_equity = _line_total(equity)
 
-    # Calculate cumulative Net Income (Income - Expenses) up to as_of_date
-    # Uses period-average FX rates for consistency with the income statement
     try:
         net_income_raw, pnl_translation_variance = await _aggregate_net_income_sql(
             db,
@@ -382,7 +393,10 @@ async def generate_balance_sheet(
         fx_warnings=fx_warnings,
     )
     net_worth_adjustment = _quantize_money(
-        _line_total(portfolio_adjustments) + _line_total(valuation_assets) - _line_total(valuation_liabilities)
+        _line_total(portfolio_adjustments)
+        + _line_total(valuation_assets)
+        - _line_total(valuation_liabilities)
+        + excluded_ledger_liabilities
     )
     is_presentation_currency = target_currency.upper() != base_curr
     is_multicurrency = bool(included_ledger_currencies - {target_currency})

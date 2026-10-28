@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from datetime import date
 from decimal import Decimal
 from typing import Any, cast
@@ -25,6 +26,7 @@ def diagnose_equation_imbalance(
     equation_delta: Decimal,
     unposted_draft_count: int = 0,
     is_multicurrency: bool = False,
+    fx_warnings: Sequence[Mapping[str, Any]] | None = None,
 ) -> EquationDiagnosticResult:
     """Diagnose an accounting equation delta into an actionable cause."""
     delta = to_money(equation_delta)
@@ -40,7 +42,6 @@ def diagnose_equation_imbalance(
             details={"status": "balanced"},
         )
 
-    # 1. Unposted drafts
     if unposted_draft_count > 0:
         return EquationDiagnosticResult(
             is_balanced=False,
@@ -54,7 +55,27 @@ def diagnose_equation_imbalance(
             details={"pending_count": unposted_draft_count},
         )
 
-    # 2. Multi-currency rounding drift
+    if fx_warnings:
+        pairs = sorted(
+            {
+                f"{w['base_currency']}/{w['quote_currency']}"
+                for w in fx_warnings
+                if w.get("base_currency") and w.get("quote_currency")
+            }
+        )
+        pair_label = f" ({', '.join(pairs)})" if pairs else ""
+        return EquationDiagnosticResult(
+            is_balanced=False,
+            equation_delta=delta,
+            primary_category=EquationDiagnosticCategory.FX_ROUNDING_DRIFT,
+            confidence=0.90,
+            suggested_action=(
+                f"Missing FX rate{pair_label} skipped foreign-currency conversion and caused a discrepancy "
+                f"of {delta}. Sync or record the missing FX rate for the report date."
+            ),
+            details={"missing_fx_rates": pairs, "delta": str(delta)},
+        )
+
     if is_multicurrency and abs_delta <= FX_DRIFT_THRESHOLD:
         return EquationDiagnosticResult(
             is_balanced=False,
@@ -68,7 +89,6 @@ def diagnose_equation_imbalance(
             details={"is_multicurrency": True, "threshold": str(FX_DRIFT_THRESHOLD)},
         )
 
-    # 3. Default/Unknown discrepancy
     return EquationDiagnosticResult(
         is_balanced=False,
         equation_delta=delta,
@@ -119,8 +139,10 @@ async def run_balance_sheet_diagnostics(
     currency_count = (
         await db.scalar(select(func.count(func.distinct(Account.currency))).where(Account.user_id == user_id)) or 0
     )
+    fx_warnings = cast(list[dict[str, Any]], report.get("fx_warnings", []))
     return diagnose_equation_imbalance(
         equation_delta=cast(Decimal, report.get("equation_delta", Decimal("0.00"))),
         unposted_draft_count=pending_count,
-        is_multicurrency=currency_count > 1 or bool(report.get("fx_warnings")),
+        is_multicurrency=currency_count > 1 or bool(fx_warnings),
+        fx_warnings=fx_warnings,
     )

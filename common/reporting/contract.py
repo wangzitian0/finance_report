@@ -893,6 +893,8 @@ CONTRACT = PackageContract(
         # ── group 2654: manual valuation lines link to portfolio evidence instead of account lineage (#2654) ──
         ac('AC-reporting.2654.1', 'BalanceSheetResponse lines expose allocation_source_type while stripping internal allocation_asset_class and allocation_liquidity_class fields (#2654).', 'apps/backend/tests/reporting/test_balance_sheet_provenance.py::test_balance_sheet_lines_carry_allocation_metadata_and_response_drops_it', priority='P1', proof_kind='exact'),
         ac('AC-reporting.2654.2', 'On Home and on the Balance sheet tab, a manual valuation line links to /portfolio?panel=evidence and never requests GET /reports/account-lineage with a non-account id (#2654).', 'apps/frontend/src/__tests__/balanceSheetPage.test.tsx::AC-reporting.2654.2 routes manual valuation lines to /portfolio?panel=evidence without calling account-lineage', priority='P1'),
+        # ── group 2664: balanced foreign-currency entry equation check with no stored FxRate (#2664) ──
+        ac('AC-reporting.2664.1', 'A balanced foreign-currency journal entry with an entry fx_rate and no stored FxRate row either balances in the equation check or reports a named missing-rate cause in run_balance_sheet_diagnostics and GET /reports/data-quality, never an Unclassified discrepancy (#2664).', 'apps/backend/tests/reporting/test_equation_diagnostics.py::test_AC_reporting_2664_1_balanced_usd_entry_without_fx_rate_row_never_reports_unclassified_discrepancy', priority='P0', proof_kind='exact'),
     ],
     governance=[
         GovernanceInitiative(

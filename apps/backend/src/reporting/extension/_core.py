@@ -157,6 +157,7 @@ async def _aggregate_balances_sql(
     as_of_date: date,
     *,
     start_date: date | None = None,
+    base_currency: str | None = None,
     fx_warnings: list[FxWarning] | None = None,
     included_currencies: set[str] | None = None,
     native_balances: dict[UUID, Decimal] | None = None,
@@ -189,7 +190,22 @@ async def _aggregate_balances_sql(
     if included_currencies is not None:
         included_currencies.update(fx_rates.keys())
 
-    fx_case_parts = []
+    fx_case_parts: list[tuple[Any, Any]] = []
+    if AccountType.EQUITY in account_types and fx_rates:
+        effective_base = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
+        fx_case_parts.append(
+            (
+                (Account.type == AccountType.EQUITY)
+                & JournalLine.currency.in_(list(fx_rates.keys()))
+                & (func.upper(JournalLine.currency) != target_currency.upper())
+                & (
+                    func.upper(func.coalesce(JournalEntry.base_currency, literal(effective_base)))
+                    == target_currency.upper()
+                )
+                & JournalLine.fx_rate.is_not(None),
+                JournalLine.fx_rate,
+            )
+        )
     for currency, rate in fx_rates.items():
         fx_case_parts.append((JournalLine.currency == currency, literal(rate)))
 
@@ -445,8 +461,9 @@ async def _aggregate_equity_translation_variance_sql(
     base_currency: str | None = None,
     fx_warnings: list[FxWarning] | None = None,
 ) -> Decimal:
-    """Compute translation variance on equity contributions and opening positions."""
+    """Compute translation variance on equity contributions and non-P&L foreign-currency lines (#2664)."""
     target = target_currency.upper()
+    effective_base = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
     equity_entries_stmt = (
         select(JournalLine.journal_entry_id)
         .distinct()
@@ -459,12 +476,17 @@ async def _aggregate_equity_translation_variance_sql(
         .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
         .where(JournalEntry.entry_date <= as_of_date)
     )
-    equity_entry_ids = (await db.execute(equity_entries_stmt)).scalars().all()
-    if not equity_entry_ids:
-        return Decimal("0.00")
+    equity_entry_ids = set((await db.execute(equity_entries_stmt)).scalars().all())
+    pnl_entries_subq = (
+        select(JournalLine.journal_entry_id)
+        .join(Account, JournalLine.account_id == Account.id)
+        .where(Account.user_id == user_id)
+        .where(Account.type.in_((AccountType.INCOME, AccountType.EXPENSE)))
+    )
 
     stmt = (
         select(
+            JournalLine.journal_entry_id,
             JournalLine.direction,
             JournalLine.amount,
             JournalLine.currency,
@@ -472,24 +494,29 @@ async def _aggregate_equity_translation_variance_sql(
             JournalEntry.entry_date,
             JournalEntry.base_currency,
             Account.type,
+            Account.currency.label("account_currency"),
         )
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
         .join(Account, JournalLine.account_id == Account.id)
         .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.id.in_(equity_entry_ids))
+        .where(JournalEntry.id.not_in(pnl_entries_subq))
         .where(Account.type.in_((AccountType.ASSET, AccountType.LIABILITY)))
         .where(JournalLine.currency != target)
         .where(active_journal_entry_filter(JournalEntry))
         .where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
         .where(JournalEntry.entry_date <= as_of_date)
     )
-    rows = (await db.execute(stmt)).all()
+    rows = [
+        row
+        for row in (await db.execute(stmt)).all()
+        if row.journal_entry_id in equity_entry_ids
+        or not (row.account_currency.upper() != effective_base and row.currency.upper() == row.account_currency.upper())
+    ]
     if not rows:
         return Decimal("0.00")
 
     currencies = {row.currency.upper() for row in rows}
     spot_rates = await _get_fx_rates_map(db, currencies, target, as_of_date, fx_warnings=fx_warnings)
-    effective_base = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
 
     total_variance = Decimal("0.00")
     for row in rows:
