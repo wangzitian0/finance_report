@@ -187,6 +187,21 @@ the other tree counts as a difference. The four TraceRecord files (`base/trace.p
 also keep docstrings and import order. A second test fails when a file under
 `common/` or `tools/` imports a backend-only module.
 
+### Two digest definitions (AC-audit.44.1, AC-audit.44.2)
+
+`apps/backend/src/audit/digest.py` holds the two SHA-256 definitions of the backend:
+`canonical_json_digest(value, *, default=None)` hashes sorted, compact JSON, and
+`text_digest(text)` hashes one UTF-8 string. The canonical digest of a string has quotes,
+so it differs from the text digest of the same string. `default` goes to `json.dumps`: without it,
+a value that JSON cannot encode raises `TypeError`; a call site passes `default=str` only where the
+code that it replaced did (the test pins the list). Trace records, command digests, result ids
+and policy versions store these values: keep the bytes. The module is backend-only and has no mirror.
+`tests/tooling/test_digest_single_definition.py` fails when a function in `apps/backend/src`
+builds a SHA-256 (`hashlib.sha256`, `hashlib.new("sha256")`, under any alias) of `json.dumps(sort_keys=True)`
+or of `<str>.encode()` bytes (in the call, in a variable, or in `.update()`), outside that module and
+outside its list of other byte forms and file hashes, which has one reason per call. The bare-Python
+`common/testing/executed_proof.py` keeps its own canonical digest because tooling cannot import `src.audit`.
+
 The membership rule for what earns a Shared-Kernel value package, the canonical
 structure every one must follow, and the raw-`Decimal` boundary policy are
 internalized below in [§Base packages (value-type narrow waists)](#base-packages)

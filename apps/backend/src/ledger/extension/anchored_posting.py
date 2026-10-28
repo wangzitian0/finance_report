@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -28,6 +27,7 @@ from src.audit import (
     TraceTargetClass,
     VersionedTraceRef,
     current_authoritative_trace_decision_projection,
+    text_digest,
     trace_decision_projection,
 )
 from src.audit.base.trace_repository import TraceRecordRepository
@@ -188,10 +188,6 @@ def current_anchored_journal_entries(
     return query
 
 
-def _sha256(value: str) -> str:
-    return hashlib.sha256(value.encode()).hexdigest()
-
-
 @dataclass(frozen=True, slots=True)
 class ManualJournalAttestationPolicy:
     """A human attestation is an explicit financial decision, not a source label."""
@@ -208,7 +204,7 @@ class ManualJournalAttestationPolicy:
             proof_kind="property",
             provenance="manual",
             execution_stage="manual.adjudication",
-            assertion_owner_digest=_sha256("ledger:manual-journal-attestation:v1"),
+            assertion_owner_digest=text_digest("ledger:manual-journal-attestation:v1"),
             producer_version="1",
         )
 
@@ -244,7 +240,7 @@ class SystemJournalCommandPolicy:
             proof_kind="exact",
             provenance="deterministic",
             execution_stage="product.runtime",
-            assertion_owner_digest=_sha256("ledger:system-journal-command:v1"),
+            assertion_owner_digest=text_digest("ledger:system-journal-command:v1"),
             producer_version="1",
         )
 
@@ -357,13 +353,14 @@ async def manual_journal_decision_anchor(
     if current is not None:
         parent_records = [await repository.get(scope, parent_id) for parent_id in current.parent_ids]
         if any(
-            parent is not None and parent.evidence_manifest_digest == _sha256(rationale) for parent in parent_records
+            parent is not None and parent.evidence_manifest_digest == text_digest(rationale)
+            for parent in parent_records
         ):
             return DecisionAnchor.from_record(current)
         raise DecisionAnchorError("a different manual attestation already owns this immutable journal payload")
 
     occurred_at = datetime.now(UTC)
-    rationale_digest = _sha256(rationale)
+    rationale_digest = text_digest(rationale)
     observation = TraceRecord.observation(
         scope=scope,
         target=target,

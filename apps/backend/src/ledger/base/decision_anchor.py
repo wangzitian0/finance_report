@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from src.audit import TraceRecord, TraceRecordType, TraceResult, TraceTargetClass, VersionedTraceRef
+from src.audit import (
+    TraceRecord,
+    TraceRecordType,
+    TraceResult,
+    TraceTargetClass,
+    VersionedTraceRef,
+    canonical_json_digest,
+)
 from src.ledger.base.types.errors import LedgerError
 
 
@@ -44,7 +49,7 @@ def journal_command_target(
         }
         for line in lines_data
     ]
-    payload = json.dumps(
+    digest = canonical_json_digest(
         {
             "schema_version": "1",
             "entry_date": entry_date.isoformat(),
@@ -53,11 +58,8 @@ def journal_command_target(
             "base_currency": normalized_base_currency,
             "source_identity": source_identity,
         },
-        sort_keys=True,
-        separators=(",", ":"),
         default=str,
     )
-    digest = hashlib.sha256(payload.encode()).hexdigest()
     return VersionedTraceRef("journal_command", source_identity, digest)
 
 

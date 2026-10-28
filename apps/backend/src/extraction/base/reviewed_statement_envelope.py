@@ -2,25 +2,19 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import re
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
+from src.audit import canonical_json_digest
 from src.extraction.base.result import StatementEvidenceType, StatementExtractionResult, StatementSourceType
 from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _MONEY_QUANTUM = Decimal("0.01")
 _ENVELOPE_REVIEWABLE_FACTS = frozenset({"statement_currency", "period", "balances"})
-
-
-def _digest(value: object) -> str:
-    serialized = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
-    return hashlib.sha256(serialized.encode()).hexdigest()
 
 
 def supports_reviewed_statement_envelope(result: StatementExtractionResult) -> bool:
@@ -78,7 +72,7 @@ class ReviewedStatementEnvelopeCommand:
 
     @property
     def digest(self) -> str:
-        return _digest(
+        return canonical_json_digest(
             {
                 "source_result_digest": self.source_result_digest,
                 "account_id": str(self.account_id),
@@ -88,5 +82,6 @@ class ReviewedStatementEnvelopeCommand:
                 "opening_balance": str(self.opening_balance),
                 "closing_balance": str(self.closing_balance),
                 "rationale": self.rationale,
-            }
+            },
+            default=str,
         )

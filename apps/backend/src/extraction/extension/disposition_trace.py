@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections import Counter
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
@@ -22,6 +20,8 @@ from src.audit import (
     TraceScope,
     TraceTargetClass,
     VersionedTraceRef,
+    canonical_json_digest,
+    text_digest,
 )
 from src.audit.extension.trace_emitter import TraceEmitter
 from src.extraction.base.disposition import (
@@ -35,10 +35,6 @@ from src.extraction.base.disposition import (
 )
 from src.extraction.extension.disposition_policy import current_statement_disposition_policy_snapshot
 from src.ledger import DecisionAnchor, journal_command_target
-
-
-def _digest(value: str) -> str:
-    return hashlib.sha256(value.encode()).hexdigest()
 
 
 def _authority(
@@ -56,7 +52,7 @@ def _authority(
         proof_kind=proof_kind,
         provenance=provenance,
         execution_stage=execution_stage,
-        assertion_owner_digest=_digest(f"disposition:{tier}:{proof_kind}:v1"),
+        assertion_owner_digest=text_digest(f"disposition:{tier}:{proof_kind}:v1"),
         producer_version=producer_version,
     )
 
@@ -258,18 +254,14 @@ def build_disposition_trace_records(
     target = VersionedTraceRef(
         kind="statement_transaction",
         id=str(transaction.transaction_id),
-        version=_digest(json.dumps(transaction_payload, sort_keys=True, separators=(",", ":"))),
+        version=canonical_json_digest(transaction_payload),
     )
     scope = TraceScope.tenant(user_id)
-    evidence_digest = _digest(
-        json.dumps(
-            {
-                "proposal_evidence": list(proposal.evidence) if proposal else ["no-intent-proposal"],
-                "runtime_policy": runtime_policy.semantic_payload(),
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-        )
+    evidence_digest = canonical_json_digest(
+        {
+            "proposal_evidence": list(proposal.evidence) if proposal else ["no-intent-proposal"],
+            "runtime_policy": runtime_policy.semantic_payload(),
+        }
     )
     package, tier, proof_kind, provenance, execution_stage, producer_version = _proposal_authority(proposal)
     candidate = TraceRecord.observation(
@@ -304,15 +296,11 @@ def build_disposition_trace_records(
         authority=_authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic", producer_version="1"),
         result=TraceResult.PASS,
         execution_id=execution_id,
-        evidence_manifest_digest=_digest(
-            json.dumps(
-                {
-                    "decision": decision.semantic_digest,
-                    "runtime_policy_digest": runtime_policy.semantic_digest,
-                },
-                sort_keys=True,
-                separators=(",", ":"),
-            )
+        evidence_manifest_digest=canonical_json_digest(
+            {
+                "decision": decision.semantic_digest,
+                "runtime_policy_digest": runtime_policy.semantic_digest,
+            }
         ),
         occurred_at=occurred_at,
         score=Ratio(Decimal("1")),

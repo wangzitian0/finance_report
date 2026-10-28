@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
 
+from src.audit import canonical_json_digest
 from src.extraction.base.source_vocabulary import TransactionDirection
 
 
@@ -94,9 +93,7 @@ class StatementDispositionPolicySnapshot:
 
     @property
     def semantic_digest(self) -> str:
-        return hashlib.sha256(
-            json.dumps(self.semantic_payload(), sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
+        return canonical_json_digest(self.semantic_payload())
 
     @property
     def trace_version(self) -> str:
@@ -231,7 +228,7 @@ class DispositionDecision:
             "command": command,
             "pnl_effect": self.pnl_effect,
         }
-        return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        return canonical_json_digest(payload)
 
 
 @dataclass(frozen=True, slots=True)

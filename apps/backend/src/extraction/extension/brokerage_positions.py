@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 from calendar import monthrange
 from dataclasses import dataclass, replace
@@ -16,6 +15,7 @@ from sqlalchemy import Numeric, String, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import text_digest
 from src.audit.money import Currency, InvalidCurrencyError, to_money
 from src.extraction.orm.layer2 import AssetType, AtomicPosition
 from src.ledger import Account, AccountType
@@ -976,7 +976,7 @@ def _dedup_hash(user_id: UUID, snapshot: BrokeragePositionSnapshot) -> str:
             snapshot.broker,
         ]
     )
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+    return text_digest(material)
 
 
 class BrokeragePositionImportService:

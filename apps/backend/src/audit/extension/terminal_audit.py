@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import re
 
 from src.audit.base.terminal_audit import TerminalAuditSpec
@@ -19,6 +17,7 @@ from src.audit.base.trace import (
     VersionedTraceRef,
 )
 from src.audit.base.trace_repository import TraceRecordRepository
+from src.audit.digest import canonical_json_digest
 
 _POLICY = {
     "graph": "exact-direct-decision-parents",
@@ -26,9 +25,7 @@ _POLICY = {
     "schema": 1,
 }
 _SAFE_DIAGNOSTIC_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,199}$")
-TERMINAL_AUDIT_POLICY_VERSION = hashlib.sha256(
-    json.dumps(_POLICY, sort_keys=True, separators=(",", ":")).encode("ascii")
-).hexdigest()
+TERMINAL_AUDIT_POLICY_VERSION = canonical_json_digest(_POLICY)
 
 
 class _TerminalAuditError(RuntimeError):
@@ -179,22 +176,18 @@ class TerminalAuditVerifier:
     ) -> TraceRecord:
         package = await self.verify_graph(spec)
         self.verify_executed_proof(spec, executed_proof)
-        evidence_digest = hashlib.sha256(
-            json.dumps(
-                {
-                    "commit_sha": spec.commit_sha,
-                    "execution_id": spec.execution_id,
-                    "manifest_decision_ids": sorted(str(item.decision_id) for item in spec.manifest),
-                    "package_decision_id": str(spec.package.decision_id),
-                    "proof_record_id": str(executed_proof.record_id),
-                    "repository_id": spec.repository_id,
-                    "scenario_id": spec.scenario_id,
-                    "terminal_policy_version": TERMINAL_AUDIT_POLICY_VERSION,
-                },
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode("ascii")
-        ).hexdigest()
+        evidence_digest = canonical_json_digest(
+            {
+                "commit_sha": spec.commit_sha,
+                "execution_id": spec.execution_id,
+                "manifest_decision_ids": sorted(str(item.decision_id) for item in spec.manifest),
+                "package_decision_id": str(spec.package.decision_id),
+                "proof_record_id": str(executed_proof.record_id),
+                "repository_id": spec.repository_id,
+                "scenario_id": spec.scenario_id,
+                "terminal_policy_version": TERMINAL_AUDIT_POLICY_VERSION,
+            }
+        )
         return TraceRecord.observation(
             scope=spec.scope,
             target=package.target,

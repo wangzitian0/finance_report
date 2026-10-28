@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -18,13 +16,11 @@ from src.audit import (
     TraceResult,
     TraceTargetClass,
     VersionedTraceRef,
+    canonical_json_digest,
+    text_digest,
 )
 
 PACKAGE_DECISION_POLICY_VERSION = "2026-07-18"
-
-
-def _digest(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def personal_report_package_target(
@@ -46,9 +42,7 @@ def personal_report_package_target(
         "input_manifest": [dict(item) for item in input_manifest],
         "sections": dict(sections),
     }
-    version = hashlib.sha256(
-        json.dumps(semantic_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
+    version = canonical_json_digest(semantic_payload)
     return VersionedTraceRef("personal_report_package", str(snapshot_id), version)
 
 
@@ -72,7 +66,7 @@ class PackageReadinessDecisionPolicy:
             proof_kind="exact",
             provenance="deterministic",
             execution_stage="product.runtime",
-            assertion_owner_digest=_digest(f"reporting:personal-report-package:{PACKAGE_DECISION_POLICY_VERSION}"),
+            assertion_owner_digest=text_digest(f"reporting:personal-report-package:{PACKAGE_DECISION_POLICY_VERSION}"),
             producer_version=PACKAGE_DECISION_POLICY_VERSION,
         )
 

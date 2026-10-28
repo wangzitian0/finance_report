@@ -48,6 +48,10 @@ BACKEND_ONLY = {
     "base/terminal_audit.py": (NO_BARE_CONSUMER, "terminal audit spec"),
     "data/__init__.py": (NO_BARE_CONSUMER, "confidence projection package"),
     "data/trace_confidence.py": (NO_BARE_CONSUMER, "confidence projection"),
+    "digest.py": (
+        NO_BARE_CONSUMER,
+        "canonical JSON and text SHA-256 digests of backend packages (#2768)",
+    ),
     "extension/promotion.py": (NO_BARE_CONSUMER, "promotion evaluation"),
     "extension/terminal_audit.py": (NO_BARE_CONSUMER, "terminal audit verifier"),
     "extension/trace_decision_projection.py": (

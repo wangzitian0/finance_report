@@ -1,7 +1,5 @@
 """Persist and project starting stock under exact ledger authority."""
 
-import hashlib
-import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -25,7 +23,9 @@ from src.audit import (
     TraceScope,
     TraceTargetClass,
     VersionedTraceRef,
+    canonical_json_digest,
     current_authoritative_trace_decisions,
+    text_digest,
     trace_decision_projection,
 )
 from src.audit.extension.trace_repository import SqlTraceRecordRepository
@@ -55,7 +55,7 @@ class OpeningPositionPolicy:
             proof_kind="exact",
             provenance="deterministic",
             execution_stage="product.runtime",
-            assertion_owner_digest=hashlib.sha256(b"ledger-opening-position-v1").hexdigest(),
+            assertion_owner_digest=text_digest("ledger-opening-position-v1"),
             producer_version="1",
         )
 
@@ -108,7 +108,7 @@ def position_digest(
         "journal_entry_id": str(journal_entry_id) if journal_entry_id else None,
         "source_decision_id": str(source_decision_id) if source_decision_id else None,
     }
-    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return canonical_json_digest(payload)
 
 
 async def record_opening_position(

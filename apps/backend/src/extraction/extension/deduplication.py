@@ -1,4 +1,3 @@
-import hashlib
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -8,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType
+from src.audit import STATEMENT_SOURCE_TYPES, JournalEntrySourceType, text_digest
 from src.extraction.base.source_vocabulary import DocumentStatus, DocumentType, TransactionDirection
 from src.extraction.base.types import ExtractedTransactionRow
 from src.extraction.extension.source_lifecycle import SourceIdentityCommand, resolve_source_identity
@@ -124,8 +123,7 @@ class DeduplicationService:
             reference or "",
             disambiguator,
         ]
-        hash_input = "|".join(components).encode("utf-8")
-        legacy_hash = hashlib.sha256(hash_input).hexdigest()
+        legacy_hash = text_digest("|".join(components))
         if currency is not None and custody_scope is not None:
             return versioned_transaction_hash(legacy_hash, currency, custody_scope)
         return legacy_hash
