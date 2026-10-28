@@ -180,15 +180,18 @@ async def _compute_unrealized_fx_gain_loss(
     *,
     as_of_date: date,
     target_currency: str,
+    base_currency: str | None = None,
     fx_warnings: list[FxWarning] | None = None,
 ) -> Decimal:
     """Compute unrealized FX gain/loss in target_currency as of as_of_date."""
     normalized_target = _normalize_currency(target_currency)
     try:
-        fx_revaluation = await calculate_unrealized_fx_gains(db, user_id, as_of_date)
+        fx_revaluation = await calculate_unrealized_fx_gains(db, user_id, as_of_date, base_currency)
         raw_unrealized = fx_revaluation.total_unrealized_gain_loss
         base_curr = (
-            getattr(fx_revaluation, "base_currency", None) or await get_effective_base_currency(db, user_id=user_id)
+            getattr(fx_revaluation, "base_currency", None)
+            or base_currency
+            or await get_effective_base_currency(db, user_id=user_id)
         ).upper()
         if normalized_target != base_curr:
             try:
@@ -375,6 +378,7 @@ async def generate_balance_sheet(
         user_id,
         as_of_date=as_of_date,
         target_currency=target_currency,
+        base_currency=base_curr,
         fx_warnings=fx_warnings,
     )
     net_worth_adjustment = _quantize_money(
