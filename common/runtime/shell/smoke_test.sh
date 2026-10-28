@@ -223,27 +223,6 @@ fi
 # Test that login page is accessible
 check_endpoint "Login Page" "$BASE_URL/login" || FAILED=1
 
-# --- Write/Mutation Checks (Staging/Dev Only) ---
-if [ "$MODE" = "dev" ] || [ "$MODE" = "staging" ]; then
-    echo "--- Write Checks ($MODE) ---"
-
-    # Test ping/pong toggle (safe mutation without auth)
-    BEFORE_STATE="$(curl -sS "$BASE_URL/api/ping" | grep -o '"state":"[^"]*"' || echo '')"
-    check_endpoint "Ping Toggle (POST)" "$BASE_URL/api/ping/toggle" "" "POST" || FAILED=1
-    AFTER_STATE="$(curl -sS "$BASE_URL/api/ping" | grep -o '"state":"[^"]*"' || echo '')"
-
-    if [ -n "$BEFORE_STATE" ] && [ -n "$AFTER_STATE" ] && [ "$BEFORE_STATE" != "$AFTER_STATE" ]; then
-        echo "✓ State Changed ($BEFORE_STATE → $AFTER_STATE)"
-    elif [ -z "$BEFORE_STATE" ]; then
-        echo "ℹ️  Ping state verification skipped (state was empty before)"
-    fi
-
-    echo "ℹ️  Complex authenticated write tests delegated to Python E2E suite"
-else
-    echo "--- Write Checks ---"
-    echo "ℹ️  Skipping write checks in '$MODE' mode"
-fi
-
 echo "========================================"
 echo "Ran $CHECK_COUNT endpoint checks (check_endpoint/wait_for_endpoint; minimum $MIN_CHECKS)"
 if [ "$CHECK_COUNT" -lt "$MIN_CHECKS" ]; then

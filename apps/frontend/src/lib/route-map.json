@@ -16,7 +16,6 @@
 
     { "path": "/login", "state": "shell" },
     { "path": "/more", "state": "shell" },
-    { "path": "/ping-pong", "state": "shell" },
 
     { "path": "/attention", "state": "redirect", "into": "/audit?tab=needs-you" },
     { "path": "/confidence", "state": "redirect", "into": "/audit?tab=needs-you" },

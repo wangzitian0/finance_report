@@ -137,7 +137,6 @@ export const API_OPERATIONS = {
   "suggestions_chat_suggestions_get": { method: "GET", path: "/api/chat/suggestions" },
   "sync_fx_endpoint_market_data_fx_syncs_post": { method: "POST", path: "/api/market-data/fx/syncs" },
   "sync_stocks_endpoint_market_data_stocks_syncs_post": { method: "POST", path: "/api/market-data/stocks/syncs" },
-  "toggle_ping_state_ping_toggle_post": { method: "POST", path: "/api/ping/toggle" },
   "update_account_accounts__account_id__put": { method: "PUT", path: "/api/accounts/{account_id}" },
   "update_base_currency_app_config_base_currency_put": { method: "PUT", path: "/api/app-config/base-currency" },
   "update_holding_cost_basis_method_portfolio__ticker__patch": { method: "PATCH", path: "/api/portfolio/{ticker}" },

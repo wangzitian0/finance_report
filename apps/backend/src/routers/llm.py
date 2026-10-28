@@ -158,8 +158,6 @@ async def get_scenes(db: DbSession, user_id: CurrentUserId) -> LlmScenesResponse
             provider_id=r.provider_id,
             model=r.model,
             reasoning=r.reasoning,
-            prefer_free=r.prefer_free,
-            fallback_model_ids=[m.strip() for m in r.fallback_model_ids.split(",") if m.strip()],
             max_tokens=r.max_tokens,
         )
         for r in rows
@@ -196,8 +194,6 @@ async def put_scenes(
                 provider_id=b.provider_id,
                 model=b.model,
                 reasoning=b.reasoning,
-                prefer_free=b.prefer_free,
-                fallback_model_ids=",".join(b.fallback_model_ids),
                 max_tokens=b.max_tokens,
             )
         )

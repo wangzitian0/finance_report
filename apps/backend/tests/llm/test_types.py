@@ -57,12 +57,12 @@ def test_AC23_1_1_model_spec_carries_capabilities_so_selection_is_data():
 
 
 def test_AC23_1_1_scene_binding_defaults_are_conservative():
-    """AC-llm.1.1: a binding maps scene x model with safe defaults (no reasoning, no free pref)."""
+    """AC-llm.1.1: a binding maps scene x model with safe defaults (no reasoning, no max_tokens)."""
     binding = SceneBinding(scene=Scene.EXTRACTION_VISION, model_id="zai/test-vision-model")
     assert binding.reasoning is ReasoningEffort.NONE
-    assert binding.prefer_free is False
-    assert binding.fallback_model_ids == ()
     assert binding.max_tokens is None
+    assert not hasattr(binding, "prefer_free")
+    assert not hasattr(binding, "fallback_model_ids")
 
 
 def test_AC23_1_1_provider_ref_never_reprs_its_api_key():

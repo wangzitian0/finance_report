@@ -156,6 +156,4 @@ class SceneBinding:
     scene: Scene
     model_id: str
     reasoning: ReasoningEffort = ReasoningEffort.NONE
-    prefer_free: bool = False
-    fallback_model_ids: tuple[str, ...] = ()
     max_tokens: int | None = None

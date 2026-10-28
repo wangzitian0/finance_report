@@ -6,7 +6,7 @@
 
 - API title: `Finance Report API`
 - API version: `0.1.0`
-- Endpoint count: `140`
+- Endpoint count: `139`
 - Schema count: `282`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
@@ -36,7 +36,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `reports` | 23 |
 | `review` | 9 |
 | `statements` | 15 |
-| `untagged` | 3 |
+| `untagged` | 2 |
 | `user-settings` | 2 |
 | `users` | 4 |
 | `workflow` | 3 |
@@ -282,7 +282,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 |---|---|---|---|---|---|---|
 | `GET` | `/health` | no | `full` (query) | - | `200` - | Health Check |
 | `GET` | `/ping` | no | - | - | `200` `PingStateResponse` | Get Ping State |
-| `POST` | `/ping/toggle` | no | - | - | `200` `PingStateResponse` | Toggle Ping State |
 
 ### user-settings
 

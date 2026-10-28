@@ -340,7 +340,6 @@ _RATE_LIMIT_EXEMPT_PATHS = frozenset(
     {
         "/health",
         "/ping",
-        "/ping/toggle",
         "/docs",
         "/docs/oauth2-redirect",
         "/openapi.json",

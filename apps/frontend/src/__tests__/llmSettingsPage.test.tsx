@@ -57,8 +57,6 @@ function primeHappyLoad() {
             provider_id: "prov-1",
             model: "openrouter/auto",
             reasoning: "low",
-            prefer_free: true,
-            fallback_model_ids: ["fallback-1"],
             max_tokens: null,
           },
         ],
@@ -161,7 +159,7 @@ describe("LlmSettingsPanel (EPIC-023 PR4)", () => {
     );
   });
 
-  it("edits reasoning, fallbacks and prefer_free then persists them", async () => {
+  it("edits reasoning then persists it", async () => {
     primeHappyLoad();
     render(<LlmSettingsPanel />);
     await waitFor(() => expect(screen.getByText("LLM Models")).toBeInTheDocument());
@@ -170,13 +168,6 @@ describe("LlmSettingsPanel (EPIC-023 PR4)", () => {
     fireEvent.change(within(chatCard).getByLabelText("Reasoning depth"), {
       target: { value: "high" },
     });
-    fireEvent.change(
-      within(chatCard).getByLabelText("Fallback models (comma-separated)"),
-      { target: { value: "a, b , " } }
-    );
-    fireEvent.click(
-      within(chatCard).getByLabelText(/Prefer free models for Advisor/i)
-    );
 
     fireEvent.click(screen.getByRole("button", { name: /Save changes/i }));
     await waitFor(() => {
@@ -189,8 +180,6 @@ describe("LlmSettingsPanel (EPIC-023 PR4)", () => {
       (b: any) => b.scene === "advisor.chat"
     )!;
     expect(chatBinding.reasoning).toBe("high");
-    expect(chatBinding.fallback_model_ids).toEqual(["a", "b"]);
-    expect(chatBinding.prefer_free).toBe(false); // toggled off from true
   });
 
   it("Reset reverts edits to the saved bindings", async () => {
@@ -223,8 +212,6 @@ describe("LlmSettingsPanel (EPIC-023 PR4)", () => {
               provider_id: "prov-1",
               model: "openrouter/auto",
               reasoning: "low",
-              prefer_free: true,
-              fallback_model_ids: ["fallback-1"],
               max_tokens: null,
             },
           ],

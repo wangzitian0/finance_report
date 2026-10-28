@@ -12,7 +12,6 @@ import {
     SlidersHorizontal,
     UploadCloud,
     Wallet,
-    Zap,
     type LucideIcon,
 } from "lucide-react";
 
@@ -100,7 +99,6 @@ export const ROUTE_CONFIG: Record<string, RouteConfig> = {
     "/reconciliation": { label: "Reconciliation", Icon: Link2 },
     "/chat": { label: "Chat", Icon: MessageSquare },
     "/settings": { label: "Settings", Icon: SlidersHorizontal },
-    "/ping-pong": { label: "Ping-Pong", Icon: Zap },
     "/login": { label: "Login", Icon: Landmark },
 };
 

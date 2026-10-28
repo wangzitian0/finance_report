@@ -84,16 +84,13 @@ async def test_default_glm_models_reach_scene_bindings(monkeypatch):
         binding = await source.get_binding(scene)
         assert binding.model_id == sdk.role_model("small")
         assert binding.reasoning == ReasoningEffort(sdk.role_reasoning_effort("small"))
-        assert not binding.fallback_model_ids
     advisor = await source.get_binding(Scene.ADVISOR_CHAT)
     assert advisor.model_id == sdk.role_model("large")
     assert advisor.reasoning == ReasoningEffort(sdk.role_reasoning_effort("large"))
-    assert not advisor.fallback_model_ids
     for scene in (Scene.EXTRACTION_VISION, Scene.EXTRACTION_OCR):
         binding = await source.get_binding(scene)
         assert binding.model_id == sdk.role_model("multimodal")
         assert binding.reasoning == ReasoningEffort(sdk.role_reasoning_effort("multimodal"))
-        assert not binding.fallback_model_ids
 
 
 @pytest.mark.no_db
