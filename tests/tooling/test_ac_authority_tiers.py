@@ -62,9 +62,6 @@ def test_AC26_1_1_ssot_defines_five_tiers_and_proof_matrix() -> None:
 def test_AC26_2_1_tier_marker_flows_into_registry_value(tmp_path, monkeypatch) -> None:
     """AC-authority.2.1: {tier:XX} flows into the value; bad/absent markers are ignored."""
     epic_dir = tmp_path / "docs" / "project"
-    overrides = tmp_path / "docs" / "ac_registry_overrides.yaml"
-    overrides.parent.mkdir(parents=True, exist_ok=True)
-    overrides.write_text("version: '1.0'\ngroups: {}\n", encoding="utf-8")
     _write_epic(
         epic_dir,
         "EPIC-003.statement-parsing.md",
@@ -73,10 +70,9 @@ def test_AC26_2_1_tier_marker_flows_into_registry_value(tmp_path, monkeypatch) -
         "| AC3.1.3 | No tier declared here | t | f | P0 | <!-- epic-owned: pending-package -->\n"
         "| AC3.1.4 | Bad tier {tier:ZZ} marker | t | f | P0 | <!-- epic-owned: pending-package -->\n",
     )
-    monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
-    monkeypatch.setattr(gar, "OVERRIDES", str(overrides))
+    monkeypatch.setattr(gar, "EPIC_DIR", epic_dir)
 
-    entries = gar.build_registry_entries(epic_source=epic_dir, overrides=overrides)
+    entries = gar.build_registry_entries(epic_source=epic_dir)
 
     assert entries["AC3.1.1"]["tier"] == "LLM-LED"
     assert entries["AC3.1.2"]["tier"] == "CODE-ONLY"

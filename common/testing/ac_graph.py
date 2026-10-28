@@ -4,7 +4,7 @@
 The repo accumulated several committed, globally-aggregated "index" files that
 were each a different PROJECTION of the SAME underlying graph::
 
-    EPIC -> AC -> Proof (-> behavioral score, -> vision item)
+    EPIC -> AC -> Proof (-> vision item)
 
 Because each projection was committed-materialized and CI byte-compared it,
 EVERY PR that touched ANY AC rewrote them, producing constant merge conflicts.
@@ -19,7 +19,6 @@ one AC key:
   via the registry loader (``build_registry_entries``).
 * proof edges come from the ``@ac_proof(...)`` decorators co-located on tests
   (reusing the static AST scan from ``generate_critical_proof_matrix``).
-* score/floor per AC comes from ``common/testing/data/ac-score-baseline.jsonl``.
 * vision items + their required ACs/proofs come from ``vision.md`` (reusing
   ``generate_vision_proof_matrix``'s parsing).
 * macro outcomes come from the small hand-maintained
@@ -29,8 +28,7 @@ The aggregate views (critical-proof matrix, vision-proof matrix, README EPIC
 status) are DERIVED on demand by the ``render_*`` projections in the existing
 generators that call ``build_ac_graph()``. None of those views is
 committed-materialized; only the sharded sources (EPIC docs, ``@ac_proof``
-decorators, vision.md, outcomes YAML) and the single persisted ratchet
-(``ac-score-baseline.jsonl``, union-merge) live on disk, so two PRs touching
+decorators, vision.md, outcomes YAML) live on disk, so two PRs touching
 DIFFERENT ACs never collide on a common committed aggregate file.
 """
 
@@ -69,8 +67,6 @@ class AcNode:
     real_test_files: tuple[str, ...] = ()
     # ``@ac_proof`` proof ids that name this AC id.
     proof_ids: tuple[str, ...] = ()
-    # Persisted ratchet floor for this AC, if any.
-    score: float | None = None
 
 
 @dataclass(frozen=True)
@@ -284,7 +280,6 @@ def build_ac_graph(
             mandatory=bool(entry.get("mandatory", True)),
             real_test_files=tuple(sorted(real_refs.get(ac_id, set()))),
             proof_ids=tuple(sorted(proofs_by_ac.get(ac_id, []))),
-            score=None,
         )
 
     outcomes_doc = yaml.safe_load(outcomes_path.read_text(encoding="utf-8")) or {}

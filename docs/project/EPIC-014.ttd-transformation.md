@@ -74,7 +74,7 @@ were snapshots, not current truth.
 |---|---|
 | Mandatory work order and agent workflow | [orchestration.md](../agents/orchestration.md), [tdd.md](../../common/testing/tdd.md) |
 | Security and engineering red lines | [red-lines.md](../agents/red-lines.md), executable guardrail tests |
-| AC registry generation and orphan/stub checks | `tools/generate_ac_registry.py`, `tools/lint_doc_consistency.py` |
+| AC registry loading and orphan/stub checks | `common/meta/extension/generate_ac_registry.py`, `tools/lint_doc_consistency.py` |
 | AC proof quality | `tools/check_ac_index.py`, CI traceability artifact |
 | Coverage policy | [coverage.md](../../common/testing/coverage.md), `common/meta/extension/coverage/policy.py` |
 | Development and SOP commands | [development.md](../../common/meta/development.md), `make`, `moon`, and `tools/` entry points |

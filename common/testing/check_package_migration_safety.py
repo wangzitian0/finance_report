@@ -1,6 +1,6 @@
 """Consolidated runner for package-model migration-safety gates.
 
-Runs the 7 package-model migration safety and contract gates in a single
+Runs the 6 package-model migration safety and contract gates in a single
 Python process to eliminate repeated Python runtime startup overhead in CI.
 """
 
@@ -15,7 +15,6 @@ from common.meta.base.gate_cli import REPO_ROOT, escape_workflow_command, run_ga
 from common.meta.extension import (
     check_authority_reconcile,
     check_draft_packages,
-    check_epic_package_dual,
     check_tier_ast_literal,
 )
 from common.testing import tool_shim_contract
@@ -25,13 +24,6 @@ def violations(repo_root: Path) -> list[str]:
     """Aggregate violations from all package migration safety gates."""
     findings: list[str] = []
     findings.extend(check_tier_ast_literal.violations(repo_root))
-    dual = check_epic_package_dual.dual_defined_ids(repo_root)
-    findings.extend(
-        [
-            f"{ac_id} is defined in both an EPIC table and a package roadmap"
-            for ac_id in dual
-        ]
-    )
     findings.extend(check_draft_packages.violations(repo_root, None))
     reconcile_violations, _ = check_authority_reconcile.reconcile(repo_root)
     findings.extend(reconcile_violations)
@@ -63,7 +55,7 @@ def _run_command(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
-    print("[PACKAGE-MIGRATION-SAFETY] PASSED: all 7 migration safety gates satisfied.")
+    print("[PACKAGE-MIGRATION-SAFETY] PASSED: all 6 migration safety gates satisfied.")
     return 0
 
 

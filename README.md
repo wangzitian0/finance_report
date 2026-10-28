@@ -25,10 +25,8 @@ README -> owning package contract -> roadmap AC -> test
   in that package's `contract.py` `roadmap` (aggregated by `meta`'s data layer,
   never mirrored back into an EPIC table — see
   [`common/meta/migration-standard.md`](common/meta/migration-standard.md)).
-  Existing residue-marked EPIC ACs materialize into the generated registries:
-  `docs/ac_registry.yaml`,
-  `docs/infra_registry.yaml`, plus explicit overrides in
-  `docs/ac_registry_overrides.yaml`.
+  Existing residue-marked EPIC ACs and package roadmaps are loaded in memory by
+  `common/meta/extension/generate_ac_registry.py`.
 - **Tests** are the proof. A referenced AC is not enough; behavior must be
   asserted by real tests.
 
@@ -48,8 +46,8 @@ from project intent to executable proof without reading archive fragments.
 | Goal & culture | `vision.md` | North-star goal, axioms, trade-off rules, and direction for ambiguous choices | Referenced by EPIC vision anchors |
 | Project tracking | `docs/project/README.md` | EPIC directory and non-EPIC documentation ownership | Active markdown ownership sweep |
 | Package scope | `common/<pkg>/contract.py` | New acceptance criteria in each package roadmap | Package contract and AC proof gates |
-| EPIC residue | `docs/project/EPIC-*.md` | Existing non-package-owned scope and known gaps; shrink-only | AC registries and residue ratchet |
-| AC registry | `docs/ac_registry.yaml`, `docs/infra_registry.yaml`, `docs/ac_registry_overrides.yaml` | Generated acceptance criteria inventory and explicit non-derived overrides | `tools/generate_ac_registry.py --check` |
+| EPIC residue | `docs/project/EPIC-*.md` | Existing non-package-owned scope and known gaps; shrink-only | AC index and residue ratchet |
+| AC registry | `common/meta/extension/generate_ac_registry.py` | In-memory acceptance criteria inventory from package roadmaps and marked EPIC residue | `tools/check_ac_index.py` |
 | Concept ownership registry | `common/meta/data/MANIFEST.yaml` | Technical truth ownership map (which package owns which concept) | `tools/check_manifest.py`, `tools/check_ssot_ownership.py` |
 | Testing proof | CI traceability artifact, `unified-coverage.json` | AC-to-test proof and coverage baseline | `tools/check_ac_index.py`, `tools/check_coverage_policy.py` |
 

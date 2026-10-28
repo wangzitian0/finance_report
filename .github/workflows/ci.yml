@@ -1332,8 +1332,6 @@ jobs:
       - name: AC Traceability Check
         run: |
           set +e
-          uv run --with pyyaml python tools/generate_ac_registry.py --check
-          registry_status=$?
           # NOTE: the AC-index gate is exactly TWO gates and runs ONCE, in the
           # fast `lint` job (`tools/check_ac_index.py`). Its Gate A INTEGRITY now
           # FOLDS the former standalone `check_ac_traceability` (CI-stage
@@ -1376,7 +1374,6 @@ jobs:
             echo ""
             echo "Gate Status"
             echo "-----------"
-            echo "generate_ac_registry=$registry_status"
             echo "check_e2e_epic_traceability=$e2e_status"
             echo "build_ac_traceability=$audit_status"
             echo "package_governance_projection=$governance_projection_status"
@@ -1386,7 +1383,7 @@ jobs:
             echo "now folded into the single check_ac_index gate (lint job)."
           } > "$RUNNER_TEMP/AC-TRACEABILITY-CONTEXT.md"
 
-          if [ "$registry_status" -ne 0 ] || [ "$e2e_status" -ne 0 ] || [ "$audit_status" -ne 0 ] || [ "$governance_projection_status" -ne 0 ] || [ "$reconciliation_audit_status" -ne 0 ]; then
+          if [ "$e2e_status" -ne 0 ] || [ "$audit_status" -ne 0 ] || [ "$governance_projection_status" -ne 0 ] || [ "$reconciliation_audit_status" -ne 0 ]; then
             exit 1
           fi
 
@@ -1480,7 +1477,7 @@ jobs:
         continue-on-error: true
         run: |
           # ac_tier_water_line() -> check_ac_tier_baseline -> generate_ac_registry
-          # -> ac_registry_format needs PyYAML; this job is bare setup-python
+          # needs PyYAML; this job is bare setup-python
           # (matches the ac-behavioral-ratchet job's same gotcha above).
           python -m pip install --quiet pyyaml
           python tools/generate_evidence_bundle.py \

@@ -50,26 +50,17 @@ only the engine is unified, so fixability is unchanged. The two folded modules
 remain importable LIBRARIES (their own unit tests still run them directly); they
 are simply no longer SEPARATE CI gate steps.
 
-**Gate B — PROTECTION RATCHET (soft, monotonic).** Two conflict-safe,
-never-regressing sub-parts with different CI entry points:
-
-1. the per-AC behavioural-score floor over ``ac-score-baseline.jsonl`` (delegated
-   unchanged to ``check_ac_score_baseline``, ``merge=union`` conflict-free). In
-   CI this runs in the dedicated ``ac-behavioral-ratchet`` job because it needs
-   JUnit artifacts. This entry point delegates it only when ``--ratchet-current``
-   is provided;
-2. the per-type COUNT floor over ``protection-floor.json`` (delegated to
-   :mod:`common.testing.protection`): for each protection type, current count of
-   mandatory active ACs at that type must be ``>=`` the committed floor. Adding
-   protection only raises the current count and passes WITHOUT editing the floor
-   file; the floor is bumped only by the explicit ``--update-floor`` action.
+**Gate B — PROTECTION RATCHET (soft, monotonic).** The per-type COUNT floor over
+``protection-floor.json`` (delegated to :mod:`common.testing.protection`): for
+each protection type, current count of mandatory active ACs at that type must be
+``>=`` the committed floor. Adding protection only raises the current count and
+passes WITHOUT editing the floor file; the floor is bumped only by the explicit
+``--update-floor`` action.
 
 ``main()`` always runs Gate A (graph obligations + the two folded repo contracts)
-and Gate B's per-type count floor, then exits 1 if either fails. When
-``--ratchet-current`` is passed it also delegates Gate B's per-AC score floor to
-``check_ac_score_baseline``. On pass it prints the per-type protection dashboard
-so the gate REPORTS the protection levels even though only a floor regression
-fails it.
+and Gate B's per-type count floor, then exits 1 if either fails. On pass it
+prints the per-type protection dashboard so the gate REPORTS the protection
+levels even though only a floor regression fails it.
 
 This is the SINGLE AC-index gate entry point. The former standalone CI gate
 steps for ``common.testing.check_ac_traceability`` and

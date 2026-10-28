@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
-"""Per-type protection counts + the monotonic count floor (Gate B part 2).
+"""Per-type protection counts + the monotonic count floor (Gate B).
 
-This is the COUNT side of the protection ratchet. The per-AC behavioural-score
-floor (``ac-score-baseline.jsonl``) is owned by
-:mod:`common.testing.check_ac_score_baseline`; this module owns the complementary
-per-TYPE count floor: for each protection *type* it derives how many mandatory,
-active ACs currently have that type from the graph, and enforces
-``current_count[type] >= committed_floor[type]`` so protection never regresses
-in aggregate.
+This module owns the per-TYPE count floor: for each protection *type* it
+derives how many mandatory, active ACs currently have that type from the graph,
+and enforces ``current_count[type] >= committed_floor[type]`` so protection
+never regresses in aggregate.
 
 Protection types (each derived purely from the AC graph):
 
 * ``has_real_ref`` — L1: a real (non-stub) test file references the AC id.
 * ``has_proof`` — L2: a resolved ``@ac_proof`` binds the AC.
-* ``has_score`` — L3: the AC has a persisted ratchet floor in the JSONL baseline.
 * ``has_mirror`` — a proof binding the AC carries a ``mirror_proof_id``.
 
 Conflict-safety convention (this is the whole point of the split file):
@@ -38,7 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FLOOR = REPO_ROOT / "common" / "testing" / "data" / "protection-floor.json"
 
 # The protection types enforced by the count floor, in a stable display order.
-PROTECTION_TYPES = ("has_real_ref", "has_proof", "has_score", "has_mirror")
+PROTECTION_TYPES = ("has_real_ref", "has_proof", "has_mirror")
 
 
 def _ac_has_mirror(graph: AcGraph, proof_ids: tuple[str, ...]) -> bool:
@@ -64,8 +60,6 @@ def count_protection_types(graph: AcGraph) -> dict[str, int]:
             counts["has_real_ref"] += 1
         if node.proof_ids:
             counts["has_proof"] += 1
-        if node.score is not None:
-            counts["has_score"] += 1
         if _ac_has_mirror(graph, node.proof_ids):
             counts["has_mirror"] += 1
     return counts

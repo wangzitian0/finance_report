@@ -150,7 +150,6 @@ def _validate_repo_contract_files(repo_root: Path) -> list[str]:
             "coverage-tooling",
             "Download tooling coverage",
             "Upload tooling coverage context",
-            "tools/generate_ac_registry.py --check",
             # The AC-index gate is the single index gate; its INTEGRITY gate folds
             # in the former standalone check_ac_traceability + check_critical_proof_matrix
             # contracts (those are no longer separate CI steps).

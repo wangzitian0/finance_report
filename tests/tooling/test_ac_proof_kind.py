@@ -28,9 +28,6 @@ def test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix(
 ) -> None:
     """AC-authority.5.1: {proof:KIND} flows into the value; gate enforces the matrix."""
     epic_dir = tmp_path / "docs" / "project"
-    overrides = tmp_path / "docs" / "ac_registry_overrides.yaml"
-    overrides.parent.mkdir(parents=True, exist_ok=True)
-    overrides.write_text("version: '1.0'\ngroups: {}\n", encoding="utf-8")
     _write_epic(
         epic_dir,
         "EPIC-003.statement-parsing.md",
@@ -45,10 +42,9 @@ def test_AC26_5_1_proof_kind_marker_flows_and_gate_enforces_matrix(
         # Untagged AC -> no proof_kind, ignored by the gate.
         "| AC3.1.5 | No tier {proof:exact} | t | f | P0 | <!-- epic-owned: pending-package -->\n",
     )
-    monkeypatch.setattr(gar, "EPIC_DIR", str(epic_dir))
-    monkeypatch.setattr(gar, "OVERRIDES", str(overrides))
+    monkeypatch.setattr(gar, "EPIC_DIR", epic_dir)
 
-    entries = gar.build_registry_entries(epic_source=epic_dir, overrides=overrides)
+    entries = gar.build_registry_entries(epic_source=epic_dir)
 
     # The marker flows in, stripped from the description.
     assert entries["AC3.1.1"]["proof_kind"] == "invariant"

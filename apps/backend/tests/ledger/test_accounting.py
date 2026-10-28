@@ -24,18 +24,12 @@ from src.ledger import (
     issue="#1103",
     ac_ids=["AC-ledger.2.1"],
 )
-async def test_balanced_entry_passes(ac_evidence):
+async def test_balanced_entry_passes():
     """AC-ledger.2.1: Balanced debit/credit entries should pass validation.
 
     Core "money" truth for the L2 + L3 anchor: a balanced double-entry
     transaction (SUM(DEBIT) == SUM(CREDIT)) is accepted by the production
     ``validate_journal_balance`` path and never raises ``ValidationError``.
-
-    L3 evidence (deterministic): the debit/credit imbalance is recomputed from
-    the very lines the validator accepted; the golden imbalance for a balanced
-    entry is exactly ``Decimal("0")``. The emitted score is 1.0 only for an
-    exact-zero imbalance and degrades otherwise, so it is a measured
-    ``compare(actual, golden)`` rather than a hand-assigned grade.
     """
     lines = [
         JournalLine(
@@ -58,11 +52,6 @@ async def test_balanced_entry_passes(ac_evidence):
 
     validate_journal_balance(lines)  # Should not raise
 
-    # --- L3 behavioral evidence (deterministic) ---
-    # Recompute the debit/credit imbalance from the lines the validator just
-    # accepted. All lines are base-currency (SGD), so the base amount equals the
-    # line amount. The golden imbalance for a balanced double-entry transaction
-    # is exactly Decimal("0"); the score measures the match against that golden.
     total_debit = sum(
         (line.amount for line in lines if line.direction == Direction.DEBIT),
         Decimal("0"),
@@ -73,26 +62,6 @@ async def test_balanced_entry_passes(ac_evidence):
     )
     imbalance = abs(total_debit - total_credit)
     assert imbalance == Decimal("0")  # exact, not within-tolerance
-    # Score: a Decimal yardstick (money stays Decimal end-to-end, per red line),
-    # 1 iff the accepted entry is exactly balanced and degrading by the imbalance
-    # fraction otherwise. Note the production validator only requires balance
-    # *within* a Decimal("0.01") tolerance, so an entry off by <=0.01 would still
-    # have been accepted with a non-zero imbalance; this evidence deliberately
-    # measures the stricter "imbalance is exactly zero" golden for the L3 anchor.
-    score_decimal = Decimal("1") - min(Decimal("1"), imbalance / (total_debit or Decimal("1")))
-    # ac_evidence's JSON payload types ``score`` as a float; convert only here, at
-    # the serialization boundary, after all money arithmetic is done in Decimal.
-    ac_evidence(
-        ac_id="AC-ledger.2.1",
-        score=float(score_decimal),
-        metric="balanced_entry_debit_credit_imbalance_is_zero",
-        comment=(
-            "Balanced 2-line entry accepted by validate_journal_balance; "
-            f"SUM(DEBIT)={total_debit} == SUM(CREDIT)={total_credit}, "
-            f"imbalance={imbalance} (golden 0)"
-        ),
-        provenance="deterministic",
-    )
 
 
 async def test_unbalanced_entry_fails():

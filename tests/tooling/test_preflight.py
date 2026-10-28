@@ -382,8 +382,8 @@ class TestRunAndMain:
             calls.append(list(argv))
             return 1  # first command fails
 
-        # ac-traceability has two commands; only the first should run.
-        checks = [c for c in preflight.CHECKS if c.name == "ac-traceability"]
+        # ssot-ownership has two commands; only the first should run.
+        checks = [c for c in preflight.CHECKS if c.name == "ssot-ownership"]
         preflight.run_checks(checks, runner=runner, python="python3")
         assert len(calls) == 1
 

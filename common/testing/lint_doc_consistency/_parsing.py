@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 try:
-    from common.meta.extension.ac_registry_format import load_registry_entries
+    from common.meta.extension.generate_ac_registry import load_registry_entries
 except ImportError:  # pragma: no cover - environment guard
     print(
         "ERROR: PyYAML not installed. Run: pip install pyyaml",
@@ -127,8 +127,6 @@ RECONCILIATION_THRESHOLD_FORBIDDEN_TOKENS = (
 
 
 def load_registry_acs(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
     return load_registry_entries(path)
 
 

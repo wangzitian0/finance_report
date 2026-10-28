@@ -84,8 +84,6 @@ EXCLUDED = (
     "common/meta/extension/check_taxonomy_drift.py",
     "tools/check_taxonomy_drift.py",
     "tests/tooling/test_taxonomy_drift.py",
-    "docs/ac_registry.yaml",
-    "docs/infra_registry.yaml",
 )
 
 #: Tracked-path prefixes that are out of scope (generated/reference output).

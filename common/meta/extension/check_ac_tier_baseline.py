@@ -63,7 +63,7 @@ def load_baseline(path: Path) -> set[str]:
 
 def write_baseline(path: Path, untagged: set[str]) -> None:
     """Persist the untagged-debt baseline as sorted JSON."""
-    from common.meta.extension.ac_registry_format import sort_key
+    from common.meta.extension.generate_ac_registry import sort_key
 
     payload: dict[str, Any] = {
         "_comment": (
@@ -87,7 +87,7 @@ def evaluate(baseline: set[str], untagged: set[str]) -> dict[str, list[str]]:
     - ``resolved``: in the baseline but tagged now (informational; shrink the
       baseline with ``--update``).
     """
-    from common.meta.extension.ac_registry_format import sort_key
+    from common.meta.extension.generate_ac_registry import sort_key
 
     new_untagged = sorted(untagged - baseline, key=sort_key)
     resolved = sorted(baseline - untagged, key=sort_key)

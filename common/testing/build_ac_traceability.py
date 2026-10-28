@@ -35,7 +35,7 @@ from datetime import date
 from pathlib import Path
 
 from common.meta.base.gate_util import display_path
-from common.meta.extension.ac_registry_format import sort_key
+from common.meta.extension.generate_ac_registry import sort_key
 from common.testing import ac_scan
 from common.testing.check_ac_traceability import (
     AC,

@@ -25,7 +25,7 @@ from typing import Any
 import yaml
 
 from common.meta.base.gate_util import display_path
-from common.meta.extension.ac_registry_format import load_registry_entries
+from common.meta.extension.generate_ac_registry import load_registry_entries
 from common.testing.ac_traceability_refs import AC_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -111,8 +111,6 @@ def _load_registry_ids(repo_root: Path) -> set[str]:
     ids: set[str] = set()
     for default_path in REGISTRY_PATHS:
         registry_path = repo_root / display_path(default_path, REPO_ROOT)
-        if not registry_path.exists():
-            continue
         for entry in load_registry_entries(registry_path):
             ids.add(str(entry["id"]))
     return ids

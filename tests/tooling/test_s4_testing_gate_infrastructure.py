@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from common.meta.extension.ac_registry_format import sort_key
+from common.meta.extension.generate_ac_registry import sort_key
 from common.testing import ac_scan, jsonl_baseline
 from common.testing import build_ac_traceability, check_ac_traceability
 

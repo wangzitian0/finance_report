@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from common.meta.extension.check_manifest import load_computed_concepts
-from common.meta.extension.generate_ac_registry import materialized_entries
+from common.meta.extension.generate_ac_registry import build_registry_entries
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -23,7 +23,7 @@ def test_AC21_1_1_ai_advisor_is_application_layer_contract() -> None:
     # ai_advisor_policy is now declared in common/advisor/contract.py, not
     # hand-copied into MANIFEST.yaml (#1799) — check the computed registry.
     concepts = load_computed_concepts(ROOT, ROOT / "common/meta/data/MANIFEST.yaml")
-    registry_entries = {entry["id"]: entry for entry in materialized_entries("feature")}
+    registry_entries = build_registry_entries()
 
     assert "Application-Layer AI Advisor" in epic
     assert "read-only application layer" in epic

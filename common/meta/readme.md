@@ -285,12 +285,11 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
      (check5 `registry_to_tests` scans test-file text for the dotted id).
 
 7. **Delete the EPIC table ROW, but keep the EPIC REFERENCING the new ids.**
-   Remove the `| ACx.y.z | … |` definition row (else `check_epic_package_dual`
-   fails — no AC defined in two places), and replace the section with a
+   Remove the `| ACx.y.z | … |` definition row, and replace the section with a
    disclaimer that **lists every homed `AC-<pkg>.x.y` id** — a registry AC must
    still be *referenced* by an EPIC doc (`lint_doc_consistency` check3
-   `registry_to_epic`); a prose mention satisfies it, a table row would re-trip
-   `check_epic_package_dual`. (See EPIC-025/EPIC-026 for the pattern.)
+   `registry_to_epic`); a prose mention satisfies it. (See EPIC-025/EPIC-026
+   for the pattern.)
 
 8. **Register & classify.** Register any new concept in
    [`MANIFEST.yaml`](data/MANIFEST.yaml) (owner path + `family`+`kind`) —
@@ -300,11 +299,10 @@ The recipe for moving a module (and its EPIC-table ACs) into the package model.
    [`traceability-exceptions.md`](../../docs/project/traceability-exceptions.md).
 
 9. **Run the gates locally before pushing:** `check_package_contract`,
-   `check_package_directory_coverage`, `generate_ac_registry --check`,
-   `check_ac_proof_kind`, `check_tier_ast_literal`, `check_epic_package_dual`,
-   `check_draft_packages`, `check_tier_imports`, `check_authority_reconcile`, and
-   `lint_doc_consistency`. The untagged-debt ratchet shrinks automatically as the
-   moved ACs leave the EPIC source.
+   `check_package_directory_coverage`, `check_ac_proof_kind`,
+   `check_tier_ast_literal`, `check_draft_packages`, `check_tier_imports`,
+   `check_authority_reconcile`, and `lint_doc_consistency`. The untagged-debt
+   ratchet shrinks automatically as the moved ACs leave the EPIC source.
 
 ---
 
@@ -535,7 +533,7 @@ tier inline at the definition site with a `{tier:XX}` marker, where `XX` is one 
 | AC-extraction.2.1 | Balance Validation (Pass) {tier:CODE-ONLY} | `test_balance_valid` | ... | P0 |
 ```
 
-`tools/generate_ac_registry.py` strips the marker and lifts the tier into the AC's
+`common/meta/extension/generate_ac_registry.py` strips the marker and lifts the tier into the AC's
 registry value. As modules become packages, their ACs move into the package
 `roadmap` and the marker (including any legacy `HU`) goes away.
 

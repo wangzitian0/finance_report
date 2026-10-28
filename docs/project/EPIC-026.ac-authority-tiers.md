@@ -52,7 +52,7 @@ this EPIC references that contract rather than restating it.
    after the #1626 authority→meta converge, [common/meta/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/meta/readme.md));
    register it in `common/meta/data/MANIFEST.yaml` (`authority_tiers`).
 2. Extend the EPIC AC declaration with a `{tier:XX}` marker and teach
-   `tools/generate_ac_registry.py` to lift it into the AC value.
+   `common/meta/extension/generate_ac_registry.py` to lift it into the AC value.
 3. Add `tools/check_ac_tier_baseline.py` + `common/meta/data/ac-tier-baseline.json`
    (shrink-only untagged-debt baseline), wired into the AC/lint gate; add a test.
 4. Tag every AC in the first-batch EPICs and shrink the baseline accordingly.
@@ -157,5 +157,5 @@ this EPIC references that contract rather than restating it.
 - SSOT: [common/meta/readme.md](https://github.com/wangzitian0/finance_report/blob/main/common/meta/readme.md)
   (the tier vocabulary, internalized into the `authority` package)
 - Untagged-debt baseline: [ac-tier-baseline.json](../../common/meta/data/ac-tier-baseline.json)
-- Generator: `tools/generate_ac_registry.py` · Gate: `tools/check_ac_tier_baseline.py`
+- Loader: `common/meta/extension/generate_ac_registry.py` · Gate: `tools/check_ac_tier_baseline.py`
 - Workflow context: [tdd.md](../../common/testing/tdd.md)
