@@ -1,4 +1,4 @@
-"""Regression: importing common.audit must not shadow the repo-root ``tests`` package."""
+"""AC-audit.43.1: importing common.audit must not shadow the repo-root ``tests`` package."""
 
 from __future__ import annotations
 
