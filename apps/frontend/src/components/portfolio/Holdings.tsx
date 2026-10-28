@@ -65,32 +65,32 @@ export function HoldingsTable({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0">
       {Object.entries(grouped).map(([broker, brokerHoldings]) => (
-        <div key={broker} className="card">
-          <div className="card-header flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="badge badge-primary">{broker}</span>
-              <span className="text-xs text-muted">
+        <div key={broker} className="card overflow-hidden min-w-0">
+          <div className="card-header flex items-center justify-between gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="badge badge-primary truncate">{broker}</span>
+              <span className="text-xs text-muted whitespace-nowrap shrink-0">
                 {brokerHoldings.length} holdings
               </span>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-w-full">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)]">
-                  <th className="text-left px-4 py-2 font-medium">Asset</th>
-                  <th className="text-right px-4 py-2 font-medium">Qty</th>
-                  <th className="text-right px-4 py-2 font-medium">
+                  <th className="text-left px-3 sm:px-4 py-2 font-medium">Asset</th>
+                  <th className="hidden sm:table-cell text-right px-4 py-2 font-medium">Qty</th>
+                  <th className="hidden md:table-cell text-right px-4 py-2 font-medium">
                     Cost Basis
                   </th>
-                  <th className="text-right px-4 py-2 font-medium">
+                  <th className="text-right px-3 sm:px-4 py-2 font-medium">
                     Market Value
                   </th>
-                  <th className="text-right px-4 py-2 font-medium">P&L</th>
-                  <th className="text-right px-4 py-2 font-medium">P&L %</th>
-                  <th className="text-left px-4 py-2 font-medium">Status</th>
+                  <th className="text-right px-3 sm:px-4 py-2 font-medium">P&L</th>
+                  <th className="hidden md:table-cell text-right px-4 py-2 font-medium">P&L %</th>
+                  <th className="hidden lg:table-cell text-left px-4 py-2 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
@@ -99,8 +99,8 @@ export function HoldingsTable({
                     key={h.id}
                     className="hover:bg-[var(--background-muted)]/50 transition-colors"
                   >
-                    <td className="px-4 py-2">
-                      <span className="inline-flex items-center gap-1.5">
+                    <td className="px-3 sm:px-4 py-2 min-w-0">
+                      <span className="inline-flex flex-wrap items-center gap-1.5">
                         <Link
                           href={portfolioHoldingHref(h.asset_identifier)}
                           className="font-medium font-mono text-[var(--accent)] hover:underline"
@@ -122,28 +122,28 @@ export function HoldingsTable({
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-2 text-right font-mono">
+                    <td className="hidden sm:table-cell px-4 py-2 text-right font-mono whitespace-nowrap">
                       {formatQuantity(h.quantity)}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="hidden md:table-cell px-4 py-2 text-right whitespace-nowrap tabular-nums">
                       {formatCurrencyLocale(h.cost_basis, h.currency)}
                     </td>
-                    <td className="px-4 py-2 text-right font-medium">
+                    <td className="px-3 sm:px-4 py-2 text-right font-medium whitespace-nowrap tabular-nums">
                       {formatCurrencyLocale(h.market_value, h.currency)}
                     </td>
                     <td
-                      className={`px-4 py-2 text-right font-medium ${pnlColorClass(h.unrealized_pnl)}`}
+                      className={`px-3 sm:px-4 py-2 text-right font-medium whitespace-nowrap tabular-nums ${pnlColorClass(h.unrealized_pnl)}`}
                     >
                       {formatCurrencyLocale(h.unrealized_pnl, h.currency)}
                     </td>
                     <td
-                      className={`px-4 py-2 text-right ${pnlColorClass(h.unrealized_pnl_percent)}`}
+                      className={`hidden md:table-cell px-4 py-2 text-right whitespace-nowrap tabular-nums ${pnlColorClass(h.unrealized_pnl_percent)}`}
                     >
                       {formatSignedPercentFromPercentValue(
                         h.unrealized_pnl_percent,
                       )}
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="hidden lg:table-cell px-4 py-2 whitespace-nowrap">
                       <span
                         className={`badge ${h.status === "active" ? "badge-success" : "badge-muted"}`}
                       >
@@ -292,9 +292,9 @@ export function HoldingDetail({ ticker }: { ticker: string }) {
           </div>
 
           {activeHoldings.length > 0 && (
-            <div className="card mb-6">
+            <div className="card mb-6 overflow-hidden min-w-0">
               <div className="card-header"><h2 className="text-sm font-medium">Active Lots</h2></div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto max-w-full">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[var(--border)]">
@@ -326,9 +326,9 @@ export function HoldingDetail({ ticker }: { ticker: string }) {
           )}
 
           {disposedHoldings.length > 0 && (
-            <div className="card">
+            <div className="card overflow-hidden min-w-0">
               <div className="card-header"><h2 className="text-sm font-medium">Disposed Lots</h2></div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto max-w-full">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[var(--border)]">
@@ -358,9 +358,9 @@ export function HoldingDetail({ ticker }: { ticker: string }) {
       )}
 
       {activeTab === "dividends" && (
-        <div className="card">
+        <div className="card overflow-hidden min-w-0">
           <div className="card-header"><h2 className="text-sm font-medium">Dividend Events</h2></div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-w-full">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)]">
@@ -392,9 +392,9 @@ export function HoldingDetail({ ticker }: { ticker: string }) {
       )}
 
       {activeTab === "realized" && (
-        <div className="card">
+        <div className="card overflow-hidden min-w-0">
           <div className="card-header"><h2 className="text-sm font-medium">Realized P&L Lots</h2></div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-w-full">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)]">
