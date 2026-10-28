@@ -25,47 +25,17 @@ from sqlalchemy.pool import NullPool
 # side effect; issue #1461).
 import src.orm_registry  # noqa: F401
 from src.config import settings
-from src.extraction import register_fx_rate_provider
-from src.ledger import register_fx_revaluation_provider
 from src.observability import get_logger
-from src.pricing import (
-    PrefetchedFxRates,
-    PricingError,
-    build_manual_valuation_lines,
-    build_manual_valuation_lines_series,
-    convert_amount,
-    convert_money,
-    get_average_rate,
-    get_exchange_rate,
-    get_exchange_rate_series,
-)
-from src.reporting import register_fx_gateway, register_manual_valuation_lines_provider
+from src.pricing import build_manual_valuation_lines, build_manual_valuation_lines_series
+from src.reporting import register_manual_valuation_lines_provider
 
-# Wire reporting's composition-root ports for direct (no-app) test runs — the
-# same registrations main.py performs at startup (#1666/#1610): reporting
-# reaches the FX seam and the manual-valuation lines builder only by
-# injection (a carved L3 package must not import another L3 package's
-# implementation directly), so tests exercising reporting without the full
-# app must register them too. Module-top so it precedes every test module
-# import.
-register_fx_gateway(
-    get_exchange_rate=get_exchange_rate,
-    get_exchange_rate_series=get_exchange_rate_series,
-    get_average_rate=get_average_rate,
-    convert_amount=convert_amount,
-    convert_money=convert_money,
-    prefetched_fx_rates=PrefetchedFxRates,
-    fx_rate_error=PricingError,
-)
+# Wire reporting's manual-valuation lines port for direct (no-app) test runs — the
+# same registration main.py performs at startup (#1666/#1610). Module-top so it
+# precedes every test module import. FX rate lookup has no port: ledger,
+# extraction and reporting import src.pricing directly (#2774).
 register_manual_valuation_lines_provider(
     build_manual_valuation_lines, series_provider=build_manual_valuation_lines_series
 )
-
-# Wire extraction's and ledger's FX-rate ports (#1675 D5c), same reason as
-# the reporting gate above: pricing now depends on extraction, so a direct
-# extraction/ledger -> pricing import would cycle back through extraction.
-register_fx_rate_provider(get_exchange_rate, fx_rate_error=PricingError)
-register_fx_revaluation_provider(get_exchange_rate, fx_rate_error=PricingError)
 
 # Wire extraction's transfer-exclusions port to reconciliation's published
 # read, mirroring the app composition root (src/main.py, #1675 D5): tests

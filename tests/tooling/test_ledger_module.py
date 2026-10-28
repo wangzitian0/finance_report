@@ -215,13 +215,9 @@ def test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry():
             f"balance validation must precede journal persistence in {sink}"
         )
 
-    # External callers import the published ledger Entry; in-package edges import
-    # the base type directly. Both forms still prove "an Entry guards balance".
+    # In-package edges import the base Entry type directly; it proves "an Entry guards balance".
+    # The revaluation booking path was the other Entry builder; it was deleted in #2774.
     for path, entry_import in (
-        (
-            "apps/backend/src/ledger/extension/fx_revaluation.py",
-            "from src.ledger import Entry",
-        ),
         (
             "apps/backend/src/ledger/extension/processing.py",
             "from src.ledger.base.types.entry import Entry",

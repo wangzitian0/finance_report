@@ -1,29 +1,22 @@
-"""FX Revaluation Service - Infrastructure for unrealized FX gain/loss tracking.
+"""Unrealized FX gain/loss calculation for foreign-currency asset and liability accounts.
 
-This service provides the foundation for:
-1. Calculating unrealized FX gains/losses on foreign currency balances
-2. Creating revaluation journal entries at period-end
-3. Distinguishing realized vs unrealized FX impacts in reporting
+This module only reads. It compares each account's historical cost with its
+spot-rate value and returns the difference to reporting. It books no journal
+entry: reporting recomputes the value on every report (#2774).
 """
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.audit import JournalEntrySourceType
-from src.audit.money import Currency, Money
-from src.ledger import Entry, Leg
-from src.ledger.extension.anchored_posting import submit_system_journal_entry
 from src.ledger.orm.account import Account, AccountType
 from src.ledger.orm.journal import (
     Direction,
@@ -32,19 +25,7 @@ from src.ledger.orm.journal import (
     active_journal_entry_filter,
 )
 from src.observability import get_logger
-
-
-class FxRateProvider(Protocol):
-    def __call__(
-        self,
-        db: AsyncSession,
-        base_currency: str,
-        quote_currency: str,
-        rate_date: date,
-        *,
-        lazy_load: bool = False,
-    ) -> Awaitable[Decimal]: ...
-
+from src.pricing import PricingError, get_exchange_rate
 
 logger = get_logger(__name__)
 settings = src.config.settings
@@ -54,51 +35,6 @@ REVALUATION_ACCOUNT_TYPES = (AccountType.ASSET, AccountType.LIABILITY)
 
 class RevaluationError(Exception):
     pass
-
-
-class _FxRateProviderNotRegisteredError(Exception):
-    """Placeholder bound to :data:`FxRateError` before wiring.
-
-    Never raised by anything, so a pre-wiring ``except FxRateError`` simply
-    matches nothing instead of crashing on a non-exception sentinel (mirrors
-    ``reporting.extension.fx_gateway`` and ``extraction.extension.review_queue``).
-    """
-
-
-# ``ledger`` and ``pricing`` are both L3 domains; pricing's own
-# repository/manual-valuation reads need extraction's published ORM entities,
-# and extraction needs ledger's Account/JournalEntry types, so a direct
-# ledger -> pricing import here would make depends_on cyclic
-# (ledger -> pricing -> extraction -> ledger). Same inversion as
-# ``reporting.extension.fx_gateway`` (#1666) and
-# ``extraction.extension.review_queue`` (#1675 D5c): the port lives here,
-# main.py (L4) wires the real pricing.get_exchange_rate/PricingError at
-# startup; tests wire it directly.
-_get_exchange_rate: FxRateProvider | None = None
-
-#: The injected FX-unavailable exception class (``src.pricing.PricingError``
-#: today). Reference late-bound as ``fx_revaluation.PricingError``.
-PricingError: type[Exception] = _FxRateProviderNotRegisteredError
-
-
-def register_fx_revaluation_provider(
-    get_exchange_rate: FxRateProvider,
-    *,
-    fx_rate_error: type[Exception],
-) -> None:
-    """Wire the FX-rate lookup (see module note above)."""
-    global _get_exchange_rate, PricingError
-    _get_exchange_rate = get_exchange_rate
-    PricingError = fx_rate_error
-
-
-def _require_fx_rate_provider() -> FxRateProvider:
-    if _get_exchange_rate is None:
-        raise RuntimeError(
-            "fx_revaluation.register_fx_revaluation_provider() was never called — "
-            "main.py wires it at startup; a test exercising this path must call it too."
-        )
-    return _get_exchange_rate
 
 
 @dataclass
@@ -119,7 +55,6 @@ class RevaluationResult:
     base_currency: str
     accounts_revalued: list[AccountRevaluation]
     total_unrealized_gain_loss: Decimal
-    journal_entry_id: UUID | None
 
 
 async def get_foreign_currency_accounts(
@@ -216,7 +151,7 @@ async def calculate_account_historical_cost(
     for row in result.all():
         if row.fx_rate is None:
             try:
-                rate = await _require_fx_rate_provider()(db, account.currency, base_currency, row.entry_date)
+                rate = await get_exchange_rate(db, account.currency, base_currency, row.entry_date)
             except PricingError:
                 logger.warning(
                     "Historical FX rate missing for revaluation cost basis, falling back to revaluation-date rate",
@@ -225,7 +160,7 @@ async def calculate_account_historical_cost(
                     entry_date=row.entry_date.isoformat(),
                     revaluation_date=as_of_date.isoformat(),
                 )
-                rate = await _require_fx_rate_provider()(db, account.currency, base_currency, as_of_date)
+                rate = await get_exchange_rate(db, account.currency, base_currency, as_of_date)
         else:
             rate = Decimal(str(row.fx_rate))
         converted = Decimal(str(row.amount)) * rate
@@ -258,7 +193,7 @@ async def calculate_unrealized_fx_for_account(
         return None
 
     try:
-        current_rate = await _require_fx_rate_provider()(
+        current_rate = await get_exchange_rate(
             db,
             base_currency=account.currency,
             quote_currency=base_currency,
@@ -298,8 +233,8 @@ async def calculate_unrealized_fx_gains(
 ) -> RevaluationResult:
     """Calculate unrealized FX gains/losses for all foreign currency accounts.
 
-    This is the main entry point for period-end FX revaluation calculation.
-    It does NOT create journal entries - use create_revaluation_entry for that.
+    This is the main entry point for the unrealized FX calculation. It creates
+    no journal entries.
     """
     base_currency = settings.base_currency.upper()
     accounts = await get_foreign_currency_accounts(db, user_id)
@@ -326,217 +261,4 @@ async def calculate_unrealized_fx_gains(
         base_currency=base_currency,
         accounts_revalued=revaluations,
         total_unrealized_gain_loss=total_unrealized,
-        journal_entry_id=None,
     )
-
-
-async def get_or_create_fx_gain_loss_account(
-    db: AsyncSession,
-    user_id: UUID,
-) -> Account:
-    """Get or create the system account for unrealized FX gains/losses.
-
-    This account is used to book revaluation entries. It's an Equity account
-    that represents Other Comprehensive Income (OCI) for FX revaluation.
-    """
-    fx_account_name = "Unrealized FX Gain/Loss"
-    fx_account_code = "SYS-FX-REVAL"
-
-    stmt = select(Account).where(Account.user_id == user_id).where(Account.code == fx_account_code)
-    result = await db.execute(stmt)
-    existing = result.scalar_one_or_none()
-
-    if existing:
-        return existing
-
-    new_account = Account(
-        user_id=user_id,
-        name=fx_account_name,
-        code=fx_account_code,
-        type=AccountType.EQUITY,
-        currency=settings.base_currency.upper(),
-        is_active=True,
-        description="System account for unrealized FX gains and losses from currency revaluation",
-    )
-    db.add(new_account)
-    try:
-        await db.flush()
-    except SQLAlchemyError as e:
-        raise RevaluationError(f"Failed to create FX gain/loss account: {e}") from e
-
-    logger.info(
-        "Created FX gain/loss account",
-        user_id=str(user_id),
-        account_id=str(new_account.id),
-    )
-
-    return new_account
-
-
-async def create_revaluation_entry(
-    db: AsyncSession,
-    user_id: UUID,
-    revaluation_date: date,
-    revaluations: list[AccountRevaluation],
-    fx_account: Account,
-    auto_post: bool = False,
-) -> JournalEntry | None:
-    """Create a journal entry to record unrealized FX gains/losses.
-
-    Creates balanced double-entry:
-    - Debit/Credit each foreign currency account for the revaluation adjustment
-    - Offsetting entry to the FX Gain/Loss equity account
-    """
-    material_revaluations = [r for r in revaluations if abs(r.unrealized_gain_loss) >= Decimal("0.01")]
-
-    if not material_revaluations:
-        logger.info(
-            "No material FX revaluation needed",
-            revaluation_date=revaluation_date.isoformat(),
-        )
-        return None
-
-    base_currency = settings.base_currency.upper()
-    reval_tags = {"revaluation_date": revaluation_date.isoformat()}
-
-    # Quantize each adjustment to the money quantum (2dp) up front so the Entry
-    # balance is validated against exactly what the DECIMAL(18,2) columns persist.
-    # Individual revaluations are material (>= 0.01), but their *sum* can be
-    # sub-cent (e.g. +0.014 - 0.011 = 0.003) and would otherwise round to a
-    # zero/unbalanced offset line at the DB layer.
-    adjustments = [
-        (reval.account_id, Money(reval.unrealized_gain_loss, Currency.of(base_currency)).quantize())
-        for reval in material_revaluations
-    ]
-    net = Money.sum([adj for _, adj in adjustments], currency=base_currency)
-
-    # Build the legs first so the double-entry balance is guaranteed as a TYPE
-    # before anything is persisted (Axiom D / double-entry integrity). This path
-    # previously wrote raw JournalLines with no balance check at all.
-    legs: list[Leg] = [
-        # FX Gain: asset worth MORE in base currency → DEBIT asset; FX Loss → CREDIT.
-        Leg(
-            account_id,
-            Direction.DEBIT if adj.is_positive() else Direction.CREDIT,
-            abs(adj),
-            Decimal("1"),
-            "fx_revaluation",
-            reval_tags,
-        )
-        for account_id, adj in adjustments
-        if not adj.is_zero()
-    ]
-
-    # Offsetting FX leg, opposite to the net asset adjustment. When the net is zero
-    # the asset legs already balance, so no offset line is added (which also avoids
-    # the previously-possible zero-amount line).
-    if not net.is_zero():
-        legs.append(
-            Leg(
-                fx_account.id,
-                Direction.CREDIT if net.is_positive() else Direction.DEBIT,
-                abs(net),
-                Decimal("1"),
-                "fx_revaluation",
-                reval_tags,
-            )
-        )
-
-    if len(legs) < 2:
-        # Nothing material survives quantization to net a balanced entry.
-        return None
-
-    Entry.of(*legs)  # raises UnbalancedEntryError if the legs do not net to zero
-
-    entry = await submit_system_journal_entry(
-        db,
-        user_id=user_id,
-        entry_date=revaluation_date,
-        memo=f"FX Revaluation - {revaluation_date.isoformat()}",
-        lines_data=[
-            {
-                "account_id": leg.account_id,
-                "direction": leg.direction,
-                "amount": leg.money.amount,
-                "currency": leg.money.currency.code,
-                "fx_rate": leg.fx_rate,
-                "event_type": leg.event_type,
-                "tags": leg.tags,
-            }
-            for leg in legs
-        ],
-        base_currency=base_currency,
-        operation="fx-revaluation",
-        source_type=JournalEntrySourceType.FX_REVALUATION,
-        post_immediately=auto_post,
-    )
-    await db.refresh(entry, ["lines"])
-
-    # Revaluation lines are all in base currency; sum as Money (cross-currency would raise).
-    total_debits = Money.sum(
-        (line.money for line in entry.lines if line.direction == Direction.DEBIT),
-        currency=settings.base_currency,
-    )
-    total_credits = Money.sum(
-        (line.money for line in entry.lines if line.direction == Direction.CREDIT),
-        currency=settings.base_currency,
-    )
-
-    if abs((total_debits - total_credits).amount) >= Decimal("0.01"):
-        raise RevaluationError(
-            f"Revaluation entry is unbalanced: debits={total_debits.amount}, credits={total_credits.amount}"
-        )
-
-    return entry
-
-
-async def run_period_end_revaluation(
-    db: AsyncSession,
-    user_id: UUID,
-    revaluation_date: date,
-    auto_post: bool = False,
-) -> RevaluationResult:
-    """Run full period-end FX revaluation process.
-
-    This is the main entry point for period-end processing:
-    1. Calculate unrealized gains/losses for all foreign currency accounts
-    2. Create/get the FX Gain/Loss equity account
-    3. Create a journal entry to record the revaluation
-
-    Returns the revaluation result with journal entry ID if created.
-    """
-    result = await calculate_unrealized_fx_gains(db, user_id, revaluation_date)
-
-    if not result.accounts_revalued:
-        logger.info(
-            "No foreign currency accounts to revalue",
-            user_id=str(user_id),
-            revaluation_date=revaluation_date.isoformat(),
-        )
-        return result
-
-    fx_account = await get_or_create_fx_gain_loss_account(db, user_id)
-
-    entry = await create_revaluation_entry(
-        db=db,
-        user_id=user_id,
-        revaluation_date=revaluation_date,
-        revaluations=result.accounts_revalued,
-        fx_account=fx_account,
-        auto_post=auto_post,
-    )
-
-    if entry:
-        result.journal_entry_id = entry.id
-
-    return result
-
-
-def is_revaluation_entry(entry: JournalEntry) -> bool:
-    """Check if a journal entry is an FX revaluation entry."""
-    return entry.source_type == JournalEntrySourceType.FX_REVALUATION
-
-
-def get_revaluation_entries_filter():
-    """SQLAlchemy filter clause for revaluation entries."""
-    return JournalEntry.source_type == JournalEntrySourceType.FX_REVALUATION

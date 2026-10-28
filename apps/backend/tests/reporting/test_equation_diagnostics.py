@@ -46,7 +46,10 @@ def test_flow_24_diagnostics_fx_rounding_drift():
     )
     assert result.is_balanced is False
     assert result.primary_category == EquationDiagnosticCategory.FX_ROUNDING_DRIFT
-    assert "fx revaluation" in result.suggested_action.lower()
+    # The advice names only an action a user can run: the penny adjustment endpoint (Flow 18).
+    # No job or route books a revaluation entry (#2774), so the text must not tell the user to trigger one.
+    assert "revaluation" not in result.suggested_action.lower()
+    assert "POST /reconciliation/adjustment" in result.suggested_action
 
 
 def test_flow_24_diagnostics_unknown_discrepancy():

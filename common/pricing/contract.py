@@ -403,6 +403,7 @@ CONTRACT = PackageContract(
     # for real.
     interface=[
         "Authority",
+        "ExchangeRateLookup",
         "FxConversion",
         "FxRate",
         "FxWarning",
@@ -559,6 +560,7 @@ CONTRACT = PackageContract(
         ac('AC-pricing.fx.2', 'PrefetchedFxRates batch-prefetches spot and average-window rates under distinct keys, serves the identity rate without a fetch, and propagates the pricing error family on a miss (never a silent partial cache).', 'apps/backend/tests/pricing/test_fx.py::test_AC_pricing_fx_2_prefetch_serves_spot_and_average_keys', priority='P1'),
         ac('AC-pricing.fx.3', 'convert_amount/convert_money honor an average-rate window (average_start/average_end) with the same period-end fallback + fx_warnings semantics as the spot path — the income-statement reporting convention.', 'apps/backend/tests/pricing/test_convert.py::test_AC_pricing_fx_3_convert_amount_uses_average_rate_window', priority='P1'),
         ac('AC-pricing.fx.4', 'get_exchange_rate_series returns, for each requested date, the get_exchange_rate result on that date and omits a date without a rate; it reads the stored candidates once when every date has one, and resolve_series equals one resolve call per date (#2583).', 'apps/backend/tests/pricing/test_fx.py::test_AC_pricing_fx_4_rate_series_equals_one_lookup_per_date', priority='P1'),
+        ac('AC-pricing.fx.5', 'ExchangeRateLookup in apps/backend/src/pricing/extension/fx.py is the one FX rate-lookup Protocol in apps/backend/src; extraction, ledger and reporting import src.pricing directly and define no duplicate FX spot-rate, series or prefetch Protocol (#2774).', 'tests/tooling/test_single_fx_rate_port.py::test_AC_pricing_fx_5_exchange_rate_lookup_is_the_one_fx_rate_port', priority='P1'),
         # ── group providers: manual price update + provider symbol/ticker
         # handling (was EPIC-017 AC17.1.6/AC17.15/AC17.33, migration
         # closeout continuation, #1663 / #1710) ──

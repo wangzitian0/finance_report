@@ -58,6 +58,7 @@ from src.pricing.base.manual_valuation import (
 from src.pricing.extension import (
     MARKET_DATA_QUANTITY_UNIT,
     MARKET_DATA_SYNC_TZ,
+    ExchangeRateLookup,
     FxWarning,
     ManualValuationAttestationPolicy,
     MarketDataScopeProvider,
@@ -113,6 +114,7 @@ from src.pricing.orm.statement_observation import StatementPriceObservation
 
 __all__ = [
     "Authority",
+    "ExchangeRateLookup",
     "FxConversion",
     "FxRate",
     "FxWarning",

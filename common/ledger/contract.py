@@ -102,20 +102,17 @@ CONTRACT = PackageContract(
     tier="CODE-ONLY",
     # audit/observability are lower-layer (infra, L1) than ledger (domain,
     # L3), so those edges are downward. (money folded into audit — issue
-    # #1419.) ``pricing`` was dropped (#1675 D5c): the former direct FX
-    # revaluation import (#1610 P2's pricing.get_exchange_rate) is now
-    # ``register_fx_revaluation_provider``, an inverted port wired by
-    # main.py — pricing depends on extraction (ManualValuationSnapshot et
-    # al.), and a direct ledger -> pricing edge would cycle
-    # (ledger -> pricing -> extraction -> ledger). ``platform`` was added
-    # (#1675 D6): the base ORM mixins (UUIDMixin/UserOwnedMixin/TimestampMixin)
-    # moved from src/models/base.py to platform.orm.base, also a downward edge
-    # (platform is infra, L1). ``extraction`` is deliberately NOT declared:
-    # account_coverage.py's statement-envelope read goes through the inverted
+    # #1419.) ``pricing`` is imported directly for unrealized FX gain/loss
+    # lookup because ``pricing`` imports no other domain package (#2774).
+    # ``platform`` was added (#1675 D6): the base ORM mixins
+    # (UUIDMixin/UserOwnedMixin/TimestampMixin) moved from src/models/base.py
+    # to platform.orm.base, also a downward edge (platform is infra, L1).
+    # ``extraction`` is deliberately NOT declared: account_coverage.py's
+    # statement-envelope read goes through the inverted
     # ``register_statement_coverage_reader`` port (extraction is domain, L3,
     # same rank as ledger, and extraction already depends_on ledger — a direct
     # edge would cycle).
-    depends_on=["audit", "observability", "platform"],
+    depends_on=["audit", "observability", "platform", "pricing"],
     context=ContextScope(
         purpose="Own double-entry financial facts: accounts, journal entries, posting and voiding rules, and processing-account transfer semantics.",
         in_scope=[
@@ -153,6 +150,12 @@ CONTRACT = PackageContract(
             consumer="ledger",
             mode="composition",
             reason="Uses platform persistence mixins for ledger ORM rows without owning the shared persistence substrate.",
+        ),
+        ContextRelation(
+            provider="pricing",
+            consumer="ledger",
+            mode="published-language",
+            reason="Uses pricing FX-rate lookup for read-only unrealized FX gain/loss calculation.",
         ),
     ],
     roles=["base", "extension", "data"],
@@ -307,7 +310,6 @@ CONTRACT = PackageContract(
         "validate_manual_journal_entry_for_post",
         "post_journal_entry",
         "post_opening_balance_entry",
-        "register_fx_revaluation_provider",
         "register_statement_coverage_reader",
         "used_currencies",
         "worst_confidence_tier",
@@ -415,7 +417,6 @@ CONTRACT = PackageContract(
         ac('AC-ledger.opening-position.5', 'Opening positions retain immutable evidence and do not reinterpret voided or unproven history as initialized.', 'apps/backend/tests/ledger/test_opening_position.py::test_opening_projection_and_immutability'),
         ac('AC-ledger.opening-position.6', 'A trusted opening position is a dated stock with a public evidence-bearing projection, never a fabricated prior-day flow.', 'apps/backend/tests/ledger/test_opening_position.py::test_opening_projection_preserves_date'),
         ac('AC-ledger.statement-category.1', 'The accepted economic category is pinned on the counter-account journal command before authorization.', 'apps/backend/tests/ledger/test_opening_position.py::test_statement_category_is_pinned'),
-        ac('AC-ledger.fx-port.1', "Ledger's FX revaluation registration exposes the exact pricing lookup shape without Callable[..., Any] erasure.", 'tests/tooling/test_s3_pr_d_structure.py::test_AC_s3_typed_fx_ports_have_no_erased_registration_or_forwarders'),
         ac('AC-ledger.78.1', 'ConfidenceTier owns the one worst_confidence_tier rank function; reporting and advisor consume it with explicit empty-input defaults, and unknown tiers fail closed as less trusted than every known tier.', 'apps/backend/tests/ledger/test_confidence_tier_owner.py::test_AC_ledger_78_1_worst_confidence_tier_is_single_homed', priority='P1'),
         # ── EPIC-002 double-entry core (slice 3c-ii of #1420): groups 1–12 ──
         # (was AC2.1.* … AC2.12.*; AC2.13.* … AC2.23.* land in slice 3c-iii.)
@@ -568,7 +569,7 @@ CONTRACT = PackageContract(
         ac('AC-ledger.34.2', 'The ledger module converges by layer — base/ (the Entry/Leg nouns) + extension/ (the post_entry verb + the journal Repository adapter) + data/ (the balance projection) — and exports Entry/Leg/post_entry/UnbalancedEntryError (the retired types/ops/store  dirs are gone; cutover #1420 slice 3a). Was EPIC-012 AC12.34.2.', 'tests/tooling/test_ledger_module.py::test_AC12_34_2_ledger_module_converges_by_role', priority='P1'),
         ac('AC-ledger.34.3', 'Layer-DAG rule: the model layer imports no service (no upward edge / import cycle); derive_confidence_tier lives in the ledger model and the published ledger root, with no reporting shim (the old models.journal → services.confidence_tier cycle is removed). Was EPIC-012 AC12.34.3.', 'tests/tooling/test_ledger_module.py::test_AC12_34_3_model_layer_never_imports_a_service', priority='P1'),
         ac('AC-ledger.34.4', 'Adoption: investment buy/sell/dividend build typed Entry and post via ledger.post_entry instead of hand-rolling balanced lines_data dicts (the legacy create_journal_entry/_post_and_load path is gone from the service). Was EPIC-012 AC12.34.4.', 'tests/tooling/test_ledger_module.py::test_AC12_34_4_investment_postings_use_ledger_post', priority='P1'),
-        ac('AC-ledger.34.5', 'Every computed/transfer posting path gates balance through Entry or the anchored repository validator: opening stock uses the system-command boundary; fx-revaluation and processing-account transfers construct an Entry before persisting (fx-revaluation and processing-account previously wrote raw JournalLines with no balance validation at all). The remaining raw site review_queue validates via validate_journal_balance/_posting_invariants; reconciliation_audit is a deterministic audit fixture. Was EPIC-012 AC12.34.5.', 'tests/tooling/test_ledger_module.py::test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry', priority='P1'),
+        ac('AC-ledger.34.5', 'Every computed/transfer posting path gates balance through Entry or the anchored repository validator: opening stock uses the system-command boundary; processing-account transfers construct an Entry before persisting (processing-account previously wrote raw JournalLines with no balance validation at all). The remaining raw site review_queue validates via validate_journal_balance/_posting_invariants; reconciliation_audit is a deterministic audit fixture. Was EPIC-012 AC12.34.5.', 'tests/tooling/test_ledger_module.py::test_AC12_34_5_remaining_posting_paths_guard_balance_with_entry', priority='P1'),
         ac('AC-ledger.34.6', 'The journal write pipeline (the private persistence sink plus post_journal_entry/void_journal_entry lifecycle verbs and validators) lives in the ledger package; every new fact enters through submit_anchored_journal_entry rather than an exported raw create writer. ledger.extension.post depends down on it instead of up on services.accounting. After the package cutover (#1420 slice 3a) NO services.accounting re-export shim survives — callers import the pipeline + ValidationError from the published ledger interface (from src.ledger import ...), zero residue. Was EPIC-012 AC12.34.6.', 'tests/tooling/test_ledger_module.py::test_AC12_34_6_ledger_owns_posting_pipeline_no_upward_edge', priority='P1'),
         # ── group journeys: account CRUD + core financial journeys, E2E
         # (migrated from EPIC-008 AC8.2.2-5/.3/.11, migration closeout
@@ -587,11 +588,11 @@ CONTRACT = PackageContract(
         ac('AC-ledger.journeys.12', 'A credit card repayment posts a balanced entry reducing the liability.', 'apps/backend/tests/ledger/test_ledger_shift_left.py::test_credit_card_spend_and_repayment_invariants'),
         ac('AC-ledger.journeys.13', "An internal transfer between two of the user's own accounts posts a balanced entry.", 'apps/backend/tests/ledger/test_ledger_shift_left.py::test_credit_card_spend_and_repayment_invariants'),
         ac('AC-ledger.journeys.14', 'A split transaction across multiple expense categories posts one balanced multi-line entry.', 'apps/backend/tests/ledger/test_ledger_shift_left.py::test_credit_card_spend_and_repayment_invariants'),
-        # ── group fxrevaluation: FX revaluation provider error-path unit gates
+        # ── group fxrevaluation: unrealized-FX calculation unit gates
         # (migrated from EPIC-008 AC8.12.1-3, migration closeout continuation,
-        # #1663 / #1707) ──
+        # #1663 / #1707; .2, the flush error of the revaluation booking path,
+        # was removed with that path in #2774) ──
         ac('AC-ledger.fxrevaluation.1', "A liability account's unrealized FX gain/loss returns the negated net balance.", 'apps/backend/tests/reporting/test_fx_revaluation.py::test_returns_negated_balance_for_liability_account', priority='P1'),
-        ac('AC-ledger.fxrevaluation.2', 'A SQLAlchemyError raised during the revaluation flush is wrapped in RevaluationError.', 'apps/backend/tests/reporting/test_fx_revaluation.py::test_flush_error_raises_revaluation_error', priority='P1'),
         ac('AC-ledger.fxrevaluation.3', 'An account whose unrealized-FX calculation returns None is skipped, not errored.', 'apps/backend/tests/reporting/test_fx_revaluation.py::test_none_revaluation_skipped', priority='P1'),
         ac('AC-ledger.77.1', 'A brand-new user can register, log in, create their first ledger accounts, post a first manual journal entry, and the accounting equation stays balanced end to end. Was EPIC-001 AC1.9.1 (migration closeout wave 3, #1663).', 'apps/backend/tests/integration/test_onboarding_e2e.py::test_AC1_9_1_first_run_registration_account_entry_journey', proof_kind='property'),
         # ── group processing: Processing/in-transit account summary (was

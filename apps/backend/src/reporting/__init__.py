@@ -10,11 +10,10 @@ and the pure calculation primitives
 Physically folded out of ``apps/backend/src/services/`` by #1666 (umbrella
 #1416). The published language below is the package's entire external surface
 — consumers (routers, the app composition root, the advisor service) import
-from this root only. FX conversion and the manual-valuation lines builder are
-*injected* at the composition root (``register_fx_gateway`` /
-``register_manual_valuation_lines_provider``) so reporting never imports
-``pricing``'s implementation directly, even though pricing owns both
-(the FX lookup surface and manual valuation observations/staleness, #1610).
+from this root only. FX conversion imports ``pricing``'s published surface
+directly (#2774 deleted the injected ``fx_gateway``). The manual-valuation lines
+builder is *injected* at the composition root
+(``register_manual_valuation_lines_provider``).
 
 Manual valuation is deliberately NOT part of this package's own code —
 ``pricing/extension/valuation.py`` owns it (#1610 re-homed it from the
@@ -100,7 +99,6 @@ _EXPORTS = {
     "package_snapshot_document": "src.reporting.extension.report_package",
     "package_snapshot_response": "src.reporting.extension.report_package",
     "package_snapshot_summary": "src.reporting.extension.report_package",
-    "register_fx_gateway": "src.reporting.extension.fx_gateway",
     "register_manual_valuation_lines_provider": "src.reporting.extension.balance_sheet",
     "resolve_line_currency": "src.reporting.extension.reporting_calc",
 }
@@ -179,7 +177,6 @@ __all__ = [
     "package_snapshot_document",
     "package_snapshot_response",
     "package_snapshot_summary",
-    "register_fx_gateway",
     "register_manual_valuation_lines_provider",
     "resolve_line_currency",
 ]
@@ -250,7 +247,6 @@ if TYPE_CHECKING:
         assemble_framework_balance_sheet,
         assemble_framework_income_statement,
     )
-    from src.reporting.extension.fx_gateway import register_fx_gateway
     from src.reporting.extension.income_statement import generate_income_statement
     from src.reporting.extension.lineage import get_account_lineage
     from src.reporting.extension.net_worth import (

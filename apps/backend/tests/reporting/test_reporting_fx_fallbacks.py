@@ -382,7 +382,7 @@ async def test_income_statement_fx_average_to_spot_fallback(db: AsyncSession, ac
 
     from src.pricing import PricingError
 
-    with patch("src.reporting.extension.fx_gateway.PrefetchedFxRates") as MockPrefetched:
+    with patch("src.reporting.extension.income_statement.PrefetchedFxRates") as MockPrefetched:
         mock_instance = AsyncMock()
         mock_instance.prefetch = AsyncMock()
 
@@ -453,7 +453,7 @@ async def test_income_statement_fx_all_fallbacks_fail(db: AsyncSession, accounts
 
     from src.pricing import PricingError
 
-    with patch("src.reporting.extension.fx_gateway.PrefetchedFxRates") as MockPrefetched:
+    with patch("src.reporting.extension.income_statement.PrefetchedFxRates") as MockPrefetched:
         mock_instance = AsyncMock()
         mock_instance.prefetch = AsyncMock()
         mock_instance.get_rate = lambda *args, **kwargs: None
@@ -505,7 +505,7 @@ async def test_trend_same_currency_rate_none_fallback(db: AsyncSession, accounts
     )
     await db.commit()
 
-    with patch("src.reporting.extension.fx_gateway.PrefetchedFxRates") as MockPrefetched:
+    with patch("src.reporting.extension.net_worth.PrefetchedFxRates") as MockPrefetched:
         mock_instance = AsyncMock()
         mock_instance.prefetch = AsyncMock()
         mock_instance.get_rate = lambda *args, **kwargs: None
@@ -513,6 +513,7 @@ async def test_trend_same_currency_rate_none_fallback(db: AsyncSession, accounts
 
         result = await get_account_trend(db, user_id, account_id=sgd_cash.id, period="daily", currency="SGD")
         assert isinstance(result["points"], list)
+        MockPrefetched.assert_called()
 
 
 async def test_breakdown_same_currency_rate_none_fallback(db: AsyncSession, accounts, user_id):
@@ -551,7 +552,7 @@ async def test_breakdown_same_currency_rate_none_fallback(db: AsyncSession, acco
     )
     await db.commit()
 
-    with patch("src.reporting.extension.fx_gateway.PrefetchedFxRates") as MockPrefetched:
+    with patch("src.reporting.extension.net_worth.PrefetchedFxRates") as MockPrefetched:
         mock_instance = AsyncMock()
         mock_instance.prefetch = AsyncMock()
         mock_instance.get_rate = lambda *args, **kwargs: None
@@ -561,6 +562,7 @@ async def test_breakdown_same_currency_rate_none_fallback(db: AsyncSession, acco
             db, user_id, breakdown_type=AccountType.INCOME, period="monthly", currency="SGD"
         )
         assert isinstance(result["items"], list)
+        MockPrefetched.assert_called()
 
 
 async def test_cash_flow_same_currency_rate_none_fallback(db: AsyncSession, accounts, user_id):
@@ -628,7 +630,7 @@ async def test_cash_flow_same_currency_rate_none_fallback(db: AsyncSession, acco
     )
     await db.commit()
 
-    with patch("src.reporting.extension.fx_gateway.PrefetchedFxRates") as MockPrefetched:
+    with patch("src.reporting.extension.cash_flow.PrefetchedFxRates") as MockPrefetched:
         mock_instance = AsyncMock()
         mock_instance.prefetch = AsyncMock()
         mock_instance.get_rate = lambda *args, **kwargs: None
@@ -638,6 +640,7 @@ async def test_cash_flow_same_currency_rate_none_fallback(db: AsyncSession, acco
             db, user_id, start_date=date(2025, 1, 1), end_date=date(2025, 1, 31), currency="SGD"
         )
         assert isinstance(result["summary"], dict)
+        MockPrefetched.assert_called()
 
 
 async def test_currencies_endpoint_inserts_base_currency(client, db, test_user):

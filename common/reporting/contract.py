@@ -8,10 +8,11 @@ at ``apps/backend/src/reporting/{base,extension,data}``.
 
 Scope correction (2026-07-06): ``manual_valuation.py`` belongs to the pricing
 cutover (#1610). Reporting keeps report assembly;
-pricing owns valuation-observation staleness facts. Pending that cutover,
-reporting reaches manual valuation and the FX conversion service through
-composition-root-injected ports (``register_manual_valuation_lines_provider``
-/ ``register_fx_gateway``), never by importing the ``services/`` remainder.
+pricing owns valuation-observation staleness facts. Reporting imports pricing's
+published FX conversion surface directly (#2774) and reaches manual valuation
+through the composition-root-injected port
+(``register_manual_valuation_lines_provider``), never by importing the
+``services/`` remainder.
 
 Status flip (migration closeout wave 2, #1663): the roadmap's first ACs
 (opening-balance gate + the full EPIC-020 framework-reporting set) carry only
@@ -376,10 +377,9 @@ CONTRACT = PackageContract(
         "package_snapshot_document",
         "package_snapshot_response",
         "package_snapshot_summary",
-        # Composition-root injection ports (#1666/#1610): main.py and the
-        # backend test conftest wire the app-remainder FX service and the
-        # manual-valuation lines builder through these.
-        "register_fx_gateway",
+        # Composition-root injection port (#1666/#1610): main.py and the
+        # backend test conftest wire the manual-valuation lines builder through
+        # this. FX conversion imports src.pricing directly (#2774).
         "register_manual_valuation_lines_provider",
         "resolve_line_currency",
     ],
@@ -440,7 +440,6 @@ CONTRACT = PackageContract(
     # old-path residue checks are green. Entity names are word-slugs (not
     # numeric groups) since this roadmap started empty in this migration wave.
     roadmap=[
-        ac('AC-reporting.fx-port.1', "Reporting's FX gateway exposes exact rate, conversion, and prefetch protocols without Callable[..., Any] or variadic Any forwarders.", 'tests/tooling/test_s3_pr_d_structure.py::test_AC_s3_typed_fx_ports_have_no_erased_registration_or_forwarders'),
         ac('AC-reporting.snapshot-ownership.1', 'ReportSnapshot and ReportType are published and mapped by reporting; extraction defines and exports neither.', 'tests/tooling/test_s3_pr_d_structure.py::test_AC_reporting_snapshot_ownership_and_metadata_registration'),
         ac('AC-reporting.vocabulary-ownership.1', 'PersonalReportingFrameworkId, ReportLineId, and PolicyDimension are reporting-owned base value objects; the delivery schema may only re-export those exact definitions.', 'tests/tooling/test_vocabulary_ownership.py::test_AC_reporting_vocabulary_ownership_1_reporting_owns_wire_enums', priority='P1'),
         ac('AC-reporting.single-owner.1', 'Manual-valuation line naming is defined only by pricing, its fact owner; reporting contains no dead duplicate helper that can drift independently.', 'apps/backend/tests/reporting/test_reporting_calc_extraction.py::test_AC_reporting_single_owner_1_has_no_valuation_line_name_copy', priority='P1'),

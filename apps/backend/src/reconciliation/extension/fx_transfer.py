@@ -14,8 +14,8 @@ the deterministic, Decimal-only accounting-layer primitives for that model:
   net worth changes only by the fee (**AC3**).
 - :func:`round_trip_realized_pnl` — a same-day round-trip conversion nets ~zero
   realized P&L (minus fee/spread); the rate move belongs to revaluation over the
-  holding period (routed through the ``fx_revaluation`` journal source type),
-  not to the conversion event (**AC4**).
+  holding period (reporting derives it from the ledger; no job books it), not
+  to the conversion event (**AC4**).
 
 Generalized invariant: **net worth changes only via external in/out + market
 moves + FX revaluation; internal transfers cancel (minus fees).**
@@ -253,9 +253,10 @@ def round_trip_realized_pnl(
     For a **same-day** round trip the market rate has not moved
     (``rate_out == rate_back``), so the realized P&L is ``-fee``: the conversion
     event itself produces no gain/loss. Any later divergence between the entry and
-    a subsequent valuation is a holding-period **revaluation**, attributed over
-    time through the ``fx_revaluation`` journal source type
-    (:data:`REVALUATION_SOURCE_TYPE`) — never booked as a conversion-event gain.
+    a subsequent valuation is a holding-period **revaluation**. Reporting derives
+    it from the ledger (unrealized FX and CTA); it is never booked as a
+    conversion-event gain. The ``fx_revaluation`` journal source type stays in
+    the vocabulary (:data:`REVALUATION_SOURCE_TYPE`) for rows a database holds.
     """
     if rate_out <= 0 or rate_back <= 0:
         raise FxTransferError("conversion rates must be positive")
@@ -292,7 +293,7 @@ def build_fx_conversion(
     )
 
 
-# The journal source type that carries FX gain/loss as a holding-period
-# revaluation (#1123 AC4). Re-exported so the accounting layer routes FX P&L
-# here rather than through a conversion-event income/expense line.
+# The journal source type that marks a holding-period revaluation entry
+# (#1123 AC4). It stays for rows a database already holds; no code books one
+# since #2774.
 REVALUATION_SOURCE_TYPE = JournalEntrySourceType.FX_REVALUATION

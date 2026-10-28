@@ -13,13 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config import settings
 from src.ledger import AccountType, RevaluationError, calculate_unrealized_fx_gains
 from src.observability import ErrorIds, get_logger
+from src.pricing import FxWarning, PricingError, get_exchange_rate
 from src.reporting.base.balance_sheet_calculator import (
     absorb_translation_rounding,
     calculate_balance_sheet_equation,
     calculate_currency_translation_adjustment,
 )
 from src.reporting.base.types import DEFAULT_INCLUDE_RESTRICTED
-from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import (
     _aggregate_account_provenance,
     _aggregate_balances_sql,
@@ -29,7 +29,6 @@ from src.reporting.extension._core import (
     _line_total,
     _load_accounts,
 )
-from src.reporting.extension.fx_gateway import FxWarning
 from src.reporting.extension.portfolio_market import _build_portfolio_market_adjustment_lines
 from src.reporting.extension.reporting_calc import (
     ReportError,
@@ -191,7 +190,7 @@ async def _compute_unrealized_fx_gain_loss(
         base_curr = settings.base_currency.upper()
         if normalized_target != base_curr:
             try:
-                rate = await fx_gateway.get_exchange_rate(
+                rate = await get_exchange_rate(
                     db,
                     base_curr,
                     normalized_target,
@@ -199,7 +198,7 @@ async def _compute_unrealized_fx_gain_loss(
                     lazy_load=True,
                 )
                 raw_unrealized = raw_unrealized * rate
-            except fx_gateway.FxRateError as exc:
+            except PricingError as exc:
                 if fx_warnings is not None:
                     fx_warnings.append(
                         {
@@ -333,11 +332,11 @@ async def generate_balance_sheet(
             warnings=portfolio_warnings,
             excluded_lines=excluded_valuation_lines,
         )
-    except fx_gateway.FxRateError as exc:
+    except PricingError as exc:
         # pricing.build_manual_valuation_lines (registered above) raises its
         # own error family on an FX miss rather than catching internally —
         # reporting owns the ReportError mapping at this boundary, same as
-        # every other fx_gateway call site in this file.
+        # every other FX call site in this file.
         raise ReportError(str(exc)) from exc
     assets.extend(portfolio_adjustments)
     assets.extend(valuation_assets)

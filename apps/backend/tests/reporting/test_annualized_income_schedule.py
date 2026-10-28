@@ -400,13 +400,13 @@ async def test_AC5_32_3_annualized_schedule_falls_back_to_account_currency_and_s
     import pytest
     from fastapi import HTTPException
 
-    from src.reporting.extension import fx_gateway
+    from src.pricing import PrefetchedFxRates, PricingError
 
     with (
         patch.object(
-            fx_gateway.PrefetchedFxRates,
+            PrefetchedFxRates,
             "prefetch",
-            new=AsyncMock(side_effect=fx_gateway.FxRateError("Missing FX rate for USD/JPY")),
+            new=AsyncMock(side_effect=PricingError("Missing FX rate for USD/JPY")),
         ),
         pytest.raises(HTTPException) as exc_info,
     ):

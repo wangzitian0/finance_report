@@ -26,8 +26,8 @@ from src.ledger import (
 )
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
+from src.pricing import PrefetchedFxRates, PricingError
 from src.reporting.base.cash_flow_calculator import calculate_cash_flow_bridge
-from src.reporting.extension import fx_gateway
 from src.reporting.extension._core import _line_total
 from src.reporting.extension.reporting_calc import ReportError, _normalize_currency, _quantize_money
 
@@ -578,11 +578,11 @@ async def _build_cash_flow(
             if start_date <= event.entry.entry_date <= end_date:
                 fx_needs.add((source, target_currency, event.entry.entry_date, None, None))
 
-    fx_rates = fx_gateway.PrefetchedFxRates(lazy_load=True)
+    fx_rates = PrefetchedFxRates(lazy_load=True)
     if fx_needs:
         try:
             await fx_rates.prefetch(db, list(fx_needs))
-        except fx_gateway.FxRateError as exc:
+        except PricingError as exc:
             logger.error(
                 "FX pre-fetch failed for cash flow", error_id=ErrorIds.REPORT_GENERATION_FAILED, error=str(exc)
             )

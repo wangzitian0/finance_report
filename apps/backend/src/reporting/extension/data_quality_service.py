@@ -15,9 +15,9 @@ from src.extraction import BankStatementStatus, StatementSummary
 from src.ledger import JournalEntry, JournalEntryStatus
 from src.observability import get_logger
 
-# The FX error family arrives through the fx_gateway seam. NoObservationError (no rate)
-# is the one pricing error class that this module names directly.
-from src.pricing import NoObservationError
+# PricingError is the FX error family; NoObservationError (no rate) is the subclass that
+# this module tells apart.
+from src.pricing import NoObservationError, PricingError
 from src.reconciliation import get_reconciliation_stats
 from src.reporting.base.data_quality_types import (
     InvariantStatus,
@@ -26,7 +26,6 @@ from src.reporting.base.data_quality_types import (
     QualityActionItem,
     QualityGrade,
 )
-from src.reporting.extension import fx_gateway
 from src.reporting.extension.diagnostics import run_balance_sheet_diagnostics
 from src.reporting.extension.reporting_calc import ReportError, _normalize_currency
 
@@ -82,7 +81,7 @@ async def compute_personal_data_quality(
             currency=report_currency,
         )
     except ReportError as exc:
-        if not isinstance(exc.__cause__, fx_gateway.FxRateError):
+        if not isinstance(exc.__cause__, PricingError):
             raise
         fx_gap = FxGap(message=str(exc), rate_missing=isinstance(exc.__cause__, NoObservationError))
         diag_result = await run_balance_sheet_diagnostics(
