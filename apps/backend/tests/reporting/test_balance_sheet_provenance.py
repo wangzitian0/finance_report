@@ -8,7 +8,7 @@ import pytest
 from src.audit import JournalEntrySourceType
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine
 from src.reporting import generate_balance_sheet
-from src.schemas.reporting import BalanceSheetResponse
+from src.schemas.reporting import BalanceSheetResponse, ReportLine
 
 
 async def _post(db, user_id, *, debit: Account, credit: Account, amount: Decimal, source_type) -> None:
@@ -131,3 +131,12 @@ async def test_balance_sheet_lines_carry_allocation_metadata_and_response_drops_
     assert response_lines
     assert all(not (_INTERNAL_ALLOCATION_METADATA_KEYS & set(line)) for line in response_lines)
     assert all(line.get("allocation_source_type") == "ledger_account" for line in response_lines)
+    for source_type in (
+        "ledger_account",
+        "manual_valuation",
+        "portfolio_market_adjustment",
+        "portfolio_cost_basis",
+        "internal_transfer_fee",
+    ):
+        validated = ReportLine.model_validate({**report["assets"][0], "allocation_source_type": source_type})
+        assert validated.allocation_source_type == source_type
