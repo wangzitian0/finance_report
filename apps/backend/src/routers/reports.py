@@ -112,7 +112,7 @@ async def _ensure_report_market_data_fresh(
         await db.scalar(select(Account.id).where(Account.user_id == user_id).limit(1)) if target_pairs else None
     )
     try:
-        fx_pairs = set(await observed_fx_pairs(db, user_id, include_default=False))
+        fx_pairs = set(await observed_fx_pairs(db, user_id, include_default=False, base_currency=base_currency))
         fx_pairs.update(target_pairs if has_report_subjects is not None else [])
         stock_symbols = await active_stock_symbols(db, user_id)
         await ensure_market_data_fresh(db, fx_pairs=list(fx_pairs), stock_symbols=stock_symbols, end_date=end_date)

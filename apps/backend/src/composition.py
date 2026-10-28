@@ -427,9 +427,10 @@ async def observed_fx_pairs(
     user_id: UUID | None,
     *,
     include_default: bool = True,
+    base_currency: str | None = None,
 ) -> list[str]:
     """The ``<currency>/<base>`` pairs implied by every currency the user holds."""
-    base = await get_effective_base_currency(db, user_id=user_id)
+    base = (base_currency or await get_effective_base_currency(db, user_id=user_id)).strip().upper()
     default_counterparty = "USD" if base != "USD" else "SGD"
     currencies: set[str] = {base}
     if include_default:
