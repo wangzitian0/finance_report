@@ -310,7 +310,7 @@ bash tools/smoke_test.sh                              # Local
 BASE_URL=https://report.zitian.party bash tools/smoke_test.sh  # Staging/prod
 ```
 
-Endpoints tested: `/`, `/api/health`, `/api/docs`, `/ping-pong`, `/reconciliation`, `/api/ping`
+Endpoints tested: `/`, `/api/health`, `/api/docs`, `/reconciliation`, `/api/ping`
 
 ---
 

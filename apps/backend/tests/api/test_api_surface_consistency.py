@@ -51,7 +51,6 @@ _UNTAGGED_UTILITY_PATHS = frozenset(
         "/",
         "/health",
         "/ping",
-        "/ping/toggle",
         "/openapi.json",
         "/docs",
         "/docs/oauth2-redirect",
@@ -261,7 +260,6 @@ def test_AC_platform_29_8_delivery_helpers_have_one_honest_home() -> None:
     assert utility_owners == {
         "/health": "src.runtime.extension.api.health",
         "/ping": "src.platform.extension.api.system",
-        "/ping/toggle": "src.platform.extension.api.system",
     }
 
 

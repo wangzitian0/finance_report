@@ -131,14 +131,11 @@ class DbConfigSource:
             ).scalar_one_or_none()
         if row is None:
             return None
-        fallbacks = tuple(m.strip() for m in row.fallback_model_ids.split(",") if m.strip())
         return SceneBinding(
             scene=scene,
             # Qualify with the provider id so the client resolves the exact provider.
             model_id=f"{row.provider_id}/{row.model}",
             reasoning=row.reasoning,
-            prefer_free=row.prefer_free,
-            fallback_model_ids=fallbacks,
             max_tokens=row.max_tokens,
         )
 

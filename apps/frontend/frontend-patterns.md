@@ -431,7 +431,7 @@ Root app metadata lives in `app/layout.tsx`.
 > session storage, the HttpOnly cookie's browser behavior, and security headers.
 
 - **AuthGuard**: Protects all `(main)` routes. Unauthorized users are redirected to `/login`.
-- **Public Routes**: Only `/login` and `/ping-pong` are exempt from `AuthGuard`.
+- **Public Routes**: Only `/login` is exempt from `AuthGuard`.
 - **Injection Protection**: The `apiOperation*` functions are the primary defense against missing user context.
 
 ### Route protection (client-side)

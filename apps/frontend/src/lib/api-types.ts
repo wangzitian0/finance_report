@@ -504,16 +504,6 @@ export interface paths {
         get: operations["get_ping_state_ping_get"];
         put?: never; post?: never; delete?: never; options?: never; head?: never; patch?: never; trace?: never;
     };
-    "/ping/toggle": {
-        parameters: { query?: never; header?: never; path?: never; cookie?: never; };
-        get?: never; put?: never;
-        /**
-         * Toggle Ping State
-         * @description Toggle between ping and pong state.
-         */
-        post: operations["toggle_ping_state_ping_toggle_post"];
-        delete?: never; options?: never; head?: never; patch?: never; trace?: never;
-    };
     "/portfolio/allocation/asset-class": {
         parameters: { query?: never; header?: never; path?: never; cookie?: never; };
         /**
@@ -4012,14 +4002,9 @@ export interface components {
         };
         /**
          * LlmSceneBindingItem
-         * @description A scene→model binding (model + reasoning depth + fallbacks).
+         * @description A scene→model binding (model + reasoning depth).
          */
         LlmSceneBindingItem: {
-            /**
-             * Fallback Model Ids
-             * @description Ordered fallback model ids tried if the primary fails.
-             */
-            fallback_model_ids?: string[];
             /**
              * Max Tokens
              * @description Optional max output tokens for this scene.
@@ -4030,12 +4015,6 @@ export interface components {
              * @description The model id to use for this scene.
              */
             model: string;
-            /**
-             * Prefer Free
-             * @description Prefer a free-tier model when resolving this scene.
-             * @default false
-             */
-            prefer_free: boolean;
             /**
              * Provider Id
              * Format: uuid
@@ -8540,28 +8519,6 @@ export interface operations {
         };
     };
     get_ping_state_ping_get: {
-        parameters: { query?: never; header?: never; path?: never; cookie?: never; };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["PingStateResponse"]; }; };
-            /** @description Bad request */
-            400: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
-            /** @description Unauthorized */
-            401: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
-            /** @description Forbidden */
-            403: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
-            /** @description Not found */
-            404: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
-            /** @description Conflict */
-            409: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
-            /** @description Too many requests */
-            429: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
-            /** @description Internal server error */
-            500: { headers: { [name: string]: unknown; }; content: { "application/json": components["schemas"]["ErrorResponse"]; }; };
-        };
-    };
-    toggle_ping_state_ping_toggle_post: {
         parameters: { query?: never; header?: never; path?: never; cookie?: never; };
         requestBody?: never;
         responses: {

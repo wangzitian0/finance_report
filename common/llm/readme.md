@@ -109,7 +109,7 @@ contract change (update this list and `src/llm/base/types.py:Scene`):
 ### Binding — Scene × Model
 
 `SceneBinding` resolves a scene to `model_id` plus per-scene parameters:
-`reasoning` (depth), `prefer_free`, `fallback_model_ids`, `max_tokens`. This is
+`reasoning` (depth), `max_tokens`. This is
 the configurable surface — swapping the model for `extraction.vision` is one
 binding edit, independent of every other scene.
 

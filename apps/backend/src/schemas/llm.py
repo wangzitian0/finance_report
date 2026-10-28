@@ -134,17 +134,13 @@ class LlmCatalogResponse(BaseModel):
 
 
 class LlmSceneBindingItem(BaseModel):
-    """A scene→model binding (model + reasoning depth + fallbacks)."""
+    """A scene→model binding (model + reasoning depth)."""
 
     scene: Scene = Field(description="The fixed call site this binding configures.")
     provider_id: UUID = Field(description="The provider instance (owned by the user) serving this scene.")
     model: str = Field(min_length=1, max_length=200, description="The model id to use for this scene.")
     reasoning: ReasoningEffort = Field(
         default=ReasoningEffort.NONE, description="Reasoning-effort depth for this scene."
-    )
-    prefer_free: bool = Field(default=False, description="Prefer a free-tier model when resolving this scene.")
-    fallback_model_ids: list[str] = Field(
-        default_factory=list, description="Ordered fallback model ids tried if the primary fails."
     )
     max_tokens: int | None = Field(default=None, gt=0, description="Optional max output tokens for this scene.")
 

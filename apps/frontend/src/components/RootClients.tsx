@@ -108,7 +108,7 @@ export function Analytics({ clientId, apiUrl, scriptUrl, environment }: Analytic
   );
 }
 
-const PUBLIC_PATHS = ["/login", "/ping-pong"];
+const PUBLIC_PATHS = ["/login"];
 const AUTH_SESSION_KEY = "finance_user_id";
 
 function isPublicPath(pathname: string) {

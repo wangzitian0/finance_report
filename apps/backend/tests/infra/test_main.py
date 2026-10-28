@@ -96,24 +96,7 @@ async def test_ping_initial_state(client: AsyncClient) -> None:
     assert data["state"] == "ping"
     assert data["toggle_count"] == 0
     assert data["updated_at"] is None
-
-
-async def test_ping_toggle(client: AsyncClient) -> None:
-    """AC-meta.phase0.17: Test toggle endpoint."""
-    # First toggle - should go from ping to pong
-    response = await client.post("/ping/toggle")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["state"] == "pong"
-    assert data["toggle_count"] == 1
-    assert "updated_at" in data
-
-    # Second toggle - should go back to ping
-    response = await client.post("/ping/toggle")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["state"] == "ping"
-    assert data["toggle_count"] == 2
+    assert (await client.post("/ping/toggle")).status_code == 404
 
 
 async def test_get_statement_not_found(client: AsyncClient) -> None:
@@ -137,23 +120,6 @@ async def test_upload_no_file(client: AsyncClient) -> None:
     response = await client.post("/statements/upload", data={"institution": "DBS"})
     # Should fail validation - no file
     assert response.status_code == 422
-
-
-async def test_ping_multiple_toggles(client: AsyncClient) -> None:
-    """Test multiple ping toggles."""
-    # Toggle 3 times
-    for i in range(3):
-        response = await client.post("/ping/toggle")
-        assert response.status_code == 200
-        data = response.json()
-        # toggle_count increments but we can't guarantee exact count
-        # since previous tests may have toggled
-        assert data["toggle_count"] >= i + 1
-
-    # Check final state is pong (odd number of toggles from start)
-    response = await client.get("/ping")
-    # State depends on previous tests, just verify it returns valid response
-    assert response.status_code == 200
 
 
 class TestSchemas:

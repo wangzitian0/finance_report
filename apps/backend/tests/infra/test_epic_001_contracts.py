@@ -48,17 +48,19 @@ def test_epic_001_backend_skeleton_exists() -> None:
 
 
 def test_epic_001_frontend_skeleton_exists() -> None:
-    """AC-meta.phase0.7 AC-meta.phase0.8 AC-meta.phase0.9: AC1.3.1 AC1.3.2 AC1.3.3: Frontend skeleton, Tailwind, and ping-pong page must exist."""
+    """AC-meta.phase0.7 AC-meta.phase0.8: AC1.3.1 AC1.3.2: Frontend skeleton and Tailwind files must exist."""
     required_files = [
         REPO_ROOT / "apps/frontend/src/app/layout.tsx",
         # EPIC-022 moved the authenticated root page into the (main) shell group.
         REPO_ROOT / "apps/frontend/src/app/(main)/page.tsx",
-        REPO_ROOT / "apps/frontend/src/app/ping-pong/page.tsx",
         REPO_ROOT / "apps/frontend/tailwind.config.ts",
         REPO_ROOT / "apps/frontend/src/app/providers.tsx",
     ]
     for file_path in required_files:
         assert file_path.exists(), f"Missing frontend skeleton file: {file_path}"
+    assert not (REPO_ROOT / "apps/frontend/src/app/ping-pong/page.tsx").exists()
+    route_map = json.loads((REPO_ROOT / "apps/frontend/src/lib/route-map.json").read_text(encoding="utf-8"))
+    assert all(r["path"] != "/ping-pong" for r in route_map["routes"])
 
 
 def test_epic_001_frontend_uses_react_query() -> None:

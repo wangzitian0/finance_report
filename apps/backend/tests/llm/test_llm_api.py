@@ -189,8 +189,6 @@ async def test_AC23_4_4_scenes_round_trip(client: AsyncClient, cipher) -> None:
                 "provider_id": provider["id"],
                 "model": "glm-4.6",
                 "reasoning": "medium",
-                "prefer_free": False,
-                "fallback_model_ids": ["test-vision-model"],
                 "max_tokens": 2048,
             }
         ]
@@ -201,7 +199,9 @@ async def test_AC23_4_4_scenes_round_trip(client: AsyncClient, cipher) -> None:
     assert binding["scene"] == "advisor.chat"
     assert binding["model"] == "glm-4.6"
     assert binding["reasoning"] == "medium"
-    assert binding["fallback_model_ids"] == ["test-vision-model"]
+    assert binding["max_tokens"] == 2048
+    assert "prefer_free" not in binding
+    assert "fallback_model_ids" not in binding
 
     got = await client.get("/llm/scenes")
     assert got.json()["bindings"][0]["model"] == "glm-4.6"

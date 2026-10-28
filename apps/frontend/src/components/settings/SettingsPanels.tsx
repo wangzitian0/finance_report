@@ -211,7 +211,7 @@ const SCENES: { scene: LlmScene; label: string; description: string }[] = [
 const REASONING_OPTIONS: LlmReasoningEffort[] = ["none", "low", "medium", "high"];
 
 function emptyBinding(scene: LlmScene): LlmSceneBindingItem {
-  return { scene, provider_id: "", model: "", reasoning: "none", prefer_free: false, fallback_model_ids: [], max_tokens: null };
+  return { scene, provider_id: "", model: "", reasoning: "none", max_tokens: null };
 }
 
 function serialize(bindings: LlmSceneBindingItem[]): string {
@@ -412,34 +412,7 @@ export function LlmSettingsPanel() {
                       {REASONING_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                   </div>
-                  <div>
-                    <label htmlFor={`fallbacks-${scene}`} className="block text-sm font-medium mb-1">Fallback models (comma-separated)</label>
-                    <input
-                      id={`fallbacks-${scene}`}
-                      type="text"
-                      className="input w-full"
-                      value={(binding.fallback_model_ids ?? []).join(", ")}
-                      disabled={submitting}
-                      placeholder="model-a, model-b"
-                      onChange={(e) =>
-                        updateBinding(scene, {
-                          fallback_model_ids: e.target.value.split(",").map((s) => s.trim()).filter((s) => s.length > 0),
-                        })
-                      }
-                    />
-                  </div>
                 </div>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded"
-                    checked={binding.prefer_free}
-                    disabled={submitting}
-                    aria-label={`Prefer free models for ${label}`}
-                    onChange={(e) => updateBinding(scene, { prefer_free: e.target.checked })}
-                  />
-                  Prefer free models
-                </label>
               </div>
             );
           })}

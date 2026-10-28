@@ -54,8 +54,6 @@ async def test_AC23_3_1_db_config_reads_providers_and_bindings(db, cipher):
             provider_id=provider.id,
             model="glm-5.1",
             reasoning=ReasoningEffort.MEDIUM,
-            prefer_free=False,
-            fallback_model_ids="glm-5-turbo, glm-5",
             max_tokens=8192,
         )
     )
@@ -76,7 +74,6 @@ async def test_AC23_3_1_db_config_reads_providers_and_bindings(db, cipher):
     assert binding is not None
     assert binding.model_id == f"{provider.id}/glm-5.1"
     assert binding.reasoning is ReasoningEffort.MEDIUM
-    assert binding.fallback_model_ids == ("glm-5-turbo", "glm-5")
     assert binding.max_tokens == 8192
 
 
