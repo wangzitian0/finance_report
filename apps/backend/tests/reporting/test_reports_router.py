@@ -549,3 +549,165 @@ async def test_export_report_unsupported_type(client, test_data_setup_reports) -
     # However, let's keep the client call and expect 422 if it's invalid value.
     response = await client.get("/reports/export", params=params)
     assert response.status_code == 422
+
+
+async def test_cash_flow_endpoints_include_statement_custody_accounts_without_keyword_name(
+    client,
+    db: AsyncSession,
+    test_user,
+) -> None:
+    """Statement custody accounts without English cash keywords are included in cash-flow preview, line-events, and CSV export (#2765)."""
+    from datetime import UTC, datetime
+    from hashlib import sha256
+
+    from src.extraction import BankStatementStatus, StatementSourceType, StatementSummary
+    from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
+
+    # "DBS Multiplier" intentionally lacks "cash", "bank", "checking", "savings", "money market", "petty cash".
+    custody = Account(user_id=test_user.id, name="DBS Multiplier", type=AccountType.ASSET, currency="SGD")
+    income = Account(user_id=test_user.id, name="Bonus Income", type=AccountType.INCOME, currency="SGD")
+    db.add_all([custody, income])
+    await db.flush()
+
+    statement = StatementSummary(
+        user_id=test_user.id,
+        file_hash=sha256(f"{test_user.id}:{custody.id}:2026-01".encode()).hexdigest(),
+        institution="DBS",
+        account_id=custody.id,
+        currency="SGD",
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("1500.00"),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add(statement)
+    await db.flush()
+
+    record = StatementExtractionResultRecord(
+        user_id=test_user.id,
+        statement_id=statement.id,
+        content_digest=sha256(f"result:{statement.id}".encode()).hexdigest(),
+        source_content_digest=sha256(f"source:{statement.id}".encode()).hexdigest(),
+        schema_version="2",
+        producer_version="test-2765",
+        payload={"source_type": StatementSourceType.BANK.value, "period_start": "2026-01-01"},
+        source_trace_record_id=uuid4(),
+        created_at=datetime.now(UTC),
+    )
+    db.add(record)
+    await db.flush()
+    statement.current_extraction_result_id = record.id
+
+    entry = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2026, 1, 15),
+        memo="Multiplier Bonus",
+        source_type=JournalEntrySourceType.MANUAL,
+        status=JournalEntryStatus.POSTED,
+    )
+    db.add(entry)
+    await db.flush()
+    db.add_all(
+        [
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=custody.id,
+                direction=Direction.DEBIT,
+                amount=Decimal("1500.00"),
+                currency="SGD",
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=income.id,
+                direction=Direction.CREDIT,
+                amount=Decimal("1500.00"),
+                currency="SGD",
+            ),
+        ]
+    )
+    await db.commit()
+
+    params = {"start_date": "2026-01-01", "end_date": "2026-01-31", "currency": "SGD"}
+    preview_resp = await client.get("/reports/cash-flow", params=params)
+    assert preview_resp.status_code == 200
+    preview = preview_resp.json()
+    assert preview["summary"]["operating_activities"] == "1500.00"
+    assert preview["summary"]["net_cash_flow"] == "1500.00"
+    assert preview["summary"]["ending_cash"] == "1500.00"
+    assert "cash_identity_compatibility_fallback" not in preview["proof_reasons"]
+    assert len(preview["operating"]) == 1
+    line_id = preview["operating"][0]["line_id"]
+
+    events_resp = await client.get("/reports/cash-flow/line-events", params={**params, "line_id": line_id})
+    assert events_resp.status_code == 200
+    events_page = events_resp.json()
+    assert events_page["total"] == 1
+    assert events_page["events"][0]["memo"] == "Multiplier Bonus"
+    assert events_page["events"][0]["amount"] == "1500.00"
+
+    export_resp = await client.get("/reports/export", params={**params, "report_type": "cash-flow", "format": "csv"})
+    assert export_resp.status_code == 200
+    assert "Operating,Bonus Income,1500.00,SGD,Inflow - Bonus Income" in export_resp.text
+
+
+def test_benchmark_runner_adjudicate_unmatched_items_reuses_counter_accounts() -> None:
+    """ScenarioBenchmarkRunner.adjudicate_unmatched_items reuses existing counter-accounts across statements (#2765)."""
+    from unittest.mock import MagicMock
+
+    from common.testing.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner
+
+    runner = ScenarioBenchmarkRunner(base_url="http://localhost:8000")
+    mock_client = MagicMock()
+
+    created_accounts: list[dict[str, str]] = []
+
+    def fake_get(url: str):
+        resp = MagicMock()
+        resp.status_code = 200
+        if url.startswith("/api/reconciliation/unmatched?statement_id="):
+            stmt_id = url.split("statement_id=", 1)[1]
+            resp.json.return_value = {
+                "items": [
+                    {
+                        "id": f"txn-{stmt_id}",
+                        "direction": "OUT",
+                        "description": f"Expense on {stmt_id}",
+                        "currency": "SGD",
+                    }
+                ]
+            }
+        elif url == "/api/accounts":
+            resp.json.return_value = {"items": list(created_accounts)}
+        else:
+            resp.json.return_value = {"currency": "SGD"}
+        return resp
+
+    def fake_post(url: str, json: dict | None = None):
+        resp = MagicMock()
+        resp.status_code = 200
+        if url == "/api/accounts":
+            new_acc = {
+                "id": f"acc-{len(created_accounts) + 1}",
+                "name": json["name"],
+                "type": json["type"],
+                "currency": json["currency"],
+            }
+            created_accounts.append(new_acc)
+            resp.json.return_value = new_acc
+        else:
+            resp.json.return_value = {"status": "ok"}
+        return resp
+
+    mock_client.get.side_effect = fake_get
+    mock_client.post.side_effect = fake_post
+
+    assert runner.adjudicate_unmatched_items(mock_client, "stmt-1", currency="SGD") == 1
+    assert runner.adjudicate_unmatched_items(mock_client, "stmt-2", currency="SGD") == 1
+    assert len(created_accounts) == 1
+    assert created_accounts[0]["name"] == "Expense - Other SGD"
+
+    # Even a fresh runner instance reuses the account returned by GET /api/accounts.
+    runner_2 = ScenarioBenchmarkRunner(base_url="http://localhost:8000")
+    assert runner_2.adjudicate_unmatched_items(mock_client, "stmt-3", currency="SGD") == 1
+    assert len(created_accounts) == 1
