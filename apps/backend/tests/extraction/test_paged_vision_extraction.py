@@ -12,6 +12,9 @@ silent truncation.
 
 from __future__ import annotations
 
+import gc
+import os
+import tracemalloc
 from io import BytesIO
 from unittest.mock import AsyncMock, patch
 
@@ -32,6 +35,25 @@ def _pdf_with_pages(page_count: int) -> bytes:
         pdf.showPage()
     pdf.save()
     return buffer.getvalue()
+
+
+def _scanned_pdf_with_pages(page_count: int, *, width: int = 520, height: int = 700) -> bytes:
+    """Build a synthetic noisy colour scanned PDF that renders >3 MiB/page at 1.6x RGB."""
+    import fitz
+
+    doc = fitz.open()
+    try:
+        pix = fitz.Pixmap(fitz.csRGB, width, height, os.urandom(width * height * 3), False)
+        img_bytes = pix.tobytes("ppm")
+        del pix
+        for index in range(page_count):
+            page = doc.new_page(width=595, height=842)
+            page.insert_image(page.rect, stream=img_bytes)
+            page.insert_text((36, 36), f"Scanned statement page {index + 1}")
+        return doc.tobytes(deflate=False)
+    finally:
+        doc.close()
+        fitz.TOOLS.store_shrink(100)
 
 
 class TestRenderAllPagesInBatches:
@@ -56,6 +78,29 @@ class TestRenderAllPagesInBatches:
 
         with pytest.raises(ExtractionError, match=rf"{oversize} pages.*{service.PDF_VISION_MAX_TOTAL_PAGES}-page"):
             service._render_pdf_pages_as_image_payload_batches(_pdf_with_pages(oversize))
+
+    def test_lazy_batch_sequence_supports_indexing_slicing_and_compact_downscale(self, monkeypatch):
+        service = ExtractionService()
+        batches = service._render_pdf_pages_as_image_payload_batches(_pdf_with_pages(7))
+
+        assert len(batches) == 2
+        assert len(batches[0]) == 5
+        # Repeated access to the same index uses the single-batch cache; pop_batch consumes it.
+        assert batches[0] is batches[0]
+        assert len(batches.pop_batch(0)) == 5
+        assert len(batches[-1]) == 2
+        assert [len(b) for b in batches[:2]] == [5, 2]
+        with pytest.raises(IndexError):
+            _ = batches[2]
+        with pytest.raises(IndexError):
+            batches.pop_batch(-3)
+
+        # Force second-stage compact downscale when grayscale at 1.0x still exceeds the per-page cap.
+        monkeypatch.setattr(service, "PDF_VISION_MAX_PAGE_IMAGE_BYTES", 80_000)
+        compact_batches = service._render_pdf_pages_as_image_payload_batches(
+            _scanned_pdf_with_pages(1, width=320, height=420)
+        )
+        assert len(compact_batches[0]) == 1
 
 
 class TestMergePagedExtractions:
@@ -214,3 +259,78 @@ class TestBatchedExtractFlow:
         assert mock_extract.await_count == 1
         text = mock_extract.await_args.kwargs["messages"][0]["content"][0]["text"]
         assert "PARTIAL DOCUMENT" not in text
+
+    async def test_AC_extraction_2595_1_thirty_page_scanned_pdf_parse_bounds_peak_memory(self, monkeypatch):
+        """AC-extraction.2595.1: parsing a 30-page noisy scanned PDF renders one
+        batch on demand, downscales oversized scan pages, releases completed
+        batch payloads before rendering the next batch, and keeps Python traced
+        peak allocation below 32 MiB (#2595)."""
+        from src.config import settings
+
+        monkeypatch.setattr(settings, "ai_provider", "zai")
+        service = ExtractionService()
+        service.api_key = "test-key"
+
+        pdf_bytes = _scanned_pdf_with_pages(30)
+        gc.collect()
+
+        live_payload_counts: list[int] = []
+        active_calls = 0
+        max_concurrent_calls = 0
+
+        async def _fake_extract_json_with_model(*, messages, **kwargs):
+            nonlocal active_calls, max_concurrent_calls
+            active_calls += 1
+            max_concurrent_calls = max(max_concurrent_calls, active_calls)
+            try:
+                gc.collect()
+                live_payloads = [
+                    obj
+                    for obj in gc.get_objects()
+                    if isinstance(obj, dict)
+                    and obj.get("type") == "image_url"
+                    and isinstance(obj.get("image_url"), dict)
+                    and str(obj["image_url"].get("url", "")).startswith("data:image/png;base64,")
+                ]
+                live_payload_counts.append(len(live_payloads))
+                return {"institution": "DBS", "transactions": [{"description": "row"}]}
+            finally:
+                active_calls -= 1
+
+        tracemalloc.start()
+        try:
+            with patch.object(service, "_extract_json_with_model", new=_fake_extract_json_with_model):
+                merged = await service.extract_financial_data(pdf_bytes, "DBS", "pdf")
+            _, peak_bytes = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+
+        gc.collect()
+        assert max_concurrent_calls == 1
+        assert len(merged["transactions"]) == 6
+        # Batch 1 holds 5 page payloads; continuation batches hold 1 context page + 5 batch pages = 6.
+        assert live_payload_counts == [5, 6, 6, 6, 6, 6], f"Unexpected live payload counts: {live_payload_counts}"
+        # Measured peak traced memory is ~6.4 MiB (vs ~250+ MiB before #2595).
+        assert peak_bytes < 32 * 1024 * 1024, f"Peak traced memory {peak_bytes} B exceeded 32 MiB bound"
+
+    async def test_AC_extraction_2595_2_total_rendered_byte_ceiling_raises_explicit_error(self, monkeypatch):
+        """AC-extraction.2595.2: when cumulative rendered page PNG bytes exceed
+        PDF_VISION_MAX_TOTAL_IMAGE_BYTES, extraction raises an explicit
+        ExtractionError naming the byte limit before exhausting memory (#2595)."""
+        from src.config import settings
+
+        monkeypatch.setattr(settings, "ai_provider", "zai")
+        service = ExtractionService()
+        service.api_key = "test-key"
+        monkeypatch.setattr(service, "PDF_VISION_MAX_TOTAL_IMAGE_BYTES", 4_000)
+
+        pdf_bytes = _scanned_pdf_with_pages(3, width=400, height=400)
+        mock_extract = AsyncMock(return_value={"transactions": []})
+
+        with (
+            patch.object(service, "_extract_json_with_model", mock_extract),
+            pytest.raises(ExtractionError, match=r"4,000 bytes|4000 bytes"),
+        ):
+            await service.extract_financial_data(pdf_bytes, "DBS", "pdf")
+
+        assert mock_extract.await_count == 0

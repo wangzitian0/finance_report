@@ -2,7 +2,7 @@
 
 import base64
 import ipaddress
-from io import BytesIO
+from collections.abc import Iterator, Sequence
 from typing import Any
 from urllib.parse import urlparse
 
@@ -16,7 +16,117 @@ from src.extraction.extension._base import (
 settings = src.config.settings
 
 
+class _PdfVisionBatchSequence(Sequence[list[dict[str, Any]]]):
+    """Lazy per-batch PDF vision payload sequence that bounds in-process memory (#2595).
+
+    Validates the PDF and page count upfront, then renders at most one batch of
+    ``batch_size`` pages at a time on demand so a 30-page scanned PDF never holds
+    all 30 rendered PNGs or base64 data URIs in memory simultaneously.
+    """
+
+    def __init__(
+        self,
+        *,
+        owner: "_MediaMixin",
+        file_content: bytes,
+        page_count: int,
+        batch_size: int,
+    ) -> None:
+        self._owner = owner
+        self._file_content = file_content
+        self.total_pages = page_count
+        self.batch_size = batch_size
+        self.batch_count = (page_count + batch_size - 1) // batch_size
+        self.total_image_bytes = 0
+        self._cached_batch_index: int | None = None
+        self._cached_batch: list[dict[str, Any]] | None = None
+
+    def __len__(self) -> int:
+        return self.batch_count
+
+    def pop_batch(self, batch_index: int) -> list[dict[str, Any]]:
+        """Render and return one batch without retaining it on the sequence."""
+        if batch_index < 0:
+            batch_index += self.batch_count
+        if batch_index < 0 or batch_index >= self.batch_count:
+            raise IndexError(batch_index)
+
+        if self._cached_batch_index == batch_index and self._cached_batch is not None:
+            batch = self._cached_batch
+            self._cached_batch_index = None
+            self._cached_batch = None
+            return batch
+
+        self._cached_batch_index = None
+        self._cached_batch = None
+        if batch_index == 0:
+            self.total_image_bytes = 0
+
+        fitz = self._owner._import_fitz()
+        start_page = batch_index * self.batch_size
+        end_page = min(self.total_pages, start_page + self.batch_size)
+        document = self._owner._open_pdf_document(fitz, self._file_content)
+        try:
+            batch = []
+            max_total_bytes = getattr(
+                self._owner,
+                "PDF_VISION_MAX_TOTAL_IMAGE_BYTES",
+                _MediaMixin.PDF_VISION_MAX_TOTAL_IMAGE_BYTES,
+            )
+            for page_index in range(start_page, end_page):
+                payload, page_bytes = self._owner._render_pdf_page_image_payload(
+                    document,
+                    fitz,
+                    page_index,
+                )
+                self.total_image_bytes += page_bytes
+                if max_total_bytes > 0 and self.total_image_bytes > max_total_bytes:
+                    raise ExtractionError(
+                        f"Rendered PDF vision payloads ({self.total_image_bytes:,} bytes) exceed the "
+                        f"{max_total_bytes:,} bytes in-process memory bound."
+                    )
+                batch.append(payload)
+
+            if end_page == self.total_pages:
+                logger.info(
+                    "Rendered PDF pages for vision fallback",
+                    rendered_pages=self.total_pages,
+                    pages_per_call=self.batch_size,
+                    batch_count=self.batch_count,
+                    total_image_bytes=self.total_image_bytes,
+                )
+            return batch
+        finally:
+            document.close()
+            fitz.TOOLS.store_shrink(100)
+
+    def __iter__(self) -> Iterator[list[dict[str, Any]]]:
+        for batch_index in range(self.batch_count):
+            yield self.pop_batch(batch_index)
+
+    def __getitem__(self, index: int | slice) -> Any:
+        if isinstance(index, slice):
+            return [self.pop_batch(i) for i in range(*index.indices(self.batch_count))]
+        if index < 0:
+            index += self.batch_count
+        if index < 0 or index >= self.batch_count:
+            raise IndexError(index)
+        if self._cached_batch_index == index and self._cached_batch is not None:
+            return self._cached_batch
+        batch = self.pop_batch(index)
+        self._cached_batch_index = index
+        self._cached_batch = batch
+        return batch
+
+
 class _MediaMixin:
+    PDF_VISION_MAX_PAGES = 5
+    PDF_VISION_MAX_TOTAL_PAGES = 30
+    PDF_VISION_RENDER_SCALE = 1.6
+    PDF_VISION_FALLBACK_RENDER_SCALE = 1.0
+    PDF_VISION_MAX_PAGE_IMAGE_BYTES = 1_500_000
+    PDF_VISION_MAX_TOTAL_IMAGE_BYTES = 32 * 1024 * 1024
+
     def _is_zai_provider(self) -> bool:
         return settings.ai_provider.lower() in {"zai", "glm"}
 
@@ -57,8 +167,93 @@ class _MediaMixin:
             "image_url": {"url": data},
         }
 
-    def _render_pdf_pages_as_image_payload_batches(self, file_content: bytes) -> list[list[dict[str, Any]]]:
-        """Render EVERY PDF page to image_url payloads, grouped into per-call batches (#1832).
+    @staticmethod
+    def _import_fitz() -> Any:
+        try:
+            import fitz
+        except ImportError as e:  # pragma: no cover - dependency is installed in packaged runtime
+            raise ExtractionError("PDF vision fallback requires PyMuPDF to render pages") from e
+        return fitz
+
+    @staticmethod
+    def _open_pdf_document(fitz: Any, file_content: bytes) -> Any:
+        try:
+            return fitz.open(stream=file_content, filetype="pdf")
+        except Exception as e:
+            raise ExtractionError("PDF vision fallback could not open PDF content") from e
+
+    def _render_pdf_page_image_payload(
+        self,
+        document: Any,
+        fitz: Any,
+        page_index: int,
+    ) -> tuple[dict[str, Any], int]:
+        """Render a single PDF page to a PNG data-URI payload and shrink MuPDF's store (#2595)."""
+        scale = getattr(self, "PDF_VISION_RENDER_SCALE", _MediaMixin.PDF_VISION_RENDER_SCALE)
+        fallback_scale = getattr(
+            self,
+            "PDF_VISION_FALLBACK_RENDER_SCALE",
+            _MediaMixin.PDF_VISION_FALLBACK_RENDER_SCALE,
+        )
+        max_page_bytes = getattr(
+            self,
+            "PDF_VISION_MAX_PAGE_IMAGE_BYTES",
+            _MediaMixin.PDF_VISION_MAX_PAGE_IMAGE_BYTES,
+        )
+
+        page = document.load_page(page_index)
+        try:
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+            image_bytes = pixmap.tobytes("png")
+            del pixmap
+            fitz.TOOLS.store_shrink(100)
+
+            if max_page_bytes > 0 and len(image_bytes) > max_page_bytes:
+                gray_pixmap = page.get_pixmap(
+                    matrix=fitz.Matrix(fallback_scale, fallback_scale),
+                    colorspace=fitz.csGRAY,
+                    alpha=False,
+                )
+                downscaled_bytes = gray_pixmap.tobytes("png")
+                del gray_pixmap
+                fitz.TOOLS.store_shrink(100)
+                if len(downscaled_bytes) < len(image_bytes):
+                    image_bytes = downscaled_bytes
+                del downscaled_bytes
+
+                if len(image_bytes) > max_page_bytes:
+                    reduced_scale = max(
+                        0.5,
+                        fallback_scale * ((max_page_bytes / len(image_bytes)) ** 0.5) * 0.9,
+                    )
+                    compact_pixmap = page.get_pixmap(
+                        matrix=fitz.Matrix(reduced_scale, reduced_scale),
+                        colorspace=fitz.csGRAY,
+                        alpha=False,
+                    )
+                    compact_bytes = compact_pixmap.tobytes("png")
+                    del compact_pixmap
+                    fitz.TOOLS.store_shrink(100)
+                    if len(compact_bytes) < len(image_bytes):
+                        image_bytes = compact_bytes
+                    del compact_bytes
+        finally:
+            del page
+            fitz.TOOLS.store_shrink(100)
+
+        page_byte_len = len(image_bytes)
+        encoded = base64.b64encode(image_bytes).decode("utf-8")
+        del image_bytes
+        return (
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{encoded}"},
+            },
+            page_byte_len,
+        )
+
+    def _render_pdf_pages_as_image_payload_batches(self, file_content: bytes) -> Sequence[list[dict[str, Any]]]:
+        """Render EVERY PDF page to image_url payloads, grouped into per-call batches (#1832, #2595).
 
         Pre-#1832 this rendered only the first ``PDF_VISION_MAX_PAGES`` pages and
         silently dropped the rest — which made the running-balance chain
@@ -66,20 +261,16 @@ class _MediaMixin:
         and quarantined perfectly good documents. Now the cap is the per-request
         batch size; documents above ``PDF_VISION_MAX_TOTAL_PAGES`` fail with an
         explicit, honest error instead of truncating.
-        """
-        try:
-            import fitz  # type: ignore[import-untyped]
-        except ImportError as e:  # pragma: no cover - dependency is installed in packaged runtime
-            raise ExtractionError("PDF vision fallback requires PyMuPDF to render pages") from e
 
+        #2595: returns a lazy batch sequence that renders one batch on demand and
+        shrinks MuPDF's image store after each page so a 30-page scanned PDF
+        never holds all 30 rendered pages in memory simultaneously.
+        """
+        fitz = self._import_fitz()
         if not file_content:
             raise ExtractionError("PDF vision fallback requires file content to render pages")
 
-        try:
-            document = fitz.open(stream=file_content, filetype="pdf")
-        except Exception as e:
-            raise ExtractionError("PDF vision fallback could not open PDF content") from e
-
+        document = self._open_pdf_document(fitz, file_content)
         try:
             page_count = len(document)
             if page_count <= 0:
@@ -90,36 +281,16 @@ class _MediaMixin:
                     f"{self.PDF_VISION_MAX_TOTAL_PAGES}-page vision-extraction limit. "
                     "Split the document into smaller parts and upload them separately."
                 )
-
-            matrix = fitz.Matrix(self.PDF_VISION_RENDER_SCALE, self.PDF_VISION_RENDER_SCALE)
-            payloads: list[dict[str, Any]] = []
-            total_bytes = 0
-            for page_index in range(page_count):
-                page = document.load_page(page_index)
-                pixmap = page.get_pixmap(matrix=matrix, alpha=False)
-                buffer = BytesIO(pixmap.tobytes("png"))
-                image_bytes = buffer.getvalue()
-                total_bytes += len(image_bytes)
-                encoded = base64.b64encode(image_bytes).decode("utf-8")
-                payloads.append(
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{encoded}"},
-                    }
-                )
-
-            batch_size = self.PDF_VISION_MAX_PAGES
-            batches = [payloads[i : i + batch_size] for i in range(0, len(payloads), batch_size)]
-            logger.info(
-                "Rendered PDF pages for vision fallback",
-                rendered_pages=page_count,
-                pages_per_call=batch_size,
-                batch_count=len(batches),
-                total_image_bytes=total_bytes,
-            )
-            return batches
         finally:
             document.close()
+            fitz.TOOLS.store_shrink(100)
+
+        return _PdfVisionBatchSequence(
+            owner=self,
+            file_content=file_content,
+            page_count=page_count,
+            batch_size=self.PDF_VISION_MAX_PAGES,
+        )
 
     def _build_vision_media_payload_batches(
         self,
@@ -127,7 +298,7 @@ class _MediaMixin:
         file_url: str | None,
         file_type: str,
         mime_type: str,
-    ) -> list[list[dict[str, Any]]]:
+    ) -> Sequence[list[dict[str, Any]]]:
         """Build per-call vision media payload batches, rendering Z.AI PDFs to images when possible.
 
         Returns one batch per model call: multi-page PDFs produce several batches
@@ -237,7 +408,7 @@ class _MediaMixin:
         return file_type == "pdf" and self._is_zai_provider()
 
 
-def _redact_presigned_url(url: str) -> str:
+def _redact_presigned_url(url: str) -> str | None:
     # Imported lazily: src.runtime.extension.storage pulls boto3 at module level, which
     # the minimal tooling env (that imports this package root) does not install.
     from src.runtime import redact_presigned_url

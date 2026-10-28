@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from collections.abc import Sequence
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import UUID
@@ -82,13 +83,6 @@ def _institution_class(*, is_brokerage: bool) -> str:
 
 class ExtractionService(_MediaMixin, _CoerceMixin, _BrokerageMixin, _CsvMixin):
     """Service for extracting structured data from financial documents."""
-
-    # Pages per vision request (provider payload bound), NOT a document cap: longer
-    # PDFs are extracted in several calls and merged (#1832). The total cap is the
-    # honest ceiling — exceeding it errors explicitly instead of truncating.
-    PDF_VISION_MAX_PAGES = 5
-    PDF_VISION_MAX_TOTAL_PAGES = 30
-    PDF_VISION_RENDER_SCALE = 1.6
 
     def __init__(self) -> None:
         self.api_key = settings.ai_api_key
@@ -1270,6 +1264,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _BrokerageMixin, _CsvMixin):
             file_type,
             mime_type,
         )
+        del file_content
         return await self._extract_json_from_media_batches(
             media_batches=media_batches,
             model=model,
@@ -1281,18 +1276,19 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _BrokerageMixin, _CsvMixin):
     async def _extract_json_from_media_batches(
         self,
         *,
-        media_batches: list[list[dict[str, Any]]],
+        media_batches: Sequence[list[dict[str, Any]]],
         model: str,
         prompt: str,
         seed_override: int | None,
         user_id: UUID | None,
     ) -> dict[str, Any]:
-        """Run one model call per media batch and merge the payloads (#1832).
+        """Run one model call per media batch and merge the payloads (#1832, #2595).
 
         Single-batch documents keep the exact pre-#1832 call shape. Multi-batch
         documents get a per-part prompt (transactions from own pages only;
-        statement-level balances only when explicitly stated), concurrent part
-        calls, and a pure merge.
+        statement-level balances only when explicitly stated), sequential
+        batch-by-batch rendering and extraction so completed batch image payloads
+        are released before the next batch renders (#2595), and a pure merge.
         """
 
         def _messages(part_prompt: str, media: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1306,9 +1302,18 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _BrokerageMixin, _CsvMixin):
                 }
             ]
 
+        async def _load_batch(batch_index: int) -> list[dict[str, Any]]:
+            pop_batch = getattr(media_batches, "pop_batch", None)
+            if callable(pop_batch):
+                return await asyncio.to_thread(pop_batch, batch_index)
+            return list(media_batches[batch_index])
+
         if len(media_batches) == 1:
+            single_batch = await _load_batch(0)
+            messages = _messages(prompt, single_batch)
+            del single_batch
             return await self._extract_json_with_model(
-                messages=_messages(prompt, media_batches[0]),
+                messages=messages,
                 model=model,
                 seed_override=seed_override,
                 user_id=user_id,
@@ -1316,15 +1321,18 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _BrokerageMixin, _CsvMixin):
 
         part_count = len(media_batches)
         pages_per_call = self.PDF_VISION_MAX_PAGES
-        total_pages = sum(len(media) for media in media_batches)
+        total_pages = getattr(media_batches, "total_pages", None) or sum(len(media) for media in media_batches)
 
         # Non-first parts carry page 1 as a leading context image: scanned
         # statements and some brokers do not repeat table headers on
         # continuation pages, so a bare batch cannot tell which column is
         # withdrawal vs deposit or which currency applies (#1832).
-        context_page = media_batches[0][0]
-
-        async def _extract_part(part_index: int, media: list[dict[str, Any]]) -> dict[str, Any]:
+        context_page: dict[str, Any] | None = None
+        parts: list[dict[str, Any]] = []
+        for part_index in range(1, part_count + 1):
+            media = await _load_batch(part_index - 1)
+            if part_index == 1:
+                context_page = media[0]
             page_start = (part_index - 1) * pages_per_call + 1
             page_end = page_start + len(media) - 1
             has_context_page = part_index > 1
@@ -1337,18 +1345,19 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _BrokerageMixin, _CsvMixin):
                 total_pages=total_pages,
                 has_context_page=has_context_page,
             )
-            part_media = [context_page, *media] if has_context_page else media
-            return await self._extract_json_with_model(
-                messages=_messages(part_prompt, part_media),
+            part_media = [context_page, *media] if has_context_page and context_page is not None else list(media)
+            messages = _messages(part_prompt, part_media)
+            del media, part_media
+            part = await self._extract_json_with_model(
+                messages=messages,
                 model=model,
                 seed_override=seed_override,
                 user_id=user_id,
             )
+            del messages
+            parts.append(part)
 
-        parts = await asyncio.gather(
-            *(_extract_part(index, media) for index, media in enumerate(media_batches, start=1))
-        )
-        merged = merge_paged_extractions(list(parts))
+        merged = merge_paged_extractions(parts)
         logger.info(
             "Merged paged vision extraction",
             part_count=part_count,
