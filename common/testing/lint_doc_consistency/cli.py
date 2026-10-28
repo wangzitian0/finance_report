@@ -65,7 +65,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     feature_acs = load_registry_acs(_base.AC_REGISTRY)
-    infra_acs = load_registry_acs(_base.INFRA_REGISTRY)
+    infra_acs = (
+        load_registry_acs(_base.INFRA_REGISTRY)
+        if _base.INFRA_REGISTRY.exists()
+        else []
+    )
     all_acs = feature_acs + infra_acs
     registry_ids = {ac["id"] for ac in all_acs if ac.get("id")}
 

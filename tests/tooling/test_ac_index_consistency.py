@@ -58,7 +58,6 @@ def _ac(ac_id: str, *, mandatory: bool = True, has_test: bool = True) -> AcNode:
         mandatory=mandatory,
         real_test_files=(REAL_FILE,) if has_test else (),
         proof_ids=(),
-        score=None,
     )
 
 
@@ -217,8 +216,8 @@ def test_AC8_13_140_every_ac_managed_with_empty_protection_passes() -> None:
     """AC-testing.acgates.17: AC8.13.140: an AC with an all-empty protection record is still 'managed'.
 
     Managed means present in the structure, NOT that it has any test. A node with
-    no real test files, no proofs, and no score is a VALID managed record and must
-    NOT make Gate A fail on the 'managed' obligation.
+    no real test files and no proofs is a VALID managed record and must NOT make
+    Gate A fail on the 'managed' obligation.
     """
     node = AcNode(
         id="AC8.13.200",
@@ -228,7 +227,6 @@ def test_AC8_13_140_every_ac_managed_with_empty_protection_passes() -> None:
         mandatory=False,  # non-mandatory so traceability does not require a test
         real_test_files=(),
         proof_ids=(),
-        score=None,
     )
     graph = _consistent_graph()
     graph.nodes["AC8.13.200"] = node
@@ -237,15 +235,15 @@ def test_AC8_13_140_every_ac_managed_with_empty_protection_passes() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Gate B part 2 — per-type COUNT floor (monotonic, conflict-safe)
+# Gate B — per-type COUNT floor (monotonic, conflict-safe)
 # ---------------------------------------------------------------------------
 
 
 def _floor_graph() -> AcGraph:
     """A graph whose mandatory active ACs give known per-type counts.
 
-    AC8.13.139 has a real test ref + a proof (p-1) + a score; AC8.13.99 has a real
-    test ref only. So: has_real_ref=2, has_proof=1, has_score=1, has_mirror=0.
+    AC8.13.139 has a real test ref + a proof (p-1); AC8.13.99 has a real
+    test ref only. So: has_real_ref=2, has_proof=1, has_mirror=0.
     """
     graph = _consistent_graph()
     scored = graph.nodes["AC8.13.139"]
@@ -257,7 +255,6 @@ def _floor_graph() -> AcGraph:
         mandatory=scored.mandatory,
         real_test_files=scored.real_test_files,
         proof_ids=("p-1",),
-        score=0.5,
     )
     return graph
 
@@ -310,7 +307,7 @@ def test_AC8_13_140_count_floor_fails_when_type_drops_below_floor(tmp_path) -> N
     graph = _floor_graph()  # has_proof current = 1
     # Commit a floor that requires MORE proofs than currently exist.
     protection.write_floor(
-        floor_file, {"has_real_ref": 2, "has_proof": 5, "has_score": 1, "has_mirror": 0}
+        floor_file, {"has_real_ref": 2, "has_proof": 5, "has_mirror": 0}
     )
     result = protection.check_count_floor(graph, floor_file)
     assert any("has_proof" in e and "regressed" in e for e in result.errors), (
@@ -342,7 +339,6 @@ def test_AC8_13_140_count_floor_passes_when_protection_added(tmp_path) -> None:
         mandatory=node99.mandatory,
         real_test_files=node99.real_test_files,
         proof_ids=("p-1",),
-        score=node99.score,
     )
     result = protection.check_count_floor(graph, floor_file)
     assert result.errors == []  # adding protection never regresses
@@ -375,7 +371,6 @@ def test_AC8_13_140_update_floor_raises_floors(tmp_path, monkeypatch) -> None:
             mandatory=node.mandatory,
             real_test_files=node.real_test_files,
             proof_ids=(),
-            score=None,
         )
     monkeypatch.setattr(gate, "build_ac_graph", lambda _repo_root: poorer)
     before_bytes = floor_file.read_bytes()
@@ -397,13 +392,16 @@ def test_AC8_13_140_update_floor_raises_floors(tmp_path, monkeypatch) -> None:
 
 
 def test_AC8_13_139_no_committed_materialized_index_files() -> None:
-    """AC-testing.acgates.15: AC8.13.139: no committed materialized matrix/vision/status/score-baseline file is required.
+    """AC-testing.acgates.1: AC-testing.acgates.15: AC8.13.17 AC8.13.139: no committed materialized matrix/vision/status/score-baseline/registry file is required.
 
     The aggregate views are derived on demand; the previously-committed copies
     must be absent, and the README EPIC-status block must hold the stable pointer
     (no per-EPIC numbers), so nothing churns when an AC changes.
     """
     for relative in (
+        "docs/ac_registry.yaml",
+        "docs/infra_registry.yaml",
+        "docs/ac_registry_overrides.yaml",
         "docs/ssot/critical-proof-matrix.yaml",
         "docs/ssot/vision-proof-matrix.yaml",
         "docs/reference/vision-proof-matrix.md",
@@ -429,7 +427,7 @@ def test_AC8_13_135_protection_dashboard_separates_reference_from_behavioral(
     capsys,
 ) -> None:
     """AC-testing.acgates.14: AC8.13.135: the gate's PROTECTION dashboard reports per-type counts
-    (has_real_ref vs has_proof/has_score), never conflating L1 reference
+    (has_real_ref vs has_proof), never conflating L1 reference
     presence with behavioral proof, so a passing gate cannot be misread as
     behavioral assurance. (Re-anchored from the retired standalone traceability
     report; the honest disclosure now lives in the two-gate dashboard.)"""
@@ -440,7 +438,7 @@ def test_AC8_13_135_protection_dashboard_separates_reference_from_behavioral(
     assert "PROTECTION dashboard" in out
     # Each protection type is reported on its own line — L1 reference presence
     # is NOT merged into a single behavioral-coverage number.
-    for ptype in ("has_real_ref", "has_proof", "has_score", "has_mirror"):
+    for ptype in ("has_real_ref", "has_proof", "has_mirror"):
         assert ptype in out
 
     def _count(t: str) -> int:

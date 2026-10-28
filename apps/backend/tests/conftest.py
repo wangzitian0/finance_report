@@ -42,13 +42,12 @@ register_manual_valuation_lines_provider(
 # that call statement-posting helpers directly bypass app startup and would
 # otherwise hit the unwired-port RuntimeError.
 
-# Make the repo's ``common/`` importable at collection time (not just inside the
-# ``ac_evidence`` fixture). conftest.py is imported before the test modules in
-# this tree, so a backend test can carry a top-level co-located proof decorator
-# (``from common.testing.ac_proof import ac_proof``) without ImportError. Insert
-# at the front so the repo's ``common/`` wins over any third-party ``common`` in
-# site-packages. This only widens what is importable; tests that do not import
-# ``common`` are unaffected.
+# Make the repo's ``common/`` importable at collection time. conftest.py is
+# imported before the test modules in this tree, so a backend test can carry a
+# top-level co-located proof decorator (``from common.testing.ac_proof import ac_proof``)
+# without ImportError. Insert at the front so the repo's ``common/`` wins over
+# any third-party ``common`` in site-packages. This only widens what is
+# importable; tests that do not import ``common`` are unaffected.
 _REPO_ROOT = str(Path(__file__).resolve().parents[3])
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
@@ -99,29 +98,6 @@ def pytest_sessionfinish(session, exitstatus):
     (out / f"served-cassettes-{os.getpid()}.txt").write_text(
         "".join(f"{k}\n" for k in sorted(served)), encoding="utf-8"
     )
-
-
-# --- AC behavioral-evidence emission ---
-# Lets a backend test attach a measured (code, score, metric, comment,
-# provenance) record per AC to its junit result. The repo-root path is appended
-# lazily *inside* the fixture so only tests that opt in can import ``common``;
-# the rest of the backend suite is unaffected.
-@pytest.fixture
-def ac_evidence(record_property):
-    """Return an emitter: ac_evidence(ac_id=..., score=..., metric=..., ...)."""
-    from pathlib import Path
-
-    repo_root = str(Path(__file__).resolve().parents[3])
-    if repo_root not in sys.path:
-        # Insert at the front so the repo's `common/` wins over any third-party
-        # `common` that may sit in site-packages.
-        sys.path.insert(0, repo_root)
-    from common.testing.ac_evidence import record_ac_evidence
-
-    def _emit(**kwargs):
-        return record_ac_evidence(record_property, **kwargs)
-
-    return _emit
 
 
 # --- Bootloader Mock ---

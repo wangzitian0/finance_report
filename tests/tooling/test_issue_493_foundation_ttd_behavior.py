@@ -289,49 +289,24 @@ def test_AC14_1_6_generate_ac_registry_check_rejects_ghosts_and_keeps_no_overlap
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """AC-meta.registry.1: Registry generation ignores ghost AC references and splits infra/feature IDs."""
+    """AC-meta.registry.1: Registry generation ignores ghost AC references and loads marked EPIC residue."""
     project_dir = tmp_path / "docs" / "project"
     project_dir.mkdir(parents=True)
     (project_dir / "EPIC-001.phase0-setup.md").write_text(
-        "| AC1.1.1 | Feature setup AC |\nReference-only prose mentions AC1.99.1 but must not create it.\n",
+        "| AC1.1.1 | Feature setup AC | <!-- epic-owned: horizontal -->\n"
+        "Reference-only prose mentions AC1.99.1 but must not create it.\n",
         encoding="utf-8",
     )
     (project_dir / "EPIC-014.ttd-transformation.md").write_text(
-        "| AC14.1.6 | Registry generation keeps zero ghost ACs and zero overlap |\n",
+        "| AC14.1.6 | Registry generation keeps zero ghost ACs | <!-- epic-owned: horizontal -->\n",
         encoding="utf-8",
     )
 
-    feature_registry = tmp_path / "docs" / "ac_registry.yaml"
-    infra_registry = tmp_path / "docs" / "infra_registry.yaml"
-    feature_registry.parent.mkdir(parents=True, exist_ok=True)
-    gar.write_registry(
-        {
-            "AC1.1.1": {
-                "epic": 1,
-                "epic_name": "phase0-setup",
-                "description": "Feature setup AC",
-            }
-        },
-        output_path=str(feature_registry),
-    )
-    gar.write_registry(
-        {
-            "AC14.1.6": {
-                "epic": 14,
-                "epic_name": "ttd-transformation",
-                "description": "Registry generation keeps zero ghost ACs and zero overlap",
-            }
-        },
-        output_path=str(infra_registry),
-    )
+    monkeypatch.setattr(gar, "EPIC_DIR", project_dir)
 
-    monkeypatch.setattr(gar, "EPIC_DIR", str(project_dir))
-    monkeypatch.setattr(gar, "OUTPUT_FEATURE", str(feature_registry))
-    monkeypatch.setattr(gar, "OUTPUT_INFRA", str(infra_registry))
-
-    extracted = gar.extract_acs()
+    extracted = gar.extract_acs(project_dir)
     assert "AC1.99.1" not in extracted
-    assert gar.main(["--check"]) == 0
-    feature_ids = set(gar.load_existing_registry(feature_registry))
-    infra_ids = set(gar.load_existing_registry(infra_registry))
-    assert feature_ids.isdisjoint(infra_ids)
+    assert "AC1.1.1" in extracted
+    assert "AC14.1.6" in extracted
+    entries = gar.build_registry_entries(epic_source=project_dir)
+    assert set(entries) == {"AC1.1.1", "AC14.1.6"}

@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
-import argparse
+"""In-memory AC registry loader from package contracts and marked EPIC residue."""
+
+from __future__ import annotations
+
 import ast
 import os
 import re
-import sys
-from collections.abc import Sequence
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
+
+import yaml
 
 # Import the matrix from the stdlib-only source (NOT package_contract, which
-# pulls pydantic) so this generator stays importable in the lightweight CI lint
+# pulls pydantic) so this loader stays importable in the lightweight CI lint
 # env (`uv run --with pyyaml ...`).
 from common.meta.base.authority_matrix import (
     AC_PROOF_KINDS as _AC_PROOF_KINDS,
@@ -20,32 +25,8 @@ from common.meta.base.authority_matrix import (
     TIER_DEFAULT_PROOF_KIND as _TIER_DEFAULT_PROOF_KIND,
 )
 from common.meta.base.gate_util import call_name
-from common.meta.extension.ac_registry_format import (
-    PKG_AC_PATTERN,
-    epic_group_key,
-    load_registry_entries,
-    registry_validation_errors,
-    scenario_group_key,
-    sort_key,
-)
-
-try:
-    import yaml
-except ImportError:  # pragma: no cover - import guard
-    yaml = None
-
 
 EPIC_DIR = "docs/project"
-OUTPUT_FEATURE = "docs/ac_registry.yaml"
-OUTPUT_INFRA = "docs/infra_registry.yaml"
-OVERRIDES = "docs/ac_registry_overrides.yaml"
-
-# EPIC classification: which EPICs are feature vs infra
-FEATURE_EPICS = {1, 2, 3, 4, 5, 6, 8, 11, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23}
-INFRA_EPICS = {7, 9, 10, 12, 14, 26}
-
-# EPIC-016 sub-classification: these AC16.XX.x groups route to infra
-EPIC16_INFRA_GROUPS = {11, 13}
 
 EPIC_NAMES: dict[int, str] = {
     1: "phase0-setup",
@@ -72,67 +53,44 @@ EPIC_NAMES: dict[int, str] = {
     22: "everyday-user-ia",
     23: "llm-provider-abstraction",
     24: "frontend-observability",
+    25: "dry-ssot-simplification",
     26: "ac-authority-tiers",
 }
 
-
 AC_PATTERN = re.compile(r"\b(AC(\d+)\.(\d+)\.(\d+))\b")
 
-# The EPIC residue vocabulary (#1719): every AC definition that stays in an
-# EPIC doc must declare WHY with a trailing ``<!-- epic-owned: CATEGORY -->``
-# marker. This is the single machine source for the category vocabulary; the
-# residue ratchet gate (tests/tooling/test_epic_residue_ratchet.py) imports it.
-#
-# - ``fe-only``          frontend-only proof (permanent residue — the
-#                        governance gate resolves Python tests only)
-# - ``fe-half``          the frontend half of a dual-proof AC whose backend
-#                        half lives in a package roadmap (in-row pointer)
-# - ``horizontal``       confirmed cross-module/infra scope (no package owner)
-# - ``pending-package``  stays EPIC-owned until a named blocker clears (e.g.
-#                        the advisor be-cutover); not permanent
+PKG_AC_PATTERN = re.compile(
+    r"^AC-(?P<package>[a-z][a-z0-9_]*)\.(?P<group>[a-z0-9][a-z0-9_-]*)\.(?P<seq>\d+)$"
+)
+
 EPIC_RESIDUE_CATEGORIES = ("fe-only", "fe-half", "horizontal", "pending-package")
 
-# Row-level residue marker, e.g. ``<!-- epic-owned: fe-only -->``. Parsed and
-# stripped BEFORE any other parsing so it never leaks into a description.
 _RESIDUE_MARKER_RE = re.compile(r"<!--\s*epic-owned:\s*([a-z][a-z-]*)\s*-->")
 
-# Authority tier + proof-kind vocabulary and the tier->proof matrix all come from
-# the single machine source common/meta/base/authority_matrix.py (stdlib-only;
-# package_contract re-exports the same definitions for its model validation), so
-# the EPIC-table source and the package-contract source can never disagree.
 AC_TIERS = _AC_TIERS
 AC_PROOF_KINDS = _AC_PROOF_KINDS
 
-# Definition-site tier marker, e.g. ``{tier:CODE-ONLY}``. Declared next to the AC text
-# in the EPIC doc so the tier travels with the behavior it describes. The marker
-# is parsed out of the line and lifted into the registry value; it never leaks
-# into the AC description.
 _TIER_MARKER_RE = re.compile(
     r"\{tier:\s*(" + "|".join(AC_TIERS) + r")\s*\}", re.IGNORECASE
 )
 
-# Definition-site proof-kind marker, e.g. ``{proof:property}``. Declared next to
-# the AC text the same way as ``{tier:XX}`` and lifted into the registry value as
-# ``proof_kind``; stripped from the description so it never leaks. The alternation
-# is built from the canonical vocabulary so it cannot drift from it.
 _PROOF_MARKER_RE = re.compile(
     r"\{proof:\s*(" + "|".join(AC_PROOF_KINDS) + r")\s*\}",
     re.IGNORECASE,
 )
 
-# When an AC declares a tier but no explicit ``{proof:KIND}`` marker, its
-# proof_kind defaults to the tier's CANONICAL valid kind (single source:
-# package_contract.TIER_DEFAULT_PROOF_KIND), so the registry value is always a
-# kind the matrix accepts. Untagged ACs get no proof_kind key at all.
 _TIER_DEFAULT_PROOF = _TIER_DEFAULT_PROOF_KIND
 
 
-def _extract_tier(text: str) -> tuple[str, str | None]:
-    """Split an inline ``{tier:XX}`` marker out of *text*.
+def sort_key(ac_id: str) -> tuple[Any, ...]:
+    """Total order over legacy numeric ``ACx.y.z`` and package ``AC-<pkg>.<g>.<s>`` IDs."""
+    pkg = PKG_AC_PATTERN.fullmatch(ac_id)
+    if pkg:
+        return (1, pkg.group("package"), pkg.group("group"), int(pkg.group("seq")))
+    return (0, "", *(int(p) for p in ac_id[2:].split(".")))
 
-    Returns ``(text_without_marker, tier_or_None)``. The tier code is upper-cased
-    to the canonical vocabulary. Text with no marker is returned unchanged.
-    """
+
+def _extract_tier(text: str) -> tuple[str, str | None]:
     match = _TIER_MARKER_RE.search(text)
     if not match:
         return text, None
@@ -142,12 +100,6 @@ def _extract_tier(text: str) -> tuple[str, str | None]:
 
 
 def _extract_residue(text: str) -> tuple[str, str | None]:
-    """Split a trailing ``<!-- epic-owned: CATEGORY -->`` marker out of *text*.
-
-    Returns ``(text_without_marker, category_or_None)``. The category is NOT
-    validated here (the residue ratchet gate owns the vocabulary check); the
-    marker is stripped so it never leaks into a description.
-    """
     match = _RESIDUE_MARKER_RE.search(text)
     if not match:
         return text, None
@@ -155,11 +107,6 @@ def _extract_residue(text: str) -> tuple[str, str | None]:
 
 
 def _extract_proof(text: str) -> tuple[str, str | None]:
-    """Split an inline ``{proof:KIND}`` marker out of *text*.
-
-    Returns ``(text_without_marker, proof_kind_or_None)``. The kind is
-    lower-cased to the canonical vocabulary. Text with no marker is unchanged.
-    """
     match = _PROOF_MARKER_RE.search(text)
     if not match:
         return text, None
@@ -169,7 +116,6 @@ def _extract_proof(text: str) -> tuple[str, str | None]:
 
 
 def _default_proof_for_tier(tier: str | None) -> str | None:
-    """Canonical proof kind for a tier when no ``{proof:KIND}`` marker is given."""
     if not tier:
         return None
     return _TIER_DEFAULT_PROOF.get(tier.upper())
@@ -194,19 +140,7 @@ def _is_reference_only_line(line: str) -> bool:
 def _extract_ac_definition(
     line: str,
 ) -> tuple[str, int, str, str | None, str | None, str | None] | None:
-    """Extract one AC definition from a Markdown table, bullet, or plain line.
-
-    Returns ``(ac_id, epic, description, tier, proof_kind, residue)`` where
-    ``tier`` is the optional authority-tier code declared via a ``{tier:XX}``
-    marker (one of :data:`AC_TIERS`), ``proof_kind`` the optional proof-kind
-    code declared via a ``{proof:KIND}`` marker (one of
-    :data:`AC_PROOF_KINDS`), and ``residue`` the ``<!-- epic-owned:
-    CATEGORY -->`` residue category (#1719 — see
-    :data:`EPIC_RESIDUE_CATEGORIES`); each is ``None`` when its marker is
-    absent. All markers are stripped from the description so none leaks into
-    the registry text, and may appear anywhere on the line (any cell of a
-    table row, or trailing a checklist bullet).
-    """
+    """Extract one AC definition from a Markdown table, bullet, or plain line."""
     if _is_reference_only_line(line):
         return None
 
@@ -214,8 +148,6 @@ def _extract_ac_definition(
     if not stripped:
         return None
 
-    # Strip the definition-site markers BEFORE splitting table cells, so a
-    # marker in any cell is lifted and never leaks into the description.
     stripped, residue = _extract_residue(stripped)
     stripped, tier = _extract_tier(stripped)
     stripped, proof_kind = _extract_proof(stripped)
@@ -245,49 +177,13 @@ def _extract_ac_definition(
     return ac_id, ac_epic, desc, tier, proof_kind, residue
 
 
-def _require_yaml() -> None:
-    if yaml is None:
-        print("ERROR: PyYAML not installed. Run: pip install pyyaml", file=sys.stderr)
-        sys.exit(1)
-
-
-def load_existing_registry(path: str | Path) -> dict[str, dict]:
-    """Load an existing registry by ID, preserving canonical entry metadata."""
-    _require_yaml()
-    registry_path = Path(path)
-    if not registry_path.exists():
-        return {}
-
-    entries: dict[str, dict] = {}
-    for entry in load_registry_entries(registry_path):
-        ac_id = str(entry["id"])
-        normalized = dict(entry)
-        epic = int(normalized.get("epic", ac_id.split(".")[0][2:]))
-        normalized["epic"] = epic
-        if "epic_name" in normalized:
-            normalized["epic_name"] = str(normalized["epic_name"])
-        normalized["mandatory"] = bool(normalized.get("mandatory", True))
-        entries[ac_id] = normalized
-    return entries
-
-
-def load_existing_registries(paths: list[str | Path]) -> dict[str, dict]:
-    entries: dict[str, dict] = {}
-    for path in paths:
-        entries.update(load_existing_registry(path))
-    return entries
-
-
-def load_overrides(path: str | Path = OVERRIDES) -> dict[str, dict]:
-    """Load registry entries that cannot be derived from current EPIC text."""
-    return load_existing_registry(path)
-
-
 _HEADING_AC_PATTERN = re.compile(r"^#{2,6}\s+(AC\d+\.\d+)\b")
 
 
 def _epic_files(epic_dir: str | Path | None = None) -> list[Path]:
     source_dir = Path(epic_dir or EPIC_DIR)
+    if not source_dir.exists():
+        return []
     return [
         source_dir / f
         for f in sorted(os.listdir(source_dir))
@@ -300,18 +196,7 @@ def _epic_files(epic_dir: str | Path | None = None) -> list[Path]:
 def find_ac_collisions(
     epic_dir: str | Path | None = None,
 ) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
-    """Find AC identity collisions in EPIC docs.
-
-    Returns ``(duplicate_definitions, duplicate_headings)``:
-
-    - ``duplicate_definitions``: ``ACx.y.z`` defined by more than one Markdown
-      **table row** (``| ACx.y.z | ... |``). ``extract_acs`` keeps the first and
-      silently drops the rest, so a collision can hide a real, differently-scoped
-      AC (and its test) from the registry. Only table rows count — checklist
-      bullets that merely restate an AC are not competing definitions.
-    - ``duplicate_headings``: ``### ACx.y`` group heading repeated within one EPIC,
-      which makes the group's namespace and "next free index" ambiguous.
-    """
+    """Find AC identity collisions in EPIC docs."""
     def_locations: dict[str, list[str]] = {}
     heading_locations: dict[str, list[str]] = {}
     for path in _epic_files(epic_dir):
@@ -334,21 +219,8 @@ def find_ac_collisions(
     return duplicate_definitions, duplicate_headings
 
 
-# Package contracts (``common/<pkg>/contract.py``) are the PRIMARY source of
-# ACs (#1719): a package's ``roadmap`` owns its ACs directly, and EPIC docs
-# feed the registry only through explicitly marked residue rows. Discovery
-# reuses the governance gate's scanner so the two stay in lockstep.
-
-
 def _repo_root_for(source_dir: Path) -> Path:
-    """Derive the repo root from the EPIC ``source_dir`` (``<root>/docs/project``).
-
-    Package contracts live at ``<root>/common/*/contract.py``, so the package
-    scan must use the SAME root the EPIC scan does. Deriving it from
-    ``source_dir`` (rather than the module-level ``REPO_ROOT``) keeps the two
-    sources aligned and lets tests that point ``EPIC_DIR`` at a tmp repo isolate
-    package discovery too (a tmp repo with no ``common/`` yields no package ACs).
-    """
+    """Derive the repo root from the EPIC ``source_dir`` (``<root>/docs/project``)."""
     parts = source_dir.resolve().parts
     if len(parts) >= 2 and parts[-2:] == ("docs", "project"):
         return source_dir.resolve().parents[1]
@@ -358,12 +230,7 @@ def _repo_root_for(source_dir: Path) -> Path:
 def _ac_record_field(
     call: ast.Call, field: str, default: str | None = None
 ) -> str | None:
-    """Return the literal string value of an ``ACRecord(...)`` or ``ac(...)`` field, or None.
-
-    Reads a keyword argument from an AST call node, or positional argument
-    matching the field's position in ``ac(id, statement, test, priority, status, proof_kind, vision_anchor)``.
-    Returns its value only when it is a string constant.
-    """
+    """Return the literal string value of an ``ACRecord(...)`` or ``ac(...)`` field, or None."""
     for kw in call.keywords:
         if kw.arg != field:
             continue
@@ -390,17 +257,7 @@ def _ac_record_field(
 
 
 def package_contract_meta(contract_path: Path) -> dict | None:
-    """Statically read a contract's package-level metadata (no import / pydantic).
-
-    Returns ``{name, status, tier, roadmap}`` where ``tier``/``status``/``name``
-    are the string literals on the ``PackageContract(...)`` call (``None`` if not
-    an AST-readable literal) and ``roadmap`` is a list of ``{id, status, test}``
-    per ``ACRecord`` or ``ac``. Returns ``None`` if the file has no ``PackageContract(...)``.
-
-    This is the AST view the registry generator and the migration-safety gates
-    consume; it deliberately does NOT import the contract, so it runs in the
-    lightweight CI lint env (``uv run --with pyyaml …``) without pydantic.
-    """
+    """Statically read a contract's package-level metadata (no import / pydantic)."""
     tree = ast.parse(contract_path.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if not (
@@ -437,20 +294,10 @@ def package_contract_meta(contract_path: Path) -> dict | None:
 
 
 def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
-    """Statically read a contract's ``roadmap`` ``ACRecord(...)`` or ``ac(...)`` entries.
-
-    Parses ``common/<pkg>/contract.py`` with :mod:`ast` (no import, so no
-    pydantic/governance dependency — this runs in every tooling environment) and
-    returns one dict per ``ACRecord`` / ``ac`` in the ``roadmap=[...]`` list, with its
-    ``id``/``statement``/``proof_kind`` literals plus the PACKAGE's ``tier``
-    (authority tier is a module-design property declared once on the
-    ``PackageContract``; every AC the package owns inherits it).
-    """
+    """Statically read a contract's ``roadmap`` ``ACRecord(...)`` or ``ac(...)`` entries."""
     tree = ast.parse(contract_path.read_text(encoding="utf-8"))
     records: list[dict] = []
     for node in ast.walk(tree):
-        # The single ``CONTRACT = PackageContract(...)`` assignment; read its
-        # package-level ``tier`` then each ``ACRecord(...)`` in ``roadmap=[...]``.
         if not (
             isinstance(node, ast.Call) and call_name(node.func) == "PackageContract"
         ):
@@ -484,19 +331,7 @@ def _roadmap_acs_from_contract(contract_path: Path) -> list[dict]:
 
 
 def _package_roadmap_acs(source_dir: Path) -> dict[str, dict]:
-    """Source ACs from every ``<root>/common/<pkg>/contract.py`` ``roadmap``.
-
-    Each ``ACRecord`` becomes a registry entry keyed by its AC id, with the same
-    shape an EPIC-table row produces: ``epic`` (parsed from the AC id),
-    ``epic_name`` (from :data:`EPIC_NAMES` or the ``epic-NNN`` fallback),
-    ``description``, ``mandatory=True``, and — when the record carries a
-    ``tier`` — that tier plus its ``proof_kind`` (explicit, else the tier's
-    canonical kind), exactly as the tier/proof markers did in an EPIC table.
-
-    Read **statically** (AST), so this needs no pydantic/governance import and
-    yields the SAME ACs in every tooling environment (no asymmetry, no silent
-    drop): the heavy governance gate still validates the contracts elsewhere.
-    """
+    """Source ACs from every ``<root>/common/<pkg>/contract.py`` ``roadmap``."""
     repo_root = _repo_root_for(source_dir)
     acs: dict[str, dict] = {}
     for contract_path in sorted(repo_root.glob("common/*/contract.py")):
@@ -504,8 +339,6 @@ def _package_roadmap_acs(source_dir: Path) -> dict[str, dict]:
             ac_id = record["id"]
             pkg_match = PKG_AC_PATTERN.fullmatch(ac_id)
             if pkg_match:
-                # Package-scoped id (AC-{package}.{group}.{seq}): the key names its
-                # owner, so there is no EPIC number and no cross-package collision.
                 package = pkg_match.group("package")
                 entry = {
                     "epic": 0,
@@ -549,24 +382,16 @@ def _package_roadmap_acs(source_dir: Path) -> dict[str, dict]:
 
 
 def extract_acs(
-    existing_acs: dict[str, dict] | None = None,
+    existing_acs: dict[str, dict] | str | Path | None = None,
     epic_dir: str | Path | None = None,
 ) -> dict[str, dict]:
+    if isinstance(existing_acs, (str, Path)):
+        epic_dir = existing_acs
+        existing_acs = None
     source_dir = Path(epic_dir or EPIC_DIR)
-    epic_files = sorted(
-        [
-            f
-            for f in os.listdir(source_dir)
-            if re.match(r"EPIC-\d+.*\.md", f)
-            and "IMPLEMENTATION" not in f
-            and "ENCODING" not in f
-        ]
-    )
-
     existing_acs = existing_acs or {}
     all_acs: dict[str, dict] = {}
-    for fname in epic_files:
-        path = source_dir / fname
+    for path in _epic_files(source_dir):
         with open(path, encoding="utf-8") as f:
             lines = f.readlines()
 
@@ -575,12 +400,6 @@ def extract_acs(
             if definition is None:
                 continue
             ac_id, ac_epic, desc, tier, proof_kind, residue = definition
-            # Post-migration (#1719), an EPIC doc feeds the registry ONLY
-            # through explicitly marked residue rows (<!-- epic-owned:
-            # CATEGORY -->). An unmarked definition is invisible here AND
-            # fails the residue ratchet gate
-            # (tests/tooling/test_epic_residue_ratchet.py) — defense in
-            # depth against EPIC tables silently becoming an AC source again.
             if residue not in EPIC_RESIDUE_CATEGORIES:
                 continue
             if ac_id in all_acs:
@@ -588,6 +407,7 @@ def extract_acs(
 
             existing = existing_acs.get(ac_id, {})
             entry = {
+                "id": ac_id,
                 "epic": int(existing.get("epic", ac_epic)),
                 "epic_name": existing.get(
                     "epic_name", EPIC_NAMES.get(ac_epic, f"epic-{ac_epic:03d}")
@@ -595,19 +415,9 @@ def extract_acs(
                 "description": existing.get("description", desc),
                 "mandatory": existing.get("mandatory", True),
             }
-            # Tier is an attribute of the AC's behavior; the definition-site
-            # marker is authoritative, falling back to any tier carried by an
-            # existing/override entry. ACs with no declared tier stay untagged
-            # (the ratchet gate tracks that debt).
             ac_tier = tier or existing.get("tier")
             if ac_tier:
                 entry["tier"] = ac_tier
-                # The proof KIND that this AC's tests provide. An explicit
-                # {proof:KIND} marker wins; otherwise it falls back to an
-                # existing/override value, then to the tier's canonical kind so
-                # the registry value is always a kind the tier->proof matrix
-                # accepts. Only tier-tagged ACs carry a proof_kind (the gate
-                # only enforces the matrix for tier-tagged ACs).
                 entry["proof_kind"] = (
                     proof_kind
                     or existing.get("proof_kind")
@@ -615,264 +425,80 @@ def extract_acs(
                 )
             all_acs[ac_id] = entry
 
-    # Fold in package-contract roadmap ACs (from the SAME repo root the EPIC
-    # scan used). Package roadmaps are the AUTHORITATIVE source (#1719 flipped
-    # the old EPIC-wins rule): on an id collision the roadmap record wins, so
-    # a stale EPIC row can never shadow a package's statement or tier. The
-    # dual-definition gate (check_epic_package_dual) keeps such collisions
-    # impossible in the first place; roadmap-wins is the safety net if one
-    # ever slips through.
     all_acs.update(_package_roadmap_acs(source_dir))
-
     return all_acs
 
 
-def classify_ac(ac_id: str, entry: dict) -> str:
-    """Return 'feature' or 'infra' for a given AC entry."""
-    # Package-scoped ids carry their own grouping (AC-{package}.…) and no EPIC
-    # number; route them to the feature registry (the package model's default).
-    if PKG_AC_PATTERN.fullmatch(ac_id):
-        return "feature"
-    epic = entry["epic"]
-    if epic in INFRA_EPICS:
-        return "infra"
-    if epic == 16:
-        # Sub-classify EPIC-016: check the group number (middle digit)
-        parts = ac_id[2:].split(".")
-        group = int(parts[1])
-        if group in EPIC16_INFRA_GROUPS:
-            return "infra"
-    return "feature"
-
-
-def write_registry(all_acs: dict[str, dict], output_path: str | None = None) -> None:
-    if output_path is None:
-        output_path = OUTPUT_FEATURE
-    _require_yaml()
-    groups: dict[str, dict[str, list[dict]]] = {}
-    for ac_id in sorted(all_acs.keys(), key=sort_key):
-        source = dict(all_acs[ac_id])
-        source["id"] = ac_id
-        source["mandatory"] = bool(source.get("mandatory", True))
-        entry = {
-            key: source[key]
-            for key in (
-                "id",
-                "epic",
-                "epic_name",
-                "description",
-                "tier",
-                "proof_kind",
-                "title",
-                "status",
-                "mandatory",
-            )
-            if key in source
-        }
-        for key, value in source.items():
-            if key not in entry:
-                entry[key] = value
-        groups.setdefault(epic_group_key(ac_id), {}).setdefault(
-            scenario_group_key(ac_id), []
-        ).append(entry)
-
-    payload = {
-        "version": "1.0",
-        "groups": groups,
-    }
-
-    class IndentedDumper(yaml.SafeDumper):
-        def increase_indent(self, flow=False, indentless=False):
-            return super().increase_indent(flow, False)
-
-    rendered = yaml.dump(
-        payload,
-        Dumper=IndentedDumper,
-        sort_keys=False,
-        allow_unicode=False,
-        width=120,
-    )
-
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(
-            "# DO NOT edit this file manually - run tools/generate_ac_registry.py\n"
-        )
-        f.write("# Regenerate: python tools/generate_ac_registry.py\n")
-        f.write(rendered)
-    print(f"Written {len(all_acs)} ACs to {output_path}")
-
-
-def write_registry_index(kind: str, output_path: str | Path) -> None:
-    """Write the small checked-in registry index used by runtime loaders."""
-    if kind not in {"feature", "infra"}:
-        raise ValueError(f"Invalid registry kind: {kind}")
-    _require_yaml()
-    payload = {
-        "version": "2.0",
-        "kind": kind,
-        "generated_from_epics": True,
-        "epic_source": EPIC_DIR,
-        "overrides": OVERRIDES,
-    }
-    rendered = yaml.safe_dump(payload, sort_keys=False, allow_unicode=False)
-    path = Path(output_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        "# DO NOT edit this file manually - run tools/generate_ac_registry.py\n"
-        "# Checked-in index only; entries are generated from EPIC docs plus overrides.\n"
-        f"{rendered}",
-        encoding="utf-8",
-    )
-    print(f"Written generated registry index to {output_path}")
-
-
 def build_registry_entries(
-    existing_acs: dict[str, dict] | None = None,
+    existing_acs: dict[str, dict] | str | Path | None = None,
     epic_source: str | Path | None = None,
-    overrides: str | Path | None = None,
 ) -> dict[str, dict]:
-    """Return the complete current registry without requiring committed entries."""
-    override_entries = load_overrides(overrides or OVERRIDES)
-    if existing_acs:
-        override_entries.update(existing_acs)
-    extracted = extract_acs(epic_dir=epic_source)
-    merged = dict(extracted)
-    for ac_id, entry in override_entries.items():
-        if ac_id not in merged:
-            merged[ac_id] = dict(entry)
+    """Return the complete current registry from in-memory EPIC residue and package roadmaps."""
+    if isinstance(existing_acs, (str, Path)):
+        epic_source = existing_acs
+        existing_acs = None
+    extracted = extract_acs(existing_acs=existing_acs, epic_dir=epic_source)
+    return dict(sorted(extracted.items(), key=lambda item: sort_key(item[0])))
+
+
+def iter_registry_entries(payload: dict[str, Any]) -> Iterable[dict[str, Any]]:
+    """Yield registry entries from a grouped ACx -> ACx.y registry payload."""
+    groups = payload.get("groups") or {}
+    for _epic_key, scenario_groups in groups.items():
+        if not isinstance(scenario_groups, dict):
             continue
-        current = dict(merged[ac_id])
-        if str(current.get("description", "")).strip().lower() != "stub":
+        if isinstance(scenario_groups.get("acs"), dict):
+            epic_num = int(_epic_key) if str(_epic_key).isdigit() else 0
+            epic_name = str(scenario_groups.get("epic_name", ""))
+            for ac_id, body in scenario_groups["acs"].items():
+                body_map = dict(body) if isinstance(body, dict) else {}
+                entry: dict[str, Any] = {
+                    "id": str(ac_id),
+                    "epic": epic_num,
+                    "epic_name": epic_name,
+                    "description": str(body_map.get("description", "")),
+                    "mandatory": bool(body_map.get("mandatory", True)),
+                }
+                for extra in ("status", "tier", "proof_kind"):
+                    if extra in body_map:
+                        entry[extra] = body_map[extra]
+                yield entry
             continue
-        for key, value in entry.items():
-            if key == "description":
-                continue
-            current[key] = value
-        merged[ac_id] = current
-    return dict(sorted(merged.items(), key=lambda item: sort_key(item[0])))
+        for _scenario_key, entries in scenario_groups.items():
+            if isinstance(entries, list):
+                yield from (dict(entry) for entry in entries if isinstance(entry, dict))
 
 
-def materialized_entries(
-    kind: str,
-    epic_source: str | Path | None = None,
-    overrides: str | Path | None = None,
-) -> list[dict]:
-    """Return generated feature or infra registry entries as flat dictionaries."""
-    entries: list[dict] = []
-    for ac_id, source in build_registry_entries(
-        epic_source=epic_source,
-        overrides=overrides,
-    ).items():
-        if classify_ac(ac_id, source) != kind:
-            continue
-        entry = dict(source)
-        entry["id"] = ac_id
-        entry["mandatory"] = bool(entry.get("mandatory", True))
-        entries.append(entry)
-    return entries
-
-
-def append_registry_entries(entries: dict[str, dict], output_path: str | Path) -> None:
-    if not entries:
-        return
-
-    path = Path(output_path)
-    merged = load_existing_registry(path)
-    merged.update(entries)
-    write_registry(merged, str(path))
-
-
-def ensure_registry_file(output_path: str | Path) -> None:
-    path = Path(output_path)
+def load_registry_entries(path: Path) -> list[dict[str, Any]]:
+    """Load AC registry entries from in-memory EPIC/package sources or a test YAML fixture."""
+    by_id: dict[str, dict[str, Any]] = {}
+    project_dir = path.parent / "project"
     if not path.exists():
-        write_registry({}, str(path))
+        if project_dir.is_dir():
+            for ac_id, source in build_registry_entries(
+                epic_source=project_dir
+            ).items():
+                entry = dict(source)
+                entry["id"] = ac_id
+                entry["mandatory"] = bool(entry.get("mandatory", True))
+                by_id[ac_id] = entry
+        return [by_id[ac_id] for ac_id in sorted(by_id, key=sort_key)]
 
-
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Register AC definitions from EPIC docs without rewriting registry history."
-    )
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="Exit 1 if EPIC-defined ACs are missing from the registries.",
-    )
-    return parser.parse_args(argv)
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    args = parse_args(argv)
-    existing_acs = load_existing_registries([OUTPUT_FEATURE, OUTPUT_INFRA])
-    all_acs = build_registry_entries()
-    extracted_acs = extract_acs(existing_acs=load_overrides())
-    missing_acs = {
-        ac_id: entry
-        for ac_id, entry in extracted_acs.items()
-        if ac_id not in existing_acs
-    }
-    registry_errors = {
-        str(path): errors
-        for path in (Path(OUTPUT_FEATURE), Path(OUTPUT_INFRA))
-        if (errors := registry_validation_errors(path))
-    }
-
-    # Force classification while building so malformed AC IDs fail before writing.
-    for ac_id, entry in all_acs.items():
-        classify_ac(ac_id, entry)
-
-    if args.check:
-        duplicate_defs, duplicate_headings = find_ac_collisions()
-        if duplicate_defs or duplicate_headings:
-            if duplicate_defs:
-                details = "; ".join(
-                    f"{ac_id} defined in {', '.join(sorted(set(files)))}"
-                    for ac_id, files in sorted(
-                        duplicate_defs.items(), key=lambda kv: sort_key(kv[0])
-                    )
-                )
-                print(
-                    "ERROR: AC IDs are defined more than once (the registry keeps the "
-                    f"first and silently drops the rest): {details}",
-                    file=sys.stderr,
-                )
-            if duplicate_headings:
-                heads = "; ".join(
-                    f"{key.split(':', 1)[1]} in {key.split(':', 1)[0]}"
-                    for key in sorted(duplicate_headings)
-                )
-                print(
-                    f"ERROR: duplicate AC group headings make the namespace ambiguous: {heads}",
-                    file=sys.stderr,
-                )
-            return 1
-        if registry_errors:
-            details = ", ".join(
-                f"{path}: {'; '.join(errors)}"
-                for path, errors in registry_errors.items()
-            )
-            print(
-                "ERROR: AC registry files do not match grouped ACx.y format: "
-                f"{details}\n  Run: python tools/generate_ac_registry.py",
-                file=sys.stderr,
-            )
-            return 1
-        if missing_acs:
-            missing = ", ".join(sorted(missing_acs, key=sort_key))
-            print(
-                "ERROR: EPIC-defined ACs are missing from registry files: "
-                f"{missing}\n  Run: python tools/generate_ac_registry.py",
-                file=sys.stderr,
-            )
-            return 1
-        print("OK: AC registries include every EPIC-defined AC.")
-        return 0
-
-    write_registry_index("feature", OUTPUT_FEATURE)
-    write_registry_index("infra", OUTPUT_INFRA)
-    if not missing_acs and not registry_errors:
-        print("OK: AC registries already include every EPIC-defined AC.")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if payload.get("generated_from_epics"):
+        epic_src = payload.get("epic_source")
+        source_path = Path(epic_src) if epic_src else project_dir
+        for ac_id, source in build_registry_entries(epic_source=source_path).items():
+            entry = dict(source)
+            entry["id"] = ac_id
+            entry["mandatory"] = bool(entry.get("mandatory", True))
+            by_id[ac_id] = entry
+    elif isinstance(payload.get("acs"), list):
+        for entry in payload["acs"]:
+            if isinstance(entry, dict) and "id" in entry:
+                by_id[str(entry["id"])] = dict(entry)
+    else:
+        for entry in iter_registry_entries(payload):
+            if "id" in entry:
+                by_id[str(entry["id"])] = dict(entry)
+    return [by_id[ac_id] for ac_id in sorted(by_id, key=sort_key)]

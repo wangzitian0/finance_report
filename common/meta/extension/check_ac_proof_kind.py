@@ -42,10 +42,10 @@ from pathlib import Path
 
 from common.meta.base.authority_matrix import TIER_VALID_PROOF_KINDS
 from common.meta.base.gate_cli import run_gate
-from common.meta.extension.ac_registry_format import sort_key
 from common.meta.extension.generate_ac_registry import (
     AC_PROOF_KINDS,
     build_registry_entries,
+    sort_key,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]

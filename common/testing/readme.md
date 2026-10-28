@@ -231,48 +231,17 @@ it does not substitute for live OCR accuracy or browser first-use evidence.
 
 # AC behavioral-evidence pipeline (spike)
 
-A bare `pass` carries ~0 bits of information — it only says "no exception was
-raised". Today an AC is counted "covered" if its id string appears in a
-CI-executed file that contains *any* assertion token; this proves **presence**,
-not **behavior**. This package adds a second, measured signal so a test can say
-*how well* it pursued an AC, not just *that it ran*.
-
-## The record
-
-Each `(test, AC)` pair emits a five-field record:
-
-| field        | axis | meaning |
-|--------------|------|---------|
-| `code`       | L2   | binary outcome (`pass`/`fail`/`skip`/`error`) — hard gate |
-| `score`      | L3   | graded signal in `[0,1]` — ratcheted, never regressed |
-| `metric`     | —    | **names the yardstick** the score was measured against |
-| `provenance` | —    | where the number came from (`deterministic` / `golden_fixture@<ref>` / `live_llm`) |
-| `comment`    | —    | human/agent-readable rationale (doubles as an eval record) |
-
-`metric` + `provenance` are the **honesty anchor**: a score must be
-`compare(actual, golden)`, not a hand-assigned grade. A self-assigned score is
-just `assert True` moved up one level.
+A scenario-bound `@ac_proof` emits a canonical `TraceRecord` property when the
+test executes and passes.
 
 ## The chain
 
 ```
-test  --record_ac_evidence(record_property, ...)-->  junit-xml <property>
-      --package-contract resolver----------------->  canonical trace_record property
-
 scenario-bound @ac_proof
       --pytest call-phase PASS-------------------->  canonical trace_record property
       --one registered post-proof consumer-------->  canonical observation property
       --tools/check_pr_ci_evidence.py------------->  exact repo/commit/run proof gate
 ```
-
-During Audit PR-A (#1906), package-scoped AC ids also shadow-emit the canonical
-`TraceRecord` property. Tier and proof kind are resolved from the owning package
-contract; callers provide only the measurement and cannot self-declare authority.
-The TraceRecord assertion identity is the package-owned AC proof declaration,
-not the caller's free-form metric label; the full metric remains hashed into the
-evidence manifest.
-Legacy EPIC ids remain without TraceRecord authority rather than being guessed
-into the package graph.
 
 ### CI wiring (blocking, not a follow-up)
 
@@ -287,37 +256,9 @@ into the package graph.
 - If no junit evidence reaches the job, the check fails: a lost or
   un-uploaded artifact cannot pass vacuously.
 
-## Two consumers, one emission
+## Scenario-bound execution proof
 
-The same emitted record feeds both a deterministic PR gate (stable subset) and a
-post-merge eval dashboard (full score distribution, LLM noise tolerated) — the
-split already modelled by `trust_mode` on the co-located `@ac_proof`
-declarations and the derived critical-proof matrix rendered on demand from the
-AC graph.
-This is why a separate evaluation engine is unnecessary: the test harness *is*
-the eval emitter.
-
-## Anchored ACs (real end-to-end)
-
-Each AC below emits a deterministic, measured score via `record_ac_evidence`:
-
-- **AC4.1.4** (reconciliation description similarity) emits its measured
-  similarity in `apps/backend/tests/reconciliation/test_reconciliation_scoring.py`.
-- **AC8.16.1** (augmentation seam excludes superseded valuations) emits the
-  corrected-only net-worth match in
-  `apps/backend/tests/integration/test_augmentation_seam_e2e.py`.
-- **AC-ledger.6.4** (double-entry posting balances debits == credits) emits the
-  measured debit/credit imbalance of a multi-line salary entry posted through the
-  real `post_journal_entry` path in
-  `apps/backend/tests/ledger/test_accounting_equation.py`. This is the
-  reference pattern for anchoring a flagship money journey.
-
-Hermetic proof of the evidence record and TraceRecord emission:
-`tests/tooling/test_ac_evidence_pipeline.py`.
-
-`record_ac_evidence()` still emits its in-body `pass` as `UNPROVEN`: a measured
-score is not automatically a terminal execution proof. A scenario-bound
-`@ac_proof` is different. `common.testing.executed_proof_plugin` observes
+`common.testing.executed_proof_plugin` observes
 pytest's real call-phase result and emits `PASS` only after the call passed. The
 existing `check_pr_ci_evidence` JUnit gate then requires the exact repository,
 checked-out commit, GitHub run, scenario, proof declaration digest, and
@@ -342,12 +283,6 @@ non-observation output, and the wrong assertion kind fail the test run. This is
 a lifecycle seam, not another proof or status entity.
 Setup/teardown success, failure, skip/xfail, a static declaration, or a workflow
 conclusion cannot create or satisfy that record.
-
-## Deliberately **out of scope** (follow-ups)
-
-1. A periodic mutation / golden-swap audit that verifies scores actually drop
-   when behavior breaks (the real L3 proof).
-2. Migrating additional ACs and front-end (vitest) emission.
 
 ## <a id="journey-board"></a>Journey Board
 

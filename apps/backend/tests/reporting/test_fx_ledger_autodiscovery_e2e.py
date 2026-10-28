@@ -160,7 +160,7 @@ async def _seed_raw_ledger_transfer(db: AsyncSession, user_id) -> None:
     source_classes=["manual_record"],
     issue="#1123",
 )
-async def test_AC2_raw_ledger_internal_transfer_autodiscovered_e2e(db: AsyncSession, test_user, ac_evidence):
+async def test_AC2_raw_ledger_internal_transfer_autodiscovered_e2e(db: AsyncSession, test_user):
     """AC-reconciliation.fx-transfer.13: AC4.14.13: a raw-ledger transfer (no fx_conversions row) is netted out.
 
     Without auto-discovery, total_income would be inflated by the 1000 USD
@@ -193,14 +193,6 @@ async def test_AC2_raw_ledger_internal_transfer_autodiscovered_e2e(db: AsyncSess
     )
     assert balance_sheet["net_income"] == _SALARY_SGD
 
-    ac_evidence(
-        ac_id="AC-reconciliation.fx-transfer.13",
-        score=1.0,
-        metric="raw_ledger_transfer_autodiscovered_and_excluded_fee_only",
-        provenance="deterministic",
-        comment="Raw-ledger cross-currency transfer auto-discovered + excluded via generate_income_statement (#1123 AC2 live).",
-    )
-
 
 @ac_proof(
     "fx-ledger-autodiscovery-roundtrip-pnl-e2e",
@@ -211,7 +203,7 @@ async def test_AC2_raw_ledger_internal_transfer_autodiscovered_e2e(db: AsyncSess
     source_classes=["manual_record"],
     issue="#1123",
 )
-async def test_AC4_same_day_round_trip_nets_zero_pnl_through_live_report(db: AsyncSession, test_user, ac_evidence):
+async def test_AC4_same_day_round_trip_nets_zero_pnl_through_live_report(db: AsyncSession, test_user):
     """AC-reconciliation.fx-transfer.14: AC4.14.14: a same-day SGD→USD→SGD round-trip nets ~zero realized P&L live.
 
     Two conversions on the same day at the same rate: 1360 SGD → 1000 USD, then
@@ -284,14 +276,6 @@ async def test_AC4_same_day_round_trip_nets_zero_pnl_through_live_report(db: Asy
     assert report["total_income"] == Decimal("0.00")
     assert report["total_expenses"] == Decimal("0.00")
     assert report["net_income"] == Decimal("0.00")
-
-    ac_evidence(
-        ac_id="AC-reconciliation.fx-transfer.14",
-        score=1.0,
-        metric="same_day_round_trip_nets_zero_realized_pnl_through_live_report",
-        provenance="deterministic",
-        comment="Same-day SGD->USD->SGD round-trip nets zero realized P&L via generate_income_statement (#1123 AC4 live).",
-    )
 
 
 async def _seed_internal_transfer_scenario(db: AsyncSession, user_id) -> None:
@@ -371,7 +355,7 @@ async def _seed_internal_transfer_scenario(db: AsyncSession, user_id) -> None:
     source_classes=["manual_record"],
     issue="#1123",
 )
-async def test_AC3_internal_transfer_excluded_from_income_statement_e2e(db: AsyncSession, test_user, ac_evidence):
+async def test_AC3_internal_transfer_excluded_from_income_statement_e2e(db: AsyncSession, test_user):
     """AC-reconciliation.fx-transfer.9: The income statement excludes recorded internal transfer legs fee-only."""
     await _seed_internal_transfer_scenario(db, test_user.id)
 
@@ -395,14 +379,6 @@ async def test_AC3_internal_transfer_excluded_from_income_statement_e2e(db: Asyn
     assert fee_lines[0]["account_id"] is not None
     assert sum((Decimal(str(t["total_expenses"])) for t in report["trends"]), Decimal("0")) == _FEE_SGD
 
-    ac_evidence(
-        ac_id="AC-reconciliation.fx-transfer.9",
-        score=1.0,
-        metric="income_statement_excludes_internal_transfer_legs_fee_only",
-        provenance="deterministic",
-        comment="Live-wired internal-transfer exclusion proven end to end via generate_income_statement (#1123 AC3).",
-    )
-
 
 @ac_proof(
     "internal-transfer-balance-sheet-net-income-e2e",
@@ -413,7 +389,7 @@ async def test_AC3_internal_transfer_excluded_from_income_statement_e2e(db: Asyn
     source_classes=["manual_record"],
     issue="#1123",
 )
-async def test_AC3_internal_transfer_net_income_fee_only_e2e(db: AsyncSession, test_user, ac_evidence):
+async def test_AC3_internal_transfer_net_income_fee_only_e2e(db: AsyncSession, test_user):
     """AC-reconciliation.fx-transfer.10: Cumulative balance sheet net income excludes recorded internal transfer legs fee-only."""
     await _seed_internal_transfer_scenario(db, test_user.id)
 
@@ -426,11 +402,3 @@ async def test_AC3_internal_transfer_net_income_fee_only_e2e(db: AsyncSession, t
     )
 
     assert report["net_income"] == Decimal("4997.50")
-
-    ac_evidence(
-        ac_id="AC-reconciliation.fx-transfer.10",
-        score=1.0,
-        metric="balance_sheet_net_income_excludes_internal_transfer_fee_only",
-        provenance="deterministic",
-        comment="Live-wired internal-transfer exclusion proven end to end via generate_balance_sheet (#1123 AC3).",
-    )

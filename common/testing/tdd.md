@@ -52,26 +52,10 @@ Legacy EPIC-sourced AC IDs use `ACx.y.z`:
 | `y` | feature block within the EPIC |
 | `z` | acceptance criterion within the block |
 
-Registry generation is code-owned by `tools/generate_ac_registry.py`.
-`docs/ac_registry.yaml` and `docs/infra_registry.yaml` are small generated
-indexes. Runtime tools materialize entries from EPIC markdown plus
-`docs/ac_registry_overrides.yaml`, which preserves deprecated or non-derived
-historical entries without making the indexes hand-edited truth.
-
-```bash
-python tools/generate_ac_registry.py --check
-```
-
-Registry files:
-
-- `docs/ac_registry.yaml` — feature index
-- `docs/infra_registry.yaml` — infra index
-- `docs/ac_registry_overrides.yaml` — explicit override entries that are not
-  derived from current EPIC text
-
-Do not edit generated index files manually. Add or update active AC definitions
-in the owning EPIC; use the override file only for intentional historical,
-deprecated, or non-derived metadata.
+The AC index is computed in memory by `common/meta/extension/generate_ac_registry.py`
+from package `contract.py` roadmaps and marked residue rows in `docs/project/EPIC-*.md`.
+Do not add new ACs to EPIC documents; add active AC definitions in the owning
+package's `contract.py` roadmap.
 
 ## Test References
 
@@ -212,7 +196,7 @@ times. The final model removes that:
     per-contract error wording is preserved verbatim from the legacy checks.
   - **Gate B — PROTECTION RATCHET (soft, monotonic):** the per-type COUNT floor over
     `common/testing/data/protection-floor.json`: for each protection type (`has_real_ref`,
-    `has_proof`, `has_score`, `has_mirror`) the current count of mandatory active
+    `has_proof`, `has_mirror`) the current count of mandatory active
     ACs must be `>=` the committed floor. `tools/check_ac_index.py` enforces this
     count floor in the fast `lint` job. **Conflict-safety convention:** a normal PR that
     ADDS protection only RAISES the *current* count, which passes `current >=
@@ -377,7 +361,6 @@ Current coverage enforcement:
 Use these before claiming a documentation or implementation change is aligned:
 
 ```bash
-python tools/generate_ac_registry.py --check
 python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md
 python tools/check_e2e_epic_traceability.py
 # The single AC-index gate (two gates). Its INTEGRITY gate folds in the former

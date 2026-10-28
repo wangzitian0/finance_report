@@ -26,7 +26,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from common.meta.extension.ac_registry_format import load_registry_entries, sort_key
+from common.meta.extension.generate_ac_registry import load_registry_entries, sort_key
 from common.testing.ac_scan import collect_real_refs
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

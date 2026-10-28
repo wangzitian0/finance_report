@@ -153,7 +153,7 @@ def ac_tier_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
 
 
 def protection_water_line(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
-    """The per-type protection count floor (has_real_ref/has_proof/has_score/has_mirror)."""
+    """The per-type protection count floor (has_real_ref/has_proof/has_mirror)."""
     from common.testing.protection import load_floor
 
     return {

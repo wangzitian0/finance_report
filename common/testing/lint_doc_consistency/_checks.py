@@ -171,9 +171,9 @@ def check_registry_to_epic(
 
     Package-roadmap ACs (``epic_name: pkg-<name>``, sourced from
     ``common/<pkg>/contract.py``) are exempt: the contract roadmap IS their
-    home — each resolves to an anchoring test there, and ``check_epic_package_dual``
-    forbids a second EPIC-table home — so requiring an EPIC back-reference would
-    only force EPIC stubs to mirror the id list (pure duplication).
+    home — each resolves to an anchoring test there — so requiring an EPIC
+    back-reference would only force EPIC stubs to mirror the id list (pure
+    duplication).
     """
     violations: list[Violation] = []
     for ac in registry_acs:

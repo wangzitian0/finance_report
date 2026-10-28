@@ -157,4 +157,3 @@ def test_epic_012_and_014_tooling_contracts() -> None:
     assert (REPO_ROOT / "tools" / "validate_schemas.py").exists()
     assert (REPO_ROOT / "tools" / "check_env_keys.py").exists()
     assert (REPO_ROOT / "tools" / "smoke_test.sh").exists()
-    assert (REPO_ROOT / "tools" / "generate_ac_registry.py").exists()

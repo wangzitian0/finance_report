@@ -22,8 +22,8 @@ ROOT = Path(__file__).resolve().parents[2]
 def assert_pyyaml_installed_before_generator(
     commands: str, generator_script: str
 ) -> None:
-    """ac_tier_water_line() -> check_ac_tier_baseline -> generate_ac_registry ->
-    ac_registry_format needs PyYAML at import time; both producer jobs use a
+    """ac_tier_water_line() -> check_ac_tier_baseline -> generate_ac_registry
+    needs PyYAML at import time; both producer jobs use a
     bare setup-python step (no project dependency install), so a missing
     `pip install pyyaml` crashes the generator with ModuleNotFoundError before
     it ever runs (caught live on main's first real evidence-bundle run, #1690
@@ -105,7 +105,6 @@ def test_protection_water_line_defaults_to_all_zero_on_missing_floor(
     assert result["floor"] == {
         "has_real_ref": 0,
         "has_proof": 0,
-        "has_score": 0,
         "has_mirror": 0,
     }
 
@@ -115,7 +114,7 @@ def test_protection_water_line_reads_the_committed_floor(tmp_path: Path) -> None
     baseline_dir.mkdir(parents=True)
     payload = {
         "version": 1,
-        "floor": {"has_real_ref": 5, "has_proof": 3, "has_score": 1, "has_mirror": 2},
+        "floor": {"has_real_ref": 5, "has_proof": 3, "has_mirror": 2},
     }
     (baseline_dir / "protection-floor.json").write_text(json.dumps(payload))
     result = eb.protection_water_line(tmp_path)

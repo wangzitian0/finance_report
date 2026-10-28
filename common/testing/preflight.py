@@ -84,17 +84,14 @@ CHECKS: tuple[Check, ...] = (
         name="ac-traceability",
         globs=(
             "docs/project/EPIC*.md",
-            "docs/ac_registry*.yaml",
-            "docs/infra_registry*.yaml",
         ),
         commands=(
-            (PY, "tools/generate_ac_registry.py"),
             # The single AC-index gate (matches CI): its INTEGRITY gate folds in
             # the former standalone CI-stage traceability and critical-proof-matrix
             # contracts, so local preflight runs exactly what CI enforces.
             (PY, "tools/check_ac_index.py"),
         ),
-        why="EPIC/AC changed: regenerate the registry and re-run the single AC-index gate (folds in EPIC->AC->test traceability + critical-proof contract)",
+        why="EPIC/AC changed: re-run the single AC-index gate (folds in EPIC->AC->test traceability + critical-proof contract)",
     ),
     Check(
         name="ac-proof-traceability",

@@ -836,7 +836,6 @@ def test_AC8_13_24_ac_traceability_uploads_audit_artifact_without_stale_doc_gate
     read("docs/project/README.md")
     _has(
         workflow,
-        "uv run --with pyyaml python tools/generate_ac_registry.py --check",
         'tools/build_ac_traceability.py --output "$RUNNER_TEMP/AC-TEST-TRACEABILITY-AUDIT.md"',
         "uses: actions/upload-artifact@v7",
         "name: ac-test-traceability-audit",

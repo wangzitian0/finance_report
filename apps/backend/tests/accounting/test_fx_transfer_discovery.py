@@ -91,7 +91,7 @@ async def _fixed_rate_resolver(base: str, quote: str, on_date: date) -> Decimal 
     source_classes=["manual_record"],
     issue="#1123",
 )
-async def test_AC2_discover_pairs_unambiguous_cross_currency_legs_from_ledger(db: AsyncSession, test_user, ac_evidence):
+async def test_AC2_discover_pairs_unambiguous_cross_currency_legs_from_ledger(db: AsyncSession, test_user):
     """AC-reconciliation.fx-transfer.11: AC4.14.11: an out-leg in SGD + an in-leg in USD on own asset accounts pair.
 
     1360 SGD leaves the SGD asset (CREDIT) and 1000 USD arrives in the USD asset
@@ -138,14 +138,6 @@ async def test_AC2_discover_pairs_unambiguous_cross_currency_legs_from_ledger(db
     assert conv.to_journal_entry_id == in_entry.id
     assert discovered[0].pair.implied_rate == Decimal("1.36")
 
-    ac_evidence(
-        ac_id="AC-reconciliation.fx-transfer.11",
-        score=1.0,
-        metric="cross_currency_transfer_legs_discovered_from_raw_ledger",
-        provenance="deterministic",
-        comment="Auto-discovered an unambiguous OUT/IN cross-currency pair from raw asset lines (#1123 AC2).",
-    )
-
 
 @ac_proof(
     "fx-discovery-skips-ambiguous-legs",
@@ -156,7 +148,7 @@ async def test_AC2_discover_pairs_unambiguous_cross_currency_legs_from_ledger(db
     source_classes=["manual_record"],
     issue="#1123",
 )
-async def test_AC2_discover_skips_ambiguous_candidate_legs(db: AsyncSession, test_user, ac_evidence):
+async def test_AC2_discover_skips_ambiguous_candidate_legs(db: AsyncSession, test_user):
     """AC-reconciliation.fx-transfer.12: AC4.14.12: when one OUT leg could pair with two identical IN legs, none pair.
 
     Two distinct USD asset accounts each receive an identical 1000 USD on the same
@@ -200,11 +192,3 @@ async def test_AC2_discover_skips_ambiguous_candidate_legs(db: AsyncSession, tes
     discovered = await discover_fx_conversions(db, test_user.id, _AS_OF, _fixed_rate_resolver, start_date=_START)
 
     assert discovered == [], "ambiguous candidate legs must not be paired"
-
-    ac_evidence(
-        ac_id="AC-reconciliation.fx-transfer.12",
-        score=1.0,
-        metric="ambiguous_transfer_legs_not_paired",
-        provenance="deterministic",
-        comment="Conservative discovery refuses to net an OUT leg matching multiple IN legs (#1123 AC2).",
-    )

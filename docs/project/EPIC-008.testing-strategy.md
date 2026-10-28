@@ -458,8 +458,7 @@ is right on every axis simultaneously. Part of [#990](https://github.com/wangzit
 
 > This group's rows removed — migrated to the `reporting` package roadmap as
 > `AC-reporting.augmentation.1-2` (migration closeout continuation, #1663 /
-> #1716). The `@ac_proof` decorator, `ac_evidence` records, and the
-> ac-score-baseline entry moved to the new ids with them.
+> #1716). The `@ac_proof` decorator moved to the new ids with them.
 
 **Traceability Ownership**:
 - This table owns the intended AC-to-proof mapping for EPIC-008.

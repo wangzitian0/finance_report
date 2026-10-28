@@ -57,10 +57,8 @@ and additional banks / XLSX / OCR ingest.
   EPIC + non-EPIC files may exist) is separately frozen by
   `tests/tooling/test_terminal_centers_allowlist.py`, alongside the same
   test's assertion that `docs/ssot/` (fully retired in #1823) stays absent.
-- The AC index is computed by `common/meta/extension/generate_ac_registry.py`
-  from those two sources (roadmap-wins on any collision);
-  `docs/ac_registry.yaml` / `docs/infra_registry.yaml` are generated index
-  stubs and `docs/ac_registry_overrides.yaml` is empty.
+- The AC index is computed in memory by `common/meta/extension/generate_ac_registry.py`
+  from those two sources (roadmap-wins on any collision).
 - Test proof is reported by `python tools/build_ac_traceability.py --output tmp/AC-TEST-TRACEABILITY-AUDIT.md`
   and CI traceability artifacts.
   Do not commit generated audit snapshots in routine feature PRs; removed

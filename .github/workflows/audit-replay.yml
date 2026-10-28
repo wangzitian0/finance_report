@@ -137,7 +137,7 @@ jobs:
           PROVIDER_EXIT_CODE: ${{ needs.audit-replay.outputs.ai_ocr_exit_code }}
         run: |
           # ac_tier_water_line() -> check_ac_tier_baseline -> generate_ac_registry
-          # -> ac_registry_format needs PyYAML; this job is bare setup-python.
+          # needs PyYAML; this job is bare setup-python.
           python -m pip install --quiet pyyaml
           python tools/generate_evidence_bundle.py \
             --output evidence-bundle.json \

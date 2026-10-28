@@ -1,12 +1,9 @@
 """Migration-safety gates for the package-model AC migration (issue #1355).
 
-Covers the three gates that must hold before the legacy EPIC ACs are migrated
-into package roadmaps:
+Covers the gates that must hold for package-model AC governance:
 
 - 1b ``check_tier_ast_literal`` — a shipped package's tier must be an AST-readable
   literal (else the registry untags it while the model keeps a tier).
-- 1c ``check_epic_package_dual`` — an AC id must not live in both an EPIC table
-  and a package roadmap (move ⇒ delete the EPIC row).
 - 1e ``check_draft_packages`` — a draft package must carry no done ACs and must
   be registered.
 
@@ -23,7 +20,6 @@ import pytest
 
 from common.meta.extension import check_authority_reconcile as g_reconcile
 from common.meta.extension import check_draft_packages as g_draft
-from common.meta.extension import check_epic_package_dual as g_dual
 from common.meta.extension import check_tier_ast_literal as g_tier
 
 
@@ -78,47 +74,6 @@ def test_1b_allows_undecided_tier_only_for_draft(tmp_path: Path) -> None:
         """,
     )
     assert g_tier.violations(tmp_path) == []
-
-
-# --- 1c: no AC id defined in both an EPIC table and a package -----------------
-
-
-def _epic_and_package(tmp_path: Path, *, roadmap_id: str) -> Path:
-    """An EPIC table defining AC99.1.1 and a package whose roadmap holds roadmap_id.
-
-    The realistic dual-definition during migration is moving a legacy *numeric*
-    id into a roadmap without deleting its EPIC row (the registry's EPIC parser
-    only recognizes numeric ids), so the collision case keeps the numeric id.
-    """
-    epic_dir = tmp_path / "docs" / "project"
-    epic_dir.mkdir(parents=True)
-    (epic_dir / "EPIC-099.demo.md").write_text(
-        "| AC99.1.1 | Some legacy AC | t | f | P0 |\n", encoding="utf-8"
-    )
-    _write_contract(
-        tmp_path,
-        "demo",
-        _active(
-            "demo",
-            roadmap=(
-                f'ACRecord(id="{roadmap_id}", statement="s", test="t::f", '
-                'priority="P0", status="done"),'
-            ),
-        ),
-    )
-    return tmp_path
-
-
-def test_1c_flags_dual_definition(tmp_path: Path) -> None:
-    # Same numeric id left in the EPIC table AND moved into the roadmap.
-    repo = _epic_and_package(tmp_path, roadmap_id="AC99.1.1")
-    assert g_dual.dual_defined_ids(repo) == ["AC99.1.1"]
-
-
-def test_1c_passes_when_disjoint(tmp_path: Path) -> None:
-    # EPIC row deleted / renumbered: roadmap uses a distinct package-scoped id.
-    repo = _epic_and_package(tmp_path, roadmap_id="AC-demo.1.1")
-    assert g_dual.dual_defined_ids(repo) == []
 
 
 # --- 1e: draft hygiene --------------------------------------------------------

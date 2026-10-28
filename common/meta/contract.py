@@ -906,7 +906,6 @@ CONTRACT = PackageContract(
                 "common/meta/extension/check_ac_tier_baseline.py",
                 "tools/check_ac_tier_baseline.py",
                 "common/meta/extension/check_tier_ast_literal.py",
-                "common/meta/extension/check_epic_package_dual.py",
                 "common/meta/extension/check_draft_packages.py",
                 "common/meta/extension/authority_classifier.py",
                 "common/meta/extension/check_authority_reconcile.py",

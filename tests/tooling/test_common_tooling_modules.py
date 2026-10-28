@@ -19,7 +19,6 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "apps" / "backend"))
 
 from common.meta.extension.coverage import policy as coverage_policy  # noqa: E402
-from common.meta.extension import ac_registry_format  # noqa: E402
 from common.testing import ac_traceability_refs  # noqa: E402
 from common.testing import test_isolation  # noqa: E402
 
@@ -32,28 +31,6 @@ def _module_is_available(module_name: str) -> bool:
 
 def test_AC8_13_53_common_ssot_helpers_are_the_authoritative_imports():
     """AC8.13.53: SSOT helper logic is owned under common."""
-    payload = {
-        "groups": {
-            "AC8": {
-                "AC8.13": [
-                    {
-                        "id": "AC8.13.53",
-                        "description": "Common shared tooling",
-                    }
-                ]
-            }
-        }
-    }
-
-    entries = list(ac_registry_format.iter_registry_entries(payload))
-    assert entries == [
-        {
-            "id": "AC8.13.53",
-            "description": "Common shared tooling",
-        }
-    ]
-    assert ac_registry_format.epic_group_key("AC8.13.53") == "AC8"
-    assert ac_registry_format.scenario_group_key("AC8.13.53") == "AC8.13"
     assert (
         ac_traceability_refs.classify_reference_file(
             Path("tests/test_common.py"),
@@ -190,7 +167,6 @@ def test_AC8_13_57_ssot_tools_delegate_to_common_implementations():
         ),
         "tools.check_manifest": "common.meta.extension.check_manifest",
         "tools.check_ssot_ownership": "common.meta.extension.check_ssot_ownership",
-        "tools.generate_ac_registry": "common.meta.extension.generate_ac_registry",
         "tools.generate_api_reference": "common.platform.generate_api_reference",
         "tools.generate_db_schema_reference": (
             "common.meta.extension.generate_db_schema_reference"

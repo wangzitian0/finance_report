@@ -23,7 +23,7 @@ from src.ledger import (
 from tests.ledger._ledger_helpers import create_anchored_test_journal_entry as create_journal_entry
 
 
-def test_AC2_12_1_multicurrency_entry_balances_in_base_currency(ac_evidence):
+def test_AC2_12_1_multicurrency_entry_balances_in_base_currency():
     """AC-ledger.12.1: Multi-currency journal validation balances converted base amounts."""
     bank_usd = JournalLine(
         account_id=uuid4(),
@@ -52,16 +52,6 @@ def test_AC2_12_1_multicurrency_entry_balances_in_base_currency(ac_evidence):
     )
     with pytest.raises(ValidationError):
         validate_journal_balance([bank_usd, understated_credit])
-
-    # Behavioral evidence: the converted base amount equals the golden 135.00 SGD;
-    # a wrong fx multiply or a missing conversion would not land on this number.
-    ac_evidence(
-        ac_id="AC-ledger.12.1",
-        score=1.0,
-        metric="usd_to_sgd_converted_base_amount_match",
-        comment="100.00 USD @ 1.35 == 135.00 SGD converted base amount (deterministic)",
-        provenance="deterministic",
-    )
 
 
 def test_explicit_usd_base_resolves_omitted_line_currency_without_env_fallback() -> None:

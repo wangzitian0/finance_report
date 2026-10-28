@@ -12,7 +12,7 @@ Closes #<!-- issue number -->
 |-------|-------|
 | **EPIC** | EPIC-XXX — _Name_ |
 | **AC IDs** | AC0.0.0, AC0.0.1 |
-| **AC source updated** | Owning EPIC / `docs/ac_registry_overrides.yaml` / N/A |
+| **AC source updated** | Owning package `contract.py` / Owning EPIC / N/A |
 
 ---
 

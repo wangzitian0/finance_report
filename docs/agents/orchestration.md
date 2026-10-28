@@ -132,9 +132,7 @@ behavior is anchored to a goal and proven by a test). The **mechanism** for
      terminal, shrink-only — Package-ization 4/4, #1823): an AC stays
      EPIC-defined only with a trailing
      `<!-- epic-owned: fe-only|fe-half|horizontal|pending-package -->` marker,
-     and materializes through `docs/ac_registry.yaml` (feature) or
-     `docs/infra_registry.yaml` (infra), with historical/non-derived metadata in
-     `docs/ac_registry_overrides.yaml`. `horizontal`/`fe-only`/`fe-half` rows are
+     and is loaded in memory by `common/meta/extension/generate_ac_registry.py`. `horizontal`/`fe-only`/`fe-half` rows are
      permanent by design (no package owner exists for that scope);
      `pending-package` rows migrate into a package `roadmap` once their named
      blocker clears. New ACs never start here — the EPIC table is not a

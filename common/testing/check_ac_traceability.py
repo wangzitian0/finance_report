@@ -25,7 +25,7 @@ from common.testing.ac_scan import ACReferenceStats, collect_references, find_te
 from common.testing.test_surface import DEFAULT_AC_TEST_DIRS
 
 try:
-    from common.meta.extension.ac_registry_format import load_registry_entries
+    from common.meta.extension.generate_ac_registry import load_registry_entries
 except ImportError:
     print("ERROR: PyYAML not installed. Run: pip install pyyaml", file=sys.stderr)
     sys.exit(1)
@@ -106,9 +106,8 @@ def load_execution_matrix(path: Path = DEFAULT_EXECUTION_MATRIX) -> ExecutionMat
 
 
 def load_registry(registry_path: Path) -> list[AC]:
-    if not registry_path.exists():
+    if not registry_path.exists() and not (registry_path.parent / "project").is_dir():
         print(f"ERROR: AC registry not found: {registry_path}", file=sys.stderr)
-        print("  Run: python tools/generate_ac_registry.py", file=sys.stderr)
         sys.exit(1)
 
     return [
