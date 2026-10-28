@@ -432,7 +432,7 @@ def execute_case_1(runner: ScenarioBenchmarkRunner) -> CaseResult:
         )
         assert (
             diagnostics.get("is_balanced") is True
-            and diagnostics.get("primary_category") == "balanced"
+            and str(diagnostics.get("primary_category") or "").lower() == "balanced"
         ), f"Expected balanced equation diagnostics in Case 1, got {diagnostics}"
 
         # Flow 27: Financial Report to PDF Provenance Drilldown

@@ -589,7 +589,7 @@ export function StatementCockpit({ filters }: { filters: ReportFilters }) {
               role="tab"
               aria-selected={active === statement.id}
               onClick={() => setActive(statement.id)}
-              className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+              className={`min-h-8 rounded px-3 py-1 text-xs font-medium transition-colors ${
                 active === statement.id
                   ? "bg-[var(--background-card)] text-[var(--foreground)] shadow-sm"
                   : "text-muted hover:text-[var(--foreground)]"

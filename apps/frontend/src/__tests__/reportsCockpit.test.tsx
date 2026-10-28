@@ -301,7 +301,7 @@ describe("Reports page (#2621 LC)", () => {
 
     const cockpit = await screen.findByRole("region", { name: "Report readiness cockpit" })
     await waitFor(() => expect(cockpit).toHaveTextContent("0 unconfirmed items"))
-    expect(cockpit).toHaveTextContent("All inputs in this package document have current authority decisions.")
+    expect(cockpit).toHaveTextContent("All inputs in this report package are confirmed.")
     expect(cockpit).toHaveTextContent("No blockers reported.")
   })
 

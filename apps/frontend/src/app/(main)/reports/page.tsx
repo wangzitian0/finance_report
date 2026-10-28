@@ -7,6 +7,7 @@ import { CashFlowPanel, PackagePanel } from "@/components/reports/CashFlowAndPac
 import { ReportDimensionBar, StatementCockpit } from "@/components/reports/ReportShell";
 import { BalanceSheetPanel, IncomeStatementPanel } from "@/components/reports/StatementPanels";
 import { Badge } from "@/components/ui";
+import { humanizeWorkflowText } from "@/components/workflow/workflowFormat";
 import { personalReportPackageQuery } from "@/hooks/usePersonalReportPackage";
 import { REPORT_TABS, reportsHref, useReportFilters, type ReportFilters } from "@/hooks/useReportFilters";
 import { countLabel, readinessVariant } from "@/lib/statusLabels";
@@ -167,7 +168,7 @@ function ReportsReadinessCockpit({
         <div className="rounded border border-[var(--border)] p-3">
           <h3 className="text-sm font-semibold">Verified sources</h3>
           <p className="mt-2 text-sm text-muted">
-            {unprovenInputCount ? `${countLabel(unprovenInputCount, "input")} still need current authority decisions.` : "All inputs in this package document have current authority decisions."}
+            {unprovenInputCount ? `${countLabel(unprovenInputCount, "input")} still need confirmation.` : "All inputs in this report package are confirmed."}
           </p>
         </div>
         <div className="rounded border border-[var(--border)] p-3">
@@ -176,8 +177,8 @@ function ReportsReadinessCockpit({
             <ul className="mt-3 space-y-3">
               {blockers.slice(0, 2).map((b) => (
                 <li key={b.code}>
-                  <div className="flex items-start justify-between gap-3"><p className="text-sm font-medium">{b.label}</p><Badge variant="muted">{b.count}</Badge></div>
-                  <p className="mt-1 text-xs text-muted">{b.reason}</p>
+                  <div className="flex items-start justify-between gap-3"><p className="text-sm font-medium">{humanizeWorkflowText(b.label)}</p><Badge variant="muted">{b.count}</Badge></div>
+                  <p className="mt-1 text-xs text-muted">{humanizeWorkflowText(b.reason)}</p>
                 </li>
               ))}
             </ul>
