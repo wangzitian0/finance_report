@@ -4,7 +4,7 @@ import { Download, FileJson, Network, Printer, Save, X } from "lucide-react";
 
 import { ManifestEntries, TraceabilityLineEvidence } from "@/components/reports/package/evidence";
 import { SkeletonBlock } from "@/components/ui";
-import { ExcludedHoldingsNote } from "@/components/reports/ExcludedHoldingsNote";
+import { ExcludedHoldingsNote } from "@/components/reports/AccountLineageDrawer";
 import { formatCurrencyLocale, subtractAmounts } from "@/lib/audit/money";
 import { nodeDisplayTitle, nodeLabel, nodeSourceHref } from "@/lib/lineage";
 import type {

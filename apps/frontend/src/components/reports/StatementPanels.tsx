@@ -5,8 +5,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
 import { BarChart } from "@/components/charts/BarChart";
-import { AccountLineageDrawer, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
-import { ExcludedHoldingsNote } from "@/components/reports/ExcludedHoldingsNote";
+import { AccountLineageDrawer, ExcludedHoldingsNote, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import {
   ExportCsvButton,
   FxWarningBanner,

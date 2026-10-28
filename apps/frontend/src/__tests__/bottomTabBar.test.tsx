@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-import { BottomTabBar } from "@/components/shell/BottomTabBar";
+import { BottomTabBar } from "@/components/AppShell";
 
 const pushMock = vi.fn();
 const refreshMock = vi.fn();

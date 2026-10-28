@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderReviewComponent } from "./helpers/renderReviewComponent";
 import { PdfPreviewPane, TransactionTable, ConflictResolutionDialog } from "@/components/review/StatementReview";
-import { BottomTabBar } from "@/components/shell/BottomTabBar";
+import { BottomTabBar } from "@/components/AppShell";
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({

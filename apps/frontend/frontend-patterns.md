@@ -366,7 +366,7 @@ Frontend monetary display and arithmetic must use `decimal.js` through
 ## 9. Responsive Navigation
 
 The app is mobile/PWA-first. `components/navigation.ts` is the single route
-source of truth, shared by a mobile bottom tab bar (`components/shell/BottomTabBar`)
+source of truth, shared by a mobile bottom tab bar (`BottomTabBar` in `components/AppShell`)
 and the desktop sidebar (`Sidebar` in `components/AppNav`), which mirror the **same** targets
 (EPIC-022 AC22.21).
 
