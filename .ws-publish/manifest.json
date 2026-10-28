@@ -2,13 +2,13 @@
   "adapter": "rules-v2",
   "dirty_inputs": [],
   "inputs": {
-    "repo": "b1f9796608d568b7d8964abfa6f9e1cf2d112f23b3355c0824798624f93b2a4c",
+    "repo": "3acd46ff3f95e2e66b59ccda4bd680a4a31eabf9b6cfdef3ff50ee2b4982e3d3",
     "root": "d91df5b3ff6c9678bf9ea25f58b9728ea4fa9419900713497be8a5becc786da8",
-    "skills": "14d8d692a24ebb4e82fb7df3a810c412b0d86726941ef0c5a7d7b7c5a6aeaa26"
+    "skills": "aa1544dc0d2de6fee4744d686c3631df19bcb56f2adbdbb298470acf02500d9e"
   },
   "language": "en",
   "outputs": {
-    "AGENTS.md": "3e788f7dfe0ec411382aa0bb770d89ac9b2b609450e30948f47f3d289a874443"
+    "AGENTS.md": "cea7b8646f35c77f2c4aa86e5de50cd58bfdbddd5f068b3757f0bd969954f4bd"
   },
   "profiles": [
     "code",
@@ -18,7 +18,7 @@
   "schema": 2,
   "skills": {
     "files": {
-      ".agents/skills/ac-workflow/SKILL.md": "7a07c8deb4de222c69433b6e9a8b434e43e0c7ac6ef5066f5cc0b978713c5cb2",
+      ".agents/skills/ac-workflow/SKILL.md": "7d88f5cb327bbc5006b1ad3e1cbc0f4d8c209b233d57488887789a0c4bb8add4",
       ".agents/skills/accounting/SKILL.md": "2ab994e557d82493088edcd9c9de8dd7d83be3329a6949f687a7cc3c160ed037",
       ".agents/skills/audit/SKILL.md": "0c8f6677593af7fbe8ca28a043634db106d7ca6721bcb0a4f2ecdf34944021c5",
       ".agents/skills/auto/SKILL.md": "84ace822ac498982a53fcc6832c4bf99629cb78fbe2d74f770cdfc2711eb9192",
@@ -34,7 +34,7 @@
       ".agents/skills/swarm/SKILL.md": "3c38883b1c3fad9d8bd2a3803e1b3c3ec9fdd0f0e7e0dbfc35a60e238c3598a3",
       ".agents/skills/ux-review/SKILL.md": "04e29cbb88e46f012eaf1558888b518391186299a4a72a121c7b96e15291cf81",
       ".agents/skills/z/SKILL.md": "deec88b22038cbfc9a90d80658fb36cfd8ec11fdd11bf5a1d2c1451bcdaec947",
-      ".claude/skills/ac-workflow/SKILL.md": "7a07c8deb4de222c69433b6e9a8b434e43e0c7ac6ef5066f5cc0b978713c5cb2",
+      ".claude/skills/ac-workflow/SKILL.md": "7d88f5cb327bbc5006b1ad3e1cbc0f4d8c209b233d57488887789a0c4bb8add4",
       ".claude/skills/accounting/SKILL.md": "2ab994e557d82493088edcd9c9de8dd7d83be3329a6949f687a7cc3c160ed037",
       ".claude/skills/audit/SKILL.md": "0c8f6677593af7fbe8ca28a043634db106d7ca6721bcb0a4f2ecdf34944021c5",
       ".claude/skills/auto/SKILL.md": "84ace822ac498982a53fcc6832c4bf99629cb78fbe2d74f770cdfc2711eb9192",
@@ -50,7 +50,7 @@
       ".claude/skills/swarm/SKILL.md": "3c38883b1c3fad9d8bd2a3803e1b3c3ec9fdd0f0e7e0dbfc35a60e238c3598a3",
       ".claude/skills/ux-review/SKILL.md": "04e29cbb88e46f012eaf1558888b518391186299a4a72a121c7b96e15291cf81",
       ".claude/skills/z/SKILL.md": "deec88b22038cbfc9a90d80658fb36cfd8ec11fdd11bf5a1d2c1451bcdaec947",
-      ".codex/skills/ac-workflow/SKILL.md": "7a07c8deb4de222c69433b6e9a8b434e43e0c7ac6ef5066f5cc0b978713c5cb2",
+      ".codex/skills/ac-workflow/SKILL.md": "7d88f5cb327bbc5006b1ad3e1cbc0f4d8c209b233d57488887789a0c4bb8add4",
       ".codex/skills/accounting/SKILL.md": "2ab994e557d82493088edcd9c9de8dd7d83be3329a6949f687a7cc3c160ed037",
       ".codex/skills/audit/SKILL.md": "0c8f6677593af7fbe8ca28a043634db106d7ca6721bcb0a4f2ecdf34944021c5",
       ".codex/skills/auto/SKILL.md": "84ace822ac498982a53fcc6832c4bf99629cb78fbe2d74f770cdfc2711eb9192",
@@ -74,7 +74,7 @@
     "links": {},
     "root": ".agents/skills"
   },
-  "source_revision": "0389a25c76c773ded9b777add6c06e7484e9dbcd",
+  "source_revision": "7ec563e0288de60f6f53e2e6911422e6828e36db",
   "target": {
     "remote": "github.com/wangzitian0/finance_report",
     "repo": "finance_report",
