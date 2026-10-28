@@ -150,7 +150,7 @@ def test_AC19_4_1_upload_first_home_ssot_documents_dashboard_contract() -> None:
         "`HomeActionBanner` shows one action at most.",
         "workflow.status.next_action.label",
         "An empty summary shows the workflow-state sentence one time.",
-        "Ready actions route directly to `/reports/package`",
+        "Ready actions route directly to `/reports?tab=package`",
         "It must not hide the statement cards of Home.",
     ):
         assert phrase in normalized_ssot, phrase
@@ -478,7 +478,7 @@ async def test_AC19_1_5_workflow_event_lifecycle_is_user_isolated(db, test_user)
             summary="One statement needs confirmation.",
             source_type="bank_statement",
             source_id=uuid4(),
-            action_href="/review",
+            action_href="/audit",
             report_impact=WorkflowReportImpact.BLOCKED,
             dedupe_key="bank-statement:review-required:test",
             occurred_at=datetime.now(UTC),
@@ -584,7 +584,7 @@ async def test_AC19_12_2_review_events_are_current_user_actions_with_lifecycle_p
     assert same_review_event.id == review_event.id
     assert same_review_event.status == WorkflowEventStatus.READ
     assert same_review_event.severity == WorkflowEventSeverity.ACTION_REQUIRED
-    assert same_review_event.action_href == f"/statements/{same_review_event.source_id}/review"
+    assert same_review_event.action_href == f"/statements/{same_review_event.source_id}"
 
     statement.stage1_status = Stage1Status.APPROVED
     statement.stage1_reviewed_at = datetime.now(UTC)
@@ -676,7 +676,7 @@ async def test_AC19_12_2_review_derivation_treats_null_stage1_as_pending_without
     ).scalar_one()
 
     assert pending_review_event.status == WorkflowEventStatus.UNREAD
-    assert pending_review_event.action_href == f"/statements/{pending_review_event.source_id}/review"
+    assert pending_review_event.action_href == f"/statements/{pending_review_event.source_id}"
     assert review_completed_event.status == WorkflowEventStatus.UNREAD
     assert parsing_failed_count == 0
     assert parsing_failed_event.status == WorkflowEventStatus.UNREAD
@@ -691,7 +691,7 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
     """AC-platform.34.3: AC19.12.3: readiness events follow package state and archive stale blockers."""
     blocker_payload = {
         "state": "blocked",
-        "action_href": "/review",
+        "action_href": "/audit",
         "blocking_count": 2,
         "blockers": [
             {
@@ -699,19 +699,19 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
                 "label": "Pending source review",
                 "count": 2,
                 "reason": "Statement review must be completed before the package can be marked ready.",
-                "action_href": "/review",
+                "action_href": "/audit",
             }
         ],
     }
     ready_payload = {
         "state": "ready",
-        "action_href": "/reports/package",
+        "action_href": "/reports?tab=package",
         "blocking_count": 0,
         "blockers": [],
     }
     generated_payload = {
         "state": "generated",
-        "action_href": "/reports/package",
+        "action_href": "/reports?tab=package",
         "blocking_count": 0,
         "blockers": [],
     }
@@ -763,7 +763,7 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
     ).scalar_one()
     assert archived_blocker.status == WorkflowEventStatus.ARCHIVED
     assert ready_event.status == WorkflowEventStatus.UNREAD
-    assert ready_event.action_href == "/reports/package"
+    assert ready_event.action_href == "/reports?tab=package"
 
     current_payload = generated_payload
     await sync_workflow_events_for_user(db, user_id=test_user.id)
@@ -782,7 +782,7 @@ async def test_AC19_12_3_report_readiness_events_follow_package_readiness_withou
         )
     ).scalar_one()
     assert generated_event.status == WorkflowEventStatus.UNREAD
-    assert generated_event.action_href == "/reports/package"
+    assert generated_event.action_href == "/reports?tab=package"
     assert ready_event_after_generation.status == WorkflowEventStatus.ARCHIVED
 
 
@@ -794,7 +794,7 @@ async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_pay
     """AC19.12.3: stale blockers archive when no current derived payload remains."""
     blocker_payload = {
         "state": "blocked",
-        "action_href": "/review",
+        "action_href": "/audit",
         "blocking_count": 1,
         "blockers": [
             {
@@ -802,13 +802,13 @@ async def test_AC19_12_3_sync_archives_last_resolved_blocker_when_no_derived_pay
                 "label": "Pending source review",
                 "count": 1,
                 "reason": "Statement review must be completed before the package can be marked ready.",
-                "action_href": "/review",
+                "action_href": "/audit",
             }
         ],
     }
     empty_payload = {
         "state": "draft",
-        "action_href": "/statements/upload",
+        "action_href": "/upload",
         "blocking_count": 0,
         "blockers": [],
     }
@@ -854,7 +854,7 @@ async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_proces
     async def fake_readiness(_db, **_kwargs):
         return {
             "state": "ready",
-            "action_href": "/reports/package",
+            "action_href": "/reports?tab=package",
             "blocking_count": 0,
             "blockers": [],
         }
@@ -865,7 +865,7 @@ async def test_AC19_12_3_ready_package_status_wins_over_long_lived_upload_proces
 
     assert status.primary_state.value == "ready"
     assert status.next_action.type.value == "open_report"
-    assert status.next_action.href == "/reports/package"
+    assert status.next_action.href == "/reports?tab=package"
 
 
 async def test_AC19_12_4_readiness_blocker_events_are_user_action_scoped(db, test_user, monkeypatch) -> None:
@@ -983,7 +983,7 @@ async def test_AC19_3_2_workflow_status_uses_single_aggregate_for_badge_counts(
             summary="One statement needs confirmation.",
             source_type="bank_statement",
             source_id=uuid4(),
-            action_href="/review",
+            action_href="/audit",
             report_impact=WorkflowReportImpact.BLOCKED,
             dedupe_key="bank-statement:review-required:aggregate",
             occurred_at=datetime.now(UTC),
@@ -1183,7 +1183,7 @@ async def test_AC19_2_7_events_session_summary_agrees_with_status_when_blocked(
     async def fake_readiness(_db, **_kwargs):
         return {
             "state": "blocked",
-            "action_href": "/reports/package",
+            "action_href": "/reports?tab=package",
             "blocking_count": 1,
             "blockers": [
                 {
@@ -1191,7 +1191,7 @@ async def test_AC19_2_7_events_session_summary_agrees_with_status_when_blocked(
                     "label": "Balance validation mismatch",
                     "count": 1,
                     "reason": "Balance mismatch: expected 52754.77, got 52842.53.",
-                    "action_href": "/review",
+                    "action_href": "/audit",
                 }
             ],
         }
@@ -1238,7 +1238,7 @@ async def test_AC19_2_7_events_read_computes_readiness_once(
         call_count += 1
         return {
             "state": "blocked",
-            "action_href": "/reports/package",
+            "action_href": "/reports?tab=package",
             "blocking_count": 1,
             "blockers": [
                 {
@@ -1246,7 +1246,7 @@ async def test_AC19_2_7_events_read_computes_readiness_once(
                     "label": "Balance validation mismatch",
                     "count": 1,
                     "reason": "Balance mismatch: expected 52754.77, got 52842.53.",
-                    "action_href": "/review",
+                    "action_href": "/audit",
                 }
             ],
         }

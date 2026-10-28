@@ -412,7 +412,7 @@ def _unproven_input_blocker(count: int) -> PersonalReportPackageReadinessBlocker
             "One or more report-contributing inputs do not have a current authoritative "
             "decision. Generate only a draft until each input is re-established."
         ),
-        action_href="/review",
+        action_href="/audit",
     )
 
 
@@ -429,7 +429,7 @@ def _policy_blockers(policy: Any) -> list[PersonalReportPackageReadinessBlocker]
             severity="blocking",
             count=count,
             reason="An explicit framework policy gap must be resolved before the package is trusted.",
-            action_href="/reports/package",
+            action_href="/reports?tab=package",
         )
         for code, count in sorted(grouped.items())
     ]
@@ -442,7 +442,7 @@ def _section_blocker(code: str, reason: str) -> PersonalReportPackageReadinessBl
         severity="blocking",
         count=1,
         reason=reason,
-        action_href="/reports/package",
+        action_href="/reports?tab=package",
     )
 
 
@@ -880,11 +880,11 @@ class PackageAssembler:
         elif input_count:
             state = PersonalReportPackageReadinessState.READY
             label = "Ready"
-            action_href = "/reports/package"
+            action_href = "/reports?tab=package"
         else:
             state = PersonalReportPackageReadinessState.DRAFT
             label = "Draft"
-            action_href = "/statements/upload"
+            action_href = "/upload"
         return PersonalReportPackageReadinessResponse(
             package_id=PERSONAL_REPORT_PACKAGE_CONTRACT["package_id"],
             state=state,

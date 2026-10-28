@@ -59,7 +59,7 @@ def _fake_readiness_payload() -> dict:
         "package_id": "personal-financial-report-package",
         "state": "blocked",
         "label": "Blocked",
-        "action_href": "/reports/package",
+        "action_href": "/reports?tab=package",
         "blocking_count": 1,
         "blockers": [
             {
@@ -68,7 +68,7 @@ def _fake_readiness_payload() -> dict:
                 "severity": "blocking",
                 "count": 1,
                 "reason": "Proves the read flows through the actual call site, not a hardcoded value.",
-                "action_href": "/reports/package",
+                "action_href": "/reports?tab=package",
             }
         ],
         "input_coverage": {
@@ -106,14 +106,14 @@ def bounded_context_fakes(test_user, monkeypatch: pytest.MonkeyPatch):
             next_action=WorkflowNextActionResponse(
                 type=WorkflowNextActionType.REVIEW_REQUIRED,
                 count=2,
-                href="/review",
+                href="/audit",
                 label="Review required",
                 summary="Confirm pending source review items.",
             ),
             report_readiness=WorkflowReportReadinessResponse(
                 state=WorkflowReportReadinessState.BLOCKED,
                 blocking_count=1,
-                href="/reports/package",
+                href="/reports?tab=package",
             ),
             event_counts=WorkflowEventCountsResponse(unread=1, action_required=2, blocked=0),
             active_session=None,

@@ -726,7 +726,7 @@ async def get_workflow_status(
         next_action = _next_action(
             WorkflowNextActionType.REVIEW_REQUIRED,
             count=action_required_count,
-            href=action_required_event.action_href if action_required_event else "/notifications",
+            href=action_required_event.action_href if action_required_event else "/upload",
         )
     elif ready_count or package_readiness_state in {
         WorkflowReportReadinessState.READY,
@@ -736,30 +736,30 @@ async def get_workflow_status(
         next_action = _next_action(
             WorkflowNextActionType.OPEN_REPORT,
             count=1,
-            href="/reports/package",
+            href="/reports?tab=package",
         )
     elif processing_count or package_readiness_state == WorkflowReportReadinessState.PROCESSING:
         primary_state = WorkflowPrimaryState.PROCESSING
         next_action = _next_action(
             WorkflowNextActionType.WAIT,
             count=max(processing_count, 1),
-            href="/events",
+            href="/upload",
         )
     elif active_count:
         primary_state = WorkflowPrimaryState.READY
-        next_action = _next_action(WorkflowNextActionType.NONE, count=0, href="/events")
+        next_action = _next_action(WorkflowNextActionType.NONE, count=0, href="/upload")
     else:
         primary_state = WorkflowPrimaryState.EMPTY
         next_action = _next_action(
             WorkflowNextActionType.UPLOAD,
             count=0,
-            href="/statements/upload",
+            href="/upload",
         )
 
     readiness = WorkflowReportReadinessResponse(
         state=package_readiness_state,
         blocking_count=package_blocking_count,
-        href="/reports/package",
+        href="/reports?tab=package",
     )
 
     active_session_result = await db.execute(

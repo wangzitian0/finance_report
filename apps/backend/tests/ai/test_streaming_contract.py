@@ -49,10 +49,10 @@ def test_AC6_33_2_chat_envelope_includes_model_and_metadata_headers() -> None:
                 label="Balance sheet",
                 source_ref="report:balance-sheet",
                 confidence_tier="high",
-                href="/reports/balance-sheet",
+                href="/reports?tab=balance-sheet",
             )
         ],
-        actions=[ChatActionChip(kind="review", label="Review 2", href="/review", count=2)],
+        actions=[ChatActionChip(kind="review", label="Review 2", href="/audit", count=2)],
     )
     envelope = ChatStreamEnvelope(
         session_id=session_id,
@@ -167,7 +167,7 @@ async def test_AC6_33_7_chat_router_uses_envelope_media_type_and_headers() -> No
                 "label": "Balance Sheet",
                 "source_ref": "balance_sheet.total_equity",
                 "confidence_tier": "TRUSTED",
-                "href": "/reports/balance-sheet",
+                "href": "/reports?tab=balance-sheet",
             }
         ],
         "actions": [],

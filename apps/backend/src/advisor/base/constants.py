@@ -53,16 +53,15 @@ NON_FINANCIAL_PATTERNS = (
 )
 
 CHAT_METADATA_SAFE_HREFS = (
-    "/reports/balance-sheet",
-    "/reports/income-statement",
-    "/reports/package",
+    "/reports?tab=balance-sheet",
+    "/reports?tab=income-statement",
+    "/reports?tab=package",
     "/reports",
     "/reconciliation?tab=review-queue",
-    "/review",
+    "/audit",
     "/portfolio?panel=prices",
     "/portfolio",
-    "/assets",
-    "/statements/upload",
+    "/upload",
 )
 
 # SECURITY: Match long number sequences but avoid common date/time patterns
