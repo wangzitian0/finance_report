@@ -23,7 +23,6 @@ from src.extraction import (
     UploadedDocument,
     build_disposition_trace_records,
     create_entry_from_txn,
-    current_reviewed_statement_envelope,
     effective_statement_transaction_filter,
     emit_disposition_trace_records,
 )
@@ -82,8 +81,6 @@ async def _ensure_statement_custody_account(
         for entry in (txn.source_documents or [])
         if isinstance(entry, dict) and entry.get("doc_id")
     ]
-    if not doc_ids:
-        return
     result = await db.execute(
         select(StatementSummary)
         .join(UploadedDocument, StatementSummary.uploaded_document_id == UploadedDocument.id)
@@ -93,16 +90,6 @@ async def _ensure_statement_custody_account(
     )
     statement = result.scalar_one_or_none()
     if statement is None or statement.account_id is not None:
-        return
-
-    envelope = await current_reviewed_statement_envelope(
-        db,
-        user_id=user_id,
-        statement_id=statement.id,
-    )
-    if envelope is not None and envelope.account_id is not None:
-        statement.account_id = envelope.account_id
-        await db.flush()
         return
 
     currency = (statement.currency or txn.currency or "SGD").strip().upper()
