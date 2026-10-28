@@ -10,8 +10,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-# Eager mapper registration for Base.metadata discovery.
-from src.audit import orm as _orm  # noqa: F401
+# Eager mapper registration for Base.metadata discovery when SQLAlchemy is installed.
+try:
+    from src.audit import orm as _orm  # noqa: F401
+except ModuleNotFoundError as exc:
+    if not (exc.name and exc.name.startswith("sqlalchemy")):
+        raise
+    _orm = None  # type: ignore[assignment]
 from src.audit.base.terminal_audit import TerminalAuditSpec
 from src.audit.base.trace import (
     TraceAuthorityProfile,

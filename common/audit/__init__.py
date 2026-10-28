@@ -1,32 +1,77 @@
-"""``common.audit`` — the spec + review surface for the ``audit`` package.
-
-This package directory holds the *authoritative* form of ``audit`` (the **number
-governor**, the parallel peer to ``meta`` the *form* governor) — its
-ubiquitous-language prose ([`readme.md`](./readme.md)), its machine-checkable
-:class:`~common.meta.package_contract.PackageContract`
-([`contract.py`](./contract.py)).
-
-The value language ``audit`` governs (``Money`` / ``Ratio`` / ``Quantity`` /
-``UnitPrice`` and friends) is physically folded here as domain submodules
-(``common.audit.money``, ``common.audit.ratio``, ...) — each still
-dependency-light (stdlib + Decimal only), importable from tooling/tests/the
-conformance suite without pulling in ``common.meta``/pydantic. ``CONTRACT`` is
-therefore lazy-loaded (`PEP 562 <https://peps.python.org/pep-0562/>`_): plain
-``from common.audit import CONTRACT`` still works for governance tooling, but
-``from common.audit.money import Money`` does not eagerly import
-``common.meta.package_contract`` (and its pydantic dependency) just to reach a
-domain submodule. See ``common/meta/readme.md`` and
-``common/meta/migration-standard.md`` for the model and the value→audit fold.
-"""
+"""``common.audit`` — single-source bridge to ``apps/backend/src/audit`` (#2752)."""
 
 from __future__ import annotations
 
+import importlib
+import importlib.abc
+import importlib.machinery
+import importlib.util
+import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
+
+_COMMON_DIR = Path(__file__).resolve().parent
+_BACKEND_DIR = _COMMON_DIR.parents[1] / "apps" / "backend"
+if str(_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_DIR))
+
+_COMMON_ONLY = frozenset(
+    {
+        "contract",
+        "extension.cascade_ownership",
+        "money.guard",
+        "money.conformance",
+        "quantity.conformance",
+        "ratio.conformance",
+        "unit_price.conformance",
+    }
+)
+
+
+class _AuditBridgeFinder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
+    def find_spec(self, fullname: str, path=None, target=None):
+        if not fullname.startswith("common.audit."):
+            return None
+        rel = fullname[len("common.audit.") :]
+        if rel in _COMMON_ONLY or any(rel.startswith(f"{m}.") for m in _COMMON_ONLY):
+            return None
+        backend_spec = importlib.util.find_spec(f"src.audit.{rel}")
+        if backend_spec is None:
+            return None
+        return importlib.machinery.ModuleSpec(
+            fullname,
+            self,
+            is_package=backend_spec.submodule_search_locations is not None,
+        )
+
+    def create_module(self, spec):
+        return None
+
+    def exec_module(self, module) -> None:
+        fullname = module.__name__
+        rel = fullname[len("common.audit.") :]
+        backend_mod = importlib.import_module(f"src.audit.{rel}")
+        if hasattr(backend_mod, "__path__"):
+            common_sub = str(_COMMON_DIR / rel.replace(".", "/"))
+            if common_sub not in backend_mod.__path__ and Path(common_sub).is_dir():
+                backend_mod.__path__.append(common_sub)
+        sys.modules[fullname] = backend_mod
+        parent_name, _, attr = fullname.rpartition(".")
+        parent = sys.modules.get(parent_name)
+        if parent is not None:
+            setattr(parent, attr, backend_mod)
+
+
+if not any(type(f).__name__ == "_AuditBridgeFinder" for f in sys.meta_path):
+    sys.meta_path.insert(0, _AuditBridgeFinder())
+
+import src.audit as _src_audit  # noqa: E402
+from src.audit import *  # noqa: E402,F401,F403
 
 if TYPE_CHECKING:
     from common.audit.contract import CONTRACT as CONTRACT
 
-__all__ = ["CONTRACT"]
+__all__ = ["CONTRACT", *_src_audit.__all__]
 
 
 def __getattr__(name: str):
@@ -34,4 +79,4 @@ def __getattr__(name: str):
         from common.audit.contract import CONTRACT
 
         return CONTRACT
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    return getattr(_src_audit, name)

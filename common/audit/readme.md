@@ -163,29 +163,15 @@ non-colliding value-object classes are re-exported flat at `audit`'s root
 Backward compatibility of the language-neutral contracts and conformance vectors
 is sacred; only the physical location and Python/TS import path changed.
 
-### Two Python trees, one editable source
+### One Python kernel, bridged into `common.audit`
 
-`apps/backend/src/audit` is the one editable source of the Python kernel. Edit the
-backend file first, then apply the same change to the file of the same name in
-`common/audit`. The mirror stays because two consumers cannot import the backend
-tree. The backend image copies only `src`, so `src` cannot import `common`. The
-bare-Python CI jobs (the `lint` gates that run through `uv run --with pyyaml`,
-`ac-traceability`, `ac-behavioral-ratchet`, `evidence-bundle`, the staging AI/OCR
-gate and the E2E virtualenv) install neither the backend nor SQLAlchemy, and
-`src/audit/__init__.py` imports SQLAlchemy at import time, so `common.testing`
-cannot import `src.audit`. `common/audit` therefore stays standard-library only.
-
-`tests/tooling/test_audit_mirror_lock.py` (AC-audit.43.1) locks the two trees. It
-compares the AST of every Python module pair, without docstrings and import order
-(ruff line length is 120 in the backend and 88 here). A module that exists in one
-tree only, a backend-only definition inside a twin, and a name that one package
-surface publishes alone appear in an explicit list with the reason. A module in
-neither list fails the test, so a second copy cannot return silently. The test
-rewrites the module names of import statements only, so a string constant that names
-the other tree counts as a difference. The four TraceRecord files (`base/trace.py`,
-`base/trace_repository.py`, `extension/trace_codec.py`, `extension/trace_adapters.py`)
-also keep docstrings and import order. A second test fails when a file under
-`common/` or `tools/` imports a backend-only module.
+`apps/backend/src/audit` is the single physical Python kernel implementation (#2752).
+`common/audit/__init__.py` bridges `common.audit.*` directly to `src.audit.*` via a
+module loader and keeps `src.audit` importable when SQLAlchemy is not installed, so
+bare-Python CI jobs and backend tests execute the exact same classes (`common.audit.Money is src.audit.Money`).
+`common/audit/` holds only `contract.py`, the bare-Python tooling guards/vector
+loaders, and `__init__.py`; `tests/tooling/test_audit_mirror_lock.py` (AC-audit.43.1)
+fails if any duplicate kernel module returns under `common/audit/`.
 
 ### Two digest definitions (AC-audit.44.1, AC-audit.44.2)
 
