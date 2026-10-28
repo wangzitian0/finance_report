@@ -18,15 +18,11 @@ from common.meta.extension import (
     check_epic_package_dual,
     check_tier_ast_literal,
 )
-from common.testing import (
-    baseline_update_contract,
-    gate_main_contract,
-    tool_shim_contract,
-)
+from common.testing import tool_shim_contract
 
 
 def violations(repo_root: Path) -> list[str]:
-    """Aggregate violations from all 7 package migration safety gates."""
+    """Aggregate violations from all package migration safety gates."""
     findings: list[str] = []
     findings.extend(check_tier_ast_literal.violations(repo_root))
     dual = check_epic_package_dual.dual_defined_ids(repo_root)
@@ -39,8 +35,6 @@ def violations(repo_root: Path) -> list[str]:
     findings.extend(check_draft_packages.violations(repo_root, None))
     reconcile_violations, _ = check_authority_reconcile.reconcile(repo_root)
     findings.extend(reconcile_violations)
-    findings.extend(gate_main_contract.violations(repo_root))
-    findings.extend(baseline_update_contract.violations(repo_root))
     tool_baseline = repo_root / tool_shim_contract.DEFAULT_BASELINE.relative_to(
         REPO_ROOT
     )

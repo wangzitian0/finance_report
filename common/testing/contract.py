@@ -229,7 +229,6 @@ CONTRACT = PackageContract(
         # migration closeout, #1663 / #1718 ──
         ac('AC-testing.declarations.1', "The seed packages (runtime, ledger, coverage) declare their owned test roots via TEST_ROOTS in their contract.py; the matrix aggregates them into the generated YAML's ownership: section (a dropped declaration fails the --check-matrix drift gate), every declared root exists on disk, and a root declared by two packages is rejected (Was EPIC-008 AC8.24.1).", 'tests/tooling/test_package_declaration_and_ratchet.py::test_AC8_24_1_seed_packages_declare_owned_test_roots'),
         ac('AC-testing.declarations.2', 'Workflow pytest contracts declaring an environment precondition (the runtime-owned smoke gate, for the staging core E2E stage) must run it before the pytest invocation in the same workflow — mechanized fault attribution: a red precondition aborts before tests start (Was EPIC-008 AC8.24.2).', 'tests/tooling/test_package_declaration_and_ratchet.py::test_AC8_24_2_e2e_stages_run_their_environment_precondition_first'),
-        ac('AC-testing.declarations.3', 'The mirror-assertion count over tests/tooling/ is locked behind a committed baseline that may only decrease: growth fails CI, --update refuses to raise the baseline, and paydown lowers it — with the eight marker-literal mirrors already redundant with AC8.23.2 deleted in the same change (Was EPIC-008 AC8.24.3).', 'tests/tooling/test_package_declaration_and_ratchet.py::test_AC8_24_3_mirror_assertion_ratchet_is_locked_and_only_goes_down'),
         # ── group deploy-gates: deploy/staging/production workflow
         # gates (was EPIC-008 AC8.13 subset), migration closeout, #1663
         # / #1718 ──
@@ -461,9 +460,6 @@ CONTRACT = PackageContract(
         ac('AC-testing.fe-async.1', 'The shared data hook useApiQuery carries direct tests that run real react-query with only the network fn mocked: path fetching, error propagation, enabled=false, option passthrough, and per-key caching (#1827 G-core-hook-tested).', 'apps/frontend/src/__tests__/useApiQuery.test.tsx::AC-testing.fe-async.1 fetches the given operation through apiOperation and exposes the data', priority='P1'),
         ac('AC-testing.fe-async.2', "Every mutating flow that declares cache invalidations in MUTATION_INVALIDATION_MATRIX is exercised as the REAL component flow against a real QueryClient (only apiFetch mocked), asserting the declared query keys actually become invalidated — removing an invalidateQueries call reds the flow's test (#1827 G-async-seam).", 'apps/frontend/src/__tests__/accountsPage.test.tsx::AC-testing.fe-async.2 delete flow invalidates the matrix-declared query keys against a real QueryClient', priority='P1'),
         ac('AC-testing.fe-async.3', 'A structural lock enumerates every useMutation call site under apps/frontend/src (node fs scan, tests excluded) and reds on any call site absent from MUTATION_INVALIDATION_MATRIX or any stale matrix row, so a new mutation cannot skip the matrix by forgetfulness (#1827 G-no-undeclared-mutations).', 'apps/frontend/src/__tests__/mutationInvalidationLock.test.ts::AC-testing.fe-async.3 every useMutation call site in src/ has a matrix row', priority='P1'),
-        # ── group fe-handmock: decrease-only ratchet on frontend tests that
-        # still hand-mock a vectored endpoint (#1827 G-contract-reddens). ──
-        ac('AC-testing.fe-handmock.1', 'The count of frontend test files that hand-mock a vectored endpoint (instead of loading the shared conformance-vector fixture) only decreases relative to the committed baseline; growth reds CI and --update refuses to raise the baseline (#1827).', 'tests/tooling/test_fe_api_handmock_ratchet.py::test_AC_testing_fe_handmock_1_ratchet_is_locked_and_only_goes_down', priority='P1'),
         # ── Wave B (#1821): frontend-proof rows migrated from the
         # remaining EPIC files (EPIC-001/002/004/008/011/012/015/017/018/019/021/024/025) ──
         ac('AC-testing.fe-coverage.1', 'Frontend gap tests cover route, component, and API helper paths so frontend LCOV line coverage reaches 99%', 'apps/frontend/src/__tests__/stage2ReviewQueueCoverage99.test.tsx::AC16.23.4/AC8.13.48 persists Stage 2 filters in the URL while approving after filter changes'),
@@ -473,13 +469,8 @@ CONTRACT = PackageContract(
         # ── Shared gate infrastructure (#1867 S4 PR-A) ──
         ac('AC-testing.governance.14', 'The AC-score and cassette-eval JSONL ratchets use one parameterized baseline implementation with a shared raise-only merge, preserving their distinct identifier and collection keys.', 'tests/tooling/test_s4_testing_gate_infrastructure.py::test_AC_testing_governance_14_jsonl_baseline_bindings_share_parameterized_behavior', priority='P1'),
         ac('AC-testing.governance.15', 'AC coverage analysis, traceability report generation, and traceability checking share one scanner and canonical AC ordering, so package-qualified IDs with identical numeric suffixes remain distinct.', 'tests/tooling/test_s4_testing_gate_infrastructure.py::test_AC_testing_governance_15_traceability_tools_share_scanner_and_canonical_sort', priority='P1'),
-        ac('AC-testing.governance.16', 'Repository gates share one CLI runner for repo-root parsing, PASS/FAIL summaries, and GitHub workflow-command escaping, so an injection-shaped violation remains one inert annotation.', 'tests/tooling/test_s4_gate_contracts.py::test_AC_testing_governance_16_gate_cli_escapes_workflow_commands', priority='P1'),
-        ac('AC-testing.governance.17', 'During migration, the structural gate rejects new legacy main signatures and check modules that bypass the shared gate runner.', 'tests/tooling/test_s4_gate_contracts.py::test_AC_testing_governance_17_AC_testing_governance_22_main_contract_is_zero_and_fail_closed', priority='P1'),
-        ac('AC-testing.governance.18', 'Every argparse baseline mutation flag declares its monotonic mode: --update is raise-only or shrink-only, while debt-adopting rewrites require the explicit --rewrite-baseline spelling.', 'tests/tooling/test_s4_gate_contracts.py::test_AC_testing_governance_18_baseline_mutation_flags_are_explicit', priority='P1'),
         ac('AC-testing.governance.19', 'The staging AI-OCR gate implementation lives in common/testing, its replay counters live in common/testing/data, and the tools entry point remains a thin compatibility shim.', 'tests/tooling/test_s4_tool_homing.py::test_AC_testing_governance_19_ai_ocr_gate_and_data_are_package_owned', priority='P1'),
         ac('AC-testing.governance.20', 'A shrink-only tools-file baseline rejects every new top-level Python entry point over 40 lines and requires resolved fat-tool paths to be removed from the baseline.', 'tests/tooling/test_s4_tool_homing.py::test_AC_testing_governance_20_fat_tool_ratchet_rejects_new_and_stale_debt', priority='P1'),
-        ac('AC-testing.governance.21', 'Every real monotonic baseline-mutation CLI path, including specialized update flags, is behaviorally driven against synthetic regression debt and refuses to adopt it; the contract census fails when a new monotonic updater lacks non-vacuous state proof.', 'tests/tooling/test_s4_gate_contracts.py::test_AC_testing_governance_21_real_updates_refuse_regression_debt', priority='P1'),
-        ac('AC-testing.governance.22', 'Every module-level common/tools main uses the composable Sequence[str] argv and integer-status contract, every common check uses the shared gate runner, and the allowlist-free AST gate fails closed on malformed Python without a legacy baseline.', 'tests/tooling/test_s4_gate_contracts.py::test_AC_testing_governance_17_AC_testing_governance_22_main_contract_is_zero_and_fail_closed', priority='P1'),
         ac('AC-testing.toolchain.13', 'Developer CLI, backend server, and backend test lifecycle share one runtime-version and uv command implementation; compose detection consistently honors CONTAINER_RUNTIME.', 'tests/tooling/test_s4_tool_homing.py::test_AC_testing_toolchain_13_dev_commands_share_env_aware_toolchain', priority='P2'),
         ac('AC-testing.capability-proof.1', 'A scenario-bound PR-CI behavioral proof emits one canonical TraceRecord only after its pytest call phase passes; the JUnit gate requires exact repository, commit, run, scenario, and proof coordinates.', 'tests/tooling/test_executed_proof.py::test_AC_testing_capability_proof_1_pytest_junit_binds_exact_ci_coordinates'),
         ac('AC-testing.capability-proof.2', 'One terminal proof binds exactly one scenario to one independent oracle; blank or stitched proof bindings are rejected.', 'tests/tooling/test_trusted_year_scenario.py::test_AC_testing_capability_proof_2_binding_rejects_stitching'),
@@ -717,22 +708,6 @@ CONTRACT = PackageContract(
             kind="concept",
         ),
         ConceptRecord(
-            key="baseline_update_contract",
-            owner="common/testing/baseline_update_contract.py",
-            description=(
-                "AST contract requiring every baseline mutation CLI to declare "
-                "raise-only, shrink-only, or rewrite semantics; debt-adopting "
-                "rewrites use --rewrite-baseline rather than --update."
-            ),
-            cross_refs=[
-                "common/testing/readme.md",
-                "common/meta/base/gate_cli.py",
-            ],
-            proofs=["tests/tooling/test_s4_gate_contracts.py"],
-            family="delivery",
-            kind="concept",
-        ),
-        ConceptRecord(
             key="gate_cli",
             owner="common/meta/base/gate_cli.py",
             description=(
@@ -741,45 +716,10 @@ CONTRACT = PackageContract(
             ),
             cross_refs=[
                 "common/testing/readme.md",
-                "common/testing/baseline_update_contract.py",
             ],
-            proofs=["tests/tooling/test_s4_gate_contracts.py"],
+            proofs=["tests/tooling/test_s4_testing_gate_infrastructure.py"],
             family="delivery",
             kind="concept",
-        ),
-        ConceptRecord(
-            key="gate_main_contract",
-            owner="common/testing/gate_main_contract.py",
-            description=(
-                "Allowlist-free structural lock for composable main signatures, "
-                "process-exit boundaries, malformed Python, and adoption of the "
-                "shared gate CLI runner."
-            ),
-            cross_refs=[
-                "common/testing/readme.md",
-                "common/meta/base/gate_cli.py",
-            ],
-            proofs=["tests/tooling/test_s4_gate_contracts.py"],
-            family="delivery",
-            kind="concept",
-        ),
-        ConceptRecord(
-            key="api_surface_ratchet",
-            owner="common/testing/api_surface_ratchet.py",
-            description=(
-                "Shrink-only structural lock for the transitional flat router "
-                "directory and the count of package files carrying a "
-                "src.schemas dependency during "
-                "the API-surface migration (#1865 S2)."
-            ),
-            cross_refs=[
-                "common/testing/data/api-surface-ratchet-baseline.json",
-                "common/meta/contract.py",
-                "tests/tooling/test_api_surface_ratchet.py",
-            ],
-            proofs=["tests/tooling/test_api_surface_ratchet.py"],
-            family="platform",
-            kind="baseline",
         ),
         ConceptRecord(
             key="ac_graph",

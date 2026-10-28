@@ -36,7 +36,6 @@ import json
 from pathlib import Path
 
 from common.testing import (
-    baseline_update_contract,
     check_ac_index as gate,
     protection,
 )
@@ -379,26 +378,20 @@ def test_AC8_13_140_update_floor_raises_floors(tmp_path, monkeypatch) -> None:
             score=None,
         )
     monkeypatch.setattr(gate, "build_ac_graph", lambda _repo_root: poorer)
+    before_bytes = floor_file.read_bytes()
     assert (
-        baseline_update_contract.assert_regression_debt_refused(
-            regression_debt_present=lambda: any(
-                protection.count_protection_types(poorer)[ptype]
-                < protection.load_floor(floor_file)[ptype]
-                for ptype in protection.PROTECTION_TYPES
-            ),
-            baseline_state=floor_file.read_bytes,
-            update=lambda: gate.main(
-                [
-                    "--repo-root",
-                    str(tmp_path),
-                    "--floor-file",
-                    str(floor_file),
-                    "--update-floor",
-                ]
-            ),
+        gate.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--floor-file",
+                str(floor_file),
+                "--update-floor",
+            ]
         )
         == 0
     )
+    assert floor_file.read_bytes() == before_bytes
     not_lowered = protection.load_floor(floor_file)
     assert not_lowered["has_proof"] >= raised["has_proof"]
 

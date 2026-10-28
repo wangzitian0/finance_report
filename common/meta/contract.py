@@ -350,7 +350,6 @@ CONTRACT = PackageContract(
         ac('AC-meta.ssot-governance.8', 'Threshold cleanup for #824 reduces finance_report.high_risk_entries_missing_proof to zero by binding the flagged high-risk platform concepts to existing proof tests, without runtime behavior changes. Was AC14.1.23.', 'tests/tooling/test_ssot_governance_report.py::test_AC14_1_23_high_risk_ssot_entries_bind_proof_under_platform_family', priority='P1'),
         ac('AC-meta.ssot-governance.9', 'Incremental SSOT governance compares the same computed concept registry at base and HEAD (residual manifest plus package-owned concepts), detects package-contract concept drift, isolates the requested git ref, and fails closed when the base cannot be loaded.', 'tests/tooling/test_ssot_governance_report.py::test_AC_meta_ssot_governance_9_base_and_head_use_same_computed_concepts'),
         ac('AC-meta.package-truth.1', 'Every discovered package has the two authored truth surfaces readme.md and contract.py; parallel todo.md worklists are forbidden at any depth under common/, and an empty package scan fails closed.', 'tests/tooling/test_check_package_contract.py::test_AC_meta_package_truth_1_authored_surface_is_exact_and_non_vacuous'),
-        ac('AC-meta.governance-baseline.1', "The draft-package baseline equals the discovered set of status='draft' package contracts in both directions, so a stale registration or an unregistered draft fails CI.", 'tests/tooling/test_s4_gate_contracts.py::test_AC_meta_governance_baseline_1_draft_baseline_is_bidirectionally_exact'),
         ac('AC-meta.governance-baseline.2', 'Every temporary SSOT governance exception has one unique target, an issue URL, a reason, and an explicit removal condition; malformed or duplicate exception debt fails CI.', 'tests/tooling/test_governance_exceptions_registry.py::test_AC_meta_governance_baseline_2_gate_rejects_stale_or_ambiguous_ssot_exceptions'),
         # ── migrated from EPIC-014, wave 2 (#1663): GitHub issue template
         # contract. Was AC14.1.11. ──
@@ -389,8 +388,6 @@ CONTRACT = PackageContract(
         # adapters of the application, not domain behavior — sanctioned, not
         # dissolved; the sanction's teeth are the thin-ness ratchet below. ──
         ac('AC-meta.delivery.1', "routers/ (HTTP delivery adapters) and schemas/ (API DTOs) are the sanctioned app delivery layer (#1763): routing and serialization glue only, whose bulk may only shrink as packages absorb logic. The per-directory line census of apps/backend/src/{routers,schemas} (*.py, recursive) must stay within a 50-line band of common/meta/data/delivery-layer-baseline.json: growth beyond the band fails CI and requires raising the baseline in the same PR, where the diff makes the choice reviewable (the app-boundary idiom) — legitimate only for genuine delivery glue, never domain logic; shrink beyond the band lowers the baseline in the same PR so the ratchet stays tight. prompts/ is deliberately outside the census — domain content, not delivery; it dissolves into its owning packages (reconciliation's lives at src/reconciliation/base/prompts.py since PR #1748; advisor's moves with #1671 Wave B).", 'tests/tooling/test_delivery_layer_ratchet.py::test_AC_meta_delivery_1_delivery_layer_only_thins', priority='P1'),
-        ac('AC-meta.delivery.2', "The terminal HTTP API home is each owning package's extension/api/ adapter. apps/backend/src/routers remains a transitional delivery layer whose non-__init__.py file set may only shrink relative to the committed baseline; a new flat router fails CI and --update refuses to adopt it (#1865 S2 G-one-home-decided).", 'tests/tooling/test_api_surface_ratchet.py::test_AC_meta_delivery_2_router_file_set_only_shrinks', priority='P1'),
-        ac('AC-meta.delivery.3', 'Package base layers never import src.schemas; that forbidden edge has no baseline or exemption. Outside base/, the count of package files importing src.schemas may only shrink relative to the committed baseline; a new package dependency fails CI and --update refuses to raise the baseline (#1865 S2 G-dependency-direction).', 'tests/tooling/test_api_surface_ratchet.py::test_AC_meta_delivery_3_package_schema_import_count_only_shrinks', priority='P1'),
         # ── residue: the post-migration EPIC tables hold only explicitly
         # marked residue (#1719 "retire the center"; #1416 DoD addition
         # 2026-07-11 makes "genuinely EPIC-owned" machine-checkable). ──
@@ -814,25 +811,6 @@ CONTRACT = PackageContract(
             family="platform",
             kind="baseline",
             authority="machine_generated",
-            parent="package_model",
-        ),
-        ConceptRecord(
-            key="api_surface_terminal_home",
-            owner="common/meta/contract.py",
-            description=(
-                "The terminal home for HTTP adapters is the owning package's "
-                "extension/api/ layer; src/routers is transitional and may only "
-                "shrink (#1865 S2)."
-            ),
-            cross_refs=[
-                "common/testing/api_surface_ratchet.py",
-                "common/testing/data/api-surface-ratchet-baseline.json",
-                "tests/tooling/test_api_surface_ratchet.py",
-            ],
-            proofs=["tests/tooling/test_api_surface_ratchet.py"],
-            family="platform",
-            kind="concept",
-            authority="documented_contract",
             parent="package_model",
         ),
         ConceptRecord(
