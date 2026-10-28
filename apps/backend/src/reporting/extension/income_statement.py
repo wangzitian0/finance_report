@@ -11,6 +11,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config_app import get_effective_base_currency
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryAuthorityState, JournalLine
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
@@ -104,7 +105,7 @@ async def generate_income_statement(
     if start_date > end_date:
         raise ReportError("start_date must be before end_date")
 
-    target_currency = _normalize_currency(currency)
+    target_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
     fx_warnings: list[FxWarning] = []
 
     account_types: tuple[AccountType, ...]

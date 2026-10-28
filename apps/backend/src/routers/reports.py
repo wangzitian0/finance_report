@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, union
 
 from src.composition import observed_fx_pairs
-from src.config import settings
+from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.extraction import coverage_bank_custody_account_ids
 from src.ledger import Account, AccountType
@@ -93,12 +93,10 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 logger = get_logger(__name__)
 
 
-def _target_currency_pair(currency: str | None) -> list[str]:
-    target = (currency if isinstance(currency, str) and currency else settings.base_currency).strip().upper()
-    base = settings.base_currency.strip().upper()
-    if target == base:
-        return []
-    return [f"{target}/{base}"]
+def _target_currency_pair(currency: str | None, *, base_currency: str = "SGD") -> list[str]:
+    base = base_currency.strip().upper()
+    target = (currency if isinstance(currency, str) and currency else base).strip().upper()
+    return [] if target == base else [f"{target}/{base}"]
 
 
 async def _ensure_report_market_data_fresh(
@@ -108,8 +106,8 @@ async def _ensure_report_market_data_fresh(
     currency: str | None,
     end_date: date,
 ) -> None:
-    # Skip the tenant account probe when target currency matches base currency.
-    target_pairs = _target_currency_pair(currency)
+    base_currency = await get_effective_base_currency(db, user_id=user_id)
+    target_pairs = _target_currency_pair(currency, base_currency=base_currency)
     has_report_subjects = (
         await db.scalar(select(Account.id).where(Account.user_id == user_id).limit(1)) if target_pairs else None
     )
@@ -119,17 +117,8 @@ async def _ensure_report_market_data_fresh(
         stock_symbols = await active_stock_symbols(db, user_id)
         await ensure_market_data_fresh(db, fx_pairs=list(fx_pairs), stock_symbols=stock_symbols, end_date=end_date)
     except asyncio.CancelledError:
-        # Never swallow cancellation (request disconnect / shutdown): let it
-        # propagate so FastAPI can unwind the request properly.
         raise
     except Exception as exc:  # noqa: BLE001 - freshness is best-effort enrichment
-        # #1388: a failed market-data/FX refresh (provider error, unresolvable
-        # symbol, malformed FX pair, network blip) must not turn report
-        # generation into a 500. The report endpoints only catch ReportError, so
-        # any other exception escaping here surfaced as an unhandled 500 the
-        # moment an account held a position. Fall back to already-stored data
-        # (possibly stale) and let the report render. Keep the traceback
-        # (exc_info) since these failures can be hard to reproduce.
         logger.warning(
             "Market-data freshness sync failed; rendering report with stored data",
             error=str(exc),
@@ -151,8 +140,9 @@ async def get_available_currencies(
     result = await db.execute(select(combined.c.base_currency).order_by(combined.c.base_currency))
     currencies = [row[0] for row in result.fetchall()]
 
-    if settings.base_currency not in currencies:
-        currencies = [settings.base_currency] + currencies
+    base_currency = await get_effective_base_currency(db)
+    if base_currency not in currencies:
+        currencies = [base_currency] + currencies
 
     return currencies
 
@@ -196,12 +186,7 @@ async def _package_period(
     as_of_date: date | None,
     currency: str | None,
 ) -> tuple[date, date, date, str]:
-    """Resolve the package period and currency, and refresh the market data.
-
-    Each package GET commits at its end, as the other report GETs do. Refreshed prices then
-    stay stored, so the preview and the later evidence pages read the same prices. The commit
-    comes after the read, so the request keeps one connection.
-    """
+    """Resolve the package period and currency, and refresh the market data."""
     report_start, report_end, report_as_of = _package_dates(
         start_date=start_date,
         end_date=end_date,
@@ -209,7 +194,7 @@ async def _package_period(
     )
     if report_start > report_end:
         raise_bad_request("start_date must be before end_date")
-    target_currency = _package_currency(currency)
+    target_currency = _package_currency(currency or await get_effective_base_currency(db, user_id=user_id))
     await _ensure_report_market_data_fresh(db, user_id, currency=target_currency, end_date=report_as_of)
     return report_start, report_end, report_as_of, target_currency
 
@@ -413,7 +398,7 @@ async def generate_personal_report_package_snapshot(
         end_date=request.end_date,
         as_of_date=request.as_of_date,
     )
-    target_currency = _package_currency(request.currency)
+    target_currency = _package_currency(request.currency or await get_effective_base_currency(db, user_id=user_id))
     snapshot_id = uuid4()
     frozen_at = datetime.now(UTC)
     await _ensure_report_market_data_fresh(db, user_id, currency=target_currency, end_date=report_as_of)
@@ -442,11 +427,6 @@ async def generate_personal_report_package_snapshot(
         snapshot_id=snapshot_id,
     )
     await db.commit()
-    # BE->OpenPanel: server-authoritative `report_generated` (fires even if the
-    # browser event is blocked). The official SDK's track() is itself non-blocking
-    # (its own daemon send-thread), config-gated + never raises — so calling it
-    # inline can't add latency or break report generation, and the handler stays
-    # safe to call directly (tests) without a FastAPI BackgroundTasks instance.
     _track_analytics(
         "report_generated",
         {"framework_id": request.framework_id.value, "currency": target_currency},
@@ -468,14 +448,15 @@ async def list_personal_report_package_snapshots(
         select(ReportSnapshot)
         .where(ReportSnapshot.user_id == user_id)
         .where(ReportSnapshot.report_type == SnapshotReportType.PACKAGE)
-        # Stable tiebreaker (id) so offset pagination is deterministic when
-        # created_at timestamps tie — otherwise pages could drop/duplicate rows.
         .order_by(ReportSnapshot.created_at.desc(), ReportSnapshot.id.desc())
         .limit(pagination.limit)
         .offset(pagination.offset)
     )
     result = await db.execute(stmt)
-    return [_package_snapshot_summary(snapshot) for snapshot in result.scalars().all()]
+    default_currency = await get_effective_base_currency(db, user_id=user_id)
+    return [
+        _package_snapshot_summary(snapshot, default_currency=default_currency) for snapshot in result.scalars().all()
+    ]
 
 
 @router.get("/package/snapshots/{snapshot_id}", response_model=PersonalReportPackageSnapshotResponse)

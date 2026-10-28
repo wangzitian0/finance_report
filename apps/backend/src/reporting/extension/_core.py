@@ -12,7 +12,7 @@ from sqlalchemy import case, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
-from src.config import settings
+from src.config_app import get_effective_base_currency
 from src.ledger import (
     Account,
     AccountType,
@@ -442,15 +442,10 @@ async def _aggregate_equity_translation_variance_sql(
     target_currency: str,
     as_of_date: date,
     *,
+    base_currency: str | None = None,
     fx_warnings: list[FxWarning] | None = None,
 ) -> Decimal:
-    """Compute translation variance on equity contributions and opening positions.
-
-    Under IAS 21, opening positions and equity contributions can fund foreign assets.
-    Their recorded equity amounts remain at historical cost.
-    The foreign assets are translated at the closing spot rate.
-    The resulting variance is part of the currency translation adjustment reserve.
-    """
+    """Compute translation variance on equity contributions and opening positions."""
     target = target_currency.upper()
     equity_entries_stmt = (
         select(JournalLine.journal_entry_id)
@@ -475,6 +470,7 @@ async def _aggregate_equity_translation_variance_sql(
             JournalLine.currency,
             JournalLine.fx_rate,
             JournalEntry.entry_date,
+            JournalEntry.base_currency,
             Account.type,
         )
         .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
@@ -493,6 +489,7 @@ async def _aggregate_equity_translation_variance_sql(
 
     currencies = {row.currency.upper() for row in rows}
     spot_rates = await _get_fx_rates_map(db, currencies, target, as_of_date, fx_warnings=fx_warnings)
+    effective_base = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
 
     total_variance = Decimal("0.00")
     for row in rows:
@@ -500,8 +497,8 @@ async def _aggregate_equity_translation_variance_sql(
         spot_rate = spot_rates.get(curr)
         if spot_rate is None:
             continue
-        base_curr = settings.base_currency.upper()
-        if row.fx_rate is not None and target == base_curr:
+        entry_base = (getattr(row, "base_currency", None) or effective_base).upper()
+        if row.fx_rate is not None and target == entry_base:
             hist_rate = Decimal(str(row.fx_rate))
         else:
             try:

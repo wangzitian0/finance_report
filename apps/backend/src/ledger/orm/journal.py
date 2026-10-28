@@ -296,20 +296,23 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
     v_status text;
-    v_base_currency text := upper(fr_ledger_base_currency());
+    v_row_base text;
+    v_base_currency text;
     v_line_count integer;
     v_bad_fx_count integer;
     v_total_debit numeric;
     v_total_credit numeric;
 BEGIN
-    SELECT status::text
-    INTO v_status
+    SELECT status::text, base_currency
+    INTO v_status, v_row_base
     FROM journal_entries
     WHERE id = p_entry_id;
 
     IF NOT FOUND OR v_status NOT IN ('posted', 'reconciled') THEN
         RETURN;
     END IF;
+
+    v_base_currency := upper(COALESCE(v_row_base, fr_ledger_base_currency()));
 
     SELECT
         count(*),
@@ -464,6 +467,7 @@ BEGIN
                 OR NEW.source_id IS DISTINCT FROM OLD.source_id
                 OR NEW.decision_anchor_id IS DISTINCT FROM OLD.decision_anchor_id
                 OR NEW.decision_authority_state IS DISTINCT FROM OLD.decision_authority_state
+                OR NEW.base_currency IS DISTINCT FROM OLD.base_currency
                 OR NEW.void_reason IS DISTINCT FROM OLD.void_reason
                 OR NEW.void_reversal_entry_id IS DISTINCT FROM OLD.void_reversal_entry_id
                 OR NEW.created_at IS DISTINCT FROM OLD.created_at
@@ -483,6 +487,7 @@ BEGIN
                 OR NEW.source_id IS DISTINCT FROM OLD.source_id
                 OR NEW.decision_anchor_id IS DISTINCT FROM OLD.decision_anchor_id
                 OR NEW.decision_authority_state IS DISTINCT FROM OLD.decision_authority_state
+                OR NEW.base_currency IS DISTINCT FROM OLD.base_currency
                 OR NEW.created_at IS DISTINCT FROM OLD.created_at
             THEN
                 RAISE EXCEPTION 'posted or reconciled journal entry % can only be voided without fact mutation', OLD.id

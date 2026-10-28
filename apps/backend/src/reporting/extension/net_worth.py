@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import JournalEntrySourceType
 from src.audit.ratio import Ratio
+from src.config_app import get_effective_base_currency
 from src.ledger import Account, AccountType, JournalEntry, JournalLine
 from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
@@ -194,7 +195,7 @@ async def get_net_worth_allocation_schedule(
     include_restricted: bool = DEFAULT_INCLUDE_RESTRICTED,
 ) -> dict[str, object]:
     """Return signed net-worth allocation rows grouped by asset/liquidity/currency."""
-    target_currency = _normalize_currency(currency)
+    target_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
     balance_sheet = await generate_balance_sheet(
         db,
         user_id,
@@ -269,7 +270,7 @@ async def get_account_trend(
     currency: str | None = None,
 ) -> dict[str, object]:
     """Get account trend data for a period granularity."""
-    target_currency = _normalize_currency(currency)
+    target_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
     account_result = await db.execute(select(Account).where(Account.id == account_id).where(Account.user_id == user_id))
     account = account_result.scalar_one_or_none()
     if not account:
@@ -549,7 +550,7 @@ async def get_net_worth_timeseries(
     if granularity == "monthly":
         start_date = _monthly_series_start(start_date, end_date)
 
-    target_currency = _normalize_currency(currency)
+    target_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
     spans = _iter_periods(start_date, end_date, granularity)
     point_dates = [span.start if granularity == "daily" else span.end for span in spans]
 
@@ -617,7 +618,7 @@ async def get_category_breakdown(
     """Get breakdown totals by category (account) for a period."""
     if breakdown_type not in (AccountType.INCOME, AccountType.EXPENSE):
         raise ReportError("Breakdown type must be income or expense")
-    target_currency = _normalize_currency(currency)
+    target_currency = _normalize_currency(currency or await get_effective_base_currency(db, user_id=user_id))
     today = date.today()
 
     if period == "monthly":

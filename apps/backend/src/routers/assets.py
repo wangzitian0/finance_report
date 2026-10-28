@@ -9,7 +9,7 @@ from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 
 from src.audit import Currency, Money, to_money
-from src.config import settings
+from src.config_app import get_effective_base_currency
 from src.deps import CurrentUserId, DbSession, Pagination
 from src.extraction import ManagedPosition, PositionStatus
 from src.ledger import Account
@@ -51,19 +51,16 @@ async def _apply_reporting_valuation(
     db: DbSession,
     position: ManagedPosition,
     response: ManagedPositionResponse,
+    *,
+    base_currency: str | None = None,
 ) -> None:
-    """#1098: attach the base/reporting-currency cost basis to a position response.
-
-    Mirrors how services/portfolio.py converts cost via the single convert_money
-    authority (converted once, at the position's acquisition-date FX boundary).
-    On any FX failure the reporting view degrades to null rather than raising —
-    an FX error must never 500 a read (the #1388 lesson).
-    """
+    """Attach the base/reporting-currency cost basis to a position response (#1098)."""
+    resolved_base = base_currency or await get_effective_base_currency(db, user_id=position.user_id)
     try:
         converted = await convert_money(
             db,
             Money(position.cost_basis, Currency.of(position.currency)),
-            settings.base_currency,
+            resolved_base,
             rate_date=position.acquisition_date,
             lazy_load=True,
         )
@@ -72,7 +69,7 @@ async def _apply_reporting_valuation(
             "Reporting-currency conversion unavailable for position; returning native only",
             position_id=str(position.id),
             native_currency=position.currency,
-            base_currency=settings.base_currency,
+            base_currency=resolved_base,
             error=str(exc),
         )
         response.reporting_cost_basis = None
@@ -104,8 +101,6 @@ async def list_positions(
         db, user_id, status_filter=status_filter, limit=limit, offset=offset
     )
 
-    # ManagedPosition carries only the bare account_id FK (#1675 D4): resolve
-    # display names with one explicit user-scoped query, no ORM navigation.
     account_names: dict[UUID, str] = {}
     if positions:
         rows = await db.execute(
@@ -115,11 +110,12 @@ async def list_positions(
         )
         account_names = dict(rows.tuples().all())
 
+    base_currency = await get_effective_base_currency(db, user_id=user_id)
     items = []
     for pos in positions:
         response = ManagedPositionResponse.model_validate(pos)
         response.account_name = account_names.get(pos.account_id)
-        await _apply_reporting_valuation(db, pos, response)
+        await _apply_reporting_valuation(db, pos, response, base_currency=base_currency)
         items.append(response)
 
     logger.info("Listed positions", count=len(items), total=total)

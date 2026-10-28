@@ -15,8 +15,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-import src.config
 from src.audit import JournalEntrySourceType, TraceEmitter, TraceRecord
+from src.config_app import get_effective_base_currency
 from src.extraction.base.disposition import DispositionDecision, DispositionStatus, intent_matches_counter_account
 from src.extraction.base.source_vocabulary import DocumentType, TransactionDirection
 from src.extraction.base.types import extract_source_document_ids
@@ -47,7 +47,6 @@ from src.observability import get_logger
 from src.pricing import ExchangeRateLookup, PricingError, get_exchange_rate
 
 logger = get_logger(__name__)
-settings = src.config.settings
 
 
 async def _resolve_statement_summary(
@@ -192,21 +191,11 @@ async def _plan_entry_command(
     else:
         statement = await _resolve_statement_summary(db, txn, user_id=user_id)
 
-    # The transaction's own (human-confirmed at this point) currency is authoritative
-    # per AC12.40; the statement currency is only a fallback, then the base SSOT. This
-    # preserves a transaction-specific currency in multi-currency statements.
-    base_currency = (base_currency or settings.base_currency).upper()
+    base_currency = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
     currency = (txn.currency or (statement.currency if statement else None) or base_currency).upper()
     line_fx_rate: Decimal | None = None
     if currency != base_currency:
         try:
-            # lazy_load=True (#1779): a date->rate fact is immutable once resolved, so
-            # the on-demand chain (stored inverse -> USD-bridge derivation -> live
-            # provider fetch, all persisted to fx_rates) is safe to consult here, the
-            # same way reporting (_core.py) and internal transfers already opt into
-            # it. Only when that chain also comes up empty does this still fail
-            # closed below -- a journal entry cannot post without a real rate,
-            # unlike a report line, which can just omit the value.
             provider = fx_rate_provider or get_exchange_rate
             line_fx_rate = await provider(db, currency, base_currency, txn.txn_date, lazy_load=True)
         except fx_rate_error or PricingError as exc:

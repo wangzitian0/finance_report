@@ -49,6 +49,7 @@ from src.advisor.extension import app_reads
 from src.advisor.extension.cache import _CACHE
 from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.audit import to_money
+from src.config_app import get_effective_base_currency
 from src.ledger import (
     Account,
     AccountType,
@@ -235,20 +236,21 @@ class AIAdvisorService:
 
         context: dict[str, str] = {}
 
+        base_currency = await get_effective_base_currency(db, user_id=user_id)
         ending_unrealized_fx: Decimal | None = None
         try:
-            # The summary reads totals and the currency. It does not read the trust signals
-            # (line provenance and the opening-balance warning), so the balance sheet skips them (#2583).
             balance = cast(
                 dict[str, Any],
-                await generate_balance_sheet(db, user_id, as_of_date=today, include_trust_signals=False),
+                await generate_balance_sheet(
+                    db, user_id, as_of_date=today, currency=base_currency, include_trust_signals=False
+                ),
             )
             total_assets = Decimal(str(balance["total_assets"]))
             total_liabilities = Decimal(str(balance["total_liabilities"]))
             opening_equity = Decimal(str(balance["total_equity"]))
             net_income_bs = Decimal(str(balance.get("net_income") or "0.00"))
             net_worth = total_assets - total_liabilities
-            currency = str(balance.get("currency") or settings.base_currency)
+            currency = str(balance.get("currency") or base_currency)
             balance_sheet_confidence_tier = str(balance.get("confidence_tier") or "DETERMINISTIC")
             ending_unrealized_fx = Decimal(str(balance["unrealized_fx_gain_loss"]))
         except ReportError:
@@ -257,7 +259,7 @@ class AIAdvisorService:
             opening_equity = Decimal("0")
             net_income_bs = Decimal("0")
             net_worth = Decimal("0")
-            currency = settings.base_currency
+            currency = base_currency
             balance_sheet_confidence_tier = "UNAVAILABLE"
 
         try:
@@ -540,7 +542,7 @@ class AIAdvisorService:
                 "holdings_count": 0,
                 "active_positions_count": 0,
                 "total_market_value": "0.00",
-                "currency": settings.base_currency,
+                "currency": await get_effective_base_currency(db, user_id=user_id),
             }
         except Exception as exc:
             logger.warning("Failed to load advisor portfolio summary", error=str(exc))

@@ -15,8 +15,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import src.config
 from src.audit import JournalEntrySourceType
+from src.config_app import get_effective_base_currency
 from src.ledger.orm.account import Account, AccountType
 from src.ledger.orm.journal import (
     Direction,
@@ -28,7 +28,6 @@ from src.observability import get_logger
 from src.pricing import PricingError, get_exchange_rate
 
 logger = get_logger(__name__)
-settings = src.config.settings
 
 REVALUATION_ACCOUNT_TYPES = (AccountType.ASSET, AccountType.LIABILITY)
 
@@ -60,15 +59,16 @@ class RevaluationResult:
 async def get_foreign_currency_accounts(
     db: AsyncSession,
     user_id: UUID,
+    base_currency: str | None = None,
 ) -> list[Account]:
     """Get all asset/liability accounts with non-base currency."""
-    base_currency = settings.base_currency.upper()
+    resolved_base = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
 
     stmt = (
         select(Account)
         .where(Account.user_id == user_id)
         .where(Account.type.in_(REVALUATION_ACCOUNT_TYPES))
-        .where(Account.currency != base_currency)
+        .where(Account.currency != resolved_base)
     )
 
     result = await db.execute(stmt)
@@ -119,21 +119,16 @@ async def calculate_account_historical_cost(
     db: AsyncSession,
     account: Account,
     as_of_date: date,
+    base_currency: str | None = None,
 ) -> Decimal:
-    """
-    Calculate account balance in base currency using historical FX rates.
-
-    Uses the line's recorded FX rate when present. When older journal lines do
-    not store an explicit rate, falls back to the exchange rate as of the entry
-    date. Posted FX revaluation entries are excluded because they are valuation
-    adjustments, not historical cost.
-    """
+    """Calculate account balance in base currency using historical FX rates."""
     stmt = (
         select(
             JournalLine.direction,
             JournalLine.amount,
             JournalLine.fx_rate,
             JournalEntry.entry_date,
+            JournalEntry.base_currency,
         )
         .select_from(JournalLine)
         .join(JournalEntry)
@@ -145,13 +140,16 @@ async def calculate_account_historical_cost(
     )
 
     result = await db.execute(stmt)
-    base_currency = settings.base_currency.upper()
+    resolved_base = (base_currency or await get_effective_base_currency(db, user_id=account.user_id)).upper()
     total_debit = Decimal("0")
     total_credit = Decimal("0")
     for row in result.all():
-        if row.fx_rate is None:
+        entry_base = (getattr(row, "base_currency", None) or resolved_base).upper()
+        if row.fx_rate is not None and entry_base == resolved_base:
+            rate = Decimal(str(row.fx_rate))
+        else:
             try:
-                rate = await get_exchange_rate(db, account.currency, base_currency, row.entry_date)
+                rate = await get_exchange_rate(db, account.currency, resolved_base, row.entry_date)
             except PricingError:
                 logger.warning(
                     "Historical FX rate missing for revaluation cost basis, falling back to revaluation-date rate",
@@ -160,9 +158,7 @@ async def calculate_account_historical_cost(
                     entry_date=row.entry_date.isoformat(),
                     revaluation_date=as_of_date.isoformat(),
                 )
-                rate = await get_exchange_rate(db, account.currency, base_currency, as_of_date)
-        else:
-            rate = Decimal(str(row.fx_rate))
+                rate = await get_exchange_rate(db, account.currency, resolved_base, as_of_date)
         converted = Decimal(str(row.amount)) * rate
         if row.direction == Direction.DEBIT:
             total_debit += converted
@@ -182,11 +178,7 @@ async def calculate_unrealized_fx_for_account(
     revaluation_date: date,
     base_currency: str,
 ) -> AccountRevaluation | None:
-    """Calculate unrealized FX gain/loss for a single account.
-
-    Compares the account's balance at historical cost (recorded FX rates)
-    vs current spot rate to determine unrealized gain/loss.
-    """
+    """Calculate unrealized FX gain/loss for a single account."""
     balance = await calculate_account_balance_in_currency(db, account, revaluation_date)
 
     if balance == Decimal("0"):
@@ -205,9 +197,7 @@ async def calculate_unrealized_fx_for_account(
         ) from e
 
     revalued_base = balance * current_rate
-
-    # Calculate historical cost basis from actual transactions
-    original_base = await calculate_account_historical_cost(db, account, revaluation_date)
+    original_base = await calculate_account_historical_cost(db, account, revaluation_date, base_currency)
 
     if account.type == AccountType.LIABILITY:
         unrealized = original_base - revalued_base
@@ -230,20 +220,17 @@ async def calculate_unrealized_fx_gains(
     db: AsyncSession,
     user_id: UUID,
     revaluation_date: date,
+    base_currency: str | None = None,
 ) -> RevaluationResult:
-    """Calculate unrealized FX gains/losses for all foreign currency accounts.
-
-    This is the main entry point for the unrealized FX calculation. It creates
-    no journal entries.
-    """
-    base_currency = settings.base_currency.upper()
-    accounts = await get_foreign_currency_accounts(db, user_id)
+    """Calculate unrealized FX gains/losses for all foreign currency accounts."""
+    resolved_base = (base_currency or await get_effective_base_currency(db, user_id=user_id)).upper()
+    accounts = await get_foreign_currency_accounts(db, user_id, resolved_base)
 
     revaluations: list[AccountRevaluation] = []
     total_unrealized = Decimal("0")
 
     for account in accounts:
-        reval = await calculate_unrealized_fx_for_account(db, account, revaluation_date, base_currency)
+        reval = await calculate_unrealized_fx_for_account(db, account, revaluation_date, resolved_base)
         if reval is not None:
             revaluations.append(reval)
             total_unrealized += reval.unrealized_gain_loss
@@ -258,7 +245,7 @@ async def calculate_unrealized_fx_gains(
 
     return RevaluationResult(
         revaluation_date=revaluation_date,
-        base_currency=base_currency,
+        base_currency=resolved_base,
         accounts_revalued=revaluations,
         total_unrealized_gain_loss=total_unrealized,
     )

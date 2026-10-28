@@ -9,12 +9,12 @@ The `Route` column is **router-relative** — it excludes the `APIRouter(prefix=
 | Method | Route (router-relative) | Handler | File:line |
 |--------|-------------------------|---------|-----------|
 | `DELETE` | `/{account_id}` | `delete_account` | apps/backend/src/routers/accounts.py:275 |
-| `DELETE` | `/valuation-snapshots/{snapshot_id}` | `delete_valuation_snapshot` | apps/backend/src/routers/assets.py:239 |
+| `DELETE` | `/valuation-snapshots/{snapshot_id}` | `delete_valuation_snapshot` | apps/backend/src/routers/assets.py:235 |
 | `POST` | `` | `chat_message` | apps/backend/src/routers/chat.py:44 |
 | `DELETE` | `/session/{session_id}` | `delete_session` | apps/backend/src/routers/chat.py:221 |
 | `DELETE` | `/{entry_id}` | `delete_journal_entry` | apps/backend/src/routers/journal.py:178 |
-| `GET` | `/package/snapshots/{snapshot_id}/export` | `export_personal_report_package_snapshot` | apps/backend/src/routers/reports.py:534 |
-| `POST` | `/package/annual-archive` | `export_annual_tax_archive` | apps/backend/src/routers/reports.py:568 |
-| `GET` | `/export` | `export_report` | apps/backend/src/routers/reports.py:981 |
+| `GET` | `/package/snapshots/{snapshot_id}/export` | `export_personal_report_package_snapshot` | apps/backend/src/routers/reports.py:515 |
+| `POST` | `/package/annual-archive` | `export_annual_tax_archive` | apps/backend/src/routers/reports.py:549 |
+| `GET` | `/export` | `export_report` | apps/backend/src/routers/reports.py:962 |
 | `GET` | `/{statement_id}/document` | `get_statement_document` | apps/backend/src/routers/statements.py:651 |
 | `DELETE` | `/{statement_id}` | `delete_statement` | apps/backend/src/routers/statements.py:825 |

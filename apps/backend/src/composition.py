@@ -32,7 +32,6 @@ from src.audit import (
     SqlTraceRecordRepository,
     TraceDecisionPolicyRegistry,
     TraceEmitter,
-    normalize_currency_code,
 )
 from src.config import settings
 from src.config_app import get_effective_base_currency
@@ -430,7 +429,7 @@ async def observed_fx_pairs(
     include_default: bool = True,
 ) -> list[str]:
     """The ``<currency>/<base>`` pairs implied by every currency the user holds."""
-    base = normalize_currency_code(settings.base_currency)
+    base = await get_effective_base_currency(db, user_id=user_id)
     default_counterparty = "USD" if base != "USD" else "SGD"
     currencies: set[str] = {base}
     if include_default:

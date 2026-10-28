@@ -24,7 +24,7 @@ from src.audit import (
     current_authoritative_trace_decisions,
     shared_current_authority,
 )
-from src.config import settings
+from src.config_app import get_effective_base_currency
 from src.extraction import (
     StatementSourceType,
     coverage_bank_custody_account_ids,
@@ -1467,5 +1467,5 @@ async def current_package_readiness(
         start_date=report_start,
         end_date=report_end,
         as_of_date=report_end,
-        currency=settings.base_currency,
+        currency=await get_effective_base_currency(db, user_id=user_id),
     )

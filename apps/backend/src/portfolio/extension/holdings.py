@@ -17,11 +17,11 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import src.config
-from src.audit.money import Money, to_money
-from src.audit.quantity import Quantity
+from src.audit.money import Currency, Money, to_money
+from src.audit.quantity import Quantity, Unit
 from src.audit.ratio import Ratio
 from src.audit.unit_price import UnitPrice
+from src.config_app import get_effective_base_currency
 from src.extraction.orm.layer2 import AtomicPosition
 from src.extraction.orm.layer3 import ManagedPosition, PositionStatus
 from src.ledger import Account
@@ -43,12 +43,9 @@ from src.schemas.portfolio import (
 )
 from src.schemas.provenance import DataProvenance
 
-# Bound from the bare published root (config publishes no named symbols).
-settings = src.config.settings
-
 logger = get_logger(__name__)
 
-PORTFOLIO_QUANTITY_UNIT = "units"
+PORTFOLIO_QUANTITY_UNIT = Unit("units")
 
 
 async def _account_names_by_id(
@@ -67,7 +64,7 @@ async def _account_names_by_id(
     result = await db.execute(
         select(Account.id, Account.name).where(Account.user_id == user_id).where(Account.id.in_(account_ids))
     )
-    return dict(result.all())
+    return {account_id: name for account_id, name in result.all()}
 
 
 def _derive_provenance(source_documents: object) -> DataProvenance | None:
@@ -179,24 +176,24 @@ class PortfolioService:
             raise PortfolioNotFoundError(f"No holdings found for user {user_id}")
 
         account_names = await _account_names_by_id(db, user_id, {p.account_id for p in positions})
+        base_currency = await get_effective_base_currency(db, user_id=user_id)
 
         holdings: list[HoldingResponse] = []
 
         for position in positions:
-            # Get latest market price from AtomicPosition (per-unit price)
             latest_price = await self._get_latest_price(db, position, eval_date, user_id)
 
-            # Market value as money-per-unit × quantity, converted to base currency.
-            # convert_money is a no-op when already in base, so no if/else branch.
             position_quantity = position.quantity_qty.quantize()
-            market_value = UnitPrice(latest_price, position.currency, PORTFOLIO_QUANTITY_UNIT) * position_quantity
+            market_value = (
+                UnitPrice(latest_price, Currency(position.currency), PORTFOLIO_QUANTITY_UNIT) * position_quantity
+            )
             converted_value, converted_cost, unrealized_pnl, unrealized_pnl_ratio = await _convert_pnl(
                 db,
                 value=market_value,
                 value_rate_date=eval_date,
                 cost=position.cost_basis_money,
                 cost_rate_date=position.acquisition_date,
-                target_currency=settings.base_currency,
+                target_currency=base_currency,
                 quantize=True,
             )
             currency = converted_value.currency.code
@@ -281,6 +278,7 @@ class PortfolioService:
 
         holdings: list[HoldingResponse] = []
         account_names: dict[UUID, str] = {}
+        base_currency = await get_effective_base_currency(db, user_id=user_id)
         for snapshot in snapshots:
             snapshot_quantity = Quantity(snapshot.quantity, PORTFOLIO_QUANTITY_UNIT).quantize()
             status = PositionStatus.DISPOSED if snapshot_quantity.is_zero() else PositionStatus.ACTIVE
@@ -316,28 +314,23 @@ class PortfolioService:
             synced_price = await self._get_latest_synced_stock_price(db, snapshot.asset_identifier, as_of_date)
             if synced_price is not None and not snapshot_quantity.is_zero():
                 market_money = (
-                    UnitPrice(synced_price.price, synced_price.currency, PORTFOLIO_QUANTITY_UNIT) * snapshot_quantity
+                    UnitPrice(synced_price.price, Currency(synced_price.currency), PORTFOLIO_QUANTITY_UNIT)
+                    * snapshot_quantity
                 )
                 cost_money = position.cost_basis_money
-                # managed-position cost is converted at its acquisition-date FX
-                # boundary (consistent with get_holdings + the reporting SSOT).
                 cost_rate_date = position.acquisition_date
             else:
-                # snapshot proxy: cost == market, both at as_of_date so the
-                # fallback unrealized P&L stays zero.
-                market_money = Money(snapshot.market_value, snapshot.currency)
-                cost_money = Money(snapshot.market_value, snapshot.currency)
+                market_money = Money(snapshot.market_value, Currency(snapshot.currency))
+                cost_money = Money(snapshot.market_value, Currency(snapshot.currency))
                 cost_rate_date = as_of_date
 
-            # Market and cost may carry different source currencies (and rate-dates);
-            # convert each to base (no-op when already base) and derive P&L.
             converted_market_value, converted_cost_basis, unrealized_pnl, unrealized_pnl_ratio = await _convert_pnl(
                 db,
                 value=market_money,
                 value_rate_date=as_of_date,
                 cost=cost_money,
                 cost_rate_date=cost_rate_date,
-                target_currency=settings.base_currency,
+                target_currency=base_currency,
                 quantize=True,
             )
             currency = converted_market_value.currency.code
@@ -457,24 +450,23 @@ class PortfolioService:
         total_realized_pnl = Decimal("0")
         total_converted_cost = Decimal("0")
         details: list[dict] = []
+        base_currency = await get_effective_base_currency(db, user_id=user_id)
 
         for position in disposed_positions:
-            # Get disposal price from latest AtomicPosition (per-unit price)
-            # disposal_date is guaranteed non-None by the isnot(None) filter above
             assert position.disposal_date is not None
             disposal_price = await self._get_latest_price(db, position, position.disposal_date, user_id)
             position_quantity = position.quantity_qty.quantize()
-            disposal_value = UnitPrice(disposal_price, position.currency, PORTFOLIO_QUANTITY_UNIT) * position_quantity
+            disposal_value = (
+                UnitPrice(disposal_price, Currency(position.currency), PORTFOLIO_QUANTITY_UNIT) * position_quantity
+            )
 
-            # Disposal valued at disposal-date FX, cost at acquisition-date FX; per-position
-            # values are not quantized here — only the response total is.
             converted_disposal, converted_cost, realized_pnl, realized_pnl_ratio = await _convert_pnl(
                 db,
                 value=disposal_value,
                 value_rate_date=position.disposal_date,
                 cost=position.cost_basis_money,
                 cost_rate_date=position.acquisition_date,
-                target_currency=settings.base_currency,
+                target_currency=base_currency,
                 quantize=False,
             )
 
@@ -552,23 +544,23 @@ class PortfolioService:
         total_cost_basis = Decimal("0")
         total_unrealized_pnl = Decimal("0")
         details: list[dict] = []
+        base_currency = await get_effective_base_currency(db, user_id=user_id)
 
         for position in positions:
-            # Get latest market price from AtomicPosition (per-unit price)
             latest_price = await self._get_latest_price(db, position, eval_date, user_id)
 
-            # Calculate market value
             position_quantity = position.quantity_qty.quantize()
-            market_value = UnitPrice(latest_price, position.currency, PORTFOLIO_QUANTITY_UNIT) * position_quantity
+            market_value = (
+                UnitPrice(latest_price, Currency(position.currency), PORTFOLIO_QUANTITY_UNIT) * position_quantity
+            )
 
-            # Per-position values are not quantized here — only the response total is.
             converted_market, converted_cost, unrealized_pnl, unrealized_pnl_ratio = await _convert_pnl(
                 db,
                 value=market_value,
                 value_rate_date=eval_date,
                 cost=position.cost_basis_money,
                 cost_rate_date=position.acquisition_date,
-                target_currency=settings.base_currency,
+                target_currency=base_currency,
                 quantize=False,
             )
             currency = converted_market.currency.code
@@ -717,6 +709,7 @@ class PortfolioService:
         net_pnl = total_unrealized_pnl
         net_pnl_ratio = Ratio.fraction_or_zero(net_pnl, total_cost_basis)
 
+        currency = holdings[0].currency if holdings else await get_effective_base_currency(db, user_id=user_id)
         return PortfolioSummaryResponse(
             total_market_value=to_money(total_market_value),
             total_cost_basis=to_money(total_cost_basis),
@@ -729,7 +722,7 @@ class PortfolioService:
             holdings_count=len(holdings),
             active_positions_count=active_positions_count,
             disposed_positions_count=disposed_positions_count,
-            currency=holdings[0].currency if holdings else settings.base_currency,
+            currency=currency,
         )
 
     async def _get_latest_price(

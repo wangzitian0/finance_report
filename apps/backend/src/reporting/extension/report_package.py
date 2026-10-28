@@ -19,7 +19,6 @@ from uuid import UUID
 from pydantic import ValidationError
 
 from src.audit.money.currency import normalize_currency_code
-from src.config import settings
 from src.reporting.orm import ReportSnapshot
 from src.schemas import (
     PersonalReportingFrameworkId,
@@ -65,11 +64,15 @@ def package_dates(
     return report_start, report_end, report_as_of
 
 
-def package_currency(currency: str | None) -> str:
-    return normalize_currency_code(currency or settings.base_currency)
+def package_currency(currency: str | None, *, default_currency: str = "SGD") -> str:
+    return normalize_currency_code(currency or default_currency)
 
 
-def package_snapshot_summary(snapshot: ReportSnapshot) -> PersonalReportPackageSnapshotSummary:
+def package_snapshot_summary(
+    snapshot: ReportSnapshot,
+    *,
+    default_currency: str = "SGD",
+) -> PersonalReportPackageSnapshotSummary:
     try:
         document = package_snapshot_document(snapshot)
     except PackageDocumentVersionError:
@@ -86,7 +89,7 @@ def package_snapshot_summary(snapshot: ReportSnapshot) -> PersonalReportPackageS
             start_date=snapshot.start_date or snapshot.as_of_date,
             end_date=snapshot.as_of_date,
             as_of_date=snapshot.as_of_date,
-            currency=str(data.get("currency") or settings.base_currency).upper(),
+            currency=str(data.get("currency") or default_currency).upper(),
             readiness_state="legacy_unproven",
             is_latest=snapshot.is_latest,
             created_at=snapshot.created_at,
