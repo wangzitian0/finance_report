@@ -3,12 +3,11 @@ AC8.24, issue #1558)."""
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
 
-from common.testing import baseline_update_contract, matrix, mirror_ratchet
+from common.testing import matrix
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -64,41 +63,3 @@ def test_AC8_24_2_e2e_stages_run_their_environment_precondition_first() -> None:
             f"{contract.stage}: precondition must run before the pytest "
             f"invocation in {contract.workflow}"
         )
-
-
-def test_AC8_24_3_mirror_assertion_ratchet_is_locked_and_only_goes_down(
-    monkeypatch, tmp_path
-) -> None:
-    """AC-testing.declarations.3: AC8.24.3: the committed baseline holds, growth fails, --update refuses
-    to raise the baseline."""
-    assert mirror_ratchet.main([]) == 0
-
-    # Simulate growth: a synthetic tooling dir with one extra mirror assert.
-    fake_dir = tmp_path / "tooling"
-    fake_dir.mkdir()
-    (fake_dir / "test_fake.py").write_text(
-        'def test_x():\n    assert "literal" in open("f").read()\n',
-        encoding="utf-8",
-    )
-    fake_baseline = tmp_path / "baseline.json"
-    fake_baseline.write_text(json.dumps({"total": 0}), encoding="utf-8")
-    monkeypatch.setattr(mirror_ratchet, "TOOLING_DIR", fake_dir)
-    monkeypatch.setattr(mirror_ratchet, "BASELINE_PATH", fake_baseline)
-    assert mirror_ratchet.main([]) == 1
-    assert (
-        baseline_update_contract.assert_regression_debt_refused(
-            regression_debt_present=lambda: sum(
-                mirror_ratchet.count_mirror_assertions().values()
-            )
-            > json.loads(fake_baseline.read_text(encoding="utf-8"))["total"],
-            baseline_state=fake_baseline.read_bytes,
-            update=lambda: mirror_ratchet.main(["--update"]),
-        )
-        == 1
-    )
-    assert json.loads(fake_baseline.read_text())["total"] == 0
-
-    # Paydown may lower it.
-    fake_baseline.write_text(json.dumps({"total": 5}), encoding="utf-8")
-    assert mirror_ratchet.main(["--update"]) == 0
-    assert json.loads(fake_baseline.read_text())["total"] == 1

@@ -102,28 +102,7 @@ leaving each gate's policy in its own module.
 repository-root selection, escaped GitHub Actions annotations, stable
 pass/fail summaries, and integer status codes. New gate entry points use the
 composable `main(argv: Sequence[str] | None = None) -> int` contract; only the
-`__main__` boundary raises `SystemExit(main())`. `gate_main_contract.py` is an
-allowlist-free AST gate: every module-level `main` under `common/` and `tools/`
-must use that exact contract, every common `check_*` command must call the
-shared runner, malformed Python fails closed, and no historical debt baseline
-can conceal a violation.
-
-Baseline mutation is explicit and machine-checked by
-`baseline_update_contract.py`. The `--update` / `--update-*` monotonic mutation
-family (including specialized flags such as `--update-floor`) is reserved for
-`raise-only` or `shrink-only` mutation. A command that can replace an entire
-baseline must declare `BASELINE_UPDATE_MODE = "rewrite"` and expose the
-deliberately louder `--rewrite-baseline` flag. The updater census recognizes both
-`argparse` declarations and manual argument-membership checks, resolving simple
-module-level string constants in both forms. Every `(module, mutation flag)`
-command must map to a live test node that uses
-`assert_regression_debt_refused` with non-vacuous debt and baseline-state
-observers. The debt observer must depend on state beyond the baseline path, and
-the baseline observer must read persisted contents (or a captured writer sink),
-not merely check that the path exists. The proof invokes that updater's `main`
-with the exact flag and proves the baseline remains unchanged. A new mutation
-command therefore cannot be covered by a declaration, another flag's proof, an
-unrelated test name, constant callbacks, or a happy-path call.
+`__main__` boundary raises `SystemExit(main())`.
 
 Top-level `tools/*.py` files are command boundaries, not implementation homes.
 `tool_shim_contract.py` rejects a new entry point over 40 lines and requires
