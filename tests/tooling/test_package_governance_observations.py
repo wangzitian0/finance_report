@@ -16,7 +16,7 @@ from common.meta.base.governance_control import (
     GovernanceInitiative,
 )
 from common.meta.base.package_contract import ACRecord, PackageContract
-from common.testing.ac_proof import ac_proof
+from common.testing.ac_proof import PROOF_ATTR, AcProof, ac_proof
 from common.testing.executed_proof import record_executed_proof
 from common.testing.package_governance_observations import (
     ObservationInputError,
@@ -38,16 +38,13 @@ def _executed_proof_record(
     governance_strength: str = "exact",
     oracle_kind: str = "deterministic_contract",
 ):
-    @ac_proof(
-        "demo-proof",
-        ac_ids=["AC-demo.governance.1"],
-        ci_tier="pr_ci",
-        scenario_id="AC-demo.governance.1",
-        oracle_kind=oracle_kind,
-        governance_strength=governance_strength,
-    )
     def proof_test() -> None:
         pass
+
+    meta = yaml.safe_load(
+        f"{{proof_id: demo-proof, stage: github_ci.merge_authority, task_category: critical_behavioral, scope: behavioral, ci_tier: pr_ci, scenario_id: AC-demo.governance.1, oracle_kind: {oracle_kind}, governance_strength: {governance_strength}}}"
+    )
+    setattr(proof_test, PROOF_ATTR, AcProof(ac_ids=("AC-demo.governance.1",), **meta))
 
     item = SimpleNamespace(
         obj=proof_test, nodeid="tests/demo/test_live.py::test_live", user_properties=[]
@@ -287,7 +284,7 @@ def test_AC_testing_governance_27_refreshes_closed_initiative_proof(
     proof_file = tmp_path / "tests/demo/test_live.py"
     proof_file.parent.mkdir(parents=True)
     proof_file.write_text(
-        "from common.testing.ac_proof import ac_proof\n"
+        "from common.testing.ac_proof import PROOF_ATTR, AcProof, ac_proof\n"
         "@ac_proof('demo-proof', ac_ids=['AC-demo.governance.1'], ci_tier='pr_ci',\n"
         "          scenario_id='AC-demo.governance.1', oracle_kind='database_two_session',\n"
         "          governance_strength='concurrency')\n"
