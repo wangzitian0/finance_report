@@ -1,0 +1,176 @@
+{
+  "suite": "financial_reporting_temporal_scenarios",
+  "version_ref": "v0.2.35",
+  "app_url": "https://report-staging.zitian.party",
+  "run_at": "2026-10-28T06:43:14.686660+00:00",
+  "summary": {
+    "total": 7,
+    "passed": 6,
+    "skipped": 0,
+    "failed": 1,
+    "success": false
+  },
+  "results": [
+    {
+      "case_id": "case_1",
+      "case_name": "Case 1: Consecutive 4-Month Rollforward & Q1 Articulation",
+      "status": "PASS",
+      "duration_seconds": 340.7469024658203,
+      "details": {
+        "m1_closing_balance": "15271.23",
+        "m2_opening_balance": "15271.23",
+        "m2_closing_balance": "18250.00",
+        "m3_opening_balance": "18250.00",
+        "m3_closing_balance": "21300.00",
+        "m4_opening_balance": "21300.00",
+        "m4_closing_balance": "24200.00",
+        "coverage_start": "2025-01-01",
+        "q1_net_income": "5849.25",
+        "q1_assets": "21300.00",
+        "total_assets": "24200.00",
+        "total_equity": "15450.75",
+        "cumulative_net_income": "8749.25",
+        "beginning_cash": "15450.75",
+        "ending_cash": "24200.00",
+        "equation_delta": "0.00",
+        "is_balanced": true,
+        "flow_24_diagnostics_balanced": true,
+        "flow_27_lineage_lines": 25
+      },
+      "error_message": null
+    },
+    {
+      "case_id": "case_2",
+      "case_name": "Case 2: Multi-PII Household Operations & Category Reconciliation",
+      "status": "FAIL",
+      "duration_seconds": 79.29239749908447,
+      "details": {},
+      "error_message": "Batch approve matches failed: 409 {\"error_id\":\"conflict\",\"detail\":\"Cannot batch approve while there are unresolved consistency checks\",\"request_id\":\"7aa22e22-49c3-422f-89f0-da26e84f8a33\"}"
+    },
+    {
+      "case_id": "case_3",
+      "case_name": "Case 3: Credit Card Liability & Non-P&L Repayment Clearance",
+      "status": "PASS",
+      "duration_seconds": 66.87619972229004,
+      "details": {
+        "card_spend_recorded": "1200.00",
+        "bank_repayment": "1200.00",
+        "ending_bank_cash": "8800.00",
+        "credit_card_liability_cleared": "0.00",
+        "total_assets": "8800.00",
+        "total_equity": "10000.00",
+        "total_liabilities": "0.00",
+        "total_income": "0.00",
+        "total_expenses": "1200.00",
+        "net_income": "-1200.00",
+        "equation_delta": "0.00",
+        "is_balanced": true,
+        "flow_15_matches_created": 0,
+        "flow_16_matches_accepted": 0,
+        "flow_18_adjustment_difference": "0.02"
+      },
+      "error_message": null
+    },
+    {
+      "case_id": "case_4",
+      "case_name": "Case 4: Multi-National & Multi-Currency Consolidated Balance Sheet",
+      "status": "PASS",
+      "duration_seconds": 85.92842555046082,
+      "details": {
+        "currencies_consolidated": "SGD, USD, HKD",
+        "sgd_closing_balance": "12800.00",
+        "usd_closing_balance": "6800.00",
+        "hkd_closing_balance": "24000.00",
+        "total_assets_sgd": "25737.69",
+        "equation_delta_sgd": "0.00",
+        "is_balanced_sgd": true,
+        "total_assets_usd": "19698.35",
+        "equation_delta_usd": "0.00",
+        "is_balanced_usd": true,
+        "equation_delta": "0.00",
+        "is_balanced": true,
+        "flow_17_realized_fx_gain_sgd": "10.00",
+        "cta_variance_explained": "Translation variance between spot rate balance sheet items and period-average net income is fully absorbed by the IAS 21 CTA equity reserve."
+      },
+      "error_message": null
+    },
+    {
+      "case_id": "case_5",
+      "case_name": "Case 5: Holistic Multi-Asset & Tax Ecosystem",
+      "status": "PASS",
+      "duration_seconds": 65.52085423469543,
+      "details": {
+        "holdings_count": 2,
+        "symbols": "AAPL, VT",
+        "liquid_brokerage_assets_sgd": "17792.30",
+        "property_valuation_usd": "350000.00",
+        "appraisal_source": "DocuBench FHA 1004 (KpewWz3R)",
+        "comprehensive_assets_sgd": "474766.30",
+        "tax_ecosystem_status": "Form W-2 and Payslip structured tax withholding entry verified",
+        "gross_salary_sgd": "10000.00",
+        "tax_withheld_sgd": "2000.00",
+        "net_payroll_cash_sgd": "8000.00",
+        "total_assets": "474766.30",
+        "total_equity": "0.00",
+        "equation_delta": "0.00",
+        "is_balanced": true,
+        "flow_20_dividend_net_sgd": "70.00",
+        "flow_22_mortgage_principal_sgd": "2100.00",
+        "flow_27_lineage_lines": 1,
+        "flow_28_archive_files": 3
+      },
+      "error_message": null
+    },
+    {
+      "case_id": "case_6",
+      "case_name": "Case 6: Bank Overdraft & Capital Gain Disposal",
+      "status": "PASS",
+      "duration_seconds": 6.039222717285156,
+      "details": {
+        "overdraft_cash": "-1500.00",
+        "ending_cash": "11000.00",
+        "capital_gain": "2500.00",
+        "net_income": "0.00",
+        "total_assets": "11000.00",
+        "total_equity": "11000.00",
+        "equation_delta": "0.00",
+        "is_balanced": true,
+        "flow_24_diagnostics_balanced": true
+      },
+      "error_message": null
+    },
+    {
+      "case_id": "case_ui",
+      "case_name": "Case UI: Browser Zero-Console-Error & DOM Hygiene Oracle",
+      "status": "PASS",
+      "duration_seconds": 91.10444617271423,
+      "details": {
+        "status": "PASS",
+        "visited_routes": [
+          "/",
+          "/chat",
+          "/audit",
+          "/more",
+          "/upload",
+          "/portfolio",
+          "/reports",
+          "/reports?tab=balance-sheet",
+          "/reports?tab=income-statement",
+          "/reports?tab=cash-flow",
+          "/reports?tab=package",
+          "/reconciliation",
+          "/journal",
+          "/settings"
+        ],
+        "viewports_verified": [
+          "1440x900",
+          "390x844"
+        ],
+        "route_errors": [],
+        "console_errors": [],
+        "dom_violations": []
+      },
+      "error_message": null
+    }
+  ]
+}
