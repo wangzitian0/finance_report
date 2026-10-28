@@ -33,6 +33,9 @@ def test_build_vector_files_matches_every_committed_vectors_json() -> None:
 
 
 def test_main_rewrites_vector_files(tmp_path, monkeypatch, capsys) -> None:
+    import pytest
+    import runpy
+
     target = tmp_path / "pkg" / "conformance" / "vectors.json"
     monkeypatch.setattr(arv_impl, "ROOT_DIR", tmp_path)
     monkeypatch.setattr(arv_impl, "build_vector_files", lambda: {target: {"probe": 1}})
@@ -42,6 +45,10 @@ def test_main_rewrites_vector_files(tmp_path, monkeypatch, capsys) -> None:
     assert json.loads(target.read_text(encoding="utf-8")) == {"probe": 1}
     out = capsys.readouterr().out
     assert out.strip().startswith("wrote ")
+
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(str(arv.__file__), run_name="__main__")
+    assert exc.value.code == 0
 
 
 def test_bootstrap_inserts_backend_root_when_missing(monkeypatch) -> None:

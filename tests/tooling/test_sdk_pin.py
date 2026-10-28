@@ -49,8 +49,18 @@ def test_AC_runtime_sdk_pin_1_lock_and_declaration_must_agree(tmp_path):
         read_sdk_pin(tmp_path)
 
 
-def test_AC_runtime_sdk_pin_1_bootstrap_needs_only_standard_library():
+def test_AC_runtime_sdk_pin_1_bootstrap_needs_only_standard_library(
+    monkeypatch, capsys
+):
+    import runpy
+
     from common.runtime.sdk_pin import read_sdk_pin
+
+    monkeypatch.setattr(sys, "argv", ["tools/sdk_pin.py"])
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(str(ROOT / "tools/sdk_pin.py"), run_name="__main__")
+    assert exc.value.code == 0
+    assert capsys.readouterr().out.strip().split() == list(read_sdk_pin(ROOT))
 
     result = subprocess.run(
         [sys.executable, "-S", str(ROOT / "tools/sdk_pin.py")],
